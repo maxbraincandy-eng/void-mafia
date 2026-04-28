@@ -3,95 +3,118 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Void Mafia Video Control</title>
+    <title>Void Mafia Room</title>
     <style>
         body { background: #121212; color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 20px; }
         #users-list { margin-top: 20px; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
         .user-box { background: #1e1e1e; padding: 10px; border-radius: 15px; border: 1px solid #333; }
-        
-        video { 
-            width: 300px; height: 225px; background: #000; border-radius: 12px; object-fit: cover; display: block;
-            /* მოვხსნათ დამირორება */
-            transform: scaleX(1); 
-        }
-        
-        /* მხოლოდ შენი ვიდეო იყოს დამირორებული (როგორც სარკეში), თუ გინდა. 
-           თუ საერთოდ არ გინდა დამირორება, ეს სექცია წაშალე */
-        #localVideo { border: 3px solid #2ed573; transform: scaleX(1); } 
-
+        video { width: 300px; height: 225px; background: #000; border-radius: 12px; object-fit: cover; display: block; }
+        #localVideo { border: 3px solid #2ed573; }
         .controls { margin-top: 15px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
         .btn { border: none; padding: 12px 20px; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        .btn-join { background: #ff4757; color: white; width: 100%; max-width: 200px; font-size: 18px; }
-        .btn-cam { background: #2f3542; color: white; }
-        .btn-mic { background: #2f3542; color: white; }
-        .active { background: #2ed573; }
-        .off { background: #ff4757; }
-        #status { font-size: 12px; color: #ffa502; margin-bottom: 10px; }
+        .btn-join { background: #ff4757; color: white; font-size: 18px; }
+        .active { background: #2ed573; color: white; }
+        .off { background: #ff4757; color: white; }
+        input { padding: 12px; border-radius: 8px; border: none; margin-bottom: 10px; width: 200px; }
     </style>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
 </head>
 <body>
     <h1>Void Mafia Room</h1>
-    <div id="status">სტატუსი: გამორთულია</div>
     
-    <button id="joinBtn" class="btn btn-join">ოთახში შესვლა</button>
+    <div id="login-screen">
+        <input type="text" id="nickname" placeholder="შეიყვანე სახელი..." maxlength="15">
+        <br>
+        <button id="joinBtn" class="btn btn-join">შესვლა</button>
+    </div>
 
     <div id="controls" class="controls" style="display: none;">
-        <button id="toggleCam" class="btn btn-cam active">📷 კამერა: ON</button>
-        <button id="toggleMic" class="btn btn-mic active">🎤 მიკროფონი: ON</button>
+        <button id="toggleCam" class="btn active">📷 კამერა: ON</button>
+        <button id="toggleMic" class="btn active">🎤 მიკროფონი: ON</button>
     </div>
     
     <div id="users-list"></div>
 
     <script>
         const socket = io();
+        const nicknameInput = document.getElementById('nickname');
         const joinBtn = document.getElementById('joinBtn');
-        const toggleCam = document.getElementById('toggleCam');
-        const toggleMic = document.getElementById('toggleMic');
-        const status = document.getElementById('status');
         const usersList = document.getElementById('users-list');
         
         let localStream;
-        let isCamOn = true;
-        let isMicOn = true;
+        let myName = "";
         const peers = {};
 
         joinBtn.onclick = async () => {
+            myName = nicknameInput.value.trim() || "უცნობი";
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ 
                     audio: true, 
                     video: { facingMode: "user" } 
                 });
                 
-                joinBtn.style.display = 'none';
+                document.getElementById('login-screen').style.display = 'none';
                 document.getElementById('controls').style.display = 'flex';
-                status.innerText = "სტატუსი: დაკავშირებულია ✅";
 
-                createVideoElement('localVideo', localStream, "მე", true);
-                socket.emit('join-room', 'main-lobby', socket.id);
+                createVideoElement('localVideo', localStream, myName + " (შენ)", true);
+                
+                // ვუგზავნით სერვერს ჩვენს სახელს
+                socket.emit('join-room', 'main-lobby', myName);
             } catch (err) {
-                alert("წვდომა აკრძალულია!");
+                alert("კამერაზე ან მიკროფონზე წვდომა აკრძალულია!");
             }
         };
 
-        // კამერის ჩართვა/გამორთვა
-        toggleCam.onclick = () => {
-            isCamOn = !isCamOn;
-            localStream.getVideoTracks()[0].enabled = isCamOn;
-            toggleCam.innerText = isCamOn ? "📷 კამერა: ON" : "📷 კამერა: OFF";
-            toggleCam.classList.toggle('active');
-            toggleCam.classList.toggle('off');
+        // კამერა/მიკროფონის მართვა
+        document.getElementById('toggleCam').onclick = function() {
+            const videoTrack = localStream.getVideoTracks()[0];
+            videoTrack.enabled = !videoTrack.enabled;
+            this.innerText = videoTrack.enabled ? "📷 კამერა: ON" : "📷 კამერა: OFF";
+            this.className = videoTrack.enabled ? 'btn active' : 'btn off';
         };
 
-        // მიკროფონის ჩართვა/გამორთვა
-        toggleMic.onclick = () => {
-            isMicOn = !isMicOn;
-            localStream.getAudioTracks()[0].enabled = isMicOn;
-            toggleMic.innerText = isMicOn ? "🎤 მიკროფონი: ON" : "🎤 მიკროფონი: OFF";
-            toggleMic.classList.toggle('active');
-            toggleMic.classList.toggle('off');
+        document.getElementById('toggleMic').onclick = function() {
+            const audioTrack = localStream.getAudioTracks()[0];
+            audioTrack.enabled = !audioTrack.enabled;
+            this.innerText = audioTrack.enabled ? "🎤 მიკროფონი: ON" : "🎤 მიკროფონი: OFF";
+            this.className = audioTrack.enabled ? 'btn active' : 'btn off';
         };
+
+        socket.on('all-users', users => {
+            users.forEach(user => {
+                const peer = createPeer(user.id, socket.id, localStream);
+                peers[user.id] = peer;
+            });
+        });
+
+        socket.on('user-joined', payload => {
+            const peer = addPeer(payload.signal, payload.callerID, localStream);
+            peers[payload.callerID] = peer;
+        });
+
+        socket.on('receiving-returned-signal', payload => {
+            peers[payload.id].signal(payload.signal);
+        });
+
+        function createPeer(userToSignal, callerID, stream) {
+            const peer = new SimplePeer({ initiator: true, trickle: false, stream });
+            peer.on('signal', signal => {
+                socket.emit('sending-signal', { userToSignal, callerID, signal });
+            });
+            peer.on('stream', stream => createVideoElement(userToSignal, stream, "მოთამაშე"));
+            return peer;
+        }
+
+        function addPeer(incomingSignal, callerID, stream) {
+            const peer = new SimplePeer({ initiator: false, trickle: false, stream });
+            peer.on('signal', signal => {
+                socket.emit('returning-signal', { signal, callerID });
+            });
+            peer.on('stream', stream => createVideoElement(callerID, stream, "მოთამაშე"));
+            peer.signal(incomingSignal);
+            return peer;
+        }
 
         function createVideoElement(id, stream, label, isLocal = false) {
             if (document.getElementById(id + '-box')) return;
@@ -110,23 +133,10 @@
             div.appendChild(video);
             div.appendChild(span);
             usersList.appendChild(div);
+            
+            // "გამოღვიძების" მექანიზმი ხმისთვის
+            video.onloadedmetadata = () => video.play();
         }
-
-        socket.on('all-users', users => {
-            users.forEach(userId => {
-                const peer = createPeer(userId, socket.id, localStream);
-                peers[userId] = peer;
-            });
-        });
-
-        socket.on('user-joined', payload => {
-            const peer = addPeer(payload.signal, payload.callerID, localStream);
-            peers[payload.callerID] = peer;
-        });
-
-        socket.on('receiving-returned-signal', payload => {
-            peers[payload.id].signal(payload.signal);
-        });
 
         socket.on('user-left', userId => {
             if (peers[userId]) {
@@ -135,21 +145,6 @@
                 delete peers[userId];
             }
         });
-
-        function createPeer(userToSignal, callerID, stream) {
-            const peer = new SimplePeer({ initiator: true, trickle: false, stream });
-            peer.on('signal', signal => socket.emit('sending-signal', { userToSignal, callerID, signal }));
-            peer.on('stream', stream => createVideoElement(userToSignal, stream, "მოთამაშე"));
-            return peer;
-        }
-
-        function addPeer(incomingSignal, callerID, stream) {
-            const peer = new SimplePeer({ initiator: false, trickle: false, stream });
-            peer.on('signal', signal => socket.emit('returning-signal', { signal, callerID }));
-            peer.on('stream', stream => createVideoElement(callerID, stream, "მოთამაშე"));
-            peer.signal(incomingSignal);
-            return peer;
-        }
     </script>
 </body>
 </html>
