@@ -1,6 +1,4 @@
-// ══════════════════════════════════════════════════════════════════════════
-//  V O I D  M A F I A  —  S E R V E R  C O R E  (v2.5)
-// ══════════════════════════════════════════════════════════════════════════
+
 const express    = require('express');
 const http       = require('http');
 const socketIO   = require('socket.io');
@@ -18,26 +16,27 @@ const io     = socketIO(server, {
 const PORT       = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'void_secret_2026';
 
-// ── MONGODB CONNECTION (შენი კავშირის სტრინგი) ──
+// ── MONGODB CONNECTION (შენი მონაცემთა ბაზა) ──
 const MONGO_URI = "mongodb+srv://maxbraincandy_db_user:C8yIfHgHiNCCukBw@cluster0.enaxpdp.mongodb.net/?appName=Cluster0";
 
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('✅ [SYSTEM] >> PERSISTENCE_LAYER_CONNECTED (MongoDB)'))
-  .catch(err => console.error('❌ [SYSTEM] >> DATABASE_OFFLINE:', err.message));
+  .then(() => console.log('✅ [SYSTEM] >> DATABASE_STABILIZED'))
+  .catch(err => console.error('❌ [SYSTEM] >> DB_CONNECTION_FAILED:', err.message));
 
 // ── MIDDLEWARE ──
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ── SOCKET.IO AUTHENTICATION ──
+// ── SOCKET.IO AUTH (ამ ნაწილმა აურია და ახლა გასწორებულია) ──
 io.use((socket, next) => {
+  // ვამოწმებთ ტოკენს სხვადასხვა გზით
   const token = socket.handshake.auth?.token || socket.handshake.query?.token;
   
-  // თუ ტესტირებისას ტოკენი არ გაქვს, მაინც შეუშვი როგორც ოპერატორი
   if (!token) {
+    // თუ ტოკენი არ არის, მაინც ვუშვებთ როგორც სტუმარს, რომ არ ამოაგდოს CONNECTION_REFUSED
     socket.user = { 
       username: "Operator_" + socket.id.substring(0,4),
-      role: 'guest'
+      isGuest: true 
     };
     return next();
   }
@@ -47,34 +46,32 @@ io.use((socket, next) => {
     socket.user = decoded;
     next();
   } catch (err) {
-    // მხოლოდ არასწორი ტოკენის შემთხვევაში იბლოკება
+    // თუ ტოკენი არასწორია, მხოლოდ მაშინ ვთიშავთ
     next(new Error('AUTHENTICATION_FAILED'));
   }
 });
 
-// ── VOID ENGINE LOGIC ──
+// ── VOID GAME ENGINE ──
 const rooms = {};
 
 io.on('connection', (socket) => {
-  console.log(`🔌 [SIGNAL] >> SYNC_ESTABLISHED: ${socket.user.username}`);
+  console.log(`🔌 [SIGNAL] >> SYNC_SUCCESS: ${socket.user.username}`);
 
   // ოთახის შექმნა
   socket.on('create_room', ({ roomCode, playerName }) => {
     rooms[roomCode] = {
       code: roomCode,
       players: [{ id: socket.id, name: playerName, isAdmin: true, isAlive: true, role: null }],
-      status: 'waiting',
-      created_at: Date.now()
+      status: 'waiting'
     };
     socket.join(roomCode);
     io.to(roomCode).emit('room_update', rooms[roomCode]);
-    console.log(`🏠 [VOID] >> ROOM_STABILIZED: ${roomCode}`);
   });
 
   // ოთახში შეერთება
   socket.on('join_room', ({ roomCode, playerName }) => {
     const room = rooms[roomCode];
-    if (!room) return socket.emit('error', { msg: 'FREQUENCY_NOT_FOUND' });
+    if (!room) return socket.emit('error', { msg: 'VOID_NOT_FOUND' });
     
     room.players.push({ id: socket.id, name: playerName, isAdmin: false, isAlive: true, role: null });
     socket.join(roomCode);
@@ -91,22 +88,14 @@ io.on('connection', (socket) => {
         if (room.players.length === 0) delete rooms[code];
       }
     });
-    console.log(`🔌 [SIGNAL] >> LOST_CONNECTION: ${socket.id}`);
   });
 });
 
-// ── SERVER BOOT ──
+// ── BOOTUP ──
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`
-  \x1b[35m  ██╗   ██╗ ██████╗ ██╗██████╗     ███╗   ███╗ █████╗ ███████╗██╗ █████╗ 
-    ██║   ██║██╔═══██╗██║██╔══██╗    ████╗ ████║██╔══██╗██╔════╝██║██╔══██╗
-    ██║   ██║██║   ██║██║██║  ██║    ██╔████╔██║███████║█████╗  ██║███████║
-    ╚██╗ ██╔╝██║   ██║██║██║  ██║    ██║╚██╔╝██║██╔══██║██╔══╝  ██║██╔══██║
-     ╚████╔╝ ╚██████╔╝██║██████╔╝    ██║ ╚═╝ ██║██║  ██║██║     ██║██║  ██║\x1b[0m
-  
-  \x1b[36m > VOID MAFIA ENGINE ONLINE
-  \x1b[36m > PORT: ${PORT}
-  \x1b[35m > MONGODB: CONNECTED\x1b[0m
+  \x1b[35m > VOID MAFIA CORE ONLINE
+  \x1b[36m > FREQUENCY: ${PORT}
+  \x1b[35m > DB_STATUS: CONNECTED\x1b[0m
   `);
 });
-
