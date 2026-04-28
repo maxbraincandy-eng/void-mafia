@@ -173,13 +173,13 @@
         /* --- CHAT SYSTEM STYLE --- */
         #chat-panel {
             position: fixed;
-            right: -300px; /* თავიდან დამალულია */
+            right: -300px;
             top: 0;
             width: 300px;
             height: 100%;
             background: var(--card-bg);
             border-left: 2px solid var(--neon);
-            transition: 0.3s;
+            transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             z-index: 200;
             display: flex;
             flex-direction: column;
@@ -230,22 +230,31 @@
             text-align: left;
         }
 
+        /* ჩატის ღილაკი ჩამოწეულია დაბლა */
         #chat-toggle {
             position: fixed;
             right: 20px;
-            bottom: 100px;
-            width: 50px;
-            height: 50px;
+            bottom: 30px; /* 100px-დან დაიწია 30px-მდე */
+            width: 45px;
+            height: 45px;
             border-radius: 50%;
-            background: var(--cyan);
-            color: black;
+            background: var(--neon); /* ნეონისფერი უფრო უხდება */
+            color: white;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             z-index: 150;
-            box-shadow: 0 0 15px var(--cyan);
-            font-weight: bold;
+            box-shadow: 0 0 15px var(--neon);
+            font-size: 1.2rem;
+            transition: 0.3s;
+        }
+
+        #chat-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 25px var(--cyan);
+            background: var(--cyan);
+            color: black;
         }
 
         audio { display: none; }
@@ -336,7 +345,6 @@
             }
         }
 
-        // --- CHAT LOGIC ---
         function toggleChat() {
             document.getElementById('chat-panel').classList.toggle('open');
         }
@@ -359,7 +367,6 @@
             box.scrollTop = box.scrollHeight;
         });
 
-        // --- ROOMS & WEB RTC ---
         socket.on('update-room-list', rooms => {
             const list = document.getElementById('room-list');
             list.innerHTML = rooms.length > 0 ? 
