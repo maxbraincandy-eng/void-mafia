@@ -2,33 +2,38 @@
 <html lang="ka">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Void Mafia Voice & Video</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Void Mafia Video Room</title>
     <style>
-        body { background: #121212; color: white; font-family: sans-serif; text-align: center; padding-top: 30px; }
-        .btn { background: #ff4757; color: white; border: none; padding: 20px 40px; border-radius: 10px; font-size: 20px; cursor: pointer; font-weight: bold; }
-        #users-list { margin-top: 30px; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
-        .user-box { background: #2f3542; padding: 10px; border-radius: 10px; border: 1px solid #444; }
+        body { background: #121212; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; margin: 0; padding: 20px; }
+        h1 { font-size: 24px; margin-bottom: 10px; color: #ff4757; }
+        .btn { background: #ff4757; color: white; border: none; padding: 18px 36px; border-radius: 50px; font-size: 18px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 15px rgba(255, 71, 87, 0.3); transition: 0.3s; }
+        .btn:active { transform: scale(0.95); }
         
-        /* ვიდეოს სტილები */
+        #users-list { margin-top: 20px; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
+        .user-box { background: #1e1e1e; padding: 10px; border-radius: 15px; border: 1px solid #333; position: relative; }
+        
         video { 
-            width: 250px; 
-            height: 200px; 
-            background: black; 
-            border-radius: 10px; 
+            width: 300px; 
+            height: 225px; 
+            background: #000; 
+            border-radius: 12px; 
             object-fit: cover;
             display: block;
         }
-        #localVideo { border: 3px solid #2ecc71; } /* შენი ვიდეო მწვანე ჩარჩოთი */
-        span { display: block; margin-top: 8px; font-size: 14px; color: #ccc; }
+        
+        #localVideo { border: 3px solid #2ed573; }
+        
+        .name-tag { display: block; margin-top: 10px; font-size: 14px; font-weight: bold; color: #aaa; }
+        #status { margin: 15px 0; font-size: 14px; color: #ffa502; }
     </style>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
 </head>
 <body>
-    <h1>Void Mafia Video Room</h1>
-    <button id="joinBtn" class="btn">შესვლა (კამერა + ხმა)</button>
-    <p id="status">სტატუსი: გამორთულია</p>
+    <h1>Void Mafia Video</h1>
+    <div id="status">სტატუსი: მოლოდინი...</div>
+    <button id="joinBtn" class="btn">კამერის ჩართვა</button>
     
     <div id="users-list"></div>
 
@@ -43,31 +48,57 @@
 
         joinBtn.onclick = async () => {
             try {
-                // ჩავრთეთ აუდიოც და ვიდეოც
-                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-                status.innerText = "სტატუსი: ჩართულია ✅";
+                status.innerText = "კამერაზე წვდომის მოთხოვნა...";
+                
+                // გაუმჯობესებული მოთხოვნა მობილურებისთვის
+                const constraints = { 
+                    audio: true, 
+                    video: { 
+                        facingMode: "user",
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    } 
+                };
+
+                localStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                status.innerText = "სტატუსი: ოთახში ხარ ✅";
                 joinBtn.style.display = 'none';
 
-                // საკუთარი თავის ჩვენება
-                const localVideo = document.createElement('video');
-                localVideo.id = 'localVideo';
-                localVideo.srcObject = localStream;
-                localVideo.muted = true; // საკუთარი ხმა რომ არ დაგვიბრუნდეს
-                localVideo.autoplay = true;
-                localVideo.playsInline = true;
-                
-                const localBox = document.createElement('div');
-                localBox.className = 'user-box';
-                localBox.appendChild(localVideo);
-                localBox.innerHTML += `<span>მე (შენ)</span>`;
-                usersList.appendChild(localBox);
+                // საკუთარი ვიდეოს შექმნა
+                createVideoElement('localVideo', localStream, "მე (შენ)", true);
                 
                 socket.emit('join-room', 'main-lobby', 'player-' + Math.floor(Math.random() * 1000));
             } catch (err) {
-                alert("კამერა ან მიკროფონი მიუწვდომელია!");
-                console.error(err);
+                console.error("Media Error:", err);
+                status.innerText = "შეცდომა: " + err.message;
+                alert("გთხოვთ ჩართოთ კამერა და მიკროფონი ბრაუზერის პარამეტრებიდან!");
             }
         };
+
+        function createVideoElement(id, stream, label, isLocal = false) {
+            const div = document.createElement('div');
+            div.className = 'user-box';
+            div.id = isLocal ? 'localBox' : id;
+
+            const video = document.createElement('video');
+            video.id = isLocal ? 'localVideo' : '';
+            video.srcObject = stream;
+            video.autoplay = true;
+            video.playsInline = true; // აუცილებელია iOS/Android-ისთვის
+            if (isLocal) video.muted = true;
+
+            const span = document.createElement('span');
+            span.className = 'name-tag';
+            span.innerText = label;
+
+            div.appendChild(video);
+            div.appendChild(span);
+            usersList.appendChild(div);
+            
+            // დამატებითი "გაფხიზლება" ვიდეოსთვის
+            video.onloadedmetadata = () => video.play();
+        }
 
         socket.on('all-users', users => {
             users.forEach(userId => {
@@ -101,7 +132,7 @@
             });
 
             peer.on('stream', stream => {
-                addMediaElement(userToSignal, stream);
+                createVideoElement(userToSignal, stream, "მოთამაშე " + userToSignal.substring(0, 4));
             });
 
             return peer;
@@ -115,28 +146,11 @@
             });
 
             peer.on('stream', stream => {
-                addMediaElement(callerID, stream);
+                createVideoElement(callerID, stream, "მოთამაშე " + callerID.substring(0, 4));
             });
 
             peer.signal(incomingSignal);
             return peer;
-        }
-
-        function addMediaElement(userId, stream) {
-            if (document.getElementById(userId)) return;
-
-            const div = document.createElement('div');
-            div.id = userId;
-            div.className = 'user-box';
-            
-            const video = document.createElement('video');
-            video.srcObject = stream;
-            video.autoplay = true;
-            video.playsInline = true;
-            
-            div.appendChild(video);
-            div.innerHTML += `<span>მოთამაშე ${userId.substring(0, 5)}</span>`;
-            usersList.appendChild(div);
         }
     </script>
 </body>
