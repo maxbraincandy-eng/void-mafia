@@ -6,29 +6,78 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server, { 
+    cors: { 
+        origin: "*",
+        methods: ["GET", "POST"]
+    } 
+});
 
-// ეს ხაზი აუცილებელია, რომ სერვერმა index.html ფაილი გახსნას
+// "public" ფოლდერის დაკავშირება ინტერფეისისთვის
 app.use(express.static(path.join(__dirname, 'public')));
 
-const mongoURI = "mongodb+srv://maxbraincandy_db_user:C8yIfHgHiNCCukBw@cluster0.enaxpdp.mongodb.net/mafia_db?retryWrites=true&w=majority&appName=Cluster0"; 
+// ბაზის მისამართს ვიღებთ Render-ის Environment Variable-დან
+const mongoURI = process.env.MONGO_URI; 
 
 mongoose.connect(mongoURI)
-  .then(() => console.log('MongoDB Connected!'))
-  .catch(err => console.error('DB Error:', err));
+  .then(() => console.log('MongoDB Connected Successfully!'))
+  .catch(err => console.error('Database Connection Error:', err));
+
+// ოთახების მონაცემების დროებითი საცავი
+const rooms = {};
 
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+  console.log('ახალი კავშირი:', socket.id);
 
   socket.on('join-room', (roomId, userId) => {
     socket.join(roomId);
-    console.log(`User ${userId} joined room: ${roomId}`);
+    
+    if (!rooms[roomId]) {
+      rooms[roomId] = [];
+    }
+    rooms[roomId].push(socket.id);
+
+    console.log(`მომხმარებელი ${userId} შევიდა ოთახში: ${roomId}`);
+
+    // ვატყობინებთ სხვებს ოთახში, რომ ახალი მოთამაშე შემოვიდა
     socket.to(roomId).emit('user-connected', socket.id);
+
+    // მოთამაშეს ვუგზავნით იმ ხალხის სიას, ვინც უკვე ოთახშია (WebRTC-სთვის)
+    socket.emit('get-users', rooms[roomId].filter(id => id !== socket.id));
   });
 
-  socket.on('disconnect', () => console.log('User disconnected'));
+  // WebRTC სიგნალიზაცია (ხმის გადასაცემად)
+  socket.on('offer', (payload) => {
+    io.to(payload.target).emit('offer', {
+      offer: payload.offer,
+      sender: socket.id
+    });
+  });
+
+  socket.on('answer', (payload) => {
+    io.to(payload.target).emit('answer', {
+      answer: payload.answer,
+      sender: socket.id
+    });
+  });
+
+  socket.on('ice-candidate', (payload) => {
+    io.to(payload.target).emit('ice-candidate', {
+      candidate: payload.candidate,
+      sender: socket.id
+    });
+  });
+
+  socket.on('disconnect', () => {
+    console.log('მომხმარებელი გაითიშა:', socket.id);
+    for (const roomId in rooms) {
+      rooms[roomId] = rooms[roomId].filter(id => id !== socket.id);
+      socket.to(roomId).emit('user-disconnected', socket.id);
+    }
+  });
 });
 
-// Render-ისთვის საჭირო პორტი
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => {
+  console.log(`სერვერი ჩართულია პორტზე: ${PORT}`);
+});
