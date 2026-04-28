@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════
-//  V O I D  M A F I A  —  S E R V E R  C O R E  (v3.0 - Synthwave Edition)
+//  V O I D  M A F I A  —  S E R V E R  C O R E  (v3.1 - Georgian Edition)
 // ══════════════════════════════════════════════════════════════════════════
 const express = require('express');
 const http = require('http');
@@ -17,54 +17,51 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ── In-Memory Database ──
+// ── მონაცემთა ბაზა ოპერატიულ მეხსიერებაში ──
 const rooms = {};
 const users = {};
 
 io.on('connection', (socket) => {
   const signalPrefix = `[SIGNAL_${socket.id.substring(0, 4)}]`;
-  console.log(`${signalPrefix} >> TRANSMISSION_STABILIZED`);
+  console.log(`${signalPrefix} >> კავშირი დამყარებულია`);
 
-  // აქტიური ოთახების სიის გაგზავნა ახალ მოთამაშესთან
+  // ოთახების სიის გაგზავნა
   socket.on('get-rooms', () => {
-    const activeRooms = Object.values(rooms).filter(r => r.status === 'waiting');
-    socket.emit('update-room-list', activeRooms);
+    socket.emit('update-room-list', Object.values(rooms));
   });
 
-  // ოთახის შექმნა
+  // ოთახში შესვლა / შექმნა
   socket.on('join-room', (roomCode, playerName) => {
-    // თუ ოთახი არ არსებობს, ვქმნით
     if (!rooms[roomCode]) {
       rooms[roomCode] = {
         code: roomCode,
-        status: 'waiting',
         playerCount: 0
       };
-      console.log(`${signalPrefix} >> NEW_VOID_CREATED: ${roomCode}`);
+      console.log(`${signalPrefix} >> ახალი სიცარიელე შეიქმნა: ${roomCode}`);
     }
 
     const room = rooms[roomCode];
     if (room.playerCount >= 10) {
-      return socket.emit('error', { msg: 'VOID_CAPACITY_REACHED' });
+      return socket.emit('error', { msg: 'ოთახი სავსეა' });
     }
 
     socket.join(roomCode);
     room.playerCount++;
     users[socket.id] = { name: playerName, room: roomCode };
 
-    // ყველა მოთამაშის ID, გარდა შემოსულისა, WebRTC კავშირისთვის
-    const allUsersInRoom = Array.from(io.sockets.adapter.rooms.get(roomCode) || [])
+    // სხვა მომხმარებლების ID-ები WebRTC-სთვის
+    const otherUsers = Array.from(io.sockets.adapter.rooms.get(roomCode) || [])
       .filter(id => id !== socket.id);
     
-    socket.emit('all-users', allUsersInRoom);
+    socket.emit('all-users', otherUsers);
     
-    // ოთახების სიის განახლება ყველასთან
-    io.emit('update-room-list', Object.values(rooms).filter(r => r.status === 'waiting'));
+    // სიის განახლება ყველასთვის
+    io.emit('update-room-list', Object.values(rooms));
     
-    console.log(`${signalPrefix} >> OPERATOR_SYNCED: ${playerName} to VOID_${roomCode}`);
+    console.log(`${signalPrefix} >> ოპერატორი სინქრონიზებულია: ${playerName} -> ${roomCode}`);
   });
 
-  // ── WebRTC Signaling Logic ──
+  // ── WebRTC სიგნალიზაცია ──
   socket.on('sending-signal', payload => {
     io.to(payload.userToSignal).emit('user-joined', {
       signal: payload.signal,
@@ -80,18 +77,17 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    console.log(`${signalPrefix} >> SIGNAL_LOST`);
+    console.log(`${signalPrefix} >> სიგნალი დაიკარგა`);
     if (users[socket.id]) {
-      const { name, room } = users[socket.id];
+      const { room } = users[socket.id];
       socket.to(room).emit('user-left', socket.id);
       
       if (rooms[room]) {
         rooms[room].playerCount--;
-        // თუ ოთახი ცარიელია, ვშლით
-        if (rooms[room].playerCount === 0) {
+        if (rooms[room].playerCount <= 0) {
           delete rooms[room];
-          io.emit('update-room-list', Object.values(rooms).filter(r => r.status === 'waiting'));
         }
+        io.emit('update-room-list', Object.values(rooms));
       }
       delete users[socket.id];
     }
@@ -106,8 +102,8 @@ server.listen(PORT, '0.0.0.0', () => {
   ╚██╗ ██╔╝██║   ██║██║██║  ██║    ██║╚██╔╝██║██╔══██║██╔══╝  ██║██╔══██║
    ╚████╔╝ ╚██████╔╝██║██████╔╝    ██║ ╚═╝ ██║██║  ██║██║     ██║██║  ██║\x1b[0m
 
-  \x1b[36m > ENGINE: VOID_CORE_3.0 [ONLINE]
-  \x1b[36m > Port: ${PORT}
-  \x1b[35m > STATUS: SCANNING_FOR_SIGNALS... \x1b[0m
+  \x1b[36m > ძრავი: VOID_CORE_3.1 [ჩართულია]
+  \x1b[36m > პორტი: ${PORT}
+  \x1b[35m > სტატუსი: სიგნალების ძიება... \x1b[0m
   `);
 });
