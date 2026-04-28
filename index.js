@@ -13,23 +13,44 @@ const io = new Server(server, {
 app.use(express.static(path.join(__dirname, 'public')));
 
 const mongoURI = process.env.MONGO_URI;
-mongoose.connect(mongoURI)
-    .then(() => console.log('✅ MongoDB Connected'))
-    .catch(err => console.error('❌ DB Error:', err));
+if (mongoURI) {
+    mongoose.connect(mongoURI)
+        .then(() => console.log('✅ MongoDB Connected'))
+        .catch(err => console.error('❌ DB Error:', err));
+}
 
-// ობიექტი მომხმარებლების მონაცემების შესანახად
 const users = {}; 
+const rooms = {}; // აქ შევინახავთ აქტიურ ოთახებს სტატისტიკისთვის
+
+// ფუნქცია ოთახების სიის ყველასთვის დასაგზავნად
+function broadcastRooms() {
+    const roomList = Object.values(rooms).map(r => ({
+        id: r.id,
+        name: r.name,
+        playerCount: r.playerCount
+    }));
+    io.emit('update-room-list', roomList); 
+}
 
 io.on('connection', (socket) => {
     console.log('📱 New connection:', socket.id);
 
+    // როგორც კი ვინმე შემოვა საიტზე, ეგრევე ვუგზავნით ოთახების სიას
+    broadcastRooms();
+
     socket.on('join-room', (roomId, nickname) => {
         socket.join(roomId);
-        
-        // ვინახავთ მომხმარებლის ინფორმაციას სოკეტის აიდით
         users[socket.id] = { id: socket.id, nickname, roomId };
 
-        // ვპოულობთ ყველა სხვა მომხმარებელს, ვინც უკვე ამავე ოთახშია
+        // ოთახის ლოგიკა
+        if (!rooms[roomId]) {
+            rooms[roomId] = { id: roomId, name: roomId, playerCount: 0 };
+        }
+        rooms[roomId].playerCount++;
+        
+        // ვაცნობებთ ყველას, რომ ოთახებში ხალხის რაოდენობა შეიცვალა
+        broadcastRooms();
+
         const otherUsersInRoom = [];
         for (const id in users) {
             if (users[id].roomId === roomId && id !== socket.id) {
@@ -40,14 +61,11 @@ io.on('connection', (socket) => {
             }
         }
 
-        console.log(`👤 ${nickname} (${socket.id}) joined room: ${roomId}`);
-
-        // ვუგზავნით ახალ შემოსულს იმ ხალხის სიას, ვინც უკვე ოთახშია
+        console.log(`👤 ${nickname} joined room: ${roomId}`);
         socket.emit('all-users', otherUsersInRoom);
     });
 
     socket.on('sending-signal', payload => {
-        // გადავცემთ სიგნალს და გამომძახებლის სახელს
         io.to(payload.userToSignal).emit('user-joined', {
             signal: payload.signal,
             callerID: payload.callerID,
@@ -65,10 +83,20 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         const user = users[socket.id];
         if (user) {
+            const roomId = user.roomId;
             console.log(`🔌 ${user.nickname} disconnected`);
-            // ვატყობინებთ სხვებს ოთახში, რომ ეს მომხმარებელი გავიდა
-            socket.to(user.roomId).emit('user-left', socket.id);
+            
+            socket.to(roomId).emit('user-left', socket.id);
+            
+            if (rooms[roomId]) {
+                rooms[roomId].playerCount--;
+                if (rooms[roomId].playerCount <= 0) {
+                    delete rooms[roomId]; // თუ ოთახი ცარიელია, ვშლით
+                }
+            }
+            
             delete users[socket.id];
+            broadcastRooms(); // განახლებული სიის დაგზავნა
         }
     });
 });
