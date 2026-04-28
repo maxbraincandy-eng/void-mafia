@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════
-//  V O I D  M A F I A  —  S E R V E R  C O R E  (v3.1 - Georgian Edition)
+//  V O I D  M A F I A  —  S E R V E R  C O R E  (v3.2 - Chat Integrated)
 // ══════════════════════════════════════════════════════════════════════════
 const express = require('express');
 const http = require('http');
@@ -49,16 +49,25 @@ io.on('connection', (socket) => {
     room.playerCount++;
     users[socket.id] = { name: playerName, room: roomCode };
 
-    // სხვა მომხმარებლების ID-ები WebRTC-სთვის
     const otherUsers = Array.from(io.sockets.adapter.rooms.get(roomCode) || [])
       .filter(id => id !== socket.id);
     
     socket.emit('all-users', otherUsers);
-    
-    // სიის განახლება ყველასთვის
     io.emit('update-room-list', Object.values(rooms));
     
     console.log(`${signalPrefix} >> ოპერატორი სინქრონიზებულია: ${playerName} -> ${roomCode}`);
+  });
+
+  // ── ჩატის სისტემა (ახალი) ──
+  socket.on('send-chat-msg', (data) => {
+    // შეტყობინების გადაგზავნა ყველასთან ვინც ამავე ოთახშია
+    if (data.room) {
+      io.to(data.room).emit('receive-chat-msg', {
+        name: data.name,
+        text: data.text
+      });
+      console.log(`${signalPrefix} >> [CHAT] ${data.name}: ${data.text}`);
+    }
   });
 
   // ── WebRTC სიგნალიზაცია ──
@@ -102,7 +111,7 @@ server.listen(PORT, '0.0.0.0', () => {
   ╚██╗ ██╔╝██║   ██║██║██║  ██║    ██║╚██╔╝██║██╔══██║██╔══╝  ██║██╔══██║
    ╚████╔╝ ╚██████╔╝██║██████╔╝    ██║ ╚═╝ ██║██║  ██║██║     ██║██║  ██║\x1b[0m
 
-  \x1b[36m > ძრავი: VOID_CORE_3.1 [ჩართულია]
+  \x1b[36m > ძრავი: VOID_CORE_3.2 [ჩათი დამატებულია]
   \x1b[36m > პორტი: ${PORT}
   \x1b[35m > სტატუსი: სიგნალების ძიება... \x1b[0m
   `);
