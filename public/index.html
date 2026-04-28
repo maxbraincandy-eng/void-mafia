@@ -94,7 +94,6 @@
             color: black;
         }
 
-        /* 2-სვეტიანი გრიდი მობილურისთვის */
         #video-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -108,7 +107,7 @@
             border: 2px solid var(--neon);
             background: #000;
             position: relative;
-            aspect-ratio: 1/1; /* კვადრატული ფორმა უკეთესია გვერდიგვერდ */
+            aspect-ratio: 1/1;
             overflow: hidden;
             box-shadow: 0 0 15px rgba(0, 255, 255, 0.1);
         }
@@ -146,7 +145,6 @@
             margin-top: 15px;
         }
 
-        /* ოთახის ელემენტის სტილი */
         .room-item {
             display: flex;
             flex-direction: column;
@@ -170,6 +168,84 @@
             font-size: 0.8rem;
             font-family: 'Orbitron';
             box-shadow: 0 0 10px var(--neon);
+        }
+
+        /* --- CHAT SYSTEM STYLE --- */
+        #chat-panel {
+            position: fixed;
+            right: -300px; /* თავიდან დამალულია */
+            top: 0;
+            width: 300px;
+            height: 100%;
+            background: var(--card-bg);
+            border-left: 2px solid var(--neon);
+            transition: 0.3s;
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            box-shadow: -10px 0 20px rgba(0,0,0,0.5);
+        }
+
+        #chat-panel.open {
+            right: 0;
+        }
+
+        #chat-header {
+            padding: 15px;
+            background: var(--neon);
+            font-family: 'Orbitron';
+            font-size: 0.8rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        #chat-messages {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+
+        .msg {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 8px;
+            border-left: 2px solid var(--cyan);
+        }
+
+        .msg b { color: var(--cyan); }
+
+        #chat-input-area {
+            padding: 10px;
+            border-top: 1px solid rgba(255,0,255,0.3);
+            display: flex;
+            gap: 5px;
+        }
+
+        #chat-input-area input {
+            padding: 10px;
+            font-size: 0.9rem;
+            text-align: left;
+        }
+
+        #chat-toggle {
+            position: fixed;
+            right: 20px;
+            bottom: 100px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--cyan);
+            color: black;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 150;
+            box-shadow: 0 0 15px var(--cyan);
+            font-weight: bold;
         }
 
         audio { display: none; }
@@ -198,9 +274,24 @@
 
     <div id="game-screen" class="hidden" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
         <div id="video-grid"></div>
+        
+        <div id="chat-toggle" onclick="toggleChat()">💬</div>
+
         <div class="controls">
             <button class="btn" style="width: auto; padding: 10px 18px;" onclick="toggleMic()">MIC</button>
             <button class="btn" style="width: auto; padding: 10px 18px; background: var(--cyan); color: black;" onclick="toggleCam()">CAM</button>
+        </div>
+    </div>
+
+    <div id="chat-panel">
+        <div id="chat-header">
+            <span>VOID CHAT</span>
+            <span style="cursor:pointer" onclick="toggleChat()">✖</span>
+        </div>
+        <div id="chat-messages"></div>
+        <div id="chat-input-area">
+            <input type="text" id="chat-msg" placeholder="დაწერე რამე..." onkeypress="if(event.key==='Enter') sendMsg()">
+            <button class="btn" style="width: auto; padding: 10px;" onclick="sendMsg()">></button>
         </div>
     </div>
 
@@ -208,7 +299,7 @@
     <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
     <script>
         const socket = io();
-        let localStream, myNick;
+        let localStream, myNick, currentRoom;
         const peers = {};
 
         function showRooms() {
@@ -225,8 +316,8 @@
         }
 
         async function startVoid(roomFromList) {
-            const rid = roomFromList || document.getElementById('room-id').value.trim();
-            if (!rid) return alert("ჩაწერე ოთახის ID");
+            currentRoom = roomFromList || document.getElementById('room-id').value.trim();
+            if (!currentRoom) return alert("ჩაწერე ოთახის ID");
 
             document.getElementById('ambient-bgm').pause();
 
@@ -239,12 +330,36 @@
                 document.getElementById('game-screen').classList.remove('hidden');
                 
                 addVideo('me', localStream, myNick + " (YOU)", true);
-                socket.emit('join-room', rid, myNick);
+                socket.emit('join-room', currentRoom, myNick);
             } catch (e) { 
                 alert("კამერაზე წვდომა უარყოფილია!"); 
             }
         }
 
+        // --- CHAT LOGIC ---
+        function toggleChat() {
+            document.getElementById('chat-panel').classList.toggle('open');
+        }
+
+        function sendMsg() {
+            const inp = document.getElementById('chat-msg');
+            const txt = inp.value.trim();
+            if(!txt) return;
+            
+            socket.emit('send-chat-msg', { room: currentRoom, name: myNick, text: txt });
+            inp.value = '';
+        }
+
+        socket.on('receive-chat-msg', data => {
+            const box = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = 'msg';
+            div.innerHTML = `<b>${data.name}:</b> ${data.text}`;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        });
+
+        // --- ROOMS & WEB RTC ---
         socket.on('update-room-list', rooms => {
             const list = document.getElementById('room-list');
             list.innerHTML = rooms.length > 0 ? 
