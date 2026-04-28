@@ -5,116 +5,107 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Void Mafia Online</title>
     <style>
-        body { background: #0a0a0a; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; }
-        .video-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 15px; width: 100%; max-width: 900px; margin-top: 20px; }
-        
-        .video-box { background: #1a1a1a; border: 2px solid #333; border-radius: 15px; overflow: hidden; position: relative; aspect-ratio: 3/4; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        video { width: 100%; height: 100%; object-fit: cover; background: #000; }
-        
-        .nick { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.7); text-align: center; padding: 6px 0; font-size: 13px; font-weight: bold; }
-        
-        /* მართვის ღილაკები ვიდეოზე */
-        .controls-overlay { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; z-index: 10; }
-        .control-btn { background: rgba(0, 0, 0, 0.6); border: 1px solid #444; color: white; border-radius: 50%; cursor: pointer; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: 0.2s; }
-        .control-btn:hover { background: rgba(255, 255, 255, 0.2); }
-        .control-btn.off { background: #ff4757; border-color: #ff4757; }
+        :root { --main-red: #ff4757; --bg-dark: #0a0a0a; }
+        body { background: var(--bg-dark); color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
 
-        #login-screen { background: #1a1a1a; padding: 35px; border-radius: 20px; text-align: center; border: 1px solid #333; margin-top: 50px; }
-        input { padding: 14px; border-radius: 10px; border: 1px solid #444; background: #000; color: white; margin-bottom: 20px; width: 220px; font-size: 16px; }
-        .btn-main { padding: 14px 30px; border: none; border-radius: 10px; background: #ff4757; color: white; font-weight: bold; cursor: pointer; font-size: 16px; }
+        /* Glitch Animation */
+        .glitch { font-size: 42px; font-weight: bold; text-transform: uppercase; position: relative; text-shadow: 0.05em 0 0 #00fffc, -0.03em -0.04em 0 #fc00ff, 0.025em 0.04em 0 #fffc00; animation: glitch 725ms infinite; color: var(--main-red); letter-spacing: 4px; margin-bottom: 5px; }
+        @keyframes glitch {
+            0% { text-shadow: 0.05em 0 0 #00fffc, -0.03em -0.04em 0 #fc00ff, 0.025em 0.04em 0 #fffc00; }
+            15% { text-shadow: 0.05em 0 0 #00fffc, -0.03em -0.04em 0 #fc00ff, 0.025em 0.04em 0 #fffc00; }
+            16% { text-shadow: -0.05em -0.025em 0 #00fffc, 0.025em 0.035em 0 #fc00ff, -0.05em -0.05em 0 #fffc00; }
+            49% { text-shadow: -0.05em -0.025em 0 #00fffc, 0.025em 0.035em 0 #fc00ff, -0.05em -0.05em 0 #fffc00; }
+            50% { text-shadow: 0.05em 0.035em 0 #00fffc, 0.03em 0 0 #fc00ff, 0 -0.04em 0 #fffc00; }
+            99% { text-shadow: 0.05em 0.035em 0 #00fffc, 0.03em 0 0 #fc00ff, 0 -0.04em 0 #fffc00; }
+            100% { text-shadow: -0.05em 0 0 #00fffc, -0.025em -0.04em 0 #fc00ff, -0.04em -0.025em 0 #fffc00; }
+        }
+
+        .powered-by { font-size: 14px; color: #555; margin-bottom: 30px; opacity: 0.8; }
+
+        /* UI Elements */
+        #login-screen, #rooms-screen { background: #151515; padding: 30px; border-radius: 20px; text-align: center; border: 1px solid #333; width: 100%; max-width: 350px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
+        input { padding: 12px; border-radius: 8px; border: 1px solid #444; background: #000; color: white; margin-bottom: 15px; width: 90%; font-size: 16px; outline: none; }
+        input:focus { border-color: var(--main-red); }
+        .btn { padding: 12px 25px; border: none; border-radius: 8px; background: var(--main-red); color: white; font-weight: bold; cursor: pointer; width: 100%; font-size: 16px; transition: 0.3s; }
+        .btn:hover { background: #ff6b81; transform: translateY(-2px); }
+        .btn-room { background: #2f3542; margin-top: 10px; display: flex; justify-content: space-between; align-items: center; padding: 15px; }
+
+        /* Video Grid */
+        .video-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 15px; width: 100%; max-width: 1000px; }
+        .video-box { background: #1a1a1a; border-radius: 15px; overflow: hidden; position: relative; aspect-ratio: 3/4; border: 2px solid #333; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        .nick { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.7); text-align: center; padding: 8px 0; font-size: 13px; }
         
-        .status-bar { margin-bottom: 10px; font-size: 14px; color: #888; }
+        .controls-overlay { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 10; }
+        .control-btn { background: rgba(0,0,0,0.5); border: 1px solid #444; color: white; border-radius: 50%; width: 35px; height: 35px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .control-btn.off { background: var(--main-red); }
     </style>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
 </head>
 <body>
 
-    <h2 style="color: #ff4757; letter-spacing: 2px;">VOID MAFIA</h2>
+    <div class="glitch">VOID MAFIA</div>
+    <div class="powered-by">Powered by ბატონი მაქსი</div>
 
     <div id="login-screen">
-        <div class="status-bar">შეიყვანე ნიკნეიმი სათამაშოდ</div>
-        <input type="text" id="nickname" placeholder="მაგ: დონ კორლეონე">
-        <br>
-        <button class="btn-main" onclick="startApp()">შესვლა ოთახში</button>
+        <input type="text" id="nickname" placeholder="შეიყვანე სახელი">
+        <button class="btn" onclick="showRooms()">გაგრძელება</button>
+    </div>
+
+    <div id="rooms-screen" style="display: none;">
+        <input type="text" id="room-name" placeholder="ოთახის სახელი">
+        <button class="btn" onclick="joinRoom(document.getElementById('room-name').value)">ოთახის შექმნა</button>
+        <div style="margin: 20px 0; border-top: 1px solid #333; padding-top: 10px; color: #888;">აქტიური ოთახები:</div>
+        <div id="room-list"></div>
     </div>
 
     <div id="game-screen" style="display: none; width: 100%;">
-        <div id="host-controls" style="display: none; margin-bottom: 20px;">
-            <button class="btn-main" style="background: #2ecc71;">თამაშის დაწყება (Host)</button>
-        </div>
         <div class="video-container" id="video-grid"></div>
     </div>
 
     <script>
         const socket = io();
         const videoGrid = document.getElementById('video-grid');
+        const roomList = document.getElementById('room-list');
         const peers = {};
         let localStream;
+        let myNickname = "";
 
-        async function startApp() {
-            const nickname = document.getElementById('nickname').value.trim();
-            if (!nickname) return alert("გთხოვთ შეიყვანოთ სახელი");
+        function showRooms() {
+            myNickname = document.getElementById('nickname').value.trim();
+            if (!myNickname) return alert("სახელი აუცილებელია!");
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('rooms-screen').style.display = 'block';
+            socket.emit('get-rooms'); // ოთახების მოთხოვნა
+        }
 
+        async function joinRoom(roomID) {
+            if (!roomID) return alert("შეიყვანე ოთახის სახელი!");
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('rooms-screen').style.display = 'none';
                 document.getElementById('game-screen').style.display = 'block';
 
-                addVideoElement('me', localStream, nickname + " (შენ)", true);
-                socket.emit('join-room', 'main-room', nickname);
-
+                addVideoElement('me', localStream, myNickname + " (შენ)", true);
+                socket.emit('join-room', roomID, myNickname);
             } catch (err) {
-                alert("კამერა ან მიკროფონი არ მოიძებნა!");
+                alert("კამერაზე წვდომა საჭიროა!");
             }
         }
 
-        // მიკროფონის მართვა
-        function toggleMic() {
-            const audioTrack = localStream.getAudioTracks()[0];
-            audioTrack.enabled = !audioTrack.enabled;
-            const btn = document.getElementById('mic-btn');
-            btn.classList.toggle('off');
-            btn.innerText = audioTrack.enabled ? '🎤' : '🔇';
-        }
+        socket.on('update-room-list', rooms => {
+            roomList.innerHTML = "";
+            Object.keys(rooms).forEach(roomID => {
+                const btn = document.createElement('button');
+                btn.className = "btn btn-room";
+                btn.innerHTML = `<span>${roomID}</span> <span>👤 ${rooms[roomID].length}</span>`;
+                btn.onclick = () => joinRoom(roomID);
+                roomList.appendChild(btn);
+            });
+        });
 
-        // კამერის მართვა
-        function toggleVideo() {
-            const videoTrack = localStream.getVideoTracks()[0];
-            videoTrack.enabled = !videoTrack.enabled;
-            const btn = document.getElementById('cam-btn');
-            btn.classList.toggle('off');
-            btn.innerText = videoTrack.enabled ? '📷' : '🚫';
-        }
-
-        function addVideoElement(id, stream, name, isLocal = false) {
-            let box = document.getElementById(id);
-            if (!box) {
-                box = document.createElement('div');
-                box.id = id;
-                box.className = 'video-box';
-                
-                let controlsHtml = isLocal ? `
-                    <div class="controls-overlay">
-                        <button id="mic-btn" class="control-btn" onclick="toggleMic()">🎤</button>
-                        <button id="cam-btn" class="control-btn" onclick="toggleVideo()">📷</button>
-                    </div>
-                ` : '';
-
-                box.innerHTML = `
-                    ${controlsHtml}
-                    <video id="v-${id}" autoplay playsinline ${isLocal ? 'muted' : ''}></video>
-                    <div class="nick">${name}</div>
-                `;
-                videoGrid.appendChild(box);
-            }
-            if (stream) {
-                const video = document.getElementById(`v-${id}`);
-                video.srcObject = stream;
-            }
-        }
-
-        // Socket ლოგიკა (უცვლელი)
+        // --- WebRTC Logic ---
         socket.on('all-users', users => {
             users.forEach(user => {
                 const peer = createPeer(user.id, socket.id, localStream);
@@ -145,6 +136,32 @@
             peer.on('stream', st => addVideoElement(callerID, st, peers[callerID]?.nickname || "მოთამაშე"));
             peer.signal(incomingSignal);
             return peer;
+        }
+
+        function addVideoElement(id, stream, name, isLocal = false) {
+            let box = document.getElementById(id);
+            if (!box) {
+                box = document.createElement('div');
+                box.id = id; box.className = 'video-box';
+                let controls = isLocal ? `<div class="controls-overlay">
+                    <button id="m-btn" class="control-btn" onclick="tMic()">🎤</button>
+                    <button id="v-btn" class="control-btn" onclick="tVid()">📷</button>
+                </div>` : '';
+                box.innerHTML = `${controls}<video id="v-${id}" autoplay playsinline ${isLocal?'muted':''}></video><div class="nick">${name}</div>`;
+                videoGrid.appendChild(box);
+            }
+            if (stream) document.getElementById(`v-${id}`).srcObject = stream;
+        }
+
+        function tMic() { 
+            const t = localStream.getAudioTracks()[0]; t.enabled = !t.enabled;
+            document.getElementById('m-btn').classList.toggle('off');
+            document.getElementById('m-btn').innerText = t.enabled ? '🎤' : '🔇';
+        }
+        function tVid() { 
+            const t = localStream.getVideoTracks()[0]; t.enabled = !t.enabled;
+            document.getElementById('v-btn').classList.toggle('off');
+            document.getElementById('v-btn').innerText = t.enabled ? '📷' : '🚫';
         }
 
         socket.on('user-left', id => { document.getElementById(id)?.remove(); delete peers[id]; });
