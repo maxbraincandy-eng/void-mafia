@@ -18,19 +18,18 @@ const io = new Server(server, {
 // მონაცემთა ბაზასთან კავშირი
 connectDB();
 
-// Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // API Routes
 app.use('/api/auth', authRoutes);
 
-// ლოკალური მეხსიერება აქტიური სესიებისთვის (სწრაფი წვდომისთვის)
+// აქტიური სესიები სწრაფი წვდომისთვის
 const activeUsers = {}; 
 
 async function broadcastRooms() {
     try {
-        const roomList = await Room.find({ status: 'waiting' }).populate('players', 'username');
+        const roomList = await Room.find({ status: 'waiting' });
         const formattedList = roomList.map(r => ({
             id: r._id,
             name: r.name,
@@ -39,15 +38,14 @@ async function broadcastRooms() {
         }));
         io.emit('update-room-list', formattedList);
     } catch (err) {
-        console.error("Error broadcasting rooms:", err);
+        console.error("Broadcasting Error:", err);
     }
 }
 
-// Socket.io Middleware - ავტორიზაციის შემოწმება
+// Socket.io Middleware
 io.use(authMiddleware);
 
 io.on('connection', (socket) => {
-    // socket.user უკვე ხელმისაწვდომია authMiddleware-ის წყალობით
     console.log(`✅ Connected: ${socket.user.username}`);
     broadcastRooms();
 
@@ -58,7 +56,6 @@ io.on('connection', (socket) => {
 
             socket.join(roomId);
             
-            // მომხმარებლის დამატება ოთახში ბაზის დონეზე
             if (!room.players.includes(socket.user.id)) {
                 room.players.push(socket.user.id);
                 await room.save();
@@ -68,7 +65,8 @@ io.on('connection', (socket) => {
                 id: socket.user.id, 
                 nickname: socket.user.username, 
                 roomId: roomId,
-                role: null 
+                role: null,
+                isAlive: true
             };
 
             if (room.createdBy.toString() === socket.user.id) {
@@ -77,20 +75,21 @@ io.on('connection', (socket) => {
 
             broadcastRooms();
 
-            // სხვა მომხმარებლების ინფორმირება (WebRTC-სთვის)
-            const otherUsersInRoom = [];
+            // WebRTC სია
+            const otherUsers = [];
             for (let [id, user] of Object.entries(activeUsers)) {
                 if (user.roomId === roomId && id !== socket.id) {
-                    otherUsersInRoom.push({ id, nickname: user.nickname });
+                    otherUsers.push({ id: id, nickname: user.nickname });
                 }
             }
-            socket.emit('all-users', otherUsersInRoom);
+            socket.emit('all-users', otherUsers);
             
         } catch (err) {
             console.error(err);
         }
     });
 
+    // --- თამაშის ძრავა ---
     socket.on('start-game', async (roomId) => {
         try {
             const room = await Room.findById(roomId);
@@ -98,29 +97,77 @@ io.on('connection', (socket) => {
                 room.status = 'playing';
                 await room.save();
                 
+                const playerEntries = Object.entries(activeUsers).filter(([id, u]) => u.roomId === roomId);
                 const roles = ['Mafia', 'Doctor', 'Detective'];
-                while (roles.length < room.players.length) roles.push('Citizen');
+                while (roles.length < playerEntries.length) roles.push('Citizen');
                 roles.sort(() => Math.random() - 0.5);
 
-                room.players.forEach((playerId, index) => {
-                    io.to(roomId).emit('assign-role-to-user', { 
-                        userId: playerId, 
-                        role: roles[index] 
-                    });
+                playerEntries.forEach(([sId, user], index) => {
+                    activeUsers[sId].role = roles[index];
+                    io.to(sId).emit('assign-role', roles[index]);
                 });
 
                 broadcastRooms();
                 runGameCycle(roomId, 0);
             } else {
-                socket.emit('error-msg', 'თამაშის დასაწყებად საჭიროა მინიმუმ 3 მოთამაშე!');
+                socket.emit('error-msg', 'საჭიროა მინიმუმ 3 მოთამაშე!');
             }
         } catch (err) {
             console.error(err);
         }
     });
 
-    // ... (runGameCycle, startVotingPhase და სხვა ფუნქციები დარჩება მსგავსი, 
-    // ოღონდ მონაცემებს წამოიღებს Room მოდელიდან)
+    function runGameCycle(roomId, playerIndex) {
+        const playersInRoom = Object.entries(activeUsers).filter(([id, u]) => u.roomId === roomId && u.isAlive);
+        
+        if (playerIndex >= playersInRoom.length) {
+            startVotingPhase(roomId);
+            return;
+        }
+
+        const [socketId, player] = playersInRoom[playerIndex];
+        io.to(roomId).emit('next-turn', {
+            userId: socketId,
+            nickname: player.nickname,
+            seconds: 60
+        });
+
+        setTimeout(() => {
+            if (activeUsers[socketId]) runGameCycle(roomId, playerIndex + 1);
+        }, 62000);
+    }
+
+    function startVotingPhase(roomId) {
+        const alivePlayers = Object.entries(activeUsers)
+            .filter(([id, u]) => u.roomId === roomId && u.isAlive)
+            .map(([id, u]) => ({ id, nick: u.nickname }));
+            
+        io.to(roomId).emit('start-voting', alivePlayers);
+
+        setTimeout(() => {
+            io.to(roomId).emit('night-phase');
+        }, 20000);
+    }
+
+    socket.on('cast-vote', ({ targetId, roomId }) => {
+        io.to(roomId).emit('update-votes', { targetId, voter: socket.id });
+    });
+
+    // --- WebRTC Signaling ---
+    socket.on('sending-signal', payload => {
+        io.to(payload.userToSignal).emit('user-joined', {
+            signal: payload.signal,
+            callerID: payload.callerID,
+            nickname: socket.user.username
+        });
+    });
+
+    socket.on('returning-signal', payload => {
+        io.to(payload.callerID).emit('receiving-returned-signal', {
+            signal: payload.signal,
+            id: socket.id
+        });
+    });
 
     socket.on('disconnect', async () => {
         const user = activeUsers[socket.id];
@@ -130,6 +177,7 @@ io.on('connection', (socket) => {
                     $pull: { players: user.id }
                 });
                 delete activeUsers[socket.id];
+                socket.to(user.roomId).emit('user-left', socket.id);
                 broadcastRooms();
                 console.log(`❌ Disconnected: ${user.nickname}`);
             } catch (err) {
@@ -140,4 +188,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => console.log(`🚀 VOID_MAFIA_ENGINE_READY: PORT_${PORT}`));
+server.listen(PORT, () => console.log(`🚀 VOID_MAFIA_READY: PORT_${PORT}`));
