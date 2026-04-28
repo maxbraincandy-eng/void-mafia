@@ -1,4 +1,5 @@
 const express = require('express');
+app.use(express.static('public'));
 const mongoose = require('mongoose');
 const http = require('http');
 const { Server } = require('socket.io');
