@@ -230,15 +230,14 @@
             text-align: left;
         }
 
-        /* ჩატის ღილაკი ჩამოწეულია დაბლა */
         #chat-toggle {
             position: fixed;
             right: 20px;
-            bottom: 30px; /* 100px-დან დაიწია 30px-მდე */
+            bottom: 30px;
             width: 45px;
             height: 45px;
             border-radius: 50%;
-            background: var(--neon); /* ნეონისფერი უფრო უხდება */
+            background: var(--neon);
             color: white;
             display: flex;
             align-items: center;
@@ -328,7 +327,10 @@
             currentRoom = roomFromList || document.getElementById('room-id').value.trim();
             if (!currentRoom) return alert("ჩაწერე ოთახის ID");
 
-            document.getElementById('ambient-bgm').pause();
+            // მუსიკას აღარ ვთიშავთ, უბრალოდ ვუწევთ ხმას (0.05 - 5%), რომ საუბარს ხელი არ შეუშალოს
+            const bgm = document.getElementById('ambient-bgm');
+            bgm.volume = 0.05; 
+            bgm.play().catch(e => console.log("BGM playback update failed"));
 
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ 
