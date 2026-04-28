@@ -2,265 +2,298 @@
 <html lang="ka">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Void Mafia Online</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>VOID MAFIA</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
-        :root { --main-red: #ff4757; --bg: #0a0a0a; --panel: #151515; }
-        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; min-height: 100vh; }
+        :root {
+            --orange: #ff6b00;
+            --orange-bright: #ff8c00;
+            --orange-dim: #ff6b0044;
+            --orange-glow: #ff6b0088;
+            --cyan: #00fff0;
+            --bg: #030305;
+            --bg2: #08080f;
+            --grid: #ff6b0012;
+            --text: #ffeedd;
+            --muted: #ff6b0077;
+            --main-red: #ff4757;
+        }
 
-        /* Glitch & Text Styles */
-        .glitch { font-size: 38px; font-weight: bold; color: var(--main-red); text-shadow: 2px 2px #00fffc, -2px -2px #fc00ff; animation: glitch 1s infinite; letter-spacing: 3px; }
-        @keyframes glitch { 0% { transform: translate(0); } 20% { transform: translate(-2px, 2px); } 40% { transform: translate(-2px, -2px); } 60% { transform: translate(2px, 2px); } 80% { transform: translate(2px, -2px); } 100% { transform: translate(0); } }
-        .powered-by { font-size: 12px; color: #555; margin-bottom: 20px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
-        /* UI Containers */
-        #login-screen, #rooms-screen, .voting-panel { background: var(--panel); padding: 25px; border-radius: 15px; border: 1px solid #333; width: 100%; max-width: 320px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.7); }
-        input { width: 90%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #444; background: #000; color: white; outline: none; }
-        .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; background: var(--main-red); color: white; font-weight: bold; cursor: pointer; transition: 0.3s; margin-top: 5px; }
-        .btn-spec { background: #3498db; }
-        .btn-group { display: flex; gap: 10px; }
+        body {
+            background: var(--bg);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Rajdhani', sans-serif;
+            overflow-x: hidden;
+            position: relative;
+            padding: 20px;
+        }
 
-        /* Game Header */
-        #game-info { display: none; background: #1a1a1a; padding: 15px; border-radius: 10px; margin-bottom: 20px; width: 100%; max-width: 600px; text-align: center; border: 1px solid var(--main-red); }
-        #speaker-info { font-size: 20px; color: #ffcc00; font-weight: bold; margin-bottom: 5px; }
-        #timer { font-size: 24px; font-weight: bold; color: #ffcc00; }
-        #role-display { font-size: 18px; margin-top: 5px; color: #00fffc; font-weight: bold; }
+        /* ── BACKGROUND EFFECTS ────────────────────────── */
+        .grid-bg { position: fixed; inset: 0; background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 40px 40px; animation: gridDrift 20s linear infinite; z-index: -1; }
+        @keyframes gridDrift { 0% { transform: perspective(600px) rotateX(10deg) translateY(0); } 100% { transform: perspective(600px) rotateX(10deg) translateY(40px); } }
+        .scanlines { position: fixed; inset: 0; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px); pointer-events: none; z-index: 100; }
+        .noise { position: fixed; inset: -50%; width: 200%; height: 200%; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E"); opacity: 0.4; pointer-events: none; z-index: 98; animation: noiseDrift 0.5s steps(2) infinite; }
+        @keyframes noiseDrift { 0% { transform: translate(0,0); } 100% { transform: translate(2%,-2%); } }
 
-        /* Video Grid */
-        .video-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; width: 100%; max-width: 1000px; }
-        .video-box { background: #1a1a1a; border-radius: 12px; overflow: hidden; position: relative; aspect-ratio: 3/4; border: 2px solid #333; transition: 0.3s; }
-        .video-box.active-speaker { border-color: #ffcc00; box-shadow: 0 0 15px #ffcc00; transform: scale(1.03); z-index: 5; }
+        /* ── CARD & SCREENS ────────────────────────────── */
+        .card { position: relative; z-index: 10; width: min(400px, 92vw); background: rgba(8,8,15,0.9); border: 1px solid var(--orange-glow); padding: 30px; animation: cardIn 0.8s cubic-bezier(0.16,1,0.3,1) both; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
+        @keyframes cardIn { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ── LOGO ────────────────────────────────────────── */
+        .logo-wrap { text-align: center; margin-bottom: 24px; }
+        .logo-title { font-family: 'Bebas Neue', cursive; font-size: 42px; letter-spacing: 8px; color: var(--text); text-shadow: 0 0 15px var(--orange); }
+
+        /* ── TERMINAL ────────────────────────────────────── */
+        .terminal { background: #000; border-left: 3px solid var(--orange); padding: 10px; margin-bottom: 20px; font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--orange); min-height: 60px; text-align: left; }
+
+        /* ── INPUTS & BUTTONS ────────────────────────────── */
+        .field { margin-bottom: 15px; text-align: left; }
+        .field label { display: block; font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--orange); margin-bottom: 5px; letter-spacing: 2px; }
+        input { width: 100%; background: #000; border: 1px solid var(--orange-dim); border-bottom: 2px solid var(--orange); color: white; padding: 12px; font-family: 'Share Tech Mono', monospace; outline: none; }
+        
+        .btn { width: 100%; padding: 14px; font-family: 'Bebas Neue', cursive; font-size: 18px; letter-spacing: 3px; cursor: pointer; border: none; transition: 0.3s; margin-top: 10px; clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%); }
+        .btn-primary { background: var(--orange); color: #000; box-shadow: 0 0 15px var(--orange-dim); }
+        .btn-secondary { background: transparent; color: var(--orange); border: 1px solid var(--orange-glow); }
+        .btn:hover { transform: scale(1.02); box-shadow: 0 0 20px var(--orange-glow); }
+
+        /* ── GAME UI (AFTER LOGIN) ─────────────────────── */
+        #game-interface { display: none; width: 100%; max-width: 1000px; z-index: 10; }
+        #game-info { background: rgba(8,8,15,0.95); border: 1px solid var(--orange); padding: 15px; margin-bottom: 20px; text-align: center; }
+        #timer { font-size: 32px; color: var(--orange); font-family: 'Share Tech Mono', monospace; }
+        
+        .video-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; width: 100%; }
+        .video-box { background: #000; border: 1px solid #333; position: relative; aspect-ratio: 3/4; overflow: hidden; }
+        .video-box.active-speaker { border: 2px solid var(--orange); box-shadow: 0 0 15px var(--orange); }
         video { width: 100%; height: 100%; object-fit: cover; }
-        .nick { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.7); text-align: center; padding: 5px 0; font-size: 12px; }
+        .nick { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.8); color: var(--orange); font-size: 12px; padding: 5px; text-align: center; font-family: 'Share Tech Mono'; }
 
-        /* Voting System */
-        .voting-panel { display: none; max-width: 500px; margin-bottom: 20px; }
-        .vote-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
-        .vote-btn { background: #2f3542; color: white; padding: 10px; border: 1px solid #444; border-radius: 5px; cursor: pointer; font-size: 13px; }
-        .vote-btn:hover { background: var(--main-red); }
+        /* ── VOTING & NIGHT ────────────────────────────── */
+        .voting-panel { display: none; background: #000; border: 1px solid var(--cyan); padding: 20px; margin-bottom: 20px; }
+        #night-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; }
 
-        /* Night Overlay */
-        #night-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 100; justify-content: center; align-items: center; flex-direction: column; text-align: center; }
-
-        .controls-overlay { position: absolute; top: 5px; left: 50%; transform: translateX(-50%); display: flex; gap: 5px; z-index: 10; }
-        .c-btn { background: rgba(0,0,0,0.5); border: 1px solid #444; color: white; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; }
-        .c-btn.off { background: var(--main-red); }
+        /* ── HELPER CLASSES ────────────────────────────── */
+        .hidden { display: none !important; }
+        .glitch-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 200; opacity: 0; background: var(--orange-dim); }
+        .glitch-active { animation: glitchFlash 0.15s infinite; opacity: 1; }
+        @keyframes glitchFlash { 0% { clip-path: inset(20% 0 50% 0); } 50% { clip-path: inset(50% 0 20% 0); } }
     </style>
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
 </head>
 <body>
 
-    <div class="glitch">VOID MAFIA</div>
-    <div class="powered-by">Powered by ბატონი მაქსი</div>
+<div class="noise"></div>
+<div class="grid-bg"></div>
+<div class="scanlines"></div>
+<div id="glitch-layer" class="glitch-overlay"></div>
 
-    <div id="login-screen">
-        <input type="text" id="nickname" placeholder="შეიყვანე სახელი">
-        <button class="btn" onclick="showRooms()">გაგრძელება</button>
+<div id="login-screen" class="card">
+    <div class="logo-wrap">
+        <h1 class="logo-title">VOID MAFIA</h1>
+        <p style="font-size: 10px; color: var(--muted); letter-spacing: 3px;">SYSTEM.OPERATOR_v2.0</p>
     </div>
 
-    <div id="rooms-screen" style="display: none;">
-        <input type="text" id="room-name" placeholder="ოთახის სახელი">
-        <div class="btn-group">
-            <button class="btn" onclick="joinRoom(document.getElementById('room-name').value, 'player')">ითამაშე</button>
-            <button class="btn btn-spec" onclick="joinRoom(document.getElementById('room-name').value, 'spectator')">უყურე</button>
-        </div>
-        <div id="room-list" style="margin-top: 15px;"></div>
+    <div class="terminal" id="terminal-out">> WAITING FOR OPERATOR...</div>
+
+    <div class="field">
+        <label>// OPERATOR_ID</label>
+        <input type="text" id="nickname" placeholder="NICKNAME" autocomplete="off">
+    </div>
+
+    <button class="btn btn-primary" onclick="toRoomSelection()">ავტორიზაცია</button>
+    
+    <div style="margin-top: 20px; font-size: 10px; color: var(--muted);">
+        STATUS: <span style="color: #00ff88;">ONLINE</span> // PING: 14MS
+    </div>
+</div>
+
+<div id="rooms-screen" class="card hidden">
+    <div class="logo-wrap"><h2 class="logo-title" style="font-size: 24px;">ROOM_SELECT</h2></div>
+    <div class="field">
+        <label>// NEW_CHANNEL_NAME</label>
+        <input type="text" id="room-name" placeholder="ROOM_ID">
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <button class="btn btn-primary" onclick="joinRoom(document.getElementById('room-name').value, 'player')">ითამაშე</button>
+        <button class="btn btn-secondary" onclick="joinRoom(document.getElementById('room-name').value, 'spectator')">უყურე</button>
+    </div>
+    <div id="room-list" style="margin-top: 20px;"></div>
+</div>
+
+<div id="game-interface">
+    <div id="game-info">
+        <div id="speaker-info" style="color: var(--orange); letter-spacing: 2px;">INITIALIZING...</div>
+        <div id="timer">00:00</div>
+        <div id="role-display" style="color: var(--cyan); margin-top: 5px;">ROLE: UNDEFINED</div>
+        <button id="start-btn" class="btn btn-primary hidden" style="background: #00ff88; max-width: 200px; margin: 10px auto;" onclick="startGame()">თამაშის დაწყება</button>
     </div>
 
     <div id="voting-panel" class="voting-panel">
-        <h3 style="color: #ffcc00; margin: 0;">სამსჯავრო</h3>
-        <p style="font-size: 12px; color: #aaa;">აირჩიეთ ეჭვმიტანილი</p>
-        <div id="vote-list" class="vote-list"></div>
+        <h3 style="color: var(--cyan);">სამსჯავრო</h3>
+        <div id="vote-list" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;"></div>
     </div>
 
-    <div id="game-info">
-        <div id="speaker-info">მზადება თამაშისთვის...</div>
-        <div id="timer">00:00</div>
-        <div id="role-display">შენი როლი: ?</div>
-        <button id="start-btn" class="btn" style="display: none; background: #2ecc71; margin-top: 10px;" onclick="startGame()">თამაშის დაწყება</button>
-    </div>
+    <div class="video-grid" id="video-grid"></div>
+</div>
 
-    <div id="game-screen" style="display: none; width: 100%;">
-        <div class="video-container" id="video-grid"></div>
-    </div>
+<div id="night-overlay">
+    <h1 style="color: var(--orange); letter-spacing: 10px; font-size: 48px;">NIGHT_PHASE</h1>
+    <p id="night-msg" style="font-family: 'Share Tech Mono'; color: #444;">ქალაქს ეძინება...</p>
+</div>
 
-    <div id="night-overlay">
-        <h1 style="color: #3498db; letter-spacing: 5px; margin: 0;">ქალაქს ეძინება... 🌃</h1>
-        <p id="night-msg" style="color: #666; margin-top: 10px;">მაფია იღვიძებს და ირჩევს მსხვერპლს</p>
-    </div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
+<script>
+    const socket = io();
+    const videoGrid = document.getElementById('video-grid');
+    const peers = {};
+    let localStream, myNickname, currentRoomId, myType, myRole;
 
-    <script>
-        const socket = io();
-        const videoGrid = document.getElementById('video-grid');
-        const peers = {};
-        let localStream, myNickname, currentRoomId, myType, myRole;
+    // ვიზუალური ეფექტი
+    function triggerGlitch() {
+        const g = document.getElementById('glitch-layer');
+        g.classList.add('glitch-active');
+        setTimeout(() => g.classList.remove('glitch-active'), 200);
+    }
 
-        function showRooms() {
-            myNickname = document.getElementById('nickname').value.trim();
-            if (!myNickname) return alert("სახელი?");
-            document.getElementById('login-screen').style.display = 'none';
-            document.getElementById('rooms-screen').style.display = 'block';
-            socket.emit('get-rooms');
-        }
+    function toRoomSelection() {
+        myNickname = document.getElementById('nickname').value.trim();
+        if (!myNickname) return;
+        triggerGlitch();
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('rooms-screen').classList.remove('hidden');
+        socket.emit('get-rooms');
+    }
 
-        async function joinRoom(roomID, type) {
-            if (!roomID) return alert("შეიყვანე ოთახის სახელი!");
-            currentRoomId = roomID;
-            myType = type;
+    async function joinRoom(roomID, type) {
+        if (!roomID) return;
+        currentRoomId = roomID;
+        myType = type;
+        triggerGlitch();
 
-            try {
-                if (type === 'player') {
-                    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                    addVideoElement('me', localStream, myNickname + " (შენ)", true);
-                }
-                
-                document.getElementById('rooms-screen').style.display = 'none';
-                document.getElementById('game-screen').style.display = 'block';
-                document.getElementById('game-info').style.display = 'block';
-
-                socket.emit('join-room', roomID, myNickname, type);
-            } catch (e) { 
-                alert("კამერა და მიკროფონი აუცილებელია სათამაშოდ!"); 
+        try {
+            if (type === 'player') {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                addVideoElement('me', localStream, myNickname + " (YOU)", true);
             }
-        }
-
-        socket.on('is-host', () => {
-            document.getElementById('start-btn').style.display = 'block';
-        });
-
-        function startGame() {
-            socket.emit('start-game', currentRoomId);
-            document.getElementById('start-btn').style.display = 'none';
-        }
-
-        // --- თამაშის ფაზები და როლები ---
-        socket.on('assign-role', role => {
-            myRole = role;
-            const display = document.getElementById('role-display');
-            display.innerText = "შენი როლია: " + role;
-            display.style.color = (role === 'Mafia') ? '#ff4757' : '#2ecc71';
-        });
-
-        socket.on('next-turn', (data) => {
-            const { userId, nickname, seconds } = data;
-            document.getElementById('night-overlay').style.display = 'none';
-            document.getElementById('voting-panel').style.display = 'none';
-            document.getElementById('speaker-info').innerText = "საუბრობს: " + nickname;
             
-            // ვიზუალური აქცენტი
-            document.querySelectorAll('.video-box').forEach(box => box.classList.remove('active-speaker'));
-            const activeBox = document.getElementById(userId === socket.id ? 'me' : userId);
-            if (activeBox) activeBox.classList.add('active-speaker');
+            document.getElementById('rooms-screen').classList.add('hidden');
+            document.getElementById('game-interface').style.display = 'block';
+            socket.emit('join-room', roomID, myNickname, type);
+        } catch (e) { alert("ERROR: Camera Access Denied"); }
+    }
 
-            // მიკროფონის მართვა
-            if (localStream) {
-                localStream.getAudioTracks()[0].enabled = (socket.id === userId);
-            }
+    socket.on('is-host', () => document.getElementById('start-btn').classList.remove('hidden'));
 
-            startTimer(seconds);
-        });
+    function startGame() {
+        socket.emit('start-game', currentRoomId);
+        document.getElementById('start-btn').classList.add('hidden');
+    }
 
-        socket.on('start-voting', (players) => {
-            const panel = document.getElementById('voting-panel');
-            const list = document.getElementById('vote-list');
-            panel.style.display = 'block';
-            list.innerHTML = "";
+    // --- GAME ENGINE EVENTS ---
+    socket.on('assign-role', role => {
+        myRole = role;
+        const rd = document.getElementById('role-display');
+        rd.innerText = "ROLE: " + role.toUpperCase();
+        rd.style.color = (role === 'Mafia') ? 'var(--main-red)' : 'var(--cyan)';
+    });
 
-            players.forEach(p => {
-                if (p.id !== socket.id) {
-                    const btn = document.createElement('button');
-                    btn.className = "vote-btn";
-                    btn.innerText = p.nick;
-                    btn.onclick = () => {
-                        socket.emit('cast-vote', { targetId: p.id, roomId: currentRoomId });
-                        list.innerHTML = "<p style='grid-column: 1/3'>ხმა მიცემულია...</p>";
-                    };
-                    list.appendChild(btn);
-                }
-            });
-        });
+    socket.on('next-turn', (data) => {
+        document.getElementById('night-overlay').style.display = 'none';
+        document.getElementById('voting-panel').style.display = 'none';
+        document.getElementById('speaker-info').innerText = "საუბრობს: " + data.nickname;
+        
+        document.querySelectorAll('.video-box').forEach(b => b.classList.remove('active-speaker'));
+        const active = document.getElementById(data.userId === socket.id ? 'me' : data.userId);
+        if (active) active.classList.add('active-speaker');
 
-        socket.on('night-phase', () => {
-            document.getElementById('night-overlay').style.display = 'flex';
-            if (localStream) localStream.getAudioTracks()[0].enabled = false;
-            
-            if (myRole === 'Mafia') {
-                document.getElementById('night-msg').innerText = "მაფია, აირჩიე მსხვერპლი!";
-            } else {
-                document.getElementById('night-msg').innerText = "ქალაქს სძინავს...";
-            }
-        });
+        if (localStream) localStream.getAudioTracks()[0].enabled = (socket.id === data.userId);
+        startTimer(data.seconds);
+    });
 
-        function startTimer(seconds) {
-            clearInterval(window.gameInterval);
-            let timeLeft = seconds;
-            const timerEl = document.getElementById('timer');
-            window.gameInterval = setInterval(() => {
-                timerEl.innerText = `00:${timeLeft < 10 ? '0' + timeLeft : timeLeft}`;
-                timeLeft--;
-                if (timeLeft < 0) clearInterval(window.gameInterval);
-            }, 1000);
-        }
-
-        // --- WebRTC & კავშირი ---
-        socket.on('update-room-list', rooms => {
-            const list = document.getElementById('room-list');
-            list.innerHTML = "";
-            rooms.forEach(r => {
+    socket.on('start-voting', (players) => {
+        const panel = document.getElementById('voting-panel');
+        const list = document.getElementById('vote-list');
+        panel.style.display = 'block';
+        list.innerHTML = "";
+        players.forEach(p => {
+            if (p.id !== socket.id) {
                 const b = document.createElement('button');
-                b.className = "btn"; b.style.background = "#2f3542"; b.style.marginBottom = "5px";
-                b.innerHTML = `${r.name} (${r.playerCount}/10)`;
-                b.onclick = () => joinRoom(r.name, 'player');
+                b.className = "btn btn-secondary";
+                b.innerText = p.nick;
+                b.onclick = () => {
+                    socket.emit('cast-vote', { targetId: p.id, roomId: currentRoomId });
+                    list.innerHTML = "<p>VOTE_REGISTERED...</p>";
+                };
                 list.appendChild(b);
-            });
-        });
-
-        socket.on('all-users', users => {
-            users.forEach(u => {
-                if (u.type === 'player' || myType === 'spectator') {
-                    const p = new SimplePeer({ initiator: true, trickle: false, stream: localStream });
-                    p.on('signal', s => socket.emit('sending-signal', { userToSignal: u.id, callerID: socket.id, signal: s }));
-                    p.on('stream', st => addVideoElement(u.id, st, u.nickname));
-                    peers[u.id] = p;
-                }
-            });
-        });
-
-        socket.on('user-joined', p => {
-            const peer = new SimplePeer({ initiator: false, trickle: false, stream: localStream });
-            peer.on('signal', s => socket.emit('returning-signal', { signal: s, callerID: p.callerID }));
-            peer.on('stream', st => addVideoElement(p.callerID, st, p.nickname));
-            peer.signal(p.signal);
-            peers[p.callerID] = peer;
-        });
-
-        socket.on('receiving-returned-signal', p => peers[p.id] && peers[p.id].signal(p.signal));
-
-        function addVideoElement(id, stream, name, isLocal = false) {
-            let box = document.getElementById(id);
-            if (!box) {
-                box = document.createElement('div'); box.id = id; box.className = 'video-box';
-                let controls = isLocal ? `<div class="controls-overlay">
-                    <button id="m-b" class="c-btn" onclick="tM()">🎤</button>
-                    <button id="v-b" class="c-btn" onclick="tV()">📷</button>
-                </div>` : '';
-                box.innerHTML = `${controls}<video id="v-${id}" autoplay playsinline ${isLocal?'muted':''}></video><div class="nick">${name}</div>`;
-                videoGrid.appendChild(box);
             }
-            if (stream) document.getElementById(`v-${id}`).srcObject = stream;
-        }
+        });
+    });
 
-        function tM() { 
-            const t = localStream.getAudioTracks()[0]; t.enabled = !t.enabled;
-            document.getElementById('m-b').classList.toggle('off');
-        }
-        function tV() { 
-            const t = localStream.getVideoTracks()[0]; t.enabled = !t.enabled;
-            document.getElementById('v-b').classList.toggle('off');
-        }
+    socket.on('night-phase', () => {
+        document.getElementById('night-overlay').style.display = 'flex';
+        if (localStream) localStream.getAudioTracks()[0].enabled = false;
+    });
 
-        socket.on('user-left', id => { document.getElementById(id)?.remove(); delete peers[id]; });
-    </script>
+    function startTimer(s) {
+        clearInterval(window.tmr);
+        let left = s;
+        window.tmr = setInterval(() => {
+            document.getElementById('timer').innerText = `00:${left < 10 ? '0'+left : left}`;
+            if (--left < 0) clearInterval(window.tmr);
+        }, 1000);
+    }
+
+    // --- WebRTC Logic ---
+    socket.on('update-room-list', rooms => {
+        const container = document.getElementById('room-list');
+        container.innerHTML = "";
+        rooms.forEach(r => {
+            const b = document.createElement('button');
+            b.className = "btn btn-secondary";
+            b.style.fontSize = "12px";
+            b.innerHTML = `CONNECT_TO: ${r.name} [${r.playerCount}/10]`;
+            b.onclick = () => joinRoom(r.name, 'player');
+            container.appendChild(b);
+        });
+    });
+
+    socket.on('all-users', users => {
+        users.forEach(u => {
+            const p = new SimplePeer({ initiator: true, trickle: false, stream: localStream });
+            p.on('signal', s => socket.emit('sending-signal', { userToSignal: u.id, callerID: socket.id, signal: s }));
+            p.on('stream', st => addVideoElement(u.id, st, u.nickname));
+            peers[u.id] = p;
+        });
+    });
+
+    socket.on('user-joined', p => {
+        const peer = new SimplePeer({ initiator: false, trickle: false, stream: localStream });
+        peer.on('signal', s => socket.emit('returning-signal', { signal: s, callerID: p.callerID }));
+        peer.on('stream', st => addVideoElement(p.callerID, st, p.nickname));
+        peer.signal(p.signal);
+        peers[p.callerID] = peer;
+    });
+
+    socket.on('receiving-returned-signal', p => peers[p.id] && peers[p.id].signal(p.signal));
+
+    function addVideoElement(id, stream, name, isLocal = false) {
+        let box = document.getElementById(id);
+        if (!box) {
+            box = document.createElement('div'); box.id = id; box.className = 'video-box';
+            box.innerHTML = `<video id="v-${id}" autoplay playsinline ${isLocal?'muted':''}></video><div class="nick">${name}</div>`;
+            videoGrid.appendChild(box);
+        }
+        if (stream) document.getElementById(`v-${id}`).srcObject = stream;
+    }
+
+    socket.on('user-left', id => { document.getElementById(id)?.remove(); delete peers[id]; });
+</script>
 </body>
-</html>
+    </html>
+    
