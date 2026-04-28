@@ -1,48 +1,173 @@
-
 <!DOCTYPE html>
 <html lang="ka">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>VOID MAFIA // NEON VOID</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@600&display=swap" rel="stylesheet">
     <style>
-        :root { --neon: #ff00ff; --cyan: #00ffff; --bg: #07020f; }
-        body { background: var(--bg); color: white; font-family: 'Rajdhani', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; overflow: hidden; }
-        .glitch-title { font-family: 'Orbitron'; font-size: 40px; color: var(--cyan); text-shadow: 0 0 20px var(--cyan); margin-bottom: 0; }
-        .powered { font-size: 12px; color: #6a4a8a; margin-bottom: 30px; letter-spacing: 2px; }
-        .card { background: rgba(14, 5, 32, 0.9); border: 1px solid var(--neon); padding: 30px; width: 350px; text-align: center; box-shadow: 0 0 20px rgba(255, 0, 255, 0.2); }
-        input { width: 100%; background: #000; border: 1px solid var(--neon); color: white; padding: 12px; margin: 10px 0; outline: none; }
-        .btn { width: 100%; padding: 12px; background: var(--neon); color: white; border: none; cursor: pointer; font-family: 'Orbitron'; font-size: 12px; transition: 0.3s; }
-        .btn:hover { background: var(--cyan); box-shadow: 0 0 20px var(--cyan); }
-        #video-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; width: 90vw; height: 80vh; padding: 20px; }
-        .video-box { border: 2px solid var(--neon); position: relative; background: #000; }
-        video { width: 100%; height: 100%; object-fit: cover; }
-        .controls { position: fixed; bottom: 20px; display: flex; gap: 10px; }
+        :root {
+            --neon: #ff00ff;
+            --cyan: #00ffff;
+            --bg: #07020f;
+            --card-bg: rgba(14, 5, 32, 0.95);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            background: var(--bg);
+            color: white;
+            font-family: 'Rajdhani', sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        .glitch-title {
+            font-family: 'Orbitron';
+            font-size: clamp(1.8rem, 10vw, 3rem);
+            color: var(--cyan);
+            text-shadow: 0 0 15px var(--cyan);
+            margin-bottom: 5px;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .powered {
+            font-size: 0.8rem;
+            color: #6a4a8a;
+            margin-bottom: 2rem;
+            letter-spacing: 2px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--neon);
+            padding: 2.5rem 1.5rem;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 0 25px rgba(255, 0, 255, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        input {
+            width: 100%;
+            background: #000;
+            border: 1px solid var(--neon);
+            color: white;
+            padding: 18px;
+            font-size: 1.1rem;
+            outline: none;
+            font-family: inherit;
+            text-align: center;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 18px;
+            background: var(--neon);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-family: 'Orbitron';
+            font-size: 1rem;
+            text-transform: uppercase;
+            transition: 0.3s;
+        }
+
+        .btn:hover {
+            background: var(--cyan);
+            box-shadow: 0 0 20px var(--cyan);
+        }
+
+        #video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+            width: 100%;
+            max-width: 1200px;
+            padding: 10px;
+        }
+
+        .video-box {
+            border: 2px solid var(--neon);
+            background: #000;
+            position: relative;
+            aspect-ratio: 4/3;
+            overflow: hidden;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .video-label {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 2px 8px;
+            font-size: 0.8rem;
+            border-left: 3px solid var(--neon);
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 30px;
+            display: flex;
+            gap: 15px;
+            z-index: 100;
+        }
+
         .hidden { display: none !important; }
+
+        #room-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+
+        /* Ambient BGM */
+        audio { display: none; }
     </style>
 </head>
 <body>
+
+    <audio id="ambient-bgm" loop>
+        <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3" type="audio/mpeg">
+    </audio>
 
     <h1 class="glitch-title">VOID MAFIA</h1>
     <div class="powered">Powered by ბატონი მაქსი</div>
 
     <div id="login-screen" class="card">
-        <input type="text" id="nickname" placeholder="შეიყვანე ნიკნეიმი">
+        <input type="text" id="nickname" placeholder="შეიყვანე ნიკნეიმი" autocomplete="off">
         <button class="btn" onclick="showRooms()">შესვლა</button>
     </div>
 
     <div id="rooms-screen" class="card hidden">
-        <h3>არხები</h3>
-        <input type="text" id="room-id" placeholder="ოთახის ID">
+        <input type="text" id="room-id" placeholder="ოთახის ID" autocomplete="off">
         <button class="btn" onclick="startVoid()">ოთახის შექმნა</button>
-        <div id="room-list" style="margin-top: 20px;"></div>
+        <div style="margin: 10px 0; color: var(--cyan); font-size: 0.8rem;">— ან აირჩიე არსებული —</div>
+        <div id="room-list"></div>
     </div>
 
-    <div id="game-screen" class="hidden">
+    <div id="game-screen" class="hidden" style="width: 100%;">
         <div id="video-grid"></div>
         <div class="controls">
-            <button class="btn" onclick="toggleMic()">მიკროფონი</button>
-            <button class="btn" onclick="toggleCam()">კამერა</button>
+            <button class="btn" style="width: auto;" onclick="toggleMic()">მიკროფონი</button>
+            <button class="btn" style="width: auto;" onclick="toggleCam()">კამერა</button>
         </div>
     </div>
 
@@ -56,6 +181,12 @@
         function showRooms() {
             myNick = document.getElementById('nickname').value;
             if (!myNick) return alert("ჩაწერე ნიკი");
+
+            // Ambient მუსიკის ჩართვა ინტერაქციის შემდეგ
+            const bgm = document.getElementById('ambient-bgm');
+            bgm.volume = 0.2;
+            bgm.play().catch(e => console.log("BGM Blocked"));
+
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('rooms-screen').classList.remove('hidden');
             socket.emit('get-rooms');
@@ -65,19 +196,29 @@
             const rid = roomFromList || document.getElementById('room-id').value;
             if (!rid) return alert("ჩაწერე ოთახის ID");
 
+            // მუსიკის გათიშვა ოთახში შესვლისას
+            document.getElementById('ambient-bgm').pause();
+
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                localStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: { ideal: 640 }, height: { ideal: 480 } }, 
+                    audio: true 
+                });
                 document.getElementById('rooms-screen').classList.add('hidden');
                 document.getElementById('game-screen').classList.remove('hidden');
                 
                 addVideo('me', localStream, myNick + " (შენ)", true);
                 socket.emit('join-room', rid, myNick);
-            } catch (e) { alert("კამერა ვერ ჩაირთო!"); }
+            } catch (e) { 
+                alert("კამერაზე წვდომა უარყოფილია!"); 
+            }
         }
 
         socket.on('update-room-list', rooms => {
             const list = document.getElementById('room-list');
-            list.innerHTML = rooms.map(r => `<button class="btn" style="margin-bottom:5px" onclick="startVoid('${r.code}')">შეუერთდი: ${r.code} (${r.playerCount})</button>`).join('');
+            list.innerHTML = rooms.length > 0 ? 
+                rooms.map(r => `<button class="btn" style="margin-bottom:8px; background:none; border:1px solid var(--cyan); color:var(--cyan)" onclick="startVoid('${r.code}')">სიხშირე: ${r.code} (${r.playerCount}/10)</button>`).join('') :
+                '<div style="color:#6a4a8a; font-size:0.8rem">აქტიური სიგნალები არ არის</div>';
         });
 
         socket.on('all-users', users => {
@@ -97,7 +238,9 @@
             peers[p.callerID] = peer;
         });
 
-        socket.on('receiving-returned-signal', p => peers[p.id].signal(p.signal));
+        socket.on('receiving-returned-signal', p => {
+            if(peers[p.id]) peers[p.id].signal(p.signal);
+        });
         
         socket.on('user-left', id => {
             if(peers[id]) peers[id].destroy();
@@ -108,13 +251,21 @@
             if (document.getElementById(id)) return;
             const div = document.createElement('div');
             div.id = id; div.className = 'video-box';
-            div.innerHTML = `<video id="v-${id}" autoplay playsinline ${mute?'muted':''}></video><div style="position:absolute;bottom:5px;width:100%;text-align:center;font-size:12px">${name}</div>`;
+            div.innerHTML = `<video id="v-${id}" autoplay playsinline ${mute?'muted':''}></video><div class="video-label">${name}</div>`;
             document.getElementById('video-grid').appendChild(div);
             document.getElementById(`v-${id}`).srcObject = stream;
         }
 
-        function toggleMic() { localStream.getAudioTracks()[0].enabled = !localStream.getAudioTracks()[0].enabled; }
-        function toggleCam() { localStream.getVideoTracks()[0].enabled = !localStream.getVideoTracks()[0].enabled; }
+        function toggleMic() { 
+            const audioTrack = localStream.getAudioTracks()[0];
+            audioTrack.enabled = !audioTrack.enabled;
+            alert(audioTrack.enabled ? "მიკროფონი ჩაირთო" : "მიკროფონი გაითიშა");
+        }
+        function toggleCam() { 
+            const videoTrack = localStream.getVideoTracks()[0];
+            videoTrack.enabled = !videoTrack.enabled;
+        }
     </script>
 </body>
 </html>
+
