@@ -1,289 +1,120 @@
 
-
 <!DOCTYPE html>
 <html lang="ka">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
     <title>VOID MAFIA // NEON VOID</title>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@600&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --bg-void: #07020f;
-            --neon-magenta: #ff00ff;
-            --neon-cyan: #00ffff;
-            --text-main: #f0e6ff;
-            --dim: #6a4a8a;
-            --grid: rgba(191, 0, 255, 0.1);
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            background-color: var(--bg-void);
-            color: var(--text-main);
-            font-family: 'Rajdhani', sans-serif;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            cursor: crosshair;
-            overflow: hidden;
-        }
-
-        /* ── BACKGROUNDS ── */
-        body::before {
-            content: "";
-            position: absolute; inset: 0; z-index: -1;
-            background-image: linear-gradient(var(--grid) 1px, transparent 1px),
-                              linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-            background-size: 50px 50px;
-            transform: perspective(500px) rotateX(60deg);
-            transform-origin: center bottom;
-            animation: gridScroll 10s linear infinite;
-        }
-        @keyframes gridScroll { from { background-position: center bottom; } to { background-position: center bottom 50px; } }
-
-        /* ── GLITCH ANIMATION ── */
-        .glitch-title {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 42px; font-weight: 900; letter-spacing: 10px;
-            text-transform: uppercase;
-            position: relative;
-            color: var(--neon-cyan);
-            text-shadow: 0 0 20px var(--neon-cyan);
-            margin-bottom: 5px;
-            animation: mainGlow 2s ease-in-out infinite;
-        }
-        .glitch-title::before, .glitch-title::after {
-            content: "VOID MAFIA";
-            position: absolute; inset: 0;
-            opacity: 0.8;
-        }
-        .glitch-title::before { color: var(--neon-magenta); text-shadow: 0 0 15px var(--neon-magenta); transform: translateX(3px) translateY(-1px); }
-        .glitch-title::after { color: #f00; text-shadow: 0 0 15px #f00; transform: translateX(-3px) translateY(1px); animation: glitch 0.3s steps(2) infinite; }
-
-        @keyframes glitch { 0% { clip-path: inset(80% 0 0 0); } 50% { clip-path: inset(0 0 80% 0); } 100% { clip-path: inset(80% 0 0 0); } }
-        @keyframes mainGlow { 0%, 100% { text-shadow: 0 0 20px var(--neon-cyan); } 50% { text-shadow: 0 0 30px var(--neon-magenta), 0 0 100px var(--neon-magenta); } }
-
-        .powered-by {
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 11px; letter-spacing: 2px;
-            color: var(--dim);
-            margin-bottom: 25px;
-            opacity: 0.6;
-        }
-
-        /* ── UI PANELS ── */
-        .card {
-            background: rgba(14, 5, 32, 0.9);
-            border: 1px solid var(--neon-magenta);
-            box-shadow: 0 0 30px rgba(255, 0, 255, 0.2);
-            padding: 30px;
-            width: min(400px, 90vw);
-            text-align: center;
-        }
-
-        .terminal {
-            background: #000; border-left: 3px solid var(--neon-cyan);
-            padding: 10px; margin-bottom: 15px;
-            font-family: 'Share Tech Mono', monospace; font-size: 12px;
-            color: var(--neon-cyan); text-align: left;
-        }
-
-        .input-group { margin-bottom: 15px; text-align: left; }
-        .input-group label { display: block; font-size: 11px; color: var(--dim); margin-bottom: 5px; letter-spacing: 1px; }
-        input {
-            width: 100%; background: rgba(0, 0, 0, 0.5);
-            border: 1px solid var(--dim);
-            color: white; padding: 12px; font-family: 'Share Tech Mono', monospace;
-            outline: none; transition: 0.3s;
-        }
-        input:focus { border-color: var(--neon-cyan); box-shadow: 0 0 15px var(--neon-cyan); }
-
-        .btn {
-            width: 100%; padding: 12px; font-family: 'Orbitron', sans-serif;
-            font-size: 14px; font-weight: 700; letter-spacing: 2px;
-            cursor: pointer; border: none; margin-top: 10px;
-            transition: 0.3s; text-transform: uppercase;
-        }
-        .btn-magenta { background: var(--neon-magenta); color: white; box-shadow: 0 0 15px var(--neon-magenta); }
-        .btn-magenta:hover { transform: translateY(-2px); box-shadow: 0 0 25px var(--neon-magenta); }
-        .btn-secondary { background: transparent; color: var(--neon-cyan); border: 1px solid var(--neon-cyan); font-size: 12px;}
-
-        /* ── VIDEO GRID ── */
-        #game-screen { display: none; width: 100%; height: 100vh; position: fixed; inset: 0; }
-        #video-grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 10px; padding: 20px;
-            width: 100%; height: calc(100vh - 80px);
-        }
-        .video-box { background: #000; border: 1px solid var(--dim); position: relative; aspect-ratio: 1; overflow: hidden; }
+        :root { --neon: #ff00ff; --cyan: #00ffff; --bg: #07020f; }
+        body { background: var(--bg); color: white; font-family: 'Rajdhani', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; overflow: hidden; }
+        .glitch-title { font-family: 'Orbitron'; font-size: 40px; color: var(--cyan); text-shadow: 0 0 20px var(--cyan); margin-bottom: 0; }
+        .powered { font-size: 12px; color: #6a4a8a; margin-bottom: 30px; letter-spacing: 2px; }
+        .card { background: rgba(14, 5, 32, 0.9); border: 1px solid var(--neon); padding: 30px; width: 350px; text-align: center; box-shadow: 0 0 20px rgba(255, 0, 255, 0.2); }
+        input { width: 100%; background: #000; border: 1px solid var(--neon); color: white; padding: 12px; margin: 10px 0; outline: none; }
+        .btn { width: 100%; padding: 12px; background: var(--neon); color: white; border: none; cursor: pointer; font-family: 'Orbitron'; font-size: 12px; transition: 0.3s; }
+        .btn:hover { background: var(--cyan); box-shadow: 0 0 20px var(--cyan); }
+        #video-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; width: 90vw; height: 80vh; padding: 20px; }
+        .video-box { border: 2px solid var(--neon); position: relative; background: #000; }
         video { width: 100%; height: 100%; object-fit: cover; }
-        .nick-tag { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.8); color: var(--neon-cyan); font-size: 12px; padding: 5px; text-align: center; }
-
-        /* ── CONTROLS ── */
-        .controls { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; }
-        .ctrl-btn { padding: 10px 20px; background: #222; border: 1px solid var(--neon-purple); color: var(--text-main); font-family: 'Share Tech Mono'; cursor: pointer;}
+        .controls { position: fixed; bottom: 20px; display: flex; gap: 10px; }
         .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
-<div class="stars"></div>
-<div class="retro-sun"></div>
-<div class="grid-bg"></div>
-
-<header style="text-align:center; position:fixed; top:20px; z-index:50;">
     <h1 class="glitch-title">VOID MAFIA</h1>
-    <div class="powered-by">Powered by ბატონი მაქსი</div>
-</header>
+    <div class="powered">Powered by ბატონი მაქსი</div>
 
-<div id="login-screen" class="card hidden">
-    <div class="terminal">> AWAITING_OPERATOR_SIGNAL...</div>
-    <div class="input-group">
-        <label>// OPERATOR_ID</label>
-        <input type="text" id="nickname" placeholder="NICKNAME" autocomplete="off">
+    <div id="login-screen" class="card">
+        <input type="text" id="nickname" placeholder="შეიყვანე ნიკნეიმი">
+        <button class="btn" onclick="showRooms()">შესვლა</button>
     </div>
-    <button class="btn btn-magenta" onclick="toRoomSelection()">შესვლა</button>
-</div>
 
-<div id="rooms-screen" class="card hidden">
-    <h2 style="font-size: 18px; margin-bottom: 20px;">CHANNELS</h2>
-    <div class="input-group">
-        <label>// NEW_VOID_ID</label>
-        <input type="text" id="room-name" placeholder="ROOM_ID">
+    <div id="rooms-screen" class="card hidden">
+        <h3>არხები</h3>
+        <input type="text" id="room-id" placeholder="ოთახის ID">
+        <button class="btn" onclick="startVoid()">ოთახის შექმნა</button>
+        <div id="room-list" style="margin-top: 20px;"></div>
     </div>
-    <button class="btn btn-magenta" onclick="joinRoom(document.getElementById('room-name').value)">INITIALIZE_VOID</button>
-    
-    <div style="margin: 20px 0; color: var(--dim);">— OR SYNC TO EXISTING FREQ —</div>
-    <div id="room-list">
+
+    <div id="game-screen" class="hidden">
+        <div id="video-grid"></div>
+        <div class="controls">
+            <button class="btn" onclick="toggleMic()">მიკროფონი</button>
+            <button class="btn" onclick="toggleCam()">კამერა</button>
         </div>
-</div>
-
-<div id="game-screen">
-    <div id="video-grid"></div>
-    <div class="controls">
-        <button id="mic-btn" class="ctrl-btn" onclick="toggleAudio()">MIC: ON</button>
-        <button id="cam-btn" class="ctrl-btn" onclick="toggleVideo()">CAM: ON</button>
     </div>
-</div>
 
-<script src="/socket.io/socket.io.js"></script>
-<script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
-<script>
-    const socket = io();
-    let localStream, myNickname, currentRoomId;
-    const peers = {};
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
+    <script>
+        const socket = io();
+        let localStream, myNick;
+        const peers = {};
 
-    // 1. პირველი ეკრანი (Bootup)
-    window.onload = () => {
-        setTimeout(() => document.getElementById('login-screen').classList.remove('hidden'), 1000);
-    };
+        function showRooms() {
+            myNick = document.getElementById('nickname').value;
+            if (!myNick) return alert("ჩაწერე ნიკი");
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('rooms-screen').classList.remove('hidden');
+            socket.emit('get-rooms');
+        }
 
-    // 2. ოთახების არჩევის ეკრანზე გადასვლა
-    function toRoomSelection() {
-        myNickname = document.getElementById('nickname').value.trim();
-        if (!myNickname) return;
-        document.getElementById('login-screen').classList.add('hidden');
-        document.getElementById('rooms-screen').classList.remove('hidden');
-        socket.emit('get-rooms');
-    }
+        async function startVoid(roomFromList) {
+            const rid = roomFromList || document.getElementById('room-id').value;
+            if (!rid) return alert("ჩაწერე ოთახის ID");
 
-    // ოთახების სიის განახლება
-    socket.on('update-room-list', rooms => {
-        const container = document.getElementById('room-list');
-        container.innerHTML = rooms.length ? "" : "<div style='color:var(--dim)'>NO_SIGNALS_FOUND</div>";
-        rooms.forEach(r => {
-            const b = document.createElement('button');
-            b.className = "btn btn-secondary";
-            b.innerHTML = `CONNECT_TO: ${r.code} [${r.playerCount}/10]`;
-            b.onclick = () => joinRoom(r.code);
-            container.appendChild(b);
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('rooms-screen').classList.add('hidden');
+                document.getElementById('game-screen').classList.remove('hidden');
+                
+                addVideo('me', localStream, myNick + " (შენ)", true);
+                socket.emit('join-room', rid, myNick);
+            } catch (e) { alert("კამერა ვერ ჩაირთო!"); }
+        }
+
+        socket.on('update-room-list', rooms => {
+            const list = document.getElementById('room-list');
+            list.innerHTML = rooms.map(r => `<button class="btn" style="margin-bottom:5px" onclick="startVoid('${r.code}')">შეუერთდი: ${r.code} (${r.playerCount})</button>`).join('');
         });
-    });
 
-    // 3. ოთახში შესვლა და WebRTC ინიციალიზაცია
-    async function joinRoom(roomID) {
-        if (!roomID) return;
-        currentRoomId = roomID;
-        try {
-            // ვიდეოს და აუდიოს ჩართვა ოთახში შესვლისას
-            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            addVideoElement('me', localStream, myNickname + " (YOU)", true);
-
-            document.getElementById('rooms-screen').classList.add('hidden');
-            document.getElementById('game-screen').classList.remove('hidden');
-            document.querySelector('header').classList.add('hidden'); // სათაურის დამალვა
-
-            socket.emit('join-room', roomID, myNickname);
-
-        } catch (e) { alert("კამერაზე წვდომა უარყოფილია!"); }
-    }
-
-    // ── Simple-Peer Signaling ──
-    socket.on('all-users', users => {
-        users.forEach(u => {
-            const peer = createPeer(u, socket.id, localStream);
-            peers[u] = peer;
+        socket.on('all-users', users => {
+            users.forEach(id => {
+                const peer = new SimplePeer({ initiator: true, trickle: false, stream: localStream });
+                peer.on('signal', signal => socket.emit('sending-signal', { userToSignal: id, callerID: socket.id, signal }));
+                peer.on('stream', stream => addVideo(id, stream, "ოპერატორი"));
+                peers[id] = peer;
+            });
         });
-    });
 
-    socket.on('user-joined', payload => {
-        const peer = addPeer(payload.signal, payload.callerID, localStream);
-        peers[payload.callerID] = peer;
-    });
+        socket.on('user-joined', p => {
+            const peer = new SimplePeer({ initiator: false, trickle: false, stream: localStream });
+            peer.on('signal', signal => socket.emit('returning-signal', { signal, callerID: p.callerID }));
+            peer.on('stream', stream => addVideo(p.callerID, stream, "ოპერატორი"));
+            peer.signal(p.signal);
+            peers[p.callerID] = peer;
+        });
 
-    socket.on('receiving-returned-signal', payload => {
-        peers[payload.id].signal(payload.signal);
-    });
+        socket.on('receiving-returned-signal', p => peers[p.id].signal(p.signal));
+        
+        socket.on('user-left', id => {
+            if(peers[id]) peers[id].destroy();
+            document.getElementById(id)?.remove();
+        });
 
-    socket.on('user-left', id => {
-        if (peers[id]) peers[id].destroy();
-        delete peers[id];
-        document.getElementById(id)?.remove();
-    });
+        function addVideo(id, stream, name, mute = false) {
+            if (document.getElementById(id)) return;
+            const div = document.createElement('div');
+            div.id = id; div.className = 'video-box';
+            div.innerHTML = `<video id="v-${id}" autoplay playsinline ${mute?'muted':''}></video><div style="position:absolute;bottom:5px;width:100%;text-align:center;font-size:12px">${name}</div>`;
+            document.getElementById('video-grid').appendChild(div);
+            document.getElementById(`v-${id}`).srcObject = stream;
+        }
 
-    // WebRTC Helpers (createPeer, addPeer, addVideoElement, Mute/Hide) - შენარჩუნებულია წინა ვერსიიდან
-    function createPeer(userToSignal, callerID, stream) {
-        const peer = new SimplePeer({ initiator: true, trickle: false, stream });
-        peer.on('signal', signal => socket.emit('sending-signal', { userToSignal, callerID, signal }));
-        peer.on('stream', st => addVideoElement(userToSignal, st, "OPERATOR"));
-        return peer;
-    }
-
-    function addPeer(incomingSignal, callerID, stream) {
-        const peer = new SimplePeer({ initiator: false, trickle: false, stream });
-        peer.on('signal', signal => socket.emit('returning-signal', { signal, callerID }));
-        peer.on('stream', st => addVideoElement(callerID, st, "OPERATOR"));
-        peer.signal(incomingSignal);
-        return peer;
-    }
-
-    function addVideoElement(id, stream, name, isLocal = false) {
-        const grid = document.getElementById('video-grid');
-        if (document.getElementById(id)) return;
-        const box = document.createElement('div');
-        box.id = id; box.className = 'video-box';
-        box.innerHTML = `<video id="v-${id}" autoplay playsinline ${isLocal?'muted':''}></video><div class="nick-tag">${name}</div>`;
-        grid.appendChild(box);
-        if (stream) document.getElementById(`v-${id}`).srcObject = stream;
-    }
-
-    function toggleAudio() {
-        const enabled = localStream.getAudioTracks()[0].enabled;
-        localStream.getAudioTracks()[0].enabled = !enabled;
-        document.getElementById('mic-btn').innerText = !enabled ? "MIC: ON" : "MIC: OFF";
-        document.getElementById('mic-btn').classList.toggle('active');
-    }
-
-    function toggleVideo() {
-        const enabled = localStream.getVideoTracks()[0].enabled;
-        localStream.getVideoTracks()[0].enabled = !enabled;
-        document.getElementById('cam-btn').innerText = !enabled ? "CAM: ON" : "CAM: OFF";
-        document.getElementById('cam-btn').classList.toggle('active');
-    }
-</script>
+        function toggleMic() { localStream.getAudioTracks()[0].enabled = !localStream.getAudioTracks()[0].enabled; }
+        function toggleCam() { localStream.getVideoTracks()[0].enabled = !localStream.getVideoTracks()[0].enabled; }
+    </script>
 </body>
 </html>
