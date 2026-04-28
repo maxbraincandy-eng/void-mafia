@@ -7,7 +7,6 @@
     <title>VOID MAFIA</title>
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
-        /* ... (შენი არსებული სტილები უცვლელია) ... */
         :root {
             --orange: #ff6b00;
             --orange-bright: #ff8c00;
@@ -61,6 +60,9 @@
         .video-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; width: 100%; }
         .video-box { background: #000; border: 1px solid #333; position: relative; aspect-ratio: 3/4; overflow: hidden; border-radius: 4px; }
         .hidden { display: none !important; }
+
+        .nick { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.8); color: var(--orange); font-size: 12px; padding: 5px; text-align: center; }
+        video { width: 100%; height: 100%; object-fit: cover; }
     </style>
 </head>
 <body>
@@ -74,9 +76,7 @@
         <h1 class="logo-title">VOID MAFIA</h1>
         <div class="powered-by">Powered by ბატონი მაქსი</div>
     </div>
-
     <div class="terminal" id="terminal-out">> SYSTEM_READY: WAITING_FOR_AUTH...</div>
-
     <div class="field">
         <label>// OPERATOR_ID</label>
         <input type="text" id="nickname" placeholder="NICKNAME" autocomplete="off">
@@ -85,21 +85,20 @@
         <label>// ACCESS_KEY</label>
         <input type="password" id="password" placeholder="PASSWORD">
     </div>
-
-    <button class="btn btn-primary" onclick="handleAuth()">ავტორიზაცია</button>
+    <div style="display: flex; gap: 10px;">
+        <button class="btn btn-primary" onclick="handleAuth('login')">შესვლა</button>
+        <button class="btn btn-secondary" style="margin-top:10px; width:100%; clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%);" onclick="handleAuth('register')">რეგისტრაცია</button>
+    </div>
 </div>
 
 <div id="rooms-screen" class="card hidden">
     <div class="logo-wrap"><h2 class="logo-title" style="font-size: 24px;">DATA_CENTER</h2></div>
-    
     <div class="field">
         <label>// CREATE_NEW_CHANNEL</label>
         <input type="text" id="room-name" placeholder="ROOM_ID">
     </div>
     <button class="btn btn-primary" onclick="createRoom()">შექმენი ოთახი</button>
-
     <div id="room-list" style="margin-top: 20px;"></div>
-
     <div class="history-box">
         <div style="color: var(--orange); margin-bottom: 10px;">// RECENT_HISTORY</div>
         <div id="match-history-list">
@@ -125,35 +124,29 @@
     let localStream, myNickname, currentRoomId, myToken;
     const peers = {};
 
-    async function handleAuth() {
+    // 1. ავტორიზაცია (Login/Register)
+    async function handleAuth(mode) {
         const user = document.getElementById('nickname').value.trim();
         const pass = document.getElementById('password').value.trim();
         const term = document.getElementById('terminal-out');
 
         if (!user || !pass) return term.innerText = "> ERROR: CREDENTIALS_REQUIRED";
-
-        term.innerText = "> AUTHENTICATING...";
+        term.innerText = `> ${mode.toUpperCase()}_IN_PROGRESS...`;
 
         try {
-            // ავტორიზაციის API-ს გამოძახება
-            const res = await fetch('/api/auth/register', {
+            const res = await fetch(`/api/auth/${mode}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username: user, password: pass })
             });
-
             const data = await res.json();
 
             if (data.token) {
                 myToken = data.token;
                 myNickname = user;
                 localStorage.setItem('void_token', data.token);
-                
-                term.innerText = "> ACCESS_GRANTED. REDIRECTING...";
-                
-                // სოკეტის დაკავშირება ტოკენით
+                term.innerText = "> ACCESS_GRANTED. CONNECTING...";
                 initSocket(data.token);
-                
                 document.getElementById('login-screen').classList.add('hidden');
                 document.getElementById('rooms-screen').classList.remove('hidden');
             } else {
@@ -164,10 +157,9 @@
         }
     }
 
+    // 2. სოკეტის ინიციალიზაცია
     function initSocket(token) {
-        socket = io({
-            auth: { token: token }
-        });
+        socket = io({ auth: { token } });
 
         socket.on('update-room-list', rooms => {
             const container = document.getElementById('room-list');
@@ -177,26 +169,48 @@
                 b.className = "btn btn-secondary";
                 b.style.fontSize = "12px";
                 b.innerHTML = `JOIN: ${r.name} [${r.playerCount}/10]`;
-                b.onclick = () => joinRoom(r.id, 'player');
+                b.onclick = () => joinRoom(r.name);
                 container.appendChild(b);
             });
         });
 
+        socket.on('all-users', users => {
+            users.forEach(u => {
+                const peer = createPeer(u.id, socket.id, localStream);
+                peers[u.id] = peer;
+            });
+        });
+
+        socket.on('user-joined', payload => {
+            const peer = addPeer(payload.signal, payload.callerID, localStream);
+            peers[payload.callerID] = peer;
+        });
+
+        socket.on('receiving-returned-signal', payload => {
+            peers[payload.id].signal(payload.signal);
+        });
+
         socket.on('is-host', () => document.getElementById('start-btn').classList.remove('hidden'));
-        
+
         socket.on('assign-role', role => {
             document.getElementById('role-display').innerText = "ROLE: " + role.toUpperCase();
         });
-        
-        // ... (სხვა სოკეტის ივენთები: all-users, user-joined და ა.შ. იგივე რჩება)
+
+        socket.on('user-left', id => {
+            if (peers[id]) {
+                peers[id].destroy();
+                delete peers[id];
+            }
+            document.getElementById(id)?.remove();
+        });
     }
 
-    async function joinRoom(roomID, type) {
+    // 3. ოთახში შესვლა და WebRTC
+    async function joinRoom(roomID) {
         currentRoomId = roomID;
         try {
             localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             addVideoElement('me', localStream, myNickname + " (YOU)", true);
-            
             document.getElementById('rooms-screen').classList.add('hidden');
             document.getElementById('game-interface').style.display = 'block';
             socket.emit('join-room', roomID);
@@ -205,20 +219,42 @@
 
     function createRoom() {
         const name = document.getElementById('room-name').value;
-        if (name) joinRoom(name, 'player'); // ბექენდი ავტომატურად ქმნის თუ არ არსებობს
+        if (name) joinRoom(name);
+    }
+
+    function createPeer(userToSignal, callerID, stream) {
+        const peer = new SimplePeer({ initiator: true, trickle: false, stream });
+        peer.on('signal', signal => {
+            socket.emit('sending-signal', { userToSignal, callerID, signal });
+        });
+        peer.on('stream', st => addVideoElement(userToSignal, st, "OPERATOR_" + userToSignal.slice(0,4)));
+        return peer;
+    }
+
+    function addPeer(incomingSignal, callerID, stream) {
+        const peer = new SimplePeer({ initiator: false, trickle: false, stream });
+        peer.on('signal', signal => {
+            socket.emit('returning-signal', { signal, callerID });
+        });
+        peer.on('stream', st => addVideoElement(callerID, st, "OPERATOR_" + callerID.slice(0,4)));
+        peer.signal(incomingSignal);
+        return peer;
     }
 
     function addVideoElement(id, stream, name, isLocal = false) {
         const videoGrid = document.getElementById('video-grid');
         let box = document.getElementById(id);
         if (!box) {
-            box = document.createElement('div'); 
-            box.id = id; 
-            box.className = 'video-box';
-            box.innerHTML = `<video id="v-${id}" autoplay playsinline ${isLocal?'muted':''}></video><div class="nick" style="position:absolute; bottom:0; width:100%; background:rgba(0,0,0,0.8); color:var(--orange); font-size:12px; padding:5px; text-align:center;">${name}</div>`;
+            box = document.createElement('div'); box.id = id; box.className = 'video-box';
+            box.innerHTML = `<video id="v-${id}" autoplay playsinline ${isLocal?'muted':''}></video><div class="nick">${name}</div>`;
             videoGrid.appendChild(box);
         }
         if (stream) document.getElementById(`v-${id}`).srcObject = stream;
+    }
+
+    function startGame() {
+        socket.emit('start-game', currentRoomId);
+        document.getElementById('start-btn').classList.add('hidden');
     }
 </script>
 </body>
