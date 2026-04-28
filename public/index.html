@@ -5,148 +5,170 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Void Mafia Online</title>
     <style>
-        :root { --void-red: #ff4757; --bg: #0a0a0a; --card: #161b22; }
-        body, html { margin: 0; padding: 0; height: 100%; background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; overflow-x: hidden; }
+        :root { --void-red: #ff4757; --bg: #050505; --card: #121212; --border: #222; }
+        body, html { margin: 0; padding: 0; height: 100%; background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
 
-        /* ცენტრალური კონტეინერი */
-        .flex-center { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; box-sizing: border-box; }
+        .screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; width: 100%; position: absolute; transition: 0.5s; }
+        
+        /* ანიმაციური ლოგო */
+        .logo-box { text-align: center; margin-bottom: 30px; animation: fadeIn 1.5s ease; }
+        .void-text { font-size: 60px; font-weight: 900; letter-spacing: 12px; text-transform: uppercase; animation: pulse 2s infinite ease-in-out; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 0.7; text-shadow: 0 0 10px var(--void-red); transform: scale(1); }
+            50% { opacity: 1; text-shadow: 0 0 30px var(--void-red); transform: scale(1.05); }
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* ავტორიზაციის ეკრანი */
-        .auth-box { background: var(--card); padding: 40px; border-radius: 20px; border: 1px solid #30363d; width: 100%; max-width: 350px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .logo { font-size: 50px; font-weight: 900; letter-spacing: 10px; margin-bottom: 30px; text-transform: uppercase; color: white; text-shadow: 0 0 15px var(--void-red); }
-
-        input { width: 100%; padding: 15px; margin-bottom: 20px; background: #0d1117; border: 1px solid #30363d; border-radius: 10px; color: white; font-size: 16px; box-sizing: border-box; }
+        /* ბარათები და ინპუტები */
+        .card { background: var(--card); padding: 35px; border-radius: 20px; border: 1px solid var(--border); width: 85%; max-width: 340px; box-shadow: 0 15px 35px rgba(0,0,0,0.7); }
+        input { width: 100%; padding: 15px; margin-bottom: 20px; background: #000; border: 1px solid #333; border-radius: 10px; color: white; font-size: 16px; box-sizing: border-box; }
         input:focus { border-color: var(--void-red); outline: none; }
-
-        .btn { width: 100%; padding: 15px; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; text-transform: uppercase; }
+        .btn { width: 100%; padding: 15px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; text-transform: uppercase; transition: 0.3s; }
         .btn-red { background: var(--void-red); color: white; }
-        .btn-red:hover { opacity: 0.8; transform: translateY(-2px); }
+        .btn-green { background: #238636; color: white; margin-top: 10px; }
+
+        /* ლობის სია */
+        .room-list { width: 100%; max-height: 200px; overflow-y: auto; margin-bottom: 20px; text-align: left; }
+        .room-item { background: #1a1a1a; padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #252525; }
+        .room-item span { font-size: 14px; color: #ccc; }
 
         /* ვიდეო ზონა */
-        #game-screen { display: none; width: 100%; padding-top: 80px; }
-        .video-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; padding: 20px; }
-        .video-container { background: var(--card); padding: 10px; border-radius: 15px; border: 1px solid #333; position: relative; }
-        video { width: 100%; max-width: 300px; border-radius: 10px; background: #000; object-fit: cover; }
-        .name-tag { position: absolute; bottom: 15px; left: 0; width: 100%; text-align: center; font-size: 14px; background: rgba(0,0,0,0.5); padding: 5px 0; }
+        #game-screen { display: none; background: #000; }
+        .video-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; padding: 20px; width: 100%; }
+        .video-wrap { background: #111; border-radius: 15px; overflow: hidden; border: 1px solid #333; position: relative; width: 45%; max-width: 280px; }
+        video { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; }
+        .nick-tag { position: absolute; bottom: 8px; left: 0; width: 100%; text-align: center; font-size: 12px; background: rgba(0,0,0,0.6); padding: 4px 0; }
 
         /* მართვის პანელი */
-        .top-bar { position: fixed; top: 0; width: 100%; background: #121417; padding: 15px; display: flex; justify-content: space-around; border-bottom: 1px solid #30363d; z-index: 100; }
-        .control-btn { padding: 10px 15px; border-radius: 8px; font-size: 12px; border: 1px solid #444; background: #1f2328; color: white; cursor: pointer; }
-        .active { border-color: #2ed573; color: #2ed573; }
+        .controls { position: fixed; top: 0; width: 100%; background: #111; padding: 15px; display: flex; justify-content: space-around; border-bottom: 1px solid #222; z-index: 10; }
     </style>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
 </head>
 <body>
 
-    <div id="auth-screen" class="flex-center">
-        <div class="logo">VOID</div>
-        <div class="auth-box">
-            <input type="text" id="nickname" placeholder="შეიყვანე სახელი..." maxlength="15">
-            <button id="joinBtn" class="btn btn-red">შესვლა</button>
+    <div id="auth-screen" class="screen">
+        <div class="logo-box">
+            <div class="void-text">VOID</div>
+            <div style="color: #444; letter-spacing: 4px; font-size: 10px; margin-top: 5px;">MAFIA ONLINE</div>
+        </div>
+        <div class="card">
+            <input type="text" id="nickname" placeholder="შეიყვანე სახელი..." maxlength="12">
+            <button id="toLobbyBtn" class="btn btn-red">შესვლა</button>
         </div>
     </div>
 
-    <div id="game-screen">
-        <div class="top-bar">
-            <button id="toggleCam" class="control-btn active">📷 კამერა: ON</button>
-            <button id="toggleMic" class="control-btn active">🎤 მიკროფონი: ON</button>
-            <div id="user-info" style="align-self: center; font-weight: bold; color: var(--void-red);"></div>
-        </div>
-        
-        <div id="video-area" class="video-grid">
+    <div id="lobby-screen" class="screen" style="display: none; opacity: 0;">
+        <h3 style="color: var(--void-red);">აქტიური ოთახები</h3>
+        <div class="card">
+            <div id="room-list-box" class="room-list">
+                <p style="color: #444; text-align: center;">ოთახები არ არის...</p>
             </div>
+            <hr style="border: 0.1px solid #222; margin-bottom: 20px;">
+            <input type="text" id="newRoomName" placeholder="ახალი ოთახის სახელი">
+            <button id="createRoomBtn" class="btn btn-green">ოთახის შექმნა</button>
+        </div>
+    </div>
+
+    <div id="game-screen" class="screen">
+        <div class="controls">
+            <div id="my-name-display" style="font-weight: bold; color: var(--void-red);"></div>
+            <button onclick="location.reload()" style="background:none; border:1px solid #444; color: #888; padding: 5px 10px; border-radius: 5px;">გამოსვლა</button>
+        </div>
+        <div id="video-area" class="video-grid" style="margin-top: 70px;"></div>
     </div>
 
     <script>
         const socket = io();
         let localStream;
         const peers = {};
-        const videoArea = document.getElementById('video-area');
+        const nickInput = document.getElementById('nickname');
+        const roomListBox = document.getElementById('room-list-box');
 
-        document.getElementById('joinBtn').onclick = async () => {
-            const nick = document.getElementById('nickname').value.trim();
-            if (!nick) return alert("შეიყვანე სახელი!");
-
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: true, 
-                    audio: true 
-                });
-                
-                document.getElementById('auth-screen').style.display = 'none';
-                document.getElementById('game-screen').style.display = 'block';
-                document.getElementById('user-info').innerText = nick;
-
-                addVideoElement('local', localStream, nick + " (შენ)");
-                socket.emit('join-room', 'void-main', nick);
-
-            } catch (e) {
-                alert("კამერა/მიკროფონი ვერ მოიძებნა!");
-            }
+        // გადასვლა ლობიზე
+        document.getElementById('toLobbyBtn').onclick = () => {
+            if (nickInput.value.trim().length < 2) return alert("სახელი მოკლეა!");
+            document.getElementById('auth-screen').style.display = 'none';
+            document.getElementById('lobby-screen').style.display = 'flex';
+            document.getElementById('lobby-screen').style.opacity = '1';
         };
 
-        socket.on('user-connected', (userId, userNick) => {
-            console.log("ახალი მომხმარებელი:", userNick);
-            const peer = new SimplePeer({ initiator: true, trickle: false, stream: localStream });
-            
-            peer.on('signal', signal => socket.emit('send-signal', { to: userId, from: socket.id, signal }));
-            peer.on('stream', stream => addVideoElement(userId, stream, userNick));
-            
-            peers[userId] = peer;
+        // ოთახების სიის განახლება
+        socket.on('update-room-list', rooms => {
+            roomListBox.innerHTML = rooms.length ? "" : '<p style="color: #444; text-align: center;">ოთახები არ არის...</p>';
+            rooms.forEach(r => {
+                const div = document.createElement('div');
+                div.className = 'room-item';
+                div.innerHTML = `<span>${r.name} (${r.playerCount})</span> <button onclick="join('${r.id}')" class="btn btn-red" style="width: auto; padding: 5px 15px; font-size: 12px;">შესვლა</button>`;
+                roomListBox.appendChild(div);
+            });
         });
 
-        socket.on('receive-signal', data => {
-            const peer = new SimplePeer({ initiator: false, trickle: false, stream: localStream });
-            
-            peer.on('signal', signal => socket.emit('return-signal', { to: data.from, signal }));
-            peer.on('stream', stream => addVideoElement(data.from, stream, "მომხმარებელი"));
-            
-            peer.signal(data.signal);
-            peers[data.from] = peer;
-        });
+        document.getElementById('createRoomBtn').onclick = () => {
+            const rName = document.getElementById('newRoomName').value.trim();
+            if (rName) join(rName);
+        };
 
-        socket.on('user-disconnected', userId => {
-            if (peers[userId]) peers[userId].destroy();
-            const el = document.getElementById(userId);
-            if (el) el.remove();
-        });
+        async function join(roomId) {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('lobby-screen').style.display = 'none';
+                document.getElementById('game-screen').style.display = 'flex';
+                document.getElementById('my-name-display').innerText = nickInput.value;
 
-        function addVideoElement(id, stream, name) {
-            if (document.getElementById(id)) return;
-            const container = document.createElement('div');
-            container.className = 'video-container';
-            container.id = id;
-            
-            const video = document.createElement('video');
-            video.srcObject = stream;
-            video.autoplay = true;
-            video.playsInline = true;
-            if (id === 'local') video.muted = true;
-
-            const label = document.createElement('div');
-            label.className = 'name-tag';
-            label.innerText = name;
-
-            container.appendChild(video);
-            container.appendChild(label);
-            videoArea.appendChild(container);
+                addVideo('local', localStream, nickInput.value + " (შენ)");
+                socket.emit('join-room', roomId, nickInput.value);
+            } catch (e) { alert("კამერა გამორთულია!"); }
         }
 
-        // კამერა/მიკროფონის ტოგლი
-        document.getElementById('toggleCam').onclick = function() {
-            const track = localStream.getVideoTracks()[0];
-            track.enabled = !track.enabled;
-            this.classList.toggle('active');
-            this.innerText = track.enabled ? "📷 კამერა: ON" : "📷 კამერა: OFF";
-        };
+        socket.on('all-users', users => {
+            users.forEach(u => {
+                const peer = createPeer(u.id, socket.id, localStream);
+                peers[u.id] = peer;
+            });
+        });
 
-        document.getElementById('toggleMic').onclick = function() {
-            const track = localStream.getAudioTracks()[0];
-            track.enabled = !track.enabled;
-            this.classList.toggle('active');
-            this.innerText = track.enabled ? "🎤 მიკროფონი: ON" : "🎤 მიკროფონი: OFF";
-        };
+        socket.on('user-joined', p => {
+            const peer = addPeer(p.signal, p.callerID, localStream);
+            peers[p.callerID] = peer;
+            addVideo(p.callerID, null, p.nickname); // დროებითი ვიდეო ბლოკი
+        });
+
+        socket.on('receiving-returned-signal', p => peers[p.id].signal(p.signal));
+
+        function createPeer(userToSignal, callerID, stream) {
+            const peer = new SimplePeer({ initiator: true, trickle: false, stream });
+            peer.on('signal', s => socket.emit('sending-signal', { userToSignal, callerID, signal: s }));
+            peer.on('stream', st => addVideo(userToSignal, st, "მოთამაშე"));
+            return peer;
+        }
+
+        function addPeer(incomingSignal, callerID, stream) {
+            const peer = new SimplePeer({ initiator: false, trickle: false, stream });
+            peer.on('signal', s => socket.emit('returning-signal', { signal: s, callerID }));
+            peer.on('stream', st => addVideo(callerID, st, "მოთამაშე"));
+            peer.signal(incomingSignal);
+            return peer;
+        }
+
+        function addVideo(id, stream, name) {
+            let container = document.getElementById(id);
+            if (!container) {
+                container = document.createElement('div');
+                container.id = id;
+                container.className = 'video-wrap';
+                container.innerHTML = `<video id="v-${id}" autoplay playsinline></video><div class="nick-tag">${name}</div>`;
+                document.getElementById('video-area').appendChild(container);
+            }
+            if (stream) {
+                const video = document.getElementById(`v-${id}`);
+                video.srcObject = stream;
+                if (id === 'local') video.muted = true;
+            }
+        }
+
+        socket.on('user-left', id => { document.getElementById(id)?.remove(); delete peers[id]; });
     </script>
 </body>
 </html>
