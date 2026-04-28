@@ -26,8 +26,8 @@ function broadcastRooms() {
     const roomList = Object.values(rooms).map(r => ({
         id: r.id,
         name: r.name,
-        playerCount: r.playerCount,
-        gameState: r.gameState // waiting ან playing
+        playerCount: r.players.length,
+        gameState: r.gameState
     }));
     io.emit('update-room-list', roomList); 
 }
@@ -35,71 +35,126 @@ function broadcastRooms() {
 io.on('connection', (socket) => {
     broadcastRooms();
 
-    socket.on('join-room', (roomId, nickname) => {
+    socket.on('join-room', (roomId, nickname, type = 'player') => {
         socket.join(roomId);
         
-        // ოთახის ინიციალიზაცია თუ არ არსებობს
         if (!rooms[roomId]) {
             rooms[roomId] = { 
                 id: roomId, 
                 name: roomId, 
-                playerCount: 0, 
-                host: socket.id, // პირველი ვინც შევა არის ჰოსტი
+                host: socket.id, 
                 gameState: 'waiting',
-                players: [] 
+                players: [], // მხოლოდ აქტიური მოთამაშეები
+                spectators: [], // მაყურებლები
+                votes: {} 
             };
         }
 
-        rooms[roomId].playerCount++;
-        rooms[roomId].players.push(socket.id);
-        
-        users[socket.id] = { id: socket.id, nickname, roomId };
+        const userData = { id: socket.id, nickname, roomId, type, role: null };
+        users[socket.id] = userData;
 
-        // თუ ეს მომხმარებელი ჰოსტია, ვატყობინებთ
+        if (type === 'player') {
+            rooms[roomId].players.push(socket.id);
+        } else {
+            rooms[roomId].spectators.push(socket.id);
+        }
+
         if (rooms[roomId].host === socket.id) {
             socket.emit('is-host');
         }
 
         broadcastRooms();
 
-        // ვაგროვებთ სხვა მომხმარებლებს ამავე ოთახში WebRTC-სთვის
-        const otherUsersInRoom = [];
-        for (const id in users) {
-            if (users[id].roomId === roomId && id !== socket.id) {
-                otherUsersInRoom.push({ id: id, nickname: users[id].nickname });
+        // WebRTC-სთვის ყველას ვაგზავნით (მოთამაშეებსაც და მაყურებლებსაც)
+        const otherUsers = [];
+        const allInRoom = [...rooms[roomId].players, ...rooms[roomId].spectators];
+        allInRoom.forEach(id => {
+            if (id !== socket.id && users[id]) {
+                otherUsers.push({ id: id, nickname: users[id].nickname, type: users[id].type });
             }
-        }
+        });
 
-        socket.emit('all-users', otherUsersInRoom);
+        socket.emit('all-users', otherUsers);
     });
 
-    // --- თამაშის დაწყება და როლების დარიგება ---
+    // --- თამაშის ძრავა (რიგითობა და როლები) ---
     socket.on('start-game', (roomId) => {
         const room = rooms[roomId];
-        if (room && room.host === socket.id) {
+        if (room && room.host === socket.id && room.players.length >= 3) {
             room.gameState = 'playing';
             
-            const playerIds = room.players;
-            const roles = ['Mafia', 'Doctor', 'Detective']; // ძირითადი როლები
-            
-            // ვავსებთ დანარჩენ ადგილებს მოქალაქეებით
-            while (roles.length < playerIds.length) {
-                roles.push('Citizen');
-            }
-
-            // როლების არევა (Shuffle)
+            // 1. როლების დარიგება
+            const playerIds = [...room.players];
+            const roles = ['Mafia', 'Doctor', 'Detective'];
+            while (roles.length < playerIds.length) roles.push('Citizen');
             roles.sort(() => Math.random() - 0.5);
 
-            // თითოეულ მოთამაშეს ვუგზავნით თავის როლს
             playerIds.forEach((id, index) => {
-                io.to(id).emit('assign-role', roles[index]);
+                if (users[id]) {
+                    users[id].role = roles[index];
+                    io.to(id).emit('assign-role', roles[index]);
+                }
             });
 
             broadcastRooms();
+            // 2. რიგითობით საუბრის დაწყება
+            runGameCycle(roomId, 0);
+        } else {
+            socket.emit('error-msg', 'თამაშის დასაწყებად საჭიროა მინიმუმ 3 მოთამაშე!');
         }
     });
 
-    // --- WebRTC სიგნალიზაცია (აქ იყო შეცდომა და გასწორდა) ---
+    function runGameCycle(roomId, playerIndex) {
+        const room = rooms[roomId];
+        if (!room) return;
+
+        // თუ ყველა მოთამაშემ ისაუბრა, გადავდივართ ხმის მიცემაზე
+        if (playerIndex >= room.players.length) {
+            startVotingPhase(roomId);
+            return;
+        }
+
+        const currentPlayerId = room.players[playerIndex];
+        const player = users[currentPlayerId];
+
+        if (player) {
+            io.to(roomId).emit('next-turn', {
+                userId: currentPlayerId,
+                nickname: player.nickname,
+                seconds: 60
+            });
+
+            // 62 წამიანი ტაიმერი (60 საუბრისთვის + 2 გადასვლისთვის)
+            setTimeout(() => {
+                runGameCycle(roomId, playerIndex + 1);
+            }, 62000);
+        } else {
+            runGameCycle(roomId, playerIndex + 1);
+        }
+    }
+
+    function startVotingPhase(roomId) {
+        const room = rooms[roomId];
+        const activePlayers = room.players.map(id => ({ id, nick: users[id].nickname }));
+        room.votes = {};
+        io.to(roomId).emit('start-voting', activePlayers);
+
+        // 20 წამი ხმის მისაცემად
+        setTimeout(() => {
+            io.to(roomId).emit('night-phase');
+        }, 20000);
+    }
+
+    // ხმის მიცემის მიღება
+    socket.on('cast-vote', ({ targetId, roomId }) => {
+        const room = rooms[roomId];
+        if (room) {
+            room.votes[targetId] = (room.votes[targetId] || 0) + 1;
+            io.to(roomId).emit('update-votes', room.votes);
+        }
+    });
+
+    // --- WebRTC სიგნალიზაცია ---
     socket.on('sending-signal', payload => {
         io.to(payload.userToSignal).emit('user-joined', {
             signal: payload.signal,
@@ -122,20 +177,18 @@ io.on('connection', (socket) => {
             socket.to(roomId).emit('user-left', socket.id);
             
             if (rooms[roomId]) {
-                rooms[roomId].playerCount--;
                 rooms[roomId].players = rooms[roomId].players.filter(id => id !== socket.id);
+                rooms[roomId].spectators = rooms[roomId].spectators.filter(id => id !== socket.id);
                 
-                // თუ ჰოსტი გავიდა, ახალ ჰოსტს ვნიშნავთ
-                if (rooms[roomId].host === socket.id && rooms[roomId].players.length > 0) {
-                    rooms[roomId].host = rooms[roomId].players[0];
+                if (rooms[roomId].host === socket.id && (rooms[roomId].players.length > 0 || rooms[roomId].spectators.length > 0)) {
+                    rooms[roomId].host = rooms[roomId].players[0] || rooms[roomId].spectators[0];
                     io.to(rooms[roomId].host).emit('is-host');
                 }
 
-                if (rooms[roomId].playerCount <= 0) {
+                if (rooms[roomId].players.length === 0 && rooms[roomId].spectators.length === 0) {
                     delete rooms[roomId];
                 }
             }
-            
             delete users[socket.id];
             broadcastRooms();
         }
@@ -144,3 +197,4 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
+                    
