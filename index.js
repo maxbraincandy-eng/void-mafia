@@ -12,38 +12,46 @@ const io = new Server(server, {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ბაზასთან დაკავშირება უსაფრთხო ცვლადით
 const mongoURI = process.env.MONGO_URI;
 mongoose.connect(mongoURI)
     .then(() => console.log('✅ MongoDB Connected'))
     .catch(err => console.error('❌ DB Error:', err));
 
-const rooms = {};
+// ობიექტი მომხმარებლების მონაცემების შესანახად
+const users = {}; 
 
 io.on('connection', (socket) => {
     console.log('📱 New connection:', socket.id);
 
-    socket.on('join-room', (roomId, userId) => {
+    socket.on('join-room', (roomId, nickname) => {
         socket.join(roomId);
-        if (!rooms[roomId]) rooms[roomId] = [];
         
-        // არ დავამატოთ დუბლიკატი
-        if (!rooms[roomId].includes(socket.id)) {
-            rooms[roomId].push(socket.id);
+        // ვინახავთ მომხმარებლის ინფორმაციას სოკეტის აიდით
+        users[socket.id] = { id: socket.id, nickname, roomId };
+
+        // ვპოულობთ ყველა სხვა მომხმარებელს, ვინც უკვე ამავე ოთახშია
+        const otherUsersInRoom = [];
+        for (const id in users) {
+            if (users[id].roomId === roomId && id !== socket.id) {
+                otherUsersInRoom.push({ 
+                    id: id, 
+                    nickname: users[id].nickname 
+                });
+            }
         }
 
-        console.log(`👤 User ${userId} joined room ${roomId}`);
+        console.log(`👤 ${nickname} (${socket.id}) joined room: ${roomId}`);
 
-        // ვუგზავნით სხვების სიას
-        const otherUsers = rooms[roomId].filter(id => id !== socket.id);
-        socket.emit('all-users', otherUsers);
+        // ვუგზავნით ახალ შემოსულს იმ ხალხის სიას, ვინც უკვე ოთახშია
+        socket.emit('all-users', otherUsersInRoom);
     });
 
-    // WebRTC სიგნალები
     socket.on('sending-signal', payload => {
+        // გადავცემთ სიგნალს და გამომძახებლის სახელს
         io.to(payload.userToSignal).emit('user-joined', {
             signal: payload.signal,
-            callerID: payload.callerID
+            callerID: payload.callerID,
+            nickname: users[socket.id]?.nickname || "უცნობი"
         });
     });
 
@@ -55,10 +63,12 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        console.log('🔌 User disconnected:', socket.id);
-        for (const roomId in rooms) {
-            rooms[roomId] = rooms[roomId].filter(id => id !== socket.id);
-            socket.to(roomId).emit('user-left', socket.id);
+        const user = users[socket.id];
+        if (user) {
+            console.log(`🔌 ${user.nickname} disconnected`);
+            // ვატყობინებთ სხვებს ოთახში, რომ ეს მომხმარებელი გავიდა
+            socket.to(user.roomId).emit('user-left', socket.id);
+            delete users[socket.id];
         }
     });
 });
