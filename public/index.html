@@ -46,9 +46,10 @@
         .card { position: relative; z-index: 10; width: min(400px, 92vw); background: rgba(8,8,15,0.9); border: 1px solid var(--orange-glow); padding: 30px; animation: cardIn 0.8s cubic-bezier(0.16,1,0.3,1) both; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
         @keyframes cardIn { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* ── LOGO ────────────────────────────────────────── */
+        /* ── LOGO & POWERED BY ────────────────────────── */
         .logo-wrap { text-align: center; margin-bottom: 24px; }
         .logo-title { font-family: 'Bebas Neue', cursive; font-size: 42px; letter-spacing: 8px; color: var(--text); text-shadow: 0 0 15px var(--orange); }
+        .powered-by { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--muted); margin-top: 5px; letter-spacing: 1px; }
 
         /* ── TERMINAL ────────────────────────────────────── */
         .terminal { background: #000; border-left: 3px solid var(--orange); padding: 10px; margin-bottom: 20px; font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--orange); min-height: 60px; text-align: left; }
@@ -63,22 +64,26 @@
         .btn-secondary { background: transparent; color: var(--orange); border: 1px solid var(--orange-glow); }
         .btn:hover { transform: scale(1.02); box-shadow: 0 0 20px var(--orange-glow); }
 
-        /* ── GAME UI (AFTER LOGIN) ─────────────────────── */
+        /* ── VIDEO CONTROLS ────────────────────────────── */
+        .controls-overlay { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 20; }
+        .c-btn { background: rgba(0,0,0,0.7); border: 1px solid var(--orange-glow); color: var(--orange); border-radius: 50%; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: 0.2s; }
+        .c-btn.off { background: var(--main-red); color: white; border-color: white; }
+
+        /* ── GAME UI ────────────────────────────────────── */
         #game-interface { display: none; width: 100%; max-width: 1000px; z-index: 10; }
         #game-info { background: rgba(8,8,15,0.95); border: 1px solid var(--orange); padding: 15px; margin-bottom: 20px; text-align: center; }
         #timer { font-size: 32px; color: var(--orange); font-family: 'Share Tech Mono', monospace; }
         
         .video-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; width: 100%; }
-        .video-box { background: #000; border: 1px solid #333; position: relative; aspect-ratio: 3/4; overflow: hidden; }
+        .video-box { background: #000; border: 1px solid #333; position: relative; aspect-ratio: 3/4; overflow: hidden; border-radius: 4px; }
         .video-box.active-speaker { border: 2px solid var(--orange); box-shadow: 0 0 15px var(--orange); }
         video { width: 100%; height: 100%; object-fit: cover; }
         .nick { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.8); color: var(--orange); font-size: 12px; padding: 5px; text-align: center; font-family: 'Share Tech Mono'; }
 
         /* ── VOTING & NIGHT ────────────────────────────── */
-        .voting-panel { display: none; background: #000; border: 1px solid var(--cyan); padding: 20px; margin-bottom: 20px; }
+        .voting-panel { display: none; background: #000; border: 1px solid var(--cyan); padding: 20px; margin-bottom: 20px; text-align: center; }
         #night-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; }
 
-        /* ── HELPER CLASSES ────────────────────────────── */
         .hidden { display: none !important; }
         .glitch-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 200; opacity: 0; background: var(--orange-dim); }
         .glitch-active { animation: glitchFlash 0.15s infinite; opacity: 1; }
@@ -96,6 +101,7 @@
     <div class="logo-wrap">
         <h1 class="logo-title">VOID MAFIA</h1>
         <p style="font-size: 10px; color: var(--muted); letter-spacing: 3px;">SYSTEM.OPERATOR_v2.0</p>
+        <div class="powered-by">Powered by ბატონი მაქსი</div>
     </div>
 
     <div class="terminal" id="terminal-out">> WAITING FOR OPERATOR...</div>
@@ -154,7 +160,6 @@
     const peers = {};
     let localStream, myNickname, currentRoomId, myType, myRole;
 
-    // ვიზუალური ეფექტი
     function triggerGlitch() {
         const g = document.getElementById('glitch-layer');
         g.classList.add('glitch-active');
@@ -195,7 +200,6 @@
         document.getElementById('start-btn').classList.add('hidden');
     }
 
-    // --- GAME ENGINE EVENTS ---
     socket.on('assign-role', role => {
         myRole = role;
         const rd = document.getElementById('role-display');
@@ -249,7 +253,6 @@
         }, 1000);
     }
 
-    // --- WebRTC Logic ---
     socket.on('update-room-list', rooms => {
         const container = document.getElementById('room-list');
         container.innerHTML = "";
@@ -285,15 +288,37 @@
     function addVideoElement(id, stream, name, isLocal = false) {
         let box = document.getElementById(id);
         if (!box) {
-            box = document.createElement('div'); box.id = id; box.className = 'video-box';
-            box.innerHTML = `<video id="v-${id}" autoplay playsinline ${isLocal?'muted':''}></video><div class="nick">${name}</div>`;
+            box = document.createElement('div'); 
+            box.id = id; 
+            box.className = 'video-box';
+            
+            let controls = '';
+            if (isLocal) {
+                controls = `
+                <div class="controls-overlay">
+                    <button id="m-b" class="c-btn" onclick="tM()">🎤</button>
+                    <button id="v-b" class="c-btn" onclick="tV()">📷</button>
+                </div>`;
+            }
+            
+            box.innerHTML = `${controls}<video id="v-${id}" autoplay playsinline ${isLocal?'muted':''}></video><div class="nick">${name}</div>`;
             videoGrid.appendChild(box);
         }
         if (stream) document.getElementById(`v-${id}`).srcObject = stream;
     }
 
+    function tM() { 
+        if (!localStream) return;
+        const t = localStream.getAudioTracks()[0]; t.enabled = !t.enabled;
+        document.getElementById('m-b').classList.toggle('off');
+    }
+    function tV() { 
+        if (!localStream) return;
+        const t = localStream.getVideoTracks()[0]; t.enabled = !t.enabled;
+        document.getElementById('v-b').classList.toggle('off');
+    }
+
     socket.on('user-left', id => { document.getElementById(id)?.remove(); delete peers[id]; });
 </script>
 </body>
-    </html>
-    
+</html>
