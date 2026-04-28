@@ -3,20 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Void Mafia Voice</title>
+    <title>Void Mafia Voice & Video</title>
     <style>
-        body { background: #121212; color: white; font-family: sans-serif; text-align: center; padding-top: 50px; }
-        .btn { background: #ff4757; color: white; border: none; padding: 20px 40px; border-radius: 10px; font-size: 20px; cursor: pointer; }
-        #users-list { margin-top: 30px; display: flex; flex-wrap: wrap; justify-content: center; }
-        .user-box { background: #2f3542; padding: 10px; margin: 10px; border-radius: 5px; }
-        audio { display: block; margin-top: 10px; height: 30px; width: 200px; }
+        body { background: #121212; color: white; font-family: sans-serif; text-align: center; padding-top: 30px; }
+        .btn { background: #ff4757; color: white; border: none; padding: 20px 40px; border-radius: 10px; font-size: 20px; cursor: pointer; font-weight: bold; }
+        #users-list { margin-top: 30px; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
+        .user-box { background: #2f3542; padding: 10px; border-radius: 10px; border: 1px solid #444; }
+        
+        /* ვიდეოს სტილები */
+        video { 
+            width: 250px; 
+            height: 200px; 
+            background: black; 
+            border-radius: 10px; 
+            object-fit: cover;
+            display: block;
+        }
+        #localVideo { border: 3px solid #2ecc71; } /* შენი ვიდეო მწვანე ჩარჩოთი */
+        span { display: block; margin-top: 8px; font-size: 14px; color: #ccc; }
     </style>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
 </head>
 <body>
-    <h1>Void Mafia Voice System</h1>
-    <button id="joinBtn" class="btn">შესვლა და საუბარი</button>
+    <h1>Void Mafia Video Room</h1>
+    <button id="joinBtn" class="btn">შესვლა (კამერა + ხმა)</button>
     <p id="status">სტატუსი: გამორთულია</p>
     
     <div id="users-list"></div>
@@ -32,13 +43,29 @@
 
         joinBtn.onclick = async () => {
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                // ჩავრთეთ აუდიოც და ვიდეოც
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
                 status.innerText = "სტატუსი: ჩართულია ✅";
                 joinBtn.style.display = 'none';
+
+                // საკუთარი თავის ჩვენება
+                const localVideo = document.createElement('video');
+                localVideo.id = 'localVideo';
+                localVideo.srcObject = localStream;
+                localVideo.muted = true; // საკუთარი ხმა რომ არ დაგვიბრუნდეს
+                localVideo.autoplay = true;
+                localVideo.playsInline = true;
+                
+                const localBox = document.createElement('div');
+                localBox.className = 'user-box';
+                localBox.appendChild(localVideo);
+                localBox.innerHTML += `<span>მე (შენ)</span>`;
+                usersList.appendChild(localBox);
                 
                 socket.emit('join-room', 'main-lobby', 'player-' + Math.floor(Math.random() * 1000));
             } catch (err) {
-                alert("მიკროფონი მიუწვდომელია!");
+                alert("კამერა ან მიკროფონი მიუწვდომელია!");
+                console.error(err);
             }
         };
 
@@ -74,7 +101,7 @@
             });
 
             peer.on('stream', stream => {
-                addAudioElement(userToSignal, stream);
+                addMediaElement(userToSignal, stream);
             });
 
             return peer;
@@ -88,28 +115,27 @@
             });
 
             peer.on('stream', stream => {
-                addAudioElement(callerID, stream);
+                addMediaElement(callerID, stream);
             });
 
             peer.signal(incomingSignal);
             return peer;
         }
 
-        function addAudioElement(userId, stream) {
+        function addMediaElement(userId, stream) {
             if (document.getElementById(userId)) return;
 
             const div = document.createElement('div');
             div.id = userId;
             div.className = 'user-box';
-            div.innerHTML = `<span>მოთამაშე ${userId.substring(0, 5)}</span>`;
             
-            const audio = document.createElement('audio');
-            audio.srcObject = stream;
-            audio.autoplay = true;
-            audio.playsInline = true;
-            audio.controls = true; // დავამატოთ კონტროლები ტესტისთვის
+            const video = document.createElement('video');
+            video.srcObject = stream;
+            video.autoplay = true;
+            video.playsInline = true;
             
-            div.appendChild(audio);
+            div.appendChild(video);
+            div.innerHTML += `<span>მოთამაშე ${userId.substring(0, 5)}</span>`;
             usersList.appendChild(div);
         }
     </script>
