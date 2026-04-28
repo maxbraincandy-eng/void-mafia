@@ -1,5 +1,5 @@
 {
-  "name": "void-mafia",
+  "name": "mafia-night-backend",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -7,7 +7,11 @@
   },
   "dependencies": {
     "express": "^4.18.2",
-    "mongoose": "^7.0.0",
-    "socket.io": "^4.6.1"
+    "socket.io": "^4.5.4",
+    "mongoose": "^7.0.3",
+    "cors": "^2.8.5",
+    "jsonwebtoken": "^9.0.0",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.0.3"
   }
 }
