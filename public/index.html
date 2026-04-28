@@ -2,39 +2,105 @@
 <html lang="ka">
 <head>
     <meta charset="UTF-8">
-    <title>Void Mafia Voice</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Void Mafia Voice Chat</title>
     <style>
-        body { background: #1a1a1a; color: white; text-align: center; font-family: sans-serif; padding-top: 50px; }
-        button { background: #e74c3c; color: white; border: none; padding: 20px 40px; font-size: 20px; cursor: pointer; border-radius: 10px; font-weight: bold; }
-        button:hover { background: #c0392b; }
-        #status { margin-top: 20px; color: #2ecc71; font-size: 18px; }
+        body { background: #121212; color: white; text-align: center; font-family: 'Segoe UI', sans-serif; }
+        .container { padding: 50px 20px; }
+        button { background: #ff4757; color: white; border: none; padding: 15px 30px; font-size: 18px; cursor: pointer; border-radius: 50px; font-weight: bold; transition: 0.3s; }
+        button:hover { background: #ff6b81; transform: scale(1.05); }
+        #status { margin-top: 20px; color: #2ed573; font-weight: bold; }
+        #audio-container { display: none; }
     </style>
     <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
-    <h1>Void Mafia Control Panel</h1>
-    <p>ხმოვანი კავშირის სატესტო რეჟიმი</p>
-    <button id="startBtn">Join Room & Start Voice</button>
-    <div id="status">სტატუსი: მოლოდინი...</div>
+    <div class="container">
+        <h1>Void Mafia Voice</h1>
+        <p>ხმოვანი კავშირის სატესტო რეჟიმი</p>
+        <button id="startBtn">Join Lobby & Talk</button>
+        <div id="status">სტატუსი: გამორთულია</div>
+    </div>
+    
+    <div id="audio-container"></div>
 
     <script>
         const socket = io();
         const startBtn = document.getElementById('startBtn');
+        const statusDiv = document.getElementById('status');
+        const audioContainer = document.getElementById('audio-container');
+        
+        let localStream;
+        const peers = {};
+
+        const iceServers = {
+            iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+        };
 
         startBtn.onclick = async () => {
             try {
-                // ითხოვს მიკროფონს
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                document.getElementById('status').innerText = "სტატუსი: მიკროფონი ჩართულია!";
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                statusDiv.innerText = "სტატუსი: ოთახში ხარ! ხმა აქტიურია.";
+                startBtn.style.display = "none";
                 
-                // უერთდება ლობის
-                socket.emit('join-room', 'lobby-1', 'player-' + Math.floor(Math.random() * 1000));
-                console.log("Joined room!");
+                socket.emit('join-room', 'mafia-global-room', socket.id);
             } catch (err) {
-                alert("მიკროფონზე წვდომა აუცილებელია!");
-                console.error(err);
+                alert("მიკროფონზე წვდომა აუცილებელია ხმისთვის!");
             }
         };
+
+        socket.on('get-users', users => {
+            users.forEach(userId => callUser(userId));
+        });
+
+        socket.on('user-connected', userId => {
+            callUser(userId);
+        });
+
+        socket.on('offer', async (data) => {
+            const peer = createPeer(data.sender);
+            await peer.setRemoteDescription(new RTCSessionDescription(data.offer));
+            const answer = await peer.createAnswer();
+            await peer.setLocalDescription(answer);
+            socket.emit('answer', { target: data.sender, answer });
+        });
+
+        socket.on('answer', data => {
+            peers[data.sender].setRemoteDescription(new RTCSessionDescription(data.answer));
+        });
+
+        socket.on('ice-candidate', data => {
+            peers[data.sender].addIceCandidate(new RTCIceCandidate(data.candidate));
+        });
+
+        function createPeer(userId) {
+            const peer = new RTCPeerConnection(iceServers);
+            peers[userId] = peer;
+
+            localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+
+            peer.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('ice-candidate', { target: userId, candidate: event.candidate });
+                }
+            };
+
+            peer.ontrack = (event) => {
+                const audio = document.createElement('audio');
+                audio.srcObject = event.streams[0];
+                audio.autoplay = true;
+                audioContainer.appendChild(audio);
+            };
+
+            return peer;
+        }
+
+        async function callUser(userId) {
+            const peer = createPeer(userId);
+            const offer = await peer.createOffer();
+            await peer.setLocalDescription(offer);
+            socket.emit('offer', { target: userId, offer });
+        }
     </script>
 </body>
 </html>
