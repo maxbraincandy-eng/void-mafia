@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Void Mafia Voice Test</title>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <h1>Mafia Voice Room</h1>
+    <button onclick="joinRoom()">Join Room & Start Voice</button>
+    <div id="status">Status: Disconnected</div>
+
+    <script>
+        const socket = io();
+        
+        async function joinRoom() {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            document.getElementById('status').innerText = "Status: Joined! Mic Active.";
+            
+            socket.emit('join-room', 'test-room', 'user-' + Math.random());
+            
+            // აქ მოხდება WebRTC-ის ჯადოქრობა (ხმის გადაცემა)
+            socket.on('user-connected', userId => {
+                console.log('სხვა მოთამაშე შემოვიდა:', userId);
+            });
+        }
+    </script>
+</body>
+</html>
