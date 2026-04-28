@@ -1,261 +1,643 @@
-
 <!DOCTYPE html>
 <html lang="ka">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <title>VOID MAFIA</title>
-    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --orange: #ff6b00;
-            --orange-bright: #ff8c00;
-            --orange-dim: #ff6b0044;
-            --orange-glow: #ff6b0088;
-            --cyan: #00fff0;
-            --bg: #030305;
-            --bg2: #08080f;
-            --grid: #ff6b0012;
-            --text: #ffeedd;
-            --muted: #ff6b0077;
-            --main-red: #ff4757;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VOID MAFIA</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════
+   VOID MAFIA — SYNTHWAVE CYBERPUNK RETRO
+═══════════════════════════════════════════ */
+:root {
+  --bg:        #07020f;
+  --bg2:       #0e0520;
+  --bg3:       #130830;
+  --magenta:   #ff00ff;
+  --cyan:      #00ffff;
+  --pink:      #ff2d9b;
+  --purple:    #bf00ff;
+  --yellow:    #ffe600;
+  --orange:    #ff6e00;
+  --green:     #00ff9f;
+  --red:       #ff1744;
+  --gold:      #ffd700;
+  --text:      #f0e6ff;
+  --dim:       #6a4a8a;
+  --grid:      rgba(191,0,255,0.07);
+}
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+/* ── RESET ── */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior:smooth; }
 
-        body {
-            background: var(--bg);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Rajdhani', sans-serif;
-            overflow-x: hidden;
-            position: relative;
-            padding: 20px;
-        }
+body {
+  font-family: 'Rajdhani', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  cursor: crosshair;
+}
 
-        .grid-bg { position: fixed; inset: 0; background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 40px 40px; animation: gridDrift 20s linear infinite; z-index: -1; }
-        @keyframes gridDrift { 0% { transform: perspective(600px) rotateX(10deg) translateY(0); } 100% { transform: perspective(600px) rotateX(10deg) translateY(40px); } }
-        .scanlines { position: fixed; inset: 0; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px); pointer-events: none; z-index: 100; }
-        .noise { position: fixed; inset: -50%; width: 200%; height: 200%; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E"); opacity: 0.4; pointer-events: none; z-index: 98; animation: noiseDrift 0.5s steps(2) infinite; }
-        
-        .card { position: relative; z-index: 10; width: min(400px, 92vw); background: rgba(8,8,15,0.9); border: 1px solid var(--orange-glow); padding: 30px; animation: cardIn 0.8s cubic-bezier(0.16,1,0.3,1) both; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
-        .logo-wrap { text-align: center; margin-bottom: 24px; }
-        .logo-title { font-family: 'Bebas Neue', cursive; font-size: 42px; letter-spacing: 8px; color: var(--text); text-shadow: 0 0 15px var(--orange); }
-        .terminal { background: #000; border-left: 3px solid var(--orange); padding: 10px; margin-bottom: 20px; font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--orange); min-height: 60px; text-align: left; }
-        .field { margin-bottom: 15px; text-align: left; }
-        .field label { display: block; font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--orange); margin-bottom: 5px; letter-spacing: 2px; }
-        input { width: 100%; background: #000; border: 1px solid var(--orange-dim); border-bottom: 2px solid var(--orange); color: white; padding: 12px; font-family: 'Share Tech Mono', monospace; outline: none; }
-        
-        .btn { width: 100%; padding: 14px; font-family: 'Bebas Neue', cursive; font-size: 18px; letter-spacing: 3px; cursor: pointer; border: none; transition: 0.3s; margin-top: 10px; clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%); }
-        .btn-primary { background: var(--orange); color: #000; }
-        .btn-secondary { background: transparent; color: var(--orange); border: 1px solid var(--orange-glow); }
-        
-        .history-box { margin-top: 20px; border: 1px solid var(--orange-dim); padding: 10px; font-size: 11px; color: var(--muted); font-family: 'Share Tech Mono'; }
-        .history-item { display: flex; justify-content: space-between; border-bottom: 1px solid #111; padding: 5px 0; }
+/* ── SCANLINES ── */
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: 9999;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 3px,
+    rgba(0,0,0,0.18) 3px,
+    rgba(0,0,0,0.18) 4px
+  );
+}
 
-        #game-interface { display: none; width: 100%; max-width: 1000px; z-index: 10; }
-        .video-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; width: 100%; }
-        .video-box { background: #000; border: 1px solid #333; position: relative; aspect-ratio: 3/4; overflow: hidden; border-radius: 4px; }
-        .hidden { display: none !important; }
+/* ── CUSTOM CURSOR ── */
+* { cursor: crosshair; }
+a, button { cursor: pointer; }
 
-        .nick { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.8); color: var(--orange); font-size: 12px; padding: 5px; text-align: center; }
-        video { width: 100%; height: 100%; object-fit: cover; }
-    </style>
-</head>
-<body>
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--magenta); box-shadow: 0 0 8px var(--magenta); }
 
-<div class="noise"></div>
-<div class="grid-bg"></div>
-<div class="scanlines"></div>
+/* ══════════════════════════
+   PERSPECTIVE GRID BACKGROUND
+══════════════════════════ */
+.grid-bg {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: 55vh; z-index: 0; pointer-events: none;
+  overflow: hidden;
+}
+.grid-bg::before {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(transparent 0%, var(--bg) 100%),
+    repeating-linear-gradient(90deg,
+      var(--grid) 0px, var(--grid) 1px,
+      transparent 1px, transparent 60px),
+    repeating-linear-gradient(0deg,
+      var(--grid) 0px, var(--grid) 1px,
+      transparent 1px, transparent 60px);
+  transform: perspective(400px) rotateX(70deg) scaleX(1.8);
+  transform-origin: bottom center;
+  animation: gridScroll 6s linear infinite;
+}
+@keyframes gridScroll {
+  from { background-position: 0 0; }
+  to   { background-position: 0 60px; }
+}
 
-<div id="login-screen" class="card">
-    <div class="logo-wrap">
-        <h1 class="logo-title">VOID MAFIA</h1>
-        <div class="powered-by">Powered by ბატონი მაქსი</div>
-    </div>
-    <div class="terminal" id="terminal-out">> SYSTEM_READY: WAITING_FOR_AUTH...</div>
-    <div class="field">
-        <label>// OPERATOR_ID</label>
-        <input type="text" id="nickname" placeholder="NICKNAME" autocomplete="off">
-    </div>
-    <div class="field">
-        <label>// ACCESS_KEY</label>
-        <input type="password" id="password" placeholder="PASSWORD">
-    </div>
-    <div style="display: flex; gap: 10px;">
-        <button class="btn btn-primary" onclick="handleAuth('login')">შესვლა</button>
-        <button class="btn btn-secondary" style="margin-top:10px; width:100%; clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%);" onclick="handleAuth('register')">რეგისტრაცია</button>
-    </div>
-</div>
+/* sun */
+.retro-sun {
+  position: fixed;
+  bottom: 30vh; left: 50%; transform: translateX(-50%);
+  width: 200px; height: 100px;
+  border-radius: 50% 50% 0 0;
+  overflow: hidden;
+  z-index: 0; pointer-events: none;
+}
+.retro-sun::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg,
+    #ff6e00 0%, #ff2d9b 30%, #bf00ff 65%, var(--bg) 100%);
+  border-radius: 50% 50% 0 0;
+}
+/* sun lines */
+.retro-sun::after {
+  content: '';
+  position: absolute; bottom: 0; left: 0; right: 0; top: 40%;
+  background: repeating-linear-gradient(
+    0deg,
+    var(--bg) 0px, var(--bg) 4px,
+    transparent 4px, transparent 10px
+  );
+}
 
-<div id="rooms-screen" class="card hidden">
-    <div class="logo-wrap"><h2 class="logo-title" style="font-size: 24px;">DATA_CENTER</h2></div>
-    <div class="field">
-        <label>// CREATE_NEW_CHANNEL</label>
-        <input type="text" id="room-name" placeholder="ROOM_ID">
-    </div>
-    <button class="btn btn-primary" onclick="createRoom()">შექმენი ოთახი</button>
-    <div id="room-list" style="margin-top: 20px;"></div>
-    <div class="history-box">
-        <div style="color: var(--orange); margin-bottom: 10px;">// RECENT_HISTORY</div>
-        <div id="match-history-list">
-            <div class="history-item"><span>NO_DATA_FOUND</span></div>
-        </div>
-    </div>
-</div>
+/* mountains silhouette */
+.mountains {
+  position: fixed;
+  bottom: calc(30vh - 2px); left: 0; right: 0;
+  height: 80px; z-index: 1; pointer-events: none;
+  background:
+    radial-gradient(ellipse 60px 80px at 8% 100%, var(--bg2) 98%, transparent 99%),
+    radial-gradient(ellipse 100px 120px at 18% 100%, var(--bg2) 98%, transparent 99%),
+    radial-gradient(ellipse 80px 100px at 28% 100%, var(--bg2) 98%, transparent 99%),
+    radial-gradient(ellipse 120px 140px at 42% 100%, var(--bg2) 98%, transparent 99%),
+    radial-gradient(ellipse 90px 110px at 55% 100%, var(--bg2) 98%, transparent 99%),
+    radial-gradient(ellipse 110px 130px at 70% 100%, var(--bg2) 98%, transparent 99%),
+    radial-gradient(ellipse 80px 95px at 82% 100%, var(--bg2) 98%, transparent 99%),
+    radial-gradient(ellipse 60px 80px at 92% 100%, var(--bg2) 98%, transparent 99%);
+}
 
-<div id="game-interface">
-    <div id="game-info" style="background: rgba(8,8,15,0.95); border: 1px solid var(--orange); padding: 15px; margin-bottom: 20px; text-align: center;">
-        <div id="speaker-info" style="color: var(--orange);">INITIALIZING...</div>
-        <div id="timer" style="font-size: 32px; color: var(--orange); font-family: 'Share Tech Mono';">00:00</div>
-        <div id="role-display" style="color: var(--cyan);">ROLE: UNDEFINED</div>
-        <button id="start-btn" class="btn btn-primary hidden" onclick="startGame()">თამაშის დაწყება</button>
-    </div>
-    <div class="video-grid" id="video-grid"></div>
-</div>
+/* stars */
+.stars {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+}
+.star {
+  position: absolute;
+  width: 2px; height: 2px;
+  background: #fff;
+  border-radius: 50%;
+  animation: twinkle var(--d) ease-in-out infinite;
+}
+@keyframes twinkle {
+  0%,100% { opacity: 0.2; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.4); }
+}
 
-<script src="/socket.io/socket.io.js"></script>
-<script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
-<script>
-    let socket;
-    let localStream, myNickname, currentRoomId, myToken;
-    const peers = {};
+/* ══════════════════════════
+   LAYOUT
+══════════════════════════ */
+.page { position: relative; z-index: 10; }
 
-    // 1. ავტორიზაცია (Login/Register)
-    async function handleAuth(mode) {
-        const user = document.getElementById('nickname').value.trim();
-        const pass = document.getElementById('password').value.trim();
-        const term = document.getElementById('terminal-out');
+/* ══════════════════════════
+   HEADER / NAV
+══════════════════════════ */
+header {
+  position: sticky; top: 0; z-index: 200;
+  background: linear-gradient(180deg, rgba(7,2,15,.97) 0%, rgba(7,2,15,.85) 100%);
+  border-bottom: 1px solid var(--magenta);
+  box-shadow: 0 0 30px rgba(255,0,255,.25), 0 2px 60px rgba(255,0,255,.1);
+  backdrop-filter: blur(10px);
+}
+.header-inner {
+  max-width: 1200px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 32px; height: 64px;
+}
 
-        if (!user || !pass) return term.innerText = "> ERROR: CREDENTIALS_REQUIRED";
-        term.innerText = `> ${mode.toUpperCase()}_IN_PROGRESS...`;
+.logo-wrap {
+  display: flex; align-items: baseline; gap: 10px;
+}
+.logo-void {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 28px; font-weight: 900; letter-spacing: 6px;
+  color: var(--cyan);
+  text-shadow: 0 0 20px var(--cyan), 0 0 40px rgba(0,255,255,.4);
+  animation: logoPulse 3s ease-in-out infinite;
+}
+@keyframes logoPulse {
+  0%,100% { text-shadow: 0 0 20px var(--cyan), 0 0 40px rgba(0,255,255,.4); }
+  50%     { text-shadow: 0 0 30px var(--cyan), 0 0 60px var(--cyan), 0 0 100px rgba(0,255,255,.3); }
+}
+.logo-mafia {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 28px; font-weight: 900; letter-spacing: 6px;
+  color: var(--magenta);
+  text-shadow: 0 0 20px var(--magenta), 0 0 40px rgba(255,0,255,.4);
+}
+.logo-slash { color: var(--dim); font-size: 22px; margin: 0 2px; }
 
-        try {
-            const res = await fetch(`/api/auth/${mode}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: user, password: pass })
-            });
-            const data = await res.json();
+nav { display: flex; gap: 8px; }
+.nav-link {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--dim); text-decoration: none;
+  padding: 8px 16px; border-radius: 3px;
+  border: 1px solid transparent;
+  transition: all .2s;
+  position: relative;
+}
+.nav-link:hover, .nav-link.active {
+  color: var(--cyan); border-color: var(--cyan);
+  background: rgba(0,255,255,.06);
+  box-shadow: 0 0 15px rgba(0,255,255,.15);
+}
+.nav-coins {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px; color: var(--gold);
+  background: rgba(255,215,0,.07);
+  border: 1px solid rgba(255,215,0,.3);
+  border-radius: 3px; padding: 6px 14px;
+  display: flex; align-items: center; gap: 6px;
+  text-shadow: 0 0 8px var(--gold);
+  cursor: pointer; transition: all .2s;
+}
+.nav-coins:hover { border-color: var(--gold); box-shadow: 0 0 15px rgba(255,215,0,.2); }
 
-            if (data.token) {
-                myToken = data.token;
-                myNickname = user;
-                localStorage.setItem('void_token', data.token);
-                term.innerText = "> ACCESS_GRANTED. CONNECTING...";
-                initSocket(data.token);
-                document.getElementById('login-screen').classList.add('hidden');
-                document.getElementById('rooms-screen').classList.remove('hidden');
-            } else {
-                term.innerText = "> ERROR: " + (data.msg || "AUTH_FAILED");
-            }
-        } catch (e) {
-            term.innerText = "> SYSTEM_ERROR: CONNECTION_REFUSED";
-        }
-    }
+/* ══════════════════════════
+   HERO
+══════════════════════════ */
+.hero {
+  min-height: calc(100vh - 64px);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center;
+  padding: 60px 20px 200px;
+  position: relative;
+}
 
-    // 2. სოკეტის ინიციალიზაცია
-    function initSocket(token) {
-        socket = io({ auth: { token } });
+.hero-eyebrow {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px; letter-spacing: 6px; text-transform: uppercase;
+  color: var(--pink);
+  text-shadow: 0 0 10px var(--pink);
+  margin-bottom: 20px;
+  animation: fadeSlide .8s .2s both;
+}
 
-        socket.on('update-room-list', rooms => {
-            const container = document.getElementById('room-list');
-            container.innerHTML = rooms.length ? "" : "<div class='history-item'>NO_ACTIVE_ROOMS</div>";
-            rooms.forEach(r => {
-                const b = document.createElement('button');
-                b.className = "btn btn-secondary";
-                b.style.fontSize = "12px";
-                b.innerHTML = `JOIN: ${r.name} [${r.playerCount}/10]`;
-                b.onclick = () => joinRoom(r.name);
-                container.appendChild(b);
-            });
-        });
+.hero-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(52px, 10vw, 110px);
+  font-weight: 900; line-height: .95;
+  letter-spacing: 8px;
+  margin-bottom: 10px;
+  animation: fadeSlide .8s .4s both;
+}
+.ht-void {
+  display: block;
+  color: transparent;
+  -webkit-text-stroke: 2px var(--cyan);
+  text-shadow: none;
+  filter: drop-shadow(0 0 20px var(--cyan));
+}
+.ht-mafia {
+  display: block;
+  color: var(--magenta);
+  text-shadow: 0 0 30px var(--magenta), 0 0 60px rgba(255,0,255,.4),
+               0 0 100px rgba(255,0,255,.2);
+}
 
-        socket.on('all-users', users => {
-            users.forEach(u => {
-                const peer = createPeer(u.id, socket.id, localStream);
-                peers[u.id] = peer;
-            });
-        });
+.hero-year {
+  font-family: 'VT323', monospace;
+  font-size: 22px; color: var(--dim);
+  letter-spacing: 4px; margin-bottom: 36px;
+  animation: fadeSlide .8s .5s both;
+}
 
-        socket.on('user-joined', payload => {
-            const peer = addPeer(payload.signal, payload.callerID, localStream);
-            peers[payload.callerID] = peer;
-        });
+.hero-desc {
+  font-size: 18px; font-weight: 300; color: rgba(240,230,255,.6);
+  max-width: 560px; line-height: 1.7; margin-bottom: 48px;
+  animation: fadeSlide .8s .6s both;
+}
 
-        socket.on('receiving-returned-signal', payload => {
-            peers[payload.id].signal(payload.signal);
-        });
+.hero-btns {
+  display: flex; gap: 16px; flex-wrap: wrap; justify-content: center;
+  animation: fadeSlide .8s .7s both;
+}
 
-        socket.on('is-host', () => document.getElementById('start-btn').classList.remove('hidden'));
+@keyframes fadeSlide {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 
-        socket.on('assign-role', role => {
-            document.getElementById('role-display').innerText = "ROLE: " + role.toUpperCase();
-        });
+/* ══════════════════════════
+   BUTTONS
+══════════════════════════ */
+.btn {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 12px; font-weight: 700; letter-spacing: 3px;
+  text-transform: uppercase; text-decoration: none;
+  padding: 16px 36px; border-radius: 3px;
+  border: none; cursor: pointer;
+  transition: all .25s; position: relative; overflow: hidden;
+  display: inline-flex; align-items: center; gap: 10px;
+}
+.btn::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.1), transparent);
+  transform: translateX(-100%); transition: transform .5s;
+}
+.btn:hover::before { transform: translateX(100%); }
 
-        socket.on('user-left', id => {
-            if (peers[id]) {
-                peers[id].destroy();
-                delete peers[id];
-            }
-            document.getElementById(id)?.remove();
-        });
-    }
+.btn-primary {
+  background: linear-gradient(135deg, #ff00ff, #bf00ff);
+  color: #fff;
+  box-shadow: 0 0 25px rgba(255,0,255,.4), 0 4px 30px rgba(255,0,255,.2);
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 40px rgba(255,0,255,.6), 0 8px 40px rgba(255,0,255,.3);
+}
 
-    // 3. ოთახში შესვლა და WebRTC
-    async function joinRoom(roomID) {
-        currentRoomId = roomID;
-        try {
-            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            addVideoElement('me', localStream, myNickname + " (YOU)", true);
-            document.getElementById('rooms-screen').classList.add('hidden');
-            document.getElementById('game-interface').style.display = 'block';
-            socket.emit('join-room', roomID);
-        } catch (e) { alert("ERROR: Camera Access Denied"); }
-    }
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--cyan);
+  color: var(--cyan);
+  box-shadow: 0 0 15px rgba(0,255,255,.2), inset 0 0 15px rgba(0,255,255,.04);
+}
+.btn-outline:hover {
+  background: rgba(0,255,255,.08);
+  transform: translateY(-2px);
+  box-shadow: 0 0 30px rgba(0,255,255,.4), inset 0 0 30px rgba(0,255,255,.08);
+}
 
-    function createRoom() {
-        const name = document.getElementById('room-name').value;
-        if (name) joinRoom(name);
-    }
+.btn-gold {
+  background: linear-gradient(135deg, #ffd700, #ff9500);
+  color: #000;
+  box-shadow: 0 0 25px rgba(255,215,0,.35);
+  font-weight: 900;
+}
+.btn-gold:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 40px rgba(255,215,0,.55);
+}
 
-    function createPeer(userToSignal, callerID, stream) {
-        const peer = new SimplePeer({ initiator: true, trickle: false, stream });
-        peer.on('signal', signal => {
-            socket.emit('sending-signal', { userToSignal, callerID, signal });
-        });
-        peer.on('stream', st => addVideoElement(userToSignal, st, "OPERATOR_" + userToSignal.slice(0,4)));
-        return peer;
-    }
+.btn-danger {
+  background: transparent;
+  border: 1px solid var(--red);
+  color: var(--red);
+  box-shadow: 0 0 12px rgba(255,23,68,.2);
+}
+.btn-danger:hover {
+  background: rgba(255,23,68,.08);
+  box-shadow: 0 0 25px rgba(255,23,68,.4);
+}
 
-    function addPeer(incomingSignal, callerID, stream) {
-        const peer = new SimplePeer({ initiator: false, trickle: false, stream });
-        peer.on('signal', signal => {
-            socket.emit('returning-signal', { signal, callerID });
-        });
-        peer.on('stream', st => addVideoElement(callerID, st, "OPERATOR_" + callerID.slice(0,4)));
-        peer.signal(incomingSignal);
-        return peer;
-    }
+.btn-sm {
+  padding: 9px 18px; font-size: 10px; letter-spacing: 2px;
+}
 
-    function addVideoElement(id, stream, name, isLocal = false) {
-        const videoGrid = document.getElementById('video-grid');
-        let box = document.getElementById(id);
-        if (!box) {
-            box = document.createElement('div'); box.id = id; box.className = 'video-box';
-            box.innerHTML = `<video id="v-${id}" autoplay playsinline ${isLocal?'muted':''}></video><div class="nick">${name}</div>`;
-            videoGrid.appendChild(box);
-        }
-        if (stream) document.getElementById(`v-${id}`).srcObject = stream;
-    }
+/* ══════════════════════════
+   SECTION WRAPPER
+══════════════════════════ */
+.section {
+  max-width: 1200px; margin: 0 auto;
+  padding: 80px 32px;
+}
+.section-header {
+  text-align: center; margin-bottom: 60px;
+}
+.sec-tag {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px; letter-spacing: 5px; color: var(--pink);
+  text-shadow: 0 0 10px var(--pink);
+  text-transform: uppercase; margin-bottom: 12px;
+  display: block;
+}
+.sec-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(26px, 4vw, 42px);
+  font-weight: 900; letter-spacing: 4px;
+  color: var(--text);
+  text-shadow: 0 0 30px rgba(240,230,255,.15);
+}
+.sec-title span { color: var(--magenta); text-shadow: 0 0 20px var(--magenta); }
+.sec-sub {
+  font-size: 16px; color: rgba(240,230,255,.45);
+  margin-top: 12px; letter-spacing: 1px;
+}
 
-    function startGame() {
-        socket.emit('start-game', currentRoomId);
-        document.getElementById('start-btn').classList.add('hidden');
-    }
-</script>
-</body>
-</html>
+/* ══════════════════════════
+   DIVIDER
+══════════════════════════ */
+.neon-divider {
+  height: 1px; border: none;
+  background: linear-gradient(90deg,
+    transparent, var(--magenta), var(--cyan), var(--magenta), transparent);
+  box-shadow: 0 0 10px var(--magenta);
+  margin: 0;
+}
+
+/* ══════════════════════════
+   ROLES SECTION
+══════════════════════════ */
+.roles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+.role-card {
+  background: linear-gradient(135deg, rgba(14,5,32,.9), rgba(19,8,48,.9));
+  border: 1px solid rgba(191,0,255,.2);
+  border-radius: 6px; padding: 28px 22px;
+  text-align: center;
+  transition: all .3s;
+  position: relative; overflow: hidden;
+}
+.role-card::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, var(--glow) 0%, transparent 70%);
+  opacity: 0; transition: opacity .3s;
+}
+.role-card:hover { transform: translateY(-6px); }
+.role-card:hover::before { opacity: 1; }
+.role-card:hover { border-color: var(--color); box-shadow: 0 0 30px var(--glow); }
+
+.role-icon { font-size: 42px; margin-bottom: 12px; display: block; }
+.role-name {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 14px; font-weight: 700; letter-spacing: 3px;
+  color: var(--color); text-shadow: 0 0 12px var(--color);
+  margin-bottom: 8px;
+}
+.role-team {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px; letter-spacing: 2px;
+  padding: 3px 10px; border-radius: 2px;
+  margin-bottom: 14px; display: inline-block;
+}
+.team-evil  { background: rgba(255,23,68,.15); color: var(--red);   border: 1px solid rgba(255,23,68,.3); }
+.team-good  { background: rgba(0,255,159,.1);  color: var(--green); border: 1px solid rgba(0,255,159,.3); }
+.role-desc { font-size: 13px; color: rgba(240,230,255,.5); line-height: 1.6; }
+
+/* ══════════════════════════
+   HOW TO PLAY
+══════════════════════════ */
+.phases-timeline {
+  position: relative;
+  display: flex; flex-direction: column; gap: 0;
+}
+.phases-timeline::before {
+  content: ''; position: absolute; left: 32px; top: 0; bottom: 0; width: 1px;
+  background: linear-gradient(180deg, var(--magenta), var(--cyan), var(--purple));
+  box-shadow: 0 0 8px var(--magenta);
+}
+.phase-item {
+  display: flex; gap: 28px; padding: 24px 0;
+  position: relative;
+  opacity: 0; transform: translateX(-20px);
+  transition: opacity .5s, transform .5s;
+}
+.phase-item.visible { opacity: 1; transform: translateX(0); }
+.phase-dot {
+  width: 64px; height: 64px; border-radius: 50%;
+  flex-shrink: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px;
+  border: 2px solid var(--c);
+  background: var(--bg2);
+  box-shadow: 0 0 20px var(--c), inset 0 0 15px rgba(255,255,255,.03);
+}
+.phase-content { padding-top: 12px; }
+.phase-name {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 16px; font-weight: 700; letter-spacing: 3px;
+  color: var(--c); text-shadow: 0 0 12px var(--c);
+  margin-bottom: 6px;
+}
+.phase-dur {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px; color: var(--dim); letter-spacing: 2px;
+  margin-bottom: 8px;
+}
+.phase-desc { font-size: 14px; color: rgba(240,230,255,.5); line-height: 1.6; max-width: 480px; }
+
+/* ══════════════════════════
+   SHOP / MONETIZATION
+══════════════════════════ */
+.shop-wrap {
+  background: linear-gradient(135deg, rgba(14,5,32,.8), rgba(7,2,15,.9));
+  border: 1px solid rgba(255,214,0,.2);
+  border-radius: 8px; overflow: hidden;
+}
+
+/* VIP hero */
+.vip-hero {
+  background: linear-gradient(135deg, #1a0d00, #0a0600);
+  border-bottom: 1px solid rgba(255,165,0,.3);
+  padding: 40px;
+  display: grid; grid-template-columns: 1fr auto;
+  gap: 32px; align-items: center;
+  position: relative; overflow: hidden;
+}
+.vip-hero::before {
+  content: '';
+  position: absolute; top: -60px; right: -60px;
+  width: 250px; height: 250px;
+  background: radial-gradient(circle, rgba(255,165,0,.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+.vip-badge-big {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px; letter-spacing: 4px; color: var(--gold);
+  text-shadow: 0 0 10px var(--gold); margin-bottom: 10px;
+}
+.vip-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 32px; font-weight: 900; letter-spacing: 4px;
+  background: linear-gradient(135deg, var(--gold), var(--orange));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  text-shadow: none; margin-bottom: 8px;
+}
+.vip-subtitle { font-size: 15px; color: rgba(255,215,0,.5); margin-bottom: 20px; }
+.vip-perks { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.vip-perks li {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px; color: rgba(255,200,0,.7);
+  display: flex; align-items: center; gap: 10px;
+}
+.vip-perks li span { color: var(--gold); font-size: 14px; }
+.vip-price-box { text-align: center; flex-shrink: 0; }
+.vip-price {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 44px; font-weight: 900;
+  color: var(--gold); text-shadow: 0 0 20px var(--gold);
+  line-height: 1;
+}
+.vip-price-period {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px; color: var(--dim);
+  letter-spacing: 2px; margin-bottom: 16px;
+}
+
+/* coin grid */
+.shop-lower { padding: 40px; }
+.coins-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px; margin-bottom: 32px;
+}
+.coin-pack {
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 6px; padding: 22px 16px;
+  text-align: center; cursor: pointer;
+  transition: all .25s; position: relative;
+}
+.coin-pack:hover {
+  border-color: var(--cyan);
+  box-shadow: 0 0 20px rgba(0,255,255,.15);
+  transform: translateY(-4px);
+}
+.coin-pack.hot {
+  border-color: var(--cyan);
+  box-shadow: 0 0 15px rgba(0,255,255,.12);
+}
+.hot-label {
+  position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+  background: var(--cyan); color: var(--bg);
+  font-family: 'Orbitron', monospace; font-size: 8px; font-weight: 700;
+  letter-spacing: 1px; padding: 2px 10px; border-radius: 2px;
+}
+.cp-icon { font-size: 28px; margin-bottom: 8px; }
+.cp-amount {
+  font-family: 'Orbitron', monospace; font-size: 20px;
+  color: var(--gold); letter-spacing: 1px; margin-bottom: 4px;
+}
+.cp-bonus { font-size: 11px; color: var(--green); font-family: 'Share Tech Mono', monospace; margin-bottom: 10px; }
+.cp-price {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 15px; font-weight: 700; color: var(--text);
+}
+
+/* cosm */
+.cosm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.cosm-item {
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 6px; padding: 16px;
+  display: flex; align-items: center; gap: 14px;
+  cursor: pointer; transition: all .2s;
+}
+.cosm-item:hover {
+  border-color: var(--purple);
+  box-shadow: 0 0 15px rgba(191,0,255,.15);
+}
+.cosm-icon-w { font-size: 26px; }
+.cosm-info { flex: 1; }
+.cosm-name { font-size: 14px; font-weight: 700; color: var(--text); }
+.cosm-desc { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim); margin-top: 2px; }
+.cosm-price { font-family: 'Share Tech Mono', monospace; font-size: 13px; color: var(--gold); }
+
+/* ══════════════════════════
+   SCREENS / GAME UI PREVIEW
+══════════════════════════ */
+.screens-showcase {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
+}
+.mockup {
+  background: linear-gradient(180deg, rgba(14,5,32,.95), rgba(7,2,15,1));
+  border: 1px solid rgba(191,0,255,.25);
+  border-radius: 12px; overflow: hidden;
+  box-shadow: 0 0 30px rgba(191,0,255,.1);
+  transition: transform .3s, box-shadow .3s;
+}
+.mockup:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 20px 60px rgba(191,0,255,.25);
+}
+.mockup-bar {
+  height: 32px; background: rgba(255,0,255,.08);
+  border-bottom: 1px solid rgba(255,0,255,.15);
+  display: flex; align-items: center; padding: 0 14px; gap: 6px;
+}
+.mb-dot { width: 8px; height: 8px; border-radius: 50%; }
+.mockup-content { padding: 20px; }
+.mock-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 11px; font-weight: 700; letter-spacing: 3px;
+  color: var(--magenta); text-shadow: 0 0 8px var(--magenta);
+  margin-bottom: 14px;
+}
+.mock-player {
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 4px; padding: 10px 12px;
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 6px;
+  font-family: 'Share Tech Mono', monospace; font-size: 12px;
+}
+.mp-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.mock-code {
+  font-family: 'VT323', monospace; font-size: 40px;
+  color: var(--cyan); letter-spacing: 10px; text-align: center;
+  text-shadow: 0 0 15px var(--cyan); margin: 12px 0;
+}
+.mock-role-card {
+  background: linear-gradi
