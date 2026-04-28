@@ -1,28 +1,40 @@
 <!DOCTYPE html>
-<html>
+<html lang="ka">
 <head>
-    <title>Void Mafia Voice Test</title>
+    <meta charset="UTF-8">
+    <title>Void Mafia Voice</title>
+    <style>
+        body { background: #1a1a1a; color: white; text-align: center; font-family: sans-serif; padding-top: 50px; }
+        button { background: #e74c3c; color: white; border: none; padding: 20px 40px; font-size: 20px; cursor: pointer; border-radius: 10px; font-weight: bold; }
+        button:hover { background: #c0392b; }
+        #status { margin-top: 20px; color: #2ecc71; font-size: 18px; }
+    </style>
     <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
-    <h1>Mafia Voice Room</h1>
-    <button onclick="joinRoom()">Join Room & Start Voice</button>
-    <div id="status">Status: Disconnected</div>
+    <h1>Void Mafia Control Panel</h1>
+    <p>ხმოვანი კავშირის სატესტო რეჟიმი</p>
+    <button id="startBtn">Join Room & Start Voice</button>
+    <div id="status">სტატუსი: მოლოდინი...</div>
 
     <script>
         const socket = io();
-        
-        async function joinRoom() {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            document.getElementById('status').innerText = "Status: Joined! Mic Active.";
-            
-            socket.emit('join-room', 'test-room', 'user-' + Math.random());
-            
-            // აქ მოხდება WebRTC-ის ჯადოქრობა (ხმის გადაცემა)
-            socket.on('user-connected', userId => {
-                console.log('სხვა მოთამაშე შემოვიდა:', userId);
-            });
-        }
+        const startBtn = document.getElementById('startBtn');
+
+        startBtn.onclick = async () => {
+            try {
+                // ითხოვს მიკროფონს
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                document.getElementById('status').innerText = "სტატუსი: მიკროფონი ჩართულია!";
+                
+                // უერთდება ლობის
+                socket.emit('join-room', 'lobby-1', 'player-' + Math.floor(Math.random() * 1000));
+                console.log("Joined room!");
+            } catch (err) {
+                alert("მიკროფონზე წვდომა აუცილებელია!");
+                console.error(err);
+            }
+        };
     </script>
 </body>
 </html>
