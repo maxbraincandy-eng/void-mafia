@@ -1,8 +1,3 @@
-// ══════════════════════════════════════════════════════════════════════════
-//  V O I D  M A F I A  —  S E R V E R  C O R E
-//  WebRTC + Rooms + Roles + Night/Day + Vote Logic
-// ══════════════════════════════════════════════════════════════════════════
-
 const express = require("express");
 const http = require("http");
 const socketIO = require("socket.io");
@@ -13,10 +8,7 @@ const app = express();
 const server = http.createServer(app);
 
 const io = socketIO(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    }
+  cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
 const PORT = process.env.PORT || 3000;
@@ -27,530 +19,542 @@ const rooms = {};
 const users = {};
 
 function shuffle(arr) {
-    return arr.sort(() => Math.random() - 0.5);
+  return arr.sort(() => Math.random() - 0.5);
 }
 
 function getPublicRooms() {
-    return Object.values(rooms).map(room => ({
-        code: room.code,
-        playerCount: room.players.length
-    }));
+  return Object.values(rooms).map(room => ({
+    code: room.code,
+    playerCount: room.players.length
+  }));
 }
 
 function createRoom(roomCode, hostId) {
-    rooms[roomCode] = {
-        code: roomCode,
-        hostId,
-        players: [],
-        phase: "waiting",
-        nightActions: {
-            mafiaTarget: null,
-            doctorSave: null,
-            sheriffChecks: {}
-        },
-        votes: {},
-        timers: {
-            dayTimer: null,
-            voteTimer: null
-        }
-    };
+  rooms[roomCode] = {
+    code: roomCode,
+    hostId,
+    players: [],
+    phase: "waiting",
+    nightActions: {
+      mafiaTarget: null,
+      doctorSave: null,
+      sheriffChecks: {}
+    },
+    votes: {},
+    timers: {
+      nightTimer: null,
+      dayTimer: null,
+      voteTimer: null
+    }
+  };
 
-    return rooms[roomCode];
+  return rooms[roomCode];
 }
 
 function getFreeIndex(room) {
-    const occupied = room.players.map(p => p.index);
-    let index = 1;
+  const occupied = room.players.map(p => p.index);
+  let index = 1;
 
-    while (occupied.includes(index)) {
-        index++;
-    }
+  while (occupied.includes(index)) index++;
 
-    return index;
+  return index;
 }
 
 function buildRoles(playerCount, settings) {
-    let roles = [];
+  let roles = [];
 
-    const mafiaCount = Math.max(1, Number(settings.mafia || 1));
+  const mafiaCount = Math.max(1, Number(settings.mafia || 1));
 
-    if (settings.don) {
-        roles.push("don");
+  if (settings.don) {
+    roles.push("don");
+    for (let i = 1; i < mafiaCount; i++) roles.push("mafia");
+  } else {
+    for (let i = 0; i < mafiaCount; i++) roles.push("mafia");
+  }
 
-        for (let i = 1; i < mafiaCount; i++) {
-            roles.push("mafia");
-        }
-    } else {
-        for (let i = 0; i < mafiaCount; i++) {
-            roles.push("mafia");
-        }
-    }
+  if (settings.doctor) roles.push("doctor");
+  if (settings.sheriff) roles.push("sheriff");
 
-    if (settings.doctor) roles.push("doctor");
-    if (settings.sheriff) roles.push("sheriff");
+  while (roles.length < playerCount) {
+    roles.push("citizen");
+  }
 
-    while (roles.length < playerCount) {
-        roles.push("citizen");
-    }
-
-    return shuffle(roles.slice(0, playerCount));
+  return shuffle(roles.slice(0, playerCount));
 }
 
 function publicGameState(room) {
-    return {
-        phase: room.phase,
-        players: room.players.map(p => ({
-            id: p.id,
-            name: p.name,
-            index: p.index,
-            alive: p.alive
-        }))
-    };
+  return {
+    phase: room.phase,
+    players: room.players.map(p => ({
+      id: p.id,
+      name: p.name,
+      index: p.index,
+      alive: p.alive
+    }))
+  };
 }
 
 function emitGameState(roomCode) {
-    const room = rooms[roomCode];
-    if (!room) return;
+  const room = rooms[roomCode];
+  if (!room) return;
 
-    io.to(roomCode).emit("game-state", publicGameState(room));
+  io.to(roomCode).emit("game-state", publicGameState(room));
 }
 
 function clearRoomTimers(room) {
-    if (!room || !room.timers) return;
+  if (!room || !room.timers) return;
 
-    if (room.timers.dayTimer) {
-        clearTimeout(room.timers.dayTimer);
-        room.timers.dayTimer = null;
-    }
+  if (room.timers.nightTimer) clearTimeout(room.timers.nightTimer);
+  if (room.timers.dayTimer) clearTimeout(room.timers.dayTimer);
+  if (room.timers.voteTimer) clearTimeout(room.timers.voteTimer);
 
-    if (room.timers.voteTimer) {
-        clearTimeout(room.timers.voteTimer);
-        room.timers.voteTimer = null;
-    }
-}
-
-function checkWin(roomCode) {
-    const room = rooms[roomCode];
-    if (!room) return true;
-
-    const alive = room.players.filter(p => p.alive);
-    const mafia = alive.filter(p => p.role === "mafia" || p.role === "don");
-    const peaceful = alive.filter(p => p.role !== "mafia" && p.role !== "don");
-
-    if (room.phase === "waiting") return false;
-
-    if (mafia.length === 0) {
-        room.phase = "ended";
-        clearRoomTimers(room);
-
-        io.to(roomCode).emit("game-over", {
-            winner: "citizens",
-            message: "მშვიდობიანებმა მოიგეს"
-        });
-
-        emitGameState(roomCode);
-        return true;
-    }
-
-    if (mafia.length >= peaceful.length) {
-        room.phase = "ended";
-        clearRoomTimers(room);
-
-        io.to(roomCode).emit("game-over", {
-            winner: "mafia",
-            message: "მაფიამ მოიგო"
-        });
-
-        emitGameState(roomCode);
-        return true;
-    }
-
-    return false;
+  room.timers.nightTimer = null;
+  room.timers.dayTimer = null;
+  room.timers.voteTimer = null;
 }
 
 function resetNightActions(room) {
-    room.nightActions = {
-        mafiaTarget: null,
-        doctorSave: null,
-        sheriffChecks: {}
-    };
+  room.nightActions = {
+    mafiaTarget: null,
+    doctorSave: null,
+    sheriffChecks: {}
+  };
+}
+
+function emitMafiaList(room) {
+  const mafiaIds = room.players
+    .filter(p => p.role === "mafia" || p.role === "don")
+    .map(p => p.id);
+
+  room.players.forEach(player => {
+    if (player.role === "mafia" || player.role === "don") {
+      io.to(player.id).emit("mafia-list", mafiaIds);
+    } else {
+      io.to(player.id).emit("mafia-list", []);
+    }
+  });
+}
+
+function checkWin(roomCode) {
+  const room = rooms[roomCode];
+  if (!room) return true;
+
+  if (room.phase === "waiting") return false;
+
+  const alive = room.players.filter(p => p.alive);
+  const mafia = alive.filter(p => p.role === "mafia" || p.role === "don");
+  const peaceful = alive.filter(p => p.role !== "mafia" && p.role !== "don");
+
+  if (mafia.length === 0) {
+    room.phase = "ended";
+    clearRoomTimers(room);
+
+    io.to(roomCode).emit("game-over", {
+      winner: "citizens",
+      message: "მშვიდობიანებმა მოიგეს"
+    });
+
+    emitGameState(roomCode);
+    return true;
+  }
+
+  if (mafia.length >= peaceful.length) {
+    room.phase = "ended";
+    clearRoomTimers(room);
+
+    io.to(roomCode).emit("game-over", {
+      winner: "mafia",
+      message: "მაფიამ მოიგო"
+    });
+
+    emitGameState(roomCode);
+    return true;
+  }
+
+  return false;
 }
 
 function startNight(roomCode) {
-    const room = rooms[roomCode];
-    if (!room) return;
+  const room = rooms[roomCode];
+  if (!room || room.phase === "ended") return;
 
-    clearRoomTimers(room);
+  clearRoomTimers(room);
 
-    room.phase = "night";
-    room.votes = {};
-    resetNightActions(room);
+  room.phase = "night";
+  room.votes = {};
+  resetNightActions(room);
 
-    io.to(roomCode).emit("phase-message", "დადგა ღამე. როლებმა აირჩიონ მოქმედება.");
-    emitGameState(roomCode);
+  io.to(roomCode).emit("phase-message", "დადგა ღამე. მხოლოდ მაფიებს ესმით ერთმანეთის ხმა.");
+  emitMafiaList(room);
+  emitGameState(roomCode);
+
+  room.timers.nightTimer = setTimeout(() => {
+    resolveNight(roomCode);
+  }, 60000);
 }
 
 function startDay(roomCode) {
-    const room = rooms[roomCode];
-    if (!room) return;
+  const room = rooms[roomCode];
+  if (!room || room.phase === "ended") return;
 
-    room.phase = "day";
-    room.votes = {};
+  clearRoomTimers(room);
 
-    io.to(roomCode).emit("phase-message", "დადგა დღე. დაიწყეთ განხილვა.");
-    emitGameState(roomCode);
+  room.phase = "day";
+  room.votes = {};
 
-    room.timers.dayTimer = setTimeout(() => {
-        startVote(roomCode);
-    }, 45000);
+  io.to(roomCode).emit("phase-message", "დადგა დღე. ყველას ხმა ისმის.");
+  emitGameState(roomCode);
+
+  room.timers.dayTimer = setTimeout(() => {
+    startVote(roomCode);
+  }, 45000);
 }
 
 function startVote(roomCode) {
-    const room = rooms[roomCode];
-    if (!room || room.phase === "ended") return;
+  const room = rooms[roomCode];
+  if (!room || room.phase === "ended") return;
 
-    room.phase = "vote";
-    room.votes = {};
+  clearRoomTimers(room);
 
-    io.to(roomCode).emit("phase-message", "დაიწყო ხმის მიცემა.");
-    emitGameState(roomCode);
+  room.phase = "vote";
+  room.votes = {};
 
-    room.timers.voteTimer = setTimeout(() => {
-        resolveVotes(roomCode);
-    }, 30000);
+  io.to(roomCode).emit("phase-message", "დაიწყო ხმის მიცემა.");
+  emitGameState(roomCode);
+
+  room.timers.voteTimer = setTimeout(() => {
+    resolveVotes(roomCode);
+  }, 30000);
 }
 
 function checkNightComplete(roomCode) {
-    const room = rooms[roomCode];
-    if (!room || room.phase !== "night") return;
+  const room = rooms[roomCode];
+  if (!room || room.phase !== "night") return;
 
-    const alive = room.players.filter(p => p.alive);
+  const alive = room.players.filter(p => p.alive);
 
-    const hasMafia = alive.some(p => p.role === "mafia" || p.role === "don");
-    const hasDoctor = alive.some(p => p.role === "doctor");
-    const hasSheriff = alive.some(p => p.role === "sheriff");
+  const hasMafia = alive.some(p => p.role === "mafia" || p.role === "don");
+  const hasDoctor = alive.some(p => p.role === "doctor");
+  const hasSheriff = alive.some(p => p.role === "sheriff");
 
-    const mafiaDone = !hasMafia || !!room.nightActions.mafiaTarget;
-    const doctorDone = !hasDoctor || !!room.nightActions.doctorSave;
-    const sheriffDone =
-        !hasSheriff ||
-        Object.keys(room.nightActions.sheriffChecks || {}).length > 0;
+  const mafiaDone = !hasMafia || !!room.nightActions.mafiaTarget;
+  const doctorDone = !hasDoctor || !!room.nightActions.doctorSave;
+  const sheriffDone =
+    !hasSheriff ||
+    Object.keys(room.nightActions.sheriffChecks || {}).length > 0;
 
-    if (mafiaDone && doctorDone && sheriffDone) {
-        resolveNight(roomCode);
-    }
+  if (mafiaDone && doctorDone && sheriffDone) {
+    resolveNight(roomCode);
+  }
 }
 
 function resolveNight(roomCode) {
-    const room = rooms[roomCode];
-    if (!room || room.phase !== "night") return;
+  const room = rooms[roomCode];
+  if (!room || room.phase !== "night") return;
 
-    const killedId = room.nightActions.mafiaTarget;
-    const savedId = room.nightActions.doctorSave;
+  clearRoomTimers(room);
 
-    if (killedId && killedId !== savedId) {
-        const victim = room.players.find(p => p.id === killedId);
+  const killedId = room.nightActions.mafiaTarget;
+  const savedId = room.nightActions.doctorSave;
 
-        if (victim && victim.alive) {
-            victim.alive = false;
-            io.to(roomCode).emit(
-                "phase-message",
-                `ღამით მოკლეს: #${victim.index} ${victim.name}`
-            );
-        }
-    } else {
-        io.to(roomCode).emit("phase-message", "ღამით არავინ მომკვდარა.");
+  if (killedId && killedId !== savedId) {
+    const victim = room.players.find(p => p.id === killedId);
+
+    if (victim && victim.alive) {
+      victim.alive = false;
+      io.to(roomCode).emit(
+        "phase-message",
+        `ღამით მოკლეს: #${victim.index} ${victim.name}`
+      );
     }
+  } else {
+    io.to(roomCode).emit("phase-message", "ღამით არავინ მომკვდარა.");
+  }
 
-    resetNightActions(room);
+  resetNightActions(room);
 
-    if (checkWin(roomCode)) return;
+  if (checkWin(roomCode)) return;
 
-    startDay(roomCode);
+  startDay(roomCode);
 }
 
 function resolveVotes(roomCode) {
-    const room = rooms[roomCode];
-    if (!room || room.phase !== "vote") return;
+  const room = rooms[roomCode];
+  if (!room || room.phase !== "vote") return;
 
-    clearRoomTimers(room);
+  clearRoomTimers(room);
 
-    const counts = {};
+  const counts = {};
 
-    Object.values(room.votes).forEach(targetId => {
-        counts[targetId] = (counts[targetId] || 0) + 1;
-    });
+  Object.values(room.votes).forEach(targetId => {
+    counts[targetId] = (counts[targetId] || 0) + 1;
+  });
 
-    let maxVotes = 0;
-    let eliminatedId = null;
-    let tie = false;
+  let maxVotes = 0;
+  let eliminatedId = null;
+  let tie = false;
 
-    for (const id in counts) {
-        if (counts[id] > maxVotes) {
-            maxVotes = counts[id];
-            eliminatedId = id;
-            tie = false;
-        } else if (counts[id] === maxVotes) {
-            tie = true;
-        }
+  for (const id in counts) {
+    if (counts[id] > maxVotes) {
+      maxVotes = counts[id];
+      eliminatedId = id;
+      tie = false;
+    } else if (counts[id] === maxVotes) {
+      tie = true;
     }
+  }
 
-    if (!eliminatedId || tie) {
-        io.to(roomCode).emit("phase-message", "ხმები გაიყო. არავინ გავარდა.");
-    } else {
-        const eliminated = room.players.find(p => p.id === eliminatedId);
+  if (!eliminatedId || tie) {
+    io.to(roomCode).emit("phase-message", "ხმები გაიყო. არავინ გავარდა.");
+  } else {
+    const eliminated = room.players.find(p => p.id === eliminatedId);
 
-        if (eliminated && eliminated.alive) {
-            eliminated.alive = false;
+    if (eliminated && eliminated.alive) {
+      eliminated.alive = false;
 
-            io.to(roomCode).emit(
-                "phase-message",
-                `ხმის მიცემით გავარდა: #${eliminated.index} ${eliminated.name}`
-            );
-        }
+      io.to(roomCode).emit(
+        "phase-message",
+        `ხმის მიცემით გავარდა: #${eliminated.index} ${eliminated.name}`
+      );
     }
+  }
 
-    room.votes = {};
+  room.votes = {};
 
-    if (checkWin(roomCode)) return;
+  if (checkWin(roomCode)) return;
 
-    startNight(roomCode);
+  startNight(roomCode);
 }
 
 io.on("connection", socket => {
-    console.log(`[SOCKET] connected: ${socket.id}`);
+  console.log(`[SOCKET] connected: ${socket.id}`);
 
-    socket.on("get-rooms", () => {
-        socket.emit("update-room-list", getPublicRooms());
+  socket.on("get-rooms", () => {
+    socket.emit("update-room-list", getPublicRooms());
+  });
+
+  socket.on("join-room", (roomCode, playerName) => {
+    if (!roomCode || !playerName) return;
+
+    let room = rooms[roomCode];
+
+    if (!room) {
+      room = createRoom(roomCode, socket.id);
+    }
+
+    if (room.players.length >= 10) {
+      return socket.emit("error", { msg: "ოთახი სავსეა" });
+    }
+
+    const alreadyInRoom = room.players.some(p => p.id === socket.id);
+    if (alreadyInRoom) return;
+
+    socket.join(roomCode);
+
+    const playerIndex = getFreeIndex(room);
+
+    const newUser = {
+      id: socket.id,
+      name: playerName,
+      room: roomCode,
+      index: playerIndex,
+      role: null,
+      alive: true
+    };
+
+    users[socket.id] = newUser;
+    room.players.push(newUser);
+
+    if (room.hostId === socket.id) {
+      socket.emit("is-host");
+    }
+
+    const otherUsers = room.players.filter(p => p.id !== socket.id);
+
+    socket.emit("all-users-info", otherUsers);
+
+    socket.to(roomCode).emit("user-joined-with-info", {
+      id: socket.id,
+      nick: playerName,
+      index: playerIndex
     });
 
-    socket.on("join-room", (roomCode, playerName) => {
-        if (!roomCode || !playerName) return;
+    socket.emit("room-users-list", room.players);
 
-        let room = rooms[roomCode];
+    io.emit("update-room-list", getPublicRooms());
+    emitGameState(roomCode);
 
-        if (!room) {
-            room = createRoom(roomCode, socket.id);
-        }
+    console.log(`[VOID] #${playerIndex} joined room ${roomCode}: ${playerName}`);
+  });
 
-        if (room.players.length >= 10) {
-            return socket.emit("error", {
-                msg: "ოთახი სავსეა"
-            });
-        }
+  socket.on("sending-signal", payload => {
+    const sender = users[socket.id];
+    if (!sender) return;
 
-        const alreadyInRoom = room.players.some(p => p.id === socket.id);
-        if (alreadyInRoom) return;
+    io.to(payload.userToSignal).emit("user-joined-with-info", {
+      signal: payload.signal,
+      id: payload.callerID,
+      nick: sender.name,
+      index: sender.index
+    });
+  });
 
-        socket.join(roomCode);
+  socket.on("returning-signal", payload => {
+    io.to(payload.callerID).emit("receiving-returned-signal", {
+      signal: payload.signal,
+      id: socket.id
+    });
+  });
 
-        const playerIndex = getFreeIndex(room);
+  socket.on("start-game-request", data => {
+    const room = rooms[data.room];
 
-        const newUser = {
-            id: socket.id,
-            name: playerName,
-            room: roomCode,
-            index: playerIndex,
-            role: null,
-            alive: true
-        };
+    if (!room) return;
+    if (room.hostId !== socket.id) return;
 
-        users[socket.id] = newUser;
-        room.players.push(newUser);
+    if (room.players.length < 4) {
+      return socket.emit(
+        "phase-message",
+        "თამაშის დასაწყებად საჭიროა მინიმუმ 4 მოთამაშე."
+      );
+    }
 
-        if (room.hostId === socket.id) {
-            socket.emit("is-host");
-        }
+    clearRoomTimers(room);
 
-        const otherUsers = room.players.filter(p => p.id !== socket.id);
+    const settings = data.settings || {};
+    const roles = buildRoles(room.players.length, settings);
 
-        socket.emit("all-users-info", otherUsers);
+    room.players.forEach((player, i) => {
+      player.role = roles[i];
+      player.alive = true;
 
-        socket.to(roomCode).emit("user-joined-with-info", {
-            id: socket.id,
-            nick: playerName,
-            index: playerIndex
-        });
-
-        socket.emit("room-users-list", room.players);
-
-        io.emit("update-room-list", getPublicRooms());
-
-        emitGameState(roomCode);
-
-        console.log(`[VOID] #${playerIndex} joined room ${roomCode}: ${playerName}`);
+      io.to(player.id).emit("assign-role", player.role);
     });
 
-    socket.on("sending-signal", payload => {
-        const sender = users[socket.id];
+    emitMafiaList(room);
 
-        if (!sender) return;
+    room.votes = {};
+    resetNightActions(room);
 
-        io.to(payload.userToSignal).emit("user-joined-with-info", {
-            signal: payload.signal,
-            id: payload.callerID,
-            nick: sender.name,
-            index: sender.index
-        });
+    io.to(data.room).emit("phase-message", "თამაში დაიწყო.");
+    console.log(`[GAME] started in room: ${data.room}`);
+
+    startNight(data.room);
+  });
+
+  socket.on("night-action", data => {
+    const room = rooms[data.room];
+    if (!room || room.phase !== "night") return;
+
+    const actor = room.players.find(p => p.id === socket.id);
+    if (!actor || !actor.alive) return;
+
+    const target = room.players.find(p => p.id === data.targetId);
+    if (!target || !target.alive) return;
+
+    if (
+      (actor.role === "mafia" || actor.role === "don") &&
+      data.action === "kill"
+    ) {
+      room.nightActions.mafiaTarget = target.id;
+      socket.emit("phase-message", "მაფიის არჩევანი მიღებულია.");
+    }
+
+    if (actor.role === "doctor" && data.action === "save") {
+      room.nightActions.doctorSave = target.id;
+      socket.emit("phase-message", "ექიმის არჩევანი მიღებულია.");
+    }
+
+    if (actor.role === "sheriff" && data.action === "check") {
+      room.nightActions.sheriffChecks[socket.id] = target.id;
+
+      socket.emit("sheriff-result", {
+        name: target.name,
+        isMafia: target.role === "mafia" || target.role === "don"
+      });
+    }
+
+    checkNightComplete(data.room);
+  });
+
+  socket.on("vote-player", data => {
+    const room = rooms[data.room];
+    if (!room || room.phase !== "vote") return;
+
+    const voter = room.players.find(p => p.id === socket.id);
+    const target = room.players.find(p => p.id === data.targetId);
+
+    if (!voter || !voter.alive) return;
+    if (!target || !target.alive) return;
+    if (target.id === voter.id) return;
+
+    room.votes[voter.id] = target.id;
+
+    const aliveCount = room.players.filter(p => p.alive).length;
+    const votesCount = Object.keys(room.votes).length;
+
+    io.to(data.room).emit(
+      "phase-message",
+      `ხმა მიღებულია: ${votesCount}/${aliveCount}`
+    );
+
+    if (votesCount >= aliveCount) {
+      resolveVotes(data.room);
+    }
+  });
+
+  socket.on("send-chat-msg", data => {
+    if (!data || !data.room) return;
+
+    const user = users[socket.id];
+    if (!user) return;
+
+    io.to(data.room).emit("receive-chat-msg", {
+      name: user.name,
+      text: String(data.text || "").slice(0, 300)
     });
+  });
 
-    socket.on("returning-signal", payload => {
-        io.to(payload.callerID).emit("receiving-returned-signal", {
-            signal: payload.signal,
-            id: socket.id
-        });
-    });
+  socket.on("disconnect", () => {
+    const user = users[socket.id];
 
-    socket.on("start-game-request", data => {
-        const room = rooms[data.room];
+    if (!user) return;
 
-        if (!room) return;
-        if (room.hostId !== socket.id) return;
+    const roomCode = user.room;
+    const room = rooms[roomCode];
 
-        if (room.players.length < 4) {
-            return socket.emit(
-                "phase-message",
-                "თამაშის დასაწყებად საჭიროა მინიმუმ 4 მოთამაშე."
-            );
-        }
+    if (room) {
+      room.players = room.players.filter(p => p.id !== socket.id);
 
-        clearRoomTimers(room);
+      socket.to(roomCode).emit("user-left", socket.id);
 
-        const settings = data.settings || {};
-        const roles = buildRoles(room.players.length, settings);
+      if (room.hostId === socket.id && room.players.length > 0) {
+        room.hostId = room.players[0].id;
+        io.to(room.hostId).emit("is-host");
 
-        room.players.forEach((player, i) => {
-            player.role = roles[i];
-            player.alive = true;
-
-            io.to(player.id).emit("assign-role", player.role);
-        });
-
-        room.votes = {};
-        resetNightActions(room);
-
-        io.to(data.room).emit("phase-message", "თამაში დაიწყო.");
-        console.log(`[GAME] started in room: ${data.room}`);
-
-        startNight(data.room);
-    });
-
-    socket.on("night-action", data => {
-        const room = rooms[data.room];
-        if (!room || room.phase !== "night") return;
-
-        const actor = room.players.find(p => p.id === socket.id);
-        if (!actor || !actor.alive) return;
-
-        const target = room.players.find(p => p.id === data.targetId);
-        if (!target || !target.alive) return;
-
-        if (
-            (actor.role === "mafia" || actor.role === "don") &&
-            data.action === "kill"
-        ) {
-            room.nightActions.mafiaTarget = target.id;
-
-            socket.emit("phase-message", "მაფიის არჩევანი მიღებულია.");
-        }
-
-        if (actor.role === "doctor" && data.action === "save") {
-            room.nightActions.doctorSave = target.id;
-
-            socket.emit("phase-message", "ექიმის არჩევანი მიღებულია.");
-        }
-
-        if (actor.role === "sheriff" && data.action === "check") {
-            room.nightActions.sheriffChecks[socket.id] = target.id;
-
-            socket.emit("sheriff-result", {
-                name: target.name,
-                isMafia: target.role === "mafia" || target.role === "don"
-            });
-        }
-
-        checkNightComplete(data.room);
-    });
-
-    socket.on("vote-player", data => {
-        const room = rooms[data.room];
-        if (!room || room.phase !== "vote") return;
-
-        const voter = room.players.find(p => p.id === socket.id);
-        const target = room.players.find(p => p.id === data.targetId);
-
-        if (!voter || !voter.alive) return;
-        if (!target || !target.alive) return;
-        if (target.id === voter.id) return;
-
-        room.votes[voter.id] = target.id;
-
-        const aliveCount = room.players.filter(p => p.alive).length;
-        const votesCount = Object.keys(room.votes).length;
-
-        io.to(data.room).emit(
-            "phase-message",
-            `ხმა მიღებულია: ${votesCount}/${aliveCount}`
+        io.to(roomCode).emit(
+          "phase-message",
+          `ჰოსტი გახდა: #${room.players[0].index} ${room.players[0].name}`
         );
+      }
 
-        if (votesCount >= aliveCount) {
-            resolveVotes(data.room);
-        }
-    });
+      if (room.players.length <= 0) {
+        clearRoomTimers(room);
+        delete rooms[roomCode];
+      } else {
+        emitMafiaList(room);
+        emitGameState(roomCode);
+      }
+    }
 
-    socket.on("send-chat-msg", data => {
-        if (!data || !data.room) return;
+    delete users[socket.id];
 
-        const user = users[socket.id];
+    io.emit("update-room-list", getPublicRooms());
 
-        if (!user) return;
-
-        io.to(data.room).emit("receive-chat-msg", {
-            name: user.name,
-            text: String(data.text || "").slice(0, 300)
-        });
-    });
-
-    socket.on("disconnect", () => {
-        const user = users[socket.id];
-
-        if (!user) {
-            return;
-        }
-
-        const roomCode = user.room;
-        const room = rooms[roomCode];
-
-        if (room) {
-            room.players = room.players.filter(p => p.id !== socket.id);
-
-            socket.to(roomCode).emit("user-left", socket.id);
-
-            if (room.hostId === socket.id && room.players.length > 0) {
-                room.hostId = room.players[0].id;
-                io.to(room.hostId).emit("is-host");
-                io.to(roomCode).emit(
-                    "phase-message",
-                    `ჰოსტი გახდა: #${room.players[0].index} ${room.players[0].name}`
-                );
-            }
-
-            if (room.players.length <= 0) {
-                clearRoomTimers(room);
-                delete rooms[roomCode];
-            } else {
-                emitGameState(roomCode);
-            }
-        }
-
-        delete users[socket.id];
-
-        io.emit("update-room-list", getPublicRooms());
-
-        console.log(`[SOCKET] disconnected: ${socket.id}`);
-    });
+    console.log(`[SOCKET] disconnected: ${socket.id}`);
+  });
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-    console.log(`\x1b[36m> VOID MAFIA SERVER აქტიურია პორტზე ${PORT}\x1b[0m`);
+  console.log(`> VOID MAFIA SERVER აქტიურია პორტზე ${PORT}`);
 });
