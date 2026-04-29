@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════
-//  V O I D  M A F I A  —  S E R V E R  C O R E  (v3.2 - Chat Integrated)
+//  V O I D  M A F I A  —  S E R V E R  C O R E  (v3.3 - FIXED SYNC)
 // ══════════════════════════════════════════════════════════════════════════
 const express = require('express');
 const http = require('http');
@@ -17,27 +17,19 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ── მონაცემთა ბაზა ოპერატიულ მეხსიერებაში ──
 const rooms = {};
 const users = {};
 
 io.on('connection', (socket) => {
   const signalPrefix = `[SIGNAL_${socket.id.substring(0, 4)}]`;
-  console.log(`${signalPrefix} >> კავშირი დამყარებულია`);
 
-  // ოთახების სიის გაგზავნა
   socket.on('get-rooms', () => {
     socket.emit('update-room-list', Object.values(rooms));
   });
 
-  // ოთახში შესვლა / შექმნა
   socket.on('join-room', (roomCode, playerName) => {
     if (!rooms[roomCode]) {
-      rooms[roomCode] = {
-        code: roomCode,
-        playerCount: 0
-      };
-      console.log(`${signalPrefix} >> ახალი სიცარიელე შეიქმნა: ${roomCode}`);
+      rooms[roomCode] = { code: roomCode, playerCount: 0 };
     }
 
     const room = rooms[roomCode];
@@ -47,34 +39,31 @@ io.on('connection', (socket) => {
 
     socket.join(roomCode);
     room.playerCount++;
-    users[socket.id] = { name: playerName, room: roomCode };
-
-    const otherUsers = Array.from(io.sockets.adapter.rooms.get(roomCode) || [])
-      .filter(id => id !== socket.id);
     
-    socket.emit('all-users', otherUsers);
+    // ვინახავთ მომხმარებელს ნიქნეიმთან ერთად
+    users[socket.id] = { id: socket.id, name: playerName, room: roomCode };
+
+    // ვიღებთ ოთახში მყოფი სხვა იუზერების სრულ ინფორმაციას (ID + Name)
+    const otherUsersInRoom = Array.from(io.sockets.adapter.rooms.get(roomCode) || [])
+      .filter(id => id !== socket.id)
+      .map(id => ({
+          id: id,
+          nick: users[id] ? users[id].name : "Unknown"
+      }));
+    
+    // ვუგზავნით ახალ შესულს სხვების სიას
+    socket.emit('all-users', otherUsersInRoom);
+    
     io.emit('update-room-list', Object.values(rooms));
-    
-    console.log(`${signalPrefix} >> ოპერატორი სინქრონიზებულია: ${playerName} -> ${roomCode}`);
+    console.log(`${signalPrefix} >> ოპერატორი სინქრონიზებულია: ${playerName}`);
   });
 
-  // ── ჩატის სისტემა (ახალი) ──
-  socket.on('send-chat-msg', (data) => {
-    // შეტყობინების გადაგზავნა ყველასთან ვინც ამავე ოთახშია
-    if (data.room) {
-      io.to(data.room).emit('receive-chat-msg', {
-        name: data.name,
-        text: data.text
-      });
-      console.log(`${signalPrefix} >> [CHAT] ${data.name}: ${data.text}`);
-    }
-  });
-
-  // ── WebRTC სიგნალიზაცია ──
+  // WebRTC სიგნალიზაცია ნიქნეიმების მხარდაჭერით
   socket.on('sending-signal', payload => {
     io.to(payload.userToSignal).emit('user-joined', {
       signal: payload.signal,
-      callerID: payload.callerID
+      callerID: payload.callerID,
+      callerNick: users[socket.id] ? users[socket.id].name : "OPERATOR" // ვამატებთ ნიკს
     });
   });
 
@@ -85,17 +74,23 @@ io.on('connection', (socket) => {
     });
   });
 
+  socket.on('send-chat-msg', (data) => {
+    if (data.room) {
+      io.to(data.room).emit('receive-chat-msg', {
+        name: data.name,
+        text: data.text
+      });
+    }
+  });
+
   socket.on('disconnect', () => {
-    console.log(`${signalPrefix} >> სიგნალი დაიკარგა`);
     if (users[socket.id]) {
       const { room } = users[socket.id];
       socket.to(room).emit('user-left', socket.id);
       
       if (rooms[room]) {
         rooms[room].playerCount--;
-        if (rooms[room].playerCount <= 0) {
-          delete rooms[room];
-        }
+        if (rooms[room].playerCount <= 0) delete rooms[room];
         io.emit('update-room-list', Object.values(rooms));
       }
       delete users[socket.id];
@@ -104,15 +99,6 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`
-  \x1b[35m██╗   ██╗ ██████╗ ██╗██████╗     ███╗   ███╗ █████╗ ███████╗██╗ █████╗ 
-  ██║   ██║██╔═══██╗██║██╔══██╗    ████╗ ████║██╔══██╗██╔════╝██║██╔══██╗
-  ██║   ██║██║   ██║██║██║  ██║    ██╔████╔██║███████║█████╗  ██║███████║
-  ╚██╗ ██╔╝██║   ██║██║██║  ██║    ██║╚██╔╝██║██╔══██║██╔══╝  ██║██╔══██║
-   ╚████╔╝ ╚██████╔╝██║██████╔╝    ██║ ╚═╝ ██║██║  ██║██║     ██║██║  ██║\x1b[0m
-
-  \x1b[36m > ძრავი: VOID_CORE_3.2 [ჩათი დამატებულია]
-  \x1b[36m > პორტი: ${PORT}
-  \x1b[35m > სტატუსი: სიგნალების ძიება... \x1b[0m
-  `);
+  console.log(`\x1b[36m > VOID_CORE_3.3: აქტიურია პორტზე ${PORT}\x1b[0m`);
 });
+
