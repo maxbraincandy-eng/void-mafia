@@ -1,3 +1,5 @@
+
+
 const express = require("express");
 const http = require("http");
 const socketIO = require("socket.io");
@@ -30,6 +32,7 @@ function getPublicRooms() {
   return Object.values(rooms).map(room => ({
     code: room.code,
     playerCount: room.players.length,
+    spectatorCount: room.spectators.length,
     phase: room.phase
   }));
 }
@@ -39,6 +42,7 @@ function createRoom(roomCode, hostId) {
     code: roomCode,
     hostId,
     players: [],
+    spectators: [],
     phase: "waiting",
     nightNumber: 0,
     dayNumber: 0,
@@ -61,15 +65,12 @@ function createRoom(roomCode, hostId) {
 function getFreeIndex(room) {
   const occupied = room.players.map(p => p.index);
   let index = 1;
-
   while (occupied.includes(index)) index++;
-
   return index;
 }
 
 function buildRoles(playerCount, settings) {
   let roles = [];
-
   const mafiaCount = Math.max(1, Number(settings.mafia || 1));
 
   if (settings.don) {
@@ -82,9 +83,7 @@ function buildRoles(playerCount, settings) {
   if (settings.doctor) roles.push("doctor");
   if (settings.sheriff) roles.push("sheriff");
 
-  while (roles.length < playerCount) {
-    roles.push("citizen");
-  }
+  while (roles.length < playerCount) roles.push("citizen");
 
   return shuffle(roles.slice(0, playerCount));
 }
@@ -98,9 +97,23 @@ function publicGameState(room) {
       id: p.id,
       name: p.name,
       index: p.index,
-      alive: p.alive
+      alive: p.alive,
+      spectator: false
     }))
   };
+}
+
+function emitSpectators(roomCode) {
+  const room = rooms[roomCode];
+  if (!room) return;
+
+  io.to(roomCode).emit(
+    "spectators-update",
+    room.spectators.map(s => ({
+      id: s.id,
+      name: s.name
+    }))
+  );
 }
 
 function emitGameState(roomCode) {
@@ -108,6 +121,7 @@ function emitGameState(roomCode) {
   if (!room) return;
 
   io.to(roomCode).emit("game-state", publicGameState(room));
+  emitSpectators(roomCode);
   io.emit("update-room-list", getPublicRooms());
 }
 
@@ -143,12 +157,15 @@ function emitMafiaList(room) {
       io.to(player.id).emit("mafia-list", []);
     }
   });
+
+  room.spectators.forEach(s => {
+    io.to(s.id).emit("mafia-list", mafiaIds);
+  });
 }
 
 function checkWin(roomCode) {
   const room = rooms[roomCode];
   if (!room) return true;
-
   if (room.phase === "waiting") return false;
 
   const alive = room.players.filter(p => p.alive);
@@ -359,7 +376,7 @@ io.on("connection", socket => {
     socket.emit("update-room-list", getPublicRooms());
   });
 
-  socket.on("join-room", (roomCode, playerName) => {
+  socket.on("join-room", (roomCode, playerName, isSpectator = false) => {
     if (!roomCode || !playerName) return;
 
     let room = rooms[roomCode];
@@ -368,20 +385,46 @@ io.on("connection", socket => {
       room = createRoom(roomCode, socket.id);
     }
 
+    const alreadyPlayer = room.players.some(p => p.id === socket.id);
+    const alreadySpectator = room.spectators.some(s => s.id === socket.id);
+    if (alreadyPlayer || alreadySpectator) return;
+
+    socket.join(roomCode);
+
+    if (isSpectator) {
+      const spectator = {
+        id: socket.id,
+        name: playerName,
+        room: roomCode,
+        index: 0,
+        role: null,
+        alive: false,
+        spectator: true
+      };
+
+      users[socket.id] = spectator;
+      room.spectators.push(spectator);
+
+      socket.emit("all-users-info", room.players);
+      socket.emit("room-users-list", room.players);
+
+      socket.to(roomCode).emit("phase-message", `👁️ ${playerName} spectator-ად შემოვიდა.`);
+      emitSpectators(roomCode);
+      emitGameState(roomCode);
+
+      console.log(`[VOID] spectator joined room ${roomCode}: ${playerName}`);
+      return;
+    }
+
     if (room.players.length >= 10) {
       return socket.emit("error", { msg: "ოთახი სავსეა" });
     }
 
     if (room.phase !== "waiting") {
       return socket.emit("error", {
-        msg: "თამაში უკვე დაწყებულია. დაელოდე შემდეგ რაუნდს."
+        msg: "თამაში უკვე დაწყებულია. შეგიძლია მხოლოდ spectator-ად შესვლა."
       });
     }
-
-    const alreadyInRoom = room.players.some(p => p.id === socket.id);
-    if (alreadyInRoom) return;
-
-    socket.join(roomCode);
 
     const playerIndex = getFreeIndex(room);
 
@@ -391,7 +434,8 @@ io.on("connection", socket => {
       room: roomCode,
       index: playerIndex,
       role: null,
-      alive: true
+      alive: true,
+      spectator: false
     };
 
     users[socket.id] = newUser;
@@ -408,7 +452,8 @@ io.on("connection", socket => {
     socket.to(roomCode).emit("user-joined-with-info", {
       id: socket.id,
       nick: playerName,
-      index: playerIndex
+      index: playerIndex,
+      spectator: false
     });
 
     socket.emit("room-users-list", room.players);
@@ -431,7 +476,8 @@ io.on("connection", socket => {
       signal: payload.signal,
       id: payload.callerID,
       nick: sender.name,
-      index: sender.index
+      index: sender.index,
+      spectator: sender.spectator
     });
   });
 
@@ -486,10 +532,10 @@ io.on("connection", socket => {
     if (!room || room.phase !== "night") return;
 
     const actor = room.players.find(p => p.id === socket.id);
-    if (!actor || !actor.alive) return;
+    if (!actor || !actor.alive || actor.spectator) return;
 
     const target = room.players.find(p => p.id === data.targetId);
-    if (!target || !target.alive) return;
+    if (!target || !target.alive || target.spectator) return;
 
     if (
       (actor.role === "mafia" || actor.role === "don") &&
@@ -531,8 +577,8 @@ io.on("connection", socket => {
     const voter = room.players.find(p => p.id === socket.id);
     const target = room.players.find(p => p.id === data.targetId);
 
-    if (!voter || !voter.alive) return;
-    if (!target || !target.alive) return;
+    if (!voter || !voter.alive || voter.spectator) return;
+    if (!target || !target.alive || target.spectator) return;
     if (target.id === voter.id) return;
 
     room.votes[voter.id] = target.id;
@@ -557,14 +603,13 @@ io.on("connection", socket => {
     if (!user) return;
 
     io.to(data.room).emit("receive-chat-msg", {
-      name: user.name,
+      name: user.spectator ? `👁️ ${user.name}` : user.name,
       text: String(data.text || "").slice(0, 300)
     });
   });
 
   socket.on("disconnect", () => {
     const user = users[socket.id];
-
     if (!user) return;
 
     const roomCode = user.room;
@@ -572,6 +617,7 @@ io.on("connection", socket => {
 
     if (room) {
       room.players = room.players.filter(p => p.id !== socket.id);
+      room.spectators = room.spectators.filter(s => s.id !== socket.id);
 
       socket.to(roomCode).emit("user-left", socket.id);
 
@@ -585,10 +631,11 @@ io.on("connection", socket => {
         );
       }
 
-      if (room.players.length <= 0) {
+      if (room.players.length <= 0 && room.spectators.length <= 0) {
         clearRoomTimers(room);
         delete rooms[roomCode];
       } else {
+        emitSpectators(roomCode);
         emitMafiaList(room);
         emitGameState(roomCode);
       }
