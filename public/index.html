@@ -469,7 +469,8 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
-
+<script src="/js/mafia-ui.js"></script>
+  
   <script>
     const socket = io();
 
@@ -1059,27 +1060,7 @@
     function toggleChat() {
       $("chat-panel").classList.toggle("open");
     }
-
-    function roleName(role) {
-      const map = {
-        mafia: "მაფია",
-        don: "დონი",
-        doctor: "ექიმი",
-        sheriff: "შერიფი",
-        citizen: "მოქალაქე"
-      };
-
-      return map[role] || role;
-    }
-
-    function escapeHtml(text) {
-      return String(text)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
+    
   </script>
 </body>
 </html>
