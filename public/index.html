@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ka">
 <head>
@@ -259,34 +260,13 @@
             box-shadow: 0 0 15px var(--neon);
             font-size: 1.2rem;
         }
-
-        #chat-badge {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            background: var(--red);
-            color: white;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            font-size: 0.7rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Orbitron';
-            box-shadow: 0 0 10px var(--red);
-        }
     </style>
 </head>
 <body>
 
-    <audio id="ambient-bgm" loop>
-        <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3" type="audio/mpeg">
-    </audio>
-
-    <audio id="chat-sound">
-        <source src="https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3" type="audio/mpeg">
-    </audio>
+    <audio id="bgm-login" loop src="https://assets.mixkit.co/music/preview/mixkit-mysterious-pensive-pad-2504.mp3"></audio>
+    <audio id="bgm-rooms" loop src="https://assets.mixkit.co/music/preview/mixkit-creepy-dark-wind-chimes-2501.mp3"></audio>
+    <audio id="bgm-game" loop src="https://assets.mixkit.co/music/preview/mixkit-horror-ambient-drone-2497.mp3"></audio>
 
     <h1 class="glitch-title">VOID MAFIA</h1>
     <div class="powered">Powered by ბატონი მაქსი</div>
@@ -304,10 +284,7 @@
 
     <div id="game-screen" class="hidden" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
         <div id="video-grid"></div>
-        <div id="chat-toggle" onclick="toggleChat()">
-            💬
-            <div id="chat-badge" class="hidden">0</div>
-        </div>
+        <div id="chat-toggle" onclick="toggleChat()">💬</div>
         <div class="controls">
             <button id="mic-btn" class="btn" style="width: 60px;" onclick="toggleMic()">MIC</button>
             <button id="cam-btn" class="btn" style="width: 60px; background: var(--cyan); color: black;" onclick="toggleCam()">CAM</button>
@@ -330,12 +307,44 @@
         const socket = io();
         let localStream, myNick, currentRoom;
         const peers = {};
-        let unreadCount = 0;
+
+        // ხმის მართვის ფუნქცია
+        function playBGM(id) {
+            const sounds = ['bgm-login', 'bgm-rooms', 'bgm-game'];
+            sounds.forEach(s => {
+                const el = document.getElementById(s);
+                if(s === id) {
+                    el.volume = 0;
+                    el.play().catch(e => console.log("Audio play blocked"));
+                    // Fade In ეფექტი
+                    let vol = 0;
+                    const interval = setInterval(() => {
+                        if (vol < 0.4) {
+                            vol += 0.05;
+                            el.volume = vol;
+                        } else {
+                            clearInterval(interval);
+                        }
+                    }, 200);
+                } else {
+                    el.pause();
+                    el.currentTime = 0;
+                }
+            });
+        }
+
+        // გვერდის ჩატვირთვისას (მომხმარებლის პირველი ინტერაქციის შემდეგ)
+        document.body.addEventListener('click', () => {
+            if(!document.getElementById('login-screen').classList.contains('hidden')) {
+                playBGM('bgm-login');
+            }
+        }, { once: true });
 
         function showRooms() {
             myNick = document.getElementById('nickname').value.trim();
             if (!myNick) return alert("ჩაწერე ნიკი");
-            document.getElementById('ambient-bgm').play().catch(() => {});
+            
+            playBGM('bgm-rooms');
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('rooms-screen').classList.remove('hidden');
             socket.emit('get-rooms');
@@ -344,10 +353,10 @@
         async function startVoid(roomFromList) {
             currentRoom = roomFromList || document.getElementById('room-id').value.trim();
             if (!currentRoom) return alert("ჩაწერე ოთახის ID");
-            document.getElementById('ambient-bgm').pause();
 
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                playBGM('bgm-game');
                 document.getElementById('rooms-screen').classList.add('hidden');
                 document.getElementById('game-screen').classList.remove('hidden');
                 addVideo(socket.id, localStream, myNick + " (შენ)", true);
@@ -356,7 +365,7 @@
         }
 
         function leaveRoom() {
-            location.reload(); 
+            location.reload();
         }
 
         function sendMsg() {
@@ -368,39 +377,12 @@
 
         socket.on('receive-chat-msg', data => {
             const box = document.getElementById('chat-messages');
-            const panel = document.getElementById('chat-panel');
-            const badge = document.getElementById('chat-badge');
-            const sound = document.getElementById('chat-sound');
-
             const div = document.createElement('div');
             div.className = 'msg';
             div.innerHTML = `<b>${data.name}:</b> ${data.text}`;
             box.appendChild(div);
             box.scrollTop = box.scrollHeight;
-
-            // ხმის დაკვრა და ინდიკატორი
-            if (data.name !== myNick) {
-                sound.play().catch(() => {});
-                
-                if (!panel.classList.contains('open')) {
-                    unreadCount++;
-                    badge.innerText = unreadCount;
-                    badge.classList.remove('hidden');
-                }
-            }
         });
-
-        function toggleChat() {
-            const panel = document.getElementById('chat-panel');
-            const badge = document.getElementById('chat-badge');
-            panel.classList.toggle('open');
-            
-            if (panel.classList.contains('open')) {
-                unreadCount = 0;
-                badge.classList.add('hidden');
-                badge.innerText = "0";
-            }
-        }
 
         socket.on('update-room-list', rooms => {
             const list = document.getElementById('room-list');
@@ -452,6 +434,7 @@
 
         function toggleMic() { localStream.getAudioTracks()[0].enabled = !localStream.getAudioTracks()[0].enabled; document.getElementById('mic-btn').classList.toggle('off'); }
         function toggleCam() { localStream.getVideoTracks()[0].enabled = !localStream.getVideoTracks()[0].enabled; document.getElementById('cam-btn').classList.toggle('off'); }
+        function toggleChat() { document.getElementById('chat-panel').classList.toggle('open'); }
     </script>
 </body>
 </html>
