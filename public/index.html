@@ -179,25 +179,42 @@
 
         .hidden { display: none !important; }
 
+        /* CHAT SYSTEM FIXED */
         #chat-panel {
-            position: fixed; right: -300px; top: 0;
-            width: 300px; height: 100%;
-            background: var(--card-bg); border-left: 2px solid var(--neon);
+            position: fixed; 
+            right: -100%; 
+            top: 0;
+            width: 100%; 
+            max-width: 320px; 
+            height: 100%;
+            background: var(--card-bg); 
+            border-left: 2px solid var(--neon);
             transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 200; display: flex; flex-direction: column;
+            z-index: 2000; 
+            display: flex; 
+            flex-direction: column;
         }
 
         #chat-panel.open { right: 0; }
 
         #chat-header {
-            padding: 15px; background: var(--neon);
-            font-family: 'Orbitron'; font-size: 0.8rem;
-            display: flex; justify-content: space-between;
+            padding: 20px 15px;
+            background: var(--neon);
+            font-family: 'Orbitron'; 
+            font-size: 0.9rem;
+            display: flex; 
+            justify-content: space-between;
+            align-items: center;
         }
 
         #chat-messages {
-            flex: 1; padding: 10px; overflow-y: auto;
-            display: flex; flex-direction: column; gap: 8px;
+            flex: 1; 
+            padding: 10px; 
+            overflow-y: auto;
+            display: flex; 
+            flex-direction: column; 
+            gap: 8px;
+            font-size: 0.9rem;
         }
 
         .msg { background: rgba(255, 255, 255, 0.05); padding: 8px; border-left: 2px solid var(--cyan); }
@@ -218,6 +235,12 @@
             width: 20px; height: 20px; border-radius: 50%;
             display: none; align-items: center; justify-content: center;
             font-family: 'Orbitron'; border: 2px solid var(--bg);
+        }
+
+        #my-role-card {
+            position: fixed; top: 70px; left: 20px;
+            background: var(--card-bg); border: 1px solid var(--cyan);
+            padding: 10px; font-family: 'Orbitron'; font-size: 0.8rem; z-index: 500;
         }
     </style>
 </head>
@@ -257,7 +280,8 @@
             <span id="game-phase">მზადება...</span>
             <span id="game-timer" style="color: var(--neon);">00:00</span>
         </div>
-        <div id="host-panel" class="hidden" style="margin-top: 20px;">
+        <div id="my-role-card" class="hidden">როლი: მალე...</div>
+        <div id="host-panel" class="hidden" style="margin-top: 60px; z-index: 1100;">
             <button class="btn" id="start-game-btn" onclick="requestStart()" style="background: var(--cyan); color: #000;">START GAME</button>
         </div>
         <div id="video-grid"></div>
@@ -270,7 +294,10 @@
     </div>
 
     <div id="chat-panel">
-        <div id="chat-header"><span>VOID CHAT</span><span style="cursor:pointer" onclick="toggleChat()">✖</span></div>
+        <div id="chat-header">
+            <span>VOID CHAT</span>
+            <span style="cursor:pointer; font-size: 1.5rem; padding: 5px 10px;" onclick="toggleChat()">✕</span>
+        </div>
         <div id="chat-messages"></div>
         <div id="chat-input-area">
             <input type="text" id="chat-msg" placeholder="დაწერე..." onkeypress="if(event.key==='Enter') sendMsg()">
@@ -282,7 +309,7 @@
     <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
     <script>
         const socket = io();
-        let localStream, myNick, currentRoom;
+        let localStream, myNick, currentRoom, isHost = false;
         const peers = {};
         let unreadCount = 0;
 
@@ -303,12 +330,11 @@
                             if (vol < 0.3) { vol += 0.05; el.volume = vol; } 
                             else { clearInterval(fade); }
                         }, 200);
-                    }).catch(e => console.log("BGM block"));
+                    }).catch(e => {});
                 } else { el.pause(); el.currentTime = 0; }
             });
         }
 
-        // პირველივე კლიკზე ჩაირთვება მუსიკა
         document.body.addEventListener('click', () => {
             if(!document.getElementById('login-screen').classList.contains('hidden')) playBGM('bgm-login');
         }, { once: true });
@@ -316,10 +342,8 @@
         function showRooms() {
             myNick = document.getElementById('nickname').value.trim();
             if (!myNick) return alert("ჩაწერე ნიკი");
-            
             playSFX('sfx-click');
             playBGM('bgm-rooms');
-            
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('rooms-screen').classList.remove('hidden');
             socket.emit('get-rooms');
@@ -339,6 +363,23 @@
             } catch (e) { alert("კამერა/მიკროფონი მიუწვდომელია!"); }
         }
 
+        // HOST LOGIC
+        socket.on('is-host', () => {
+            isHost = true;
+            document.getElementById('host-panel').classList.remove('hidden');
+        });
+
+        function requestStart() {
+            if(!isHost) return;
+            const settings = {
+                sheriff: document.getElementById('set-sheriff').checked,
+                don: document.getElementById('set-don').checked,
+                mafia: document.getElementById('mafia-count').value
+            };
+            socket.emit('start-game-request', { room: currentRoom, settings });
+        }
+
+        // CHAT LOGIC
         function sendMsg() {
             const inp = document.getElementById('chat-msg');
             if(!inp.value.trim()) return;
@@ -362,12 +403,22 @@
             }
         });
 
+        function toggleChat() { 
+            playSFX('sfx-click'); 
+            document.getElementById('chat-panel').classList.toggle('open'); 
+            if(document.getElementById('chat-panel').classList.contains('open')) {
+                unreadCount = 0; 
+                document.getElementById('chat-badge').style.display = 'none';
+            }
+        }
+
+        // ROOM & WEBRTC
         socket.on('update-room-list', rooms => {
             const list = document.getElementById('room-list');
             list.innerHTML = rooms.map(r => `
-                <div class="room-item">
-                    <div class="room-info"><span>ID: ${r.code}</span><span class="player-count">${r.playerCount}/10</span></div>
-                    <button class="btn" style="padding: 5px; height:35px;" onclick="startVoid('${r.code}')">JOIN</button>
+                <div class="room-item" style="border:1px solid var(--cyan); margin-bottom:5px; padding:10px; display:flex; justify-content:space-between; align-items:center;">
+                    <span>ID: ${r.code} (${r.playerCount}/10)</span>
+                    <button class="btn" style="width:70px; padding:5px;" onclick="startVoid('${r.code}')">JOIN</button>
                 </div>
             `).join('');
         });
@@ -413,13 +464,7 @@
         function toggleMic() { playSFX('sfx-click'); localStream.getAudioTracks()[0].enabled = !localStream.getAudioTracks()[0].enabled; document.getElementById('mic-btn').classList.toggle('off'); }
         function toggleCam() { playSFX('sfx-click'); localStream.getVideoTracks()[0].enabled = !localStream.getVideoTracks()[0].enabled; document.getElementById('cam-btn').classList.toggle('off'); }
         function leaveRoom() { location.reload(); }
-        function toggleChat() { 
-            playSFX('sfx-click'); 
-            document.getElementById('chat-panel').classList.toggle('open'); 
-            if(document.getElementById('chat-panel').classList.contains('open')) {
-                unreadCount = 0; document.getElementById('chat-badge').style.display = 'none';
-            }
-        }
     </script>
 </body>
 </html>
+
