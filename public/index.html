@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ka">
 <head>
@@ -264,9 +263,8 @@
 </head>
 <body>
 
-    <audio id="bgm-login" loop src="https://assets.mixkit.co/music/preview/mixkit-mysterious-pensive-pad-2504.mp3"></audio>
-    <audio id="bgm-rooms" loop src="https://assets.mixkit.co/music/preview/mixkit-creepy-dark-wind-chimes-2501.mp3"></audio>
-    <audio id="bgm-game" loop src="https://assets.mixkit.co/music/preview/mixkit-horror-ambient-drone-2497.mp3"></audio>
+    <audio id="bgm-login" loop src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3"></audio> <audio id="bgm-rooms" loop src="https://assets.mixkit.co/music/preview/mixkit-mysterious-pensive-pad-2504.mp3"></audio> <audio id="bgm-game" loop src="https://assets.mixkit.co/music/preview/mixkit-horror-ambient-drone-2497.mp3"></audio> <audio id="sfx-click" src="https://assets.mixkit.co/sfx/preview/mixkit-modern-technology-select-3124.mp3"></audio>
+    <audio id="sfx-msg" src="https://assets.mixkit.co/sfx/preview/mixkit-sci-fi-confirmation-914.mp3"></audio>
 
     <h1 class="glitch-title">VOID MAFIA</h1>
     <div class="powered">Powered by ბატონი მაქსი</div>
@@ -308,23 +306,23 @@
         let localStream, myNick, currentRoom;
         const peers = {};
 
-        // ხმის მართვის ფუნქცია
+        function playSFX(id) {
+            const sfx = document.getElementById(id);
+            sfx.currentTime = 0;
+            sfx.play();
+        }
+
         function playBGM(id) {
             const sounds = ['bgm-login', 'bgm-rooms', 'bgm-game'];
             sounds.forEach(s => {
                 const el = document.getElementById(s);
                 if(s === id) {
                     el.volume = 0;
-                    el.play().catch(e => console.log("Audio play blocked"));
-                    // Fade In ეფექტი
+                    el.play().catch(e => console.log("Interaction required"));
                     let vol = 0;
-                    const interval = setInterval(() => {
-                        if (vol < 0.4) {
-                            vol += 0.05;
-                            el.volume = vol;
-                        } else {
-                            clearInterval(interval);
-                        }
+                    const fade = setInterval(() => {
+                        if (vol < 0.3) { vol += 0.05; el.volume = vol; } 
+                        else { clearInterval(fade); }
                     }, 200);
                 } else {
                     el.pause();
@@ -333,7 +331,7 @@
             });
         }
 
-        // გვერდის ჩატვირთვისას (მომხმარებლის პირველი ინტერაქციის შემდეგ)
+        // პირველივე კლიკზე Vaporwave-ის ჩართვა
         document.body.addEventListener('click', () => {
             if(!document.getElementById('login-screen').classList.contains('hidden')) {
                 playBGM('bgm-login');
@@ -344,6 +342,7 @@
             myNick = document.getElementById('nickname').value.trim();
             if (!myNick) return alert("ჩაწერე ნიკი");
             
+            playSFX('sfx-click');
             playBGM('bgm-rooms');
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('rooms-screen').classList.remove('hidden');
@@ -354,6 +353,7 @@
             currentRoom = roomFromList || document.getElementById('room-id').value.trim();
             if (!currentRoom) return alert("ჩაწერე ოთახის ID");
 
+            playSFX('sfx-click');
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 playBGM('bgm-game');
@@ -365,6 +365,7 @@
         }
 
         function leaveRoom() {
+            playSFX('sfx-click');
             location.reload();
         }
 
@@ -376,6 +377,7 @@
         }
 
         socket.on('receive-chat-msg', data => {
+            playSFX('sfx-msg');
             const box = document.getElementById('chat-messages');
             const div = document.createElement('div');
             div.className = 'msg';
@@ -432,9 +434,10 @@
             document.getElementById(`v-${id}`).srcObject = stream;
         }
 
-        function toggleMic() { localStream.getAudioTracks()[0].enabled = !localStream.getAudioTracks()[0].enabled; document.getElementById('mic-btn').classList.toggle('off'); }
-        function toggleCam() { localStream.getVideoTracks()[0].enabled = !localStream.getVideoTracks()[0].enabled; document.getElementById('cam-btn').classList.toggle('off'); }
-        function toggleChat() { document.getElementById('chat-panel').classList.toggle('open'); }
+        function toggleMic() { playSFX('sfx-click'); localStream.getAudioTracks()[0].enabled = !localStream.getAudioTracks()[0].enabled; document.getElementById('mic-btn').classList.toggle('off'); }
+        function toggleCam() { playSFX('sfx-click'); localStream.getVideoTracks()[0].enabled = !localStream.getVideoTracks()[0].enabled; document.getElementById('cam-btn').classList.toggle('off'); }
+        function toggleChat() { playSFX('sfx-click'); document.getElementById('chat-panel').classList.toggle('open'); }
     </script>
 </body>
-</html>
+    </html>
+    
