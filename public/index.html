@@ -1,421 +1,427 @@
 <!DOCTYPE html>
 <html lang="ka">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VOID MAFIA</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>VOID MAFIA</title>
 
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@600&display=swap" rel="stylesheet">
 
-    <style>
-        :root {
-            --neon: #ff00ff;
-            --cyan: #00ffff;
-            --bg: #07020f;
-            --card-bg: rgba(14, 5, 32, 0.95);
-            --red: #ff3e3e;
-            --green: #3eff3e;
-            --blue: #3e8eff;
-            --yellow: #ffd43e;
-        }
+  <style>
+    :root {
+      --neon:#ff00ff;
+      --cyan:#00ffff;
+      --bg:#07020f;
+      --card:rgba(14,5,32,.95);
+      --red:#ff3e3e;
+      --green:#3eff3e;
+      --blue:#3e8eff;
+    }
 
-        * {
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
+    * {
+      box-sizing:border-box;
+      -webkit-tap-highlight-color:transparent;
+    }
 
-        body {
-            background: var(--bg);
-            color: white;
-            font-family: 'Rajdhani', sans-serif;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-            padding: 10px;
-            overflow-x: hidden;
-            background-image:
-                linear-gradient(to bottom, transparent 50%, rgba(255, 0, 255, 0.05) 50%),
-                linear-gradient(to right, transparent 50%, rgba(0, 255, 255, 0.05) 50%);
-            background-size: 40px 40px;
-        }
+    body {
+      margin:0;
+      min-height:100vh;
+      padding:10px;
+      background:var(--bg);
+      color:white;
+      font-family:'Rajdhani',sans-serif;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      overflow-x:hidden;
+      background-image:
+        linear-gradient(to bottom, transparent 50%, rgba(255,0,255,.05) 50%),
+        linear-gradient(to right, transparent 50%, rgba(0,255,255,.05) 50%);
+      background-size:40px 40px;
+    }
 
-        .game-active .glitch-title,
-        .game-active .powered {
-            display: none;
-        }
+    .hidden { display:none !important; }
 
-        .glitch-title {
-            font-family: 'Orbitron';
-            font-size: clamp(1.5rem, 8vw, 3rem);
-            color: var(--cyan);
-            text-shadow: 0 0 15px var(--cyan), 2px 2px var(--neon);
-            margin-top: 40px;
-            text-align: center;
-            text-transform: uppercase;
-        }
+    .game-active .glitch-title,
+    .game-active .powered {
+      display:none;
+    }
 
-        .powered {
-            font-size: 0.7rem;
-            color: #6a4a8a;
-            margin-bottom: 1rem;
-            letter-spacing: 2px;
-            text-align: center;
-        }
+    .glitch-title {
+      margin-top:40px;
+      font-family:'Orbitron';
+      font-size:clamp(1.6rem,8vw,3rem);
+      color:var(--cyan);
+      text-shadow:0 0 15px var(--cyan), 2px 2px var(--neon);
+      text-align:center;
+    }
 
-        .card {
-            background: var(--card-bg);
-            border: 1px solid var(--neon);
-            padding: 1.5rem 1rem;
-            width: 100%;
-            max-width: 400px;
-            text-align: center;
-            box-shadow: 0 0 30px rgba(255, 0, 255, 0.2);
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
+    .powered {
+      font-size:.75rem;
+      color:#8b64aa;
+      margin-bottom:15px;
+      letter-spacing:2px;
+    }
 
-        #game-status-bar {
-            width: 100%;
-            background: rgba(0,0,0,0.9);
-            border-bottom: 2px solid var(--neon);
-            padding: 10px;
-            display: flex;
-            justify-content: space-around;
-            font-family: 'Orbitron';
-            font-size: 0.75rem;
-            position: fixed;
-            top: 0;
-            left: 0;
-            z-index: 2000;
-        }
+    .card {
+      width:100%;
+      max-width:420px;
+      background:var(--card);
+      border:1px solid var(--neon);
+      padding:18px 14px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      box-shadow:0 0 30px rgba(255,0,255,.2);
+    }
 
-        input {
-            width: 100%;
-            background: #000;
-            border: 1px solid var(--neon);
-            color: white;
-            padding: 12px;
-            font-size: 1rem;
-            outline: none;
-            text-align: center;
-        }
+    input {
+      width:100%;
+      background:#000;
+      border:1px solid var(--neon);
+      color:white;
+      padding:13px;
+      outline:none;
+      text-align:center;
+      font-size:1rem;
+      font-family:'Rajdhani';
+    }
 
-        #mafia-count {
-            width: 60px !important;
-            display: inline-block;
-            padding: 5px;
-            margin-left: 10px;
-            border-bottom: 2px solid var(--cyan);
-        }
+    .btn {
+      width:100%;
+      padding:14px;
+      border:0;
+      background:var(--neon);
+      color:white;
+      font-family:'Orbitron';
+      font-size:.75rem;
+      cursor:pointer;
+      text-transform:uppercase;
+    }
 
-        .btn {
-            width: 100%;
-            padding: 14px;
-            background: var(--neon);
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-family: 'Orbitron';
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            transition: 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+    .btn:active { transform:scale(.97); }
 
-        .btn:active {
-            transform: scale(0.97);
-        }
+    #mafia-count {
+      width:60px;
+      padding:6px;
+      margin-left:8px;
+    }
 
-        #video-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-            width: 100%;
-            max-width: 800px;
-            margin: 10px auto 110px;
-        }
+    .room-item {
+      border:1px solid var(--cyan);
+      padding:10px;
+      margin-top:6px;
+      background:rgba(0,255,255,.05);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+    }
 
-        .video-box {
-            border: 1px solid var(--neon);
-            background: #000;
-            position: relative;
-            aspect-ratio: 4/3;
-            overflow: hidden;
-            border-radius: 4px;
-            transition: 0.3s ease;
-        }
+    #game-screen {
+      width:100%;
+    }
 
-        .video-box.dead {
-            filter: grayscale(1);
-            opacity: 0.45;
-            border-color: #555;
-        }
+    #game-status-bar {
+      position:fixed;
+      top:0;
+      left:0;
+      width:100%;
+      z-index:2000;
+      background:rgba(0,0,0,.92);
+      border-bottom:2px solid var(--neon);
+      display:flex;
+      justify-content:space-around;
+      padding:10px 4px;
+      font-family:'Orbitron';
+      font-size:.68rem;
+    }
 
-        .dead-badge {
-            position: absolute;
-            top: 30px;
-            left: 5px;
-            background: var(--red);
-            color: white;
-            font-family: Orbitron;
-            font-size: 0.6rem;
-            padding: 2px 6px;
-            z-index: 20;
-        }
+    #my-role-card {
+      position:fixed;
+      top:52px;
+      left:8px;
+      z-index:2100;
+      background:var(--card);
+      border:1px solid var(--cyan);
+      padding:7px 10px;
+      font-family:'Orbitron';
+      font-size:.68rem;
+    }
 
-        .player-number {
-            position: absolute;
-            top: 5px;
-            right: 5px;
-            background: var(--neon);
-            color: white;
-            font-family: 'Orbitron';
-            font-size: 0.7rem;
-            padding: 2px 8px;
-            border-radius: 2px;
-            z-index: 10;
-            box-shadow: 0 0 5px var(--neon);
-        }
+    #host-panel {
+      margin-top:82px;
+      text-align:center;
+      width:100%;
+    }
 
-        video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
+    #action-panel {
+      margin:76px auto 10px;
+      max-width:420px;
+      background:var(--card);
+      border:1px solid var(--cyan);
+      padding:12px;
+    }
 
-        .video-label {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            background: rgba(0,0,0,0.7);
-            padding: 4px;
-            font-size: 0.65rem;
-            color: var(--cyan);
-            border-top: 1px solid var(--neon);
-        }
+    #action-title {
+      color:var(--cyan);
+      font-family:'Orbitron';
+      font-size:.75rem;
+      text-align:center;
+      margin-bottom:8px;
+    }
 
-        .controls {
-            position: fixed;
-            bottom: 20px;
-            display: flex;
-            gap: 8px;
-            z-index: 1500;
-            background: rgba(7, 2, 15, 0.9);
-            padding: 10px;
-            border-radius: 12px;
-            border: 1px solid var(--neon);
-        }
+    #video-grid {
+      width:100%;
+      max-width:850px;
+      margin:12px auto 110px;
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:8px;
+    }
 
-        #chat-panel {
-            position: fixed;
-            right: -100%;
-            top: 0;
-            width: 100%;
-            max-width: 320px;
-            height: 100%;
-            background: var(--card-bg);
-            border-left: 2px solid var(--neon);
-            transition: 0.3s ease;
-            z-index: 3000;
-            display: flex;
-            flex-direction: column;
-        }
+    .video-box {
+      position:relative;
+      background:#000;
+      border:1px solid var(--neon);
+      aspect-ratio:4/3;
+      overflow:hidden;
+      border-radius:4px;
+    }
 
-        #chat-panel.open {
-            right: 0;
-        }
+    .video-box.dead {
+      filter:grayscale(1);
+      opacity:.45;
+      border-color:#555;
+    }
 
-        #chat-header {
-            padding: 15px;
-            background: var(--neon);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-family: 'Orbitron';
-        }
+    video {
+      width:100%;
+      height:100%;
+      object-fit:cover;
+    }
 
-        #chat-messages {
-            flex: 1;
-            padding: 10px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
+    .player-number {
+      position:absolute;
+      top:5px;
+      right:5px;
+      z-index:10;
+      background:var(--neon);
+      color:white;
+      font-family:'Orbitron';
+      font-size:.65rem;
+      padding:2px 7px;
+    }
 
-        .msg {
-            background: rgba(255,255,255,0.05);
-            padding: 8px;
-            border-left: 2px solid var(--cyan);
-            font-size: 0.85rem;
-            word-break: break-word;
-        }
+    .video-label {
+      position:absolute;
+      bottom:0;
+      left:0;
+      width:100%;
+      background:rgba(0,0,0,.75);
+      color:var(--cyan);
+      border-top:1px solid var(--neon);
+      padding:4px;
+      font-size:.7rem;
+    }
 
-        #chat-toggle {
-            position: fixed;
-            right: 15px;
-            bottom: 90px;
-            width: 45px;
-            height: 45px;
-            border-radius: 50%;
-            background: var(--neon);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1400;
-            cursor: pointer;
-        }
+    .dead-badge {
+      position:absolute;
+      top:30px;
+      left:5px;
+      background:var(--red);
+      color:white;
+      padding:2px 6px;
+      font-family:'Orbitron';
+      font-size:.6rem;
+      z-index:20;
+    }
 
-        .room-item {
-            border: 1px solid var(--cyan);
-            padding: 10px;
-            margin-top: 5px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(0, 255, 255, 0.05);
-        }
+    .controls {
+      position:fixed;
+      bottom:18px;
+      left:50%;
+      transform:translateX(-50%);
+      z-index:1500;
+      background:rgba(7,2,15,.92);
+      border:1px solid var(--neon);
+      border-radius:12px;
+      padding:9px;
+      display:flex;
+      gap:8px;
+    }
 
-        #action-panel {
-            margin: 75px auto 10px;
-            max-width: 420px;
-            padding: 12px;
-            border: 1px solid var(--cyan);
-            background: var(--card-bg);
-            box-shadow: 0 0 20px rgba(0,255,255,0.15);
-        }
+    .controls .btn {
+      width:62px;
+      padding:12px 4px;
+    }
 
-        #action-title {
-            font-family: Orbitron;
-            color: var(--cyan);
-            margin-bottom: 8px;
-            text-align: center;
-            font-size: 0.75rem;
-        }
+    #chat-toggle {
+      position:fixed;
+      right:14px;
+      bottom:88px;
+      width:50px;
+      height:50px;
+      border-radius:50%;
+      background:var(--neon);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      z-index:1600;
+      font-family:'Orbitron';
+      font-size:.6rem;
+      cursor:pointer;
+    }
 
-        .player-action-row {
-            display: grid;
-            grid-template-columns: 45px 1fr;
-            gap: 8px;
-            align-items: center;
-            margin-top: 6px;
-        }
+    #chat-panel {
+      position:fixed;
+      right:-100%;
+      top:0;
+      width:100%;
+      max-width:330px;
+      height:100%;
+      z-index:3000;
+      background:var(--card);
+      border-left:2px solid var(--neon);
+      transition:.25s;
+      display:flex;
+      flex-direction:column;
+    }
 
-        .player-mini-number {
-            background: var(--neon);
-            padding: 10px 4px;
-            text-align: center;
-            font-family: Orbitron;
-            font-size: 0.65rem;
-        }
+    #chat-panel.open { right:0; }
 
-        .hidden {
-            display: none !important;
-        }
-    </style>
+    #chat-header {
+      background:var(--neon);
+      padding:14px;
+      display:flex;
+      justify-content:space-between;
+      font-family:'Orbitron';
+      font-size:.75rem;
+    }
+
+    #chat-messages {
+      flex:1;
+      overflow-y:auto;
+      padding:10px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+
+    .msg {
+      background:rgba(255,255,255,.06);
+      border-left:2px solid var(--cyan);
+      padding:8px;
+      font-size:.86rem;
+      word-break:break-word;
+    }
+
+    .action-row {
+      display:grid;
+      grid-template-columns:45px 1fr;
+      gap:7px;
+      margin-top:7px;
+    }
+
+    .num {
+      background:var(--neon);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-family:'Orbitron';
+      font-size:.65rem;
+    }
+  </style>
 </head>
 
 <body>
+  <audio id="sfx-click" src="https://assets.mixkit.co/sfx/preview/mixkit-modern-technology-select-3124.mp3"></audio>
 
-<audio id="sfx-click" src="https://assets.mixkit.co/sfx/preview/mixkit-modern-technology-select-3124.mp3"></audio>
+  <h1 class="glitch-title">VOID MAFIA</h1>
+  <div class="powered">Powered by ბატონი მაქსი</div>
 
-<h1 class="glitch-title">VOID MAFIA</h1>
-<div class="powered">Powered by ბატონი მაქსი</div>
+  <div id="login-screen" class="card">
+    <input id="nickname" type="text" placeholder="შეიყვანე ნიკნეიმი">
+    <button class="btn" id="login-btn">შესვლა</button>
+  </div>
 
-<div id="login-screen" class="card">
-    <input type="text" id="nickname" placeholder="შეიყვანე ნიკნეიმი">
-    <button class="btn" onclick="showRooms()">შესვლა</button>
-</div>
+  <div id="rooms-screen" class="card hidden">
+    <div style="text-align:left; padding:10px; border:1px solid var(--cyan);">
+      <p style="font-size:.75rem; color:var(--cyan); margin:0 0 10px;">პარამეტრები ჰოსტისთვის</p>
 
-<div id="rooms-screen" class="card hidden">
-    <div id="host-settings" style="text-align:left; padding:10px; border:1px solid var(--cyan); margin-bottom:10px;">
-        <p style="font-size:0.7rem; color:var(--cyan); margin:0 0 10px 0;">პარამეტრები ჰოსტისთვის</p>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:.85rem;">
+        <label><input type="checkbox" id="set-sheriff" checked> შერიფი</label>
+        <label><input type="checkbox" id="set-don" checked> დონი</label>
+        <label><input type="checkbox" id="set-doctor" checked> ექიმი</label>
 
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:0.8rem;">
-            <label><input type="checkbox" id="set-sheriff" checked> შერიფი</label>
-            <label><input type="checkbox" id="set-don" checked> დონი</label>
-            <label><input type="checkbox" id="set-doctor" checked> ექიმი</label>
-
-            <div style="display:flex; align-items:center;">
-                <span>მაფია:</span>
-                <input type="number" id="mafia-count" value="1" min="1" max="3">
-            </div>
+        <div>
+          მაფია:
+          <input type="number" id="mafia-count" value="1" min="1" max="3">
         </div>
+      </div>
     </div>
 
-    <input type="text" id="room-id" placeholder="ოთახის ID">
-    <button class="btn" onclick="startVoid()">ოთახის შექმნა / შესვლა</button>
+    <input id="room-id" type="text" placeholder="ოთახის ID მაგალითად: 123">
+    <button class="btn" id="join-btn">ოთახის შექმნა / შესვლა</button>
 
-    <div id="room-list" style="margin-top:15px; text-align:left; max-height:200px; overflow-y:auto;"></div>
-</div>
+    <div id="room-list" style="max-height:220px; overflow-y:auto;"></div>
+  </div>
 
-<div id="game-screen" class="hidden" style="width:100%;">
-
+  <div id="game-screen" class="hidden">
     <div id="game-status-bar">
-        <span id="game-phase">მზადება...</span>
-        <span id="game-timer">00:00</span>
-        <span id="alive-count">0 ცოცხალი</span>
+      <span id="game-phase">მზადება</span>
+      <span id="game-timer">00:00</span>
+      <span id="alive-count">0 ცოცხალი</span>
     </div>
 
-    <div id="my-role-card" class="hidden"
-         style="position:fixed; top:50px; left:10px; background:var(--card-bg); border:1px solid var(--cyan); padding:7px 10px; font-family:'Orbitron'; font-size:0.7rem; z-index:1001;">
-        როლი: ?
-    </div>
+    <div id="my-role-card" class="hidden">როლი: ?</div>
 
-    <div id="host-panel" class="hidden" style="margin-top:80px; text-align:center; width:100%;">
-        <button class="btn" onclick="requestStart()"
-                style="background:var(--cyan); color:#000; width:80%; margin:0 auto; box-shadow:0 0 15px var(--cyan);">
-            START GAME
-        </button>
+    <div id="host-panel" class="hidden">
+      <button class="btn" id="start-game-btn" style="background:var(--cyan); color:#000; width:80%; margin:auto;">
+        START GAME
+      </button>
     </div>
 
     <div id="action-panel" class="hidden">
-        <div id="action-title">ქმედება</div>
-        <div id="players-actions"></div>
+      <div id="action-title">ქმედება</div>
+      <div id="players-actions"></div>
     </div>
 
     <div id="video-grid"></div>
 
-    <div id="chat-toggle" onclick="toggleChat()">CHAT</div>
+    <div id="chat-toggle">CHAT</div>
 
     <div class="controls">
-        <button id="mic-btn" class="btn" onclick="toggleMic()" style="width:60px">MIC</button>
-        <button id="cam-btn" class="btn" onclick="toggleCam()" style="width:60px; background:var(--cyan); color:black">CAM</button>
-        <button class="btn" style="background:var(--red); width:60px" onclick="location.reload()">EXIT</button>
+      <button id="mic-btn" class="btn">MIC</button>
+      <button id="cam-btn" class="btn" style="background:var(--cyan); color:#000;">CAM</button>
+      <button id="exit-btn" class="btn" style="background:var(--red);">EXIT</button>
     </div>
-</div>
+  </div>
 
-<div id="chat-panel">
+  <div id="chat-panel">
     <div id="chat-header">
-        <span>VOID CHAT</span>
-        <span onclick="toggleChat()" style="cursor:pointer; padding:5px;">✕</span>
+      <span>VOID CHAT</span>
+      <span id="close-chat" style="cursor:pointer;">✕</span>
     </div>
 
     <div id="chat-messages"></div>
 
-    <div id="chat-input-area" style="padding:10px; display:flex; gap:5px;">
-        <input type="text" id="chat-msg" placeholder="დაწერე...">
-        <button class="btn" style="width:50px" onclick="sendMsg()">></button>
+    <div style="padding:10px; display:flex; gap:5px;">
+      <input id="chat-msg" type="text" placeholder="დაწერე...">
+      <button class="btn" id="send-chat-btn" style="width:55px;">></button>
     </div>
-</div>
+  </div>
 
-<script src="/socket.io/socket.io.js"></script>
-<script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
 
-<script>
+  <script>
     const socket = io();
 
-    let localStream;
-    let myNick;
-    let currentRoom;
+    let localStream = null;
+    let myNick = "";
+    let currentRoom = "";
     let isHost = false;
-
     let myRole = null;
     let currentPhase = "waiting";
     let alivePlayers = [];
@@ -424,278 +430,530 @@
 
     const peers = {};
 
+    const $ = id => document.getElementById(id);
+
+    $("login-btn").addEventListener("click", showRooms);
+    $("join-btn").addEventListener("click", () => startVoid());
+    $("start-game-btn").addEventListener("click", requestStart);
+    $("mic-btn").addEventListener("click", toggleMic);
+    $("cam-btn").addEventListener("click", toggleCam);
+    $("exit-btn").addEventListener("click", () => location.reload());
+    $("chat-toggle").addEventListener("click", toggleChat);
+    $("close-chat").addEventListener("click", toggleChat);
+    $("send-chat-btn").addEventListener("click", sendMsg);
+
+    $("nickname").addEventListener("keydown", e => {
+      if (e.key === "Enter") showRooms();
+    });
+
+    $("room-id").addEventListener("keydown", e => {
+      if (e.key === "Enter") startVoid();
+    });
+
+    $("chat-msg").addEventListener("keydown", e => {
+      if (e.key === "Enter") sendMsg();
+    });
+
     function playSFX() {
-        document.getElementById('sfx-click').play().catch(() => {});
+      $("sfx-click").play().catch(() => {});
     }
 
     function showRooms() {
-        myNick = document.getElementById('nickname').value.trim();
+      myNick = $("nickname").value.trim();
 
-        if (!myNick) {
-            return alert("ჩაწერე ნიკი");
-        }
+      if (!myNick) {
+        alert("ჯერ ჩაწერე ნიკნეიმი");
+        return;
+      }
 
-        playSFX();
+      playSFX();
 
-        document.getElementById('login-screen').classList.add('hidden');
-        document.getElementById('rooms-screen').classList.remove('hidden');
+      $("login-screen").classList.add("hidden");
+      $("rooms-screen").classList.remove("hidden");
 
-        socket.emit('get-rooms');
+      socket.emit("get-rooms");
     }
 
     async function startVoid(roomFromList) {
-        currentRoom = roomFromList || document.getElementById('room-id').value.trim();
+      currentRoom = roomFromList || $("room-id").value.trim();
 
-        if (!currentRoom) {
-            return alert("ჩაწერე ოთახის ID");
-        }
+      if (!currentRoom) {
+        alert("ჩაწერე ოთახის ID, მაგალითად 123");
+        return;
+      }
 
-        playSFX();
+      playSFX();
 
-        try {
-            localStream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: true
-            });
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true
+        });
 
-            document.body.classList.add('game-active');
-            document.getElementById('rooms-screen').classList.add('hidden');
-            document.getElementById('game-screen').classList.remove('hidden');
+        document.body.classList.add("game-active");
+        $("rooms-screen").classList.add("hidden");
+        $("game-screen").classList.remove("hidden");
 
-            socket.emit('join-room', currentRoom, myNick);
-        } catch (e) {
-            alert("კამერა ან მიკროფონი არ ჩაირთო");
-        }
+        socket.emit("join-room", currentRoom, myNick);
+      } catch (err) {
+        console.error(err);
+        alert("კამერა/მიკროფონი ვერ ჩაირთო. Browser permissions შეამოწმე.");
+      }
     }
 
-    socket.on('is-host', () => {
-        isHost = true;
-        document.getElementById('host-panel').classList.remove('hidden');
+    socket.on("connect", () => {
+      console.log("connected:", socket.id);
     });
 
-    socket.on('update-room-list', rooms => {
-        const list = document.getElementById('room-list');
-
-        list.innerHTML = rooms.length === 0
-            ? '<p style="font-size:0.7rem; color:#666;">აქტიური ოთახები არ არის</p>'
-            : '';
-
-        rooms.forEach(r => {
-            list.innerHTML += `
-                <div class="room-item">
-                    <span style="font-size:0.8rem;">ID: ${escapeHtml(r.code)} (${r.playerCount}/10)</span>
-                    <button class="btn" style="width:60px; padding:5px; font-size:0.6rem;" onclick="startVoid('${escapeHtml(r.code)}')">JOIN</button>
-                </div>
-            `;
-        });
+    socket.on("connect_error", err => {
+      alert("სერვერთან კავშირი ვერ შედგა");
+      console.error(err);
     });
 
-    socket.on('room-users-list', users => {
-        users.forEach(user => {
-            if (user.id === socket.id) {
-                addVideo(user.id, localStream, user.name + " (შენ)", user.index, true);
-            }
-        });
+    socket.on("error", data => {
+      alert(data && data.msg ? data.msg : "შეცდომა");
     });
 
-    socket.on('all-users-info', users => {
-        users.forEach(u => {
-            const peer = new SimplePeer({
-                initiator: true,
-                trickle: false,
-                stream: localStream
-            });
-
-            peer.on('signal', signal => {
-                socket.emit('sending-signal', {
-                    userToSignal: u.id,
-                    callerID: socket.id,
-                    signal
-                });
-            });
-
-            peer.on('stream', stream => {
-                addVideo(u.id, stream, u.name, u.index);
-            });
-
-            peers[u.id] = peer;
-        });
+    socket.on("is-host", () => {
+      isHost = true;
+      $("host-panel").classList.remove("hidden");
+      addSystemMsg("შენ ხარ ოთახის ჰოსტი");
     });
 
-    socket.on('user-joined-with-info', p => {
+    socket.on("update-room-list", rooms => {
+      const list = $("room-list");
+      list.innerHTML = "";
+
+      if (!rooms || rooms.length === 0) {
+        list.innerHTML = '<p style="font-size:.75rem; color:#777;">აქტიური ოთახები არ არის</p>';
+        return;
+      }
+
+      rooms.forEach(r => {
+        const div = document.createElement("div");
+        div.className = "room-item";
+
+        div.innerHTML = `
+          <span style="font-size:.85rem;">ID: ${escapeHtml(r.code)} (${r.playerCount}/10)</span>
+          <button class="btn" style="width:70px; padding:7px; font-size:.6rem;">JOIN</button>
+        `;
+
+        div.querySelector("button").onclick = () => startVoid(r.code);
+        list.appendChild(div);
+      });
+    });
+
+    socket.on("room-users-list", users => {
+      users.forEach(user => {
+        if (user.id === socket.id) {
+          addVideo(user.id, localStream, user.name + " (შენ)", user.index, true);
+        }
+      });
+    });
+
+    socket.on("all-users-info", users => {
+      users.forEach(u => {
         const peer = new SimplePeer({
-            initiator: false,
-            trickle: false,
-            stream: localStream
+          initiator: true,
+          trickle: false,
+          stream: localStream
         });
 
-        peer.on('signal', signal => {
-            socket.emit('returning-signal', {
-                signal,
-                callerID: p.id
-            });
+        peer.on("signal", signal => {
+          socket.emit("sending-signal", {
+            userToSignal: u.id,
+            callerID: socket.id,
+            signal
+          });
         });
 
-        peer.on('stream', stream => {
-            addVideo(p.id, stream, p.nick, p.index);
+        peer.on("stream", stream => {
+          addVideo(u.id, stream, u.name, u.index);
         });
 
-        if (p.signal) {
-            peer.signal(p.signal);
-        }
+        peer.on("error", err => console.error("peer error:", err));
 
-        peers[p.id] = peer;
+        peers[u.id] = peer;
+      });
     });
 
-    socket.on('receiving-returned-signal', p => {
-        if (peers[p.id]) {
-            peers[p.id].signal(p.signal);
-        }
+    socket.on("user-joined-with-info", p => {
+      const peer = new SimplePeer({
+        initiator: false,
+        trickle: false,
+        stream: localStream
+      });
+
+      peer.on("signal", signal => {
+        socket.emit("returning-signal", {
+          signal,
+          callerID: p.id
+        });
+      });
+
+      peer.on("stream", stream => {
+        addVideo(p.id, stream, p.nick, p.index);
+      });
+
+      peer.on("error", err => console.error("peer error:", err));
+
+      if (p.signal) {
+        peer.signal(p.signal);
+      }
+
+      peers[p.id] = peer;
     });
 
-    socket.on('user-left', id => {
-        if (peers[id]) {
-            peers[id].destroy();
-        }
+    socket.on("receiving-returned-signal", p => {
+      if (peers[p.id]) {
+        peers[p.id].signal(p.signal);
+      }
+    });
 
+    socket.on("user-left", id => {
+      if (peers[id]) {
+        peers[id].destroy();
         delete peers[id];
+      }
 
-        const el = document.getElementById(id);
-        if (el) el.remove();
+      const el = $(id);
+      if (el) el.remove();
     });
 
     function addVideo(id, stream, name, index, mute = false) {
-        if (document.getElementById(id)) return;
+      if ($(id)) return;
 
-        const div = document.createElement('div');
+      const div = document.createElement("div");
+      div.id = id;
+      div.className = "video-box";
+      div.style.order = index;
 
-        div.id = id;
-        div.className = 'video-box';
-        div.style.order = index;
+      div.innerHTML = `
+        <div class="player-number">#${index}</div>
+        <video id="v-${id}" autoplay playsinline ${mute ? "muted" : ""}></video>
+        <div class="video-label">${escapeHtml(name)}</div>
+      `;
 
-        div.innerHTML = `
-            <div class="player-number">#${index}</div>
-            <video id="v-${id}" autoplay playsinline ${mute ? 'muted' : ''}></video>
-            <div class="video-label">${escapeHtml(name)}</div>
-        `;
+      $("video-grid").appendChild(div);
 
-        document.getElementById('video-grid').appendChild(div);
-
-        if (stream) {
-            document.getElementById(`v-${id}`).srcObject = stream;
-        }
+      if (stream) {
+        $("v-" + id).srcObject = stream;
+      }
     }
 
     function requestStart() {
-        if (!isHost) return;
+      if (!isHost) {
+        alert("თამაშის დაწყება მხოლოდ ჰოსტს შეუძლია");
+        return;
+      }
 
-        const count = document.querySelectorAll('.video-box').length;
+      const count = document.querySelectorAll(".video-box").length;
 
-        if (count < 4) {
-            return alert("საჭიროა მინიმუმ 4 მოთამაშე");
+      if (count < 4) {
+        alert("საჭიროა მინიმუმ 4 მოთამაშე");
+        return;
+      }
+
+      socket.emit("start-game-request", {
+        room: currentRoom,
+        settings: {
+          sheriff: $("set-sheriff").checked,
+          don: $("set-don").checked,
+          doctor: $("set-doctor").checked,
+          mafia: Number($("mafia-count").value)
         }
-
-        playSFX();
-
-        socket.emit('start-game-request', {
-            room: currentRoom,
-            settings: {
-                sheriff: document.getElementById('set-sheriff').checked,
-                don: document.getElementById('set-don').checked,
-                doctor: document.getElementById('set-doctor').checked,
-                mafia: Number(document.getElementById('mafia-count').value)
-            }
-        });
+      });
     }
 
-    socket.on('assign-role', role => {
-        myRole = role;
+    socket.on("assign-role", role => {
+      myRole = role;
 
-        const el = document.getElementById('my-role-card');
+      const card = $("my-role-card");
+      card.classList.remove("hidden");
+      card.innerText = "როლი: " + roleName(role);
 
-        el.classList.remove('hidden');
-        el.innerText = "როლი: " + roleName(role);
+      if (role === "mafia" || role === "don") card.style.color = "var(--red)";
+      else if (role === "doctor") card.style.color = "var(--green)";
+      else if (role === "sheriff") card.style.color = "var(--blue)";
+      else card.style.color = "white";
 
-        if (role === 'mafia' || role === 'don') {
-            el.style.color = 'var(--red)';
-        } else if (role === 'doctor') {
-            el.style.color = 'var(--green)';
-        } else if (role === 'sheriff') {
-            el.style.color = 'var(--blue)';
-        } else {
-            el.style.color = 'white';
-        }
-
-        addSystemMsg("შენი როლია: " + roleName(role));
+      addSystemMsg("შენი როლია: " + roleName(role));
     });
 
-    socket.on('game-state', state => {
-        currentPhase = state.phase;
-        alivePlayers = state.players || [];
+    socket.on("game-state", state => {
+      currentPhase = state.phase || "waiting";
+      alivePlayers = state.players || [];
 
-        updatePhaseText();
-        updateAliveCount();
-        updateDeadVideos();
-        renderActionPanel();
+      updatePhaseText();
+      updateAliveCount();
+      updateDeadVideos();
+      renderActionPanel();
     });
 
-    socket.on('phase-message', msg => {
-        addSystemMsg(msg);
+    socket.on("phase-message", msg => {
+      addSystemMsg(msg);
     });
 
-    socket.on('sheriff-result', data => {
-        const result = data.isMafia ? "მაფიაა" : "მშვიდობიანია";
-        alert(`${data.name} — ${result}`);
-        addSystemMsg(`შერიფის პასუხი: ${data.name} — ${result}`);
+    socket.on("sheriff-result", data => {
+      const result = data.isMafia ? "მაფიაა" : "მშვიდობიანია";
+      alert(`${data.name} — ${result}`);
+      addSystemMsg(`შერიფის პასუხი: ${data.name} — ${result}`);
     });
 
-    socket.on('game-over', data => {
-        addSystemMsg(data.message);
-        alert(data.message);
-        document.getElementById('action-panel').classList.add('hidden');
+    socket.on("game-over", data => {
+      addSystemMsg(data.message);
+      alert(data.message);
+      $("action-panel").classList.add("hidden");
     });
 
     function updatePhaseText() {
-        const phase = document.getElementById('game-phase');
-
-        if (currentPhase === "night") {
-            phase.innerText = "ღამე";
-            startTimer(60);
-        } else if (currentPhase === "day") {
-            phase.innerText = "დღე / განხილვა";
-            startTimer(45);
-        } else if (currentPhase === "vote") {
-            phase.innerText = "ხმის მიცემა";
-            startTimer(30);
-        } else if (currentPhase === "ended") {
-            phase.innerText = "თამაში დასრულდა";
-            stopTimer();
-        } else {
-            phase.innerText = "მზადება";
-            stopTimer();
-        }
+      if (currentPhase === "night") {
+        $("game-phase").innerText = "ღამე";
+        startTimer(60);
+      } else if (currentPhase === "day") {
+        $("game-phase").innerText = "დღე";
+        startTimer(45);
+      } else if (currentPhase === "vote") {
+        $("game-phase").innerText = "ხმის მიცემა";
+        startTimer(30);
+      } else if (currentPhase === "ended") {
+        $("game-phase").innerText = "დასრულდა";
+        stopTimer();
+      } else {
+        $("game-phase").innerText = "მზადება";
+        stopTimer();
+      }
     }
 
     function startTimer(seconds) {
-        clearInterval(timerInterval);
-        timerSeconds = seconds;
+      clearInterval(timerInterval);
+      timerSeconds = seconds;
+      updateTimerText();
 
+      timerInterval = setInterval(() => {
+        timerSeconds--;
         updateTimerText();
 
-        timerInterval = setInterval(() => {
-            timerSeconds--;
-            updateTimerText();
-
-            if (timerSeconds <= 0) {
-                clearInterval(timerInterval);
-            }
-        }, 1000);
+        if (timerSeconds <= 0) clearInterval(timerInterval);
+      }, 1000);
     }
 
     function stopTimer() {
-        clearInterval(timerInterval);
-        document.getElementById('game-timer').innerText = "00:00";
+      clearInterval(timerInterval);
+      $("game-timer").innerText = "00:00";
     }
 
     function updateTimerText() {
-        const min = String(Math.flo
+      const m = String(Math.floor(timerSeconds / 60)).padStart(2, "0");
+      const s = String(timerSeconds % 60).padStart(2, "0");
+      $("game-timer").innerText = `${m}:${s}`;
+    }
+
+    function updateAliveCount() {
+      const count = alivePlayers.filter(p => p.alive).length;
+      $("alive-count").innerText = `${count} ცოცხალი`;
+    }
+
+    function updateDeadVideos() {
+      alivePlayers.forEach(p => {
+        const box = $(p.id);
+        if (!box) return;
+
+        box.classList.toggle("dead", !p.alive);
+
+        const old = box.querySelector(".dead-badge");
+        if (old) old.remove();
+
+        if (!p.alive) {
+          const badge = document.createElement("div");
+          badge.className = "dead-badge";
+          badge.innerText = "DEAD";
+          box.appendChild(badge);
+        }
+      });
+    }
+
+    function renderActionPanel() {
+      const panel = $("action-panel");
+      const box = $("players-actions");
+      const title = $("action-title");
+
+      box.innerHTML = "";
+
+      const me = alivePlayers.find(p => p.id === socket.id);
+
+      if (!me || !me.alive || currentPhase === "ended") {
+        panel.classList.add("hidden");
+        return;
+      }
+
+      const otherAlive = alivePlayers.filter(p => p.alive && p.id !== socket.id);
+      const allAlive = alivePlayers.filter(p => p.alive);
+
+      if (currentPhase === "night") {
+        if (myRole === "mafia" || myRole === "don") {
+          panel.classList.remove("hidden");
+          title.innerText = "ღამე: აირჩიე მოსაკლავი";
+          otherAlive.forEach(p => addActionButton(p, "kill", "მოკვლა"));
+          return;
+        }
+
+        if (myRole === "doctor") {
+          panel.classList.remove("hidden");
+          title.innerText = "ღამე: აირჩიე გადასარჩენი";
+          allAlive.forEach(p => addActionButton(p, "save", "გადარჩენა"));
+          return;
+        }
+
+        if (myRole === "sheriff") {
+          panel.classList.remove("hidden");
+          title.innerText = "ღამე: შეამოწმე მოთამაშე";
+          otherAlive.forEach(p => addActionButton(p, "check", "შემოწმება"));
+          return;
+        }
+
+        panel.classList.add("hidden");
+        return;
+      }
+
+      if (currentPhase === "vote") {
+        panel.classList.remove("hidden");
+        title.innerText = "ხმის მიცემა";
+        otherAlive.forEach(p => addVoteButton(p));
+        return;
+      }
+
+      panel.classList.add("hidden");
+    }
+
+    function addActionButton(player, action, label) {
+      const row = document.createElement("div");
+      row.className = "action-row";
+
+      row.innerHTML = `
+        <div class="num">#${player.index}</div>
+        <button class="btn">${label}: ${escapeHtml(player.name)}</button>
+      `;
+
+      row.querySelector("button").onclick = () => {
+        socket.emit("night-action", {
+          room: currentRoom,
+          action,
+          targetId: player.id
+        });
+
+        addSystemMsg("ქმედება დაფიქსირდა");
+        $("action-panel").classList.add("hidden");
+      };
+
+      $("players-actions").appendChild(row);
+    }
+
+    function addVoteButton(player) {
+      const row = document.createElement("div");
+      row.className = "action-row";
+
+      row.innerHTML = `
+        <div class="num">#${player.index}</div>
+        <button class="btn" style="background:var(--red);">ხმა: ${escapeHtml(player.name)}</button>
+      `;
+
+      row.querySelector("button").onclick = () => {
+        socket.emit("vote-player", {
+          room: currentRoom,
+          targetId: player.id
+        });
+
+        addSystemMsg("ხმა მიცემულია");
+        $("action-panel").classList.add("hidden");
+      };
+
+      $("players-actions").appendChild(row);
+    }
+
+    function sendMsg() {
+      const input = $("chat-msg");
+      const text = input.value.trim();
+
+      if (!text) return;
+
+      socket.emit("send-chat-msg", {
+        room: currentRoom,
+        name: myNick,
+        text
+      });
+
+      input.value = "";
+    }
+
+    socket.on("receive-chat-msg", d => {
+      const m = $("chat-messages");
+
+      m.innerHTML += `
+        <div class="msg">
+          <b>${escapeHtml(d.name)}:</b> ${escapeHtml(d.text)}
+        </div>
+      `;
+
+      m.scrollTop = m.scrollHeight;
+    });
+
+    function addSystemMsg(text) {
+      const m = $("chat-messages");
+
+      m.innerHTML += `
+        <div class="msg" style="border-left-color:var(--neon); color:var(--cyan);">
+          <b>SYSTEM:</b> ${escapeHtml(text)}
+        </div>
+      `;
+
+      m.scrollTop = m.scrollHeight;
+    }
+
+    function toggleMic() {
+      if (!localStream) return;
+
+      const track = localStream.getAudioTracks()[0];
+      if (!track) return;
+
+      track.enabled = !track.enabled;
+      $("mic-btn").style.background = track.enabled ? "var(--neon)" : "#333";
+    }
+
+    function toggleCam() {
+      if (!localStream) return;
+
+      const track = localStream.getVideoTracks()[0];
+      if (!track) return;
+
+      track.enabled = !track.enabled;
+      $("cam-btn").style.background = track.enabled ? "var(--cyan)" : "#333";
+    }
+
+    function toggleChat() {
+      $("chat-panel").classList.toggle("open");
+    }
+
+    function roleName(role) {
+      const map = {
+        mafia: "მაფია",
+        don: "დონი",
+        doctor: "ექიმი",
+        sheriff: "შერიფი",
+        citizen: "მოქალაქე"
+      };
+
+      return map[role] || role;
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+  </script>
+</body>
+</html>
