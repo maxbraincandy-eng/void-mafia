@@ -40,6 +40,25 @@
       background-size:40px 40px;
     }
 
+    body.night-mode {
+      background-color:#010008;
+      filter:brightness(.75);
+    }
+
+    body.day-mode {
+      filter:brightness(1);
+    }
+
+    body.night-mode #game-status-bar {
+      border-bottom-color:var(--blue);
+      background:#000;
+    }
+
+    body.night-mode .video-box {
+      box-shadow:0 0 18px rgba(62,142,255,.35);
+      border-color:var(--blue);
+    }
+
     .hidden { display:none !important; }
 
     .game-active .glitch-title,
@@ -155,8 +174,39 @@
       width:100%;
     }
 
+    .phase-banner {
+      margin:55px auto 10px;
+      max-width:430px;
+      padding:14px;
+      border:2px solid var(--cyan);
+      background:rgba(0,0,0,.75);
+      text-align:center;
+      box-shadow:0 0 20px rgba(0,255,255,.25);
+    }
+
+    #phase-big-text {
+      font-family:Orbitron;
+      font-size:1.1rem;
+      color:var(--cyan);
+    }
+
+    #phase-small-text {
+      margin-top:6px;
+      font-size:.85rem;
+      color:white;
+    }
+
+    body.night-mode .phase-banner {
+      border-color:var(--blue);
+      box-shadow:0 0 25px rgba(62,142,255,.45);
+    }
+
+    body.night-mode #phase-big-text {
+      color:var(--blue);
+    }
+
     #action-panel {
-      margin:76px auto 10px;
+      margin:10px auto 10px;
       max-width:420px;
       background:var(--card);
       border:1px solid var(--cyan);
@@ -382,6 +432,11 @@
       </button>
     </div>
 
+    <div id="phase-banner" class="phase-banner">
+      <div id="phase-big-text">მზადება</div>
+      <div id="phase-small-text">დაელოდე თამაშის დაწყებას</div>
+    </div>
+
     <div id="action-panel" class="hidden">
       <div id="action-title">ქმედება</div>
       <div id="players-actions"></div>
@@ -425,11 +480,11 @@
     let myRole = null;
     let currentPhase = "waiting";
     let alivePlayers = [];
+    let mafiaIds = [];
     let timerInterval = null;
     let timerSeconds = 0;
 
     const peers = {};
-
     const $ = id => document.getElementById(id);
 
     $("login-btn").addEventListener("click", showRooms);
@@ -638,6 +693,7 @@
 
       if (stream) {
         $("v-" + id).srcObject = stream;
+        setTimeout(updateVoiceByPhase, 300);
       }
     }
 
@@ -678,6 +734,13 @@
       else card.style.color = "white";
 
       addSystemMsg("შენი როლია: " + roleName(role));
+      updatePhaseText();
+      updateVoiceByPhase();
+    });
+
+    socket.on("mafia-list", ids => {
+      mafiaIds = ids || [];
+      updateVoiceByPhase();
     });
 
     socket.on("game-state", state => {
@@ -688,6 +751,7 @@
       updateAliveCount();
       updateDeadVideos();
       renderActionPanel();
+      updateVoiceByPhase();
     });
 
     socket.on("phase-message", msg => {
@@ -707,21 +771,81 @@
     });
 
     function updatePhaseText() {
+      document.body.classList.remove("night-mode", "day-mode");
+
       if (currentPhase === "night") {
+        document.body.classList.add("night-mode");
+
         $("game-phase").innerText = "ღამე";
+        $("phase-big-text").innerText = "ღამე";
+
+        if (myRole === "mafia" || myRole === "don") {
+          $("phase-small-text").innerText = "მაფიის ფაზა: აირჩიე მოსაკლავი. მხოლოდ მაფიებს ესმით ერთმანეთის ხმა.";
+        } else if (myRole === "doctor") {
+          $("phase-small-text").innerText = "ექიმის ფაზა: აირჩიე გადასარჩენი მოთამაშე.";
+        } else if (myRole === "sheriff") {
+          $("phase-small-text").innerText = "შერიფის ფაზა: შეამოწმე მოთამაშე.";
+        } else {
+          $("phase-small-text").innerText = "ღამეა. მოქალაქე ელოდება დილის დადგომას.";
+        }
+
         startTimer(60);
       } else if (currentPhase === "day") {
+        document.body.classList.add("day-mode");
+
         $("game-phase").innerText = "დღე";
+        $("phase-big-text").innerText = "დღე";
+        $("phase-small-text").innerText = "ყველას ხმა ისმის. იმსჯელეთ და იპოვეთ მაფია.";
+
         startTimer(45);
       } else if (currentPhase === "vote") {
+        document.body.classList.add("day-mode");
+
         $("game-phase").innerText = "ხმის მიცემა";
+        $("phase-big-text").innerText = "ხმის მიცემა";
+        $("phase-small-text").innerText = "აირჩიე მოთამაშე, ვის გაგდებასაც უჭერ მხარს.";
+
         startTimer(30);
       } else if (currentPhase === "ended") {
         $("game-phase").innerText = "დასრულდა";
+        $("phase-big-text").innerText = "თამაში დასრულდა";
+        $("phase-small-text").innerText = "შედეგი გამოჩნდა ჩატში.";
         stopTimer();
       } else {
         $("game-phase").innerText = "მზადება";
+        $("phase-big-text").innerText = "მზადება";
+        $("phase-small-text").innerText = "ჰოსტმა უნდა დააჭიროს START GAME.";
         stopTimer();
+      }
+    }
+
+    function updateVoiceByPhase() {
+      const iAmMafia = myRole === "mafia" || myRole === "don";
+
+      Object.keys(peers).forEach(peerId => {
+        const video = $("v-" + peerId);
+        if (!video) return;
+
+        const peerIsMafia = mafiaIds.includes(peerId);
+
+        if (currentPhase === "night") {
+          if (iAmMafia && peerIsMafia) {
+            video.muted = false;
+            video.volume = 1;
+          } else {
+            video.muted = true;
+            video.volume = 0;
+          }
+        } else {
+          video.muted = false;
+          video.volume = 1;
+        }
+      });
+
+      const myVideo = $("v-" + socket.id);
+      if (myVideo) {
+        myVideo.muted = true;
+        myVideo.volume = 0;
       }
     }
 
@@ -793,26 +917,28 @@
       if (currentPhase === "night") {
         if (myRole === "mafia" || myRole === "don") {
           panel.classList.remove("hidden");
-          title.innerText = "ღამე: აირჩიე მოსაკლავი";
+          title.innerText = "მაფიის ღამე — აირჩიე მსხვერპლი";
           otherAlive.forEach(p => addActionButton(p, "kill", "მოკვლა"));
           return;
         }
 
         if (myRole === "doctor") {
           panel.classList.remove("hidden");
-          title.innerText = "ღამე: აირჩიე გადასარჩენი";
+          title.innerText = "ექიმის ღამე — აირჩიე გადასარჩენი";
           allAlive.forEach(p => addActionButton(p, "save", "გადარჩენა"));
           return;
         }
 
         if (myRole === "sheriff") {
           panel.classList.remove("hidden");
-          title.innerText = "ღამე: შეამოწმე მოთამაშე";
+          title.innerText = "შერიფის ღამე — შეამოწმე მოთამაშე";
           otherAlive.forEach(p => addActionButton(p, "check", "შემოწმება"));
           return;
         }
 
-        panel.classList.add("hidden");
+        panel.classList.remove("hidden");
+        title.innerText = "ღამეა — დაელოდე დილას";
+        box.innerHTML = `<div class="msg">შენ მოქალაქე ხარ. ღამით მოქმედება არ გაქვს.</div>`;
         return;
       }
 
