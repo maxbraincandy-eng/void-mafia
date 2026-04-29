@@ -246,8 +246,8 @@
             position: fixed;
             right: 20px;
             bottom: 30px;
-            width: 45px;
-            height: 45px;
+            width: 50px;
+            height: 50px;
             border-radius: 50%;
             background: var(--neon);
             color: white;
@@ -257,13 +257,34 @@
             cursor: pointer;
             z-index: 150;
             box-shadow: 0 0 15px var(--neon);
-            font-size: 1.2rem;
+            font-size: 1.3rem;
+        }
+
+        /* ნოთიფიკაციის ციფრის სტილი */
+        #chat-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: var(--red);
+            color: white;
+            font-size: 0.7rem;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: none; /* თავიდან დამალულია */
+            align-items: center;
+            justify-content: center;
+            font-family: 'Orbitron';
+            border: 2px solid var(--bg);
         }
     </style>
 </head>
 <body>
 
-    <audio id="bgm-login" loop src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3"></audio> <audio id="bgm-rooms" loop src="https://assets.mixkit.co/music/preview/mixkit-mysterious-pensive-pad-2504.mp3"></audio> <audio id="bgm-game" loop src="https://assets.mixkit.co/music/preview/mixkit-horror-ambient-drone-2497.mp3"></audio> <audio id="sfx-click" src="https://assets.mixkit.co/sfx/preview/mixkit-modern-technology-select-3124.mp3"></audio>
+    <audio id="bgm-login" loop src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3"></audio> 
+    <audio id="bgm-rooms" loop src="https://assets.mixkit.co/music/preview/mixkit-mysterious-pensive-pad-2504.mp3"></audio> 
+    <audio id="bgm-game" loop src="https://assets.mixkit.co/music/preview/mixkit-horror-ambient-drone-2497.mp3"></audio> 
+    <audio id="sfx-click" src="https://assets.mixkit.co/sfx/preview/mixkit-modern-technology-select-3124.mp3"></audio>
     <audio id="sfx-msg" src="https://assets.mixkit.co/sfx/preview/mixkit-sci-fi-confirmation-914.mp3"></audio>
 
     <h1 class="glitch-title">VOID MAFIA</h1>
@@ -282,7 +303,10 @@
 
     <div id="game-screen" class="hidden" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
         <div id="video-grid"></div>
-        <div id="chat-toggle" onclick="toggleChat()">💬</div>
+        <div id="chat-toggle" onclick="toggleChat()">
+            💬
+            <div id="chat-badge">0</div>
+        </div>
         <div class="controls">
             <button id="mic-btn" class="btn" style="width: 60px;" onclick="toggleMic()">MIC</button>
             <button id="cam-btn" class="btn" style="width: 60px; background: var(--cyan); color: black;" onclick="toggleCam()">CAM</button>
@@ -305,11 +329,12 @@
         const socket = io();
         let localStream, myNick, currentRoom;
         const peers = {};
+        let unreadCount = 0;
 
         function playSFX(id) {
             const sfx = document.getElementById(id);
             sfx.currentTime = 0;
-            sfx.play();
+            sfx.play().catch(e => {});
         }
 
         function playBGM(id) {
@@ -331,7 +356,6 @@
             });
         }
 
-        // პირველივე კლიკზე Vaporwave-ის ჩართვა
         document.body.addEventListener('click', () => {
             if(!document.getElementById('login-screen').classList.contains('hidden')) {
                 playBGM('bgm-login');
@@ -341,7 +365,6 @@
         function showRooms() {
             myNick = document.getElementById('nickname').value.trim();
             if (!myNick) return alert("ჩაწერე ნიკი");
-            
             playSFX('sfx-click');
             playBGM('bgm-rooms');
             document.getElementById('login-screen').classList.add('hidden');
@@ -352,7 +375,6 @@
         async function startVoid(roomFromList) {
             currentRoom = roomFromList || document.getElementById('room-id').value.trim();
             if (!currentRoom) return alert("ჩაწერე ოთახის ID");
-
             playSFX('sfx-click');
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -374,16 +396,26 @@
             if(!inp.value.trim()) return;
             socket.emit('send-chat-msg', { room: currentRoom, name: myNick, text: inp.value.trim() });
             inp.value = '';
+            // წერის დროსაც ვუკრავთ ხმას
+            playSFX('sfx-msg');
         }
 
         socket.on('receive-chat-msg', data => {
-            playSFX('sfx-msg');
             const box = document.getElementById('chat-messages');
             const div = document.createElement('div');
             div.className = 'msg';
             div.innerHTML = `<b>${data.name}:</b> ${data.text}`;
             box.appendChild(div);
             box.scrollTop = box.scrollHeight;
+
+            // თუ ჩატი დაკეტილია, ვზრდით ციფრს და ვუკრავთ ხმას
+            if (!document.getElementById('chat-panel').classList.contains('open')) {
+                unreadCount++;
+                const badge = document.getElementById('chat-badge');
+                badge.innerText = unreadCount;
+                badge.style.display = 'flex';
+                playSFX('sfx-msg');
+            }
         });
 
         socket.on('update-room-list', rooms => {
@@ -436,8 +468,19 @@
 
         function toggleMic() { playSFX('sfx-click'); localStream.getAudioTracks()[0].enabled = !localStream.getAudioTracks()[0].enabled; document.getElementById('mic-btn').classList.toggle('off'); }
         function toggleCam() { playSFX('sfx-click'); localStream.getVideoTracks()[0].enabled = !localStream.getVideoTracks()[0].enabled; document.getElementById('cam-btn').classList.toggle('off'); }
-        function toggleChat() { playSFX('sfx-click'); document.getElementById('chat-panel').classList.toggle('open'); }
+        
+        function toggleChat() { 
+            playSFX('sfx-click'); 
+            const panel = document.getElementById('chat-panel');
+            panel.classList.toggle('open'); 
+            
+            // თუ ჩატს ვხსნით, ვასუფთავებთ ციფრს
+            if(panel.classList.contains('open')) {
+                unreadCount = 0;
+                document.getElementById('chat-badge').style.display = 'none';
+            }
+        }
     </script>
 </body>
-    </html>
-    
+</html>
+
