@@ -1,1067 +1,225 @@
-<!DOCTYPE html>
-<html lang="ka">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>VOID MAFIA</title>
+<script>
+const socket = io();
 
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@600&display=swap" rel="stylesheet">
+let localStream = null;
+let myNick = "";
+let currentRoom = "";
+let isHost = false;
+let myRole = null;
+let currentPhase = "waiting";
+let alivePlayers = [];
+let mafiaIds = [];
+let timerInterval = null;
+let timerSeconds = 0;
 
-  <style>
-    :root {
-      --neon:#ff00ff;
-      --cyan:#00ffff;
-      --bg:#07020f;
-      --card:rgba(14,5,32,.95);
-      --red:#ff3e3e;
-      --green:#3eff3e;
-      --blue:#3e8eff;
-    }
+const peers = {};
+const $ = id => document.getElementById(id);
 
-    * {
-      box-sizing:border-box;
-      -webkit-tap-highlight-color:transparent;
-    }
+/* ================= EVENTS ================= */
 
-    body {
-      margin:0;
-      min-height:100vh;
-      padding:10px;
-      background:var(--bg);
-      color:white;
-      font-family:'Rajdhani',sans-serif;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      overflow-x:hidden;
-      background-image:
-        linear-gradient(to bottom, transparent 50%, rgba(255,0,255,.05) 50%),
-        linear-gradient(to right, transparent 50%, rgba(0,255,255,.05) 50%);
-      background-size:40px 40px;
-    }
+$("login-btn").onclick = showRooms;
+$("join-btn").onclick = () => startVoid();
+$("start-game-btn").onclick = requestStart;
+$("mic-btn").onclick = toggleMic;
+$("cam-btn").onclick = toggleCam;
+$("exit-btn").onclick = () => location.reload();
+$("chat-toggle").onclick = toggleChat;
+$("close-chat").onclick = toggleChat;
+$("send-chat-btn").onclick = sendMsg;
 
-    body.night-mode {
-      background-color:#010008;
-      filter:brightness(.75);
-    }
+$("nickname").onkeydown = e => e.key === "Enter" && showRooms();
+$("room-id").onkeydown = e => e.key === "Enter" && startVoid();
+$("chat-msg").onkeydown = e => e.key === "Enter" && sendMsg();
 
-    body.day-mode {
-      filter:brightness(1);
-    }
+/* ================= BASIC ================= */
 
-    body.night-mode #game-status-bar {
-      border-bottom-color:var(--blue);
-      background:#000;
-    }
+function playSFX() {
+  $("sfx-click").play().catch(()=>{});
+}
 
-    body.night-mode .video-box {
-      box-shadow:0 0 18px rgba(62,142,255,.35);
-      border-color:var(--blue);
-    }
+function showRooms() {
+  myNick = $("nickname").value.trim();
+  if (!myNick) return alert("ჩაწერე ნიკი");
 
-    .hidden { display:none !important; }
+  playSFX();
+  $("login-screen").classList.add("hidden");
+  $("rooms-screen").classList.remove("hidden");
 
-    .game-active .glitch-title,
-    .game-active .powered {
-      display:none;
-    }
+  socket.emit("get-rooms");
+}
 
-    .glitch-title {
-      margin-top:40px;
-      font-family:'Orbitron';
-      font-size:clamp(1.6rem,8vw,3rem);
-      color:var(--cyan);
-      text-shadow:0 0 15px var(--cyan), 2px 2px var(--neon);
-      text-align:center;
-    }
+async function startVoid(roomFromList) {
+  currentRoom = roomFromList || $("room-id").value.trim();
+  if (!currentRoom) return alert("ჩაწერე ID");
 
-    .powered {
-      font-size:.75rem;
-      color:#8b64aa;
-      margin-bottom:15px;
-      letter-spacing:2px;
-    }
+  playSFX();
 
-    .card {
-      width:100%;
-      max-width:420px;
-      background:var(--card);
-      border:1px solid var(--neon);
-      padding:18px 14px;
-      display:flex;
-      flex-direction:column;
-      gap:12px;
-      box-shadow:0 0 30px rgba(255,0,255,.2);
-    }
+  try {
+    await startCameraAndMic();
 
-    input {
-      width:100%;
-      background:#000;
-      border:1px solid var(--neon);
-      color:white;
-      padding:13px;
-      outline:none;
-      text-align:center;
-      font-size:1rem;
-      font-family:'Rajdhani';
-    }
+    document.body.classList.add("game-active");
+    $("rooms-screen").classList.add("hidden");
+    $("game-screen").classList.remove("hidden");
 
-    .btn {
-      width:100%;
-      padding:14px;
-      border:0;
-      background:var(--neon);
-      color:white;
-      font-family:'Orbitron';
-      font-size:.75rem;
-      cursor:pointer;
-      text-transform:uppercase;
-    }
+    socket.emit("join-room", currentRoom, myNick);
+  } catch (e) {
+    alert("კამერა ვერ ჩაირთო");
+  }
+}
 
-    .btn:active { transform:scale(.97); }
+/* ================= SOCKET ================= */
 
-    #mafia-count {
-      width:60px;
-      padding:6px;
-      margin-left:8px;
-    }
+socket.on("is-host", () => {
+  isHost = true;
+  $("host-panel").classList.remove("hidden");
+});
 
-    .room-item {
-      border:1px solid var(--cyan);
-      padding:10px;
-      margin-top:6px;
-      background:rgba(0,255,255,.05);
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:8px;
-    }
+socket.on("update-room-list", rooms => {
+  const list = $("room-list");
+  list.innerHTML = "";
 
-    #game-screen {
-      width:100%;
-    }
-
-    #game-status-bar {
-      position:fixed;
-      top:0;
-      left:0;
-      width:100%;
-      z-index:2000;
-      background:rgba(0,0,0,.92);
-      border-bottom:2px solid var(--neon);
-      display:flex;
-      justify-content:space-around;
-      padding:10px 4px;
-      font-family:'Orbitron';
-      font-size:.68rem;
-    }
-
-    #my-role-card {
-      position:fixed;
-      top:52px;
-      left:8px;
-      z-index:2100;
-      background:var(--card);
-      border:1px solid var(--cyan);
-      padding:7px 10px;
-      font-family:'Orbitron';
-      font-size:.68rem;
-    }
-
-    #host-panel {
-      margin-top:82px;
-      text-align:center;
-      width:100%;
-    }
-
-    .phase-banner {
-      margin:55px auto 10px;
-      max-width:430px;
-      padding:14px;
-      border:2px solid var(--cyan);
-      background:rgba(0,0,0,.75);
-      text-align:center;
-      box-shadow:0 0 20px rgba(0,255,255,.25);
-    }
-
-    #phase-big-text {
-      font-family:Orbitron;
-      font-size:1.1rem;
-      color:var(--cyan);
-    }
-
-    #phase-small-text {
-      margin-top:6px;
-      font-size:.85rem;
-      color:white;
-    }
-
-    body.night-mode .phase-banner {
-      border-color:var(--blue);
-      box-shadow:0 0 25px rgba(62,142,255,.45);
-    }
-
-    body.night-mode #phase-big-text {
-      color:var(--blue);
-    }
-
-    #action-panel {
-      margin:10px auto 10px;
-      max-width:420px;
-      background:var(--card);
-      border:1px solid var(--cyan);
-      padding:12px;
-    }
-
-    #action-title {
-      color:var(--cyan);
-      font-family:'Orbitron';
-      font-size:.75rem;
-      text-align:center;
-      margin-bottom:8px;
-    }
-
-    #video-grid {
-      width:100%;
-      max-width:850px;
-      margin:12px auto 110px;
-      display:grid;
-      grid-template-columns:repeat(2,1fr);
-      gap:8px;
-    }
-
-    .video-box {
-      position:relative;
-      background:#000;
-      border:1px solid var(--neon);
-      aspect-ratio:4/3;
-      overflow:hidden;
-      border-radius:4px;
-    }
-
-    .video-box.dead {
-      filter:grayscale(1);
-      opacity:.45;
-      border-color:#555;
-    }
-
-    video {
-      width:100%;
-      height:100%;
-      object-fit:cover;
-    }
-
-    .player-number {
-      position:absolute;
-      top:5px;
-      right:5px;
-      z-index:10;
-      background:var(--neon);
-      color:white;
-      font-family:'Orbitron';
-      font-size:.65rem;
-      padding:2px 7px;
-    }
-
-    .video-label {
-      position:absolute;
-      bottom:0;
-      left:0;
-      width:100%;
-      background:rgba(0,0,0,.75);
-      color:var(--cyan);
-      border-top:1px solid var(--neon);
-      padding:4px;
-      font-size:.7rem;
-    }
-
-    .dead-badge {
-      position:absolute;
-      top:30px;
-      left:5px;
-      background:var(--red);
-      color:white;
-      padding:2px 6px;
-      font-family:'Orbitron';
-      font-size:.6rem;
-      z-index:20;
-    }
-
-    .controls {
-      position:fixed;
-      bottom:18px;
-      left:50%;
-      transform:translateX(-50%);
-      z-index:1500;
-      background:rgba(7,2,15,.92);
-      border:1px solid var(--neon);
-      border-radius:12px;
-      padding:9px;
-      display:flex;
-      gap:8px;
-    }
-
-    .controls .btn {
-      width:62px;
-      padding:12px 4px;
-    }
-
-    #chat-toggle {
-      position:fixed;
-      right:14px;
-      bottom:88px;
-      width:50px;
-      height:50px;
-      border-radius:50%;
-      background:var(--neon);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      z-index:1600;
-      font-family:'Orbitron';
-      font-size:.6rem;
-      cursor:pointer;
-    }
-
-    #chat-panel {
-      position:fixed;
-      right:-100%;
-      top:0;
-      width:100%;
-      max-width:330px;
-      height:100%;
-      z-index:3000;
-      background:var(--card);
-      border-left:2px solid var(--neon);
-      transition:.25s;
-      display:flex;
-      flex-direction:column;
-    }
-
-    #chat-panel.open { right:0; }
-
-    #chat-header {
-      background:var(--neon);
-      padding:14px;
-      display:flex;
-      justify-content:space-between;
-      font-family:'Orbitron';
-      font-size:.75rem;
-    }
-
-    #chat-messages {
-      flex:1;
-      overflow-y:auto;
-      padding:10px;
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-    }
-
-    .msg {
-      background:rgba(255,255,255,.06);
-      border-left:2px solid var(--cyan);
-      padding:8px;
-      font-size:.86rem;
-      word-break:break-word;
-    }
-
-    .action-row {
-      display:grid;
-      grid-template-columns:45px 1fr;
-      gap:7px;
-      margin-top:7px;
-    }
-
-    .num {
-      background:var(--neon);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-family:'Orbitron';
-      font-size:.65rem;
-    }
-  </style>
-</head>
-
-<body>
-  <audio id="sfx-click" src="https://assets.mixkit.co/sfx/preview/mixkit-modern-technology-select-3124.mp3"></audio>
-
-  <h1 class="glitch-title">VOID MAFIA</h1>
-  <div class="powered">Powered by ბატონი მაქსი</div>
-
-  <div id="login-screen" class="card">
-    <input id="nickname" type="text" placeholder="შეიყვანე ნიკნეიმი">
-    <button class="btn" id="login-btn">შესვლა</button>
-  </div>
-
-  <div id="rooms-screen" class="card hidden">
-    <div style="text-align:left; padding:10px; border:1px solid var(--cyan);">
-      <p style="font-size:.75rem; color:var(--cyan); margin:0 0 10px;">პარამეტრები ჰოსტისთვის</p>
-
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:.85rem;">
-        <label><input type="checkbox" id="set-sheriff" checked> შერიფი</label>
-        <label><input type="checkbox" id="set-don" checked> დონი</label>
-        <label><input type="checkbox" id="set-doctor" checked> ექიმი</label>
-
-        <div>
-          მაფია:
-          <input type="number" id="mafia-count" value="1" min="1" max="3">
-        </div>
+  rooms.forEach(r => {
+    list.innerHTML += `
+      <div class="room-item">
+        <span>ID: ${escapeHtml(r.code)} (${r.playerCount}/10)</span>
+        <button class="btn" onclick="startVoid('${r.code}')">JOIN</button>
       </div>
-    </div>
+    `;
+  });
+});
 
-    <input id="room-id" type="text" placeholder="ოთახის ID მაგალითად: 123">
-    <button class="btn" id="join-btn">ოთახის შექმნა / შესვლა</button>
-
-    <div id="room-list" style="max-height:220px; overflow-y:auto;"></div>
-  </div>
-
-  <div id="game-screen" class="hidden">
-    <div id="game-status-bar">
-      <span id="game-phase">მზადება</span>
-      <span id="game-timer">00:00</span>
-      <span id="alive-count">0 ცოცხალი</span>
-    </div>
-
-    <div id="my-role-card" class="hidden">როლი: ?</div>
-
-    <div id="host-panel" class="hidden">
-      <button class="btn" id="start-game-btn" style="background:var(--cyan); color:#000; width:80%; margin:auto;">
-        START GAME
-      </button>
-    </div>
-
-    <div id="phase-banner" class="phase-banner">
-      <div id="phase-big-text">მზადება</div>
-      <div id="phase-small-text">დაელოდე თამაშის დაწყებას</div>
-    </div>
-
-    <div id="action-panel" class="hidden">
-      <div id="action-title">ქმედება</div>
-      <div id="players-actions"></div>
-    </div>
-
-    <div id="video-grid"></div>
-
-    <div id="chat-toggle">CHAT</div>
-
-    <div class="controls">
-      <button id="mic-btn" class="btn">MIC</button>
-      <button id="cam-btn" class="btn" style="background:var(--cyan); color:#000;">CAM</button>
-      <button id="exit-btn" class="btn" style="background:var(--red);">EXIT</button>
-    </div>
-  </div>
-
-  <div id="chat-panel">
-    <div id="chat-header">
-      <span>VOID CHAT</span>
-      <span id="close-chat" style="cursor:pointer;">✕</span>
-    </div>
-
-    <div id="chat-messages"></div>
-
-    <div style="padding:10px; display:flex; gap:5px;">
-      <input id="chat-msg" type="text" placeholder="დაწერე...">
-      <button class="btn" id="send-chat-btn" style="width:55px;">></button>
-    </div>
-  </div>
-
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
-<script src="/js/mafia-ui.js"></script>
-  <script src="/js/webrtc.js"></script>
-  
-  <script>
-    const socket = io();
-
-    let localStream = null;
-    let myNick = "";
-    let currentRoom = "";
-    let isHost = false;
-    let myRole = null;
-    let currentPhase = "waiting";
-    let alivePlayers = [];
-    let mafiaIds = [];
-    let timerInterval = null;
-    let timerSeconds = 0;
-
-    const peers = {};
-    const $ = id => document.getElementById(id);
-
-    $("login-btn").addEventListener("click", showRooms);
-    $("join-btn").addEventListener("click", () => startVoid());
-    $("start-game-btn").addEventListener("click", requestStart);
-    $("mic-btn").addEventListener("click", toggleMic);
-    $("cam-btn").addEventListener("click", toggleCam);
-    $("exit-btn").addEventListener("click", () => location.reload());
-    $("chat-toggle").addEventListener("click", toggleChat);
-    $("close-chat").addEventListener("click", toggleChat);
-    $("send-chat-btn").addEventListener("click", sendMsg);
-
-    $("nickname").addEventListener("keydown", e => {
-      if (e.key === "Enter") showRooms();
-    });
-
-    $("room-id").addEventListener("keydown", e => {
-      if (e.key === "Enter") startVoid();
-    });
-
-    $("chat-msg").addEventListener("keydown", e => {
-      if (e.key === "Enter") sendMsg();
-    });
-
-    function playSFX() {
-      $("sfx-click").play().catch(() => {});
+socket.on("room-users-list", users => {
+  users.forEach(user => {
+    if (user.id === socket.id) {
+      addVideo(user.id, localStream, user.name + " (შენ)", user.index, true);
     }
+  });
+});
 
-    function showRooms() {
-      myNick = $("nickname").value.trim();
+/* 🔥 NEW CLEAN WEBRTC */
+socket.on("all-users-info", setupIncomingUsers);
+socket.on("user-joined-with-info", setupNewUserPeer);
+socket.on("receiving-returned-signal", receiveReturnedSignal);
+socket.on("user-left", removePeer);
 
-      if (!myNick) {
-        alert("ჯერ ჩაწერე ნიკნეიმი");
-        return;
-      }
+/* ================= GAME ================= */
 
-      playSFX();
+function requestStart() {
+  if (!isHost) return;
 
-      $("login-screen").classList.add("hidden");
-      $("rooms-screen").classList.remove("hidden");
-
-      socket.emit("get-rooms");
+  socket.emit("start-game-request", {
+    room: currentRoom,
+    settings: {
+      sheriff: $("set-sheriff").checked,
+      don: $("set-don").checked,
+      doctor: $("set-doctor").checked,
+      mafia: Number($("mafia-count").value)
     }
+  });
+}
 
-    async function startVoid(roomFromList) {
-      currentRoom = roomFromList || $("room-id").value.trim();
+socket.on("assign-role", role => {
+  myRole = role;
 
-      if (!currentRoom) {
-        alert("ჩაწერე ოთახის ID, მაგალითად 123");
-        return;
-      }
+  const el = $("my-role-card");
+  el.classList.remove("hidden");
+  el.innerText = "როლი: " + roleName(role);
 
-      playSFX();
+  updateVoiceByPhase();
+});
 
-      try {
-        localStream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true
-        });
+socket.on("mafia-list", ids => {
+  mafiaIds = ids || [];
+  updateVoiceByPhase();
+});
 
-        document.body.classList.add("game-active");
-        $("rooms-screen").classList.add("hidden");
-        $("game-screen").classList.remove("hidden");
+socket.on("game-state", state => {
+  currentPhase = state.phase;
+  alivePlayers = state.players;
 
-        socket.emit("join-room", currentRoom, myNick);
-      } catch (err) {
-        console.error(err);
-        alert("კამერა/მიკროფონი ვერ ჩაირთო. Browser permissions შეამოწმე.");
-      }
+  updatePhaseText();
+  updateVoiceByPhase();
+});
+
+/* ================= PHASE ================= */
+
+function updatePhaseText() {
+  document.body.classList.remove("night-mode","day-mode");
+
+  if (currentPhase === "night") {
+    document.body.classList.add("night-mode");
+    $("game-phase").innerText = "ღამე";
+    startTimer(60);
+  }
+
+  if (currentPhase === "day") {
+    document.body.classList.add("day-mode");
+    $("game-phase").innerText = "დღე";
+    startTimer(45);
+  }
+
+  if (currentPhase === "vote") {
+    $("game-phase").innerText = "ვოუთი";
+    startTimer(30);
+  }
+}
+
+/* ================= VOICE CONTROL ================= */
+
+function updateVoiceByPhase() {
+  Object.keys(peers).forEach(id => {
+    const video = document.getElementById("v-" + id);
+    if (!video) return;
+
+    if (currentPhase === "night") {
+      const isMafia = mafiaIds.includes(socket.id);
+      const targetIsMafia = mafiaIds.includes(id);
+
+      video.muted = !(isMafia && targetIsMafia);
+    } else {
+      video.muted = false;
     }
-
-    socket.on("connect", () => {
-      console.log("connected:", socket.id);
-    });
-
-    socket.on("connect_error", err => {
-      alert("სერვერთან კავშირი ვერ შედგა");
-      console.error(err);
-    });
-
-    socket.on("error", data => {
-      alert(data && data.msg ? data.msg : "შეცდომა");
-    });
-
-    socket.on("is-host", () => {
-      isHost = true;
-      $("host-panel").classList.remove("hidden");
-      addSystemMsg("შენ ხარ ოთახის ჰოსტი");
-    });
-
-    socket.on("update-room-list", rooms => {
-      const list = $("room-list");
-      list.innerHTML = "";
-
-      if (!rooms || rooms.length === 0) {
-        list.innerHTML = '<p style="font-size:.75rem; color:#777;">აქტიური ოთახები არ არის</p>';
-        return;
-      }
-
-      rooms.forEach(r => {
-        const div = document.createElement("div");
-        div.className = "room-item";
-
-        div.innerHTML = `
-          <span style="font-size:.85rem;">ID: ${escapeHtml(r.code)} (${r.playerCount}/10)</span>
-          <button class="btn" style="width:70px; padding:7px; font-size:.6rem;">JOIN</button>
-        `;
-
-        div.querySelector("button").onclick = () => startVoid(r.code);
-        list.appendChild(div);
-      });
-    });
-
-    socket.on("room-users-list", users => {
-      users.forEach(user => {
-        if (user.id === socket.id) {
-          addVideo(user.id, localStream, user.name + " (შენ)", user.index, true);
-        }
-      });
-    });
-
-    socket.on("all-users-info", users => {
-      users.forEach(u => {
-        const peer = new SimplePeer({
-          initiator: true,
-          trickle: false,
-          stream: localStream
-        });
-
-        peer.on("signal", signal => {
-          socket.emit("sending-signal", {
-            userToSignal: u.id,
-            callerID: socket.id,
-            signal
-          });
-        });
-
-        peer.on("stream", stream => {
-          addVideo(u.id, stream, u.name, u.index);
-        });
-
-        peer.on("error", err => console.error("peer error:", err));
-
-        peers[u.id] = peer;
-      });
-    });
-
-    socket.on("user-joined-with-info", p => {
-      const peer = new SimplePeer({
-        initiator: false,
-        trickle: false,
-        stream: localStream
-      });
-
-      peer.on("signal", signal => {
-        socket.emit("returning-signal", {
-          signal,
-          callerID: p.id
-        });
-      });
-
-      peer.on("stream", stream => {
-        addVideo(p.id, stream, p.nick, p.index);
-      });
-
-      peer.on("error", err => console.error("peer error:", err));
-
-      if (p.signal) {
-        peer.signal(p.signal);
-      }
-
-      peers[p.id] = peer;
-    });
-
-    socket.on("receiving-returned-signal", p => {
-      if (peers[p.id]) {
-        peers[p.id].signal(p.signal);
-      }
-    });
-
-    socket.on("user-left", id => {
-      if (peers[id]) {
-        peers[id].destroy();
-        delete peers[id];
-      }
-
-      const el = $(id);
-      if (el) el.remove();
-    });
-
-    function addVideo(id, stream, name, index, mute = false) {
-      if ($(id)) return;
-
-      const div = document.createElement("div");
-      div.id = id;
-      div.className = "video-box";
-      div.style.order = index;
-
-      div.innerHTML = `
-        <div class="player-number">#${index}</div>
-        <video id="v-${id}" autoplay playsinline ${mute ? "muted" : ""}></video>
-        <div class="video-label">${escapeHtml(name)}</div>
-      `;
-
-      $("video-grid").appendChild(div);
-
-      if (stream) {
-        $("v-" + id).srcObject = stream;
-        setTimeout(updateVoiceByPhase, 300);
-      }
-    }
-
-    function requestStart() {
-      if (!isHost) {
-        alert("თამაშის დაწყება მხოლოდ ჰოსტს შეუძლია");
-        return;
-      }
-
-      const count = document.querySelectorAll(".video-box").length;
-
-      if (count < 4) {
-        alert("საჭიროა მინიმუმ 4 მოთამაშე");
-        return;
-      }
-
-      socket.emit("start-game-request", {
-        room: currentRoom,
-        settings: {
-          sheriff: $("set-sheriff").checked,
-          don: $("set-don").checked,
-          doctor: $("set-doctor").checked,
-          mafia: Number($("mafia-count").value)
-        }
-      });
-    }
-
-    socket.on("assign-role", role => {
-      myRole = role;
-
-      const card = $("my-role-card");
-      card.classList.remove("hidden");
-      card.innerText = "როლი: " + roleName(role);
-
-      if (role === "mafia" || role === "don") card.style.color = "var(--red)";
-      else if (role === "doctor") card.style.color = "var(--green)";
-      else if (role === "sheriff") card.style.color = "var(--blue)";
-      else card.style.color = "white";
-
-      addSystemMsg("შენი როლია: " + roleName(role));
-      updatePhaseText();
-      updateVoiceByPhase();
-    });
-
-    socket.on("mafia-list", ids => {
-      mafiaIds = ids || [];
-      updateVoiceByPhase();
-    });
-
-    socket.on("game-state", state => {
-      currentPhase = state.phase || "waiting";
-      alivePlayers = state.players || [];
-
-      updatePhaseText();
-      updateAliveCount();
-      updateDeadVideos();
-      renderActionPanel();
-      updateVoiceByPhase();
-    });
-
-    socket.on("phase-message", msg => {
-      addSystemMsg(msg);
-    });
-
-    socket.on("sheriff-result", data => {
-      const result = data.isMafia ? "მაფიაა" : "მშვიდობიანია";
-      alert(`${data.name} — ${result}`);
-      addSystemMsg(`შერიფის პასუხი: ${data.name} — ${result}`);
-    });
-
-    socket.on("game-over", data => {
-      addSystemMsg(data.message);
-      alert(data.message);
-      $("action-panel").classList.add("hidden");
-    });
-
-    function updatePhaseText() {
-      document.body.classList.remove("night-mode", "day-mode");
-
-      if (currentPhase === "night") {
-        document.body.classList.add("night-mode");
-
-        $("game-phase").innerText = "ღამე";
-        $("phase-big-text").innerText = "ღამე";
-
-        if (myRole === "mafia" || myRole === "don") {
-          $("phase-small-text").innerText = "მაფიის ფაზა: აირჩიე მოსაკლავი. მხოლოდ მაფიებს ესმით ერთმანეთის ხმა.";
-        } else if (myRole === "doctor") {
-          $("phase-small-text").innerText = "ექიმის ფაზა: აირჩიე გადასარჩენი მოთამაშე.";
-        } else if (myRole === "sheriff") {
-          $("phase-small-text").innerText = "შერიფის ფაზა: შეამოწმე მოთამაშე.";
-        } else {
-          $("phase-small-text").innerText = "ღამეა. მოქალაქე ელოდება დილის დადგომას.";
-        }
-
-        startTimer(60);
-      } else if (currentPhase === "day") {
-        document.body.classList.add("day-mode");
-
-        $("game-phase").innerText = "დღე";
-        $("phase-big-text").innerText = "დღე";
-        $("phase-small-text").innerText = "ყველას ხმა ისმის. იმსჯელეთ და იპოვეთ მაფია.";
-
-        startTimer(45);
-      } else if (currentPhase === "vote") {
-        document.body.classList.add("day-mode");
-
-        $("game-phase").innerText = "ხმის მიცემა";
-        $("phase-big-text").innerText = "ხმის მიცემა";
-        $("phase-small-text").innerText = "აირჩიე მოთამაშე, ვის გაგდებასაც უჭერ მხარს.";
-
-        startTimer(30);
-      } else if (currentPhase === "ended") {
-        $("game-phase").innerText = "დასრულდა";
-        $("phase-big-text").innerText = "თამაში დასრულდა";
-        $("phase-small-text").innerText = "შედეგი გამოჩნდა ჩატში.";
-        stopTimer();
-      } else {
-        $("game-phase").innerText = "მზადება";
-        $("phase-big-text").innerText = "მზადება";
-        $("phase-small-text").innerText = "ჰოსტმა უნდა დააჭიროს START GAME.";
-        stopTimer();
-      }
-    }
-
-    function updateVoiceByPhase() {
-      const iAmMafia = myRole === "mafia" || myRole === "don";
-
-      Object.keys(peers).forEach(peerId => {
-        const video = $("v-" + peerId);
-        if (!video) return;
-
-        const peerIsMafia = mafiaIds.includes(peerId);
-
-        if (currentPhase === "night") {
-          if (iAmMafia && peerIsMafia) {
-            video.muted = false;
-            video.volume = 1;
-          } else {
-            video.muted = true;
-            video.volume = 0;
-          }
-        } else {
-          video.muted = false;
-          video.volume = 1;
-        }
-      });
-
-      const myVideo = $("v-" + socket.id);
-      if (myVideo) {
-        myVideo.muted = true;
-        myVideo.volume = 0;
-      }
-    }
-
-    function startTimer(seconds) {
-      clearInterval(timerInterval);
-      timerSeconds = seconds;
-      updateTimerText();
-
-      timerInterval = setInterval(() => {
-        timerSeconds--;
-        updateTimerText();
-
-        if (timerSeconds <= 0) clearInterval(timerInterval);
-      }, 1000);
-    }
-
-    function stopTimer() {
-      clearInterval(timerInterval);
-      $("game-timer").innerText = "00:00";
-    }
-
-    function updateTimerText() {
-      const m = String(Math.floor(timerSeconds / 60)).padStart(2, "0");
-      const s = String(timerSeconds % 60).padStart(2, "0");
-      $("game-timer").innerText = `${m}:${s}`;
-    }
-
-    function updateAliveCount() {
-      const count = alivePlayers.filter(p => p.alive).length;
-      $("alive-count").innerText = `${count} ცოცხალი`;
-    }
-
-    function updateDeadVideos() {
-      alivePlayers.forEach(p => {
-        const box = $(p.id);
-        if (!box) return;
-
-        box.classList.toggle("dead", !p.alive);
-
-        const old = box.querySelector(".dead-badge");
-        if (old) old.remove();
-
-        if (!p.alive) {
-          const badge = document.createElement("div");
-          badge.className = "dead-badge";
-          badge.innerText = "DEAD";
-          box.appendChild(badge);
-        }
-      });
-    }
-
-    function renderActionPanel() {
-      const panel = $("action-panel");
-      const box = $("players-actions");
-      const title = $("action-title");
-
-      box.innerHTML = "";
-
-      const me = alivePlayers.find(p => p.id === socket.id);
-
-      if (!me || !me.alive || currentPhase === "ended") {
-        panel.classList.add("hidden");
-        return;
-      }
-
-      const otherAlive = alivePlayers.filter(p => p.alive && p.id !== socket.id);
-      const allAlive = alivePlayers.filter(p => p.alive);
-
-      if (currentPhase === "night") {
-        if (myRole === "mafia" || myRole === "don") {
-          panel.classList.remove("hidden");
-          title.innerText = "მაფიის ღამე — აირჩიე მსხვერპლი";
-          otherAlive.forEach(p => addActionButton(p, "kill", "მოკვლა"));
-          return;
-        }
-
-        if (myRole === "doctor") {
-          panel.classList.remove("hidden");
-          title.innerText = "ექიმის ღამე — აირჩიე გადასარჩენი";
-          allAlive.forEach(p => addActionButton(p, "save", "გადარჩენა"));
-          return;
-        }
-
-        if (myRole === "sheriff") {
-          panel.classList.remove("hidden");
-          title.innerText = "შერიფის ღამე — შეამოწმე მოთამაშე";
-          otherAlive.forEach(p => addActionButton(p, "check", "შემოწმება"));
-          return;
-        }
-
-        panel.classList.remove("hidden");
-        title.innerText = "ღამეა — დაელოდე დილას";
-        box.innerHTML = `<div class="msg">შენ მოქალაქე ხარ. ღამით მოქმედება არ გაქვს.</div>`;
-        return;
-      }
-
-      if (currentPhase === "vote") {
-        panel.classList.remove("hidden");
-        title.innerText = "ხმის მიცემა";
-        otherAlive.forEach(p => addVoteButton(p));
-        return;
-      }
-
-      panel.classList.add("hidden");
-    }
-
-    function addActionButton(player, action, label) {
-      const row = document.createElement("div");
-      row.className = "action-row";
-
-      row.innerHTML = `
-        <div class="num">#${player.index}</div>
-        <button class="btn">${label}: ${escapeHtml(player.name)}</button>
-      `;
-
-      row.querySelector("button").onclick = () => {
-        socket.emit("night-action", {
-          room: currentRoom,
-          action,
-          targetId: player.id
-        });
-
-        addSystemMsg("ქმედება დაფიქსირდა");
-        $("action-panel").classList.add("hidden");
-      };
-
-      $("players-actions").appendChild(row);
-    }
-
-    function addVoteButton(player) {
-      const row = document.createElement("div");
-      row.className = "action-row";
-
-      row.innerHTML = `
-        <div class="num">#${player.index}</div>
-        <button class="btn" style="background:var(--red);">ხმა: ${escapeHtml(player.name)}</button>
-      `;
-
-      row.querySelector("button").onclick = () => {
-        socket.emit("vote-player", {
-          room: currentRoom,
-          targetId: player.id
-        });
-
-        addSystemMsg("ხმა მიცემულია");
-        $("action-panel").classList.add("hidden");
-      };
-
-      $("players-actions").appendChild(row);
-    }
-
-    function sendMsg() {
-      const input = $("chat-msg");
-      const text = input.value.trim();
-
-      if (!text) return;
-
-      socket.emit("send-chat-msg", {
-        room: currentRoom,
-        name: myNick,
-        text
-      });
-
-      input.value = "";
-    }
-
-    socket.on("receive-chat-msg", d => {
-      const m = $("chat-messages");
-
-      m.innerHTML += `
-        <div class="msg">
-          <b>${escapeHtml(d.name)}:</b> ${escapeHtml(d.text)}
-        </div>
-      `;
-
-      m.scrollTop = m.scrollHeight;
-    });
-
-    function addSystemMsg(text) {
-      const m = $("chat-messages");
-
-      m.innerHTML += `
-        <div class="msg" style="border-left-color:var(--neon); color:var(--cyan);">
-          <b>SYSTEM:</b> ${escapeHtml(text)}
-        </div>
-      `;
-
-      m.scrollTop = m.scrollHeight;
-    }
-
-    function toggleMic() {
-      if (!localStream) return;
-
-      const track = localStream.getAudioTracks()[0];
-      if (!track) return;
-
-      track.enabled = !track.enabled;
-      $("mic-btn").style.background = track.enabled ? "var(--neon)" : "#333";
-    }
-
-    function toggleCam() {
-      if (!localStream) return;
-
-      const track = localStream.getVideoTracks()[0];
-      if (!track) return;
-
-      track.enabled = !track.enabled;
-      $("cam-btn").style.background = track.enabled ? "var(--cyan)" : "#333";
-    }
-
-    function toggleChat() {
-      $("chat-panel").classList.toggle("open");
-    }
-    
-  </script>
-</body>
-</html>
+  });
+}
+
+/* ================= TIMER ================= */
+
+function startTimer(sec) {
+  clearInterval(timerInterval);
+  timerSeconds = sec;
+
+  timerInterval = setInterval(()=>{
+    timerSeconds--;
+    $("game-timer").innerText =
+      String(Math.floor(timerSeconds/60)).padStart(2,"0") + ":" +
+      String(timerSeconds%60).padStart(2,"0");
+
+    if (timerSeconds <= 0) clearInterval(timerInterval);
+  },1000);
+}
+
+/* ================= CHAT ================= */
+
+function sendMsg() {
+  const val = $("chat-msg").value;
+  if (!val.trim()) return;
+
+  socket.emit("send-chat-msg", {
+    room: currentRoom,
+    name: myNick,
+    text: val
+  });
+
+  $("chat-msg").value = "";
+}
+
+socket.on("receive-chat-msg", d => {
+  $("chat-messages").innerHTML += `
+    <div class="msg"><b>${escapeHtml(d.name)}:</b> ${escapeHtml(d.text)}</div>
+  `;
+});
+
+function toggleChat() {
+  $("chat-panel").classList.toggle("open");
+}
+</script>
