@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ka">
 <head>
@@ -7,253 +8,158 @@
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --neon: #ff00ff;
-            --cyan: #00ffff;
-            --bg: #07020f;
-            --card-bg: rgba(14, 5, 32, 0.95);
-            --red: #ff3e3e;
-            --green: #3eff3e;
-            --blue: #3e8eff;
+            --neon: #ff00ff; --cyan: #00ffff; --bg: #07020f;
+            --card-bg: rgba(14, 5, 32, 0.95); --red: #ff3e3e;
+            --green: #3eff3e; --blue: #3e8eff;
         }
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
         body {
-            background: var(--bg);
-            color: white;
-            font-family: 'Rajdhani', sans-serif;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-            padding: 10px;
-            overflow-x: hidden;
+            background: var(--bg); color: white; font-family: 'Rajdhani', sans-serif;
+            margin: 0; display: flex; flex-direction: column; align-items: center;
+            min-height: 100vh; padding: 10px; overflow-x: hidden;
             background-image: linear-gradient(to bottom, transparent 50%, rgba(255, 0, 255, 0.05) 50%), 
                               linear-gradient(to right, transparent 50%, rgba(0, 255, 255, 0.05) 50%);
             background-size: 40px 40px;
         }
 
-        /* სათაურის დამალვა თამაშის დროს */
         .game-active .glitch-title, .game-active .powered { display: none; }
 
         .glitch-title {
-            font-family: 'Orbitron';
-            font-size: clamp(1.5rem, 8vw, 3rem);
-            color: var(--cyan);
-            text-shadow: 0 0 15px var(--cyan), 2px 2px var(--neon);
-            margin-top: 40px;
-            text-align: center;
-            text-transform: uppercase;
+            font-family: 'Orbitron'; font-size: clamp(1.5rem, 8vw, 3rem);
+            color: var(--cyan); text-shadow: 0 0 15px var(--cyan), 2px 2px var(--neon);
+            margin-top: 40px; text-align: center; text-transform: uppercase;
         }
 
-        .powered { font-size: 0.7rem; color: #6a4a8a; margin-bottom: 1rem; letter-spacing: 2px; }
+        .powered { font-size: 0.7rem; color: #6a4a8a; margin-bottom: 1rem; letter-spacing: 2px; text-align: center; }
 
         .card {
-            background: var(--card-bg);
-            border: 1px solid var(--neon);
-            padding: 1.5rem 1rem;
-            width: 100%;
-            max-width: 400px;
-            text-align: center;
-            box-shadow: 0 0 30px rgba(255, 0, 255, 0.2);
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
+            background: var(--card-bg); border: 1px solid var(--neon);
+            padding: 1.5rem 1rem; width: 100%; max-width: 400px;
+            text-align: center; box-shadow: 0 0 30px rgba(255, 0, 255, 0.2);
+            display: flex; flex-direction: column; gap: 12px;
         }
 
         #game-status-bar {
-            width: 100%;
-            background: rgba(0,0,0,0.9);
-            border-bottom: 2px solid var(--neon);
-            padding: 10px;
-            display: flex;
-            justify-content: space-around;
-            font-family: 'Orbitron';
-            font-size: 0.8rem;
-            position: fixed;
-            top: 0; left: 0;
-            z-index: 2000;
+            width: 100%; background: rgba(0,0,0,0.9); border-bottom: 2px solid var(--neon);
+            padding: 10px; display: flex; justify-content: space-around;
+            font-family: 'Orbitron'; font-size: 0.8rem; position: fixed; top: 0; left: 0; z-index: 2000;
         }
 
-        input, select {
-            width: 100%;
-            background: #000;
-            border: 1px solid var(--neon);
-            color: white;
-            padding: 12px;
-            font-size: 1rem;
-            outline: none;
-            font-family: inherit;
-            text-align: center;
+        input {
+            width: 100%; background: #000; border: 1px solid var(--neon);
+            color: white; padding: 12px; font-size: 1rem; outline: none; text-align: center;
         }
 
         .btn {
-            width: 100%;
-            padding: 14px;
-            background: var(--neon);
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-family: 'Orbitron';
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            transition: 0.2s;
-            display: flex;
-            align-items: center; justify-content: center;
+            width: 100%; padding: 14px; background: var(--neon); color: white;
+            border: none; cursor: pointer; font-family: 'Orbitron'; font-size: 0.8rem;
+            text-transform: uppercase; transition: 0.2s; display: flex; align-items: center; justify-content: center;
         }
 
-        .btn:active { transform: scale(0.98); }
-        .btn.off { background: #333 !important; color: #777 !important; }
-
         #video-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-            width: 100%;
-            max-width: 800px;
-            margin-top: 50px;
-            margin-bottom: 100px;
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+            width: 100%; max-width: 800px; margin-top: 50px; margin-bottom: 100px;
         }
 
         .video-box {
-            border: 1px solid var(--neon);
-            background: #000;
-            position: relative;
-            aspect-ratio: 4/3;
-            overflow: hidden;
-            border-radius: 4px;
+            border: 1px solid var(--neon); background: #000; position: relative;
+            aspect-ratio: 4/3; overflow: hidden; border-radius: 4px;
+        }
+
+        /* ნუმერაციის სტილი */
+        .player-number {
+            position: absolute; top: 5px; right: 5px; background: var(--neon);
+            color: white; font-family: 'Orbitron'; font-size: 0.7rem;
+            padding: 2px 6px; border-radius: 2px; z-index: 10;
         }
 
         video { width: 100%; height: 100%; object-fit: cover; }
 
         .video-label {
             position: absolute; bottom: 0; left: 0; width: 100%;
-            background: rgba(0,0,0,0.7);
-            padding: 4px; font-size: 0.65rem;
+            background: rgba(0,0,0,0.7); padding: 4px; font-size: 0.65rem;
             color: var(--cyan); border-top: 1px solid var(--neon);
         }
 
         .controls {
-            position: fixed; bottom: 20px;
-            display: flex; gap: 8px; z-index: 1500;
-            background: rgba(7, 2, 15, 0.9);
-            padding: 10px; border-radius: 12px;
-            border: 1px solid var(--neon);
+            position: fixed; bottom: 20px; display: flex; gap: 8px; z-index: 1500;
+            background: rgba(7, 2, 15, 0.9); padding: 10px; border-radius: 12px; border: 1px solid var(--neon);
         }
 
-        .ctrl-btn {
-            padding: 12px; min-width: 60px;
-            border-radius: 8px; font-size: 0.7rem;
-        }
-
-        /* CHAT SYSTEM */
         #chat-panel {
-            position: fixed; right: -100%; top: 0;
-            width: 100%; max-width: 320px; height: 100%;
-            background: var(--card-bg); border-left: 2px solid var(--neon);
-            transition: 0.3s ease; z-index: 3000;
+            position: fixed; right: -100%; top: 0; width: 100%; max-width: 320px; height: 100%;
+            background: var(--card-bg); border-left: 2px solid var(--neon); transition: 0.3s ease; z-index: 3000;
             display: flex; flex-direction: column;
         }
 
         #chat-panel.open { right: 0; }
 
-        #chat-header {
-            padding: 15px; background: var(--neon);
-            display: flex; justify-content: space-between; align-items: center;
-            font-family: 'Orbitron'; font-size: 0.8rem;
-        }
+        #chat-header { padding: 15px; background: var(--neon); display: flex; justify-content: space-between; align-items: center; font-family: 'Orbitron'; }
 
         #chat-messages { flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+
         .msg { background: rgba(255,255,255,0.05); padding: 8px; border-left: 2px solid var(--cyan); font-size: 0.85rem; }
 
         #chat-toggle {
-            position: fixed; right: 15px; bottom: 90px;
-            width: 45px; height: 45px; border-radius: 50%;
-            background: var(--neon); display: flex; align-items: center; justify-content: center;
-            z-index: 1400; box-shadow: 0 0 15px var(--neon);
-        }
-
-        #chat-badge {
-            position: absolute; top: -5px; right: -5px;
-            background: var(--red); color: white; font-size: 0.6rem;
-            width: 18px; height: 18px; border-radius: 50%;
-            display: none; align-items: center; justify-content: center;
-        }
-
-        #my-role-card {
-            position: fixed; top: 55px; left: 10px;
-            background: var(--card-bg); border: 1px solid var(--cyan);
-            padding: 6px 12px; font-family: 'Orbitron'; font-size: 0.7rem; z-index: 1001;
+            position: fixed; right: 15px; bottom: 90px; width: 45px; height: 45px; border-radius: 50%;
+            background: var(--neon); display: flex; align-items: center; justify-content: center; z-index: 1400;
         }
 
         .hidden { display: none !important; }
     </style>
 </head>
-<body>
-
-    <audio id="bgm-login" loop src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3"></audio> 
-    <audio id="bgm-rooms" loop src="https://assets.mixkit.co/music/preview/mixkit-mysterious-pensive-pad-2504.mp3"></audio> 
-    <audio id="bgm-game" loop src="https://assets.mixkit.co/music/preview/mixkit-horror-ambient-drone-2497.mp3"></audio> 
-    <audio id="sfx-click" src="https://assets.mixkit.co/sfx/preview/mixkit-modern-technology-select-3124.mp3"></audio>
-    <audio id="sfx-msg" src="https://assets.mixkit.co/sfx/preview/mixkit-sci-fi-confirmation-914.mp3"></audio>
+<body class="login-view">
 
     <h1 class="glitch-title">VOID MAFIA</h1>
     <div class="powered">Powered by ბატონი მაქსი</div>
 
     <div id="login-screen" class="card">
-        <input type="text" id="nickname" placeholder="შეიყვანე ნიკნეიმი" autocomplete="off">
+        <input type="text" id="nickname" placeholder="შეიყვანე ნიკნეიმი">
         <button class="btn" onclick="showRooms()">შესვლა</button>
     </div>
 
     <div id="rooms-screen" class="card hidden">
-        <div id="host-settings" style="text-align: left; padding: 10px; border: 1px solid rgba(0,255,255,0.2);">
-            <p style="font-size: 0.7rem; color: var(--cyan); margin-top:0;">თამაშის კონფიგურაცია (ჰოსტისთვის):</p>
+        <div id="host-settings" style="text-align: left; padding: 10px; border: 1px solid var(--cyan); margin-bottom: 10px;">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; font-size: 0.75rem;">
                 <label><input type="checkbox" id="set-sheriff" checked> შერიფი</label>
                 <label><input type="checkbox" id="set-don" checked> დონი</label>
                 <label><input type="checkbox" id="set-doctor" checked> ექიმი</label>
-                <div>მაფია: <input type="number" id="mafia-count" value="1" min="1" max="3" style="width:35px; padding:2px; font-size:0.7rem; border:none; border-bottom:1px solid var(--neon);"></div>
+                <div>მაფია: <input type="number" id="mafia-count" value="1" style="width:30px;"></div>
             </div>
         </div>
-        <input type="text" id="room-id" placeholder="ოთახის ID" autocomplete="off">
+        <input type="text" id="room-id" placeholder="ოთახის ID">
         <button class="btn" onclick="startVoid()">ოთახის შექმნა / შესვლა</button>
-        <div id="room-list" style="max-height:150px; overflow-y:auto; margin-top:5px;"></div>
     </div>
 
     <div id="game-screen" class="hidden" style="width: 100%;">
         <div id="game-status-bar">
             <span id="game-phase">მზადება...</span>
-            <span id="game-timer" style="color: var(--neon);">00:00</span>
+            <span id="game-timer">00:00</span>
         </div>
         
-        <div id="my-role-card">როლი: ?</div>
-
-        <div id="host-panel" class="hidden" style="margin-top: 100px; text-align: center; width: 100%; padding: 0 20px;">
-            <button class="btn" onclick="requestStart()" style="background: var(--cyan); color: #000; font-weight: bold; box-shadow: 0 0 15px var(--cyan);">START GAME</button>
-            <p id="player-warning" style="color: var(--red); font-size: 0.7rem; margin-top: 5px;">საჭიროა მინიმუმ 4 მოთამაშე</p>
+        <div id="host-panel" class="hidden" style="margin-top: 80px; text-align: center; width: 100%;">
+            <button class="btn" onclick="requestStart()" style="background: var(--cyan); color: #000; width: 80%; margin: 0 auto;">START GAME</button>
         </div>
 
         <div id="video-grid"></div>
 
-        <div id="chat-toggle" onclick="toggleChat()">💬 <div id="chat-badge">0</div></div>
+        <div id="chat-toggle" onclick="toggleChat()">💬 <div id="chat-badge" style="display:none">0</div></div>
         
         <div class="controls">
-            <button id="mic-btn" class="btn ctrl-btn" onclick="toggleMic()">MIC</button>
-            <button id="cam-btn" class="btn ctrl-btn" style="background: var(--cyan); color: black;" onclick="toggleCam()">CAM</button>
-            <button class="btn ctrl-btn" style="background: var(--red);" onclick="leaveRoom()">EXIT</button>
+            <button id="mic-btn" class="btn" onclick="toggleMic()" style="width:60px">MIC</button>
+            <button id="cam-btn" class="btn" onclick="toggleCam()" style="width:60px; background:var(--cyan); color:black">CAM</button>
+            <button class="btn" style="background:var(--red); width:60px" onclick="location.reload()">EXIT</button>
         </div>
     </div>
 
     <div id="chat-panel">
-        <div id="chat-header">
-            <span>VOID CHAT</span>
-            <span onclick="toggleChat()" style="cursor:pointer; padding:5px; font-size:1.2rem;">✕</span>
-        </div>
+        <div id="chat-header"><span>VOID CHAT</span><span onclick="toggleChat()">✕</span></div>
         <div id="chat-messages"></div>
-        <div id="chat-input-area">
-            <input type="text" id="chat-msg" placeholder="დაწერე..." onkeypress="if(event.key==='Enter') sendMsg()">
-            <button class="btn" style="width: 50px;" onclick="sendMsg()">></button>
+        <div id="chat-input-area" style="padding:10px; display:flex;">
+            <input type="text" id="chat-msg" placeholder="დაწერე...">
+            <button class="btn" style="width:40px" onclick="sendMsg()">></button>
         </div>
     </div>
 
@@ -263,166 +169,113 @@
         const socket = io();
         let localStream, myNick, currentRoom, isHost = false;
         const peers = {};
-        let unreadCount = 0;
-
-        function playSFX(id) {
-            const sfx = document.getElementById(id);
-            if(sfx) { sfx.currentTime = 0; sfx.play().catch(e => {}); }
-        }
-
-        function playBGM(id) {
-            const sounds = ['bgm-login', 'bgm-rooms', 'bgm-game'];
-            sounds.forEach(s => {
-                const el = document.getElementById(s);
-                if(!el) return;
-                if(s === id) {
-                    el.volume = 0.2;
-                    el.play().catch(e => {});
-                } else { el.pause(); el.currentTime = 0; }
-            });
-        }
-
-        document.body.addEventListener('click', () => {
-            if(!document.getElementById('login-screen').classList.contains('hidden')) playBGM('bgm-login');
-        }, { once: true });
 
         function showRooms() {
             myNick = document.getElementById('nickname').value.trim();
-            if (!myNick) return alert("ჩაწერე ნიკი");
-            playSFX('sfx-click'); playBGM('bgm-rooms');
+            if (!myNick) return;
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('rooms-screen').classList.remove('hidden');
-            socket.emit('get-rooms');
         }
 
-        async function startVoid(roomFromList) {
-            currentRoom = roomFromList || document.getElementById('room-id').value.trim();
-            if (!currentRoom) return alert("ჩაწერე ოთახის ID");
-            playSFX('sfx-click');
+        async function startVoid() {
+            currentRoom = document.getElementById('room-id').value.trim();
+            if (!currentRoom) return;
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                playBGM('bgm-game');
                 document.body.classList.add('game-active');
                 document.getElementById('rooms-screen').classList.add('hidden');
                 document.getElementById('game-screen').classList.remove('hidden');
-                addVideo(socket.id, localStream, myNick + " (შენ)", true);
+                
+                // ჰოსტი ყოველთვის პირველია
                 socket.emit('join-room', currentRoom, myNick);
-            } catch (e) { alert("კამერა/მიკროფონი მიუწვდომელია!"); }
+            } catch (e) { alert("Access Denied"); }
         }
 
-        // --- HOST LOGIC ---
         socket.on('is-host', () => {
             isHost = true;
             document.getElementById('host-panel').classList.remove('hidden');
         });
 
-        function requestStart() {
-            if(!isHost) return;
-            const playerCount = document.querySelectorAll('.video-box').length;
-            if(playerCount < 4) return alert("მინიმუმ 4 მოთამაშეა საჭირო!");
-
-            const settings = {
-                sheriff: document.getElementById('set-sheriff').checked,
-                don: document.getElementById('set-don').checked,
-                doctor: document.getElementById('set-doctor').checked, // ექიმის როლი
-                mafia: document.getElementById('mafia-count').value
-            };
-            socket.emit('start-game-request', { room: currentRoom, settings });
-            playSFX('sfx-click');
-        }
-
-        // --- GAMEPLAY UPDATES ---
-        socket.on('assign-role', role => {
-            const card = document.getElementById('my-role-card');
-            card.classList.remove('hidden');
-            card.innerText = "როლი: " + role.toUpperCase();
-            if(role === 'mafia' || role === 'don') card.style.color = 'var(--red)';
-            else if(role === 'doctor') card.style.color = 'var(--blue)';
-            else card.style.color = 'var(--green)';
-        });
-
-        // --- CHAT LOGIC ---
-        function sendMsg() {
-            const inp = document.getElementById('chat-msg');
-            if(!inp.value.trim()) return;
-            socket.emit('send-chat-msg', { room: currentRoom, name: myNick, text: inp.value.trim() });
-            inp.value = '';
-        }
-
-        socket.on('receive-chat-msg', data => {
-            const box = document.getElementById('chat-messages');
-            const div = document.createElement('div');
-            div.className = 'msg';
-            div.innerHTML = `<b>${data.name}:</b> ${data.text}`;
-            box.appendChild(div);
-            box.scrollTop = box.scrollHeight;
-            if (!document.getElementById('chat-panel').classList.contains('open')) {
-                unreadCount++;
-                document.getElementById('chat-badge').innerText = unreadCount;
-                document.getElementById('chat-badge').style.display = 'flex';
-                playSFX('sfx-msg');
-            }
-        });
-
-        function toggleChat() { 
-            document.getElementById('chat-panel').classList.toggle('open'); 
-            if(document.getElementById('chat-panel').classList.contains('open')) {
-                unreadCount = 0; document.getElementById('chat-badge').style.display = 'none';
-            }
-        }
-
-        // --- WEBRTC & ROOMS ---
-        socket.on('update-room-list', rooms => {
-            const list = document.getElementById('room-list');
-            list.innerHTML = rooms.map(r => `
-                <div style="border-bottom:1px solid #333; padding:8px; display:flex; justify-content:space-between; align-items:center;">
-                    <span style="font-size:0.8rem;">ROOM: ${r.code} (${r.playerCount}/10)</span>
-                    <button class="btn" style="width:60px; padding:5px; font-size:0.6rem;" onclick="startVoid('${r.code}')">JOIN</button>
-                </div>
-            `).join('');
-        });
-
-        socket.on('all-users', users => {
-            users.forEach(user => {
-                const peer = new SimplePeer({ initiator: true, trickle: false, stream: localStream });
-                peer.on('signal', signal => {
-                    socket.emit('sending-signal', { userToSignal: user.id, callerID: socket.id, callerNick: myNick, signal });
-                });
-                peer.on('stream', stream => addVideo(user.id, stream, user.nick));
-                peers[user.id] = peer;
+        // ნუმერაციის და ვიდეოების მართვა
+        socket.on('room-users-list', (users) => {
+            // users არის მასივი: [{id, nick, index}]
+            users.forEach((user) => {
+                if (user.id === socket.id) {
+                    addVideo(user.id, localStream, user.nick + " (შენ)", user.index, true);
+                }
             });
         });
 
-        socket.on('user-joined', p => {
-            const peer = new SimplePeer({ initiator: false, trickle: false, stream: localStream });
-            peer.on('signal', signal => socket.emit('returning-signal', { signal, callerID: p.callerID }));
-            peer.on('stream', stream => addVideo(p.callerID, stream, p.callerNick));
-            peer.signal(p.signal);
-            peers[p.callerID] = peer;
-        });
-
-        socket.on('receiving-returned-signal', p => {
-            if(peers[p.id]) peers[p.id].signal(p.signal);
-        });
-
-        socket.on('user-left', id => {
-            if(peers[id]) peers[id].destroy();
-            delete peers[id];
-            document.getElementById(id)?.remove();
-        });
-
-        function addVideo(id, stream, name, mute = false) {
-            if (document.getElementById(id)) return;
-            const div = document.createElement('div');
-            div.id = id; div.className = 'video-box';
-            div.innerHTML = `<video id="v-${id}" autoplay playsinline ${mute?'muted':''}></video><div class="video-label">${name}</div>`;
-            document.getElementById('video-grid').appendChild(div);
-            document.getElementById(`v-${id}`).srcObject = stream;
+        function addVideo(id, stream, name, index, mute = false) {
+            let div = document.getElementById(id);
+            if (!div) {
+                div = document.createElement('div');
+                div.id = id;
+                div.className = 'video-box';
+                div.innerHTML = `
+                    <div class="player-number">#${index}</div>
+                    <video id="v-${id}" autoplay playsinline ${mute?'muted':''}></video>
+                    <div class="video-label">${name}</div>
+                `;
+                // Grid-order ნუმერაციის მიხედვით
+                div.style.order = index;
+                document.getElementById('video-grid').appendChild(div);
+            }
+            const video = document.getElementById(`v-${id}`);
+            if (video && stream) video.srcObject = stream;
         }
 
+        // WebRTC სიგნალიზაცია
+        socket.on('user-joined-with-info', p => {
+            const peer = new SimplePeer({ initiator: false, trickle: false, stream: localStream });
+            peer.on('signal', signal => socket.emit('returning-signal', { signal, callerID: p.id }));
+            peer.on('stream', stream => addVideo(p.id, stream, p.nick, p.index));
+            peer.signal(p.signal);
+            peers[p.id] = peer;
+        });
+
+        socket.on('all-users-info', users => {
+            users.forEach(u => {
+                const peer = new SimplePeer({ initiator: true, trickle: false, stream: localStream });
+                peer.on('signal', signal => {
+                    socket.emit('sending-signal', { userToSignal: u.id, callerID: socket.id, callerNick: myNick, signal });
+                });
+                peer.on('stream', stream => addVideo(u.id, stream, u.nick, u.index));
+                peers[u.id] = peer;
+            });
+        });
+
+        function requestStart() {
+            if(!isHost) return;
+            const count = document.querySelectorAll('.video-box').length;
+            if(count < 4) return alert("საჭიროა 4 მოთამაშე!");
+            
+            socket.emit('start-game-request', {
+                room: currentRoom,
+                settings: {
+                    sheriff: document.getElementById('set-sheriff').checked,
+                    doctor: document.getElementById('set-doctor').checked,
+                    don: document.getElementById('set-don').checked,
+                    mafia: document.getElementById('mafia-count').value
+                }
+            });
+        }
+
+        // სხვა ფუნქციები (Mic, Cam, Chat)
         function toggleMic() { localStream.getAudioTracks()[0].enabled = !localStream.getAudioTracks()[0].enabled; document.getElementById('mic-btn').classList.toggle('off'); }
         function toggleCam() { localStream.getVideoTracks()[0].enabled = !localStream.getVideoTracks()[0].enabled; document.getElementById('cam-btn').classList.toggle('off'); }
-        function leaveRoom() { location.reload(); }
+        function toggleChat() { document.getElementById('chat-panel').classList.toggle('open'); }
+        function sendMsg() {
+            const val = document.getElementById('chat-msg').value;
+            if(!val) return;
+            socket.emit('send-chat-msg', { room: currentRoom, name: myNick, text: val });
+            document.getElementById('chat-msg').value = '';
+        }
+        socket.on('receive-chat-msg', d => {
+            const m = document.getElementById('chat-messages');
+            m.innerHTML += `<div class="msg"><b>${d.name}:</b> ${d.text}</div>`;
+            m.scrollTop = m.scrollHeight;
+        });
     </script>
 </body>
 </html>
