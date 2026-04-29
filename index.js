@@ -18,6 +18,10 @@ app.use(express.static(path.join(__dirname, "public")));
 const rooms = {};
 const users = {};
 
+const NIGHT_SECONDS = 60;
+const DAY_SECONDS = 45;
+const VOTE_SECONDS = 30;
+
 function shuffle(arr) {
   return arr.sort(() => Math.random() - 0.5);
 }
@@ -25,7 +29,8 @@ function shuffle(arr) {
 function getPublicRooms() {
   return Object.values(rooms).map(room => ({
     code: room.code,
-    playerCount: room.players.length
+    playerCount: room.players.length,
+    phase: room.phase
   }));
 }
 
@@ -35,6 +40,8 @@ function createRoom(roomCode, hostId) {
     hostId,
     players: [],
     phase: "waiting",
+    nightNumber: 0,
+    dayNumber: 0,
     nightActions: {
       mafiaTarget: null,
       doctorSave: null,
@@ -85,6 +92,8 @@ function buildRoles(playerCount, settings) {
 function publicGameState(room) {
   return {
     phase: room.phase,
+    nightNumber: room.nightNumber,
+    dayNumber: room.dayNumber,
     players: room.players.map(p => ({
       id: p.id,
       name: p.name,
@@ -99,6 +108,7 @@ function emitGameState(roomCode) {
   if (!room) return;
 
   io.to(roomCode).emit("game-state", publicGameState(room));
+  io.emit("update-room-list", getPublicRooms());
 }
 
 function clearRoomTimers(room) {
@@ -181,16 +191,21 @@ function startNight(roomCode) {
   clearRoomTimers(room);
 
   room.phase = "night";
+  room.nightNumber++;
   room.votes = {};
   resetNightActions(room);
 
-  io.to(roomCode).emit("phase-message", "დადგა ღამე. მხოლოდ მაფიებს ესმით ერთმანეთის ხმა.");
+  io.to(roomCode).emit(
+    "phase-message",
+    `ღამის ფაზა დაიწყო. ღამე #${room.nightNumber}: მაფია კლავს, ექიმი იცავს, შერიფი ამოწმებს.`
+  );
+
   emitMafiaList(room);
   emitGameState(roomCode);
 
   room.timers.nightTimer = setTimeout(() => {
     resolveNight(roomCode);
-  }, 60000);
+  }, NIGHT_SECONDS * 1000);
 }
 
 function startDay(roomCode) {
@@ -200,14 +215,19 @@ function startDay(roomCode) {
   clearRoomTimers(room);
 
   room.phase = "day";
+  room.dayNumber++;
   room.votes = {};
 
-  io.to(roomCode).emit("phase-message", "დადგა დღე. ყველას ხმა ისმის.");
+  io.to(roomCode).emit(
+    "phase-message",
+    `დღის ფაზა დაიწყო. დღე #${room.dayNumber}: ყველას ხმა ჩართულია. იმსჯელეთ.`
+  );
+
   emitGameState(roomCode);
 
   room.timers.dayTimer = setTimeout(() => {
     startVote(roomCode);
-  }, 45000);
+  }, DAY_SECONDS * 1000);
 }
 
 function startVote(roomCode) {
@@ -224,7 +244,7 @@ function startVote(roomCode) {
 
   room.timers.voteTimer = setTimeout(() => {
     resolveVotes(roomCode);
-  }, 30000);
+  }, VOTE_SECONDS * 1000);
 }
 
 function checkNightComplete(roomCode) {
@@ -262,11 +282,17 @@ function resolveNight(roomCode) {
 
     if (victim && victim.alive) {
       victim.alive = false;
+
       io.to(roomCode).emit(
         "phase-message",
         `ღამით მოკლეს: #${victim.index} ${victim.name}`
       );
     }
+  } else if (killedId && killedId === savedId) {
+    io.to(roomCode).emit(
+      "phase-message",
+      "ექიმმა გადაარჩინა მაფიის სამიზნე. ღამით არავინ მომკვდარა."
+    );
   } else {
     io.to(roomCode).emit("phase-message", "ღამით არავინ მომკვდარა.");
   }
@@ -346,6 +372,12 @@ io.on("connection", socket => {
       return socket.emit("error", { msg: "ოთახი სავსეა" });
     }
 
+    if (room.phase !== "waiting") {
+      return socket.emit("error", {
+        msg: "თამაში უკვე დაწყებულია. დაელოდე შემდეგ რაუნდს."
+      });
+    }
+
     const alreadyInRoom = room.players.some(p => p.id === socket.id);
     if (alreadyInRoom) return;
 
@@ -381,7 +413,11 @@ io.on("connection", socket => {
 
     socket.emit("room-users-list", room.players);
 
-    io.emit("update-room-list", getPublicRooms());
+    io.to(roomCode).emit(
+      "phase-message",
+      `#${playerIndex} ${playerName} შემოვიდა ოთახში.`
+    );
+
     emitGameState(roomCode);
 
     console.log(`[VOID] #${playerIndex} joined room ${roomCode}: ${playerName}`);
@@ -424,6 +460,9 @@ io.on("connection", socket => {
     const settings = data.settings || {};
     const roles = buildRoles(room.players.length, settings);
 
+    room.nightNumber = 0;
+    room.dayNumber = 0;
+
     room.players.forEach((player, i) => {
       player.role = roles[i];
       player.alive = true;
@@ -436,7 +475,7 @@ io.on("connection", socket => {
     room.votes = {};
     resetNightActions(room);
 
-    io.to(data.room).emit("phase-message", "თამაში დაიწყო.");
+    io.to(data.room).emit("phase-message", "თამაში დაიწყო. პირველი ფაზაა ღამე.");
     console.log(`[GAME] started in room: ${data.room}`);
 
     startNight(data.room);
@@ -457,12 +496,20 @@ io.on("connection", socket => {
       data.action === "kill"
     ) {
       room.nightActions.mafiaTarget = target.id;
-      socket.emit("phase-message", "მაფიის არჩევანი მიღებულია.");
+
+      socket.emit(
+        "phase-message",
+        `მაფიის არჩევანი მიღებულია: #${target.index} ${target.name}`
+      );
     }
 
     if (actor.role === "doctor" && data.action === "save") {
       room.nightActions.doctorSave = target.id;
-      socket.emit("phase-message", "ექიმის არჩევანი მიღებულია.");
+
+      socket.emit(
+        "phase-message",
+        `ექიმის არჩევანი მიღებულია: #${target.index} ${target.name}`
+      );
     }
 
     if (actor.role === "sheriff" && data.action === "check") {
