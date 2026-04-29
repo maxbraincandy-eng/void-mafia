@@ -11,6 +11,7 @@
             --cyan: #00ffff;
             --bg: #07020f;
             --card-bg: rgba(14, 5, 32, 0.95);
+            --red: #ff3e3e;
         }
 
         * { box-sizing: border-box; }
@@ -86,12 +87,28 @@
             font-size: 0.9rem;
             text-transform: uppercase;
             transition: 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
         }
 
         .btn:hover {
             background: var(--cyan);
             box-shadow: 0 0 25px var(--cyan);
             color: black;
+        }
+
+        .btn.off {
+            background: #333 !important;
+            color: #777 !important;
+            box-shadow: none !important;
+            border: 1px solid #444;
+        }
+
+        .btn-leave {
+            background: var(--red) !important;
+            box-shadow: 0 0 15px var(--red);
         }
 
         #video-grid {
@@ -101,6 +118,7 @@
             width: 100%;
             max-width: 1000px;
             padding: 5px;
+            margin-bottom: 80px;
         }
 
         .video-box {
@@ -135,6 +153,11 @@
             display: flex;
             gap: 10px;
             z-index: 100;
+            background: rgba(7, 2, 15, 0.8);
+            padding: 10px;
+            border-radius: 50px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 0, 255, 0.2);
         }
 
         .hidden { display: none !important; }
@@ -167,7 +190,6 @@
             padding: 2px 8px;
             font-size: 0.8rem;
             font-family: 'Orbitron';
-            box-shadow: 0 0 10px var(--neon);
         }
 
         #chat-panel {
@@ -182,7 +204,6 @@
             z-index: 200;
             display: flex;
             flex-direction: column;
-            box-shadow: -10px 0 20px rgba(0,0,0,0.5);
         }
 
         #chat-panel.open {
@@ -214,19 +235,17 @@
             border-left: 2px solid var(--cyan);
         }
 
-        .msg b { color: var(--cyan); }
+        .msg.sys {
+            border-left-color: var(--neon);
+            font-style: italic;
+            opacity: 0.7;
+        }
 
         #chat-input-area {
             padding: 10px;
             border-top: 1px solid rgba(255,0,255,0.3);
             display: flex;
             gap: 5px;
-        }
-
-        #chat-input-area input {
-            padding: 10px;
-            font-size: 0.9rem;
-            text-align: left;
         }
 
         #chat-toggle {
@@ -245,14 +264,6 @@
             z-index: 150;
             box-shadow: 0 0 15px var(--neon);
             font-size: 1.2rem;
-            transition: 0.3s;
-        }
-
-        #chat-toggle:hover {
-            transform: scale(1.1);
-            box-shadow: 0 0 25px var(--cyan);
-            background: var(--cyan);
-            color: black;
         }
 
         audio { display: none; }
@@ -285,8 +296,9 @@
         <div id="chat-toggle" onclick="toggleChat()">💬</div>
 
         <div class="controls">
-            <button class="btn" style="width: auto; padding: 10px 18px;" onclick="toggleMic()">MIC</button>
-            <button class="btn" style="width: auto; padding: 10px 18px; background: var(--cyan); color: black;" onclick="toggleCam()">CAM</button>
+            <button id="mic-btn" class="btn" style="width: 60px;" onclick="toggleMic()">MIC</button>
+            <button id="cam-btn" class="btn" style="width: 60px; background: var(--cyan); color: black;" onclick="toggleCam()">CAM</button>
+            <button class="btn btn-leave" style="width: 60px;" onclick="leaveRoom()">EXIT</button>
         </div>
     </div>
 
@@ -297,7 +309,7 @@
         </div>
         <div id="chat-messages"></div>
         <div id="chat-input-area">
-            <input type="text" id="chat-msg" placeholder="დაწერე რამე..." onkeypress="if(event.key==='Enter') sendMsg()">
+            <input type="text" id="chat-msg" placeholder="დაწერე..." onkeypress="if(event.key==='Enter') sendMsg()">
             <button class="btn" style="width: auto; padding: 10px;" onclick="sendMsg()">></button>
         </div>
     </div>
@@ -315,7 +327,7 @@
 
             const bgm = document.getElementById('ambient-bgm');
             bgm.volume = 0.25;
-            bgm.play().catch(e => console.log("Audio Playback Blocked"));
+            bgm.play().catch(() => {});
 
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('rooms-screen').classList.remove('hidden');
@@ -326,22 +338,56 @@
             currentRoom = roomFromList || document.getElementById('room-id').value.trim();
             if (!currentRoom) return alert("ჩაწერე ოთახის ID");
 
-            // ოთახში შესვლისას მუსიკა ჩერდება
             document.getElementById('ambient-bgm').pause();
 
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { width: { ideal: 400 }, height: { ideal: 400 } }, 
+                    video: { width: 400, height: 400 }, 
                     audio: true 
                 });
                 document.getElementById('rooms-screen').classList.add('hidden');
                 document.getElementById('game-screen').classList.remove('hidden');
                 
-                addVideo('me', localStream, myNick + " (YOU)", true);
+                addVideo('me', localStream, myNick + " (შენ)", true);
                 socket.emit('join-room', currentRoom, myNick);
             } catch (e) { 
-                alert("კამერაზე წვდომა უარყოფილია!"); 
+                alert("კამერა/მიკროფონი მიუწვდომელია!"); 
             }
+        }
+
+        function leaveRoom() {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            socket.emit('leave-room', currentRoom);
+            
+            // UI Reset
+            document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById('rooms-screen').classList.remove('hidden');
+            document.getElementById('video-grid').innerHTML = '';
+            document.getElementById('chat-messages').innerHTML = '';
+            
+            // Clean peers
+            Object.keys(peers).forEach(id => {
+                peers[id].destroy();
+                delete peers[id];
+            });
+
+            // Resume BGM
+            const bgm = document.getElementById('ambient-bgm');
+            bgm.play().catch(() => {});
+        }
+
+        function toggleMic() { 
+            const track = localStream.getAudioTracks()[0];
+            track.enabled = !track.enabled;
+            document.getElementById('mic-btn').classList.toggle('off', !track.enabled);
+        }
+
+        function toggleCam() { 
+            const track = localStream.getVideoTracks()[0];
+            track.enabled = !track.enabled;
+            document.getElementById('cam-btn').classList.toggle('off', !track.enabled);
         }
 
         function toggleChat() {
@@ -352,7 +398,6 @@
             const inp = document.getElementById('chat-msg');
             const txt = inp.value.trim();
             if(!txt) return;
-            
             socket.emit('send-chat-msg', { room: currentRoom, name: myNick, text: txt });
             inp.value = '';
         }
@@ -372,13 +417,12 @@
                 rooms.map(r => `
                     <div class="room-item">
                         <div class="room-info">
-                            <span style="color:var(--cyan); font-size:0.9rem;">ID: ${r.code}</span>
+                            <span style="color:var(--cyan);">ID: ${r.code}</span>
                             <span class="player-count">${r.playerCount}/10</span>
                         </div>
-                        <button class="btn" style="padding: 8px; font-size: 0.7rem;" onclick="startVoid('${r.code}')">შეერთება</button>
+                        <button class="btn" style="padding: 5px;" onclick="startVoid('${r.code}')">JOIN</button>
                     </div>
-                `).join('') :
-                '<div style="color:#6a4a8a; font-size:0.8rem; margin-top:10px;">სიგნალები არ მოიძებნა...</div>';
+                `).join('') : '<div style="color:#6a4a8a; font-size:0.8rem;">სიგნალი არ არის...</div>';
         });
 
         socket.on('all-users', users => {
@@ -415,17 +459,10 @@
             div.id = id; div.className = 'video-box';
             div.innerHTML = `<video id="v-${id}" autoplay playsinline ${mute?'muted':''}></video><div class="video-label">${name}</div>`;
             grid.appendChild(div);
-            document.getElementById(`v-${id}`).srcObject = stream;
-        }
-
-        function toggleMic() { 
-            const track = localStream.getAudioTracks()[0];
-            track.enabled = !track.enabled;
-        }
-        function toggleCam() { 
-            const track = localStream.getVideoTracks()[0];
-            track.enabled = !track.enabled;
+            const v = document.getElementById(`v-${id}`);
+            v.srcObject = stream;
         }
     </script>
 </body>
 </html>
+
