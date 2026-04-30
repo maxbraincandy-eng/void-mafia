@@ -1195,6 +1195,67 @@
       z-index:3;
     }
 
+  
+
+    /* ===== V9.2 LEGACY PRO UI CLEANUP ===== */
+    #admin-toggle-btn, #admin-panel, #host-panel { display:none !important; }
+    .v92-shell-title { width:min(100%,980px); display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 auto 12px; }
+    .v92-title-left { display:flex; flex-direction:column; gap:2px; }
+    .v92-title-left b { font-family:Orbitron; color:var(--cyan); font-size:.86rem; letter-spacing:1px; }
+    .v92-title-left small { color:#a782c8; font-size:.72rem; }
+    .v92-pill { border:1px solid rgba(0,255,255,.45); color:var(--cyan); background:rgba(0,255,255,.07); padding:7px 10px; border-radius:999px; font-family:Orbitron; font-size:.56rem; white-space:nowrap; }
+    .v92-app-tabs { width:min(100%,980px); display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin:0 auto 12px; }
+    .v92-tab { border:1px solid rgba(255,0,255,.35); background:rgba(10,5,22,.88); color:#cbb9da; border-radius:13px; padding:10px 4px; font-family:Orbitron; font-size:.54rem; cursor:pointer; }
+    .v92-tab.active { color:#000; background:linear-gradient(135deg,var(--neon),var(--cyan)); box-shadow:0 0 18px rgba(0,255,255,.22); }
+    .v92-panel { width:min(100%,980px); margin:0 auto; display:none; }
+    .v92-panel.active { display:block; }
+    .v92-rooms-grid { display:grid; gap:10px; }
+    .v92-room-card { border:1px solid rgba(0,255,255,.35); background:linear-gradient(135deg,rgba(15,5,35,.96),rgba(4,10,25,.92)); border-radius:18px; padding:13px; display:grid; grid-template-columns:58px 1fr auto; gap:12px; align-items:center; box-shadow:0 0 18px rgba(255,0,255,.08); }
+    .v92-room-emblem { width:58px; height:58px; border-radius:16px; display:flex; align-items:center; justify-content:center; font-size:1.65rem; background:radial-gradient(circle at 30% 30%, rgba(0,255,255,.32), rgba(255,0,255,.17)); border:1px solid rgba(255,255,255,.12); }
+    .v92-room-main h3 { margin:0 0 4px; color:#fff; font-family:Orbitron; font-size:.82rem; }
+    .v92-room-main p { margin:2px 0; font-size:.78rem; color:#cdb8dc; }
+    .v92-room-tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+    .v92-room-tags span { font-family:Orbitron; font-size:.48rem; border:1px solid rgba(0,255,255,.32); color:var(--cyan); border-radius:999px; padding:4px 7px; background:rgba(0,0,0,.22); }
+    .v92-room-actions { display:flex; flex-direction:column; gap:7px; min-width:78px; }
+    .v92-room-actions button { border:0; border-radius:12px; padding:9px 8px; font-family:Orbitron; font-size:.52rem; cursor:pointer; }
+    .v92-join { background:var(--neon); color:#fff; }
+    .v92-watch { background:var(--cyan); color:#000; }
+    .v92-mini-card { border:1px solid rgba(255,255,255,.12); background:rgba(8,4,20,.78); border-radius:18px; padding:14px; margin-bottom:10px; }
+    .v92-mini-card h3 { margin:0 0 8px; font-family:Orbitron; color:var(--cyan); font-size:.82rem; }
+    .v92-stat-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
+    .v92-stat { border:1px solid rgba(0,255,255,.18); background:#080316; border-radius:14px; padding:12px; }
+    .v92-stat b { display:block; color:var(--cyan); font-family:Orbitron; font-size:1rem; }
+    .v92-stat small { color:#aaa; }
+    #rooms-screen { max-width:980px; background:rgba(7,2,15,.72); border-radius:22px; border-color:rgba(255,0,255,.7); gap:0; }
+    #room-list { max-height:none !important; overflow:visible !important; }
+    .room-item { display:none !important; }
+    body.game-active { padding:0; align-items:stretch; }
+    body.game-active .glitch-title, body.game-active .powered { display:none !important; }
+    body.game-active #game-screen { padding-top:48px; min-height:100vh; }
+    #game-status-bar { height:48px; align-items:center; padding:0 56px; border-bottom:1px solid rgba(255,0,255,.75); box-shadow:0 0 22px rgba(255,0,255,.22); }
+    #v92-exit-room { position:fixed; top:7px; left:9px; z-index:2600; width:34px; height:34px; border-radius:12px; border:1px solid rgba(255,62,62,.75); color:#fff; background:rgba(255,62,62,.18); font-family:Orbitron; font-size:1.25rem; line-height:1; cursor:pointer; box-shadow:0 0 15px rgba(255,62,62,.22); }
+    #game-powered-by { top:54px; font-size:.55rem; opacity:.82; }
+    #host-compact-controls { top:80px; right:10px; flex-direction:column; align-items:flex-end; }
+    .host-chip.settings-main { border-radius:999px; padding:10px 13px; background:linear-gradient(135deg,var(--neon),var(--cyan)); color:#000; box-shadow:0 0 18px rgba(0,255,255,.35); }
+    .privilege-badge { top:50px !important; right:10px !important; border-radius:999px !important; }
+    #video-grid { width:100%; max-width:1100px; margin:54px auto 96px !important; padding:0 12px; gap:12px; grid-template-columns:repeat(2,minmax(0,1fr)); }
+    @media (min-width:900px) { #video-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+    .video-box { border-radius:20px; border-width:2px; aspect-ratio:4/3; background:radial-gradient(circle at 50% 30%, rgba(40,15,70,.9), #000 70%); }
+    .video-label { padding:23px 10px 9px; font-size:.78rem; color:white; }
+    .player-number { top:8px; right:8px; border-radius:999px; background:linear-gradient(135deg,var(--neon),#7c4dff); }
+    .tile-controls { position:absolute; left:8px; bottom:8px; z-index:28; display:flex; gap:6px; }
+    .tile-mini-btn { width:34px; height:34px; border-radius:12px; border:1px solid rgba(255,255,255,.2); background:rgba(0,0,0,.58); color:#fff; display:flex; align-items:center; justify-content:center; font-family:Orbitron; font-size:.58rem; cursor:pointer; backdrop-filter:blur(8px); }
+    .tile-mini-btn.active { background:rgba(0,255,255,.86); color:#000; box-shadow:0 0 14px rgba(0,255,255,.4); }
+    .tile-mini-btn.off { background:rgba(255,62,62,.86); color:white; }
+    .controls { display:none !important; }
+    #stats-toggle { bottom:28px; left:12px; right:auto; border-radius:16px; width:auto; min-width:48px; }
+    #ping-display { bottom:8px; opacity:.45; }
+    .role-settings-card { padding:22px; border-radius:24px; }
+    .settings-control-grid { border-radius:20px !important; padding:12px !important; background:rgba(0,255,255,.035); }
+    .role-setting-row, .role-toggle-row { border-radius:17px; background:rgba(255,255,255,.055); }
+    .v92-settings-section-title { margin:16px 0 9px; font-family:Orbitron; color:var(--cyan); font-size:.68rem; letter-spacing:1px; opacity:.9; }
+    @media (max-width:700px) { #game-status-bar { padding:0 42px; font-size:.58rem; } #video-grid { margin-top:58px !important; grid-template-columns:repeat(2,minmax(0,1fr)); padding:0 10px; gap:10px; } .v92-room-card { grid-template-columns:48px 1fr; } .v92-room-emblem { width:48px; height:48px; border-radius:14px; } .v92-room-actions { grid-column:1 / -1; flex-direction:row; } .v92-room-actions button { flex:1; } .v92-tab { font-size:.46rem; padding:9px 2px; } #rooms-screen { padding:14px 12px; } #host-compact-controls { top:74px; } }
+
   </style>
 </head>
 
@@ -1247,7 +1308,7 @@
   </div>
 
   <h1 class="glitch-title">VOID MAFIA</h1>
-  <div class="powered">Powered by ბატონი მაქსი &nbsp;·&nbsp; <span style="color:var(--neon);">v6</span></div>
+  <div class="powered">Powered by ბატონი მაქსი &nbsp;·&nbsp; <span style="color:var(--neon);">v9.2</span></div>
 
   <!-- LOGIN -->
   <div id="login-screen" class="card">
@@ -1255,26 +1316,19 @@
     <button class="btn" id="login-btn">შესვლა</button>
   </div>
 
-  <!-- ROOMS -->
+  <!-- ROOMS / V9.2 APP SHELL -->
   <div id="rooms-screen" class="card hidden">
-    <div style="text-align:left; padding:10px; border:1px solid var(--cyan);">
-      <p style="font-size:.75rem; color:var(--cyan); margin:0 0 10px;">პარამეტრები ჰოსტისთვის</p>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:.85rem;">
-        <label><input type="checkbox" id="set-sheriff" checked> შერიფი</label>
-        <label><input type="checkbox" id="set-don" checked> დონი</label>
-        <label><input type="checkbox" id="set-doctor" checked> ექიმი</label>
-        <div>მაფია: <input type="number" id="mafia-count" value="1" min="1" max="3"></div>
-      </div>
-    </div>
-    <input id="room-id" type="text" placeholder="ოთახის ID მაგ: 123">
-    <button class="btn" id="join-btn">ოთახის შექმნა / შესვლა</button>
-    <button class="btn" id="spectator-btn" style="background:var(--cyan); color:#000;">WATCH / SPECTATOR</button>
-    <button class="btn" id="music-toggle-btn" style="background:#1b2144; color:white;">LOBBY MUSIC: OFF</button>
-    <div id="room-list" style="max-height:220px; overflow-y:auto;"></div>
+    <div class="v92-shell-title"><div class="v92-title-left"><b>VOID LOBBY</b><small>მაგიდები, კლანები, სტატისტიკა და პროფილი</small></div><span class="v92-pill" id="v92-online-pill">TABLES · --</span></div>
+    <div class="v92-app-tabs"><button class="v92-tab active" data-v92-tab="tables">მაგიდები</button><button class="v92-tab" data-v92-tab="clans">კლანები</button><button class="v92-tab" data-v92-tab="stats">სტატისტიკა</button><button class="v92-tab" data-v92-tab="profile">პროფილი</button></div>
+    <section id="v92-panel-tables" class="v92-panel active"><div class="legacy-host-box" style="text-align:left; padding:12px; border:1px solid var(--cyan); border-radius:18px; margin-bottom:12px;"><p style="font-size:.75rem; color:var(--cyan); margin:0 0 10px; font-family:Orbitron;">სწრაფი ოთახი</p><div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:.85rem; margin-bottom:10px;"><label><input type="checkbox" id="set-sheriff" checked> შერიფი</label><label><input type="checkbox" id="set-don" checked> დონი</label><label><input type="checkbox" id="set-doctor" checked> ექიმი</label><div>მაფია: <input type="number" id="mafia-count" value="1" min="1" max="3"></div></div><input id="room-id" type="text" placeholder="ოთახის ID მაგ: 123"><button class="btn" id="join-btn">ოთახის შექმნა / შესვლა</button><button class="btn" id="spectator-btn" style="background:var(--cyan); color:#000;">ყურება / SPECTATOR</button><button class="btn" id="music-toggle-btn" style="background:#1b2144; color:white;">LOBBY MUSIC: OFF</button></div><div class="v92-mini-card"><h3>აქტიური მაგიდები</h3><div id="room-list" class="v92-rooms-grid"></div></div></section>
+    <section id="v92-panel-clans" class="v92-panel"><div class="v92-mini-card"><h3>კლანები</h3><p style="color:#cdb8dc;">კლანების სექცია მომზადებულია MongoDB-სთვის.</p></div><div class="v92-room-card"><div class="v92-room-emblem">♛</div><div class="v92-room-main"><h3>Void Syndicate</h3><p>ლიდერი: ბატონი მაქსი</p><div class="v92-room-tags"><span>members 1/30</span><span>cyber clan</span></div></div><div class="v92-room-actions"><button class="v92-join" onclick="toast('კლანების ფუნქცია შემდეგ ეტაპზე ჩაირთვება','info')">ნახვა</button></div></div></section>
+    <section id="v92-panel-stats" class="v92-panel"><div class="v92-mini-card"><h3>სტატისტიკა</h3><div class="v92-stat-grid"><div class="v92-stat"><b id="v92-stat-games">0</b><small>თამაშები</small></div><div class="v92-stat"><b id="v92-stat-wins">0</b><small>მოგებები</small></div><div class="v92-stat"><b id="v92-stat-mvp">0</b><small>MVP</small></div><div class="v92-stat"><b id="v92-stat-level">1</b><small>Level</small></div></div></div></section>
+    <section id="v92-panel-profile" class="v92-panel"><div class="v92-mini-card"><h3>პროფილი</h3><p style="color:#cdb8dc;">ნიკი: <b id="v92-profile-name">---</b></p><p style="color:#cdb8dc;">სტატუსი: <span style="color:var(--cyan);">Ready for room</span></p><button class="btn" onclick="socket.emit('get-rooms')">ოთახების განახლება</button></div></section>
   </div>
 
   <!-- GAME -->
   <div id="game-screen" class="hidden">
+    <button id="v92-exit-room" title="Exit room">×</button>
     <div id="game-status-bar">
       <span id="game-phase">მზადება</span>
       <span id="game-timer">00:00</span>
@@ -1327,6 +1381,7 @@
         <div id="monitor-note" class="monitor-note hidden">
           monitoring/admin სტატუსი ენიჭება server-side გარემოს ცვლადებით: <b>ADMIN_IDS</b> და <b>MONITOR_IDS</b>.
         </div>
+        <div class="v92-settings-section-title">GAME FLOW</div>
         <div id="settings-control-grid" class="settings-control-grid">
           <button id="settings-start-game" class="primary">START GAME</button>
           <button id="settings-start-individual" class="good">SPEAKER ROTATION</button>
@@ -1340,6 +1395,7 @@
           <button id="settings-end-game" class="danger">END GAME</button>
         </div>
 
+        <div class="v92-settings-section-title">ROLES</div>
         <div class="role-setting-row">
           <span>🔴 Mafia Count</span>
           <div class="role-counter">
@@ -1874,16 +1930,13 @@
 
     socket.on("is-host", () => {
       isHost = true;
-      window.myPrivilege = { ...(window.myPrivilege || {}), isHost: true };
-      $("host-panel")?.classList.add("hidden");
-      $("admin-toggle-btn")?.classList.add("hidden");
-      $("admin-panel")?.classList.add("hidden");
-      $("admin-panel")?.classList.remove("admin-open");
+      $("host-panel").classList.remove("hidden");
+      $("admin-toggle-btn").classList.remove("hidden");
+      $("admin-panel").classList.remove("hidden");
       $("host-compact-controls")?.classList.remove("hidden");
-      const badge = $("privilege-badge");
-      if (badge) { badge.textContent = "HOST"; badge.classList.add("visible"); }
       addSystemMsg("შენ ხარ ოთახის ჰოსტი");
       toast("შენ ხარ ჰოსტი", "success");
+      renderAdminPanel();
     });
 
     socket.on("remove-host", () => {
@@ -1898,22 +1951,19 @@
 
     socket.on("update-room-list", rooms => {
       const list = $("room-list");
+      if (!list) return;
       list.innerHTML = "";
-      if (!rooms || rooms.length === 0) {
-        list.innerHTML = '<p style="font-size:.75rem; color:#777;">აქტიური ოთახები არ არის</p>';
-        return;
-      }
-      rooms.forEach(r => {
-        const div = document.createElement("div");
-        div.className = "room-item";
-        div.innerHTML = `
-          <span style="font-size:.85rem;">
-            ID: ${escapeHtml(r.code)} (${r.playerCount}/10)
-            <small style="color:var(--cyan); display:block;">spectators: ${r.spectatorCount || 0} · ${escapeHtml(r.phase || "waiting")}</small>
-          </span>
-          <button class="btn" style="width:70px; padding:7px; font-size:.6rem;">JOIN</button>
-        `;
-        div.querySelector("button").onclick = () => startVoid(r.code);
+      const count = Array.isArray(rooms) ? rooms.length : 0;
+      if ($("v92-online-pill")) $("v92-online-pill").textContent = `TABLES · ${count}`;
+      if (!rooms || rooms.length === 0) { list.innerHTML = '<p style="font-size:.82rem; color:#8f7ba2; margin:8px 0;">აქტიური მაგიდები არ არის — შექმენი ახალი ოთახი.</p>'; return; }
+      rooms.forEach((r, i) => {
+        const div = document.createElement("div"); div.className = "v92-room-card";
+        const phase = escapeHtml(r.phase || "waiting"), code = escapeHtml(r.code || "---");
+        const players = Number(r.playerCount || 0), spectators = Number(r.spectatorCount || 0);
+        const emblem = ["◇","♛","◈","✦","⬢"][i % 5];
+        div.innerHTML = `<div class="v92-room-emblem">${emblem}</div><div class="v92-room-main"><h3>მაგიდა ${code}</h3><p>ჰოსტი: ${escapeHtml(r.hostName || "unknown")} · მოთამაშეები: ${players}/10</p><p>მაყურებლები: ${spectators}</p><div class="v92-room-tags"><span>${phase}</span><span>${players > 0 ? "active" : "empty"}</span><span>VOID</span></div></div><div class="v92-room-actions"><button class="v92-join">JOIN</button><button class="v92-watch">WATCH</button></div>`;
+        div.querySelector(".v92-join").onclick = () => startVoid(r.code);
+        div.querySelector(".v92-watch").onclick = () => { if ($("room-id")) $("room-id").value = r.code; startSpectator(); };
         list.appendChild(div);
       });
     });
@@ -2205,6 +2255,7 @@
       div.style.order = safeIndex;
 
       const initials = String(name || "??").replace(/[^a-zA-Zა-ჿ]/g,"").slice(0,2).toUpperCase() || "??";
+      const isMe = id === socket.id;
       div.innerHTML = `
         <div class="speaking-indicator"></div>
         <div class="player-number">#${safeIndex}</div>
@@ -2213,10 +2264,15 @@
           <div class="avatar-name">${escapeHtml(name)}</div>
         </div>
         <video id="v-${id}" autoplay playsinline ${mute ? "muted" : ""}></video>
+        ${isMe ? `<div class="tile-controls"><button id="tile-mic-btn" class="tile-mini-btn active" title="Mic">MIC</button><button id="tile-cam-btn" class="tile-mini-btn active" title="Camera">CAM</button></div>` : ""}
         <div class="video-label">${escapeHtml(name)}</div>
       `;
 
       div.addEventListener("click", () => showPlayerProfile(id, name, safeIndex));
+      if (id === socket.id) {
+        div.querySelector("#tile-mic-btn")?.addEventListener("click", ev => { ev.stopPropagation(); toggleMic(); });
+        div.querySelector("#tile-cam-btn")?.addEventListener("click", ev => { ev.stopPropagation(); toggleCam(); });
+      }
 
       $("video-grid").appendChild(div);
 
@@ -2401,7 +2457,7 @@
 
       if ($("host-compact-controls")) {
         const canSeeSettings = isHost || (window.myPrivilege && (window.myPrivilege.isAdmin || window.myPrivilege.isMonitor));
-        $("host-compact-controls").classList.toggle("hidden", !canSeeSettings);
+        $("host-compact-controls").classList.toggle("hidden", !(canSeeSettings && currentPhase === "waiting"));
       }
 
       if (currentPhase !== "waiting") {
@@ -3000,7 +3056,9 @@
       const track = localStream.getAudioTracks()[0];
       if (!track) return;
       track.enabled = !track.enabled;
-      $("mic-btn").style.background = track.enabled ? "var(--neon)" : "#333";
+      if ($("mic-btn")) $("mic-btn").style.background = track.enabled ? "var(--neon)" : "#333";
+      const tile = $("tile-mic-btn");
+      if (tile) { tile.classList.toggle("active", track.enabled); tile.classList.toggle("off", !track.enabled); tile.textContent = track.enabled ? "MIC" : "OFF"; }
       toast(track.enabled ? "მიკროფონი ჩართულია" : "მიკროფონი გათიშულია", "info", 1500);
     }
 
@@ -3009,7 +3067,9 @@
       const track = localStream.getVideoTracks()[0];
       if (!track) return;
       track.enabled = !track.enabled;
-      $("cam-btn").style.background = track.enabled ? "var(--cyan)" : "#333";
+      if ($("cam-btn")) $("cam-btn").style.background = track.enabled ? "var(--cyan)" : "#333";
+      const tile = $("tile-cam-btn");
+      if (tile) { tile.classList.toggle("active", track.enabled); tile.classList.toggle("off", !track.enabled); tile.textContent = track.enabled ? "CAM" : "OFF"; }
       updateCameraAvatar(socket.id, localStream);
       toast(track.enabled ? "კამერა ჩართულია" : "კამერა გათიშულია", "info", 1500);
     }
@@ -3379,10 +3439,21 @@
     $("join-btn").addEventListener("click", () => startVoid());
     $("spectator-btn").addEventListener("click", startSpectator);
     $("start-game-btn").addEventListener("click", requestStart);
-    $("mic-btn").addEventListener("click", toggleMic);
-    $("cam-btn").addEventListener("click", toggleCam);
-    $("exit-btn").addEventListener("click", () => location.reload());
-    $("chat-toggle").addEventListener("click", toggleChat);
+    $("mic-btn")?.addEventListener("click", toggleMic);
+    $("cam-btn")?.addEventListener("click", toggleCam);
+    $("exit-btn")?.addEventListener("click", () => location.reload());
+    $("v92-exit-room")?.addEventListener("click", () => location.reload());
+    $("chat-toggle")?.addEventListener("click", toggleChat);
+    document.querySelectorAll(".v92-tab").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".v92-tab").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".v92-panel").forEach(p => p.classList.remove("active"));
+        btn.classList.add("active");
+        const panel = $("v92-panel-" + btn.dataset.v92Tab);
+        panel?.classList.add("active");
+        if (btn.dataset.v92Tab === "profile" && $("v92-profile-name")) $("v92-profile-name").textContent = myNick || "---";
+      });
+    });
     $("close-chat").addEventListener("click", toggleChat);
     $("send-chat-btn").addEventListener("click", sendMsg);
     $("action-modal-close")?.addEventListener("click", hideActionModal);
