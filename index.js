@@ -1,627 +1,307 @@
+require("dotenv").config();
+
 const express = require("express");
 const http = require("http");
 const path = require("path");
-const { Server } = require("socket.io");
-require("dotenv").config();
 const mongoose = require("mongoose");
+const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] }
-});
-
+const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] } });
 const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-const rooms = new Map();
+const ADMIN_IDS = new Set(String(process.env.ADMIN_IDS || "").split(",").map(s => s.trim()).filter(Boolean));
+const MONITOR_IDS = new Set(String(process.env.MONITOR_IDS || "").split(",").map(s => s.trim()).filter(Boolean));
 
-/* ============================================================
-   V9.1 PRIVILEGES
-   Put comma-separated userKey / nickname / socketId values in .env:
-   ADMIN_IDS=max,batoni max,92642
-   MONITOR_IDS=observer1,moderator2
-============================================================ */
-const ADMIN_IDS = new Set(String(process.env.ADMIN_IDS || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean));
-const MONITOR_IDS = new Set(String(process.env.MONITOR_IDS || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean));
-function privilegeTokens(socket, room) {
-  const prof = room?.profiles?.[socket.id] || {};
-  return [socket.id, socket.data?.nick, prof.userKey, prof.nickname, prof.name].filter(Boolean).map(v => String(v).trim().toLowerCase());
-}
-function getPrivilege(socket, room) {
-  const tokens = privilegeTokens(socket, room);
-  const isAdmin = tokens.some(t => ADMIN_IDS.has(t));
-  const isMonitor = isAdmin || tokens.some(t => MONITOR_IDS.has(t));
-  const isHost = !!room && room.hostId === socket.id;
-  return { isHost, isAdmin, isMonitor, role: isAdmin ? "admin" : isMonitor ? "monitor" : isHost ? "host" : "player" };
-}
-function canControlRoom(socket, room) { const p = getPrivilege(socket, room); return p.isHost || p.isAdmin; }
-function emitPrivilege(socket, room) { socket.emit("privilege-status", getPrivilege(socket, room)); }
-
-
-/* ============================================================
-   V8 MONGODB / PERSISTENT STATS
-============================================================ */
 let mongoReady = false;
-const userSchema = new mongoose.Schema({
-  userKey: { type: String, unique: true, index: true }, nickname: { type: String, index: true }, avatar: { type: String, default: "🕶️" },
-  level: { type: Number, default: 1 }, xp: { type: Number, default: 0 }, games: { type: Number, default: 0 }, wins: { type: Number, default: 0 }, losses: { type: Number, default: 0 },
-  mafiaWins: { type: Number, default: 0 }, citizenWins: { type: Number, default: 0 }, soloWins: { type: Number, default: 0 }, mvp: { type: Number, default: 0 },
-  kills: { type: Number, default: 0 }, saves: { type: Number, default: 0 }, checks: { type: Number, default: 0 }, correctVotes: { type: Number, default: 0 }, lastSeen: { type: Date, default: Date.now }
+const UserSchema = new mongoose.Schema({
+  userId: { type: String, unique: true, index: true },
+  nickname: { type: String, index: true },
+  avatar: { type: String, default: "♛" },
+  clan: { type: String, default: "" },
+  xp: { type: Number, default: 0 },
+  level: { type: Number, default: 1 },
+  games: { type: Number, default: 0 },
+  wins: { type: Number, default: 0 },
+  losses: { type: Number, default: 0 },
+  mvp: { type: Number, default: 0 },
+  kills: { type: Number, default: 0 },
+  saves: { type: Number, default: 0 },
+  checks: { type: Number, default: 0 },
+  correctVotes: { type: Number, default: 0 },
+  karma: { type: Number, default: 0 },
+  lastSeen: { type: Date, default: Date.now }
 }, { timestamps: true });
-const matchSchema = new mongoose.Schema({
-  roomCode: String, winnerTeam: String, winnerMessage: String,
-  mvp: { userKey: String, nickname: String, avatar: String, score: Number },
-  players: [{ userKey: String, nickname: String, avatar: String, role: String, alive: Boolean, won: Boolean, xpGain: Number }],
-  history: [{ text: String, type: String, at: Date }], startedAt: Date, endedAt: Date
+const ClanSchema = new mongoose.Schema({
+  name: String, emblem: String, leaderId: String, members: [String], points: { type: Number, default: 0 }
 }, { timestamps: true });
-const User = mongoose.models.User || mongoose.model("User", userSchema);
-const Match = mongoose.models.Match || mongoose.model("Match", matchSchema);
-function userKeyFromName(name) { return cleanName(name).trim().toLowerCase(); }
-function levelFromXp(xp) { return Math.max(1, Math.floor(Math.sqrt(Math.max(0, Number(xp || 0)) / 80)) + 1); }
-async function connectMongo() {
-  if (!process.env.MONGODB_URI) { console.log("MongoDB disabled: MONGODB_URI is not set. Using in-memory profiles only."); return; }
-  try { await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 }); mongoReady = true; console.log("MongoDB connected"); }
-  catch (err) { mongoReady = false; console.error("MongoDB connection failed:", err.message); }
-}
-async function loadOrCreateUserProfile(nickname, avatar = "🕶️") {
-  const name = cleanName(nickname); const userKey = userKeyFromName(name);
-  if (!mongoReady) return { userKey, nickname: name, avatar, level: 1, xp: 0, games: 0, wins: 0, losses: 0, mvp: 0, kills: 0, saves: 0, checks: 0, correctVotes: 0 };
-  const doc = await User.findOneAndUpdate({ userKey }, { $set: { nickname: name, avatar: avatar || "🕶️", lastSeen: new Date() }, $setOnInsert: { xp: 0, games: 0, wins: 0, losses: 0, mvp: 0 } }, { new: true, upsert: true }).lean();
-  return { ...doc, level: levelFromXp(doc.xp) };
-}
-function winningTeamFromMessage(message = "") { const msg = String(message).toLowerCase(); if (msg.includes("mafia") || msg.includes("მაფია")) return "mafia"; if (msg.includes("serial") || msg.includes("solo") || msg.includes("სერიულ")) return "solo"; if (msg.includes("citizen") || msg.includes("მოქალაქ")) return "citizen"; return "draw"; }
-function playerTeam(role) { if (["mafia", "don"].includes(role)) return "mafia"; if (["serial_killer"].includes(role)) return "solo"; return "citizen"; }
-function computeMvp(room, winnerTeam) {
-  const candidates = room.players.map(p => { const prof = room.profiles[p.id] || {}; let score = 0; if (playerTeam(p.role) === winnerTeam) score += 20; if (p.alive) score += 10; score += Number(prof.kills || 0) * 4; score += Number(prof.saves || 0) * 3; score += Number(prof.checks || 0) * 3; score += Number(prof.correctVotes || 0) * 2; score += Number(prof.level || 1); return { player: p, prof, score }; }).sort((a,b)=>b.score-a.score);
-  const best = candidates[0]; if (!best) return null; return { socketId: best.player.id, userKey: best.prof.userKey || userKeyFromName(best.player.name), nickname: best.player.name, avatar: best.prof.avatar || "🏆", score: best.score };
-}
-async function persistGameResult(room, winnerMessage) {
-  if (!mongoReady || room.statsSaved) return; room.statsSaved = true;
-  const winnerTeam = winningTeamFromMessage(winnerMessage); const mvp = computeMvp(room, winnerTeam); const playersForMatch = [];
-  for (const p of room.players) { const prof = room.profiles[p.id] || {}; const userKey = prof.userKey || userKeyFromName(p.name); const won = playerTeam(p.role) === winnerTeam; const isMvp = mvp && mvp.socketId === p.id; const xpGain = 30 + (won ? 70 : 10) + (p.alive ? 15 : 0) + (isMvp ? 50 : 0); const inc = { games: 1, wins: won ? 1 : 0, losses: won ? 0 : 1, mvp: isMvp ? 1 : 0, xp: xpGain }; if (won && winnerTeam === "mafia") inc.mafiaWins = 1; if (won && winnerTeam === "citizen") inc.citizenWins = 1; if (won && winnerTeam === "solo") inc.soloWins = 1; await User.findOneAndUpdate({ userKey }, { $set: { nickname: p.name, avatar: prof.avatar || "🕶️", lastSeen: new Date() }, $inc: inc }, { upsert: true }); playersForMatch.push({ userKey, nickname: p.name, avatar: prof.avatar || "🕶️", role: p.role, alive: p.alive, won, xpGain }); io.to(p.id).emit("profile-stats-updated", { won, xpGain, isMvp }); }
-  await Match.create({ roomCode: room.code, winnerTeam, winnerMessage, mvp: mvp ? { userKey: mvp.userKey, nickname: mvp.nickname, avatar: mvp.avatar, score: mvp.score } : null, players: playersForMatch, history: room.history.map(h => ({ text: h.text, type: h.type, at: new Date(h.at || Date.now()) })), startedAt: room.startedAt || new Date(room.createdAt || Date.now()), endedAt: new Date() });
-}
+const MatchSchema = new mongoose.Schema({
+  roomCode: String,
+  roomName: String,
+  winner: String,
+  mvp: Object,
+  players: [Object],
+  history: [Object],
+  startedAt: Date,
+  endedAt: Date
+}, { timestamps: true });
+const User = mongoose.models.User || mongoose.model("User", UserSchema);
+const Clan = mongoose.models.Clan || mongoose.model("Clan", ClanSchema);
+const Match = mongoose.models.Match || mongoose.model("Match", MatchSchema);
 
-
-const ROLE_LABEL = {
-  mafia: "მაფია", don: "დონი", doctor: "ექიმი", sheriff: "შერიფი",
-  citizen: "მოქალაქე", detective: "დეტექტივი", serial_killer: "სერიული მკვლელი",
-  yakuza: "იაკუძა", chogun: "ჩოგუნი", vigilante: "ვიჯილანტი", maniac: "მანიაკი"
-};
-
-function makeRoom(code, hostId, hostName) {
+function calcLevel(xp) { return Math.max(1, Math.floor(Math.sqrt(Number(xp || 0) / 70)) + 1); }
+function clean(v) { return String(v || "").trim().slice(0, 40); }
+function publicUser(u = {}) {
   return {
-    code,
-    hostId,
-    hostName,
-    createdAt: Date.now(),
-    locked: false,
-    maxPlayers: 10,
-    phase: "waiting",
-    started: false,
-    players: [],
-    spectators: [],
-    profiles: {},
-    nightActions: {},
-    votes: {},
-    history: [],
-    startedAt: null,
-    statsSaved: false,
-    settings: {
-      sheriff: true,
-      don: true,
-      doctor: true,
-      mafia: 1,
-      detectiveText: true,
-      serialKiller: false,
-      yakuza: false,
-      chogun: false,
-      vigilante: false,
-      maniac: false
-    }
+    userId: u.userId, nickname: u.nickname, avatar: u.avatar || "♛", clan: u.clan || "",
+    xp: u.xp || 0, level: calcLevel(u.xp || 0), games: u.games || 0, wins: u.wins || 0,
+    losses: u.losses || 0, mvp: u.mvp || 0, kills: u.kills || 0, saves: u.saves || 0,
+    checks: u.checks || 0, correctVotes: u.correctVotes || 0, karma: u.karma || 0
   };
 }
-
-function getRoom(code) {
-  if (!code) return null;
-  return rooms.get(String(code));
+async function connectMongo() {
+  if (!process.env.MONGODB_URI) return console.log("MongoDB disabled: MONGODB_URI is not set.");
+  try {
+    await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
+    mongoReady = true;
+    console.log("MongoDB connected");
+  } catch (err) {
+    console.error("MongoDB connection failed:", err.message);
+  }
+}
+async function loadProfile({ userId, nickname, avatar }) {
+  const id = clean(userId || nickname || Math.random().toString(36).slice(2));
+  const name = clean(nickname || `Player-${id}`);
+  if (!mongoReady) return publicUser({ userId: id, nickname: name, avatar });
+  const doc = await User.findOneAndUpdate(
+    { userId: id },
+    { $set: { nickname: name, avatar: avatar || "♛", lastSeen: new Date() }, $setOnInsert: { xp: 0, games: 0, wins: 0, losses: 0 } },
+    { new: true, upsert: true }
+  ).lean();
+  return publicUser(doc);
 }
 
-function cleanName(name) {
-  return String(name || "Player").slice(0, 24);
+const rooms = new Map();
+const AVATARS = ["♛", "◈", "⬢", "✦", "☾", "♞", "☣", "◆"];
+const ROLE_LABELS = { mafia: "მაფია", don: "დონი", sheriff: "შერიფი", doctor: "ექიმი", detective: "დეტექტივი", citizen: "მოქალაქე" };
+function roomSnapshot(room) {
+  return {
+    code: room.code, name: room.name, hostName: room.hostName, language: room.language,
+    phase: room.phase, locked: room.locked, ranked: room.ranked, private: room.private,
+    playerCount: room.players.length, maxPlayers: room.settings.maxPlayers, spectatorCount: room.spectators.length,
+    avgLevel: room.players.length ? Math.round(room.players.reduce((a,p)=>a+(p.profile?.level||1),0)/room.players.length) : 1,
+    createdAt: room.createdAt
+  };
 }
-
-function roomList() {
-  return [...rooms.values()].map(r => {
-    const levels = Object.values(r.profiles).map(p => Number(p.level || 1));
-    const avgLevel = levels.length ? Math.round(levels.reduce((a,b)=>a+b,0) / levels.length) : 1;
-    const ageMin = Math.max(0, Math.floor((Date.now() - r.createdAt) / 60000));
-    return {
-      code: r.code,
-      hostName: r.hostName || "Unknown",
-      playerCount: r.players.length,
-      spectatorCount: r.spectators.length,
-      maxPlayers: r.maxPlayers,
-      phase: r.phase,
-      locked: r.locked,
-      avgLevel,
-      createdAgo: ageMin <= 0 ? "now" : `${ageMin}m ago`
-    };
-  });
+function emitRooms() { io.emit("rooms:list", [...rooms.values()].map(roomSnapshot)); }
+function makeRoom(code, hostSocket, settings = {}) {
+  const safe = clean(code || Math.floor(100 + Math.random() * 900));
+  const profile = hostSocket.data.profile;
+  const room = {
+    code: safe,
+    name: clean(settings.name || `VOID-${safe}`),
+    hostId: hostSocket.id,
+    hostName: profile.nickname,
+    language: settings.language || "Georgian",
+    phase: "waiting",
+    locked: false,
+    private: !!settings.private,
+    ranked: !!settings.ranked,
+    createdAt: Date.now(),
+    startedAt: null,
+    timer: null,
+    history: [],
+    votes: {},
+    night: { kills: [], saves: [], checks: [] },
+    settings: {
+      maxPlayers: Number(settings.maxPlayers || 10),
+      mafiaCount: Number(settings.mafiaCount || 1),
+      don: settings.don !== false,
+      sheriff: settings.sheriff !== false,
+      doctor: settings.doctor !== false,
+      detective: !!settings.detective,
+      spectator: settings.spectator !== false,
+      revealRoles: !!settings.revealRoles,
+      speakerRotation: settings.speakerRotation !== false,
+      discussion: settings.discussion !== false
+    },
+    players: [], spectators: []
+  };
+  rooms.set(safe, room);
+  return room;
 }
-
-function emitRoomList() {
-  io.emit("update-room-list", roomList());
+function getRoom(code) { return rooms.get(clean(code)); }
+function getMember(room, socketId) { return room.players.find(p => p.id === socketId) || room.spectators.find(p => p.id === socketId); }
+function isAdmin(socket) { return ADMIN_IDS.has(String(socket.data.profile?.userId || "")); }
+function isMonitor(socket) { return isAdmin(socket) || MONITOR_IDS.has(String(socket.data.profile?.userId || "")); }
+function canControl(socket, room) { return room && (room.hostId === socket.id || isAdmin(socket)); }
+function roomState(room) {
+  return {
+    code: room.code, name: room.name, phase: room.phase, locked: room.locked, settings: room.settings,
+    hostId: room.hostId,
+    players: room.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar, alive: p.alive, index: p.index, role: room.settings.revealRoles ? p.role : undefined, level: p.profile?.level || 1 })),
+    spectators: room.spectators.map(p => ({ id: p.id, name: p.name, avatar: p.avatar })),
+    history: room.history.slice(-30),
+    privilege: null
+  };
 }
-
-function publicPlayers(room) {
-  return room.players.map((p, i) => ({
-    id: p.id,
-    name: p.name,
-    nick: p.name,
-    index: i + 1,
-    alive: p.alive,
-    avatar: room.profiles[p.id]?.avatar || "🕶️",
-    level: room.profiles[p.id]?.level || 1,
-    xp: room.profiles[p.id]?.xp || 0,
-    games: room.profiles[p.id]?.games || 0,
-    wins: room.profiles[p.id]?.wins || 0,
-    mvp: room.profiles[p.id]?.mvp || 0
-  }));
-}
-
-function publicSpectators(room) {
-  return room.spectators.map(s => ({
-    id: s.id,
-    name: s.name,
-    nick: s.name,
-    avatar: room.profiles[s.id]?.avatar || "🕶️",
-    level: room.profiles[s.id]?.level || 1,
-    isSpectator: true
-  }));
-}
-
-function emitState(room) {
-  io.to(room.code).emit("game-state", {
-    phase: room.phase,
-    players: publicPlayers(room),
-    spectators: publicSpectators(room),
-    profiles: room.profiles,
-    locked: room.locked
-  });
-  io.to(room.code).emit("room-users-list", publicPlayers(room));
-  io.to(room.code).emit("spectators-update", publicSpectators(room));
-  io.to(room.code).emit("room-profiles", room.profiles);
-  emitRoomList();
-}
-
-function logRoom(room, text, type = "game") {
+function pushHistory(room, text, type = "info") {
   const item = { text, type, at: Date.now() };
   room.history.push(item);
-  if (room.history.length > 120) room.history.shift();
-  io.to(room.code).emit("game-log", item);
+  io.to(room.code).emit("game:history", item);
 }
-
-function removeSocketFromRooms(socket) {
-  for (const [code, room] of rooms.entries()) {
-    const beforePlayers = room.players.length;
-    const beforeSpecs = room.spectators.length;
-    room.players = room.players.filter(p => p.id !== socket.id);
-    room.spectators = room.spectators.filter(s => s.id !== socket.id);
-    delete room.profiles[socket.id];
-
-    if (beforePlayers !== room.players.length || beforeSpecs !== room.spectators.length) {
-      logRoom(room, `${socket.data.nick || "Player"} left the room`, "room");
-      if (room.hostId === socket.id) {
-        const nextHost = room.players[0];
-        if (nextHost) {
-          room.hostId = nextHost.id;
-          room.hostName = nextHost.name;
-          io.to(nextHost.id).emit("is-host");
-          logRoom(room, `${nextHost.name} is the new host`, "admin");
-        }
-      }
-      if (!room.players.length && !room.spectators.length) rooms.delete(code);
-      else emitState(room);
-    }
-  }
-  emitRoomList();
+function roleDeck(room) {
+  const deck = [];
+  if (room.settings.don) deck.push("don");
+  for (let i=0; i<room.settings.mafiaCount; i++) deck.push("mafia");
+  if (room.settings.sheriff) deck.push("sheriff");
+  if (room.settings.doctor) deck.push("doctor");
+  if (room.settings.detective) deck.push("detective");
+  while (deck.length < room.players.length) deck.push("citizen");
+  return deck.sort(() => Math.random() - .5);
 }
-
-function shuffle(arr) {
-  return [...arr].sort(() => Math.random() - 0.5);
+function startTimer(room, seconds, next) {
+  clearTimeout(room.timer);
+  const endsAt = Date.now() + seconds * 1000;
+  io.to(room.code).emit("phase:timer", { seconds, endsAt });
+  room.timer = setTimeout(() => next && next(), seconds * 1000);
 }
-
-function assignRoles(room, settings = {}) {
-  room.settings = { ...room.settings, ...settings };
-  const players = shuffle(room.players);
-  const roles = [];
-
-  const mafiaCount = Math.max(1, Math.min(Number(room.settings.mafia || 1), Math.max(1, players.length - 1)));
-  if (room.settings.don && players.length >= 5) roles.push("don");
-  for (let i = 0; i < mafiaCount; i++) roles.push("mafia");
-
-  if (room.settings.sheriff) roles.push("sheriff");
-  if (room.settings.doctor) roles.push("doctor");
-  if (room.settings.detectiveText) roles.push("detective");
-  if (room.settings.serialKiller) roles.push("serial_killer");
-  if (room.settings.yakuza) roles.push("yakuza");
-  if (room.settings.chogun) roles.push("chogun");
-  if (room.settings.vigilante) roles.push("vigilante");
-  if (room.settings.maniac) roles.push("maniac");
-
-  while (roles.length < players.length) roles.push("citizen");
-  roles.length = players.length;
-
-  players.forEach((p, i) => {
-    p.role = roles[i] || "citizen";
-    p.alive = true;
-    io.to(p.id).emit("role-assigned", p.role);
-  });
-
-  const mafiaIds = room.players.filter(p => ["mafia", "don"].includes(p.role)).map(p => p.id);
-  const yakuzaIds = room.players.filter(p => ["yakuza", "chogun"].includes(p.role)).map(p => p.id);
-  io.to(room.code).emit("mafia-list", mafiaIds);
-  io.to(room.code).emit("yakuza-list", yakuzaIds);
-}
-
-function startGame(room, settings) {
-  if (room.players.length < 4) {
-    io.to(room.hostId).emit("error", { msg: "საჭიროა მინიმუმ 4 მოთამაშე" });
-    return;
-  }
-  room.started = true;
-  room.startedAt = new Date();
-  room.statsSaved = false;
-  room.locked = true;
-  room.phase = "role-reveal";
-  room.nightActions = {};
+function changePhase(room, phase) {
+  room.phase = phase;
   room.votes = {};
-  assignRoles(room, settings);
-  logRoom(room, "Game started. Roles were assigned.", "start");
-  emitState(room);
-
-  setTimeout(() => {
-    if (!rooms.has(room.code)) return;
-    room.phase = "night";
-    room.nightActions = {};
-    logRoom(room, "Night phase started", "phase");
-    emitState(room);
-  }, 8000);
+  if (phase === "night") room.night = { kills: [], saves: [], checks: [] };
+  io.to(room.code).emit("game:state", roomState(room));
+  emitRooms();
+  if (phase === "night") { pushHistory(room, "ღამის ფაზა დაიწყო", "night"); startTimer(room, 45, () => resolveNight(room)); }
+  if (phase === "day") { pushHistory(room, "დღის განხილვა დაიწყო", "day"); startTimer(room, 90, () => changePhase(room, "vote")); }
+  if (phase === "vote") { pushHistory(room, "ხმის მიცემა დაიწყო", "vote"); startTimer(room, 35, () => resolveVote(room)); }
 }
-
-function alivePlayers(room) {
-  return room.players.filter(p => p.alive);
-}
-
-function playerById(room, id) {
-  return room.players.find(p => p.id === id);
-}
-
-function teamOf(role) {
-  if (["mafia", "don"].includes(role)) return "mafia";
-  if (["yakuza", "chogun"].includes(role)) return "yakuza";
-  if (role === "serial_killer") return "solo";
-  return "citizen";
-}
-
-function resolveNight(room) {
-  const actions = Object.values(room.nightActions);
-  const saved = new Set(actions.filter(a => a.action === "save").map(a => a.targetId));
-  const kills = actions.filter(a => ["kill", "serial-kill", "yakuza-kill", "vigilante-kill"].includes(a.action));
-  const killedNames = [];
-
-  kills.forEach(a => {
-    const target = playerById(room, a.targetId);
-    if (!target || !target.alive) return;
-    if (saved.has(target.id)) {
-      logRoom(room, `${target.name} was attacked but saved`, "night");
-      return;
-    }
-    target.alive = false;
-    killedNames.push(target.name);
-  });
-
-  if (!killedNames.length) logRoom(room, "Night ended. Nobody died.", "night");
-  else logRoom(room, `Night deaths: ${killedNames.join(", ")}`, "night");
-
-  room.nightActions = {};
-  checkWin(room);
-  if (room.phase !== "ended") room.phase = "day";
-  emitState(room);
-}
-
-function resolveVotes(room) {
-  const counts = {};
-  for (const targetId of Object.values(room.votes)) {
-    counts[targetId] = (counts[targetId] || 0) + 1;
-  }
-  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
-  const readable = {};
-  sorted.forEach(([id, count]) => {
-    const p = playerById(room, id);
-    if (p) readable[p.name] = count;
-  });
-  io.to(room.code).emit("vote-results", readable);
-
-  if (sorted.length) {
-    const [targetId, top] = sorted[0];
-    const tie = sorted[1] && sorted[1][1] === top;
-    if (!tie) {
-      const target = playerById(room, targetId);
-      if (target && target.alive) {
-        target.alive = false;
-        logRoom(room, `${target.name} was voted out`, "vote");
-      }
-    } else {
-      logRoom(room, "Vote tied. Nobody was executed.", "vote");
-    }
-  } else {
-    logRoom(room, "No votes were cast", "vote");
-  }
-
-  room.votes = {};
-  checkWin(room);
-  if (room.phase !== "ended") room.phase = "night";
-  emitState(room);
-}
-
-function finishGame(room, message) {
-  room.phase = "ended";
-  const winnerTeam = winningTeamFromMessage(message);
-  const mvp = computeMvp(room, winnerTeam);
-  io.to(room.code).emit("game-over", { message, winnerTeam, mvp: mvp ? { nickname: mvp.nickname, avatar: mvp.avatar, score: mvp.score } : null });
-  persistGameResult(room, message).catch(err => console.error("Persist game result failed:", err.message));
-  return true;
-}
-
 function checkWin(room) {
-  const alive = alivePlayers(room);
-  if (!alive.length) return finishGame(room, "თამაში დასრულდა — ყველა მოკვდა.");
-  const mafia = alive.filter(p => teamOf(p.role) === "mafia").length;
-  const citizens = alive.filter(p => teamOf(p.role) === "citizen").length;
-  const solo = alive.filter(p => teamOf(p.role) === "solo").length;
-  if (solo === 1 && alive.length === 1) return finishGame(room, "სერიული მკვლელი / solo player wins!");
-  if (mafia === 0 && solo === 0) return finishGame(room, "მოქალაქეები გაიმარჯვეს!");
-  if (mafia > 0 && mafia >= citizens + solo) return finishGame(room, "მაფია გაიმარჯვებს — Mafia wins!");
+  const alive = room.players.filter(p => p.alive);
+  const mafia = alive.filter(p => ["mafia", "don"].includes(p.role));
+  const town = alive.filter(p => !["mafia", "don"].includes(p.role));
+  if (!mafia.length) return endGame(room, "მოქალაქეებმა მოიგეს");
+  if (mafia.length >= town.length) return endGame(room, "მაფიამ მოიგო");
   return false;
 }
+function resolveNight(room) {
+  const targetId = room.night.kills[0];
+  const saved = room.night.saves.includes(targetId);
+  if (targetId && !saved) {
+    const target = room.players.find(p => p.id === targetId);
+    if (target) { target.alive = false; pushHistory(room, `${target.name} ღამით მოკლეს`, "death"); }
+  } else if (targetId && saved) pushHistory(room, "ექიმმა მსხვერპლი გადაარჩინა", "save");
+  if (!checkWin(room)) changePhase(room, "day");
+}
+function resolveVote(room) {
+  const tally = {};
+  Object.values(room.votes).forEach(id => tally[id] = (tally[id] || 0) + 1);
+  const top = Object.entries(tally).sort((a,b)=>b[1]-a[1])[0];
+  if (top) {
+    const target = room.players.find(p => p.id === top[0]);
+    if (target) { target.alive = false; pushHistory(room, `${target.name} გაიყვანეს ხმებით (${top[1]})`, "vote"); }
+  } else pushHistory(room, "არავინ გავიდა ხმებით", "vote");
+  if (!checkWin(room)) changePhase(room, "night");
+}
+async function endGame(room, winner) {
+  room.phase = "ended";
+  clearTimeout(room.timer);
+  pushHistory(room, winner, "win");
+  const mvp = room.players.slice().sort((a,b)=>(b.alive?1:0)-(a.alive?1:0))[0] || room.players[0];
+  io.to(room.code).emit("game:end", { winner, mvp: mvp ? { name: mvp.name, avatar: mvp.avatar } : null, history: room.history });
+  if (mongoReady) {
+    try {
+      await Match.create({ roomCode: room.code, roomName: room.name, winner, mvp: mvp?.profile, players: room.players.map(p => ({ userId:p.profile.userId, name:p.name, role:p.role, alive:p.alive })), history: room.history, startedAt: room.startedAt, endedAt: new Date() });
+      for (const p of room.players) await User.updateOne({ userId: p.profile.userId }, { $inc: { games: 1, xp: p.alive ? 60 : 30, wins: winner.includes("მაფი") === ["mafia","don"].includes(p.role) ? 1 : 0, losses: winner.includes("მაფი") === ["mafia","don"].includes(p.role) ? 0 : 1 } });
+    } catch (e) { console.error("persist match failed", e.message); }
+  }
+  emitRooms();
+}
+
+app.get("/api/leaderboard", async (req, res) => {
+  if (!mongoReady) return res.json([]);
+  const users = await User.find().sort({ xp: -1 }).limit(20).lean();
+  res.json(users.map(publicUser));
+});
+
 io.on("connection", socket => {
-  socket.on("get-rooms", emitRoomList);
-  socket.on("ping-check", () => socket.emit("pong-check"));
+  socket.on("profile:init", async data => {
+    try {
+      const profile = await loadProfile(data || {});
+      socket.data.profile = profile;
+      socket.emit("profile:ready", { profile, isAdmin: isAdmin(socket), isMonitor: isMonitor(socket) });
+    } catch (e) { socket.emit("toast", { text: "პროფილის ჩატვირთვა ვერ მოხერხდა", type: "error" }); }
+  });
 
-  socket.on("join-room", async (roomCode, nick, isSpectator = false, profile = {}) => {
-    roomCode = String(roomCode || "").trim();
-    if (!roomCode) return socket.emit("error", { msg: "ოთახის ID ცარიელია" });
+  socket.on("rooms:get", emitRooms);
+  socket.on("get-rooms", emitRooms);
 
-    let room = rooms.get(roomCode);
-    const name = cleanName(nick);
-    if (!room) {
-      room = makeRoom(roomCode, socket.id, name);
-      rooms.set(roomCode, room);
+  socket.on("room:join", async data => {
+    const profile = socket.data.profile || await loadProfile(data || {});
+    socket.data.profile = profile;
+    let room = getRoom(data?.code);
+    if (!room) room = makeRoom(data?.code, socket, data?.settings || {});
+    if (room.locked && room.hostId !== socket.id && !isAdmin(socket)) return socket.emit("toast", { text: "ოთახი დაკეტილია", type: "error" });
+    socket.join(room.code);
+    socket.data.room = room.code;
+    const member = { id: socket.id, name: profile.nickname, avatar: profile.avatar, profile, alive: true, role: null, index: room.players.length + 1 };
+    if (data?.spectator) {
+      room.spectators = room.spectators.filter(p => p.id !== socket.id);
+      room.spectators.push(member);
+    } else if (!room.players.some(p => p.id === socket.id)) {
+      if (room.players.length >= room.settings.maxPlayers) return socket.emit("toast", { text: "ოთახი სავსეა", type: "error" });
+      room.players.push(member);
     }
+    socket.emit("room:joined", { code: room.code, state: roomState(room), me: member, isHost: room.hostId === socket.id, isAdmin: isAdmin(socket), isMonitor: isMonitor(socket) });
+    socket.to(room.code).emit("webrtc:user-joined", { id: socket.id, name: member.name, avatar: member.avatar, index: member.index });
+    io.to(room.code).emit("game:state", roomState(room));
+    emitRooms();
+  });
 
-    if (room.locked && !isSpectator) {
-      return socket.emit("error", { msg: "ოთახი დაკეტილია ან თამაში უკვე დაიწყო" });
+  socket.on("room:update-settings", data => {
+    const room = getRoom(socket.data.room); if (!canControl(socket, room)) return;
+    Object.assign(room.settings, data?.settings || {});
+    if (data?.name) room.name = clean(data.name);
+    io.to(room.code).emit("game:state", roomState(room)); emitRooms();
+  });
+  socket.on("room:control", cmd => {
+    const room = getRoom(socket.data.room); if (!canControl(socket, room)) return;
+    if (cmd === "start") {
+      const deck = roleDeck(room); room.players.forEach((p,i) => { p.role = deck[i]; p.alive = true; io.to(p.id).emit("role:assigned", { role: p.role, label: ROLE_LABELS[p.role] || p.role }); });
+      room.startedAt = new Date(); changePhase(room, "night");
     }
-    if (!isSpectator && room.players.length >= room.maxPlayers) {
-      return socket.emit("error", { msg: "ოთახი სავსეა" });
-    }
+    if (cmd === "day") changePhase(room, "day");
+    if (cmd === "night") changePhase(room, "night");
+    if (cmd === "vote") changePhase(room, "vote");
+    if (cmd === "lock") { room.locked = true; emitRooms(); io.to(room.code).emit("game:state", roomState(room)); }
+    if (cmd === "unlock") { room.locked = false; emitRooms(); io.to(room.code).emit("game:state", roomState(room)); }
+    if (cmd === "reset") { room.phase = "waiting"; room.players.forEach(p => { p.alive = true; p.role = null; }); io.to(room.code).emit("game:state", roomState(room)); }
+    if (cmd === "end") endGame(room, "თამაში დასრულდა");
+  });
+  socket.on("night:action", data => {
+    const room = getRoom(socket.data.room); const me = room && room.players.find(p => p.id === socket.id); if (!room || !me || !me.alive || room.phase !== "night") return;
+    if (["mafia","don"].includes(me.role) && data.targetId) room.night.kills = [data.targetId];
+    if (me.role === "doctor" && data.targetId) room.night.saves = [data.targetId];
+    if (["sheriff","detective"].includes(me.role) && data.targetId) { const target = room.players.find(p => p.id === data.targetId); socket.emit("toast", { text: target ? `${target.name}: ${["mafia","don"].includes(target.role) ? "შავი" : "სუფთა"}` : "ვერ მოიძებნა", type: "info" }); }
+  });
+  socket.on("vote:cast", data => { const room = getRoom(socket.data.room); const me = room && room.players.find(p => p.id === socket.id); if (room && me && me.alive && room.phase === "vote") { room.votes[socket.id] = data.targetId; socket.emit("toast", { text: "ხმა მიღებულია", type: "success" }); } });
+  socket.on("chat:send", data => { const room = getRoom(socket.data.room); if (!room) return; const me = getMember(room, socket.id); if (!me) return; const tab = ["main","mafia","dead","spectator"].includes(data.tab) ? data.tab : "main"; const msg = { from: me.name, avatar: me.avatar, text: clean(data.text).slice(0,180), tab, at: Date.now() }; if (!msg.text) return; if (tab === "mafia") room.players.filter(p => ["mafia","don"].includes(p.role)).forEach(p => io.to(p.id).emit("chat:message", msg)); else io.to(room.code).emit("chat:message", msg); });
+  socket.on("signal:offer", data => io.to(data.to).emit("signal:offer", { from: socket.id, signal: data.signal }));
+  socket.on("signal:answer", data => io.to(data.to).emit("signal:answer", { from: socket.id, signal: data.signal }));
 
-    socket.join(roomCode);
-    socket.data.room = roomCode;
-    socket.data.nick = name;
-    socket.data.isSpectator = !!isSpectator;
-
+  socket.on("disconnect", () => {
+    const room = getRoom(socket.data.room); if (!room) return;
     room.players = room.players.filter(p => p.id !== socket.id);
-    room.spectators = room.spectators.filter(s => s.id !== socket.id);
-
-    const dbProfile = await loadOrCreateUserProfile(name, profile.avatar || "🕶️");
-    socket.emit("profile-loaded", dbProfile);
-
-    room.profiles[socket.id] = {
-      id: socket.id,
-      userKey: dbProfile.userKey || userKeyFromName(name),
-      name,
-      nick: name,
-      avatar: dbProfile.avatar || profile.avatar || "🕶️",
-      level: levelFromXp(dbProfile.xp || profile.xp || 0),
-      xp: Number(dbProfile.xp || profile.xp || 0),
-      games: Number(dbProfile.games || profile.games || 0),
-      wins: Number(dbProfile.wins || profile.wins || 0),
-      losses: Number(dbProfile.losses || 0),
-      mvp: Number(dbProfile.mvp || profile.mvp || 0),
-      kills: Number(dbProfile.kills || 0),
-      saves: Number(dbProfile.saves || 0),
-      checks: Number(dbProfile.checks || 0),
-      correctVotes: Number(dbProfile.correctVotes || 0),
-      isSpectator: !!isSpectator
-    };
-
-    if (isSpectator) room.spectators.push({ id: socket.id, name });
-    else room.players.push({ id: socket.id, name, alive: true, role: null });
-
-    if (!room.hostId || !room.players.some(p => p.id === room.hostId)) {
-      const host = room.players[0];
-      if (host) { room.hostId = host.id; room.hostName = host.name; }
-    }
-    if (room.hostId === socket.id) socket.emit("is-host");
-    emitPrivilege(socket, room);
-
-    const existing = publicPlayers(room).filter(p => p.id !== socket.id);
-    socket.emit("all-users-info", existing);
-    emitState(room);
-    logRoom(room, `${name} joined as ${isSpectator ? "spectator" : "player"}`, "room");
-  });
-
-  socket.on("sending-signal", payload => {
-    if (!payload?.userToSignal) return;
-    const room = getRoom(socket.data.room);
-    const prof = room?.profiles?.[socket.id] || {};
-    io.to(payload.userToSignal).emit("user-joined-with-info", {
-      signal: payload.signal,
-      id: payload.callerID || socket.id,
-      nick: socket.data.nick,
-      name: socket.data.nick,
-      avatar: prof.avatar,
-      level: prof.level,
-      index: room ? publicPlayers(room).find(p => p.id === socket.id)?.index : 1
-    });
-  });
-
-  socket.on("returning-signal", payload => {
-    if (!payload?.callerID) return;
-    io.to(payload.callerID).emit("receiving-returned-signal", {
-      signal: payload.signal,
-      id: socket.id
-    });
-  });
-
-  socket.on("start-game-request", data => {
-    const room = getRoom(data?.room || socket.data.room);
-    if (!room) return;
-    if (!canControlRoom(socket, room)) return socket.emit("error", { msg: "მხოლოდ ჰოსტს ან ადმინს შეუძლია დაწყება" });
-    startGame(room, data.settings || {});
-  });
-
-  socket.on("night-action", data => {
-    const room = getRoom(data?.room || socket.data.room);
-    if (!room || room.phase !== "night") return;
-    const actor = playerById(room, socket.id);
-    const target = playerById(room, data.targetId);
-    if (!actor || !target || !actor.alive) return;
-
-    room.nightActions[socket.id] = { actorId: socket.id, targetId: target.id, action: data.action };
-    logRoom(room, `${actor.name} submitted night action`, "night");
-
-    if (data.action === "check") {
-      const isMafia = teamOf(target.role) === "mafia" && !["don", "yakuza"].includes(target.role);
-      socket.emit("sheriff-result", { name: target.name, isMafia });
-    }
-
-    const actionable = alivePlayers(room).filter(p => !["citizen"].includes(p.role)).length || 1;
-    if (Object.keys(room.nightActions).length >= actionable) resolveNight(room);
-  });
-
-  socket.on("vote-player", data => {
-    const room = getRoom(data?.room || socket.data.room);
-    if (!room || room.phase !== "vote") return;
-    const voter = playerById(room, socket.id);
-    const target = playerById(room, data.targetId);
-    if (!voter || !target || !voter.alive) return;
-    room.votes[socket.id] = target.id;
-    logRoom(room, `${voter.name} voted`, "vote");
-
-    if (Object.keys(room.votes).length >= alivePlayers(room).length) resolveVotes(room);
-  });
-
-  socket.on("send-chat-msg", data => {
-    const room = getRoom(data?.room || socket.data.room);
-    if (!room) return;
-    const tab = data.tab || "main";
-    const msg = {
-      name: cleanName(data.name || socket.data.nick),
-      text: String(data.text || "").slice(0, 400),
-      tab
-    };
-
-    if (tab === "mafia") {
-      const sender = playerById(room, socket.id);
-      if (!sender || !["mafia","don","yakuza","chogun"].includes(sender.role)) return;
-      room.players
-        .filter(p => ["mafia","don","yakuza","chogun"].includes(p.role))
-        .forEach(p => io.to(p.id).emit("receive-chat-msg", msg));
-      return;
-    }
-
-    if (tab === "spectator") {
-      room.spectators.forEach(s => io.to(s.id).emit("receive-chat-msg", msg));
-      return;
-    }
-
-    if (tab === "dead") {
-      room.players.filter(p => !p.alive).forEach(p => io.to(p.id).emit("receive-chat-msg", msg));
-      return;
-    }
-
-    io.to(room.code).emit("receive-chat-msg", msg);
-  });
-
-  socket.on("admin-action", data => {
-    const room = getRoom(data?.room || socket.data.room);
-    if (!room) return;
-    const privilege = getPrivilege(socket, room);
-    const monitorOnlyAllowed = ["start-individual-turns", "clear-chat"].includes(data.action);
-    if (!canControlRoom(socket, room) && !(privilege.isMonitor && monitorOnlyAllowed)) {
-      return socket.emit("error", { msg: "ამ მოქმედებისთვის საჭიროა ჰოსტის ან ადმინის უფლება" });
-    }
-
-    switch (data.action) {
-      case "end-game":
-        finishGame(room, "თამაში დასრულდა ჰოსტის მიერ.");
-        break;
-      case "reset-game":
-        room.phase = "waiting";
-        room.started = false;
-        room.locked = false;
-        room.players.forEach(p => { p.alive = true; p.role = null; });
-        break;
-      case "force-day":
-        room.phase = "day";
-        break;
-      case "force-vote":
-        room.phase = "vote";
-        break;
-      case "force-night":
-        room.phase = "night";
-        room.nightActions = {};
-        break;
-      case "revive-all":
-        room.players.forEach(p => p.alive = true);
-        break;
-      case "kill-random": {
-        const a = alivePlayers(room);
-        if (a.length) a[Math.floor(Math.random() * a.length)].alive = false;
-        checkWin(room);
-        break;
-      }
-      case "lock-room":
-        room.locked = true;
-        break;
-      case "unlock-room":
-        room.locked = false;
-        break;
-      case "close-room":
-        io.to(room.code).emit("error", { msg: "ოთახი დაიხურა" });
-        io.in(room.code).socketsLeave(room.code);
-        rooms.delete(room.code);
-        emitRoomList();
-        return;
-      case "start-individual-turns":
-        io.to(room.code).emit("start-individual-turns", data.data || alivePlayers(room).map(p => p.id));
-        break;
-      case "clear-chat":
-        io.to(room.code).emit("phase-message", "Chat cleared by host");
-        break;
-      default:
-        logRoom(room, `Admin action: ${data.action}`, "admin");
-    }
-    logRoom(room, `Admin action: ${data.action}`, "admin");
-    emitState(room);
-  });
-
-  socket.on("admin-announcement", data => {
-    const room = getRoom(data?.room || socket.data.room);
-    if (!room || !canControlRoom(socket, room)) return;
-    io.to(room.code).emit("admin-announcement", { message: String(data.message || "").slice(0, 200) });
-  });
-
-  socket.on("disconnect", () => removeSocketFromRooms(socket));
-});
-
-connectMongo().finally(() => {
-  server.listen(PORT, () => {
-    console.log(`VOID MAFIA v9.1 Legacy Pro running on port ${PORT}`);
+    room.spectators = room.spectators.filter(p => p.id !== socket.id);
+    if (room.hostId === socket.id && room.players[0]) room.hostId = room.players[0].id, room.hostName = room.players[0].name;
+    socket.to(room.code).emit("webrtc:user-left", { id: socket.id });
+    if (!room.players.length && !room.spectators.length) rooms.delete(room.code); else io.to(room.code).emit("game:state", roomState(room));
+    emitRooms();
   });
 });
+
+connectMongo().finally(() => server.listen(PORT, () => console.log(`VOID MAFIA v9.3 running on ${PORT}`)));
