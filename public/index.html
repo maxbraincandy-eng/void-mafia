@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>VOID MAFIA v9.3</title>
+  <title>VOID MAFIA v9.4</title>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css" />
 </head>
@@ -13,12 +13,12 @@
     <button class="ghost-back hidden">‹</button>
     <section class="brand-block">
       <div class="brand-logo">VOID MAFIA</div>
-      <div class="brand-sub">Powered by ბატონი მაქსი · v9.3</div>
+      <div class="brand-sub">Powered by ბატონი მაქსი · v9.4</div>
     </section>
     <section class="auth-card glass">
       <div class="auth-emblem">♛</div>
       <h1>შედი VOID-ში</h1>
-      <p>შექმენი პროფილი, შეინახე სტატისტიკა და შეუერთდი მაგიდას.</p>
+      <p>შექმენი პროფილი, მიიღე რიგითი ID და შეუერთდი მაგიდას.</p>
       <div class="field"><span>✦</span><input id="nick" placeholder="ნიკნეიმი" autocomplete="nickname" /></div>
       <div class="avatar-row" id="avatarRow"></div>
       <button id="enterBtn" class="primary">პროფილით შესვლა</button>
@@ -62,11 +62,10 @@
     </section>
 
     <section id="tab-clans" class="tab"><div class="section-head"><div><h2>კლანები</h2><p>გუნდები, წევრები და რეიტინგი.</p></div><span class="pill">BETA</span></div><div class="glass"><h3>ჩემი კლანი</h3><div class="clan-card"><div class="clan-emblem">♛</div><div><b>Void Syndicate</b><p>ლიდერი: ბატონი მაქსი · წევრები 1/30</p><span>cyber</span><span>ranked</span></div><button>ნახვა</button></div></div><div class="glass"><h3>რეიტინგი</h3><div id="clanList"></div></div></section>
-    <section id="tab-store" class="tab"><div class="section-head"><div><h2>მაღაზია</h2><p>კოსმეტიკა, ჩარჩოები და საჩუქრები.</p></div><span class="pill">SOON</span></div><div class="store-list"><div class="store-row"><i>◎</i><div><b>Coins</b><small>შიდა ქულები და ბონუსები</small></div><span>›</span></div><div class="store-row"><i>♕</i><div><b>Membership</b><small>VIP ჩარჩოები და სტატუსები</small></div><span>›</span></div><div class="store-row"><i>✦</i><div><b>Frames</b><small>პროფილის და კამერის ჩარჩოები</small></div><span>›</span></div><div class="store-row"><i>◆</i><div><b>Gifts</b><small>საჩუქრები მოთამაშეებისთვის</small></div><span>›</span></div></div></section>
     <section id="tab-stats" class="tab"><div class="section-head"><div><h2>სტატისტიკა</h2><p>სეზონის და როლების ანალიზი.</p></div></div><div class="stats-grid"><div class="stat"><b id="stGames">0</b><small>თამაშები</small></div><div class="stat"><b id="stWins">0</b><small>მოგებები</small></div><div class="stat"><b id="stMvp">0</b><small>MVP</small></div><div class="stat"><b id="stLevel">1</b><small>Level</small></div></div><div class="glass"><h3>Leaderboard</h3><div id="leaderboard" class="leaderboard"></div></div></section>
     <section id="tab-profile" class="tab"><div class="profile-hero glass"><div id="profileAvatar" class="profile-avatar">♛</div><div><h2 id="profileName">---</h2><div class="rank">Underboss · Level <span id="profileLevel">1</span></div><div class="xp"><span id="xpFill"></span></div></div></div><div class="stats-grid"><div class="stat"><b id="profileId">67</b><small>ID</small></div><div class="stat"><b id="profileXp">0</b><small>XP</small></div><div class="stat"><b id="profileKarma">0</b><small>Karma</small></div><div class="stat"><b>Today</b><small>Last seen</small></div></div></section>
 
-    <nav class="bottom-nav"><button class="nav active" data-tab="tables"><b>◉</b>მაგიდები</button><button class="nav" data-tab="clans"><b>⬟</b>კლანები</button><button class="nav" data-tab="store"><b>◈</b>მაღაზია</button><button class="nav" data-tab="stats"><b>▤</b>სტატისტიკა</button><button class="nav" data-tab="profile"><b>♛</b>პროფილი</button></nav>
+    <nav class="bottom-nav"><button class="nav active" data-tab="tables"><b>◉</b>მაგიდები</button><button class="nav" data-tab="clans"><b>⬟</b>კლანები</button><button class="nav" data-tab="stats"><b>▤</b>სტატისტიკა</button><button class="nav" data-tab="profile"><b>♛</b>პროფილი</button></nav>
   </main>
 
   <main id="game" class="screen game hidden">
@@ -75,7 +74,7 @@
     <section id="videoGrid" class="video-grid"></section>
     <button id="chatBtn" class="chat-float">CHAT <em id="unread" class="hidden">0</em></button>
     <aside id="chatPanel" class="chat-panel"><div class="chat-head"><b>VOID CHAT</b><button id="closeChat">×</button></div><div class="chat-tabs"><button class="chat-tab active" data-chat="main">MAIN</button><button class="chat-tab" data-chat="mafia">MAFIA</button><button class="chat-tab" data-chat="dead">DEAD</button><button class="chat-tab" data-chat="spectator">SPEC</button></div><div id="messages" class="messages"></div><div class="chat-input"><input id="chatInput" placeholder="დაწერე..."><button id="sendChat">➤</button></div></aside>
-    <section id="roomSettings" class="modal hidden"><div class="modal-card"><button id="closeSettings" class="modal-close">×</button><h2>Room Settings</h2><p>ჰოსტის მართვა, ფაზები და როლები.</p><h3>Game Flow</h3><div class="control-grid"><button data-cmd="start" class="primary">START GAME</button><button data-cmd="day">TO DAY</button><button data-cmd="night">TO NIGHT</button><button data-cmd="vote">TO VOTE</button><button data-cmd="lock" class="warn">LOCK</button><button data-cmd="unlock" class="good">UNLOCK</button><button data-cmd="reset" class="warn">RESET</button><button data-cmd="end" class="danger">END</button></div><h3>Roles</h3><div id="roleSummary" class="role-summary"></div></div></section>
+    <section id="roomSettings" class="modal hidden"><div class="modal-card room-settings-card"><button id="closeSettings" class="modal-close">×</button><h2>Room Settings</h2><p>ჰოსტის მართვა აქვს #1 პოზიციაზე მჯდომ მოთამაშეს. აქვე შეცვლი მაგიდის წესებს და როლებს.</p><h3>Game Flow</h3><div class="control-grid"><button data-cmd="start" class="primary">START GAME</button><button data-cmd="day">TO DAY</button><button data-cmd="night">TO NIGHT</button><button data-cmd="vote">TO VOTE</button><button data-cmd="lock" class="warn">LOCK</button><button data-cmd="unlock" class="good">UNLOCK</button><button data-cmd="reset" class="warn">RESET</button><button data-cmd="end" class="danger">END</button></div><h3>Table</h3><div class="settings-grid modal-settings-grid"><label>სახელი <input id="rsName" placeholder="მაგიდის სახელი"></label><label>Max <input id="rsMaxPlayers" type="number" min="4" max="16" value="10"></label></div><h3>Roles</h3><div class="settings-grid modal-settings-grid"><label><input id="rsRoleSheriff" type="checkbox"> შერიფი</label><label><input id="rsRoleDon" type="checkbox"> დონი</label><label><input id="rsRoleDoctor" type="checkbox"> ექიმი</label><label><input id="rsRoleDetective" type="checkbox"> დეტექტივი</label><label>მაფია <input id="rsMafiaCount" type="number" min="1" max="4" value="1"></label></div><div id="roleSummary" class="role-summary"></div><button id="saveRoomSettings" class="primary wide-save">SAVE TABLE SETTINGS</button></div></section>
     <section id="roleModal" class="modal hidden"><div class="modal-card role-card"><h2>შენი როლი</h2><div id="roleIcon" class="big-role">?</div><b id="roleName">---</b><p id="roleDesc"></p><button id="closeRole" class="primary">გავიგე</button></div></section>
     <section id="winModal" class="modal hidden"><div class="modal-card"><h2 id="winTitle">გამარჯვება</h2><p id="winDesc"></p><button onclick="location.reload()" class="primary">დახურვა</button></div></section>
   </main>
