@@ -17,6 +17,29 @@ app.use(express.static(path.join(__dirname, "public")));
 const rooms = new Map();
 
 /* ============================================================
+   V9.1 PRIVILEGES
+   Put comma-separated userKey / nickname / socketId values in .env:
+   ADMIN_IDS=max,batoni max,92642
+   MONITOR_IDS=observer1,moderator2
+============================================================ */
+const ADMIN_IDS = new Set(String(process.env.ADMIN_IDS || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean));
+const MONITOR_IDS = new Set(String(process.env.MONITOR_IDS || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean));
+function privilegeTokens(socket, room) {
+  const prof = room?.profiles?.[socket.id] || {};
+  return [socket.id, socket.data?.nick, prof.userKey, prof.nickname, prof.name].filter(Boolean).map(v => String(v).trim().toLowerCase());
+}
+function getPrivilege(socket, room) {
+  const tokens = privilegeTokens(socket, room);
+  const isAdmin = tokens.some(t => ADMIN_IDS.has(t));
+  const isMonitor = isAdmin || tokens.some(t => MONITOR_IDS.has(t));
+  const isHost = !!room && room.hostId === socket.id;
+  return { isHost, isAdmin, isMonitor, role: isAdmin ? "admin" : isMonitor ? "monitor" : isHost ? "host" : "player" };
+}
+function canControlRoom(socket, room) { const p = getPrivilege(socket, room); return p.isHost || p.isAdmin; }
+function emitPrivilege(socket, room) { socket.emit("privilege-status", getPrivilege(socket, room)); }
+
+
+/* ============================================================
    V8 MONGODB / PERSISTENT STATS
 ============================================================ */
 let mongoReady = false;
@@ -424,6 +447,7 @@ io.on("connection", socket => {
       if (host) { room.hostId = host.id; room.hostName = host.name; }
     }
     if (room.hostId === socket.id) socket.emit("is-host");
+    emitPrivilege(socket, room);
 
     const existing = publicPlayers(room).filter(p => p.id !== socket.id);
     socket.emit("all-users-info", existing);
@@ -457,7 +481,7 @@ io.on("connection", socket => {
   socket.on("start-game-request", data => {
     const room = getRoom(data?.room || socket.data.room);
     if (!room) return;
-    if (room.hostId !== socket.id) return socket.emit("error", { msg: "მხოლოდ ჰოსტს შეუძლია დაწყება" });
+    if (!canControlRoom(socket, room)) return socket.emit("error", { msg: "მხოლოდ ჰოსტს ან ადმინს შეუძლია დაწყება" });
     startGame(room, data.settings || {});
   });
 
@@ -526,7 +550,12 @@ io.on("connection", socket => {
 
   socket.on("admin-action", data => {
     const room = getRoom(data?.room || socket.data.room);
-    if (!room || room.hostId !== socket.id) return;
+    if (!room) return;
+    const privilege = getPrivilege(socket, room);
+    const monitorOnlyAllowed = ["start-individual-turns", "clear-chat"].includes(data.action);
+    if (!canControlRoom(socket, room) && !(privilege.isMonitor && monitorOnlyAllowed)) {
+      return socket.emit("error", { msg: "ამ მოქმედებისთვის საჭიროა ჰოსტის ან ადმინის უფლება" });
+    }
 
     switch (data.action) {
       case "end-game":
@@ -584,7 +613,7 @@ io.on("connection", socket => {
 
   socket.on("admin-announcement", data => {
     const room = getRoom(data?.room || socket.data.room);
-    if (!room || room.hostId !== socket.id) return;
+    if (!room || !canControlRoom(socket, room)) return;
     io.to(room.code).emit("admin-announcement", { message: String(data.message || "").slice(0, 200) });
   });
 
@@ -593,6 +622,6 @@ io.on("connection", socket => {
 
 connectMongo().finally(() => {
   server.listen(PORT, () => {
-    console.log(`VOID MAFIA v8 MongoDB Edition running on port ${PORT}`);
+    console.log(`VOID MAFIA v9.1 Legacy Pro running on port ${PORT}`);
   });
 });
