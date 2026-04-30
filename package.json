@@ -1,7 +1,7 @@
 {
-  "name": "void-mafia-v7-pro",
-  "version": "7.0.0",
-  "description": "VOID MAFIA v7 Pro - WebRTC Mafia room app",
+  "name": "void-mafia-v8-mongodb",
+  "version": "8.0.0",
+  "description": "VOID MAFIA v8 MongoDB Edition - persistent profiles, stats, matches",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,10 +9,11 @@
   },
   "dependencies": {
     "express": "^4.19.2",
-    "socket.io": "^4.7.5"
+    "socket.io": "^4.7.5",
+    "dotenv": "^16.4.7",
+    "mongoose": "^8.9.5"
   },
   "engines": {
     "node": ">=18"
   }
 }
-
