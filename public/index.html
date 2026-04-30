@@ -479,7 +479,7 @@
 
     .chat-tabs {
       display:grid;
-      grid-template-columns:1fr 1fr 1fr 1fr;
+      grid-template-columns:1fr 1fr 1fr;
       gap:4px;
       padding:7px;
       background:#080316;
@@ -1055,6 +1055,27 @@
       #my-role-card { max-width:34vw; }
     }
 
+
+
+    /* ===== V9.1 LEGACY PRO PATCH ===== */
+    body:not(.game-active) #chat-panel,
+    body:not(.game-active) #chat-toggle,
+    body:not(.game-active) #chat-unread-badge,
+    body:not(.game-active) .mini-games-toggle,
+    body:not(.game-active) #stats-toggle { display:none !important; }
+    #admin-toggle-btn, #admin-panel { display:none !important; }
+    .host-compact-controls { gap:8px; }
+    .host-chip.settings-main { background:linear-gradient(135deg,var(--neon),var(--cyan)); color:#000; }
+    .settings-control-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin:12px 0; padding:12px; border:1px solid rgba(0,255,255,.28); background:rgba(0,255,255,.045); border-radius:14px; }
+    .settings-control-grid button { padding:10px 8px; border:0; border-radius:10px; background:#151b3e; color:white; font-family:Orbitron; font-size:.55rem; cursor:pointer; }
+    .settings-control-grid button.good { background:#007f66; }
+    .settings-control-grid button.warn { background:#7f5c00; }
+    .settings-control-grid button.danger { background:#a30032; }
+    .settings-control-grid button.primary { background:linear-gradient(135deg,var(--neon),var(--cyan)); color:#000; }
+    .privilege-badge { position:fixed; top:42px; right:10px; z-index:2300; padding:7px 10px; border-radius:10px; border:1px solid rgba(0,255,255,.5); background:rgba(7,2,15,.92); color:var(--cyan); font-family:Orbitron; font-size:.52rem; box-shadow:0 0 14px rgba(0,255,255,.16); display:none; }
+    .privilege-badge.visible { display:block; }
+    .monitor-note { font-size:.76rem; color:#aaa; line-height:1.45; padding:10px; border:1px dashed rgba(255,255,255,.18); border-radius:12px; margin:8px 0 12px; }
+
     /* ===== V5: GLITCH TITLE ANIMATION ===== */
     @keyframes glitchFlicker {
       0%,94%,100% { text-shadow:0 0 15px var(--cyan), 2px 2px var(--neon); }
@@ -1174,179 +1195,6 @@
       z-index:3;
     }
 
-
-    /* ===== V7 PRO: LOBBY, AVATARS, ROOM CARDS, STATS ===== */
-    .v7-avatar-picker {
-      display:grid;
-      grid-template-columns:repeat(4,1fr);
-      gap:8px;
-      margin-top:4px;
-    }
-    .v7-avatar-btn {
-      border:1px solid rgba(0,255,255,.35);
-      background:rgba(255,255,255,.05);
-      color:white;
-      border-radius:14px;
-      min-height:58px;
-      font-size:1.45rem;
-      cursor:pointer;
-      box-shadow:inset 0 0 14px rgba(0,255,255,.07);
-    }
-    .v7-avatar-btn.selected {
-      border-color:var(--cyan);
-      background:rgba(0,255,255,.16);
-      box-shadow:0 0 18px rgba(0,255,255,.32);
-      transform:scale(1.03);
-    }
-    .v7-profile-mini {
-      border:1px solid rgba(255,0,255,.35);
-      background:rgba(0,0,0,.32);
-      border-radius:14px;
-      padding:10px;
-      font-size:.78rem;
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:6px;
-      margin-top:4px;
-    }
-    .v7-profile-mini b { color:var(--cyan); font-family:Orbitron; }
-    .room-card-pro {
-      border:1px solid rgba(0,255,255,.45);
-      background:linear-gradient(135deg, rgba(0,255,255,.07), rgba(255,0,255,.07));
-      border-radius:16px;
-      padding:12px;
-      margin-top:9px;
-      box-shadow:0 0 18px rgba(0,255,255,.08);
-    }
-    .room-card-pro-header {
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:8px;
-      margin-bottom:8px;
-      font-family:Orbitron;
-    }
-    .room-card-pro-title { color:var(--cyan); font-size:.78rem; }
-    .room-status-chip {
-      padding:4px 8px;
-      border-radius:999px;
-      border:1px solid rgba(255,255,255,.2);
-      font-size:.5rem;
-      color:#ddd;
-    }
-    .room-status-chip.open { border-color:var(--green); color:var(--green); }
-    .room-status-chip.locked { border-color:#ffcc00; color:#ffcc00; }
-    .room-status-chip.ingame { border-color:var(--red); color:var(--red); }
-    .room-card-pro-grid {
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:6px;
-      font-size:.76rem;
-      color:#ddd;
-      margin-bottom:10px;
-    }
-    .room-card-pro-grid span {
-      background:rgba(0,0,0,.22);
-      border-radius:9px;
-      padding:6px;
-    }
-    .room-card-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-    .room-card-actions .btn { border-radius:10px; padding:10px 6px; font-size:.58rem; }
-    .v7-avatar-badge {
-      position:absolute;
-      top:8px; left:24px;
-      z-index:14;
-      font-size:1.15rem;
-      filter:drop-shadow(0 0 8px rgba(0,255,255,.7));
-    }
-    .v7-level-badge {
-      position:absolute;
-      top:8px; left:52px;
-      z-index:14;
-      border:1px solid rgba(0,255,255,.5);
-      background:rgba(0,0,0,.7);
-      color:var(--cyan);
-      border-radius:999px;
-      padding:2px 6px;
-      font-family:Orbitron;
-      font-size:.48rem;
-    }
-    .v7-profile-stats {
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:7px;
-      margin-top:12px;
-    }
-    .v7-profile-stat {
-      background:rgba(255,255,255,.06);
-      border:1px solid rgba(255,255,255,.12);
-      border-radius:10px;
-      padding:8px;
-      font-family:Orbitron;
-      font-size:.62rem;
-    }
-    .v7-profile-stat b { display:block; color:var(--cyan); font-size:.75rem; margin-top:3px; }
-    #v7-history-toggle {
-      position:fixed;
-      bottom:92px;
-      right:132px;
-      z-index:1600;
-      width:auto;
-      padding:12px 14px;
-      border-radius:18px;
-      background:linear-gradient(135deg,#111735,#00ffff);
-      color:white;
-      font-size:.6rem;
-      box-shadow:0 0 18px rgba(0,255,255,.35);
-    }
-    #v7-history-panel {
-      position:fixed;
-      left:50%;
-      top:50%;
-      transform:translate(-50%,-50%);
-      z-index:3600;
-      width:460px;
-      max-width:94vw;
-      max-height:82vh;
-      overflow-y:auto;
-      background:rgba(7,2,15,.98);
-      border:2px solid var(--cyan);
-      border-radius:18px;
-      padding:16px;
-      box-shadow:0 0 45px rgba(0,255,255,.25);
-    }
-    .v7-history-head {
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      margin-bottom:12px;
-      border-bottom:1px solid rgba(0,255,255,.28);
-      padding-bottom:10px;
-    }
-    .v7-history-head h2 { margin:0; color:var(--cyan); font-family:Orbitron; font-size:.92rem; }
-    .v7-history-close {
-      width:36px; height:36px; border:0; border-radius:10px;
-      background:var(--red); color:white; font-family:Orbitron; cursor:pointer;
-    }
-    .v7-history-item {
-      border-left:3px solid var(--cyan);
-      background:rgba(255,255,255,.045);
-      border-radius:0 10px 10px 0;
-      padding:9px 10px;
-      margin-bottom:7px;
-      font-size:.82rem;
-    }
-    .v7-history-item small { display:block; color:#888; margin-top:3px; }
-    .chat-tab[data-chat="mafia"] { border-color:rgba(255,62,62,.55); color:#ffbaba; }
-    .chat-tab[data-chat="mafia"].active { background:var(--red); color:#fff; }
-    .v7-result-line {
-      font-family:Orbitron;
-      color:var(--cyan);
-      margin-top:8px;
-      font-size:.78rem;
-    }
-
   </style>
 </head>
 
@@ -1399,25 +1247,11 @@
   </div>
 
   <h1 class="glitch-title">VOID MAFIA</h1>
-  <div class="powered">Powered by ბატონი მაქსი · v7 PRO &nbsp;·&nbsp; <span style="color:var(--neon);">v6</span></div>
+  <div class="powered">Powered by ბატონი მაქსი &nbsp;·&nbsp; <span style="color:var(--neon);">v6</span></div>
 
   <!-- LOGIN -->
   <div id="login-screen" class="card">
     <input id="nickname" type="text" placeholder="შეიყვანე ნიკნეიმი">
-
-    <div style="text-align:left; font-size:.72rem; color:var(--cyan); font-family:Orbitron;">AVATAR</div>
-    <div id="v7-avatar-picker" class="v7-avatar-picker">
-      <button class="v7-avatar-btn selected" data-avatar="🕶️">🕶️</button>
-      <button class="v7-avatar-btn" data-avatar="🐺">🐺</button>
-      <button class="v7-avatar-btn" data-avatar="👑">👑</button>
-      <button class="v7-avatar-btn" data-avatar="💀">💀</button>
-      <button class="v7-avatar-btn" data-avatar="🧠">🧠</button>
-      <button class="v7-avatar-btn" data-avatar="🔥">🔥</button>
-      <button class="v7-avatar-btn" data-avatar="🩺">🩺</button>
-      <button class="v7-avatar-btn" data-avatar="⭐">⭐</button>
-    </div>
-    <div id="v7-local-profile-mini" class="v7-profile-mini"></div>
-
     <button class="btn" id="login-btn">შესვლა</button>
   </div>
 
@@ -1446,13 +1280,13 @@
       <span id="game-timer">00:00</span>
       <span id="alive-count">0 ცოცხალი</span>
     </div>
-    <div id="game-powered-by">Powered by ბატონი მაქსი · v7 PRO</div>
+    <div id="game-powered-by">Powered by ბატონი მაქსი</div>
 
     <!-- Host compact controls -->
     <div id="host-compact-controls" class="host-compact-controls hidden">
-      <button id="role-settings-btn" class="host-chip">ROLES</button>
-      <button id="host-start-compact" class="host-chip start">START</button>
+      <button id="role-settings-btn" class="host-chip settings-main">ROOM SETTINGS</button>
     </div>
+    <div id="privilege-badge" class="privilege-badge">PLAYER</div>
 
     <!-- My role card (click for tooltip) -->
     <div id="my-role-card" class="hidden">როლი: ?</div>
@@ -1488,8 +1322,23 @@
     <div id="role-settings-modal" class="role-settings-modal hidden">
       <div class="role-settings-card">
         <button id="role-settings-close" class="action-modal-close">×</button>
-        <h2>Role Settings</h2>
-        <p class="role-help">თამაშის დაწყებამდე აირჩიე რომელი როლები იყოს ჩართული.</p>
+        <h2>Room Settings</h2>
+        <p class="role-help">ოთახის მართვა, თამაშის დაწყება და როლების არჩევა — ყველაფერი აქედან ხდება.</p>
+        <div id="monitor-note" class="monitor-note hidden">
+          monitoring/admin სტატუსი ენიჭება server-side გარემოს ცვლადებით: <b>ADMIN_IDS</b> და <b>MONITOR_IDS</b>.
+        </div>
+        <div id="settings-control-grid" class="settings-control-grid">
+          <button id="settings-start-game" class="primary">START GAME</button>
+          <button id="settings-start-individual" class="good">SPEAKER ROTATION</button>
+          <button id="settings-force-day">TO DAY</button>
+          <button id="settings-force-vote">TO VOTE</button>
+          <button id="settings-force-night">TO NIGHT</button>
+          <button id="settings-revive-all" class="good">REVIVE ALL</button>
+          <button id="settings-lock-room" class="warn">LOCK ROOM</button>
+          <button id="settings-unlock-room" class="good">UNLOCK ROOM</button>
+          <button id="settings-reset-game" class="warn">RESET GAME</button>
+          <button id="settings-end-game" class="danger">END GAME</button>
+        </div>
 
         <div class="role-setting-row">
           <span>🔴 Mafia Count</span>
@@ -1675,14 +1524,14 @@
   </div>
 
   <!-- CHAT -->
-  <div id="chat-toggle-wrap" class="hidden" style="position:fixed; right:18px; bottom:92px; z-index:1600; width:50px; height:50px; border-radius:50%;">
+  <div style="position:fixed; right:18px; bottom:92px; z-index:1600; width:50px; height:50px; border-radius:50%;">
     <div id="chat-toggle" style="width:100%; height:100%; border-radius:50%; background:var(--neon); display:flex; align-items:center; justify-content:center; cursor:pointer; font-family:Orbitron; font-size:.6rem; position:relative;">
       CHAT
       <div id="chat-unread-badge" class="hidden" style="position:absolute; top:-4px; right:-4px; background:var(--red); color:white; font-family:Orbitron; font-size:.5rem; width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center;"></div>
     </div>
   </div>
 
-  <div id="chat-panel" class="hidden">
+  <div id="chat-panel">
     <div id="chat-header">
       <span>VOID CHAT</span>
       <span id="close-chat" style="cursor:pointer;">✕</span>
@@ -1691,7 +1540,6 @@
       <button class="chat-tab active" data-chat="main">MAIN</button>
       <button class="chat-tab" data-chat="dead">DEAD</button>
       <button class="chat-tab" data-chat="spectator">SPECTATOR</button>
-      <button class="chat-tab" data-chat="mafia">MAFIA</button>
     </div>
     <div id="chat-messages"></div>
     <div style="padding:10px; display:flex; gap:5px;">
@@ -1711,17 +1559,6 @@
 
   <!-- V5: STATS TOGGLE -->
   <button id="stats-toggle" class="btn">📊</button>
-
-
-  <!-- V7 PRO: GAME HISTORY -->
-  <button id="v7-history-toggle" class="btn hidden">📜 LOG</button>
-  <div id="v7-history-panel" class="hidden">
-    <div class="v7-history-head">
-      <h2>📜 GAME HISTORY</h2>
-      <button id="v7-history-close" class="v7-history-close">×</button>
-    </div>
-    <div id="v7-history-content"></div>
-  </div>
 
   <!-- V5: STATS PANEL -->
   <div id="stats-panel">
@@ -1765,18 +1602,6 @@
     let lobbyMusicOn = false;
     let unreadCount = 0;
     let chatOpen = false;
-    let currentChatTab = "main";
-
-    /* ============================================================
-       V7 PRO STATE
-    ============================================================ */
-    let selectedAvatar = localStorage.getItem("voidMafiaAvatar") || "🕶️";
-    let isSpectatorMode = false;
-    let lastKnownOutcome = null;
-    const v7Profiles = {};
-    const v7History = [];
-    const v7StatsKey = "voidMafiaV7Stats";
-    const v7DefaultStats = { games:0, wins:0, xp:0, mvp:0, correctVotes:0, kills:0, saves:0, checks:0 };
 
     let roleSettings = {
       mafia: 1, don: true, sheriff: true, doctor: true, detectiveText: true,
@@ -1887,293 +1712,12 @@
     ============================================================ */
     function playSFX() { $("sfx-click").play().catch(() => {}); }
 
-
-    /* ============================================================
-       V7 PRO: PROFILE, AVATAR, STATS, HISTORY
-    ============================================================ */
-    function v7LoadStats() {
-      try { return { ...v7DefaultStats, ...(JSON.parse(localStorage.getItem(v7StatsKey) || "{}")) }; }
-      catch (_) { return { ...v7DefaultStats }; }
-    }
-
-    function v7SaveStats(stats) {
-      localStorage.setItem(v7StatsKey, JSON.stringify({ ...v7DefaultStats, ...stats }));
-      v7RenderLocalProfile();
-    }
-
-    function v7LevelFromXp(xp) {
-      return Math.max(1, Math.floor(Math.sqrt(Math.max(0, xp) / 80)) + 1);
-    }
-
-    function v7WinRate(stats) {
-      return stats.games ? Math.round((stats.wins / stats.games) * 100) : 0;
-    }
-
-    function v7RenderLocalProfile() {
-      const box = $("v7-local-profile-mini");
-      if (!box) return;
-      const st = v7LoadStats();
-      box.innerHTML = `
-        <span>Level: <b>${v7LevelFromXp(st.xp)}</b></span>
-        <span>XP: <b>${st.xp}</b></span>
-        <span>Games: <b>${st.games}</b></span>
-        <span>Win Rate: <b>${v7WinRate(st)}%</b></span>
-      `;
-    }
-
-    function v7InitAvatarPicker() {
-      document.querySelectorAll(".v7-avatar-btn").forEach(btn => {
-        btn.classList.toggle("selected", btn.dataset.avatar === selectedAvatar);
-        btn.addEventListener("click", () => {
-          selectedAvatar = btn.dataset.avatar || "🕶️";
-          localStorage.setItem("voidMafiaAvatar", selectedAvatar);
-          document.querySelectorAll(".v7-avatar-btn").forEach(b => b.classList.remove("selected"));
-          btn.classList.add("selected");
-          v7RenderLocalProfile();
-        });
-      });
-      v7RenderLocalProfile();
-    }
-
-    function v7RememberProfile(id, data = {}) {
-      if (!id) return;
-      v7Profiles[id] = {
-        id,
-        name: data.name || data.nick || v7Profiles[id]?.name || "Player",
-        avatar: data.avatar || v7Profiles[id]?.avatar || "🕶️",
-        level: data.level || v7Profiles[id]?.level || 1,
-        xp: data.xp || v7Profiles[id]?.xp || 0,
-        games: data.games ?? v7Profiles[id]?.games ?? 0,
-        wins: data.wins ?? v7Profiles[id]?.wins ?? 0,
-        mvp: data.mvp ?? v7Profiles[id]?.mvp ?? 0,
-        isSpectator: !!(data.isSpectator ?? v7Profiles[id]?.isSpectator)
-      };
-    }
-
-    function v7MyProfilePayload() {
-      const st = v7LoadStats();
-      return {
-        avatar: selectedAvatar,
-        level: v7LevelFromXp(st.xp),
-        xp: st.xp,
-        games: st.games,
-        wins: st.wins,
-        mvp: st.mvp
-      };
-    }
-
-    function v7AddHistory(text, type = "info") {
-      const item = { text, type, time: new Date().toLocaleTimeString([], { hour:"2-digit", minute:"2-digit", second:"2-digit" }) };
-      v7History.unshift(item);
-      if (v7History.length > 80) v7History.pop();
-      v7RenderHistory();
-    }
-
-    function v7RenderHistory() {
-      const root = $("v7-history-content");
-      if (!root) return;
-      if (!v7History.length) {
-        root.innerHTML = '<div class="v7-history-item">ჯერ ისტორია არ არის.</div>';
-        return;
-      }
-      root.innerHTML = v7History.map(i => `
-        <div class="v7-history-item">
-          ${escapeHtml(i.text)}
-          <small>${escapeHtml(i.time)} · ${escapeHtml(i.type)}</small>
-        </div>
-      `).join("");
-    }
-
-    function v7SetupHistoryPanel() {
-      $("v7-history-toggle")?.addEventListener("click", () => {
-        $("v7-history-panel")?.classList.remove("hidden");
-        v7RenderHistory();
-      });
-      $("v7-history-close")?.addEventListener("click", () => {
-        $("v7-history-panel")?.classList.add("hidden");
-      });
-    }
-
-    function v7RoomStatusClass(phase, locked) {
-      if (locked) return "locked";
-      if (phase && phase !== "waiting") return "ingame";
-      return "open";
-    }
-
-    function v7PhaseLabel(phase) {
-      const map = { waiting:"Waiting", night:"Night", day:"Day", individual:"Individual", vote:"Vote", ended:"Ended", "role-reveal":"Role Reveal" };
-      return map[phase] || phase || "Waiting";
-    }
-
-    function v7RenderRoomList(rooms) {
-      const list = $("room-list");
-      if (!list) return;
-      list.innerHTML = "";
-      if (!rooms || rooms.length === 0) {
-        list.innerHTML = '<p style="font-size:.75rem; color:#777;">აქტიური ოთახები არ არის</p>';
-        return;
-      }
-
-      rooms.forEach(r => {
-        const div = document.createElement("div");
-        div.className = "room-card-pro";
-        const phase = r.phase || "waiting";
-        const locked = !!r.locked;
-        const cls = v7RoomStatusClass(phase, locked);
-        const status = locked ? "Locked" : phase !== "waiting" ? "In Game" : "Open";
-        const avgLevel = r.avgLevel || 1;
-        div.innerHTML = `
-          <div class="room-card-pro-header">
-            <div class="room-card-pro-title">#${escapeHtml(r.code)}</div>
-            <div class="room-status-chip ${cls}">${escapeHtml(status)}</div>
-          </div>
-          <div class="room-card-pro-grid">
-            <span>Host: <b>${escapeHtml(r.hostName || "Unknown")}</b></span>
-            <span>Players: <b>${Number(r.playerCount || 0)}/${Number(r.maxPlayers || 10)}</b></span>
-            <span>Spectators: <b>${Number(r.spectatorCount || 0)}</b></span>
-            <span>Phase: <b>${escapeHtml(v7PhaseLabel(phase))}</b></span>
-            <span>Avg Level: <b>${Number(avgLevel)}</b></span>
-            <span>Created: <b>${escapeHtml(r.createdAgo || "now")}</b></span>
-          </div>
-          <div class="room-card-actions">
-            <button class="btn v7-join">JOIN</button>
-            <button class="btn v7-watch" style="background:var(--cyan); color:#000;">WATCH</button>
-          </div>
-        `;
-        div.querySelector(".v7-join").onclick = () => {
-          if (locked) return toast("ოთახი დაკეტილია", "error");
-          startVoid(r.code);
-        };
-        div.querySelector(".v7-watch").onclick = () => startSpectator(r.code);
-        list.appendChild(div);
-      });
-    }
-
-    function v7EnhanceVideoCard(id) {
-      const box = $(id);
-      if (!box) return;
-      const p = v7Profiles[id] || {};
-      if (!box.querySelector(".v7-avatar-badge")) {
-        const badge = document.createElement("div");
-        badge.className = "v7-avatar-badge";
-        badge.textContent = p.avatar || (id === socket.id ? selectedAvatar : "🕶️");
-        box.appendChild(badge);
-      } else {
-        box.querySelector(".v7-avatar-badge").textContent = p.avatar || "🕶️";
-      }
-
-      if (!box.querySelector(".v7-level-badge")) {
-        const lvl = document.createElement("div");
-        lvl.className = "v7-level-badge";
-        lvl.textContent = "LVL " + (p.level || 1);
-        box.appendChild(lvl);
-      } else {
-        box.querySelector(".v7-level-badge").textContent = "LVL " + (p.level || 1);
-      }
-
-      const avatarCircle = box.querySelector(".avatar-circle");
-      if (avatarCircle) avatarCircle.textContent = p.avatar || (id === socket.id ? selectedAvatar : "🕶️");
-    }
-
-    function v7RoleTeam(role) {
-      if (["mafia","don"].includes(role)) return "mafia";
-      if (["yakuza","chogun"].includes(role)) return "yakuza";
-      if (["serial_killer"].includes(role)) return "solo";
-      return "citizen";
-    }
-
-    function v7IsMafiaChatAllowed() {
-      return ["mafia","don","yakuza","chogun"].includes(myRole);
-    }
-
-    function v7ApplyChatPermissions() {
-      const mafiaTab = document.querySelector('.chat-tab[data-chat="mafia"]');
-      if (!mafiaTab) return;
-      mafiaTab.style.display = v7IsMafiaChatAllowed() ? "" : "none";
-      if (!v7IsMafiaChatAllowed() && currentChatTab === "mafia") {
-        currentChatTab = "main";
-        document.querySelectorAll(".chat-tab").forEach(b => b.classList.remove("active"));
-        document.querySelector('.chat-tab[data-chat="main"]')?.classList.add("active");
-      }
-    }
-
-    function v7AwardGameResult(message = "") {
-      const stats = v7LoadStats();
-      const roleTeam = v7RoleTeam(myRole);
-      const msg = String(message).toLowerCase();
-      const mafiaWin = msg.includes("mafia") || msg.includes("მაფია");
-      const citizenWin = msg.includes("citizen") || msg.includes("მოქალაქ");
-      const soloWin = msg.includes("serial") || msg.includes("solo") || msg.includes("სერიულ");
-      let won = false;
-
-      if (roleTeam === "mafia" && mafiaWin) won = true;
-      if (roleTeam === "citizen" && citizenWin) won = true;
-      if (roleTeam === "solo" && soloWin) won = true;
-
-      stats.games += 1;
-      if (won) stats.wins += 1;
-      const xpGain = 30 + (won ? 70 : 10) + (stats.correctVotes * 2);
-      stats.xp += xpGain;
-
-      v7SaveStats(stats);
-      v7AddHistory(`Game finished. ${won ? "You won" : "You lost"} · +${xpGain} XP`, "result");
-      return { won, xpGain, stats };
-    }
-
-    function v7CalculateMVP(players = alivePlayers) {
-      const me = v7LoadStats();
-      const selfScore = me.correctVotes * 2 + me.kills * 3 + me.saves * 2 + me.checks * 2 + (me.wins * 2);
-      let best = { name: myNick || "Player", score: selfScore, avatar: selectedAvatar };
-      Object.values(v7Profiles).forEach(p => {
-        const score = (p.wins || 0) * 2 + (p.mvp || 0) * 4 + (p.level || 1);
-        if (score > best.score) best = { name: p.name, score, avatar: p.avatar || "🕶️" };
-      });
-      return best;
-    }
-
-    function v7SetupSocketProEvents() {
-      
-      socket.on("profile-loaded", profile => {
-        if (!profile) return;
-        const normalized = { games: Number(profile.games || 0), wins: Number(profile.wins || 0), xp: Number(profile.xp || 0), mvp: Number(profile.mvp || 0), correctVotes: Number(profile.correctVotes || 0), kills: Number(profile.kills || 0), saves: Number(profile.saves || 0), checks: Number(profile.checks || 0) };
-        localStorage.setItem(v7StatsKey, JSON.stringify(normalized));
-        if (profile.avatar) { selectedAvatar = profile.avatar; localStorage.setItem("voidMafiaAvatar", selectedAvatar); }
-        v7RenderLocalProfile();
-        v7RememberProfile(socket.id, { name: myNick, avatar: selectedAvatar, ...normalized, level: v7LevelFromXp(normalized.xp) });
-        toast("პროფილი MongoDB-დან ჩაიტვირთა", "success", 2200);
-      });
-      socket.on("profile-stats-updated", data => {
-        const stats = v7LoadStats(); stats.games += 1; if (data?.won) stats.wins += 1; if (data?.isMvp) stats.mvp += 1; stats.xp += Number(data?.xpGain || 0); v7SaveStats(stats);
-      });
-
-      socket.on("room-profiles", profiles => {
-        if (profiles && typeof profiles === "object") {
-          Object.entries(profiles).forEach(([id, p]) => v7RememberProfile(id, p));
-          Object.keys(profiles).forEach(id => v7EnhanceVideoCard(id));
-        }
-      });
-
-      socket.on("game-log", item => {
-        if (!item) return;
-        v7AddHistory(item.text || item.message || "Game event", item.type || "game");
-      });
-
-      socket.on("vote-results", results => {
-        const lines = Object.entries(results || {}).map(([name, count]) => `${name}: ${count}`).join(" · ");
-        if (lines) v7AddHistory("Vote results — " + lines, "vote");
-      });
-    }
-
-
     /* ============================================================
        LOBBY
     ============================================================ */
     function showRooms() {
       myNick = $("nickname").value.trim();
       if (!myNick) { toast("ჯერ ჩაწერე ნიკნეიმი", "error"); return; }
-      localStorage.setItem("voidMafiaNick", myNick);
-      localStorage.setItem("voidMafiaAvatar", selectedAvatar);
-      v7RememberProfile(socket.id || "me", { name: myNick, avatar: selectedAvatar, ...v7MyProfilePayload() });
       playSFX();
       $("login-screen").classList.add("hidden");
       $("rooms-screen").classList.remove("hidden");
@@ -2181,7 +1725,6 @@
     }
 
     async function startVoid(roomFromList) {
-      isSpectatorMode = false;
       currentRoom = roomFromList || $("room-id").value.trim();
       if (roomFromList && $("room-id")) $("room-id").value = roomFromList;
       if (!currentRoom) { toast("ჩაწერე ოთახის ID, მაგ. 123", "error"); return; }
@@ -2194,14 +1737,10 @@
         document.body.classList.add("game-active");
         $("rooms-screen").classList.add("hidden");
         $("game-screen").classList.remove("hidden");
-        $("chat-toggle-wrap")?.classList.remove("hidden");
-        $("chat-panel")?.classList.remove("hidden");
         $("mini-games-toggle").classList.remove("hidden");
         $("stats-toggle").style.display = "block";
 
-        socket.emit("join-room", currentRoom, myNick, false, v7MyProfilePayload());
-        $("v7-history-toggle")?.classList.remove("hidden");
-        v7AddHistory("Joined room " + currentRoom + " as player", "room");
+        socket.emit("join-room", currentRoom, myNick, false);
         setTimeout(() => socket.emit("get-rooms"), 300);
 
         setupSpeakingDetection();
@@ -2223,10 +1762,8 @@
       }
     }
 
-    async function startSpectator(roomFromList) {
-      isSpectatorMode = true;
-      currentRoom = roomFromList || $("room-id").value.trim();
-      if (roomFromList && $("room-id")) $("room-id").value = roomFromList;
+    async function startSpectator() {
+      currentRoom = $("room-id").value.trim();
       if (!currentRoom) { toast("ჩაწერე ოთახის ID", "error"); return; }
       playSFX();
       stopLobbyMusic();
@@ -2236,12 +1773,8 @@
         document.body.classList.add("game-active");
         $("rooms-screen").classList.add("hidden");
         $("game-screen").classList.remove("hidden");
-        $("chat-toggle-wrap")?.classList.remove("hidden");
-        $("chat-panel")?.classList.remove("hidden");
         $("mini-games-toggle").classList.remove("hidden");
-        socket.emit("join-room", currentRoom, myNick, true, v7MyProfilePayload());
-        $("v7-history-toggle")?.classList.remove("hidden");
-        v7AddHistory("Joined room " + currentRoom + " as spectator", "room");
+        socket.emit("join-room", currentRoom, myNick, true);
         toast("Spectator რეჟიმი ჩართულია", "info");
       } catch (err) {
         console.error(err);
@@ -2341,13 +1874,16 @@
 
     socket.on("is-host", () => {
       isHost = true;
-      $("host-panel").classList.remove("hidden");
-      $("admin-toggle-btn").classList.remove("hidden");
-      $("admin-panel").classList.remove("hidden");
+      window.myPrivilege = { ...(window.myPrivilege || {}), isHost: true };
+      $("host-panel")?.classList.add("hidden");
+      $("admin-toggle-btn")?.classList.add("hidden");
+      $("admin-panel")?.classList.add("hidden");
+      $("admin-panel")?.classList.remove("admin-open");
       $("host-compact-controls")?.classList.remove("hidden");
+      const badge = $("privilege-badge");
+      if (badge) { badge.textContent = "HOST"; badge.classList.add("visible"); }
       addSystemMsg("შენ ხარ ოთახის ჰოსტი");
       toast("შენ ხარ ჰოსტი", "success");
-      renderAdminPanel();
     });
 
     socket.on("remove-host", () => {
@@ -2361,13 +1897,29 @@
     });
 
     socket.on("update-room-list", rooms => {
-      v7RenderRoomList(rooms);
+      const list = $("room-list");
+      list.innerHTML = "";
+      if (!rooms || rooms.length === 0) {
+        list.innerHTML = '<p style="font-size:.75rem; color:#777;">აქტიური ოთახები არ არის</p>';
+        return;
+      }
+      rooms.forEach(r => {
+        const div = document.createElement("div");
+        div.className = "room-item";
+        div.innerHTML = `
+          <span style="font-size:.85rem;">
+            ID: ${escapeHtml(r.code)} (${r.playerCount}/10)
+            <small style="color:var(--cyan); display:block;">spectators: ${r.spectatorCount || 0} · ${escapeHtml(r.phase || "waiting")}</small>
+          </span>
+          <button class="btn" style="width:70px; padding:7px; font-size:.6rem;">JOIN</button>
+        `;
+        div.querySelector("button").onclick = () => startVoid(r.code);
+        list.appendChild(div);
+      });
     });
 
     socket.on("room-users-list", users => {
-      (users || []).forEach(user => {
-        v7RememberProfile(user.id, user);
-
+      users.forEach(user => {
         if (user.id === socket.id) {
           const realIndex = user.index || 1;
           if ($(user.id)) updateVideoMeta(user.id, user.name + " (შენ)", realIndex);
@@ -2444,7 +1996,6 @@
 
       users.forEach(u => {
         if (!u || !u.id || u.id === socket.id) return;
-        v7RememberProfile(u.id, u);
         makePeerConnection(u.id, u.name || u.nick || "Player", u.index || 1, true);
       });
     });
@@ -2498,8 +2049,6 @@
       showRoleDistScreen(role);
 
       toast("შენი როლია: " + roleName(role), "role", 5000);
-      v7AddHistory("Role assigned: " + roleName(role), "role");
-      v7ApplyChatPermissions();
       addSystemMsg("შენი როლია: " + roleName(role));
       // Don't call updatePhaseText here — it triggers night mode immediately
       // Phase transition happens after all players close their role cards (via game-state event)
@@ -2518,8 +2067,6 @@
 
     socket.on("game-state", state => {
       currentPhase = state.phase || "waiting";
-      if (state.profiles) Object.entries(state.profiles).forEach(([id,p]) => v7RememberProfile(id,p));
-      if (state.phase) v7AddHistory("Phase: " + v7PhaseLabel(state.phase), "phase");
       alivePlayers = state.players || [];
       latestPlayers = state.players || [];
       updatePhaseText();
@@ -2570,19 +2117,14 @@
       addSystemMsg(data.message);
       toast(data.message, "role", 6000);
       hideActionModal();
-      const msg = data.message || "";
-      const result = data.winnerTeam ? { xpGain: 0 } : v7AwardGameResult(msg);
-      const serverMvp = data.mvp;
-      const mvp = serverMvp ? { avatar: serverMvp.avatar || "🏆", name: serverMvp.nickname || "MVP" } : v7CalculateMVP(alivePlayers);
-      const mvpText = `${mvp.avatar || "🏆"} MVP: ${mvp.name}${result.xpGain ? " · +" + result.xpGain + " XP" : ""}`;
-      v7AddHistory(mvpText, "mvp");
       // V5: Show win screen
+      const msg = data.message || "";
       if (msg.includes("მოქალაქე") || msg.includes("citizen")) {
-        showWinScreen("🏆", "მოქალაქეების გამარჯვება!", msg + "\n" + mvpText, "var(--cyan)");
+        showWinScreen("🏆", "მოქალაქეების გამარჯვება!", msg, "var(--cyan)");
       } else if (msg.includes("მაფია") || msg.includes("mafia")) {
-        showWinScreen("💀", "მაფიის გამარჯვება!", msg + "\n" + mvpText, "var(--red)");
+        showWinScreen("💀", "მაფიის გამარჯვება!", msg, "var(--red)");
       } else {
-        showWinScreen("🎮", "თამაში დასრულდა!", msg + "\n" + mvpText, "var(--neon)");
+        showWinScreen("🎮", "თამაში დასრულდა!", msg, "var(--neon)");
       }
     });
 
@@ -2604,9 +2146,7 @@
     });
 
     socket.on("receive-chat-msg", d => {
-      if (d?.tab === "mafia" && !v7IsMafiaChatAllowed()) return;
-      const tabLabel = d?.tab && d.tab !== "main" ? `[${String(d.tab).toUpperCase()}] ` : "";
-      appendMsg(`<b>${escapeHtml(tabLabel + (d.name || "Player"))}:</b> ${escapeHtml(d.text || "")}`);
+      appendMsg(`<b>${escapeHtml(d.name)}:</b> ${escapeHtml(d.text)}`);
     });
 
     socket.on("spectators-update", list => {
@@ -2655,7 +2195,6 @@
           existingVideo.play?.().catch(() => {});
         }
         updateCameraAvatar(id, stream);
-        v7EnhanceVideoCard(id);
         return;
       }
 
@@ -2680,8 +2219,6 @@
       div.addEventListener("click", () => showPlayerProfile(id, name, safeIndex));
 
       $("video-grid").appendChild(div);
-      v7RememberProfile(id, { name, avatar: id === socket.id ? selectedAvatar : v7Profiles[id]?.avatar, ...v7Profiles[id] });
-      v7EnhanceVideoCard(id);
 
       const video = $("v-" + id);
       if (stream && video) {
@@ -2714,21 +2251,6 @@
 
       const isAlive = player ? player.alive : true;
       $("profile-status").textContent = isAlive ? "✅ ცოცხალი" : "💀 მოკვდა";
-      const prof = v7Profiles[id] || {};
-      const oldStats = $("v7-profile-stats");
-      oldStats?.remove();
-      const statsBox = document.createElement("div");
-      statsBox.id = "v7-profile-stats";
-      statsBox.className = "v7-profile-stats";
-      statsBox.innerHTML = `
-        <div class="v7-profile-stat">Avatar <b>${escapeHtml(prof.avatar || "🕶️")}</b></div>
-        <div class="v7-profile-stat">Level <b>${Number(prof.level || 1)}</b></div>
-        <div class="v7-profile-stat">Games <b>${Number(prof.games || 0)}</b></div>
-        <div class="v7-profile-stat">Wins <b>${Number(prof.wins || 0)}</b></div>
-        <div class="v7-profile-stat">XP <b>${Number(prof.xp || 0)}</b></div>
-        <div class="v7-profile-stat">MVP <b>${Number(prof.mvp || 0)}</b></div>
-      `;
-      $("profile-status").insertAdjacentElement("afterend", statsBox);
 
       const actions = $("profile-actions");
       actions.innerHTML = "";
@@ -2877,8 +2399,9 @@
     function updatePhaseText() {
       document.body.classList.remove("night-mode", "day-mode");
 
-      if (isHost && $("host-compact-controls")) {
-        $("host-compact-controls").classList.toggle("hidden", currentPhase !== "waiting");
+      if ($("host-compact-controls")) {
+        const canSeeSettings = isHost || (window.myPrivilege && (window.myPrivilege.isAdmin || window.myPrivilege.isMonitor));
+        $("host-compact-controls").classList.toggle("hidden", !canSeeSettings);
       }
 
       if (currentPhase !== "waiting") {
@@ -3411,12 +2934,6 @@
       btn.textContent = `${label}: ${player.name}`;
       btn.onclick = () => {
         socket.emit("night-action", { room: currentRoom, action, targetId: player.id });
-        const st = v7LoadStats();
-        if (action.includes("kill")) st.kills += 1;
-        if (action === "save") st.saves += 1;
-        if (action.includes("check") || action === "detect") st.checks += 1;
-        v7SaveStats(st);
-        v7AddHistory(`${label}: ${player.name}`, "night");
         addSystemMsg("ქმედება დაფიქსირდა");
         toast("ქმედება გაგზავნილია", "success");
         hideActionModal();
@@ -3441,7 +2958,6 @@
       btn.textContent = "ხმა: " + player.name;
       btn.onclick = () => {
         voteMemory[socket.id] = player.id;
-        v7AddHistory("Voted for " + player.name, "vote");
         socket.emit("vote-player", { room: currentRoom, targetId: player.id });
         addSystemMsg("ხმა მიცემულია");
         toast("ხმა მიეცი: " + player.name, "success");
@@ -3461,11 +2977,8 @@
       const text = input.value.trim();
       if (!text) return;
 
-      if (currentChatTab === "mafia" && !v7IsMafiaChatAllowed()) {
-        toast("Mafia chat მხოლოდ მაფიის გუნდს აქვს", "error");
-        return;
-      }
-      socket.emit("send-chat-msg", { room: currentRoom, name: myNick, text, tab: currentChatTab });
+      const prefix = currentChatTab === "main" ? "" : "[" + currentChatTab.toUpperCase() + "] ";
+      socket.emit("send-chat-msg", { room: currentRoom, name: myNick, text: prefix + text });
       input.value = "";
     }
 
@@ -3500,270 +3013,6 @@
       updateCameraAvatar(socket.id, localStream);
       toast(track.enabled ? "კამერა ჩართულია" : "კამერა გათიშულია", "info", 1500);
     }
-
-
-    /* ============================================================
-       V7 PRO: PROFILE, AVATAR, STATS, HISTORY
-    ============================================================ */
-    function v7LoadStats() {
-      try { return { ...v7DefaultStats, ...(JSON.parse(localStorage.getItem(v7StatsKey) || "{}")) }; }
-      catch (_) { return { ...v7DefaultStats }; }
-    }
-
-    function v7SaveStats(stats) {
-      localStorage.setItem(v7StatsKey, JSON.stringify({ ...v7DefaultStats, ...stats }));
-      v7RenderLocalProfile();
-    }
-
-    function v7LevelFromXp(xp) {
-      return Math.max(1, Math.floor(Math.sqrt(Math.max(0, xp) / 80)) + 1);
-    }
-
-    function v7WinRate(stats) {
-      return stats.games ? Math.round((stats.wins / stats.games) * 100) : 0;
-    }
-
-    function v7RenderLocalProfile() {
-      const box = $("v7-local-profile-mini");
-      if (!box) return;
-      const st = v7LoadStats();
-      box.innerHTML = `
-        <span>Level: <b>${v7LevelFromXp(st.xp)}</b></span>
-        <span>XP: <b>${st.xp}</b></span>
-        <span>Games: <b>${st.games}</b></span>
-        <span>Win Rate: <b>${v7WinRate(st)}%</b></span>
-      `;
-    }
-
-    function v7InitAvatarPicker() {
-      document.querySelectorAll(".v7-avatar-btn").forEach(btn => {
-        btn.classList.toggle("selected", btn.dataset.avatar === selectedAvatar);
-        btn.addEventListener("click", () => {
-          selectedAvatar = btn.dataset.avatar || "🕶️";
-          localStorage.setItem("voidMafiaAvatar", selectedAvatar);
-          document.querySelectorAll(".v7-avatar-btn").forEach(b => b.classList.remove("selected"));
-          btn.classList.add("selected");
-          v7RenderLocalProfile();
-        });
-      });
-      v7RenderLocalProfile();
-    }
-
-    function v7RememberProfile(id, data = {}) {
-      if (!id) return;
-      v7Profiles[id] = {
-        id,
-        name: data.name || data.nick || v7Profiles[id]?.name || "Player",
-        avatar: data.avatar || v7Profiles[id]?.avatar || "🕶️",
-        level: data.level || v7Profiles[id]?.level || 1,
-        xp: data.xp || v7Profiles[id]?.xp || 0,
-        games: data.games ?? v7Profiles[id]?.games ?? 0,
-        wins: data.wins ?? v7Profiles[id]?.wins ?? 0,
-        mvp: data.mvp ?? v7Profiles[id]?.mvp ?? 0,
-        isSpectator: !!(data.isSpectator ?? v7Profiles[id]?.isSpectator)
-      };
-    }
-
-    function v7MyProfilePayload() {
-      const st = v7LoadStats();
-      return {
-        avatar: selectedAvatar,
-        level: v7LevelFromXp(st.xp),
-        xp: st.xp,
-        games: st.games,
-        wins: st.wins,
-        mvp: st.mvp
-      };
-    }
-
-    function v7AddHistory(text, type = "info") {
-      const item = { text, type, time: new Date().toLocaleTimeString([], { hour:"2-digit", minute:"2-digit", second:"2-digit" }) };
-      v7History.unshift(item);
-      if (v7History.length > 80) v7History.pop();
-      v7RenderHistory();
-    }
-
-    function v7RenderHistory() {
-      const root = $("v7-history-content");
-      if (!root) return;
-      if (!v7History.length) {
-        root.innerHTML = '<div class="v7-history-item">ჯერ ისტორია არ არის.</div>';
-        return;
-      }
-      root.innerHTML = v7History.map(i => `
-        <div class="v7-history-item">
-          ${escapeHtml(i.text)}
-          <small>${escapeHtml(i.time)} · ${escapeHtml(i.type)}</small>
-        </div>
-      `).join("");
-    }
-
-    function v7SetupHistoryPanel() {
-      $("v7-history-toggle")?.addEventListener("click", () => {
-        $("v7-history-panel")?.classList.remove("hidden");
-        v7RenderHistory();
-      });
-      $("v7-history-close")?.addEventListener("click", () => {
-        $("v7-history-panel")?.classList.add("hidden");
-      });
-    }
-
-    function v7RoomStatusClass(phase, locked) {
-      if (locked) return "locked";
-      if (phase && phase !== "waiting") return "ingame";
-      return "open";
-    }
-
-    function v7PhaseLabel(phase) {
-      const map = { waiting:"Waiting", night:"Night", day:"Day", individual:"Individual", vote:"Vote", ended:"Ended", "role-reveal":"Role Reveal" };
-      return map[phase] || phase || "Waiting";
-    }
-
-    function v7RenderRoomList(rooms) {
-      const list = $("room-list");
-      if (!list) return;
-      list.innerHTML = "";
-      if (!rooms || rooms.length === 0) {
-        list.innerHTML = '<p style="font-size:.75rem; color:#777;">აქტიური ოთახები არ არის</p>';
-        return;
-      }
-
-      rooms.forEach(r => {
-        const div = document.createElement("div");
-        div.className = "room-card-pro";
-        const phase = r.phase || "waiting";
-        const locked = !!r.locked;
-        const cls = v7RoomStatusClass(phase, locked);
-        const status = locked ? "Locked" : phase !== "waiting" ? "In Game" : "Open";
-        const avgLevel = r.avgLevel || 1;
-        div.innerHTML = `
-          <div class="room-card-pro-header">
-            <div class="room-card-pro-title">#${escapeHtml(r.code)}</div>
-            <div class="room-status-chip ${cls}">${escapeHtml(status)}</div>
-          </div>
-          <div class="room-card-pro-grid">
-            <span>Host: <b>${escapeHtml(r.hostName || "Unknown")}</b></span>
-            <span>Players: <b>${Number(r.playerCount || 0)}/${Number(r.maxPlayers || 10)}</b></span>
-            <span>Spectators: <b>${Number(r.spectatorCount || 0)}</b></span>
-            <span>Phase: <b>${escapeHtml(v7PhaseLabel(phase))}</b></span>
-            <span>Avg Level: <b>${Number(avgLevel)}</b></span>
-            <span>Created: <b>${escapeHtml(r.createdAgo || "now")}</b></span>
-          </div>
-          <div class="room-card-actions">
-            <button class="btn v7-join">JOIN</button>
-            <button class="btn v7-watch" style="background:var(--cyan); color:#000;">WATCH</button>
-          </div>
-        `;
-        div.querySelector(".v7-join").onclick = () => {
-          if (locked) return toast("ოთახი დაკეტილია", "error");
-          startVoid(r.code);
-        };
-        div.querySelector(".v7-watch").onclick = () => startSpectator(r.code);
-        list.appendChild(div);
-      });
-    }
-
-    function v7EnhanceVideoCard(id) {
-      const box = $(id);
-      if (!box) return;
-      const p = v7Profiles[id] || {};
-      if (!box.querySelector(".v7-avatar-badge")) {
-        const badge = document.createElement("div");
-        badge.className = "v7-avatar-badge";
-        badge.textContent = p.avatar || (id === socket.id ? selectedAvatar : "🕶️");
-        box.appendChild(badge);
-      } else {
-        box.querySelector(".v7-avatar-badge").textContent = p.avatar || "🕶️";
-      }
-
-      if (!box.querySelector(".v7-level-badge")) {
-        const lvl = document.createElement("div");
-        lvl.className = "v7-level-badge";
-        lvl.textContent = "LVL " + (p.level || 1);
-        box.appendChild(lvl);
-      } else {
-        box.querySelector(".v7-level-badge").textContent = "LVL " + (p.level || 1);
-      }
-
-      const avatarCircle = box.querySelector(".avatar-circle");
-      if (avatarCircle) avatarCircle.textContent = p.avatar || (id === socket.id ? selectedAvatar : "🕶️");
-    }
-
-    function v7RoleTeam(role) {
-      if (["mafia","don"].includes(role)) return "mafia";
-      if (["yakuza","chogun"].includes(role)) return "yakuza";
-      if (["serial_killer"].includes(role)) return "solo";
-      return "citizen";
-    }
-
-    function v7IsMafiaChatAllowed() {
-      return ["mafia","don","yakuza","chogun"].includes(myRole);
-    }
-
-    function v7ApplyChatPermissions() {
-      const mafiaTab = document.querySelector('.chat-tab[data-chat="mafia"]');
-      if (!mafiaTab) return;
-      mafiaTab.style.display = v7IsMafiaChatAllowed() ? "" : "none";
-      if (!v7IsMafiaChatAllowed() && currentChatTab === "mafia") {
-        currentChatTab = "main";
-        document.querySelectorAll(".chat-tab").forEach(b => b.classList.remove("active"));
-        document.querySelector('.chat-tab[data-chat="main"]')?.classList.add("active");
-      }
-    }
-
-    function v7AwardGameResult(message = "") {
-      const stats = v7LoadStats();
-      const roleTeam = v7RoleTeam(myRole);
-      const msg = String(message).toLowerCase();
-      const mafiaWin = msg.includes("mafia") || msg.includes("მაფია");
-      const citizenWin = msg.includes("citizen") || msg.includes("მოქალაქ");
-      const soloWin = msg.includes("serial") || msg.includes("solo") || msg.includes("სერიულ");
-      let won = false;
-
-      if (roleTeam === "mafia" && mafiaWin) won = true;
-      if (roleTeam === "citizen" && citizenWin) won = true;
-      if (roleTeam === "solo" && soloWin) won = true;
-
-      stats.games += 1;
-      if (won) stats.wins += 1;
-      const xpGain = 30 + (won ? 70 : 10) + (stats.correctVotes * 2);
-      stats.xp += xpGain;
-
-      v7SaveStats(stats);
-      v7AddHistory(`Game finished. ${won ? "You won" : "You lost"} · +${xpGain} XP`, "result");
-      return { won, xpGain, stats };
-    }
-
-    function v7CalculateMVP(players = alivePlayers) {
-      const me = v7LoadStats();
-      const selfScore = me.correctVotes * 2 + me.kills * 3 + me.saves * 2 + me.checks * 2 + (me.wins * 2);
-      let best = { name: myNick || "Player", score: selfScore, avatar: selectedAvatar };
-      Object.values(v7Profiles).forEach(p => {
-        const score = (p.wins || 0) * 2 + (p.mvp || 0) * 4 + (p.level || 1);
-        if (score > best.score) best = { name: p.name, score, avatar: p.avatar || "🕶️" };
-      });
-      return best;
-    }
-
-    function v7SetupSocketProEvents() {
-      socket.on("room-profiles", profiles => {
-        if (profiles && typeof profiles === "object") {
-          Object.entries(profiles).forEach(([id, p]) => v7RememberProfile(id, p));
-          Object.keys(profiles).forEach(id => v7EnhanceVideoCard(id));
-        }
-      });
-
-      socket.on("game-log", item => {
-        if (!item) return;
-        v7AddHistory(item.text || item.message || "Game event", item.type || "game");
-      });
-
-      socket.on("vote-results", results => {
-        const lines = Object.entries(results || {}).map(([name, count]) => `${name}: ${count}`).join(" · ");
-        if (lines) v7AddHistory("Vote results — " + lines, "vote");
-      });
-    }
-
 
     /* ============================================================
        LOBBY MUSIC
@@ -3809,6 +3058,45 @@
       });
 
       $("host-start-compact")?.addEventListener("click", requestStart);
+
+
+
+      // ===== V9.1: Room Settings replaces old host admin panel =====
+      function openRoomSettingsIfAllowed() {
+        if (!isHost && !(window.myPrivilege && (window.myPrivilege.isAdmin || window.myPrivilege.isMonitor))) {
+          toast("მხოლოდ ჰოსტს ან მონიტორინგის/ადმინ სტატუსს შეუძლია ოთახის პარამეტრების გახსნა", "error");
+          return;
+        }
+        updateRolePreview();
+        $("role-settings-modal")?.classList.remove("hidden");
+      }
+      $("role-settings-btn")?.addEventListener("click", openRoomSettingsIfAllowed);
+      $("settings-start-game")?.addEventListener("click", requestStart);
+      $("settings-start-individual")?.addEventListener("click", () => {
+        const order = latestPlayers.filter(p => p.alive !== false).map(p => p.id);
+        socket.emit("admin-action", { room: currentRoom, action: "start-individual-turns", data: order });
+      });
+      $("settings-force-day")?.addEventListener("click", () => socket.emit("admin-action", { room: currentRoom, action: "force-day" }));
+      $("settings-force-vote")?.addEventListener("click", () => socket.emit("admin-action", { room: currentRoom, action: "force-vote" }));
+      $("settings-force-night")?.addEventListener("click", () => socket.emit("admin-action", { room: currentRoom, action: "force-night" }));
+      $("settings-revive-all")?.addEventListener("click", () => socket.emit("admin-action", { room: currentRoom, action: "revive-all" }));
+      $("settings-lock-room")?.addEventListener("click", () => socket.emit("admin-action", { room: currentRoom, action: "lock-room" }));
+      $("settings-unlock-room")?.addEventListener("click", () => socket.emit("admin-action", { room: currentRoom, action: "unlock-room" }));
+      $("settings-reset-game")?.addEventListener("click", () => socket.emit("admin-action", { room: currentRoom, action: "reset-game" }));
+      $("settings-end-game")?.addEventListener("click", () => socket.emit("admin-action", { room: currentRoom, action: "end-game" }));
+      socket.on("privilege-status", data => {
+        window.myPrivilege = data || {};
+        isHost = !!data?.isHost || isHost;
+        const badge = $("privilege-badge");
+        if (badge) {
+          const label = data?.isAdmin ? "ADMIN" : data?.isMonitor ? "MONITOR" : data?.isHost ? "HOST" : "PLAYER";
+          badge.textContent = label;
+          badge.classList.toggle("visible", label !== "PLAYER");
+        }
+        const note = $("monitor-note");
+        if (note) note.classList.toggle("hidden", !(data?.isAdmin || data?.isMonitor));
+        if (data?.isAdmin || data?.isMonitor || data?.isHost) $("host-compact-controls")?.classList.remove("hidden");
+      });
 
       $("role-settings-close")?.addEventListener("click", () => {
         $("role-settings-modal")?.classList.add("hidden");
@@ -4065,9 +3353,8 @@
 
     function requestStart() {
       if (!isHost) { toast("თამაშის დაწყება მხოლოდ ჰოსტს შეუძლია", "error"); return; }
-      const count = latestPlayers.length || document.querySelectorAll(".video-box").length;
+      const count = document.querySelectorAll(".video-box").length;
       if (count < 4) { toast("საჭიროა მინიმუმ 4 მოთამაშე", "error"); return; }
-      v7AddHistory("Host started the game", "admin");
       socket.emit("start-game-request", {
         room: currentRoom,
         settings: {
@@ -4109,7 +3396,6 @@
       $("mini-games-panel")?.classList.add("hidden");
     });
 
-    if ($("nickname")) $("nickname").value = localStorage.getItem("voidMafiaNick") || "";
     $("nickname").addEventListener("keydown", e => { if (e.key === "Enter") showRooms(); });
     $("room-id").addEventListener("keydown", e => { if (e.key === "Enter") startVoid(); });
     $("chat-msg").addEventListener("keydown", e => { if (e.key === "Enter") sendMsg(); });
@@ -4122,10 +3408,6 @@
       });
     });
 
-    v7InitAvatarPicker();
-    v7SetupHistoryPanel();
-    v7SetupSocketProEvents();
-    v7ApplyChatPermissions();
     setupAdminPanel();
     setupRoleSettings();
     setupProfessionalPack();
@@ -4234,6 +3516,7 @@
        ADVANCED MINI GAMES (single implementation)
     ============================================================ */
     let advGame = "ttt";
+    let currentChatTab = "main";
 
     const adv = {
       ttt: { board: Array(9).fill(""), turn: "X", done: false },
