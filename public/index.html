@@ -1858,5 +1858,62 @@
         .replaceAll("'", "&#039;");
     }
   </script>
+
+<script>
+/* --- QUICK ENHANCEMENTS PACK --- */
+
+/* Ready system */
+let readyPlayers = {};
+function toggleReady(){
+  readyPlayers[socket.id] = !readyPlayers[socket.id];
+  addSystemMsg("Ready: " + (readyPlayers[socket.id] ? "YES" : "NO"));
+}
+
+/* Copy room code */
+function copyRoom(){
+  navigator.clipboard.writeText(currentRoom);
+  addSystemMsg("Room code copied");
+}
+
+/* Reactions */
+function sendReaction(r){
+  socket.emit("send-chat-msg",{room:currentRoom,text:"[REACTION] "+r});
+}
+
+/* Simple phase skip (admin visual only) */
+function skipPhase(){
+  if(!isHost) return;
+  addSystemMsg("Admin skipped phase (visual)");
+}
+
+/* Voice indicator */
+function updateVoiceIndicators(){
+  document.querySelectorAll("video").forEach(v=>{
+    if(v.srcObject){
+      v.style.boxShadow = "0 0 10px rgba(0,255,0,.3)";
+    }
+  });
+}
+setInterval(updateVoiceIndicators,2000);
+
+/* Add UI buttons dynamically */
+window.addEventListener("load", ()=>{
+  const panel = document.createElement("div");
+  panel.style.position="fixed";
+  panel.style.bottom="160px";
+  panel.style.left="50%";
+  panel.style.transform="translateX(-50%)";
+  panel.style.zIndex="2000";
+  panel.innerHTML=`
+    <button class="btn" onclick="toggleReady()">READY</button>
+    <button class="btn" onclick="copyRoom()">COPY ROOM</button>
+    <button class="btn" onclick="sendReaction('🔥')">🔥</button>
+    <button class="btn" onclick="sendReaction('😂')">😂</button>
+    <button class="btn" onclick="skipPhase()">SKIP</button>
+  `;
+  document.body.appendChild(panel);
+});
+</script>
+
 </body>
 </html>
