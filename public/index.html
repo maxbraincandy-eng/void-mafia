@@ -381,6 +381,175 @@
       font-family:'Orbitron';
       font-size:.65rem;
     }
+
+
+    /* ---------------- ADMIN PANEL ---------------- */
+
+    .admin-toggle {
+      position:fixed;
+      top:52px;
+      right:10px;
+      z-index:2400;
+      width:auto;
+      padding:9px 12px;
+      border-radius:10px;
+      background:linear-gradient(135deg, var(--neon), var(--cyan));
+      color:#000;
+      box-shadow:0 0 18px rgba(0,255,255,.45);
+      font-size:.62rem;
+    }
+
+    .admin-panel {
+      position:fixed;
+      top:0;
+      right:-430px;
+      width:400px;
+      max-width:94vw;
+      height:100vh;
+      z-index:3500;
+      background:rgba(7,2,15,.98);
+      border-left:2px solid var(--cyan);
+      box-shadow:-12px 0 35px rgba(0,0,0,.75);
+      padding:15px;
+      overflow-y:auto;
+      transition:right .25s ease;
+    }
+
+    .admin-panel.admin-open {
+      right:0;
+    }
+
+    .admin-header {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      margin-bottom:14px;
+      border-bottom:1px solid rgba(0,255,255,.35);
+      padding-bottom:10px;
+    }
+
+    .admin-header h2 {
+      margin:0;
+      font-family:Orbitron;
+      font-size:1rem;
+      color:var(--cyan);
+      text-shadow:0 0 12px rgba(0,255,255,.75);
+    }
+
+    .admin-close {
+      width:36px;
+      height:36px;
+      padding:0;
+      border-radius:10px;
+      background:var(--red);
+      color:white;
+      border:0;
+      font-family:Orbitron;
+      cursor:pointer;
+    }
+
+    .admin-section {
+      margin-bottom:13px;
+      padding:12px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.04);
+      border-radius:14px;
+    }
+
+    .admin-section h3 {
+      margin:0 0 10px;
+      font-family:Orbitron;
+      font-size:.72rem;
+      color:var(--neon);
+    }
+
+    .admin-grid {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:7px;
+    }
+
+    .admin-mini-btn {
+      padding:10px 8px;
+      border:0;
+      border-radius:10px;
+      background:#1b2144;
+      color:white;
+      font-family:Orbitron;
+      font-size:.58rem;
+      cursor:pointer;
+    }
+
+    .admin-mini-btn:active {
+      transform:scale(.97);
+    }
+
+    .admin-mini-btn.danger {
+      background:#a30032;
+    }
+
+    .admin-mini-btn.good {
+      background:#007f66;
+    }
+
+    .admin-mini-btn.warn {
+      background:#7f5c00;
+    }
+
+    #admin-announce-input {
+      width:100%;
+      margin-bottom:8px;
+      border-color:var(--cyan);
+    }
+
+    .admin-user-row {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:8px;
+      padding:8px;
+      margin-bottom:7px;
+      background:rgba(255,255,255,.06);
+      border-radius:10px;
+      border-left:2px solid var(--cyan);
+      font-size:.82rem;
+    }
+
+    .admin-user-actions {
+      display:flex;
+      gap:5px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .admin-user-actions button {
+      padding:6px 7px;
+      border:0;
+      border-radius:8px;
+      background:var(--neon);
+      color:white;
+      font-family:Orbitron;
+      font-size:.52rem;
+      cursor:pointer;
+    }
+
+    .admin-user-actions button.danger {
+      background:var(--red);
+    }
+
+    .admin-empty {
+      opacity:.65;
+      font-size:.8rem;
+    }
+
+    .admin-chat-announcement {
+      background:rgba(255,0,255,.13);
+      border-left:2px solid var(--neon);
+      padding:8px;
+      color:#ffd9ff;
+    }
+
   </style>
 </head>
 
@@ -449,6 +618,55 @@
 
     <div id="chat-toggle">CHAT</div>
 
+    <button id="admin-toggle-btn" class="btn admin-toggle hidden">ADMIN</button>
+
+    <div id="admin-panel" class="admin-panel hidden">
+      <div class="admin-header">
+        <h2>ADMIN PANEL</h2>
+        <button id="admin-close-btn" class="admin-close">×</button>
+      </div>
+
+      <div class="admin-section">
+        <h3>Game Controls</h3>
+        <div class="admin-grid">
+          <button id="admin-start-game" class="admin-mini-btn good">START</button>
+          <button id="admin-end-game" class="admin-mini-btn danger">END</button>
+          <button id="admin-reset-game" class="admin-mini-btn warn">RESET</button>
+          <button id="admin-clear-chat" class="admin-mini-btn">CLEAR CHAT</button>
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <h3>Room Controls</h3>
+        <div class="admin-grid">
+          <button id="admin-lock-room" class="admin-mini-btn warn">LOCK</button>
+          <button id="admin-unlock-room" class="admin-mini-btn good">UNLOCK</button>
+          <button id="admin-close-room" class="admin-mini-btn danger">CLOSE ROOM</button>
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <h3>Announcement</h3>
+        <input id="admin-announce-input" type="text" placeholder="ადმინის განცხადება">
+        <button id="admin-announce-btn" class="btn" style="padding:10px;">SEND</button>
+      </div>
+
+      <div class="admin-section">
+        <h3>Players</h3>
+        <div id="admin-players-list">
+          <div class="admin-empty">მოთამაშეები არ არიან</div>
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <h3>Spectators</h3>
+        <div id="admin-spectators-list">
+          <div class="admin-empty">spectator არ არის</div>
+        </div>
+      </div>
+    </div>
+
+
     <div class="controls">
       <button id="mic-btn" class="btn">MIC</button>
       <button id="cam-btn" class="btn" style="background:var(--cyan); color:#000;">CAM</button>
@@ -487,6 +705,8 @@
     let mafiaIds = [];
     let timerInterval = null;
     let timerSeconds = 0;
+    let latestPlayers = [];
+    let latestSpectators = [];
 
     const peers = {};
     const $ = id => document.getElementById(id);
@@ -500,6 +720,8 @@
     $("chat-toggle").addEventListener("click", toggleChat);
     $("close-chat").addEventListener("click", toggleChat);
     $("send-chat-btn").addEventListener("click", sendMsg);
+
+    setupAdminPanel();
 
     $("nickname").addEventListener("keydown", e => {
       if (e.key === "Enter") showRooms();
@@ -576,7 +798,19 @@
     socket.on("is-host", () => {
       isHost = true;
       $("host-panel").classList.remove("hidden");
+      $("admin-toggle-btn").classList.remove("hidden");
+      $("admin-panel").classList.remove("hidden");
       addSystemMsg("შენ ხარ ოთახის ჰოსტი");
+      renderAdminPanel();
+    });
+
+    socket.on("remove-host", () => {
+      isHost = false;
+      $("host-panel").classList.add("hidden");
+      $("admin-toggle-btn").classList.add("hidden");
+      $("admin-panel").classList.add("hidden");
+      $("admin-panel").classList.remove("admin-open");
+      addSystemMsg("შენ აღარ ხარ ჰოსტი");
     });
 
     socket.on("update-room-list", rooms => {
@@ -750,12 +984,14 @@
     socket.on("game-state", state => {
       currentPhase = state.phase || "waiting";
       alivePlayers = state.players || [];
+      latestPlayers = state.players || [];
 
       updatePhaseText();
       updateAliveCount();
       updateDeadVideos();
       renderActionPanel();
       updateVoiceByPhase();
+      renderAdminPanel();
     });
 
     socket.on("phase-message", msg => {
@@ -1063,6 +1299,151 @@
     function toggleChat() {
       $("chat-panel").classList.toggle("open");
     }
+
+
+
+    /* ---------------- ADMIN PANEL LOGIC ---------------- */
+
+    function setupAdminPanel() {
+      $("admin-toggle-btn").addEventListener("click", () => {
+        $("admin-panel").classList.toggle("admin-open");
+      });
+
+      $("admin-close-btn").addEventListener("click", () => {
+        $("admin-panel").classList.remove("admin-open");
+      });
+
+      $("admin-start-game").addEventListener("click", () => {
+        requestStart();
+      });
+
+      $("admin-end-game").addEventListener("click", () => {
+        adminAction("end-game");
+      });
+
+      $("admin-reset-game").addEventListener("click", () => {
+        adminAction("reset-game");
+      });
+
+      $("admin-lock-room").addEventListener("click", () => {
+        adminAction("lock-room");
+      });
+
+      $("admin-unlock-room").addEventListener("click", () => {
+        adminAction("unlock-room");
+      });
+
+      $("admin-clear-chat").addEventListener("click", () => {
+        adminAction("clear-chat");
+      });
+
+      $("admin-close-room").addEventListener("click", () => {
+        if (confirm("ნამდვილად გინდა ოთახის დახურვა?")) {
+          adminAction("close-room");
+        }
+      });
+
+      $("admin-announce-btn").addEventListener("click", () => {
+        const message = $("admin-announce-input").value.trim();
+
+        if (!message) {
+          alert("ჩაწერე განცხადება");
+          return;
+        }
+
+        adminAction("announce", null, message);
+        $("admin-announce-input").value = "";
+      });
+    }
+
+    function adminAction(action, targetId = null, message = "") {
+      if (!isHost) {
+        alert("მხოლოდ ადმინს შეუძლია");
+        return;
+      }
+
+      socket.emit("admin-action", {
+        room: currentRoom,
+        action,
+        targetId,
+        message
+      });
+    }
+
+    function renderAdminPanel() {
+      if (!isHost) return;
+
+      const playersBox = $("admin-players-list");
+      const spectatorsBox = $("admin-spectators-list");
+
+      if (playersBox) {
+        if (!latestPlayers.length) {
+          playersBox.innerHTML = `<div class="admin-empty">მოთამაშეები არ არიან</div>`;
+        } else {
+          playersBox.innerHTML = latestPlayers.map(p => `
+            <div class="admin-user-row">
+              <span>
+                #${p.index} ${escapeHtml(p.name)}
+                ${p.alive ? "" : "<small>(dead)</small>"}
+              </span>
+
+              <div class="admin-user-actions">
+                <button class="danger" onclick="adminAction('kick', '${p.id}')">KICK</button>
+                <button onclick="adminAction('make-host', '${p.id}')">HOST</button>
+              </div>
+            </div>
+          `).join("");
+        }
+      }
+
+      if (spectatorsBox) {
+        if (!latestSpectators.length) {
+          spectatorsBox.innerHTML = `<div class="admin-empty">spectator არ არის</div>`;
+        } else {
+          spectatorsBox.innerHTML = latestSpectators.map(s => `
+            <div class="admin-user-row">
+              <span>👁️ ${escapeHtml(s.name)}</span>
+
+              <div class="admin-user-actions">
+                <button class="danger" onclick="adminAction('kick', '${s.id}')">KICK</button>
+              </div>
+            </div>
+          `).join("");
+        }
+      }
+    }
+
+    socket.on("spectators-update", list => {
+      latestSpectators = list || [];
+      renderAdminPanel();
+    });
+
+    socket.on("kicked", msg => {
+      alert(msg || "ადმინმა გაგაგდო ოთახიდან");
+      location.reload();
+    });
+
+    socket.on("room-closed", msg => {
+      alert(msg || "ოთახი დაიხურა");
+      location.reload();
+    });
+
+    socket.on("clear-chat", () => {
+      $("chat-messages").innerHTML = "";
+    });
+
+    socket.on("admin-announcement", data => {
+      const message = data && data.message ? data.message : "";
+
+      $("chat-messages").innerHTML += `
+        <div class="msg admin-chat-announcement">
+          <b>ADMIN:</b> ${escapeHtml(message)}
+        </div>
+      `;
+
+      $("chat-messages").scrollTop = $("chat-messages").scrollHeight;
+      alert("ADMIN: " + message);
+    });
 
     function roleName(role) {
       const map = {
