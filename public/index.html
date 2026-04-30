@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>VOID MAFIA</title>
-
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@600&display=swap" rel="stylesheet">
 
   <style>
@@ -18,10 +17,7 @@
       --blue:#3e8eff;
     }
 
-    * {
-      box-sizing:border-box;
-      -webkit-tap-highlight-color:transparent;
-    }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 
     body {
       margin:0;
@@ -38,33 +34,19 @@
         linear-gradient(to bottom, transparent 50%, rgba(255,0,255,.05) 50%),
         linear-gradient(to right, transparent 50%, rgba(0,255,255,.05) 50%);
       background-size:40px 40px;
+      transition: background-color .5s;
     }
 
-    body.night-mode {
-      background-color:#010008;
-      filter:brightness(.75);
-    }
-
-    body.day-mode {
-      filter:brightness(1);
-    }
-
-    body.night-mode #game-status-bar {
-      border-bottom-color:var(--blue);
-      background:#000;
-    }
-
-    body.night-mode .video-box {
-      box-shadow:0 0 18px rgba(62,142,255,.35);
-      border-color:var(--blue);
-    }
+    /* ===== NIGHT MODE — no filter so videos stay natural ===== */
+    body.night-mode { background-color:#010008; }
+    body.night-mode #game-status-bar { border-bottom-color:var(--blue); background:#000; }
+    body.night-mode .video-box { box-shadow:0 0 18px rgba(62,142,255,.35); border-color:var(--blue); }
+    body.night-mode #game-status-bar { border-bottom-color:var(--blue); }
 
     .hidden { display:none !important; }
 
     .game-active .glitch-title,
-    .game-active .powered {
-      display:none;
-    }
+    .game-active .powered { display:none; }
 
     .glitch-title {
       margin-top:40px;
@@ -116,9 +98,9 @@
       font-size:.75rem;
       cursor:pointer;
       text-transform:uppercase;
+      transition: opacity .15s, transform .1s;
     }
-
-    .btn:active { transform:scale(.97); }
+    .btn:active { transform:scale(.97); opacity:.85; }
 
     #mafia-count {
       width:60px;
@@ -137,14 +119,10 @@
       gap:8px;
     }
 
-    #game-screen {
-      width:100%;
-    }
-
+    /* ===== STATUS BAR ===== */
     #game-status-bar {
       position:fixed;
-      top:0;
-      left:0;
+      top:0; left:0;
       width:100%;
       z-index:2000;
       background:rgba(0,0,0,.92);
@@ -158,160 +136,171 @@
 
     #my-role-card {
       position:fixed;
-      top:52px;
-      left:8px;
+      top:42px; left:8px;
       z-index:2100;
       background:var(--card);
       border:1px solid var(--cyan);
       padding:7px 10px;
       font-family:'Orbitron';
       font-size:.68rem;
+      border-radius:10px;
+      cursor:pointer;
+      max-width:38vw;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      transition: box-shadow .2s;
+    }
+    #my-role-card:hover { box-shadow:0 0 18px rgba(0,255,255,.5); }
+
+    /* ===== ROLE TOOLTIP ===== */
+    #role-tooltip {
+      position:fixed;
+      top:75px; left:8px;
+      z-index:2200;
+      background:rgba(7,2,15,.98);
+      border:1px solid var(--neon);
+      border-radius:12px;
+      padding:10px 14px;
+      font-size:.82rem;
+      max-width:260px;
+      box-shadow:0 0 20px rgba(255,0,255,.35);
+      line-height:1.5;
+      pointer-events:none;
     }
 
-    #host-panel {
-      margin-top:82px;
-      text-align:center;
+    /* ===== GAME SCREEN ===== */
+    #game-screen {
       width:100%;
+      padding-top:72px;
+      min-height:100vh;
     }
 
-    .phase-banner {
-      margin:55px auto 10px;
-      max-width:430px;
-      padding:14px;
-      border:2px solid var(--cyan);
-      background:rgba(0,0,0,.75);
-      text-align:center;
-      box-shadow:0 0 20px rgba(0,255,255,.25);
-    }
+    #host-panel { display:none !important; }
+    #phase-banner, #pro-mafia-panel, .pro-mafia-panel,
+    #phase-roadmap, .phase-roadmap, .pro2-layout,
+    #last-words-banner { display:none !important; }
 
-    #phase-big-text {
+    #game-powered-by {
+      position:fixed;
+      top:42px; left:50%;
+      transform:translateX(-50%);
+      z-index:2100;
+      color:#b58ad6;
       font-family:Orbitron;
-      font-size:1.1rem;
-      color:var(--cyan);
+      font-size:.58rem;
+      letter-spacing:1.5px;
+      text-shadow:0 0 10px rgba(255,0,255,.45);
+      pointer-events:none;
+      white-space:nowrap;
     }
 
-    #phase-small-text {
-      margin-top:6px;
-      font-size:.85rem;
-      color:white;
-    }
-
-    body.night-mode .phase-banner {
-      border-color:var(--blue);
-      box-shadow:0 0 25px rgba(62,142,255,.45);
-    }
-
-    body.night-mode #phase-big-text {
-      color:var(--blue);
-    }
-
-    #action-panel {
-      margin:10px auto 10px;
-      max-width:420px;
-      background:var(--card);
-      border:1px solid var(--cyan);
-      padding:12px;
-    }
-
-    #action-title {
-      color:var(--cyan);
-      font-family:'Orbitron';
-      font-size:.75rem;
-      text-align:center;
-      margin-bottom:8px;
-    }
-
+    /* ===== VIDEO GRID ===== */
     #video-grid {
       width:100%;
-      max-width:850px;
-      margin:12px auto 110px;
+      max-width:980px;
+      margin:14px auto 105px !important;
       display:grid;
-      grid-template-columns:repeat(2,1fr);
-      gap:8px;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:10px;
+    }
+    @media (min-width:850px) {
+      #video-grid { grid-template-columns:repeat(3, minmax(0, 1fr)); }
     }
 
     .video-box {
       position:relative;
       background:#000;
-      border:1px solid var(--neon);
+      border:2px solid rgba(255,0,255,.7);
       aspect-ratio:4/3;
       overflow:hidden;
-      border-radius:4px;
+      border-radius:14px;
+      box-shadow:0 0 18px rgba(255,0,255,.14);
+      cursor:pointer;
+      transition: border-color .2s, box-shadow .2s;
     }
-
+    .video-box.speaking {
+      border-color:var(--green) !important;
+      box-shadow:0 0 22px rgba(62,255,62,.6) !important;
+    }
     .video-box.dead {
       filter:grayscale(1);
       opacity:.45;
-      border-color:#555;
+      border-color:#555 !important;
     }
 
-    video {
-      width:100%;
-      height:100%;
-      object-fit:cover;
-    }
+    video { width:100%; height:100%; object-fit:cover; }
 
     .player-number {
       position:absolute;
-      top:5px;
-      right:5px;
+      top:8px; right:8px;
       z-index:10;
-      background:var(--neon);
+      background:rgba(255,0,255,.9);
       color:white;
       font-family:'Orbitron';
       font-size:.65rem;
       padding:2px 7px;
+      border-radius:8px;
     }
 
     .video-label {
       position:absolute;
-      bottom:0;
-      left:0;
+      bottom:0; left:0;
       width:100%;
-      background:rgba(0,0,0,.75);
+      background:linear-gradient(to top, rgba(0,0,0,.88), rgba(0,0,0,.2));
       color:var(--cyan);
-      border-top:1px solid var(--neon);
-      padding:4px;
-      font-size:.7rem;
+      padding:7px 9px;
+      font-size:.82rem;
     }
 
     .dead-badge {
       position:absolute;
-      top:30px;
-      left:5px;
+      top:30px; left:5px;
       background:var(--red);
       color:white;
       padding:2px 6px;
       font-family:'Orbitron';
       font-size:.6rem;
       z-index:20;
+      border-radius:6px;
     }
 
+    /* Speaking dot indicator */
+    .speaking-indicator {
+      position:absolute;
+      top:8px; left:8px;
+      width:10px; height:10px;
+      border-radius:50%;
+      background:var(--green);
+      box-shadow:0 0 10px var(--green);
+      z-index:15;
+      display:none;
+    }
+    .video-box.speaking .speaking-indicator { display:block; animation: speakPulse .6s ease infinite alternate; }
+    @keyframes speakPulse { from { opacity:.5; transform:scale(.8); } to { opacity:1; transform:scale(1.2); } }
+
+    /* ===== CONTROLS ===== */
     .controls {
       position:fixed;
-      bottom:18px;
-      left:50%;
+      bottom:14px; left:50%;
       transform:translateX(-50%);
       z-index:1500;
       background:rgba(7,2,15,.92);
       border:1px solid var(--neon);
-      border-radius:12px;
+      border-radius:18px;
       padding:9px;
       display:flex;
       gap:8px;
+      width:auto;
+      max-width:92vw;
     }
+    .controls .btn { width:62px; padding:12px 4px; border-radius:12px; }
 
-    .controls .btn {
-      width:62px;
-      padding:12px 4px;
-    }
-
+    /* ===== CHAT ===== */
     #chat-toggle {
       position:fixed;
-      right:14px;
-      bottom:88px;
-      width:50px;
-      height:50px;
+      right:18px; bottom:92px;
+      width:50px; height:50px;
       border-radius:50%;
       background:var(--neon);
       display:flex;
@@ -323,12 +312,24 @@
       cursor:pointer;
     }
 
+    #chat-unread-badge {
+      position:absolute;
+      top:-4px; right:-4px;
+      background:var(--red);
+      color:white;
+      font-family:Orbitron;
+      font-size:.5rem;
+      width:18px; height:18px;
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
     #chat-panel {
       position:fixed;
-      right:-100%;
-      top:0;
-      width:100%;
-      max-width:330px;
+      right:-100%; top:0;
+      width:100%; max-width:330px;
       height:100%;
       z-index:3000;
       background:var(--card);
@@ -337,7 +338,6 @@
       display:flex;
       flex-direction:column;
     }
-
     #chat-panel.open { right:0; }
 
     #chat-header {
@@ -364,367 +364,16 @@
       padding:8px;
       font-size:.86rem;
       word-break:break-word;
+      border-radius:0 8px 8px 0;
     }
-
-    .action-row {
-      display:grid;
-      grid-template-columns:45px 1fr;
-      gap:7px;
-      margin-top:7px;
-    }
-
-    .num {
-      background:var(--neon);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-family:'Orbitron';
-      font-size:.65rem;
-    }
-
-
-    /* ---------------- ADMIN PANEL ---------------- */
-
-    .admin-toggle {
-      position:fixed;
-      top:52px;
-      right:10px;
-      z-index:2400;
-      width:auto;
-      padding:9px 12px;
-      border-radius:10px;
-      background:linear-gradient(135deg, var(--neon), var(--cyan));
-      color:#000;
-      box-shadow:0 0 18px rgba(0,255,255,.45);
-      font-size:.62rem;
-    }
-
-    .admin-panel {
-      position:fixed;
-      top:0;
-      right:-430px;
-      width:400px;
-      max-width:94vw;
-      height:100vh;
-      z-index:3500;
-      background:rgba(7,2,15,.98);
-      border-left:2px solid var(--cyan);
-      box-shadow:-12px 0 35px rgba(0,0,0,.75);
-      padding:15px;
-      overflow-y:auto;
-      transition:right .25s ease;
-    }
-
-    .admin-panel.admin-open {
-      right:0;
-    }
-
-    .admin-header {
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:10px;
-      margin-bottom:14px;
-      border-bottom:1px solid rgba(0,255,255,.35);
-      padding-bottom:10px;
-    }
-
-    .admin-header h2 {
-      margin:0;
-      font-family:Orbitron;
-      font-size:1rem;
+    .msg.system-msg {
+      border-left-color:var(--neon);
       color:var(--cyan);
-      text-shadow:0 0 12px rgba(0,255,255,.75);
     }
-
-    .admin-close {
-      width:36px;
-      height:36px;
-      padding:0;
-      border-radius:10px;
-      background:var(--red);
-      color:white;
-      border:0;
-      font-family:Orbitron;
-      cursor:pointer;
-    }
-
-    .admin-section {
-      margin-bottom:13px;
-      padding:12px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(255,255,255,.04);
-      border-radius:14px;
-    }
-
-    .admin-section h3 {
-      margin:0 0 10px;
-      font-family:Orbitron;
-      font-size:.72rem;
-      color:var(--neon);
-    }
-
-    .admin-grid {
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:7px;
-    }
-
-    .admin-mini-btn {
-      padding:10px 8px;
-      border:0;
-      border-radius:10px;
-      background:#1b2144;
-      color:white;
-      font-family:Orbitron;
-      font-size:.58rem;
-      cursor:pointer;
-    }
-
-    .admin-mini-btn:active {
-      transform:scale(.97);
-    }
-
-    .admin-mini-btn.danger {
-      background:#a30032;
-    }
-
-    .admin-mini-btn.good {
-      background:#007f66;
-    }
-
-    .admin-mini-btn.warn {
-      background:#7f5c00;
-    }
-
-    #admin-announce-input {
-      width:100%;
-      margin-bottom:8px;
-      border-color:var(--cyan);
-    }
-
-    .admin-user-row {
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:8px;
-      padding:8px;
-      margin-bottom:7px;
-      background:rgba(255,255,255,.06);
-      border-radius:10px;
-      border-left:2px solid var(--cyan);
-      font-size:.82rem;
-    }
-
-    .admin-user-actions {
-      display:flex;
-      gap:5px;
-      flex-wrap:wrap;
-      justify-content:flex-end;
-    }
-
-    .admin-user-actions button {
-      padding:6px 7px;
-      border:0;
-      border-radius:8px;
-      background:var(--neon);
-      color:white;
-      font-family:Orbitron;
-      font-size:.52rem;
-      cursor:pointer;
-    }
-
-    .admin-user-actions button.danger {
-      background:var(--red);
-    }
-
-    .admin-empty {
-      opacity:.65;
-      font-size:.8rem;
-    }
-
-    .admin-chat-announcement {
+    .msg.admin-chat-announcement {
       background:rgba(255,0,255,.13);
-      border-left:2px solid var(--neon);
-      padding:8px;
+      border-left-color:var(--neon);
       color:#ffd9ff;
-    }
-
-
-
-    /* ---------------- LOBBY MUSIC + MINI GAMES ---------------- */
-
-    .mini-games-toggle {
-      position:fixed;
-      left:14px;
-      bottom:88px;
-      z-index:1600;
-      width:auto;
-      padding:12px 14px;
-      border-radius:18px;
-      background:linear-gradient(135deg, #ff00ff, #00ffff);
-      color:#02020a;
-      box-shadow:0 0 18px rgba(255,0,255,.45);
-      font-size:.6rem;
-    }
-
-    .mini-games-panel {
-      position:fixed;
-      left:50%;
-      top:50%;
-      transform:translate(-50%, -50%);
-      width:430px;
-      max-width:94vw;
-      max-height:86vh;
-      overflow-y:auto;
-      z-index:3400;
-      background:rgba(7,2,15,.98);
-      border:2px solid var(--cyan);
-      box-shadow:0 0 40px rgba(0,255,255,.35), 0 0 60px rgba(255,0,255,.25);
-      border-radius:18px;
-      padding:14px;
-    }
-
-    .mini-games-header {
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      margin-bottom:12px;
-      padding-bottom:10px;
-      border-bottom:1px solid rgba(0,255,255,.35);
-    }
-
-    .mini-games-header h2 {
-      margin:0;
-      font-family:Orbitron;
-      color:var(--cyan);
-      font-size:.95rem;
-      text-shadow:0 0 12px var(--cyan);
-    }
-
-    .mini-close {
-      width:36px;
-      height:36px;
-      border:0;
-      border-radius:10px;
-      background:var(--red);
-      color:white;
-      font-family:Orbitron;
-      cursor:pointer;
-    }
-
-    .mini-tabs {
-      display:grid;
-      grid-template-columns:1fr 1fr 1fr;
-      gap:6px;
-      margin-bottom:12px;
-    }
-
-    .mini-tab {
-      border:1px solid rgba(0,255,255,.35);
-      background:#111735;
-      color:white;
-      padding:9px 5px;
-      border-radius:10px;
-      font-family:Orbitron;
-      font-size:.52rem;
-      cursor:pointer;
-    }
-
-    .mini-tab.active {
-      background:var(--cyan);
-      color:#000;
-      box-shadow:0 0 14px rgba(0,255,255,.55);
-    }
-
-    .mini-game-box {
-      border:1px solid rgba(255,0,255,.35);
-      background:rgba(255,255,255,.04);
-      border-radius:14px;
-      padding:12px;
-    }
-
-    .mini-title {
-      font-family:Orbitron;
-      color:var(--neon);
-      margin-bottom:8px;
-      text-align:center;
-    }
-
-    .mini-status {
-      text-align:center;
-      color:var(--cyan);
-      margin-bottom:10px;
-      font-family:Orbitron;
-      font-size:.7rem;
-    }
-
-    .ttt-board {
-      display:grid;
-      grid-template-columns:repeat(3, 1fr);
-      gap:7px;
-      margin:0 auto 12px;
-      max-width:300px;
-    }
-
-    .ttt-cell {
-      aspect-ratio:1/1;
-      border:1px solid var(--cyan);
-      background:#000;
-      color:white;
-      font-family:Orbitron;
-      font-size:2rem;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      cursor:pointer;
-      box-shadow:inset 0 0 16px rgba(0,255,255,.12);
-    }
-
-    .ttt-cell:hover {
-      background:rgba(0,255,255,.08);
-    }
-
-    .mini-reset {
-      padding:10px;
-      background:var(--neon);
-    }
-
-    .truth-card {
-      min-height:110px;
-      border:1px solid var(--cyan);
-      background:#000;
-      padding:16px;
-      margin-bottom:12px;
-      border-radius:12px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      text-align:center;
-      font-size:1.05rem;
-      color:white;
-    }
-
-    .dice-result {
-      font-family:Orbitron;
-      font-size:4rem;
-      text-align:center;
-      color:var(--cyan);
-      text-shadow:0 0 20px var(--cyan);
-      padding:18px 0;
-    }
-
-
-
-    /* ---------------- ADVANCED PACK ---------------- */
-
-    .lobby-ready-box {
-      border:1px solid var(--cyan);
-      padding:10px;
-      background:rgba(0,255,255,.05);
-      font-size:.82rem;
-      text-align:center;
     }
 
     .chat-tabs {
@@ -735,7 +384,6 @@
       background:#080316;
       border-bottom:1px solid rgba(255,0,255,.35);
     }
-
     .chat-tab {
       border:1px solid rgba(0,255,255,.35);
       background:#101632;
@@ -746,492 +394,42 @@
       border-radius:8px;
       cursor:pointer;
     }
+    .chat-tab.active { background:var(--cyan); color:#000; }
 
-    .chat-tab.active {
-      background:var(--cyan);
-      color:#000;
-    }
-
-    .advanced-mini-selector {
-      display:grid;
-      grid-template-columns:repeat(2,1fr);
-      gap:6px;
-      margin-bottom:10px;
-    }
-
-    .advanced-mini-selector button {
-      padding:8px 4px;
-      border-radius:9px;
-      border:1px solid rgba(0,255,255,.4);
-      background:#111735;
-      color:white;
-      font-family:Orbitron;
-      font-size:.5rem;
-      cursor:pointer;
-    }
-
-    .advanced-mini-selector button.active {
-      background:var(--cyan);
-      color:#000;
-    }
-
-    .game-card {
-      border:1px solid rgba(255,0,255,.32);
-      background:rgba(0,0,0,.42);
-      padding:12px;
-      border-radius:14px;
-      min-height:180px;
-    }
-
-    .game-card h3 {
-      margin:0 0 10px;
-      color:var(--cyan);
-      font-family:Orbitron;
-      font-size:.72rem;
-      text-align:center;
-    }
-
-    .game-output {
-      min-height:70px;
-      padding:12px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      text-align:center;
-      border:1px solid rgba(0,255,255,.35);
-      background:#000;
-      border-radius:12px;
-      font-size:1rem;
-      margin-bottom:10px;
-    }
-
-    .wheel {
-      width:170px;
-      height:170px;
-      margin:8px auto 12px;
-      border-radius:50%;
-      border:7px solid var(--cyan);
-      background:conic-gradient(var(--neon), var(--cyan), #7c4dff, var(--red), var(--green), var(--neon));
-      box-shadow:0 0 24px rgba(0,255,255,.35);
-      transition:transform 1.2s ease;
-    }
-
-    .memory-grid {
-      display:grid;
-      grid-template-columns:repeat(4,1fr);
-      gap:7px;
-    }
-
-    .memory-card {
-      aspect-ratio:1/1;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      border:1px solid var(--cyan);
-      background:#000;
-      border-radius:9px;
-      font-size:1.35rem;
-      cursor:pointer;
-    }
-
-    .rps-grid {
-      display:grid;
-      grid-template-columns:repeat(3,1fr);
-      gap:7px;
-    }
-
-    .rps-grid button,
-    .game-card .game-btn {
-      border:0;
-      border-radius:10px;
-      padding:10px;
-      background:var(--neon);
-      color:white;
-      font-family:Orbitron;
-      cursor:pointer;
-      font-size:.62rem;
-    }
-
-    .quiz-options {
-      display:grid;
-      gap:7px;
-    }
-
-    .quiz-options button {
-      padding:10px;
-      border-radius:10px;
-      border:1px solid rgba(0,255,255,.4);
-      background:#111735;
-      color:white;
-      cursor:pointer;
-    }
-
-    .guess-input {
-      margin-bottom:8px;
-    }
-
-    .soundboard-grid {
-      display:grid;
-      grid-template-columns:repeat(2,1fr);
-      gap:7px;
-    }
-
-    .soundboard-grid button {
-      padding:10px;
-      border:0;
-      border-radius:10px;
-      background:#1b2144;
-      color:white;
-      font-family:Orbitron;
-      font-size:.55rem;
-      cursor:pointer;
-    }
-
-    .pro-admin-row {
-      display:grid;
-      grid-template-columns:1fr 1fr 1fr;
-      gap:6px;
-      margin-top:8px;
-    }
-
-
-
-    #game-powered-by {
+    /* ===== TOAST NOTIFICATIONS ===== */
+    #toast-container {
       position:fixed;
-      top:36px;
-      left:50%;
+      bottom:80px; left:50%;
       transform:translateX(-50%);
-      z-index:2100;
-      color:#8b64aa;
-      font-family:Orbitron;
-      font-size:.55rem;
-      letter-spacing:1.5px;
-      text-shadow:0 0 10px rgba(255,0,255,.35);
-      pointer-events:none;
-    }
-
-
-
-    /* ---------------- PRO MAFIA DASHBOARD ---------------- */
-
-    .pro-mafia-panel {
-      width:100%;
-      max-width:850px;
-      margin:8px auto 10px;
+      z-index:9000;
       display:flex;
       flex-direction:column;
       gap:8px;
-    }
-
-    .pro-flow {
-      display:grid;
-      grid-template-columns:1fr 1fr 1fr;
-      gap:7px;
-    }
-
-    .pro-step {
-      padding:9px 4px;
-      text-align:center;
-      border:1px solid rgba(0,255,255,.35);
-      background:rgba(255,255,255,.04);
-      border-radius:12px;
-      font-family:Orbitron;
-      font-size:.58rem;
-      opacity:.55;
-    }
-
-    .pro-step.active {
-      opacity:1;
-      background:linear-gradient(135deg, rgba(255,0,255,.28), rgba(0,255,255,.22));
-      box-shadow:0 0 16px rgba(0,255,255,.25);
-      color:var(--cyan);
-    }
-
-    .pro-grid {
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:8px;
-    }
-
-    .pro-box {
-      border:1px solid rgba(255,0,255,.32);
-      background:rgba(0,0,0,.44);
-      padding:10px;
-      border-radius:13px;
-      min-height:70px;
-      font-size:.82rem;
-    }
-
-    .pro-title {
-      color:var(--neon);
-      font-family:Orbitron;
-      font-size:.62rem;
-      margin-bottom:6px;
-    }
-
-    .grave-dead {
-      color:#aaa;
-      text-decoration:line-through;
-      margin:3px 0;
-    }
-
-    @media (max-width:600px) {
-      .pro-grid {
-        grid-template-columns:1fr;
-      }
-    }
-
-
-
-    /* ---------------- PROFESSIONAL PACK V2 ---------------- */
-
-    .role-reveal {
-      animation: roleFlip .75s ease both, roleGlow 1.8s ease infinite alternate;
-      transform-origin:center;
-    }
-
-    @keyframes roleFlip {
-      0% { transform:rotateY(90deg) scale(.8); opacity:.1; }
-      100% { transform:rotateY(0deg) scale(1); opacity:1; }
-    }
-
-    @keyframes roleGlow {
-      from { box-shadow:0 0 8px rgba(0,255,255,.25); }
-      to { box-shadow:0 0 22px rgba(255,0,255,.55); }
-    }
-
-    .pro2-layout {
-      width:100%;
-      max-width:900px;
-      margin:8px auto 118px;
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:8px;
-    }
-
-    .pro2-card {
-      border:1px solid rgba(0,255,255,.32);
-      background:rgba(0,0,0,.48);
-      border-radius:14px;
-      padding:10px;
-      min-height:85px;
-      font-size:.82rem;
-    }
-
-    .pro2-card h3 {
-      margin:0 0 8px;
-      color:var(--cyan);
-      font-family:Orbitron;
-      font-size:.65rem;
-    }
-
-    .phase-roadmap {
-      width:100%;
-      max-width:900px;
-      margin:7px auto;
-      display:grid;
-      grid-template-columns:repeat(6, 1fr);
-      gap:5px;
-    }
-
-    .road-step {
-      border:1px solid rgba(255,0,255,.28);
-      background:rgba(255,255,255,.04);
-      padding:7px 2px;
-      border-radius:10px;
-      text-align:center;
-      font-family:Orbitron;
-      font-size:.46rem;
-      opacity:.55;
-    }
-
-    .road-step.active {
-      opacity:1;
-      background:linear-gradient(135deg, rgba(0,255,255,.22), rgba(255,0,255,.22));
-      color:var(--cyan);
-      box-shadow:0 0 14px rgba(0,255,255,.22);
-    }
-
-    .vote-row, .log-row, .role-row {
-      padding:6px 7px;
-      margin-bottom:5px;
-      background:rgba(255,255,255,.055);
-      border-left:2px solid var(--neon);
-      border-radius:8px;
-    }
-
-    .log-row {
-      border-left-color:var(--cyan);
-      color:#d8fbff;
-      font-size:.76rem;
-    }
-
-    .admin-pro-grid {
-      display:grid;
-      grid-template-columns:repeat(3, 1fr);
-      gap:6px;
-    }
-
-    .admin-pro-grid button {
-      padding:8px 4px;
-      border:0;
-      border-radius:9px;
-      background:#1b2144;
-      color:white;
-      font-family:Orbitron;
-      font-size:.48rem;
-      cursor:pointer;
-    }
-
-    .admin-pro-grid button.danger {
-      background:var(--red);
-    }
-
-    .admin-pro-grid button.good {
-      background:#007f66;
-    }
-
-    .invite-row {
-      display:flex;
-      gap:6px;
       align-items:center;
-    }
-
-    .invite-row input {
-      flex:1;
-      font-size:.75rem;
-      padding:8px;
-    }
-
-    .invite-row button {
-      width:120px;
-      padding:9px 5px;
-    }
-
-    .last-words-banner {
-      border:1px solid var(--red);
-      background:rgba(255,62,62,.12);
-      color:#ffd6d6;
-      padding:10px;
-      border-radius:12px;
-      text-align:center;
-      font-family:Orbitron;
-      font-size:.65rem;
-      margin:8px auto;
-      max-width:520px;
-    }
-
-    .speaking-dot {
-      display:inline-block;
-      width:7px;
-      height:7px;
-      border-radius:50%;
-      background:var(--green);
-      box-shadow:0 0 10px var(--green);
-      margin-right:5px;
-    }
-
-    @media (max-width:700px) {
-      .phase-roadmap {
-        grid-template-columns:repeat(3, 1fr);
-        margin-top:10px;
-      }
-
-      .pro2-layout {
-        grid-template-columns:1fr;
-      }
-
-      .controls {
-        width:94vw;
-        justify-content:center;
-      }
-
-      .video-label {
-        font-size:.78rem;
-        padding:6px;
-      }
-
-      .btn {
-        min-height:42px;
-      }
-
-      #chat-panel {
-        max-width:100%;
-      }
-    }
-
-
-
-    /* ---------------- CLEAN CAMERA-FIRST GAME UI ---------------- */
-
-    #phase-banner,
-    #pro-mafia-panel,
-    .pro-mafia-panel,
-    #phase-roadmap,
-    .phase-roadmap,
-    .pro2-layout,
-    #last-words-banner {
-      display:none !important;
-    }
-
-    #game-screen {
-      padding-top:72px;
-      min-height:100vh;
-    }
-
-    #game-powered-by {
-      position:fixed;
-      top:42px;
-      left:50%;
-      transform:translateX(-50%);
-      z-index:2100;
-      color:#b58ad6;
-      font-family:Orbitron;
-      font-size:.58rem;
-      letter-spacing:1.5px;
-      text-shadow:0 0 10px rgba(255,0,255,.45);
       pointer-events:none;
-      white-space:nowrap;
+      width:min(360px, 90vw);
     }
 
-    #video-grid {
+    .toast {
       width:100%;
-      max-width:980px;
-      margin:14px auto 105px !important;
-      display:grid;
-      grid-template-columns:repeat(2, minmax(0, 1fr));
-      gap:10px;
+      padding:12px 16px;
+      border-radius:12px;
+      font-family:Orbitron;
+      font-size:.7rem;
+      text-align:center;
+      animation: toastIn .3s ease, toastOut .3s ease 2.7s forwards;
+      pointer-events:none;
+      backdrop-filter:blur(8px);
     }
+    .toast.info { background:rgba(0,255,255,.18); border:1px solid var(--cyan); color:var(--cyan); }
+    .toast.success { background:rgba(62,255,62,.18); border:1px solid var(--green); color:var(--green); }
+    .toast.error { background:rgba(255,62,62,.18); border:1px solid var(--red); color:#ffaaaa; }
+    .toast.role { background:rgba(255,0,255,.22); border:1px solid var(--neon); color:#ffd9ff; font-size:.8rem; }
 
-    @media (min-width:850px) {
-      #video-grid {
-        grid-template-columns:repeat(3, minmax(0, 1fr));
-      }
-    }
+    @keyframes toastIn { from { opacity:0; transform:translateY(20px) scale(.95); } to { opacity:1; transform:translateY(0) scale(1); } }
+    @keyframes toastOut { from { opacity:1; } to { opacity:0; transform:translateY(-10px); } }
 
-    .video-box {
-      border-radius:14px;
-      border:1px solid rgba(255,0,255,.7);
-      background:#000;
-      box-shadow:0 0 18px rgba(255,0,255,.14);
-    }
-
-    .player-number {
-      top:8px;
-      right:8px;
-      border-radius:8px;
-      background:rgba(255,0,255,.9);
-      color:white;
-    }
-
-    .video-label {
-      padding:7px 9px;
-      color:var(--cyan);
-      font-size:.82rem;
-      background:linear-gradient(to top, rgba(0,0,0,.88), rgba(0,0,0,.2));
-      border-top:0;
-    }
-
+    /* ===== ACTION MODAL ===== */
     .action-modal {
       position:fixed;
       inset:0;
@@ -1258,10 +456,8 @@
 
     .action-modal-close {
       position:absolute;
-      top:9px;
-      right:9px;
-      width:34px;
-      height:34px;
+      top:9px; right:9px;
+      width:34px; height:34px;
       border:0;
       border-radius:10px;
       background:var(--red);
@@ -1280,70 +476,75 @@
       text-align:center;
     }
 
-    #players-actions .msg {
+    .action-row { display:grid; grid-template-columns:45px 1fr; gap:7px; margin-top:8px; }
+    .action-row .btn { border-radius:12px; }
+    .num {
+      background:var(--neon);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-family:'Orbitron';
+      font-size:.65rem;
+      border-radius:8px;
+    }
+
+    /* ===== PLAYER QUICK PROFILE ===== */
+    #player-profile-modal {
+      position:fixed;
+      inset:0;
+      z-index:5500;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:18px;
+      background:rgba(0,0,0,.65);
+      backdrop-filter:blur(6px);
+    }
+    #player-profile-card {
+      width:min(90vw, 320px);
+      background:rgba(7,2,15,.98);
+      border:2px solid var(--cyan);
+      border-radius:18px;
+      padding:20px;
+      box-shadow:0 0 38px rgba(0,255,255,.32);
       text-align:center;
-      border-left-color:var(--cyan);
+      position:relative;
     }
-
-    #players-actions .action-row {
-      grid-template-columns:45px 1fr;
-      margin-top:8px;
+    #player-profile-card h2 {
+      margin:0 0 6px;
+      font-family:Orbitron;
+      font-size:1rem;
+      color:var(--cyan);
     }
-
-    #players-actions .btn {
+    #player-profile-card .profile-close {
+      position:absolute;
+      top:9px; right:9px;
+      width:32px; height:32px;
+      border:0; border-radius:8px;
+      background:var(--red);
+      color:white;
+      font-family:Orbitron;
+      cursor:pointer;
+    }
+    #player-profile-card .profile-actions {
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      margin-top:14px;
+    }
+    #player-profile-card .profile-actions .btn {
       border-radius:12px;
+      padding:12px;
     }
 
-    .controls {
-      bottom:14px;
-      width:auto;
-      max-width:92vw;
-      border-radius:18px;
-    }
-
-    #chat-toggle {
-      bottom:92px;
-      right:18px;
-    }
-
-    .mini-games-toggle {
-      bottom:92px !important;
-      left:18px !important;
-      transform:none !important;
-      border-radius:18px;
-      width:auto;
-    }
-
-    #host-panel {
-      display:none !important;
-    }
-
-    #my-role-card {
-      top:42px;
-      left:8px;
-      max-width:38vw;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-
-    .hidden {
-      display:none !important;
-    }
-
-
-
-    /* ---------------- COMPACT ROLE SETTINGS ---------------- */
-
+    /* ===== COMPACT HOST CONTROLS ===== */
     .host-compact-controls {
       position:fixed;
-      top:64px;
-      right:10px;
+      top:64px; right:10px;
       z-index:2300;
       display:flex;
       gap:6px;
     }
-
     .host-chip {
       border:1px solid rgba(0,255,255,.55);
       background:rgba(7,2,15,.92);
@@ -1355,12 +556,9 @@
       box-shadow:0 0 14px rgba(0,255,255,.16);
       cursor:pointer;
     }
+    .host-chip.start { color:#000; background:var(--cyan); }
 
-    .host-chip.start {
-      color:#000;
-      background:var(--cyan);
-    }
-
+    /* ===== ROLE SETTINGS MODAL ===== */
     .role-settings-modal {
       position:fixed;
       inset:0;
@@ -1372,7 +570,6 @@
       padding:18px;
       backdrop-filter:blur(5px);
     }
-
     .role-settings-card {
       width:min(94vw, 430px);
       max-height:86vh;
@@ -1384,22 +581,14 @@
       box-shadow:0 0 38px rgba(0,255,255,.32), 0 0 50px rgba(255,0,255,.22);
       padding:18px;
     }
-
     .role-settings-card h2 {
       margin:0 38px 6px 0;
       color:var(--cyan);
       font-family:Orbitron;
       font-size:1rem;
     }
-
-    .role-help {
-      margin:0 0 14px;
-      opacity:.75;
-      font-size:.86rem;
-    }
-
-    .role-setting-row,
-    .role-toggle-row {
+    .role-help { margin:0 0 14px; opacity:.75; font-size:.86rem; }
+    .role-setting-row, .role-toggle-row {
       display:flex;
       align-items:center;
       justify-content:space-between;
@@ -1411,47 +600,47 @@
       margin-bottom:8px;
       font-size:.95rem;
     }
-
-    .role-counter {
-      display:flex;
-      align-items:center;
-      gap:9px;
-    }
-
+    .role-counter { display:flex; align-items:center; gap:9px; }
     .role-counter button {
-      width:34px;
-      height:34px;
-      border:0;
-      border-radius:10px;
+      width:34px; height:34px;
+      border:0; border-radius:10px;
       background:var(--neon);
       color:white;
       font-family:Orbitron;
       font-size:1rem;
       cursor:pointer;
     }
+    .role-counter b { min-width:22px; text-align:center; color:var(--cyan); font-family:Orbitron; }
+    .role-toggle-row input { width:22px; height:22px; accent-color:#00ffff; }
 
-    .role-counter b {
-      min-width:22px;
-      text-align:center;
-      color:var(--cyan);
-      font-family:Orbitron;
-    }
-
-    .role-toggle-row input {
-      width:22px;
-      height:22px;
-      accent-color:#00ffff;
-    }
-
-    .role-preview {
+    /* Role cards preview */
+    .role-preview-cards {
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
       margin:12px 0;
-      padding:10px;
-      border:1px solid rgba(0,255,255,.35);
-      border-radius:13px;
+    }
+    .role-preview-chip {
+      padding:7px 12px;
+      border-radius:20px;
+      font-family:Orbitron;
+      font-size:.62rem;
+      border:1px solid;
+    }
+    .role-preview-chip.mafia { border-color:var(--red); color:var(--red); background:rgba(255,62,62,.12); }
+    .role-preview-chip.don { border-color:#ff6600; color:#ff6600; background:rgba(255,100,0,.12); }
+    .role-preview-chip.sheriff { border-color:var(--blue); color:var(--blue); background:rgba(62,142,255,.12); }
+    .role-preview-chip.doctor { border-color:var(--green); color:var(--green); background:rgba(62,255,62,.12); }
+    .role-preview-chip.citizen { border-color:#aaa; color:#aaa; background:rgba(255,255,255,.06); }
+
+    .role-preview-min {
+      margin-top:8px;
+      padding:8px;
+      border-radius:10px;
       background:#000;
-      color:#ddd;
+      border:1px solid rgba(0,255,255,.25);
+      color:#aaa;
       font-size:.82rem;
-      line-height:1.45;
     }
 
     .role-save-btn {
@@ -1461,22 +650,301 @@
       color:#000;
     }
 
-    @media (max-width:600px) {
-      .host-compact-controls {
-        top:64px;
-        right:8px;
-      }
+    /* ===== ADMIN PANEL ===== */
+    .admin-toggle {
+      position:fixed;
+      top:52px; right:10px;
+      z-index:2400;
+      width:auto;
+      padding:9px 12px;
+      border-radius:10px;
+      background:linear-gradient(135deg, var(--neon), var(--cyan));
+      color:#000;
+      box-shadow:0 0 18px rgba(0,255,255,.45);
+      font-size:.62rem;
+    }
+    .admin-panel {
+      position:fixed;
+      top:0; right:-430px;
+      width:400px; max-width:94vw;
+      height:100vh;
+      z-index:3500;
+      background:rgba(7,2,15,.98);
+      border-left:2px solid var(--cyan);
+      box-shadow:-12px 0 35px rgba(0,0,0,.75);
+      padding:15px;
+      overflow-y:auto;
+      transition:right .25s ease;
+    }
+    .admin-panel.admin-open { right:0; }
+    .admin-header {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      margin-bottom:14px;
+      border-bottom:1px solid rgba(0,255,255,.35);
+      padding-bottom:10px;
+    }
+    .admin-header h2 {
+      margin:0;
+      font-family:Orbitron;
+      font-size:1rem;
+      color:var(--cyan);
+      text-shadow:0 0 12px rgba(0,255,255,.75);
+    }
+    .admin-close {
+      width:36px; height:36px;
+      padding:0; border-radius:10px;
+      background:var(--red);
+      color:white; border:0;
+      font-family:Orbitron;
+      cursor:pointer;
+    }
+    .admin-section {
+      margin-bottom:13px;
+      padding:12px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.04);
+      border-radius:14px;
+    }
+    .admin-section h3 {
+      margin:0 0 10px;
+      font-family:Orbitron;
+      font-size:.72rem;
+      color:var(--neon);
+    }
+    .admin-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+    .admin-mini-btn {
+      padding:10px 8px;
+      border:0; border-radius:10px;
+      background:#1b2144;
+      color:white;
+      font-family:Orbitron;
+      font-size:.58rem;
+      cursor:pointer;
+    }
+    .admin-mini-btn:active { transform:scale(.97); }
+    .admin-mini-btn.danger { background:#a30032; }
+    .admin-mini-btn.good { background:#007f66; }
+    .admin-mini-btn.warn { background:#7f5c00; }
+    #admin-announce-input { width:100%; margin-bottom:8px; border-color:var(--cyan); }
+    .admin-user-row {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:8px;
+      padding:8px;
+      margin-bottom:7px;
+      background:rgba(255,255,255,.06);
+      border-radius:10px;
+      border-left:2px solid var(--cyan);
+      font-size:.82rem;
+    }
+    .admin-user-actions { display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end; }
+    .admin-user-actions button {
+      padding:6px 7px; border:0; border-radius:8px;
+      background:var(--neon); color:white;
+      font-family:Orbitron; font-size:.52rem; cursor:pointer;
+    }
+    .admin-user-actions button.danger { background:var(--red); }
+    .admin-empty { opacity:.65; font-size:.8rem; }
+    .admin-pro-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+    .admin-pro-grid button {
+      padding:8px 4px; border:0; border-radius:9px;
+      background:#1b2144; color:white;
+      font-family:Orbitron; font-size:.48rem; cursor:pointer;
+    }
+    .admin-pro-grid button.danger { background:var(--red); }
+    .admin-pro-grid button.good { background:#007f66; }
 
-      .host-chip {
-        padding:7px 8px;
-        font-size:.5rem;
-      }
+    /* ===== MINI GAMES ===== */
+    .mini-games-toggle {
+      position:fixed;
+      left:18px !important; bottom:92px !important;
+      z-index:1600;
+      width:auto;
+      padding:12px 14px;
+      border-radius:18px;
+      background:linear-gradient(135deg,#ff00ff,#00ffff);
+      color:#02020a;
+      box-shadow:0 0 18px rgba(255,0,255,.45);
+      font-size:.6rem;
+    }
+    .mini-games-panel {
+      position:fixed;
+      left:50%; top:50%;
+      transform:translate(-50%,-50%);
+      width:430px; max-width:94vw;
+      max-height:86vh;
+      overflow-y:auto;
+      z-index:3400;
+      background:rgba(7,2,15,.98);
+      border:2px solid var(--cyan);
+      box-shadow:0 0 40px rgba(0,255,255,.35), 0 0 60px rgba(255,0,255,.25);
+      border-radius:18px;
+      padding:14px;
+    }
+    .mini-games-header {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:12px;
+      padding-bottom:10px;
+      border-bottom:1px solid rgba(0,255,255,.35);
+    }
+    .mini-games-header h2 {
+      margin:0; font-family:Orbitron;
+      color:var(--cyan); font-size:.95rem;
+      text-shadow:0 0 12px var(--cyan);
+    }
+    .mini-close {
+      width:36px; height:36px; border:0;
+      border-radius:10px; background:var(--red);
+      color:white; font-family:Orbitron; cursor:pointer;
+    }
+    .advanced-mini-selector {
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:6px;
+      margin-bottom:10px;
+    }
+    .advanced-mini-selector button {
+      padding:8px 4px; border-radius:9px;
+      border:1px solid rgba(0,255,255,.4);
+      background:#111735; color:white;
+      font-family:Orbitron; font-size:.5rem; cursor:pointer;
+    }
+    .advanced-mini-selector button.active { background:var(--cyan); color:#000; }
+    .game-card {
+      border:1px solid rgba(255,0,255,.32);
+      background:rgba(0,0,0,.42);
+      padding:12px; border-radius:14px; min-height:180px;
+    }
+    .game-card h3 {
+      margin:0 0 10px;
+      color:var(--cyan); font-family:Orbitron;
+      font-size:.72rem; text-align:center;
+    }
+    .game-output {
+      min-height:70px; padding:12px;
+      display:flex; align-items:center;
+      justify-content:center; text-align:center;
+      border:1px solid rgba(0,255,255,.35);
+      background:#000; border-radius:12px;
+      font-size:1rem; margin-bottom:10px;
+    }
+    .game-btn {
+      border:0; border-radius:10px; padding:10px;
+      background:var(--neon); color:white;
+      font-family:Orbitron; cursor:pointer; font-size:.62rem;
+      width:100%; margin-top:6px;
+    }
+    .mini-status {
+      text-align:center; color:var(--cyan);
+      margin-bottom:10px; font-family:Orbitron; font-size:.7rem;
+    }
+    .ttt-board {
+      display:grid; grid-template-columns:repeat(3,1fr);
+      gap:7px; margin:0 auto 12px; max-width:300px;
+    }
+    .ttt-cell {
+      aspect-ratio:1/1; border:1px solid var(--cyan);
+      background:#000; color:white; font-family:Orbitron;
+      font-size:2rem; display:flex; align-items:center;
+      justify-content:center; cursor:pointer;
+      box-shadow:inset 0 0 16px rgba(0,255,255,.12);
+      border-radius:6px;
+    }
+    .ttt-cell:hover { background:rgba(0,255,255,.08); }
+    .rps-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
+    .rps-grid button {
+      border:0; border-radius:10px; padding:10px;
+      background:var(--neon); color:white;
+      font-family:Orbitron; cursor:pointer; font-size:.62rem;
+    }
+    .wheel {
+      width:170px; height:170px;
+      margin:8px auto 12px; border-radius:50%;
+      border:7px solid var(--cyan);
+      background:conic-gradient(var(--neon),var(--cyan),#7c4dff,var(--red),var(--green),var(--neon));
+      box-shadow:0 0 24px rgba(0,255,255,.35);
+      transition:transform 1.2s ease;
+    }
+    .memory-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; }
+    .memory-card {
+      aspect-ratio:1/1; display:flex;
+      align-items:center; justify-content:center;
+      border:1px solid var(--cyan); background:#000;
+      border-radius:9px; font-size:1.35rem; cursor:pointer;
+    }
+    .quiz-options { display:grid; gap:7px; }
+    .quiz-options button {
+      padding:10px; border-radius:10px;
+      border:1px solid rgba(0,255,255,.4);
+      background:#111735; color:white; cursor:pointer;
+    }
+    .soundboard-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:7px; }
+    .soundboard-grid button {
+      padding:10px; border:0; border-radius:10px;
+      background:#1b2144; color:white;
+      font-family:Orbitron; font-size:.55rem; cursor:pointer;
+    }
+    .admin-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+    .admin-mini-btn.good { background:#007f66; }
+    .admin-mini-btn.warn { background:#7f5c00; }
 
-      #my-role-card {
-        max-width:34vw;
-      }
+    /* ===== ROLE REVEAL ANIMATION ===== */
+    .role-reveal { animation: roleFlip .75s ease both, roleGlow 1.8s ease infinite alternate; }
+    @keyframes roleFlip {
+      0% { transform:rotateY(90deg) scale(.8); opacity:.1; }
+      100% { transform:rotateY(0deg) scale(1); opacity:1; }
+    }
+    @keyframes roleGlow {
+      from { box-shadow:0 0 8px rgba(0,255,255,.25); }
+      to { box-shadow:0 0 22px rgba(255,0,255,.55); }
     }
 
+    /* ===== INVITE ROW ===== */
+    .invite-row { display:flex; gap:6px; align-items:center; }
+    .invite-row input { flex:1; font-size:.75rem; padding:8px; }
+    .invite-row button { width:120px; padding:9px 5px; }
+
+    /* ===== RECONNECT OVERLAY ===== */
+    #reconnect-overlay {
+      position:fixed;
+      inset:0;
+      z-index:9999;
+      background:rgba(0,0,0,.85);
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:16px;
+      font-family:Orbitron;
+      backdrop-filter:blur(8px);
+    }
+    #reconnect-overlay p { color:var(--cyan); font-size:.9rem; text-align:center; }
+    .reconnect-spinner {
+      width:50px; height:50px;
+      border:4px solid rgba(0,255,255,.2);
+      border-top-color:var(--cyan);
+      border-radius:50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ===== MISC ===== */
+    @media (max-width:700px) {
+      .controls { width:94vw; justify-content:center; }
+      .video-label { font-size:.78rem; padding:6px; }
+      .btn { min-height:42px; }
+      #chat-panel { max-width:100%; }
+      .host-compact-controls { top:64px; right:8px; }
+      .host-chip { padding:7px 8px; font-size:.5rem; }
+      #my-role-card { max-width:34vw; }
+    }
   </style>
 </head>
 
@@ -1486,41 +954,43 @@
     src="https://cdn.pixabay.com/download/audio/2022/10/30/audio_9c6c04589e.mp3?filename=lofi-study-112191.mp3">
   </audio>
 
+  <!-- TOAST CONTAINER -->
+  <div id="toast-container"></div>
+
+  <!-- RECONNECT OVERLAY -->
+  <div id="reconnect-overlay" class="hidden">
+    <div class="reconnect-spinner"></div>
+    <p>კავშირი გაწყდა...<br>ხელახლა ვცდილობ</p>
+  </div>
+
   <h1 class="glitch-title">VOID MAFIA</h1>
   <div class="powered">Powered by ბატონი მაქსი</div>
 
+  <!-- LOGIN -->
   <div id="login-screen" class="card">
     <input id="nickname" type="text" placeholder="შეიყვანე ნიკნეიმი">
     <button class="btn" id="login-btn">შესვლა</button>
   </div>
 
+  <!-- ROOMS -->
   <div id="rooms-screen" class="card hidden">
     <div style="text-align:left; padding:10px; border:1px solid var(--cyan);">
       <p style="font-size:.75rem; color:var(--cyan); margin:0 0 10px;">პარამეტრები ჰოსტისთვის</p>
-
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:.85rem;">
         <label><input type="checkbox" id="set-sheriff" checked> შერიფი</label>
         <label><input type="checkbox" id="set-don" checked> დონი</label>
         <label><input type="checkbox" id="set-doctor" checked> ექიმი</label>
-
-        <div>
-          მაფია:
-          <input type="number" id="mafia-count" value="1" min="1" max="3">
-        </div>
+        <div>მაფია: <input type="number" id="mafia-count" value="1" min="1" max="3"></div>
       </div>
     </div>
-
-    <input id="room-id" type="text" placeholder="ოთახის ID მაგალითად: 123">
-<button class="btn" id="join-btn">ოთახის შექმნა / შესვლა</button>
-<button class="btn" id="spectator-btn" style="background:var(--cyan); color:#000;">
-  WATCH / SPECTATOR
-</button>
-<button class="btn" id="music-toggle-btn" style="background:#1b2144; color:white;">
-  LOBBY MUSIC: OFF
-</button>
+    <input id="room-id" type="text" placeholder="ოთახის ID მაგ: 123">
+    <button class="btn" id="join-btn">ოთახის შექმნა / შესვლა</button>
+    <button class="btn" id="spectator-btn" style="background:var(--cyan); color:#000;">WATCH / SPECTATOR</button>
+    <button class="btn" id="music-toggle-btn" style="background:#1b2144; color:white;">LOBBY MUSIC: OFF</button>
     <div id="room-list" style="max-height:220px; overflow-y:auto;"></div>
   </div>
 
+  <!-- GAME -->
   <div id="game-screen" class="hidden">
     <div id="game-status-bar">
       <span id="game-phase">მზადება</span>
@@ -1529,61 +999,43 @@
     </div>
     <div id="game-powered-by">Powered by ბატონი მაქსი</div>
 
+    <!-- Host compact controls -->
     <div id="host-compact-controls" class="host-compact-controls hidden">
       <button id="role-settings-btn" class="host-chip">ROLES</button>
       <button id="host-start-compact" class="host-chip start">START</button>
     </div>
 
-
+    <!-- My role card (click for tooltip) -->
     <div id="my-role-card" class="hidden">როლი: ?</div>
+    <div id="role-tooltip" class="hidden"></div>
 
+    <!-- Host panel (hidden via CSS) -->
     <div id="host-panel" class="hidden">
       <button class="btn" id="start-game-btn" style="background:var(--cyan); color:#000; width:80%; margin:auto;">
         START GAME
       </button>
     </div>
 
-    <div id="phase-banner" class="phase-banner">
-      <div id="phase-big-text">მზადება</div>
-      <div id="phase-small-text">დაელოდე თამაშის დაწყებას</div>
-    </div>
-<div class="pro-grid">
-        <div class="pro-box">
-          <div class="pro-title">Vote Board</div>
-          <div id="vote-board">ხმის მიცემა ჯერ არ დაწყებულა</div>
-        </div>
-
-        <div class="pro-box">
-          <div class="pro-title">Graveyard</div>
-          <div id="graveyard-list">ჯერ არავინ მომკვდარა</div>
-        </div>
-      </div>
-    </div>
-<div class="road-step" id="road-defense">DEFENSE</div>
-      <div class="road-step" id="road-final">FINAL WORDS</div>
-      <div class="road-step" id="road-vote">VOTE</div>
-      <div class="road-step" id="road-night">NIGHT</div>
-      <div class="road-step" id="road-results">RESULTS</div>
-    </div>
-<div class="pro2-card">
-        <h3>Spectator Role Panel</h3>
-        <div id="spectator-role-panel">მხოლოდ spectator/admin რეჟიმისთვის</div>
-      </div>
-
-      <div class="pro2-card">
-        <h3>Game Log / Replay</h3>
-        <div id="game-log">ლოგი ჯერ ცარიელია</div>
-      </div>
-
-      <div class="pro2-card">
-        <h3>Invite Link</h3>
-        <div class="invite-row">
-          <input id="invite-link-input" readonly placeholder="ოთახში შესვლის შემდეგ გამოჩნდება">
-          <button class="btn" id="copy-invite-btn">COPY</button>
-        </div>
+    <!-- Action modal -->
+    <div id="action-modal" class="action-modal hidden">
+      <div class="action-modal-card">
+        <button id="action-modal-close" class="action-modal-close">×</button>
+        <div id="action-title">ქმედება</div>
+        <div id="players-actions"></div>
       </div>
     </div>
 
+    <!-- Player profile modal -->
+    <div id="player-profile-modal" class="hidden">
+      <div id="player-profile-card">
+        <button class="profile-close" id="player-profile-close">×</button>
+        <h2 id="profile-name">#1 Player</h2>
+        <div id="profile-status" style="color:#aaa; font-size:.82rem; margin-bottom:4px;"></div>
+        <div id="profile-actions" class="profile-actions"></div>
+      </div>
+    </div>
+
+    <!-- Role settings modal -->
     <div id="role-settings-modal" class="role-settings-modal hidden">
       <div class="role-settings-card">
         <button id="role-settings-close" class="action-modal-close">×</button>
@@ -1600,70 +1052,36 @@
         </div>
 
         <label class="role-toggle-row">
-          <span>Don</span>
+          <span>👑 Don</span>
           <input type="checkbox" id="role-setting-don" checked>
         </label>
-
         <label class="role-toggle-row">
-          <span>Sheriff</span>
+          <span>⭐ Sheriff</span>
           <input type="checkbox" id="role-setting-sheriff" checked>
         </label>
-
         <label class="role-toggle-row">
-          <span>Doctor</span>
+          <span>💊 Doctor</span>
           <input type="checkbox" id="role-setting-doctor" checked>
         </label>
-
         <label class="role-toggle-row">
-          <span>Detective Mode Text</span>
+          <span>🔍 Detective Text</span>
           <input type="checkbox" id="role-setting-detective" checked>
         </label>
 
-        <div id="role-preview" class="role-preview"></div>
+        <div id="role-preview-cards" class="role-preview-cards"></div>
+        <div id="role-preview-min" class="role-preview-min"></div>
 
-        <button id="role-settings-save" class="btn role-save-btn">SAVE SETTINGS</button>
+        <button id="role-settings-save" class="btn role-save-btn" style="margin-top:10px;">SAVE SETTINGS</button>
       </div>
     </div>
 
-    <div id="action-modal" class="action-modal hidden">
-      <div class="action-modal-card">
-        <button id="action-modal-close" class="action-modal-close">×</button>
-        <div id="action-title">ქმედება</div>
-        <div id="players-actions"></div>
-      </div>
-    </div>
     <div id="action-panel" class="hidden"></div>
 
+    <!-- VIDEO GRID -->
     <div id="video-grid"></div>
 
-    <div id="chat-toggle">CHAT</div>
-
-    <button id="mini-games-toggle" class="btn mini-games-toggle">MINI GAMES</button>
-
-    <div id="mini-games-panel" class="mini-games-panel hidden">
-      <div class="mini-games-header">
-        <h2>ADVANCED MINI GAMES</h2>
-        <button id="mini-games-close" class="mini-close">×</button>
-      </div>
-
-      <div class="advanced-mini-selector" id="advanced-mini-selector">
-        <button class="active" data-adv-game="ttt">Tic Tac Toe</button>
-        <button data-adv-game="rps">RPS</button>
-        <button data-adv-game="truth">Truth/Dare</button>
-        <button data-adv-game="dice">Dice Duel</button>
-        <button data-adv-game="wheel">Spin Wheel</button>
-        <button data-adv-game="quiz">Mafia Quiz</button>
-        <button data-adv-game="memory">Memory</button>
-        <button data-adv-game="guess">Guess Number</button>
-        <button data-adv-game="would">Who Would?</button>
-        <button data-adv-game="sound">Soundboard</button>
-      </div>
-
-      <div id="adv-game-root" class="game-card"></div>
-    </div>
-
+    <!-- Admin panel -->
     <button id="admin-toggle-btn" class="btn admin-toggle hidden">ADMIN</button>
-
     <div id="admin-panel" class="admin-panel hidden">
       <div class="admin-header">
         <h2>ADMIN PANEL</h2>
@@ -1695,7 +1113,6 @@
         <button id="admin-announce-btn" class="btn" style="padding:10px;">SEND</button>
       </div>
 
-
       <div class="admin-section">
         <h3>Admin Pro Tools</h3>
         <div class="admin-pro-grid">
@@ -1713,22 +1130,58 @@
 
       <div class="admin-section">
         <h3>Players</h3>
-        <div id="admin-players-list">
-          <div class="admin-empty">მოთამაშეები არ არიან</div>
-        </div>
+        <div id="admin-players-list"><div class="admin-empty">მოთამაშეები არ არიან</div></div>
       </div>
 
       <div class="admin-section">
         <h3>Spectators</h3>
-        <div id="admin-spectators-list">
-          <div class="admin-empty">spectator არ არის</div>
+        <div id="admin-spectators-list"><div class="admin-empty">spectator არ არის</div></div>
+      </div>
+
+      <div class="admin-section">
+        <h3>Invite Link</h3>
+        <div class="invite-row">
+          <input id="invite-link-input" readonly placeholder="ოთახში შესვლის შემდეგ გამოჩნდება">
+          <button class="btn" id="copy-invite-btn" style="width:80px; padding:9px 5px;">COPY</button>
         </div>
       </div>
     </div>
+
+    <!-- Controls -->
     <div class="controls">
       <button id="mic-btn" class="btn">MIC</button>
       <button id="cam-btn" class="btn" style="background:var(--cyan); color:#000;">CAM</button>
       <button id="exit-btn" class="btn" style="background:var(--red);">EXIT</button>
+    </div>
+  </div>
+
+  <!-- MINI GAMES -->
+  <button id="mini-games-toggle" class="btn mini-games-toggle hidden">🎮</button>
+  <div id="mini-games-panel" class="mini-games-panel hidden">
+    <div class="mini-games-header">
+      <h2>ADVANCED MINI GAMES</h2>
+      <button id="mini-games-close" class="mini-close">×</button>
+    </div>
+    <div class="advanced-mini-selector" id="advanced-mini-selector">
+      <button class="active" data-adv-game="ttt">Tic Tac Toe</button>
+      <button data-adv-game="rps">RPS</button>
+      <button data-adv-game="truth">Truth/Dare</button>
+      <button data-adv-game="dice">Dice Duel</button>
+      <button data-adv-game="wheel">Spin Wheel</button>
+      <button data-adv-game="quiz">Mafia Quiz</button>
+      <button data-adv-game="memory">Memory</button>
+      <button data-adv-game="guess">Guess Number</button>
+      <button data-adv-game="would">Who Would?</button>
+      <button data-adv-game="sound">Soundboard</button>
+    </div>
+    <div id="adv-game-root" class="game-card"></div>
+  </div>
+
+  <!-- CHAT -->
+  <div style="position:fixed; right:18px; bottom:92px; z-index:1600; width:50px; height:50px; border-radius:50%;">
+    <div id="chat-toggle" style="width:100%; height:100%; border-radius:50%; background:var(--neon); display:flex; align-items:center; justify-content:center; cursor:pointer; font-family:Orbitron; font-size:.6rem; position:relative;">
+      CHAT
+      <div id="chat-unread-badge" class="hidden" style="position:absolute; top:-4px; right:-4px; background:var(--red); color:white; font-family:Orbitron; font-size:.5rem; width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center;"></div>
     </div>
   </div>
 
@@ -1742,23 +1195,22 @@
       <button class="chat-tab" data-chat="dead">DEAD</button>
       <button class="chat-tab" data-chat="spectator">SPECTATOR</button>
     </div>
-
-
     <div id="chat-messages"></div>
-
     <div style="padding:10px; display:flex; gap:5px;">
       <input id="chat-msg" type="text" placeholder="დაწერე...">
-      <button class="btn" id="send-chat-btn" style="width:55px;">></button>
+      <button class="btn" id="send-chat-btn" style="width:55px;">➤</button>
     </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
-  <!-- spectators.js disabled here to avoid duplicate spectator/join handlers -->
-  <!-- <script src="/js/spectators.js"></script> -->
-  
+
   <script>
-    const socket = io();
+  (() => {
+    /* ============================================================
+       STATE
+    ============================================================ */
+    const socket = io({ reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 1500 });
 
     let localStream = null;
     let myNick = "";
@@ -1776,96 +1228,127 @@
     let gameLogItems = [];
     let proPhaseOverride = null;
     let revealedRoles = false;
-    let roleSettings = {
-      mafia: 1,
-      don: true,
-      sheriff: true,
-      doctor: true,
-      detectiveText: true
-    };
     let lobbyMusicOn = false;
-    let tttBoard = Array(9).fill("");
-    let tttTurn = "X";
-    let tttFinished = false;
+    let unreadCount = 0;
+    let chatOpen = false;
+
+    let roleSettings = {
+      mafia: 1, don: true, sheriff: true, doctor: true, detectiveText: true
+    };
 
     const peers = {};
+    const analyserMap = {}; // for speaking detection
+    const speakingMap = {};
+
     const $ = id => document.getElementById(id);
 
-    $("login-btn").addEventListener("click", showRooms);
-    $("join-btn").addEventListener("click", () => startVoid());
-    $("start-game-btn").addEventListener("click", requestStart);
-    $("mic-btn").addEventListener("click", toggleMic);
-    $("cam-btn").addEventListener("click", toggleCam);
-    $("exit-btn").addEventListener("click", () => location.reload());
-    $("chat-toggle").addEventListener("click", toggleChat);
-    $("close-chat").addEventListener("click", toggleChat);
-    $("send-chat-btn").addEventListener("click", sendMsg);
-    $("action-modal-close")?.addEventListener("click", hideActionModal);
-
-    setupAdminPanel();
-    setupRoleSettings();
-    setupProfessionalPack();
-    setupLobbyMusic();
-    setupMiniGames();
-
-    $("nickname").addEventListener("keydown", e => {
-      if (e.key === "Enter") showRooms();
-    });
-
-    $("room-id").addEventListener("keydown", e => {
-      if (e.key === "Enter") startVoid();
-    });
-
-    $("chat-msg").addEventListener("keydown", e => {
-      if (e.key === "Enter") sendMsg();
-    });
-
-    function playSFX() {
-      $("sfx-click").play().catch(() => {});
+    /* ============================================================
+       TOAST NOTIFICATION (replaces all alert() calls)
+    ============================================================ */
+    function toast(text, type = "info", duration = 3000) {
+      const el = document.createElement("div");
+      el.className = `toast ${type}`;
+      el.textContent = text;
+      $("toast-container").appendChild(el);
+      setTimeout(() => el.remove(), duration + 100);
     }
 
+    /* ============================================================
+       ESCAPE HTML (full — prevents XSS)
+    ============================================================ */
+    function escapeHtml(text) {
+      return String(text ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    /* ============================================================
+       CHAT (appendChild instead of innerHTML+=)
+    ============================================================ */
+    function appendMsg(html, cls = "") {
+      const div = document.createElement("div");
+      div.className = "msg" + (cls ? " " + cls : "");
+      div.innerHTML = html;
+      const m = $("chat-messages");
+      m.appendChild(div);
+      m.scrollTop = m.scrollHeight;
+
+      // Unread badge when chat is closed
+      if (!chatOpen) {
+        unreadCount++;
+        const badge = $("chat-unread-badge");
+        badge.textContent = unreadCount > 9 ? "9+" : unreadCount;
+        badge.classList.remove("hidden");
+      }
+    }
+
+    function addSystemMsg(text) {
+      appendMsg(`<b>SYSTEM:</b> ${escapeHtml(text)}`, "system-msg");
+    }
+
+    /* ============================================================
+       ROLE NAME / DESCRIPTION
+    ============================================================ */
+    function roleName(role) {
+      const map = { mafia:"მაფია", don:"დონი", doctor:"ექიმი", sheriff:"შერიფი", citizen:"მოქალაქე" };
+      return map[role] || role;
+    }
+
+    function roleDescription(role) {
+      const desc = {
+        mafia: "🔴 მაფია — ღამით მოქმედი კრიმინალი. ჯგუფში ერთად ირჩევთ მსხვერპლს.",
+        don: "🟠 დონი — მაფიის ლიდერი. შეიძლება შერიფის შემოწმებას გადაურჩეს.",
+        sheriff: "🔵 შერიფი — ღამით ამოწმებ მოთამაშეს: მაფიაა თუ არა.",
+        doctor: "🟢 ექიმი — ღამით იცავ ერთ მოთამაშეს. შეიძლება თავადაც დაიცვა.",
+        citizen: "⚪ მოქალაქე — დღის ფაზაში დაჯგუფება და მაფიის ამოცნობა."
+      };
+      return desc[role] || "❓ უცნობი როლი";
+    }
+
+    /* ============================================================
+       SFX
+    ============================================================ */
+    function playSFX() { $("sfx-click").play().catch(() => {}); }
+
+    /* ============================================================
+       LOBBY
+    ============================================================ */
     function showRooms() {
       myNick = $("nickname").value.trim();
-
-      if (!myNick) {
-        alert("ჯერ ჩაწერე ნიკნეიმი");
-        return;
-      }
-
+      if (!myNick) { toast("ჯერ ჩაწერე ნიკნეიმი", "error"); return; }
       playSFX();
-
       $("login-screen").classList.add("hidden");
       $("rooms-screen").classList.remove("hidden");
-
       socket.emit("get-rooms");
     }
 
     async function startVoid(roomFromList) {
       currentRoom = roomFromList || $("room-id").value.trim();
       if (roomFromList && $("room-id")) $("room-id").value = roomFromList;
-
-      if (!currentRoom) {
-        alert("ჩაწერე ოთახის ID, მაგალითად 123");
-        return;
-      }
+      if (!currentRoom) { toast("ჩაწერე ოთახის ID, მაგ. 123", "error"); return; }
 
       playSFX();
       stopLobbyMusic();
 
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true
-        });
-
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         document.body.classList.add("game-active");
         $("rooms-screen").classList.add("hidden");
         $("game-screen").classList.remove("hidden");
+        $("mini-games-toggle").classList.remove("hidden");
 
         socket.emit("join-room", currentRoom, myNick, false);
         setTimeout(() => socket.emit("get-rooms"), 300);
 
-        // Fallback: თუ server-ის room-users-list დაგვიანდა, შენი ვიდეო მაინც გამოჩნდეს მაგიდაზე.
+        setupSpeakingDetection();
+
+        // Keyboard shortcuts
+        document.addEventListener("keydown", handleKeyboard);
+
+        // Fallback local video
         setTimeout(() => {
           if (localStream && socket.id && !$(socket.id)) {
             addVideo(socket.id, localStream, myNick + " (შენ)", 1, true);
@@ -1875,21 +1358,118 @@
         }, 700);
       } catch (err) {
         console.error(err);
-        alert("კამერა/მიკროფონი ვერ ჩაირთო. Browser permissions შეამოწმე.");
+        toast("კამერა/მიკროფონი ვერ ჩაირთო. Browser permissions შეამოწმე.", "error");
       }
     }
 
-    socket.on("connect", () => {
-      console.log("connected:", socket.id);
+    async function startSpectator() {
+      currentRoom = $("room-id").value.trim();
+      if (!currentRoom) { toast("ჩაწერე ოთახის ID", "error"); return; }
+      playSFX();
+      stopLobbyMusic();
+
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: false }).catch(() => null);
+        document.body.classList.add("game-active");
+        $("rooms-screen").classList.add("hidden");
+        $("game-screen").classList.remove("hidden");
+        $("mini-games-toggle").classList.remove("hidden");
+        socket.emit("join-room", currentRoom, myNick, true);
+        toast("Spectator რეჟიმი ჩართულია", "info");
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    /* ============================================================
+       KEYBOARD SHORTCUTS
+    ============================================================ */
+    function handleKeyboard(e) {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      if (e.key === "m" || e.key === "M") toggleMic();
+      if (e.key === "c" || e.key === "C") toggleCam();
+      if (e.key === "Escape") {
+        hideActionModal();
+        $("role-settings-modal")?.classList.add("hidden");
+        $("admin-panel")?.classList.remove("admin-open");
+        $("mini-games-panel")?.classList.add("hidden");
+        $("player-profile-modal")?.classList.add("hidden");
+        $("role-tooltip")?.classList.add("hidden");
+      }
+    }
+
+    /* ============================================================
+       SPEAKING DETECTION (AudioContext)
+    ============================================================ */
+    function setupSpeakingDetection() {
+      if (!localStream) return;
+      try {
+        const ctx = new AudioContext();
+        const analyser = ctx.createAnalyser();
+        const src = ctx.createMediaStreamSource(localStream);
+        src.connect(analyser);
+        analyser.fftSize = 256;
+        const data = new Uint8Array(analyser.frequencyBinCount);
+
+        setInterval(() => {
+          analyser.getByteFrequencyData(data);
+          const avg = data.reduce((a, b) => a + b, 0) / data.length;
+          const isSpeaking = avg > 12;
+          const box = $(socket.id);
+          if (box) {
+            // self speaking indicator
+            if (isSpeaking) box.classList.add("speaking");
+            else box.classList.remove("speaking");
+          }
+        }, 150);
+      } catch (_) {}
+    }
+
+    function attachRemoteSpeakDetection(peerId, stream) {
+      try {
+        const ctx = new AudioContext();
+        const analyser = ctx.createAnalyser();
+        const src = ctx.createMediaStreamSource(stream);
+        src.connect(analyser);
+        analyser.fftSize = 256;
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        analyserMap[peerId] = { analyser, data };
+
+        const tick = setInterval(() => {
+          if (!analyserMap[peerId]) { clearInterval(tick); return; }
+          analyser.getByteFrequencyData(data);
+          const avg = data.reduce((a, b) => a + b, 0) / data.length;
+          const box = $(peerId);
+          if (!box) { clearInterval(tick); return; }
+          if (avg > 12) box.classList.add("speaking");
+          else box.classList.remove("speaking");
+        }, 150);
+      } catch (_) {}
+    }
+
+    /* ============================================================
+       SOCKET EVENTS
+    ============================================================ */
+    socket.on("connect", () => { console.log("connected:", socket.id); });
+
+    socket.on("disconnect", () => {
+      $("reconnect-overlay").classList.remove("hidden");
+    });
+    socket.on("reconnect", () => {
+      $("reconnect-overlay").classList.add("hidden");
+      toast("კავშირი აღდგა", "success");
+    });
+    socket.on("reconnect_failed", () => {
+      $("reconnect-overlay").querySelector("p").textContent = "კავშირი ვერ აღდგა. განაახლე გვერდი.";
     });
 
     socket.on("connect_error", err => {
-      alert("სერვერთან კავშირი ვერ შედგა");
+      toast("სერვერთან კავშირი ვერ შედგა", "error");
       console.error(err);
     });
 
     socket.on("error", data => {
-      alert(data && data.msg ? data.msg : "შეცდომა");
+      toast(data?.msg || "შეცდომა", "error");
     });
 
     socket.on("is-host", () => {
@@ -1899,6 +1479,7 @@
       $("admin-panel").classList.remove("hidden");
       $("host-compact-controls")?.classList.remove("hidden");
       addSystemMsg("შენ ხარ ოთახის ჰოსტი");
+      toast("შენ ხარ ჰოსტი", "success");
       renderAdminPanel();
     });
 
@@ -1915,16 +1496,13 @@
     socket.on("update-room-list", rooms => {
       const list = $("room-list");
       list.innerHTML = "";
-
       if (!rooms || rooms.length === 0) {
         list.innerHTML = '<p style="font-size:.75rem; color:#777;">აქტიური ოთახები არ არის</p>';
         return;
       }
-
       rooms.forEach(r => {
         const div = document.createElement("div");
         div.className = "room-item";
-
         div.innerHTML = `
           <span style="font-size:.85rem;">
             ID: ${escapeHtml(r.code)} (${r.playerCount}/10)
@@ -1932,7 +1510,6 @@
           </span>
           <button class="btn" style="width:70px; padding:7px; font-size:.6rem;">JOIN</button>
         `;
-
         div.querySelector("button").onclick = () => startVoid(r.code);
         list.appendChild(div);
       });
@@ -1942,149 +1519,54 @@
       users.forEach(user => {
         if (user.id === socket.id) {
           const realIndex = user.index || 1;
-          if ($(user.id)) {
-            updateVideoMeta(user.id, user.name + " (შენ)", realIndex);
-          } else {
-            addVideo(user.id, localStream, user.name + " (შენ)", realIndex, true);
-          }
+          if ($(user.id)) updateVideoMeta(user.id, user.name + " (შენ)", realIndex);
+          else addVideo(user.id, localStream, user.name + " (შენ)", realIndex, true);
         }
       });
     });
 
     socket.on("all-users-info", users => {
       users.forEach(u => {
-        const peer = new SimplePeer({
-          initiator: true,
-          trickle: false,
-          stream: localStream
-        });
-
+        const peer = new SimplePeer({ initiator: true, trickle: false, stream: localStream });
         peer.on("signal", signal => {
-          socket.emit("sending-signal", {
-            userToSignal: u.id,
-            callerID: socket.id,
-            signal
-          });
+          socket.emit("sending-signal", { userToSignal: u.id, callerID: socket.id, signal });
         });
-
         peer.on("stream", stream => {
           addVideo(u.id, stream, u.name, u.index);
+          attachRemoteSpeakDetection(u.id, stream);
         });
-
         peer.on("error", err => console.error("peer error:", err));
-
         peers[u.id] = peer;
       });
     });
 
     socket.on("user-joined-with-info", p => {
-      const peer = new SimplePeer({
-        initiator: false,
-        trickle: false,
-        stream: localStream
-      });
-
+      const peer = new SimplePeer({ initiator: false, trickle: false, stream: localStream });
       peer.on("signal", signal => {
-        socket.emit("returning-signal", {
-          signal,
-          callerID: p.id
-        });
+        socket.emit("returning-signal", { signal, callerID: p.id });
       });
-
       peer.on("stream", stream => {
         addVideo(p.id, stream, p.nick, p.index);
+        attachRemoteSpeakDetection(p.id, stream);
       });
-
       peer.on("error", err => console.error("peer error:", err));
-
-      if (p.signal) {
-        peer.signal(p.signal);
-      }
-
+      if (p.signal) peer.signal(p.signal);
       peers[p.id] = peer;
     });
 
     socket.on("receiving-returned-signal", p => {
-      if (peers[p.id]) {
-        peers[p.id].signal(p.signal);
-      }
+      if (peers[p.id]) peers[p.id].signal(p.signal);
     });
 
     socket.on("user-left", id => {
-      if (peers[id]) {
-        peers[id].destroy();
-        delete peers[id];
-      }
-
+      if (peers[id]) { peers[id].destroy(); delete peers[id]; }
+      delete analyserMap[id];
       const el = $(id);
       if (el) el.remove();
     });
 
-    function updateVideoMeta(id, name, index) {
-      const box = $(id);
-      if (!box) return;
-
-      const safeIndex = index && index > 0 ? index : 1;
-      box.style.order = safeIndex;
-
-      const num = box.querySelector(".player-number");
-      if (num) num.innerText = "#" + safeIndex;
-
-      const label = box.querySelector(".video-label");
-      if (label) label.innerText = name;
-    }
-
-    function addVideo(id, stream, name, index, mute = false) {
-      if ($(id)) return;
-
-      const div = document.createElement("div");
-      div.id = id;
-      div.className = "video-box";
-      const safeIndex = index && index > 0 ? index : 1;
-      div.style.order = safeIndex;
-
-      div.innerHTML = `
-        <div class="player-number">#${safeIndex}</div>
-        <video id="v-${id}" autoplay playsinline ${mute ? "muted" : ""}></video>
-        <div class="video-label">${escapeHtml(name)}</div>
-      `;
-
-      $("video-grid").appendChild(div);
-
-      if (stream) {
-        $("v-" + id).srcObject = stream;
-        setTimeout(updateVoiceByPhase, 300);
-      }
-    }
-
-    function requestStart() {
-      if (!isHost) {
-        alert("თამაშის დაწყება მხოლოდ ჰოსტს შეუძლია");
-        return;
-      }
-
-      const count = document.querySelectorAll(".video-box").length;
-
-      if (count < 4) {
-        alert("საჭიროა მინიმუმ 4 მოთამაშე");
-        return;
-      }
-
-      socket.emit("start-game-request", {
-        room: currentRoom,
-        settings: {
-          sheriff: roleSettings.sheriff,
-          don: roleSettings.don,
-          doctor: roleSettings.doctor,
-          mafia: Number(roleSettings.mafia || 1),
-          detectiveText: roleSettings.detectiveText
-        }
-      });
-    }
-
     socket.on("assign-role", role => {
       myRole = role;
-
       const card = $("my-role-card");
       card.classList.remove("hidden");
       card.classList.remove("role-reveal");
@@ -2097,6 +1579,7 @@
       else if (role === "sheriff") card.style.color = "var(--blue)";
       else card.style.color = "white";
 
+      toast("შენი როლია: " + roleName(role), "role", 5000);
       addSystemMsg("შენი როლია: " + roleName(role));
       updatePhaseText();
       updateVoiceByPhase();
@@ -2111,75 +1594,177 @@
       currentPhase = state.phase || "waiting";
       alivePlayers = state.players || [];
       latestPlayers = state.players || [];
-
       updatePhaseText();
       updateAliveCount();
       updateDeadVideos();
       renderActionPanel();
       updateVoiceByPhase();
       renderAdminPanel();
-      renderProMafiaPanel();
-      renderProfessionalPack();
     });
 
-    socket.on("phase-message", msg => {
-      addSystemMsg(msg);
-      proLog(msg);
-    });
+    socket.on("phase-message", msg => { addSystemMsg(msg); });
 
     socket.on("sheriff-result", data => {
-      const result = data.isMafia ? "მაფიაა" : "მშვიდობიანია";
-      alert(`${data.name} — ${result}`);
+      const result = data.isMafia ? "🔴 მაფიაა!" : "⚪ მშვიდობიანია";
+      toast(`${data.name} — ${result}`, data.isMafia ? "error" : "success", 5000);
       addSystemMsg(`შერიფის პასუხი: ${data.name} — ${result}`);
     });
 
     socket.on("game-over", data => {
       addSystemMsg(data.message);
-      proLog(data.message || "Game over");
-      proPhaseOverride = "results";
-      renderProfessionalPack();
-      alert(data.message);
+      toast(data.message, "role", 6000);
       hideActionModal();
     });
 
+    socket.on("receive-chat-msg", d => {
+      appendMsg(`<b>${escapeHtml(d.name)}:</b> ${escapeHtml(d.text)}`);
+    });
 
+    socket.on("spectators-update", list => {
+      latestSpectators = list || [];
+      renderAdminPanel();
+    });
 
-    function renderProMafiaPanel() {
-      ["flow-day", "flow-vote", "flow-night"].forEach(id => {
-        const el = $(id);
-        if (el) el.classList.remove("active");
-      });
+    socket.on("kicked", msg => {
+      toast(msg || "ადმინმა გაგაგდო ოთახიდან", "error", 5000);
+      setTimeout(() => location.reload(), 2500);
+    });
 
-      if (currentPhase === "day") $("flow-day")?.classList.add("active");
-      if (currentPhase === "vote") $("flow-vote")?.classList.add("active");
-      if (currentPhase === "night") $("flow-night")?.classList.add("active");
+    socket.on("room-closed", msg => {
+      toast(msg || "ოთახი დაიხურა", "error", 4000);
+      setTimeout(() => location.reload(), 2500);
+    });
 
-      const grave = $("graveyard-list");
-      if (grave) {
-        const dead = alivePlayers.filter(p => !p.alive);
+    socket.on("clear-chat", () => { $("chat-messages").innerHTML = ""; });
 
-        if (!dead.length) {
-          grave.innerHTML = "ჯერ არავინ მომკვდარა";
-        } else {
-          grave.innerHTML = dead.map(p => `
-            <div class="grave-dead">#${p.index} ${escapeHtml(p.name)}</div>
-          `).join("");
-        }
-      }
+    socket.on("admin-announcement", data => {
+      const message = data?.message || "";
+      appendMsg(`<b>ADMIN:</b> ${escapeHtml(message)}`, "admin-chat-announcement");
+      toast("ADMIN: " + message, "role", 5000);
+    });
 
-      const voteBoard = $("vote-board");
-      if (voteBoard) {
-        if (currentPhase === "vote") {
-          const alive = alivePlayers.filter(p => p.alive);
-          voteBoard.innerHTML = alive.map(p => `
-            <div>#${p.index} ${escapeHtml(p.name)} — ელოდება ხმებს</div>
-          `).join("");
-        } else {
-          voteBoard.innerHTML = "ხმის მიცემა დაიწყება დღის შემდეგ";
-        }
+    /* ============================================================
+       VIDEO
+    ============================================================ */
+    function updateVideoMeta(id, name, index) {
+      const box = $(id);
+      if (!box) return;
+      const safeIndex = index && index > 0 ? index : 1;
+      box.style.order = safeIndex;
+      const num = box.querySelector(".player-number");
+      if (num) num.innerText = "#" + safeIndex;
+      const label = box.querySelector(".video-label");
+      if (label) label.innerText = name;
+    }
+
+    function addVideo(id, stream, name, index, mute = false) {
+      if ($(id)) return;
+      const div = document.createElement("div");
+      div.id = id;
+      div.className = "video-box";
+      const safeIndex = index && index > 0 ? index : 1;
+      div.style.order = safeIndex;
+
+      div.innerHTML = `
+        <div class="speaking-indicator"></div>
+        <div class="player-number">#${safeIndex}</div>
+        <video id="v-${id}" autoplay playsinline ${mute ? "muted" : ""}></video>
+        <div class="video-label">${escapeHtml(name)}</div>
+      `;
+
+      // Click → quick profile
+      div.addEventListener("click", () => showPlayerProfile(id, name, safeIndex));
+
+      $("video-grid").appendChild(div);
+      if (stream) {
+        $("v-" + id).srcObject = stream;
+        setTimeout(updateVoiceByPhase, 300);
       }
     }
 
+    /* ============================================================
+       PLAYER QUICK PROFILE
+    ============================================================ */
+    function showPlayerProfile(id, name, index) {
+      const player = alivePlayers.find(p => p.id === id);
+      const modal = $("player-profile-modal");
+      $("profile-name").textContent = `#${index} ${name}`;
+
+      const isAlive = player ? player.alive : true;
+      $("profile-status").textContent = isAlive ? "✅ ცოცხალი" : "💀 მოკვდა";
+
+      const actions = $("profile-actions");
+      actions.innerHTML = "";
+
+      const me = alivePlayers.find(p => p.id === socket.id);
+      if (me && me.alive && player && player.alive && id !== socket.id) {
+        if (currentPhase === "vote") {
+          const voteBtn = document.createElement("button");
+          voteBtn.className = "btn";
+          voteBtn.style.background = "var(--red)";
+          voteBtn.textContent = "ხმა — " + name;
+          voteBtn.onclick = () => {
+            if (!player) return;
+            voteMemory[socket.id] = id;
+            socket.emit("vote-player", { room: currentRoom, targetId: id });
+            addSystemMsg("ხმა მიცემულია");
+            toast("ხმა მიეცი: " + name, "success");
+            modal.classList.add("hidden");
+            hideActionModal();
+          };
+          actions.appendChild(voteBtn);
+        }
+        if (currentPhase === "night" && (myRole === "mafia" || myRole === "don")) {
+          const killBtn = document.createElement("button");
+          killBtn.className = "btn";
+          killBtn.style.background = "var(--red)";
+          killBtn.textContent = "მოკვლა — " + name;
+          killBtn.onclick = () => {
+            socket.emit("night-action", { room: currentRoom, action: "kill", targetId: id });
+            addSystemMsg("ქმედება დაფიქსირდა");
+            toast("მოქმედება გაგზავნილია", "info");
+            modal.classList.add("hidden");
+            hideActionModal();
+          };
+          actions.appendChild(killBtn);
+        }
+        if (currentPhase === "night" && myRole === "doctor") {
+          const saveBtn = document.createElement("button");
+          saveBtn.className = "btn";
+          saveBtn.style.background = "var(--green)";
+          saveBtn.style.color = "#000";
+          saveBtn.textContent = "გადარჩენა — " + name;
+          saveBtn.onclick = () => {
+            socket.emit("night-action", { room: currentRoom, action: "save", targetId: id });
+            addSystemMsg("ქმედება დაფიქსირდა");
+            toast("გადარჩენა გაგზავნილია", "success");
+            modal.classList.add("hidden");
+            hideActionModal();
+          };
+          actions.appendChild(saveBtn);
+        }
+        if (currentPhase === "night" && myRole === "sheriff") {
+          const checkBtn = document.createElement("button");
+          checkBtn.className = "btn";
+          checkBtn.style.background = "var(--blue)";
+          checkBtn.textContent = "შემოწმება — " + name;
+          checkBtn.onclick = () => {
+            socket.emit("night-action", { room: currentRoom, action: "check", targetId: id });
+            addSystemMsg("ქმედება დაფიქსირდა");
+            toast("შემოწმება გაგზავნილია", "info");
+            modal.classList.add("hidden");
+            hideActionModal();
+          };
+          actions.appendChild(checkBtn);
+        }
+      }
+
+      modal.classList.remove("hidden");
+    }
+
+    /* ============================================================
+       PHASES
+    ============================================================ */
     function updatePhaseText() {
       document.body.classList.remove("night-mode", "day-mode");
 
@@ -2193,90 +1778,61 @@
       if (currentPhase === "night") {
         voteMemory = {};
         document.body.classList.add("night-mode");
+        $("game-phase").innerText = "🌙 ღამე";
 
-        $("game-phase").innerText = "ღამე";
-        $("phase-big-text").innerText = "ღამე";
-
-        if (myRole === "mafia" || myRole === "don") {
-          $("phase-small-text").innerText = "მაფიის ფაზა: აირჩიე მოსაკლავი. მხოლოდ მაფიებს ესმით ერთმანეთის ხმა.";
-        } else if (myRole === "doctor") {
-          $("phase-small-text").innerText = "ექიმის ფაზა: აირჩიე გადასარჩენი მოთამაშე.";
-        } else if (myRole === "sheriff") {
-          $("phase-small-text").innerText = "შერიფის ფაზა: შეამოწმე მოთამაშე.";
-        } else {
-          $("phase-small-text").innerText = "ღამეა. მოქალაქე ელოდება დილის დადგომას.";
-        }
-
+        const roleMsg = {
+          mafia: "მაფიის ფაზა: აირჩიე მოსაკლავი. მხოლოდ მაფიებს ესმით ერთმანეთის ხმა.",
+          don: "დონის ფაზა: ირჩევ მსხვერპლს.",
+          doctor: "ექიმის ფაზა: აირჩიე გადასარჩენი მოთამაშე.",
+          sheriff: "შერიფის ფაზა: შეამოწმე მოთამაშე."
+        };
+        toast(roleMsg[myRole] || "ღამეა. მოქალაქე ელოდება დილას.", "info", 4000);
         startTimer(60);
       } else if (currentPhase === "day") {
         voteMemory = {};
         document.body.classList.add("day-mode");
-
-        $("game-phase").innerText = "დღე";
-        $("phase-big-text").innerText = "დღე";
-        $("phase-small-text").innerText = "Day discussion: 2 წუთი გაქვთ ეჭვების გასაზიარებლად. შემდეგ დაიწყება Vote.";
-
+        $("game-phase").innerText = "☀️ დღე";
+        toast("Day discussion — 2 წუთი გაქვთ", "info", 3000);
         startTimer(120);
       } else if (currentPhase === "vote") {
         document.body.classList.add("day-mode");
-
-        $("game-phase").innerText = "ხმის მიცემა";
-        $("phase-big-text").innerText = "ხმის მიცემა";
-        $("phase-small-text").innerText = "აირჩიე მოთამაშე, ვის გაგდებასაც უჭერ მხარს.";
-
+        $("game-phase").innerText = "🗳️ ხმის მიცემა";
+        toast("ხმის მიცემის ფაზა — 30 წამი!", "info", 3000);
         startTimer(30);
       } else if (currentPhase === "ended") {
-        $("game-phase").innerText = "დასრულდა";
-        $("phase-big-text").innerText = "თამაში დასრულდა";
-        $("phase-small-text").innerText = "შედეგი გამოჩნდა ჩატში.";
+        $("game-phase").innerText = "🏁 დასრულდა";
         stopTimer();
       } else {
-        $("game-phase").innerText = "მზადება";
-        $("phase-big-text").innerText = "მზადება";
-        $("phase-small-text").innerText = "ჰოსტმა უნდა დააჭიროს START GAME.";
+        $("game-phase").innerText = "⏳ მზადება";
         stopTimer();
       }
     }
 
     function updateVoiceByPhase() {
       const iAmMafia = myRole === "mafia" || myRole === "don";
-
       Object.keys(peers).forEach(peerId => {
         const video = $("v-" + peerId);
         if (!video) return;
-
         const peerIsMafia = mafiaIds.includes(peerId);
-
         if (currentPhase === "night") {
-          if (iAmMafia && peerIsMafia) {
-            video.muted = false;
-            video.volume = 1;
-          } else {
-            video.muted = true;
-            video.volume = 0;
-          }
+          video.muted = !(iAmMafia && peerIsMafia);
+          video.volume = (iAmMafia && peerIsMafia) ? 1 : 0;
         } else {
           video.muted = false;
           video.volume = 1;
         }
       });
-
       const myVideo = $("v-" + socket.id);
-      if (myVideo) {
-        myVideo.muted = true;
-        myVideo.volume = 0;
-      }
+      if (myVideo) { myVideo.muted = true; myVideo.volume = 0; }
     }
 
     function startTimer(seconds) {
       clearInterval(timerInterval);
       timerSeconds = seconds;
       updateTimerText();
-
       timerInterval = setInterval(() => {
         timerSeconds--;
         updateTimerText();
-
         if (timerSeconds <= 0) clearInterval(timerInterval);
       }, 1000);
     }
@@ -2301,12 +1857,9 @@
       alivePlayers.forEach(p => {
         const box = $(p.id);
         if (!box) return;
-
         box.classList.toggle("dead", !p.alive);
-
         const old = box.querySelector(".dead-badge");
         if (old) old.remove();
-
         if (!p.alive) {
           const badge = document.createElement("div");
           badge.className = "dead-badge";
@@ -2316,31 +1869,19 @@
       });
     }
 
-
-
-    function showActionModal() {
-      const modal = $("action-modal");
-      if (modal) modal.classList.remove("hidden");
-    }
-
-    function hideActionModal() {
-      const modal = $("action-modal");
-      if (modal) modal.classList.add("hidden");
-    }
+    /* ============================================================
+       ACTION MODAL
+    ============================================================ */
+    function showActionModal() { $("action-modal")?.classList.remove("hidden"); }
+    function hideActionModal() { $("action-modal")?.classList.add("hidden"); }
 
     function renderActionPanel() {
-      const panel = $("action-panel");
       const box = $("players-actions");
       const title = $("action-title");
-
       box.innerHTML = "";
 
       const me = alivePlayers.find(p => p.id === socket.id);
-
-      if (!me || !me.alive || currentPhase === "ended") {
-        hideActionModal();
-        return;
-      }
+      if (!me || !me.alive || currentPhase === "ended") { hideActionModal(); return; }
 
       const otherAlive = alivePlayers.filter(p => p.alive && p.id !== socket.id);
       const allAlive = alivePlayers.filter(p => p.alive);
@@ -2348,34 +1889,34 @@
       if (currentPhase === "night") {
         if (myRole === "mafia" || myRole === "don") {
           showActionModal();
-          title.innerText = "მაფიის ღამე — აირჩიე მსხვერპლი";
-          otherAlive.forEach(p => addActionButton(p, "kill", "მოკვლა"));
+          title.innerText = "🔴 მაფიის ღამე — აირჩიე მსხვერპლი";
+          otherAlive.forEach(p => addActionButton(p, "kill", "მოკვლა", "var(--red)"));
           return;
         }
-
         if (myRole === "doctor") {
           showActionModal();
-          title.innerText = "ექიმის ღამე — აირჩიე გადასარჩენი";
-          allAlive.forEach(p => addActionButton(p, "save", "გადარჩენა"));
+          title.innerText = "💊 ექიმის ღამე — გადარჩენა";
+          allAlive.forEach(p => addActionButton(p, "save", "გადარჩენა", "var(--green)"));
           return;
         }
-
         if (myRole === "sheriff") {
           showActionModal();
-          title.innerText = "შერიფის ღამე — შეამოწმე მოთამაშე";
-          otherAlive.forEach(p => addActionButton(p, "check", "შემოწმება"));
+          title.innerText = "⭐ შერიფის ღამე — შემოწმება";
+          otherAlive.forEach(p => addActionButton(p, "check", "შემოწმება", "var(--blue)"));
           return;
         }
-
         showActionModal();
-        title.innerText = "ღამეა — დაელოდე დილას";
-        box.innerHTML = `<div class="msg">შენ მოქალაქე ხარ. ღამით მოქმედება არ გაქვს.</div>`;
+        title.innerText = "🌙 ღამეა — დაელოდე დილას";
+        const msg = document.createElement("div");
+        msg.className = "msg";
+        msg.textContent = "შენ მოქალაქე ხარ. ღამით მოქმედება არ გაქვს.";
+        box.appendChild(msg);
         return;
       }
 
       if (currentPhase === "vote") {
         showActionModal();
-        title.innerText = "ხმის მიცემა";
+        title.innerText = "🗳️ ხმის მიცემა";
         otherAlive.forEach(p => addVoteButton(p));
         return;
       }
@@ -2383,26 +1924,28 @@
       hideActionModal();
     }
 
-    function addActionButton(player, action, label) {
+    function addActionButton(player, action, label, color = "var(--neon)") {
       const row = document.createElement("div");
       row.className = "action-row";
 
-      row.innerHTML = `
-        <div class="num">#${player.index}</div>
-        <button class="btn">${label}: ${escapeHtml(player.name)}</button>
-      `;
+      const num = document.createElement("div");
+      num.className = "num";
+      num.textContent = "#" + player.index;
 
-      row.querySelector("button").onclick = () => {
-        socket.emit("night-action", {
-          room: currentRoom,
-          action,
-          targetId: player.id
-        });
-
+      const btn = document.createElement("button");
+      btn.className = "btn";
+      btn.style.background = color;
+      if (color === "var(--green)") btn.style.color = "#000";
+      btn.textContent = `${label}: ${player.name}`;
+      btn.onclick = () => {
+        socket.emit("night-action", { room: currentRoom, action, targetId: player.id });
         addSystemMsg("ქმედება დაფიქსირდა");
+        toast("ქმედება გაგზავნილია", "success");
         hideActionModal();
       };
 
+      row.appendChild(num);
+      row.appendChild(btn);
       $("players-actions").appendChild(row);
     }
 
@@ -2410,422 +1953,109 @@
       const row = document.createElement("div");
       row.className = "action-row";
 
-      row.innerHTML = `
-        <div class="num">#${player.index}</div>
-        <button class="btn" style="background:var(--red);">ხმა: ${escapeHtml(player.name)}</button>
-      `;
+      const num = document.createElement("div");
+      num.className = "num";
+      num.textContent = "#" + player.index;
 
-      row.querySelector("button").onclick = () => {
+      const btn = document.createElement("button");
+      btn.className = "btn";
+      btn.style.background = "var(--red)";
+      btn.textContent = "ხმა: " + player.name;
+      btn.onclick = () => {
         voteMemory[socket.id] = player.id;
-        renderVoteResultsBoard();
-
-        socket.emit("vote-player", {
-          room: currentRoom,
-          targetId: player.id
-        });
-
+        socket.emit("vote-player", { room: currentRoom, targetId: player.id });
         addSystemMsg("ხმა მიცემულია");
-        proLog(`ხმა მიეცი #${player.index} ${player.name}`);
+        toast("ხმა მიეცი: " + player.name, "success");
         hideActionModal();
       };
 
+      row.appendChild(num);
+      row.appendChild(btn);
       $("players-actions").appendChild(row);
     }
 
+    /* ============================================================
+       CHAT
+    ============================================================ */
     function sendMsg() {
       const input = $("chat-msg");
       const text = input.value.trim();
-
       if (!text) return;
 
-      socket.emit("send-chat-msg", {
-        room: currentRoom,
-        name: myNick,
-        text
-      });
-
+      const prefix = currentChatTab === "main" ? "" : "[" + currentChatTab.toUpperCase() + "] ";
+      socket.emit("send-chat-msg", { room: currentRoom, name: myNick, text: prefix + text });
       input.value = "";
     }
 
-    socket.on("receive-chat-msg", d => {
-      const m = $("chat-messages");
-
-      m.innerHTML += `
-        <div class="msg">
-          <b>${escapeHtml(d.name)}:</b> ${escapeHtml(d.text)}
-        </div>
-      `;
-
-      m.scrollTop = m.scrollHeight;
-    });
-
-    function addSystemMsg(text) {
-      const m = $("chat-messages");
-
-      m.innerHTML += `
-        <div class="msg" style="border-left-color:var(--neon); color:var(--cyan);">
-          <b>SYSTEM:</b> ${escapeHtml(text)}
-        </div>
-      `;
-
-      m.scrollTop = m.scrollHeight;
+    function toggleChat() {
+      const panel = $("chat-panel");
+      chatOpen = !chatOpen;
+      panel.classList.toggle("open", chatOpen);
+      if (chatOpen) {
+        unreadCount = 0;
+        $("chat-unread-badge").classList.add("hidden");
+      }
     }
 
+    /* ============================================================
+       MIC / CAM
+    ============================================================ */
     function toggleMic() {
       if (!localStream) return;
-
       const track = localStream.getAudioTracks()[0];
       if (!track) return;
-
       track.enabled = !track.enabled;
       $("mic-btn").style.background = track.enabled ? "var(--neon)" : "#333";
+      toast(track.enabled ? "მიკროფონი ჩართულია" : "მიკროფონი გათიშულია", "info", 1500);
     }
 
     function toggleCam() {
       if (!localStream) return;
-
       const track = localStream.getVideoTracks()[0];
       if (!track) return;
-
       track.enabled = !track.enabled;
       $("cam-btn").style.background = track.enabled ? "var(--cyan)" : "#333";
+      toast(track.enabled ? "კამერა ჩართულია" : "კამერა გათიშულია", "info", 1500);
     }
 
-    function toggleChat() {
-      $("chat-panel").classList.toggle("open");
-    }
-
-
-
-
-
-    /* ---------------- LOBBY MUSIC ---------------- */
-
+    /* ============================================================
+       LOBBY MUSIC
+    ============================================================ */
     function setupLobbyMusic() {
-      const btn = $("music-toggle-btn");
-      if (!btn) return;
-
-      btn.addEventListener("click", () => {
-        if (lobbyMusicOn) {
-          stopLobbyMusic();
-        } else {
-          startLobbyMusic();
-        }
+      $("music-toggle-btn")?.addEventListener("click", () => {
+        lobbyMusicOn ? stopLobbyMusic() : startLobbyMusic();
       });
-
-      // Browser usually blocks autoplay, so we try quietly after user enters lobby.
-      document.addEventListener("click", () => {
-        if (!$("rooms-screen").classList.contains("hidden") && !lobbyMusicOn) {
-          // არ ვაძალებთ ხმას, მხოლოდ ღილაკით სჯობს.
-        }
-      }, { once:true });
     }
 
     function startLobbyMusic() {
       const music = $("lobby-music");
-      const btn = $("music-toggle-btn");
       if (!music) return;
-
       music.volume = 0.32;
-
       music.play()
         .then(() => {
           lobbyMusicOn = true;
-          if (btn) btn.innerText = "LOBBY MUSIC: ON";
+          $("music-toggle-btn").innerText = "LOBBY MUSIC: ON";
         })
-        .catch(() => {
-          alert("მუსიკის ჩართვისთვის დააჭირე ღილაკს კიდევ ერთხელ ან browser permissions შეამოწმე.");
-        });
+        .catch(() => toast("მუსიკის ჩართვა ვერ მოხერხდა", "error"));
     }
 
     function stopLobbyMusic() {
       const music = $("lobby-music");
-      const btn = $("music-toggle-btn");
       if (!music) return;
-
       music.pause();
       music.currentTime = 0;
       lobbyMusicOn = false;
-
+      const btn = $("music-toggle-btn");
       if (btn) btn.innerText = "LOBBY MUSIC: OFF";
     }
 
-    /* ---------------- MINI GAMES ---------------- */
-
-    function setupMiniGames() {
-      $("mini-games-toggle").addEventListener("click", () => {
-        $("mini-games-panel").classList.remove("hidden");
-      });
-
-      $("mini-games-close").addEventListener("click", () => {
-        $("mini-games-panel").classList.add("hidden");
-      });
-
-      document.querySelectorAll(".mini-tab").forEach(tab => {
-        tab.addEventListener("click", () => {
-          document.querySelectorAll(".mini-tab").forEach(t => t.classList.remove("active"));
-          tab.classList.add("active");
-
-          const game = tab.dataset.game;
-
-          $("mini-tictactoe").classList.toggle("hidden", game !== "tictactoe");
-          $("mini-truth").classList.toggle("hidden", game !== "truth");
-          $("mini-dice").classList.toggle("hidden", game !== "dice");
-        });
-      });
-
-      $("ttt-reset").addEventListener("click", resetTicTacToe);
-      $("truth-btn").addEventListener("click", () => randomTruthDare("truth"));
-      $("dare-btn").addEventListener("click", () => randomTruthDare("dare"));
-      $("dice-roll").addEventListener("click", rollDice);
-
-      renderTicTacToe();
-    }
-
-    function renderTicTacToe() {
-      const board = $("ttt-board");
-      board.innerHTML = "";
-
-      tttBoard.forEach((value, index) => {
-        const cell = document.createElement("div");
-        cell.className = "ttt-cell";
-        cell.innerText = value;
-        cell.onclick = () => playTicTacToe(index);
-        board.appendChild(cell);
-      });
-
-      $("ttt-status").innerText = tttFinished ? $("ttt-status").innerText : `Turn: ${tttTurn}`;
-    }
-
-    function playTicTacToe(index) {
-      if (tttFinished || tttBoard[index]) return;
-
-      tttBoard[index] = tttTurn;
-
-      const winner = getTicTacToeWinner();
-
-      if (winner) {
-        tttFinished = true;
-        $("ttt-status").innerText = `Winner: ${winner}`;
-      } else if (tttBoard.every(Boolean)) {
-        tttFinished = true;
-        $("ttt-status").innerText = "Draw";
-      } else {
-        tttTurn = tttTurn === "X" ? "O" : "X";
-        $("ttt-status").innerText = `Turn: ${tttTurn}`;
-      }
-
-      renderTicTacToe();
-    }
-
-    function getTicTacToeWinner() {
-      const wins = [
-        [0,1,2], [3,4,5], [6,7,8],
-        [0,3,6], [1,4,7], [2,5,8],
-        [0,4,8], [2,4,6]
-      ];
-
-      for (const [a,b,c] of wins) {
-        if (tttBoard[a] && tttBoard[a] === tttBoard[b] && tttBoard[a] === tttBoard[c]) {
-          return tttBoard[a];
-        }
-      }
-
-      return null;
-    }
-
-    function resetTicTacToe() {
-      tttBoard = Array(9).fill("");
-      tttTurn = "X";
-      tttFinished = false;
-      $("ttt-status").innerText = "Turn: X";
-      renderTicTacToe();
-    }
-
-    function randomTruthDare(type) {
-      const truths = [
-        "რომელი მოთამაშე გგონია ყველაზე საეჭვო და რატომ?",
-        "ბოლოს როდის მოიტყუე თამაშში?",
-        "ვინ არის ოთახში ყველაზე კარგი მატყუარა?",
-        "რომელი როლი გინდა ყველაზე მეტად?",
-        "ვის ენდობი ყველაზე ნაკლებად ამ ოთახში?"
-      ];
-
-      const dares = [
-        "შემდეგი 30 წამი ისაუბრე რობოტივით.",
-        "ერთ მოთამაშეს მისწერე კომპლიმენტი ჩატში.",
-        "შემდეგი რაუნდის დაწყებამდე არ თქვა სიტყვა 'მაფია'.",
-        "აირჩიე ერთი მოთამაშე და დაიცავი მისი უდანაშაულობა 20 წამი.",
-        "შემდეგი პასუხი მხოლოდ ერთი სიტყვით თქვი."
-      ];
-
-      const list = type === "truth" ? truths : dares;
-      const picked = list[Math.floor(Math.random() * list.length)];
-
-      $("truth-card").innerText = picked;
-      addSystemMsg(`${type === "truth" ? "TRUTH" : "DARE"}: ${picked}`);
-    }
-
-    function rollDice() {
-      const n = Math.floor(Math.random() * 6) + 1;
-      $("dice-result").innerText = n;
-      addSystemMsg(`Dice rolled: ${n}`);
-    }
-
-
-    /* ---------------- ADMIN PANEL LOGIC ---------------- */
-
-    function setupAdminPanel() {
-      $("admin-toggle-btn").addEventListener("click", () => {
-        $("admin-panel").classList.toggle("admin-open");
-      });
-
-      $("admin-close-btn").addEventListener("click", () => {
-        $("admin-panel").classList.remove("admin-open");
-      });
-
-      $("admin-start-game").addEventListener("click", () => {
-        requestStart();
-      });
-
-      $("admin-end-game").addEventListener("click", () => {
-        adminAction("end-game");
-      });
-
-      $("admin-reset-game").addEventListener("click", () => {
-        adminAction("reset-game");
-      });
-
-      $("admin-lock-room").addEventListener("click", () => {
-        adminAction("lock-room");
-      });
-
-      $("admin-unlock-room").addEventListener("click", () => {
-        adminAction("unlock-room");
-      });
-
-      $("admin-clear-chat").addEventListener("click", () => {
-        adminAction("clear-chat");
-      });
-
-      $("admin-close-room").addEventListener("click", () => {
-        if (confirm("ნამდვილად გინდა ოთახის დახურვა?")) {
-          adminAction("close-room");
-        }
-      });
-
-      $("admin-announce-btn").addEventListener("click", () => {
-        const message = $("admin-announce-input").value.trim();
-
-        if (!message) {
-          alert("ჩაწერე განცხადება");
-          return;
-        }
-
-        adminAction("announce", null, message);
-        $("admin-announce-input").value = "";
-      });
-    }
-
-    function adminAction(action, targetId = null, message = "") {
-      if (!isHost) {
-        alert("მხოლოდ ადმინს შეუძლია");
-        return;
-      }
-
-      socket.emit("admin-action", {
-        room: currentRoom,
-        action,
-        targetId,
-        message
-      });
-    }
-
-    function renderAdminPanel() {
-      if (!isHost) return;
-
-      const playersBox = $("admin-players-list");
-      const spectatorsBox = $("admin-spectators-list");
-
-      if (playersBox) {
-        if (!latestPlayers.length) {
-          playersBox.innerHTML = `<div class="admin-empty">მოთამაშეები არ არიან</div>`;
-        } else {
-          playersBox.innerHTML = latestPlayers.map(p => `
-            <div class="admin-user-row">
-              <span>
-                #${p.index} ${escapeHtml(p.name)}
-                ${p.alive ? "" : "<small>(dead)</small>"}
-              </span>
-
-              <div class="admin-user-actions">
-                <button class="danger" onclick="adminAction('kick', '${p.id}')">KICK</button>
-                <button onclick="adminAction('make-host', '${p.id}')">HOST</button>
-              </div>
-            </div>
-          `).join("");
-        }
-      }
-
-      if (spectatorsBox) {
-        if (!latestSpectators.length) {
-          spectatorsBox.innerHTML = `<div class="admin-empty">spectator არ არის</div>`;
-        } else {
-          spectatorsBox.innerHTML = latestSpectators.map(s => `
-            <div class="admin-user-row">
-              <span>👁️ ${escapeHtml(s.name)}</span>
-
-              <div class="admin-user-actions">
-                <button class="danger" onclick="adminAction('kick', '${s.id}')">KICK</button>
-              </div>
-            </div>
-          `).join("");
-        }
-      }
-    }
-
-    socket.on("spectators-update", list => {
-      latestSpectators = list || [];
-      renderAdminPanel();
-    });
-
-    socket.on("kicked", msg => {
-      alert(msg || "ადმინმა გაგაგდო ოთახიდან");
-      location.reload();
-    });
-
-    socket.on("room-closed", msg => {
-      alert(msg || "ოთახი დაიხურა");
-      location.reload();
-    });
-
-    socket.on("clear-chat", () => {
-      $("chat-messages").innerHTML = "";
-    });
-
-    socket.on("admin-announcement", data => {
-      const message = data && data.message ? data.message : "";
-
-      $("chat-messages").innerHTML += `
-        <div class="msg admin-chat-announcement">
-          <b>ADMIN:</b> ${escapeHtml(message)}
-        </div>
-      `;
-
-      $("chat-messages").scrollTop = $("chat-messages").scrollHeight;
-      alert("ADMIN: " + message);
-    });
-
-
-
-
-
-    /* ---------------- ROLE SETTINGS LOGIC ---------------- */
-
+    /* ============================================================
+       ROLE SETTINGS
+    ============================================================ */
     function setupRoleSettings() {
       $("role-settings-btn")?.addEventListener("click", () => {
-        if (!isHost) return alert("მხოლოდ ჰოსტს შეუძლია როლების შეცვლა");
-        if (currentPhase !== "waiting") return alert("როლების შეცვლა შეიძლება მხოლოდ თამაშის დაწყებამდე");
+        if (!isHost) { toast("მხოლოდ ჰოსტს შეუძლია როლების შეცვლა", "error"); return; }
+        if (currentPhase !== "waiting") { toast("როლების შეცვლა მხოლოდ თამაშის დაწყებამდე", "error"); return; }
         syncRoleSettingsFromOldInputs();
         renderRoleSettings();
         $("role-settings-modal")?.classList.remove("hidden");
@@ -2840,6 +2070,7 @@
       $("role-settings-save")?.addEventListener("click", () => {
         saveRoleSettings();
         $("role-settings-modal")?.classList.add("hidden");
+        toast("Role settings შენახულია", "success");
         addSystemMsg("Role settings შენახულია");
       });
 
@@ -2853,9 +2084,15 @@
         renderRoleSettings();
       });
 
-      ["don", "sheriff", "doctor", "detective"].forEach(name => {
-        const id = name === "detective" ? "role-setting-detective" : `role-setting-${name}`;
-        $(id)?.addEventListener("change", saveRoleSettings);
+      ["don", "sheriff", "doctor"].forEach(name => {
+        $(`role-setting-${name}`)?.addEventListener("change", () => {
+          saveRoleSettings();
+          renderRoleSettings();
+        });
+      });
+      $("role-setting-detective")?.addEventListener("change", () => {
+        saveRoleSettings();
+        renderRoleSettings();
       });
 
       syncRoleSettingsFromOldInputs();
@@ -2874,351 +2111,283 @@
       roleSettings.sheriff = !!$("role-setting-sheriff")?.checked;
       roleSettings.doctor = !!$("role-setting-doctor")?.checked;
       roleSettings.detectiveText = !!$("role-setting-detective")?.checked;
-
       if ($("mafia-count")) $("mafia-count").value = roleSettings.mafia;
       if ($("set-don")) $("set-don").checked = roleSettings.don;
       if ($("set-sheriff")) $("set-sheriff").checked = roleSettings.sheriff;
       if ($("set-doctor")) $("set-doctor").checked = roleSettings.doctor;
-
-      renderRoleSettings();
     }
 
     function renderRoleSettings() {
       if ($("role-mafia-value")) $("role-mafia-value").innerText = roleSettings.mafia;
-
       if ($("role-setting-don")) $("role-setting-don").checked = roleSettings.don;
       if ($("role-setting-sheriff")) $("role-setting-sheriff").checked = roleSettings.sheriff;
       if ($("role-setting-doctor")) $("role-setting-doctor").checked = roleSettings.doctor;
       if ($("role-setting-detective")) $("role-setting-detective").checked = roleSettings.detectiveText;
 
-      const preview = [];
+      // Visual role cards preview
       const mafiaCount = Number(roleSettings.mafia || 1);
+      const chips = [];
 
       if (roleSettings.don) {
-        preview.push("Don ×1");
-        if (mafiaCount > 1) preview.push(`Mafia ×${mafiaCount - 1}`);
+        chips.push({ label: "👑 Don ×1", cls: "don" });
+        if (mafiaCount > 1) chips.push({ label: `🔴 Mafia ×${mafiaCount - 1}`, cls: "mafia" });
       } else {
-        preview.push(`Mafia ×${mafiaCount}`);
+        chips.push({ label: `🔴 Mafia ×${mafiaCount}`, cls: "mafia" });
       }
+      if (roleSettings.sheriff) chips.push({ label: "⭐ Sheriff ×1", cls: "sheriff" });
+      if (roleSettings.doctor) chips.push({ label: "💊 Doctor ×1", cls: "doctor" });
+      chips.push({ label: "⚪ Citizen — დანარჩენი", cls: "citizen" });
 
-      if (roleSettings.sheriff) preview.push("Sheriff ×1");
-      if (roleSettings.doctor) preview.push("Doctor ×1");
-      preview.push("Citizen — დანარჩენი მოთამაშეები");
+      const cardsEl = $("role-preview-cards");
+      if (cardsEl) {
+        cardsEl.innerHTML = chips.map(c =>
+          `<div class="role-preview-chip ${c.cls}">${c.label}</div>`
+        ).join("");
+      }
 
       const minPlayers = mafiaCount + (roleSettings.sheriff ? 1 : 0) + (roleSettings.doctor ? 1 : 0) + 1;
-
-      if ($("role-preview")) {
-        $("role-preview").innerHTML = `
-          <b style="color:var(--cyan);">Active Roles:</b><br>
-          ${preview.map(x => `• ${escapeHtml(x)}`).join("<br>")}
-          <br><br>
-          <span style="color:#aaa;">რეკომენდებული მინიმუმი: ${minPlayers} მოთამაშე</span>
-        `;
-      }
+      const minEl = $("role-preview-min");
+      if (minEl) minEl.textContent = `⚠️ რეკომენდებული მინიმუმი: ${minPlayers} მოთამაშე`;
     }
 
-    /* ---------------- PROFESSIONAL PACK V2 LOGIC ---------------- */
+    /* ============================================================
+       MY ROLE TOOLTIP
+    ============================================================ */
+    function setupRoleTooltip() {
+      const card = $("my-role-card");
+      const tooltip = $("role-tooltip");
+      if (!card || !tooltip) return;
 
-    function proLog(text) {
-      const stamp = new Date().toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
-      gameLogItems.unshift(`[${stamp}] ${text}`);
-      gameLogItems = gameLogItems.slice(0, 12);
-      renderGameLog();
-    }
-
-    function renderGameLog() {
-      const box = $("game-log");
-      if (!box) return;
-
-      if (!gameLogItems.length) {
-        box.innerHTML = "ლოგი ჯერ ცარიელია";
-        return;
-      }
-
-      box.innerHTML = gameLogItems.map(x => `
-        <div class="log-row">${escapeHtml(x)}</div>
-      `).join("");
-    }
-
-    function renderRoadmap() {
-      ["road-day","road-defense","road-final","road-vote","road-night","road-results"].forEach(id => {
-        const el = $(id);
-        if (el) el.classList.remove("active");
+      card.addEventListener("click", () => {
+        if (tooltip.classList.contains("hidden")) {
+          tooltip.textContent = roleDescription(myRole);
+          tooltip.classList.remove("hidden");
+        } else {
+          tooltip.classList.add("hidden");
+        }
       });
-
-      const phase = proPhaseOverride || currentPhase;
-
-      if (phase === "day" || phase === "waiting") $("road-day")?.classList.add("active");
-      if (phase === "defense") $("road-defense")?.classList.add("active");
-      if (phase === "final") $("road-final")?.classList.add("active");
-      if (phase === "vote") $("road-vote")?.classList.add("active");
-      if (phase === "night") $("road-night")?.classList.add("active");
-      if (phase === "results" || phase === "ended") $("road-results")?.classList.add("active");
     }
 
-    function renderVoteResultsBoard() {
-      const box = $("vote-results-board");
-      if (!box) return;
-
-      if (currentPhase !== "vote" && Object.keys(voteMemory).length === 0) {
-        box.innerHTML = "ჯერ ხმები არ არის";
-        return;
-      }
-
-      const counts = {};
-
-      Object.values(voteMemory).forEach(targetId => {
-        counts[targetId] = (counts[targetId] || 0) + 1;
+    /* ============================================================
+       ADMIN PANEL
+    ============================================================ */
+    function setupAdminPanel() {
+      $("admin-toggle-btn").addEventListener("click", () => {
+        $("admin-panel").classList.toggle("admin-open");
       });
-
-      const rows = alivePlayers.map(p => {
-        const n = counts[p.id] || 0;
-        return `<div class="vote-row">#${p.index} ${escapeHtml(p.name)} — ${n} ხმა</div>`;
-      }).join("");
-
-      box.innerHTML = rows || "ჯერ ხმები არ არის";
+      $("admin-close-btn").addEventListener("click", () => {
+        $("admin-panel").classList.remove("admin-open");
+      });
+      $("admin-start-game").addEventListener("click", requestStart);
+      $("admin-end-game").addEventListener("click", () => adminAction("end-game"));
+      $("admin-reset-game").addEventListener("click", () => adminAction("reset-game"));
+      $("admin-lock-room").addEventListener("click", () => adminAction("lock-room"));
+      $("admin-unlock-room").addEventListener("click", () => adminAction("unlock-room"));
+      $("admin-clear-chat").addEventListener("click", () => adminAction("clear-chat"));
+      $("admin-close-room").addEventListener("click", () => {
+        if (confirm("ნამდვილად გინდა ოთახის დახურვა?")) adminAction("close-room");
+      });
+      $("admin-announce-btn").addEventListener("click", () => {
+        const message = $("admin-announce-input").value.trim();
+        if (!message) { toast("ჩაწერე განცხადება", "error"); return; }
+        adminAction("announce", null, message);
+        $("admin-announce-input").value = "";
+      });
     }
 
-    function renderSpectatorRolePanel() {
-      const box = $("spectator-role-panel");
-      if (!box) return;
+    function adminAction(action, targetId = null, message = "") {
+      if (!isHost) { toast("მხოლოდ ადმინს შეუძლია", "error"); return; }
+      socket.emit("admin-action", { room: currentRoom, action, targetId, message });
+    }
 
-      const canSee = isHost || revealedRoles || (typeof isSpectator !== "undefined" && isSpectator);
+    function renderAdminPanel() {
+      if (!isHost) return;
+      const playersBox = $("admin-players-list");
+      const spectatorsBox = $("admin-spectators-list");
 
-      if (!canSee) {
-        box.innerHTML = "როლები დამალულია";
-        return;
+      if (playersBox) {
+        if (!latestPlayers.length) {
+          playersBox.innerHTML = `<div class="admin-empty">მოთამაშეები არ არიან</div>`;
+        } else {
+          playersBox.innerHTML = "";
+          latestPlayers.forEach(p => {
+            const row = document.createElement("div");
+            row.className = "admin-user-row";
+            row.innerHTML = `
+              <span>#${p.index} ${escapeHtml(p.name)} ${p.alive ? "" : "<small>(dead)</small>"}</span>
+              <div class="admin-user-actions">
+                <button class="danger" data-action="kick" data-id="${escapeHtml(p.id)}">KICK</button>
+                <button data-action="make-host" data-id="${escapeHtml(p.id)}">HOST</button>
+              </div>
+            `;
+            row.querySelectorAll("button[data-action]").forEach(btn => {
+              btn.onclick = () => adminAction(btn.dataset.action, btn.dataset.id);
+            });
+            playersBox.appendChild(row);
+          });
+        }
       }
 
-      if (!alivePlayers.length) {
-        box.innerHTML = "მოთამაშეები ჯერ არ არიან";
-        return;
+      if (spectatorsBox) {
+        if (!latestSpectators.length) {
+          spectatorsBox.innerHTML = `<div class="admin-empty">spectator არ არის</div>`;
+        } else {
+          spectatorsBox.innerHTML = "";
+          latestSpectators.forEach(s => {
+            const row = document.createElement("div");
+            row.className = "admin-user-row";
+            row.innerHTML = `
+              <span>👁️ ${escapeHtml(s.name)}</span>
+              <div class="admin-user-actions">
+                <button class="danger" data-id="${escapeHtml(s.id)}">KICK</button>
+              </div>
+            `;
+            row.querySelector("button").onclick = () => adminAction("kick", s.id);
+            spectatorsBox.appendChild(row);
+          });
+        }
       }
-
-      box.innerHTML = alivePlayers.map(p => `
-        <div class="role-row">
-          #${p.index} ${escapeHtml(p.name)}
-          <span style="color:var(--cyan);"> — ${escapeHtml(p.role || "unknown")}</span>
-        </div>
-      `).join("");
     }
 
-    function updateInviteLink() {
-      const input = $("invite-link-input");
-      if (!input) return;
-
-      const code = currentRoom || $("room-id")?.value.trim() || "";
-      if (!code) return;
-
-      const url = `${location.origin}${location.pathname}?room=${encodeURIComponent(code)}`;
-      input.value = url;
-    }
-
+    /* ============================================================
+       PRO ADMIN
+    ============================================================ */
     function setupProfessionalPack() {
       $("copy-invite-btn")?.addEventListener("click", () => {
-        updateInviteLink();
-        const input = $("invite-link-input");
-        if (!input || !input.value) return alert("ჯერ შედი ოთახში");
-
-        navigator.clipboard.writeText(input.value)
-          .then(() => addSystemMsg("Invite link დაკოპირდა"))
-          .catch(() => alert(input.value));
+        const code = currentRoom || $("room-id")?.value.trim() || "";
+        if (!code) { toast("ჯერ შედი ოთახში", "error"); return; }
+        const url = `${location.origin}${location.pathname}?room=${encodeURIComponent(code)}`;
+        navigator.clipboard.writeText(url)
+          .then(() => toast("Invite link დაკოპირდა!", "success"))
+          .catch(() => { $("invite-link-input").value = url; });
       });
 
       const params = new URLSearchParams(location.search);
       const roomParam = params.get("room");
-      if (roomParam && $("room-id")) {
-        $("room-id").value = roomParam;
-      }
+      if (roomParam && $("room-id")) $("room-id").value = roomParam;
 
-      bindProAdmin("pro-to-day", "force-day", "Admin: გადართვა DAY ფაზაზე");
-      bindProAdmin("pro-to-vote", "force-vote", "Admin: გადართვა VOTE ფაზაზე");
-      bindProAdmin("pro-to-night", "force-night", "Admin: გადართვა NIGHT ფაზაზე");
-      bindProAdmin("pro-add-time", "add-30-sec", "Admin: +30 წამი");
-      bindProAdmin("pro-revive-all", "revive-all", "Admin: revive all");
-      bindProAdmin("pro-kill-random", "kill-random", "Admin: random kill");
-      bindProAdmin("pro-defense", "force-defense", "Defense phase ჩაირთო ვიზუალურად", () => setProPhase("defense", 30));
-      bindProAdmin("pro-final", "force-final", "Last Words ჩაირთო ვიზუალურად", () => setProPhase("final", 15));
-      bindProAdmin("pro-reveal", "reveal-roles", "Roles revealed locally", () => {
-        revealedRoles = !revealedRoles;
-        renderSpectatorRolePanel();
+      bindProAdmin("pro-to-day", "force-day");
+      bindProAdmin("pro-to-vote", "force-vote");
+      bindProAdmin("pro-to-night", "force-night");
+      bindProAdmin("pro-add-time", "add-30-sec");
+      bindProAdmin("pro-revive-all", "revive-all");
+      bindProAdmin("pro-kill-random", "kill-random");
+      bindProAdmin("pro-defense", "force-defense");
+      bindProAdmin("pro-final", "force-final");
+      bindProAdmin("pro-reveal", "reveal-roles");
+    }
+
+    function bindProAdmin(id, action) {
+      $(id)?.addEventListener("click", () => {
+        if (!isHost) { toast("მხოლოდ ადმინს შეუძლია", "error"); return; }
+        adminAction(action);
+        toast("Admin: " + action, "info", 1500);
       });
     }
 
-    function bindProAdmin(id, action, logText, localFn = null) {
-      const btn = $(id);
-      if (!btn) return;
-
-      btn.addEventListener("click", () => {
-        if (!isHost) {
-          alert("მხოლოდ ადმინს შეუძლია");
-          return;
+    function requestStart() {
+      if (!isHost) { toast("თამაშის დაწყება მხოლოდ ჰოსტს შეუძლია", "error"); return; }
+      const count = document.querySelectorAll(".video-box").length;
+      if (count < 4) { toast("საჭიროა მინიმუმ 4 მოთამაშე", "error"); return; }
+      socket.emit("start-game-request", {
+        room: currentRoom,
+        settings: {
+          sheriff: roleSettings.sheriff,
+          don: roleSettings.don,
+          doctor: roleSettings.doctor,
+          mafia: Number(roleSettings.mafia || 1),
+          detectiveText: roleSettings.detectiveText
         }
-
-        if (typeof adminAction === "function") {
-          adminAction(action);
-        }
-
-        if (localFn) localFn();
-
-        addSystemMsg(logText);
-        proLog(logText);
       });
     }
 
-    function setProPhase(phase, seconds) {
-      proPhaseOverride = phase;
-      renderRoadmap();
+    /* ============================================================
+       INIT EVENT LISTENERS
+    ============================================================ */
+    $("login-btn").addEventListener("click", showRooms);
+    $("join-btn").addEventListener("click", () => startVoid());
+    $("spectator-btn").addEventListener("click", startSpectator);
+    $("start-game-btn").addEventListener("click", requestStart);
+    $("mic-btn").addEventListener("click", toggleMic);
+    $("cam-btn").addEventListener("click", toggleCam);
+    $("exit-btn").addEventListener("click", () => location.reload());
+    $("chat-toggle").addEventListener("click", toggleChat);
+    $("close-chat").addEventListener("click", toggleChat);
+    $("send-chat-btn").addEventListener("click", sendMsg);
+    $("action-modal-close")?.addEventListener("click", hideActionModal);
+    $("player-profile-close")?.addEventListener("click", () => {
+      $("player-profile-modal")?.classList.add("hidden");
+    });
+    $("mini-games-toggle")?.addEventListener("click", () => {
+      $("mini-games-panel")?.classList.remove("hidden");
+    });
+    $("mini-games-close")?.addEventListener("click", () => {
+      $("mini-games-panel")?.classList.add("hidden");
+    });
 
-      if (phase === "final") {
-        $("last-words-banner")?.classList.remove("hidden");
-      } else {
-        $("last-words-banner")?.classList.add("hidden");
-      }
+    $("nickname").addEventListener("keydown", e => { if (e.key === "Enter") showRooms(); });
+    $("room-id").addEventListener("keydown", e => { if (e.key === "Enter") startVoid(); });
+    $("chat-msg").addEventListener("keydown", e => { if (e.key === "Enter") sendMsg(); });
 
-      startTimer(seconds);
-
-      setTimeout(() => {
-        proPhaseOverride = null;
-        $("last-words-banner")?.classList.add("hidden");
-        renderRoadmap();
-      }, seconds * 1000);
-    }
-
-    function renderProfessionalPack() {
-      renderRoadmap();
-      renderVoteResultsBoard();
-      renderSpectatorRolePanel();
-      updateInviteLink();
-    }
-
-    function roleName(role) {
-      const map = {
-        mafia: "მაფია",
-        don: "დონი",
-        doctor: "ექიმი",
-        sheriff: "შერიფი",
-        citizen: "მოქალაქე"
-      };
-
-      return map[role] || role;
-    }
-
-    function escapeHtml(text) {
-      return String(text)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
-  </script>
-
-
-<script>
-/* ---------------- ADVANCED FULL PACK ---------------- */
-(function(){
-  const A = id => document.getElementById(id);
-  let currentChatTab = "main";
-  let advGame = "ttt";
-
-  const adv = {
-    ttt: { board:Array(9).fill(""), turn:"X", done:false },
-    memory: { deck:[], open:[], matched:[] },
-    guess: { number: Math.floor(Math.random()*20)+1 },
-    wheelDeg: 0,
-    quizIndex: 0,
-    quizScore: 0
-  };
-
-  const quiz = [
-    { q:"მაფიის მთავარი მიზანი რა არის?", a:["ყველას დაცვა","მშვიდობიანების მოტყუება","ექიმის პოვნა"], ok:1 },
-    { q:"შერიფი ღამით რას აკეთებს?", a:["ამოწმებს მოთამაშეს","კლავს","ხმას აძლევს"], ok:0 },
-    { q:"ექიმის როლი?", a:["დაცვა","გამოძიება","ადმინი"], ok:0 },
-    { q:"დღის ფაზაში მთავარი რა არის?", a:["დისკუსია და ეჭვები","ძილი","კამერის გათიშვა"], ok:0 }
-  ];
-
-  const truth = [
-    "ვინ გგონია ახლა ყველაზე საეჭვო?",
-    "ვის ენდობი ყველაზე ნაკლებად?",
-    "როდის მოიტყუე ბოლოს თამაშში?",
-    "რომელი როლი გეხერხება ყველაზე კარგად?",
-    "რომელი მოთამაშე ატყუებს ყველაზე კარგად?"
-  ];
-
-  const dare = [
-    "30 წამი ისაუბრე როგორც მაფიის ბოსი.",
-    "შემდეგი მესიჯი დაწერე ძალიან დრამატულად.",
-    "ერთ მოთამაშეს გაუკეთე დაცვითი სიტყვა.",
-    "შემდეგი 1 წუთი არ თქვა სიტყვა 'მაფია'.",
-    "აირჩიე მოთამაშე და დაარწმუნე ყველა, რომ ის უდანაშაულოა."
-  ];
-
-  const would = [
-    "ვინ უფრო სავარაუდოა რომ პირველივე ღამეს მოკლავს მეგობარს?",
-    "ვინ უფრო სავარაუდოა რომ მშვიდობიანი იყოს მაგრამ საეჭვოდ ლაპარაკობდეს?",
-    "ვინ უფრო სავარაუდოა რომ ყველას მოატყუებს?",
-    "ვინ უფრო სავარაუდოა რომ შერიფად იდეალური იყოს?",
-    "ვინ უფრო სავარაუდოა რომ ბოლო წუთზე შეცვლის ხმას?"
-  ];
-
-  function safe(text){
-    return String(text ?? "")
-      .replaceAll("&","&amp;")
-      .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;")
-      .replaceAll("'","&#039;");
-  }
-
-  function sys(msg){
-    if (typeof addSystemMsg === "function") addSystemMsg(msg);
-  }
-
-  function emitChat(text){
-    if (typeof socket !== "undefined" && typeof currentRoom !== "undefined") {
-      socket.emit("send-chat-msg", { room: currentRoom, name: (typeof myNick !== "undefined" ? myNick : ""), text });
-    }
-  }
-
-  window.addEventListener("load", () => {
-    setupAdvancedChatTabs();
-    setupAdvancedMiniGames();
-    renderAdvancedGame();
-  });
-
-  function setupAdvancedChatTabs(){
     document.querySelectorAll(".chat-tab").forEach(btn => {
       btn.addEventListener("click", () => {
         document.querySelectorAll(".chat-tab").forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
         currentChatTab = btn.dataset.chat;
-        sys("Chat tab: " + currentChatTab.toUpperCase());
       });
     });
 
-    const oldSend = window.sendMsg;
-    if (typeof oldSend === "function") {
-      window.sendMsg = function(){
-        const input = A("chat-msg");
-        const text = input?.value.trim();
-        if (!text) return;
-        const prefix = currentChatTab === "main" ? "" : "[" + currentChatTab.toUpperCase() + "] ";
-        emitChat(prefix + text);
-        input.value = "";
-      };
-    }
-  }
+    setupAdminPanel();
+    setupRoleSettings();
+    setupProfessionalPack();
+    setupLobbyMusic();
+    setupRoleTooltip();
 
-  function setupAdvancedMiniGames(){
-    A("mini-games-toggle")?.addEventListener("click", () => {
-      A("mini-games-panel")?.classList.remove("hidden");
-      renderAdvancedGame();
-    });
+    /* ============================================================
+       ADVANCED MINI GAMES (single implementation)
+    ============================================================ */
+    let advGame = "ttt";
+    let currentChatTab = "main";
 
-    A("mini-games-close")?.addEventListener("click", () => {
-      A("mini-games-panel")?.classList.add("hidden");
-    });
+    const adv = {
+      ttt: { board: Array(9).fill(""), turn: "X", done: false },
+      memory: { deck: [], open: [], matched: [] },
+      guess: { number: Math.floor(Math.random() * 20) + 1 },
+      wheelDeg: 0,
+      quizIndex: 0,
+      quizScore: 0
+    };
+
+    const quiz = [
+      { q: "მაფიის მთავარი მიზანი რა არის?", a: ["ყველას დაცვა", "მშვიდობიანების მოტყუება", "ექიმის პოვნა"], ok: 1 },
+      { q: "შერიფი ღამით რას აკეთებს?", a: ["ამოწმებს მოთამაშეს", "კლავს", "ხმას აძლევს"], ok: 0 },
+      { q: "ექიმის როლი?", a: ["დაცვა", "გამოძიება", "ადმინი"], ok: 0 },
+      { q: "დღის ფაზაში მთავარი რა არის?", a: ["დისკუსია და ეჭვები", "ძილი", "კამერის გათიშვა"], ok: 0 }
+    ];
+
+    const truthList = [
+      "ვინ გგონია ახლა ყველაზე საეჭვო?",
+      "ვის ენდობი ყველაზე ნაკლებად?",
+      "როდის მოიტყუე ბოლოს თამაშში?",
+      "რომელი როლი გეხერხება ყველაზე კარგად?",
+      "რომელი მოთამაშე ატყუებს ყველაზე კარგად?"
+    ];
+
+    const dareList = [
+      "30 წამი ისაუბრე როგორც მაფიის ბოსი.",
+      "შემდეგი მესიჯი დაწერე ძალიან დრამატულად.",
+      "ერთ მოთამაშეს გაუკეთე დაცვითი სიტყვა.",
+      "შემდეგი 1 წუთი არ თქვა სიტყვა 'მაფია'.",
+      "აირჩიე მოთამაშე და დაარწმუნე ყველა, რომ ის უდანაშაულოა."
+    ];
+
+    const wouldList = [
+      "ვინ უფრო სავარაუდოა რომ პირველივე ღამეს მოკლავს მეგობარს?",
+      "ვინ უფრო სავარაუდოა რომ მშვიდობიანი იყოს მაგრამ საეჭვოდ ლაპარაკობდეს?",
+      "ვინ უფრო სავარაუდოა რომ ყველას მოატყუებს?",
+      "ვინ უფრო სავარაუდოა რომ შერიფად იდეალური იყოს?",
+      "ვინ უფრო სავარაუდოა რომ ბოლო წუთზე შეცვლის ხმას?"
+    ];
 
     document.querySelectorAll("#advanced-mini-selector button").forEach(btn => {
       btn.addEventListener("click", () => {
@@ -3228,254 +2397,253 @@
         renderAdvancedGame();
       });
     });
-  }
 
-  function renderAdvancedGame(){
-    const root = A("adv-game-root");
-    if (!root) return;
+    renderAdvancedGame();
 
-    if (advGame === "ttt") return renderTTT(root);
-    if (advGame === "rps") return renderRPS(root);
-    if (advGame === "truth") return renderTruth(root);
-    if (advGame === "dice") return renderDice(root);
-    if (advGame === "wheel") return renderWheel(root);
-    if (advGame === "quiz") return renderQuiz(root);
-    if (advGame === "memory") return renderMemory(root);
-    if (advGame === "guess") return renderGuess(root);
-    if (advGame === "would") return renderWould(root);
-    if (advGame === "sound") return renderSound(root);
-  }
+    function renderAdvancedGame() {
+      const root = $("adv-game-root");
+      if (!root) return;
+      if (advGame === "ttt") renderTTT(root);
+      else if (advGame === "rps") renderRPS(root);
+      else if (advGame === "truth") renderTruth(root);
+      else if (advGame === "dice") renderDice(root);
+      else if (advGame === "wheel") renderWheel(root);
+      else if (advGame === "quiz") renderQuiz(root);
+      else if (advGame === "memory") renderMemory(root);
+      else if (advGame === "guess") renderGuess(root);
+      else if (advGame === "would") renderWould(root);
+      else if (advGame === "sound") renderSound(root);
+    }
 
-  function renderTTT(root){
-    root.innerHTML = `
-      <h3>Tic Tac Toe</h3>
-      <div class="mini-status" id="adv-ttt-status">${adv.ttt.done ? "Finished" : "Turn: " + adv.ttt.turn}</div>
-      <div class="ttt-board" id="adv-ttt-board"></div>
-      <button class="game-btn" id="adv-ttt-reset">RESET</button>
-    `;
-    const board = A("adv-ttt-board");
-    adv.ttt.board.forEach((v,i) => {
-      const c = document.createElement("div");
-      c.className = "ttt-cell";
-      c.innerText = v;
-      c.onclick = () => {
-        if (adv.ttt.done || adv.ttt.board[i]) return;
-        adv.ttt.board[i] = adv.ttt.turn;
-        const w = tttWinner(adv.ttt.board);
-        if (w) {
-          adv.ttt.done = true;
-          sys("Tic Tac Toe winner: " + w);
-        } else if (adv.ttt.board.every(Boolean)) {
-          adv.ttt.done = true;
-          sys("Tic Tac Toe draw");
-        } else {
-          adv.ttt.turn = adv.ttt.turn === "X" ? "O" : "X";
-        }
+    function renderTTT(root) {
+      root.innerHTML = `
+        <h3>Tic Tac Toe</h3>
+        <div class="mini-status" id="adv-ttt-status">${adv.ttt.done ? "Finished" : "Turn: " + adv.ttt.turn}</div>
+        <div class="ttt-board" id="adv-ttt-board"></div>
+        <button class="game-btn" id="adv-ttt-reset">RESET</button>
+      `;
+      const board = $("adv-ttt-board");
+      adv.ttt.board.forEach((v, i) => {
+        const c = document.createElement("div");
+        c.className = "ttt-cell";
+        c.innerText = v;
+        c.onclick = () => {
+          if (adv.ttt.done || adv.ttt.board[i]) return;
+          adv.ttt.board[i] = adv.ttt.turn;
+          const w = tttWinner(adv.ttt.board);
+          if (w) {
+            adv.ttt.done = true;
+            addSystemMsg("Tic Tac Toe winner: " + w);
+          } else if (adv.ttt.board.every(Boolean)) {
+            adv.ttt.done = true;
+            addSystemMsg("Tic Tac Toe draw");
+          } else {
+            adv.ttt.turn = adv.ttt.turn === "X" ? "O" : "X";
+          }
+          renderTTT(root);
+        };
+        board.appendChild(c);
+      });
+      $("adv-ttt-reset").onclick = () => {
+        adv.ttt = { board: Array(9).fill(""), turn: "X", done: false };
         renderTTT(root);
       };
-      board.appendChild(c);
-    });
-    A("adv-ttt-reset").onclick = () => {
-      adv.ttt = { board:Array(9).fill(""), turn:"X", done:false };
-      renderTTT(root);
-    };
-  }
-
-  function tttWinner(b){
-    const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-    for (const [a,c,d] of wins) if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
-    return null;
-  }
-
-  function renderRPS(root){
-    root.innerHTML = `
-      <h3>Rock Paper Scissors</h3>
-      <div id="rps-output" class="game-output">Choose your move</div>
-      <div class="rps-grid">
-        <button data-rps="Rock">ROCK</button>
-        <button data-rps="Paper">PAPER</button>
-        <button data-rps="Scissors">SCISSORS</button>
-      </div>
-    `;
-    root.querySelectorAll("[data-rps]").forEach(b => b.onclick = () => {
-      const cpu = ["Rock","Paper","Scissors"][Math.floor(Math.random()*3)];
-      const me = b.dataset.rps;
-      let res = "Draw";
-      if ((me==="Rock"&&cpu==="Scissors")||(me==="Paper"&&cpu==="Rock")||(me==="Scissors"&&cpu==="Paper")) res = "You win";
-      else if (me !== cpu) res = "You lose";
-      A("rps-output").innerText = `${me} vs ${cpu} — ${res}`;
-      sys(`RPS: ${me} vs ${cpu} — ${res}`);
-    });
-  }
-
-  function renderTruth(root){
-    root.innerHTML = `
-      <h3>Truth / Dare</h3>
-      <div id="truth-output" class="game-output">Choose Truth or Dare</div>
-      <div class="admin-grid">
-        <button class="admin-mini-btn good" id="adv-truth">TRUTH</button>
-        <button class="admin-mini-btn warn" id="adv-dare">DARE</button>
-      </div>
-    `;
-    A("adv-truth").onclick = () => pickTD("truth");
-    A("adv-dare").onclick = () => pickTD("dare");
-  }
-
-  function pickTD(type){
-    const list = type === "truth" ? truth : dare;
-    const picked = list[Math.floor(Math.random()*list.length)];
-    A("truth-output").innerText = picked;
-    sys((type === "truth" ? "TRUTH: " : "DARE: ") + picked);
-  }
-
-  function renderDice(root){
-    root.innerHTML = `
-      <h3>Dice Duel</h3>
-      <div id="dice-output" class="game-output" style="font-size:2rem;">?</div>
-      <button class="game-btn" id="dice-roll-adv">ROLL TWO DICE</button>
-    `;
-    A("dice-roll-adv").onclick = () => {
-      const a = Math.floor(Math.random()*6)+1;
-      const b = Math.floor(Math.random()*6)+1;
-      A("dice-output").innerText = `${a} + ${b} = ${a+b}`;
-      sys(`Dice Duel: ${a} + ${b} = ${a+b}`);
-    };
-  }
-
-  function renderWheel(root){
-    root.innerHTML = `
-      <h3>Spin Wheel</h3>
-      <div class="wheel" id="spin-wheel"></div>
-      <div id="wheel-output" class="game-output">Spin to select a challenge</div>
-      <button class="game-btn" id="wheel-spin">SPIN</button>
-    `;
-    A("wheel-spin").onclick = () => {
-      const options = ["Truth", "Dare", "Suspect someone", "Defend someone", "Skip turn", "Ask a question"];
-      const picked = options[Math.floor(Math.random()*options.length)];
-      adv.wheelDeg += 720 + Math.floor(Math.random()*360);
-      A("spin-wheel").style.transform = `rotate(${adv.wheelDeg}deg)`;
-      setTimeout(() => {
-        A("wheel-output").innerText = picked;
-        sys("Spin Wheel: " + picked);
-      }, 850);
-    };
-  }
-
-  function renderQuiz(root){
-    const q = quiz[adv.quizIndex % quiz.length];
-    root.innerHTML = `
-      <h3>Mafia Quiz</h3>
-      <div class="game-output">${safe(q.q)}</div>
-      <div class="quiz-options">
-        ${q.a.map((x,i)=>`<button data-q="${i}">${safe(x)}</button>`).join("")}
-      </div>
-      <div class="mini-status">Score: ${adv.quizScore}</div>
-    `;
-    root.querySelectorAll("[data-q]").forEach(b => b.onclick = () => {
-      if (Number(b.dataset.q) === q.ok) {
-        adv.quizScore++;
-        sys("Quiz: Correct");
-      } else {
-        sys("Quiz: Wrong");
-      }
-      adv.quizIndex++;
-      renderQuiz(root);
-    });
-  }
-
-  function renderMemory(root){
-    if (!adv.memory.deck.length) resetMemory();
-    root.innerHTML = `
-      <h3>Memory Match</h3>
-      <div class="memory-grid" id="memory-grid"></div>
-      <button class="game-btn" id="memory-reset" style="margin-top:10px;">RESET</button>
-    `;
-    const grid = A("memory-grid");
-    adv.memory.deck.forEach((v,i)=>{
-      const card = document.createElement("div");
-      card.className = "memory-card";
-      const shown = adv.memory.open.includes(i) || adv.memory.matched.includes(i);
-      card.innerText = shown ? v : "?";
-      card.onclick = () => openMemory(i);
-      grid.appendChild(card);
-    });
-    A("memory-reset").onclick = () => { resetMemory(); renderMemory(root); };
-  }
-
-  function resetMemory(){
-    const items = ["M","M","D","D","S","S","C","C"];
-    adv.memory.deck = items.sort(()=>Math.random()-.5);
-    adv.memory.open = [];
-    adv.memory.matched = [];
-  }
-
-  function openMemory(i){
-    if (adv.memory.open.includes(i) || adv.memory.matched.includes(i)) return;
-    if (adv.memory.open.length >= 2) adv.memory.open = [];
-    adv.memory.open.push(i);
-    if (adv.memory.open.length === 2) {
-      const [a,b] = adv.memory.open;
-      if (adv.memory.deck[a] === adv.memory.deck[b]) {
-        adv.memory.matched.push(a,b);
-        adv.memory.open = [];
-        sys("Memory: match found");
-      }
     }
-    renderMemory(A("adv-game-root"));
-  }
 
-  function renderGuess(root){
-    root.innerHTML = `
-      <h3>Guess Number</h3>
-      <div id="guess-output" class="game-output">Guess 1-20</div>
-      <input id="guess-input" class="guess-input" type="number" min="1" max="20" placeholder="1-20">
-      <button class="game-btn" id="guess-btn">GUESS</button>
-      <button class="game-btn" id="guess-reset" style="background:#1b2144; margin-top:7px;">NEW NUMBER</button>
-    `;
-    A("guess-btn").onclick = () => {
-      const n = Number(A("guess-input").value);
-      if (!n) return;
-      const msg = n === adv.guess.number ? "Correct" : n < adv.guess.number ? "Higher" : "Lower";
-      A("guess-output").innerText = msg;
-      sys("Guess Number: " + msg);
-    };
-    A("guess-reset").onclick = () => {
-      adv.guess.number = Math.floor(Math.random()*20)+1;
-      A("guess-output").innerText = "New number ready";
-    };
-  }
+    function tttWinner(b) {
+      const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+      for (const [a, c, d] of wins) if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
+      return null;
+    }
 
-  function renderWould(root){
-    root.innerHTML = `
-      <h3>Who Would?</h3>
-      <div id="would-output" class="game-output">Generate a question</div>
-      <button class="game-btn" id="would-btn">GENERATE</button>
-    `;
-    A("would-btn").onclick = () => {
-      const q = would[Math.floor(Math.random()*would.length)];
-      A("would-output").innerText = q;
-      sys("Who Would: " + q);
-    };
-  }
+    function renderRPS(root) {
+      root.innerHTML = `
+        <h3>Rock Paper Scissors</h3>
+        <div id="rps-output" class="game-output">Choose your move</div>
+        <div class="rps-grid">
+          <button data-rps="Rock">✊ ROCK</button>
+          <button data-rps="Paper">✋ PAPER</button>
+          <button data-rps="Scissors">✌️ SCISSORS</button>
+        </div>
+      `;
+      root.querySelectorAll("[data-rps]").forEach(b => b.onclick = () => {
+        const cpu = ["Rock","Paper","Scissors"][Math.floor(Math.random()*3)];
+        const me = b.dataset.rps;
+        let res = "Draw 🤝";
+        if ((me==="Rock"&&cpu==="Scissors")||(me==="Paper"&&cpu==="Rock")||(me==="Scissors"&&cpu==="Paper")) res = "You win 🎉";
+        else if (me !== cpu) res = "You lose 😞";
+        $("rps-output").innerText = `${me} vs ${cpu} — ${res}`;
+        addSystemMsg(`RPS: ${me} vs ${cpu} — ${res}`);
+      });
+    }
 
-  function renderSound(root){
-    root.innerHTML = `
-      <h3>Soundboard / Textboard</h3>
-      <div class="soundboard-grid">
-        <button data-sound="Suspicious...">SUS</button>
-        <button data-sound="Dramatic reveal!">REVEAL</button>
-        <button data-sound="Objection!">OBJECTION</button>
-        <button data-sound="Good game.">GG</button>
-        <button data-sound="Emergency meeting energy.">ALARM</button>
-        <button data-sound="Void silence...">VOID</button>
-      </div>
-    `;
-    root.querySelectorAll("[data-sound]").forEach(b => b.onclick = () => {
-      emitChat("[SOUNDBOARD] " + b.dataset.sound);
-    });
-  }
-})();
-</script>
+    function renderTruth(root) {
+      root.innerHTML = `
+        <h3>Truth / Dare</h3>
+        <div id="truth-output" class="game-output">Choose Truth or Dare</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:7px;">
+          <button class="game-btn" id="adv-truth" style="background:var(--blue);">TRUTH</button>
+          <button class="game-btn" id="adv-dare" style="background:var(--red);">DARE</button>
+        </div>
+      `;
+      $("adv-truth").onclick = () => {
+        const picked = truthList[Math.floor(Math.random()*truthList.length)];
+        $("truth-output").innerText = picked;
+        addSystemMsg("TRUTH: " + picked);
+      };
+      $("adv-dare").onclick = () => {
+        const picked = dareList[Math.floor(Math.random()*dareList.length)];
+        $("truth-output").innerText = picked;
+        addSystemMsg("DARE: " + picked);
+      };
+    }
 
+    function renderDice(root) {
+      root.innerHTML = `
+        <h3>Dice Duel</h3>
+        <div id="dice-output" class="game-output" style="font-size:2.5rem; color:var(--cyan);">?</div>
+        <button class="game-btn" id="dice-roll-adv">🎲 ROLL TWO DICE</button>
+      `;
+      $("dice-roll-adv").onclick = () => {
+        const a = Math.floor(Math.random()*6)+1;
+        const b = Math.floor(Math.random()*6)+1;
+        $("dice-output").innerText = `${a} + ${b} = ${a+b}`;
+        addSystemMsg(`Dice: ${a} + ${b} = ${a+b}`);
+      };
+    }
+
+    function renderWheel(root) {
+      root.innerHTML = `
+        <h3>Spin Wheel</h3>
+        <div class="wheel" id="spin-wheel"></div>
+        <div id="wheel-output" class="game-output">Spin to select a challenge</div>
+        <button class="game-btn" id="wheel-spin">🎡 SPIN</button>
+      `;
+      $("wheel-spin").onclick = () => {
+        const options = ["Truth","Dare","Suspect someone","Defend someone","Skip turn","Ask a question"];
+        const picked = options[Math.floor(Math.random()*options.length)];
+        adv.wheelDeg += 720 + Math.floor(Math.random()*360);
+        $("spin-wheel").style.transform = `rotate(${adv.wheelDeg}deg)`;
+        setTimeout(() => {
+          $("wheel-output").innerText = picked;
+          addSystemMsg("Spin Wheel: " + picked);
+        }, 900);
+      };
+    }
+
+    function renderQuiz(root) {
+      const q = quiz[adv.quizIndex % quiz.length];
+      root.innerHTML = `
+        <h3>Mafia Quiz</h3>
+        <div class="game-output">${escapeHtml(q.q)}</div>
+        <div class="quiz-options">
+          ${q.a.map((x, i) => `<button data-q="${i}">${escapeHtml(x)}</button>`).join("")}
+        </div>
+        <div class="mini-status">Score: ${adv.quizScore}</div>
+      `;
+      root.querySelectorAll("[data-q]").forEach(b => b.onclick = () => {
+        const correct = Number(b.dataset.q) === q.ok;
+        if (correct) { adv.quizScore++; toast("სწორი! ✅", "success", 1500); }
+        else toast("არასწორი ❌", "error", 1500);
+        adv.quizIndex++;
+        renderQuiz(root);
+      });
+    }
+
+    function renderMemory(root) {
+      if (!adv.memory.deck.length) resetMemory();
+      root.innerHTML = `
+        <h3>Memory Match</h3>
+        <div class="memory-grid" id="memory-grid"></div>
+        <button class="game-btn" id="memory-reset" style="margin-top:10px;">RESET</button>
+      `;
+      const grid = $("memory-grid");
+      adv.memory.deck.forEach((v, i) => {
+        const card = document.createElement("div");
+        card.className = "memory-card";
+        const shown = adv.memory.open.includes(i) || adv.memory.matched.includes(i);
+        card.innerText = shown ? v : "?";
+        card.style.background = adv.memory.matched.includes(i) ? "rgba(62,255,62,.15)" : "#000";
+        card.onclick = () => openMemory(i, root);
+        grid.appendChild(card);
+      });
+      $("memory-reset").onclick = () => { resetMemory(); renderMemory(root); };
+    }
+
+    function resetMemory() {
+      const items = ["🔴","🔴","🔵","🔵","🟢","🟢","⭐","⭐"];
+      adv.memory.deck = items.sort(() => Math.random() - .5);
+      adv.memory.open = [];
+      adv.memory.matched = [];
+    }
+
+    function openMemory(i, root) {
+      if (adv.memory.open.includes(i) || adv.memory.matched.includes(i)) return;
+      if (adv.memory.open.length >= 2) adv.memory.open = [];
+      adv.memory.open.push(i);
+      if (adv.memory.open.length === 2) {
+        const [a, b] = adv.memory.open;
+        if (adv.memory.deck[a] === adv.memory.deck[b]) {
+          adv.memory.matched.push(a, b);
+          adv.memory.open = [];
+          toast("Match! ✅", "success", 1200);
+        }
+      }
+      renderMemory(root);
+    }
+
+    function renderGuess(root) {
+      root.innerHTML = `
+        <h3>Guess Number</h3>
+        <div id="guess-output" class="game-output">Guess 1-20</div>
+        <input id="guess-input" type="number" min="1" max="20" placeholder="1-20" style="margin-bottom:8px;">
+        <button class="game-btn" id="guess-btn">GUESS</button>
+        <button class="game-btn" id="guess-reset" style="background:#1b2144; margin-top:7px;">NEW NUMBER</button>
+      `;
+      $("guess-btn").onclick = () => {
+        const n = Number($("guess-input").value);
+        if (!n) return;
+        const msg = n === adv.guess.number ? "✅ Correct!" : n < adv.guess.number ? "⬆️ Higher" : "⬇️ Lower";
+        $("guess-output").innerText = msg;
+        if (n === adv.guess.number) toast("სწორი! 🎉", "success", 2000);
+      };
+      $("guess-reset").onclick = () => {
+        adv.guess.number = Math.floor(Math.random()*20)+1;
+        $("guess-output").innerText = "New number ready!";
+      };
+    }
+
+    function renderWould(root) {
+      root.innerHTML = `
+        <h3>Who Would?</h3>
+        <div id="would-output" class="game-output">Generate a question</div>
+        <button class="game-btn" id="would-btn">🎲 GENERATE</button>
+      `;
+      $("would-btn").onclick = () => {
+        const q = wouldList[Math.floor(Math.random()*wouldList.length)];
+        $("would-output").innerText = q;
+        addSystemMsg("Who Would: " + q);
+      };
+    }
+
+    function renderSound(root) {
+      root.innerHTML = `
+        <h3>Soundboard</h3>
+        <div class="soundboard-grid">
+          <button data-sound="🕵️ Suspicious...">SUS</button>
+          <button data-sound="🎭 Dramatic reveal!">REVEAL</button>
+          <button data-sound="⚖️ Objection!">OBJECTION</button>
+          <button data-sound="🎮 Good game.">GG</button>
+          <button data-sound="🚨 Emergency meeting!">ALARM</button>
+          <button data-sound="🌌 Void silence...">VOID</button>
+        </div>
+      `;
+      root.querySelectorAll("[data-sound]").forEach(b => b.onclick = () => {
+        socket.emit("send-chat-msg", { room: currentRoom, name: myNick, text: "[SOUNDBOARD] " + b.dataset.sound });
+      });
+    }
+
+  })();
+  </script>
 </body>
 </html>
