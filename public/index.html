@@ -1160,6 +1160,177 @@
       }
     }
 
+
+
+    /* ---------------- CLEAN CAMERA-FIRST GAME UI ---------------- */
+
+    #phase-banner,
+    #pro-mafia-panel,
+    .pro-mafia-panel,
+    #phase-roadmap,
+    .phase-roadmap,
+    .pro2-layout,
+    #last-words-banner {
+      display:none !important;
+    }
+
+    #game-screen {
+      padding-top:72px;
+      min-height:100vh;
+    }
+
+    #game-powered-by {
+      position:fixed;
+      top:42px;
+      left:50%;
+      transform:translateX(-50%);
+      z-index:2100;
+      color:#b58ad6;
+      font-family:Orbitron;
+      font-size:.58rem;
+      letter-spacing:1.5px;
+      text-shadow:0 0 10px rgba(255,0,255,.45);
+      pointer-events:none;
+      white-space:nowrap;
+    }
+
+    #video-grid {
+      width:100%;
+      max-width:980px;
+      margin:14px auto 105px !important;
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:10px;
+    }
+
+    @media (min-width:850px) {
+      #video-grid {
+        grid-template-columns:repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    .video-box {
+      border-radius:14px;
+      border:1px solid rgba(255,0,255,.7);
+      background:#000;
+      box-shadow:0 0 18px rgba(255,0,255,.14);
+    }
+
+    .player-number {
+      top:8px;
+      right:8px;
+      border-radius:8px;
+      background:rgba(255,0,255,.9);
+      color:white;
+    }
+
+    .video-label {
+      padding:7px 9px;
+      color:var(--cyan);
+      font-size:.82rem;
+      background:linear-gradient(to top, rgba(0,0,0,.88), rgba(0,0,0,.2));
+      border-top:0;
+    }
+
+    .action-modal {
+      position:fixed;
+      inset:0;
+      z-index:5000;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:18px;
+      background:rgba(0,0,0,.68);
+      backdrop-filter:blur(5px);
+    }
+
+    .action-modal-card {
+      width:min(94vw, 440px);
+      max-height:82vh;
+      overflow-y:auto;
+      background:rgba(7,2,15,.98);
+      border:2px solid var(--cyan);
+      border-radius:18px;
+      padding:16px;
+      box-shadow:0 0 38px rgba(0,255,255,.32), 0 0 50px rgba(255,0,255,.22);
+      position:relative;
+    }
+
+    .action-modal-close {
+      position:absolute;
+      top:9px;
+      right:9px;
+      width:34px;
+      height:34px;
+      border:0;
+      border-radius:10px;
+      background:var(--red);
+      color:white;
+      font-family:Orbitron;
+      font-size:1rem;
+      cursor:pointer;
+    }
+
+    #action-title {
+      padding-right:40px;
+      font-size:.86rem;
+      margin-bottom:12px;
+      color:var(--cyan);
+      font-family:Orbitron;
+      text-align:center;
+    }
+
+    #players-actions .msg {
+      text-align:center;
+      border-left-color:var(--cyan);
+    }
+
+    #players-actions .action-row {
+      grid-template-columns:45px 1fr;
+      margin-top:8px;
+    }
+
+    #players-actions .btn {
+      border-radius:12px;
+    }
+
+    .controls {
+      bottom:14px;
+      width:auto;
+      max-width:92vw;
+      border-radius:18px;
+    }
+
+    #chat-toggle {
+      bottom:92px;
+      right:18px;
+    }
+
+    .mini-games-toggle {
+      bottom:92px !important;
+      left:18px !important;
+      transform:none !important;
+      border-radius:18px;
+      width:auto;
+    }
+
+    #host-panel {
+      display:none !important;
+    }
+
+    #my-role-card {
+      top:42px;
+      left:8px;
+      max-width:38vw;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .hidden {
+      display:none !important;
+    }
+
   </style>
 </head>
 
@@ -1225,15 +1396,7 @@
       <div id="phase-big-text">მზადება</div>
       <div id="phase-small-text">დაელოდე თამაშის დაწყებას</div>
     </div>
-
-    <div id="pro-mafia-panel" class="pro-mafia-panel">
-      <div class="pro-flow">
-        <div class="pro-step" id="flow-day">DAY 2:00</div>
-        <div class="pro-step" id="flow-vote">VOTE 0:30</div>
-        <div class="pro-step" id="flow-night">NIGHT 1:00</div>
-      </div>
-
-      <div class="pro-grid">
+<div class="pro-grid">
         <div class="pro-box">
           <div class="pro-title">Vote Board</div>
           <div id="vote-board">ხმის მიცემა ჯერ არ დაწყებულა</div>
@@ -1245,30 +1408,13 @@
         </div>
       </div>
     </div>
-
-
-
-
-    <div id="phase-roadmap" class="phase-roadmap">
-      <div class="road-step" id="road-day">DAY</div>
-      <div class="road-step" id="road-defense">DEFENSE</div>
+<div class="road-step" id="road-defense">DEFENSE</div>
       <div class="road-step" id="road-final">FINAL WORDS</div>
       <div class="road-step" id="road-vote">VOTE</div>
       <div class="road-step" id="road-night">NIGHT</div>
       <div class="road-step" id="road-results">RESULTS</div>
     </div>
-
-    <div id="last-words-banner" class="last-words-banner hidden">
-      ბოლო სიტყვები: მოთამაშეს აქვს 15 წამი
-    </div>
-
-    <div class="pro2-layout">
-      <div class="pro2-card">
-        <h3>Vote Results</h3>
-        <div id="vote-results-board">ჯერ ხმები არ არის</div>
-      </div>
-
-      <div class="pro2-card">
+<div class="pro2-card">
         <h3>Spectator Role Panel</h3>
         <div id="spectator-role-panel">მხოლოდ spectator/admin რეჟიმისთვის</div>
       </div>
@@ -1286,11 +1432,14 @@
         </div>
       </div>
     </div>
-
-    <div id="action-panel" class="hidden">
-      <div id="action-title">ქმედება</div>
-      <div id="players-actions"></div>
+    <div id="action-modal" class="action-modal hidden">
+      <div class="action-modal-card">
+        <button id="action-modal-close" class="action-modal-close">×</button>
+        <div id="action-title">ქმედება</div>
+        <div id="players-actions"></div>
+      </div>
     </div>
+    <div id="action-panel" class="hidden"></div>
 
     <div id="video-grid"></div>
 
@@ -1451,6 +1600,7 @@
     $("chat-toggle").addEventListener("click", toggleChat);
     $("close-chat").addEventListener("click", toggleChat);
     $("send-chat-btn").addEventListener("click", sendMsg);
+    $("action-modal-close")?.addEventListener("click", hideActionModal);
 
     setupAdminPanel();
     setupProfessionalPack();
@@ -1785,7 +1935,7 @@
       proPhaseOverride = "results";
       renderProfessionalPack();
       alert(data.message);
-      $("action-panel").classList.add("hidden");
+      hideActionModal();
     });
 
 
@@ -1955,6 +2105,18 @@
       });
     }
 
+
+
+    function showActionModal() {
+      const modal = $("action-modal");
+      if (modal) modal.classList.remove("hidden");
+    }
+
+    function hideActionModal() {
+      const modal = $("action-modal");
+      if (modal) modal.classList.add("hidden");
+    }
+
     function renderActionPanel() {
       const panel = $("action-panel");
       const box = $("players-actions");
@@ -1965,7 +2127,7 @@
       const me = alivePlayers.find(p => p.id === socket.id);
 
       if (!me || !me.alive || currentPhase === "ended") {
-        panel.classList.add("hidden");
+        hideActionModal();
         return;
       }
 
@@ -1974,40 +2136,40 @@
 
       if (currentPhase === "night") {
         if (myRole === "mafia" || myRole === "don") {
-          panel.classList.remove("hidden");
+          showActionModal();
           title.innerText = "მაფიის ღამე — აირჩიე მსხვერპლი";
           otherAlive.forEach(p => addActionButton(p, "kill", "მოკვლა"));
           return;
         }
 
         if (myRole === "doctor") {
-          panel.classList.remove("hidden");
+          showActionModal();
           title.innerText = "ექიმის ღამე — აირჩიე გადასარჩენი";
           allAlive.forEach(p => addActionButton(p, "save", "გადარჩენა"));
           return;
         }
 
         if (myRole === "sheriff") {
-          panel.classList.remove("hidden");
+          showActionModal();
           title.innerText = "შერიფის ღამე — შეამოწმე მოთამაშე";
           otherAlive.forEach(p => addActionButton(p, "check", "შემოწმება"));
           return;
         }
 
-        panel.classList.remove("hidden");
+        showActionModal();
         title.innerText = "ღამეა — დაელოდე დილას";
         box.innerHTML = `<div class="msg">შენ მოქალაქე ხარ. ღამით მოქმედება არ გაქვს.</div>`;
         return;
       }
 
       if (currentPhase === "vote") {
-        panel.classList.remove("hidden");
+        showActionModal();
         title.innerText = "ხმის მიცემა";
         otherAlive.forEach(p => addVoteButton(p));
         return;
       }
 
-      panel.classList.add("hidden");
+      hideActionModal();
     }
 
     function addActionButton(player, action, label) {
@@ -2027,7 +2189,7 @@
         });
 
         addSystemMsg("ქმედება დაფიქსირდა");
-        $("action-panel").classList.add("hidden");
+        hideActionModal();
       };
 
       $("players-actions").appendChild(row);
@@ -2053,7 +2215,7 @@
 
         addSystemMsg("ხმა მიცემულია");
         proLog(`ხმა მიეცი #${player.index} ${player.name}`);
-        $("action-panel").classList.add("hidden");
+        hideActionModal();
       };
 
       $("players-actions").appendChild(row);
