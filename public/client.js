@@ -1,58 +1,155 @@
-const socket = io({ reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 1200 });
-const $ = id => document.getElementById(id);
-const AVATARS = ["♛","◈","⬢","✦","☾","♞","☣","◆"];
-const ROLE_META = {
-  mafia:["🔴","მაფია","ღამით ირჩევ მსხვერპლს მაფიის გუნდთან ერთად."],
-  don:["👑","დონი","მაფიის ლიდერი ხარ. ღამით ირჩევ მსხვერპლს."],
-  sheriff:["⭐","შერიფი","ღამით ამოწმებ მოთამაშეს: შავია თუ სუფთა."],
-  doctor:["💊","ექიმი","ღამით იცავ მოთამაშეს მოკვლისგან."],
-  detective:["🔍","დეტექტივი","იღებ ინფორმაციას მოთამაშის შესახებ."],
-  citizen:["⚪","მოქალაქე","დღის ფაზაში იპოვე მაფია და მიეცი ხმა."]
-};
-let profile = null, selectedAvatar = AVATARS[0], currentRoom = null, localStream = null, micOn = true, camOn = true, activeChat = "main", unread = 0, myRole = null;
-const peers = {};
-const roomPlayers = new Map();
+(() => {
+  const socket = io({ reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 1200 });
+  const $ = id => document.getElementById(id);
+  const AVATARS = ["♛","◈","⬢","✦","☾","♞","☣","◆","🕶️","👑","💀","🐺"];
+  const ROLE_ICONS = { citizen:"⚪", mafia:"🔴", don:"👑", sheriff:"⭐", doctor:"💊", detective:"🔎", serial_killer:"🗡", yakuza:"⚔", chogun:"🥷", vigilante:"⚖", maniac:"🎭" };
+  const ACTION_ROLES = new Set(["mafia","don","doctor","sheriff","detective","serial_killer","yakuza","chogun","vigilante","maniac"]);
+  let selectedAvatar = localStorage.getItem("voidAvatar") || "♛";
+  let currentUser = null, currentRoom = "", latestState = null, me = null, myRole = null, activeChat = "main", chatOpen = false, unread = 0;
+  let localStream = null, peers = {}, roomPlayers = new Map(), camOn = true, micOn = true;
+  const toast = (text, type="info") => { const el=document.createElement("div"); el.className=`toast ${type}`; el.textContent=text; $("toastBox").appendChild(el); setTimeout(()=>el.remove(),3200); };
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]));
 
-function toast(text, type="info") { const el = document.createElement("div"); el.className = `toast ${type}`; el.textContent = text; $("toastBox").appendChild(el); setTimeout(()=>el.remove(), 3200); }
-function escapeHtml(s="") { return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c])); }
-function show(id) { ["auth","app","game"].forEach(x => $(x).classList.toggle("hidden", x !== id)); document.body.classList.toggle("game-active", id === "game"); }
-function roomSettings() { return { name: $("roomName").value, maxPlayers:+$("maxPlayers").value||10, mafiaCount:+$("mafiaCount").value||1, don:$("roleDon").checked, sheriff:$("roleSheriff").checked, doctor:$("roleDoctor").checked, detective:$("roleDetective").checked, spectator:true, ranked:false }; }
-function getCode() { return ($("roomCode").value || Math.floor(100 + Math.random()*900)).trim(); }
+  function renderAvatarPickers() {
+    const render = (rootId, onPick) => {
+      const root = $(rootId); if (!root) return;
+      root.innerHTML = AVATARS.map(a => `<button class="avatar-choice ${a===selectedAvatar?'active':''}" data-avatar="${a}">${a}</button>`).join("");
+      root.querySelectorAll("button").forEach(btn => btn.onclick = async () => {
+        selectedAvatar = btn.dataset.avatar;
+        localStorage.setItem("voidAvatar", selectedAvatar);
+        $("authEmblem") && ($("authEmblem").textContent = selectedAvatar);
+        renderAvatarPickers();
+        if (onPick) await onPick(selectedAvatar);
+      });
+    };
+    render("avatarRow");
+    render("profileAvatarRow", async avatar => {
+      if (!currentUser) return;
+      const res = await fetch("/api/profile/avatar", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ avatar }) });
+      const data = await res.json().catch(()=>({}));
+      if (data.ok) { currentUser = data.user; applyUser(); toast("ავატარი შეიცვალა", "success"); }
+    });
+  }
 
-function initAvatars(){ const row=$("avatarRow"); row.innerHTML=""; AVATARS.forEach(a=>{ const b=document.createElement("button"); b.className="avatar-choice"+(a===selectedAvatar?" active":""); b.textContent=a; b.onclick=()=>{selectedAvatar=a; document.querySelectorAll('.avatar-choice').forEach(x=>x.classList.remove('active')); b.classList.add('active')}; row.appendChild(b); }); }
-function syncProfileUI(){ if(!profile) return; localStorage.setItem("voidUserId", String(profile.userId||"")); ["drawerName","profileName"].forEach(id=>$(id).textContent=profile.nickname); ["drawerAvatar","profileAvatar"].forEach(id=>$(id).textContent=profile.avatar||selectedAvatar); ["drawerLevel","profileLevel","stLevel"].forEach(id=>$(id).textContent=profile.level||1); $("stGames").textContent=profile.games||0; $("stWins").textContent=profile.wins||0; $("stMvp").textContent=profile.mvp||0; $("profileId").textContent=profile.userId||"—"; $("profileXp").textContent=profile.xp||0; $("profileKarma").textContent=profile.karma||0; }
-function login(guest=false){ const nick = guest ? `Guest${Math.floor(Math.random()*999)}` : ($("nick").value.trim() || "Max"); const savedId = localStorage.getItem("voidUserId") || ""; socket.emit("profile:init", { userId:savedId, nickname:nick, avatar:selectedAvatar }); }
+  async function authFetch(url, body) {
+    const res = await fetch(url, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
+    return res.json();
+  }
+  async function loadMe() {
+    renderAvatarPickers();
+    const res = await fetch("/api/auth/me");
+    const data = await res.json().catch(()=>({}));
+    if (data.ok && data.user) enterApp(data.user); else showAuth();
+  }
+  function showAuth() { $("auth").classList.remove("hidden"); $("app").classList.add("hidden"); $("game").classList.add("hidden"); }
+  function enterApp(user) {
+    currentUser = user;
+    selectedAvatar = user.avatar || selectedAvatar;
+    localStorage.setItem("voidUserId", String(user.userId));
+    localStorage.setItem("voidAvatar", selectedAvatar);
+    $("auth").classList.add("hidden"); $("app").classList.remove("hidden"); $("game").classList.add("hidden");
+    applyUser(); socket.emit("profile:init", user); socket.emit("rooms:get"); loadLeaderboard(); renderAvatarPickers();
+  }
+  function applyUser() {
+    if (!currentUser) return;
+    ["drawerAvatar","profileAvatar"].forEach(id => $(id) && ($(id).textContent = currentUser.avatar || "♛"));
+    $("drawerName").textContent = currentUser.nickname || "---";
+    $("drawerUserId").textContent = currentUser.userId || "---";
+    $("drawerLevel").textContent = currentUser.level || 1;
+    $("profileName").textContent = currentUser.nickname || "---";
+    $("profileId").textContent = currentUser.userId || "---";
+    $("profileLevel").textContent = currentUser.level || 1;
+    $("profileXp").textContent = currentUser.xp || 0;
+    $("profileKarma").textContent = currentUser.karma || 0;
+    $("profileKills").textContent = currentUser.kills || 0;
+    $("profileChecks").textContent = currentUser.checks || 0;
+    $("stGames").textContent = currentUser.games || 0; $("stWins").textContent = currentUser.wins || 0; $("stMvp").textContent = currentUser.mvp || 0; $("stLevel").textContent = currentUser.level || 1;
+    const pct = Math.min(100, ((currentUser.xp || 0) % 700) / 7); $("xpFill").style.width = `${pct}%`;
+  }
 
-function activateTab(name){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); $(`tab-${name}`)?.classList.add('active'); document.querySelectorAll('.nav,[data-tab]').forEach(b=>b.classList.toggle('active', b.dataset.tab===name)); const map={tables:["მაგიდები","ცოცხალი ოთახები და სწრაფი შესვლა"],clans:["კლანები","გუნდები, წევრები და რეიტინგი"],stats:["სტატისტიკა","სეზონის და თამაშების ანალიზი"],profile:["პროფილი","ავატარი, XP და მიღწევები"]}; $("pageTitle").textContent=map[name]?.[0]||"VOID"; $("pageSub").textContent=map[name]?.[1]||""; closeDrawer(); if(name==="stats") loadLeaderboard(); }
-function openDrawer(){ $("drawer").classList.add("open"); $("drawerBackdrop").classList.add("open"); }
-function closeDrawer(){ $("drawer").classList.remove("open"); $("drawerBackdrop").classList.remove("open"); }
+  $("registerBtn")?.addEventListener("click", async () => {
+    const data = await authFetch("/api/auth/register", { nickname: $("authNick").value, email: $("authEmail").value, password: $("authPassword").value, avatar: selectedAvatar });
+    if (!data.ok) return toast(data.error || "რეგისტრაცია ვერ მოხერხდა", "error"); enterApp(data.user);
+  });
+  $("loginBtn")?.addEventListener("click", async () => {
+    const data = await authFetch("/api/auth/login", { email: $("authEmail").value, password: $("authPassword").value });
+    if (!data.ok) return toast(data.error || "შესვლა ვერ მოხერხდა", "error"); enterApp(data.user);
+  });
+  $("guestBtn")?.addEventListener("click", async () => {
+    const nick = $("authNick").value || `Guest-${Math.floor(Math.random()*999)}`;
+    const data = await authFetch("/api/auth/guest", { nickname: nick, avatar: selectedAvatar });
+    if (!data.ok) return toast(data.error || "Guest ვერ შეიქმნა", "error"); enterApp(data.user);
+  });
+  $("googleBtn")?.addEventListener("click", () => location.href = "/auth/google");
+  $("facebookBtn")?.addEventListener("click", () => location.href = "/auth/facebook");
+  $("logoutBtn")?.addEventListener("click", async () => { await fetch("/api/auth/logout", { method:"POST" }); location.reload(); });
 
-function renderRooms(rooms=[]){ const list=$("roomList"); const query=($("roomSearch")?.value||"").toLowerCase(); const filtered=rooms.filter(r=>`${r.code} ${r.name} ${r.hostName}`.toLowerCase().includes(query)); $("roomCount").textContent=`${filtered.length} LIVE`; if(!filtered.length){ list.className="room-list empty-list"; list.textContent="აქტიური მაგიდები არ არის — შექმენი ახალი."; return; } list.className="room-list"; list.innerHTML=""; filtered.forEach((r,i)=>{ const card=document.createElement("div"); card.className="room-card"; card.innerHTML=`<div class="room-emblem">${["♛","◈","⬢","✦","☾"][i%5]}</div><div class="room-main"><h3>${escapeHtml(r.name||`მაგიდა ${r.code}`)}</h3><p>ჰოსტი: ${escapeHtml(r.hostName||"unknown")} · ${r.playerCount}/${r.maxPlayers} მოთამაშე</p><p>ენა: ${escapeHtml(r.language||"Georgian")} · მაყურებლები: ${r.spectatorCount||0}</p><div class="tags"><span>${escapeHtml(r.phase||"waiting")}</span><span>AVG LVL ${r.avgLevel||1}</span>${r.locked?"<span>LOCKED</span>":"<span>OPEN</span>"}</div></div><div class="room-actions"><button class="join-small">JOIN</button><button class="watch-small">WATCH</button></div>`; card.querySelector('.join-small').onclick=()=>joinRoom(r.code,false); card.querySelector('.watch-small').onclick=()=>joinRoom(r.code,true); list.appendChild(card); }); }
-async function ensureMedia(){ if(localStream) return localStream; localStream = await navigator.mediaDevices.getUserMedia({ video:true, audio:true }); return localStream; }
-async function joinRoom(code=getCode(), spectator=false){ try{ if(!spectator) await ensureMedia(); socket.emit("room:join", { code, spectator, settings:roomSettings() }); } catch(e){ toast("კამერა/მიკროფონი ვერ ჩაირთო — შეამოწმე permissions", "error"); } }
+  document.querySelectorAll(".nav,[data-tab]").forEach(btn => btn.addEventListener("click", () => switchTab(btn.dataset.tab)));
+  function switchTab(tab) {
+    if (!tab) return;
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    $("tab-"+tab)?.classList.add("active");
+    document.querySelectorAll(".nav").forEach(n => n.classList.toggle("active", n.dataset.tab === tab));
+    const titles = { tables:["მაგიდები","ცოცხალი ოთახები და სწრაფი შესვლა"], clans:["კლანები","გუნდები და რეიტინგი"], stats:["სტატისტიკა","სეზონი და ლიდერბორდი"], profile:["პროფილი","ID, ავატარი და მიღწევები"] };
+    $("pageTitle").textContent = titles[tab]?.[0] || "VOID"; $("pageSub").textContent = titles[tab]?.[1] || "";
+    closeDrawer(); if (tab === "stats") loadLeaderboard();
+  }
+  $("drawerBtn")?.addEventListener("click", () => { $("drawer").classList.add("open"); $("drawerBackdrop").classList.add("open"); });
+  $("drawerBackdrop")?.addEventListener("click", closeDrawer);
+  function closeDrawer(){ $("drawer")?.classList.remove("open"); $("drawerBackdrop")?.classList.remove("open"); }
 
-function addVideo(id, stream, data={}){ if($(id)) return; const box=document.createElement('div'); box.className='video-box'; box.id=id; const isMe=id===socket.id; const userId=data.userId?` · ID ${escapeHtml(data.userId)}`:""; box.innerHTML=`<video autoplay playsinline ${isMe?'muted':''}></video><span class="seat">#${data.index||1}</span><div class="video-label"><b>${escapeHtml(data.name||'Player')}</b><small>Seat #${data.index||1}${userId}</small></div>${isMe?'<div class="tile-controls"><button id="tileMic" class="active" title="Microphone">MIC</button><button id="tileCam" class="active" title="Camera">CAM</button></div>':''}`; box.querySelector('video').srcObject=stream; $("videoGrid").appendChild(box); if(isMe){ $("tileMic").onclick=toggleMic; $("tileCam").onclick=toggleCam; } }
-function toggleMic(){ if(!localStream) return; micOn=!micOn; localStream.getAudioTracks().forEach(t=>t.enabled=micOn); $("tileMic")?.classList.toggle("off",!micOn); $("tileMic")?.classList.toggle("active",micOn); }
-function toggleCam(){ if(!localStream) return; camOn=!camOn; localStream.getVideoTracks().forEach(t=>t.enabled=camOn); $("tileCam")?.classList.toggle("off",!camOn); $("tileCam")?.classList.toggle("active",camOn); }
-function createPeer(targetId, initiator){ if(peers[targetId]) { try{peers[targetId].destroy()}catch{} delete peers[targetId]; } const peer=new SimplePeer({ initiator, trickle:false, stream:localStream || undefined, config:{ iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:global.stun.twilio.com:3478'}] } }); peer.on('signal', signal=> socket.emit(initiator?'signal:offer':'signal:answer',{ to:targetId, signal })); peer.on('stream', stream=> addVideo(targetId, stream, roomPlayers.get(targetId)||{})); peer.on('error', e=>console.warn('peer error',e.message)); peers[targetId]=peer; return peer; }
-function closePeers(){ Object.values(peers).forEach(p=>{try{p.destroy()}catch{}}); Object.keys(peers).forEach(k=>delete peers[k]); }
-function updateState(state){ currentRoom=state; $("phaseText").textContent=phaseName(state.phase); $("aliveText").textContent=`${(state.players||[]).filter(p=>p.alive).length} ცოცხალი`; const me=(state.players||[]).find(p=>p.id===socket.id); const canHost=!!(me && me.index===1) || state.isAdmin; $("roomSettingsBtn").classList.toggle("hidden", !canHost); roomPlayers.clear(); (state.players||[]).forEach(p=>roomPlayers.set(p.id,p)); if(localStream && !$(socket.id)){ if(me) addVideo(socket.id,localStream,me); } renderRoleSummary(state.settings||{}); syncRoomSettingsForm(state); }
-function phaseName(p){ return ({waiting:"⏳ მზადება",night:"🌙 ღამე",day:"☀️ დღე",vote:"🗳️ ხმა",ended:"🏁 დასრულდა"})[p]||p; }
-function renderRoleSummary(s){ $("roleSummary").innerHTML=`<span>🔴 Mafia x${s.mafiaCount||1}</span>${s.don?'<span>👑 Don</span>':''}${s.sheriff?'<span>⭐ Sheriff</span>':''}${s.doctor?'<span>💊 Doctor</span>':''}${s.detective?'<span>🔍 Detective</span>':''}<span>⚪ Citizen auto</span>`; }
-function syncRoomSettingsForm(state=currentRoom){ if(!state||!state.settings) return; const s=state.settings; if($("rsName")) $("rsName").value=state.name||""; if($("rsMaxPlayers")) $("rsMaxPlayers").value=s.maxPlayers||10; if($("rsMafiaCount")) $("rsMafiaCount").value=s.mafiaCount||1; if($("rsRoleSheriff")) $("rsRoleSheriff").checked=!!s.sheriff; if($("rsRoleDon")) $("rsRoleDon").checked=!!s.don; if($("rsRoleDoctor")) $("rsRoleDoctor").checked=!!s.doctor; if($("rsRoleDetective")) $("rsRoleDetective").checked=!!s.detective; }
-function saveRoomSettings(){ const settings={ maxPlayers:+($("rsMaxPlayers")?.value||10), mafiaCount:+($("rsMafiaCount")?.value||1), sheriff:!!$("rsRoleSheriff")?.checked, don:!!$("rsRoleDon")?.checked, doctor:!!$("rsRoleDoctor")?.checked, detective:!!$("rsRoleDetective")?.checked }; socket.emit("room:update-settings",{ name:$("rsName")?.value||currentRoom?.name, settings }); toast("მაგიდის პარამეტრები იგზავნება","info"); }
-function showRole(role){ myRole=role; const m=ROLE_META[role]||["?",role,""]; $("roleIcon").textContent=m[0]; $("roleName").textContent=m[1]; $("roleDesc").textContent=m[2]; $("roleModal").classList.remove("hidden"); }
-function sendChat(){ const text=$("chatInput").value.trim(); if(!text) return; socket.emit("chat:send", { tab:activeChat, text }); $("chatInput").value=""; }
-function addMsg(m){ const div=document.createElement('div'); div.className='msg'; div.innerHTML=`<b>${escapeHtml(m.avatar||'')} ${escapeHtml(m.from||'')}</b><br>${escapeHtml(m.text||'')}`; $("messages").appendChild(div); $("messages").scrollTop=$("messages").scrollHeight; if(!$("chatPanel").classList.contains('open')){ unread++; $("unread").textContent=unread; $("unread").classList.remove('hidden'); } }
-function loadLeaderboard(){ fetch('/api/leaderboard').then(r=>r.json()).then(users=>{ $("leaderboard").innerHTML = users.length ? users.map((u,i)=>`<div class="msg"><b>#${i+1} ${escapeHtml(u.avatar)} ${escapeHtml(u.nickname)}</b><br>Level ${u.level} · XP ${u.xp} · Wins ${u.wins}</div>`).join('') : '<div class="msg">Leaderboard ცარიელია</div>'; }).catch(()=>{}); }
-function tickTimer({endsAt}){ clearInterval(window.__timer); const run=()=>{ const s=Math.max(0, Math.ceil((endsAt-Date.now())/1000)); const m=String(Math.floor(s/60)).padStart(2,'0'), ss=String(s%60).padStart(2,'0'); $("timerText").textContent=`${m}:${ss}`; if(s<=0) clearInterval(window.__timer); }; run(); window.__timer=setInterval(run,1000); }
+  async function loadLeaderboard(){ const users = await fetch("/api/leaderboard").then(r=>r.json()).catch(()=>[]); $("leaderboard").innerHTML = users.map((u,i)=>`<div class="room-card"><div class="room-avatar">${esc(u.avatar)}</div><div><h4>#${i+1} ${esc(u.nickname)}</h4><p>ID ${u.userId} · Level ${u.level}</p><small>${u.xp} XP · ${u.wins} wins</small></div></div>`).join("") || `<p class="muted">ლიდერბორდი ჯერ ცარიელია.</p>`; }
 
-initAvatars();
-$("enterBtn").onclick=()=>login(false); $("guestBtn").onclick=()=>login(true); $("nick").onkeydown=e=>{if(e.key==='Enter')login(false)};
-document.querySelectorAll('.nav,[data-tab]').forEach(b=>b.onclick=()=>activateTab(b.dataset.tab)); $("drawerBtn").onclick=openDrawer; $("drawerBackdrop").onclick=closeDrawer; $("refreshRooms").onclick=()=>socket.emit('rooms:get'); $("refreshFab").onclick=()=>socket.emit('rooms:get'); $("roomSearch").oninput=()=>socket.emit('rooms:get'); $("joinRoom").onclick=()=>joinRoom(getCode(),false); $("watchRoom").onclick=()=>joinRoom(getCode(),true); $("leaveGame").onclick=()=>location.reload(); $("roomSettingsBtn").onclick=()=>{ syncRoomSettingsForm(); $("roomSettings").classList.remove('hidden'); }; $("closeSettings").onclick=()=>$("roomSettings").classList.add('hidden'); document.querySelectorAll('[data-cmd]').forEach(b=>b.onclick=()=>socket.emit('room:control',b.dataset.cmd)); $("chatBtn").onclick=()=>{ $("chatPanel").classList.add('open'); unread=0; $("unread").classList.add('hidden'); }; $("closeChat").onclick=()=>$("chatPanel").classList.remove('open'); document.querySelectorAll('.chat-tab').forEach(b=>b.onclick=()=>{ document.querySelectorAll('.chat-tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); activeChat=b.dataset.chat; }); $("sendChat").onclick=sendChat; $("chatInput").onkeydown=e=>{if(e.key==='Enter')sendChat()}; $("closeRole").onclick=()=>$("roleModal").classList.add('hidden'); if($("saveRoomSettings")) $("saveRoomSettings").onclick=saveRoomSettings;
+  $("refreshRooms")?.addEventListener("click", () => socket.emit("rooms:get")); $("refreshFab")?.addEventListener("click", () => socket.emit("rooms:get"));
+  $("joinRoom")?.addEventListener("click", () => joinRoom(false)); $("watchRoom")?.addEventListener("click", () => joinRoom(true));
+  function roomSettingsFromForm(){ return { name: $("roomName").value, maxPlayers: Number($("maxPlayers").value || 10), spectator: $("allowSpectator").checked, private: $("privateRoom").checked }; }
+  function joinRoom(spectator=false, codeOverride=null){ if(!currentUser) return showAuth(); const code = codeOverride || $("roomCode").value || Math.floor(100+Math.random()*900); socket.emit("room:join", { code, spectator, settings: roomSettingsFromForm(), userId: currentUser.userId, nickname: currentUser.nickname, avatar: currentUser.avatar }); }
+  socket.on("rooms:list", rooms => { const q = ($("roomSearch")?.value || "").toLowerCase(); const list = (rooms || []).filter(r => [r.code,r.name,r.hostName].join(" ").toLowerCase().includes(q)); $("roomCount").textContent = `${rooms.length} LIVE`; $("roomList").classList.toggle("empty-list", !list.length); $("roomList").innerHTML = list.length ? list.map(r => `<div class="room-card"><div class="room-avatar">◈</div><div><h4>${esc(r.name)}</h4><p>Host: ${esc(r.hostName)} · ${r.playerCount}/${r.maxPlayers}</p><small>${esc(r.phase)} ${r.locked?'· LOCKED':''} · spectators ${r.spectatorCount}</small></div><button data-join="${esc(r.code)}">JOIN</button></div>`).join("") : "აქტიური მაგიდები არ არის — შექმენი ახალი."; document.querySelectorAll("[data-join]").forEach(b => b.onclick = () => joinRoom(false, b.dataset.join)); });
+  $("roomSearch")?.addEventListener("input", () => socket.emit("rooms:get"));
 
-socket.on('profile:ready', data=>{ profile=data.profile; syncProfileUI(); show('app'); socket.emit('rooms:get'); });
-socket.on('rooms:list', renderRooms); socket.on('update-room-list', renderRooms);
-socket.on('room:joined', async data=>{ currentRoom=data.state; show('game'); if(!data.me?.spectator && localStream) addVideo(socket.id, localStream, data.me); updateState(data.state); (data.state.players||[]).filter(p=>p.id!==socket.id).forEach(p=>{ roomPlayers.set(p.id,p); if(localStream) createPeer(p.id,true); }); });
-socket.on('game:state', updateState); socket.on('phase:timer', tickTimer); socket.on('role:assigned', d=>showRole(d.role)); socket.on('game:history', h=>toast(h.text,h.type==='death'?'error':'info')); socket.on('toast', d=>toast(d.text,d.type)); socket.on('chat:message', addMsg); socket.on('game:end', d=>{ $("winTitle").textContent=d.winner; $("winDesc").textContent=d.mvp?`MVP: ${d.mvp.avatar||''} ${d.mvp.name}`:''; $("winModal").classList.remove('hidden'); });
-socket.on('webrtc:user-joined', p=>{ roomPlayers.set(p.id,p); if(localStream) createPeer(p.id,true); }); socket.on('webrtc:user-left', p=>{ $(p.id)?.remove(); if(peers[p.id]){ try{peers[p.id].destroy()}catch{} delete peers[p.id]; } }); socket.on('signal:offer', d=>{ const peer=createPeer(d.from,false); peer.signal(d.signal); }); socket.on('signal:answer', d=>{ peers[d.from]?.signal(d.signal); });
+  socket.on("profile:ready", d => { currentUser = d.profile; applyUser(); });
+  socket.on("room:joined", async d => { currentRoom = d.code; latestState = d.state; me = d.me; $("app").classList.add("hidden"); $("game").classList.remove("hidden"); await startMedia(!d.me?.spectator); renderState(d.state); setupSettings(d.state); });
+  socket.on("game:state", s => { latestState = s; renderState(s); setupSettings(s); });
+  socket.on("phase:timer", tickTimer);
+  socket.on("role:assigned", d => { myRole = d.role; $("roleIcon").textContent = ROLE_ICONS[d.role] || "?"; $("roleName").textContent = d.meta?.label || d.role; $("roleDesc").textContent = d.meta?.desc || ""; $("roleModal").classList.remove("hidden"); renderActions(); });
+  socket.on("game:history", h => toast(h.text, h.type === "death" ? "error" : "info"));
+  socket.on("toast", d => toast(d.text, d.type));
+  socket.on("game:end", d => { $("winTitle").textContent = d.winner; $("winDesc").textContent = d.mvp ? `MVP: ${d.mvp.avatar||""} ${d.mvp.name} · ID ${d.mvp.userId}` : ""; $("winModal").classList.remove("hidden"); });
+  $("closeRole")?.addEventListener("click", () => $("roleModal").classList.add("hidden"));
+  $("leaveGame")?.addEventListener("click", () => location.reload());
+
+  function renderState(s){ if(!s) return; const alive = s.players.filter(p=>p.alive).length; $("phaseText").textContent = phaseName(s.phase); $("aliveText").textContent = `${alive} ცოცხალი`; const my = s.players.find(p => p.id === socket.id); if (my) { me = { ...me, ...my }; $("roomSettingsBtn").classList.toggle("hidden", !(my.index === 1 || currentUser?.isAdmin)); } renderVideos(s.players); renderActions(); }
+  function phaseName(p){ return ({waiting:"მზადება",night:"ღამე",day:"დღე",vote:"ხმა",ended:"დასრულდა"})[p] || p; }
+  function renderVideos(players){ const grid=$("videoGrid"); const existing = new Set(players.map(p=>p.id)); [...grid.children].forEach(el=>{ if(!existing.has(el.id)) el.remove(); }); players.forEach(p => { let box = $(p.id); if (!box) { box=document.createElement("div"); box.id=p.id; box.className="video-box"; box.innerHTML=`<div class="cam-avatar"><b>${esc(p.avatar||"♛")}</b></div><video autoplay playsinline ${p.id===socket.id?'muted':''}></video><div class="seat-badge">#${p.index}</div><div class="tile-controls"></div><div class="video-label"><b>${esc(p.name)}</b><br><small>ID ${p.userId||"?"}${p.muted?' · muted':''}</small></div>`; grid.appendChild(box); } box.querySelector(".seat-badge").textContent = `#${p.index}`; box.querySelector(".video-label").innerHTML = `<b>${esc(p.name)}</b><br><small>ID ${p.userId||"?"}${p.muted?' · muted':''}</small>`; if(p.id===socket.id) renderTileControls(box); }); }
+  function renderTileControls(box){ const c=box.querySelector(".tile-controls"); c.innerHTML = `<button id="tileMic">${micOn?'MIC':'MUT'}</button><button id="tileCam">${camOn?'CAM':'OFF'}</button>`; c.querySelector("#tileMic").onclick = toggleMic; c.querySelector("#tileCam").onclick = toggleCam; }
+  async function startMedia(useCam=true){ try { localStream = await navigator.mediaDevices.getUserMedia({ video: useCam, audio: true }); attachStream(socket.id, localStream); } catch(e){ toast("კამერა/მიკროფონი ვერ ჩაირთო", "error"); } }
+  function attachStream(id, stream){ const video = $(id)?.querySelector("video"); if(video && video.srcObject !== stream){ video.srcObject = stream; $(id)?.querySelector(".cam-avatar")?.classList.add("hidden"); } }
+  function toggleMic(){ micOn=!micOn; localStream?.getAudioTracks().forEach(t=>t.enabled=micOn); renderVideos(latestState?.players||[]); }
+  function toggleCam(){ camOn=!camOn; localStream?.getVideoTracks().forEach(t=>t.enabled=camOn); renderVideos(latestState?.players||[]); }
+
+  function createPeer(id, initiator){ if(peers[id]){ try{peers[id].destroy()}catch{} } const peer = new SimplePeer({ initiator, trickle:false, stream:localStream || undefined, config:{ iceServers:[{urls:"stun:stun.l.google.com:19302"}] } }); peers[id]=peer; peer.on("signal", signal => socket.emit(initiator?"signal:offer":"signal:answer", { to:id, signal })); peer.on("stream", stream => attachStream(id, stream)); peer.on("error", err => console.warn("peer", err.message)); return peer; }
+  socket.on("webrtc:user-joined", p => { roomPlayers.set(p.id,p); if(localStream) createPeer(p.id,true); });
+  socket.on("webrtc:user-left", p => { $(p.id)?.remove(); if(peers[p.id]){ try{peers[p.id].destroy()}catch{} delete peers[p.id]; } });
+  socket.on("signal:offer", d => { const peer = createPeer(d.from,false); peer.signal(d.signal); });
+  socket.on("signal:answer", d => peers[d.from]?.signal(d.signal));
+
+  function setupSettings(s){ if(!s) return; const set=(id,v)=>{ if($(id)) $(id).checked=!!v; }; const val=(id,v)=>{ if($(id)) $(id).value=v??""; }; val("rsName",s.name); val("rsMaxPlayers",s.settings.maxPlayers); val("rsMafiaCount",s.settings.mafiaCount); set("rsSpectator",s.settings.spectator); set("rsReveal",s.settings.revealRoles); set("rsRoleDon",s.settings.don); set("rsRoleSheriff",s.settings.sheriff); set("rsRoleDoctor",s.settings.doctor); set("rsRoleDetective",s.settings.detective); set("rsRoleSerial",s.settings.serialKiller); set("rsRoleYakuza",s.settings.yakuza); set("rsRoleChogun",s.settings.chogun); set("rsRoleVigilante",s.settings.vigilante); set("rsRoleManiac",s.settings.maniac); renderRoleSummary(); }
+  $("roomSettingsBtn")?.addEventListener("click", () => $("roomSettings").classList.remove("hidden")); $("closeSettings")?.addEventListener("click", () => $("roomSettings").classList.add("hidden"));
+  document.querySelectorAll("[data-cmd]").forEach(b=>b.addEventListener("click",()=>socket.emit("room:control", b.dataset.cmd)));
+  document.querySelectorAll("#roomSettings input").forEach(i=>i.addEventListener("change", renderRoleSummary));
+  $("saveRoomSettings")?.addEventListener("click", () => { socket.emit("room:update-settings", { name: $("rsName").value, settings: collectRoomSettings() }); $("roomSettings").classList.add("hidden"); });
+  function collectRoomSettings(){ return { maxPlayers:Number($("rsMaxPlayers").value||10), spectator:$("rsSpectator").checked, revealRoles:$("rsReveal").checked, mafiaCount:Number($("rsMafiaCount").value||1), don:$("rsRoleDon").checked, sheriff:$("rsRoleSheriff").checked, doctor:$("rsRoleDoctor").checked, detective:$("rsRoleDetective").checked, serialKiller:$("rsRoleSerial").checked, yakuza:$("rsRoleYakuza").checked, chogun:$("rsRoleChogun").checked, vigilante:$("rsRoleVigilante").checked, maniac:$("rsRoleManiac").checked }; }
+  function renderRoleSummary(){ const s=collectRoomSettings(); const chips=[`🔴 Mafia x${s.mafiaCount}`]; if(s.don) chips.push("👑 Don"); if(s.sheriff) chips.push("⭐ Sheriff"); if(s.doctor) chips.push("💊 Doctor"); if(s.detective) chips.push("🔎 Detective"); if(s.serialKiller) chips.push("🗡 Serial"); if(s.yakuza) chips.push("⚔ Yakuza"); if(s.chogun) chips.push("🥷 Chogun"); if(s.vigilante) chips.push("⚖ Vigilante"); if(s.maniac) chips.push("🎭 Maniac"); $("roleSummary").innerHTML = chips.map(c=>`<span>${c}</span>`).join(""); }
+
+  function renderActions(){ const p=$("actionPanel"); if(!latestState || !me || !myRole){ p.classList.add("hidden"); return; } const alive = latestState.players.filter(x=>x.alive && x.id!==socket.id); if(latestState.phase === "night" && ACTION_ROLES.has(myRole)){ p.classList.remove("hidden"); p.innerHTML = `<h3>ღამის მოქმედება · ${ROLE_ICONS[myRole]||''}</h3><div class="target-grid">${alive.concat(myRole==='doctor'?[me]:[]).map(t=>`<button data-night="${t.id}">#${t.index} ${esc(t.name)}</button>`).join("")}</div>`; p.querySelectorAll("[data-night]").forEach(b=>b.onclick=()=>socket.emit("night:action", { targetId:b.dataset.night })); return; } if(latestState.phase === "vote" && me.alive){ p.classList.remove("hidden"); p.innerHTML = `<h3>ხმის მიცემა</h3><div class="target-grid">${alive.map(t=>`<button data-vote="${t.id}">#${t.index} ${esc(t.name)}</button>`).join("")}</div>`; p.querySelectorAll("[data-vote]").forEach(b=>b.onclick=()=>socket.emit("vote:cast", { targetId:b.dataset.vote })); return; } p.classList.add("hidden"); }
+
+  function tickTimer(d){ clearInterval(window.__timer); const update=()=>{ const sec=Math.max(0,Math.ceil((d.endsAt-Date.now())/1000)); const m=String(Math.floor(sec/60)).padStart(2,"0"), s=String(sec%60).padStart(2,"0"); $("timerText").textContent=`${m}:${s}`; }; update(); window.__timer=setInterval(update,1000); }
+
+  $("chatBtn")?.addEventListener("click",()=>{ chatOpen=true; unread=0; $("unread").classList.add("hidden"); $("chatPanel").classList.add("open"); }); $("closeChat")?.addEventListener("click",()=>{ chatOpen=false; $("chatPanel").classList.remove("open"); });
+  document.querySelectorAll(".chat-tab").forEach(b=>b.onclick=()=>{ document.querySelectorAll(".chat-tab").forEach(x=>x.classList.remove("active")); b.classList.add("active"); activeChat=b.dataset.chat; });
+  $("sendChat")?.addEventListener("click",sendChat); $("chatInput")?.addEventListener("keydown",e=>{ if(e.key==="Enter") sendChat(); });
+  function sendChat(){ const text=$("chatInput").value.trim(); if(!text) return; socket.emit("chat:send", { text, tab:activeChat }); $("chatInput").value=""; }
+  socket.on("chat:message", m => { const el=document.createElement("div"); el.className="msg"; el.innerHTML=`<b>${esc(m.avatar||'')} ${esc(m.from)}</b><br>${esc(m.text)}`; $("messages").appendChild(el); $("messages").scrollTop=$("messages").scrollHeight; if(!chatOpen){ unread++; $("unread").textContent=unread; $("unread").classList.remove("hidden"); }});
+
+  loadMe();
+})();
