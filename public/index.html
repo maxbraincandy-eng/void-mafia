@@ -733,6 +733,14 @@
     .role-preview-chip.sheriff { border-color:var(--blue); color:var(--blue); background:rgba(62,142,255,.12); }
     .role-preview-chip.doctor { border-color:var(--green); color:var(--green); background:rgba(62,255,62,.12); }
     .role-preview-chip.citizen { border-color:#aaa; color:#aaa; background:rgba(255,255,255,.06); }
+    .role-preview-chip.serial { border-color:#ff0066; color:#ff0066; background:rgba(255,0,102,.12); }
+    .role-preview-chip.yakuza { border-color:#cc00ff; color:#cc00ff; background:rgba(200,0,255,.12); }
+
+    /* Night mode body background transition */
+    body.night-mode {
+      background-color:#010008 !important;
+      transition: background-color 1.5s ease;
+    }
 
     .role-preview-min {
       margin-top:8px;
@@ -1046,6 +1054,109 @@
       .host-chip { padding:7px 8px; font-size:.5rem; }
       #my-role-card { max-width:34vw; }
     }
+
+    /* ===== V5: GLITCH TITLE ANIMATION ===== */
+    @keyframes glitchFlicker {
+      0%,94%,100% { text-shadow:0 0 15px var(--cyan), 2px 2px var(--neon); }
+      95% { text-shadow:-3px 0 var(--red), 3px 0 var(--cyan); clip-path:inset(30% 0 40% 0); transform:translateX(-3px); }
+      96% { text-shadow:3px 0 var(--neon), -3px 0 var(--cyan); clip-path:inset(60% 0 10% 0); transform:translateX(3px); }
+      97% { text-shadow:-2px 0 var(--red); clip-path:none; transform:translateX(0); }
+    }
+    .glitch-title { animation: glitchFlicker 7s infinite; }
+
+    /* ===== V5: WIN SCREEN ===== */
+    #win-screen {
+      position:fixed; inset:0; z-index:9500;
+      background:rgba(0,0,0,.96);
+      display:none; flex-direction:column;
+      align-items:center; justify-content:center;
+      gap:18px; padding:20px; font-family:Orbitron;
+    }
+    #win-screen.active { display:flex; }
+    #win-screen .win-emoji { font-size:5rem; animation: winBounce .7s ease infinite alternate; }
+    @keyframes winBounce { from { transform:scale(.9); } to { transform:scale(1.1); } }
+    #win-screen h2 { font-size:clamp(1.2rem,6vw,2rem); text-align:center; margin:0; }
+    #win-screen p { color:#aaa; font-size:.88rem; text-align:center; }
+    #win-close-btn {
+      padding:14px 30px; border:0; border-radius:14px;
+      background:linear-gradient(135deg, var(--neon), var(--cyan));
+      color:#000; font-family:Orbitron; font-size:.72rem; cursor:pointer;
+    }
+    .win-confetti-dot {
+      position:fixed; border-radius:50%; pointer-events:none; z-index:9400;
+      animation: confettiFall linear forwards;
+    }
+    @keyframes confettiFall {
+      0% { transform:translateY(-10vh) rotate(0); opacity:1; }
+      100% { transform:translateY(110vh) rotate(720deg); opacity:0; }
+    }
+
+    /* ===== V5: PLAYER STATS PANEL ===== */
+    #stats-toggle {
+      position:fixed; bottom:92px; right:74px;
+      z-index:1600; padding:12px 14px;
+      border-radius:18px;
+      background:linear-gradient(135deg,#7c00ff,#00ffff);
+      color:#fff; font-family:Orbitron; font-size:.6rem; cursor:pointer;
+      box-shadow:0 0 18px rgba(124,0,255,.45); display:none;
+    }
+    #stats-panel {
+      position:fixed; top:0; left:-340px;
+      width:320px; max-width:90vw; height:100vh;
+      z-index:3200; background:rgba(7,2,15,.98);
+      border-right:2px solid var(--cyan);
+      padding:14px; overflow-y:auto;
+      transition:left .25s ease; font-family:Orbitron;
+    }
+    #stats-panel.open { left:0; }
+    #stats-panel h2 { margin:0 0 14px; font-size:.9rem; color:var(--cyan); }
+    #stats-close {
+      float:right; background:var(--red); border:0;
+      border-radius:8px; width:28px; height:28px;
+      color:white; font-family:Orbitron; cursor:pointer; margin-top:-4px;
+    }
+    .stat-row {
+      display:flex; justify-content:space-between; align-items:center;
+      padding:9px 10px; margin-bottom:6px;
+      background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.1);
+      border-radius:11px; font-size:.75rem;
+    }
+    .stat-name { color:var(--cyan); }
+    .stat-val { color:var(--neon); font-weight:bold; }
+
+    /* ===== V5: CAM-OFF AVATAR ===== */
+    .cam-off-avatar {
+      position:absolute; inset:0;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      background:radial-gradient(ellipse at center, #1a0533, #07020f);
+      pointer-events:none; z-index:1;
+    }
+    .cam-off-avatar .avatar-circle {
+      width:56px; height:56px; border-radius:50%;
+      background:linear-gradient(135deg, var(--neon), var(--cyan));
+      display:flex; align-items:center; justify-content:center;
+      font-size:1.4rem; font-family:Orbitron; color:#000; font-weight:bold;
+      box-shadow:0 0 20px rgba(255,0,255,.5); margin-bottom:8px;
+    }
+    .cam-off-avatar .avatar-name { font-size:.62rem; color:#aaa; font-family:Orbitron; }
+
+    /* ===== V5: VOTE RESULTS BAR ===== */
+    .vote-bar-row { margin-bottom:8px; }
+    .vote-bar-label { font-size:.7rem; color:#ccc; margin-bottom:3px; }
+    .vote-bar-track { background:#111; border-radius:6px; height:10px; overflow:hidden; }
+    .vote-bar-fill { height:100%; background:linear-gradient(90deg, var(--red), var(--neon)); border-radius:6px; transition:width .4s ease; }
+
+    /* ===== V5: PING INDICATOR ===== */
+    #ping-display {
+      position:fixed; bottom:130px; left:50%;
+      transform:translateX(-50%);
+      z-index:1400; color:#555;
+      font-family:Orbitron; font-size:.5rem;
+      pointer-events:none; display:none;
+    }
+    #ping-display.visible { display:block; }
   </style>
 </head>
 
@@ -1057,8 +1168,13 @@
   <audio id="night-music" loop preload="auto"
     src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_2cef321b47.mp3?filename=dark-mystery-ambient-6085.mp3">
   </audio>
+  <audio id="night-ambient" loop preload="auto"
+    src="https://cdn.pixabay.com/download/audio/2021/04/07/audio_c86b3d4a3c.mp3?filename=scary-dark-ambient-6078.mp3">
+  </audio>
   <audio id="sfx-night-start" src="https://assets.mixkit.co/sfx/preview/mixkit-cinematic-mystery-hit-721.mp3"></audio>
+  <audio id="sfx-day-start" src="https://assets.mixkit.co/sfx/preview/mixkit-bells-notification-933.mp3"></audio>
   <audio id="sfx-vote" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-game-over-melody-253.mp3"></audio>
+  <audio id="sfx-death" src="https://assets.mixkit.co/sfx/preview/mixkit-player-losing-or-failing-2042.mp3"></audio>
 
   <!-- NIGHT FX OVERLAY -->
   <div id="night-fx-overlay"></div>
@@ -1093,7 +1209,7 @@
   </div>
 
   <h1 class="glitch-title">VOID MAFIA</h1>
-  <div class="powered">Powered by ბატონი მაქსი</div>
+  <div class="powered">Powered by ბატონი მაქსი &nbsp;·&nbsp; <span style="color:var(--neon);">v5</span></div>
 
   <!-- LOGIN -->
   <div id="login-screen" class="card">
@@ -1172,7 +1288,7 @@
         <p class="role-help">თამაშის დაწყებამდე აირჩიე რომელი როლები იყოს ჩართული.</p>
 
         <div class="role-setting-row">
-          <span>Mafia Count</span>
+          <span>🔴 Mafia Count</span>
           <div class="role-counter">
             <button id="role-mafia-minus">−</button>
             <b id="role-mafia-value">1</b>
@@ -1181,20 +1297,40 @@
         </div>
 
         <label class="role-toggle-row">
-          <span>👑 Don</span>
+          <span>👑 Don (მაფია ლიდერი, შავად არ შემოწმება)</span>
           <input type="checkbox" id="role-setting-don" checked>
         </label>
         <label class="role-toggle-row">
-          <span>⭐ Sheriff</span>
+          <span>⭐ Sheriff (ამოწმებს: მაფიაა?)</span>
           <input type="checkbox" id="role-setting-sheriff" checked>
         </label>
         <label class="role-toggle-row">
-          <span>💊 Doctor</span>
+          <span>💊 Doctor (ღამით იცავს)</span>
           <input type="checkbox" id="role-setting-doctor" checked>
         </label>
         <label class="role-toggle-row">
-          <span>🔍 Detective Text</span>
-          <input type="checkbox" id="role-setting-detective" checked>
+          <span>🔍 Detective (ამოწმებს ბოლო ქმედებას)</span>
+          <input type="checkbox" id="role-setting-detective">
+        </label>
+        <label class="role-toggle-row">
+          <span>🗡️ Serial Killer (მარტოხელა, ყველას კლავს)</span>
+          <input type="checkbox" id="role-setting-serial-killer">
+        </label>
+        <label class="role-toggle-row">
+          <span>⚔️ Yakuza (კლავს, შავად არ შემოწმება)</span>
+          <input type="checkbox" id="role-setting-yakuza">
+        </label>
+        <label class="role-toggle-row">
+          <span>🥷 Chogun (იაკუძას ეხმარება)</span>
+          <input type="checkbox" id="role-setting-chogun">
+        </label>
+        <label class="role-toggle-row">
+          <span>⚖️ Vigilante (ერთი მოკვლა ღამით)</span>
+          <input type="checkbox" id="role-setting-vigilante">
+        </label>
+        <label class="role-toggle-row">
+          <span>🎭 Maniac (ვინმეს ვერ ხმა მიაბარებს)</span>
+          <input type="checkbox" id="role-setting-maniac">
         </label>
 
         <div id="role-preview-cards" class="role-preview-cards"></div>
@@ -1237,9 +1373,36 @@
       </div>
 
       <div class="admin-section">
-        <h3>Announcement</h3>
+        <h3>⚙️ Room Settings</h3>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <label style="font-size:.82rem; display:flex; justify-content:space-between; align-items:center;">
+            <span>🕐 ინდ. საუბარი (წამი)</span>
+            <input type="number" id="room-speak-time" value="60" min="20" max="180" style="width:70px; padding:5px; background:#000; border:1px solid var(--cyan); color:white; text-align:center;">
+          </label>
+          <label style="font-size:.82rem; display:flex; justify-content:space-between; align-items:center;">
+            <span>☀️ საერთო დისკუსია (წამი)</span>
+            <input type="number" id="room-group-time" value="120" min="30" max="300" style="width:70px; padding:5px; background:#000; border:1px solid var(--cyan); color:white; text-align:center;">
+          </label>
+          <label style="font-size:.82rem; display:flex; justify-content:space-between; align-items:center;">
+            <span>🌙 ღამის ფაზა (წამი)</span>
+            <input type="number" id="room-night-time" value="60" min="20" max="120" style="width:70px; padding:5px; background:#000; border:1px solid var(--cyan); color:white; text-align:center;">
+          </label>
+          <label style="font-size:.82rem; display:flex; justify-content:space-between; align-items:center;">
+            <span>🗳️ ხმის მიცემა (წამი)</span>
+            <input type="number" id="room-vote-time" value="30" min="15" max="90" style="width:70px; padding:5px; background:#000; border:1px solid var(--cyan); color:white; text-align:center;">
+          </label>
+          <label style="font-size:.82rem; display:flex; justify-content:space-between; align-items:center;">
+            <span>🔕 ჩუმად ღამეს</span>
+            <input type="checkbox" id="room-silent-night" style="width:22px; height:22px; accent-color:#00ffff;">
+          </label>
+          <button class="admin-mini-btn good" id="room-settings-apply" style="margin-top:4px;">APPLY SETTINGS</button>
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <h3>📢 განცხადება</h3>
         <input id="admin-announce-input" type="text" placeholder="ადმინის განცხადება">
-        <button id="admin-announce-btn" class="btn" style="padding:10px;">SEND</button>
+        <button id="admin-announce-btn" class="btn" style="padding:10px; margin-top:6px;">SEND</button>
       </div>
 
       <div class="admin-section">
@@ -1332,6 +1495,30 @@
     </div>
   </div>
 
+
+  <!-- V5: WIN SCREEN -->
+  <div id="win-screen">
+    <div class="win-emoji" id="win-emoji">🏆</div>
+    <h2 id="win-title" style="color:var(--cyan);">გამარჯვება!</h2>
+    <p id="win-desc"></p>
+    <button id="win-close-btn">დახურვა</button>
+  </div>
+
+  <!-- V5: STATS TOGGLE -->
+  <button id="stats-toggle" class="btn">📊</button>
+
+  <!-- V5: STATS PANEL -->
+  <div id="stats-panel">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <h2 style="margin:0;">📊 GAME STATS</h2>
+      <button id="stats-close">×</button>
+    </div>
+    <div id="stats-content"></div>
+  </div>
+
+  <!-- V5: PING -->
+  <div id="ping-display"></div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
 
@@ -1350,6 +1537,7 @@
     let currentPhase = "waiting";
     let alivePlayers = [];
     let mafiaIds = [];
+    let yakuzaIds = [];
     let timerInterval = null;
     let timerSeconds = 0;
     let latestPlayers = [];
@@ -1363,7 +1551,16 @@
     let chatOpen = false;
 
     let roleSettings = {
-      mafia: 1, don: true, sheriff: true, doctor: true, detectiveText: true
+      mafia: 1, don: true, sheriff: true, doctor: true, detectiveText: true,
+      serialKiller: false, yakuza: false, chogun: false, vigilante: false, maniac: false
+    };
+
+    let roomSettings = {
+      speakTime: 60,
+      groupTime: 120,
+      nightTime: 60,
+      voteTime: 30,
+      silentNight: false
     };
 
     // Individual turn system
@@ -1432,7 +1629,11 @@
        ROLE NAME / DESCRIPTION
     ============================================================ */
     function roleName(role) {
-      const map = { mafia:"მაფია", don:"დონი", doctor:"ექიმი", sheriff:"შერიფი", citizen:"მოქალაქე" };
+      const map = {
+        mafia:"მაფია", don:"დონი", doctor:"ექიმი", sheriff:"შერიფი", citizen:"მოქალაქე",
+        serial_killer:"სერიული მკვლელი", yakuza:"იაკუძა", chogun:"ჩოგუნი",
+        maniac:"მანიაკი", vigilante:"ვიჯილანტი", detective:"დეტექტივი"
+      };
       return map[role] || role;
     }
 
@@ -1442,7 +1643,13 @@
         don: "🟠 დონი — მაფიის ლიდერი. შეიძლება შერიფის შემოწმებას გადაურჩეს.",
         sheriff: "🔵 შერიფი — ღამით ამოწმებ მოთამაშეს: მაფიაა თუ არა.",
         doctor: "🟢 ექიმი — ღამით იცავ ერთ მოთამაშეს. შეიძლება თავადაც დაიცვა.",
-        citizen: "⚪ მოქალაქე — დღის ფაზაში დაჯგუფება და მაფიის ამოცნობა."
+        citizen: "⚪ მოქალაქე — დღის ფაზაში დაჯგუფება და მაფიის ამოცნობა.",
+        serial_killer: "🗡️ სერიული მკვლელი — მარტოხელა მკვლელი. ღამით კლავს ნებისმიერ მოთამაშეს. მარტო ამარჯვებს.",
+        yakuza: "⚔️ იაკუძა — ლიდერი. ღამით კლავს. შავად არ შემოწმება შერიფთან. ეხმარება ჩოგუნს.",
+        chogun: "🥷 ჩოგუნი — იაკუძას მეომარი. ეხმარება იაკუძას ღამის ქმედებაში.",
+        maniac: "🎭 მანიაკი — შმაგი კაცი. ღამით ახდენს ერთ ადამიანს 'გიჟად' — ის ვეღარ ხმა მიცემს.",
+        vigilante: "⚖️ ვიჯილანტი — კანონის გარეშე მოსამართლე. ღამით შეუძლია ერთი მოთამაშის მოკვლა.",
+        detective: "🔍 დეტექტივი — გამომძიებელი. ღამით ამოწმებს მოთამაშის ბოლო ქმედებას."
       };
       return desc[role] || "❓ უცნობი როლი";
     }
@@ -1478,6 +1685,7 @@
         $("rooms-screen").classList.add("hidden");
         $("game-screen").classList.remove("hidden");
         $("mini-games-toggle").classList.remove("hidden");
+        $("stats-toggle").style.display = "block";
 
         socket.emit("join-room", currentRoom, myNick, false);
         setTimeout(() => socket.emit("get-rooms"), 300);
@@ -1716,19 +1924,31 @@
       if (role === "mafia" || role === "don") card.style.color = "var(--red)";
       else if (role === "doctor") card.style.color = "var(--green)";
       else if (role === "sheriff") card.style.color = "var(--blue)";
+      else if (role === "serial_killer") card.style.color = "#ff0066";
+      else if (role === "yakuza") card.style.color = "#cc00ff";
+      else if (role === "chogun") card.style.color = "#aa00ff";
+      else if (role === "maniac") card.style.color = "#ff6600";
+      else if (role === "vigilante") card.style.color = "#ffcc00";
+      else if (role === "detective") card.style.color = "#00ccff";
       else card.style.color = "white";
 
-      // Show full-screen role reveal
+      // Show full-screen role reveal — game stays in "role-reveal" phase until closed
       showRoleDistScreen(role);
 
       toast("შენი როლია: " + roleName(role), "role", 5000);
       addSystemMsg("შენი როლია: " + roleName(role));
-      updatePhaseText();
+      // Don't call updatePhaseText here — it triggers night mode immediately
+      // Phase transition happens after all players close their role cards (via game-state event)
       updateVoiceByPhase();
     });
 
     socket.on("mafia-list", ids => {
       mafiaIds = ids || [];
+      updateVoiceByPhase();
+    });
+
+    socket.on("yakuza-list", ids => {
+      yakuzaIds = ids || [];
       updateVoiceByPhase();
     });
 
@@ -1774,6 +1994,7 @@
     socket.on("phase-message", msg => { addSystemMsg(msg); });
 
     socket.on("sheriff-result", data => {
+      // Yakuza and Don appear clean to sheriff (black check protection)
       const result = data.isMafia ? "🔴 მაფიაა!" : "⚪ მშვიდობიანია";
       toast(`${data.name} — ${result}`, data.isMafia ? "error" : "success", 5000);
       addSystemMsg(`შერიფის პასუხი: ${data.name} — ${result}`);
@@ -1783,6 +2004,15 @@
       addSystemMsg(data.message);
       toast(data.message, "role", 6000);
       hideActionModal();
+      // V5: Show win screen
+      const msg = data.message || "";
+      if (msg.includes("მოქალაქე") || msg.includes("citizen")) {
+        showWinScreen("🏆", "მოქალაქეების გამარჯვება!", msg, "var(--cyan)");
+      } else if (msg.includes("მაფია") || msg.includes("mafia")) {
+        showWinScreen("💀", "მაფიის გამარჯვება!", msg, "var(--red)");
+      } else {
+        showWinScreen("🎮", "თამაში დასრულდა!", msg, "var(--neon)");
+      }
     });
 
     // Individual turns: server broadcasts who speaks when
@@ -1851,9 +2081,14 @@
       const safeIndex = index && index > 0 ? index : 1;
       div.style.order = safeIndex;
 
+      const initials = name.replace(/[^a-zA-Zა-ჿ]/g,"").slice(0,2).toUpperCase() || "??";
       div.innerHTML = `
         <div class="speaking-indicator"></div>
         <div class="player-number">#${safeIndex}</div>
+        <div class="cam-off-avatar" id="avatar-${id}">
+          <div class="avatar-circle">${escapeHtml(initials)}</div>
+          <div class="avatar-name">${escapeHtml(name)}</div>
+        </div>
         <video id="v-${id}" autoplay playsinline ${mute ? "muted" : ""}></video>
         <div class="video-label">${escapeHtml(name)}</div>
       `;
@@ -1914,6 +2149,63 @@
           };
           actions.appendChild(killBtn);
         }
+        if (currentPhase === "night" && (myRole === "yakuza" || myRole === "chogun")) {
+          const killBtn = document.createElement("button");
+          killBtn.className = "btn";
+          killBtn.style.background = "#cc00ff";
+          killBtn.textContent = "მოკვლა (იაკუძა) — " + name;
+          killBtn.onclick = () => {
+            socket.emit("night-action", { room: currentRoom, action: "yakuza-kill", targetId: id });
+            addSystemMsg("ქმედება დაფიქსირდა");
+            toast("მოქმედება გაგზავნილია", "info");
+            modal.classList.add("hidden");
+            hideActionModal();
+          };
+          actions.appendChild(killBtn);
+        }
+        if (currentPhase === "night" && myRole === "serial_killer") {
+          const killBtn = document.createElement("button");
+          killBtn.className = "btn";
+          killBtn.style.background = "#ff0066";
+          killBtn.textContent = "სერიული მოკვლა — " + name;
+          killBtn.onclick = () => {
+            socket.emit("night-action", { room: currentRoom, action: "serial-kill", targetId: id });
+            addSystemMsg("ქმედება დაფიქსირდა");
+            toast("მოქმედება გაგზავნილია", "info");
+            modal.classList.add("hidden");
+            hideActionModal();
+          };
+          actions.appendChild(killBtn);
+        }
+        if (currentPhase === "night" && myRole === "vigilante") {
+          const killBtn = document.createElement("button");
+          killBtn.className = "btn";
+          killBtn.style.background = "#ffcc00";
+          killBtn.style.color = "#000";
+          killBtn.textContent = "სამართალი — " + name;
+          killBtn.onclick = () => {
+            socket.emit("night-action", { room: currentRoom, action: "vigilante-kill", targetId: id });
+            addSystemMsg("ქმედება დაფიქსირდა");
+            toast("მოქმედება გაგზავნილია", "info");
+            modal.classList.add("hidden");
+            hideActionModal();
+          };
+          actions.appendChild(killBtn);
+        }
+        if (currentPhase === "night" && myRole === "maniac") {
+          const crazyBtn = document.createElement("button");
+          crazyBtn.className = "btn";
+          crazyBtn.style.background = "#ff6600";
+          crazyBtn.textContent = "გაგიჟება — " + name;
+          crazyBtn.onclick = () => {
+            socket.emit("night-action", { room: currentRoom, action: "maniac-crazy", targetId: id });
+            addSystemMsg("ქმედება დაფიქსირდა");
+            toast("მოქმედება გაგზავნილია", "info");
+            modal.classList.add("hidden");
+            hideActionModal();
+          };
+          actions.appendChild(crazyBtn);
+        }
         if (currentPhase === "night" && myRole === "doctor") {
           const saveBtn = document.createElement("button");
           saveBtn.className = "btn";
@@ -1967,26 +2259,36 @@
         $("game-phase").innerText = "🌙 ღამე";
         startNightEffects();
 
-        const roleMsg = {
-          mafia: "მაფიის ფაზა: აირჩიე მოსაკლავი. მხოლოდ მაფიებს ესმით ერთმანეთის ხმა.",
-          don: "დონის ფაზა: ირჩევ მსხვერპლს.",
-          doctor: "ექიმის ფაზა: აირჩიე გადასარჩენი მოთამაშე.",
-          sheriff: "შერიფის ფაზა: შეამოწმე მოთამაშე."
-        };
-        toast(roleMsg[myRole] || "ღამეა. მოქალაქე ელოდება დილას.", "info", 4000);
-        startTimer(60);
-        stopIndividualTurn();
-        hideSpeakerBanner();
-        hideNominationPanel();
+        const isMafiaTeam = myRole === "mafia" || myRole === "don" || myRole === "yakuza" || myRole === "chogun";
+        const isNightRole = isMafiaTeam || myRole === "doctor" || myRole === "sheriff" || myRole === "serial_killer" || myRole === "vigilante" || myRole === "detective" || myRole === "maniac";
 
-      } else if (currentPhase === "day") {
+        if (isMafiaTeam) {
+          toast("🔴 მაფიის ფაზა: ირჩევ მსხვერპლს. ოჯახს ხმა ესმის.", "error", 4000);
+        } else if (myRole === "doctor") {
+          toast("💊 ექიმის ფაზა: აირჩიე გადასარჩენი მოთამაშე.", "success", 4000);
+        } else if (myRole === "sheriff") {
+          toast("⭐ შერიფის ფაზა: შეამოწმე მოთამაშე.", "info", 4000);
+        } else if (myRole === "serial_killer") {
+          toast("🗡️ სერიული მკვლელი: ირჩევ მსხვერპლს!", "error", 4000);
+        } else if (myRole === "vigilante") {
+          toast("⚖️ ვიჯილანტი: შეგიძლია ვინმე მოკლა.", "info", 4000);
+        } else if (myRole === "detective") {
+          toast("🔍 დეტექტივი: შეამოწმე მოთამაშე.", "info", 4000);
+        } else if (myRole === "maniac") {
+          toast("🎭 მანიაკი: ვინ გააგიჟო?", "error", 4000);
+        } else {
+          toast("🌙 ღამეა. ფონი შეიცვალა. დაელოდე დილას...", "info", 4000);
+        }
+        startTimer(roomSettings.nightTime || 60);
         voteMemory = {};
         nominations = {};
         document.body.classList.add("day-mode");
         $("game-phase").innerText = "☀️ საერთო დისკუსია";
-        toast("საერთო დისკუსია — 2 წუთი. ყველა საუბრობს!", "info", 3000);
+        const groupSec = roomSettings.groupTime || 120;
+        toast(`საერთო დისკუსია — ${Math.floor(groupSec/60)} წუთი. ყველა საუბრობს!`, "info", 3000);
         stopNightEffects();
-        startTimer(120);
+        $("sfx-day-start")?.play().catch(()=>{});
+        startTimer(groupSec);
         stopIndividualTurn();
         hideSpeakerBanner();
         hideNominationPanel();
@@ -2008,8 +2310,8 @@
       } else if (currentPhase === "vote") {
         document.body.classList.add("day-mode");
         $("game-phase").innerText = "🗳️ ხმის მიცემა";
-        toast("ხმის მიცემის ფაზა — 30 წამი!", "info", 3000);
-        startTimer(30);
+        toast(`ხმის მიცემის ფაზა — ${roomSettings.voteTime || 30} წამი!`, "info", 3000);
+        startTimer(roomSettings.voteTime || 30);
         stopIndividualTurn();
         hideSpeakerBanner();
         hideNominationPanel();
@@ -2030,6 +2332,7 @@
 
     function updateVoiceByPhase() {
       const iAmMafia = myRole === "mafia" || myRole === "don";
+      const iAmYakuza = myRole === "yakuza" || myRole === "chogun";
 
       // Get current speaker id for individual phase
       const currentSpeakerId = (currentPhase === "individual" && speakingOrder.length > 0 && currentSpeakerIndex >= 0)
@@ -2039,12 +2342,20 @@
         const video = $("v-" + peerId);
         if (!video) return;
         const peerIsMafia = mafiaIds.includes(peerId);
+        const peerIsYakuza = yakuzaIds && yakuzaIds.includes(peerId);
 
         if (currentPhase === "night") {
-          video.muted = !(iAmMafia && peerIsMafia);
-          video.volume = (iAmMafia && peerIsMafia) ? 1 : 0;
+          if (iAmMafia) {
+            video.muted = !peerIsMafia;
+            video.volume = peerIsMafia ? 1 : 0;
+          } else if (iAmYakuza) {
+            video.muted = !peerIsYakuza;
+            video.volume = peerIsYakuza ? 1 : 0;
+          } else {
+            video.muted = true;
+            video.volume = 0;
+          }
         } else if (currentPhase === "individual" && currentSpeakerId) {
-          // Only current speaker is heard
           if (peerId === currentSpeakerId) {
             video.muted = false;
             video.volume = 1;
@@ -2061,35 +2372,36 @@
       // My own video always muted for self
       const myVideo = $("v-" + socket.id);
       if (myVideo) { myVideo.muted = true; myVideo.volume = 0; }
-
-      // If I'm speaking in individual phase, unmute my mic fully
-      if (currentPhase === "individual" && currentSpeakerId) {
-        const amISpeaking = currentSpeakerId === socket.id;
-        if (localStream) {
-          const audioTrack = localStream.getAudioTracks()[0];
-          if (audioTrack && !amISpeaking) {
-            // Mute local mic (not sending) when not your turn
-            // Note: we visually dim others but mic muting on sender side
-            // is handled by the video-box .muted CSS class
-          }
-        }
-      }
     }
 
     /* ============================================================
        NIGHT EFFECTS
     ============================================================ */
     let nightParticles = [];
+    let nightAmbientOn = false;
     function startNightEffects() {
       $("night-fx-overlay").classList.add("active");
       $("sfx-night-start").play().catch(()=>{});
-      const nm = $("night-music");
-      if (nm && !nightMusicOn) {
-        nm.volume = 0.45;
-        nm.currentTime = 0;
-        nm.play().catch(()=>{});
-        nightMusicOn = true;
+
+      const isMafiaOrYakuza = myRole === "mafia" || myRole === "don" || myRole === "yakuza" || myRole === "chogun";
+
+      if (isMafiaOrYakuza) {
+        const nm = $("night-music");
+        if (nm && !nightMusicOn) {
+          nm.volume = 0.45; nm.currentTime = 0;
+          nm.play().catch(()=>{});
+          nightMusicOn = true;
+        }
+      } else {
+        // Non-mafia: dramatic ambient
+        const na = $("night-ambient");
+        if (na && !nightAmbientOn) {
+          na.volume = 0.28; na.currentTime = 0;
+          na.play().catch(()=>{});
+          nightAmbientOn = true;
+        }
       }
+
       // Spawn particles
       for (let i = 0; i < 12; i++) {
         setTimeout(() => spawnNightParticle(), i * 400);
@@ -2100,7 +2412,8 @@
       $("night-fx-overlay").classList.remove("active");
       const nm = $("night-music");
       if (nm) { nm.pause(); nm.currentTime = 0; nightMusicOn = false; }
-      // Remove particles
+      const na = $("night-ambient");
+      if (na) { na.pause(); na.currentTime = 0; nightAmbientOn = false; }
       document.querySelectorAll(".night-particle").forEach(p => p.remove());
       nightParticles = [];
     }
@@ -2126,13 +2439,23 @@
        ROLE DISTRIBUTION SCREEN
     ============================================================ */
     function showRoleDistScreen(role) {
-      const icons = { mafia:"🔴", don:"🟠", sheriff:"⭐", doctor:"💊", citizen:"⚪" };
-      const colors = { mafia:"var(--red)", don:"#ff8c00", sheriff:"var(--blue)", doctor:"var(--green)", citizen:"white" };
+      const icons = {
+        mafia:"🔴", don:"🟠", sheriff:"⭐", doctor:"💊", citizen:"⚪",
+        serial_killer:"🗡️", yakuza:"⚔️", chogun:"🥷", maniac:"🎭",
+        vigilante:"⚖️", detective:"🔍"
+      };
+      const colors = {
+        mafia:"var(--red)", don:"#ff8c00", sheriff:"var(--blue)", doctor:"var(--green)", citizen:"white",
+        serial_killer:"#ff0066", yakuza:"#cc00ff", chogun:"#aa00ff", maniac:"#ff6600",
+        vigilante:"#ffcc00", detective:"#00ccff"
+      };
       const screen = $("role-dist-screen");
       $("role-dist-icon").textContent = icons[role] || "❓";
       $("role-dist-name").textContent = roleName(role);
       $("role-dist-name").style.color = colors[role] || "white";
       $("role-dist-desc").textContent = roleDescription(role);
+
+      // Block game start - must close role screen first
       screen.classList.add("active");
       $("role-dist-close").onclick = () => {
         screen.classList.remove("active");
@@ -2169,8 +2492,9 @@
       if (speakerBox) speakerBox.classList.add("my-turn");
 
       // Notify if it's my turn
+      const speakSec = roomSettings.speakTime || 60;
       if (speakerId === socket.id) {
-        toast("🎤 შენი ჯერია! 1 წუთი გაქვს", "success", 5000);
+        toast(`🎤 შენი ჯერია! ${speakSec} წამი გაქვს`, "success", 5000);
       } else {
         toast(`🎤 ${name} საუბრობს...`, "info", 3000);
       }
@@ -2182,9 +2506,9 @@
       // Update voice
       updateVoiceByPhase();
 
-      // Start 60s individual timer
+      // Start individual timer (uses room settings)
       stopIndividualTimer();
-      individualTimerSeconds = 60;
+      individualTimerSeconds = roomSettings.speakTime || 60;
       updateSpeakerTimerText();
       individualTimerInterval = setInterval(() => {
         individualTimerSeconds--;
@@ -2346,6 +2670,36 @@
           otherAlive.forEach(p => addActionButton(p, "kill", "მოკვლა", "var(--red)"));
           return;
         }
+        if (myRole === "yakuza") {
+          showActionModal();
+          title.innerText = "⚔️ იაკუძას ღამე — აირჩიე მსხვერპლი";
+          otherAlive.forEach(p => addActionButton(p, "yakuza-kill", "მოკვლა", "#cc00ff"));
+          return;
+        }
+        if (myRole === "chogun") {
+          showActionModal();
+          title.innerText = "🥷 ჩოგუნი — იაკუძას ეხმარება";
+          otherAlive.forEach(p => addActionButton(p, "yakuza-kill", "ეხმარება", "#aa00ff"));
+          return;
+        }
+        if (myRole === "serial_killer") {
+          showActionModal();
+          title.innerText = "🗡️ სერიული მკვლელი — მარტო ქმედება";
+          otherAlive.forEach(p => addActionButton(p, "serial-kill", "მოკვლა", "#ff0066"));
+          return;
+        }
+        if (myRole === "vigilante") {
+          showActionModal();
+          title.innerText = "⚖️ ვიჯილანტი — სამართლის სახელით";
+          otherAlive.forEach(p => addActionButton(p, "vigilante-kill", "მოკვლა", "#ffcc00"));
+          return;
+        }
+        if (myRole === "maniac") {
+          showActionModal();
+          title.innerText = "🎭 მანიაკი — ვინ გააგიჟო?";
+          otherAlive.forEach(p => addActionButton(p, "maniac-crazy", "გაგიჟება", "#ff6600"));
+          return;
+        }
         if (myRole === "doctor") {
           showActionModal();
           title.innerText = "💊 ექიმის ღამე — გადარჩენა";
@@ -2358,12 +2712,14 @@
           otherAlive.forEach(p => addActionButton(p, "check", "შემოწმება", "var(--blue)"));
           return;
         }
-        showActionModal();
-        title.innerText = "🌙 ღამეა — დაელოდე დილას";
-        const msg = document.createElement("div");
-        msg.className = "msg";
-        msg.textContent = "შენ მოქალაქე ხარ. ღამით მოქმედება არ გაქვს.";
-        box.appendChild(msg);
+        if (myRole === "detective") {
+          showActionModal();
+          title.innerText = "🔍 დეტექტივი — გამოძიება";
+          otherAlive.forEach(p => addActionButton(p, "detect", "შემოწმება", "#00ccff"));
+          return;
+        }
+        // Citizen and other roles — no night action, just background changed
+        hideActionModal();
         return;
       }
 
@@ -2375,7 +2731,6 @@
       }
 
       // In individual phase, the nomination panel handles nominations
-      // Action modal not needed
       hideActionModal();
     }
 
@@ -2470,6 +2825,9 @@
       if (!track) return;
       track.enabled = !track.enabled;
       $("cam-btn").style.background = track.enabled ? "var(--cyan)" : "#333";
+      // V5: show/hide avatar overlay
+      const avatar = $("avatar-" + socket.id);
+      if (avatar) avatar.style.display = track.enabled ? "none" : "flex";
       toast(track.enabled ? "კამერა ჩართულია" : "კამერა გათიშულია", "info", 1500);
     }
 
@@ -2545,10 +2903,12 @@
           renderRoleSettings();
         });
       });
-      $("role-setting-detective")?.addEventListener("change", () => {
-        saveRoleSettings();
-        renderRoleSettings();
-      });
+      $("role-setting-detective")?.addEventListener("change", () => { saveRoleSettings(); renderRoleSettings(); });
+      $("role-setting-serial-killer")?.addEventListener("change", () => { saveRoleSettings(); renderRoleSettings(); });
+      $("role-setting-yakuza")?.addEventListener("change", () => { saveRoleSettings(); renderRoleSettings(); });
+      $("role-setting-chogun")?.addEventListener("change", () => { saveRoleSettings(); renderRoleSettings(); });
+      $("role-setting-vigilante")?.addEventListener("change", () => { saveRoleSettings(); renderRoleSettings(); });
+      $("role-setting-maniac")?.addEventListener("change", () => { saveRoleSettings(); renderRoleSettings(); });
 
       syncRoleSettingsFromOldInputs();
       renderRoleSettings();
@@ -2566,6 +2926,11 @@
       roleSettings.sheriff = !!$("role-setting-sheriff")?.checked;
       roleSettings.doctor = !!$("role-setting-doctor")?.checked;
       roleSettings.detectiveText = !!$("role-setting-detective")?.checked;
+      roleSettings.serialKiller = !!$("role-setting-serial-killer")?.checked;
+      roleSettings.yakuza = !!$("role-setting-yakuza")?.checked;
+      roleSettings.chogun = !!$("role-setting-chogun")?.checked;
+      roleSettings.vigilante = !!$("role-setting-vigilante")?.checked;
+      roleSettings.maniac = !!$("role-setting-maniac")?.checked;
       if ($("mafia-count")) $("mafia-count").value = roleSettings.mafia;
       if ($("set-don")) $("set-don").checked = roleSettings.don;
       if ($("set-sheriff")) $("set-sheriff").checked = roleSettings.sheriff;
@@ -2578,6 +2943,11 @@
       if ($("role-setting-sheriff")) $("role-setting-sheriff").checked = roleSettings.sheriff;
       if ($("role-setting-doctor")) $("role-setting-doctor").checked = roleSettings.doctor;
       if ($("role-setting-detective")) $("role-setting-detective").checked = roleSettings.detectiveText;
+      if ($("role-setting-serial-killer")) $("role-setting-serial-killer").checked = roleSettings.serialKiller;
+      if ($("role-setting-yakuza")) $("role-setting-yakuza").checked = roleSettings.yakuza;
+      if ($("role-setting-chogun")) $("role-setting-chogun").checked = roleSettings.chogun;
+      if ($("role-setting-vigilante")) $("role-setting-vigilante").checked = roleSettings.vigilante;
+      if ($("role-setting-maniac")) $("role-setting-maniac").checked = roleSettings.maniac;
 
       // Visual role cards preview
       const mafiaCount = Number(roleSettings.mafia || 1);
@@ -2591,6 +2961,12 @@
       }
       if (roleSettings.sheriff) chips.push({ label: "⭐ Sheriff ×1", cls: "sheriff" });
       if (roleSettings.doctor) chips.push({ label: "💊 Doctor ×1", cls: "doctor" });
+      if (roleSettings.detectiveText) chips.push({ label: "🔍 Detective ×1", cls: "sheriff" });
+      if (roleSettings.serialKiller) chips.push({ label: "🗡️ Serial Killer ×1", cls: "mafia" });
+      if (roleSettings.yakuza) chips.push({ label: "⚔️ Yakuza ×1", cls: "don" });
+      if (roleSettings.chogun) chips.push({ label: "🥷 Chogun ×1", cls: "don" });
+      if (roleSettings.vigilante) chips.push({ label: "⚖️ Vigilante ×1", cls: "sheriff" });
+      if (roleSettings.maniac) chips.push({ label: "🎭 Maniac ×1", cls: "mafia" });
       chips.push({ label: "⚪ Citizen — დანარჩენი", cls: "citizen" });
 
       const cardsEl = $("role-preview-cards");
@@ -2642,7 +3018,16 @@
       $("admin-close-room").addEventListener("click", () => {
         if (confirm("ნამდვილად გინდა ოთახის დახურვა?")) adminAction("close-room");
       });
-      $("admin-announce-btn").addEventListener("click", () => {
+      $("room-settings-apply")?.addEventListener("click", () => {
+        roomSettings.speakTime = Number($("room-speak-time")?.value || 60);
+        roomSettings.groupTime = Number($("room-group-time")?.value || 120);
+        roomSettings.nightTime = Number($("room-night-time")?.value || 60);
+        roomSettings.voteTime = Number($("room-vote-time")?.value || 30);
+        roomSettings.silentNight = !!$("room-silent-night")?.checked;
+        toast("Room settings შეინახა ✓", "success", 2000);
+        addSystemMsg("Room settings განახლდა ჰოსტის მიერ.");
+      });
+      $("admin-announce-btn")?.addEventListener("click", () => {
         const message = $("admin-announce-input").value.trim();
         if (!message) { toast("ჩაწერე განცხადება", "error"); return; }
         adminAction("announce", null, message);
@@ -2755,7 +3140,12 @@
           don: roleSettings.don,
           doctor: roleSettings.doctor,
           mafia: Number(roleSettings.mafia || 1),
-          detectiveText: roleSettings.detectiveText
+          detectiveText: roleSettings.detectiveText,
+          serialKiller: roleSettings.serialKiller,
+          yakuza: roleSettings.yakuza,
+          chogun: roleSettings.chogun,
+          vigilante: roleSettings.vigilante,
+          maniac: roleSettings.maniac
         }
       });
     }
@@ -2801,6 +3191,104 @@
     setupProfessionalPack();
     setupLobbyMusic();
     setupRoleTooltip();
+    setupWinScreen();
+    setupStatsPanel();
+    setupPingTracker();
+
+    /* ============================================================
+       V5: WIN SCREEN
+    ============================================================ */
+    function setupWinScreen() {
+      $("win-close-btn")?.addEventListener("click", () => {
+        $("win-screen")?.classList.remove("active");
+        document.querySelectorAll(".win-confetti-dot").forEach(d => d.remove());
+      });
+    }
+
+    function showWinScreen(emoji, title, desc, confettiColor) {
+      const ws = $("win-screen");
+      if (!ws) return;
+      $("win-emoji").textContent = emoji;
+      $("win-title").textContent = title;
+      $("win-title").style.color = confettiColor || "var(--cyan)";
+      $("win-desc").textContent = desc;
+      ws.classList.add("active");
+      spawnConfetti(confettiColor);
+    }
+
+    function spawnConfetti(color = "#ff00ff") {
+      const colors = [color, "#00ffff", "#ffffff", "#ffff00"];
+      for (let i = 0; i < 50; i++) {
+        setTimeout(() => {
+          const dot = document.createElement("div");
+          dot.className = "win-confetti-dot";
+          const size = 8 + Math.random() * 12;
+          dot.style.cssText = `
+            width:${size}px; height:${size}px;
+            left:${Math.random()*100}vw;
+            top:-20px;
+            background:${colors[Math.floor(Math.random()*colors.length)]};
+            animation-duration:${2 + Math.random()*2}s;
+            animation-delay:${Math.random()*1.5}s;
+          `;
+          document.body.appendChild(dot);
+          setTimeout(() => dot.remove(), 5000);
+        }, i * 60);
+      }
+    }
+
+    /* ============================================================
+       V5: PLAYER STATS PANEL
+    ============================================================ */
+    const gameStats = { kills: {}, votes: {}, checks: {}, gamesPlayed: 0 };
+
+    function setupStatsPanel() {
+      $("stats-toggle")?.addEventListener("click", () => {
+        $("stats-panel")?.classList.toggle("open");
+        renderStats();
+      });
+      $("stats-close")?.addEventListener("click", () => {
+        $("stats-panel")?.classList.remove("open");
+      });
+    }
+
+    function renderStats() {
+      const box = $("stats-content");
+      if (!box) return;
+      const alive = alivePlayers.filter(p => p.alive).length;
+      const dead = alivePlayers.filter(p => !p.alive).length;
+      const rows = [
+        { label: "ცოცხალი მოთამაშე", val: alive },
+        { label: "გარდაცვლილი", val: dead },
+        { label: "ფაზა", val: currentPhase },
+        { label: "ჩემი როლი", val: myRole ? roleName(myRole) : "?" },
+        { label: "მაფია (ცნობილი)", val: mafiaIds.length },
+        { label: "ოთახი", val: currentRoom || "—" },
+      ];
+      box.innerHTML = rows.map(r =>
+        `<div class="stat-row"><span class="stat-name">${r.label}</span><span class="stat-val">${r.val}</span></div>`
+      ).join("");
+    }
+
+    /* ============================================================
+       V5: PING TRACKER
+    ============================================================ */
+    function setupPingTracker() {
+      const display = $("ping-display");
+      if (!display) return;
+      let pingStart = 0;
+      setInterval(() => {
+        pingStart = Date.now();
+        socket.emit("ping-check");
+      }, 5000);
+      socket.on("pong-check", () => {
+        const ms = Date.now() - pingStart;
+        display.textContent = `PING: ${ms}ms`;
+        display.className = ms < 80 ? "visible" : ms < 200 ? "visible" : "visible";
+        display.style.color = ms < 80 ? "var(--green)" : ms < 200 ? "#ffcc00" : "var(--red)";
+        display.classList.add("visible");
+      });
+    }
 
     /* ============================================================
        ADVANCED MINI GAMES (single implementation)
