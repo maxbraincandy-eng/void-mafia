@@ -2,7 +2,7 @@
   "name": "void-mafia-v9-6-email-verify",
   "version": "9.6.0",
   "description": "VOID MAFIA v9.6 with email verification, auth, MongoDB and game engine",
-  "main": "server.js",
+  "main": "index.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"
