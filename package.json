@@ -1,25 +1,18 @@
-
 {
-  "name": "void-mafia",
-  "version": "1.0.0",
-  "description": "Mafia Game Backend with MongoDB",
-  "main": "index.js",
+  "name": "void-mafia-v7-pro",
+  "version": "7.0.0",
+  "description": "VOID MAFIA v7 Pro - WebRTC Mafia room app",
+  "main": "server.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "socket.io": "^4.6.1",
-    "mongoose": "^8.0.0",
-    "dotenv": "^16.3.1",
-    "cors": "^2.8.5"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.2"
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
   },
   "engines": {
-    "node": ">=18.0.0"
-  },
-  "license": "MIT"
+    "node": ">=18"
+  }
 }
+
