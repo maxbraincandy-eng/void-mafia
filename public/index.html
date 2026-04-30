@@ -1412,7 +1412,8 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
-  <script src="/js/spectators.js"></script>
+  <!-- spectators.js disabled here to avoid duplicate spectator/join handlers -->
+  <!-- <script src="/js/spectators.js"></script> -->
   
   <script>
     const socket = io();
@@ -1490,6 +1491,7 @@
 
     async function startVoid(roomFromList) {
       currentRoom = roomFromList || $("room-id").value.trim();
+      if (roomFromList && $("room-id")) $("room-id").value = roomFromList;
 
       if (!currentRoom) {
         alert("ჩაწერე ოთახის ID, მაგალითად 123");
@@ -1510,11 +1512,14 @@
         $("game-screen").classList.remove("hidden");
 
         socket.emit("join-room", currentRoom, myNick, false);
+        setTimeout(() => socket.emit("get-rooms"), 300);
 
         // Fallback: თუ server-ის room-users-list დაგვიანდა, შენი ვიდეო მაინც გამოჩნდეს მაგიდაზე.
         setTimeout(() => {
           if (localStream && socket.id && !$(socket.id)) {
-            addVideo(socket.id, localStream, myNick + " (შენ)", 0, true);
+            addVideo(socket.id, localStream, myNick + " (შენ)", 1, true);
+            const tmpNum = $(socket.id)?.querySelector(".player-number");
+            if (tmpNum) tmpNum.innerText = "#...";
           }
         }, 700);
       } catch (err) {
@@ -1568,7 +1573,10 @@
         div.className = "room-item";
 
         div.innerHTML = `
-          <span style="font-size:.85rem;">ID: ${escapeHtml(r.code)} (${r.playerCount}/10)</span>
+          <span style="font-size:.85rem;">
+            ID: ${escapeHtml(r.code)} (${r.playerCount}/10)
+            <small style="color:var(--cyan); display:block;">spectators: ${r.spectatorCount || 0} · ${escapeHtml(r.phase || "waiting")}</small>
+          </span>
           <button class="btn" style="width:70px; padding:7px; font-size:.6rem;">JOIN</button>
         `;
 
@@ -1580,10 +1588,11 @@
     socket.on("room-users-list", users => {
       users.forEach(user => {
         if (user.id === socket.id) {
+          const realIndex = user.index || 1;
           if ($(user.id)) {
-            updateVideoMeta(user.id, user.name + " (შენ)", user.index);
+            updateVideoMeta(user.id, user.name + " (შენ)", realIndex);
           } else {
-            addVideo(user.id, localStream, user.name + " (შენ)", user.index, true);
+            addVideo(user.id, localStream, user.name + " (შენ)", realIndex, true);
           }
         }
       });
@@ -1662,10 +1671,11 @@
       const box = $(id);
       if (!box) return;
 
-      box.style.order = index;
+      const safeIndex = index && index > 0 ? index : 1;
+      box.style.order = safeIndex;
 
       const num = box.querySelector(".player-number");
-      if (num) num.innerText = "#" + index;
+      if (num) num.innerText = "#" + safeIndex;
 
       const label = box.querySelector(".video-label");
       if (label) label.innerText = name;
@@ -1677,10 +1687,11 @@
       const div = document.createElement("div");
       div.id = id;
       div.className = "video-box";
-      div.style.order = index;
+      const safeIndex = index && index > 0 ? index : 1;
+      div.style.order = safeIndex;
 
       div.innerHTML = `
-        <div class="player-number">#${index}</div>
+        <div class="player-number">#${safeIndex}</div>
         <video id="v-${id}" autoplay playsinline ${mute ? "muted" : ""}></video>
         <div class="video-label">${escapeHtml(name)}</div>
       `;
