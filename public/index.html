@@ -715,6 +715,201 @@
       padding:18px 0;
     }
 
+
+
+    /* ---------------- ADVANCED PACK ---------------- */
+
+    .lobby-ready-box {
+      border:1px solid var(--cyan);
+      padding:10px;
+      background:rgba(0,255,255,.05);
+      font-size:.82rem;
+      text-align:center;
+    }
+
+    .chat-tabs {
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      gap:4px;
+      padding:7px;
+      background:#080316;
+      border-bottom:1px solid rgba(255,0,255,.35);
+    }
+
+    .chat-tab {
+      border:1px solid rgba(0,255,255,.35);
+      background:#101632;
+      color:white;
+      padding:7px 4px;
+      font-size:.55rem;
+      font-family:Orbitron;
+      border-radius:8px;
+      cursor:pointer;
+    }
+
+    .chat-tab.active {
+      background:var(--cyan);
+      color:#000;
+    }
+
+    .advanced-mini-selector {
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:6px;
+      margin-bottom:10px;
+    }
+
+    .advanced-mini-selector button {
+      padding:8px 4px;
+      border-radius:9px;
+      border:1px solid rgba(0,255,255,.4);
+      background:#111735;
+      color:white;
+      font-family:Orbitron;
+      font-size:.5rem;
+      cursor:pointer;
+    }
+
+    .advanced-mini-selector button.active {
+      background:var(--cyan);
+      color:#000;
+    }
+
+    .game-card {
+      border:1px solid rgba(255,0,255,.32);
+      background:rgba(0,0,0,.42);
+      padding:12px;
+      border-radius:14px;
+      min-height:180px;
+    }
+
+    .game-card h3 {
+      margin:0 0 10px;
+      color:var(--cyan);
+      font-family:Orbitron;
+      font-size:.72rem;
+      text-align:center;
+    }
+
+    .game-output {
+      min-height:70px;
+      padding:12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      border:1px solid rgba(0,255,255,.35);
+      background:#000;
+      border-radius:12px;
+      font-size:1rem;
+      margin-bottom:10px;
+    }
+
+    .wheel {
+      width:170px;
+      height:170px;
+      margin:8px auto 12px;
+      border-radius:50%;
+      border:7px solid var(--cyan);
+      background:conic-gradient(var(--neon), var(--cyan), #7c4dff, var(--red), var(--green), var(--neon));
+      box-shadow:0 0 24px rgba(0,255,255,.35);
+      transition:transform 1.2s ease;
+    }
+
+    .memory-grid {
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:7px;
+    }
+
+    .memory-card {
+      aspect-ratio:1/1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border:1px solid var(--cyan);
+      background:#000;
+      border-radius:9px;
+      font-size:1.35rem;
+      cursor:pointer;
+    }
+
+    .rps-grid {
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:7px;
+    }
+
+    .rps-grid button,
+    .game-card .game-btn {
+      border:0;
+      border-radius:10px;
+      padding:10px;
+      background:var(--neon);
+      color:white;
+      font-family:Orbitron;
+      cursor:pointer;
+      font-size:.62rem;
+    }
+
+    .quiz-options {
+      display:grid;
+      gap:7px;
+    }
+
+    .quiz-options button {
+      padding:10px;
+      border-radius:10px;
+      border:1px solid rgba(0,255,255,.4);
+      background:#111735;
+      color:white;
+      cursor:pointer;
+    }
+
+    .guess-input {
+      margin-bottom:8px;
+    }
+
+    .soundboard-grid {
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:7px;
+    }
+
+    .soundboard-grid button {
+      padding:10px;
+      border:0;
+      border-radius:10px;
+      background:#1b2144;
+      color:white;
+      font-family:Orbitron;
+      font-size:.55rem;
+      cursor:pointer;
+    }
+
+    .pro-admin-row {
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      gap:6px;
+      margin-top:8px;
+    }
+
+
+
+    #game-powered-by {
+      position:fixed;
+      top:36px;
+      left:50%;
+      transform:translateX(-50%);
+      z-index:2100;
+      color:#8b64aa;
+      font-family:Orbitron;
+      font-size:.55rem;
+      letter-spacing:1.5px;
+      text-shadow:0 0 10px rgba(255,0,255,.35);
+      pointer-events:none;
+    }
+
   </style>
 </head>
 
@@ -756,7 +951,6 @@
 <button class="btn" id="music-toggle-btn" style="background:#1b2144; color:white;">
   LOBBY MUSIC: OFF
 </button>
-
     <div id="room-list" style="max-height:220px; overflow-y:auto;"></div>
   </div>
 
@@ -766,6 +960,8 @@
       <span id="game-timer">00:00</span>
       <span id="alive-count">0 ცოცხალი</span>
     </div>
+    <div id="game-powered-by">Powered by ბატონი მაქსი</div>
+
 
     <div id="my-role-card" class="hidden">როლი: ?</div>
 
@@ -793,39 +989,25 @@
 
     <div id="mini-games-panel" class="mini-games-panel hidden">
       <div class="mini-games-header">
-        <h2>MINI GAMES LOUNGE</h2>
+        <h2>ADVANCED MINI GAMES</h2>
         <button id="mini-games-close" class="mini-close">×</button>
       </div>
 
-      <div class="mini-tabs">
-        <button class="mini-tab active" data-game="tictactoe">Tic Tac Toe</button>
-        <button class="mini-tab" data-game="truth">Truth / Dare</button>
-        <button class="mini-tab" data-game="dice">Dice</button>
+      <div class="advanced-mini-selector" id="advanced-mini-selector">
+        <button class="active" data-adv-game="ttt">Tic Tac Toe</button>
+        <button data-adv-game="rps">RPS</button>
+        <button data-adv-game="truth">Truth/Dare</button>
+        <button data-adv-game="dice">Dice Duel</button>
+        <button data-adv-game="wheel">Spin Wheel</button>
+        <button data-adv-game="quiz">Mafia Quiz</button>
+        <button data-adv-game="memory">Memory</button>
+        <button data-adv-game="guess">Guess Number</button>
+        <button data-adv-game="would">Who Would?</button>
+        <button data-adv-game="sound">Soundboard</button>
       </div>
 
-      <div id="mini-tictactoe" class="mini-game-box">
-        <div class="mini-title">Tic Tac Toe</div>
-        <div id="ttt-status" class="mini-status">Turn: X</div>
-        <div id="ttt-board" class="ttt-board"></div>
-        <button id="ttt-reset" class="btn mini-reset">RESET</button>
-      </div>
-
-      <div id="mini-truth" class="mini-game-box hidden">
-        <div class="mini-title">Truth / Dare</div>
-        <div id="truth-card" class="truth-card">დააჭირე ღილაკს და აირჩიე დავალება.</div>
-        <div class="admin-grid">
-          <button id="truth-btn" class="admin-mini-btn good">TRUTH</button>
-          <button id="dare-btn" class="admin-mini-btn warn">DARE</button>
-        </div>
-      </div>
-
-      <div id="mini-dice" class="mini-game-box hidden">
-        <div class="mini-title">Void Dice</div>
-        <div id="dice-result" class="dice-result">?</div>
-        <button id="dice-roll" class="btn mini-reset">ROLL</button>
-      </div>
+      <div id="adv-game-root" class="game-card"></div>
     </div>
-
 
     <button id="admin-toggle-btn" class="btn admin-toggle hidden">ADMIN</button>
 
@@ -874,8 +1056,6 @@
         </div>
       </div>
     </div>
-
-
     <div class="controls">
       <button id="mic-btn" class="btn">MIC</button>
       <button id="cam-btn" class="btn" style="background:var(--cyan); color:#000;">CAM</button>
@@ -888,6 +1068,12 @@
       <span>VOID CHAT</span>
       <span id="close-chat" style="cursor:pointer;">✕</span>
     </div>
+    <div class="chat-tabs">
+      <button class="chat-tab active" data-chat="main">MAIN</button>
+      <button class="chat-tab" data-chat="dead">DEAD</button>
+      <button class="chat-tab" data-chat="spectator">SPECTATOR</button>
+    </div>
+
 
     <div id="chat-messages"></div>
 
@@ -1253,7 +1439,7 @@
         $("phase-big-text").innerText = "დღე";
         $("phase-small-text").innerText = "ყველას ხმა ისმის. იმსჯელეთ და იპოვეთ მაფია.";
 
-        startTimer(45);
+        startTimer(120);
       } else if (currentPhase === "vote") {
         document.body.classList.add("day-mode");
 
@@ -1859,60 +2045,367 @@
     }
   </script>
 
+
 <script>
-/* --- QUICK ENHANCEMENTS PACK --- */
+/* ---------------- ADVANCED FULL PACK ---------------- */
+(function(){
+  const A = id => document.getElementById(id);
+  let currentChatTab = "main";
+  let advGame = "ttt";
 
-/* Ready system */
-let readyPlayers = {};
-function toggleReady(){
-  readyPlayers[socket.id] = !readyPlayers[socket.id];
-  addSystemMsg("Ready: " + (readyPlayers[socket.id] ? "YES" : "NO"));
-}
+  const adv = {
+    ttt: { board:Array(9).fill(""), turn:"X", done:false },
+    memory: { deck:[], open:[], matched:[] },
+    guess: { number: Math.floor(Math.random()*20)+1 },
+    wheelDeg: 0,
+    quizIndex: 0,
+    quizScore: 0
+  };
 
-/* Copy room code */
-function copyRoom(){
-  navigator.clipboard.writeText(currentRoom);
-  addSystemMsg("Room code copied");
-}
+  const quiz = [
+    { q:"მაფიის მთავარი მიზანი რა არის?", a:["ყველას დაცვა","მშვიდობიანების მოტყუება","ექიმის პოვნა"], ok:1 },
+    { q:"შერიფი ღამით რას აკეთებს?", a:["ამოწმებს მოთამაშეს","კლავს","ხმას აძლევს"], ok:0 },
+    { q:"ექიმის როლი?", a:["დაცვა","გამოძიება","ადმინი"], ok:0 },
+    { q:"დღის ფაზაში მთავარი რა არის?", a:["დისკუსია და ეჭვები","ძილი","კამერის გათიშვა"], ok:0 }
+  ];
 
-/* Reactions */
-function sendReaction(r){
-  socket.emit("send-chat-msg",{room:currentRoom,text:"[REACTION] "+r});
-}
+  const truth = [
+    "ვინ გგონია ახლა ყველაზე საეჭვო?",
+    "ვის ენდობი ყველაზე ნაკლებად?",
+    "როდის მოიტყუე ბოლოს თამაშში?",
+    "რომელი როლი გეხერხება ყველაზე კარგად?",
+    "რომელი მოთამაშე ატყუებს ყველაზე კარგად?"
+  ];
 
-/* Simple phase skip (admin visual only) */
-function skipPhase(){
-  if(!isHost) return;
-  addSystemMsg("Admin skipped phase (visual)");
-}
+  const dare = [
+    "30 წამი ისაუბრე როგორც მაფიის ბოსი.",
+    "შემდეგი მესიჯი დაწერე ძალიან დრამატულად.",
+    "ერთ მოთამაშეს გაუკეთე დაცვითი სიტყვა.",
+    "შემდეგი 1 წუთი არ თქვა სიტყვა 'მაფია'.",
+    "აირჩიე მოთამაშე და დაარწმუნე ყველა, რომ ის უდანაშაულოა."
+  ];
 
-/* Voice indicator */
-function updateVoiceIndicators(){
-  document.querySelectorAll("video").forEach(v=>{
-    if(v.srcObject){
-      v.style.boxShadow = "0 0 10px rgba(0,255,0,.3)";
+  const would = [
+    "ვინ უფრო სავარაუდოა რომ პირველივე ღამეს მოკლავს მეგობარს?",
+    "ვინ უფრო სავარაუდოა რომ მშვიდობიანი იყოს მაგრამ საეჭვოდ ლაპარაკობდეს?",
+    "ვინ უფრო სავარაუდოა რომ ყველას მოატყუებს?",
+    "ვინ უფრო სავარაუდოა რომ შერიფად იდეალური იყოს?",
+    "ვინ უფრო სავარაუდოა რომ ბოლო წუთზე შეცვლის ხმას?"
+  ];
+
+  function safe(text){
+    return String(text ?? "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  function sys(msg){
+    if (typeof addSystemMsg === "function") addSystemMsg(msg);
+  }
+
+  function emitChat(text){
+    if (typeof socket !== "undefined" && typeof currentRoom !== "undefined") {
+      socket.emit("send-chat-msg", { room: currentRoom, name: (typeof myNick !== "undefined" ? myNick : ""), text });
     }
-  });
-}
-setInterval(updateVoiceIndicators,2000);
+  }
 
-/* Add UI buttons dynamically */
-window.addEventListener("load", ()=>{
-  const panel = document.createElement("div");
-  panel.style.position="fixed";
-  panel.style.bottom="160px";
-  panel.style.left="50%";
-  panel.style.transform="translateX(-50%)";
-  panel.style.zIndex="2000";
-  panel.innerHTML=`
-    <button class="btn" onclick="toggleReady()">READY</button>
-    <button class="btn" onclick="copyRoom()">COPY ROOM</button>
-    <button class="btn" onclick="sendReaction('🔥')">🔥</button>
-    <button class="btn" onclick="sendReaction('😂')">😂</button>
-    <button class="btn" onclick="skipPhase()">SKIP</button>
-  `;
-  document.body.appendChild(panel);
-});
+  window.addEventListener("load", () => {
+    setupAdvancedChatTabs();
+    setupAdvancedMiniGames();
+    renderAdvancedGame();
+  });
+
+  function setupAdvancedChatTabs(){
+    document.querySelectorAll(".chat-tab").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".chat-tab").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        currentChatTab = btn.dataset.chat;
+        sys("Chat tab: " + currentChatTab.toUpperCase());
+      });
+    });
+
+    const oldSend = window.sendMsg;
+    if (typeof oldSend === "function") {
+      window.sendMsg = function(){
+        const input = A("chat-msg");
+        const text = input?.value.trim();
+        if (!text) return;
+        const prefix = currentChatTab === "main" ? "" : "[" + currentChatTab.toUpperCase() + "] ";
+        emitChat(prefix + text);
+        input.value = "";
+      };
+    }
+  }
+
+  function setupAdvancedMiniGames(){
+    A("mini-games-toggle")?.addEventListener("click", () => {
+      A("mini-games-panel")?.classList.remove("hidden");
+      renderAdvancedGame();
+    });
+
+    A("mini-games-close")?.addEventListener("click", () => {
+      A("mini-games-panel")?.classList.add("hidden");
+    });
+
+    document.querySelectorAll("#advanced-mini-selector button").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("#advanced-mini-selector button").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        advGame = btn.dataset.advGame;
+        renderAdvancedGame();
+      });
+    });
+  }
+
+  function renderAdvancedGame(){
+    const root = A("adv-game-root");
+    if (!root) return;
+
+    if (advGame === "ttt") return renderTTT(root);
+    if (advGame === "rps") return renderRPS(root);
+    if (advGame === "truth") return renderTruth(root);
+    if (advGame === "dice") return renderDice(root);
+    if (advGame === "wheel") return renderWheel(root);
+    if (advGame === "quiz") return renderQuiz(root);
+    if (advGame === "memory") return renderMemory(root);
+    if (advGame === "guess") return renderGuess(root);
+    if (advGame === "would") return renderWould(root);
+    if (advGame === "sound") return renderSound(root);
+  }
+
+  function renderTTT(root){
+    root.innerHTML = `
+      <h3>Tic Tac Toe</h3>
+      <div class="mini-status" id="adv-ttt-status">${adv.ttt.done ? "Finished" : "Turn: " + adv.ttt.turn}</div>
+      <div class="ttt-board" id="adv-ttt-board"></div>
+      <button class="game-btn" id="adv-ttt-reset">RESET</button>
+    `;
+    const board = A("adv-ttt-board");
+    adv.ttt.board.forEach((v,i) => {
+      const c = document.createElement("div");
+      c.className = "ttt-cell";
+      c.innerText = v;
+      c.onclick = () => {
+        if (adv.ttt.done || adv.ttt.board[i]) return;
+        adv.ttt.board[i] = adv.ttt.turn;
+        const w = tttWinner(adv.ttt.board);
+        if (w) {
+          adv.ttt.done = true;
+          sys("Tic Tac Toe winner: " + w);
+        } else if (adv.ttt.board.every(Boolean)) {
+          adv.ttt.done = true;
+          sys("Tic Tac Toe draw");
+        } else {
+          adv.ttt.turn = adv.ttt.turn === "X" ? "O" : "X";
+        }
+        renderTTT(root);
+      };
+      board.appendChild(c);
+    });
+    A("adv-ttt-reset").onclick = () => {
+      adv.ttt = { board:Array(9).fill(""), turn:"X", done:false };
+      renderTTT(root);
+    };
+  }
+
+  function tttWinner(b){
+    const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+    for (const [a,c,d] of wins) if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
+    return null;
+  }
+
+  function renderRPS(root){
+    root.innerHTML = `
+      <h3>Rock Paper Scissors</h3>
+      <div id="rps-output" class="game-output">Choose your move</div>
+      <div class="rps-grid">
+        <button data-rps="Rock">ROCK</button>
+        <button data-rps="Paper">PAPER</button>
+        <button data-rps="Scissors">SCISSORS</button>
+      </div>
+    `;
+    root.querySelectorAll("[data-rps]").forEach(b => b.onclick = () => {
+      const cpu = ["Rock","Paper","Scissors"][Math.floor(Math.random()*3)];
+      const me = b.dataset.rps;
+      let res = "Draw";
+      if ((me==="Rock"&&cpu==="Scissors")||(me==="Paper"&&cpu==="Rock")||(me==="Scissors"&&cpu==="Paper")) res = "You win";
+      else if (me !== cpu) res = "You lose";
+      A("rps-output").innerText = `${me} vs ${cpu} — ${res}`;
+      sys(`RPS: ${me} vs ${cpu} — ${res}`);
+    });
+  }
+
+  function renderTruth(root){
+    root.innerHTML = `
+      <h3>Truth / Dare</h3>
+      <div id="truth-output" class="game-output">Choose Truth or Dare</div>
+      <div class="admin-grid">
+        <button class="admin-mini-btn good" id="adv-truth">TRUTH</button>
+        <button class="admin-mini-btn warn" id="adv-dare">DARE</button>
+      </div>
+    `;
+    A("adv-truth").onclick = () => pickTD("truth");
+    A("adv-dare").onclick = () => pickTD("dare");
+  }
+
+  function pickTD(type){
+    const list = type === "truth" ? truth : dare;
+    const picked = list[Math.floor(Math.random()*list.length)];
+    A("truth-output").innerText = picked;
+    sys((type === "truth" ? "TRUTH: " : "DARE: ") + picked);
+  }
+
+  function renderDice(root){
+    root.innerHTML = `
+      <h3>Dice Duel</h3>
+      <div id="dice-output" class="game-output" style="font-size:2rem;">?</div>
+      <button class="game-btn" id="dice-roll-adv">ROLL TWO DICE</button>
+    `;
+    A("dice-roll-adv").onclick = () => {
+      const a = Math.floor(Math.random()*6)+1;
+      const b = Math.floor(Math.random()*6)+1;
+      A("dice-output").innerText = `${a} + ${b} = ${a+b}`;
+      sys(`Dice Duel: ${a} + ${b} = ${a+b}`);
+    };
+  }
+
+  function renderWheel(root){
+    root.innerHTML = `
+      <h3>Spin Wheel</h3>
+      <div class="wheel" id="spin-wheel"></div>
+      <div id="wheel-output" class="game-output">Spin to select a challenge</div>
+      <button class="game-btn" id="wheel-spin">SPIN</button>
+    `;
+    A("wheel-spin").onclick = () => {
+      const options = ["Truth", "Dare", "Suspect someone", "Defend someone", "Skip turn", "Ask a question"];
+      const picked = options[Math.floor(Math.random()*options.length)];
+      adv.wheelDeg += 720 + Math.floor(Math.random()*360);
+      A("spin-wheel").style.transform = `rotate(${adv.wheelDeg}deg)`;
+      setTimeout(() => {
+        A("wheel-output").innerText = picked;
+        sys("Spin Wheel: " + picked);
+      }, 850);
+    };
+  }
+
+  function renderQuiz(root){
+    const q = quiz[adv.quizIndex % quiz.length];
+    root.innerHTML = `
+      <h3>Mafia Quiz</h3>
+      <div class="game-output">${safe(q.q)}</div>
+      <div class="quiz-options">
+        ${q.a.map((x,i)=>`<button data-q="${i}">${safe(x)}</button>`).join("")}
+      </div>
+      <div class="mini-status">Score: ${adv.quizScore}</div>
+    `;
+    root.querySelectorAll("[data-q]").forEach(b => b.onclick = () => {
+      if (Number(b.dataset.q) === q.ok) {
+        adv.quizScore++;
+        sys("Quiz: Correct");
+      } else {
+        sys("Quiz: Wrong");
+      }
+      adv.quizIndex++;
+      renderQuiz(root);
+    });
+  }
+
+  function renderMemory(root){
+    if (!adv.memory.deck.length) resetMemory();
+    root.innerHTML = `
+      <h3>Memory Match</h3>
+      <div class="memory-grid" id="memory-grid"></div>
+      <button class="game-btn" id="memory-reset" style="margin-top:10px;">RESET</button>
+    `;
+    const grid = A("memory-grid");
+    adv.memory.deck.forEach((v,i)=>{
+      const card = document.createElement("div");
+      card.className = "memory-card";
+      const shown = adv.memory.open.includes(i) || adv.memory.matched.includes(i);
+      card.innerText = shown ? v : "?";
+      card.onclick = () => openMemory(i);
+      grid.appendChild(card);
+    });
+    A("memory-reset").onclick = () => { resetMemory(); renderMemory(root); };
+  }
+
+  function resetMemory(){
+    const items = ["M","M","D","D","S","S","C","C"];
+    adv.memory.deck = items.sort(()=>Math.random()-.5);
+    adv.memory.open = [];
+    adv.memory.matched = [];
+  }
+
+  function openMemory(i){
+    if (adv.memory.open.includes(i) || adv.memory.matched.includes(i)) return;
+    if (adv.memory.open.length >= 2) adv.memory.open = [];
+    adv.memory.open.push(i);
+    if (adv.memory.open.length === 2) {
+      const [a,b] = adv.memory.open;
+      if (adv.memory.deck[a] === adv.memory.deck[b]) {
+        adv.memory.matched.push(a,b);
+        adv.memory.open = [];
+        sys("Memory: match found");
+      }
+    }
+    renderMemory(A("adv-game-root"));
+  }
+
+  function renderGuess(root){
+    root.innerHTML = `
+      <h3>Guess Number</h3>
+      <div id="guess-output" class="game-output">Guess 1-20</div>
+      <input id="guess-input" class="guess-input" type="number" min="1" max="20" placeholder="1-20">
+      <button class="game-btn" id="guess-btn">GUESS</button>
+      <button class="game-btn" id="guess-reset" style="background:#1b2144; margin-top:7px;">NEW NUMBER</button>
+    `;
+    A("guess-btn").onclick = () => {
+      const n = Number(A("guess-input").value);
+      if (!n) return;
+      const msg = n === adv.guess.number ? "Correct" : n < adv.guess.number ? "Higher" : "Lower";
+      A("guess-output").innerText = msg;
+      sys("Guess Number: " + msg);
+    };
+    A("guess-reset").onclick = () => {
+      adv.guess.number = Math.floor(Math.random()*20)+1;
+      A("guess-output").innerText = "New number ready";
+    };
+  }
+
+  function renderWould(root){
+    root.innerHTML = `
+      <h3>Who Would?</h3>
+      <div id="would-output" class="game-output">Generate a question</div>
+      <button class="game-btn" id="would-btn">GENERATE</button>
+    `;
+    A("would-btn").onclick = () => {
+      const q = would[Math.floor(Math.random()*would.length)];
+      A("would-output").innerText = q;
+      sys("Who Would: " + q);
+    };
+  }
+
+  function renderSound(root){
+    root.innerHTML = `
+      <h3>Soundboard / Textboard</h3>
+      <div class="soundboard-grid">
+        <button data-sound="Suspicious...">SUS</button>
+        <button data-sound="Dramatic reveal!">REVEAL</button>
+        <button data-sound="Objection!">OBJECTION</button>
+        <button data-sound="Good game.">GG</button>
+        <button data-sound="Emergency meeting energy.">ALARM</button>
+        <button data-sound="Void silence...">VOID</button>
+      </div>
+    `;
+    root.querySelectorAll("[data-sound]").forEach(b => b.onclick = () => {
+      emitChat("[SOUNDBOARD] " + b.dataset.sound);
+    });
+  }
+})();
 </script>
 
 </body>
