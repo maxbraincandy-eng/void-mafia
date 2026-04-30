@@ -62,7 +62,7 @@
     .hidden { display:none !important; }
 
     .game-active .glitch-title,
-    .game-active #login-screen {
+    .game-active .powered {
       display:none;
     }
 
@@ -75,18 +75,11 @@
       text-align:center;
     }
 
-    #game-powered-by {
-      position:fixed;
-      top:36px;
-      left:50%;
-      transform:translateX(-50%);
-      z-index:2100;
+    .powered {
+      font-size:.75rem;
       color:#8b64aa;
-      font-family:Orbitron;
-      font-size:.55rem;
-      letter-spacing:1.5px;
-      text-shadow:0 0 10px rgba(255,0,255,.35);
-      pointer-events:none;
+      margin-bottom:15px;
+      letter-spacing:2px;
     }
 
     .card {
@@ -163,11 +156,22 @@
       font-size:.68rem;
     }
 
+    #my-role-card {
+      position:fixed;
+      top:52px;
+      left:8px;
+      z-index:2100;
+      background:var(--card);
+      border:1px solid var(--cyan);
+      padding:7px 10px;
+      font-family:'Orbitron';
+      font-size:.68rem;
+    }
+
     #host-panel {
-      position: fixed;
-      top: 52px;
-      right: 10px;
-      z-index: 2100;
+      margin-top:82px;
+      text-align:center;
+      width:100%;
     }
 
     .phase-banner {
@@ -190,6 +194,15 @@
       margin-top:6px;
       font-size:.85rem;
       color:white;
+    }
+
+    body.night-mode .phase-banner {
+      border-color:var(--blue);
+      box-shadow:0 0 25px rgba(62,142,255,.45);
+    }
+
+    body.night-mode #phase-big-text {
+      color:var(--blue);
     }
 
     #action-panel {
@@ -260,6 +273,18 @@
       border-top:1px solid var(--neon);
       padding:4px;
       font-size:.7rem;
+    }
+
+    .dead-badge {
+      position:absolute;
+      top:30px;
+      left:5px;
+      background:var(--red);
+      color:white;
+      padding:2px 6px;
+      font-family:'Orbitron';
+      font-size:.6rem;
+      z-index:20;
     }
 
     .controls {
@@ -357,16 +382,1098 @@
       font-size:.65rem;
     }
 
+
+    /* ---------------- ADMIN PANEL ---------------- */
+
+    .admin-toggle {
+      position:fixed;
+      top:52px;
+      right:10px;
+      z-index:2400;
+      width:auto;
+      padding:9px 12px;
+      border-radius:10px;
+      background:linear-gradient(135deg, var(--neon), var(--cyan));
+      color:#000;
+      box-shadow:0 0 18px rgba(0,255,255,.45);
+      font-size:.62rem;
+    }
+
+    .admin-panel {
+      position:fixed;
+      top:0;
+      right:-430px;
+      width:400px;
+      max-width:94vw;
+      height:100vh;
+      z-index:3500;
+      background:rgba(7,2,15,.98);
+      border-left:2px solid var(--cyan);
+      box-shadow:-12px 0 35px rgba(0,0,0,.75);
+      padding:15px;
+      overflow-y:auto;
+      transition:right .25s ease;
+    }
+
+    .admin-panel.admin-open {
+      right:0;
+    }
+
+    .admin-header {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      margin-bottom:14px;
+      border-bottom:1px solid rgba(0,255,255,.35);
+      padding-bottom:10px;
+    }
+
+    .admin-header h2 {
+      margin:0;
+      font-family:Orbitron;
+      font-size:1rem;
+      color:var(--cyan);
+      text-shadow:0 0 12px rgba(0,255,255,.75);
+    }
+
+    .admin-close {
+      width:36px;
+      height:36px;
+      padding:0;
+      border-radius:10px;
+      background:var(--red);
+      color:white;
+      border:0;
+      font-family:Orbitron;
+      cursor:pointer;
+    }
+
+    .admin-section {
+      margin-bottom:13px;
+      padding:12px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.04);
+      border-radius:14px;
+    }
+
+    .admin-section h3 {
+      margin:0 0 10px;
+      font-family:Orbitron;
+      font-size:.72rem;
+      color:var(--neon);
+    }
+
+    .admin-grid {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:7px;
+    }
+
+    .admin-mini-btn {
+      padding:10px 8px;
+      border:0;
+      border-radius:10px;
+      background:#1b2144;
+      color:white;
+      font-family:Orbitron;
+      font-size:.58rem;
+      cursor:pointer;
+    }
+
+    .admin-mini-btn:active {
+      transform:scale(.97);
+    }
+
+    .admin-mini-btn.danger {
+      background:#a30032;
+    }
+
+    .admin-mini-btn.good {
+      background:#007f66;
+    }
+
+    .admin-mini-btn.warn {
+      background:#7f5c00;
+    }
+
+    #admin-announce-input {
+      width:100%;
+      margin-bottom:8px;
+      border-color:var(--cyan);
+    }
+
+    .admin-user-row {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:8px;
+      padding:8px;
+      margin-bottom:7px;
+      background:rgba(255,255,255,.06);
+      border-radius:10px;
+      border-left:2px solid var(--cyan);
+      font-size:.82rem;
+    }
+
+    .admin-user-actions {
+      display:flex;
+      gap:5px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .admin-user-actions button {
+      padding:6px 7px;
+      border:0;
+      border-radius:8px;
+      background:var(--neon);
+      color:white;
+      font-family:Orbitron;
+      font-size:.52rem;
+      cursor:pointer;
+    }
+
+    .admin-user-actions button.danger {
+      background:var(--red);
+    }
+
+    .admin-empty {
+      opacity:.65;
+      font-size:.8rem;
+    }
+
+    .admin-chat-announcement {
+      background:rgba(255,0,255,.13);
+      border-left:2px solid var(--neon);
+      padding:8px;
+      color:#ffd9ff;
+    }
+
+
+
+    /* ---------------- LOBBY MUSIC + MINI GAMES ---------------- */
+
+    .mini-games-toggle {
+      position:fixed;
+      left:14px;
+      bottom:88px;
+      z-index:1600;
+      width:auto;
+      padding:12px 14px;
+      border-radius:18px;
+      background:linear-gradient(135deg, #ff00ff, #00ffff);
+      color:#02020a;
+      box-shadow:0 0 18px rgba(255,0,255,.45);
+      font-size:.6rem;
+    }
+
+    .mini-games-panel {
+      position:fixed;
+      left:50%;
+      top:50%;
+      transform:translate(-50%, -50%);
+      width:430px;
+      max-width:94vw;
+      max-height:86vh;
+      overflow-y:auto;
+      z-index:3400;
+      background:rgba(7,2,15,.98);
+      border:2px solid var(--cyan);
+      box-shadow:0 0 40px rgba(0,255,255,.35), 0 0 60px rgba(255,0,255,.25);
+      border-radius:18px;
+      padding:14px;
+    }
+
+    .mini-games-header {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:12px;
+      padding-bottom:10px;
+      border-bottom:1px solid rgba(0,255,255,.35);
+    }
+
+    .mini-games-header h2 {
+      margin:0;
+      font-family:Orbitron;
+      color:var(--cyan);
+      font-size:.95rem;
+      text-shadow:0 0 12px var(--cyan);
+    }
+
+    .mini-close {
+      width:36px;
+      height:36px;
+      border:0;
+      border-radius:10px;
+      background:var(--red);
+      color:white;
+      font-family:Orbitron;
+      cursor:pointer;
+    }
+
+    .mini-tabs {
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      gap:6px;
+      margin-bottom:12px;
+    }
+
+    .mini-tab {
+      border:1px solid rgba(0,255,255,.35);
+      background:#111735;
+      color:white;
+      padding:9px 5px;
+      border-radius:10px;
+      font-family:Orbitron;
+      font-size:.52rem;
+      cursor:pointer;
+    }
+
+    .mini-tab.active {
+      background:var(--cyan);
+      color:#000;
+      box-shadow:0 0 14px rgba(0,255,255,.55);
+    }
+
+    .mini-game-box {
+      border:1px solid rgba(255,0,255,.35);
+      background:rgba(255,255,255,.04);
+      border-radius:14px;
+      padding:12px;
+    }
+
+    .mini-title {
+      font-family:Orbitron;
+      color:var(--neon);
+      margin-bottom:8px;
+      text-align:center;
+    }
+
+    .mini-status {
+      text-align:center;
+      color:var(--cyan);
+      margin-bottom:10px;
+      font-family:Orbitron;
+      font-size:.7rem;
+    }
+
+    .ttt-board {
+      display:grid;
+      grid-template-columns:repeat(3, 1fr);
+      gap:7px;
+      margin:0 auto 12px;
+      max-width:300px;
+    }
+
+    .ttt-cell {
+      aspect-ratio:1/1;
+      border:1px solid var(--cyan);
+      background:#000;
+      color:white;
+      font-family:Orbitron;
+      font-size:2rem;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      box-shadow:inset 0 0 16px rgba(0,255,255,.12);
+    }
+
+    .ttt-cell:hover {
+      background:rgba(0,255,255,.08);
+    }
+
+    .mini-reset {
+      padding:10px;
+      background:var(--neon);
+    }
+
+    .truth-card {
+      min-height:110px;
+      border:1px solid var(--cyan);
+      background:#000;
+      padding:16px;
+      margin-bottom:12px;
+      border-radius:12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      font-size:1.05rem;
+      color:white;
+    }
+
+    .dice-result {
+      font-family:Orbitron;
+      font-size:4rem;
+      text-align:center;
+      color:var(--cyan);
+      text-shadow:0 0 20px var(--cyan);
+      padding:18px 0;
+    }
+
+
+
+    /* ---------------- ADVANCED PACK ---------------- */
+
+    .lobby-ready-box {
+      border:1px solid var(--cyan);
+      padding:10px;
+      background:rgba(0,255,255,.05);
+      font-size:.82rem;
+      text-align:center;
+    }
+
+    .chat-tabs {
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      gap:4px;
+      padding:7px;
+      background:#080316;
+      border-bottom:1px solid rgba(255,0,255,.35);
+    }
+
+    .chat-tab {
+      border:1px solid rgba(0,255,255,.35);
+      background:#101632;
+      color:white;
+      padding:7px 4px;
+      font-size:.55rem;
+      font-family:Orbitron;
+      border-radius:8px;
+      cursor:pointer;
+    }
+
+    .chat-tab.active {
+      background:var(--cyan);
+      color:#000;
+    }
+
+    .advanced-mini-selector {
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:6px;
+      margin-bottom:10px;
+    }
+
+    .advanced-mini-selector button {
+      padding:8px 4px;
+      border-radius:9px;
+      border:1px solid rgba(0,255,255,.4);
+      background:#111735;
+      color:white;
+      font-family:Orbitron;
+      font-size:.5rem;
+      cursor:pointer;
+    }
+
+    .advanced-mini-selector button.active {
+      background:var(--cyan);
+      color:#000;
+    }
+
+    .game-card {
+      border:1px solid rgba(255,0,255,.32);
+      background:rgba(0,0,0,.42);
+      padding:12px;
+      border-radius:14px;
+      min-height:180px;
+    }
+
+    .game-card h3 {
+      margin:0 0 10px;
+      color:var(--cyan);
+      font-family:Orbitron;
+      font-size:.72rem;
+      text-align:center;
+    }
+
+    .game-output {
+      min-height:70px;
+      padding:12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      border:1px solid rgba(0,255,255,.35);
+      background:#000;
+      border-radius:12px;
+      font-size:1rem;
+      margin-bottom:10px;
+    }
+
+    .wheel {
+      width:170px;
+      height:170px;
+      margin:8px auto 12px;
+      border-radius:50%;
+      border:7px solid var(--cyan);
+      background:conic-gradient(var(--neon), var(--cyan), #7c4dff, var(--red), var(--green), var(--neon));
+      box-shadow:0 0 24px rgba(0,255,255,.35);
+      transition:transform 1.2s ease;
+    }
+
+    .memory-grid {
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:7px;
+    }
+
+    .memory-card {
+      aspect-ratio:1/1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border:1px solid var(--cyan);
+      background:#000;
+      border-radius:9px;
+      font-size:1.35rem;
+      cursor:pointer;
+    }
+
+    .rps-grid {
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:7px;
+    }
+
+    .rps-grid button,
+    .game-card .game-btn {
+      border:0;
+      border-radius:10px;
+      padding:10px;
+      background:var(--neon);
+      color:white;
+      font-family:Orbitron;
+      cursor:pointer;
+      font-size:.62rem;
+    }
+
+    .quiz-options {
+      display:grid;
+      gap:7px;
+    }
+
+    .quiz-options button {
+      padding:10px;
+      border-radius:10px;
+      border:1px solid rgba(0,255,255,.4);
+      background:#111735;
+      color:white;
+      cursor:pointer;
+    }
+
+    .guess-input {
+      margin-bottom:8px;
+    }
+
+    .soundboard-grid {
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:7px;
+    }
+
+    .soundboard-grid button {
+      padding:10px;
+      border:0;
+      border-radius:10px;
+      background:#1b2144;
+      color:white;
+      font-family:Orbitron;
+      font-size:.55rem;
+      cursor:pointer;
+    }
+
+    .pro-admin-row {
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      gap:6px;
+      margin-top:8px;
+    }
+
+
+
+    #game-powered-by {
+      position:fixed;
+      top:36px;
+      left:50%;
+      transform:translateX(-50%);
+      z-index:2100;
+      color:#8b64aa;
+      font-family:Orbitron;
+      font-size:.55rem;
+      letter-spacing:1.5px;
+      text-shadow:0 0 10px rgba(255,0,255,.35);
+      pointer-events:none;
+    }
+
+
+
+    /* ---------------- PRO MAFIA DASHBOARD ---------------- */
+
+    .pro-mafia-panel {
+      width:100%;
+      max-width:850px;
+      margin:8px auto 10px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+
+    .pro-flow {
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      gap:7px;
+    }
+
+    .pro-step {
+      padding:9px 4px;
+      text-align:center;
+      border:1px solid rgba(0,255,255,.35);
+      background:rgba(255,255,255,.04);
+      border-radius:12px;
+      font-family:Orbitron;
+      font-size:.58rem;
+      opacity:.55;
+    }
+
+    .pro-step.active {
+      opacity:1;
+      background:linear-gradient(135deg, rgba(255,0,255,.28), rgba(0,255,255,.22));
+      box-shadow:0 0 16px rgba(0,255,255,.25);
+      color:var(--cyan);
+    }
+
+    .pro-grid {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+    }
+
+    .pro-box {
+      border:1px solid rgba(255,0,255,.32);
+      background:rgba(0,0,0,.44);
+      padding:10px;
+      border-radius:13px;
+      min-height:70px;
+      font-size:.82rem;
+    }
+
+    .pro-title {
+      color:var(--neon);
+      font-family:Orbitron;
+      font-size:.62rem;
+      margin-bottom:6px;
+    }
+
+    .grave-dead {
+      color:#aaa;
+      text-decoration:line-through;
+      margin:3px 0;
+    }
+
     @media (max-width:600px) {
+      .pro-grid {
+        grid-template-columns:1fr;
+      }
+    }
+
+
+
+    /* ---------------- PROFESSIONAL PACK V2 ---------------- */
+
+    .role-reveal {
+      animation: roleFlip .75s ease both, roleGlow 1.8s ease infinite alternate;
+      transform-origin:center;
+    }
+
+    @keyframes roleFlip {
+      0% { transform:rotateY(90deg) scale(.8); opacity:.1; }
+      100% { transform:rotateY(0deg) scale(1); opacity:1; }
+    }
+
+    @keyframes roleGlow {
+      from { box-shadow:0 0 8px rgba(0,255,255,.25); }
+      to { box-shadow:0 0 22px rgba(255,0,255,.55); }
+    }
+
+    .pro2-layout {
+      width:100%;
+      max-width:900px;
+      margin:8px auto 118px;
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+    }
+
+    .pro2-card {
+      border:1px solid rgba(0,255,255,.32);
+      background:rgba(0,0,0,.48);
+      border-radius:14px;
+      padding:10px;
+      min-height:85px;
+      font-size:.82rem;
+    }
+
+    .pro2-card h3 {
+      margin:0 0 8px;
+      color:var(--cyan);
+      font-family:Orbitron;
+      font-size:.65rem;
+    }
+
+    .phase-roadmap {
+      width:100%;
+      max-width:900px;
+      margin:7px auto;
+      display:grid;
+      grid-template-columns:repeat(6, 1fr);
+      gap:5px;
+    }
+
+    .road-step {
+      border:1px solid rgba(255,0,255,.28);
+      background:rgba(255,255,255,.04);
+      padding:7px 2px;
+      border-radius:10px;
+      text-align:center;
+      font-family:Orbitron;
+      font-size:.46rem;
+      opacity:.55;
+    }
+
+    .road-step.active {
+      opacity:1;
+      background:linear-gradient(135deg, rgba(0,255,255,.22), rgba(255,0,255,.22));
+      color:var(--cyan);
+      box-shadow:0 0 14px rgba(0,255,255,.22);
+    }
+
+    .vote-row, .log-row, .role-row {
+      padding:6px 7px;
+      margin-bottom:5px;
+      background:rgba(255,255,255,.055);
+      border-left:2px solid var(--neon);
+      border-radius:8px;
+    }
+
+    .log-row {
+      border-left-color:var(--cyan);
+      color:#d8fbff;
+      font-size:.76rem;
+    }
+
+    .admin-pro-grid {
+      display:grid;
+      grid-template-columns:repeat(3, 1fr);
+      gap:6px;
+    }
+
+    .admin-pro-grid button {
+      padding:8px 4px;
+      border:0;
+      border-radius:9px;
+      background:#1b2144;
+      color:white;
+      font-family:Orbitron;
+      font-size:.48rem;
+      cursor:pointer;
+    }
+
+    .admin-pro-grid button.danger {
+      background:var(--red);
+    }
+
+    .admin-pro-grid button.good {
+      background:#007f66;
+    }
+
+    .invite-row {
+      display:flex;
+      gap:6px;
+      align-items:center;
+    }
+
+    .invite-row input {
+      flex:1;
+      font-size:.75rem;
+      padding:8px;
+    }
+
+    .invite-row button {
+      width:120px;
+      padding:9px 5px;
+    }
+
+    .last-words-banner {
+      border:1px solid var(--red);
+      background:rgba(255,62,62,.12);
+      color:#ffd6d6;
+      padding:10px;
+      border-radius:12px;
+      text-align:center;
+      font-family:Orbitron;
+      font-size:.65rem;
+      margin:8px auto;
+      max-width:520px;
+    }
+
+    .speaking-dot {
+      display:inline-block;
+      width:7px;
+      height:7px;
+      border-radius:50%;
+      background:var(--green);
+      box-shadow:0 0 10px var(--green);
+      margin-right:5px;
+    }
+
+    @media (max-width:700px) {
+      .phase-roadmap {
+        grid-template-columns:repeat(3, 1fr);
+        margin-top:10px;
+      }
+
+      .pro2-layout {
+        grid-template-columns:1fr;
+      }
+
       .controls {
         width:94vw;
         justify-content:center;
       }
+
+      .video-label {
+        font-size:.78rem;
+        padding:6px;
+      }
+
       .btn {
         min-height:42px;
       }
+
       #chat-panel {
         max-width:100%;
+      }
+    }
+
+
+
+    /* ---------------- CLEAN CAMERA-FIRST GAME UI ---------------- */
+
+    #phase-banner,
+    #pro-mafia-panel,
+    .pro-mafia-panel,
+    #phase-roadmap,
+    .phase-roadmap,
+    .pro2-layout,
+    #last-words-banner {
+      display:none !important;
+    }
+
+    #game-screen {
+      padding-top:72px;
+      min-height:100vh;
+    }
+
+    #game-powered-by {
+      position:fixed;
+      top:42px;
+      left:50%;
+      transform:translateX(-50%);
+      z-index:2100;
+      color:#b58ad6;
+      font-family:Orbitron;
+      font-size:.58rem;
+      letter-spacing:1.5px;
+      text-shadow:0 0 10px rgba(255,0,255,.45);
+      pointer-events:none;
+      white-space:nowrap;
+    }
+
+    #video-grid {
+      width:100%;
+      max-width:980px;
+      margin:14px auto 105px !important;
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:10px;
+    }
+
+    @media (min-width:850px) {
+      #video-grid {
+        grid-template-columns:repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    .video-box {
+      border-radius:14px;
+      border:1px solid rgba(255,0,255,.7);
+      background:#000;
+      box-shadow:0 0 18px rgba(255,0,255,.14);
+    }
+
+    .player-number {
+      top:8px;
+      right:8px;
+      border-radius:8px;
+      background:rgba(255,0,255,.9);
+      color:white;
+    }
+
+    .video-label {
+      padding:7px 9px;
+      color:var(--cyan);
+      font-size:.82rem;
+      background:linear-gradient(to top, rgba(0,0,0,.88), rgba(0,0,0,.2));
+      border-top:0;
+    }
+
+    .action-modal {
+      position:fixed;
+      inset:0;
+      z-index:5000;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:18px;
+      background:rgba(0,0,0,.68);
+      backdrop-filter:blur(5px);
+    }
+
+    .action-modal-card {
+      width:min(94vw, 440px);
+      max-height:82vh;
+      overflow-y:auto;
+      background:rgba(7,2,15,.98);
+      border:2px solid var(--cyan);
+      border-radius:18px;
+      padding:16px;
+      box-shadow:0 0 38px rgba(0,255,255,.32), 0 0 50px rgba(255,0,255,.22);
+      position:relative;
+    }
+
+    .action-modal-close {
+      position:absolute;
+      top:9px;
+      right:9px;
+      width:34px;
+      height:34px;
+      border:0;
+      border-radius:10px;
+      background:var(--red);
+      color:white;
+      font-family:Orbitron;
+      font-size:1rem;
+      cursor:pointer;
+    }
+
+    #action-title {
+      padding-right:40px;
+      font-size:.86rem;
+      margin-bottom:12px;
+      color:var(--cyan);
+      font-family:Orbitron;
+      text-align:center;
+    }
+
+    #players-actions .msg {
+      text-align:center;
+      border-left-color:var(--cyan);
+    }
+
+    #players-actions .action-row {
+      grid-template-columns:45px 1fr;
+      margin-top:8px;
+    }
+
+    #players-actions .btn {
+      border-radius:12px;
+    }
+
+    .controls {
+      bottom:14px;
+      width:auto;
+      max-width:92vw;
+      border-radius:18px;
+    }
+
+    #chat-toggle {
+      bottom:92px;
+      right:18px;
+    }
+
+    .mini-games-toggle {
+      bottom:92px !important;
+      left:18px !important;
+      transform:none !important;
+      border-radius:18px;
+      width:auto;
+    }
+
+    #host-panel {
+      display:none !important;
+    }
+
+    #my-role-card {
+      top:42px;
+      left:8px;
+      max-width:38vw;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .hidden {
+      display:none !important;
+    }
+
+
+
+    /* ---------------- COMPACT ROLE SETTINGS ---------------- */
+
+    .host-compact-controls {
+      position:fixed;
+      top:64px;
+      right:10px;
+      z-index:2300;
+      display:flex;
+      gap:6px;
+    }
+
+    .host-chip {
+      border:1px solid rgba(0,255,255,.55);
+      background:rgba(7,2,15,.92);
+      color:var(--cyan);
+      border-radius:12px;
+      padding:8px 10px;
+      font-family:Orbitron;
+      font-size:.55rem;
+      box-shadow:0 0 14px rgba(0,255,255,.16);
+      cursor:pointer;
+    }
+
+    .host-chip.start {
+      color:#000;
+      background:var(--cyan);
+    }
+
+    .role-settings-modal {
+      position:fixed;
+      inset:0;
+      z-index:5100;
+      background:rgba(0,0,0,.68);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:18px;
+      backdrop-filter:blur(5px);
+    }
+
+    .role-settings-card {
+      width:min(94vw, 430px);
+      max-height:86vh;
+      overflow-y:auto;
+      position:relative;
+      border:2px solid var(--cyan);
+      border-radius:18px;
+      background:rgba(7,2,15,.98);
+      box-shadow:0 0 38px rgba(0,255,255,.32), 0 0 50px rgba(255,0,255,.22);
+      padding:18px;
+    }
+
+    .role-settings-card h2 {
+      margin:0 38px 6px 0;
+      color:var(--cyan);
+      font-family:Orbitron;
+      font-size:1rem;
+    }
+
+    .role-help {
+      margin:0 0 14px;
+      opacity:.75;
+      font-size:.86rem;
+    }
+
+    .role-setting-row,
+    .role-toggle-row {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.045);
+      padding:10px;
+      border-radius:13px;
+      margin-bottom:8px;
+      font-size:.95rem;
+    }
+
+    .role-counter {
+      display:flex;
+      align-items:center;
+      gap:9px;
+    }
+
+    .role-counter button {
+      width:34px;
+      height:34px;
+      border:0;
+      border-radius:10px;
+      background:var(--neon);
+      color:white;
+      font-family:Orbitron;
+      font-size:1rem;
+      cursor:pointer;
+    }
+
+    .role-counter b {
+      min-width:22px;
+      text-align:center;
+      color:var(--cyan);
+      font-family:Orbitron;
+    }
+
+    .role-toggle-row input {
+      width:22px;
+      height:22px;
+      accent-color:#00ffff;
+    }
+
+    .role-preview {
+      margin:12px 0;
+      padding:10px;
+      border:1px solid rgba(0,255,255,.35);
+      border-radius:13px;
+      background:#000;
+      color:#ddd;
+      font-size:.82rem;
+      line-height:1.45;
+    }
+
+    .role-save-btn {
+      padding:11px;
+      border-radius:13px;
+      background:linear-gradient(135deg, var(--neon), var(--cyan));
+      color:#000;
+    }
+
+    @media (max-width:600px) {
+      .host-compact-controls {
+        top:64px;
+        right:8px;
+      }
+
+      .host-chip {
+        padding:7px 8px;
+        font-size:.5rem;
+      }
+
+      #my-role-card {
+        max-width:34vw;
       }
     }
 
@@ -375,25 +1482,43 @@
 
 <body>
   <audio id="sfx-click" src="https://assets.mixkit.co/sfx/preview/mixkit-modern-technology-select-3124.mp3"></audio>
+  <audio id="lobby-music" loop preload="auto"
+    src="https://cdn.pixabay.com/download/audio/2022/10/30/audio_9c6c04589e.mp3?filename=lofi-study-112191.mp3">
+  </audio>
 
   <h1 class="glitch-title">VOID MAFIA</h1>
+  <div class="powered">Powered by ბატონი მაქსი</div>
 
   <div id="login-screen" class="card">
-    <div style="text-align:left; padding:10px; border:1px solid var(--cyan); margin-bottom: 10px;">
-      <p style="font-size:.75rem; color:var(--cyan); margin:0 0 10px;">ოთახის პარამეტრები</p>
+    <input id="nickname" type="text" placeholder="შეიყვანე ნიკნეიმი">
+    <button class="btn" id="login-btn">შესვლა</button>
+  </div>
+
+  <div id="rooms-screen" class="card hidden">
+    <div style="text-align:left; padding:10px; border:1px solid var(--cyan);">
+      <p style="font-size:.75rem; color:var(--cyan); margin:0 0 10px;">პარამეტრები ჰოსტისთვის</p>
+
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:.85rem;">
         <label><input type="checkbox" id="set-sheriff" checked> შერიფი</label>
         <label><input type="checkbox" id="set-don" checked> დონი</label>
         <label><input type="checkbox" id="set-doctor" checked> ექიმი</label>
+
         <div>
           მაფია:
           <input type="number" id="mafia-count" value="1" min="1" max="3">
         </div>
       </div>
     </div>
-    <input id="nickname" type="text" placeholder="შეიყვანე ნიკნეიმი">
+
     <input id="room-id" type="text" placeholder="ოთახის ID მაგალითად: 123">
-    <button class="btn" id="login-btn">შესვლა / ოთახის შექმნა</button>
+<button class="btn" id="join-btn">ოთახის შექმნა / შესვლა</button>
+<button class="btn" id="spectator-btn" style="background:var(--cyan); color:#000;">
+  WATCH / SPECTATOR
+</button>
+<button class="btn" id="music-toggle-btn" style="background:#1b2144; color:white;">
+  LOBBY MUSIC: OFF
+</button>
+    <div id="room-list" style="max-height:220px; overflow-y:auto;"></div>
   </div>
 
   <div id="game-screen" class="hidden">
@@ -404,9 +1529,17 @@
     </div>
     <div id="game-powered-by">Powered by ბატონი მაქსი</div>
 
+    <div id="host-compact-controls" class="host-compact-controls hidden">
+      <button id="role-settings-btn" class="host-chip">ROLES</button>
+      <button id="host-start-compact" class="host-chip start">START</button>
+    </div>
+
+
+    <div id="my-role-card" class="hidden">როლი: ?</div>
+
     <div id="host-panel" class="hidden">
-      <button class="btn" id="start-game-btn" style="background:var(--cyan); color:#000; width:auto; padding: 10px;">
-        START
+      <button class="btn" id="start-game-btn" style="background:var(--cyan); color:#000; width:80%; margin:auto;">
+        START GAME
       </button>
     </div>
 
@@ -414,16 +1547,184 @@
       <div id="phase-big-text">მზადება</div>
       <div id="phase-small-text">დაელოდე თამაშის დაწყებას</div>
     </div>
+<div class="pro-grid">
+        <div class="pro-box">
+          <div class="pro-title">Vote Board</div>
+          <div id="vote-board">ხმის მიცემა ჯერ არ დაწყებულა</div>
+        </div>
 
-    <div id="action-panel" class="hidden">
-      <div id="action-title">ქმედება</div>
-      <div id="players-actions"></div>
+        <div class="pro-box">
+          <div class="pro-title">Graveyard</div>
+          <div id="graveyard-list">ჯერ არავინ მომკვდარა</div>
+        </div>
+      </div>
     </div>
+<div class="road-step" id="road-defense">DEFENSE</div>
+      <div class="road-step" id="road-final">FINAL WORDS</div>
+      <div class="road-step" id="road-vote">VOTE</div>
+      <div class="road-step" id="road-night">NIGHT</div>
+      <div class="road-step" id="road-results">RESULTS</div>
+    </div>
+<div class="pro2-card">
+        <h3>Spectator Role Panel</h3>
+        <div id="spectator-role-panel">მხოლოდ spectator/admin რეჟიმისთვის</div>
+      </div>
+
+      <div class="pro2-card">
+        <h3>Game Log / Replay</h3>
+        <div id="game-log">ლოგი ჯერ ცარიელია</div>
+      </div>
+
+      <div class="pro2-card">
+        <h3>Invite Link</h3>
+        <div class="invite-row">
+          <input id="invite-link-input" readonly placeholder="ოთახში შესვლის შემდეგ გამოჩნდება">
+          <button class="btn" id="copy-invite-btn">COPY</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="role-settings-modal" class="role-settings-modal hidden">
+      <div class="role-settings-card">
+        <button id="role-settings-close" class="action-modal-close">×</button>
+        <h2>Role Settings</h2>
+        <p class="role-help">თამაშის დაწყებამდე აირჩიე რომელი როლები იყოს ჩართული.</p>
+
+        <div class="role-setting-row">
+          <span>Mafia Count</span>
+          <div class="role-counter">
+            <button id="role-mafia-minus">−</button>
+            <b id="role-mafia-value">1</b>
+            <button id="role-mafia-plus">+</button>
+          </div>
+        </div>
+
+        <label class="role-toggle-row">
+          <span>Don</span>
+          <input type="checkbox" id="role-setting-don" checked>
+        </label>
+
+        <label class="role-toggle-row">
+          <span>Sheriff</span>
+          <input type="checkbox" id="role-setting-sheriff" checked>
+        </label>
+
+        <label class="role-toggle-row">
+          <span>Doctor</span>
+          <input type="checkbox" id="role-setting-doctor" checked>
+        </label>
+
+        <label class="role-toggle-row">
+          <span>Detective Mode Text</span>
+          <input type="checkbox" id="role-setting-detective" checked>
+        </label>
+
+        <div id="role-preview" class="role-preview"></div>
+
+        <button id="role-settings-save" class="btn role-save-btn">SAVE SETTINGS</button>
+      </div>
+    </div>
+
+    <div id="action-modal" class="action-modal hidden">
+      <div class="action-modal-card">
+        <button id="action-modal-close" class="action-modal-close">×</button>
+        <div id="action-title">ქმედება</div>
+        <div id="players-actions"></div>
+      </div>
+    </div>
+    <div id="action-panel" class="hidden"></div>
 
     <div id="video-grid"></div>
 
     <div id="chat-toggle">CHAT</div>
 
+    <button id="mini-games-toggle" class="btn mini-games-toggle">MINI GAMES</button>
+
+    <div id="mini-games-panel" class="mini-games-panel hidden">
+      <div class="mini-games-header">
+        <h2>ADVANCED MINI GAMES</h2>
+        <button id="mini-games-close" class="mini-close">×</button>
+      </div>
+
+      <div class="advanced-mini-selector" id="advanced-mini-selector">
+        <button class="active" data-adv-game="ttt">Tic Tac Toe</button>
+        <button data-adv-game="rps">RPS</button>
+        <button data-adv-game="truth">Truth/Dare</button>
+        <button data-adv-game="dice">Dice Duel</button>
+        <button data-adv-game="wheel">Spin Wheel</button>
+        <button data-adv-game="quiz">Mafia Quiz</button>
+        <button data-adv-game="memory">Memory</button>
+        <button data-adv-game="guess">Guess Number</button>
+        <button data-adv-game="would">Who Would?</button>
+        <button data-adv-game="sound">Soundboard</button>
+      </div>
+
+      <div id="adv-game-root" class="game-card"></div>
+    </div>
+
+    <button id="admin-toggle-btn" class="btn admin-toggle hidden">ADMIN</button>
+
+    <div id="admin-panel" class="admin-panel hidden">
+      <div class="admin-header">
+        <h2>ADMIN PANEL</h2>
+        <button id="admin-close-btn" class="admin-close">×</button>
+      </div>
+
+      <div class="admin-section">
+        <h3>Game Controls</h3>
+        <div class="admin-grid">
+          <button id="admin-start-game" class="admin-mini-btn good">START</button>
+          <button id="admin-end-game" class="admin-mini-btn danger">END</button>
+          <button id="admin-reset-game" class="admin-mini-btn warn">RESET</button>
+          <button id="admin-clear-chat" class="admin-mini-btn">CLEAR CHAT</button>
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <h3>Room Controls</h3>
+        <div class="admin-grid">
+          <button id="admin-lock-room" class="admin-mini-btn warn">LOCK</button>
+          <button id="admin-unlock-room" class="admin-mini-btn good">UNLOCK</button>
+          <button id="admin-close-room" class="admin-mini-btn danger">CLOSE ROOM</button>
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <h3>Announcement</h3>
+        <input id="admin-announce-input" type="text" placeholder="ადმინის განცხადება">
+        <button id="admin-announce-btn" class="btn" style="padding:10px;">SEND</button>
+      </div>
+
+
+      <div class="admin-section">
+        <h3>Admin Pro Tools</h3>
+        <div class="admin-pro-grid">
+          <button id="pro-to-day" class="good">TO DAY</button>
+          <button id="pro-to-vote">TO VOTE</button>
+          <button id="pro-to-night">TO NIGHT</button>
+          <button id="pro-add-time">+30 SEC</button>
+          <button id="pro-revive-all" class="good">REVIVE</button>
+          <button id="pro-kill-random" class="danger">RANDOM KILL</button>
+          <button id="pro-defense">DEFENSE</button>
+          <button id="pro-final">LAST WORDS</button>
+          <button id="pro-reveal">REVEAL ROLES</button>
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <h3>Players</h3>
+        <div id="admin-players-list">
+          <div class="admin-empty">მოთამაშეები არ არიან</div>
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <h3>Spectators</h3>
+        <div id="admin-spectators-list">
+          <div class="admin-empty">spectator არ არის</div>
+        </div>
+      </div>
+    </div>
     <div class="controls">
       <button id="mic-btn" class="btn">MIC</button>
       <button id="cam-btn" class="btn" style="background:var(--cyan); color:#000;">CAM</button>
@@ -436,7 +1737,15 @@
       <span>VOID CHAT</span>
       <span id="close-chat" style="cursor:pointer;">✕</span>
     </div>
+    <div class="chat-tabs">
+      <button class="chat-tab active" data-chat="main">MAIN</button>
+      <button class="chat-tab" data-chat="dead">DEAD</button>
+      <button class="chat-tab" data-chat="spectator">SPECTATOR</button>
+    </div>
+
+
     <div id="chat-messages"></div>
+
     <div style="padding:10px; display:flex; gap:5px;">
       <input id="chat-msg" type="text" placeholder="დაწერე...">
       <button class="btn" id="send-chat-btn" style="width:55px;">></button>
@@ -445,6 +1754,8 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
+  <!-- spectators.js disabled here to avoid duplicate spectator/join handlers -->
+  <!-- <script src="/js/spectators.js"></script> -->
   
   <script>
     const socket = io();
@@ -459,11 +1770,29 @@
     let mafiaIds = [];
     let timerInterval = null;
     let timerSeconds = 0;
+    let latestPlayers = [];
+    let latestSpectators = [];
+    let voteMemory = {};
+    let gameLogItems = [];
+    let proPhaseOverride = null;
+    let revealedRoles = false;
+    let roleSettings = {
+      mafia: 1,
+      don: true,
+      sheriff: true,
+      doctor: true,
+      detectiveText: true
+    };
+    let lobbyMusicOn = false;
+    let tttBoard = Array(9).fill("");
+    let tttTurn = "X";
+    let tttFinished = false;
 
     const peers = {};
     const $ = id => document.getElementById(id);
 
-    $("login-btn").addEventListener("click", startVoid);
+    $("login-btn").addEventListener("click", showRooms);
+    $("join-btn").addEventListener("click", () => startVoid());
     $("start-game-btn").addEventListener("click", requestStart);
     $("mic-btn").addEventListener("click", toggleMic);
     $("cam-btn").addEventListener("click", toggleCam);
@@ -471,9 +1800,16 @@
     $("chat-toggle").addEventListener("click", toggleChat);
     $("close-chat").addEventListener("click", toggleChat);
     $("send-chat-btn").addEventListener("click", sendMsg);
+    $("action-modal-close")?.addEventListener("click", hideActionModal);
+
+    setupAdminPanel();
+    setupRoleSettings();
+    setupProfessionalPack();
+    setupLobbyMusic();
+    setupMiniGames();
 
     $("nickname").addEventListener("keydown", e => {
-      if (e.key === "Enter") $("room-id").focus();
+      if (e.key === "Enter") showRooms();
     });
 
     $("room-id").addEventListener("keydown", e => {
@@ -488,16 +1824,33 @@
       $("sfx-click").play().catch(() => {});
     }
 
-    async function startVoid() {
+    function showRooms() {
       myNick = $("nickname").value.trim();
-      currentRoom = $("room-id").value.trim();
 
-      if (!myNick || !currentRoom) {
-        alert("შეიყვანე ნიკნეიმი და ოთახის ID");
+      if (!myNick) {
+        alert("ჯერ ჩაწერე ნიკნეიმი");
         return;
       }
 
       playSFX();
+
+      $("login-screen").classList.add("hidden");
+      $("rooms-screen").classList.remove("hidden");
+
+      socket.emit("get-rooms");
+    }
+
+    async function startVoid(roomFromList) {
+      currentRoom = roomFromList || $("room-id").value.trim();
+      if (roomFromList && $("room-id")) $("room-id").value = roomFromList;
+
+      if (!currentRoom) {
+        alert("ჩაწერე ოთახის ID, მაგალითად 123");
+        return;
+      }
+
+      playSFX();
+      stopLobbyMusic();
 
       try {
         localStream = await navigator.mediaDevices.getUserMedia({
@@ -506,13 +1859,23 @@
         });
 
         document.body.classList.add("game-active");
+        $("rooms-screen").classList.add("hidden");
         $("game-screen").classList.remove("hidden");
 
         socket.emit("join-room", currentRoom, myNick, false);
+        setTimeout(() => socket.emit("get-rooms"), 300);
 
+        // Fallback: თუ server-ის room-users-list დაგვიანდა, შენი ვიდეო მაინც გამოჩნდეს მაგიდაზე.
+        setTimeout(() => {
+          if (localStream && socket.id && !$(socket.id)) {
+            addVideo(socket.id, localStream, myNick + " (შენ)", 1, true);
+            const tmpNum = $(socket.id)?.querySelector(".player-number");
+            if (tmpNum) tmpNum.innerText = "#...";
+          }
+        }, 700);
       } catch (err) {
         console.error(err);
-        alert("კამერა/მიკროფონი ვერ ჩაირთო. შეამოწმე ნებართვები.");
+        alert("კამერა/მიკროფონი ვერ ჩაირთო. Browser permissions შეამოწმე.");
       }
     }
 
@@ -520,26 +1883,72 @@
       console.log("connected:", socket.id);
     });
 
+    socket.on("connect_error", err => {
+      alert("სერვერთან კავშირი ვერ შედგა");
+      console.error(err);
+    });
+
+    socket.on("error", data => {
+      alert(data && data.msg ? data.msg : "შეცდომა");
+    });
+
     socket.on("is-host", () => {
       isHost = true;
       $("host-panel").classList.remove("hidden");
+      $("admin-toggle-btn").classList.remove("hidden");
+      $("admin-panel").classList.remove("hidden");
+      $("host-compact-controls")?.classList.remove("hidden");
       addSystemMsg("შენ ხარ ოთახის ჰოსტი");
+      renderAdminPanel();
     });
 
     socket.on("remove-host", () => {
       isHost = false;
       $("host-panel").classList.add("hidden");
+      $("admin-toggle-btn").classList.add("hidden");
+      $("admin-panel").classList.add("hidden");
+      $("admin-panel").classList.remove("admin-open");
+      $("host-compact-controls")?.classList.add("hidden");
+      addSystemMsg("შენ აღარ ხარ ჰოსტი");
+    });
+
+    socket.on("update-room-list", rooms => {
+      const list = $("room-list");
+      list.innerHTML = "";
+
+      if (!rooms || rooms.length === 0) {
+        list.innerHTML = '<p style="font-size:.75rem; color:#777;">აქტიური ოთახები არ არის</p>';
+        return;
+      }
+
+      rooms.forEach(r => {
+        const div = document.createElement("div");
+        div.className = "room-item";
+
+        div.innerHTML = `
+          <span style="font-size:.85rem;">
+            ID: ${escapeHtml(r.code)} (${r.playerCount}/10)
+            <small style="color:var(--cyan); display:block;">spectators: ${r.spectatorCount || 0} · ${escapeHtml(r.phase || "waiting")}</small>
+          </span>
+          <button class="btn" style="width:70px; padding:7px; font-size:.6rem;">JOIN</button>
+        `;
+
+        div.querySelector("button").onclick = () => startVoid(r.code);
+        list.appendChild(div);
+      });
     });
 
     socket.on("room-users-list", users => {
-        // Clear existing videos before adding new ones
-        $("video-grid").innerHTML = "";
-        
-        users.forEach(user => {
-            if (user.id === socket.id) {
-                addVideo(user.id, localStream, user.name + " (შენ)", user.index, true);
-            }
-        });
+      users.forEach(user => {
+        if (user.id === socket.id) {
+          const realIndex = user.index || 1;
+          if ($(user.id)) {
+            updateVideoMeta(user.id, user.name + " (შენ)", realIndex);
+          } else {
+            addVideo(user.id, localStream, user.name + " (შენ)", realIndex, true);
+          }
+        }
+      });
     });
 
     socket.on("all-users-info", users => {
@@ -611,6 +2020,20 @@
       if (el) el.remove();
     });
 
+    function updateVideoMeta(id, name, index) {
+      const box = $(id);
+      if (!box) return;
+
+      const safeIndex = index && index > 0 ? index : 1;
+      box.style.order = safeIndex;
+
+      const num = box.querySelector(".player-number");
+      if (num) num.innerText = "#" + safeIndex;
+
+      const label = box.querySelector(".video-label");
+      if (label) label.innerText = name;
+    }
+
     function addVideo(id, stream, name, index, mute = false) {
       if ($(id)) return;
 
@@ -635,7 +2058,10 @@
     }
 
     function requestStart() {
-      if (!isHost) return;
+      if (!isHost) {
+        alert("თამაშის დაწყება მხოლოდ ჰოსტს შეუძლია");
+        return;
+      }
 
       const count = document.querySelectorAll(".video-box").length;
 
@@ -647,17 +2073,32 @@
       socket.emit("start-game-request", {
         room: currentRoom,
         settings: {
-          sheriff: $("set-sheriff").checked,
-          don: $("set-don").checked,
-          doctor: $("set-doctor").checked,
-          mafia: Number($("mafia-count").value)
+          sheriff: roleSettings.sheriff,
+          don: roleSettings.don,
+          doctor: roleSettings.doctor,
+          mafia: Number(roleSettings.mafia || 1),
+          detectiveText: roleSettings.detectiveText
         }
       });
     }
 
     socket.on("assign-role", role => {
       myRole = role;
+
+      const card = $("my-role-card");
+      card.classList.remove("hidden");
+      card.classList.remove("role-reveal");
+      void card.offsetWidth;
+      card.classList.add("role-reveal");
+      card.innerText = "როლი: " + roleName(role);
+
+      if (role === "mafia" || role === "don") card.style.color = "var(--red)";
+      else if (role === "doctor") card.style.color = "var(--green)";
+      else if (role === "sheriff") card.style.color = "var(--blue)";
+      else card.style.color = "white";
+
       addSystemMsg("შენი როლია: " + roleName(role));
+      updatePhaseText();
       updateVoiceByPhase();
     });
 
@@ -669,16 +2110,21 @@
     socket.on("game-state", state => {
       currentPhase = state.phase || "waiting";
       alivePlayers = state.players || [];
+      latestPlayers = state.players || [];
 
       updatePhaseText();
       updateAliveCount();
       updateDeadVideos();
       renderActionPanel();
       updateVoiceByPhase();
+      renderAdminPanel();
+      renderProMafiaPanel();
+      renderProfessionalPack();
     });
 
     socket.on("phase-message", msg => {
       addSystemMsg(msg);
+      proLog(msg);
     });
 
     socket.on("sheriff-result", data => {
@@ -689,39 +2135,105 @@
 
     socket.on("game-over", data => {
       addSystemMsg(data.message);
+      proLog(data.message || "Game over");
+      proPhaseOverride = "results";
+      renderProfessionalPack();
       alert(data.message);
-      $("action-panel").classList.add("hidden");
-      currentPhase = "ended";
-      updatePhaseText();
+      hideActionModal();
     });
+
+
+
+    function renderProMafiaPanel() {
+      ["flow-day", "flow-vote", "flow-night"].forEach(id => {
+        const el = $(id);
+        if (el) el.classList.remove("active");
+      });
+
+      if (currentPhase === "day") $("flow-day")?.classList.add("active");
+      if (currentPhase === "vote") $("flow-vote")?.classList.add("active");
+      if (currentPhase === "night") $("flow-night")?.classList.add("active");
+
+      const grave = $("graveyard-list");
+      if (grave) {
+        const dead = alivePlayers.filter(p => !p.alive);
+
+        if (!dead.length) {
+          grave.innerHTML = "ჯერ არავინ მომკვდარა";
+        } else {
+          grave.innerHTML = dead.map(p => `
+            <div class="grave-dead">#${p.index} ${escapeHtml(p.name)}</div>
+          `).join("");
+        }
+      }
+
+      const voteBoard = $("vote-board");
+      if (voteBoard) {
+        if (currentPhase === "vote") {
+          const alive = alivePlayers.filter(p => p.alive);
+          voteBoard.innerHTML = alive.map(p => `
+            <div>#${p.index} ${escapeHtml(p.name)} — ელოდება ხმებს</div>
+          `).join("");
+        } else {
+          voteBoard.innerHTML = "ხმის მიცემა დაიწყება დღის შემდეგ";
+        }
+      }
+    }
 
     function updatePhaseText() {
       document.body.classList.remove("night-mode", "day-mode");
-      $("phase-banner").classList.add("hidden"); // Hide banner by default
+
+      if (isHost && $("host-compact-controls")) {
+        $("host-compact-controls").classList.toggle("hidden", currentPhase !== "waiting");
+      }
+      if (currentPhase !== "waiting") {
+        $("role-settings-modal")?.classList.add("hidden");
+      }
 
       if (currentPhase === "night") {
+        voteMemory = {};
         document.body.classList.add("night-mode");
+
         $("game-phase").innerText = "ღამე";
+        $("phase-big-text").innerText = "ღამე";
+
+        if (myRole === "mafia" || myRole === "don") {
+          $("phase-small-text").innerText = "მაფიის ფაზა: აირჩიე მოსაკლავი. მხოლოდ მაფიებს ესმით ერთმანეთის ხმა.";
+        } else if (myRole === "doctor") {
+          $("phase-small-text").innerText = "ექიმის ფაზა: აირჩიე გადასარჩენი მოთამაშე.";
+        } else if (myRole === "sheriff") {
+          $("phase-small-text").innerText = "შერიფის ფაზა: შეამოწმე მოთამაშე.";
+        } else {
+          $("phase-small-text").innerText = "ღამეა. მოქალაქე ელოდება დილის დადგომას.";
+        }
+
         startTimer(60);
       } else if (currentPhase === "day") {
+        voteMemory = {};
         document.body.classList.add("day-mode");
+
         $("game-phase").innerText = "დღე";
+        $("phase-big-text").innerText = "დღე";
+        $("phase-small-text").innerText = "Day discussion: 2 წუთი გაქვთ ეჭვების გასაზიარებლად. შემდეგ დაიწყება Vote.";
+
         startTimer(120);
       } else if (currentPhase === "vote") {
         document.body.classList.add("day-mode");
+
         $("game-phase").innerText = "ხმის მიცემა";
-        $("phase-banner").classList.remove("hidden"); // Show banner for vote
         $("phase-big-text").innerText = "ხმის მიცემა";
-        $("phase-small-text").innerText = "აირჩიე მოთამაშე.";
+        $("phase-small-text").innerText = "აირჩიე მოთამაშე, ვის გაგდებასაც უჭერ მხარს.";
+
         startTimer(30);
       } else if (currentPhase === "ended") {
         $("game-phase").innerText = "დასრულდა";
+        $("phase-big-text").innerText = "თამაში დასრულდა";
+        $("phase-small-text").innerText = "შედეგი გამოჩნდა ჩატში.";
         stopTimer();
       } else {
         $("game-phase").innerText = "მზადება";
-        $("phase-banner").classList.remove("hidden"); // Show banner for waiting
         $("phase-big-text").innerText = "მზადება";
-        $("phase-small-text").innerText = "დაელოდე თამაშის დაწყებას.";
+        $("phase-small-text").innerText = "ჰოსტმა უნდა დააჭიროს START GAME.";
         stopTimer();
       }
     }
@@ -738,16 +2250,22 @@
         if (currentPhase === "night") {
           if (iAmMafia && peerIsMafia) {
             video.muted = false;
+            video.volume = 1;
           } else {
             video.muted = true;
+            video.volume = 0;
           }
         } else {
           video.muted = false;
+          video.volume = 1;
         }
       });
-      
+
       const myVideo = $("v-" + socket.id);
-      if (myVideo) myVideo.muted = true;
+      if (myVideo) {
+        myVideo.muted = true;
+        myVideo.volume = 0;
+      }
     }
 
     function startTimer(seconds) {
@@ -759,11 +2277,7 @@
         timerSeconds--;
         updateTimerText();
 
-        if (timerSeconds <= 0) {
-            clearInterval(timerInterval);
-            // Auto hide action panel when time is up
-            $("action-panel").classList.add("hidden");
-        }
+        if (timerSeconds <= 0) clearInterval(timerInterval);
       }, 1000);
     }
 
@@ -789,7 +2303,29 @@
         if (!box) return;
 
         box.classList.toggle("dead", !p.alive);
+
+        const old = box.querySelector(".dead-badge");
+        if (old) old.remove();
+
+        if (!p.alive) {
+          const badge = document.createElement("div");
+          badge.className = "dead-badge";
+          badge.innerText = "DEAD";
+          box.appendChild(badge);
+        }
       });
+    }
+
+
+
+    function showActionModal() {
+      const modal = $("action-modal");
+      if (modal) modal.classList.remove("hidden");
+    }
+
+    function hideActionModal() {
+      const modal = $("action-modal");
+      if (modal) modal.classList.add("hidden");
     }
 
     function renderActionPanel() {
@@ -798,11 +2334,11 @@
       const title = $("action-title");
 
       box.innerHTML = "";
-      panel.classList.add("hidden"); // Hide by default
 
       const me = alivePlayers.find(p => p.id === socket.id);
 
-      if (!me || !me.alive || currentPhase === "ended" || currentPhase === "waiting") {
+      if (!me || !me.alive || currentPhase === "ended") {
+        hideActionModal();
         return;
       }
 
@@ -811,23 +2347,40 @@
 
       if (currentPhase === "night") {
         if (myRole === "mafia" || myRole === "don") {
-          panel.classList.remove("hidden");
-          title.innerText = "აირჩიე მსხვერპლი";
+          showActionModal();
+          title.innerText = "მაფიის ღამე — აირჩიე მსხვერპლი";
           otherAlive.forEach(p => addActionButton(p, "kill", "მოკვლა"));
-        } else if (myRole === "doctor") {
-          panel.classList.remove("hidden");
-          title.innerText = "აირჩიე გადასარჩენი";
-          allAlive.forEach(p => addActionButton(p, "save", "გადარჩენა"));
-        } else if (myRole === "sheriff") {
-          panel.classList.remove("hidden");
-          title.innerText = "შეამოწმე მოთამაშე";
-          otherAlive.forEach(p => addActionButton(p, "check", "შემოწმება"));
+          return;
         }
-      } else if (currentPhase === "vote") {
-        panel.classList.remove("hidden");
+
+        if (myRole === "doctor") {
+          showActionModal();
+          title.innerText = "ექიმის ღამე — აირჩიე გადასარჩენი";
+          allAlive.forEach(p => addActionButton(p, "save", "გადარჩენა"));
+          return;
+        }
+
+        if (myRole === "sheriff") {
+          showActionModal();
+          title.innerText = "შერიფის ღამე — შეამოწმე მოთამაშე";
+          otherAlive.forEach(p => addActionButton(p, "check", "შემოწმება"));
+          return;
+        }
+
+        showActionModal();
+        title.innerText = "ღამეა — დაელოდე დილას";
+        box.innerHTML = `<div class="msg">შენ მოქალაქე ხარ. ღამით მოქმედება არ გაქვს.</div>`;
+        return;
+      }
+
+      if (currentPhase === "vote") {
+        showActionModal();
         title.innerText = "ხმის მიცემა";
         otherAlive.forEach(p => addVoteButton(p));
+        return;
       }
+
+      hideActionModal();
     }
 
     function addActionButton(player, action, label) {
@@ -846,8 +2399,8 @@
           targetId: player.id
         });
 
-        addSystemMsg("ქმედება გაიგზავნა");
-        $("action-panel").classList.add("hidden");
+        addSystemMsg("ქმედება დაფიქსირდა");
+        hideActionModal();
       };
 
       $("players-actions").appendChild(row);
@@ -863,13 +2416,17 @@
       `;
 
       row.querySelector("button").onclick = () => {
+        voteMemory[socket.id] = player.id;
+        renderVoteResultsBoard();
+
         socket.emit("vote-player", {
           room: currentRoom,
           targetId: player.id
         });
 
         addSystemMsg("ხმა მიცემულია");
-        $("action-panel").classList.add("hidden");
+        proLog(`ხმა მიეცი #${player.index} ${player.name}`);
+        hideActionModal();
       };
 
       $("players-actions").appendChild(row);
@@ -916,22 +2473,623 @@
 
     function toggleMic() {
       if (!localStream) return;
+
       const track = localStream.getAudioTracks()[0];
       if (!track) return;
+
       track.enabled = !track.enabled;
       $("mic-btn").style.background = track.enabled ? "var(--neon)" : "#333";
     }
 
     function toggleCam() {
       if (!localStream) return;
+
       const track = localStream.getVideoTracks()[0];
       if (!track) return;
+
       track.enabled = !track.enabled;
       $("cam-btn").style.background = track.enabled ? "var(--cyan)" : "#333";
     }
 
     function toggleChat() {
       $("chat-panel").classList.toggle("open");
+    }
+
+
+
+
+
+    /* ---------------- LOBBY MUSIC ---------------- */
+
+    function setupLobbyMusic() {
+      const btn = $("music-toggle-btn");
+      if (!btn) return;
+
+      btn.addEventListener("click", () => {
+        if (lobbyMusicOn) {
+          stopLobbyMusic();
+        } else {
+          startLobbyMusic();
+        }
+      });
+
+      // Browser usually blocks autoplay, so we try quietly after user enters lobby.
+      document.addEventListener("click", () => {
+        if (!$("rooms-screen").classList.contains("hidden") && !lobbyMusicOn) {
+          // არ ვაძალებთ ხმას, მხოლოდ ღილაკით სჯობს.
+        }
+      }, { once:true });
+    }
+
+    function startLobbyMusic() {
+      const music = $("lobby-music");
+      const btn = $("music-toggle-btn");
+      if (!music) return;
+
+      music.volume = 0.32;
+
+      music.play()
+        .then(() => {
+          lobbyMusicOn = true;
+          if (btn) btn.innerText = "LOBBY MUSIC: ON";
+        })
+        .catch(() => {
+          alert("მუსიკის ჩართვისთვის დააჭირე ღილაკს კიდევ ერთხელ ან browser permissions შეამოწმე.");
+        });
+    }
+
+    function stopLobbyMusic() {
+      const music = $("lobby-music");
+      const btn = $("music-toggle-btn");
+      if (!music) return;
+
+      music.pause();
+      music.currentTime = 0;
+      lobbyMusicOn = false;
+
+      if (btn) btn.innerText = "LOBBY MUSIC: OFF";
+    }
+
+    /* ---------------- MINI GAMES ---------------- */
+
+    function setupMiniGames() {
+      $("mini-games-toggle").addEventListener("click", () => {
+        $("mini-games-panel").classList.remove("hidden");
+      });
+
+      $("mini-games-close").addEventListener("click", () => {
+        $("mini-games-panel").classList.add("hidden");
+      });
+
+      document.querySelectorAll(".mini-tab").forEach(tab => {
+        tab.addEventListener("click", () => {
+          document.querySelectorAll(".mini-tab").forEach(t => t.classList.remove("active"));
+          tab.classList.add("active");
+
+          const game = tab.dataset.game;
+
+          $("mini-tictactoe").classList.toggle("hidden", game !== "tictactoe");
+          $("mini-truth").classList.toggle("hidden", game !== "truth");
+          $("mini-dice").classList.toggle("hidden", game !== "dice");
+        });
+      });
+
+      $("ttt-reset").addEventListener("click", resetTicTacToe);
+      $("truth-btn").addEventListener("click", () => randomTruthDare("truth"));
+      $("dare-btn").addEventListener("click", () => randomTruthDare("dare"));
+      $("dice-roll").addEventListener("click", rollDice);
+
+      renderTicTacToe();
+    }
+
+    function renderTicTacToe() {
+      const board = $("ttt-board");
+      board.innerHTML = "";
+
+      tttBoard.forEach((value, index) => {
+        const cell = document.createElement("div");
+        cell.className = "ttt-cell";
+        cell.innerText = value;
+        cell.onclick = () => playTicTacToe(index);
+        board.appendChild(cell);
+      });
+
+      $("ttt-status").innerText = tttFinished ? $("ttt-status").innerText : `Turn: ${tttTurn}`;
+    }
+
+    function playTicTacToe(index) {
+      if (tttFinished || tttBoard[index]) return;
+
+      tttBoard[index] = tttTurn;
+
+      const winner = getTicTacToeWinner();
+
+      if (winner) {
+        tttFinished = true;
+        $("ttt-status").innerText = `Winner: ${winner}`;
+      } else if (tttBoard.every(Boolean)) {
+        tttFinished = true;
+        $("ttt-status").innerText = "Draw";
+      } else {
+        tttTurn = tttTurn === "X" ? "O" : "X";
+        $("ttt-status").innerText = `Turn: ${tttTurn}`;
+      }
+
+      renderTicTacToe();
+    }
+
+    function getTicTacToeWinner() {
+      const wins = [
+        [0,1,2], [3,4,5], [6,7,8],
+        [0,3,6], [1,4,7], [2,5,8],
+        [0,4,8], [2,4,6]
+      ];
+
+      for (const [a,b,c] of wins) {
+        if (tttBoard[a] && tttBoard[a] === tttBoard[b] && tttBoard[a] === tttBoard[c]) {
+          return tttBoard[a];
+        }
+      }
+
+      return null;
+    }
+
+    function resetTicTacToe() {
+      tttBoard = Array(9).fill("");
+      tttTurn = "X";
+      tttFinished = false;
+      $("ttt-status").innerText = "Turn: X";
+      renderTicTacToe();
+    }
+
+    function randomTruthDare(type) {
+      const truths = [
+        "რომელი მოთამაშე გგონია ყველაზე საეჭვო და რატომ?",
+        "ბოლოს როდის მოიტყუე თამაშში?",
+        "ვინ არის ოთახში ყველაზე კარგი მატყუარა?",
+        "რომელი როლი გინდა ყველაზე მეტად?",
+        "ვის ენდობი ყველაზე ნაკლებად ამ ოთახში?"
+      ];
+
+      const dares = [
+        "შემდეგი 30 წამი ისაუბრე რობოტივით.",
+        "ერთ მოთამაშეს მისწერე კომპლიმენტი ჩატში.",
+        "შემდეგი რაუნდის დაწყებამდე არ თქვა სიტყვა 'მაფია'.",
+        "აირჩიე ერთი მოთამაშე და დაიცავი მისი უდანაშაულობა 20 წამი.",
+        "შემდეგი პასუხი მხოლოდ ერთი სიტყვით თქვი."
+      ];
+
+      const list = type === "truth" ? truths : dares;
+      const picked = list[Math.floor(Math.random() * list.length)];
+
+      $("truth-card").innerText = picked;
+      addSystemMsg(`${type === "truth" ? "TRUTH" : "DARE"}: ${picked}`);
+    }
+
+    function rollDice() {
+      const n = Math.floor(Math.random() * 6) + 1;
+      $("dice-result").innerText = n;
+      addSystemMsg(`Dice rolled: ${n}`);
+    }
+
+
+    /* ---------------- ADMIN PANEL LOGIC ---------------- */
+
+    function setupAdminPanel() {
+      $("admin-toggle-btn").addEventListener("click", () => {
+        $("admin-panel").classList.toggle("admin-open");
+      });
+
+      $("admin-close-btn").addEventListener("click", () => {
+        $("admin-panel").classList.remove("admin-open");
+      });
+
+      $("admin-start-game").addEventListener("click", () => {
+        requestStart();
+      });
+
+      $("admin-end-game").addEventListener("click", () => {
+        adminAction("end-game");
+      });
+
+      $("admin-reset-game").addEventListener("click", () => {
+        adminAction("reset-game");
+      });
+
+      $("admin-lock-room").addEventListener("click", () => {
+        adminAction("lock-room");
+      });
+
+      $("admin-unlock-room").addEventListener("click", () => {
+        adminAction("unlock-room");
+      });
+
+      $("admin-clear-chat").addEventListener("click", () => {
+        adminAction("clear-chat");
+      });
+
+      $("admin-close-room").addEventListener("click", () => {
+        if (confirm("ნამდვილად გინდა ოთახის დახურვა?")) {
+          adminAction("close-room");
+        }
+      });
+
+      $("admin-announce-btn").addEventListener("click", () => {
+        const message = $("admin-announce-input").value.trim();
+
+        if (!message) {
+          alert("ჩაწერე განცხადება");
+          return;
+        }
+
+        adminAction("announce", null, message);
+        $("admin-announce-input").value = "";
+      });
+    }
+
+    function adminAction(action, targetId = null, message = "") {
+      if (!isHost) {
+        alert("მხოლოდ ადმინს შეუძლია");
+        return;
+      }
+
+      socket.emit("admin-action", {
+        room: currentRoom,
+        action,
+        targetId,
+        message
+      });
+    }
+
+    function renderAdminPanel() {
+      if (!isHost) return;
+
+      const playersBox = $("admin-players-list");
+      const spectatorsBox = $("admin-spectators-list");
+
+      if (playersBox) {
+        if (!latestPlayers.length) {
+          playersBox.innerHTML = `<div class="admin-empty">მოთამაშეები არ არიან</div>`;
+        } else {
+          playersBox.innerHTML = latestPlayers.map(p => `
+            <div class="admin-user-row">
+              <span>
+                #${p.index} ${escapeHtml(p.name)}
+                ${p.alive ? "" : "<small>(dead)</small>"}
+              </span>
+
+              <div class="admin-user-actions">
+                <button class="danger" onclick="adminAction('kick', '${p.id}')">KICK</button>
+                <button onclick="adminAction('make-host', '${p.id}')">HOST</button>
+              </div>
+            </div>
+          `).join("");
+        }
+      }
+
+      if (spectatorsBox) {
+        if (!latestSpectators.length) {
+          spectatorsBox.innerHTML = `<div class="admin-empty">spectator არ არის</div>`;
+        } else {
+          spectatorsBox.innerHTML = latestSpectators.map(s => `
+            <div class="admin-user-row">
+              <span>👁️ ${escapeHtml(s.name)}</span>
+
+              <div class="admin-user-actions">
+                <button class="danger" onclick="adminAction('kick', '${s.id}')">KICK</button>
+              </div>
+            </div>
+          `).join("");
+        }
+      }
+    }
+
+    socket.on("spectators-update", list => {
+      latestSpectators = list || [];
+      renderAdminPanel();
+    });
+
+    socket.on("kicked", msg => {
+      alert(msg || "ადმინმა გაგაგდო ოთახიდან");
+      location.reload();
+    });
+
+    socket.on("room-closed", msg => {
+      alert(msg || "ოთახი დაიხურა");
+      location.reload();
+    });
+
+    socket.on("clear-chat", () => {
+      $("chat-messages").innerHTML = "";
+    });
+
+    socket.on("admin-announcement", data => {
+      const message = data && data.message ? data.message : "";
+
+      $("chat-messages").innerHTML += `
+        <div class="msg admin-chat-announcement">
+          <b>ADMIN:</b> ${escapeHtml(message)}
+        </div>
+      `;
+
+      $("chat-messages").scrollTop = $("chat-messages").scrollHeight;
+      alert("ADMIN: " + message);
+    });
+
+
+
+
+
+    /* ---------------- ROLE SETTINGS LOGIC ---------------- */
+
+    function setupRoleSettings() {
+      $("role-settings-btn")?.addEventListener("click", () => {
+        if (!isHost) return alert("მხოლოდ ჰოსტს შეუძლია როლების შეცვლა");
+        if (currentPhase !== "waiting") return alert("როლების შეცვლა შეიძლება მხოლოდ თამაშის დაწყებამდე");
+        syncRoleSettingsFromOldInputs();
+        renderRoleSettings();
+        $("role-settings-modal")?.classList.remove("hidden");
+      });
+
+      $("host-start-compact")?.addEventListener("click", requestStart);
+
+      $("role-settings-close")?.addEventListener("click", () => {
+        $("role-settings-modal")?.classList.add("hidden");
+      });
+
+      $("role-settings-save")?.addEventListener("click", () => {
+        saveRoleSettings();
+        $("role-settings-modal")?.classList.add("hidden");
+        addSystemMsg("Role settings შენახულია");
+      });
+
+      $("role-mafia-minus")?.addEventListener("click", () => {
+        roleSettings.mafia = Math.max(1, Number(roleSettings.mafia || 1) - 1);
+        renderRoleSettings();
+      });
+
+      $("role-mafia-plus")?.addEventListener("click", () => {
+        roleSettings.mafia = Math.min(5, Number(roleSettings.mafia || 1) + 1);
+        renderRoleSettings();
+      });
+
+      ["don", "sheriff", "doctor", "detective"].forEach(name => {
+        const id = name === "detective" ? "role-setting-detective" : `role-setting-${name}`;
+        $(id)?.addEventListener("change", saveRoleSettings);
+      });
+
+      syncRoleSettingsFromOldInputs();
+      renderRoleSettings();
+    }
+
+    function syncRoleSettingsFromOldInputs() {
+      if ($("mafia-count")) roleSettings.mafia = Number($("mafia-count").value || 1);
+      if ($("set-don")) roleSettings.don = $("set-don").checked;
+      if ($("set-sheriff")) roleSettings.sheriff = $("set-sheriff").checked;
+      if ($("set-doctor")) roleSettings.doctor = $("set-doctor").checked;
+    }
+
+    function saveRoleSettings() {
+      roleSettings.don = !!$("role-setting-don")?.checked;
+      roleSettings.sheriff = !!$("role-setting-sheriff")?.checked;
+      roleSettings.doctor = !!$("role-setting-doctor")?.checked;
+      roleSettings.detectiveText = !!$("role-setting-detective")?.checked;
+
+      if ($("mafia-count")) $("mafia-count").value = roleSettings.mafia;
+      if ($("set-don")) $("set-don").checked = roleSettings.don;
+      if ($("set-sheriff")) $("set-sheriff").checked = roleSettings.sheriff;
+      if ($("set-doctor")) $("set-doctor").checked = roleSettings.doctor;
+
+      renderRoleSettings();
+    }
+
+    function renderRoleSettings() {
+      if ($("role-mafia-value")) $("role-mafia-value").innerText = roleSettings.mafia;
+
+      if ($("role-setting-don")) $("role-setting-don").checked = roleSettings.don;
+      if ($("role-setting-sheriff")) $("role-setting-sheriff").checked = roleSettings.sheriff;
+      if ($("role-setting-doctor")) $("role-setting-doctor").checked = roleSettings.doctor;
+      if ($("role-setting-detective")) $("role-setting-detective").checked = roleSettings.detectiveText;
+
+      const preview = [];
+      const mafiaCount = Number(roleSettings.mafia || 1);
+
+      if (roleSettings.don) {
+        preview.push("Don ×1");
+        if (mafiaCount > 1) preview.push(`Mafia ×${mafiaCount - 1}`);
+      } else {
+        preview.push(`Mafia ×${mafiaCount}`);
+      }
+
+      if (roleSettings.sheriff) preview.push("Sheriff ×1");
+      if (roleSettings.doctor) preview.push("Doctor ×1");
+      preview.push("Citizen — დანარჩენი მოთამაშეები");
+
+      const minPlayers = mafiaCount + (roleSettings.sheriff ? 1 : 0) + (roleSettings.doctor ? 1 : 0) + 1;
+
+      if ($("role-preview")) {
+        $("role-preview").innerHTML = `
+          <b style="color:var(--cyan);">Active Roles:</b><br>
+          ${preview.map(x => `• ${escapeHtml(x)}`).join("<br>")}
+          <br><br>
+          <span style="color:#aaa;">რეკომენდებული მინიმუმი: ${minPlayers} მოთამაშე</span>
+        `;
+      }
+    }
+
+    /* ---------------- PROFESSIONAL PACK V2 LOGIC ---------------- */
+
+    function proLog(text) {
+      const stamp = new Date().toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
+      gameLogItems.unshift(`[${stamp}] ${text}`);
+      gameLogItems = gameLogItems.slice(0, 12);
+      renderGameLog();
+    }
+
+    function renderGameLog() {
+      const box = $("game-log");
+      if (!box) return;
+
+      if (!gameLogItems.length) {
+        box.innerHTML = "ლოგი ჯერ ცარიელია";
+        return;
+      }
+
+      box.innerHTML = gameLogItems.map(x => `
+        <div class="log-row">${escapeHtml(x)}</div>
+      `).join("");
+    }
+
+    function renderRoadmap() {
+      ["road-day","road-defense","road-final","road-vote","road-night","road-results"].forEach(id => {
+        const el = $(id);
+        if (el) el.classList.remove("active");
+      });
+
+      const phase = proPhaseOverride || currentPhase;
+
+      if (phase === "day" || phase === "waiting") $("road-day")?.classList.add("active");
+      if (phase === "defense") $("road-defense")?.classList.add("active");
+      if (phase === "final") $("road-final")?.classList.add("active");
+      if (phase === "vote") $("road-vote")?.classList.add("active");
+      if (phase === "night") $("road-night")?.classList.add("active");
+      if (phase === "results" || phase === "ended") $("road-results")?.classList.add("active");
+    }
+
+    function renderVoteResultsBoard() {
+      const box = $("vote-results-board");
+      if (!box) return;
+
+      if (currentPhase !== "vote" && Object.keys(voteMemory).length === 0) {
+        box.innerHTML = "ჯერ ხმები არ არის";
+        return;
+      }
+
+      const counts = {};
+
+      Object.values(voteMemory).forEach(targetId => {
+        counts[targetId] = (counts[targetId] || 0) + 1;
+      });
+
+      const rows = alivePlayers.map(p => {
+        const n = counts[p.id] || 0;
+        return `<div class="vote-row">#${p.index} ${escapeHtml(p.name)} — ${n} ხმა</div>`;
+      }).join("");
+
+      box.innerHTML = rows || "ჯერ ხმები არ არის";
+    }
+
+    function renderSpectatorRolePanel() {
+      const box = $("spectator-role-panel");
+      if (!box) return;
+
+      const canSee = isHost || revealedRoles || (typeof isSpectator !== "undefined" && isSpectator);
+
+      if (!canSee) {
+        box.innerHTML = "როლები დამალულია";
+        return;
+      }
+
+      if (!alivePlayers.length) {
+        box.innerHTML = "მოთამაშეები ჯერ არ არიან";
+        return;
+      }
+
+      box.innerHTML = alivePlayers.map(p => `
+        <div class="role-row">
+          #${p.index} ${escapeHtml(p.name)}
+          <span style="color:var(--cyan);"> — ${escapeHtml(p.role || "unknown")}</span>
+        </div>
+      `).join("");
+    }
+
+    function updateInviteLink() {
+      const input = $("invite-link-input");
+      if (!input) return;
+
+      const code = currentRoom || $("room-id")?.value.trim() || "";
+      if (!code) return;
+
+      const url = `${location.origin}${location.pathname}?room=${encodeURIComponent(code)}`;
+      input.value = url;
+    }
+
+    function setupProfessionalPack() {
+      $("copy-invite-btn")?.addEventListener("click", () => {
+        updateInviteLink();
+        const input = $("invite-link-input");
+        if (!input || !input.value) return alert("ჯერ შედი ოთახში");
+
+        navigator.clipboard.writeText(input.value)
+          .then(() => addSystemMsg("Invite link დაკოპირდა"))
+          .catch(() => alert(input.value));
+      });
+
+      const params = new URLSearchParams(location.search);
+      const roomParam = params.get("room");
+      if (roomParam && $("room-id")) {
+        $("room-id").value = roomParam;
+      }
+
+      bindProAdmin("pro-to-day", "force-day", "Admin: გადართვა DAY ფაზაზე");
+      bindProAdmin("pro-to-vote", "force-vote", "Admin: გადართვა VOTE ფაზაზე");
+      bindProAdmin("pro-to-night", "force-night", "Admin: გადართვა NIGHT ფაზაზე");
+      bindProAdmin("pro-add-time", "add-30-sec", "Admin: +30 წამი");
+      bindProAdmin("pro-revive-all", "revive-all", "Admin: revive all");
+      bindProAdmin("pro-kill-random", "kill-random", "Admin: random kill");
+      bindProAdmin("pro-defense", "force-defense", "Defense phase ჩაირთო ვიზუალურად", () => setProPhase("defense", 30));
+      bindProAdmin("pro-final", "force-final", "Last Words ჩაირთო ვიზუალურად", () => setProPhase("final", 15));
+      bindProAdmin("pro-reveal", "reveal-roles", "Roles revealed locally", () => {
+        revealedRoles = !revealedRoles;
+        renderSpectatorRolePanel();
+      });
+    }
+
+    function bindProAdmin(id, action, logText, localFn = null) {
+      const btn = $(id);
+      if (!btn) return;
+
+      btn.addEventListener("click", () => {
+        if (!isHost) {
+          alert("მხოლოდ ადმინს შეუძლია");
+          return;
+        }
+
+        if (typeof adminAction === "function") {
+          adminAction(action);
+        }
+
+        if (localFn) localFn();
+
+        addSystemMsg(logText);
+        proLog(logText);
+      });
+    }
+
+    function setProPhase(phase, seconds) {
+      proPhaseOverride = phase;
+      renderRoadmap();
+
+      if (phase === "final") {
+        $("last-words-banner")?.classList.remove("hidden");
+      } else {
+        $("last-words-banner")?.classList.add("hidden");
+      }
+
+      startTimer(seconds);
+
+      setTimeout(() => {
+        proPhaseOverride = null;
+        $("last-words-banner")?.classList.add("hidden");
+        renderRoadmap();
+      }, seconds * 1000);
+    }
+
+    function renderProfessionalPack() {
+      renderRoadmap();
+      renderVoteResultsBoard();
+      renderSpectatorRolePanel();
+      updateInviteLink();
     }
 
     function roleName(role) {
@@ -942,6 +3100,7 @@
         sheriff: "შერიფი",
         citizen: "მოქალაქე"
       };
+
       return map[role] || role;
     }
 
@@ -954,6 +3113,369 @@
         .replaceAll("'", "&#039;");
     }
   </script>
+
+
+<script>
+/* ---------------- ADVANCED FULL PACK ---------------- */
+(function(){
+  const A = id => document.getElementById(id);
+  let currentChatTab = "main";
+  let advGame = "ttt";
+
+  const adv = {
+    ttt: { board:Array(9).fill(""), turn:"X", done:false },
+    memory: { deck:[], open:[], matched:[] },
+    guess: { number: Math.floor(Math.random()*20)+1 },
+    wheelDeg: 0,
+    quizIndex: 0,
+    quizScore: 0
+  };
+
+  const quiz = [
+    { q:"მაფიის მთავარი მიზანი რა არის?", a:["ყველას დაცვა","მშვიდობიანების მოტყუება","ექიმის პოვნა"], ok:1 },
+    { q:"შერიფი ღამით რას აკეთებს?", a:["ამოწმებს მოთამაშეს","კლავს","ხმას აძლევს"], ok:0 },
+    { q:"ექიმის როლი?", a:["დაცვა","გამოძიება","ადმინი"], ok:0 },
+    { q:"დღის ფაზაში მთავარი რა არის?", a:["დისკუსია და ეჭვები","ძილი","კამერის გათიშვა"], ok:0 }
+  ];
+
+  const truth = [
+    "ვინ გგონია ახლა ყველაზე საეჭვო?",
+    "ვის ენდობი ყველაზე ნაკლებად?",
+    "როდის მოიტყუე ბოლოს თამაშში?",
+    "რომელი როლი გეხერხება ყველაზე კარგად?",
+    "რომელი მოთამაშე ატყუებს ყველაზე კარგად?"
+  ];
+
+  const dare = [
+    "30 წამი ისაუბრე როგორც მაფიის ბოსი.",
+    "შემდეგი მესიჯი დაწერე ძალიან დრამატულად.",
+    "ერთ მოთამაშეს გაუკეთე დაცვითი სიტყვა.",
+    "შემდეგი 1 წუთი არ თქვა სიტყვა 'მაფია'.",
+    "აირჩიე მოთამაშე და დაარწმუნე ყველა, რომ ის უდანაშაულოა."
+  ];
+
+  const would = [
+    "ვინ უფრო სავარაუდოა რომ პირველივე ღამეს მოკლავს მეგობარს?",
+    "ვინ უფრო სავარაუდოა რომ მშვიდობიანი იყოს მაგრამ საეჭვოდ ლაპარაკობდეს?",
+    "ვინ უფრო სავარაუდოა რომ ყველას მოატყუებს?",
+    "ვინ უფრო სავარაუდოა რომ შერიფად იდეალური იყოს?",
+    "ვინ უფრო სავარაუდოა რომ ბოლო წუთზე შეცვლის ხმას?"
+  ];
+
+  function safe(text){
+    return String(text ?? "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  function sys(msg){
+    if (typeof addSystemMsg === "function") addSystemMsg(msg);
+  }
+
+  function emitChat(text){
+    if (typeof socket !== "undefined" && typeof currentRoom !== "undefined") {
+      socket.emit("send-chat-msg", { room: currentRoom, name: (typeof myNick !== "undefined" ? myNick : ""), text });
+    }
+  }
+
+  window.addEventListener("load", () => {
+    setupAdvancedChatTabs();
+    setupAdvancedMiniGames();
+    renderAdvancedGame();
+  });
+
+  function setupAdvancedChatTabs(){
+    document.querySelectorAll(".chat-tab").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".chat-tab").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        currentChatTab = btn.dataset.chat;
+        sys("Chat tab: " + currentChatTab.toUpperCase());
+      });
+    });
+
+    const oldSend = window.sendMsg;
+    if (typeof oldSend === "function") {
+      window.sendMsg = function(){
+        const input = A("chat-msg");
+        const text = input?.value.trim();
+        if (!text) return;
+        const prefix = currentChatTab === "main" ? "" : "[" + currentChatTab.toUpperCase() + "] ";
+        emitChat(prefix + text);
+        input.value = "";
+      };
+    }
+  }
+
+  function setupAdvancedMiniGames(){
+    A("mini-games-toggle")?.addEventListener("click", () => {
+      A("mini-games-panel")?.classList.remove("hidden");
+      renderAdvancedGame();
+    });
+
+    A("mini-games-close")?.addEventListener("click", () => {
+      A("mini-games-panel")?.classList.add("hidden");
+    });
+
+    document.querySelectorAll("#advanced-mini-selector button").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("#advanced-mini-selector button").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        advGame = btn.dataset.advGame;
+        renderAdvancedGame();
+      });
+    });
+  }
+
+  function renderAdvancedGame(){
+    const root = A("adv-game-root");
+    if (!root) return;
+
+    if (advGame === "ttt") return renderTTT(root);
+    if (advGame === "rps") return renderRPS(root);
+    if (advGame === "truth") return renderTruth(root);
+    if (advGame === "dice") return renderDice(root);
+    if (advGame === "wheel") return renderWheel(root);
+    if (advGame === "quiz") return renderQuiz(root);
+    if (advGame === "memory") return renderMemory(root);
+    if (advGame === "guess") return renderGuess(root);
+    if (advGame === "would") return renderWould(root);
+    if (advGame === "sound") return renderSound(root);
+  }
+
+  function renderTTT(root){
+    root.innerHTML = `
+      <h3>Tic Tac Toe</h3>
+      <div class="mini-status" id="adv-ttt-status">${adv.ttt.done ? "Finished" : "Turn: " + adv.ttt.turn}</div>
+      <div class="ttt-board" id="adv-ttt-board"></div>
+      <button class="game-btn" id="adv-ttt-reset">RESET</button>
+    `;
+    const board = A("adv-ttt-board");
+    adv.ttt.board.forEach((v,i) => {
+      const c = document.createElement("div");
+      c.className = "ttt-cell";
+      c.innerText = v;
+      c.onclick = () => {
+        if (adv.ttt.done || adv.ttt.board[i]) return;
+        adv.ttt.board[i] = adv.ttt.turn;
+        const w = tttWinner(adv.ttt.board);
+        if (w) {
+          adv.ttt.done = true;
+          sys("Tic Tac Toe winner: " + w);
+        } else if (adv.ttt.board.every(Boolean)) {
+          adv.ttt.done = true;
+          sys("Tic Tac Toe draw");
+        } else {
+          adv.ttt.turn = adv.ttt.turn === "X" ? "O" : "X";
+        }
+        renderTTT(root);
+      };
+      board.appendChild(c);
+    });
+    A("adv-ttt-reset").onclick = () => {
+      adv.ttt = { board:Array(9).fill(""), turn:"X", done:false };
+      renderTTT(root);
+    };
+  }
+
+  function tttWinner(b){
+    const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+    for (const [a,c,d] of wins) if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
+    return null;
+  }
+
+  function renderRPS(root){
+    root.innerHTML = `
+      <h3>Rock Paper Scissors</h3>
+      <div id="rps-output" class="game-output">Choose your move</div>
+      <div class="rps-grid">
+        <button data-rps="Rock">ROCK</button>
+        <button data-rps="Paper">PAPER</button>
+        <button data-rps="Scissors">SCISSORS</button>
+      </div>
+    `;
+    root.querySelectorAll("[data-rps]").forEach(b => b.onclick = () => {
+      const cpu = ["Rock","Paper","Scissors"][Math.floor(Math.random()*3)];
+      const me = b.dataset.rps;
+      let res = "Draw";
+      if ((me==="Rock"&&cpu==="Scissors")||(me==="Paper"&&cpu==="Rock")||(me==="Scissors"&&cpu==="Paper")) res = "You win";
+      else if (me !== cpu) res = "You lose";
+      A("rps-output").innerText = `${me} vs ${cpu} — ${res}`;
+      sys(`RPS: ${me} vs ${cpu} — ${res}`);
+    });
+  }
+
+  function renderTruth(root){
+    root.innerHTML = `
+      <h3>Truth / Dare</h3>
+      <div id="truth-output" class="game-output">Choose Truth or Dare</div>
+      <div class="admin-grid">
+        <button class="admin-mini-btn good" id="adv-truth">TRUTH</button>
+        <button class="admin-mini-btn warn" id="adv-dare">DARE</button>
+      </div>
+    `;
+    A("adv-truth").onclick = () => pickTD("truth");
+    A("adv-dare").onclick = () => pickTD("dare");
+  }
+
+  function pickTD(type){
+    const list = type === "truth" ? truth : dare;
+    const picked = list[Math.floor(Math.random()*list.length)];
+    A("truth-output").innerText = picked;
+    sys((type === "truth" ? "TRUTH: " : "DARE: ") + picked);
+  }
+
+  function renderDice(root){
+    root.innerHTML = `
+      <h3>Dice Duel</h3>
+      <div id="dice-output" class="game-output" style="font-size:2rem;">?</div>
+      <button class="game-btn" id="dice-roll-adv">ROLL TWO DICE</button>
+    `;
+    A("dice-roll-adv").onclick = () => {
+      const a = Math.floor(Math.random()*6)+1;
+      const b = Math.floor(Math.random()*6)+1;
+      A("dice-output").innerText = `${a} + ${b} = ${a+b}`;
+      sys(`Dice Duel: ${a} + ${b} = ${a+b}`);
+    };
+  }
+
+  function renderWheel(root){
+    root.innerHTML = `
+      <h3>Spin Wheel</h3>
+      <div class="wheel" id="spin-wheel"></div>
+      <div id="wheel-output" class="game-output">Spin to select a challenge</div>
+      <button class="game-btn" id="wheel-spin">SPIN</button>
+    `;
+    A("wheel-spin").onclick = () => {
+      const options = ["Truth", "Dare", "Suspect someone", "Defend someone", "Skip turn", "Ask a question"];
+      const picked = options[Math.floor(Math.random()*options.length)];
+      adv.wheelDeg += 720 + Math.floor(Math.random()*360);
+      A("spin-wheel").style.transform = `rotate(${adv.wheelDeg}deg)`;
+      setTimeout(() => {
+        A("wheel-output").innerText = picked;
+        sys("Spin Wheel: " + picked);
+      }, 850);
+    };
+  }
+
+  function renderQuiz(root){
+    const q = quiz[adv.quizIndex % quiz.length];
+    root.innerHTML = `
+      <h3>Mafia Quiz</h3>
+      <div class="game-output">${safe(q.q)}</div>
+      <div class="quiz-options">
+        ${q.a.map((x,i)=>`<button data-q="${i}">${safe(x)}</button>`).join("")}
+      </div>
+      <div class="mini-status">Score: ${adv.quizScore}</div>
+    `;
+    root.querySelectorAll("[data-q]").forEach(b => b.onclick = () => {
+      if (Number(b.dataset.q) === q.ok) {
+        adv.quizScore++;
+        sys("Quiz: Correct");
+      } else {
+        sys("Quiz: Wrong");
+      }
+      adv.quizIndex++;
+      renderQuiz(root);
+    });
+  }
+
+  function renderMemory(root){
+    if (!adv.memory.deck.length) resetMemory();
+    root.innerHTML = `
+      <h3>Memory Match</h3>
+      <div class="memory-grid" id="memory-grid"></div>
+      <button class="game-btn" id="memory-reset" style="margin-top:10px;">RESET</button>
+    `;
+    const grid = A("memory-grid");
+    adv.memory.deck.forEach((v,i)=>{
+      const card = document.createElement("div");
+      card.className = "memory-card";
+      const shown = adv.memory.open.includes(i) || adv.memory.matched.includes(i);
+      card.innerText = shown ? v : "?";
+      card.onclick = () => openMemory(i);
+      grid.appendChild(card);
+    });
+    A("memory-reset").onclick = () => { resetMemory(); renderMemory(root); };
+  }
+
+  function resetMemory(){
+    const items = ["M","M","D","D","S","S","C","C"];
+    adv.memory.deck = items.sort(()=>Math.random()-.5);
+    adv.memory.open = [];
+    adv.memory.matched = [];
+  }
+
+  function openMemory(i){
+    if (adv.memory.open.includes(i) || adv.memory.matched.includes(i)) return;
+    if (adv.memory.open.length >= 2) adv.memory.open = [];
+    adv.memory.open.push(i);
+    if (adv.memory.open.length === 2) {
+      const [a,b] = adv.memory.open;
+      if (adv.memory.deck[a] === adv.memory.deck[b]) {
+        adv.memory.matched.push(a,b);
+        adv.memory.open = [];
+        sys("Memory: match found");
+      }
+    }
+    renderMemory(A("adv-game-root"));
+  }
+
+  function renderGuess(root){
+    root.innerHTML = `
+      <h3>Guess Number</h3>
+      <div id="guess-output" class="game-output">Guess 1-20</div>
+      <input id="guess-input" class="guess-input" type="number" min="1" max="20" placeholder="1-20">
+      <button class="game-btn" id="guess-btn">GUESS</button>
+      <button class="game-btn" id="guess-reset" style="background:#1b2144; margin-top:7px;">NEW NUMBER</button>
+    `;
+    A("guess-btn").onclick = () => {
+      const n = Number(A("guess-input").value);
+      if (!n) return;
+      const msg = n === adv.guess.number ? "Correct" : n < adv.guess.number ? "Higher" : "Lower";
+      A("guess-output").innerText = msg;
+      sys("Guess Number: " + msg);
+    };
+    A("guess-reset").onclick = () => {
+      adv.guess.number = Math.floor(Math.random()*20)+1;
+      A("guess-output").innerText = "New number ready";
+    };
+  }
+
+  function renderWould(root){
+    root.innerHTML = `
+      <h3>Who Would?</h3>
+      <div id="would-output" class="game-output">Generate a question</div>
+      <button class="game-btn" id="would-btn">GENERATE</button>
+    `;
+    A("would-btn").onclick = () => {
+      const q = would[Math.floor(Math.random()*would.length)];
+      A("would-output").innerText = q;
+      sys("Who Would: " + q);
+    };
+  }
+
+  function renderSound(root){
+    root.innerHTML = `
+      <h3>Soundboard / Textboard</h3>
+      <div class="soundboard-grid">
+        <button data-sound="Suspicious...">SUS</button>
+        <button data-sound="Dramatic reveal!">REVEAL</button>
+        <button data-sound="Objection!">OBJECTION</button>
+        <button data-sound="Good game.">GG</button>
+        <button data-sound="Emergency meeting energy.">ALARM</button>
+        <button data-sound="Void silence...">VOID</button>
+      </div>
+    `;
+    root.querySelectorAll("[data-sound]").forEach(b => b.onclick = () => {
+      emitChat("[SOUNDBOARD] " + b.dataset.sound);
+    });
+  }
+})();
+</script>
 
 </body>
 </html>
