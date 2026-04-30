@@ -719,12 +719,72 @@
 
     /* ---------------- ADVANCED PACK ---------------- */
 
+    .advanced-floating {
+      position:fixed;
+      left:50%;
+      bottom:150px;
+      transform:translateX(-50%);
+      z-index:2300;
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+      justify-content:center;
+      width:min(94vw, 620px);
+      pointer-events:auto;
+    }
+
+    .advanced-floating .mini-float-btn {
+      width:auto;
+      padding:9px 10px;
+      border:0;
+      border-radius:12px;
+      background:rgba(0,255,255,.16);
+      color:white;
+      border:1px solid rgba(0,255,255,.5);
+      font-family:Orbitron;
+      font-size:.55rem;
+      cursor:pointer;
+      box-shadow:0 0 12px rgba(0,255,255,.18);
+    }
+
+    .advanced-floating .mini-float-btn.admin-only {
+      border-color:rgba(255,0,255,.55);
+      background:rgba(255,0,255,.16);
+    }
+
     .lobby-ready-box {
       border:1px solid var(--cyan);
       padding:10px;
       background:rgba(0,255,255,.05);
       font-size:.82rem;
       text-align:center;
+    }
+
+    #ready-list {
+      display:flex;
+      flex-direction:column;
+      gap:5px;
+      margin-top:7px;
+      max-height:120px;
+      overflow:auto;
+    }
+
+    .ready-row {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:6px 8px;
+      border-radius:9px;
+      background:rgba(255,255,255,.06);
+      border-left:2px solid var(--neon);
+    }
+
+    .ready-ok {
+      color:var(--green);
+    }
+
+    .ready-no {
+      color:var(--red);
     }
 
     .chat-tabs {
@@ -894,22 +954,6 @@
       margin-top:8px;
     }
 
-
-
-    #game-powered-by {
-      position:fixed;
-      top:36px;
-      left:50%;
-      transform:translateX(-50%);
-      z-index:2100;
-      color:#8b64aa;
-      font-family:Orbitron;
-      font-size:.55rem;
-      letter-spacing:1.5px;
-      text-shadow:0 0 10px rgba(255,0,255,.35);
-      pointer-events:none;
-    }
-
   </style>
 </head>
 
@@ -951,6 +995,14 @@
 <button class="btn" id="music-toggle-btn" style="background:#1b2144; color:white;">
   LOBBY MUSIC: OFF
 </button>
+
+
+    <div class="lobby-ready-box">
+      <button class="btn" id="ready-btn" style="padding:10px; background:#007f66;">READY: NO</button>
+      <button class="btn" id="copy-room-btn" style="padding:10px; background:#1b2144; margin-top:7px;">COPY ROOM CODE</button>
+      <div id="ready-list"></div>
+    </div>
+
     <div id="room-list" style="max-height:220px; overflow-y:auto;"></div>
   </div>
 
@@ -960,8 +1012,6 @@
       <span id="game-timer">00:00</span>
       <span id="alive-count">0 ცოცხალი</span>
     </div>
-    <div id="game-powered-by">Powered by ბატონი მაქსი</div>
-
 
     <div id="my-role-card" class="hidden">როლი: ?</div>
 
@@ -1056,6 +1106,20 @@
         </div>
       </div>
     </div>
+
+
+
+    <div class="advanced-floating">
+      <button class="mini-float-btn" id="quick-ready-btn">READY</button>
+      <button class="mini-float-btn" id="quick-copy-btn">COPY</button>
+      <button class="mini-float-btn" data-react="SUS">SUS</button>
+      <button class="mini-float-btn" data-react="LOL">LOL</button>
+      <button class="mini-float-btn" data-react="GG">GG</button>
+      <button class="mini-float-btn admin-only" id="admin-skip-night">SKIP</button>
+      <button class="mini-float-btn admin-only" id="admin-pause-game">PAUSE</button>
+      <button class="mini-float-btn admin-only" id="admin-revive-all">REVIVE</button>
+    </div>
+
     <div class="controls">
       <button id="mic-btn" class="btn">MIC</button>
       <button id="cam-btn" class="btn" style="background:var(--cyan); color:#000;">CAM</button>
@@ -1439,7 +1503,7 @@
         $("phase-big-text").innerText = "დღე";
         $("phase-small-text").innerText = "ყველას ხმა ისმის. იმსჯელეთ და იპოვეთ მაფია.";
 
-        startTimer(120);
+        startTimer(45);
       } else if (currentPhase === "vote") {
         document.body.classList.add("day-mode");
 
@@ -2050,6 +2114,7 @@
 /* ---------------- ADVANCED FULL PACK ---------------- */
 (function(){
   const A = id => document.getElementById(id);
+  let ready = false;
   let currentChatTab = "main";
   let advGame = "ttt";
 
@@ -2113,10 +2178,56 @@
   }
 
   window.addEventListener("load", () => {
+    setupReady();
     setupAdvancedChatTabs();
     setupAdvancedMiniGames();
+    setupFloatingControls();
     renderAdvancedGame();
   });
+
+  function setupReady(){
+    const readyBtn = A("ready-btn");
+    const quickReady = A("quick-ready-btn");
+    const copyBtn = A("copy-room-btn");
+    const quickCopy = A("quick-copy-btn");
+
+    const fn = () => {
+      ready = !ready;
+      [readyBtn, quickReady].forEach(b => {
+        if (!b) return;
+        b.innerText = ready ? "READY: YES" : "READY: NO";
+        b.style.background = ready ? "#007f66" : "#7f5c00";
+      });
+      sys("Ready status: " + (ready ? "YES" : "NO"));
+      renderReadyList();
+    };
+
+    readyBtn?.addEventListener("click", fn);
+    quickReady?.addEventListener("click", fn);
+
+    const copy = () => {
+      const code = (typeof currentRoom !== "undefined" && currentRoom) ? currentRoom : (A("room-id")?.value || "");
+      if (!code) return alert("ჯერ ჩაწერე ოთახის ID");
+      navigator.clipboard?.writeText(code).then(() => sys("Room code copied: " + code)).catch(() => alert(code));
+    };
+
+    copyBtn?.addEventListener("click", copy);
+    quickCopy?.addEventListener("click", copy);
+
+    renderReadyList();
+  }
+
+  function renderReadyList(){
+    const box = A("ready-list");
+    if (!box) return;
+    const name = (typeof myNick !== "undefined" && myNick) ? myNick : "You";
+    box.innerHTML = `
+      <div class="ready-row">
+        <span>${safe(name)}</span>
+        <b class="${ready ? "ready-ok" : "ready-no"}">${ready ? "READY" : "NOT READY"}</b>
+      </div>
+    `;
+  }
 
   function setupAdvancedChatTabs(){
     document.querySelectorAll(".chat-tab").forEach(btn => {
@@ -2139,6 +2250,30 @@
         input.value = "";
       };
     }
+  }
+
+  function setupFloatingControls(){
+    document.querySelectorAll("[data-react]").forEach(btn => {
+      btn.addEventListener("click", () => emitChat("[REACTION] " + btn.dataset.react));
+    });
+
+    A("admin-skip-night")?.addEventListener("click", () => {
+      if (typeof isHost !== "undefined" && !isHost) return alert("მხოლოდ ადმინს შეუძლია");
+      if (typeof adminAction === "function") adminAction("skip-phase");
+      sys("Admin quick control: skip phase requested");
+    });
+
+    A("admin-pause-game")?.addEventListener("click", () => {
+      if (typeof isHost !== "undefined" && !isHost) return alert("მხოლოდ ადმინს შეუძლია");
+      sys("Game paused visually by admin");
+      if (typeof adminAction === "function") adminAction("pause-game");
+    });
+
+    A("admin-revive-all")?.addEventListener("click", () => {
+      if (typeof isHost !== "undefined" && !isHost) return alert("მხოლოდ ადმინს შეუძლია");
+      sys("Revive all requested by admin");
+      if (typeof adminAction === "function") adminAction("revive-all");
+    });
   }
 
   function setupAdvancedMiniGames(){
@@ -2405,6 +2540,23 @@
       emitChat("[SOUNDBOARD] " + b.dataset.sound);
     });
   }
+
+  // Compatible server-less admin action descriptions.
+  const oldAdminAction = window.adminAction;
+  window.adminAction = function(action, targetId = null, message = ""){
+    if (typeof isHost !== "undefined" && !isHost) {
+      alert("მხოლოდ ადმინს შეუძლია");
+      return;
+    }
+    if (["skip-phase","pause-game","revive-all"].includes(action)) {
+      if (typeof socket !== "undefined") {
+        socket.emit("admin-action", { room: currentRoom, action, targetId, message });
+      }
+      sys("Admin action sent: " + action);
+      return;
+    }
+    if (typeof oldAdminAction === "function") return oldAdminAction(action, targetId, message);
+  };
 })();
 </script>
 
