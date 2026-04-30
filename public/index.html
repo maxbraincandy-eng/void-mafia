@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>VOID MAFIA</title>
+  <title>VOID MAFIA v6</title>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@600&display=swap" rel="stylesheet">
 
   <style>
@@ -1157,6 +1157,23 @@
       pointer-events:none; display:none;
     }
     #ping-display.visible { display:block; }
+
+    /* ===== V6 FIX: Video must stay visible above avatar ===== */
+    .video-box video {
+      position:absolute;
+      inset:0;
+      z-index:2;
+      background:#000;
+    }
+    .cam-off-avatar {
+      display:none;
+      z-index:1;
+    }
+    .video-box.cam-off .cam-off-avatar {
+      display:flex;
+      z-index:3;
+    }
+
   </style>
 </head>
 
@@ -1209,7 +1226,7 @@
   </div>
 
   <h1 class="glitch-title">VOID MAFIA</h1>
-  <div class="powered">Powered by ბატონი მაქსი &nbsp;·&nbsp; <span style="color:var(--neon);">v5</span></div>
+  <div class="powered">Powered by ბატონი მაქსი &nbsp;·&nbsp; <span style="color:var(--neon);">v6</span></div>
 
   <!-- LOGIN -->
   <div id="login-screen" class="card">
@@ -1872,37 +1889,94 @@
       });
     });
 
+    function makePeerConnection(peerId, peerName, peerIndex, initiator, incomingSignal = null) {
+      if (!peerId || peerId === socket.id) return null;
+
+      if (peers[peerId]) {
+        try { peers[peerId].destroy(); } catch (_) {}
+        delete peers[peerId];
+      }
+
+      const peer = new SimplePeer({
+        initiator,
+        trickle: false,
+        stream: localStream || undefined,
+        config: {
+          iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            { urls: "stun:global.stun.twilio.com:3478" },
+            { urls: "stun:stun.cloudflare.com:3478" }
+          ]
+        }
+      });
+
+      peer.on("signal", signal => {
+        if (initiator) {
+          socket.emit("sending-signal", {
+            userToSignal: peerId,
+            callerID: socket.id,
+            signal
+          });
+        } else {
+          socket.emit("returning-signal", {
+            signal,
+            callerID: peerId
+          });
+        }
+      });
+
+      peer.on("stream", stream => {
+        addVideo(peerId, stream, peerName || "Player", peerIndex || 1);
+        attachRemoteSpeakDetection(peerId, stream);
+        setTimeout(updateVoiceByPhase, 250);
+      });
+
+      peer.on("connect", () => {
+        console.log("V6 peer connected:", peerId);
+      });
+
+      peer.on("close", () => {
+        console.log("V6 peer closed:", peerId);
+      });
+
+      peer.on("error", err => {
+        console.error("V6 peer error:", peerId, err);
+      });
+
+      if (incomingSignal) {
+        try { peer.signal(incomingSignal); }
+        catch (err) { console.error("V6 incoming signal error:", peerId, err); }
+      }
+
+      peers[peerId] = peer;
+      return peer;
+    }
+
     socket.on("all-users-info", users => {
+      if (!Array.isArray(users)) return;
+
       users.forEach(u => {
-        const peer = new SimplePeer({ initiator: true, trickle: false, stream: localStream });
-        peer.on("signal", signal => {
-          socket.emit("sending-signal", { userToSignal: u.id, callerID: socket.id, signal });
-        });
-        peer.on("stream", stream => {
-          addVideo(u.id, stream, u.name, u.index);
-          attachRemoteSpeakDetection(u.id, stream);
-        });
-        peer.on("error", err => console.error("peer error:", err));
-        peers[u.id] = peer;
+        if (!u || !u.id || u.id === socket.id) return;
+        makePeerConnection(u.id, u.name || u.nick || "Player", u.index || 1, true);
       });
     });
 
     socket.on("user-joined-with-info", p => {
-      const peer = new SimplePeer({ initiator: false, trickle: false, stream: localStream });
-      peer.on("signal", signal => {
-        socket.emit("returning-signal", { signal, callerID: p.id });
-      });
-      peer.on("stream", stream => {
-        addVideo(p.id, stream, p.nick, p.index);
-        attachRemoteSpeakDetection(p.id, stream);
-      });
-      peer.on("error", err => console.error("peer error:", err));
-      if (p.signal) peer.signal(p.signal);
-      peers[p.id] = peer;
+      if (!p || !p.id || p.id === socket.id) return;
+      makePeerConnection(p.id, p.nick || p.name || "Player", p.index || 1, false, p.signal || null);
     });
 
     socket.on("receiving-returned-signal", p => {
-      if (peers[p.id]) peers[p.id].signal(p.signal);
+      if (!p || !p.id || !p.signal) return;
+
+      const peer = peers[p.id];
+      if (!peer) {
+        console.warn("V6 returned signal received, but peer is missing:", p.id);
+        return;
+      }
+
+      try { peer.signal(p.signal); }
+      catch (err) { console.error("V6 returned signal error:", p.id, err); }
     });
 
     socket.on("user-left", id => {
@@ -2074,14 +2148,24 @@
     }
 
     function addVideo(id, stream, name, index, mute = false) {
-      if ($(id)) return;
+      if ($(id)) {
+        updateVideoMeta(id, name, index);
+        const existingVideo = $("v-" + id);
+        if (existingVideo && stream && existingVideo.srcObject !== stream) {
+          existingVideo.srcObject = stream;
+          existingVideo.play?.().catch(() => {});
+        }
+        updateCameraAvatar(id, stream);
+        return;
+      }
+
       const div = document.createElement("div");
       div.id = id;
       div.className = "video-box";
       const safeIndex = index && index > 0 ? index : 1;
       div.style.order = safeIndex;
 
-      const initials = name.replace(/[^a-zA-Zა-ჿ]/g,"").slice(0,2).toUpperCase() || "??";
+      const initials = String(name || "??").replace(/[^a-zA-Zა-ჿ]/g,"").slice(0,2).toUpperCase() || "??";
       div.innerHTML = `
         <div class="speaking-indicator"></div>
         <div class="player-number">#${safeIndex}</div>
@@ -2093,14 +2177,29 @@
         <div class="video-label">${escapeHtml(name)}</div>
       `;
 
-      // Click → quick profile
       div.addEventListener("click", () => showPlayerProfile(id, name, safeIndex));
 
       $("video-grid").appendChild(div);
-      if (stream) {
-        $("v-" + id).srcObject = stream;
+
+      const video = $("v-" + id);
+      if (stream && video) {
+        video.srcObject = stream;
+        video.play?.().catch(() => {});
         setTimeout(updateVoiceByPhase, 300);
       }
+
+      updateCameraAvatar(id, stream);
+    }
+
+    function updateCameraAvatar(id, stream) {
+      const box = $(id);
+      if (!box) return;
+
+      const hasLiveVideo = !!(stream && stream.getVideoTracks && stream.getVideoTracks().some(t => t.readyState === "live" && t.enabled));
+      box.classList.toggle("cam-off", !hasLiveVideo);
+
+      const avatar = $("avatar-" + id);
+      if (avatar) avatar.style.display = hasLiveVideo ? "none" : "flex";
     }
 
     /* ============================================================
@@ -2235,6 +2334,21 @@
           };
           actions.appendChild(checkBtn);
         }
+        if (currentPhase === "night" && myRole === "detective") {
+          const detectBtn = document.createElement("button");
+          detectBtn.className = "btn";
+          detectBtn.style.background = "#00ccff";
+          detectBtn.style.color = "#000";
+          detectBtn.textContent = "გამოძიება — " + name;
+          detectBtn.onclick = () => {
+            socket.emit("night-action", { room: currentRoom, action: "detective-check", targetId: id });
+            addSystemMsg("დეტექტივის ქმედება დაფიქსირდა");
+            toast("გამოძიება გაგზავნილია", "info");
+            modal.classList.add("hidden");
+            hideActionModal();
+          };
+          actions.appendChild(detectBtn);
+        }
       }
 
       modal.classList.remove("hidden");
@@ -2249,85 +2363,116 @@
       if (isHost && $("host-compact-controls")) {
         $("host-compact-controls").classList.toggle("hidden", currentPhase !== "waiting");
       }
+
       if (currentPhase !== "waiting") {
         $("role-settings-modal")?.classList.add("hidden");
       }
 
       if (currentPhase === "night") {
         voteMemory = {};
+        nominations = {};
+        isGroupDiscussion = false;
+
         document.body.classList.add("night-mode");
         $("game-phase").innerText = "🌙 ღამე";
         startNightEffects();
 
         const isMafiaTeam = myRole === "mafia" || myRole === "don" || myRole === "yakuza" || myRole === "chogun";
-        const isNightRole = isMafiaTeam || myRole === "doctor" || myRole === "sheriff" || myRole === "serial_killer" || myRole === "vigilante" || myRole === "detective" || myRole === "maniac";
 
         if (isMafiaTeam) {
-          toast("🔴 მაფიის ფაზა: ირჩევ მსხვერპლს. ოჯახს ხმა ესმის.", "error", 4000);
+          toast("🔴 ღამეა: აირჩიე მსხვერპლი. ოჯახი ერთმანეთს უსმენს.", "error", 4000);
         } else if (myRole === "doctor") {
-          toast("💊 ექიმის ფაზა: აირჩიე გადასარჩენი მოთამაშე.", "success", 4000);
+          toast("💊 ექიმი: აირჩიე ვის დაიცავ.", "success", 4000);
         } else if (myRole === "sheriff") {
-          toast("⭐ შერიფის ფაზა: შეამოწმე მოთამაშე.", "info", 4000);
+          toast("⭐ შერიფი: აირჩიე ვინ შეამოწმო.", "info", 4000);
         } else if (myRole === "serial_killer") {
-          toast("🗡️ სერიული მკვლელი: ირჩევ მსხვერპლს!", "error", 4000);
+          toast("🗡️ სერიული მკვლელი: აირჩიე მსხვერპლი.", "error", 4000);
         } else if (myRole === "vigilante") {
-          toast("⚖️ ვიჯილანტი: შეგიძლია ვინმე მოკლა.", "info", 4000);
+          toast("⚖️ ვიჯილანტი: შეგიძლია ღამით მოკვლა.", "info", 4000);
         } else if (myRole === "detective") {
-          toast("🔍 დეტექტივი: შეამოწმე მოთამაშე.", "info", 4000);
+          toast("🔍 დეტექტივი: აირჩიე ვინ გამოიკვლიო.", "info", 4000);
         } else if (myRole === "maniac") {
-          toast("🎭 მანიაკი: ვინ გააგიჟო?", "error", 4000);
+          toast("🎭 მანიაკი: აირჩიე ვინ გააგიჟო.", "error", 4000);
         } else {
-          toast("🌙 ღამეა. ფონი შეიცვალა. დაელოდე დილას...", "info", 4000);
+          toast("🌙 ღამეა. დაელოდე დილას.", "info", 4000);
         }
+
         startTimer(roomSettings.nightTime || 60);
+        stopIndividualTurn();
+        hideSpeakerBanner();
+        hideNominationPanel();
+        updateVoiceByPhase();
+        return;
+      }
+
+      if (currentPhase === "day") {
         voteMemory = {};
         nominations = {};
+        isGroupDiscussion = true;
+
         document.body.classList.add("day-mode");
         $("game-phase").innerText = "☀️ საერთო დისკუსია";
-        const groupSec = roomSettings.groupTime || 120;
-        toast(`საერთო დისკუსია — ${Math.floor(groupSec/60)} წუთი. ყველა საუბრობს!`, "info", 3000);
+
         stopNightEffects();
-        $("sfx-day-start")?.play().catch(()=>{});
+        $("sfx-day-start")?.play().catch(() => {});
+
+        const groupSec = roomSettings.groupTime || 120;
+        toast(`საერთო დისკუსია — ${Math.floor(groupSec / 60)} წუთი. ყველა საუბრობს.`, "info", 3000);
+
         startTimer(groupSec);
         stopIndividualTurn();
         hideSpeakerBanner();
         hideNominationPanel();
-        isGroupDiscussion = true;
-        // After 2 min timer ends, host triggers individual turns via server
-        // But if no server control, we auto-start individual turns locally after 120s
-        // Actually individual turns are triggered by "start-individual-turns" event
-        // The day timer finishing signals host to send the event
+        updateVoiceByPhase();
+        return;
+      }
 
-      } else if (currentPhase === "individual") {
+      if (currentPhase === "individual") {
+        isGroupDiscussion = false;
+
         document.body.classList.add("day-mode");
         $("game-phase").innerText = "🎤 ინდივიდუალური საუბარი";
-        stopNightEffects();
-        isGroupDiscussion = false;
-        // Speaking order and current speaker set by server events
-        // mute everyone except current speaker
-        updateVoiceByPhase();
 
-      } else if (currentPhase === "vote") {
+        stopNightEffects();
+        updateVoiceByPhase();
+        return;
+      }
+
+      if (currentPhase === "vote") {
+        isGroupDiscussion = false;
+
         document.body.classList.add("day-mode");
         $("game-phase").innerText = "🗳️ ხმის მიცემა";
-        toast(`ხმის მიცემის ფაზა — ${roomSettings.voteTime || 30} წამი!`, "info", 3000);
-        startTimer(roomSettings.voteTime || 30);
+
+        stopNightEffects();
         stopIndividualTurn();
         hideSpeakerBanner();
         hideNominationPanel();
 
-      } else if (currentPhase === "ended") {
+        toast(`ხმის მიცემის ფაზა — ${roomSettings.voteTime || 30} წამი.`, "info", 3000);
+        startTimer(roomSettings.voteTime || 30);
+        updateVoiceByPhase();
+        return;
+      }
+
+      if (currentPhase === "ended") {
         $("game-phase").innerText = "🏁 დასრულდა";
         stopTimer();
         stopNightEffects();
         stopIndividualTurn();
         hideSpeakerBanner();
         hideNominationPanel();
-      } else {
-        $("game-phase").innerText = "⏳ მზადება";
-        stopTimer();
-        stopNightEffects();
+        updateVoiceByPhase();
+        return;
       }
+
+      $("game-phase").innerText = "⏳ მზადება";
+      stopTimer();
+      stopNightEffects();
+      stopIndividualTurn();
+      hideSpeakerBanner();
+      hideNominationPanel();
+      updateVoiceByPhase();
     }
 
     function updateVoiceByPhase() {
@@ -2825,9 +2970,7 @@
       if (!track) return;
       track.enabled = !track.enabled;
       $("cam-btn").style.background = track.enabled ? "var(--cyan)" : "#333";
-      // V5: show/hide avatar overlay
-      const avatar = $("avatar-" + socket.id);
-      if (avatar) avatar.style.display = track.enabled ? "none" : "flex";
+      updateCameraAvatar(socket.id, localStream);
       toast(track.enabled ? "კამერა ჩართულია" : "კამერა გათიშულია", "info", 1500);
     }
 
