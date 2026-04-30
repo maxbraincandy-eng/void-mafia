@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>VOID MAFIA v9.5</title>
+  <title>VOID MAFIA v9.6</title>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css" />
 </head>
@@ -13,7 +13,7 @@
   <main id="auth" class="screen auth-screen">
     <section class="brand-block">
       <div class="brand-logo">VOID MAFIA</div>
-      <div class="brand-sub">Powered by ბატონი მაქსი · v9.5 Auth Engine</div>
+      <div class="brand-sub">Powered by ბატონი მაქსი · v9.6 Email Verify</div>
     </section>
 
     <section class="auth-card glass">
@@ -24,6 +24,11 @@
       <div class="field"><span>✦</span><input id="authNick" placeholder="ნიკნეიმი" autocomplete="nickname" /></div>
       <div class="field"><span>@</span><input id="authEmail" type="email" placeholder="Email" autocomplete="email" /></div>
       <div class="field"><span>▣</span><input id="authPassword" type="password" placeholder="Password" autocomplete="current-password" /></div>
+      <div id="verifyBox" class="verify-box hidden">
+        <p>კოდი გაიგზავნა მეილზე. ჩაწერე 6-ნიშნა კოდი და დაადასტურე.</p>
+        <div class="field"><span>✉</span><input id="authCode" inputmode="numeric" maxlength="6" placeholder="დადასტურების კოდი" /></div>
+        <button id="verifyBtn" class="primary wide-auth">კოდის დადასტურება</button>
+      </div>
 
       <div class="avatar-label">აირჩიე ავატარი</div>
       <div class="avatar-row" id="avatarRow"></div>
