@@ -1675,14 +1675,14 @@
   </div>
 
   <!-- CHAT -->
-  <div style="position:fixed; right:18px; bottom:92px; z-index:1600; width:50px; height:50px; border-radius:50%;">
+  <div id="chat-toggle-wrap" class="hidden" style="position:fixed; right:18px; bottom:92px; z-index:1600; width:50px; height:50px; border-radius:50%;">
     <div id="chat-toggle" style="width:100%; height:100%; border-radius:50%; background:var(--neon); display:flex; align-items:center; justify-content:center; cursor:pointer; font-family:Orbitron; font-size:.6rem; position:relative;">
       CHAT
       <div id="chat-unread-badge" class="hidden" style="position:absolute; top:-4px; right:-4px; background:var(--red); color:white; font-family:Orbitron; font-size:.5rem; width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center;"></div>
     </div>
   </div>
 
-  <div id="chat-panel">
+  <div id="chat-panel" class="hidden">
     <div id="chat-header">
       <span>VOID CHAT</span>
       <span id="close-chat" style="cursor:pointer;">✕</span>
@@ -2132,6 +2132,20 @@
     }
 
     function v7SetupSocketProEvents() {
+      
+      socket.on("profile-loaded", profile => {
+        if (!profile) return;
+        const normalized = { games: Number(profile.games || 0), wins: Number(profile.wins || 0), xp: Number(profile.xp || 0), mvp: Number(profile.mvp || 0), correctVotes: Number(profile.correctVotes || 0), kills: Number(profile.kills || 0), saves: Number(profile.saves || 0), checks: Number(profile.checks || 0) };
+        localStorage.setItem(v7StatsKey, JSON.stringify(normalized));
+        if (profile.avatar) { selectedAvatar = profile.avatar; localStorage.setItem("voidMafiaAvatar", selectedAvatar); }
+        v7RenderLocalProfile();
+        v7RememberProfile(socket.id, { name: myNick, avatar: selectedAvatar, ...normalized, level: v7LevelFromXp(normalized.xp) });
+        toast("პროფილი MongoDB-დან ჩაიტვირთა", "success", 2200);
+      });
+      socket.on("profile-stats-updated", data => {
+        const stats = v7LoadStats(); stats.games += 1; if (data?.won) stats.wins += 1; if (data?.isMvp) stats.mvp += 1; stats.xp += Number(data?.xpGain || 0); v7SaveStats(stats);
+      });
+
       socket.on("room-profiles", profiles => {
         if (profiles && typeof profiles === "object") {
           Object.entries(profiles).forEach(([id, p]) => v7RememberProfile(id, p));
@@ -2180,6 +2194,8 @@
         document.body.classList.add("game-active");
         $("rooms-screen").classList.add("hidden");
         $("game-screen").classList.remove("hidden");
+        $("chat-toggle-wrap")?.classList.remove("hidden");
+        $("chat-panel")?.classList.remove("hidden");
         $("mini-games-toggle").classList.remove("hidden");
         $("stats-toggle").style.display = "block";
 
@@ -2220,6 +2236,8 @@
         document.body.classList.add("game-active");
         $("rooms-screen").classList.add("hidden");
         $("game-screen").classList.remove("hidden");
+        $("chat-toggle-wrap")?.classList.remove("hidden");
+        $("chat-panel")?.classList.remove("hidden");
         $("mini-games-toggle").classList.remove("hidden");
         socket.emit("join-room", currentRoom, myNick, true, v7MyProfilePayload());
         $("v7-history-toggle")?.classList.remove("hidden");
@@ -2553,9 +2571,10 @@
       toast(data.message, "role", 6000);
       hideActionModal();
       const msg = data.message || "";
-      const result = v7AwardGameResult(msg);
-      const mvp = v7CalculateMVP(alivePlayers);
-      const mvpText = `${mvp.avatar || "🏆"} MVP: ${mvp.name} · +${result.xpGain} XP`;
+      const result = data.winnerTeam ? { xpGain: 0 } : v7AwardGameResult(msg);
+      const serverMvp = data.mvp;
+      const mvp = serverMvp ? { avatar: serverMvp.avatar || "🏆", name: serverMvp.nickname || "MVP" } : v7CalculateMVP(alivePlayers);
+      const mvpText = `${mvp.avatar || "🏆"} MVP: ${mvp.name}${result.xpGain ? " · +" + result.xpGain + " XP" : ""}`;
       v7AddHistory(mvpText, "mvp");
       // V5: Show win screen
       if (msg.includes("მოქალაქე") || msg.includes("citizen")) {
