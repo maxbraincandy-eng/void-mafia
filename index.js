@@ -2,6 +2,8 @@ const express = require("express");
 const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
+require("dotenv").config();
+const mongoose = require("mongoose");
 
 const app = express();
 const server = http.createServer(app);
@@ -13,6 +15,51 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, "public")));
 
 const rooms = new Map();
+
+/* ============================================================
+   V8 MONGODB / PERSISTENT STATS
+============================================================ */
+let mongoReady = false;
+const userSchema = new mongoose.Schema({
+  userKey: { type: String, unique: true, index: true }, nickname: { type: String, index: true }, avatar: { type: String, default: "🕶️" },
+  level: { type: Number, default: 1 }, xp: { type: Number, default: 0 }, games: { type: Number, default: 0 }, wins: { type: Number, default: 0 }, losses: { type: Number, default: 0 },
+  mafiaWins: { type: Number, default: 0 }, citizenWins: { type: Number, default: 0 }, soloWins: { type: Number, default: 0 }, mvp: { type: Number, default: 0 },
+  kills: { type: Number, default: 0 }, saves: { type: Number, default: 0 }, checks: { type: Number, default: 0 }, correctVotes: { type: Number, default: 0 }, lastSeen: { type: Date, default: Date.now }
+}, { timestamps: true });
+const matchSchema = new mongoose.Schema({
+  roomCode: String, winnerTeam: String, winnerMessage: String,
+  mvp: { userKey: String, nickname: String, avatar: String, score: Number },
+  players: [{ userKey: String, nickname: String, avatar: String, role: String, alive: Boolean, won: Boolean, xpGain: Number }],
+  history: [{ text: String, type: String, at: Date }], startedAt: Date, endedAt: Date
+}, { timestamps: true });
+const User = mongoose.models.User || mongoose.model("User", userSchema);
+const Match = mongoose.models.Match || mongoose.model("Match", matchSchema);
+function userKeyFromName(name) { return cleanName(name).trim().toLowerCase(); }
+function levelFromXp(xp) { return Math.max(1, Math.floor(Math.sqrt(Math.max(0, Number(xp || 0)) / 80)) + 1); }
+async function connectMongo() {
+  if (!process.env.MONGODB_URI) { console.log("MongoDB disabled: MONGODB_URI is not set. Using in-memory profiles only."); return; }
+  try { await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 }); mongoReady = true; console.log("MongoDB connected"); }
+  catch (err) { mongoReady = false; console.error("MongoDB connection failed:", err.message); }
+}
+async function loadOrCreateUserProfile(nickname, avatar = "🕶️") {
+  const name = cleanName(nickname); const userKey = userKeyFromName(name);
+  if (!mongoReady) return { userKey, nickname: name, avatar, level: 1, xp: 0, games: 0, wins: 0, losses: 0, mvp: 0, kills: 0, saves: 0, checks: 0, correctVotes: 0 };
+  const doc = await User.findOneAndUpdate({ userKey }, { $set: { nickname: name, avatar: avatar || "🕶️", lastSeen: new Date() }, $setOnInsert: { xp: 0, games: 0, wins: 0, losses: 0, mvp: 0 } }, { new: true, upsert: true }).lean();
+  return { ...doc, level: levelFromXp(doc.xp) };
+}
+function winningTeamFromMessage(message = "") { const msg = String(message).toLowerCase(); if (msg.includes("mafia") || msg.includes("მაფია")) return "mafia"; if (msg.includes("serial") || msg.includes("solo") || msg.includes("სერიულ")) return "solo"; if (msg.includes("citizen") || msg.includes("მოქალაქ")) return "citizen"; return "draw"; }
+function playerTeam(role) { if (["mafia", "don"].includes(role)) return "mafia"; if (["serial_killer"].includes(role)) return "solo"; return "citizen"; }
+function computeMvp(room, winnerTeam) {
+  const candidates = room.players.map(p => { const prof = room.profiles[p.id] || {}; let score = 0; if (playerTeam(p.role) === winnerTeam) score += 20; if (p.alive) score += 10; score += Number(prof.kills || 0) * 4; score += Number(prof.saves || 0) * 3; score += Number(prof.checks || 0) * 3; score += Number(prof.correctVotes || 0) * 2; score += Number(prof.level || 1); return { player: p, prof, score }; }).sort((a,b)=>b.score-a.score);
+  const best = candidates[0]; if (!best) return null; return { socketId: best.player.id, userKey: best.prof.userKey || userKeyFromName(best.player.name), nickname: best.player.name, avatar: best.prof.avatar || "🏆", score: best.score };
+}
+async function persistGameResult(room, winnerMessage) {
+  if (!mongoReady || room.statsSaved) return; room.statsSaved = true;
+  const winnerTeam = winningTeamFromMessage(winnerMessage); const mvp = computeMvp(room, winnerTeam); const playersForMatch = [];
+  for (const p of room.players) { const prof = room.profiles[p.id] || {}; const userKey = prof.userKey || userKeyFromName(p.name); const won = playerTeam(p.role) === winnerTeam; const isMvp = mvp && mvp.socketId === p.id; const xpGain = 30 + (won ? 70 : 10) + (p.alive ? 15 : 0) + (isMvp ? 50 : 0); const inc = { games: 1, wins: won ? 1 : 0, losses: won ? 0 : 1, mvp: isMvp ? 1 : 0, xp: xpGain }; if (won && winnerTeam === "mafia") inc.mafiaWins = 1; if (won && winnerTeam === "citizen") inc.citizenWins = 1; if (won && winnerTeam === "solo") inc.soloWins = 1; await User.findOneAndUpdate({ userKey }, { $set: { nickname: p.name, avatar: prof.avatar || "🕶️", lastSeen: new Date() }, $inc: inc }, { upsert: true }); playersForMatch.push({ userKey, nickname: p.name, avatar: prof.avatar || "🕶️", role: p.role, alive: p.alive, won, xpGain }); io.to(p.id).emit("profile-stats-updated", { won, xpGain, isMvp }); }
+  await Match.create({ roomCode: room.code, winnerTeam, winnerMessage, mvp: mvp ? { userKey: mvp.userKey, nickname: mvp.nickname, avatar: mvp.avatar, score: mvp.score } : null, players: playersForMatch, history: room.history.map(h => ({ text: h.text, type: h.type, at: new Date(h.at || Date.now()) })), startedAt: room.startedAt || new Date(room.createdAt || Date.now()), endedAt: new Date() });
+}
+
 
 const ROLE_LABEL = {
   mafia: "მაფია", don: "დონი", doctor: "ექიმი", sheriff: "შერიფი",
@@ -36,6 +83,8 @@ function makeRoom(code, hostId, hostName) {
     nightActions: {},
     votes: {},
     history: [],
+    startedAt: null,
+    statsSaved: false,
     settings: {
       sheriff: true,
       don: true,
@@ -200,6 +249,8 @@ function startGame(room, settings) {
     return;
   }
   room.started = true;
+  room.startedAt = new Date();
+  room.statsSaved = false;
   room.locked = true;
   room.phase = "role-reveal";
   room.nightActions = {};
@@ -293,40 +344,31 @@ function resolveVotes(room) {
   emitState(room);
 }
 
+function finishGame(room, message) {
+  room.phase = "ended";
+  const winnerTeam = winningTeamFromMessage(message);
+  const mvp = computeMvp(room, winnerTeam);
+  io.to(room.code).emit("game-over", { message, winnerTeam, mvp: mvp ? { nickname: mvp.nickname, avatar: mvp.avatar, score: mvp.score } : null });
+  persistGameResult(room, message).catch(err => console.error("Persist game result failed:", err.message));
+  return true;
+}
+
 function checkWin(room) {
   const alive = alivePlayers(room);
-  if (!alive.length) {
-    room.phase = "ended";
-    io.to(room.code).emit("game-over", { message: "თამაში დასრულდა — ყველა მოკვდა." });
-    return true;
-  }
+  if (!alive.length) return finishGame(room, "თამაში დასრულდა — ყველა მოკვდა.");
   const mafia = alive.filter(p => teamOf(p.role) === "mafia").length;
   const citizens = alive.filter(p => teamOf(p.role) === "citizen").length;
   const solo = alive.filter(p => teamOf(p.role) === "solo").length;
-
-  if (solo === 1 && alive.length === 1) {
-    room.phase = "ended";
-    io.to(room.code).emit("game-over", { message: "სერიული მკვლელი / solo player wins!" });
-    return true;
-  }
-  if (mafia === 0 && solo === 0) {
-    room.phase = "ended";
-    io.to(room.code).emit("game-over", { message: "მოქალაქეები გაიმარჯვეს!" });
-    return true;
-  }
-  if (mafia > 0 && mafia >= citizens + solo) {
-    room.phase = "ended";
-    io.to(room.code).emit("game-over", { message: "მაფია გაიმარჯვებს — Mafia wins!" });
-    return true;
-  }
+  if (solo === 1 && alive.length === 1) return finishGame(room, "სერიული მკვლელი / solo player wins!");
+  if (mafia === 0 && solo === 0) return finishGame(room, "მოქალაქეები გაიმარჯვეს!");
+  if (mafia > 0 && mafia >= citizens + solo) return finishGame(room, "მაფია გაიმარჯვებს — Mafia wins!");
   return false;
 }
-
 io.on("connection", socket => {
   socket.on("get-rooms", emitRoomList);
   socket.on("ping-check", () => socket.emit("pong-check"));
 
-  socket.on("join-room", (roomCode, nick, isSpectator = false, profile = {}) => {
+  socket.on("join-room", async (roomCode, nick, isSpectator = false, profile = {}) => {
     roomCode = String(roomCode || "").trim();
     if (!roomCode) return socket.emit("error", { msg: "ოთახის ID ცარიელია" });
 
@@ -352,16 +394,25 @@ io.on("connection", socket => {
     room.players = room.players.filter(p => p.id !== socket.id);
     room.spectators = room.spectators.filter(s => s.id !== socket.id);
 
+    const dbProfile = await loadOrCreateUserProfile(name, profile.avatar || "🕶️");
+    socket.emit("profile-loaded", dbProfile);
+
     room.profiles[socket.id] = {
       id: socket.id,
+      userKey: dbProfile.userKey || userKeyFromName(name),
       name,
       nick: name,
-      avatar: profile.avatar || "🕶️",
-      level: Number(profile.level || 1),
-      xp: Number(profile.xp || 0),
-      games: Number(profile.games || 0),
-      wins: Number(profile.wins || 0),
-      mvp: Number(profile.mvp || 0),
+      avatar: dbProfile.avatar || profile.avatar || "🕶️",
+      level: levelFromXp(dbProfile.xp || profile.xp || 0),
+      xp: Number(dbProfile.xp || profile.xp || 0),
+      games: Number(dbProfile.games || profile.games || 0),
+      wins: Number(dbProfile.wins || profile.wins || 0),
+      losses: Number(dbProfile.losses || 0),
+      mvp: Number(dbProfile.mvp || profile.mvp || 0),
+      kills: Number(dbProfile.kills || 0),
+      saves: Number(dbProfile.saves || 0),
+      checks: Number(dbProfile.checks || 0),
+      correctVotes: Number(dbProfile.correctVotes || 0),
       isSpectator: !!isSpectator
     };
 
@@ -479,8 +530,7 @@ io.on("connection", socket => {
 
     switch (data.action) {
       case "end-game":
-        room.phase = "ended";
-        io.to(room.code).emit("game-over", { message: "თამაში დასრულდა ჰოსტის მიერ." });
+        finishGame(room, "თამაში დასრულდა ჰოსტის მიერ.");
         break;
       case "reset-game":
         room.phase = "waiting";
@@ -541,6 +591,8 @@ io.on("connection", socket => {
   socket.on("disconnect", () => removeSocketFromRooms(socket));
 });
 
-server.listen(PORT, () => {
-  console.log(`VOID MAFIA v7 PRO running on port ${PORT}`);
+connectMongo().finally(() => {
+  server.listen(PORT, () => {
+    console.log(`VOID MAFIA v8 MongoDB Edition running on port ${PORT}`);
+  });
 });
