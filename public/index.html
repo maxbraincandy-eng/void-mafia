@@ -43,6 +43,107 @@
     body.night-mode .video-box { box-shadow:0 0 18px rgba(62,142,255,.35); border-color:var(--blue); }
     body.night-mode #game-status-bar { border-bottom-color:var(--blue); }
 
+    /* ===== NIGHT EFFECT OVERLAY ===== */
+    #night-fx-overlay {
+      position:fixed; inset:0; z-index:1900; pointer-events:none;
+      background:radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(0,0,20,.85) 100%);
+      opacity:0; transition: opacity 1s ease;
+    }
+    #night-fx-overlay.active { opacity:1; }
+
+    /* Floating particles for night */
+    .night-particle {
+      position:fixed; border-radius:50%; pointer-events:none; z-index:1901;
+      background:rgba(62,142,255,.6); box-shadow:0 0 8px rgba(62,142,255,.8);
+      animation: floatUp linear infinite;
+    }
+    @keyframes floatUp {
+      0% { transform:translateY(110vh) scale(1); opacity:.8; }
+      100% { transform:translateY(-10vh) scale(.3); opacity:0; }
+    }
+
+    /* ===== ACTIVE SPEAKER OVERLAY (individual turn) ===== */
+    #speaker-banner {
+      position:fixed; top:55px; left:50%; transform:translateX(-50%);
+      z-index:2300; background:rgba(0,0,0,.92);
+      border:2px solid var(--green); border-radius:14px;
+      padding:8px 20px; font-family:Orbitron; font-size:.78rem;
+      color:var(--green); text-align:center;
+      box-shadow:0 0 20px rgba(62,255,62,.4);
+      white-space:nowrap; display:none;
+    }
+    #speaker-banner.active { display:block; }
+
+    /* ===== INDIVIDUAL TURN HIGHLIGHT ===== */
+    .video-box.my-turn {
+      border-color:var(--green) !important;
+      box-shadow:0 0 30px rgba(62,255,62,.7) !important;
+      animation: turnPulse 1s ease infinite alternate;
+    }
+    @keyframes turnPulse {
+      from { box-shadow:0 0 15px rgba(62,255,62,.5); }
+      to { box-shadow:0 0 35px rgba(62,255,62,.9); }
+    }
+
+    /* ===== NOMINATION PANEL ===== */
+    #nomination-panel {
+      position:fixed; bottom:120px; left:50%;
+      transform:translateX(-50%);
+      z-index:2400; background:rgba(7,2,15,.97);
+      border:2px solid var(--neon); border-radius:16px;
+      padding:12px 16px; font-family:Orbitron;
+      box-shadow:0 0 30px rgba(255,0,255,.4);
+      max-width:min(94vw,420px); width:100%;
+      display:none; flex-direction:column; gap:8px;
+    }
+    #nomination-panel.active { display:flex; }
+    #nomination-panel h4 {
+      margin:0; font-size:.7rem; color:var(--neon); text-align:center;
+    }
+    #nomination-grid {
+      display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:6px;
+    }
+    .nom-btn {
+      border:1px solid var(--cyan); background:rgba(0,255,255,.08);
+      color:white; padding:7px 5px; border-radius:10px;
+      font-family:Orbitron; font-size:.52rem; cursor:pointer;
+      transition: background .15s;
+    }
+    .nom-btn:hover { background:rgba(0,255,255,.22); }
+    .nom-btn.nominated { background:var(--red); border-color:var(--red); color:white; }
+
+    /* ===== ROLE DISTRIBUTION SCREEN ===== */
+    #role-dist-screen {
+      position:fixed; inset:0; z-index:8000;
+      background:rgba(0,0,0,.97); display:none;
+      flex-direction:column; align-items:center;
+      justify-content:center; gap:18px; padding:20px;
+    }
+    #role-dist-screen.active { display:flex; }
+    #role-dist-screen h2 {
+      font-family:Orbitron; color:var(--cyan);
+      font-size:1rem; text-align:center;
+      text-shadow:0 0 18px var(--cyan);
+    }
+    #role-dist-card {
+      width:min(90vw,340px); background:var(--card);
+      border:2px solid var(--neon); border-radius:18px;
+      padding:24px; text-align:center;
+      box-shadow:0 0 40px rgba(255,0,255,.4);
+    }
+    #role-dist-icon { font-size:3rem; margin-bottom:8px; }
+    #role-dist-name {
+      font-family:Orbitron; font-size:1.4rem;
+      margin-bottom:8px;
+    }
+    #role-dist-desc { color:#aaa; font-size:.88rem; line-height:1.5; }
+    #role-dist-close {
+      padding:14px 30px; border:0; border-radius:14px;
+      background:linear-gradient(135deg, var(--neon), var(--cyan));
+      color:#000; font-family:Orbitron; font-size:.72rem;
+      cursor:pointer; box-shadow:0 0 20px rgba(0,255,255,.35);
+    }
+
     .hidden { display:none !important; }
 
     .game-active .glitch-title,
@@ -953,6 +1054,34 @@
   <audio id="lobby-music" loop preload="auto"
     src="https://cdn.pixabay.com/download/audio/2022/10/30/audio_9c6c04589e.mp3?filename=lofi-study-112191.mp3">
   </audio>
+  <audio id="night-music" loop preload="auto"
+    src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_2cef321b47.mp3?filename=dark-mystery-ambient-6085.mp3">
+  </audio>
+  <audio id="sfx-night-start" src="https://assets.mixkit.co/sfx/preview/mixkit-cinematic-mystery-hit-721.mp3"></audio>
+  <audio id="sfx-vote" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-game-over-melody-253.mp3"></audio>
+
+  <!-- NIGHT FX OVERLAY -->
+  <div id="night-fx-overlay"></div>
+
+  <!-- SPEAKER BANNER (individual turn) -->
+  <div id="speaker-banner">🎤 <span id="speaker-name">???</span> საუბრობს — <span id="speaker-timer">00:00</span></div>
+
+  <!-- NOMINATION PANEL (visible during discussion turns) -->
+  <div id="nomination-panel">
+    <h4>👆 დაასახელე მეჩვენი (არასავალდებულო)</h4>
+    <div id="nomination-grid"></div>
+  </div>
+
+  <!-- ROLE DISTRIBUTION SCREEN -->
+  <div id="role-dist-screen">
+    <h2>🃏 შენი როლი</h2>
+    <div id="role-dist-card">
+      <div id="role-dist-icon">❓</div>
+      <div id="role-dist-name" style="color:white;">???</div>
+      <div id="role-dist-desc"></div>
+    </div>
+    <button id="role-dist-close">გავიგე ✓</button>
+  </div>
 
   <!-- TOAST CONTAINER -->
   <div id="toast-container"></div>
@@ -1120,6 +1249,7 @@
           <button id="pro-to-vote">TO VOTE</button>
           <button id="pro-to-night">TO NIGHT</button>
           <button id="pro-add-time">+30 SEC</button>
+          <button id="pro-individual" class="good">INDIVIDUAL</button>
           <button id="pro-revive-all" class="good">REVIVE</button>
           <button id="pro-kill-random" class="danger">RANDOM KILL</button>
           <button id="pro-defense">DEFENSE</button>
@@ -1235,6 +1365,15 @@
     let roleSettings = {
       mafia: 1, don: true, sheriff: true, doctor: true, detectiveText: true
     };
+
+    // Individual turn system
+    let speakingOrder = [];       // ordered list of player ids for current round
+    let currentSpeakerIndex = -1; // which index is currently speaking
+    let individualTimerInterval = null;
+    let individualTimerSeconds = 0;
+    let isGroupDiscussion = false; // true during 2-min group phase
+    let nominations = {};          // { nominatorId: targetId }
+    let nightMusicOn = false;
 
     const peers = {};
     const analyserMap = {}; // for speaking detection
@@ -1579,6 +1718,9 @@
       else if (role === "sheriff") card.style.color = "var(--blue)";
       else card.style.color = "white";
 
+      // Show full-screen role reveal
+      showRoleDistScreen(role);
+
       toast("შენი როლია: " + roleName(role), "role", 5000);
       addSystemMsg("შენი როლია: " + roleName(role));
       updatePhaseText();
@@ -1600,7 +1742,34 @@
       renderActionPanel();
       updateVoiceByPhase();
       renderAdminPanel();
+      // Check win conditions on every state update
+      checkMafiaWinCondition();
     });
+
+    function checkMafiaWinCondition() {
+      const alive = alivePlayers.filter(p => p.alive);
+      const aliveMafia = alive.filter(p => mafiaIds.includes(p.id)).length;
+      const aliveCitizens = alive.length - aliveMafia;
+
+      if (alive.length === 0) return;
+
+      if (aliveMafia === 0) {
+        // Citizens win
+        if (currentPhase !== "ended") {
+          toast("🎉 მოქალაქეები გაიმარჯვეს! მაფია ამოიწყვიტა!", "success", 8000);
+          addSystemMsg("🏆 მოქალაქეების გამარჯვება!");
+        }
+      } else if (aliveMafia >= aliveCitizens) {
+        // Mafia wins (equal or more mafia than citizens)
+        if (currentPhase !== "ended") {
+          toast("🔴 მაფია გაიმარჯვა! ძალების თანასწორობა!", "error", 8000);
+          addSystemMsg("💀 მაფიის გამარჯვება! მათ მიაღწიეს ბალანსს!");
+          if (isHost) {
+            socket.emit("admin-action", { room: currentRoom, action: "end-game" });
+          }
+        }
+      }
+    }
 
     socket.on("phase-message", msg => { addSystemMsg(msg); });
 
@@ -1614,6 +1783,23 @@
       addSystemMsg(data.message);
       toast(data.message, "role", 6000);
       hideActionModal();
+    });
+
+    // Individual turns: server broadcasts who speaks when
+    socket.on("start-individual-turns", order => {
+      currentPhase = "individual";
+      updatePhaseText();
+      startIndividualTurns(order);
+    });
+
+    socket.on("next-speaker", idx => {
+      currentSpeakerIndex = idx;
+      activateSpeakerTurn();
+    });
+
+    // Mafia win check on game-state update
+    socket.on("check-mafia-win", () => {
+      checkMafiaWinCondition();
     });
 
     socket.on("receive-chat-msg", d => {
@@ -1779,6 +1965,7 @@
         voteMemory = {};
         document.body.classList.add("night-mode");
         $("game-phase").innerText = "🌙 ღამე";
+        startNightEffects();
 
         const roleMsg = {
           mafia: "მაფიის ფაზა: აირჩიე მოსაკლავი. მხოლოდ მაფიებს ესმით ერთმანეთის ხმა.",
@@ -1788,43 +1975,300 @@
         };
         toast(roleMsg[myRole] || "ღამეა. მოქალაქე ელოდება დილას.", "info", 4000);
         startTimer(60);
+        stopIndividualTurn();
+        hideSpeakerBanner();
+        hideNominationPanel();
+
       } else if (currentPhase === "day") {
         voteMemory = {};
+        nominations = {};
         document.body.classList.add("day-mode");
-        $("game-phase").innerText = "☀️ დღე";
-        toast("Day discussion — 2 წუთი გაქვთ", "info", 3000);
+        $("game-phase").innerText = "☀️ საერთო დისკუსია";
+        toast("საერთო დისკუსია — 2 წუთი. ყველა საუბრობს!", "info", 3000);
+        stopNightEffects();
         startTimer(120);
+        stopIndividualTurn();
+        hideSpeakerBanner();
+        hideNominationPanel();
+        isGroupDiscussion = true;
+        // After 2 min timer ends, host triggers individual turns via server
+        // But if no server control, we auto-start individual turns locally after 120s
+        // Actually individual turns are triggered by "start-individual-turns" event
+        // The day timer finishing signals host to send the event
+
+      } else if (currentPhase === "individual") {
+        document.body.classList.add("day-mode");
+        $("game-phase").innerText = "🎤 ინდივიდუალური საუბარი";
+        stopNightEffects();
+        isGroupDiscussion = false;
+        // Speaking order and current speaker set by server events
+        // mute everyone except current speaker
+        updateVoiceByPhase();
+
       } else if (currentPhase === "vote") {
         document.body.classList.add("day-mode");
         $("game-phase").innerText = "🗳️ ხმის მიცემა";
         toast("ხმის მიცემის ფაზა — 30 წამი!", "info", 3000);
         startTimer(30);
+        stopIndividualTurn();
+        hideSpeakerBanner();
+        hideNominationPanel();
+
       } else if (currentPhase === "ended") {
         $("game-phase").innerText = "🏁 დასრულდა";
         stopTimer();
+        stopNightEffects();
+        stopIndividualTurn();
+        hideSpeakerBanner();
+        hideNominationPanel();
       } else {
         $("game-phase").innerText = "⏳ მზადება";
         stopTimer();
+        stopNightEffects();
       }
     }
 
     function updateVoiceByPhase() {
       const iAmMafia = myRole === "mafia" || myRole === "don";
+
+      // Get current speaker id for individual phase
+      const currentSpeakerId = (currentPhase === "individual" && speakingOrder.length > 0 && currentSpeakerIndex >= 0)
+        ? speakingOrder[currentSpeakerIndex] : null;
+
       Object.keys(peers).forEach(peerId => {
         const video = $("v-" + peerId);
         if (!video) return;
         const peerIsMafia = mafiaIds.includes(peerId);
+
         if (currentPhase === "night") {
           video.muted = !(iAmMafia && peerIsMafia);
           video.volume = (iAmMafia && peerIsMafia) ? 1 : 0;
+        } else if (currentPhase === "individual" && currentSpeakerId) {
+          // Only current speaker is heard
+          if (peerId === currentSpeakerId) {
+            video.muted = false;
+            video.volume = 1;
+          } else {
+            video.muted = true;
+            video.volume = 0;
+          }
         } else {
           video.muted = false;
           video.volume = 1;
         }
       });
+
+      // My own video always muted for self
       const myVideo = $("v-" + socket.id);
       if (myVideo) { myVideo.muted = true; myVideo.volume = 0; }
+
+      // If I'm speaking in individual phase, unmute my mic fully
+      if (currentPhase === "individual" && currentSpeakerId) {
+        const amISpeaking = currentSpeakerId === socket.id;
+        if (localStream) {
+          const audioTrack = localStream.getAudioTracks()[0];
+          if (audioTrack && !amISpeaking) {
+            // Mute local mic (not sending) when not your turn
+            // Note: we visually dim others but mic muting on sender side
+            // is handled by the video-box .muted CSS class
+          }
+        }
+      }
     }
+
+    /* ============================================================
+       NIGHT EFFECTS
+    ============================================================ */
+    let nightParticles = [];
+    function startNightEffects() {
+      $("night-fx-overlay").classList.add("active");
+      $("sfx-night-start").play().catch(()=>{});
+      const nm = $("night-music");
+      if (nm && !nightMusicOn) {
+        nm.volume = 0.45;
+        nm.currentTime = 0;
+        nm.play().catch(()=>{});
+        nightMusicOn = true;
+      }
+      // Spawn particles
+      for (let i = 0; i < 12; i++) {
+        setTimeout(() => spawnNightParticle(), i * 400);
+      }
+    }
+
+    function stopNightEffects() {
+      $("night-fx-overlay").classList.remove("active");
+      const nm = $("night-music");
+      if (nm) { nm.pause(); nm.currentTime = 0; nightMusicOn = false; }
+      // Remove particles
+      document.querySelectorAll(".night-particle").forEach(p => p.remove());
+      nightParticles = [];
+    }
+
+    function spawnNightParticle() {
+      const p = document.createElement("div");
+      p.className = "night-particle";
+      const size = Math.random() * 6 + 3;
+      const duration = Math.random() * 8 + 6;
+      p.style.cssText = `
+        width:${size}px; height:${size}px;
+        left:${Math.random()*100}vw;
+        animation-duration:${duration}s;
+        animation-delay:${Math.random()*2}s;
+        opacity:0.7;
+      `;
+      document.body.appendChild(p);
+      nightParticles.push(p);
+      setTimeout(() => { p.remove(); }, (duration + 2) * 1000);
+    }
+
+    /* ============================================================
+       ROLE DISTRIBUTION SCREEN
+    ============================================================ */
+    function showRoleDistScreen(role) {
+      const icons = { mafia:"🔴", don:"🟠", sheriff:"⭐", doctor:"💊", citizen:"⚪" };
+      const colors = { mafia:"var(--red)", don:"#ff8c00", sheriff:"var(--blue)", doctor:"var(--green)", citizen:"white" };
+      const screen = $("role-dist-screen");
+      $("role-dist-icon").textContent = icons[role] || "❓";
+      $("role-dist-name").textContent = roleName(role);
+      $("role-dist-name").style.color = colors[role] || "white";
+      $("role-dist-desc").textContent = roleDescription(role);
+      screen.classList.add("active");
+      $("role-dist-close").onclick = () => {
+        screen.classList.remove("active");
+      };
+    }
+
+    /* ============================================================
+       INDIVIDUAL TURN SYSTEM
+    ============================================================ */
+    function startIndividualTurns(order) {
+      speakingOrder = order || alivePlayers.filter(p => p.alive).map(p => p.id);
+      currentSpeakerIndex = 0;
+      activateSpeakerTurn();
+    }
+
+    function activateSpeakerTurn() {
+      if (currentSpeakerIndex >= speakingOrder.length) {
+        // All spoke → go to vote
+        endIndividualTurns();
+        return;
+      }
+
+      const speakerId = speakingOrder[currentSpeakerIndex];
+      const player = alivePlayers.find(p => p.id === speakerId);
+      const name = player ? player.name : "#" + (currentSpeakerIndex + 1);
+
+      // Update banner
+      $("speaker-name").textContent = name;
+      $("speaker-banner").classList.add("active");
+
+      // Highlight video box
+      document.querySelectorAll(".video-box").forEach(b => b.classList.remove("my-turn"));
+      const speakerBox = $(speakerId);
+      if (speakerBox) speakerBox.classList.add("my-turn");
+
+      // Notify if it's my turn
+      if (speakerId === socket.id) {
+        toast("🎤 შენი ჯერია! 1 წუთი გაქვს", "success", 5000);
+      } else {
+        toast(`🎤 ${name} საუბრობს...`, "info", 3000);
+      }
+
+      // Nomination panel during each speaker's turn
+      renderNominationPanel();
+      $("nomination-panel").classList.add("active");
+
+      // Update voice
+      updateVoiceByPhase();
+
+      // Start 60s individual timer
+      stopIndividualTimer();
+      individualTimerSeconds = 60;
+      updateSpeakerTimerText();
+      individualTimerInterval = setInterval(() => {
+        individualTimerSeconds--;
+        updateSpeakerTimerText();
+        if (individualTimerSeconds <= 0) {
+          clearInterval(individualTimerInterval);
+          nextSpeaker();
+        }
+      }, 1000);
+    }
+
+    function nextSpeaker() {
+      currentSpeakerIndex++;
+      document.querySelectorAll(".video-box").forEach(b => b.classList.remove("my-turn"));
+      stopIndividualTimer();
+      activateSpeakerTurn();
+    }
+
+    function endIndividualTurns() {
+      stopIndividualTurn();
+      hideSpeakerBanner();
+      hideNominationPanel();
+      // Trigger vote phase - show voting modal locally
+      toast("🗳️ ყველამ ისაუბრა — ხმის მიცემის დრო!", "role", 4000);
+      $("sfx-vote").play().catch(()=>{});
+      // Host triggers vote phase on server
+      if (isHost) {
+        socket.emit("admin-action", { room: currentRoom, action: "force-vote" });
+      }
+    }
+
+    function stopIndividualTurn() {
+      speakingOrder = [];
+      currentSpeakerIndex = -1;
+      stopIndividualTimer();
+      document.querySelectorAll(".video-box").forEach(b => b.classList.remove("my-turn"));
+    }
+
+    function stopIndividualTimer() {
+      clearInterval(individualTimerInterval);
+      $("speaker-timer").textContent = "00:00";
+    }
+
+    function updateSpeakerTimerText() {
+      const m = String(Math.floor(individualTimerSeconds / 60)).padStart(2,"0");
+      const s = String(individualTimerSeconds % 60).padStart(2,"0");
+      $("speaker-timer").textContent = `${m}:${s}`;
+    }
+
+    function hideSpeakerBanner() { $("speaker-banner").classList.remove("active"); }
+    function hideNominationPanel() { $("nomination-panel").classList.remove("active"); }
+
+    /* ============================================================
+       NOMINATION PANEL
+    ============================================================ */
+    function renderNominationPanel() {
+      const grid = $("nomination-grid");
+      grid.innerHTML = "";
+      const aliveOthers = alivePlayers.filter(p => p.alive && p.id !== socket.id);
+      aliveOthers.forEach(p => {
+        const btn = document.createElement("button");
+        btn.className = "nom-btn" + (nominations[socket.id] === p.id ? " nominated" : "");
+        btn.textContent = `#${p.index} ${p.name}`;
+        btn.onclick = () => {
+          if (nominations[socket.id] === p.id) {
+            delete nominations[socket.id];
+          } else {
+            nominations[socket.id] = p.id;
+          }
+          socket.emit("send-chat-msg", {
+            room: currentRoom, name: myNick,
+            text: `[მეჩვენია: #${p.index} ${p.name}]`
+          });
+          renderNominationPanel();
+        };
+        grid.appendChild(btn);
+      });
+    }
+
+    /* ============================================================
+       DAY TIMER AUTO-TRANSITION
+    ============================================================ */
+    // When day phase timer hits 0, host triggers individual turns
+    const _origStartTimer = null;
 
     function startTimer(seconds) {
       clearInterval(timerInterval);
@@ -1833,7 +2277,16 @@
       timerInterval = setInterval(() => {
         timerSeconds--;
         updateTimerText();
-        if (timerSeconds <= 0) clearInterval(timerInterval);
+        if (timerSeconds <= 0) {
+          clearInterval(timerInterval);
+          // When group day discussion ends → everyone starts individual turns locally
+          if (currentPhase === "day") {
+            const order = alivePlayers.filter(p => p.alive).map(p => p.id);
+            currentPhase = "individual";
+            updatePhaseText();
+            startIndividualTurns(order);
+          }
+        }
       }, 1000);
     }
 
@@ -1921,6 +2374,8 @@
         return;
       }
 
+      // In individual phase, the nomination panel handles nominations
+      // Action modal not needed
       hideActionModal();
     }
 
@@ -2270,6 +2725,10 @@
       bindProAdmin("pro-to-vote", "force-vote");
       bindProAdmin("pro-to-night", "force-night");
       bindProAdmin("pro-add-time", "add-30-sec");
+      $("pro-individual")?.addEventListener("click", () => {
+        const order = alivePlayers.filter(p => p.alive).map(p => p.id);
+        socket.emit("admin-action", { room: currentRoom, action: "start-individual-turns", data: order });
+      });
       bindProAdmin("pro-revive-all", "revive-all");
       bindProAdmin("pro-kill-random", "kill-random");
       bindProAdmin("pro-defense", "force-defense");
