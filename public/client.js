@@ -69,7 +69,15 @@
 
   $("registerBtn")?.addEventListener("click", async () => {
     const data = await authFetch("/api/auth/register", { nickname: $("authNick").value, email: $("authEmail").value, password: $("authPassword").value, avatar: selectedAvatar });
-    if (!data.ok) return toast(data.error || "რეგისტრაცია ვერ მოხერხდა", "error"); enterApp(data.user);
+    if (!data.ok) return toast(data.error || "კოდის გაგზავნა ვერ მოხერხდა", "error");
+    $("verifyBox")?.classList.remove("hidden");
+    $("authCode")?.focus();
+    toast(data.devCode ? ("DEV CODE: " + data.devCode) : "დადასტურების კოდი გაიგზავნა მეილზე", "success");
+  });
+  $("verifyBtn")?.addEventListener("click", async () => {
+    const data = await authFetch("/api/auth/verify", { email: $("authEmail").value, code: $("authCode").value });
+    if (!data.ok) return toast(data.error || "კოდი არასწორია", "error");
+    enterApp(data.user);
   });
   $("loginBtn")?.addEventListener("click", async () => {
     const data = await authFetch("/api/auth/login", { email: $("authEmail").value, password: $("authPassword").value });
