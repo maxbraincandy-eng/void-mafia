@@ -2,98 +2,197 @@
 <html lang="ka">
 <head>
   <meta charset="utf-8">
-  <title>VOID MAFIA v10</title>
+  <title>VOID MAFIA v12</title>
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <link rel="stylesheet" href="/style.css">
+  <meta name="theme-color" content="#07020f">
+  <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
   <div id="toast"></div>
+  <div id="audioUnlock" class="audio-unlock hidden">
+    <button id="enableAudio">ხმის ჩართვა</button>
+  </div>
 
-  <section id="authScreen" class="screen auth-screen">
-    <div class="auth-card">
-      <div class="logo-mark">◈</div>
+  <section id="auth" class="screen auth">
+    <div class="auth-card glass">
+      <div class="brand-symbol">◆</div>
       <h1>VOID MAFIA</h1>
-      <p>პროფილის შექმნა / სწრაფი შესვლა</p>
-      <input id="nickInput" placeholder="ნიკნეიმი">
-      <div class="avatar-grid" id="avatarGrid"></div>
-      <button id="guestBtn" class="primary">სწრაფი შესვლა</button>
+      <p>ავტომატიზირებული მაფიის მაგიდები, კამერა, ხმა და ფაზები.</p>
+
+      <div class="auth-tabs">
+        <button id="tabQuick" class="active">სწრაფი</button>
+        <button id="tabEmail">მეილი</button>
+      </div>
+
+      <div id="quickForm" class="form">
+        <input id="quickNick" placeholder="ნიკნეიმი">
+        <div id="avatarPicker" class="avatar-picker"></div>
+        <button id="quickLogin" class="primary full">შესვლა</button>
+      </div>
+
+      <div id="emailForm" class="form hidden">
+        <input id="emailNick" placeholder="ნიკნეიმი">
+        <input id="emailAddress" type="email" placeholder="Email">
+        <input id="emailPassword" type="password" placeholder="Password">
+        <button id="requestCode" class="primary full">კოდის გაგზავნა</button>
+        <div id="codeBox" class="hidden">
+          <input id="verifyCode" placeholder="კოდი">
+          <button id="confirmCode" class="full">დადასტურება</button>
+        </div>
+      </div>
     </div>
   </section>
 
-  <section id="lobbyScreen" class="screen hidden">
-    <header class="app-top">
-      <button id="drawerBtn" class="icon-btn">☰</button>
+  <section id="app" class="screen hidden">
+    <header class="topbar">
+      <button id="drawerBtn" class="round">☰</button>
       <div>
-        <h2>მაგიდები</h2>
-        <p id="meLine">Ready</p>
+        <h2 id="pageTitle">მაგიდები</h2>
+        <span id="userLine">VOID</span>
       </div>
-      <button id="refreshRoomsBtn" class="icon-btn">↻</button>
+      <button id="refreshBtn" class="round">↻</button>
     </header>
 
-    <main class="lobby-content">
-      <div class="tools">
-        <input id="searchRooms" placeholder="ძებნა: კოდი, ჰოსტი, მაგიდა">
-        <button id="sortRoomsBtn">LIVE</button>
+    <aside id="drawer" class="drawer hidden">
+      <div class="drawer-card glass">
+        <div id="drawerAvatar" class="big-avatar">◆</div>
+        <h3 id="drawerName">Player</h3>
+        <p id="drawerUserId">ID</p>
+        <button id="drawerClose">დახურვა</button>
       </div>
+    </aside>
 
-      <div class="create-card">
-        <h3>ახალი მაგიდა</h3>
-        <input id="roomNameInput" placeholder="მაგიდის სახელი">
-        <div class="grid2">
-          <label>მოთამაშეები <input id="maxPlayersInput" type="number" value="10" min="4" max="16"></label>
-          <label>მაფია <input id="mafiaCountInput" type="number" value="1" min="1" max="6"></label>
+    <main class="app-main">
+      <section id="pageRooms" class="page active">
+        <div class="tool-row">
+          <input id="roomSearch" placeholder="ძებნა: კოდი, ჰოსტი, მაგიდა">
+          <select id="roomFilter">
+            <option value="all">ყველა</option>
+            <option value="open">ღია</option>
+            <option value="live">ლაივ</option>
+          </select>
         </div>
-        <button id="createRoomBtn" class="primary">მაგიდის შექმნა</button>
-      </div>
 
-      <h3 class="section-title">ლაივ მაგიდები</h3>
-      <div id="roomsList" class="rooms-list"></div>
+        <article class="create-room glass">
+          <div class="section-title">
+            <h3>ახალი მაგიდა</h3>
+            <span>v12 engine</span>
+          </div>
+          <input id="roomName" placeholder="მაგიდის სახელი">
+          <div class="two">
+            <label>ადგილები <input id="maxPlayers" type="number" min="4" max="16" value="10"></label>
+            <label>მაფია <input id="mafiaCount" type="number" min="1" max="6" value="1"></label>
+          </div>
+          <details>
+            <summary>როლები, წესები, დროები</summary>
+            <div id="roleGrid" class="toggle-grid"></div>
+            <div class="two">
+              <label>საერთო <input id="tCommon" type="number" value="60"></label>
+              <label>ინდივიდუალური <input id="tIndividual" type="number" value="60"></label>
+              <label>დასახელება <input id="tNomination" type="number" value="45"></label>
+              <label>ხმა <input id="tVote" type="number" value="35"></label>
+              <label>ბოლო სიტყვა <input id="tLastWords" type="number" value="45"></label>
+              <label>ღამე <input id="tNight" type="number" value="45"></label>
+            </div>
+          </details>
+          <button id="createRoom" class="primary full">მაგიდის შექმნა</button>
+        </article>
+
+        <div class="section-title">
+          <h3>ლაივ მაგიდები</h3>
+          <span id="roomsCount">0</span>
+        </div>
+        <div id="roomsList" class="cards"></div>
+      </section>
+
+      <section id="pageClans" class="page">
+        <article class="glass pad">
+          <h3>კლანები</h3>
+          <p>კლანების სისტემა მზადაა გაფართოებისთვის: ქულები, წევრები, მოვლენები.</p>
+          <input id="clanName" placeholder="კლანის სახელი">
+          <button id="createClan" class="primary">კლანის შექმნა</button>
+        </article>
+        <div id="clansList" class="cards"></div>
+      </section>
+
+      <section id="pageStats" class="page">
+        <div class="stats-grid">
+          <div class="stat glass"><b id="sRooms">0</b><span>მაგიდა</span></div>
+          <div class="stat glass"><b id="sLive">0</b><span>ლაივ</span></div>
+          <div class="stat glass"><b id="sPlayers">0</b><span>მოთამაშე</span></div>
+          <div class="stat glass"><b id="sClans">0</b><span>კლანი</span></div>
+        </div>
+        <article class="glass pad">
+          <h3>Leaderboard</h3>
+          <div id="leaderboard"></div>
+        </article>
+      </section>
+
+      <section id="pageProfile" class="page">
+        <article class="profile-card glass">
+          <div id="profileAvatar" class="big-avatar">◆</div>
+          <h2 id="profileName">Player</h2>
+          <p id="profileId">ID</p>
+          <div class="stats-grid">
+            <div class="stat"><b id="pLevel">1</b><span>Level</span></div>
+            <div class="stat"><b id="pXp">0</b><span>XP</span></div>
+            <div class="stat"><b id="pWins">0</b><span>Wins</span></div>
+            <div class="stat"><b id="pMvp">0</b><span>MVP</span></div>
+          </div>
+        </article>
+      </section>
     </main>
 
     <nav class="bottom-nav">
-      <button data-tab="rooms" class="active">მაგიდები</button>
-      <button data-tab="clans">კლანები</button>
-      <button data-tab="stats">სტატისტიკა</button>
-      <button data-tab="profile">პროფილი</button>
+      <button data-page="Rooms" class="active">მაგიდები</button>
+      <button data-page="Clans">კლანები</button>
+      <button data-page="Stats">სტატისტიკა</button>
+      <button data-page="Profile">პროფილი</button>
     </nav>
   </section>
 
-  <section id="gameScreen" class="screen hidden">
-    <header class="game-hud">
-      <button id="leaveBtn" class="exit-btn">×</button>
-      <div class="hud-item"><b id="phaseLabel">მოლოდინი</b><span id="dayLabel">დღე 0</span></div>
-      <div class="hud-item"><b id="timerLabel">00:00</b><span>დრო</span></div>
-      <div class="hud-item"><b id="aliveLabel">0</b><span>ცოცხალი</span></div>
-      <button id="settingsBtn" class="room-btn">ROOM</button>
+  <section id="game" class="screen hidden">
+    <header class="gamebar">
+      <button id="leaveGame" class="round danger">×</button>
+      <div class="phase">
+        <b id="phaseName">მოლოდინი</b>
+        <span id="phaseInfo">დღე 0</span>
+      </div>
+      <div class="clock">
+        <b id="timer">00:00</b>
+        <span>დრო</span>
+      </div>
+      <button id="roomSettingsBtn" class="primary mini">ROOM</button>
     </header>
 
-    <div id="phaseBanner" class="phase-banner hidden">
-      <h2 id="phaseBannerTitle"></h2>
-      <p id="phaseBannerText"></p>
+    <div id="phaseOverlay" class="phase-overlay hidden">
+      <h2 id="overlayTitle"></h2>
+      <p id="overlayText"></p>
     </div>
 
     <div id="videoGrid" class="video-grid"></div>
 
-    <button id="chatFab" class="chat-fab">CHAT</button>
-    <button id="logFab" class="log-fab">LOG</button>
+    <button id="actionButton" class="action-button hidden">ქმედება</button>
+    <button id="chatBtn" class="float chat">CHAT</button>
+    <button id="logBtn" class="float log">LOG</button>
 
     <aside id="chatPanel" class="side-panel hidden">
       <div class="panel-head"><b>მოთამაშეების ჩათი</b><button data-close="chatPanel">×</button></div>
-      <div id="chatMessages" class="chat-messages"></div>
-      <div class="chat-row"><input id="chatInput" placeholder="მესიჯი"><button id="sendChatBtn">➤</button></div>
+      <div id="chatMessages" class="scroll"></div>
+      <div class="send-row"><input id="chatInput" placeholder="მესიჯი"><button id="sendChat">➤</button></div>
     </aside>
 
     <aside id="logPanel" class="side-panel hidden">
-      <div class="panel-head"><b>თამაშის ჩანაწერი</b><button data-close="logPanel">×</button></div>
-      <div id="eventLog" class="event-log"></div>
+      <div class="panel-head"><b>Game Log</b><button data-close="logPanel">×</button></div>
+      <div id="logMessages" class="scroll"></div>
     </aside>
 
     <div id="actionModal" class="modal hidden">
       <div class="modal-card">
-        <button id="closeActionModal" class="modal-x">×</button>
+        <button id="closeAction" class="modal-x">×</button>
         <h2 id="actionTitle">ქმედება</h2>
-        <p id="actionHelp"></p>
-        <div id="actionTargets" class="target-list"></div>
+        <p id="actionText"></p>
+        <div id="targets" class="targets"></div>
       </div>
     </div>
 
@@ -101,30 +200,31 @@
       <div class="modal-card wide">
         <button id="closeSettings" class="modal-x">×</button>
         <h2>Room Settings</h2>
-        <div class="settings-section">
-          <h3>Game Flow</h3>
-          <div class="grid2">
-            <button id="startGameBtn" class="primary">START</button>
-            <button id="forceNightBtn">TO NIGHT</button>
-          </div>
+        <div class="two">
+          <button id="startGame" class="primary">START</button>
+          <button id="lockRoom">LOCK</button>
         </div>
-        <div class="settings-section">
-          <h3>Timers</h3>
-          <div class="grid2">
-            <label>საერთო <input id="tCommon" type="number" value="60"></label>
-            <label>თითო მოთამაშე <input id="tIndividual" type="number" value="60"></label>
-            <label>დასახელება <input id="tNomination" type="number" value="45"></label>
-            <label>ხმა <input id="tVote" type="number" value="35"></label>
-            <label>ბოლო სიტყვა <input id="tLastWords" type="number" value="45"></label>
-            <label>ღამე <input id="tNight" type="number" value="45"></label>
-          </div>
-          <button id="saveTimersBtn" class="primary">SAVE TIMERS</button>
+        <h3>დროები</h3>
+        <div class="two">
+          <label>საერთო <input id="setCommon" type="number"></label>
+          <label>ინდივიდუალური <input id="setIndividual" type="number"></label>
+          <label>დასახელება <input id="setNomination" type="number"></label>
+          <label>ხმა <input id="setVote" type="number"></label>
+          <label>ბოლო სიტყვა <input id="setLastWords" type="number"></label>
+          <label>ღამე <input id="setNight" type="number"></label>
         </div>
+        <button id="saveSettings" class="primary full">SAVE</button>
       </div>
     </div>
   </section>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/client.js"></script>
+  <script src="/js/state.js"></script>
+  <script src="/js/sound.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/socket.js"></script>
+  <script src="/js/game.js"></script>
+  <script src="/js/app.js"></script>
 </body>
 </html>
