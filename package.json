@@ -1,7 +1,7 @@
 {
   "name": "void-mafia-v12-ultimate-engine",
   "version": "12.0.0",
-  "description": "VOID MAFIA v12 Ultimate Engine - modular automated phases, audio cues, rooms, clans, stats and Android WebView friendly UI",
+  "description": "VOID MAFIA v12 Ultimate Engine",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -24,6 +24,6 @@
     "nodemon": "^3.1.4"
   },
   "engines": {
-    "node": ">=18"
+    "node": "20.x"
   }
 }
