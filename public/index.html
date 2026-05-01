@@ -1,109 +1,130 @@
 <!doctype html>
 <html lang="ka">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>VOID MAFIA v9.7</title>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/style.css" />
+  <meta charset="utf-8">
+  <title>VOID MAFIA v10</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <div class="bg-grid"></div>
+  <div id="toast"></div>
 
-  <main id="auth" class="screen auth-screen">
-    <section class="brand-block">
-      <div class="brand-logo">VOID MAFIA</div>
-      <div class="brand-sub">Powered by ბატონი მაქსი · v9.7 Auto Engine</div>
-    </section>
+  <section id="authScreen" class="screen auth-screen">
+    <div class="auth-card">
+      <div class="logo-mark">◈</div>
+      <h1>VOID MAFIA</h1>
+      <p>პროფილის შექმნა / სწრაფი შესვლა</p>
+      <input id="nickInput" placeholder="ნიკნეიმი">
+      <div class="avatar-grid" id="avatarGrid"></div>
+      <button id="guestBtn" class="primary">სწრაფი შესვლა</button>
+    </div>
+  </section>
 
-    <section class="auth-card glass">
-      <div id="authEmblem" class="auth-emblem">♛</div>
-      <h1>პროფილის შექმნა / შესვლა</h1>
-      <p>რეგისტრაციისას მოგენიჭება მუდმივი რიგითი ID. ამ ID-ით შემდეგ განისაზღვრება admin/monitor სტატუსი.</p>
-
-      <div class="field"><span>✦</span><input id="authNick" placeholder="ნიკნეიმი" autocomplete="nickname" /></div>
-      <div class="field"><span>@</span><input id="authEmail" type="email" placeholder="Email" autocomplete="email" /></div>
-      <div class="field"><span>▣</span><input id="authPassword" type="password" placeholder="Password" autocomplete="current-password" /></div>
-      <div id="verifyBox" class="verify-box hidden">
-        <p>კოდი გაიგზავნა მეილზე. ჩაწერე 6-ნიშნა კოდი და დაადასტურე.</p>
-        <div class="field"><span>✉</span><input id="authCode" inputmode="numeric" maxlength="6" placeholder="დადასტურების კოდი" /></div>
-        <button id="verifyBtn" class="primary wide-auth">კოდის დადასტურება</button>
-      </div>
-
-      <div class="avatar-label">აირჩიე ავატარი</div>
-      <div class="avatar-row" id="avatarRow"></div>
-
-      <div class="auth-actions">
-        <button id="registerBtn" class="primary">რეგისტრაცია</button>
-        <button id="loginBtn" class="secondary">შესვლა</button>
-      </div>
-      <button id="googleBtn" class="social google">Google-ით შესვლა</button>
-      <button id="facebookBtn" class="social facebook">Facebook-ით შესვლა</button>
-      <button id="guestBtn" class="ghost-wide">სწრაფი სტუმარი</button>
-    </section>
-  </main>
-
-  <main id="app" class="screen hidden">
-    <header class="topbar">
+  <section id="lobbyScreen" class="screen hidden">
+    <header class="app-top">
       <button id="drawerBtn" class="icon-btn">☰</button>
-      <div class="top-title"><b id="pageTitle">მაგიდები</b><small id="pageSub">ცოცხალი ოთახები და სწრაფი შესვლა</small></div>
-      <button id="notifyBtn" class="icon-btn">◌</button>
+      <div>
+        <h2>მაგიდები</h2>
+        <p id="meLine">Ready</p>
+      </div>
+      <button id="refreshRoomsBtn" class="icon-btn">↻</button>
     </header>
 
-    <div id="drawerBackdrop" class="drawer-backdrop"></div>
-    <aside id="drawer" class="drawer">
-      <div class="drawer-profile">
-        <div id="drawerAvatar" class="drawer-avatar">♛</div>
-        <div><b id="drawerName">---</b><div class="rank">ID <span id="drawerUserId">---</span> · Level <span id="drawerLevel">1</span></div><div class="status-ok">✓ თამაშისთვის მზად</div></div>
+    <main class="lobby-content">
+      <div class="tools">
+        <input id="searchRooms" placeholder="ძებნა: კოდი, ჰოსტი, მაგიდა">
+        <button id="sortRoomsBtn">LIVE</button>
       </div>
-      <div class="drawer-actions"><button data-tab="stats">STATISTICS</button><button data-tab="profile">PROFILE</button></div>
-      <button class="drawer-row">სიახლეები</button><button class="drawer-row">დახმარება</button><button class="drawer-row">კავშირის სტატუსი</button><button class="drawer-row">თამაშის შესახებ</button><button id="logoutBtn" class="drawer-row danger-text">გასვლა ანგარიშიდან</button>
+
+      <div class="create-card">
+        <h3>ახალი მაგიდა</h3>
+        <input id="roomNameInput" placeholder="მაგიდის სახელი">
+        <div class="grid2">
+          <label>მოთამაშეები <input id="maxPlayersInput" type="number" value="10" min="4" max="16"></label>
+          <label>მაფია <input id="mafiaCountInput" type="number" value="1" min="1" max="6"></label>
+        </div>
+        <button id="createRoomBtn" class="primary">მაგიდის შექმნა</button>
+      </div>
+
+      <h3 class="section-title">ლაივ მაგიდები</h3>
+      <div id="roomsList" class="rooms-list"></div>
+    </main>
+
+    <nav class="bottom-nav">
+      <button data-tab="rooms" class="active">მაგიდები</button>
+      <button data-tab="clans">კლანები</button>
+      <button data-tab="stats">სტატისტიკა</button>
+      <button data-tab="profile">პროფილი</button>
+    </nav>
+  </section>
+
+  <section id="gameScreen" class="screen hidden">
+    <header class="game-hud">
+      <button id="leaveBtn" class="exit-btn">×</button>
+      <div class="hud-item"><b id="phaseLabel">მოლოდინი</b><span id="dayLabel">დღე 0</span></div>
+      <div class="hud-item"><b id="timerLabel">00:00</b><span>დრო</span></div>
+      <div class="hud-item"><b id="aliveLabel">0</b><span>ცოცხალი</span></div>
+      <button id="settingsBtn" class="room-btn">ROOM</button>
+    </header>
+
+    <div id="phaseBanner" class="phase-banner hidden">
+      <h2 id="phaseBannerTitle"></h2>
+      <p id="phaseBannerText"></p>
+    </div>
+
+    <div id="videoGrid" class="video-grid"></div>
+
+    <button id="chatFab" class="chat-fab">CHAT</button>
+    <button id="logFab" class="log-fab">LOG</button>
+
+    <aside id="chatPanel" class="side-panel hidden">
+      <div class="panel-head"><b>მოთამაშეების ჩათი</b><button data-close="chatPanel">×</button></div>
+      <div id="chatMessages" class="chat-messages"></div>
+      <div class="chat-row"><input id="chatInput" placeholder="მესიჯი"><button id="sendChatBtn">➤</button></div>
     </aside>
 
-    <section id="tab-tables" class="tab active">
-      <div class="section-head"><div><h2>მაგიდები</h2><p>შექმენი ან აირჩიე აქტიური მაგიდა.</p></div><span id="roomCount" class="pill">0 LIVE</span></div>
-      <div class="tools"><input id="roomSearch" placeholder="ძებნა: კოდი, ჰოსტი, მაგიდა"><button id="refreshRooms">↻</button><button id="filterBtn">≡</button></div>
+    <aside id="logPanel" class="side-panel hidden">
+      <div class="panel-head"><b>თამაშის ჩანაწერი</b><button data-close="logPanel">×</button></div>
+      <div id="eventLog" class="event-log"></div>
+    </aside>
 
-      <section id="createCard" class="create-card glass">
-        <h3>სწრაფი მაგიდა</h3>
-        <p class="muted">როლების არჩევა და თამაშის engine მაგიდაში შესვლის შემდეგ, Room Settings-ში იმართება.</p>
-        <input id="roomName" placeholder="მაგიდის სახელი" />
-        <input id="roomCode" placeholder="მაგიდის ID მაგ: 123" />
-        <div class="settings-grid simple-grid">
-          <label>Max Players <input id="maxPlayers" type="number" min="4" max="16" value="10"></label>
-          <label><input id="allowSpectator" type="checkbox" checked> Spectator allowed</label>
-          <label><input id="privateRoom" type="checkbox"> Private table</label>
+    <div id="actionModal" class="modal hidden">
+      <div class="modal-card">
+        <button id="closeActionModal" class="modal-x">×</button>
+        <h2 id="actionTitle">ქმედება</h2>
+        <p id="actionHelp"></p>
+        <div id="actionTargets" class="target-list"></div>
+      </div>
+    </div>
+
+    <div id="settingsModal" class="modal hidden">
+      <div class="modal-card wide">
+        <button id="closeSettings" class="modal-x">×</button>
+        <h2>Room Settings</h2>
+        <div class="settings-section">
+          <h3>Game Flow</h3>
+          <div class="grid2">
+            <button id="startGameBtn" class="primary">START</button>
+            <button id="forceNightBtn">TO NIGHT</button>
+          </div>
         </div>
-        <div class="create-actions"><button id="joinRoom" class="primary">შექმნა / შესვლა</button><button id="watchRoom" class="cyan">ყურება</button></div>
-      </section>
+        <div class="settings-section">
+          <h3>Timers</h3>
+          <div class="grid2">
+            <label>საერთო <input id="tCommon" type="number" value="60"></label>
+            <label>თითო მოთამაშე <input id="tIndividual" type="number" value="60"></label>
+            <label>დასახელება <input id="tNomination" type="number" value="45"></label>
+            <label>ხმა <input id="tVote" type="number" value="35"></label>
+            <label>ბოლო სიტყვა <input id="tLastWords" type="number" value="45"></label>
+            <label>ღამე <input id="tNight" type="number" value="45"></label>
+          </div>
+          <button id="saveTimersBtn" class="primary">SAVE TIMERS</button>
+        </div>
+      </div>
+    </div>
+  </section>
 
-      <section class="glass list-wrap"><h3>აქტიური მაგიდები</h3><div id="roomList" class="room-list empty-list">აქტიური მაგიდები არ არის — შექმენი ახალი.</div></section>
-      <div class="fab-row"><button onclick="document.getElementById('roomCode').focus()">კოდით შესვლა</button><button id="refreshFab">↻</button><button onclick="document.getElementById('createCard').scrollIntoView({behavior:'smooth'})">მაგიდის შექმნა</button></div>
-    </section>
-
-    <section id="tab-clans" class="tab"><div class="section-head"><div><h2>კლანები</h2><p>გუნდები, წევრები და რეიტინგი.</p></div><span class="pill">BETA</span></div><div class="glass"><h3>ჩემი კლანი</h3><div class="clan-card"><div class="clan-emblem">♛</div><div><b>Void Syndicate</b><p>ლიდერი: ბატონი მაქსი · წევრები 1/30</p><span>cyber</span><span>ranked</span></div><button>ნახვა</button></div></div></section>
-    <section id="tab-stats" class="tab"><div class="section-head"><div><h2>სტატისტიკა</h2><p>სეზონის და როლების ანალიზი.</p></div></div><div class="stats-grid"><div class="stat"><b id="stGames">0</b><small>თამაშები</small></div><div class="stat"><b id="stWins">0</b><small>მოგებები</small></div><div class="stat"><b id="stMvp">0</b><small>MVP</small></div><div class="stat"><b id="stLevel">1</b><small>Level</small></div></div><div class="glass"><h3>Leaderboard</h3><div id="leaderboard" class="leaderboard"></div></div></section>
-    <section id="tab-profile" class="tab"><div class="profile-hero glass"><div id="profileAvatar" class="profile-avatar">♛</div><div><h2 id="profileName">---</h2><div class="rank">ID <span id="profileId">---</span> · Level <span id="profileLevel">1</span></div><div class="xp"><span id="xpFill"></span></div></div></div><div class="glass"><h3>ავატარი</h3><p class="muted">აქ შეცვლილი აიქონი ინახება პროფილზე.</p><div class="avatar-row profile-avatar-row" id="profileAvatarRow"></div></div><div class="stats-grid"><div class="stat"><b id="profileXp">0</b><small>XP</small></div><div class="stat"><b id="profileKarma">0</b><small>Karma</small></div><div class="stat"><b id="profileKills">0</b><small>Kills</small></div><div class="stat"><b id="profileChecks">0</b><small>Checks</small></div></div></section>
-
-    <nav class="bottom-nav"><button class="nav active" data-tab="tables"><b>◉</b>მაგიდები</button><button class="nav" data-tab="clans"><b>⬟</b>კლანები</button><button class="nav" data-tab="stats"><b>▤</b>სტატისტიკა</button><button class="nav" data-tab="profile"><b>♛</b>პროფილი</button></nav>
-  </main>
-
-  <main id="game" class="screen game hidden">
-    <header class="game-hud"><button id="leaveGame" class="exit-btn">×</button><span id="phaseText">მზადება</span><span id="timerText">00:00</span><span id="aliveText">0 ცოცხალი</span><button id="roomSettingsBtn" class="room-settings hidden">ROOM</button></header>
-    <div class="game-powered">Powered by ბატონი მაქსი</div>
-    <section id="videoGrid" class="video-grid"></section>
-    <section id="actionPanel" class="action-panel hidden"></section>
-    <button id="chatBtn" class="chat-float">CHAT <em id="unread" class="hidden">0</em></button>
-    <aside id="chatPanel" class="chat-panel"><div class="chat-head"><b>VOID CHAT</b><button id="closeChat">×</button></div><div class="chat-tabs"><button class="chat-tab active" data-chat="main">MAIN</button><button class="chat-tab" data-chat="mafia">MAFIA</button><button class="chat-tab" data-chat="dead">DEAD</button><button class="chat-tab" data-chat="spectator">SPEC</button></div><div id="messages" class="messages"></div><div class="chat-input"><input id="chatInput" placeholder="დაწერე..."><button id="sendChat">➤</button></div></aside>
-
-    <section id="roomSettings" class="modal hidden"><div class="modal-card room-settings-card"><button id="closeSettings" class="modal-close">×</button><h2>Room Settings</h2><p>ჰოსტის მართვა აქვს #1 პოზიციაზე მჯდომ მოთამაშეს. აქ იცვლება მაგიდა, როლები და engine.</p><h3>Game Flow</h3><div class="control-grid"><button data-cmd="start" class="primary">START GAME</button><button data-cmd="day">TO DAY</button><button data-cmd="night">TO NIGHT</button><button data-cmd="vote">TO VOTE</button><button data-cmd="lock" class="warn">LOCK</button><button data-cmd="unlock" class="good">UNLOCK</button><button data-cmd="reset" class="warn">RESET</button><button data-cmd="end" class="danger">END</button></div><h3>Table</h3><div class="settings-grid modal-settings-grid"><label>სახელი <input id="rsName" placeholder="მაგიდის სახელი"></label><label>Max <input id="rsMaxPlayers" type="number" min="4" max="16" value="10"></label><label><input id="rsSpectator" type="checkbox"> Spectator allowed</label><label><input id="rsReveal" type="checkbox"> Reveal roles</label><label><input id="rsLastWords" type="checkbox" checked> ბოლო სიტყვა</label><label><input id="rsNoNomFirst" type="checkbox"> I დღეს კანდიდატები გამოტოვე</label></div><h3>Auto Engine Timers</h3><div class="settings-grid modal-settings-grid"><label>დღე <input id="rsDaySec" type="number" min="30" max="300" value="100"></label><label>დასახელება <input id="rsNomSec" type="number" min="20" max="120" value="45"></label><label>ხმა <input id="rsVoteSec" type="number" min="15" max="90" value="35"></label><label>ღამე <input id="rsNightSec" type="number" min="20" max="120" value="55"></label></div><h3>Roles Engine</h3><div class="settings-grid modal-settings-grid"><label>მაფია <input id="rsMafiaCount" type="number" min="1" max="4" value="1"></label><label><input id="rsRoleDon" type="checkbox"> 👑 Don</label><label><input id="rsRoleSheriff" type="checkbox"> ⭐ Sheriff</label><label><input id="rsRoleDoctor" type="checkbox"> 💊 Doctor</label><label><input id="rsRoleDetective" type="checkbox"> 🔎 Detective</label><label><input id="rsRoleSerial" type="checkbox"> 🗡 Serial Killer</label><label><input id="rsRoleYakuza" type="checkbox"> ⚔ Yakuza</label><label><input id="rsRoleChogun" type="checkbox"> 🥷 Chogun</label><label><input id="rsRoleVigilante" type="checkbox"> ⚖ Vigilante</label><label><input id="rsRoleManiac" type="checkbox"> 🎭 Maniac</label></div><div id="roleSummary" class="role-summary"></div><button id="saveRoomSettings" class="primary wide-save">SAVE TABLE SETTINGS</button></div></section>
-    <section id="roleModal" class="modal hidden"><div class="modal-card role-card"><h2>შენი როლი</h2><div id="roleIcon" class="big-role">?</div><b id="roleName">---</b><p id="roleDesc"></p><button id="closeRole" class="primary">გავიგე</button></div></section>
-    <section id="winModal" class="modal hidden"><div class="modal-card"><h2 id="winTitle">გამარჯვება</h2><p id="winDesc"></p><button onclick="location.reload()" class="primary">დახურვა</button></div></section>
-  </main>
-
-  <div id="toastBox" class="toast-box"></div>
   <script src="/socket.io/socket.io.js"></script>
-  <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
   <script src="/client.js"></script>
 </body>
 </html>
