@@ -1,7 +1,8 @@
+
 {
-  "name": "void-mafia-v9-6-email-verify",
-  "version": "9.6.0",
-  "description": "VOID MAFIA v9.6 with email verification, auth, MongoDB and game engine",
+  "name": "void-mafia-v9-7-auto-engine",
+  "version": "9.7.0",
+  "description": "VOID MAFIA v9.7 Auto Engine with automated phases, nominations, voting, email verification, auth and MongoDB",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
