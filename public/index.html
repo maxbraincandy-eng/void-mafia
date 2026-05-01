@@ -7,8 +7,12 @@
   <meta name="theme-color" content="#07020f">
   <link rel="stylesheet" href="/css/app.css">
 </head>
+
 <body>
+  <div class="maxi-powered-bar">powered by ბატონი მაქსი.</div>
+
   <div id="toast"></div>
+
   <div id="audioUnlock" class="audio-unlock hidden">
     <button id="enableAudio">ხმის ჩართვა</button>
   </div>
@@ -35,6 +39,7 @@
         <input id="emailAddress" type="email" placeholder="Email">
         <input id="emailPassword" type="password" placeholder="Password">
         <button id="requestCode" class="primary full">კოდის გაგზავნა</button>
+
         <div id="codeBox" class="hidden">
           <input id="verifyCode" placeholder="კოდი">
           <button id="confirmCode" class="full">დადასტურება</button>
@@ -46,10 +51,12 @@
   <section id="app" class="screen hidden">
     <header class="topbar">
       <button id="drawerBtn" class="round">☰</button>
+
       <div>
         <h2 id="pageTitle">მაგიდები</h2>
         <span id="userLine">VOID</span>
       </div>
+
       <button id="refreshBtn" class="round">↻</button>
     </header>
 
@@ -66,6 +73,7 @@
       <section id="pageRooms" class="page active">
         <div class="tool-row">
           <input id="roomSearch" placeholder="ძებნა: კოდი, ჰოსტი, მაგიდა">
+
           <select id="roomFilter">
             <option value="all">ყველა</option>
             <option value="open">ღია</option>
@@ -78,14 +86,26 @@
             <h3>ახალი მაგიდა</h3>
             <span>v12 engine</span>
           </div>
+
           <input id="roomName" placeholder="მაგიდის სახელი">
+
           <div class="two">
-            <label>ადგილები <input id="maxPlayers" type="number" min="4" max="16" value="10"></label>
-            <label>მაფია <input id="mafiaCount" type="number" min="1" max="6" value="1"></label>
+            <label>
+              ადგილები
+              <input id="maxPlayers" type="number" min="4" max="16" value="10">
+            </label>
+
+            <label>
+              მაფია
+              <input id="mafiaCount" type="number" min="1" max="6" value="1">
+            </label>
           </div>
+
           <details>
             <summary>როლები, წესები, დროები</summary>
+
             <div id="roleGrid" class="toggle-grid"></div>
+
             <div class="two">
               <label>საერთო <input id="tCommon" type="number" value="60"></label>
               <label>ინდივიდუალური <input id="tIndividual" type="number" value="60"></label>
@@ -95,6 +115,7 @@
               <label>ღამე <input id="tNight" type="number" value="45"></label>
             </div>
           </details>
+
           <button id="createRoom" class="primary full">მაგიდის შექმნა</button>
         </article>
 
@@ -102,6 +123,7 @@
           <h3>ლაივ მაგიდები</h3>
           <span id="roomsCount">0</span>
         </div>
+
         <div id="roomsList" class="cards"></div>
       </section>
 
@@ -112,16 +134,33 @@
           <input id="clanName" placeholder="კლანის სახელი">
           <button id="createClan" class="primary">კლანის შექმნა</button>
         </article>
+
         <div id="clansList" class="cards"></div>
       </section>
 
       <section id="pageStats" class="page">
         <div class="stats-grid">
-          <div class="stat glass"><b id="sRooms">0</b><span>მაგიდა</span></div>
-          <div class="stat glass"><b id="sLive">0</b><span>ლაივ</span></div>
-          <div class="stat glass"><b id="sPlayers">0</b><span>მოთამაშე</span></div>
-          <div class="stat glass"><b id="sClans">0</b><span>კლანი</span></div>
+          <div class="stat glass">
+            <b id="sRooms">0</b>
+            <span>მაგიდა</span>
+          </div>
+
+          <div class="stat glass">
+            <b id="sLive">0</b>
+            <span>ლაივ</span>
+          </div>
+
+          <div class="stat glass">
+            <b id="sPlayers">0</b>
+            <span>მოთამაშე</span>
+          </div>
+
+          <div class="stat glass">
+            <b id="sClans">0</b>
+            <span>კლანი</span>
+          </div>
         </div>
+
         <article class="glass pad">
           <h3>Leaderboard</h3>
           <div id="leaderboard"></div>
@@ -133,11 +172,27 @@
           <div id="profileAvatar" class="big-avatar">◆</div>
           <h2 id="profileName">Player</h2>
           <p id="profileId">ID</p>
+
           <div class="stats-grid">
-            <div class="stat"><b id="pLevel">1</b><span>Level</span></div>
-            <div class="stat"><b id="pXp">0</b><span>XP</span></div>
-            <div class="stat"><b id="pWins">0</b><span>Wins</span></div>
-            <div class="stat"><b id="pMvp">0</b><span>MVP</span></div>
+            <div class="stat">
+              <b id="pLevel">1</b>
+              <span>Level</span>
+            </div>
+
+            <div class="stat">
+              <b id="pXp">0</b>
+              <span>XP</span>
+            </div>
+
+            <div class="stat">
+              <b id="pWins">0</b>
+              <span>Wins</span>
+            </div>
+
+            <div class="stat">
+              <b id="pMvp">0</b>
+              <span>MVP</span>
+            </div>
           </div>
         </article>
       </section>
@@ -154,14 +209,17 @@
   <section id="game" class="screen hidden">
     <header class="gamebar">
       <button id="leaveGame" class="round danger">×</button>
+
       <div class="phase">
         <b id="phaseName">მოლოდინი</b>
         <span id="phaseInfo">დღე 0</span>
       </div>
+
       <div class="clock">
         <b id="timer">00:00</b>
         <span>დრო</span>
       </div>
+
       <button id="roomSettingsBtn" class="primary mini">ROOM</button>
     </header>
 
@@ -177,13 +235,25 @@
     <button id="logBtn" class="float log">LOG</button>
 
     <aside id="chatPanel" class="side-panel hidden">
-      <div class="panel-head"><b>მოთამაშეების ჩათი</b><button data-close="chatPanel">×</button></div>
+      <div class="panel-head">
+        <b>მოთამაშეების ჩათი</b>
+        <button data-close="chatPanel">×</button>
+      </div>
+
       <div id="chatMessages" class="scroll"></div>
-      <div class="send-row"><input id="chatInput" placeholder="მესიჯი"><button id="sendChat">➤</button></div>
+
+      <div class="send-row">
+        <input id="chatInput" placeholder="მესიჯი">
+        <button id="sendChat">➤</button>
+      </div>
     </aside>
 
     <aside id="logPanel" class="side-panel hidden">
-      <div class="panel-head"><b>Game Log</b><button data-close="logPanel">×</button></div>
+      <div class="panel-head">
+        <b>Game Log</b>
+        <button data-close="logPanel">×</button>
+      </div>
+
       <div id="logMessages" class="scroll"></div>
     </aside>
 
@@ -199,20 +269,82 @@
     <div id="settingsModal" class="modal hidden">
       <div class="modal-card wide">
         <button id="closeSettings" class="modal-x">×</button>
+
         <h2>Room Settings</h2>
+
         <div class="two">
           <button id="startGame" class="primary">START</button>
           <button id="lockRoom">LOCK</button>
         </div>
+
         <h3>დროები</h3>
+
         <div class="two">
-          <label>საერთო <input id="setCommon" type="number"></label>
-          <label>ინდივიდუალური <input id="setIndividual" type="number"></label>
-          <label>დასახელება <input id="setNomination" type="number"></label>
-          <label>ხმა <input id="setVote" type="number"></label>
-          <label>ბოლო სიტყვა <input id="setLastWords" type="number"></label>
-          <label>ღამე <input id="setNight" type="number"></label>
+          <label>
+            საერთო
+            <input id="setCommon" type="number">
+          </label>
+
+          <label>
+            ინდივიდუალური
+            <input id="setIndividual" type="number">
+          </label>
+
+          <label>
+            დასახელება
+            <input id="setNomination" type="number">
+          </label>
+
+          <label>
+            ხმა
+            <input id="setVote" type="number">
+          </label>
+
+          <label>
+            ბოლო სიტყვა
+            <input id="setLastWords" type="number">
+          </label>
+
+          <label>
+            ღამე
+            <input id="setNight" type="number">
+          </label>
         </div>
+
+        <h3>როლები</h3>
+
+        <div class="role-settings-grid">
+          <label>
+            მაფია
+            <input id="setRoleMafia" type="number" min="0" max="10" value="1">
+          </label>
+
+          <label>
+            დონი
+            <input id="setRoleDon" type="number" min="0" max="1" value="0">
+          </label>
+
+          <label>
+            ექიმი
+            <input id="setRoleDoctor" type="number" min="0" max="2" value="1">
+          </label>
+
+          <label>
+            შერიფი
+            <input id="setRoleSheriff" type="number" min="0" max="2" value="1">
+          </label>
+
+          <label>
+            დეტექტივი
+            <input id="setRoleDetective" type="number" min="0" max="2" value="0">
+          </label>
+
+          <label>
+            მოქალაქე
+            <input id="setRoleCitizen" type="number" min="0" max="20" value="6">
+          </label>
+        </div>
+
         <button id="saveSettings" class="primary full">SAVE</button>
       </div>
     </div>
