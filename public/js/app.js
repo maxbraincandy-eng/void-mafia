@@ -1147,3 +1147,225 @@ function copyMyId() {
     toast("Your ID: " + id);
   }
 }
+
+
+
+
+/* =========================
+   VOID FIX PATCH v16.2
+   Buttons / Season remove / Host terminate room
+========================= */
+
+function removeSeasonBanner() {
+  const possibleSelectors = [
+    ".season-card",
+    ".season-banner",
+    ".season",
+    "#seasonBanner",
+    "#seasonCard",
+    ".promo-card",
+    ".event-card"
+  ];
+
+  possibleSelectors.forEach(selector => {
+    document.querySelectorAll(selector).forEach(el => {
+      const text = (el.textContent || "").toLowerCase();
+
+      if (
+        text.includes("season") ||
+        text.includes("silence") ||
+        text.includes("void") ||
+        text.includes("goal")
+      ) {
+        el.remove();
+      }
+    });
+  });
+
+  document.querySelectorAll("*").forEach(el => {
+    const text = (el.textContent || "").trim().toLowerCase();
+
+    if (
+      text.includes("season 1") ||
+      text.includes("season of void") ||
+      text.includes("silence of the void")
+    ) {
+      const card = el.closest(".card, .glass, .banner, section, article, div");
+      if (card && card !== document.body && card.id !== "app" && card.id !== "game") {
+        card.remove();
+      }
+    }
+  });
+}
+
+function fixAllButtons() {
+  document.querySelectorAll("[data-page]").forEach(btn => {
+    btn.onclick = () => {
+      const page = btn.getAttribute("data-page");
+      if (page) showPage(page);
+    };
+  });
+
+  const pageMap = {
+    Games: "Rooms",
+    Rooms: "Rooms",
+    Clans: "Clans",
+    Rank: "Leaderboard",
+    Leaderboard: "Leaderboard",
+    Store: "Store",
+    Profile: "Profile"
+  };
+
+  document.querySelectorAll(".bottom button, .bottom-nav button").forEach(btn => {
+    const label = btn.textContent.trim();
+
+    if (pageMap[label]) {
+      btn.onclick = () => showPage(pageMap[label]);
+    }
+  });
+
+  if ($("menuBtn")) $("menuBtn").onclick = openMainMenu;
+  if ($("drawerBtn")) $("drawerBtn").onclick = openMainMenu;
+
+  if ($("refreshBtn")) $("refreshBtn").onclick = loadAll;
+
+  if ($("hostGameBtn")) {
+    $("hostGameBtn").onclick = () => {
+      $("roomCreate")?.classList.toggle("hidden");
+    };
+  }
+
+  if ($("createRoomBtn")) $("createRoomBtn").onclick = createRoom;
+
+  if ($("joinByCodeBtn")) {
+    $("joinByCodeBtn").onclick = () => {
+      const code = prompt("Room number");
+      if (code) joinRoom(code);
+    };
+  }
+
+  if ($("chatTopBtn")) {
+    $("chatTopBtn").onclick = () => {
+      show("chatPanel");
+      scrollChatToBottom("chatMessages");
+    };
+  }
+
+  if ($("roomTopBtn")) {
+    $("roomTopBtn").onclick = () => show("settingsModal");
+  }
+
+  if ($("settingsBtn")) {
+    $("settingsBtn").onclick = () => show("settingsModal");
+  }
+
+  if ($("startBtn")) $("startBtn").onclick = startGame;
+  if ($("nextPhaseBtn")) $("nextPhaseBtn").onclick = nextPhase;
+  if ($("saveSettingsBtn")) $("saveSettingsBtn").onclick = saveSettings;
+
+  if ($("leaveBtn")) $("leaveBtn").onclick = leaveRoom;
+
+  if ($("sendChatBtn")) {
+    $("sendChatBtn").onclick = () => sendChat("room");
+  }
+
+  if ($("sendMafiaBtn")) {
+    $("sendMafiaBtn").onclick = () => sendChat("mafia");
+  }
+
+  if ($("chatInput")) {
+    $("chatInput").onkeydown = e => {
+      if (e.key === "Enter") sendChat("room");
+    };
+  }
+
+  if ($("mafiaInput")) {
+    $("mafiaInput").onkeydown = e => {
+      if (e.key === "Enter") sendChat("mafia");
+    };
+  }
+
+  document.querySelectorAll("[data-close]").forEach(btn => {
+    btn.onclick = () => {
+      const target = btn.getAttribute("data-close");
+      if (target) hide(target);
+    };
+  });
+}
+
+/* override leaveRoom */
+window.leaveRoom = function leaveRoom() {
+  if (App.socket && App.room) {
+    App.socket.emit("room:leave", {
+      roomId: App.room.id,
+      userId: App.user?.userId
+    });
+  }
+
+  Object.values(App.peers || {}).forEach(peer => {
+    try {
+      peer.close();
+    } catch (err) {}
+  });
+
+  App.peers = {};
+  App.remoteStreams = {};
+  App.room = null;
+
+  document.querySelectorAll("audio[data-peer], video[data-peer]").forEach(el => {
+    try {
+      el.srcObject = null;
+    } catch (err) {}
+
+    if (el.tagName.toLowerCase() === "audio") {
+      el.remove();
+    }
+  });
+
+  hide("game");
+  show("app");
+
+  loadAll();
+};
+
+/* listen room closed */
+function bindRoomClosedOnce() {
+  if (window.__roomClosedBound) return;
+  window.__roomClosedBound = true;
+
+  const waitSocket = setInterval(() => {
+    if (!App.socket) return;
+
+    clearInterval(waitSocket);
+
+    App.socket.on("room:closed", data => {
+      toast(data?.message || "ჰოსტმა ოთახი დახურა.");
+
+      Object.values(App.peers || {}).forEach(peer => {
+        try {
+          peer.close();
+        } catch (err) {}
+      });
+
+      App.peers = {};
+      App.remoteStreams = {};
+      App.room = null;
+
+      hide("game");
+      show("app");
+
+      loadAll();
+    });
+  }, 300);
+}
+
+setInterval(() => {
+  removeSeasonBanner();
+}, 1000);
+
+setTimeout(() => {
+  fixAllButtons();
+  removeSeasonBanner();
+  bindRoomClosedOnce();
+}, 500);
+
