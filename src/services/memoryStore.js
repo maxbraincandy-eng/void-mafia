@@ -1,0 +1,1 @@
+class MemoryStore{constructor(){this.users=new Map();this.clans=new Map();this.rooms=new Map();this.emailCodes=new Map();this.nextUserId=Number(process.env.USER_ID_START||1)}} module.exports={MemoryStore};
