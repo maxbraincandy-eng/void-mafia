@@ -1,1 +1,66 @@
 :root{--bg:#05020b;--card:#10091d;--cyan:#25f5ff;--pink:#ff00d9;--red:#ff4d5e;--green:#2cff91;--muted:#a99bb8}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#fff;font-family:system-ui,sans-serif}button,input{font:inherit}button{border:1px solid #174b75;background:#111827;color:#fff;border-radius:12px;padding:11px;font-weight:900}input{width:100%;background:#05050a;border:1px solid rgba(255,0,217,.55);color:#fff;border-radius:14px;padding:12px}.primary{background:linear-gradient(135deg,var(--pink),var(--cyan));color:#05020b;border:0}.danger{border-color:var(--red);background:#301018}.hidden{display:none!important}.screen{min-height:100vh;padding:14px}.center{display:grid;place-items:center}.card{background:rgba(16,9,29,.92);border:1px solid rgba(37,245,255,.3);border-radius:24px;padding:16px;margin:12px 0}.auth-card{width:min(94vw,430px);text-align:center}.logo,.avatar,.pic{width:68px;height:68px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,var(--pink),var(--cyan));color:#05020b;font-weight:900}.logo,.avatar{margin:auto}.form{display:grid;gap:10px}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.tabs .active,.bottom .active{color:var(--cyan)}.powered{text-align:center;padding:10px;background:linear-gradient(90deg,rgba(255,0,217,.25),rgba(37,245,255,.18));color:#c9faff}.topbar,.gamebar{position:sticky;top:0;z-index:50;margin:-14px -14px 12px;padding:10px;background:rgba(0,0,0,.92);border-bottom:1px solid rgba(255,0,217,.35);display:flex;align-items:center;justify-content:space-between;gap:8px}.topbar h2{margin:0;color:var(--cyan)}small,p{color:var(--muted)}main{padding-bottom:82px}.bottom{position:fixed;left:0;right:0;bottom:0;z-index:80;display:grid;grid-template-columns:repeat(5,1fr);background:#030306;border-top:1px solid #333;padding:6px}.bottom button{border:0;background:transparent;font-size:12px;padding:8px 2px}.page{display:none}.page.active{display:block}.section-title,.actions-row{display:flex;align-items:center;justify-content:space-between;gap:10px}.actions-row button{flex:1}.list{display:grid;gap:10px}.item,.room,.player{display:flex;gap:12px;align-items:center;background:#0d0d12;border-bottom:1px solid #333;padding:12px;border-radius:14px}.grow{flex:1}.badge{border:1px solid var(--cyan);border-radius:999px;padding:4px 8px;color:var(--cyan);font-size:12px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.bar{height:7px;background:#444;border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:#52a8ff}.stats>div{text-align:center;background:#0a0a10;border-radius:14px;padding:12px}.video-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.tile{position:relative;aspect-ratio:4/3;border-radius:20px;overflow:hidden;background:#000;border:2px solid var(--pink)}.tile.speaking{border-color:var(--green);box-shadow:0 0 24px rgba(44,255,145,.7)}.tile video{width:100%;height:100%;object-fit:cover}.tile .name{position:absolute;left:0;right:0;bottom:0;padding:25px 8px 8px;background:linear-gradient(transparent,rgba(0,0,0,.9));font-weight:900}.tile .seat{position:absolute;right:8px;top:8px;background:var(--pink);border-radius:999px;padding:4px 8px}.panel{position:fixed;left:10px;right:10px;bottom:10px;z-index:100;background:#070710;border:1px solid var(--cyan);border-radius:20px;overflow:hidden}.panel-head{display:flex;justify-content:space-between;padding:12px;border-bottom:1px solid #333}.scroll{max-height:45vh;overflow:auto;padding:10px}.msg{background:#151520;padding:10px;border-radius:12px;margin:6px 0}.send{display:grid;grid-template-columns:1fr 54px;gap:8px;padding:10px}.modal{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.75);display:grid;place-items:center;padding:14px}.modal-card{width:min(94vw,620px);max-height:86vh;overflow:auto;background:#070710;border:1px solid var(--cyan);border-radius:24px;padding:18px;position:relative}.x{position:absolute;right:10px;top:10px}@media(min-width:800px){.video-grid{grid-template-columns:repeat(3,1fr)}.panel{left:auto;top:80px;bottom:16px;width:420px}}
+/* =========================
+   VOID FIX PATCH v16.1 DRAWER
+========================= */
+
+.drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0, 0, 0, .68);
+  opacity: 0;
+  pointer-events: none;
+  transition: .18s ease;
+}
+
+.drawer.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.drawer-card {
+  width: min(82vw, 340px);
+  height: 100%;
+  padding: 18px;
+  background: rgba(8, 5, 18, .98);
+  border-right: 1px solid rgba(37, 245, 255, .35);
+  box-shadow: 0 0 35px rgba(255, 0, 217, .18);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.drawer-close {
+  align-self: flex-end;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  border-color: var(--red);
+  text-align: center !important;
+}
+
+.drawer-avatar {
+  margin: 10px 0;
+}
+
+.drawer-card h2 {
+  margin: 0;
+  color: var(--cyan);
+}
+
+.drawer-card p {
+  margin-top: 0;
+  color: var(--muted);
+}
+
+.drawer-card button {
+  width: 100%;
+  text-align: left;
+}
+
+.drawer-card hr {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid rgba(255,255,255,.12);
+  margin: 10px 0;
+}
