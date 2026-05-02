@@ -16,29 +16,43 @@ function cleanAvatar(value) {
   return String(value || "◆").trim().slice(0, 4) || "◆";
 }
 
+function defaultStats() {
+  return {
+    gamesPlayed: 0,
+    wins: 0,
+    losses: 0,
+    draws: 0,
+    mvp: 0,
+    xp: 0,
+    level: 1
+  };
+}
+
 function publicUser(user) {
   if (!user) return null;
 
+  const raw = typeof user.toObject === "function" ? user.toObject() : user;
+
   return {
-    userId: Number(user.userId),
-    nickname: user.nickname || "Player",
-    email: user.email || "",
-    avatar: user.avatar || "◆",
-    provider: user.provider || "guest",
-    clanId: user.clanId || "",
-    stats: user.stats || {
-      gamesPlayed: 0,
-      wins: 0,
-      losses: 0,
-      draws: 0,
-      mvp: 0,
-      xp: 0,
-      level: 1
-    },
-    isAdmin: !!user.isAdmin,
-    isMonitor: !!user.isMonitor,
-    createdAt: user.createdAt || null,
-    lastLoginAt: user.lastLoginAt || null
+    userId: Number(raw.userId),
+    nickname: raw.nickname || raw.username || "Player",
+    username: raw.username || raw.nickname || "Player",
+    email: raw.email || "",
+    avatar: raw.avatar || "◆",
+    provider: raw.provider || "guest",
+    clanId: raw.clanId || "",
+    role: raw.role || "user",
+
+    stats: raw.stats || defaultStats(),
+
+    roleStats: Array.isArray(raw.roleStats) ? raw.roleStats : [],
+    matchHistory: Array.isArray(raw.matchHistory) ? raw.matchHistory.slice(0, 50) : [],
+
+    isAdmin: !!raw.isAdmin,
+    isMonitor: !!raw.isMonitor,
+
+    createdAt: raw.createdAt || null,
+    lastLoginAt: raw.lastLoginAt || raw.lastSeen || null
   };
 }
 
@@ -69,6 +83,7 @@ function findMemoryUserByEmail(email) {
   for (const user of memoryUsers.values()) {
     if (email && user.email === email) return user;
   }
+
   return null;
 }
 
@@ -76,11 +91,12 @@ function findMemoryUserByProvider(provider, providerId) {
   for (const user of memoryUsers.values()) {
     if (user.provider === provider && user.providerId === providerId) return user;
   }
+
   return null;
 }
 
 async function getOrCreateUser(ctx, payload = {}) {
-  const nickname = cleanNickname(payload.nickname || payload.name);
+  const nickname = cleanNickname(payload.nickname || payload.name || payload.username);
   const email = cleanEmail(payload.email);
   const avatar = cleanAvatar(payload.avatar);
   const provider = payload.provider || (email ? "email" : "guest");
@@ -109,19 +125,30 @@ async function getOrCreateUser(ctx, payload = {}) {
     if (!user) {
       const userId = await getNextUserId(ctx);
 
-      user = await User.create({
+      const createPayload = {
         userId,
         nickname,
+        username: nickname,
         email,
         avatar,
         provider,
         providerId,
+        stats: defaultStats(),
+        roleStats: [],
+        matchHistory: [],
         isAdmin: adminIds.includes(String(userId)),
         isMonitor: monitorIds.includes(String(userId)),
         lastLoginAt: new Date()
-      });
+      };
+
+      if (payload.password) {
+        createPayload.passwordHash = await bcrypt.hash(String(payload.password), 10);
+      }
+
+      user = await User.create(createPayload);
     } else {
       user.nickname = nickname || user.nickname;
+      user.username = nickname || user.username || user.nickname;
       user.avatar = avatar || user.avatar;
       user.lastLoginAt = new Date();
 
@@ -129,8 +156,14 @@ async function getOrCreateUser(ctx, payload = {}) {
       if (provider && !user.provider) user.provider = provider;
       if (providerId && !user.providerId) user.providerId = providerId;
 
+      if (payload.password && !user.passwordHash) {
+        user.passwordHash = await bcrypt.hash(String(payload.password), 10);
+      }
+
       user.isAdmin = adminIds.includes(String(user.userId)) || !!user.isAdmin;
       user.isMonitor = monitorIds.includes(String(user.userId)) || !!user.isMonitor;
+
+      if (!user.stats) user.stats = defaultStats();
 
       await user.save();
     }
@@ -158,20 +191,13 @@ async function getOrCreateUser(ctx, payload = {}) {
     user = {
       userId,
       nickname,
+      username: nickname,
       email,
       avatar,
       provider,
       providerId,
       clanId: "",
-      stats: {
-        gamesPlayed: 0,
-        wins: 0,
-        losses: 0,
-        draws: 0,
-        mvp: 0,
-        xp: 0,
-        level: 1
-      },
+      stats: defaultStats(),
       roleStats: [],
       matchHistory: [],
       isAdmin: adminIds.includes(String(userId)),
@@ -183,8 +209,11 @@ async function getOrCreateUser(ctx, payload = {}) {
     memoryUsers.set(userId, user);
   } else {
     user.nickname = nickname || user.nickname;
+    user.username = nickname || user.username || user.nickname;
     user.avatar = avatar || user.avatar;
     user.lastLoginAt = new Date();
+
+    if (!user.stats) user.stats = defaultStats();
   }
 
   return publicUser(user);
@@ -193,9 +222,13 @@ async function getOrCreateUser(ctx, payload = {}) {
 async function getUserProfile(ctx, userId) {
   const numericId = Number(userId);
 
+  if (!Number.isFinite(numericId)) return null;
+
   if (ctx?.db?.enabled && ctx.db.models?.User) {
     const user = await ctx.db.models.User.findOne({ userId: numericId }).lean();
+
     if (!user) return null;
+
     return publicUser(user);
   }
 
@@ -203,8 +236,62 @@ async function getUserProfile(ctx, userId) {
   return publicUser(user);
 }
 
+async function updateUserProfile(ctx, userId, patch = {}) {
+  const numericId = Number(userId);
+
+  if (!Number.isFinite(numericId)) return null;
+
+  const nickname = String(patch.nickname || patch.username || "").trim().slice(0, 32);
+  const avatar = String(patch.avatar || "").trim().slice(0, 4);
+
+  if (ctx?.db?.enabled && ctx.db.models?.User) {
+    const update = {
+      lastLoginAt: new Date()
+    };
+
+    if (nickname) {
+      update.nickname = nickname;
+      update.username = nickname;
+    }
+
+    if (avatar) {
+      update.avatar = avatar;
+    }
+
+    const user = await ctx.db.models.User.findOneAndUpdate(
+      { userId: numericId },
+      { $set: update },
+      { new: true }
+    ).lean();
+
+    if (!user) return null;
+
+    return publicUser(user);
+  }
+
+  const user = memoryUsers.get(numericId);
+
+  if (!user) return null;
+
+  if (nickname) {
+    user.nickname = nickname;
+    user.username = nickname;
+  }
+
+  if (avatar) {
+    user.avatar = avatar;
+  }
+
+  user.lastLoginAt = new Date();
+
+  return publicUser(user);
+}
+
 async function registerGameResult(ctx, userId, result = {}) {
   const numericId = Number(userId);
+
+  if (!Number.isFinite(numericId)) return null;
+
   const win = result.result === "win";
   const loss = result.result === "loss";
   const draw = result.result === "draw";
@@ -216,6 +303,10 @@ async function registerGameResult(ctx, userId, result = {}) {
     const user = await User.findOne({ userId: numericId });
     if (!user) return null;
 
+    if (!user.stats) user.stats = defaultStats();
+    if (!Array.isArray(user.roleStats)) user.roleStats = [];
+    if (!Array.isArray(user.matchHistory)) user.matchHistory = [];
+
     user.stats.gamesPlayed += 1;
     if (win) user.stats.wins += 1;
     if (loss) user.stats.losses += 1;
@@ -225,8 +316,15 @@ async function registerGameResult(ctx, userId, result = {}) {
     user.stats.level = Math.max(1, Math.floor(user.stats.xp / 100) + 1);
 
     let roleStat = user.roleStats.find(r => r.role === role);
+
     if (!roleStat) {
-      roleStat = { role, played: 0, wins: 0, losses: 0 };
+      roleStat = {
+        role,
+        played: 0,
+        wins: 0,
+        losses: 0
+      };
+
       user.roleStats.push(roleStat);
     }
 
@@ -246,11 +344,16 @@ async function registerGameResult(ctx, userId, result = {}) {
     user.matchHistory = user.matchHistory.slice(0, 50);
 
     await user.save();
+
     return publicUser(user);
   }
 
   const user = memoryUsers.get(numericId);
+
   if (!user) return null;
+
+  if (!user.stats) user.stats = defaultStats();
+  if (!Array.isArray(user.matchHistory)) user.matchHistory = [];
 
   user.stats.gamesPlayed += 1;
   if (win) user.stats.wins += 1;
@@ -274,9 +377,43 @@ async function registerGameResult(ctx, userId, result = {}) {
   return publicUser(user);
 }
 
+async function leaderboard(ctx, limit = 100) {
+  const safeLimit = Math.min(Number(limit) || 100, 100);
+
+  if (ctx?.db?.enabled && ctx.db.models?.User) {
+    const users = await ctx.db.models.User
+      .find({})
+      .sort({
+        "stats.xp": -1,
+        "stats.wins": -1,
+        "stats.gamesPlayed": -1,
+        createdAt: 1
+      })
+      .limit(safeLimit)
+      .lean();
+
+    return users.map(publicUser);
+  }
+
+  return Array.from(memoryUsers.values())
+    .sort((a, b) => {
+      const axp = a.stats?.xp || 0;
+      const bxp = b.stats?.xp || 0;
+
+      const awins = a.stats?.wins || 0;
+      const bwins = b.stats?.wins || 0;
+
+      return bxp - axp || bwins - awins;
+    })
+    .slice(0, safeLimit)
+    .map(publicUser);
+}
+
 module.exports = {
   getOrCreateUser,
   getUserProfile,
+  updateUserProfile,
   registerGameResult,
+  leaderboard,
   publicUser
 };
