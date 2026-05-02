@@ -1,92 +1,126 @@
-const { PHASE_LABEL, PHASE } = require("./constants");
-const { minutesSince, secondsLeft } = require("../utils/time");
+function safeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
 
-function phaseLabel(phase) {
-  return PHASE_LABEL[phase] || phase;
+function publicPlayer(player, viewerSocketId = null) {
+  const isViewer = viewerSocketId && player.socketId === viewerSocketId;
+
+  return {
+    id: player.id,
+    userId: player.userId,
+    nickname: player.nickname || "Player",
+    avatar: player.avatar || "◆",
+    seat: player.seat || 0,
+    alive: player.alive !== false,
+    connected: player.connected !== false,
+    micOn: player.micOn !== false,
+    cameraOn: player.cameraOn !== false,
+    engineMuted: !!player.engineMuted,
+
+    // როლი სრულად ჩანს მხოლოდ თვითონ მოთამაშისთვის ან თამაშის დასრულების შემდეგ
+    role: isViewer || player.revealed ? player.role : null
+  };
+}
+
+function publicSpectator(spectator) {
+  return {
+    userId: spectator.userId,
+    nickname: spectator.nickname || "Spectator",
+    avatar: spectator.avatar || "◇",
+    connected: spectator.connected !== false
+  };
+}
+
+function countAlive(players) {
+  return safeArray(players).filter(p => p.alive !== false).length;
 }
 
 function publicRoom(room) {
-  const alive = room.players.filter(p => p.alive).length;
-  const avgLevel = room.players.length
-    ? Math.round(room.players.reduce((s, p) => s + (p.level || 1), 0) / room.players.length)
-    : 1;
+  const players = safeArray(room.players);
 
   return {
     id: room.id,
-    code: room.id,
-    name: room.name,
-    hostUserId: room.hostUserId,
-    hostName: room.hostName,
-    hostAvatar: room.hostAvatar,
-    phase: room.phase,
-    phaseLabel: phaseLabel(room.phase),
-    timer: room.timer,
-    status: room.phase === PHASE.WAITING ? "open" : "live",
-    locked: room.settings.locked,
-    private: room.settings.private,
-    players: room.players.length,
-    maxPlayers: room.settings.maxPlayers,
-    alive,
-    spectators: room.spectators.length,
-    avgLevel,
-    activeMinutes: minutesSince(room.startedAt || room.createdAt),
-    createdAt: room.createdAt,
-    startedAt: room.startedAt
+    name: room.name || "VOID TABLE",
+    phase: room.phase || "waiting",
+    phaseLabel: room.phaseLabel || "მოლოდინი",
+    day: room.day || 0,
+    timer: room.timer || 0,
+    alive: countAlive(players),
+
+    hostUserId: room.hostUserId || players[0]?.userId || null,
+    hostName: room.hostName || players[0]?.nickname || "ჰოსტი #1",
+    hostAvatar: room.hostAvatar || players[0]?.avatar || "◆",
+
+    playersCount: players.length,
+    spectatorsCount: safeArray(room.spectators).length,
+
+    settings: room.settings || {},
+    locked: !!room.settings?.locked,
+    gameOver: room.gameOver || null
   };
 }
 
-function serializeRoom(room, viewerSocketId) {
-  const viewer = room.players.find(p => p.socketId === viewerSocketId);
-  const revealAll = room.phase === PHASE.GAME_OVER && room.settings.revealRolesOnEnd;
+function serializeRoom(room, viewerSocketId = null) {
+  const players = safeArray(room.players);
+  const spectators = safeArray(room.spectators);
+
+  const viewerPlayer = players.find(p => p.socketId === viewerSocketId);
+  const viewerSpectator = spectators.find(s => s.socketId === viewerSocketId);
+
+  const isHost =
+    !!viewerPlayer &&
+    Number(viewerPlayer.seat) === 1;
+
+  const gameOver = room.gameOver || null;
 
   return {
-    ...publicRoom(room),
-    day: room.day,
-    round: room.round,
-    settings: room.settings,
-    viewer: viewer ? {
-      id: viewer.id,
-      userId: viewer.userId,
-      seat: viewer.seat,
-      alive: viewer.alive,
-      role: viewer.role,
-      isHost: viewer.seat === 1
-    } : null,
-    players: room.players.map(p => ({
-      id: p.id,
-      socketId: p.socketId,
-      userId: p.userId,
-      nickname: p.nickname,
-      avatar: p.avatar,
-      level: p.level,
-      xp: p.xp,
-      seat: p.seat,
-      connected: p.connected,
-      alive: p.alive,
-      micOn: p.micOn,
-      cameraOn: p.cameraOn,
-      engineMuted: p.engineMuted,
-      role: revealAll || p.socketId === viewerSocketId ? p.role : undefined
-    })),
-    spectators: room.spectators.map(s => ({
-      socketId: s.socketId,
-      userId: s.userId,
-      nickname: s.nickname,
-      avatar: s.avatar
-    })),
-    individualSpeakerId: room.individualSpeakerId,
-    individualIndex: room.individualIndex,
-    individualTotal: room.individualOrder.length,
-    nominatedIds: room.nominatedIds,
-    nominations: room.nominations,
-    votesCount: Object.keys(room.votes).length,
-    nightActionsCount: Object.keys(room.nightActions).length,
-    events: room.events.slice(-60),
-    feed: room.feed.slice(-30),
-    chat: room.chat.slice(-40),
-    stats: room.stats,
-    gameOver: room.gameOver
+    id: room.id,
+    name: room.name || "VOID TABLE",
+
+    phase: room.phase || "waiting",
+    phaseLabel: room.phaseLabel || "მოლოდინი",
+    day: room.day || 0,
+    timer: room.timer || 0,
+    alive: countAlive(players),
+
+    hostUserId: room.hostUserId || players[0]?.userId || null,
+    hostSocketId: room.hostSocketId || players[0]?.socketId || null,
+    hostName: room.hostName || players[0]?.nickname || "ჰოსტი #1",
+    hostAvatar: room.hostAvatar || players[0]?.avatar || "◆",
+
+    settings: room.settings || {},
+
+    players: players.map(p => {
+      const item = publicPlayer(p, viewerSocketId);
+
+      if (gameOver || room.phase === "waiting") {
+        item.role = p.role || null;
+      }
+
+      return item;
+    }),
+
+    spectators: spectators.map(publicSpectator),
+
+    chat: safeArray(room.chat).slice(-120),
+    events: safeArray(room.events).slice(-120),
+
+    nominatedIds: safeArray(room.nominatedIds),
+    individualSpeakerId: room.individualSpeakerId || null,
+
+    gameOver,
+
+    viewer: {
+      isHost,
+      isSpectator: !!viewerSpectator && !viewerPlayer,
+      userId: viewerPlayer?.userId || viewerSpectator?.userId || null,
+      seat: viewerPlayer?.seat || null,
+      playerId: viewerPlayer?.id || null
+    }
   };
 }
 
-module.exports = { publicRoom, serializeRoom, phaseLabel };
+module.exports = {
+  publicRoom,
+  serializeRoom
+};
