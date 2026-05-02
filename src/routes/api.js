@@ -1,84 +1,106 @@
-const express = require("express");
-const { getProfile, updateProfile, cleanText } = require("../db");
-const { ROLE_OPTIONS, publicRoom } = require("../game");
 
-function createApiRouter(runtime) {
+const express = require("express");
+const game = require("../socket/game");
+
+function createApiRouter(ctx) {
   const router = express.Router();
 
-  router.get("/roles", (req, res) => res.json({ ok: true, roles: ROLE_OPTIONS }));
-
-  router.get("/rooms", (req, res) => {
-    res.json({ ok: true, rooms: Array.from(runtime.rooms.values()).map(publicRoom) });
+  router.get("/health", async (req, res) => {
+    res.json({
+      ok: true,
+      version: "13.0.0",
+      mongodb: ctx.db?.connected ? "connected" : "memory",
+      rooms: ctx.store?.rooms?.size || 0,
+      clans: ctx.store?.clans?.size || 0,
+      users: ctx.store?.users?.size || 0
+    });
   });
 
-  router.get("/users/:userId/profile", async (req, res) => {
+  router.get("/rooms", async (req, res) => {
     try {
-      const profile = await getProfile(runtime.db, req.params.userId);
-      if (!profile) return res.status(404).json({ ok: false, error: "მოთამაშე ვერ მოიძებნა" });
-      res.json({ ok: true, profile });
-    } catch {
-      res.status(500).json({ ok: false, error: "პროფილის ჩატვირთვა ვერ მოხერხდა" });
+      const rooms = await ctx.store.listRooms();
+      res.json({ ok: true, rooms });
+    } catch (err) {
+      console.error("GET /api/rooms failed:", err);
+      res.status(500).json({ ok: false, error: "Rooms load failed" });
     }
   });
 
-  router.patch("/users/:userId/profile", async (req, res) => {
+  router.post("/rooms", async (req, res) => {
     try {
-      const profile = await updateProfile(runtime.db, req.params.userId, req.body || {});
-      if (!profile) return res.status(404).json({ ok: false, error: "მოთამაშე ვერ მოიძებნა" });
-      res.json({ ok: true, profile });
-    } catch {
-      res.status(500).json({ ok: false, error: "პროფილის შენახვა ვერ მოხერხდა" });
+      const user = req.body.user || {};
+      const settings = req.body.settings || {};
+      const name = req.body.name || settings.name || "VOID TABLE";
+
+      const room = await ctx.store.createRoom({
+        name,
+        owner: user,
+        settings
+      });
+
+      res.json({ ok: true, room });
+    } catch (err) {
+      console.error("POST /api/rooms failed:", err);
+      res.status(500).json({ ok: false, error: "Room create failed" });
     }
   });
 
   router.get("/clans", async (req, res) => {
     try {
-      if (!runtime.db.enabled) return res.json({ ok: true, clans: [] });
-      const clans = await runtime.db.models.Clan.find({}).sort({ points: -1, createdAt: -1 }).lean();
+      const clans = await ctx.store.listClans();
       res.json({ ok: true, clans });
     } catch (err) {
-      console.error("GET clans failed:", err);
-      res.status(500).json({ ok: false, error: "კლანების ჩატვირთვა ვერ მოხერხდა" });
+      console.error("GET /api/clans failed:", err);
+      res.status(500).json({ ok: false, error: "Clans load failed" });
     }
   });
 
   router.post("/clans", async (req, res) => {
     try {
-      if (!runtime.db.enabled) return res.status(400).json({ ok: false, error: "კლანებისთვის MongoDB აუცილებელია" });
-      const name = cleanText(req.body?.name, 32);
-      const user = req.body?.user || {};
-      const userId = Number(user.userId);
-      if (!name) return res.status(400).json({ ok: false, error: "კლანის სახელი აუცილებელია" });
-      if (!userId) return res.status(400).json({ ok: false, error: "ჯერ შედი ანგარიშში" });
+      const name = String(req.body.name || "").trim();
+      const user = req.body.user || {};
 
-      const exists = await runtime.db.models.Clan.findOne({ leaderUserId: userId });
-      if (exists) return res.status(400).json({ ok: false, error: "შენ უკვე გაქვს კლანი" });
+      if (!name) {
+        return res.status(400).json({
+          ok: false,
+          error: "კლანის სახელი აუცილებელია"
+        });
+      }
 
-      const clan = await runtime.db.models.Clan.create({
-        clanId: `clan_${Date.now()}_${Math.floor(Math.random() * 9999)}`,
+      if (!user.userId) {
+        return res.status(401).json({
+          ok: false,
+          error: "ჯერ ავტორიზაცია გაიარე"
+        });
+      }
+
+      const clan = await ctx.store.createClan({
         name,
-        emblem: user.avatar || "◆",
-        leaderUserId: userId,
-        leaderName: user.nickname || "Player",
-        members: [userId]
+        owner: user
       });
 
-      await runtime.db.models.User.findOneAndUpdate({ userId }, { $set: { clanId: clan.clanId } });
       res.json({ ok: true, clan });
     } catch (err) {
-      console.error("POST clans failed:", err);
-      res.status(500).json({ ok: false, error: "კლანის შექმნა ვერ მოხერხდა" });
+      console.error("POST /api/clans failed:", err);
+      res.status(500).json({ ok: false, error: "Clan create failed" });
     }
   });
 
   router.get("/leaderboard", async (req, res) => {
     try {
-      if (!runtime.db.enabled) return res.json({ ok: true, users: [] });
-      const users = await runtime.db.models.User.find({}).sort({ "stats.xp": -1, "stats.wins": -1 }).limit(100).lean();
+      const users = await ctx.store.leaderboard();
       res.json({ ok: true, users });
-    } catch {
-      res.status(500).json({ ok: false, error: "სტატისტიკა ვერ ჩაიტვირთა" });
+    } catch (err) {
+      console.error("GET /api/leaderboard failed:", err);
+      res.status(500).json({ ok: false, error: "Leaderboard load failed" });
     }
+  });
+
+  router.get("/roles", (req, res) => {
+    res.json({
+      ok: true,
+      roles: game.ROLES || []
+    });
   });
 
   return router;
