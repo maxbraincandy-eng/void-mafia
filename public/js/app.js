@@ -7,3 +7,249 @@ function renderRoleSettings(d={}){$('roleSettings').innerHTML=App.roles.map(r=>`
 async function loadLeaderboard(){const r=await api('/api/leaderboard');if(r.ok)$('leaderboard').innerHTML=r.users.map((u,i)=>`<div class="item" onclick="openPlayer(${u.userId})"><div class="pic">${esc(u.avatar)}</div><div class="grow"><b>#${i+1} ${esc(u.nickname)}</b><p>ID ${u.userId} · ${u.rank}</p></div><b>⭐ ${u.stats.xp}</b></div>`).join('')} async function loadClans(){const r=await api('/api/clans');if(r.ok)$('clansList').innerHTML=r.clans.map((c,i)=>`<div class="item"><div class="pic">${esc(c.emblem)}</div><div class="grow"><b>#${i+1} ${esc(c.name)} ${esc(c.tag)}</b><p>Level ${c.level} · Members ${c.members.length}</p></div><button onclick="joinClan('${c.clanId}')">JOIN</button></div>`).join('')||'<div class="card">No clans</div>'} async function createClan(){const r=await api('/api/clans',{method:'POST',body:{name:$('clanName').value,tag:$('clanTag').value,user:App.user}});toast(r.ok?'Clan created':r.error);loadClans()} async function joinClan(id){const r=await api(`/api/clans/${id}/join`,{method:'POST',body:{user:App.user}});toast(r.ok?'Joined':r.error)} async function loadStore(){const r=await api('/api/store');if(r.ok)$('storeList').innerHTML=r.items.map(i=>`<div class="item"><div class="pic">💠</div><div class="grow"><b>${esc(i.title)}</b><p>${esc(i.description)}</p></div><button>${i.price?i.price+' coins':'Owned'}</button></div>`).join('')} async function saveProfile(){const r=await api('/api/auth/me',{method:'PUT',body:{userId:App.user.userId,nickname:$('editNick').value,avatar:$('editAvatar').value}});if(r.ok){App.user=r.user;renderMe();toast('Saved')}else toast(r.error)} async function openPlayer(id){const r=await api('/api/users/'+id);if(!r.ok)return toast(r.error);const u=r.user;$('playerProfile').innerHTML=`<div class="profile"><div class="avatar">${esc(u.avatar)}</div><h2>${esc(u.nickname)}</h2><p>ID ${u.userId} · ${u.rank}</p><div class="grid2 stats"><div><b>${u.stats.games}</b><span>Games</span></div><div><b>${u.stats.wins}</b><span>Wins</span></div><div><b>${u.stats.mafiaGames}</b><span>As Mafia</span></div><div><b>${u.stats.citizenGames}</b><span>As Citizen</span></div><div><b>${Number(u.stats.rating).toFixed(1)}</b><span>Rating</span></div><div><b>${u.stats.xp}</b><span>XP</span></div></div></div>`;show('playerModal')}
 async function ensureMedia(){if(App.localStream)return App.localStream;try{App.localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});setupVoiceActivity()}catch(e){toast('კამერა/მიკროფონი ვერ ჩაირთო')}return App.localStream} function toggleMic(){const t=App.localStream?.getAudioTracks?.()[0];if(!t)return ensureMedia();t.enabled=!t.enabled;App.socket.emit('media:state',{roomId:App.room?.id,micOn:t.enabled})} function toggleCam(){const t=App.localStream?.getVideoTracks?.()[0];if(!t)return ensureMedia();t.enabled=!t.enabled;App.socket.emit('media:state',{roomId:App.room?.id,cameraOn:t.enabled})} function setupVoiceActivity(){try{const c=new AudioContext(),src=c.createMediaStreamSource(App.localStream),an=c.createAnalyser();src.connect(an);const data=new Uint8Array(an.frequencyBinCount);let last=false;setInterval(()=>{an.getByteFrequencyData(data);const avg=data.reduce((a,b)=>a+b,0)/data.length,speaking=avg>12;if(speaking!==last){last=speaking;App.socket?.emit('media:state',{roomId:App.room?.id,speaking})}},300)}catch(e){}}
 async function connectToPeers(){if(!App.room||!App.localStream)return;const me=App.room.players.find(p=>p.userId===App.user.userId);for(const p of App.room.players){if(!p.socketId||p.socketId===me?.socketId||App.peers[p.socketId])continue;const pc=createPeer(p.socketId),offer=await pc.createOffer();await pc.setLocalDescription(offer);App.socket.emit('signal:offer',{to:p.socketId,signal:offer})}} function createPeer(id){const pc=new RTCPeerConnection({iceServers:App.iceServers});App.peers[id]=pc;App.localStream?.getTracks().forEach(t=>pc.addTrack(t,App.localStream));pc.onicecandidate=e=>{if(e.candidate)App.socket.emit('signal:ice',{to:id,candidate:e.candidate})};pc.ontrack=e=>{const v=$('vid_'+id);if(v){v.srcObject=e.streams[0];v.play?.().catch(()=>{})}};return pc} async function onOffer({from,signal}){await ensureMedia();const pc=App.peers[from]||createPeer(from);await pc.setRemoteDescription(signal);const ans=await pc.createAnswer();await pc.setLocalDescription(ans);App.socket.emit('signal:answer',{to:from,signal:ans})} async function onAnswer({from,signal}){const pc=App.peers[from];if(pc)await pc.setRemoteDescription(signal)} async function onIce({from,candidate}){const pc=App.peers[from];if(pc&&candidate)try{await pc.addIceCandidate(candidate)}catch(e){}} function fmt(s){s=Number(s||0);return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}
+
+/* =========================
+   VOID FIX PATCH v16.1
+   Profile / Store / Drawer
+========================= */
+
+function getUserLevel(user) {
+  const xp = Number(user?.stats?.xp || 0);
+  return Math.max(1, Math.floor(xp / 100) + 1);
+}
+
+function normalizeStats(user) {
+  const s = user?.stats || {};
+  return {
+    xp: Number(s.xp || 0),
+    rating: Number(s.rating || 5),
+    wins: Number(s.wins || 0),
+    games: Number(s.games || s.gamesPlayed || 0),
+    losses: Number(s.losses || 0),
+    mafiaGames: Number(s.mafiaGames || 0),
+    citizenGames: Number(s.citizenGames || 0)
+  };
+}
+
+/* Override profile render */
+window.renderMe = function renderMe() {
+  if (!App.user) return;
+
+  const s = normalizeStats(App.user);
+
+  if ($("userLine")) {
+    $("userLine").textContent = `ID ${App.user.userId} · ${App.user.nickname}`;
+  }
+
+  if ($("profileName")) {
+    $("profileName").textContent = App.user.nickname;
+  }
+
+  if ($("profileId")) {
+    $("profileId").textContent = `ID ${App.user.userId} · Level ${getUserLevel(App.user)}`;
+  }
+
+  if ($("profileAvatar")) {
+    $("profileAvatar").textContent = App.user.avatar || "◆";
+  }
+
+  if ($("statXp")) $("statXp").textContent = s.xp;
+  if ($("statRating")) $("statRating").textContent = s.rating.toFixed(1);
+  if ($("statWins")) $("statWins").textContent = s.wins;
+  if ($("statGames")) $("statGames").textContent = s.games;
+
+  if ($("editNick")) $("editNick").value = App.user.nickname || "";
+  if ($("editAvatar")) $("editAvatar").value = App.user.avatar || "◆";
+};
+
+/* Override leaderboard render */
+window.loadLeaderboard = async function loadLeaderboard() {
+  const r = await api("/api/leaderboard");
+
+  if (!r.ok) {
+    toast(r.error || "Leaderboard ვერ ჩაიტვირთა");
+    return;
+  }
+
+  if (!$("leaderboard")) return;
+
+  $("leaderboard").innerHTML = (r.users || []).map((u, i) => {
+    const s = normalizeStats(u);
+
+    return `
+      <div class="item" onclick="openPlayer(${u.userId})">
+        <div class="pic">${esc(u.avatar || "◆")}</div>
+
+        <div class="grow">
+          <b>#${i + 1} ${esc(u.nickname || "Player")}</b>
+          <p>ID ${u.userId} · Level ${getUserLevel(u)}</p>
+        </div>
+
+        <b>⭐ ${s.xp}</b>
+      </div>
+    `;
+  }).join("");
+};
+
+/* Override player profile modal */
+window.openPlayer = async function openPlayer(id) {
+  const r = await api("/api/users/" + id);
+
+  if (!r.ok) {
+    toast(r.error || "User ვერ მოიძებნა");
+    return;
+  }
+
+  const u = r.user;
+  const s = normalizeStats(u);
+
+  if (!$("playerProfile")) return;
+
+  $("playerProfile").innerHTML = `
+    <div class="profile">
+      <div class="avatar">${esc(u.avatar || "◆")}</div>
+
+      <h2>${esc(u.nickname || "Player")}</h2>
+      <p>ID ${u.userId} · Level ${getUserLevel(u)}</p>
+
+      <div class="grid2 stats">
+        <div>
+          <b>${s.games}</b>
+          <span>Games</span>
+        </div>
+
+        <div>
+          <b>${s.wins}</b>
+          <span>Wins</span>
+        </div>
+
+        <div>
+          <b>${s.losses}</b>
+          <span>Losses</span>
+        </div>
+
+        <div>
+          <b>${s.rating.toFixed(1)}</b>
+          <span>Rating</span>
+        </div>
+
+        <div>
+          <b>${s.mafiaGames}</b>
+          <span>As Mafia</span>
+        </div>
+
+        <div>
+          <b>${s.citizenGames}</b>
+          <span>As Citizen</span>
+        </div>
+
+        <div>
+          <b>${s.xp}</b>
+          <span>XP</span>
+        </div>
+
+        <div>
+          <b>${getUserLevel(u)}</b>
+          <span>Level</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  show("playerModal");
+};
+
+/* Override page switching so bottom active button works correctly */
+window.showPage = function showPage(name) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+
+  const page = $("page" + name);
+  if (page) page.classList.add("active");
+
+  if ($("pageTitle")) {
+    $("pageTitle").textContent = name === "Leaderboard" ? "Rank" : name;
+  }
+
+  document.querySelectorAll(".bottom button").forEach(btn => {
+    btn.classList.remove("active");
+
+    const text = btn.textContent.trim().toLowerCase();
+
+    if (
+      (name === "Rooms" && text === "games") ||
+      (name === "Clans" && text === "clans") ||
+      (name === "Leaderboard" && text === "rank") ||
+      (name === "Store" && text === "store") ||
+      (name === "Profile" && text === "profile")
+    ) {
+      btn.classList.add("active");
+    }
+  });
+
+  if (name === "Rooms") loadRooms?.();
+  if (name === "Clans") loadClans?.();
+  if (name === "Leaderboard") loadLeaderboard?.();
+  if (name === "Store") loadStore?.();
+  if (name === "Profile") renderMe?.();
+};
+
+/* Drawer / menu */
+function openMainMenu() {
+  let drawer = $("mainDrawer");
+
+  if (!drawer) {
+    drawer = document.createElement("div");
+    drawer.id = "mainDrawer";
+    drawer.className = "drawer";
+
+    drawer.innerHTML = `
+      <div class="drawer-card">
+        <button class="drawer-close" onclick="closeMainMenu()">×</button>
+
+        <div class="avatar drawer-avatar">${esc(App.user?.avatar || "◆")}</div>
+
+        <h2>${esc(App.user?.nickname || "Player")}</h2>
+        <p>ID ${App.user?.userId || "-"} · Level ${getUserLevel(App.user)}</p>
+
+        <button onclick="closeMainMenu(); showPage('Rooms')">Games</button>
+        <button onclick="closeMainMenu(); showPage('Clans')">Clans</button>
+        <button onclick="closeMainMenu(); showPage('Leaderboard')">Rank</button>
+        <button onclick="closeMainMenu(); showPage('Store')">Store</button>
+        <button onclick="closeMainMenu(); showPage('Profile')">Profile</button>
+
+        <hr>
+
+        <button onclick="copyMyId()">Copy my ID</button>
+        <button onclick="location.reload()">Reload App</button>
+      </div>
+    `;
+
+    document.body.appendChild(drawer);
+  }
+
+  drawer.classList.add("open");
+}
+
+function closeMainMenu() {
+  $("mainDrawer")?.classList.remove("open");
+}
+
+function copyMyId() {
+  const id = String(App.user?.userId || "");
+
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(id);
+    toast("ID copied");
+  } else {
+    toast("Your ID: " + id);
+  }
+}
+
+/* Attach drawer button safely */
+setTimeout(() => {
+  if ($("menuBtn")) {
+    $("menuBtn").onclick = openMainMenu;
+  }
+
+  renderMe?.();
+}, 300);
