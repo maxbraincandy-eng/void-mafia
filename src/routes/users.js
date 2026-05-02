@@ -23,7 +23,7 @@ function createUsersRouter(ctx) {
         profile
       });
     } catch (err) {
-      console.error("user profile failed:", err);
+      console.error("GET /api/users/:userId/profile failed:", err);
 
       res.status(500).json({
         ok: false,
@@ -51,7 +51,7 @@ function createUsersRouter(ctx) {
         profile
       });
     } catch (err) {
-      console.error("user profile update failed:", err);
+      console.error("PATCH /api/users/:userId/profile failed:", err);
 
       res.status(500).json({
         ok: false,
