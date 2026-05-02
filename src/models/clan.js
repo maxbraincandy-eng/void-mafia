@@ -5,7 +5,11 @@ const ClanMemberSchema = new mongoose.Schema(
     userId: { type: Number, required: true },
     nickname: { type: String, default: "Player" },
     avatar: { type: String, default: "◆" },
-    role: { type: String, enum: ["owner", "admin", "member"], default: "member" },
+    role: {
+      type: String,
+      enum: ["owner", "admin", "member"],
+      default: "member"
+    },
     joinedAt: { type: Date, default: Date.now }
   },
   { _id: false }
@@ -26,10 +30,20 @@ const ClanSchema = new mongoose.Schema(
       trim: true
     },
 
+    emblem: {
+      type: String,
+      default: "◆"
+    },
+
     ownerUserId: {
       type: Number,
       required: true,
       index: true
+    },
+
+    leaderName: {
+      type: String,
+      default: "Player"
     },
 
     members: {
