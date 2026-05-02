@@ -11,6 +11,7 @@ const { createContext } = require("./src/config/context");
 const { createApiRouter } = require("./src/routes/api");
 const { createAuthRouter } = require("./src/routes/auth");
 const { createDiagnosticsRouter } = require("./src/routes/diagnostics");
+const { createUsersRouter } = require("./src/routes/users");
 const { attachSocketServer } = require("./src/socket");
 const { InMemoryStore } = require("./src/services/InMemoryStore");
 
@@ -63,6 +64,7 @@ app.use((req, res, next) => {
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
   }
+
   next();
 });
 
@@ -85,6 +87,7 @@ async function bootstrap() {
     });
 
     app.use("/api/auth", createAuthRouter(ctx));
+    app.use("/api/users", createUsersRouter(ctx));
     app.use("/api", createApiRouter(ctx));
     app.use("/diag", createDiagnosticsRouter(ctx));
 
@@ -96,6 +99,7 @@ async function bootstrap() {
         app: "VOID MAFIA",
         version: "12.0.0",
         db: db && db.enabled ? "enabled" : "memory",
+        mongodb: db && db.enabled ? "connected" : "disabled",
         rooms:
           store && typeof store.roomsList === "function"
             ? store.roomsList().length
