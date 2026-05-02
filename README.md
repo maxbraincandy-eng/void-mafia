@@ -1,4 +1,3 @@
-# VOID MAFIA v13 Stable
+# VOID MAFIA v16 Platform
 
-Render: Build `npm install`, Start `npm start`. Set `MONGODB_URI` in Render environment.
-
+Modular Mafia platform: MongoDB auth, clans, leaderboard, rooms, lobby, WebRTC signaling, roles and game engine.
