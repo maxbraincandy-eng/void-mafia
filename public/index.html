@@ -215,7 +215,7 @@
 
       <div class="phase">
         <b id="phaseName">მოლოდინი</b>
-        <span id="phaseInfo">დღე 0</span>
+        <span id="phaseInfo">ლობი</span>
       </div>
 
       <div class="clock">
@@ -235,7 +235,46 @@
       <p id="overlayText"></p>
     </div>
 
-    <div id="videoGrid" class="video-grid"></div>
+    <div id="lobbyView" class="lobby-view">
+      <div class="lobby-top glass">
+        <div class="lobby-room-meta">
+          <h2 id="lobbyRoomName">VOID TABLE</h2>
+          <p id="lobbyRoomInfo">მოლოდინი • ჰოსტი #1</p>
+        </div>
+
+        <div class="lobby-top-actions">
+          <button id="lobbySettingsBtn" class="top-action room-top hidden">ROOM</button>
+          <button id="lobbyRolesBtn" class="top-action chat-top hidden">ROLES</button>
+          <button id="lobbyStartBtn" class="top-action log-top hidden">START</button>
+        </div>
+      </div>
+
+      <div class="lobby-body">
+        <div class="lobby-players-wrap glass">
+          <div class="panel-head">
+            <b>მოთამაშეები</b>
+            <span id="lobbyPlayersCount">0/0</span>
+          </div>
+
+          <div id="lobbyPlayers" class="lobby-players-list"></div>
+        </div>
+
+        <div class="lobby-chat-wrap glass">
+          <div class="panel-head">
+            <b>ლობის ჩათი</b>
+          </div>
+
+          <div id="lobbyChatMessages" class="scroll"></div>
+
+          <div class="send-row">
+            <input id="lobbyChatInput" placeholder="მესიჯი">
+            <button id="lobbySendChat">➤</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="videoGrid" class="video-grid hidden"></div>
 
     <button id="actionButton" class="action-button hidden">ქმედება</button>
 
