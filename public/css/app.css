@@ -1147,3 +1147,51 @@ summary {
   color: var(--muted);
   text-align: center;
 }
+
+
+.lobby-player.is-me,
+.tile.is-me {
+  transition: box-shadow .12s ease, border-color .12s ease, transform .12s ease;
+}
+
+.lobby-player.speaking,
+.tile.speaking {
+  border-color: var(--green) !important;
+  box-shadow:
+    0 0 18px rgba(45,255,147,.55),
+    0 0 34px rgba(45,255,147,.22),
+    inset 0 0 14px rgba(45,255,147,.12) !important;
+  transform: scale(1.01);
+}
+
+#lobbyMicBtn.speaking,
+#micBtn.speaking {
+  background: linear-gradient(135deg, #2dff93, #00f5ff) !important;
+  box-shadow:
+    0 0 12px rgba(45,255,147,.8),
+    0 0 24px rgba(45,255,147,.35);
+  animation: micPulseGreen .55s infinite alternate;
+}
+
+@keyframes micPulseGreen {
+  from {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+
+  to {
+    transform: scale(1.06);
+    filter: brightness(1.25);
+  }
+}
+
+#chatBtn,
+#logBtn,
+#roomSettingsBtn {
+  pointer-events: auto !important;
+  opacity: 1 !important;
+}
+
+.side-panel:not(.hidden) {
+  display: flex !important;
+}
