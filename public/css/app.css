@@ -1110,3 +1110,40 @@ summary {
     font-size: 11px;
   }
 }
+
+/* hide old lobby inline chat, use top CHAT panel only */
+.lobby-chat-wrap {
+  display: none !important;
+}
+
+.lobby-body {
+  display: grid;
+  grid-template-columns: 1fr !important;
+}
+
+.lobby-player-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.lobby-player-actions button {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  background: rgba(0,245,255,.85);
+  color: #061018;
+  border: 0;
+}
+
+.lobby-player-actions button.off {
+  background: rgba(255,60,79,.78);
+  color: #fff;
+}
+
+.lobby-empty {
+  padding: 18px;
+  color: var(--muted);
+  text-align: center;
+}
