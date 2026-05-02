@@ -1,5 +1,8 @@
 const express = require("express");
-const { getUserProfile } = require("../services/UserService");
+const {
+  getUserProfile,
+  updateUserProfile
+} = require("../services/UserService");
 
 function createUsersRouter(ctx) {
   const router = express.Router();
@@ -25,6 +28,34 @@ function createUsersRouter(ctx) {
       res.status(500).json({
         ok: false,
         error: "პროფილის წამოღება ვერ მოხერხდა."
+      });
+    }
+  });
+
+  router.patch("/:userId/profile", async (req, res) => {
+    try {
+      const profile = await updateUserProfile(ctx, req.params.userId, {
+        nickname: req.body.nickname,
+        avatar: req.body.avatar
+      });
+
+      if (!profile) {
+        return res.status(404).json({
+          ok: false,
+          error: "მოთამაშე ვერ მოიძებნა."
+        });
+      }
+
+      res.json({
+        ok: true,
+        profile
+      });
+    } catch (err) {
+      console.error("user profile update failed:", err);
+
+      res.status(500).json({
+        ok: false,
+        error: "პროფილის შენახვა ვერ მოხერხდა."
       });
     }
   });
