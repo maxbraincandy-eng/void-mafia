@@ -4,7 +4,11 @@ async function ensureMedia() {
   try {
     App.localStream = await navigator.mediaDevices.getUserMedia({
       video: true,
-      audio: true
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
     });
 
     const audioTrack = App.localStream.getAudioTracks()?.[0];
@@ -13,6 +17,7 @@ async function ensureMedia() {
     App.micOn = audioTrack ? audioTrack.enabled : false;
     App.cameraOn = videoTrack ? videoTrack.enabled : false;
   } catch (err) {
+    console.error("ensureMedia failed:", err);
     toast("კამერა/მიკროფონი ვერ ჩაირთო");
   }
 
@@ -130,7 +135,11 @@ function renderLobby(room, host) {
     const camOn = player.cameraOn !== false;
 
     return `
-      <div class="lobby-player">
+      <div
+        class="lobby-player ${isMe ? "is-me" : ""}"
+        data-user-id="${escapeHtml(player.userId || "")}"
+        data-socket-id="${escapeHtml(player.socketId || "")}"
+      >
         <div class="lobby-player-left">
           <div class="lobby-avatar">${escapeHtml(player.avatar || "◆")}</div>
 
@@ -198,7 +207,11 @@ function renderVideoGrid() {
     const speaker = room.individualSpeakerId === p.id;
 
     return `
-      <div class="tile ${p.alive ? "" : "dead"} ${speaker ? "speaker" : ""}">
+      <div
+        class="tile ${isMe ? "is-me" : ""} ${p.alive ? "" : "dead"} ${speaker ? "speaker" : ""}"
+        data-user-id="${escapeHtml(p.userId || "")}"
+        data-socket-id="${escapeHtml(p.socketId || "")}"
+      >
         <div class="tile-avatar">${escapeHtml(p.avatar || "◆")}</div>
         <video id="vid_${p.id}" autoplay playsinline ${isMe ? "muted" : ""}></video>
 
@@ -222,7 +235,11 @@ function renderVideoGrid() {
 
   if (me && App.localStream) {
     const v = $(`vid_${me.id}`);
-    if (v) v.srcObject = App.localStream;
+    if (v) {
+      v.srcObject = App.localStream;
+      v.muted = true;
+      v.play?.().catch(() => {});
+    }
   }
 
   if ($("micBtn")) $("micBtn").onclick = toggleMic;
@@ -244,7 +261,7 @@ async function toggleMic() {
   App.micOn = track.enabled;
 
   App.socket.emit("media:state", {
-    roomId: App.currentRoomId,
+    roomId: App.currentRoomId || App.currentRoom?.id,
     micOn: track.enabled
   });
 
@@ -261,7 +278,7 @@ async function toggleCam() {
   App.cameraOn = track.enabled;
 
   App.socket.emit("media:state", {
-    roomId: App.currentRoomId,
+    roomId: App.currentRoomId || App.currentRoom?.id,
     cameraOn: track.enabled
   });
 
@@ -301,7 +318,8 @@ function openVote(room) {
   $("actionText").textContent = "აირჩიე კანდიდატი ან თავი შეიკავე.";
 
   const players = getRoomPlayers(room);
-  const candidates = players.filter(x => room.nominatedIds.includes(x.id));
+  const nominatedIds = Array.isArray(room.nominatedIds) ? room.nominatedIds : [];
+  const candidates = players.filter(x => nominatedIds.includes(x.id));
 
   $("targets").innerHTML =
     candidates.map(t => `<button data-id="${t.id}">#${t.seat} · ${escapeHtml(t.nickname)}</button>`).join("") +
