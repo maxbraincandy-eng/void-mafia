@@ -1,0 +1,1 @@
+const mongoose=require('mongoose'); const RoomRecordSchema=new mongoose.Schema({roomId:String,name:String,hostUserId:Number,players:Array,settings:Object,result:Object,events:Array,startedAt:Date,endedAt:Date},{timestamps:true}); module.exports={RoomRecord:mongoose.models.RoomRecord||mongoose.model('RoomRecord',RoomRecordSchema)};
