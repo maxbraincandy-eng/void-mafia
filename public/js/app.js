@@ -6,58 +6,72 @@ const App = {
   room: null,
   localStream: null,
   peers: {},
-  remoteStreams: {},
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-  roles: [],
-  speakingWatcher: null
+  roles: []
 };
 
 function toast(text) {
-  alert(text);
+  const box = $("toast");
+
+  if (!box) {
+    alert(text);
+    return;
+  }
+
+  const div = document.createElement("div");
+  div.className = "toast";
+  div.textContent = text;
+
+  box.appendChild(div);
+
+  setTimeout(() => div.remove(), 2600);
 }
 
 function hide(id) {
-  const el = $(id);
-  if (el) el.classList.add("hidden");
+  $(id)?.classList.add("hidden");
 }
 
 function show(id) {
-  const el = $(id);
-  if (el) el.classList.remove("hidden");
+  $(id)?.classList.remove("hidden");
 }
 
 function esc(value) {
-  return String(value ?? "").replace(/[&<>"']/g, match => ({
+  return String(value ?? "").replace(/[&<>"']/g, m => ({
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
     '"': "&quot;",
     "'": "&#39;"
-  }[match]));
+  })[m]);
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
+  const res = await fetch(path, {
     credentials: "include",
+    headers: {
+      "Content-Type": "application/json"
+    },
     ...options,
     body: options.body ? JSON.stringify(options.body) : undefined
   });
 
-  return response.json();
+  return res.json();
 }
 
 function emit(name, payload, timeout = 7000) {
   return new Promise(resolve => {
+    if (!App.socket || !App.socket.connected) {
+      resolve({ ok: false, error: "Socket disconnected" });
+      return;
+    }
+
     let done = false;
 
     const timer = setTimeout(() => {
-      if (done) return;
-      done = true;
-      resolve({
-        ok: false,
-        error: "Timeout"
-      });
+      if (!done) {
+        done = true;
+        resolve({ ok: false, error: "Timeout" });
+      }
     }, timeout);
 
     App.socket.emit(name, payload, response => {
@@ -65,7 +79,6 @@ function emit(name, payload, timeout = 7000) {
 
       done = true;
       clearTimeout(timer);
-
       resolve(response || { ok: true });
     });
   });
@@ -77,34 +90,24 @@ async function init() {
   bindUi();
 
   try {
-    const webrtc = await api("/api/webrtc");
-    if (webrtc.ok && Array.isArray(webrtc.iceServers)) {
-      App.iceServers = webrtc.iceServers;
+    const webRtc = await api("/api/webrtc");
+    if (webRtc.ok && Array.isArray(webRtc.iceServers)) {
+      App.iceServers = webRtc.iceServers;
     }
-  } catch (err) {
-    console.warn("WebRTC config load failed:", err);
-  }
+  } catch (_) {}
 
   try {
-    const roleResponse = await api("/api/roles");
-
-    if (roleResponse.ok) {
-      App.roles = roleResponse.roles || [];
-      renderRoleSettings(roleResponse.defaultSettings?.roles || {});
+    const rolesRes = await api("/api/roles");
+    if (rolesRes.ok) {
+      App.roles = rolesRes.roles || [];
+      renderRoleSettings(rolesRes.defaultSettings?.roles || {});
     }
-  } catch (err) {
-    console.warn("Roles load failed:", err);
-  }
+  } catch (_) {}
 
   try {
     const me = await api("/api/auth/me");
-
-    if (me.user) {
-      enterApp(me.user);
-    }
-  } catch (err) {
-    console.warn("Session load failed:", err);
-  }
+    if (me.user) enterApp(me.user);
+  } catch (_) {}
 }
 
 function bindUi() {
@@ -118,97 +121,77 @@ function bindUi() {
     };
   });
 
-  if ($("guestBtn")) {
-    $("guestBtn").onclick = async () => {
-      const response = await api("/api/auth/guest", {
-        method: "POST",
-        body: {
-          nickname: $("guestNick")?.value,
-          avatar: $("guestAvatar")?.value
-        }
-      });
-
-      response.ok ? enterApp(response.user) : toast(response.error);
-    };
-  }
-
-  if ($("registerBtn")) {
-    $("registerBtn").onclick = async () => {
-      const response = await api("/api/auth/register", {
-        method: "POST",
-        body: {
-          nickname: $("regNick")?.value,
-          email: $("regEmail")?.value,
-          password: $("regPass")?.value
-        }
-      });
-
-      response.ok ? enterApp(response.user) : toast(response.error);
-    };
-  }
-
-  if ($("loginBtn")) {
-    $("loginBtn").onclick = async () => {
-      const response = await api("/api/auth/login", {
-        method: "POST",
-        body: {
-          email: $("loginEmail")?.value,
-          password: $("loginPass")?.value
-        }
-      });
-
-      response.ok ? enterApp(response.user) : toast(response.error);
-    };
-  }
-
-  if ($("refreshBtn")) $("refreshBtn").onclick = loadAll;
-
-  if ($("hostGameBtn")) {
-    $("hostGameBtn").onclick = () => $("roomCreate")?.classList.toggle("hidden");
-  }
-
-  if ($("createRoomBtn")) $("createRoomBtn").onclick = createRoom;
-
-  if ($("joinByCodeBtn")) {
-    $("joinByCodeBtn").onclick = () => {
-      const code = prompt("Room number");
-      if (code) joinRoom(code);
-    };
-  }
-
-  if ($("createClanBtn")) $("createClanBtn").onclick = createClan;
-  if ($("saveProfileBtn")) $("saveProfileBtn").onclick = saveProfile;
-  if ($("leaveBtn")) $("leaveBtn").onclick = leaveRoom;
-
-  if ($("chatTopBtn")) {
-    $("chatTopBtn").onclick = () => {
-      show("chatPanel");
-      scrollChatToBottom("chatMessages");
-    };
-  }
-
-  if ($("roomTopBtn")) $("roomTopBtn").onclick = () => show("settingsModal");
-  if ($("settingsBtn")) $("settingsBtn").onclick = () => show("settingsModal");
-  if ($("startBtn")) $("startBtn").onclick = startGame;
-  if ($("nextPhaseBtn")) $("nextPhaseBtn").onclick = nextPhase;
-  if ($("saveSettingsBtn")) $("saveSettingsBtn").onclick = saveSettings;
-
-  if ($("sendChatBtn")) $("sendChatBtn").onclick = () => sendChat("room");
-  if ($("sendMafiaBtn")) $("sendMafiaBtn").onclick = () => sendChat("mafia");
-
-  if ($("chatInput")) {
-    $("chatInput").addEventListener("keydown", event => {
-      if (event.key === "Enter") sendChat("room");
+  $("guestBtn") && ($("guestBtn").onclick = async () => {
+    const res = await api("/api/auth/guest", {
+      method: "POST",
+      body: {
+        nickname: $("guestNick")?.value,
+        avatar: $("guestAvatar")?.value
+      }
     });
-  }
 
-  if ($("mafiaInput")) {
-    $("mafiaInput").addEventListener("keydown", event => {
-      if (event.key === "Enter") sendChat("mafia");
+    res.ok ? enterApp(res.user) : toast(res.error || "Login failed");
+  });
+
+  $("registerBtn") && ($("registerBtn").onclick = async () => {
+    const res = await api("/api/auth/register", {
+      method: "POST",
+      body: {
+        nickname: $("regNick")?.value,
+        email: $("regEmail")?.value,
+        password: $("regPass")?.value
+      }
     });
-  }
 
-  if ($("menuBtn")) $("menuBtn").onclick = openMainMenu;
+    res.ok ? enterApp(res.user) : toast(res.error || "Register failed");
+  });
+
+  $("loginBtn") && ($("loginBtn").onclick = async () => {
+    const res = await api("/api/auth/login", {
+      method: "POST",
+      body: {
+        email: $("loginEmail")?.value,
+        password: $("loginPass")?.value
+      }
+    });
+
+    res.ok ? enterApp(res.user) : toast(res.error || "Login failed");
+  });
+
+  $("refreshBtn") && ($("refreshBtn").onclick = loadAll);
+  $("hostGameBtn") && ($("hostGameBtn").onclick = () => $("roomCreate")?.classList.toggle("hidden"));
+  $("createRoomBtn") && ($("createRoomBtn").onclick = createRoom);
+
+  $("joinByCodeBtn") && ($("joinByCodeBtn").onclick = () => {
+    const code = prompt("Room number");
+    if (code) joinRoom(code);
+  });
+
+  $("createClanBtn") && ($("createClanBtn").onclick = createClan);
+  $("saveProfileBtn") && ($("saveProfileBtn").onclick = saveProfile);
+
+  $("leaveBtn") && ($("leaveBtn").onclick = leaveRoom);
+
+  $("chatTopBtn") && ($("chatTopBtn").onclick = openChat);
+  $("roomTopBtn") && ($("roomTopBtn").onclick = openSettings);
+  $("settingsBtn") && ($("settingsBtn").onclick = openSettings);
+
+  $("startBtn") && ($("startBtn").onclick = startGame);
+  $("nextPhaseBtn") && ($("nextPhaseBtn").onclick = nextPhase);
+  $("saveSettingsBtn") && ($("saveSettingsBtn").onclick = saveSettings);
+
+  $("sendChatBtn") && ($("sendChatBtn").onclick = () => sendChat("room"));
+  $("sendMafiaBtn") && ($("sendMafiaBtn").onclick = () => sendChat("mafia"));
+
+  $("chatInput") && ($("chatInput").onkeydown = e => {
+    if (e.key === "Enter") sendChat("room");
+  });
+
+  $("mafiaInput") && ($("mafiaInput").onkeydown = e => {
+    if (e.key === "Enter") sendChat("mafia");
+  });
+
+  $("menuBtn") && ($("menuBtn").onclick = openMainMenu);
 
   document.querySelectorAll("[data-page]").forEach(button => {
     button.onclick = () => showPage(button.dataset.page);
@@ -230,50 +213,22 @@ function enterApp(user) {
   loadAll();
 }
 
-function getUserLevel(user) {
-  const xp = Number(user?.stats?.xp || 0);
-  return Math.max(1, Math.floor(xp / 100) + 1);
-}
-
-function normalizeStats(user) {
-  const stats = user?.stats || {};
-
-  return {
-    xp: Number(stats.xp || 0),
-    rating: Number(stats.rating || 5),
-    wins: Number(stats.wins || 0),
-    games: Number(stats.games || stats.gamesPlayed || 0),
-    losses: Number(stats.losses || 0),
-    mafiaGames: Number(stats.mafiaGames || 0),
-    citizenGames: Number(stats.citizenGames || 0)
-  };
-}
-
 function renderMe() {
   if (!App.user) return;
 
-  const stats = normalizeStats(App.user);
+  const stats = App.user.stats || {};
+  const xp = Number(stats.xp || 0);
+  const level = Math.max(1, Math.floor(xp / 100) + 1);
 
-  if ($("userLine")) {
-    $("userLine").textContent = `ID ${App.user.userId} · ${App.user.nickname}`;
-  }
+  if ($("userLine")) $("userLine").textContent = `ID ${App.user.userId} · ${App.user.nickname}`;
+  if ($("profileName")) $("profileName").textContent = App.user.nickname;
+  if ($("profileId")) $("profileId").textContent = `ID ${App.user.userId} · Level ${level}`;
+  if ($("profileAvatar")) $("profileAvatar").textContent = App.user.avatar || "◆";
 
-  if ($("profileName")) {
-    $("profileName").textContent = App.user.nickname;
-  }
-
-  if ($("profileId")) {
-    $("profileId").textContent = `ID ${App.user.userId} · Level ${getUserLevel(App.user)}`;
-  }
-
-  if ($("profileAvatar")) {
-    $("profileAvatar").textContent = App.user.avatar || "◆";
-  }
-
-  if ($("statXp")) $("statXp").textContent = stats.xp;
-  if ($("statRating")) $("statRating").textContent = stats.rating.toFixed(1);
-  if ($("statWins")) $("statWins").textContent = stats.wins;
-  if ($("statGames")) $("statGames").textContent = stats.games;
+  if ($("statXp")) $("statXp").textContent = xp;
+  if ($("statRating")) $("statRating").textContent = Number(stats.rating || 5).toFixed(1);
+  if ($("statWins")) $("statWins").textContent = Number(stats.wins || 0);
+  if ($("statGames")) $("statGames").textContent = Number(stats.games || stats.gamesPlayed || 0);
 
   if ($("editNick")) $("editNick").value = App.user.nickname || "";
   if ($("editAvatar")) $("editAvatar").value = App.user.avatar || "◆";
@@ -326,42 +281,38 @@ function connectSocket() {
     renderRoom();
   });
 
-  App.socket.on("chat:message", message => {
-    addMsg(message.channel === "mafia" ? "mafiaMessages" : "chatMessages", message);
+  App.socket.on("room:closed", payload => {
+    toast(payload.reason || "Room closed");
+    leaveRoom(false);
+  });
 
-    if (App.room && Array.isArray(App.room.chat) && message.channel !== "mafia") {
-      App.room.chat.push(message);
+  App.socket.on("chat:message", msg => {
+    if (msg.channel === "mafia") {
+      addMsg("mafiaMessages", msg);
+    } else {
+      addMsg("chatMessages", msg);
     }
   });
 
   App.socket.on("signal:offer", onOffer);
   App.socket.on("signal:answer", onAnswer);
   App.socket.on("signal:ice", onIce);
-
-  App.socket.on("webrtc:offer", ({ from, offer }) => onOffer({ from, signal: offer }));
-  App.socket.on("webrtc:answer", ({ from, answer }) => onAnswer({ from, signal: answer }));
-  App.socket.on("webrtc:ice", ({ from, candidate }) => onIce({ from, candidate }));
 }
 
 async function loadAll() {
   await loadRooms();
-  loadLeaderboard();
-  loadClans();
-  loadStore();
+  await loadLeaderboard();
+  await loadClans();
+  await loadStore();
 }
 
 async function loadRooms() {
-  const response = await api("/api/rooms");
-
-  if (response.ok) {
-    renderRooms(response.rooms || []);
-  }
+  const res = await api("/api/rooms");
+  if (res.ok) renderRooms(res.rooms || []);
 }
 
 function renderRooms(rooms) {
-  if ($("roomsCount")) {
-    $("roomsCount").textContent = rooms.length;
-  }
+  if ($("roomsCount")) $("roomsCount").textContent = rooms.length;
 
   if (!$("roomsList")) return;
 
@@ -383,23 +334,31 @@ function renderRooms(rooms) {
 async function createRoom() {
   const settings = collectSettings();
 
-  settings.maxPlayers = Number($("maxPlayers")?.value || 10);
+  settings.maxPlayers = Number($("maxPlayers")?.value || $("setMaxPlayers")?.value || 10);
   settings.language = $("roomLanguage")?.value || "Georgian";
 
-  const response = await emit("room:create", {
+  const res = await emit("room:create", {
     name: $("roomName")?.value || "VOID TABLE",
     settings
   });
 
-  response.ok ? enterRoom(response.room) : toast(response.error);
+  if (!res.ok) {
+    toast(res.error || "Room create failed");
+    return;
+  }
+
+  enterRoom(res.room);
 }
 
 async function joinRoom(id) {
-  const response = await emit("room:join", {
-    roomId: id
-  });
+  const res = await emit("room:join", { roomId: id });
 
-  response.ok ? enterRoom(response.room) : toast(response.error);
+  if (!res.ok) {
+    toast(res.error || "Join failed");
+    return;
+  }
+
+  enterRoom(res.room);
 }
 
 function enterRoom(room) {
@@ -411,24 +370,24 @@ function enterRoom(room) {
   renderRoom();
 
   ensureMedia().then(() => {
-    renderRoom();
     connectToPeers();
   });
 }
 
-function leaveRoom() {
-  Object.values(App.peers).forEach(peer => peer.close());
+async function leaveRoom(sendSignal = true) {
+  if (sendSignal && App.room?.id && App.socket?.connected) {
+    await emit("room:leave", { roomId: App.room.id }, 3000);
+  }
 
+  Object.values(App.peers).forEach(pc => pc.close());
   App.peers = {};
-  App.remoteStreams = {};
-  App.room = null;
 
-  document.querySelectorAll("audio[data-peer], video[data-peer]").forEach(el => el.remove());
+  App.room = null;
 
   hide("game");
   show("app");
 
-  loadAll();
+  loadRooms();
 }
 
 function renderRoom() {
@@ -441,11 +400,12 @@ function renderRoom() {
   if ($("phaseInfo")) {
     $("phaseInfo").textContent = waiting
       ? `${room.players.length}/${room.settings.maxPlayers}`
-      : `Day ${room.day}`;
+      : `Day ${room.day || 0}`;
   }
 
   if ($("timer")) $("timer").textContent = fmt(room.timer || 0);
-  if ($("gameRoomName")) $("gameRoomName").textContent = room.name;
+
+  if ($("gameRoomName")) $("gameRoomName").textContent = room.name || "VOID TABLE";
   if ($("gameRoomInfo")) {
     $("gameRoomInfo").textContent = `${room.phase} · Host: ${room.hostName} · Code: ${room.id}`;
   }
@@ -454,12 +414,11 @@ function renderRoom() {
     $("playersCount").textContent = `${room.players.length}/${room.settings.maxPlayers}`;
   }
 
-  if ($("lobbyView")) $("lobbyView").classList.toggle("hidden", !waiting);
-  if ($("videoGrid")) $("videoGrid").classList.toggle("hidden", waiting);
+  $("lobbyView")?.classList.toggle("hidden", !waiting);
+  $("videoGrid")?.classList.toggle("hidden", waiting);
 
   ["settingsBtn", "startBtn", "nextPhaseBtn", "roomTopBtn"].forEach(id => {
-    const el = $(id);
-    if (el) el.style.display = room.viewer?.isHost ? "inline-block" : "none";
+    if ($(id)) $(id).style.display = room.viewer?.isHost ? "inline-block" : "none";
   });
 
   if ($("playersList")) {
@@ -467,14 +426,18 @@ function renderRoom() {
   }
 
   if ($("chatMessages")) {
-    $("chatMessages").innerHTML = (room.chat || []).slice(-80).map(msgHtml).join("");
+    $("chatMessages").innerHTML = (room.chat || [])
+      .filter(m => m.channel !== "mafia")
+      .slice(-80)
+      .map(msgHtml)
+      .join("");
   }
 
-  const canUseMafiaChat = ["mafia", "don", "yakuza"].includes(room.viewer?.role) && room.phase === "night";
+  const mafiaAllowed =
+    ["mafia", "don"].includes(room.viewer?.role) &&
+    room.phase === "night";
 
-  if ($("mafiaChatBox")) {
-    $("mafiaChatBox").classList.toggle("hidden", !canUseMafiaChat);
-  }
+  $("mafiaChatBox")?.classList.toggle("hidden", !mafiaAllowed);
 
   if (!waiting) {
     renderVideos();
@@ -484,35 +447,29 @@ function renderRoom() {
 }
 
 function playerRow(player) {
-  const isMe = Number(player.userId) === Number(App.user.userId);
-  const level = player.level || getUserLevel(player);
-  const speaking = player.speaking ? "SPEAKING" : player.connected ? "ON" : "OFF";
+  const me = Number(player.userId) === Number(App.user.userId);
 
   return `
-    <div class="player ${player.speaking ? "speaking" : ""}" onclick="openPlayer(${player.userId})">
+    <div class="player" onclick="openPlayer(${player.userId})">
       <div class="pic">${esc(player.avatar || "◆")}</div>
 
       <div class="grow">
-        <b>#${player.seat} · ${esc(player.nickname)} ${isMe ? "(you)" : ""}</b>
-        <p>ID ${player.userId} · Level ${level}</p>
+        <b>#${player.seat} · ${esc(player.nickname)} ${me ? "(you)" : ""}</b>
+        <p>ID ${player.userId}</p>
 
-        ${
-          isMe
-            ? `
-              <button onclick="event.stopPropagation(); toggleMic()">
-                ${player.micOn === false ? "MIC OFF" : "MIC"}
-              </button>
+        ${me ? `
+          <button onclick="event.stopPropagation(); toggleMic()">
+            ${player.micOn === false ? "MIC OFF" : "MIC"}
+          </button>
 
-              <button onclick="event.stopPropagation(); toggleCam()">
-                ${player.cameraOn === false ? "CAM OFF" : "CAM"}
-              </button>
-            `
-            : ""
-        }
+          <button onclick="event.stopPropagation(); toggleCam()">
+            ${player.cameraOn === false ? "CAM OFF" : "CAM"}
+          </button>
+        ` : ""}
       </div>
 
-      <span class="badge ${player.speaking ? "live speaking-badge" : player.connected ? "live" : ""}">
-        ${speaking}
+      <span class="badge ${player.speaking ? "speaking" : ""}">
+        ${player.speaking ? "SPEAKING" : player.connected ? "ON" : "OFF"}
       </span>
     </div>
   `;
@@ -526,7 +483,6 @@ function renderVideos() {
     <div class="tile ${player.speaking ? "speaking" : ""}">
       <video
         id="vid_${player.socketId || player.id}"
-        data-peer="${player.socketId || player.id}"
         autoplay
         playsinline
         ${Number(player.userId) === Number(App.user.userId) ? "muted" : ""}
@@ -537,7 +493,7 @@ function renderVideos() {
     </div>
   `).join("");
 
-  const me = room.players.find(player => Number(player.userId) === Number(App.user.userId));
+  const me = room.players.find(p => Number(p.userId) === Number(App.user.userId));
 
   if (me && App.localStream) {
     const video = $("vid_" + (me.socketId || me.id));
@@ -548,76 +504,143 @@ function renderVideos() {
       video.play?.().catch(() => {});
     }
   }
-
-  Object.entries(App.remoteStreams).forEach(([peerId, stream]) => {
-    attachRemoteStream(peerId, stream);
-  });
 }
 
-function renderRoleSettings(defaults = {}) {
+function renderRoleSettings(defaultRoles = {}) {
   if (!$("roleSettings")) return;
 
-  $("roleSettings").innerHTML = App.roles.map(role => `
+  $("roleSettings").innerHTML = `
     <label>
-      ${esc(role.label)}
-      <input id="role_${role.key}" type="number" min="0" value="${defaults[role.key] ?? 0}">
+      Mafia
+      <input id="role_mafia" type="number" min="1" value="${defaultRoles.mafia ?? 1}">
     </label>
-  `).join("");
+
+    <label>
+      Doctor
+      <input id="role_doctor" type="number" value="1" disabled>
+    </label>
+
+    <label>
+      Sheriff
+      <input id="role_sheriff" type="number" value="1" disabled>
+    </label>
+
+    <label>
+      Don
+      <input id="role_don" type="number" min="0" value="${defaultRoles.don ?? 0}">
+    </label>
+
+    <label>
+      Detective
+      <input id="role_detective" type="number" min="0" value="${defaultRoles.detective ?? 0}">
+    </label>
+
+    <label>
+      Bodyguard
+      <input id="role_bodyguard" type="number" min="0" value="${defaultRoles.bodyguard ?? 0}">
+    </label>
+
+    <div class="role-note">
+      Citizen ავტომატურად დაემატება ყველა დარჩენილ მოთამაშეს.
+    </div>
+  `;
 }
 
 function collectSettings() {
-  const roles = {};
-
-  App.roles.forEach(role => {
-    roles[role.key] = Number($("role_" + role.key)?.value || 0);
-  });
-
   return {
     maxPlayers: Number($("setMaxPlayers")?.value || $("maxPlayers")?.value || 10),
+    language: $("roomLanguage")?.value || "Georgian",
     timers: {
       night: Number($("setNight")?.value || 45),
       day: Number($("setDay")?.value || 90),
-      vote: Number($("setVote")?.value || 35)
+      vote: Number($("setVote")?.value || 35),
+      nomination: Number($("setNomination")?.value || 45),
+      roleReveal: Number($("setRoleReveal")?.value || 15)
     },
-    roles
+    roles: {
+      mafia: Number($("role_mafia")?.value || 1),
+      don: Number($("role_don")?.value || 0),
+      doctor: 1,
+      sheriff: 1,
+      detective: Number($("role_detective")?.value || 0),
+      bodyguard: Number($("role_bodyguard")?.value || 0),
+      citizen: 0
+    }
   };
 }
 
 async function saveSettings() {
-  const response = await emit("room:settings", {
+  if (!App.room) return;
+
+  const res = await emit("room:settings", {
     roomId: App.room.id,
     settings: collectSettings()
   });
 
-  toast(response.ok ? "Saved" : response.error);
-  hide("settingsModal");
+  if (res.ok) {
+    toast("Saved");
+    hide("settingsModal");
+  } else {
+    toast(res.error || "Save failed");
+  }
 }
 
 async function startGame() {
-  const response = await emit("game:start", {
+  if (!App.room) return;
+
+  const res = await emit("game:start", {
     roomId: App.room.id
   });
 
-  toast(response.ok ? "Started" : response.error);
+  if (!res.ok) toast(res.error || "Start failed");
 }
 
 async function nextPhase() {
-  const response = await emit("game:next", {
+  if (!App.room) return;
+
+  const res = await emit("game:next", {
     roomId: App.room.id
   });
 
-  if (!response.ok) toast(response.error);
+  if (!res.ok) toast(res.error || "Next phase failed");
 }
 
-async function sendChat(channel) {
-  const input = channel === "mafia" ? $("mafiaInput") : $("chatInput");
-  const message = input?.value?.trim();
+function openChat() {
+  show("chatPanel");
 
-  if (!message || !App.room) return;
+  if ($("chatInput")) {
+    setTimeout(() => $("chatInput").focus(), 100);
+  }
+}
+
+function openSettings() {
+  show("settingsModal");
+}
+
+async function sendChat(channel = "room") {
+  if (!App.socket || !App.socket.connected) {
+    toast("სერვერთან კავშირი არ არის");
+    return;
+  }
+
+  if (!App.room?.id) {
+    toast("ოთახი არ არის არჩეული");
+    return;
+  }
+
+  const input = channel === "mafia" ? $("mafiaInput") : $("chatInput");
+
+  if (!input) {
+    toast("ჩათის ველი ვერ მოიძებნა");
+    return;
+  }
+
+  const message = input.value.trim();
+  if (!message) return;
 
   input.disabled = true;
 
-  const response = await emit("chat:send", {
+  const res = await emit("chat:send", {
     roomId: App.room.id,
     message,
     channel
@@ -625,49 +648,40 @@ async function sendChat(channel) {
 
   input.disabled = false;
 
-  if (response.ok) {
-    input.value = "";
-  } else {
-    toast(response.error || "Message failed");
+  if (!res.ok) {
+    toast(res.error || "მესიჯი ვერ გაიგზავნა");
+    return;
   }
+
+  input.value = "";
 }
 
-function msgHtml(message) {
+function msgHtml(msg) {
   return `
     <div class="msg">
-      <b>${message.seat ? "#" + message.seat + " · " : ""}${esc(message.nickname)}</b><br>
-      ${esc(message.message)}
+      <b>${msg.seat ? "#" + msg.seat + " · " : ""}${esc(msg.nickname)}</b><br>
+      ${esc(msg.message)}
     </div>
   `;
 }
 
-function addMsg(id, message) {
+function addMsg(id, msg) {
   const box = $(id);
   if (!box) return;
 
-  box.insertAdjacentHTML("beforeend", msgHtml(message));
-  scrollChatToBottom(id);
-}
-
-function scrollChatToBottom(id) {
-  const box = $(id);
-  if (!box) return;
-
+  box.insertAdjacentHTML("beforeend", msgHtml(msg));
   box.scrollTop = box.scrollHeight;
 }
 
 async function loadLeaderboard() {
-  const response = await api("/api/leaderboard");
+  const res = await api("/api/leaderboard");
 
-  if (!response.ok) {
-    toast(response.error || "Leaderboard ვერ ჩაიტვირთა");
-    return;
-  }
+  if (!res.ok || !$("leaderboard")) return;
 
-  if (!$("leaderboard")) return;
-
-  $("leaderboard").innerHTML = (response.users || []).map((user, index) => {
-    const stats = normalizeStats(user);
+  $("leaderboard").innerHTML = (res.users || []).map((user, index) => {
+    const stats = user.stats || {};
+    const xp = Number(stats.xp || 0);
+    const level = Math.max(1, Math.floor(xp / 100) + 1);
 
     return `
       <div class="item" onclick="openPlayer(${user.userId})">
@@ -675,41 +689,36 @@ async function loadLeaderboard() {
 
         <div class="grow">
           <b>#${index + 1} ${esc(user.nickname || "Player")}</b>
-          <p>ID ${user.userId} · Level ${getUserLevel(user)}</p>
+          <p>ID ${user.userId} · Level ${level}</p>
         </div>
 
-        <b>⭐ ${stats.xp}</b>
+        <b>⭐ ${xp}</b>
       </div>
     `;
   }).join("");
 }
 
 async function loadClans() {
-  const response = await api("/api/clans");
+  const res = await api("/api/clans");
 
-  if (!response.ok) {
-    toast(response.error || "Clans ვერ ჩაიტვირთა");
-    return;
-  }
+  if (!res.ok || !$("clansList")) return;
 
-  if (!$("clansList")) return;
-
-  $("clansList").innerHTML = (response.clans || []).map((clan, index) => `
+  $("clansList").innerHTML = (res.clans || []).map((clan, index) => `
     <div class="item">
       <div class="pic">${esc(clan.emblem || "◆")}</div>
 
       <div class="grow">
-        <b>#${index + 1} ${esc(clan.name)} ${esc(clan.tag || "")}</b>
+        <b>#${index + 1} ${esc(clan.name || "Clan")} ${esc(clan.tag || "")}</b>
         <p>Level ${clan.level || 1} · Members ${clan.members?.length || 0}</p>
       </div>
 
-      <button onclick="joinClan('${esc(clan.clanId)}')">JOIN</button>
+      <button onclick="joinClan('${esc(clan.clanId || clan.id)}')">JOIN</button>
     </div>
   `).join("") || `<div class="card">No clans</div>`;
 }
 
 async function createClan() {
-  const response = await api("/api/clans", {
+  const res = await api("/api/clans", {
     method: "POST",
     body: {
       name: $("clanName")?.value,
@@ -718,54 +727,43 @@ async function createClan() {
     }
   });
 
-  toast(response.ok ? "Clan created" : response.error);
+  toast(res.ok ? "Clan created" : res.error || "Clan failed");
   loadClans();
 }
 
 async function joinClan(id) {
-  const response = await api(`/api/clans/${id}/join`, {
+  const res = await api(`/api/clans/${id}/join`, {
     method: "POST",
     body: {
       user: App.user
     }
   });
 
-  toast(response.ok ? "Joined" : response.error);
+  toast(res.ok ? "Joined" : res.error || "Join failed");
   loadClans();
 }
 
 async function loadStore() {
-  const response = await api("/api/store");
+  const res = await api("/api/store");
 
-  if (!response.ok || !$("storeList")) return;
+  if (!res.ok || !$("storeList")) return;
 
-  const blocked = new Set([
-    "walkieTalkie",
-    "roomNames",
-    "blueMagicBall",
-    "avatarFrameNeon"
-  ]);
+  $("storeList").innerHTML = (res.items || []).map(item => `
+    <div class="item">
+      <div class="pic">💠</div>
 
-  const items = (response.items || []).filter(item => !blocked.has(item.key));
+      <div class="grow">
+        <b>${esc(item.title)}</b>
+        <p>${esc(item.description)}</p>
+      </div>
 
-  $("storeList").innerHTML = items.length
-    ? items.map(item => `
-        <div class="item">
-          <div class="pic">💠</div>
-
-          <div class="grow">
-            <b>${esc(item.title)}</b>
-            <p>${esc(item.description)}</p>
-          </div>
-
-          <button>${item.price ? item.price + " coins" : "Owned"}</button>
-        </div>
-      `).join("")
-    : `<div class="card">Store disabled for now</div>`;
+      <button>${item.price ? item.price + " coins" : "Owned"}</button>
+    </div>
+  `).join("");
 }
 
 async function saveProfile() {
-  const response = await api("/api/auth/me", {
+  const res = await api("/api/auth/me", {
     method: "PUT",
     body: {
       userId: App.user.userId,
@@ -774,25 +772,28 @@ async function saveProfile() {
     }
   });
 
-  if (response.ok) {
-    App.user = response.user;
-    renderMe();
-    toast("Saved");
-  } else {
-    toast(response.error);
-  }
-}
-
-async function openPlayer(id) {
-  const response = await api("/api/users/" + id);
-
-  if (!response.ok) {
-    toast(response.error || "User ვერ მოიძებნა");
+  if (!res.ok) {
+    toast(res.error || "Profile save failed");
     return;
   }
 
-  const user = response.user;
-  const stats = normalizeStats(user);
+  App.user = res.user;
+  renderMe();
+  toast("Saved");
+}
+
+async function openPlayer(id) {
+  const res = await api("/api/users/" + id);
+
+  if (!res.ok) {
+    toast(res.error || "User not found");
+    return;
+  }
+
+  const user = res.user;
+  const stats = user.stats || {};
+  const xp = Number(stats.xp || 0);
+  const level = Math.max(1, Math.floor(xp / 100) + 1);
 
   if (!$("playerProfile")) return;
 
@@ -801,48 +802,17 @@ async function openPlayer(id) {
       <div class="avatar">${esc(user.avatar || "◆")}</div>
 
       <h2>${esc(user.nickname || "Player")}</h2>
-      <p>ID ${user.userId} · Level ${getUserLevel(user)}</p>
+      <p>ID ${user.userId} · Level ${level}</p>
 
       <div class="grid2 stats">
-        <div>
-          <b>${stats.games}</b>
-          <span>Games</span>
-        </div>
-
-        <div>
-          <b>${stats.wins}</b>
-          <span>Wins</span>
-        </div>
-
-        <div>
-          <b>${stats.losses}</b>
-          <span>Losses</span>
-        </div>
-
-        <div>
-          <b>${stats.rating.toFixed(1)}</b>
-          <span>Rating</span>
-        </div>
-
-        <div>
-          <b>${stats.mafiaGames}</b>
-          <span>As Mafia</span>
-        </div>
-
-        <div>
-          <b>${stats.citizenGames}</b>
-          <span>As Citizen</span>
-        </div>
-
-        <div>
-          <b>${stats.xp}</b>
-          <span>XP</span>
-        </div>
-
-        <div>
-          <b>${getUserLevel(user)}</b>
-          <span>Level</span>
-        </div>
+        <div><b>${Number(stats.games || stats.gamesPlayed || 0)}</b><span>Games</span></div>
+        <div><b>${Number(stats.wins || 0)}</b><span>Wins</span></div>
+        <div><b>${Number(stats.losses || 0)}</b><span>Losses</span></div>
+        <div><b>${Number(stats.rating || 5).toFixed(1)}</b><span>Rating</span></div>
+        <div><b>${Number(stats.mafiaGames || 0)}</b><span>As Mafia</span></div>
+        <div><b>${Number(stats.citizenGames || 0)}</b><span>As Citizen</span></div>
+        <div><b>${xp}</b><span>XP</span></div>
+        <div><b>${level}</b><span>Level</span></div>
       </div>
     </div>
   `;
@@ -865,40 +835,36 @@ async function ensureMedia() {
 
     setupVoiceActivity();
   } catch (err) {
-    console.error("Media failed:", err);
+    console.error("ensureMedia failed:", err);
     toast("კამერა/მიკროფონი ვერ ჩაირთო");
   }
 
   return App.localStream;
 }
 
-function toggleMic() {
-  const track = App.localStream?.getAudioTracks?.()[0];
+async function toggleMic() {
+  await ensureMedia();
 
-  if (!track) {
-    ensureMedia();
-    return;
-  }
+  const track = App.localStream?.getAudioTracks?.()[0];
+  if (!track) return;
 
   track.enabled = !track.enabled;
 
-  App.socket.emit("media:state", {
+  App.socket?.emit("media:state", {
     roomId: App.room?.id,
     micOn: track.enabled
   });
 }
 
-function toggleCam() {
-  const track = App.localStream?.getVideoTracks?.()[0];
+async function toggleCam() {
+  await ensureMedia();
 
-  if (!track) {
-    ensureMedia();
-    return;
-  }
+  const track = App.localStream?.getVideoTracks?.()[0];
+  if (!track) return;
 
   track.enabled = !track.enabled;
 
-  App.socket.emit("media:state", {
+  App.socket?.emit("media:state", {
     roomId: App.room?.id,
     cameraOn: track.enabled
   });
@@ -906,8 +872,6 @@ function toggleCam() {
 
 function setupVoiceActivity() {
   try {
-    if (App.speakingWatcher) clearInterval(App.speakingWatcher);
-
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     const context = new AudioContextClass();
     const source = context.createMediaStreamSource(App.localStream);
@@ -917,33 +881,34 @@ function setupVoiceActivity() {
     source.connect(analyser);
 
     const data = new Uint8Array(analyser.frequencyBinCount);
-
     let lastSpeaking = false;
 
-    App.speakingWatcher = setInterval(() => {
+    setInterval(() => {
+      if (!App.room?.id) return;
+
       analyser.getByteFrequencyData(data);
 
-      const average = data.reduce((sum, value) => sum + value, 0) / data.length;
-      const speaking = average > 12;
+      const avg = data.reduce((a, b) => a + b, 0) / data.length;
+      const speaking = avg > 12;
 
       if (speaking !== lastSpeaking) {
         lastSpeaking = speaking;
 
         App.socket?.emit("media:state", {
-          roomId: App.room?.id,
+          roomId: App.room.id,
           speaking
         });
       }
-    }, 300);
+    }, 350);
   } catch (err) {
     console.warn("Voice activity failed:", err);
   }
 }
 
 async function connectToPeers() {
-  if (!App.room || !App.localStream || !Array.isArray(App.room.players)) return;
+  if (!App.room || !App.localStream || !App.socket) return;
 
-  const me = App.room.players.find(player => Number(player.userId) === Number(App.user.userId));
+  const me = App.room.players.find(p => Number(p.userId) === Number(App.user.userId));
   if (!me) return;
 
   for (const player of App.room.players) {
@@ -951,9 +916,13 @@ async function connectToPeers() {
     if (player.socketId === me.socketId) continue;
     if (App.peers[player.socketId]) continue;
 
+    const peer = createPeer(player.socketId);
+
     try {
-      const peer = createPeer(player.socketId);
-      const offer = await peer.createOffer();
+      const offer = await peer.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true
+      });
 
       await peer.setLocalDescription(offer);
 
@@ -961,90 +930,53 @@ async function connectToPeers() {
         to: player.socketId,
         signal: offer
       });
-
-      App.socket.emit("webrtc:offer", {
-        to: player.socketId,
-        offer
-      });
     } catch (err) {
       console.warn("Offer failed:", err);
     }
   }
 }
 
-function createPeer(peerId) {
+function createPeer(socketId) {
   const peer = new RTCPeerConnection({
     iceServers: App.iceServers
   });
 
-  App.peers[peerId] = peer;
+  App.peers[socketId] = peer;
 
   App.localStream?.getTracks().forEach(track => {
     peer.addTrack(track, App.localStream);
   });
 
   peer.onicecandidate = event => {
-    if (!event.candidate) return;
-
-    App.socket.emit("signal:ice", {
-      to: peerId,
-      candidate: event.candidate
-    });
-
-    App.socket.emit("webrtc:ice", {
-      to: peerId,
-      candidate: event.candidate
-    });
+    if (event.candidate) {
+      App.socket.emit("signal:ice", {
+        to: socketId,
+        candidate: event.candidate
+      });
+    }
   };
 
   peer.ontrack = event => {
-    const stream = event.streams[0];
-    if (!stream) return;
+    let video = $("vid_" + socketId);
 
-    App.remoteStreams[peerId] = stream;
-    attachRemoteStream(peerId, stream);
+    if (!video) {
+      return;
+    }
+
+    video.srcObject = event.streams[0];
+    video.muted = false;
+    video.volume = 1;
+    video.play?.().catch(() => {});
   };
 
   peer.onconnectionstatechange = () => {
     if (["failed", "closed", "disconnected"].includes(peer.connectionState)) {
-      try {
-        peer.close();
-      } catch (err) {}
-
-      delete App.peers[peerId];
+      peer.close();
+      delete App.peers[socketId];
     }
   };
 
   return peer;
-}
-
-function attachRemoteStream(peerId, stream) {
-  const video = $("vid_" + peerId);
-
-  if (video) {
-    video.srcObject = stream;
-    video.muted = false;
-    video.volume = 1;
-    video.play?.().catch(() => {});
-    return;
-  }
-
-  let audio = document.querySelector(`audio[data-peer="${peerId}"]`);
-
-  if (!audio) {
-    audio = document.createElement("audio");
-    audio.dataset.peer = peerId;
-    audio.autoplay = true;
-    audio.playsInline = true;
-    audio.controls = false;
-    audio.style.display = "none";
-    document.body.appendChild(audio);
-  }
-
-  audio.srcObject = stream;
-  audio.muted = false;
-  audio.volume = 1;
-  audio.play?.().catch(() => {});
 }
 
 async function onOffer({ from, signal }) {
@@ -1052,34 +984,34 @@ async function onOffer({ from, signal }) {
 
   const peer = App.peers[from] || createPeer(from);
 
-  await peer.setRemoteDescription(new RTCSessionDescription(signal));
+  try {
+    await peer.setRemoteDescription(new RTCSessionDescription(signal));
 
-  const answer = await peer.createAnswer();
+    const answer = await peer.createAnswer();
+    await peer.setLocalDescription(answer);
 
-  await peer.setLocalDescription(answer);
-
-  App.socket.emit("signal:answer", {
-    to: from,
-    signal: answer
-  });
-
-  App.socket.emit("webrtc:answer", {
-    to: from,
-    answer
-  });
+    App.socket.emit("signal:answer", {
+      to: from,
+      signal: answer
+    });
+  } catch (err) {
+    console.warn("Answer failed:", err);
+  }
 }
 
 async function onAnswer({ from, signal }) {
   const peer = App.peers[from];
-
   if (!peer) return;
 
-  await peer.setRemoteDescription(new RTCSessionDescription(signal));
+  try {
+    await peer.setRemoteDescription(new RTCSessionDescription(signal));
+  } catch (err) {
+    console.warn("Set answer failed:", err);
+  }
 }
 
 async function onIce({ from, candidate }) {
   const peer = App.peers[from];
-
   if (!peer || !candidate) return;
 
   try {
@@ -1087,14 +1019,6 @@ async function onIce({ from, candidate }) {
   } catch (err) {
     console.warn("ICE failed:", err);
   }
-}
-
-function fmt(seconds) {
-  const total = Number(seconds || 0);
-  const minutes = Math.floor(total / 60);
-  const rest = total % 60;
-
-  return String(minutes).padStart(2, "0") + ":" + String(rest).padStart(2, "0");
 }
 
 function openMainMenu() {
@@ -1112,7 +1036,7 @@ function openMainMenu() {
         <div class="avatar drawer-avatar">${esc(App.user?.avatar || "◆")}</div>
 
         <h2>${esc(App.user?.nickname || "Player")}</h2>
-        <p>ID ${App.user?.userId || "-"} · Level ${getUserLevel(App.user)}</p>
+        <p>ID ${App.user?.userId || "-"} </p>
 
         <button onclick="closeMainMenu(); showPage('Rooms')">Games</button>
         <button onclick="closeMainMenu(); showPage('Clans')">Clans</button>
@@ -1148,224 +1072,17 @@ function copyMyId() {
   }
 }
 
+function fmt(seconds) {
+  const s = Number(seconds || 0);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
 
-
-
-/* =========================
-   VOID FIX PATCH v16.2
-   Buttons / Season remove / Host terminate room
-========================= */
-
-function removeSeasonBanner() {
-  const possibleSelectors = [
-    ".season-card",
-    ".season-banner",
-    ".season",
-    "#seasonBanner",
-    "#seasonCard",
-    ".promo-card",
-    ".event-card"
-  ];
-
-  possibleSelectors.forEach(selector => {
-    document.querySelectorAll(selector).forEach(el => {
-      const text = (el.textContent || "").toLowerCase();
-
-      if (
-        text.includes("season") ||
-        text.includes("silence") ||
-        text.includes("void") ||
-        text.includes("goal")
-      ) {
-        el.remove();
-      }
-    });
-  });
-
-  document.querySelectorAll("*").forEach(el => {
-    const text = (el.textContent || "").trim().toLowerCase();
-
-    if (
-      text.includes("season 1") ||
-      text.includes("season of void") ||
-      text.includes("silence of the void")
-    ) {
-      const card = el.closest(".card, .glass, .banner, section, article, div");
-      if (card && card !== document.body && card.id !== "app" && card.id !== "game") {
-        card.remove();
-      }
-    }
-  });
+  return String(m).padStart(2, "0") + ":" + String(r).padStart(2, "0");
 }
 
-function fixAllButtons() {
-  document.querySelectorAll("[data-page]").forEach(btn => {
-    btn.onclick = () => {
-      const page = btn.getAttribute("data-page");
-      if (page) showPage(page);
-    };
-  });
-
-  const pageMap = {
-    Games: "Rooms",
-    Rooms: "Rooms",
-    Clans: "Clans",
-    Rank: "Leaderboard",
-    Leaderboard: "Leaderboard",
-    Store: "Store",
-    Profile: "Profile"
-  };
-
-  document.querySelectorAll(".bottom button, .bottom-nav button").forEach(btn => {
-    const label = btn.textContent.trim();
-
-    if (pageMap[label]) {
-      btn.onclick = () => showPage(pageMap[label]);
-    }
-  });
-
-  if ($("menuBtn")) $("menuBtn").onclick = openMainMenu;
-  if ($("drawerBtn")) $("drawerBtn").onclick = openMainMenu;
-
-  if ($("refreshBtn")) $("refreshBtn").onclick = loadAll;
-
-  if ($("hostGameBtn")) {
-    $("hostGameBtn").onclick = () => {
-      $("roomCreate")?.classList.toggle("hidden");
-    };
-  }
-
-  if ($("createRoomBtn")) $("createRoomBtn").onclick = createRoom;
-
-  if ($("joinByCodeBtn")) {
-    $("joinByCodeBtn").onclick = () => {
-      const code = prompt("Room number");
-      if (code) joinRoom(code);
-    };
-  }
-
-  if ($("chatTopBtn")) {
-    $("chatTopBtn").onclick = () => {
-      show("chatPanel");
-      scrollChatToBottom("chatMessages");
-    };
-  }
-
-  if ($("roomTopBtn")) {
-    $("roomTopBtn").onclick = () => show("settingsModal");
-  }
-
-  if ($("settingsBtn")) {
-    $("settingsBtn").onclick = () => show("settingsModal");
-  }
-
-  if ($("startBtn")) $("startBtn").onclick = startGame;
-  if ($("nextPhaseBtn")) $("nextPhaseBtn").onclick = nextPhase;
-  if ($("saveSettingsBtn")) $("saveSettingsBtn").onclick = saveSettings;
-
-  if ($("leaveBtn")) $("leaveBtn").onclick = leaveRoom;
-
-  if ($("sendChatBtn")) {
-    $("sendChatBtn").onclick = () => sendChat("room");
-  }
-
-  if ($("sendMafiaBtn")) {
-    $("sendMafiaBtn").onclick = () => sendChat("mafia");
-  }
-
-  if ($("chatInput")) {
-    $("chatInput").onkeydown = e => {
-      if (e.key === "Enter") sendChat("room");
-    };
-  }
-
-  if ($("mafiaInput")) {
-    $("mafiaInput").onkeydown = e => {
-      if (e.key === "Enter") sendChat("mafia");
-    };
-  }
-
-  document.querySelectorAll("[data-close]").forEach(btn => {
-    btn.onclick = () => {
-      const target = btn.getAttribute("data-close");
-      if (target) hide(target);
-    };
-  });
-}
-
-/* override leaveRoom */
-window.leaveRoom = function leaveRoom() {
-  if (App.socket && App.room) {
-    App.socket.emit("room:leave", {
-      roomId: App.room.id,
-      userId: App.user?.userId
-    });
-  }
-
-  Object.values(App.peers || {}).forEach(peer => {
-    try {
-      peer.close();
-    } catch (err) {}
-  });
-
-  App.peers = {};
-  App.remoteStreams = {};
-  App.room = null;
-
-  document.querySelectorAll("audio[data-peer], video[data-peer]").forEach(el => {
-    try {
-      el.srcObject = null;
-    } catch (err) {}
-
-    if (el.tagName.toLowerCase() === "audio") {
-      el.remove();
-    }
-  });
-
-  hide("game");
-  show("app");
-
-  loadAll();
-};
-
-/* listen room closed */
-function bindRoomClosedOnce() {
-  if (window.__roomClosedBound) return;
-  window.__roomClosedBound = true;
-
-  const waitSocket = setInterval(() => {
-    if (!App.socket) return;
-
-    clearInterval(waitSocket);
-
-    App.socket.on("room:closed", data => {
-      toast(data?.message || "ჰოსტმა ოთახი დახურა.");
-
-      Object.values(App.peers || {}).forEach(peer => {
-        try {
-          peer.close();
-        } catch (err) {}
-      });
-
-      App.peers = {};
-      App.remoteStreams = {};
-      App.room = null;
-
-      hide("game");
-      show("app");
-
-      loadAll();
-    });
-  }, 300);
-}
-
-setInterval(() => {
-  removeSeasonBanner();
-}, 1000);
-
-setTimeout(() => {
-  fixAllButtons();
-  removeSeasonBanner();
-  bindRoomClosedOnce();
-}, 500);
-
+window.joinRoom = joinRoom;
+window.openPlayer = openPlayer;
+window.joinClan = joinClan;
+window.showPage = showPage;
+window.closeMainMenu = closeMainMenu;
+window.copyMyId = copyMyId;
