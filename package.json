@@ -1,0 +1,30 @@
+{
+  "name": "void-portal",
+  "version": "0.1.0",
+  "description": "A dark neon social game portal with rooms, lobby chat, and multiple game spaces.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [
+    "socket.io",
+    "express",
+    "games",
+    "chat",
+    "portal",
+    "void"
+  ],
+  "author": "Void Portal",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
