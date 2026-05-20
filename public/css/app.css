@@ -64,3 +64,165 @@
   border-top: 1px solid rgba(255,255,255,.12);
   margin: 10px 0;
 }
+
+
+/* public/css/app.css append patch
+   VOID MAFIA v16.2 UI polish
+   Add this at the VERY END of app.css
+*/
+
+:root {
+  --bottom-safe: max(18px, env(safe-area-inset-bottom));
+}
+
+/* bottom nav higher and cleaner */
+.bottom,
+.bottom-nav {
+  min-height: 82px !important;
+  padding: 10px 10px calc(var(--bottom-safe) + 8px) !important;
+  background: rgba(0, 0, 0, 0.96) !important;
+  border-top: 1px solid rgba(0, 245, 255, 0.22) !important;
+  box-shadow: 0 -12px 26px rgba(0,0,0,.55) !important;
+}
+
+.bottom button,
+.bottom-nav button {
+  min-height: 48px !important;
+  border-radius: 18px !important;
+  font-size: 14px !important;
+  font-weight: 900 !important;
+}
+
+.bottom button.active,
+.bottom-nav button.active {
+  color: var(--cyan, #00f5ff) !important;
+  text-shadow: 0 0 14px rgba(0,245,255,.75) !important;
+}
+
+/* keep content above bottom nav */
+.app-main,
+#app,
+.screen {
+  padding-bottom: 112px !important;
+}
+
+/* drawer/menu */
+.main-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+}
+
+.main-drawer-bg {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.62);
+  backdrop-filter: blur(7px);
+}
+
+.main-drawer-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: min(82vw, 360px);
+  height: 100%;
+  padding: 24px 18px;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(255,0,230,.2), transparent 35%),
+    linear-gradient(180deg, rgba(12,8,30,.98), rgba(5,3,13,.98));
+  border-right: 1px solid rgba(0,245,255,.35);
+  box-shadow: 18px 0 40px rgba(0,0,0,.55);
+  transform: translateX(-105%);
+  transition: transform .22s ease;
+  overflow-y: auto;
+}
+
+.main-drawer.open .main-drawer-card,
+.main-drawer.open > .main-drawer-card {
+  transform: translateX(0);
+}
+
+.main-drawer-card h2 {
+  margin: 12px 0 4px;
+  color: var(--cyan, #00f5ff);
+}
+
+.main-drawer-card p {
+  color: var(--muted, #ae9abd);
+  margin-bottom: 18px;
+}
+
+.main-drawer-card button {
+  width: 100%;
+  margin: 6px 0;
+  text-align: left;
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: rgba(255,255,255,.06);
+}
+
+.drawer-close {
+  width: 52px !important;
+  height: 52px !important;
+  text-align: center !important;
+  border-color: rgba(255,60,79,.6) !important;
+  background: rgba(255,60,79,.15) !important;
+}
+
+.drawer-avatar {
+  width: 82px;
+  height: 82px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 32px;
+  background: linear-gradient(135deg, var(--pink, #ff00e6), var(--cyan, #00f5ff));
+  color: #05030b;
+  box-shadow: 0 0 28px rgba(0,245,255,.32);
+}
+
+/* modal sizing on iPhone */
+.modal-card,
+.settings-card {
+  max-height: 82vh !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* settings note */
+.settings-note {
+  grid-column: 1 / -1;
+  font-size: 13px;
+  color: var(--muted, #ae9abd);
+  margin: 4px 0 8px;
+}
+
+/* speaking glow */
+.player.speaking,
+.tile.speaking {
+  border-color: var(--green, #2dff93) !important;
+  box-shadow: 0 0 22px rgba(45,255,147,.32) !important;
+}
+
+.speaking-badge {
+  border-color: var(--green, #2dff93) !important;
+  color: var(--green, #2dff93) !important;
+  animation: voidPulse 1s infinite;
+}
+
+@keyframes voidPulse {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .62; transform: scale(1.05); }
+}
+
+/* top buttons click-friendly */
+#menuBtn,
+#refreshBtn,
+#chatTopBtn,
+#roomTopBtn {
+  pointer-events: auto !important;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+
