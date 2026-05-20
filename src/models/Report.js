@@ -1,1 +1,0 @@
-const mongoose=require('mongoose'); const ReportSchema=new mongoose.Schema({reporterUserId:Number,targetUserId:Number,roomId:String,reason:String,status:{type:String,default:'open'},notes:String},{timestamps:true}); module.exports={Report:mongoose.models.Report||mongoose.model('Report',ReportSchema)};
