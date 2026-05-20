@@ -1,1 +1,0 @@
-const mongoose=require('mongoose'); const EmailCodeSchema=new mongoose.Schema({email:{type:String,index:true},codeHash:String,expiresAt:Date,used:{type:Boolean,default:false}},{timestamps:true}); EmailCodeSchema.index({expiresAt:1},{expireAfterSeconds:0}); module.exports={EmailCode:mongoose.models.EmailCode||mongoose.model('EmailCode',EmailCodeSchema)};
