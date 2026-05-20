@@ -1,18 +1,44 @@
+/* src/socket.js
+   VOID MAFIA v16.2 socket fix
+   Fixes:
+   - room:leave
+   - room:terminate when host leaves
+   - chat callbacks never freeze frontend
+   - WebRTC signaling kept simple
+*/
+
 const { getOrCreateGuest, findUserById } = require("./services/userService");
-const { GameEngine, publicRoom } = require("./services/gameEngine");
+const { publicRoom } = require("./services/gameEngine");
 
 function attachSocketServer(io, ctx) {
-  if (!ctx.engine) {
-    ctx.engine = new GameEngine(ctx);
-  }
-
-  if (!ctx.rooms) ctx.rooms = new Map();
-  if (!ctx.onlineUsers) ctx.onlineUsers = new Map();
-  if (!ctx.socketRooms) ctx.socketRooms = new Map();
-
   const user = socket => socket.data.user;
   const roomOf = id => ctx.rooms.get(String(id));
-  const bySocket = (room, socketId) => room.players.find(p => p.socketId === socketId);
+
+  function bySocket(room, socketId) {
+    if (!room) return null;
+    return room.players.find(p => p.socketId === socketId);
+  }
+
+  function safeRoomState(room) {
+    if (!room) return;
+    ctx.engine.roomState(room);
+    ctx.engine.publishRooms();
+  }
+
+  function terminateRoom(roomId) {
+    const room = roomOf(roomId);
+    if (!room) return false;
+
+    io.to(room.id).emit("room:terminated", {
+      roomId: room.id,
+      message: "Host left. Room terminated."
+    });
+
+    ctx.rooms.delete(String(room.id));
+    ctx.engine.publishRooms();
+
+    return true;
+  }
 
   io.on("connection", socket => {
     socket.on("auth", async (payload = {}, cb) => {
@@ -21,7 +47,7 @@ function attachSocketServer(io, ctx) {
           ? await findUserById(ctx, payload.userId)
           : await getOrCreateGuest(ctx, payload);
 
-        if (!u || u.isBanned) throw new Error("Access denied");
+        if (!u || u.isBanned) throw Error("Access denied");
 
         socket.data.user = u;
         ctx.onlineUsers.set(String(u.userId), {
@@ -38,7 +64,7 @@ function attachSocketServer(io, ctx) {
     socket.on("room:create", (payload = {}, cb) => {
       try {
         const u = user(socket) || payload.user;
-        if (!u) throw new Error("Auth required");
+        if (!u) throw Error("Not authorized");
 
         const room = ctx.engine.createRoom({
           name: payload.name,
@@ -47,18 +73,13 @@ function attachSocketServer(io, ctx) {
         });
 
         room.players[0].socketId = socket.id;
-        room.hostSocketId = socket.id;
+        room.players[0].connected = true;
 
         socket.join(room.id);
         ctx.socketRooms.set(socket.id, room.id);
 
-        cb && cb({
-          ok: true,
-          room: publicRoom(room, u.userId)
-        });
-
-        ctx.engine.roomState(room);
-        ctx.engine.publishRooms();
+        cb && cb({ ok: true, room: publicRoom(room, u.userId) });
+        safeRoomState(room);
       } catch (err) {
         cb && cb({ ok: false, error: err.message });
       }
@@ -67,26 +88,25 @@ function attachSocketServer(io, ctx) {
     socket.on("room:join", (payload = {}, cb) => {
       try {
         const u = user(socket) || payload.user;
-        if (!u) throw new Error("Auth required");
+        if (!u) throw Error("Not authorized");
 
-        const result = ctx.engine.joinRoom(
+        const joined = ctx.engine.joinRoom(
           payload.roomId,
           u,
           socket.id,
           !!payload.spectator
         );
 
-        socket.join(result.room.id);
-        ctx.socketRooms.set(socket.id, result.room.id);
+        socket.join(joined.room.id);
+        ctx.socketRooms.set(socket.id, joined.room.id);
 
         cb && cb({
           ok: true,
-          spectator: result.spectator,
-          room: publicRoom(result.room, u.userId)
+          spectator: joined.spectator,
+          room: publicRoom(joined.room, u.userId)
         });
 
-        ctx.engine.roomState(result.room);
-        ctx.engine.publishRooms();
+        safeRoomState(joined.room);
       } catch (err) {
         cb && cb({ ok: false, error: err.message });
       }
@@ -94,8 +114,7 @@ function attachSocketServer(io, ctx) {
 
     socket.on("room:leave", (payload = {}, cb) => {
       try {
-        const roomId = payload.roomId || ctx.socketRooms.get(socket.id);
-        const room = roomOf(roomId);
+        const room = roomOf(payload.roomId);
         if (!room) {
           cb && cb({ ok: true });
           return;
@@ -104,27 +123,46 @@ function attachSocketServer(io, ctx) {
         const u = user(socket);
         const player = bySocket(room, socket.id);
 
-        socket.leave(room.id);
-        ctx.socketRooms.delete(socket.id);
-
-        if (player && Number(room.hostUserId) === Number(player.userId)) {
-          ctx.engine.terminateRoom(room, "Host left. Room terminated.");
+        if (player && Number(player.seat) === 1) {
+          terminateRoom(room.id);
           cb && cb({ ok: true, terminated: true });
           return;
         }
 
         if (player) {
           room.players = room.players.filter(p => p.socketId !== socket.id);
-          room.players.forEach((p, i) => {
-            p.seat = i + 1;
-          });
         }
 
-        room.spectators = room.spectators.filter(s => s.socketId !== socket.id);
+        room.spectators = (room.spectators || []).filter(s => s.socketId !== socket.id);
+
+        socket.leave(room.id);
+        ctx.socketRooms.delete(socket.id);
 
         cb && cb({ ok: true });
-        ctx.engine.roomState(room);
-        ctx.engine.publishRooms();
+        safeRoomState(room);
+      } catch (err) {
+        cb && cb({ ok: false, error: err.message });
+      }
+    });
+
+    socket.on("room:terminate", (payload = {}, cb) => {
+      try {
+        const room = roomOf(payload.roomId);
+        if (!room) {
+          cb && cb({ ok: true });
+          return;
+        }
+
+        const u = user(socket);
+        const player = bySocket(room, socket.id);
+        const isHost =
+          Number(room.hostUserId) === Number(u?.userId) ||
+          Number(player?.seat) === 1;
+
+        if (!isHost) throw Error("Host only");
+
+        terminateRoom(room.id);
+        cb && cb({ ok: true });
       } catch (err) {
         cb && cb({ ok: false, error: err.message });
       }
@@ -133,15 +171,16 @@ function attachSocketServer(io, ctx) {
     socket.on("room:settings", (payload = {}, cb) => {
       try {
         const room = roomOf(payload.roomId);
-        const u = user(socket);
+        if (!room) throw Error("Room not found");
 
         ctx.engine.updateSettings(
           room,
           payload.settings,
-          u?.userId || payload.userId
+          user(socket)?.userId || payload.userId
         );
 
         cb && cb({ ok: true });
+        safeRoomState(room);
       } catch (err) {
         cb && cb({ ok: false, error: err.message });
       }
@@ -150,11 +189,12 @@ function attachSocketServer(io, ctx) {
     socket.on("game:start", (payload = {}, cb) => {
       try {
         const room = roomOf(payload.roomId);
-        const u = user(socket);
+        if (!room) throw Error("Room not found");
 
-        ctx.engine.start(room, u?.userId || payload.userId);
+        ctx.engine.start(room, user(socket)?.userId || payload.userId);
 
         cb && cb({ ok: true });
+        safeRoomState(room);
       } catch (err) {
         cb && cb({ ok: false, error: err.message });
       }
@@ -163,16 +203,16 @@ function attachSocketServer(io, ctx) {
     socket.on("game:next", async (payload = {}, cb) => {
       try {
         const room = roomOf(payload.roomId);
-        if (!room) throw new Error("Room not found");
+        if (!room) throw Error("Room not found");
 
-        const u = user(socket);
-        if (Number(room.hostUserId) !== Number(u?.userId)) {
-          throw new Error("Host only");
+        if (Number(room.hostUserId) !== Number(user(socket)?.userId)) {
+          throw Error("Host only");
         }
 
         await ctx.engine.nextPhase(room);
 
         cb && cb({ ok: true });
+        safeRoomState(room);
       } catch (err) {
         cb && cb({ ok: false, error: err.message });
       }
@@ -181,26 +221,12 @@ function attachSocketServer(io, ctx) {
     socket.on("game:action", (payload = {}, cb) => {
       try {
         const room = roomOf(payload.roomId);
-        const actor = room && bySocket(room, socket.id);
+        const player = bySocket(room, socket.id);
 
-        const res = ctx.engine.action(room, actor, payload.targetId);
+        const result = ctx.engine.action(room, player, payload.targetId);
+        cb && cb(result);
 
-        cb && cb(res);
-        ctx.engine.roomState(room);
-      } catch (err) {
-        cb && cb({ ok: false, error: err.message });
-      }
-    });
-
-    socket.on("game:nominate", (payload = {}, cb) => {
-      try {
-        const room = roomOf(payload.roomId);
-        const actor = room && bySocket(room, socket.id);
-
-        const res = ctx.engine.nominate(room, actor, payload.targetId);
-
-        cb && cb(res);
-        ctx.engine.roomState(room);
+        safeRoomState(room);
       } catch (err) {
         cb && cb({ ok: false, error: err.message });
       }
@@ -209,12 +235,12 @@ function attachSocketServer(io, ctx) {
     socket.on("game:vote", (payload = {}, cb) => {
       try {
         const room = roomOf(payload.roomId);
-        const actor = room && bySocket(room, socket.id);
+        const player = bySocket(room, socket.id);
 
-        const res = ctx.engine.vote(room, actor, payload.targetId);
+        const result = ctx.engine.vote(room, player, payload.targetId);
+        cb && cb(result);
 
-        cb && cb(res);
-        ctx.engine.roomState(room);
+        safeRoomState(room);
       } catch (err) {
         cb && cb({ ok: false, error: err.message });
       }
@@ -223,13 +249,13 @@ function attachSocketServer(io, ctx) {
     socket.on("chat:send", (payload = {}, cb) => {
       try {
         const room = roomOf(payload.roomId);
-        if (!room) throw new Error("Room not found");
+        if (!room) throw Error("Room not found");
 
         const player = bySocket(room, socket.id);
-        const spectator = room.spectators.find(s => s.socketId === socket.id);
+        const spectator = (room.spectators || []).find(s => s.socketId === socket.id);
         const sender = player || spectator || user(socket);
 
-        if (!sender) throw new Error("Sender not found");
+        if (!sender) throw Error("Not authorized");
 
         const msg = ctx.engine.chat(
           room,
@@ -238,22 +264,17 @@ function attachSocketServer(io, ctx) {
           payload.channel || "room"
         );
 
-        if (msg.channel === "mafia") {
+        if (payload.channel === "mafia") {
           room.players
-            .filter(p => p.team === "mafia" && p.socketId)
-            .forEach(p => {
-              io.to(p.socketId).emit("chat:message", msg);
-            });
+            .filter(p => p.team === "mafia")
+            .forEach(p => p.socketId && io.to(p.socketId).emit("chat:message", msg));
         } else {
           io.to(room.id).emit("chat:message", msg);
         }
 
         cb && cb({ ok: true, msg });
       } catch (err) {
-        cb && cb({
-          ok: false,
-          error: err.message || "Chat failed"
-        });
+        cb && cb({ ok: false, error: err.message });
       }
     });
 
@@ -264,43 +285,45 @@ function attachSocketServer(io, ctx) {
       const player = bySocket(room, socket.id);
       if (!player) return;
 
-      if (typeof payload.micOn === "boolean") player.micOn = payload.micOn;
-      if (typeof payload.cameraOn === "boolean") player.cameraOn = payload.cameraOn;
-      if (typeof payload.speaking === "boolean") player.speaking = payload.speaking;
+      ["micOn", "cameraOn", "speaking"].forEach(key => {
+        if (typeof payload[key] === "boolean") {
+          player[key] = payload[key];
+        }
+      });
 
-      ctx.engine.roomState(room);
+      safeRoomState(room);
     });
 
-    socket.on("signal:offer", ({ to, signal }) => {
-      if (!to || !signal) return;
-      io.to(to).emit("signal:offer", {
-        from: socket.id,
-        signal
-      });
+    socket.on("signal:offer", ({ to, signal } = {}) => {
+      if (to && signal) {
+        io.to(to).emit("signal:offer", {
+          from: socket.id,
+          signal
+        });
+      }
     });
 
-    socket.on("signal:answer", ({ to, signal }) => {
-      if (!to || !signal) return;
-      io.to(to).emit("signal:answer", {
-        from: socket.id,
-        signal
-      });
+    socket.on("signal:answer", ({ to, signal } = {}) => {
+      if (to && signal) {
+        io.to(to).emit("signal:answer", {
+          from: socket.id,
+          signal
+        });
+      }
     });
 
-    socket.on("signal:ice", ({ to, candidate }) => {
-      if (!to || !candidate) return;
-      io.to(to).emit("signal:ice", {
-        from: socket.id,
-        candidate
-      });
+    socket.on("signal:ice", ({ to, candidate } = {}) => {
+      if (to && candidate) {
+        io.to(to).emit("signal:ice", {
+          from: socket.id,
+          candidate
+        });
+      }
     });
 
     socket.on("disconnect", () => {
       const u = user(socket);
-
-      if (u) {
-        ctx.onlineUsers.delete(String(u.userId));
-      }
+      if (u) ctx.onlineUsers.delete(String(u.userId));
 
       const roomId = ctx.socketRooms.get(socket.id);
       ctx.socketRooms.delete(socket.id);
@@ -310,36 +333,33 @@ function attachSocketServer(io, ctx) {
 
       const player = bySocket(room, socket.id);
 
-      if (player && Number(room.hostUserId) === Number(player.userId)) {
-        ctx.engine.terminateRoom(room, "Host disconnected. Room terminated.");
+      if (player && Number(player.seat) === 1) {
+        terminateRoom(room.id);
         return;
       }
 
       if (player) {
         player.connected = false;
         player.speaking = false;
-        player.micOn = false;
-        player.cameraOn = false;
-        player.lastSeenAt = Date.now();
+        player.socketId = "";
       }
 
-      room.spectators = room.spectators.filter(s => s.socketId !== socket.id);
+      room.spectators = (room.spectators || []).filter(s => s.socketId !== socket.id);
 
-      ctx.engine.roomState(room);
-      ctx.engine.publishRooms();
+      safeRoomState(room);
     });
   });
 
-  setInterval(async () => {
+  setInterval(() => {
     for (const room of ctx.rooms.values()) {
-      if (room.phase === "waiting" || room.phase === "ended") continue;
+      if (!["waiting", "ended"].includes(room.phase)) {
+        room.timer = Math.max(0, Number(room.timer || 0) - 1);
 
-      room.timer = Math.max(0, Number(room.timer || 0) - 1);
-
-      if (room.timer <= 0 && room.settings.autoPhase !== false) {
-        await ctx.engine.nextPhase(room);
-      } else {
-        ctx.engine.roomState(room);
+        if (room.timer <= 0) {
+          ctx.engine.nextPhase(room);
+        } else {
+          ctx.engine.roomState(room);
+        }
       }
     }
   }, 1000);
