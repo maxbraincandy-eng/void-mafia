@@ -238,3 +238,188 @@ function createApiRouter(ctx) {
 }
 
 module.exports = { createApiRouter };
+
+
+/* src/routes/api.js
+   VOID MAFIA v16.2 API fix
+   Store copied MafiaLab-like items removed.
+*/
+
+const express = require("express");
+
+const {
+  ROLES,
+  DEFAULT_SETTINGS,
+  publicRoom
+} = require("../services/gameEngine");
+
+const {
+  leaderboard,
+  findUserById
+} = require("../services/userService");
+
+const {
+  createClan,
+  listClans,
+  joinClan
+} = require("../services/clanService");
+
+function createApiRouter(ctx) {
+  const router = express.Router();
+
+  router.get("/webrtc", (req, res) => {
+    res.json({
+      ok: true,
+      iceServers: ctx.webrtc.iceServers
+    });
+  });
+
+  router.get("/roles", (req, res) => {
+    const cleanDefault = {
+      ...DEFAULT_SETTINGS,
+      roles: {
+        ...(DEFAULT_SETTINGS.roles || {}),
+        doctor: 1,
+        sheriff: 1,
+        citizen: 0
+      }
+    };
+
+    res.json({
+      ok: true,
+      roles: ROLES,
+      defaultSettings: cleanDefault
+    });
+  });
+
+  router.get("/rooms", (req, res) => {
+    res.json({
+      ok: true,
+      rooms: [...ctx.rooms.values()].map(room => ({
+        id: room.id,
+        name: room.name,
+        phase: room.phase,
+        hostName: room.hostName,
+        players: room.players.length,
+        maxPlayers: room.settings.maxPlayers,
+        language: room.settings.language
+      }))
+    });
+  });
+
+  router.get("/rooms/:id", (req, res) => {
+    const room = ctx.rooms.get(String(req.params.id));
+
+    if (!room) {
+      return res.status(404).json({
+        ok: false,
+        error: "Room not found"
+      });
+    }
+
+    res.json({
+      ok: true,
+      room: publicRoom(room, Number(req.query.userId || 0))
+    });
+  });
+
+  router.get("/leaderboard", async (req, res) => {
+    res.json({
+      ok: true,
+      users: await leaderboard(ctx)
+    });
+  });
+
+  router.get("/users/:id", async (req, res) => {
+    const user = await findUserById(ctx, req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        ok: false,
+        error: "User not found"
+      });
+    }
+
+    res.json({
+      ok: true,
+      user
+    });
+  });
+
+  router.get("/clans", async (req, res) => {
+    res.json({
+      ok: true,
+      clans: await listClans(ctx)
+    });
+  });
+
+  router.post("/clans", async (req, res) => {
+    try {
+      const clan = await createClan(ctx, {
+        ...req.body,
+        owner: req.body.user
+      });
+
+      res.json({
+        ok: true,
+        clan
+      });
+    } catch (err) {
+      res.status(400).json({
+        ok: false,
+        error: err.message
+      });
+    }
+  });
+
+  router.post("/clans/:id/join", async (req, res) => {
+    try {
+      const clan = await joinClan(ctx, req.params.id, req.body.user);
+
+      res.json({
+        ok: true,
+        clan
+      });
+    } catch (err) {
+      res.status(400).json({
+        ok: false,
+        error: err.message
+      });
+    }
+  });
+
+  router.get("/store", (req, res) => {
+    res.json({
+      ok: true,
+      items: [
+        {
+          key: "neonNameColor",
+          title: "Neon Name Color",
+          price: 120,
+          description: "Customize your nickname glow",
+          icon: "🌈"
+        },
+        {
+          key: "vipHostBadge",
+          title: "VIP Host Badge",
+          price: 250,
+          description: "Special host badge near your name",
+          icon: "👑"
+        },
+        {
+          key: "profileThemeVoid",
+          title: "Void Profile Theme",
+          price: 180,
+          description: "Dark vaporwave profile skin",
+          icon: "💎"
+        }
+      ]
+    });
+  });
+
+  return router;
+}
+
+module.exports = { createApiRouter };
+
+
