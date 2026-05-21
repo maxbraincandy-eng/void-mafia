@@ -1,7 +1,7 @@
 {
-  "name": "void-portal-mobile",
+  "name": "void-portal-webrtc",
   "version": "0.4.0",
-  "description": "VOID PORTAL all-in-one Render app",
+  "description": "VOID PORTAL mobile-friendly one-file social games hub with WebRTC video/audio.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -14,3 +14,4 @@
     "node": ">=18"
   }
 }
+
