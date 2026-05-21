@@ -1,16 +1,16 @@
 {
   "name": "void-portal",
   "version": "0.8.0",
-  "description": "VOID PORTAL mobile social game hub with Socket.IO and WebRTC",
+  "description": "VOID PORTAL mobile WebRTC social game hub",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "dependencies": {
-    "express": "^4.19.2",
-    "socket.io": "^4.7.5"
-  },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.18.3",
+    "socket.io": "^4.7.5"
   }
 }
