@@ -1,19 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VOID PORTAL</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <main class="shell">
+    <section class="hero card">
+      <p class="eyebrow">PRIVATE SOCIAL GAME HUB</p>
+      <h1>VOID PORTAL</h1>
+      <p class="subtitle">Enter the room. Choose the game. Trust nobody.</p>
+    </section>
 
-PRIVATE SOCIAL GAME HUB
-VOID PORTAL
-Enter the room. Choose the game. Trust nobody.
-Username Room Code
-Void Lounge Chat, chill, gather players Mafia Lite Roles, lobby, future day/night Confession Room Anonymous secrets and reveal Truth or Dare Spin a player and play Debate Arena Topics, timer, audience votes Mystery Room Detective, liar, clues
-Create / Join Room
-Disconnected
-CURRENT SPACE
-Void Lounge
-Room: VOID
-Start Leave
-Players
-0
-	•	
+    <section id="portal" class="card panel">
+      <div class="grid two">
+        <label>Username
+          <input id="username" placeholder="Max" maxlength="20" />
+        </label>
+        <label>Room Code
+          <input id="roomCode" placeholder="7777" maxlength="16" />
+        </label>
+      </div>
 
+      <div class="spaces" id="spaces">
+        <button class="space active" data-space="lounge"><b>Void Lounge</b><span>Chat, chill, gather players</span></button>
+        <button class="space" data-space="mafia"><b>Mafia Lite</b><span>Roles, lobby, future day/night</span></button>
+        <button class="space" data-space="confession"><b>Confession Room</b><span>Anonymous secrets and reveal</span></button>
+        <button class="space" data-space="truth"><b>Truth or Dare</b><span>Spin a player and play</span></button>
+        <button class="space" data-space="debate"><b>Debate Arena</b><span>Topics, timer, audience votes</span></button>
+        <button class="space" data-space="mystery"><b>Mystery Room</b><span>Detective, liar, clues</span></button>
+      </div>
 
+      <button id="joinBtn" class="primary">Create / Join Room</button>
+    </section>
 
-Send
+    <section id="room" class="card panel hidden">
+      <div class="room-top">
+        <div>
+          <p class="eyebrow">CURRENT SPACE</p>
+          <h2 id="roomTitle">Void Lounge</h2>
+          <p id="roomMeta">Room: VOID</p>
+        </div>
+        <button id="leaveBtn" class="ghost">Leave</button>
+      </div>
+
+      <div class="grid two room-grid">
+        <div class="box">
+          <h3>Players <span id="playerCount">0</span></h3>
+          <ul id="players"></ul>
+          <button id="startBtn" class="primary small">Start</button>
+          <button id="truthBtn" class="ghost small hidden">Truth Spin</button>
+        </div>
+        <div class="box chat">
+          <h3>Lobby Chat</h3>
+          <div id="messages" class="messages"></div>
+          <form id="chatForm" class="chat-form">
+            <input id="chatInput" placeholder="Write message..." autocomplete="off" />
+            <button class="primary small">Send</button>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/client.js"></script>
+</body>
+</html>
