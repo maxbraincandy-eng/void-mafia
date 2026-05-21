@@ -10,962 +10,1151 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT || 3000;
 
-const SPACES = {
-  mafia: { name: "Mafia", icon: "☠", desc: "Roles, day/night, voting" },
-  truth: { name: "Truth or Dare", icon: "◆", desc: "Spin, truth, dare" },
-  debate: { name: "Debate", icon: "◈", desc: "Topics, timer, audience" },
-  lounge: { name: "Lounge", icon: "◌", desc: "Video chat and chill" },
-  confession: { name: "Confession", icon: "◇", desc: "Anonymous secrets" },
-  mystery: { name: "Mystery", icon: "◎", desc: "Detective, liar, clues" }
-};
-
 const rooms = new Map();
 
-function roomKey(space, code) {
-  return space + ":" + code;
+const spaces = {
+  mafia: { label: "Mafia", icon: "♛", max: 8 },
+  truth: { label: "Truth", icon: "◆", max: 8 },
+  debate: { label: "Debate", icon: "◇", max: 8 },
+  lounge: { label: "Lounge", icon: "◌", max: 8 },
+  confession: { label: "Confession", icon: "✦", max: 8 },
+  mystery: { label: "Mystery", icon: "✧", max: 8 }
+};
+
+function safeText(value, fallback = "") {
+  return String(value || fallback)
+    .replace(/[<>]/g, "")
+    .trim()
+    .slice(0, 40);
 }
 
-function publicRooms(spaceFilter) {
-  const list = [];
-  for (const [key, room] of rooms.entries()) {
-    if (spaceFilter && room.space !== spaceFilter) continue;
-    list.push({
-      key,
-      space: room.space,
-      spaceName: SPACES[room.space]?.name || room.space,
-      roomCode: room.roomCode,
-      hostId: room.hostId,
-      hostName: room.players.get(room.hostId)?.username || "Host",
-      playerCount: room.players.size,
-      createdAt: room.createdAt
-    });
-  }
-  return list.sort((a, b) => b.createdAt - a.createdAt);
+function keyFor(space, code) {
+  return `${space}:${code}`;
 }
 
-function roomSnapshot(room) {
+function publicRoom(room) {
   return {
-    key: room.key,
+    id: room.id,
+    code: room.code,
     space: room.space,
-    spaceName: SPACES[room.space]?.name || room.space,
-    roomCode: room.roomCode,
+    label: spaces[room.space]?.label || room.space,
     hostId: room.hostId,
-    players: Array.from(room.players.values())
+    hostName: room.players.get(room.hostId)?.username || "Host",
+    players: Array.from(room.players.values()).map(p => ({
+      id: p.id,
+      username: p.username,
+      isHost: p.id === room.hostId,
+      mic: !!p.mic,
+      cam: !!p.cam,
+      speaking: !!p.speaking
+    })),
+    playerCount: room.players.size,
+    max: spaces[room.space]?.max || 8,
+    status: room.status || "Waiting"
   };
 }
 
-function broadcastRoomList() {
-  io.emit("rooms-list", {
-    total: rooms.size,
-    bySpace: Object.keys(SPACES).reduce((acc, s) => {
-      acc[s] = publicRooms(s);
-      return acc;
-    }, {}),
-    all: publicRooms()
-  });
+function broadcastRooms() {
+  io.emit("rooms:update", Array.from(rooms.values()).map(publicRoom));
 }
 
-function deleteRoom(key, reason) {
+function removeFromCurrentRoom(socket, reason = "left") {
+  const key = socket.data.roomKey;
+  if (!key || !rooms.has(key)) return;
+
   const room = rooms.get(key);
-  if (!room) return;
+  const wasHost = room.hostId === socket.id;
 
-  io.to(key).emit("room-deleted", {
-    reason: reason || "Host left. Room closed."
-  });
+  socket.leave(key);
+  room.players.delete(socket.id);
 
-  for (const player of room.players.values()) {
-    const s = io.sockets.sockets.get(player.id);
-    if (s) {
-      s.leave(key);
-      s.data.roomKey = null;
-      s.data.space = null;
-      s.data.roomCode = null;
+  socket.to(key).emit("peer:left", { id: socket.id });
+
+  socket.data.roomKey = null;
+  socket.data.space = null;
+  socket.data.code = null;
+
+  if (wasHost) {
+    io.to(key).emit("room:closed", {
+      reason: "Host left. Room was deleted."
+    });
+
+    for (const player of room.players.values()) {
+      const s = io.sockets.sockets.get(player.id);
+      if (s) {
+        s.leave(key);
+        s.data.roomKey = null;
+        s.data.space = null;
+        s.data.code = null;
+      }
     }
+
+    rooms.delete(key);
+    broadcastRooms();
+    return;
   }
 
-  rooms.delete(key);
-  broadcastRoomList();
+  io.to(key).emit("room:update", publicRoom(room));
+  broadcastRooms();
 }
 
-const page = `<!DOCTYPE html>
-<html lang="ka">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-  <title>VOID PORTAL</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800;900&family=Orbitron:wght@700;800;900&display=swap" rel="stylesheet">
-  <style>
-    :root{
-      --bg:#050713; --panel:rgba(10,14,32,.78); --panel2:rgba(8,10,24,.92);
-      --line:rgba(130,151,255,.18); --text:#f4f7ff; --soft:#a8b1cf; --dim:#78819e;
-      --cyan:#62f7ff; --pink:#ff4fd8; --violet:#8d63ff; --green:#49ff9a; --red:#ff5f86;
-      --yellow:#ffe66d; --shadow:0 18px 60px rgba(0,0,0,.42);
-    }
-    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-    html,body{margin:0;min-height:100%;font-family:Inter,system-ui,sans-serif;color:var(--text);
-      background:
-      radial-gradient(circle at 12% 5%,rgba(255,79,216,.20),transparent 32%),
-      radial-gradient(circle at 88% 20%,rgba(98,247,255,.16),transparent 30%),
-      radial-gradient(circle at 50% 115%,rgba(141,99,255,.20),transparent 42%),
-      linear-gradient(135deg,#03040b,#080b1d 52%,#050713);
-      overflow-x:hidden;
-    }
-    body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.30;
-      background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);
-      background-size:34px 34px;mask-image:radial-gradient(circle at center,#000 38%,transparent 100%);
-    }
-    body:after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.08;
-      background:repeating-linear-gradient(0deg,transparent 0 7px,rgba(255,255,255,.35) 8px);
-      mix-blend-mode:overlay;
-    }
-    .app{position:relative;z-index:2;max-width:1120px;margin:0 auto;padding:18px 14px 104px}
-    .top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
-    .brand{min-width:0}
-    .powered{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid rgba(255,79,216,.35);
-      border-radius:999px;background:rgba(255,79,216,.09);box-shadow:0 0 24px rgba(255,79,216,.20);color:#ffd7f6;
-      font-size:12px;font-weight:800;margin-bottom:10px
-    }
-    .title{font-family:Orbitron,sans-serif;font-size:clamp(34px,9vw,84px);line-height:.9;margin:0;letter-spacing:.02em;position:relative;
-      text-shadow:0 0 18px rgba(98,247,255,.26),0 0 32px rgba(255,79,216,.18)
-    }
-    .title:before,.title:after{content:attr(data-text);position:absolute;inset:0;pointer-events:none;opacity:.62;overflow:hidden}
-    .title:before{color:var(--cyan);transform:translate(2px,-1px);clip-path:inset(0 0 50% 0);animation:g1 2.1s infinite linear alternate}
-    .title:after{color:var(--pink);transform:translate(-2px,1px);clip-path:inset(52% 0 0 0);animation:g2 2.6s infinite linear alternate}
-    @keyframes g1{0%,100%{transform:translate(1px,0)}30%{transform:translate(3px,-1px)}60%{transform:translate(-2px,1px)}}
-    @keyframes g2{0%,100%{transform:translate(-1px,0)}40%{transform:translate(-3px,1px)}70%{transform:translate(2px,-1px)}}
-    .subtitle{margin:10px 0 0;color:var(--soft);font-size:15px}
-    .status{flex:0 0 auto;border:1px solid var(--line);background:rgba(255,255,255,.04);padding:10px 12px;border-radius:18px;color:var(--soft);font-size:12px;font-weight:800}
-    .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red);margin-right:6px;box-shadow:0 0 12px var(--red)}
-    .dot.on{background:var(--green);box-shadow:0 0 12px var(--green)}
-    .panel{background:linear-gradient(180deg,rgba(17,22,50,.82),rgba(7,10,24,.84));border:1px solid var(--line);
-      border-radius:28px;box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.05);backdrop-filter:blur(15px);padding:18px;margin-bottom:16px
-    }
-    .dash{display:grid;grid-template-columns:1.05fr .95fr;gap:16px}
-    .space-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
-    .space-name{font-size:22px;font-weight:900}
-    .pill{padding:8px 11px;border-radius:999px;border:1px solid rgba(98,247,255,.28);background:rgba(98,247,255,.08);color:#cfffff;font-size:12px;font-weight:900}
-    .field{margin-bottom:12px}
-    label{display:block;margin-bottom:8px;color:#e3eaff;font-size:13px;font-weight:900;letter-spacing:.03em}
-    input{width:100%;border:1px solid rgba(130,151,255,.24);background:rgba(2,5,16,.72);color:var(--text);
-      border-radius:17px;padding:15px 15px;outline:none;font-size:16px}
-    input:focus{border-color:rgba(98,247,255,.65);box-shadow:0 0 0 4px rgba(98,247,255,.08),0 0 20px rgba(98,247,255,.16)}
-    .row{display:flex;gap:10px}
-    .row>*{flex:1}
-    button{font-family:inherit;border:0;cursor:pointer;color:inherit;font-weight:900}
-    .btn{border-radius:17px;padding:14px 16px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.08);transition:.18s}
-    .btn:hover{transform:translateY(-1px);background:rgba(255,255,255,.075)}
-    .primary{background:linear-gradient(90deg,var(--cyan),#9cfbff 45%,#ff9eea);color:#05101d;box-shadow:0 14px 35px rgba(98,247,255,.13),0 0 30px rgba(255,79,216,.12)}
-    .danger{border-color:rgba(255,95,134,.28);color:#ffd7df}
-    .small{padding:10px 12px;border-radius:14px;font-size:13px}
-    .room-list{display:grid;gap:10px;max-height:430px;overflow:auto;padding-right:2px}
-    .empty{padding:18px;border:1px dashed rgba(255,255,255,.14);border-radius:20px;color:var(--soft);text-align:center}
-    .room-card{border:1px solid rgba(130,151,255,.18);background:rgba(5,8,21,.62);border-radius:21px;padding:14px;display:grid;gap:10px}
-    .room-card-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
-    .room-title{font-weight:900;font-size:18px}
-    .room-meta{color:var(--soft);font-size:13px;margin-top:4px;line-height:1.45}
-    .badge{display:inline-flex;align-items:center;gap:5px;padding:6px 9px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);font-size:12px;font-weight:900;color:#dfe8ff}
-    .room-screen{display:none}
-    .room-screen.active,.home.active{display:block}
-    .home.hidden{display:none}
-    .room-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
-    .backline{display:flex;align-items:center;gap:10px;min-width:0}
-    .room-label{color:var(--soft);font-size:12px;font-weight:900;letter-spacing:.16em;text-transform:uppercase}
-    .room-big{font-size:24px;font-weight:900;margin-top:2px}
-    .room-layout{display:grid;grid-template-columns:1.3fr .7fr;gap:16px}
-    .video-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-    .video-card{position:relative;min-height:190px;border:1px solid rgba(130,151,255,.18);background:#050816;border-radius:22px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.02)}
-    video{width:100%;height:100%;min-height:190px;object-fit:cover;background:#02040d;display:block}
-    .video-off{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--soft);padding:20px;background:radial-gradient(circle,rgba(98,247,255,.07),rgba(2,4,13,.92))}
-    .vbar{position:absolute;left:10px;right:10px;bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;border-radius:16px;background:rgba(0,0,0,.48);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.09)}
-    .vname{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .icons{display:flex;gap:7px;align-items:center}
-    .mic-icon{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.08);font-size:13px}
-    .mic-icon.speaking{background:rgba(73,255,154,.18);border-color:rgba(73,255,154,.55);box-shadow:0 0 0 0 rgba(73,255,154,.55);animation:pulse 1s infinite}
-    @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(73,255,154,.55)}70%{box-shadow:0 0 0 12px rgba(73,255,154,0)}100%{box-shadow:0 0 0 0 rgba(73,255,154,0)}}
-    .side{display:grid;gap:12px}
-    .players{list-style:none;padding:0;margin:0;display:grid;gap:8px}
-    .players li{padding:10px 11px;border-radius:15px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between;gap:8px;color:#dce5ff}
-    .chat{height:220px;overflow:auto;border:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.22);border-radius:18px;padding:11px;display:grid;align-content:start;gap:8px}
-    .msg{font-size:13px;line-height:1.35;color:#dfe6ff}
-    .msg b{color:#fff}
-    .controls{position:sticky;bottom:90px;z-index:5;display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}
-    .controls .btn{flex:1;min-width:130px}
-    .bottom-nav{position:fixed;z-index:20;left:50%;bottom:14px;transform:translateX(-50%);width:min(760px,calc(100% - 20px));
-      display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:9px;border:1px solid rgba(130,151,255,.22);border-radius:26px;background:rgba(7,10,24,.88);backdrop-filter:blur(18px);box-shadow:0 16px 50px rgba(0,0,0,.48)}
-    .nav-item{padding:10px 6px;border-radius:19px;background:transparent;border:1px solid transparent;text-align:center;color:var(--soft)}
-    .nav-item.active{background:linear-gradient(180deg,rgba(98,247,255,.13),rgba(255,79,216,.08));border-color:rgba(98,247,255,.28);color:#fff;box-shadow:0 0 24px rgba(98,247,255,.12)}
-    .nav-icon{display:block;font-size:17px;line-height:1}
-    .nav-text{display:block;font-size:11px;font-weight:900;margin-top:5px;white-space:nowrap}
-    .more-panel{display:none;position:fixed;z-index:19;left:50%;bottom:92px;transform:translateX(-50%);width:min(540px,calc(100% - 28px));
-      padding:12px;border-radius:24px;border:1px solid rgba(130,151,255,.2);background:rgba(7,10,24,.92);backdrop-filter:blur(18px);box-shadow:0 16px 50px rgba(0,0,0,.52)}
-    .more-panel.show{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:50;background:rgba(7,10,24,.95);border:1px solid rgba(98,247,255,.26);padding:12px 14px;border-radius:18px;box-shadow:var(--shadow);display:none;color:#eafcff;font-weight:800}
-    .toast.show{display:block}
-    @media(max-width:860px){.dash,.room-layout{grid-template-columns:1fr}.video-grid{grid-template-columns:1fr}.top{display:block}.status{display:inline-block;margin-top:12px}.panel{border-radius:24px;padding:15px}.controls{bottom:86px}.app{padding-left:10px;padding-right:10px}.nav-text{font-size:10px}}
-  </style>
-</head>
-<body>
-  <div class="toast" id="toast"></div>
-
-  <main class="app">
-    <header class="top">
-      <div class="brand">
-        <div class="powered">powered by ბატონი მაქსი</div>
-        <h1 class="title" data-text="VOID PORTAL">VOID PORTAL</h1>
-        <p class="subtitle">აირჩიე სივრცე, ნახე აქტიური მაგიდები და შედი ცალკე ოთახში.</p>
-      </div>
-      <div class="status"><span class="dot" id="connDot"></span><span id="connText">Connecting</span></div>
-    </header>
-
-    <section class="home active" id="home">
-      <div class="dash">
-        <div class="panel">
-          <div class="space-head">
-            <div>
-              <div class="room-label">Selected space</div>
-              <div class="space-name" id="selectedSpaceName">Mafia</div>
-            </div>
-            <div class="pill"><span id="activeCount">0</span> active rooms</div>
-          </div>
-
-          <div class="field">
-            <label>Username</label>
-            <input id="username" value="max" maxlength="22" />
-          </div>
-
-          <div class="row">
-            <div class="field">
-              <label>Room code</label>
-              <input id="roomCode" value="" maxlength="8" placeholder="7777" />
-            </div>
-            <div class="field" style="flex:.65">
-              <label>&nbsp;</label>
-              <button class="btn" id="randomBtn" type="button">Random</button>
-            </div>
-          </div>
-
-          <button class="btn primary" id="createBtn" type="button">Create new table</button>
-          <p class="subtitle" style="font-size:13px;margin-top:12px">ჰოსტი რომ გავა, ოთახი ავტომატურად დაიხურება და მოთამაშეები დაბრუნდებიან მთავარ მენიუში.</p>
-        </div>
-
-        <div class="panel">
-          <div class="space-head">
-            <div>
-              <div class="room-label">Public tables</div>
-              <div class="space-name" id="listTitle">Mafia rooms</div>
-            </div>
-            <div class="badge"><span id="totalRooms">0</span> total</div>
-          </div>
-          <div class="room-list" id="roomList">
-            <div class="empty">აქტიური ოთახები ჯერ არ არის.</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="room-screen" id="roomScreen">
-      <div class="panel">
-        <div class="room-topbar">
-          <div class="backline">
-            <button class="btn small" id="backBtn" type="button">← Menu</button>
-            <div>
-              <div class="room-label" id="roomSpaceLabel">Mafia</div>
-              <div class="room-big">Room <span id="roomCodeLabel">----</span></div>
-            </div>
-          </div>
-          <div class="row" style="flex:0 1 360px">
-            <button class="btn small primary" id="startBtn" type="button">Start</button>
-            <button class="btn small danger" id="leaveBtn" type="button">Leave</button>
-          </div>
-        </div>
-
-        <div class="room-layout">
-          <div>
-            <div class="video-grid" id="videoGrid"></div>
-            <div class="controls">
-              <button class="btn" id="micBtn" type="button">Mic: On</button>
-              <button class="btn" id="camBtn" type="button">Camera: On</button>
-              <button class="btn" id="switchBtn" type="button">Switch Camera</button>
-            </div>
-          </div>
-
-          <div class="side">
-            <div class="sub panel" style="margin:0">
-              <div class="room-label">Players</div>
-              <ul class="players" id="playersList"></ul>
-            </div>
-            <div class="sub panel" style="margin:0">
-              <div class="room-label">Chat</div>
-              <div class="chat" id="chat"></div>
-              <div class="row" style="margin-top:10px">
-                <input id="chatInput" placeholder="Message..." />
-                <button class="btn primary" id="sendBtn" type="button" style="flex:.35">Send</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <div class="more-panel" id="morePanel">
-    <button class="btn" data-more-space="confession">◇ Confession</button>
-    <button class="btn" data-more-space="mystery">◎ Mystery</button>
-    <button class="btn" data-more-space="lounge">◌ Lounge</button>
-    <button class="btn" data-more-space="debate">◈ Debate</button>
-  </div>
-
-  <nav class="bottom-nav">
-    <button class="nav-item active" data-space="mafia"><span class="nav-icon">☠</span><span class="nav-text">Mafia</span></button>
-    <button class="nav-item" data-space="truth"><span class="nav-icon">◆</span><span class="nav-text">Truth</span></button>
-    <button class="nav-item" data-space="debate"><span class="nav-icon">◈</span><span class="nav-text">Debate</span></button>
-    <button class="nav-item" data-space="lounge"><span class="nav-icon">◌</span><span class="nav-text">Lounge</span></button>
-    <button class="nav-item" id="moreBtn"><span class="nav-icon">＋</span><span class="nav-text">More</span></button>
-  </nav>
-
-  <script src="/socket.io/socket.io.js"></script>
-  <script>
-    const socket = io();
-
-    const SPACES = {
-      mafia: { name: "Mafia", desc: "Roles, day/night, voting" },
-      truth: { name: "Truth or Dare", desc: "Spin, truth, dare" },
-      debate: { name: "Debate", desc: "Topics, timer, audience" },
-      lounge: { name: "Lounge", desc: "Video chat and chill" },
-      confession: { name: "Confession", desc: "Anonymous secrets" },
-      mystery: { name: "Mystery", desc: "Detective, liar, clues" }
-    };
-
-    let selectedSpace = "mafia";
-    let currentRoom = null;
-    let roomsPayload = { total: 0, bySpace: {}, all: [] };
-    let localStream = null;
-    let peers = {};
-    let users = {};
-    let micOn = true;
-    let camOn = true;
-    let facingMode = "user";
-    let audioCtx = null;
-    let analyser = null;
-    let speakingState = false;
-
-    const el = (id) => document.getElementById(id);
-
-    function toast(text) {
-      const t = el("toast");
-      t.textContent = text;
-      t.classList.add("show");
-      setTimeout(() => t.classList.remove("show"), 2600);
-    }
-
-    function randomCode() {
-      return Math.floor(1000 + Math.random() * 900000).toString();
-    }
-
-    function selectSpace(space) {
-      selectedSpace = space;
-      el("selectedSpaceName").textContent = SPACES[space].name;
-      el("listTitle").textContent = SPACES[space].name + " rooms";
-      document.querySelectorAll(".nav-item[data-space]").forEach(b => {
-        b.classList.toggle("active", b.dataset.space === space);
-      });
-      el("morePanel").classList.remove("show");
-      renderRooms();
-    }
-
-    function renderRooms() {
-      const list = (roomsPayload.bySpace && roomsPayload.bySpace[selectedSpace]) || [];
-      el("activeCount").textContent = list.length;
-      el("totalRooms").textContent = roomsPayload.total || 0;
-
-      const box = el("roomList");
-      if (!list.length) {
-        box.innerHTML = '<div class="empty">ამ კატეგორიაში აქტიური ოთახი ჯერ არ არის.<br>შექმენი ახალი მაგიდა.</div>';
-        return;
-      }
-
-      box.innerHTML = "";
-      list.forEach(room => {
-        const div = document.createElement("div");
-        div.className = "room-card";
-        div.innerHTML =
-          '<div class="room-card-top">' +
-            '<div><div class="room-title">' + room.spaceName + " #" + room.roomCode + '</div>' +
-            '<div class="room-meta">Host: ' + escapeHtml(room.hostName) + '<br>' + room.playerCount + ' player(s) inside</div></div>' +
-            '<div class="badge">' + room.playerCount + ' online</div>' +
-          '</div>' +
-          '<button class="btn primary small">Join this table</button>';
-        div.querySelector("button").onclick = () => joinRoom(room.roomCode, room.space);
-        box.appendChild(div);
-      });
-    }
-
-    function escapeHtml(str) {
-      return String(str || "").replace(/[&<>"']/g, s => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[s]));
-    }
-
-    async function ensureMedia() {
-      if (localStream) return localStream;
-      try {
-        localStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode },
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-        });
-      } catch (e) {
-        toast("Camera/Mic permission denied or unavailable.");
-        localStream = new MediaStream();
-      }
-      setupSpeakingDetection();
-      return localStream;
-    }
-
-    function setupSpeakingDetection() {
-      try {
-        const audioTracks = localStream.getAudioTracks();
-        if (!audioTracks.length) return;
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 512;
-        const source = audioCtx.createMediaStreamSource(new MediaStream([audioTracks[0]]));
-        source.connect(analyser);
-        const data = new Uint8Array(analyser.frequencyBinCount);
-
-        setInterval(() => {
-          if (!analyser || !micOn || !currentRoom) return;
-          analyser.getByteFrequencyData(data);
-          let sum = 0;
-          for (let i = 0; i < data.length; i++) sum += data[i];
-          const avg = sum / data.length;
-          const nowSpeaking = avg > 18;
-          if (nowSpeaking !== speakingState) {
-            speakingState = nowSpeaking;
-            socket.emit("speaking", { speaking: nowSpeaking });
-            updateSpeaking(socket.id, nowSpeaking);
-          }
-        }, 220);
-      } catch (e) {}
-    }
-
-    function showRoomScreen(room) {
-      currentRoom = room;
-      el("home").classList.add("hidden");
-      el("home").classList.remove("active");
-      el("roomScreen").classList.add("active");
-      el("roomSpaceLabel").textContent = room.spaceName;
-      el("roomCodeLabel").textContent = room.roomCode;
-      el("chat").innerHTML = "";
-      renderPlayers(room.players || []);
-      renderVideoCards();
-    }
-
-    function showHome() {
-      el("roomScreen").classList.remove("active");
-      el("home").classList.remove("hidden");
-      el("home").classList.add("active");
-      currentRoom = null;
-      cleanupPeers();
-      renderRooms();
-    }
-
-    async function createRoom() {
-      const username = el("username").value.trim() || "Guest";
-      let code = el("roomCode").value.trim();
-      if (!code) {
-        code = randomCode();
-        el("roomCode").value = code;
-      }
-      await ensureMedia();
-      socket.emit("create-room", { username, roomCode: code, space: selectedSpace });
-    }
-
-    async function joinRoom(code, space) {
-      const username = el("username").value.trim() || "Guest";
-      await ensureMedia();
-      socket.emit("join-room", { username, roomCode: code, space: space || selectedSpace });
-    }
-
-    function renderPlayers(players) {
-      users = {};
-      (players || []).forEach(p => { users[p.id] = p; });
-
-      const list = el("playersList");
-      list.innerHTML = "";
-      (players || []).forEach(p => {
-        const li = document.createElement("li");
-        const host = currentRoom && p.id === currentRoom.hostId ? "HOST" : "";
-        const you = p.id === socket.id ? "YOU" : "";
-        li.innerHTML = '<span>' + escapeHtml(p.username) + '</span><span>' + [you, host].filter(Boolean).join(" · ") + '</span>';
-        list.appendChild(li);
-      });
-      renderVideoCards();
-    }
-
-    function renderVideoCards() {
-      const grid = el("videoGrid");
-      if (!currentRoom) return;
-      grid.innerHTML = "";
-
-      Object.values(users).forEach(user => {
-        const card = document.createElement("div");
-        card.className = "video-card";
-        card.id = "card-" + user.id;
-
-        const video = document.createElement("video");
-        video.id = "video-" + user.id;
-        video.autoplay = true;
-        video.playsInline = true;
-        if (user.id === socket.id) video.muted = true;
-
-        if (user.id === socket.id && localStream) {
-          video.srcObject = localStream;
-        }
-
-        const off = document.createElement("div");
-        off.className = "video-off";
-        off.id = "off-" + user.id;
-        off.textContent = "Camera off / waiting for video";
-
-        const bar = document.createElement("div");
-        bar.className = "vbar";
-        bar.innerHTML =
-          '<div class="vname">' + escapeHtml(user.username) + (user.id === socket.id ? " (you)" : "") + '</div>' +
-          '<div class="icons"><span class="mic-icon" id="mic-' + user.id + '">🎙</span><span class="mic-icon" id="cam-' + user.id + '">◉</span></div>';
-
-        card.appendChild(video);
-        card.appendChild(off);
-        card.appendChild(bar);
-        grid.appendChild(card);
-
-        const pc = peers[user.id];
-        if (pc && pc.stream) video.srcObject = pc.stream;
-      });
-
-      updateAllMediaIndicators();
-    }
-
-    function updateAllMediaIndicators() {
-      Object.values(users).forEach(u => {
-        updateMediaIndicator(u.id, u.micOn, u.camOn);
-        updateSpeaking(u.id, u.speaking);
-      });
-      if (users[socket.id]) {
-        updateMediaIndicator(socket.id, micOn, camOn);
-      }
-    }
-
-    function updateMediaIndicator(id, mic, cam) {
-      const m = el("mic-" + id);
-      const c = el("cam-" + id);
-      const off = el("off-" + id);
-      if (m) {
-        m.textContent = mic === false ? "×" : "🎙";
-        m.style.opacity = mic === false ? ".45" : "1";
-      }
-      if (c) {
-        c.textContent = cam === false ? "×" : "◉";
-        c.style.opacity = cam === false ? ".45" : "1";
-      }
-      if (off) off.style.display = cam === false ? "flex" : "none";
-    }
-
-    function updateSpeaking(id, speaking) {
-      const m = el("mic-" + id);
-      if (m) m.classList.toggle("speaking", !!speaking);
-    }
-
-    function createPeer(remoteId, initiator) {
-      if (peers[remoteId]) return peers[remoteId].pc;
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:global.stun.twilio.com:3478" }]
-      });
-
-      const record = { pc, stream: new MediaStream() };
-      peers[remoteId] = record;
-
-      if (localStream) {
-        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-      }
-
-      pc.ontrack = (event) => {
-        event.streams[0].getTracks().forEach(t => record.stream.addTrack(t));
-        const video = el("video-" + remoteId);
-        if (video) video.srcObject = record.stream;
-      };
-
-      pc.onicecandidate = (event) => {
-        if (event.candidate) socket.emit("webrtc-ice", { to: remoteId, candidate: event.candidate });
-      };
-
-      if (initiator) {
-        pc.createOffer().then(offer => pc.setLocalDescription(offer)).then(() => {
-          socket.emit("webrtc-offer", { to: remoteId, offer: pc.localDescription });
-        }).catch(console.error);
-      }
-
-      return pc;
-    }
-
-    function cleanupPeers() {
-      Object.values(peers).forEach(r => { try { r.pc.close(); } catch(e){} });
-      peers = {};
-      users = {};
-      el("videoGrid").innerHTML = "";
-    }
-
-    function addChat(username, text, system) {
-      const box = el("chat");
-      const div = document.createElement("div");
-      div.className = "msg";
-      if (system) div.innerHTML = '<b>SYSTEM:</b> ' + escapeHtml(text);
-      else div.innerHTML = '<b>' + escapeHtml(username) + ':</b> ' + escapeHtml(text);
-      box.appendChild(div);
-      box.scrollTop = box.scrollHeight;
-    }
-
-    document.querySelectorAll(".nav-item[data-space]").forEach(btn => {
-      btn.onclick = () => selectSpace(btn.dataset.space);
-    });
-
-    el("moreBtn").onclick = () => el("morePanel").classList.toggle("show");
-    document.querySelectorAll("[data-more-space]").forEach(btn => {
-      btn.onclick = () => selectSpace(btn.dataset.moreSpace);
-    });
-
-    el("randomBtn").onclick = () => el("roomCode").value = randomCode();
-    el("createBtn").onclick = createRoom;
-    el("backBtn").onclick = () => socket.emit("leave-room");
-    el("leaveBtn").onclick = () => socket.emit("leave-room");
-    el("startBtn").onclick = () => toast("Game engine comes next: roles, timer, voting.");
-    el("sendBtn").onclick = () => {
-      const input = el("chatInput");
-      const text = input.value.trim();
-      if (!text) return;
-      socket.emit("chat-message", { text });
-      input.value = "";
-    };
-    el("chatInput").addEventListener("keydown", e => { if (e.key === "Enter") el("sendBtn").click(); });
-
-    el("micBtn").onclick = () => {
-      micOn = !micOn;
-      if (localStream) localStream.getAudioTracks().forEach(t => t.enabled = micOn);
-      el("micBtn").textContent = "Mic: " + (micOn ? "On" : "Off");
-      socket.emit("media-state", { micOn, camOn });
-      updateMediaIndicator(socket.id, micOn, camOn);
-    };
-
-    el("camBtn").onclick = () => {
-      camOn = !camOn;
-      if (localStream) localStream.getVideoTracks().forEach(t => t.enabled = camOn);
-      el("camBtn").textContent = "Camera: " + (camOn ? "On" : "Off");
-      socket.emit("media-state", { micOn, camOn });
-      updateMediaIndicator(socket.id, micOn, camOn);
-    };
-
-    el("switchBtn").onclick = async () => {
-      facingMode = facingMode === "user" ? "environment" : "user";
-      try {
-        const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio: false });
-        const newVideoTrack = newStream.getVideoTracks()[0];
-        const oldVideoTrack = localStream && localStream.getVideoTracks()[0];
-        if (oldVideoTrack) {
-          oldVideoTrack.stop();
-          localStream.removeTrack(oldVideoTrack);
-        }
-        localStream.addTrack(newVideoTrack);
-
-        Object.values(peers).forEach(r => {
-          const sender = r.pc.getSenders().find(s => s.track && s.track.kind === "video");
-          if (sender) sender.replaceTrack(newVideoTrack);
-        });
-
-        const localVideo = el("video-" + socket.id);
-        if (localVideo) localVideo.srcObject = localStream;
-      } catch (e) {
-        toast("Could not switch camera.");
-      }
-    };
-
-    socket.on("connect", () => {
-      el("connDot").classList.add("on");
-      el("connText").textContent = "Online";
-      socket.emit("get-rooms");
-    });
-
-    socket.on("disconnect", () => {
-      el("connDot").classList.remove("on");
-      el("connText").textContent = "Offline";
-    });
-
-    socket.on("rooms-list", payload => {
-      roomsPayload = payload;
-      renderRooms();
-    });
-
-    socket.on("room-created", room => {
-      toast("Room created.");
-      showRoomScreen(room);
-    });
-
-    socket.on("room-joined", room => {
-      toast("Joined room.");
-      showRoomScreen(room);
-    });
-
-    socket.on("room-error", data => toast(data.message || "Room error"));
-
-    socket.on("players-update", players => {
-      if (currentRoom) {
-        currentRoom.players = players;
-        renderPlayers(players);
-      }
-    });
-
-    socket.on("existing-users", ids => {
-      ids.forEach(id => createPeer(id, true));
-    });
-
-    socket.on("user-joined", data => {
-      addChat("SYSTEM", data.username + " joined.", true);
-    });
-
-    socket.on("user-left", data => {
-      addChat("SYSTEM", data.username + " left.", true);
-      if (peers[data.id]) {
-        peers[data.id].pc.close();
-        delete peers[data.id];
-      }
-    });
-
-    socket.on("chat-message", data => addChat(data.username, data.text, false));
-    socket.on("system-message", data => addChat("SYSTEM", data.text, true));
-
-    socket.on("room-deleted", data => {
-      toast(data.reason || "Room closed.");
-      showHome();
-    });
-
-    socket.on("media-state", data => {
-      if (users[data.id]) {
-        users[data.id].micOn = data.micOn;
-        users[data.id].camOn = data.camOn;
-      }
-      updateMediaIndicator(data.id, data.micOn, data.camOn);
-    });
-
-    socket.on("speaking", data => updateSpeaking(data.id, data.speaking));
-
-    socket.on("webrtc-offer", async data => {
-      const pc = createPeer(data.from, false);
-      await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      socket.emit("webrtc-answer", { to: data.from, answer: pc.localDescription });
-    });
-
-    socket.on("webrtc-answer", async data => {
-      const rec = peers[data.from];
-      if (rec) await rec.pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-    });
-
-    socket.on("webrtc-ice", async data => {
-      const rec = peers[data.from];
-      if (rec && data.candidate) {
-        try { await rec.pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch(e) {}
-      }
-    });
-
-    el("roomCode").value = randomCode();
-    selectSpace("mafia");
-  </script>
-</body>
-</html>`;
-
-app.get("/", (req, res) => {
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.send(page);
-});
-
 io.on("connection", (socket) => {
-  socket.data.roomKey = null;
+  socket.emit("rooms:update", Array.from(rooms.values()).map(publicRoom));
 
-  socket.emit("rooms-list", {
-    total: rooms.size,
-    bySpace: Object.keys(SPACES).reduce((acc, s) => {
-      acc[s] = publicRooms(s);
-      return acc;
-    }, {}),
-    all: publicRooms()
-  });
+  socket.on("room:create", ({ username, space, code }) => {
+    username = safeText(username, "Guest");
+    space = spaces[space] ? space : "mafia";
+    code = safeText(code || Math.floor(100000 + Math.random() * 900000), "VOID");
 
-  socket.on("get-rooms", () => broadcastRoomList());
+    removeFromCurrentRoom(socket);
 
-  socket.on("create-room", ({ username, roomCode, space }) => {
-    username = String(username || "Guest").slice(0, 22);
-    roomCode = String(roomCode || Math.floor(1000 + Math.random() * 900000)).slice(0, 8);
-    space = SPACES[space] ? space : "mafia";
-
-    const key = roomKey(space, roomCode);
+    const key = keyFor(space, code);
     if (rooms.has(key)) {
-      socket.emit("room-error", { message: "That room already exists. Join it or use another code." });
+      socket.emit("notice", { type: "error", text: "Room already exists. Join it instead." });
       return;
     }
 
-    if (socket.data.roomKey) leaveCurrentRoom(socket);
-
     const room = {
-      key,
+      id: key,
+      code,
       space,
-      roomCode,
       hostId: socket.id,
-      createdAt: Date.now(),
+      status: "Waiting",
       players: new Map()
     };
 
     room.players.set(socket.id, {
       id: socket.id,
       username,
-      micOn: true,
-      camOn: true,
+      mic: false,
+      cam: false,
       speaking: false
     });
 
     rooms.set(key, room);
+
     socket.join(key);
     socket.data.roomKey = key;
     socket.data.space = space;
-    socket.data.roomCode = roomCode;
+    socket.data.code = code;
 
-    socket.emit("room-created", roomSnapshot(room));
-    io.to(key).emit("players-update", roomSnapshot(room).players);
-    broadcastRoomList();
+    socket.emit("room:joined", {
+      room: publicRoom(room),
+      selfId: socket.id,
+      existingPeers: []
+    });
+
+    io.to(key).emit("room:update", publicRoom(room));
+    broadcastRooms();
   });
 
-  socket.on("join-room", ({ username, roomCode, space }) => {
-    username = String(username || "Guest").slice(0, 22);
-    roomCode = String(roomCode || "").slice(0, 8);
-    space = SPACES[space] ? space : "mafia";
+  socket.on("room:join", ({ username, space, code }) => {
+    username = safeText(username, "Guest");
+    space = spaces[space] ? space : "mafia";
+    code = safeText(code, "");
 
-    const key = roomKey(space, roomCode);
+    const key = keyFor(space, code);
     const room = rooms.get(key);
 
     if (!room) {
-      socket.emit("room-error", { message: "Room not found." });
+      socket.emit("notice", { type: "error", text: "Room not found." });
       return;
     }
 
-    if (socket.data.roomKey) leaveCurrentRoom(socket);
+    if (room.players.size >= (spaces[space]?.max || 8)) {
+      socket.emit("notice", { type: "error", text: "Room is full." });
+      return;
+    }
 
-    const existingIds = Array.from(room.players.keys());
+    removeFromCurrentRoom(socket);
+
+    const existingPeers = Array.from(room.players.values()).map(p => ({
+      id: p.id,
+      username: p.username
+    }));
 
     room.players.set(socket.id, {
       id: socket.id,
       username,
-      micOn: true,
-      camOn: true,
+      mic: false,
+      cam: false,
       speaking: false
     });
 
     socket.join(key);
     socket.data.roomKey = key;
     socket.data.space = space;
-    socket.data.roomCode = roomCode;
+    socket.data.code = code;
 
-    socket.emit("room-joined", roomSnapshot(room));
-    socket.emit("existing-users", existingIds);
-    socket.to(key).emit("user-joined", { id: socket.id, username });
-    io.to(key).emit("players-update", roomSnapshot(room).players);
-    broadcastRoomList();
+    socket.emit("room:joined", {
+      room: publicRoom(room),
+      selfId: socket.id,
+      existingPeers
+    });
+
+    socket.to(key).emit("peer:joined", {
+      id: socket.id,
+      username
+    });
+
+    io.to(key).emit("room:update", publicRoom(room));
+    broadcastRooms();
   });
 
-  socket.on("leave-room", () => {
-    leaveCurrentRoom(socket);
-    socket.emit("left-room");
+  socket.on("room:leave", () => removeFromCurrentRoom(socket));
+
+  socket.on("room:start", () => {
+    const key = socket.data.roomKey;
+    const room = rooms.get(key);
+    if (!room || room.hostId !== socket.id) return;
+    room.status = "In Room";
+    io.to(key).emit("room:update", publicRoom(room));
+    io.to(key).emit("notice", { type: "ok", text: `${spaces[room.space].label} room started.` });
+    broadcastRooms();
   });
 
-  socket.on("chat-message", ({ text }) => {
+  socket.on("chat:message", (text) => {
     const key = socket.data.roomKey;
     const room = rooms.get(key);
     if (!room) return;
     const player = room.players.get(socket.id);
     if (!player) return;
-    io.to(key).emit("chat-message", {
-      id: socket.id,
+    const message = safeText(text, "").slice(0, 220);
+    if (!message) return;
+
+    io.to(key).emit("chat:message", {
+      id: Date.now() + Math.random(),
+      userId: socket.id,
       username: player.username,
-      text: String(text || "").slice(0, 500)
+      text: message,
+      time: new Date().toISOString()
     });
   });
 
-  socket.on("media-state", ({ micOn, camOn }) => {
+  socket.on("media:state", (state) => {
     const key = socket.data.roomKey;
     const room = rooms.get(key);
     if (!room) return;
     const player = room.players.get(socket.id);
     if (!player) return;
-    player.micOn = !!micOn;
-    player.camOn = !!camOn;
-    socket.to(key).emit("media-state", { id: socket.id, micOn: !!micOn, camOn: !!camOn });
-    io.to(key).emit("players-update", roomSnapshot(room).players);
+
+    player.mic = !!state.mic;
+    player.cam = !!state.cam;
+    player.speaking = !!state.speaking;
+
+    io.to(key).emit("media:state", {
+      id: socket.id,
+      mic: player.mic,
+      cam: player.cam,
+      speaking: player.speaking
+    });
+
+    io.to(key).emit("room:update", publicRoom(room));
+    broadcastRooms();
   });
 
-  socket.on("speaking", ({ speaking }) => {
-    const key = socket.data.roomKey;
-    const room = rooms.get(key);
-    if (!room) return;
-    const player = room.players.get(socket.id);
-    if (!player) return;
-    player.speaking = !!speaking;
-    socket.to(key).emit("speaking", { id: socket.id, speaking: !!speaking });
+  socket.on("webrtc:offer", ({ to, offer }) => {
+    io.to(to).emit("webrtc:offer", { from: socket.id, offer });
   });
 
-  socket.on("webrtc-offer", ({ to, offer }) => {
-    io.to(to).emit("webrtc-offer", { from: socket.id, offer });
+  socket.on("webrtc:answer", ({ to, answer }) => {
+    io.to(to).emit("webrtc:answer", { from: socket.id, answer });
   });
 
-  socket.on("webrtc-answer", ({ to, answer }) => {
-    io.to(to).emit("webrtc-answer", { from: socket.id, answer });
-  });
-
-  socket.on("webrtc-ice", ({ to, candidate }) => {
-    io.to(to).emit("webrtc-ice", { from: socket.id, candidate });
+  socket.on("webrtc:ice", ({ to, candidate }) => {
+    io.to(to).emit("webrtc:ice", { from: socket.id, candidate });
   });
 
   socket.on("disconnect", () => {
-    leaveCurrentRoom(socket, true);
+    removeFromCurrentRoom(socket, "disconnect");
+    broadcastRooms();
   });
 });
 
-function leaveCurrentRoom(socket, disconnected) {
-  const key = socket.data.roomKey;
-  if (!key) return;
+const html = `<!DOCTYPE html>
+<html lang="ka">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>VOID PORTAL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#060713;
+  --panel:rgba(10,14,33,.72);
+  --panel2:rgba(16,20,45,.86);
+  --line:rgba(135,158,255,.18);
+  --text:#f6f7ff;
+  --muted:#aeb6d7;
+  --dim:#747d9e;
+  --cyan:#5df7ff;
+  --pink:#ff62dd;
+  --violet:#8d6cff;
+  --green:#39ff9d;
+  --red:#ff5c8a;
+  --yellow:#ffe66e;
+  --safe-bottom: env(safe-area-inset-bottom);
+  --nav-h: 78px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif}
+body{
+  min-height:100dvh;
+  overflow-x:hidden;
+  background:
+    radial-gradient(circle at 10% -10%, rgba(255,98,221,.22), transparent 34%),
+    radial-gradient(circle at 90% 10%, rgba(93,247,255,.18), transparent 38%),
+    radial-gradient(circle at 50% 120%, rgba(141,108,255,.22), transparent 42%),
+    #060713;
+}
+body:before{
+  content:"";
+  position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    repeating-linear-gradient(115deg, rgba(93,247,255,.06) 0 1px, transparent 1px 38px),
+    repeating-linear-gradient(65deg, rgba(255,98,221,.05) 0 1px, transparent 1px 44px),
+    linear-gradient(180deg, transparent 0, rgba(255,255,255,.025) 50%, transparent 100%);
+  opacity:.65;
+  mask-image:radial-gradient(circle at 50% 42%, black 0 62%, transparent 100%);
+}
+body:after{
+  content:"";
+  position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.026) 1px, transparent 1px);
+  background-size:34px 34px;
+  opacity:.22;
+}
+button,input{font:inherit}
+button{border:none}
+.hide{display:none!important}
+.app{position:relative;z-index:1;min-height:100dvh;padding:12px 12px calc(var(--nav-h) + 24px + var(--safe-bottom))}
+.home-view{max-width:760px;margin:0 auto}
+.hero{
+  position:relative;overflow:hidden;border:1px solid var(--line);border-radius:28px;
+  background:linear-gradient(180deg,rgba(19,23,51,.72),rgba(6,8,22,.78));
+  padding:18px;margin:0 0 12px;
+  box-shadow:0 20px 60px rgba(0,0,0,.38), inset 0 1px rgba(255,255,255,.06);
+}
+.hero:before{
+  content:"";position:absolute;inset:-80px;background:
+    radial-gradient(circle at 20% 20%, rgba(93,247,255,.24), transparent 28%),
+    radial-gradient(circle at 70% 0%, rgba(255,98,221,.18), transparent 32%);
+  filter:blur(18px);opacity:.95;
+}
+.hero>*{position:relative}
+.hero-row{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.eyebrow{font-size:10px;letter-spacing:.34em;color:var(--cyan);text-shadow:0 0 18px rgba(93,247,255,.65);font-weight:800}
+.powered{font-size:11px;color:#ffd8f8;border:1px solid rgba(255,98,221,.32);background:rgba(255,98,221,.09);border-radius:999px;padding:7px 10px;box-shadow:0 0 18px rgba(255,98,221,.2)}
+h1{
+  margin:10px 0 6px;font-family:Orbitron,sans-serif;font-size:clamp(38px,12vw,72px);
+  line-height:.92;letter-spacing:-.05em;text-shadow:0 0 20px rgba(255,255,255,.22);
+}
+.glitch{position:relative;display:inline-block}
+.glitch:before,.glitch:after{content:attr(data-text);position:absolute;left:0;top:0;opacity:.65;pointer-events:none}
+.glitch:before{color:var(--cyan);transform:translate(2px,-1px);clip-path:inset(0 0 50% 0);animation:gt 2.4s infinite linear alternate-reverse}
+.glitch:after{color:var(--pink);transform:translate(-2px,1px);clip-path:inset(50% 0 0 0);animation:gb 2.1s infinite linear alternate-reverse}
+@keyframes gt{0%,100%{transform:translate(1px,0)}40%{transform:translate(4px,-1px)}70%{transform:translate(-2px,1px)}}
+@keyframes gb{0%,100%{transform:translate(-1px,0)}30%{transform:translate(-4px,1px)}70%{transform:translate(2px,-1px)}}
+.subtitle{margin:0;color:var(--muted);font-size:15px;line-height:1.4}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.stat{border:1px solid var(--line);background:rgba(10,14,33,.62);border-radius:18px;padding:10px 8px;text-align:center;box-shadow:inset 0 1px rgba(255,255,255,.04)}
+.stat strong{display:block;font-size:19px}
+.stat span{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:900}
+.panel{
+  border:1px solid var(--line);background:linear-gradient(180deg,rgba(14,18,40,.78),rgba(6,8,22,.82));
+  border-radius:26px;padding:14px;box-shadow:0 18px 50px rgba(0,0,0,.32),inset 0 1px rgba(255,255,255,.05);
+}
+.profile-row{display:grid;grid-template-columns:1fr 128px;gap:10px;margin-bottom:12px}
+.input{width:100%;border:1px solid rgba(135,158,255,.18);background:rgba(4,7,18,.78);color:white;border-radius:18px;padding:15px;outline:none;min-width:0}
+.input:focus{border-color:rgba(93,247,255,.65);box-shadow:0 0 0 4px rgba(93,247,255,.08)}
+.create-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.btn{
+  border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.05);color:var(--text);
+  border-radius:18px;padding:15px 14px;font-weight:900;cursor:pointer;
+}
+.btn.primary{color:#03101d;background:linear-gradient(90deg,var(--cyan),#d4ffff 46%,var(--pink));box-shadow:0 10px 30px rgba(93,247,255,.14),0 0 24px rgba(255,98,221,.14)}
+.btn.danger{border-color:rgba(255,92,138,.35);color:#ffd3df}
+.btn.tiny{padding:9px 12px;border-radius:13px;font-size:12px}
+.section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 2px 10px}
+.section-title h2{margin:0;font-size:15px;letter-spacing:.16em;text-transform:uppercase;color:#d9defe}
+.section-title small{color:var(--dim);font-weight:800}
+.rooms{display:flex;flex-direction:column;gap:10px}
+.room-card{
+  display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;
+  border:1px solid rgba(135,158,255,.16);background:rgba(8,11,27,.72);border-radius:22px;padding:13px;
+}
+.room-main{min-width:0}
+.room-name{display:flex;align-items:center;gap:8px;font-weight:900;font-size:17px}
+.room-meta{margin-top:5px;color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.badge{font-size:10px;text-transform:uppercase;letter-spacing:.1em;font-weight:900;color:#cfd6ff;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.05);border-radius:999px;padding:5px 8px}
+.badge.live{color:#b8ffd9;border-color:rgba(57,255,157,.25);background:rgba(57,255,157,.08)}
+.empty{border:1px dashed rgba(135,158,255,.18);border-radius:22px;padding:26px 16px;text-align:center;color:var(--muted);background:rgba(6,8,22,.45)}
+.bottom-nav{
+  position:fixed;z-index:25;left:12px;right:12px;bottom:calc(10px + var(--safe-bottom));
+  height:var(--nav-h);display:grid;grid-template-columns:repeat(5,1fr);gap:6px;
+  padding:9px;border:1px solid rgba(135,158,255,.2);border-radius:26px;background:rgba(6,8,22,.86);
+  backdrop-filter:blur(18px);box-shadow:0 -10px 40px rgba(0,0,0,.35), inset 0 1px rgba(255,255,255,.05);
+}
+.nav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;border-radius:20px;background:transparent;color:#aeb6d7;font-size:11px;font-weight:900}
+.nav-item i{font-style:normal;font-size:22px;line-height:1}
+.nav-item.active{color:white;border:1px solid rgba(93,247,255,.28);background:rgba(93,247,255,.08);box-shadow:0 0 24px rgba(93,247,255,.12)}
+.more-pop{
+  position:fixed;right:16px;bottom:calc(var(--nav-h) + 18px + var(--safe-bottom));z-index:30;
+  min-width:190px;border:1px solid var(--line);border-radius:22px;background:rgba(8,10,24,.96);backdrop-filter:blur(16px);
+  padding:8px;box-shadow:0 20px 60px rgba(0,0,0,.4)
+}
+.more-pop .nav-item{height:52px;flex-direction:row;justify-content:flex-start;padding:0 12px;font-size:13px}
+.room-view{
+  position:relative;z-index:1;max-width:760px;margin:0 auto;
+  min-height:calc(100dvh - var(--nav-h) - 26px - var(--safe-bottom));
+  display:flex;flex-direction:column;gap:10px;
+}
+.room-head{
+  border:1px solid var(--line);border-radius:24px;background:rgba(8,11,27,.72);backdrop-filter:blur(14px);
+  padding:11px 12px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;
+}
+.room-title{min-width:0}
+.room-title .top{display:flex;align-items:center;gap:7px;font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:var(--cyan);font-weight:900}
+.room-title h2{margin:3px 0 0;font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.head-actions{display:flex;gap:7px}
+.video-wrap{
+  flex:1;min-height:0;border:1px solid rgba(135,158,255,.15);border-radius:24px;
+  background:rgba(6,8,22,.48);padding:8px;overflow:hidden;
+}
+.video-grid{
+  height:calc(100dvh - var(--nav-h) - 186px - var(--safe-bottom));
+  min-height:420px;max-height:760px;
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(4,minmax(0,1fr));
+  gap:8px;overflow:hidden;
+}
+.tile{
+  position:relative;overflow:hidden;border-radius:18px;background:
+    radial-gradient(circle at 50% 42%, rgba(93,247,255,.09), transparent 28%),
+    rgba(3,6,16,.92);
+  border:1px solid rgba(135,158,255,.14);
+  min-width:0;min-height:0;
+}
+.tile video{width:100%;height:100%;object-fit:cover;display:block;background:#030610}
+.tile.self video{transform:scaleX(-1)}
+.placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:#aeb6d7;font-size:12px;padding:12px}
+.tile-bar{
+  position:absolute;left:7px;right:7px;bottom:7px;height:38px;border-radius:15px;padding:0 7px 0 10px;
+  display:flex;align-items:center;justify-content:space-between;gap:6px;background:rgba(0,0,0,.62);backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,.08)
+}
+.tile-name{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+.tile-icons{display:flex;gap:5px;align-items:center}
+.ico{
+  width:28px;height:28px;border-radius:999px;display:grid;place-items:center;background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.08);font-size:13px;flex:0 0 auto;
+}
+.ico.on{background:rgba(93,247,255,.12);border-color:rgba(93,247,255,.28)}
+.ico.off{opacity:.58}
+.ico.speaking{background:rgba(57,255,157,.18);border-color:rgba(57,255,157,.52);box-shadow:0 0 18px rgba(57,255,157,.45);animation:pulse 1.05s infinite ease-in-out}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+.more-cams{
+  display:none;position:absolute;right:10px;top:10px;border-radius:999px;padding:7px 10px;background:rgba(0,0,0,.58);
+  border:1px solid rgba(255,255,255,.12);font-size:12px;font-weight:900;color:white;backdrop-filter:blur(10px)
+}
+.control-dock{
+  position:fixed;left:12px;right:12px;bottom:calc(var(--nav-h) + 18px + var(--safe-bottom));z-index:22;
+  max-width:740px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);gap:7px;
+  padding:8px;border:1px solid rgba(135,158,255,.18);border-radius:24px;background:rgba(6,8,22,.82);backdrop-filter:blur(18px);
+  box-shadow:0 -12px 34px rgba(0,0,0,.32)
+}
+.ctrl{min-height:54px;border-radius:18px;background:rgba(255,255,255,.055);color:#e8ecff;font-weight:900;font-size:10px;display:flex;flex-direction:column;gap:3px;align-items:center;justify-content:center}
+.ctrl b{font-size:18px;line-height:1}
+.ctrl.on{border:1px solid rgba(57,255,157,.32);background:rgba(57,255,157,.09);box-shadow:0 0 22px rgba(57,255,157,.12)}
+.ctrl.leave{border:1px solid rgba(255,92,138,.28);color:#ffd3df}
+.sheet-backdrop{position:fixed;inset:0;z-index:35;background:rgba(0,0,0,.36);backdrop-filter:blur(3px)}
+.sheet{
+  position:fixed;z-index:36;left:10px;right:10px;bottom:calc(8px + var(--safe-bottom));
+  max-width:740px;margin:0 auto;border:1px solid var(--line);border-radius:28px;background:rgba(7,10,24,.96);
+  padding:14px;box-shadow:0 -20px 70px rgba(0,0,0,.48);max-height:72dvh;display:flex;flex-direction:column
+}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.sheet-head h3{margin:0;font-size:14px;letter-spacing:.16em;text-transform:uppercase}
+.close{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.06);color:white}
+.chat-log{height:330px;overflow:auto;border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:10px;background:rgba(0,0,0,.2);display:flex;flex-direction:column;gap:8px}
+.msg{align-self:flex-start;max-width:86%;padding:9px 10px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.05)}
+.msg.me{align-self:flex-end;background:rgba(93,247,255,.1);border-color:rgba(93,247,255,.14)}
+.msg strong{display:block;font-size:11px;color:var(--cyan);margin-bottom:3px}
+.chat-send{display:grid;grid-template-columns:1fr 92px;gap:8px;margin-top:10px}
+.players-list{display:flex;flex-direction:column;gap:8px;overflow:auto;max-height:55dvh}
+.player-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.04);border-radius:17px;padding:12px}
+.notice{position:fixed;z-index:60;left:18px;right:18px;top:calc(10px + env(safe-area-inset-top));max-width:720px;margin:0 auto;border-radius:18px;padding:12px 14px;background:rgba(8,10,24,.96);border:1px solid rgba(93,247,255,.28);box-shadow:0 12px 40px rgba(0,0,0,.35);font-weight:800}
+@media(max-width:420px){
+  .app{padding-left:8px;padding-right:8px}
+  .hero{padding:15px}
+  .profile-row{grid-template-columns:1fr}
+  .create-row{grid-template-columns:1fr}
+  .video-wrap{padding:6px;border-radius:20px}
+  .video-grid{gap:6px;height:calc(100dvh - var(--nav-h) - 176px - var(--safe-bottom));min-height:390px}
+  .tile{border-radius:15px}
+  .tile-bar{height:34px;left:5px;right:5px;bottom:5px;border-radius:13px}
+  .tile-name{font-size:12px}
+  .ico{width:25px;height:25px;font-size:12px}
+  .bottom-nav{left:8px;right:8px}
+  .control-dock{left:8px;right:8px;gap:5px}
+  .ctrl{min-height:50px;font-size:9px}
+}
+@media(max-height:760px){
+  .video-grid{height:calc(100dvh - var(--nav-h) - 162px - var(--safe-bottom));min-height:340px}
+  .room-head{padding:9px 10px}
+  .control-dock{padding:6px}
+  .ctrl{min-height:48px}
+}
+</style>
+</head>
+<body>
+<div id="notice" class="notice hide"></div>
 
-  const room = rooms.get(key);
-  if (!room) {
-    socket.data.roomKey = null;
-    return;
-  }
+<div class="app">
+  <main id="homeView" class="home-view">
+    <section class="hero">
+      <div class="hero-row">
+        <span class="eyebrow">PRIVATE SOCIAL GAME HUB</span>
+        <span class="powered">powered by ბატონი მაქსი</span>
+      </div>
+      <h1><span class="glitch" data-text="VOID PORTAL">VOID PORTAL</span></h1>
+      <p class="subtitle">აირჩიე სივრცე, ნახე აქტიური ოთახები და შედი ცალკე მაგიდაზე.</p>
+    </section>
 
-  const player = room.players.get(socket.id);
-  const username = player?.username || "Player";
-  const wasHost = room.hostId === socket.id;
+    <section class="stats">
+      <div class="stat"><strong id="activeRooms">0</strong><span>Rooms</span></div>
+      <div class="stat"><strong id="onlinePlayers">0</strong><span>Players</span></div>
+      <div class="stat"><strong id="currentModeShort">Mafia</strong><span>Mode</span></div>
+    </section>
 
-  if (wasHost) {
-    deleteRoom(key, "Host left. Room closed.");
-    return;
-  }
+    <section class="panel">
+      <div class="profile-row">
+        <input id="username" class="input" placeholder="Username" maxlength="24" value="max" />
+        <input id="roomCode" class="input" placeholder="Room code" maxlength="12" />
+      </div>
+      <div class="create-row">
+        <button id="randomCodeBtn" class="btn">Random Code</button>
+        <button id="createBtn" class="btn primary">Create Mafia Room</button>
+      </div>
+      <div class="section-title">
+        <h2 id="roomsTitle">Mafia Rooms</h2>
+        <small id="roomsCount">0 active</small>
+      </div>
+      <div id="roomsList" class="rooms"></div>
+    </section>
+  </main>
 
-  room.players.delete(socket.id);
-  socket.leave(key);
-  socket.data.roomKey = null;
-  socket.data.space = null;
-  socket.data.roomCode = null;
+  <main id="roomView" class="room-view hide">
+    <section class="room-head">
+      <div class="room-title">
+        <div class="top"><span id="roomModeIcon">♛</span><span id="roomMode">Mafia</span><span>•</span><span id="roomPlayersCount">1/8</span></div>
+        <h2 id="roomName">Room #VOID</h2>
+      </div>
+      <div class="head-actions">
+        <button id="startBtn" class="btn tiny primary">Start</button>
+        <button id="topLeaveBtn" class="btn tiny danger">Leave</button>
+      </div>
+    </section>
 
-  socket.to(key).emit("user-left", { id: socket.id, username });
-  io.to(key).emit("players-update", roomSnapshot(room).players);
-  broadcastRoomList();
+    <section class="video-wrap">
+      <div id="moreCams" class="more-cams">+0 more</div>
+      <div id="videoGrid" class="video-grid"></div>
+    </section>
+  </main>
+</div>
+
+<nav class="bottom-nav" id="bottomNav">
+  <button class="nav-item active" data-space="mafia"><i>♛</i><span>Mafia</span></button>
+  <button class="nav-item" data-space="truth"><i>◆</i><span>Truth</span></button>
+  <button class="nav-item" data-space="debate"><i>◇</i><span>Debate</span></button>
+  <button class="nav-item" data-space="lounge"><i>◌</i><span>Lounge</span></button>
+  <button class="nav-item" id="moreBtn"><i>＋</i><span>More</span></button>
+</nav>
+
+<div id="morePop" class="more-pop hide">
+  <button class="nav-item" data-space="confession"><i>✦</i><span>Confession</span></button>
+  <button class="nav-item" data-space="mystery"><i>✧</i><span>Mystery</span></button>
+</div>
+
+<div id="controlDock" class="control-dock hide">
+  <button id="micBtn" class="ctrl"><b>🎙</b><span>Mic</span></button>
+  <button id="camBtn" class="ctrl"><b>▣</b><span>Cam</span></button>
+  <button id="switchBtn" class="ctrl"><b>⇄</b><span>Switch</span></button>
+  <button id="chatBtn" class="ctrl"><b>✉</b><span>Chat</span></button>
+  <button id="playersBtn" class="ctrl"><b>☷</b><span>Players</span></button>
+</div>
+
+<div id="sheetBackdrop" class="sheet-backdrop hide"></div>
+
+<section id="chatSheet" class="sheet hide">
+  <div class="sheet-head"><h3>Chat</h3><button class="close" data-close-sheet>×</button></div>
+  <div id="chatLog" class="chat-log"></div>
+  <div class="chat-send">
+    <input id="chatInput" class="input" placeholder="Message..." maxlength="220" />
+    <button id="sendBtn" class="btn primary">Send</button>
+  </div>
+</section>
+
+<section id="playersSheet" class="sheet hide">
+  <div class="sheet-head"><h3>Players</h3><button class="close" data-close-sheet>×</button></div>
+  <div id="playersList" class="players-list"></div>
+</section>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+
+const spaces = {
+  mafia: { label: "Mafia", icon: "♛", create: "Create Mafia Room" },
+  truth: { label: "Truth or Dare", icon: "◆", create: "Create Truth Room" },
+  debate: { label: "Debate Arena", icon: "◇", create: "Create Debate Room" },
+  lounge: { label: "Void Lounge", icon: "◌", create: "Create Lounge Room" },
+  confession: { label: "Confession", icon: "✦", create: "Create Confession Room" },
+  mystery: { label: "Mystery Room", icon: "✧", create: "Create Mystery Room" }
+};
+
+let selectedSpace = "mafia";
+let allRooms = [];
+let currentRoom = null;
+let selfId = null;
+let localStream = null;
+let audioCtx = null;
+let analyser = null;
+let speakingTimer = null;
+let currentFacingMode = "user";
+let mediaState = { mic:false, cam:false, speaking:false };
+let peers = new Map();
+let remoteStreams = new Map();
+let knownPlayers = new Map();
+
+const $ = (id) => document.getElementById(id);
+
+const els = {
+  homeView: $("homeView"),
+  roomView: $("roomView"),
+  username: $("username"),
+  roomCode: $("roomCode"),
+  createBtn: $("createBtn"),
+  randomCodeBtn: $("randomCodeBtn"),
+  roomsList: $("roomsList"),
+  roomsTitle: $("roomsTitle"),
+  roomsCount: $("roomsCount"),
+  activeRooms: $("activeRooms"),
+  onlinePlayers: $("onlinePlayers"),
+  currentModeShort: $("currentModeShort"),
+  moreBtn: $("moreBtn"),
+  morePop: $("morePop"),
+  notice: $("notice"),
+  roomModeIcon: $("roomModeIcon"),
+  roomMode: $("roomMode"),
+  roomPlayersCount: $("roomPlayersCount"),
+  roomName: $("roomName"),
+  videoGrid: $("videoGrid"),
+  moreCams: $("moreCams"),
+  controlDock: $("controlDock"),
+  micBtn: $("micBtn"),
+  camBtn: $("camBtn"),
+  switchBtn: $("switchBtn"),
+  chatBtn: $("chatBtn"),
+  playersBtn: $("playersBtn"),
+  startBtn: $("startBtn"),
+  topLeaveBtn: $("topLeaveBtn"),
+  chatSheet: $("chatSheet"),
+  playersSheet: $("playersSheet"),
+  sheetBackdrop: $("sheetBackdrop"),
+  chatLog: $("chatLog"),
+  chatInput: $("chatInput"),
+  sendBtn: $("sendBtn"),
+  playersList: $("playersList")
+};
+
+function showNotice(text, ms=2400){
+  els.notice.textContent = text;
+  els.notice.classList.remove("hide");
+  clearTimeout(showNotice.t);
+  showNotice.t = setTimeout(()=>els.notice.classList.add("hide"), ms);
 }
 
+function randomCode(){
+  return String(Math.floor(100000 + Math.random()*900000));
+}
+
+function setSpace(space){
+  selectedSpace = space;
+  document.querySelectorAll(".nav-item").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.space === space);
+  });
+  els.morePop.classList.add("hide");
+  const s = spaces[space];
+  els.currentModeShort.textContent = s.label.split(" ")[0];
+  els.createBtn.textContent = s.create;
+  els.roomsTitle.textContent = s.label + " Rooms";
+  renderRooms();
+}
+
+function getUsername(){
+  return (els.username.value || "Guest").trim().slice(0,24);
+}
+
+function getCode(){
+  let c = (els.roomCode.value || "").trim();
+  if(!c){ c = randomCode(); els.roomCode.value = c; }
+  return c;
+}
+
+function renderRooms(){
+  const filtered = allRooms.filter(r => r.space === selectedSpace);
+  const totalPlayers = allRooms.reduce((n,r)=>n+(r.playerCount||0),0);
+  els.activeRooms.textContent = allRooms.length;
+  els.onlinePlayers.textContent = totalPlayers;
+  els.roomsCount.textContent = filtered.length + " active";
+  els.roomsList.innerHTML = "";
+
+  if(!filtered.length){
+    els.roomsList.innerHTML = '<div class="empty">ამ სივრცეში ჯერ ოთახი არ არის.<br>შექმენი პირველი მაგიდა.</div>';
+    return;
+  }
+
+  filtered.forEach(room => {
+    const div = document.createElement("div");
+    div.className = "room-card";
+    div.innerHTML = \`
+      <div class="room-main">
+        <div class="room-name"><span>\${spaces[room.space]?.icon || "◌"}</span><span>#\${room.code}</span></div>
+        <div class="room-meta">Host: \${room.hostName || "Host"} • \${room.playerCount}/\${room.max} players</div>
+        <div class="badges">
+          <span class="badge live">\${room.status || "Waiting"}</span>
+          <span class="badge">\${room.label}</span>
+        </div>
+      </div>
+      <button class="btn tiny primary">Join</button>
+    \`;
+    div.querySelector("button").onclick = () => {
+      els.roomCode.value = room.code;
+      socket.emit("room:join", { username:getUsername(), space:room.space, code:room.code });
+    };
+    els.roomsList.appendChild(div);
+  });
+}
+
+function goRoom(room){
+  currentRoom = room;
+  knownPlayers = new Map(room.players.map(p => [p.id, p]));
+  els.homeView.classList.add("hide");
+  els.roomView.classList.remove("hide");
+  els.controlDock.classList.remove("hide");
+  els.bottomNav?.classList?.add?.("room-mode");
+  updateRoomUI(room);
+  renderVideos();
+  renderPlayersSheet();
+}
+
+function goHome(){
+  currentRoom = null;
+  selfId = null;
+  stopLocalMedia();
+  closeAllPeers();
+  remoteStreams.clear();
+  knownPlayers.clear();
+  els.roomView.classList.add("hide");
+  els.controlDock.classList.add("hide");
+  els.homeView.classList.remove("hide");
+  closeSheets();
+  renderRooms();
+}
+
+function updateRoomUI(room){
+  currentRoom = room;
+  knownPlayers = new Map(room.players.map(p => [p.id, p]));
+  const s = spaces[room.space] || spaces.mafia;
+  els.roomModeIcon.textContent = s.icon;
+  els.roomMode.textContent = s.label;
+  els.roomName.textContent = "Room #" + room.code;
+  els.roomPlayersCount.textContent = room.playerCount + "/" + room.max;
+  els.startBtn.style.display = room.hostId === selfId ? "" : "none";
+  renderVideos();
+  renderPlayersSheet();
+}
+
+function renderVideos(){
+  if(!currentRoom) return;
+  const players = currentRoom.players || [];
+  const visible = players.slice(0,8);
+  els.videoGrid.innerHTML = "";
+  els.moreCams.style.display = players.length > 8 ? "block" : "none";
+  els.moreCams.textContent = "+" + (players.length - 8) + " more";
+
+  visible.forEach(p => {
+    const tile = document.createElement("div");
+    tile.className = "tile" + (p.id === selfId ? " self" : "");
+    tile.id = "tile-" + p.id;
+
+    const video = document.createElement("video");
+    video.autoplay = true;
+    video.playsInline = true;
+    video.muted = p.id === selfId;
+
+    if(p.id === selfId && localStream) video.srcObject = localStream;
+    if(p.id !== selfId && remoteStreams.has(p.id)) video.srcObject = remoteStreams.get(p.id);
+
+    const placeholder = document.createElement("div");
+    placeholder.className = "placeholder";
+    placeholder.textContent = p.cam ? "Waiting for video" : "Camera off";
+
+    const bar = document.createElement("div");
+    bar.className = "tile-bar";
+    bar.innerHTML = \`
+      <div class="tile-name">\${p.username}\${p.id === selfId ? " (you)" : ""}</div>
+      <div class="tile-icons">
+        <span class="ico \${p.mic ? "on" : "off"} \${p.speaking ? "speaking" : ""}">🎙</span>
+        <span class="ico \${p.cam ? "on" : "off"}">\${p.cam ? "▣" : "×"}</span>
+      </div>
+    \`;
+
+    tile.appendChild(video);
+    tile.appendChild(placeholder);
+    tile.appendChild(bar);
+    els.videoGrid.appendChild(tile);
+  });
+
+  // fill empty slots to keep clean 2x4 grid
+  for(let i=visible.length;i<8;i++){
+    const tile = document.createElement("div");
+    tile.className = "tile empty-tile";
+    tile.innerHTML = '<div class="placeholder">Empty slot</div>';
+    els.videoGrid.appendChild(tile);
+  }
+
+  updateControlButtons();
+}
+
+function renderPlayersSheet(){
+  if(!currentRoom) return;
+  els.playersList.innerHTML = "";
+  currentRoom.players.forEach(p => {
+    const row = document.createElement("div");
+    row.className = "player-row";
+    row.innerHTML = \`
+      <strong>\${p.username}\${p.id === selfId ? " (you)" : ""}</strong>
+      <div class="badges">
+        \${p.isHost ? '<span class="badge">HOST</span>' : ''}
+        <span class="badge">\${p.mic ? "MIC" : "MUTED"}</span>
+        <span class="badge">\${p.cam ? "CAM" : "NO CAM"}</span>
+      </div>
+    \`;
+    els.playersList.appendChild(row);
+  });
+}
+
+function updateControlButtons(){
+  els.micBtn.classList.toggle("on", mediaState.mic);
+  els.camBtn.classList.toggle("on", mediaState.cam);
+  els.micBtn.querySelector("span").textContent = mediaState.mic ? "Mic On" : "Mic Off";
+  els.camBtn.querySelector("span").textContent = mediaState.cam ? "Cam On" : "Cam Off";
+}
+
+async function ensureLocalStream(wantAudio=true,wantVideo=true){
+  if(localStream) return localStream;
+  localStream = await navigator.mediaDevices.getUserMedia({
+    audio: wantAudio,
+    video: wantVideo ? { facingMode: currentFacingMode } : false
+  });
+  attachLocalToPeers();
+  return localStream;
+}
+
+function stopLocalMedia(){
+  if(localStream){
+    localStream.getTracks().forEach(t => t.stop());
+    localStream = null;
+  }
+  if(audioCtx){ audioCtx.close().catch(()=>{}); audioCtx = null; analyser = null; }
+  clearInterval(speakingTimer);
+  mediaState = { mic:false, cam:false, speaking:false };
+  socket.emit("media:state", mediaState);
+}
+
+function attachLocalToPeers(){
+  if(!localStream) return;
+  peers.forEach(pc => {
+    localStream.getTracks().forEach(track => {
+      const exists = pc.getSenders().some(s => s.track && s.track.kind === track.kind);
+      if(!exists) pc.addTrack(track, localStream);
+    });
+  });
+}
+
+async function setMic(on){
+  try{
+    if(on && !localStream) await ensureLocalStream(true, mediaState.cam);
+    if(localStream){
+      localStream.getAudioTracks().forEach(t => t.enabled = on);
+    }
+    mediaState.mic = on;
+    if(on) startSpeakingDetection(); else { mediaState.speaking = false; clearInterval(speakingTimer); }
+    socket.emit("media:state", mediaState);
+    renderVideos();
+  }catch(e){ showNotice("Mic permission needed."); }
+}
+
+async function setCam(on){
+  try{
+    if(on && !localStream) await ensureLocalStream(mediaState.mic, true);
+    if(localStream){
+      localStream.getVideoTracks().forEach(t => t.enabled = on);
+    }
+    mediaState.cam = on;
+    socket.emit("media:state", mediaState);
+    renderVideos();
+    await renegotiateAll();
+  }catch(e){ showNotice("Camera permission needed."); }
+}
+
+function startSpeakingDetection(){
+  if(!localStream) return;
+  const audioTrack = localStream.getAudioTracks()[0];
+  if(!audioTrack) return;
+
+  try{
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtx.createMediaStreamSource(new MediaStream([audioTrack]));
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+    const data = new Uint8Array(analyser.frequencyBinCount);
+
+    clearInterval(speakingTimer);
+    speakingTimer = setInterval(() => {
+      if(!analyser || !mediaState.mic) return;
+      analyser.getByteFrequencyData(data);
+      const avg = data.reduce((a,b)=>a+b,0) / data.length;
+      const speaking = avg > 18;
+      if(speaking !== mediaState.speaking){
+        mediaState.speaking = speaking;
+        socket.emit("media:state", mediaState);
+      }
+    }, 220);
+  }catch(e){}
+}
+
+async function switchCamera(){
+  if(!localStream || !mediaState.cam){
+    showNotice("Turn camera on first.");
+    return;
+  }
+  currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
+  const oldVideo = localStream.getVideoTracks()[0];
+  if(oldVideo) oldVideo.stop();
+
+  try{
+    const newStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode: currentFacingMode }, audio:false });
+    const newTrack = newStream.getVideoTracks()[0];
+    localStream.getVideoTracks().forEach(t => localStream.removeTrack(t));
+    localStream.addTrack(newTrack);
+
+    for(const pc of peers.values()){
+      const sender = pc.getSenders().find(s => s.track && s.track.kind === "video");
+      if(sender) await sender.replaceTrack(newTrack);
+    }
+    renderVideos();
+  }catch(e){
+    showNotice("Camera switch failed.");
+  }
+}
+
+function createPeer(peerId, initiator){
+  if(peers.has(peerId)) return peers.get(peerId);
+
+  const pc = new RTCPeerConnection({
+    iceServers: [{ urls:"stun:stun.l.google.com:19302" }]
+  });
+
+  peers.set(peerId, pc);
+
+  pc.onicecandidate = (e) => {
+    if(e.candidate) socket.emit("webrtc:ice", { to:peerId, candidate:e.candidate });
+  };
+
+  pc.ontrack = (e) => {
+    const stream = e.streams[0];
+    remoteStreams.set(peerId, stream);
+    renderVideos();
+  };
+
+  pc.onconnectionstatechange = () => {
+    if(["failed","closed","disconnected"].includes(pc.connectionState)){
+      // keep tile; it may reconnect after renegotiation
+    }
+  };
+
+  if(localStream){
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+  }
+
+  if(initiator){
+    pc.onnegotiationneeded = async () => {
+      try{
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        socket.emit("webrtc:offer", { to:peerId, offer });
+      }catch(e){}
+    };
+  }
+
+  return pc;
+}
+
+async function renegotiateAll(){
+  for(const [peerId, pc] of peers.entries()){
+    try{
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      socket.emit("webrtc:offer", { to:peerId, offer });
+    }catch(e){}
+  }
+}
+
+function closeAllPeers(){
+  peers.forEach(pc => pc.close());
+  peers.clear();
+}
+
+function openSheet(type){
+  els.sheetBackdrop.classList.remove("hide");
+  if(type === "chat") els.chatSheet.classList.remove("hide");
+  if(type === "players") els.playersSheet.classList.remove("hide");
+}
+function closeSheets(){
+  els.sheetBackdrop.classList.add("hide");
+  els.chatSheet.classList.add("hide");
+  els.playersSheet.classList.add("hide");
+}
+
+document.querySelectorAll("[data-space]").forEach(btn => {
+  btn.addEventListener("click", () => setSpace(btn.dataset.space));
+});
+els.moreBtn.onclick = () => els.morePop.classList.toggle("hide");
+els.randomCodeBtn.onclick = () => { els.roomCode.value = randomCode(); };
+els.createBtn.onclick = () => {
+  const code = getCode();
+  socket.emit("room:create", { username:getUsername(), space:selectedSpace, code });
+};
+els.startBtn.onclick = () => socket.emit("room:start");
+els.topLeaveBtn.onclick = () => socket.emit("room:leave");
+els.micBtn.onclick = () => setMic(!mediaState.mic);
+els.camBtn.onclick = () => setCam(!mediaState.cam);
+els.switchBtn.onclick = switchCamera;
+els.chatBtn.onclick = () => openSheet("chat");
+els.playersBtn.onclick = () => openSheet("players");
+els.sheetBackdrop.onclick = closeSheets;
+document.querySelectorAll("[data-close-sheet]").forEach(b=>b.onclick=closeSheets);
+
+function sendMessage(){
+  const text = els.chatInput.value.trim();
+  if(!text) return;
+  socket.emit("chat:message", text);
+  els.chatInput.value = "";
+}
+els.sendBtn.onclick = sendMessage;
+els.chatInput.addEventListener("keydown", e => {
+  if(e.key === "Enter") sendMessage();
+});
+
+socket.on("rooms:update", rooms => {
+  allRooms = rooms || [];
+  renderRooms();
+});
+
+socket.on("notice", n => showNotice(n.text || "Notice"));
+
+socket.on("room:joined", async ({ room, selfId: id, existingPeers }) => {
+  selfId = id;
+  goRoom(room);
+  showNotice("Joined room #" + room.code);
+
+  // Create peer connections to existing users. Offer will be sent if tracks are added later too.
+  (existingPeers || []).forEach(p => createPeer(p.id, true));
+});
+
+socket.on("room:update", room => {
+  if(currentRoom && room.id === currentRoom.id) updateRoomUI(room);
+  allRooms = allRooms.map(r => r.id === room.id ? room : r);
+  renderRooms();
+});
+
+socket.on("room:closed", ({ reason }) => {
+  showNotice(reason || "Room closed.");
+  goHome();
+});
+
+socket.on("peer:joined", ({ id, username }) => {
+  if(!currentRoom) return;
+  knownPlayers.set(id, { id, username, mic:false, cam:false });
+  createPeer(id, false);
+  renderVideos();
+});
+
+socket.on("peer:left", ({ id }) => {
+  if(peers.has(id)){ peers.get(id).close(); peers.delete(id); }
+  remoteStreams.delete(id);
+  renderVideos();
+});
+
+socket.on("media:state", ({ id, mic, cam, speaking }) => {
+  if(!currentRoom) return;
+  currentRoom.players = currentRoom.players.map(p => p.id === id ? { ...p, mic, cam, speaking } : p);
+  renderVideos();
+  renderPlayersSheet();
+});
+
+socket.on("chat:message", msg => {
+  const div = document.createElement("div");
+  div.className = "msg" + (msg.userId === selfId ? " me" : "");
+  div.innerHTML = \`<strong>\${msg.username}</strong><span>\${msg.text}</span>\`;
+  els.chatLog.appendChild(div);
+  els.chatLog.scrollTop = els.chatLog.scrollHeight;
+});
+
+socket.on("webrtc:offer", async ({ from, offer }) => {
+  const pc = createPeer(from, false);
+  try{
+    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+    if(localStream) attachLocalToPeers();
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    socket.emit("webrtc:answer", { to:from, answer });
+  }catch(e){}
+});
+
+socket.on("webrtc:answer", async ({ from, answer }) => {
+  const pc = peers.get(from);
+  if(!pc) return;
+  try{ await pc.setRemoteDescription(new RTCSessionDescription(answer)); }catch(e){}
+});
+
+socket.on("webrtc:ice", async ({ from, candidate }) => {
+  const pc = peers.get(from);
+  if(!pc || !candidate) return;
+  try{ await pc.addIceCandidate(new RTCIceCandidate(candidate)); }catch(e){}
+});
+
+window.addEventListener("beforeunload", () => {
+  try{ socket.emit("room:leave"); }catch(e){}
+});
+
+els.roomCode.value = randomCode();
+setSpace("mafia");
+renderRooms();
+</script>
+</body>
+</html>`;
+
+app.get("*", (req, res) => res.send(html));
+
 server.listen(PORT, () => {
-  console.log("VOID PORTAL running on port " + PORT);
+  console.log(`VOID PORTAL v0.6 running on port ${PORT}`);
 });
