@@ -324,7 +324,14 @@ const ROLES = [
   { key: "fortune_teller", label: "Fortune Teller", team: "city", desc: "Reveals hidden truth from fallen players.", basic: false },
   { key: "lady", label: "Lady", team: "city", desc: "Can silence one player.", basic: false },
   { key: "spy", label: "Spy", team: "mafia", desc: "Helps Mafia deceive the city.", basic: false },
-  { key: "bulletproof", label: "Bulletproof", team: "city", desc: "Citizen with one night protection.", basic: false }
+  { key: "bulletproof", label: "Bulletproof", team: "city", desc: "Citizen with one night protection.", basic: false },
+  { key: "lawyer", label: "Lawyer", team: "mafia", desc: "Protects one Mafia-side player from Sheriff check.", basic: false },
+  { key: "priest", label: "Priest", team: "city", desc: "Can bless one player and block one night kill.", basic: false },
+  { key: "witch", label: "Witch", team: "solo", desc: "Confuses one player at night and redirects their action.", basic: false },
+  { key: "judge", label: "Judge", team: "city", desc: "Has stronger vote weight during the vote phase.", basic: false },
+  { key: "jester", label: "Jester", team: "solo", desc: "Wins if the city votes them out.", basic: false },
+  { key: "tracker", label: "Tracker", team: "city", desc: "Learns who a target visited at night.", basic: false },
+  { key: "godfather", label: "Godfather", team: "mafia", desc: "Mafia boss who appears innocent to checks.", basic: false }
 ];
 
 const ROLE_MAP = Object.fromEntries(ROLES.map(r => [r.key, r]));
@@ -399,6 +406,13 @@ function normalizeSettings(input = {}) {
   roles.lady = clamp(Number(roles.lady || 0), 0, 1);
   roles.spy = clamp(Number(roles.spy || 0), 0, 1);
   roles.bulletproof = clamp(Number(roles.bulletproof || 0), 0, 1);
+  roles.lawyer = clamp(Number(roles.lawyer || 0), 0, 1);
+  roles.priest = clamp(Number(roles.priest || 0), 0, 1);
+  roles.witch = clamp(Number(roles.witch || 0), 0, 1);
+  roles.judge = clamp(Number(roles.judge || 0), 0, 1);
+  roles.jester = clamp(Number(roles.jester || 0), 0, 1);
+  roles.tracker = clamp(Number(roles.tracker || 0), 0, 1);
+  roles.godfather = clamp(Number(roles.godfather || 0), 0, 1);
 
   const specialCount = Object.entries(roles)
     .filter(([k]) => k !== "citizen")
@@ -728,12 +742,12 @@ function resolveNight(room) {
     const target = room.players.find(p => p.id === action.targetId);
     if (!actor || !target || !actor.alive || !target.alive) continue;
 
-    if (actor.role === "doctor" || actor.role === "bodyguard") {
+    if (actor.role === "doctor" || actor.role === "bodyguard" || actor.role === "priest") {
       protectedIds.add(target.id);
       continue;
     }
 
-    if (actor.team === "mafia" || actor.role === "serial_killer") {
+    if (actor.team === "mafia" || actor.role === "serial_killer" || actor.role === "godfather") {
       killed.add(target.id);
     }
   }
@@ -779,6 +793,13 @@ function resolveVote(room) {
   if (target && target.alive) {
     target.alive = false;
     room.lastKilled = [{ userId: target.userId, seat: target.seat, nickname: target.nickname, role: target.role, voted: true }];
+    if (target.role === "jester") {
+      room.phase = "ended";
+      room.phaseLabel = "Ended";
+      room.timer = 0;
+      logEvent(room, `${target.nickname} was voted out as Jester and stole the victory.`);
+      return;
+    }
     logEvent(room, `${target.nickname} was jailed by vote.`);
   }
 }
@@ -794,11 +815,22 @@ function playerAction(room, actor, targetId) {
   actor.lastAction = targetId;
 
   if (actor.role === "sheriff") {
-    return { ok: true, privateResult: `${target.nickname}: ${target.team === "mafia" ? "Mafia side" : "Not Mafia"}` };
+    const protectedByLawyer = Object.entries(room.nightActions || {}).some(([actorId, a]) => {
+      const x = room.players.find(p => p.id === actorId);
+      return x?.role === "lawyer" && a.targetId === target.id;
+    });
+    const appearsClean = target.role === "godfather" || protectedByLawyer;
+    return { ok: true, privateResult: `${target.nickname}: ${target.team === "mafia" && !appearsClean ? "Mafia side" : "Not Mafia"}` };
   }
 
-  if (actor.role === "don") {
+  if (actor.role === "don" || actor.role === "godfather") {
     return { ok: true, privateResult: `${target.nickname}: ${target.role === "sheriff" ? "Sheriff" : "Not Sheriff"}` };
+  }
+
+  if (actor.role === "tracker") {
+    const visited = Object.entries(room.nightActions || {}).find(([_, a]) => a.targetId === target.id);
+    const visitor = visited ? room.players.find(p => p.id === visited[0]) : null;
+    return { ok: true, privateResult: visitor ? `${target.nickname} was visited by ${visitor.nickname}` : `${target.nickname} was not visited yet` };
   }
 
   return { ok: true };
