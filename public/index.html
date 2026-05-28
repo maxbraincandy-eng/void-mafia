@@ -147,6 +147,129 @@
       .tile .label{font-size:12px;padding:6px 7px}
     }
 
+
+    /* VOID v19.93: compact active-game grid, 2 columns, 8 players visible on phone */
+    .gameActive .wrap{
+      padding:10px 12px 160px;
+    }
+    .gameActive .gameTop{
+      position:sticky;
+      top:0;
+      z-index:80;
+      backdrop-filter:blur(14px);
+      background:rgba(3,2,12,.84);
+    }
+    .gameActive .brand{
+      opacity:.55;
+      height:28px;
+      padding:4px 10px;
+      font-size:13px;
+    }
+    .gameActive .gameHud{
+      padding:8px 12px;
+      grid-template-columns:auto 1fr auto auto;
+      gap:8px;
+    }
+    .gameActive .gameHud h2{
+      font-size:24px;
+      line-height:1.05;
+    }
+    .gameActive .gameHud p{
+      font-size:14px;
+      margin-top:2px;
+    }
+    .gameActive .gameHud button{
+      padding:10px 12px;
+      min-height:46px;
+      border-radius:16px;
+      font-size:15px;
+    }
+    .gameActive .gameTop .row{
+      margin-top:0!important;
+      padding-bottom:8px;
+    }
+    .gameActive #gameInfoCard{
+      display:none;
+    }
+    .videoGrid{
+      display:grid!important;
+      grid-template-columns:repeat(2,minmax(0,1fr))!important;
+      gap:9px!important;
+      padding:0!important;
+      margin-top:10px;
+    }
+    .tile{
+      position:relative!important;
+      height:128px!important;
+      min-height:128px!important;
+      aspect-ratio:auto!important;
+      border:1px solid var(--cyan)!important;
+      border-radius:18px!important;
+      overflow:hidden!important;
+      background:radial-gradient(circle at 50% 30%,rgba(53,238,255,.08),rgba(0,0,0,.96) 55%), #000!important;
+      box-shadow:0 0 15px rgba(53,238,255,.20), inset 0 0 16px rgba(255,24,210,.07)!important;
+    }
+    .tile video{
+      width:100%!important;
+      height:100%!important;
+      object-fit:cover!important;
+      display:block!important;
+      background:#000!important;
+    }
+    .tile.empty video,
+    .tile.camOff video{
+      display:none!important;
+    }
+    .tile .label{
+      position:absolute!important;
+      left:7px!important;
+      bottom:7px!important;
+      right:7px!important;
+      max-width:none!important;
+      padding:5px 7px!important;
+      border-radius:10px!important;
+      background:rgba(0,0,0,.62)!important;
+      font-size:12px!important;
+      font-weight:900!important;
+      white-space:nowrap!important;
+      overflow:hidden!important;
+      text-overflow:ellipsis!important;
+    }
+    .tile .mediaState{
+      position:absolute!important;
+      top:7px!important;
+      right:7px!important;
+      display:flex!important;
+      gap:4px!important;
+      font-size:11px!important;
+    }
+    .tile.speaking{
+      border-color:#39ff79!important;
+      box-shadow:0 0 22px rgba(57,255,121,.42), inset 0 0 18px rgba(57,255,121,.16)!important;
+    }
+    .noAction{
+      padding:16px;
+      border:1px dashed rgba(53,238,255,.35);
+      border-radius:18px;
+      color:var(--muted);
+      font-size:15px;
+    }
+    @media(max-height:780px){
+      .tile{height:112px!important;min-height:112px!important;border-radius:15px!important}
+      .gameActive .wrap{padding-top:8px}
+      .gameActive .gameHud h2{font-size:22px}
+    }
+    @media(max-height:700px){
+      .tile{height:98px!important;min-height:98px!important}
+      .tile .label{font-size:11px!important}
+    }
+    .chatMessages{
+      max-height:42vh!important;
+      min-height:220px;
+      overflow:auto;
+      scroll-behavior:smooth;
+    }
+
   </style>
 </head>
 <body>
@@ -200,11 +323,7 @@
 
     <main class="wrap">
       <section id="pageRooms" class="page active">
-        <div class="card">
-          <h2>VOID Season</h2>
-          <div class="sub">Find a table, create a lobby, start the hunt.</div>
-          <div style="height:16px;border-radius:999px;background:#3a4852;margin-top:24px;overflow:hidden"><div style="width:52%;height:100%;background:linear-gradient(90deg,var(--cyan),var(--pink))"></div></div>
-        </div>
+</div>
 
         <div class="grid2">
           <button id="joinByCodeBtn">JOIN BY NUMBER</button>
@@ -291,7 +410,7 @@
     </div>
 
     <main class="wrap">
-      <div class="card">
+      <div id="gameInfoCard" class="card gameInfoCard">
         <h2 id="gameRoomName">VOID TABLE</h2>
         <p class="sub" id="gameRoomInfo">waiting</p>
         <div class="row">
@@ -397,7 +516,8 @@
       box._t=setTimeout(()=>box.classList.remove("show"),2600);
     }
 
-    let audioCtx=null, musicOsc=null, musicGain=null;
+    
+    let audioCtx=null, musicNodes=null;
     function audio(){
       if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
       if(audioCtx.state==="suspended") audioCtx.resume().catch(()=>{});
@@ -407,38 +527,72 @@
       if(!App.sfxOn) return;
       try{
         const ctx=audio(), o=ctx.createOscillator(), g=ctx.createGain();
-        const freq=type==="msg"?780:type==="error"?180:type==="start"?520:340;
+        const freq=type==="msg"?720:type==="error"?150:type==="start"?440:300;
         o.type=type==="msg"?"triangle":"sine";
         o.frequency.setValueAtTime(freq,ctx.currentTime);
-        o.frequency.exponentialRampToValueAtTime(freq*1.45,ctx.currentTime+.08);
+        o.frequency.exponentialRampToValueAtTime(freq*1.22,ctx.currentTime+.07);
         g.gain.setValueAtTime(.0001,ctx.currentTime);
-        g.gain.exponentialRampToValueAtTime(.12,ctx.currentTime+.015);
-        g.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.18);
-        o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime+.2);
+        g.gain.exponentialRampToValueAtTime(type==="msg"?.09:.07,ctx.currentTime+.012);
+        g.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.16);
+        o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime+.18);
+      }catch(e){}
+    }
+    function stopMusic(){
+      try{
+        const ctx=audioCtx;
+        if(musicNodes){
+          musicNodes.gain.gain.setTargetAtTime(0,ctx.currentTime,.08);
+          setTimeout(()=>{
+            try{musicNodes.osc1.stop()}catch(e){}
+            try{musicNodes.osc2.stop()}catch(e){}
+            try{musicNodes.lfo.stop()}catch(e){}
+            musicNodes=null;
+          },220);
+        }
+      }catch(e){}
+    }
+    function startSynthwaveMusic(){
+      if(!App.musicOn || musicNodes) return;
+      try{
+        const ctx=audio();
+        const gain=ctx.createGain();
+        const filter=ctx.createBiquadFilter();
+        const osc1=ctx.createOscillator();
+        const osc2=ctx.createOscillator();
+        const lfo=ctx.createOscillator();
+        const lfoGain=ctx.createGain();
+
+        // Original slow neon synthwave pad; inspired by night-driving mood, not a copied song.
+        osc1.type="triangle";
+        osc2.type="sine";
+        osc1.frequency.setValueAtTime(55,ctx.currentTime);
+        osc2.frequency.setValueAtTime(110,ctx.currentTime);
+        filter.type="lowpass";
+        filter.frequency.value=620;
+        filter.Q.value=.7;
+        lfo.frequency.value=.055;
+        lfoGain.gain.value=18;
+        lfo.connect(lfoGain);
+        lfoGain.connect(filter.frequency);
+        gain.gain.value=0;
+        osc1.connect(filter);
+        osc2.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+        osc1.start();
+        osc2.start();
+        lfo.start();
+        gain.gain.setTargetAtTime(.022,ctx.currentTime,.6);
+        musicNodes={osc1,osc2,lfo,gain,filter};
       }catch(e){}
     }
     function toggleMusic(force){
       App.musicOn = typeof force==="boolean" ? force : !App.musicOn;
-      $("musicBtn").textContent="Music: "+(App.musicOn?"ON":"OFF");
-      try{
-        const ctx=audio();
-        if(App.musicOn && !musicOsc){
-          musicOsc=ctx.createOscillator();
-          musicGain=ctx.createGain();
-          const lfo=ctx.createOscillator(), lfoGain=ctx.createGain();
-          musicOsc.type="sawtooth";
-          musicOsc.frequency.value=110;
-          lfo.frequency.value=.08; lfoGain.gain.value=35;
-          lfo.connect(lfoGain); lfoGain.connect(musicOsc.frequency);
-          musicGain.gain.value=.018;
-          musicOsc.connect(musicGain); musicGain.connect(ctx.destination);
-          lfo.start(); musicOsc.start();
-          musicOsc._lfo=lfo;
-        }
-        if(musicGain) musicGain.gain.setTargetAtTime(App.musicOn?.018:0,ctx.currentTime,.2);
-      }catch(e){}
+      if($("musicBtn")) $("musicBtn").textContent="Music: "+(App.musicOn?"ON":"OFF");
+      if(!App.musicOn || App.room) stopMusic();
+      else startSynthwaveMusic();
     }
-    function fmt(s){s=Number(s||0);return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")}
+function fmt(s){s=Number(s||0);return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")}
     function level(u){return Math.max(1,Math.floor(Number(u?.stats?.xp||0)/100)+1)}
     async function api(url,opt={}) {
       const r = await fetch(url,{headers:{"Content-Type":"application/json"},credentials:"include",...opt,body:opt.body?JSON.stringify(opt.body):undefined});
@@ -453,7 +607,7 @@
     }
 
     document.addEventListener("DOMContentLoaded", init);
-    window.addEventListener("pointerdown",()=>{ if(App.musicOn) toggleMusic(true); },{once:true});
+    window.addEventListener("pointerdown",()=>{ if(App.musicOn && !App.room) startSynthwaveMusic(); },{once:true});
 
     async function init(){
       bindUi();
@@ -624,6 +778,8 @@
 
     function enterRoom(room){
       App.room=room;
+      stopMusic();
+      document.body.classList.add("gameActive");
       hide("app");show("game");
       renderRoom();
       ensureMedia().then(connectToPeers);
@@ -638,8 +794,10 @@
         App.localStream=null;
       }
       App.room=null;
+      document.body.classList.remove("gameActive");
       hide("game");
       show("app");
+      if(App.musicOn) startSynthwaveMusic();
       loadAll();
     }
 
@@ -647,7 +805,9 @@
       Object.values(App.peers).forEach(pc=>pc.close());
       App.peers={};
       App.room=null;
+      document.body.classList.remove("gameActive");
       hide("game");show("app");
+      if(App.musicOn) startSynthwaveMusic();
       loadRooms();
     }
 
@@ -664,6 +824,7 @@
       ["settingsBtn","settingsTopBtn","startBtn","nextPhaseBtn"].forEach(id=>$(id).style.display=r.viewer?.isHost?"inline-flex":"none");
       $("lobbyView").classList.toggle("hidden",!waiting);
       $("videoGrid").classList.toggle("hidden",waiting);
+      document.body.classList.toggle("gameActive",!waiting && !$("game").classList.contains("hidden"));
 
       $("playersList").innerHTML=r.players.map(playerRow).join("");
       renderChat();
@@ -699,7 +860,7 @@
         const sid=p.socketId || p.id || p.userId;
         const mic=p.micOn===false?"🔇":"🎙";
         const cam=p.cameraOn===false?"📷×":"📷";
-        return `<div class="tile ${p.speaking?'speaking':''} ${p.cameraOn===false?'empty':''}" data-socket-id="${sid}">
+        return `<div class="tile ${p.speaking?'speaking':''} ${p.cameraOn===false?'camOff':''}" data-socket-id="${sid}">
           <video id="vid_${sid}" autoplay playsinline ${isMe?'muted':''}></video>
           <div class="mediaState"><span>${mic}</span><span>${cam}</span></div>
           <div class="label">#${p.seat} · ${esc(p.nickname||"Player")}</div>
@@ -734,13 +895,16 @@
     function renderActionBox(){
       const r=App.room, me=r.players.find(p=>p.userId===App.user.userId);
       if(!me||!me.alive){hide("actionBox");return}
-      const needAction=["night","vote"].includes(r.phase);
-      if(!needAction){hide("actionBox");return}
+      const nightRoles=["mafia","don","godfather","doctor","sheriff","detective","bodyguard","serial_killer","fortune_teller","lady","spy","bulletproof","lawyer","priest","witch","tracker"];
+      const canNight = r.phase==="night" && nightRoles.includes(me.role);
+      const canVote = r.phase==="vote";
+      if(!canNight && !canVote){hide("actionBox");return}
       show("actionBox");
-      $("actionTitle").textContent=r.phase==="night"?"Night action":"Vote";
-      $("actionText").textContent=r.phase==="night"?`Your role: ${roleLabel(me.role)}`:"Choose a player or abstain.";
-      const targets=r.players.filter(p=>p.alive&&(r.phase==="vote"||p.id!==me.id));
-      $("targets").innerHTML=targets.map(t=>`<button onclick="${r.phase==="night"?"sendAction":"sendVote"}('${t.id}')">#${t.seat} · ${esc(t.nickname)}</button>`).join("")+(r.phase==="vote"?`<button onclick="sendVote('abstain')">Abstain</button>`:"");
+      $("actionTitle").textContent=canNight?"Night action":"Vote";
+      $("actionText").textContent=canNight?`Your role: ${roleLabel(me.role)}`:"Choose a player or abstain.";
+      const canSelf=["doctor","bodyguard","priest","bulletproof"].includes(me.role);
+      const targets=r.players.filter(p=>p.alive&&(canVote||canSelf||p.id!==me.id));
+      $("targets").innerHTML=targets.map(t=>`<button onclick="${canNight?"sendAction":"sendVote"}('${t.id}')">#${t.seat} · ${esc(t.nickname)}</button>`).join("")+(canVote?`<button onclick="sendVote('abstain')">Abstain</button>`:"");
     }
 
     async function sendAction(targetId){
@@ -811,14 +975,13 @@
     }
     function msgHtml(m){return `<div class="msg"><b>${m.seat?"#"+m.seat+" · ":""}${esc(m.nickname)}</b><br>${esc(m.message)}</div>`}
     function addMsg(id,m){
-      const el=$(id);
-      if(!el) return;
-      el.insertAdjacentHTML("beforeend",msgHtml(m));
-      el.scrollTop=el.scrollHeight;
-      if(id==="chatMessages") {
-        $("chatTopBtn")?.classList.add("notifyHot");
-        beep("msg");
-      }
+      const box=$(id);
+      if(!box) return;
+      box.insertAdjacentHTML("beforeend",msgHtml(m));
+      requestAnimationFrame(()=>{box.scrollTop=box.scrollHeight;});
+      if(id==="chatMessages" && !$("chatModal").classList.contains("hidden")) return;
+      if(id==="chatMessages") $("chatTopBtn")?.classList.add("notifyHot");
+      beep("msg");
     }
     async function sendChat(channel){
       const input=channel==="mafia"?$("mafiaInput"):$("chatInput");
