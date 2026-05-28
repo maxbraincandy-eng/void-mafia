@@ -92,6 +92,61 @@
     .miniToast{position:fixed;left:18px;right:18px;bottom:calc(var(--bottom) + 14px);z-index:200;background:rgba(8,6,20,.96);border:1px solid var(--cyan);border-radius:18px;padding:14px 16px;box-shadow:var(--shadow);transform:translateY(140%);transition:.25s}
     .miniToast.show{transform:translateY(0)}
 
+
+    .videoGrid{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:14px;
+      padding:18px;
+    }
+    .tile{
+      position:relative;
+      aspect-ratio:1/1.08;
+      min-height:0;
+      border:1px solid var(--cyan);
+      border-radius:22px;
+      overflow:hidden;
+      background:linear-gradient(145deg,rgba(10,12,28,.92),rgba(2,0,10,.96));
+      box-shadow:0 0 18px rgba(53,238,255,.16), inset 0 0 18px rgba(255,24,210,.06);
+    }
+    .tile video{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+      background:#000;
+    }
+    .tile.empty video{display:none}
+    .tile .label{
+      position:absolute;
+      left:10px;
+      bottom:10px;
+      max-width:calc(100% - 20px);
+      padding:7px 9px;
+      border-radius:12px;
+      background:rgba(0,0,0,.62);
+      font-size:14px;
+      font-weight:900;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .tile .mediaState{
+      position:absolute;
+      right:8px;
+      top:8px;
+      display:flex;
+      gap:5px;
+      font-size:12px;
+    }
+    .tile.speaking{box-shadow:0 0 28px rgba(57,255,121,.42), inset 0 0 22px rgba(57,255,121,.12);border-color:#39ff79}
+    .noAction{padding:18px;border:1px dashed rgba(53,238,255,.35);border-radius:18px;color:var(--muted);font-size:17px}
+    @media(max-width:520px){
+      .videoGrid{gap:10px;padding:12px}
+      .tile{border-radius:18px}
+      .tile .label{font-size:12px;padding:6px 7px}
+    }
+
   </style>
 </head>
 <body>
@@ -490,6 +545,7 @@
       });
       App.socket.on("room:terminated",()=>{toast("Room terminated by host"); exitGameView()});
       App.socket.on("chat:message",m=>addMsg(m.channel==="mafia"?"mafiaMessages":"chatMessages",m));
+      App.socket.on("room:closed",()=>{toast("Room closed"); leaveRoom(true);});
       App.socket.on("signal:offer",onOffer);
       App.socket.on("signal:answer",onAnswer);
       App.socket.on("signal:ice",onIce);
@@ -573,11 +629,18 @@
       ensureMedia().then(connectToPeers);
     }
 
-    async function leaveRoom(){
-      if(App.room){
-        await emit("room:leave",{roomId:App.room.id},3000);
+    async function leaveRoom(skipEmit=false){
+      if(!skipEmit && App.socket && App.room) App.socket.emit("room:leave",{roomId:App.room.id},()=>{});
+      Object.values(App.peers).forEach(pc=>{try{pc.close()}catch(e){}});
+      App.peers={};
+      if(App.localStream){
+        App.localStream.getTracks().forEach(t=>t.stop());
+        App.localStream=null;
       }
-      exitGameView();
+      App.room=null;
+      hide("game");
+      show("app");
+      loadAll();
     }
 
     function exitGameView(){
@@ -628,17 +691,43 @@
     function roleLabel(key){return (App.roles.find(r=>r.key===key)||{}).label||key}
 
     function renderVideos(){
-      const r=App.room;
-      $("videoGrid").innerHTML=r.players.map(p=>`
-        <div class="tile">
-          <video id="vid_${p.socketId||p.id}" autoplay playsinline ${p.userId===App.user.userId?"muted":""}></video>
-          <div class="label">#${p.seat} · ${esc(p.nickname)}</div>
-        </div>
-      `).join("");
-      const me=r.players.find(p=>p.userId===App.user.userId);
-      if(me&&App.localStream){
-        const v=$("vid_"+(me.socketId||me.id));
-        if(v){v.srcObject=App.localStream;v.muted=true;v.play?.().catch(()=>{})}
+      const grid=$("videoGrid");
+      if(!grid||!App.room) return;
+      const players=App.room.players||[];
+      grid.innerHTML=players.map(p=>{
+        const isMe=Number(p.userId)===Number(App.user.userId);
+        const sid=p.socketId || p.id || p.userId;
+        const mic=p.micOn===false?"🔇":"🎙";
+        const cam=p.cameraOn===false?"📷×":"📷";
+        return `<div class="tile ${p.speaking?'speaking':''} ${p.cameraOn===false?'empty':''}" data-socket-id="${sid}">
+          <video id="vid_${sid}" autoplay playsinline ${isMe?'muted':''}></video>
+          <div class="mediaState"><span>${mic}</span><span>${cam}</span></div>
+          <div class="label">#${p.seat} · ${esc(p.nickname||"Player")}</div>
+        </div>`;
+      }).join("");
+
+      const me=players.find(p=>Number(p.userId)===Number(App.user.userId));
+      const mySid=me?.socketId || me?.id || me?.userId;
+      if(App.localStream && mySid){
+        const v=$("vid_"+mySid);
+        if(v){
+          v.srcObject=App.localStream;
+          v.muted=true;
+          v.play?.().catch(()=>{});
+        }
+      }
+
+      for(const p of players){
+        const sid=p.socketId;
+        if(!sid || sid===me?.socketId) continue;
+        const pc=App.peers[sid];
+        if(pc && pc._remoteStream){
+          const v=$("vid_"+sid);
+          if(v && v.srcObject!==pc._remoteStream){
+            v.srcObject=pc._remoteStream;
+            v.play?.().catch(()=>{});
+          }
+        }
       }
     }
 
@@ -792,11 +881,22 @@
     }
 
     async function ensureMedia(){
-      if(App.localStream)return App.localStream;
+      if(App.localStream) return App.localStream;
       try{
-        App.localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+        App.localStream=await navigator.mediaDevices.getUserMedia({
+          video:{width:{ideal:640},height:{ideal:480},facingMode:"user"},
+          audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}
+        });
         setupVoiceActivity();
-      }catch(e){console.error(e);toast("კამერა/მიკროფონი ვერ ჩაირთო")}
+        App.socket?.emit("media:state",{
+          roomId:App.room?.id,
+          micOn:App.localStream.getAudioTracks()[0]?.enabled!==false,
+          cameraOn:App.localStream.getVideoTracks()[0]?.enabled!==false
+        });
+      }catch(e){
+        console.warn("media failed",e);
+        toast("კამერა/მიკროფონი ვერ ჩაირთო");
+      }
       return App.localStream;
     }
 
@@ -809,11 +909,16 @@
       toast(t.enabled?"Mic ON":"Mic OFF");
       beep("tap");
     }
-    function toggleCam(){
+    async function toggleCam(){
+      if(!App.localStream) await ensureMedia();
       const t=App.localStream?.getVideoTracks?.()[0];
-      if(!t)return ensureMedia();
+      if(!t) return toast("Camera unavailable");
       t.enabled=!t.enabled;
+      replaceSenderTracks();
       App.socket.emit("media:state",{roomId:App.room?.id,cameraOn:t.enabled});
+      toast(t.enabled?"Cam ON":"Cam OFF");
+      beep("tap");
+      renderVideos();
     }
     window.toggleMic=toggleMic; window.toggleCam=toggleCam;
 
