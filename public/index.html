@@ -270,6 +270,88 @@
       scroll-behavior:smooth;
     }
 
+
+    /* VOID v19.94: remove accidental empty neon bar / leaked bottom overlay */
+    body > .toast:empty,
+    body > .modal:empty,
+    body > .drawer:empty,
+    body > div:empty:not(.scanline):not(.stars):not(.glow):not(.particle){
+      display:none!important;
+      pointer-events:none!important;
+    }
+    .toast:empty{
+      display:none!important;
+    }
+    #toast:empty{
+      display:none!important;
+    }
+    .ghostBottomBar,
+    .audio-debug,
+    .debugBar,
+    .sfxBar{
+      display:none!important;
+    }
+
+    /* cleaner mobile spacing */
+    body:not(.gameActive) .bottom{
+      min-height:76px;
+      padding:10px 16px max(10px, env(safe-area-inset-bottom));
+      border-top:1px solid rgba(53,238,255,.20);
+      background:rgba(4,3,12,.88);
+      backdrop-filter:blur(18px);
+    }
+    body:not(.gameActive) .wrap{
+      padding-bottom:118px;
+    }
+    body.gameActive .bottom{
+      display:none!important;
+    }
+    body.gameActive .videoGrid{
+      margin-bottom:10px!important;
+    }
+
+
+    #toast.toast{
+      position:fixed!important;
+      left:18px!important;
+      right:18px!important;
+      bottom:calc(92px + env(safe-area-inset-bottom))!important;
+      z-index:9999!important;
+      min-height:0!important;
+      height:auto!important;
+      width:auto!important;
+      padding:0!important;
+      border:0!important;
+      opacity:0!important;
+      transform:translateY(10px)!important;
+      pointer-events:none!important;
+      transition:.22s ease!important;
+      background:transparent!important;
+      box-shadow:none!important;
+    }
+    #toast.toast.show{
+      opacity:1!important;
+      transform:translateY(0)!important;
+      padding:14px 18px!important;
+      border:1px solid rgba(53,238,255,.92)!important;
+      border-radius:20px!important;
+      background:rgba(10,4,22,.92)!important;
+      color:#fff!important;
+      font-weight:900!important;
+      box-shadow:0 0 25px rgba(53,238,255,.25), inset 0 0 18px rgba(255,24,210,.08)!important;
+    }
+    body.gameActive #toast.toast{
+      bottom:calc(18px + env(safe-area-inset-bottom))!important;
+    }
+
+
+    :root{font-size:15.2px}
+    h1{font-size:clamp(34px,9vw,48px)!important}
+    h2{font-size:clamp(26px,7vw,40px)}
+    .card h2{font-size:clamp(27px,7vw,42px)!important}
+    input,select,button{font-size:16px}
+    .playersTitle{font-size:clamp(28px,7vw,42px)!important}
+
   </style>
 </head>
 <body>
@@ -508,14 +590,25 @@
     function show(id){$(id)?.classList.remove("hidden")}
     function hide(id){$(id)?.classList.add("hidden")}
     function toast(t){
-      const box=$("miniToast");
-      if(!box){ console.log(t); return; }
-      box.textContent=t;
-      box.classList.add("show");
-      clearTimeout(box._t);
-      box._t=setTimeout(()=>box.classList.remove("show"),2600);
+      let el=$("toast");
+      if(!el){
+        el=document.createElement("div");
+        el.id="toast";
+        el.className="toast";
+        document.body.appendChild(el);
+      }
+      if(!t){
+        el.classList.remove("show");
+        el.textContent="";
+        return;
+      }
+      el.textContent=t;
+      el.classList.add("show");
+      clearTimeout(el._t);
+      el._t=setTimeout(()=>{el.classList.remove("show");el.textContent="";},2200);
     }
 
+    
     
     let audioCtx=null, musicNodes=null;
     function audio(){
@@ -523,74 +616,59 @@
       if(audioCtx.state==="suspended") audioCtx.resume().catch(()=>{});
       return audioCtx;
     }
+
+    // VOID v19.94: no background music, only clean vaporwave-style UI SFX.
     function beep(type="tap"){
       if(!App.sfxOn) return;
       try{
-        const ctx=audio(), o=ctx.createOscillator(), g=ctx.createGain();
-        const freq=type==="msg"?720:type==="error"?150:type==="start"?440:300;
-        o.type=type==="msg"?"triangle":"sine";
-        o.frequency.setValueAtTime(freq,ctx.currentTime);
-        o.frequency.exponentialRampToValueAtTime(freq*1.22,ctx.currentTime+.07);
-        g.gain.setValueAtTime(.0001,ctx.currentTime);
-        g.gain.exponentialRampToValueAtTime(type==="msg"?.09:.07,ctx.currentTime+.012);
-        g.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.16);
-        o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime+.18);
-      }catch(e){}
-    }
-    function stopMusic(){
-      try{
-        const ctx=audioCtx;
-        if(musicNodes){
-          musicNodes.gain.gain.setTargetAtTime(0,ctx.currentTime,.08);
-          setTimeout(()=>{
-            try{musicNodes.osc1.stop()}catch(e){}
-            try{musicNodes.osc2.stop()}catch(e){}
-            try{musicNodes.lfo.stop()}catch(e){}
-            musicNodes=null;
-          },220);
-        }
-      }catch(e){}
-    }
-    function startSynthwaveMusic(){
-      if(!App.musicOn || musicNodes) return;
-      try{
         const ctx=audio();
-        const gain=ctx.createGain();
-        const filter=ctx.createBiquadFilter();
-        const osc1=ctx.createOscillator();
-        const osc2=ctx.createOscillator();
-        const lfo=ctx.createOscillator();
-        const lfoGain=ctx.createGain();
+        const now=ctx.currentTime;
+        const master=ctx.createGain();
+        const delay=ctx.createDelay();
+        const fb=ctx.createGain();
+        const wet=ctx.createGain();
 
-        // Original slow neon synthwave pad; inspired by night-driving mood, not a copied song.
-        osc1.type="triangle";
-        osc2.type="sine";
-        osc1.frequency.setValueAtTime(55,ctx.currentTime);
-        osc2.frequency.setValueAtTime(110,ctx.currentTime);
-        filter.type="lowpass";
-        filter.frequency.value=620;
-        filter.Q.value=.7;
-        lfo.frequency.value=.055;
-        lfoGain.gain.value=18;
-        lfo.connect(lfoGain);
-        lfoGain.connect(filter.frequency);
-        gain.gain.value=0;
-        osc1.connect(filter);
-        osc2.connect(filter);
-        filter.connect(gain);
-        gain.connect(ctx.destination);
-        osc1.start();
-        osc2.start();
-        lfo.start();
-        gain.gain.setTargetAtTime(.022,ctx.currentTime,.6);
-        musicNodes={osc1,osc2,lfo,gain,filter};
+        master.gain.value=0.08;
+        delay.delayTime.value=0.055;
+        fb.gain.value=0.18;
+        wet.gain.value=0.035;
+        delay.connect(fb);
+        fb.connect(delay);
+        delay.connect(wet);
+        wet.connect(ctx.destination);
+        master.connect(ctx.destination);
+        master.connect(delay);
+
+        const notes = type==="msg" ? [740, 980] :
+                      type==="error" ? [180, 120] :
+                      type==="start" ? [330, 495, 660] :
+                      [420, 560];
+
+        notes.forEach((freq,i)=>{
+          const o=ctx.createOscillator();
+          const g=ctx.createGain();
+          o.type = type==="error" ? "sawtooth" : "triangle";
+          o.frequency.setValueAtTime(freq, now + i*0.055);
+          g.gain.setValueAtTime(0.0001, now + i*0.055);
+          g.gain.exponentialRampToValueAtTime(type==="error"?0.045:0.07, now + i*0.055 + 0.012);
+          g.gain.exponentialRampToValueAtTime(0.0001, now + i*0.055 + 0.16);
+          o.connect(g);
+          g.connect(master);
+          o.start(now + i*0.055);
+          o.stop(now + i*0.055 + 0.19);
+        });
+
+        setTimeout(()=>{try{master.disconnect();delay.disconnect();fb.disconnect();wet.disconnect()}catch(e){}},520);
       }catch(e){}
     }
+
+    function stopMusic(){ musicNodes=null; }
+    function startSynthwaveMusic(){ /* intentionally disabled */ }
     function toggleMusic(force){
-      App.musicOn = typeof force==="boolean" ? force : !App.musicOn;
-      if($("musicBtn")) $("musicBtn").textContent="Music: "+(App.musicOn?"ON":"OFF");
-      if(!App.musicOn || App.room) stopMusic();
-      else startSynthwaveMusic();
+      App.musicOn = false;
+      if($("musicBtn")) $("musicBtn").textContent="Music: OFF";
+      stopMusic();
+      toast("Music disabled · SFX only");
     }
 function fmt(s){s=Number(s||0);return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")}
     function level(u){return Math.max(1,Math.floor(Number(u?.stats?.xp||0)/100)+1)}
@@ -607,7 +685,7 @@ function fmt(s){s=Number(s||0);return String(Math.floor(s/60)).padStart(2,"0")+"
     }
 
     document.addEventListener("DOMContentLoaded", init);
-    window.addEventListener("pointerdown",()=>{ if(App.musicOn && !App.room) startSynthwaveMusic(); },{once:true});
+    window.addEventListener("pointerdown",()=>{ if(App.sfxOn) beep("tap"); },{once:true});
 
     async function init(){
       bindUi();
@@ -797,7 +875,7 @@ function fmt(s){s=Number(s||0);return String(Math.floor(s/60)).padStart(2,"0")+"
       document.body.classList.remove("gameActive");
       hide("game");
       show("app");
-      if(App.musicOn) startSynthwaveMusic();
+      /* music disabled */
       loadAll();
     }
 
@@ -807,7 +885,7 @@ function fmt(s){s=Number(s||0);return String(Math.floor(s/60)).padStart(2,"0")+"
       App.room=null;
       document.body.classList.remove("gameActive");
       hide("game");show("app");
-      if(App.musicOn) startSynthwaveMusic();
+      /* music disabled */
       loadRooms();
     }
 
