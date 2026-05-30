@@ -219,16 +219,69 @@ export class WebRTCSession {
     log('peer removed:', socketId);
   }
 
-  // ── Audio controls ─────────────────────────────────────────────────
+  // ── Audio/video controls ───────────────────────────────────────────
 
   setMuted(muted: boolean): void {
     this.localStream?.getAudioTracks().forEach(t => { t.enabled = !muted; });
     log('muted:', muted);
   }
 
+  /** Enable/disable the existing video track (only works if camera was already added). */
   setCameraEnabled(enabled: boolean): void {
     this.localStream?.getVideoTracks().forEach(t => { t.enabled = enabled; });
     log('camera:', enabled ? 'on' : 'off');
+  }
+
+  hasCameraTrack(): boolean {
+    return (this.localStream?.getVideoTracks().length ?? 0) > 0;
+  }
+
+  /**
+   * Request camera permission and add the video track to the local stream
+   * and all existing peer connections. Call this when user first enables camera.
+   */
+  async addCamera(): Promise<void> {
+    if (!this.localStream) throw new Error('Not in voice.');
+    if (this.hasCameraTrack()) { this.setCameraEnabled(true); return; }
+
+    log('requesting camera permission...');
+    let videoStream: MediaStream;
+    try {
+      videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    } catch (e: any) {
+      let msg = 'Could not access camera.';
+      if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+        msg = 'Camera access denied. Allow it in your browser settings, then try again.';
+      } else if (e.name === 'NotFoundError') {
+        msg = 'No camera found. Please connect one and try again.';
+      }
+      this.emit({ type: 'error', message: msg });
+      throw new Error(msg);
+    }
+
+    const videoTrack = videoStream.getVideoTracks()[0];
+    if (!videoTrack) return;
+
+    // Add to local stream
+    this.localStream.addTrack(videoTrack);
+    log('camera track added to local stream');
+
+    // Add to all existing peer connections and renegotiate
+    for (const [peerId, pc] of this.pcs.entries()) {
+      pc.addTrack(videoTrack, this.localStream);
+      log('camera track added to peer connection', peerId);
+    }
+  }
+
+  /** Stop and remove the camera track from local stream and peer connections. */
+  removeCamera(): void {
+    if (!this.localStream) return;
+    const tracks = this.localStream.getVideoTracks();
+    for (const track of tracks) {
+      track.stop();
+      this.localStream.removeTrack(track);
+    }
+    log('camera track removed');
   }
 
   // ── Cleanup ────────────────────────────────────────────────────────

@@ -198,12 +198,23 @@ export function useVoiceChat() {
     patch({ isMuted: nextMuted });
   }, [state.isMuted, patch]);
 
-  const toggleCamera = useCallback(() => {
+  const toggleCamera = useCallback(async () => {
     const s = sessionRef.current;
     if (!s) return;
-    const nextOn = !state.cameraOn;
-    s.setCameraEnabled(nextOn);
-    patch({ cameraOn: nextOn });
+
+    if (state.cameraOn) {
+      // Turn off: remove the track so permission is cleanly released
+      s.removeCamera();
+      patch({ cameraOn: false });
+    } else {
+      // Turn on: request camera permission if we don't have the track yet
+      try {
+        await s.addCamera();
+        patch({ cameraOn: true, error: null });
+      } catch {
+        // error already emitted by webrtcService to the subscriber → patch via event
+      }
+    }
   }, [state.cameraOn, patch]);
 
   // ── Cleanup on unmount ─────────────────────────────────────────────
