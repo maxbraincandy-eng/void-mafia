@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  html, body, #root {
+    height: 100%;
+    min-height: 100%;
+  }
+
+  body {
+    @apply bg-void text-white font-sans antialiased;
+    background-color: #03000d;
+    overflow-x: hidden;
+  }
+
+  ::-webkit-scrollbar {
+    width: 3px;
+    height: 3px;
+  }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 245, 255, 0.25);
+    border-radius: 999px;
+  }
+}
+
+@layer components {
+  /* Animated neon grid background */
+  .bg-neon-grid-animated {
+    background-image:
+      linear-gradient(rgba(0,245,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,245,255,0.04) 1px, transparent 1px),
+      radial-gradient(ellipse at 20% 0%, rgba(155,0,255,0.2), transparent 50%),
+      radial-gradient(ellipse at 80% 5%, rgba(0,245,255,0.15), transparent 50%),
+      radial-gradient(ellipse at 50% 100%, rgba(255,0,204,0.12), transparent 50%);
+    background-size: 48px 48px, 48px 48px, 100% 100%, 100% 100%, 100% 100%;
+    animation: gridScroll 24s linear infinite;
+  }
+
+  /* Glassmorphism panel */
+  .glass-panel {
+    background: rgba(10, 5, 32, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 245, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+
+  /* Neon bordered glass */
+  .glass-card {
+    @apply glass-panel rounded-2xl;
+  }
+
+  /* Neon border glow utilities */
+  .border-neon-cyan  { border-color: rgba(0,245,255,0.45); }
+  .border-neon-pink  { border-color: rgba(255,0,204,0.45); }
+  .border-neon-purple{ border-color: rgba(155,0,255,0.45); }
+  .border-neon-green { border-color: rgba(0,255,136,0.45); }
+  .border-neon-red   { border-color: rgba(255,22,84,0.45); }
+
+  /* Neon text glow */
+  .text-glow-cyan   { text-shadow: 0 0 20px rgba(0,245,255,0.7),   0 0 40px rgba(0,245,255,0.3); }
+  .text-glow-pink   { text-shadow: 0 0 20px rgba(255,0,204,0.7),   0 0 40px rgba(255,0,204,0.3); }
+  .text-glow-purple { text-shadow: 0 0 20px rgba(155,0,255,0.7),   0 0 40px rgba(155,0,255,0.3); }
+  .text-glow-green  { text-shadow: 0 0 20px rgba(0,255,136,0.7),   0 0 40px rgba(0,255,136,0.3); }
+  .text-glow-red    { text-shadow: 0 0 20px rgba(255,22,84,0.7),   0 0 40px rgba(255,22,84,0.3); }
+
+  /* Scanline overlay */
+  .scanlines::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 3px,
+      rgba(0,0,0,0.08) 3px,
+      rgba(0,0,0,0.08) 4px
+    );
+    z-index: 1;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    background: linear-gradient(135deg, #00f5ff, #ff00cc, #9b00ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Neon button base */
+  .btn-neon {
+    @apply relative font-display font-semibold tracking-widest uppercase transition-all duration-200;
+  }
+  .btn-neon:active { transform: scale(0.96); }
+}
+
+@layer utilities {
+  .perspective-1000 { perspective: 1000px; }
+  .preserve-3d      { transform-style: preserve-3d; }
+  .backface-hidden  { backface-visibility: hidden; }
+}

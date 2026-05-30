@@ -1,0 +1,244 @@
+import { create } from 'zustand';
+import {
+  RoomPublic, PlayerPublic, Role, ChatMessage, Phase,
+  NightResult, InvestigationResult, GameOverResult, ChatChannel, GameSettings,
+} from '@/types/index';
+import { socket, connectSocket, disconnectSocket, emitWithAck } from '@/lib/socket';
+import type { Res } from '@/types/index';
+
+interface Toast {
+  id: string;
+  text: string;
+  type: 'info' | 'success' | 'error';
+}
+
+interface GameStore {
+  // Connection
+  isConnected: boolean;
+
+  // Room & player
+  room: RoomPublic | null;
+  myPlayerId: string | null;
+  myRole: Role | null;
+
+  // Notifications
+  nightResult: NightResult | null;
+  investigationResult: InvestigationResult | null;
+  gameOverResult: GameOverResult | null;
+  toasts: Toast[];
+
+  // UI
+  isLoading: boolean;
+  error: string | null;
+
+  // Computed helpers
+  myPlayer: () => PlayerPublic | null;
+  amHost: () => boolean;
+  amAlive: () => boolean;
+
+  // Actions
+  connect: () => void;
+  disconnect: () => void;
+  createRoom: (name: string, settings?: Partial<GameSettings>) => Promise<void>;
+  joinRoom: (code: string, name: string) => Promise<void>;
+  leaveRoom: () => Promise<void>;
+  toggleReady: () => Promise<void>;
+  kickPlayer: (playerId: string) => Promise<void>;
+  updateSettings: (settings: Partial<GameSettings>) => Promise<void>;
+  startGame: () => Promise<void>;
+  submitNightAction: (targetId: string) => Promise<void>;
+  submitVote: (targetId: string | null) => Promise<void>;
+  sendChat: (text: string, channel: ChatChannel) => Promise<void>;
+  skipPhase: () => Promise<void>;
+  restartGame: () => Promise<void>;
+  dismissNightResult: () => void;
+  dismissInvestigation: () => void;
+  dismissGameOver: () => void;
+  addToast: (text: string, type?: Toast['type']) => void;
+  clearError: () => void;
+}
+
+let toastCounter = 0;
+
+export const useGameStore = create<GameStore>((set, get) => {
+  // ── Socket event bindings ────────────────────────────────────────
+  socket.on('connect', () => set({ isConnected: true }));
+  socket.on('disconnect', () => set({ isConnected: false }));
+
+  socket.on('room:update', (room: RoomPublic) => {
+    set({ room });
+  });
+
+  socket.on('chat:new', (msg: ChatMessage) => {
+    set(state => {
+      if (!state.room) return state;
+      const field = msg.channel === 'mafia' ? 'mafiaChat' : 'chat';
+      return {
+        room: {
+          ...state.room,
+          [field]: [...(state.room[field] ?? []), msg].slice(-200),
+        },
+      };
+    });
+  });
+
+  socket.on('game:role', ({ role }: { role: Role }) => {
+    set({ myRole: role });
+  });
+
+  socket.on('game:night_result', (result: NightResult) => {
+    set({ nightResult: result });
+  });
+
+  socket.on('game:investigation', (result: InvestigationResult) => {
+    set({ investigationResult: result });
+  });
+
+  socket.on('game:over', (result: GameOverResult) => {
+    set({ gameOverResult: result });
+  });
+
+  socket.on('kicked', ({ reason }: { reason: string }) => {
+    set({
+      room: null,
+      myPlayerId: null,
+      myRole: null,
+      nightResult: null,
+      investigationResult: null,
+      gameOverResult: null,
+    });
+    get().addToast(reason, 'error');
+  });
+
+  socket.on('error', ({ message }: { message: string }) => {
+    get().addToast(message, 'error');
+  });
+
+  // ── Helper ───────────────────────────────────────────────────────
+  async function emit<T>(event: string, data?: unknown): Promise<T> {
+    const res = await emitWithAck<unknown, Res<T>>(event, data);
+    if (!res.ok) throw new Error(res.error);
+    return res.data;
+  }
+
+  function withLoading<TArgs extends unknown[], TReturn>(
+    fn: (...args: TArgs) => Promise<TReturn>
+  ): (...args: TArgs) => Promise<void> {
+    return async (...args: TArgs) => {
+      set({ isLoading: true, error: null });
+      try {
+        await fn(...args);
+      } catch (e: any) {
+        const msg = e?.message ?? 'An error occurred.';
+        set({ error: msg });
+        get().addToast(msg, 'error');
+      } finally {
+        set({ isLoading: false });
+      }
+    };
+  }
+
+  return {
+    isConnected: false,
+    room: null,
+    myPlayerId: null,
+    myRole: null,
+    nightResult: null,
+    investigationResult: null,
+    gameOverResult: null,
+    toasts: [],
+    isLoading: false,
+    error: null,
+
+    myPlayer: () => {
+      const { room, myPlayerId } = get();
+      return room?.players.find(p => p.id === myPlayerId) ?? null;
+    },
+    amHost: () => get().myPlayer()?.isHost ?? false,
+    amAlive: () => get().myPlayer()?.isAlive ?? false,
+
+    connect: () => {
+      connectSocket();
+    },
+
+    disconnect: () => {
+      disconnectSocket();
+      set({ room: null, myPlayerId: null, myRole: null });
+    },
+
+    createRoom: withLoading(async (name: string, settings?: Partial<GameSettings>) => {
+      const room = await emit<RoomPublic>('room:create', { name, settings });
+      set({ room, myPlayerId: room.players.find(p => p.isHost)?.id ?? null });
+    }),
+
+    joinRoom: withLoading(async (code: string, name: string) => {
+      const room = await emit<RoomPublic>('room:join', { code, name });
+      // My player is the one who isn't already in our store
+      const myPlayer = room.players.find(p => p.name === name);
+      set({ room, myPlayerId: myPlayer?.id ?? null });
+    }),
+
+    leaveRoom: withLoading(async () => {
+      await emit('room:leave');
+      set({
+        room: null,
+        myPlayerId: null,
+        myRole: null,
+        nightResult: null,
+        investigationResult: null,
+        gameOverResult: null,
+      });
+    }),
+
+    toggleReady: withLoading(async () => {
+      await emit('room:ready');
+    }),
+
+    kickPlayer: withLoading(async (playerId: string) => {
+      await emit('room:kick', { playerId });
+    }),
+
+    updateSettings: withLoading(async (settings: Partial<GameSettings>) => {
+      await emit('room:settings', { settings });
+    }),
+
+    startGame: withLoading(async () => {
+      await emit('game:start');
+    }),
+
+    submitNightAction: withLoading(async (targetId: string) => {
+      await emit('game:action', { targetId });
+    }),
+
+    submitVote: withLoading(async (targetId: string | null) => {
+      await emit('game:vote', { targetId });
+    }),
+
+    sendChat: withLoading(async (text: string, channel: ChatChannel) => {
+      await emit('chat:send', { text, channel });
+    }),
+
+    skipPhase: withLoading(async () => {
+      await emit('game:skip');
+    }),
+
+    restartGame: withLoading(async () => {
+      await emit('game:restart');
+      set({ myRole: null, nightResult: null, investigationResult: null, gameOverResult: null });
+    }),
+
+    dismissNightResult: () => set({ nightResult: null }),
+    dismissInvestigation: () => set({ investigationResult: null }),
+    dismissGameOver: () => set({ gameOverResult: null }),
+
+    addToast: (text: string, type: Toast['type'] = 'info') => {
+      const id = `t_${++toastCounter}`;
+      set(s => ({ toasts: [...s.toasts, { id, text, type }] }));
+      setTimeout(() => {
+        set(s => ({ toasts: s.toasts.filter(t => t.id !== id) }));
+      }, 4000);
+    },
+
+    clearError: () => set({ error: null }),
+  };
+});

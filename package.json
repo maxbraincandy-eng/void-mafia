@@ -1,26 +1,23 @@
 {
-  "name": "void-mafia-v20-engine",
-  "version": "20.0.0",
-  "description": "VOID MAFIA v20 Engine Edition - Web Mafia with MongoDB, Socket.IO, WebRTC signaling, roles, clans, rankings and automated game logic.",
-  "main": "src/index.js",
+  "name": "void-mafia",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Void Mafia — cyberpunk social deduction game",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "concurrently -n server,client -c cyan,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w server && npm run build -w client",
+    "start": "NODE_ENV=production node server/dist/index.js",
+    "install:all": "npm install && npm install -w server && npm install -w client",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w client"
+  },
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "devDependencies": {
+    "concurrently": "^8.2.2"
   },
   "engines": {
     "node": ">=18"
-  },
-  "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "connect-mongo": "^5.1.0",
-    "dotenv": "^16.4.7",
-    "express": "^4.19.2",
-    "express-session": "^1.18.1",
-    "helmet": "^7.1.0",
-    "mongoose": "^8.9.2",
-    "socket.io": "^4.8.1"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.9"
   }
 }
