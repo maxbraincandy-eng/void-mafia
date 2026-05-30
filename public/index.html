@@ -405,7 +405,6 @@
 
     <main class="wrap">
       <section id="pageRooms" class="page active">
-</div>
 
         <div class="grid2">
           <button id="joinByCodeBtn">JOIN BY NUMBER</button>
@@ -975,13 +974,30 @@ function fmt(s){s=Number(s||0);return String(Math.floor(s/60)).padStart(2,"0")+"
       if(!me||!me.alive){hide("actionBox");return}
       const nightRoles=["mafia","don","godfather","doctor","sheriff","detective","bodyguard","serial_killer","fortune_teller","lady","spy","bulletproof","lawyer","priest","witch","tracker"];
       const canNight = r.phase==="night" && nightRoles.includes(me.role);
+      const canNominate = r.phase==="nomination";
       const canVote = r.phase==="vote";
-      if(!canNight && !canVote){hide("actionBox");return}
+      if(!canNight && !canNominate && !canVote){hide("actionBox");return}
       show("actionBox");
+
+      if(canNominate){
+        $("actionTitle").textContent="Nomination";
+        $("actionText").textContent="Nominate a player for elimination.";
+        const targets=r.players.filter(p=>p.alive && p.id!==me.id);
+        const nominated=r.nominatedIds||[];
+        $("targets").innerHTML=targets.map(t=>`<button onclick="sendNominate('${t.id}')" ${nominated.includes(t.id)?"class='primary'":""}>#${t.seat} · ${esc(t.nickname)}${nominated.includes(t.id)?" ★":""}</button>`).join("");
+        return;
+      }
+
       $("actionTitle").textContent=canNight?"Night action":"Vote";
       $("actionText").textContent=canNight?`Your role: ${roleLabel(me.role)}`:"Choose a player or abstain.";
       const canSelf=["doctor","bodyguard","priest","bulletproof"].includes(me.role);
-      const targets=r.players.filter(p=>p.alive&&(canVote||canSelf||p.id!==me.id));
+
+      let targets;
+      if(canVote && (r.nominatedIds||[]).length>0){
+        targets=r.players.filter(p=>p.alive && (r.nominatedIds||[]).includes(p.id));
+      } else {
+        targets=r.players.filter(p=>p.alive&&(canVote||canSelf||p.id!==me.id));
+      }
       $("targets").innerHTML=targets.map(t=>`<button onclick="${canNight?"sendAction":"sendVote"}('${t.id}')">#${t.seat} · ${esc(t.nickname)}</button>`).join("")+(canVote?`<button onclick="sendVote('abstain')">Abstain</button>`:"");
     }
 
@@ -994,7 +1010,11 @@ function fmt(s){s=Number(s||0);return String(Math.floor(s/60)).padStart(2,"0")+"
       const r=await emit("game:vote",{roomId:App.room.id,targetId});
       toast(r.ok?"Vote saved":r.error);
     }
-    window.sendAction=sendAction; window.sendVote=sendVote; window.joinRoom=joinRoom;
+    async function sendNominate(targetId){
+      const r=await emit("game:nominate",{roomId:App.room.id,targetId});
+      toast(r.ok?"Nominated":r.error);
+    }
+    window.sendAction=sendAction; window.sendVote=sendVote; window.sendNominate=sendNominate; window.joinRoom=joinRoom;
 
     function openSettings(){
       if(!App.room) return;
@@ -1150,6 +1170,14 @@ function fmt(s){s=Number(s||0);return String(Math.floor(s/60)).padStart(2,"0")+"
       toast(t.enabled?"Mic ON":"Mic OFF");
       beep("tap");
     }
+    function replaceSenderTracks(){
+      const videoTrack=App.localStream?.getVideoTracks?.()[0];
+      for(const pc of Object.values(App.peers)){
+        const sender=pc.getSenders?.().find(s=>s.track?.kind==="video");
+        if(sender) sender.replaceTrack(videoTrack?.enabled?videoTrack:null).catch(()=>{});
+      }
+    }
+
     async function toggleCam(){
       if(!App.localStream) await ensureMedia();
       const t=App.localStream?.getVideoTracks?.()[0];

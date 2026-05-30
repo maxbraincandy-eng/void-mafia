@@ -455,6 +455,7 @@ function createRoom(host, payload = {}) {
     mafiaChat: [],
     events: [],
     nominations: {},
+    nominatedIds: [],
     votes: {},
     nightActions: {},
     lastKilled: [],
@@ -563,6 +564,7 @@ function publicRoom(room, viewerId = 0) {
     mafiaChat: viewer?.team === "mafia" || isHost ? room.mafiaChat.slice(-100) : [],
     events: room.events.slice(-100),
     lastKilled: room.lastKilled || [],
+    nominatedIds: room.nominatedIds || [],
     viewer: {
       isHost,
       role: viewer?.role || "",
@@ -651,6 +653,11 @@ function setPhase(room, phase) {
 
   if (phase === "day") {
     resolveNight(room);
+  }
+
+  if (phase === "nomination") {
+    room.nominations = {};
+    room.nominatedIds = [];
   }
 
   if (phase === "vote") {
@@ -806,7 +813,7 @@ function resolveVote(room) {
 
 function playerAction(room, actor, targetId) {
   if (!room || !actor || !actor.alive) return { ok: false, error: "Action not allowed" };
-  if (!["night", "nomination"].includes(room.phase)) return { ok: false, error: "Wrong phase" };
+  if (room.phase !== "night") return { ok: false, error: "Night actions only" };
 
   const target = room.players.find(p => p.id === targetId);
   if (!target) return { ok: false, error: "Target not found" };
@@ -836,9 +843,30 @@ function playerAction(room, actor, targetId) {
   return { ok: true };
 }
 
+function playerNominate(room, actor, targetId) {
+  if (!room || !actor || !actor.alive) return { ok: false, error: "Nomination not allowed" };
+  if (room.phase !== "nomination") return { ok: false, error: "Nomination phase only" };
+
+  const target = room.players.find(p => p.id === targetId);
+  if (!target || !target.alive) return { ok: false, error: "Target not found" };
+  if (target.id === actor.id) return { ok: false, error: "Cannot nominate yourself" };
+
+  room.nominations[actor.id] = targetId;
+  if (!room.nominatedIds.includes(targetId)) {
+    room.nominatedIds.push(targetId);
+  }
+  logEvent(room, `${actor.nickname} nominated ${target.nickname}.`);
+  return { ok: true };
+}
+
 function playerVote(room, actor, targetId) {
   if (!room || !actor || !actor.alive) return { ok: false, error: "Vote not allowed" };
   if (room.phase !== "vote") return { ok: false, error: "Voting is closed" };
+
+  if (targetId !== "abstain" && room.nominatedIds?.length > 0) {
+    if (!room.nominatedIds.includes(targetId)) return { ok: false, error: "Must vote for a nominated player" };
+  }
+
   room.votes[actor.id] = targetId || "abstain";
   return { ok: true };
 }
@@ -1286,6 +1314,18 @@ io.on("connection", socket => {
       const result = playerVote(room, actor, payload.targetId);
       cb && cb(result);
       emitRoom(room);
+    } catch (err) {
+      cb && cb({ ok: false, error: err.message });
+    }
+  });
+
+  socket.on("game:nominate", (payload = {}, cb) => {
+    try {
+      const room = roomOf(payload.roomId);
+      const actor = bySocket(room, socket.id);
+      const result = playerNominate(room, actor, payload.targetId);
+      cb && cb(result);
+      if (result.ok) emitRoom(room);
     } catch (err) {
       cb && cb({ ok: false, error: err.message });
     }
