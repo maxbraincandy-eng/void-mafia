@@ -11,6 +11,7 @@ const NIGHT_ROLE_DESCRIPTIONS: Partial<Record<RoleKey, string>> = {
   don:   'Choose a citizen to eliminate. You appear innocent to investigators.',
   sheriff: 'Investigate a player — learn if they are Mafia.',
   doctor: 'Protect one player from elimination tonight.',
+  bodyguard: 'Guard a player. If mafia attacks them tonight, you die in their place.',
   maniac: 'Choose anyone to eliminate. You win alone.',
 };
 
@@ -29,7 +30,7 @@ export function NightPanel() {
 
   const role = myPlayer.role;
   const hasActed = myPlayer.hasActed;
-  const wakeAtNight = role && ['mafia', 'don', 'sheriff', 'doctor', 'maniac'].includes(role);
+  const wakeAtNight = role && ['mafia', 'don', 'sheriff', 'doctor', 'bodyguard', 'maniac'].includes(role);
 
   if (!wakeAtNight) {
     return (
@@ -74,8 +75,8 @@ export function NightPanel() {
     return true;
   });
 
-  // Add self as option for doctor
-  const targets = role === 'doctor'
+  // Doctor and bodyguard can include themselves as a target
+  const targets = (role === 'doctor' || role === 'bodyguard')
     ? [myPlayer, ...targetablePlayers.filter(p => p.id !== myPlayer.id)]
     : targetablePlayers;
 
@@ -83,6 +84,7 @@ export function NightPanel() {
 
   const actionLabel = role === 'sheriff' ? 'Investigate'
     : role === 'doctor' ? 'Protect'
+    : role === 'bodyguard' ? 'Guard'
     : 'Eliminate';
 
   return (
