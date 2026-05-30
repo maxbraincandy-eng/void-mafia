@@ -3,10 +3,12 @@ import { z } from 'zod';
 import {
   ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData,
   RoomPublic, ChatMessage, ok, err, Room, Player, Phase, GameSettings,
+  ReportReason,
 } from './types/index.js';
 import {
   createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, removePlayer,
   getPlayerBySocket, toPublicRoom, getAlivePlayers, getHostPlayer,
+  toRoomListItem, getAllRooms, getPlayerByProfile,
 } from './services/roomService.js';
 import {
   startGame, setPhase, advancePhase, submitNightAction, submitVote,
@@ -18,6 +20,14 @@ import {
 } from './services/chatService.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
+import {
+  getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult,
+  getActiveBan, getActiveMute, findSocketByProfile,
+} from './services/playerService.js';
+import {
+  canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer,
+  warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers,
+} from './services/moderationService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -25,15 +35,7 @@ type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerE
 // ── Validation Schemas ────────────────────────────────────────────────
 const CreateRoomSchema = z.object({
   name: z.string().min(1).max(24),
-  settings: z.object({
-    nightDuration: z.number().int().min(15).max(300).optional(),
-    dayDuration: z.number().int().min(30).max(600).optional(),
-    voteDuration: z.number().int().min(15).max(300).optional(),
-    allowDoctorSelfHeal: z.boolean().optional(),
-    tieVoteRule: z.enum(['no_elimination', 'random']).optional(),
-    minPlayers: z.number().int().min(4).max(16).optional(),
-    roles: z.record(z.number()).optional(),
-  }).optional(),
+  settings: z.record(z.unknown()).optional(),
 });
 
 const JoinRoomSchema = z.object({
@@ -46,44 +48,42 @@ const ChatSchema = z.object({
   channel: z.enum(['room', 'mafia', 'dead']),
 });
 
-// ── Helpers ───────────────────────────────────────────────────────────
+const AuthSchema = z.object({
+  uid: z.string().min(1).max(64),
+  username: z.string().min(1).max(24),
+});
 
-/** Broadcast updated room state to all players in the room. */
+const ReportSchema = z.object({
+  targetProfileId: z.string().min(1),
+  roomId: z.string().nullable(),
+  reason: z.enum(['harassment','hate_speech','cheating','spamming','inappropriate_nickname','inappropriate_chat','toxic_behavior','other']),
+  details: z.string().max(500).default(''),
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────
 function broadcastRoom(io: AppServer, room: Room): void {
   for (const player of room.players.values()) {
     if (player.socketId) {
-      const view = toPublicRoom(room, player.id);
-      io.to(player.socketId).emit('room:update', view);
+      io.to(player.socketId).emit('room:update', toPublicRoom(room, player.id));
     }
   }
 }
 
-/** Start phase timer and auto-advance when it ends. */
 function startPhaseTimer(io: AppServer, room: Room): void {
   timerService.stop(room.id);
-
   if (!room.timer || room.timer <= 0) return;
 
   timerService.start(
-    room.id,
-    room.timer,
-    (remaining) => {
-      room.timer = remaining;
-      broadcastRoom(io, room);
-    },
+    room.id, room.timer,
+    (remaining) => { room.timer = remaining; broadcastRoom(io, room); },
     async () => {
       room.timer = 0;
-      advancePhase(room); const nextPhase = room.phase;
-      if (nextPhase === 'game_over') {
-        const result = buildGameOverResult(room);
-        for (const player of room.players.values()) {
-          if (player.socketId) io.to(player.socketId).emit('game:over', result);
-        }
-      }
+      if (room.phase === 'voting') announceVoteResult(io, room);
+      if (room.phase === 'night') announceNightResult(io, room);
+      advancePhase(room); const nextPhase = room.phase as Phase;
+      if (nextPhase === 'game_over') emitGameOver(io, room);
       broadcastRoom(io, room);
-      if (room.phase !== 'game_over') {
-        startPhaseTimer(io, room);
-      }
+      if (room.phase !== 'game_over') startPhaseTimer(io, room);
     },
   );
 }
@@ -100,18 +100,136 @@ function getPlayerOrError(socket: AppSocket, room: Room): Player {
   return player;
 }
 
+function getRoomFromSocket(socket: AppSocket): Room {
+  const roomId = socket.data.roomId;
+  if (!roomId) throw new Error('You are not in a room.');
+  const room = getRoom(roomId);
+  if (!room) throw new Error('Room not found.');
+  return room;
+}
+
+function emitGameOver(io: AppServer, room: Room): void {
+  const result = buildGameOverResult(room);
+  for (const p of room.players.values()) {
+    if (p.socketId) io.to(p.socketId).emit('game:over', result);
+    // Record stats
+    if (p.profileId && room.winner) {
+      const won = p.team === room.winner;
+      addGameResult(p.profileId, won);
+    }
+  }
+}
+
+function notifyMods(io: AppServer, type: string, message: string, targetName?: string): void {
+  for (const [, sock] of io.sockets.sockets) {
+    const profileId = (sock.data as SocketData).profileId;
+    if (!profileId) continue;
+    const profile = getPlayer(profileId);
+    if (profile?.isModerator) {
+      sock.emit('mod:notification', { type, message, targetName });
+    }
+  }
+}
+
+function announceNightResult(io: AppServer, room: Room): void {
+  const result = { killed: room.killedLastNight, saved: room.savedLastNight };
+  io.to(room.id).emit('game:night_result', result);
+  if (room.killedLastNight.length > 0) {
+    const names = room.killedLastNight.map(k => k.name).join(', ');
+    broadcastSystemMsg(io, room, `Dawn breaks. ${names} was found dead.`);
+  } else if (room.savedLastNight) {
+    broadcastSystemMsg(io, room, 'Dawn breaks. Everyone survived the night.');
+  } else {
+    broadcastSystemMsg(io, room, 'Dawn breaks. The night passed quietly.');
+  }
+}
+
+function announceVoteResult(io: AppServer, room: Room): void {
+  const eliminated = resolveVotes(room);
+  if (eliminated) {
+    const target = room.players.get(eliminated);
+    if (target) broadcastSystemMsg(io, room, `${target.name} was eliminated by vote.`);
+  } else {
+    broadcastSystemMsg(io, room, 'The vote ended in a tie. No one was eliminated.');
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────
 export function attachSocketHandlers(io: AppServer): void {
 
   io.on('connection', (socket: AppSocket) => {
     socket.data.playerId = null;
     socket.data.roomId = null;
+    socket.data.profileId = null;
+
+    // ── Auth ─────────────────────────────────────────────────────────
+    socket.on('player:auth', (data, cb) => {
+      try {
+        const parsed = AuthSchema.parse(data);
+        const profile = getOrCreatePlayer(parsed.uid, parsed.username);
+
+        // Check ban
+        const ban = getActiveBan(parsed.uid);
+        if (ban) {
+          cb(err(`You are banned until ${new Date(ban.expiresAt).toLocaleString()}. Reason: ${ban.reason}`));
+          return;
+        }
+
+        socket.data.profileId = parsed.uid;
+        socket.emit('player:profile', toPublicProfile(profile));
+        cb(ok(toPublicProfile(profile)));
+      } catch (e: any) {
+        cb(err(e.message ?? 'Auth failed.'));
+      }
+    });
+
+    // ── Player Stats ─────────────────────────────────────────────────
+    socket.on('player:stats', ({ profileId }, cb) => {
+      try {
+        const profile = getPlayer(profileId);
+        if (!profile) throw new Error('Player not found.');
+        cb(ok(toPublicProfile(profile)));
+      } catch (e: any) {
+        cb(err(e.message));
+      }
+    });
+
+    // ── Report ───────────────────────────────────────────────────────
+    socket.on('player:report', (data, cb) => {
+      try {
+        const parsed = ReportSchema.parse(data);
+        const reporterProfileId = socket.data.profileId;
+        if (!reporterProfileId) throw new Error('Not authenticated.');
+
+        const reporter = getPlayer(reporterProfileId);
+        const reported = getPlayer(parsed.targetProfileId);
+        if (!reporter || !reported) throw new Error('Player not found.');
+
+        const report = createReport(
+          reporterProfileId, reporter.username,
+          parsed.targetProfileId, reported.username,
+          parsed.roomId, parsed.reason as ReportReason, parsed.details,
+        );
+
+        notifyMods(io, 'new_report', `New report: ${reported.username} — ${parsed.reason}`, reported.username);
+        cb(ok(null));
+      } catch (e: any) {
+        cb(err(e.message));
+      }
+    });
 
     // ── Create Room ─────────────────────────────────────────────────
     socket.on('room:create', (data, cb) => {
       try {
         const parsed = CreateRoomSchema.parse(data);
-        const room = createRoom(socket.id, parsed.name, parsed.settings as Partial<GameSettings>);
+        const profileId = socket.data.profileId;
+
+        const ban = profileId ? getActiveBan(profileId) : null;
+        if (ban) throw new Error(`You are banned. Reason: ${ban.reason}`);
+
+        const username = profileId ? getPlayer(profileId)?.username ?? parsed.name : parsed.name;
+        const room = createRoom(socket.id, username, profileId, parsed.settings as Partial<GameSettings>);
+
         socket.join(room.id);
         socket.data.playerId = room.hostId;
         socket.data.roomId = room.id;
@@ -128,10 +246,17 @@ export function attachSocketHandlers(io: AppServer): void {
     socket.on('room:join', (data, cb) => {
       try {
         const parsed = JoinRoomSchema.parse(data);
+        const profileId = socket.data.profileId;
+
+        const ban = profileId ? getActiveBan(profileId) : null;
+        if (ban) throw new Error(`You are banned until ${new Date(ban.expiresAt).toLocaleString()}. Reason: ${ban.reason}`);
+
         const room = getRoomByCode(parsed.code);
         if (!room) throw new Error('Room not found. Check the code and try again.');
 
-        const player = addPlayer(room, socket.id, parsed.name);
+        const username = profileId ? getPlayer(profileId)?.username ?? parsed.name : parsed.name;
+        const player = addPlayer(room, socket.id, username, profileId);
+
         socket.join(room.id);
         socket.data.playerId = player.id;
         socket.data.roomId = room.id;
@@ -147,9 +272,7 @@ export function attachSocketHandlers(io: AppServer): void {
     // ── Leave Room ──────────────────────────────────────────────────
     socket.on('room:leave', (cb) => {
       const { roomId, playerId } = socket.data;
-      if (roomId && playerId) {
-        handlePlayerLeave(io, socket, roomId, playerId);
-      }
+      if (roomId && playerId) handlePlayerLeave(io, socket, roomId, playerId);
       cb(ok(null));
     });
 
@@ -161,9 +284,7 @@ export function attachSocketHandlers(io: AppServer): void {
         player.isReady = !player.isReady;
         broadcastRoom(io, room);
         cb(ok(null));
-      } catch (e: any) {
-        cb(err(e.message));
-      }
+      } catch (e: any) { cb(err(e.message)); }
     });
 
     // ── Kick Player ─────────────────────────────────────────────────
@@ -183,9 +304,7 @@ export function attachSocketHandlers(io: AppServer): void {
         broadcastSystemMsg(io, room, `${target.name} was removed from the room.`);
         broadcastRoom(io, room);
         cb(ok(null));
-      } catch (e: any) {
-        cb(err(e.message));
-      }
+      } catch (e: any) { cb(err(e.message)); }
     });
 
     // ── Update Settings ─────────────────────────────────────────────
@@ -203,9 +322,7 @@ export function attachSocketHandlers(io: AppServer): void {
         };
         broadcastRoom(io, room);
         cb(ok(null));
-      } catch (e: any) {
-        cb(err(e.message));
-      }
+      } catch (e: any) { cb(err(e.message)); }
     });
 
     // ── Start Game ──────────────────────────────────────────────────
@@ -218,11 +335,9 @@ export function attachSocketHandlers(io: AppServer): void {
         startGame(room);
         setPhase(room, 'role_reveal');
 
-        // Send each player their private role
         for (const player of room.players.values()) {
           if (player.socketId && player.role) {
-            const role = getRole(player.role);
-            io.to(player.socketId).emit('game:role', { role });
+            io.to(player.socketId).emit('game:role', { role: getRole(player.role) });
           }
         }
 
@@ -230,9 +345,7 @@ export function attachSocketHandlers(io: AppServer): void {
         broadcastRoom(io, room);
         startPhaseTimer(io, room);
         cb(ok(null));
-      } catch (e: any) {
-        cb(err(e.message));
-      }
+      } catch (e: any) { cb(err(e.message)); }
     });
 
     // ── Night Action ────────────────────────────────────────────────
@@ -243,7 +356,6 @@ export function attachSocketHandlers(io: AppServer): void {
 
         submitNightAction(room, actor, targetId);
 
-        // Private result for sheriff
         if (actor.role === 'sheriff') {
           const result = getInvestigationResult(room, actor);
           if (result && actor.socketId) {
@@ -253,26 +365,18 @@ export function attachSocketHandlers(io: AppServer): void {
 
         broadcastRoom(io, room);
 
-        // Auto-advance if all night roles have acted
         if (allNightActionsSubmitted(room)) {
           timerService.stop(room.id);
           room.timer = 0;
-          advancePhase(room); const nextPhase = room.phase;
           announceNightResult(io, room);
-          if (nextPhase === 'game_over') {
-            const result = buildGameOverResult(room);
-            for (const p of room.players.values()) {
-              if (p.socketId) io.to(p.socketId).emit('game:over', result);
-            }
-          }
+          advancePhase(room); const nextPhase = room.phase as Phase;
+          if (nextPhase === 'game_over') emitGameOver(io, room);
           broadcastRoom(io, room);
           if (room.phase !== 'game_over') startPhaseTimer(io, room);
         }
 
         cb(ok(null));
-      } catch (e: any) {
-        cb(err(e.message));
-      }
+      } catch (e: any) { cb(err(e.message)); }
     });
 
     // ── Vote ────────────────────────────────────────────────────────
@@ -283,12 +387,10 @@ export function attachSocketHandlers(io: AppServer): void {
         submitVote(room, voter, targetId);
         broadcastRoom(io, room);
         cb(ok(null));
-      } catch (e: any) {
-        cb(err(e.message));
-      }
+      } catch (e: any) { cb(err(e.message)); }
     });
 
-    // ── Skip Phase (host) ───────────────────────────────────────────
+    // ── Skip Phase ──────────────────────────────────────────────────
     socket.on('game:skip', (cb) => {
       try {
         const room = getRoomFromSocket(socket);
@@ -303,18 +405,11 @@ export function attachSocketHandlers(io: AppServer): void {
         if (room.phase === 'night') announceNightResult(io, room);
 
         advancePhase(room); const nextPhase = room.phase as Phase;
-        if (nextPhase === 'game_over') {
-          const result = buildGameOverResult(room);
-          for (const p of room.players.values()) {
-            if (p.socketId) io.to(p.socketId).emit('game:over', result);
-          }
-        }
+        if (nextPhase === 'game_over') emitGameOver(io, room);
         broadcastRoom(io, room);
         if (nextPhase !== 'game_over') startPhaseTimer(io, room);
         cb(ok(null));
-      } catch (e: any) {
-        cb(err(e.message));
-      }
+      } catch (e: any) { cb(err(e.message)); }
     });
 
     // ── Restart ─────────────────────────────────────────────────────
@@ -347,9 +442,7 @@ export function attachSocketHandlers(io: AppServer): void {
         broadcastSystemMsg(io, room, 'The host has restarted the room. Prepare for a new game.');
         broadcastRoom(io, room);
         cb(ok(null));
-      } catch (e: any) {
-        cb(err(e.message));
-      }
+      } catch (e: any) { cb(err(e.message)); }
     });
 
     // ── Chat ────────────────────────────────────────────────────────
@@ -359,35 +452,204 @@ export function attachSocketHandlers(io: AppServer): void {
         const room = getRoomFromSocket(socket);
         const player = getPlayerOrError(socket, room);
 
+        // Check mute
+        const profileId = socket.data.profileId;
+        if (profileId) {
+          const mute = getActiveMute(profileId);
+          if (mute) throw new Error(`You are muted until ${new Date(mute.expiresAt).toLocaleString()}. Reason: ${mute.reason}`);
+        }
+
         const validationError = validateChat(room, player, parsed.channel);
         if (validationError) throw new Error(validationError);
 
-        const msg = createPlayerMessage(player, parsed.text, parsed.channel);
+        const profile = profileId ? getPlayer(profileId) : null;
+        const msg = createPlayerMessage(player, parsed.text, parsed.channel, profile?.isModerator ?? false);
         addMessage(room, msg);
 
         if (parsed.channel === 'mafia') {
-          // Only mafia players get this message
           for (const p of room.players.values()) {
-            if (p.team === 'mafia' && p.socketId) {
-              io.to(p.socketId).emit('chat:new', msg);
-            }
+            if (p.team === 'mafia' && p.socketId) io.to(p.socketId).emit('chat:new', msg);
           }
         } else {
           io.to(room.id).emit('chat:new', msg);
         }
 
         cb(ok(null));
-      } catch (e: any) {
-        cb(err(e.message));
-      }
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: Kick from room ──────────────────────────────────────────
+    socket.on('mod:kick_from_room', ({ targetProfileId, roomId, reason }, cb) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        if (!modProfileId) throw new Error('Not authenticated.');
+        const mod = getPlayer(modProfileId);
+        if (!mod || !canDo(mod, 'kick')) throw new Error('Insufficient permissions.');
+
+        const room = getRoom(roomId);
+        if (!room) throw new Error('Room not found.');
+
+        const target = getPlayerByProfile(room, targetProfileId);
+        if (!target) throw new Error('Player not found in room.');
+
+        if (target.socketId) {
+          const targetSock = io.sockets.sockets.get(target.socketId);
+          targetSock?.emit('kicked', { reason: `Removed by moderator. Reason: ${reason}` });
+          targetSock?.leave(roomId);
+        }
+
+        removePlayer(room, target.id);
+        broadcastSystemMsg(io, room, `${target.name} was removed by a moderator.`);
+        broadcastRoom(io, room);
+
+        notifyMods(io, 'mod_kick', `${mod.username} kicked ${target.name} from room`, target.name);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: Ban ─────────────────────────────────────────────────────
+    socket.on('mod:ban', ({ targetProfileId, reason, duration }, cb) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        if (!modProfileId) throw new Error('Not authenticated.');
+        const mod = getPlayer(modProfileId);
+        if (!mod || !canDo(mod, 'ban_short')) throw new Error('Insufficient permissions.');
+
+        const ban = banPlayer(modProfileId, mod.username, targetProfileId, reason, duration);
+
+        // Disconnect target from all rooms
+        const targetSock = findSocketByProfile(io as any, targetProfileId);
+        if (targetSock) {
+          targetSock.emit('ban:received', { reason, expiresAt: ban.expiresAt });
+          const { roomId: targetRoomId, playerId: targetPlayerId } = targetSock.data as SocketData;
+          if (targetRoomId && targetPlayerId) {
+            handlePlayerLeave(io, targetSock as any, targetRoomId, targetPlayerId);
+          }
+          targetSock.disconnect(true);
+        }
+
+        const target = getPlayer(targetProfileId);
+        notifyMods(io, 'mod_ban', `${mod.username} banned ${target?.username ?? '?'}`, target?.username);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: Unban ───────────────────────────────────────────────────
+    socket.on('mod:unban', ({ targetProfileId }, cb) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        if (!modProfileId) throw new Error('Not authenticated.');
+        const mod = getPlayer(modProfileId);
+        if (!mod || !canDo(mod, 'ban_short')) throw new Error('Insufficient permissions.');
+        unbanPlayer(modProfileId, mod.username, targetProfileId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: Mute ────────────────────────────────────────────────────
+    socket.on('mod:mute', ({ targetProfileId, reason, duration }, cb) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        if (!modProfileId) throw new Error('Not authenticated.');
+        const mod = getPlayer(modProfileId);
+        if (!mod || !canDo(mod, 'mute')) throw new Error('Insufficient permissions.');
+
+        const mute = mutePlayer(modProfileId, mod.username, targetProfileId, reason, duration);
+
+        const targetSock = findSocketByProfile(io as any, targetProfileId);
+        if (targetSock) {
+          targetSock.emit('mute:received', { reason, expiresAt: mute.expiresAt });
+        }
+
+        const target = getPlayer(targetProfileId);
+        notifyMods(io, 'mod_mute', `${mod.username} muted ${target?.username ?? '?'}`, target?.username);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: Unmute ──────────────────────────────────────────────────
+    socket.on('mod:unmute', ({ targetProfileId }, cb) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        if (!modProfileId) throw new Error('Not authenticated.');
+        const mod = getPlayer(modProfileId);
+        if (!mod || !canDo(mod, 'mute')) throw new Error('Insufficient permissions.');
+        unmutePlayer(modProfileId, mod.username, targetProfileId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: Warn ────────────────────────────────────────────────────
+    socket.on('mod:warn', ({ targetProfileId, reason }, cb) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        if (!modProfileId) throw new Error('Not authenticated.');
+        const mod = getPlayer(modProfileId);
+        if (!mod || !canDo(mod, 'warn')) throw new Error('Insufficient permissions.');
+
+        const warning = warnPlayer(modProfileId, mod.username, targetProfileId, reason);
+
+        const targetSock = findSocketByProfile(io as any, targetProfileId);
+        if (targetSock) {
+          targetSock.emit('warning:received', { reason, moderatorName: mod.username });
+        }
+
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: Get data ────────────────────────────────────────────────
+    socket.on('mod:get_reports', (cb) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'view_reports')) throw new Error('Insufficient permissions.');
+        cb(ok(getReports()));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mod:get_rooms', (cb) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'view_reports')) throw new Error('Insufficient permissions.');
+        cb(ok(getAllRooms().map(toRoomListItem)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mod:get_players', (cb) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'view_reports')) throw new Error('Insufficient permissions.');
+        cb(ok(getModPlayers()));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mod:get_logs', (cb) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'view_logs')) throw new Error('Insufficient permissions.');
+        cb(ok(getLogs()));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mod:resolve_report', ({ reportId, status, notes }, cb) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        if (!modProfileId) throw new Error('Not authenticated.');
+        const mod = getPlayer(modProfileId);
+        if (!mod || !canDo(mod, 'resolve_reports')) throw new Error('Insufficient permissions.');
+        resolveReport(modProfileId, reportId, status, notes);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
     });
 
     // ── Disconnect ──────────────────────────────────────────────────
     socket.on('disconnect', () => {
       const { roomId, playerId } = socket.data;
-      if (roomId && playerId) {
-        handlePlayerLeave(io, socket, roomId, playerId);
-      }
+      if (roomId && playerId) handlePlayerLeave(io, socket, roomId, playerId);
     });
   });
 }
@@ -406,6 +668,8 @@ function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, pla
 
   if (room.phase === 'lobby') {
     removePlayer(room, playerId);
+
+    const wasHost = player.isHost;
     broadcastSystemMsg(io, room, `${player.name} left the room.`);
 
     if (room.players.size === 0) {
@@ -416,47 +680,9 @@ function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, pla
 
     broadcastRoom(io, room);
   } else {
-    // During game: mark disconnected
     player.isConnected = false;
     player.socketId = '';
     broadcastSystemMsg(io, room, `${player.name} disconnected.`);
     broadcastRoom(io, room);
-  }
-}
-
-function getRoomFromSocket(socket: AppSocket): Room {
-  const roomId = socket.data.roomId;
-  if (!roomId) throw new Error('You are not in a room.');
-  const room = getRoom(roomId);
-  if (!room) throw new Error('Room not found.');
-  return room;
-}
-
-function announceNightResult(io: AppServer, room: Room): void {
-  const result = {
-    killed: room.killedLastNight,
-    saved: room.savedLastNight,
-  };
-  io.to(room.id).emit('game:night_result', result);
-
-  if (room.killedLastNight.length > 0) {
-    const names = room.killedLastNight.map(k => k.name).join(', ');
-    broadcastSystemMsg(io, room, `Dawn breaks. ${names} was found dead.`);
-  } else if (room.savedLastNight) {
-    broadcastSystemMsg(io, room, 'Dawn breaks. Everyone survived the night — the Doctor saved someone.');
-  } else {
-    broadcastSystemMsg(io, room, 'Dawn breaks. The night passed quietly.');
-  }
-}
-
-function announceVoteResult(io: AppServer, room: Room): void {
-  const eliminated = resolveVotes(room);
-  if (eliminated) {
-    const target = room.players.get(eliminated);
-    if (target) {
-      broadcastSystemMsg(io, room, `${target.name} was eliminated by vote.`);
-    }
-  } else {
-    broadcastSystemMsg(io, room, 'The vote ended in a tie. No one was eliminated.');
   }
 }

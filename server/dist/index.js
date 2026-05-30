@@ -6,7 +6,8 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import { attachSocketHandlers } from './socket.js';
-import { getAllRooms } from './services/roomService.js';
+import { getAllRooms, toRoomListItem } from './services/roomService.js';
+import { getPlayer, toPublicProfile } from './services/playerService.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
@@ -37,6 +38,20 @@ app.get('/api/health', (_req, res) => {
         rooms: rooms.length,
         players: rooms.reduce((n, r) => n + r.players.size, 0),
     });
+});
+// ── Rooms List ────────────────────────────────────────────────────────
+app.get('/api/rooms', (_req, res) => {
+    const list = getAllRooms().map(toRoomListItem);
+    res.json({ ok: true, data: list });
+});
+// ── Player Profile ────────────────────────────────────────────────────
+app.get('/api/player/:id', (req, res) => {
+    const profile = getPlayer(req.params.id);
+    if (!profile) {
+        res.status(404).json({ ok: false, error: 'Not found' });
+        return;
+    }
+    res.json({ ok: true, data: toPublicProfile(profile) });
 });
 // ── Serve built client in production ─────────────────────────────────
 if (IS_PROD) {

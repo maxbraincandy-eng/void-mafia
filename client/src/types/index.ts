@@ -15,11 +15,22 @@ export type RoleKey =
   | 'doctor'
   | 'don'
   | 'maniac'
-  | 'jester';
+  | 'jester'
+  | 'bodyguard';
 
 export type Team = 'mafia' | 'town' | 'neutral';
 export type TieRule = 'no_elimination' | 'random';
 export type ChatChannel = 'room' | 'mafia' | 'dead';
+export type ModeratorLevel = 'moderator' | 'senior_moderator' | 'admin' | 'owner';
+export type ReportReason =
+  | 'harassment'
+  | 'hate_speech'
+  | 'cheating'
+  | 'spamming'
+  | 'inappropriate_nickname'
+  | 'inappropriate_chat'
+  | 'toxic_behavior'
+  | 'other';
 
 export interface Role {
   key: RoleKey;
@@ -30,6 +41,24 @@ export interface Role {
   wakeAtNight: boolean;
   color: string;
   glowColor: string;
+}
+
+export interface PlayerStats {
+  gamesPlayed: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+}
+
+export interface PlayerProfilePublic {
+  id: string;
+  username: string;
+  avatar: string;
+  stats: PlayerStats;
+  isModerator: boolean;
+  moderatorLevel: ModeratorLevel | null;
+  moderatorBadgeVisible: boolean;
+  joinedAt: number;
 }
 
 export interface PlayerPublic {
@@ -45,6 +74,9 @@ export interface PlayerPublic {
   voteTarget: string | null;
   hasActed: boolean;
   seat: number;
+  profileId: string | null;
+  isModerator: boolean;
+  moderatorLevel: ModeratorLevel | null;
 }
 
 export interface GameSettings {
@@ -62,6 +94,7 @@ export interface GameSettings {
     doctor: number;
     maniac: number;
     jester: number;
+    bodyguard: number;
   };
 }
 
@@ -74,6 +107,7 @@ export interface ChatMessage {
   channel: ChatChannel;
   isSystem: boolean;
   seat?: number;
+  isMod?: boolean;
 }
 
 export interface RoomPublic {
@@ -92,6 +126,15 @@ export interface RoomPublic {
   settings: GameSettings;
 }
 
+export interface RoomListItem {
+  id: string;
+  code: string;
+  playerCount: number;
+  phase: Phase;
+  createdAt: number;
+  hostName: string;
+}
+
 export interface NightResult {
   killed: Array<{ id: string; name: string }>;
   saved: boolean;
@@ -106,6 +149,34 @@ export interface InvestigationResult {
 export interface GameOverResult {
   winner: Team;
   allRoles: Record<string, { name: string; role: RoleKey; team: Team }>;
+}
+
+export interface Report {
+  id: string;
+  reporterPlayerId: string;
+  reporterName: string;
+  reportedPlayerId: string;
+  reportedName: string;
+  roomId: string | null;
+  reason: ReportReason;
+  details: string;
+  createdAt: number;
+  status: 'open' | 'reviewing' | 'resolved' | 'rejected';
+  assignedModeratorId: string | null;
+  moderatorNotes: string;
+}
+
+export interface ModLog {
+  id: string;
+  actionType: string;
+  moderatorId: string;
+  moderatorName: string;
+  targetPlayerId: string;
+  targetName: string;
+  roomId: string | null;
+  reason: string;
+  duration: number | null;
+  createdAt: number;
 }
 
 // Generic response envelope from server

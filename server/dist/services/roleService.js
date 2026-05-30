@@ -14,7 +14,7 @@ export const ROLES = {
         key: 'citizen',
         name: 'Citizen',
         team: 'town',
-        description: 'An ordinary resident fighting for survival. You have no special ability.',
+        description: 'An ordinary resident fighting for survival. No special ability.',
         ability: 'Vote wisely during the day to eliminate mafia members.',
         wakeAtNight: false,
         color: 'cyan',
@@ -40,6 +40,16 @@ export const ROLES = {
         color: 'green',
         glowColor: '#00ff88',
     },
+    bodyguard: {
+        key: 'bodyguard',
+        name: 'Bodyguard',
+        team: 'town',
+        description: 'An elite protector. You shield your target — and die in their place if attacked.',
+        ability: 'Each night, guard one player. If mafia attacks them, you die instead.',
+        wakeAtNight: true,
+        color: 'green',
+        glowColor: '#00cc66',
+    },
     don: {
         key: 'don',
         name: 'Don',
@@ -54,7 +64,7 @@ export const ROLES = {
         key: 'maniac',
         name: 'Maniac',
         team: 'neutral',
-        description: 'A lone killer with no allegiance. You win only by being the last one standing.',
+        description: 'A lone killer with no allegiance. Win by being the last one standing.',
         ability: 'Each night, eliminate one player. Win alone.',
         wakeAtNight: true,
         color: 'purple',
@@ -71,44 +81,67 @@ export const ROLES = {
         glowColor: '#a855f7',
     },
 };
+// ── Role distribution table ───────────────────────────────────────────
+// Keys: player count → { mafia, sheriff, doctor } (citizens fill the rest)
+const DISTRIBUTION = {
+    4: { mafia: 1, sheriff: 1, doctor: 0 },
+    5: { mafia: 1, sheriff: 1, doctor: 1 },
+    6: { mafia: 1, sheriff: 1, doctor: 1 },
+    7: { mafia: 2, sheriff: 1, doctor: 1 },
+    8: { mafia: 2, sheriff: 1, doctor: 1 },
+    9: { mafia: 2, sheriff: 1, doctor: 1 },
+    10: { mafia: 3, sheriff: 1, doctor: 0 }, // no Doctor at 10 by spec
+    11: { mafia: 3, sheriff: 1, doctor: 1 },
+    12: { mafia: 3, sheriff: 1, doctor: 1 },
+    13: { mafia: 4, sheriff: 1, doctor: 1 },
+    14: { mafia: 4, sheriff: 1, doctor: 1 },
+    15: { mafia: 4, sheriff: 2, doctor: 1 },
+    16: { mafia: 5, sheriff: 2, doctor: 1 },
+};
+export function getRecommendedRoles(playerCount) {
+    if (playerCount in DISTRIBUTION)
+        return DISTRIBUTION[playerCount];
+    const mafia = Math.max(1, Math.floor(playerCount / 3));
+    return { mafia, sheriff: 1, doctor: 1 };
+}
 export function getRole(key) {
     return ROLES[key];
 }
 /**
- * Build a role deck based on room settings and player count.
- * Returns an array of RoleKey in random order.
+ * Build a shuffled role deck.
+ * Base distribution (mafia/sheriff/doctor) is determined by player count.
+ * Optional extra roles (don/maniac/jester/bodyguard) come from room settings.
+ * Citizens fill remaining slots.
  */
 export function buildRoleDeck(settings, playerCount) {
+    const base = getRecommendedRoles(playerCount);
     const deck = [];
-    const r = settings.roles;
-    // Add mafia-side roles
-    for (let i = 0; i < r.mafia; i++)
+    // Base roles (auto by player count)
+    for (let i = 0; i < base.mafia; i++)
         deck.push('mafia');
-    for (let i = 0; i < r.don; i++)
-        deck.push('don');
-    // Add town special roles
-    for (let i = 0; i < r.sheriff; i++)
+    for (let i = 0; i < base.sheriff; i++)
         deck.push('sheriff');
-    for (let i = 0; i < r.doctor; i++)
+    for (let i = 0; i < base.doctor; i++)
         deck.push('doctor');
-    // Add neutral roles
-    for (let i = 0; i < r.maniac; i++)
+    // Optional extra roles from room settings
+    const r = settings.roles;
+    for (let i = 0; i < (r.don ?? 0); i++)
+        deck.push('don');
+    for (let i = 0; i < (r.maniac ?? 0); i++)
         deck.push('maniac');
-    for (let i = 0; i < r.jester; i++)
+    for (let i = 0; i < (r.jester ?? 0); i++)
         deck.push('jester');
-    // Fill remaining slots with citizens
-    while (deck.length < playerCount) {
+    for (let i = 0; i < (r.bodyguard ?? 0); i++)
+        deck.push('bodyguard');
+    // Fill remaining with citizens
+    while (deck.length < playerCount)
         deck.push('citizen');
-    }
-    // Trim if over (shouldn't happen with valid settings)
     return shuffle(deck).slice(0, playerCount);
 }
 export function getTeam(role) {
     return ROLES[role].team;
 }
-/** Check if a role's result appears suspicious to the sheriff */
 export function isSuspiciousToSheriff(role) {
-    // Don appears clean (a feature of the Don role)
-    return role === 'mafia';
+    return role === 'mafia'; // Don appears innocent
 }
 //# sourceMappingURL=roleService.js.map

@@ -1,5 +1,5 @@
 import { generateMsgId } from '../utils/helpers.js';
-export function createPlayerMessage(sender, text, channel) {
+export function createPlayerMessage(sender, text, channel, isMod = false) {
     return {
         id: generateMsgId(),
         senderId: sender.id,
@@ -9,6 +9,7 @@ export function createPlayerMessage(sender, text, channel) {
         channel,
         isSystem: false,
         seat: sender.seat,
+        isMod,
     };
 }
 export function createSystemMessage(text, channel = 'room') {

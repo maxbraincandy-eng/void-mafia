@@ -14,12 +14,13 @@ const WINNER_CONFIG: Record<Team, { label: string; color: string; glowColor: str
 };
 
 const ROLE_ICONS: Record<RoleKey, string> = {
-  mafia: '🔫', citizen: '🏙', sheriff: '🔍', doctor: '💉', don: '♛', maniac: '🌀', jester: '🃏',
+  mafia: '🔫', citizen: '🏙', sheriff: '🔍', doctor: '💉', don: '♛', maniac: '🌀', jester: '🃏', bodyguard: '🛡',
 };
 
 const ROLE_COLORS: Record<RoleKey, string> = {
   mafia: 'text-neon-pink', don: 'text-neon-pink',
   citizen: 'text-neon-cyan', sheriff: 'text-blue-400', doctor: 'text-neon-green',
+  bodyguard: 'text-neon-green',
   maniac: 'text-neon-purple', jester: 'text-purple-400',
 };
 

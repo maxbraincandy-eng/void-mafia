@@ -9,7 +9,8 @@ import {
   ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData,
 } from './types/index.js';
 import { attachSocketHandlers } from './socket.js';
-import { getAllRooms } from './services/roomService.js';
+import { getAllRooms, toRoomListItem } from './services/roomService.js';
+import { getPlayer, toPublicProfile, getAllPlayers } from './services/playerService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
@@ -45,6 +46,19 @@ app.get('/api/health', (_req, res) => {
     rooms: rooms.length,
     players: rooms.reduce((n, r) => n + r.players.size, 0),
   });
+});
+
+// ── Rooms List ────────────────────────────────────────────────────────
+app.get('/api/rooms', (_req, res) => {
+  const list = getAllRooms().map(toRoomListItem);
+  res.json({ ok: true, data: list });
+});
+
+// ── Player Profile ────────────────────────────────────────────────────
+app.get('/api/player/:id', (req, res) => {
+  const profile = getPlayer(req.params.id!);
+  if (!profile) { res.status(404).json({ ok: false, error: 'Not found' }); return; }
+  res.json({ ok: true, data: toPublicProfile(profile) });
 });
 
 // ── Serve built client in production ─────────────────────────────────

@@ -1,5 +1,5 @@
 import { ChatMessage, ChatChannel, Room, Player } from '../types/index.js';
-export declare function createPlayerMessage(sender: Player, text: string, channel: ChatChannel): ChatMessage;
+export declare function createPlayerMessage(sender: Player, text: string, channel: ChatChannel, isMod?: boolean): ChatMessage;
 export declare function createSystemMessage(text: string, channel?: ChatChannel): ChatMessage;
 export declare function addMessage(room: Room, msg: ChatMessage): void;
 /** Validate chat permissions. Returns error string or null. */

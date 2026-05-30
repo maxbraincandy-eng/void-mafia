@@ -112,17 +112,17 @@ export function advancePhase(room: Room): Phase {
 export function resolveNight(room: Room): void {
   const actions = [...room.nightActions.values()];
 
-  // Collect kill targets (mafia team)
-  const killTargets = actions
-    .filter(a => a.role === 'mafia' || a.role === 'don' || a.role === 'maniac')
-    .map(a => a.targetId);
-
   // Doctor saves
-  const savedTargets = new Set(
+  const savedByDoctor = new Set(
     actions.filter(a => a.role === 'doctor').map(a => a.targetId)
   );
 
-  // Determine final kill target: majority vote among mafia, or maniac's target
+  // Bodyguard protections: targetId → bodyguardId
+  const bodyguardProtects = new Map<string, string>(
+    actions.filter(a => a.role === 'bodyguard').map(a => [a.targetId, a.actorId])
+  );
+
+  // Kill intents: mafia + don (one kill) + maniac (independent kill)
   const mafiaKills = actions
     .filter(a => a.role === 'mafia' || a.role === 'don')
     .map(a => a.targetId);
@@ -140,12 +140,27 @@ export function resolveNight(room: Room): void {
     const target = room.players.get(targetId);
     if (!target || !target.isAlive) continue;
 
-    if (savedTargets.has(targetId)) {
+    // Doctor saved → target lives, no one dies
+    if (savedByDoctor.has(targetId)) {
       room.savedLastNight = true;
-    } else {
-      target.isAlive = false;
-      room.killedLastNight.push({ id: targetId, name: target.name });
+      continue;
     }
+
+    // Bodyguard protected → bodyguard dies, target lives
+    const bodyguardId = bodyguardProtects.get(targetId);
+    if (bodyguardId) {
+      const bodyguard = room.players.get(bodyguardId);
+      if (bodyguard && bodyguard.isAlive) {
+        bodyguard.isAlive = false;
+        room.killedLastNight.push({ id: bodyguardId, name: bodyguard.name });
+        room.savedLastNight = true;
+        continue;
+      }
+    }
+
+    // No protection → target dies
+    target.isAlive = false;
+    room.killedLastNight.push({ id: targetId, name: target.name });
   }
 }
 
@@ -159,14 +174,19 @@ export function submitNightAction(room: Room, actor: Player, targetId: string): 
   if (!target) throw new Error('Target not found.');
   if (!target.isAlive) throw new Error('Cannot target an eliminated player.');
 
-  // Doctor self-heal validation
-  if (actor.role === 'doctor' && actor.id === targetId && !room.settings.allowDoctorSelfHeal) {
-    throw new Error('Doctor self-heal is disabled in this room.');
+  // Doctor/bodyguard self-target validation
+  if ((actor.role === 'doctor' || actor.role === 'bodyguard') && actor.id === targetId && !room.settings.allowDoctorSelfHeal) {
+    throw new Error('Self-protection is disabled in this room.');
   }
 
   // Mafia cannot kill fellow mafia
   if ((actor.role === 'mafia' || actor.role === 'don') && target.team === 'mafia') {
     throw new Error('You cannot target a fellow mafia member.');
+  }
+
+  // Bodyguard cannot protect fellow town members who are already dead
+  if (actor.role === 'bodyguard' && !target.isAlive) {
+    throw new Error('Cannot protect an eliminated player.');
   }
 
   room.nightActions.set(actor.id, {

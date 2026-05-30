@@ -21,6 +21,7 @@ const ROLE_LABELS: Record<RoleKey, string> = {
   don: 'Don',
   maniac: 'Maniac',
   jester: 'Jester',
+  bodyguard: 'Bodyguard',
 };
 
 const ROLE_COLORS: Record<RoleKey, string> = {
@@ -29,6 +30,7 @@ const ROLE_COLORS: Record<RoleKey, string> = {
   citizen: 'text-neon-cyan',
   sheriff: 'text-neon-blue',
   doctor: 'text-neon-green',
+  bodyguard: 'text-neon-green',
   maniac: 'text-neon-purple',
   jester: 'text-neon-purple',
 };

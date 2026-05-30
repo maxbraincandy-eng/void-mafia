@@ -1,7 +1,8 @@
 import {
-  Room, Player, GameSettings, RoomPublic, PlayerPublic, Phase,
+  Room, Player, GameSettings, RoomPublic, PlayerPublic, Phase, RoomListItem,
 } from '../types/index.js';
 import { generateId, generateRoomCode, nameToAvatar } from '../utils/helpers.js';
+import { getPlayer } from './playerService.js';
 
 // ── In-Memory Store ───────────────────────────────────────────────────
 const rooms = new Map<string, Room>();
@@ -16,19 +17,27 @@ export const DEFAULT_SETTINGS: GameSettings = {
   tieVoteRule: 'no_elimination',
   minPlayers: 4,
   roles: {
-    mafia: 2,
+    mafia: 0,     // overridden by distribution table at game start
     don: 0,
-    sheriff: 1,
-    doctor: 1,
+    sheriff: 0,   // overridden by distribution table at game start
+    doctor: 0,    // overridden by distribution table at game start
     maniac: 0,
     jester: 0,
+    bodyguard: 0,
   },
 };
 
 // ── CRUD ──────────────────────────────────────────────────────────────
-export function createRoom(hostSocketId: string, hostName: string, settings?: Partial<GameSettings>): Room {
+export function createRoom(
+  hostSocketId: string,
+  hostName: string,
+  profileId: string | null,
+  settings?: Partial<GameSettings>,
+): Room {
   const id = generateId();
   const code = generateRoomCode();
+
+  const profile = profileId ? getPlayer(profileId) : null;
 
   const hostPlayer: Player = {
     id: generateId(),
@@ -45,6 +54,7 @@ export function createRoom(hostSocketId: string, hostName: string, settings?: Pa
     hasActedThisPhase: false,
     seat: 1,
     joinedAt: Date.now(),
+    profileId,
   };
 
   const mergedSettings: GameSettings = {
@@ -92,10 +102,15 @@ export function deleteRoom(id: string): void {
   rooms.delete(id);
 }
 
-export function addPlayer(room: Room, socketId: string, name: string): Player {
-  // Re-join: find existing player by name (reconnect scenario)
+export function addPlayer(room: Room, socketId: string, name: string, profileId: string | null): Player {
+  // Re-join: find existing player by profileId or name
   for (const player of room.players.values()) {
-    if (player.name === name.trim()) {
+    if (profileId && player.profileId === profileId) {
+      player.socketId = socketId;
+      player.isConnected = true;
+      return player;
+    }
+    if (!profileId && player.name === name.trim()) {
       player.socketId = socketId;
       player.isConnected = true;
       return player;
@@ -121,6 +136,7 @@ export function addPlayer(room: Room, socketId: string, name: string): Player {
     hasActedThisPhase: false,
     seat,
     joinedAt: Date.now(),
+    profileId,
   };
 
   room.players.set(player.id, player);
@@ -134,14 +150,12 @@ export function removePlayer(room: Room, playerId: string): void {
   if (room.phase === 'lobby') {
     room.players.delete(playerId);
     reassignSeats(room);
-    // Re-assign host if needed
     if (player.isHost && room.players.size > 0) {
-      const next = [...room.players.values()].sort((a, b) => a.joinedAt - b.joinedAt)[0];
+      const next = [...room.players.values()].sort((a, b) => a.joinedAt - b.joinedAt)[0]!;
       next.isHost = true;
       room.hostId = next.id;
     }
   } else {
-    // During game, mark as disconnected but keep in room
     player.isConnected = false;
     player.socketId = '';
   }
@@ -150,6 +164,13 @@ export function removePlayer(room: Room, playerId: string): void {
 export function getPlayerBySocket(room: Room, socketId: string): Player | undefined {
   for (const p of room.players.values()) {
     if (p.socketId === socketId) return p;
+  }
+  return undefined;
+}
+
+export function getPlayerByProfile(room: Room, profileId: string): Player | undefined {
+  for (const p of room.players.values()) {
+    if (p.profileId === profileId) return p;
   }
   return undefined;
 }
@@ -170,21 +191,28 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
 
   const players: PlayerPublic[] = [...room.players.values()]
     .sort((a, b) => a.seat - b.seat)
-    .map(p => ({
-      id: p.id,
-      name: p.name,
-      avatar: p.avatar,
-      isHost: p.isHost,
-      isAlive: p.isAlive,
-      isConnected: p.isConnected,
-      isReady: p.isReady,
-      // Role is revealed: a) to the player themselves, b) game over, c) dead players
-      role: (p.id === viewerPlayerId || isGameOver || !viewer?.isAlive) ? p.role : null,
-      team: (p.id === viewerPlayerId || isGameOver || !viewer?.isAlive) ? p.team : null,
-      voteTarget: room.phase === 'voting' ? p.voteTarget : null,
-      hasActed: p.hasActedThisPhase,
-      seat: p.seat,
-    }));
+    .map(p => {
+      const profile = p.profileId ? getPlayer(p.profileId) : null;
+      return {
+        id: p.id,
+        name: p.name,
+        avatar: p.avatar,
+        isHost: p.isHost,
+        isAlive: p.isAlive,
+        isConnected: p.isConnected,
+        isReady: p.isReady,
+        role: (p.id === viewerPlayerId || isGameOver || !viewer?.isAlive) ? p.role : null,
+        team: (p.id === viewerPlayerId || isGameOver || !viewer?.isAlive) ? p.team : null,
+        // Mafia sees fellow mafia roles
+        ...(isMafia && p.team === 'mafia' ? { role: p.role, team: p.team } : {}),
+        voteTarget: room.phase === 'voting' ? p.voteTarget : null,
+        hasActed: p.hasActedThisPhase,
+        seat: p.seat,
+        profileId: p.profileId,
+        isModerator: profile?.isModerator ?? false,
+        moderatorLevel: profile?.moderatorLevel ?? null,
+      };
+    });
 
   return {
     id: room.id,
@@ -200,6 +228,18 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     savedLastNight: room.savedLastNight,
     winner: room.winner,
     settings: room.settings,
+  };
+}
+
+export function toRoomListItem(room: Room): RoomListItem {
+  const host = room.players.get(room.hostId);
+  return {
+    id: room.id,
+    code: room.code,
+    playerCount: room.players.size,
+    phase: room.phase,
+    createdAt: room.createdAt,
+    hostName: host?.name ?? 'Unknown',
   };
 }
 

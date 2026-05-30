@@ -1,8 +1,11 @@
 export type Phase = 'lobby' | 'role_reveal' | 'night' | 'day' | 'voting' | 'game_over';
-export type RoleKey = 'mafia' | 'citizen' | 'sheriff' | 'doctor' | 'don' | 'maniac' | 'jester';
+export type RoleKey = 'mafia' | 'citizen' | 'sheriff' | 'doctor' | 'don' | 'maniac' | 'jester' | 'bodyguard';
 export type Team = 'mafia' | 'town' | 'neutral';
 export type TieRule = 'no_elimination' | 'random';
 export type ChatChannel = 'room' | 'mafia' | 'dead';
+export type ModeratorLevel = 'moderator' | 'senior_moderator' | 'admin' | 'owner';
+export type ReportReason = 'harassment' | 'hate_speech' | 'cheating' | 'spamming' | 'inappropriate_nickname' | 'inappropriate_chat' | 'toxic_behavior' | 'other';
+export type ModActionType = 'kick' | 'ban' | 'unban' | 'mute' | 'unmute' | 'warn' | 'report_resolve' | 'report_reject';
 export interface Role {
     key: RoleKey;
     name: string;
@@ -12,6 +15,86 @@ export interface Role {
     wakeAtNight: boolean;
     color: string;
     glowColor: string;
+}
+export interface PlayerStats {
+    gamesPlayed: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+}
+export interface BanRecord {
+    id: string;
+    reason: string;
+    issuedBy: string;
+    issuedByName: string;
+    issuedAt: number;
+    expiresAt: number;
+}
+export interface MuteRecord {
+    id: string;
+    reason: string;
+    issuedBy: string;
+    issuedByName: string;
+    issuedAt: number;
+    expiresAt: number;
+}
+export interface Warning {
+    id: string;
+    playerId: string;
+    reason: string;
+    issuedBy: string;
+    issuedByName: string;
+    issuedAt: number;
+}
+export interface PlayerProfile {
+    id: string;
+    username: string;
+    avatar: string;
+    stats: PlayerStats;
+    isModerator: boolean;
+    moderatorLevel: ModeratorLevel | null;
+    moderatorBadgeVisible: boolean;
+    ban: BanRecord | null;
+    mute: MuteRecord | null;
+    warnings: Warning[];
+    joinedAt: number;
+    lastSeenAt: number;
+}
+export interface PlayerProfilePublic {
+    id: string;
+    username: string;
+    avatar: string;
+    stats: PlayerStats;
+    isModerator: boolean;
+    moderatorLevel: ModeratorLevel | null;
+    moderatorBadgeVisible: boolean;
+    joinedAt: number;
+}
+export interface Report {
+    id: string;
+    reporterPlayerId: string;
+    reporterName: string;
+    reportedPlayerId: string;
+    reportedName: string;
+    roomId: string | null;
+    reason: ReportReason;
+    details: string;
+    createdAt: number;
+    status: 'open' | 'reviewing' | 'resolved' | 'rejected';
+    assignedModeratorId: string | null;
+    moderatorNotes: string;
+}
+export interface ModLog {
+    id: string;
+    actionType: ModActionType;
+    moderatorId: string;
+    moderatorName: string;
+    targetPlayerId: string;
+    targetName: string;
+    roomId: string | null;
+    reason: string;
+    duration: number | null;
+    createdAt: number;
 }
 export interface Player {
     id: string;
@@ -28,6 +111,7 @@ export interface Player {
     hasActedThisPhase: boolean;
     seat: number;
     joinedAt: number;
+    profileId: string | null;
 }
 export interface NightAction {
     actorId: string;
@@ -44,6 +128,7 @@ export interface ChatMessage {
     channel: ChatChannel;
     isSystem: boolean;
     seat?: number;
+    isMod?: boolean;
 }
 export interface GameSettings {
     nightDuration: number;
@@ -60,6 +145,7 @@ export interface GameSettings {
         doctor: number;
         maniac: number;
         jester: number;
+        bodyguard: number;
     };
 }
 export interface Room {
@@ -98,6 +184,9 @@ export interface PlayerPublic {
     voteTarget: string | null;
     hasActed: boolean;
     seat: number;
+    profileId: string | null;
+    isModerator: boolean;
+    moderatorLevel: ModeratorLevel | null;
 }
 export interface RoomPublic {
     id: string;
@@ -116,6 +205,14 @@ export interface RoomPublic {
     savedLastNight: boolean;
     winner: Team | null;
     settings: GameSettings;
+}
+export interface RoomListItem {
+    id: string;
+    code: string;
+    playerCount: number;
+    phase: Phase;
+    createdAt: number;
+    hostName: string;
 }
 export interface NightResult {
     killed: Array<{
@@ -137,6 +234,7 @@ export interface GameOverResult {
         team: Team;
     }>;
 }
+type Cb<T> = (res: Res<T>) => void;
 export interface ServerToClientEvents {
     'room:update': (room: RoomPublic) => void;
     'chat:new': (msg: ChatMessage) => void;
@@ -152,43 +250,109 @@ export interface ServerToClientEvents {
     'kicked': (data: {
         reason: string;
     }) => void;
+    'player:profile': (profile: PlayerProfilePublic) => void;
+    'mod:notification': (data: {
+        type: string;
+        message: string;
+        targetName?: string;
+    }) => void;
+    'warning:received': (data: {
+        reason: string;
+        moderatorName: string;
+    }) => void;
+    'ban:received': (data: {
+        reason: string;
+        expiresAt: number;
+    }) => void;
+    'mute:received': (data: {
+        reason: string;
+        expiresAt: number;
+    }) => void;
 }
 export interface ClientToServerEvents {
+    'player:auth': (data: {
+        uid: string;
+        username: string;
+    }, cb: Cb<PlayerProfilePublic>) => void;
+    'player:stats': (data: {
+        profileId: string;
+    }, cb: Cb<PlayerProfilePublic>) => void;
+    'player:report': (data: {
+        targetProfileId: string;
+        roomId: string | null;
+        reason: ReportReason;
+        details: string;
+    }, cb: Cb<null>) => void;
     'room:create': (data: {
         name: string;
-        settings?: Partial<GameSettings>;
-    }, cb: (res: Res<RoomPublic>) => void) => void;
+        settings?: Record<string, unknown>;
+    }, cb: Cb<RoomPublic>) => void;
     'room:join': (data: {
         code: string;
         name: string;
-    }, cb: (res: Res<RoomPublic>) => void) => void;
-    'room:leave': (cb: (res: Res<null>) => void) => void;
-    'room:ready': (cb: (res: Res<null>) => void) => void;
+    }, cb: Cb<RoomPublic>) => void;
+    'room:leave': (cb: Cb<null>) => void;
+    'room:ready': (cb: Cb<null>) => void;
     'room:kick': (data: {
         playerId: string;
-    }, cb: (res: Res<null>) => void) => void;
+    }, cb: Cb<null>) => void;
     'room:settings': (data: {
         settings: Partial<GameSettings>;
-    }, cb: (res: Res<null>) => void) => void;
-    'game:start': (cb: (res: Res<null>) => void) => void;
+    }, cb: Cb<null>) => void;
+    'game:start': (cb: Cb<null>) => void;
     'game:action': (data: {
         targetId: string;
-    }, cb: (res: Res<null>) => void) => void;
+    }, cb: Cb<null>) => void;
     'game:vote': (data: {
         targetId: string | null;
-    }, cb: (res: Res<null>) => void) => void;
-    'game:skip': (cb: (res: Res<null>) => void) => void;
-    'game:restart': (cb: (res: Res<null>) => void) => void;
+    }, cb: Cb<null>) => void;
+    'game:skip': (cb: Cb<null>) => void;
+    'game:restart': (cb: Cb<null>) => void;
     'chat:send': (data: {
         text: string;
         channel: ChatChannel;
-    }, cb: (res: Res<null>) => void) => void;
+    }, cb: Cb<null>) => void;
+    'mod:kick_from_room': (data: {
+        targetProfileId: string;
+        roomId: string;
+        reason: string;
+    }, cb: Cb<null>) => void;
+    'mod:ban': (data: {
+        targetProfileId: string;
+        reason: string;
+        duration: number;
+    }, cb: Cb<null>) => void;
+    'mod:mute': (data: {
+        targetProfileId: string;
+        reason: string;
+        duration: number;
+    }, cb: Cb<null>) => void;
+    'mod:warn': (data: {
+        targetProfileId: string;
+        reason: string;
+    }, cb: Cb<null>) => void;
+    'mod:unban': (data: {
+        targetProfileId: string;
+    }, cb: Cb<null>) => void;
+    'mod:unmute': (data: {
+        targetProfileId: string;
+    }, cb: Cb<null>) => void;
+    'mod:get_reports': (cb: Cb<Report[]>) => void;
+    'mod:get_rooms': (cb: Cb<RoomListItem[]>) => void;
+    'mod:get_players': (cb: Cb<PlayerProfilePublic[]>) => void;
+    'mod:get_logs': (cb: Cb<ModLog[]>) => void;
+    'mod:resolve_report': (data: {
+        reportId: string;
+        status: 'resolved' | 'rejected';
+        notes: string;
+    }, cb: Cb<null>) => void;
 }
 export interface InterServerEvents {
 }
 export interface SocketData {
     playerId: string | null;
     roomId: string | null;
+    profileId: string | null;
 }
 export type Res<T> = {
     ok: true;
@@ -199,4 +363,5 @@ export type Res<T> = {
 };
 export declare function ok<T>(data: T): Res<T>;
 export declare function err(message: string): Res<never>;
+export {};
 //# sourceMappingURL=index.d.ts.map

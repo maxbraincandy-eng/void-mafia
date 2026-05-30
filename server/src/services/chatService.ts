@@ -5,6 +5,7 @@ export function createPlayerMessage(
   sender: Player,
   text: string,
   channel: ChatChannel,
+  isMod = false,
 ): ChatMessage {
   return {
     id: generateMsgId(),
@@ -15,6 +16,7 @@ export function createPlayerMessage(
     channel,
     isSystem: false,
     seat: sender.seat,
+    isMod,
   };
 }
 
