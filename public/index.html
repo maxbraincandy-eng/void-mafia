@@ -2,7 +2,7 @@
 <html lang="ka">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"/>
   <title>VOID MAFIA</title>
   <script src="/socket.io/socket.io.js"></script>
   <style>
@@ -25,7 +25,7 @@
   --radius:18px;
   --bottom:72px;
 }
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:'Rajdhani',system-ui,sans-serif;font-weight:500;overflow-x:hidden}
 
 /* animated neon grid — diagonal scroll */
@@ -554,7 +554,7 @@ body.gameActive #gameInfoCard{display:none}
 
 <script>
 const $=id=>document.getElementById(id);
-const App={user:null,socket:null,room:null,roles:[],localStream:null,peers:{},iceServers:[{urls:"stun:stun.l.google.com:19302"}],musicOn:false,sfxOn:true,lastChatCount:0};
+const App={user:null,socket:null,room:null,roles:[],localStream:null,peers:{},iceServers:[{urls:"stun:stun.l.google.com:19302"}],musicOn:false,sfxOn:true,lastChatCount:0,micOn:true,camOn:true};
 
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]))}
 function show(id){$(id)?.classList.remove("hidden")}
@@ -860,11 +860,11 @@ function renderRoom(){
   $("playersCount").textContent=`${r.players.length}/${r.settings.maxPlayers}`;
   ["settingsBtn","settingsTopBtn","startBtn","nextPhaseBtn"].forEach(id=>$(id).style.display=r.viewer?.isHost?"inline-flex":"none");
   $("lobbyView").classList.toggle("hidden",!waiting);
-  $("videoGrid").classList.toggle("hidden",waiting);
   document.body.classList.toggle("gameActive",!waiting&&!$("game").classList.contains("hidden"));
   $("playersList").innerHTML=r.players.map(playerRow).join("");
   renderChat();
-  if(!waiting){renderVideos();renderActionBox();}
+  renderVideos();
+  if(!waiting){renderActionBox();}
   else hide("actionBox");
 
   // Lobby chat panel
@@ -885,14 +885,18 @@ function renderRoom(){
 }
 
 function playerRow(p){
-  const me=p.userId===App.user.userId;
+  const me=Number(p.userId)===Number(App.user.userId);
+  const micOn=me?App.micOn:(p.micOn!==false);
+  const camOn=me?App.camOn:(p.cameraOn!==false);
   const roleStr=p.role?` · ${esc(roleLabel(p.role))}`:"";
+  const micStyle=micOn?"":"border-color:var(--danger);color:var(--danger);";
+  const camStyle=camOn?"":"border-color:var(--danger);color:var(--danger);";
   return `<div class="player ${p.alive?"":" dead"}">
     <div class="pic ${p.speaking?"speakerPulse":""}">${esc(p.avatar||"◆")}</div>
     <div>
       <b>#${p.seat} · ${esc(p.nickname)}${me?" (you)":""}</b><br>
       <small>ID ${p.userId}${roleStr}</small><br>
-      ${me?`<button onclick="toggleMic()" style="margin-top:4px">🎙 MIC</button> <button onclick="toggleCam()" style="margin-top:4px">📷 CAM</button>`:""}
+      ${me?`<button onclick="toggleMic()" style="margin-top:4px;${micStyle}">${micOn?"🎙":"🔇"} MIC</button> <button onclick="toggleCam()" style="margin-top:4px;${camStyle}">${camOn?"📷":"📷✕"} CAM</button>`:""}
     </div>
     <span class="badge">${p.speaking?"LIVE":p.connected?"ON":"OFF"}</span>
   </div>`;
@@ -903,6 +907,7 @@ function roleLabel(key){return(App.roles.find(r=>r.key===key)||{}).label||key}
 function renderVideos(){
   const grid=$("videoGrid");if(!grid||!App.room)return;
   const players=App.room.players||[];
+  grid.classList.remove("hidden");
   grid.innerHTML=players.map(p=>{
     const isMe=Number(p.userId)===Number(App.user.userId);
     const sid=p.socketId||p.id||p.userId;
@@ -918,7 +923,12 @@ function renderVideos(){
   for(const p of players){
     const sid=p.socketId;if(!sid||sid===me?.socketId)continue;
     const pc=App.peers[sid];
-    if(pc&&pc._remoteStream){const v=$("vid_"+sid);if(v&&v.srcObject!==pc._remoteStream){v.srcObject=pc._remoteStream;v.play?.().catch(()=>{})}}
+    if(pc&&pc._remoteStream){
+      const v=$("vid_"+sid);
+      if(v&&v.srcObject!==pc._remoteStream){v.srcObject=pc._remoteStream;v.play?.().catch(()=>{})}
+      // remove hidden audio element now that video element exists
+      const aud=document.getElementById("aud_"+sid);if(aud)aud.remove();
+    }
   }
 }
 
@@ -1080,7 +1090,9 @@ async function toggleMic(){
   if(!App.localStream)await ensureMedia();
   const t=App.localStream?.getAudioTracks?.()[0];if(!t)return toast("Microphone unavailable");
   t.enabled=!t.enabled;
+  App.micOn=t.enabled;
   App.socket.emit("media:state",{roomId:App.room?.id,micOn:t.enabled,speaking:t.enabled?undefined:false});
+  renderRoom();
   toast(t.enabled?"🎙 Mic ON":"🔇 Mic OFF");beep("tap");
 }
 function replaceSenderTracks(){
@@ -1094,9 +1106,11 @@ async function toggleCam(){
   if(!App.localStream)await ensureMedia();
   const t=App.localStream?.getVideoTracks?.()[0];if(!t)return toast("Camera unavailable");
   t.enabled=!t.enabled;
+  App.camOn=t.enabled;
   replaceSenderTracks();
   App.socket.emit("media:state",{roomId:App.room?.id,cameraOn:t.enabled});
-  toast(t.enabled?"📷 Cam ON":"📷✕ Cam OFF");beep("tap");renderVideos();
+  renderRoom();
+  toast(t.enabled?"📷 Cam ON":"📷✕ Cam OFF");beep("tap");
 }
 window.toggleMic=toggleMic;window.toggleCam=toggleCam;
 
@@ -1129,6 +1143,7 @@ function resetWebRTC(){
   App.peers={};
   Object.keys(pendingIce).forEach(k=>delete pendingIce[k]);
   rtcSignaled=false;
+  document.querySelectorAll("audio[id^='aud_']").forEach(a=>a.remove());
 }
 
 async function signalReady(){
@@ -1173,7 +1188,13 @@ function createPeer(id){
   pc.ontrack=e=>{
     pc._remoteStream=e.streams[0];
     const v=$("vid_"+id);
-    if(v){v.srcObject=e.streams[0];v.play?.().catch(()=>{})}
+    if(v){v.srcObject=e.streams[0];v.play?.().catch(()=>{});}
+    else{
+      // lobby: no video element yet — play audio through hidden element
+      let aud=document.getElementById("aud_"+id);
+      if(!aud){aud=document.createElement("audio");aud.id="aud_"+id;aud.autoplay=true;aud.setAttribute("playsinline","");document.body.appendChild(aud);}
+      aud.srcObject=e.streams[0];aud.play?.().catch(()=>{});
+    }
   };
 
   pc.onconnectionstatechange=()=>{

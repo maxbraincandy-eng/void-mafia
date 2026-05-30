@@ -1407,8 +1407,9 @@ io.on("connection", socket => {
 
     room.spectators = room.spectators.filter(s => s.socketId !== socket.id);
 
-    if (room.phase === "waiting" && Number(room.hostUserId) === Number(u?.userId)) {
+    if (Number(room.hostUserId) === Number(u?.userId)) {
       rooms.delete(room.id);
+      io.to(room.id).emit("room:terminated", { roomId: room.id });
       publishRooms();
       return;
     }
