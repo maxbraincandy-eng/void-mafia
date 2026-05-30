@@ -74,4 +74,11 @@ httpServer.listen(PORT, () => {
 process.on('SIGTERM', () => {
     httpServer.close(() => process.exit(0));
 });
+// Prevent crash on unhandled errors — log and continue
+process.on('uncaughtException', (err) => {
+    console.error('[uncaughtException]', err);
+});
+process.on('unhandledRejection', (reason) => {
+    console.error('[unhandledRejection]', reason);
+});
 //# sourceMappingURL=index.js.map

@@ -6,12 +6,17 @@ class TimerService {
     start(roomId, initialSeconds, onTick, onComplete) {
         this.stop(roomId);
         let remaining = initialSeconds;
-        const intervalId = setInterval(async () => {
+        const intervalId = setInterval(() => {
             remaining = Math.max(0, remaining - 1);
-            onTick(remaining);
+            try {
+                onTick(remaining);
+            }
+            catch (e) {
+                console.error('[timer onTick]', e);
+            }
             if (remaining <= 0) {
                 this.stop(roomId);
-                await onComplete();
+                Promise.resolve(onComplete()).catch(e => console.error('[timer onComplete]', e));
             }
         }, 1000);
         this.timers.set(roomId, { intervalId, onComplete });
