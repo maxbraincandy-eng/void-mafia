@@ -270,6 +270,25 @@ export interface ServerToClientEvents {
         reason: string;
         expiresAt: number;
     }) => void;
+    'webrtc:peer_joined': (data: {
+        socketId: string;
+        name: string;
+    }) => void;
+    'webrtc:peer_left': (data: {
+        socketId: string;
+    }) => void;
+    'webrtc:offer': (data: {
+        from: string;
+        sdp: object;
+    }) => void;
+    'webrtc:answer': (data: {
+        from: string;
+        sdp: object;
+    }) => void;
+    'webrtc:ice': (data: {
+        from: string;
+        candidate: object;
+    }) => void;
 }
 export interface ClientToServerEvents {
     'player:auth': (data: {
@@ -348,6 +367,25 @@ export interface ClientToServerEvents {
         status: 'resolved' | 'rejected';
         notes: string;
     }, cb: Cb<null>) => void;
+    'webrtc:join_voice': (cb: Cb<{
+        peers: Array<{
+            socketId: string;
+            name: string;
+        }>;
+    }>) => void;
+    'webrtc:leave_voice': () => void;
+    'webrtc:offer': (data: {
+        to: string;
+        sdp: object;
+    }, cb: Cb<null>) => void;
+    'webrtc:answer': (data: {
+        to: string;
+        sdp: object;
+    }, cb: Cb<null>) => void;
+    'webrtc:ice': (data: {
+        to: string;
+        candidate: object;
+    }) => void;
 }
 export interface InterServerEvents {
 }

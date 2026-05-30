@@ -299,6 +299,12 @@ export interface ServerToClientEvents {
   'warning:received':   (data: { reason: string; moderatorName: string }) => void;
   'ban:received':       (data: { reason: string; expiresAt: number }) => void;
   'mute:received':      (data: { reason: string; expiresAt: number }) => void;
+  // WebRTC voice signaling
+  'webrtc:peer_joined': (data: { socketId: string; name: string }) => void;
+  'webrtc:peer_left':   (data: { socketId: string }) => void;
+  'webrtc:offer':       (data: { from: string; sdp: object }) => void;
+  'webrtc:answer':      (data: { from: string; sdp: object }) => void;
+  'webrtc:ice':         (data: { from: string; candidate: object }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -328,6 +334,12 @@ export interface ClientToServerEvents {
   'mod:get_players':    (cb: Cb<PlayerProfilePublic[]>) => void;
   'mod:get_logs':       (cb: Cb<ModLog[]>) => void;
   'mod:resolve_report': (data: { reportId: string; status: 'resolved' | 'rejected'; notes: string }, cb: Cb<null>) => void;
+  // WebRTC voice signaling
+  'webrtc:join_voice':  (cb: Cb<{ peers: Array<{ socketId: string; name: string }> }>) => void;
+  'webrtc:leave_voice': () => void;
+  'webrtc:offer':       (data: { to: string; sdp: object }, cb: Cb<null>) => void;
+  'webrtc:answer':      (data: { to: string; sdp: object }, cb: Cb<null>) => void;
+  'webrtc:ice':         (data: { to: string; candidate: object }) => void;
 }
 
 export interface InterServerEvents {}
