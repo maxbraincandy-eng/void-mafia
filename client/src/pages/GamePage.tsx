@@ -80,6 +80,19 @@ export function GamePage() {
   const voiceChannelLabel =
     voiceChannel === 'mafia' ? '🔴 Mafia Voice' : '🎙 Room Voice';
 
+  // Auto-join voice if mic permission was already granted
+  const autoJoined = useRef(false);
+  useEffect(() => {
+    if (!room?.id || autoJoined.current || voice.channel) return;
+    autoJoined.current = true;
+    navigator.permissions?.query({ name: 'microphone' as PermissionName })
+      .then(result => {
+        if (result.state === 'granted') voice.joinVoice(voiceChannel);
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.id]);
+
   // Track unread chat messages
   const chatLen = room?.chat.length ?? 0;
   const prevChatLen = useRef(chatLen);

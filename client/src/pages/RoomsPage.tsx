@@ -40,18 +40,28 @@ export function RoomsPage() {
     return () => clearInterval(id);
   }, []);
 
+  // Request mic permission during user gesture so lobby can auto-join voice
+  const primeMicPermission = () => {
+    navigator.mediaDevices?.getUserMedia?.({ audio: true })
+      .then(s => s.getTracks().forEach(t => t.stop()))
+      .catch(() => {});
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    primeMicPermission();
     await createRoom(username, isPrivate ? { isPrivate: true } : undefined);
   };
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (code.length < 6) return;
+    primeMicPermission();
     await joinRoom(code.toUpperCase(), username);
   };
 
   const handleQuickJoin = async (room: RoomListItem) => {
+    primeMicPermission();
     await joinRoom(room.code, username);
   };
 

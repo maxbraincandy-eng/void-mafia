@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
@@ -35,6 +35,19 @@ export function LobbyPage() {
   const [reportProfileId, setReportProfileId] = useState<string | null>(null);
   const t = useT();
   const voice = useVoiceChat();
+  const autoJoined = useRef(false);
+
+  // Auto-join room voice if mic permission was already granted
+  useEffect(() => {
+    if (!room?.id || autoJoined.current || voice.channel) return;
+    autoJoined.current = true;
+    navigator.permissions?.query({ name: 'microphone' as PermissionName })
+      .then(result => {
+        if (result.state === 'granted') voice.joinVoice('room');
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.id]);
 
   if (!room) return null;
 
