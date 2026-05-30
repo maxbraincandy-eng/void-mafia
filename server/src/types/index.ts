@@ -282,6 +282,9 @@ export interface GameOverResult {
   allRoles: Record<string, { name: string; role: RoleKey; team: Team }>;
 }
 
+// ── Voice channel type (kept in sync with client/src/hooks/useVoiceChat) ──
+export type VoiceChannel = 'room' | 'mafia';
+
 // ── Socket Event Maps ─────────────────────────────────────────────────
 type Cb<T> = (res: Res<T>) => void;
 
@@ -299,12 +302,13 @@ export interface ServerToClientEvents {
   'warning:received':   (data: { reason: string; moderatorName: string }) => void;
   'ban:received':       (data: { reason: string; expiresAt: number }) => void;
   'mute:received':      (data: { reason: string; expiresAt: number }) => void;
-  // WebRTC voice signaling
-  'webrtc:peer_joined': (data: { socketId: string; name: string }) => void;
-  'webrtc:peer_left':   (data: { socketId: string }) => void;
-  'webrtc:offer':       (data: { from: string; sdp: object }) => void;
-  'webrtc:answer':      (data: { from: string; sdp: object }) => void;
-  'webrtc:ice':         (data: { from: string; candidate: object }) => void;
+  // Voice signaling (replaces webrtc:*)
+  'voice:peer-joined':   (data: { socketId: string; name: string; channel: VoiceChannel }) => void;
+  'voice:peer-left':     (data: { socketId: string; channel: VoiceChannel }) => void;
+  'voice:offer':         (data: { from: string; sdp: object }) => void;
+  'voice:answer':        (data: { from: string; sdp: object }) => void;
+  'voice:ice-candidate': (data: { from: string; candidate: object }) => void;
+  'voice:error':         (data: { message: string }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -334,12 +338,12 @@ export interface ClientToServerEvents {
   'mod:get_players':    (cb: Cb<PlayerProfilePublic[]>) => void;
   'mod:get_logs':       (cb: Cb<ModLog[]>) => void;
   'mod:resolve_report': (data: { reportId: string; status: 'resolved' | 'rejected'; notes: string }, cb: Cb<null>) => void;
-  // WebRTC voice signaling
-  'webrtc:join_voice':  (cb: Cb<{ peers: Array<{ socketId: string; name: string }> }>) => void;
-  'webrtc:leave_voice': () => void;
-  'webrtc:offer':       (data: { to: string; sdp: object }, cb: Cb<null>) => void;
-  'webrtc:answer':      (data: { to: string; sdp: object }, cb: Cb<null>) => void;
-  'webrtc:ice':         (data: { to: string; candidate: object }) => void;
+  // Voice signaling (replaces webrtc:*)
+  'voice:join':          (data: { channel: VoiceChannel }, cb: Cb<{ peers: Array<{ socketId: string; name: string }> }>) => void;
+  'voice:leave':         () => void;
+  'voice:offer':         (data: { to: string; sdp: object }, cb: Cb<null>) => void;
+  'voice:answer':        (data: { to: string; sdp: object }, cb: Cb<null>) => void;
+  'voice:ice-candidate': (data: { to: string; candidate: object }) => void;
 }
 
 export interface InterServerEvents {}

@@ -236,6 +236,7 @@ export interface GameOverResult {
         team: Team;
     }>;
 }
+export type VoiceChannel = 'room' | 'mafia';
 type Cb<T> = (res: Res<T>) => void;
 export interface ServerToClientEvents {
     'room:update': (room: RoomPublic) => void;
@@ -270,24 +271,29 @@ export interface ServerToClientEvents {
         reason: string;
         expiresAt: number;
     }) => void;
-    'webrtc:peer_joined': (data: {
+    'voice:peer-joined': (data: {
         socketId: string;
         name: string;
+        channel: VoiceChannel;
     }) => void;
-    'webrtc:peer_left': (data: {
+    'voice:peer-left': (data: {
         socketId: string;
+        channel: VoiceChannel;
     }) => void;
-    'webrtc:offer': (data: {
+    'voice:offer': (data: {
         from: string;
         sdp: object;
     }) => void;
-    'webrtc:answer': (data: {
+    'voice:answer': (data: {
         from: string;
         sdp: object;
     }) => void;
-    'webrtc:ice': (data: {
+    'voice:ice-candidate': (data: {
         from: string;
         candidate: object;
+    }) => void;
+    'voice:error': (data: {
+        message: string;
     }) => void;
 }
 export interface ClientToServerEvents {
@@ -367,22 +373,24 @@ export interface ClientToServerEvents {
         status: 'resolved' | 'rejected';
         notes: string;
     }, cb: Cb<null>) => void;
-    'webrtc:join_voice': (cb: Cb<{
+    'voice:join': (data: {
+        channel: VoiceChannel;
+    }, cb: Cb<{
         peers: Array<{
             socketId: string;
             name: string;
         }>;
     }>) => void;
-    'webrtc:leave_voice': () => void;
-    'webrtc:offer': (data: {
+    'voice:leave': () => void;
+    'voice:offer': (data: {
         to: string;
         sdp: object;
     }, cb: Cb<null>) => void;
-    'webrtc:answer': (data: {
+    'voice:answer': (data: {
         to: string;
         sdp: object;
     }, cb: Cb<null>) => void;
-    'webrtc:ice': (data: {
+    'voice:ice-candidate': (data: {
         to: string;
         candidate: object;
     }) => void;

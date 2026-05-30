@@ -1,193 +1,227 @@
+/**
+ * useVoiceChat — React hook wrapping the WebRTC session.
+ *
+ * Voice channels:
+ *   'room'  — available to all alive players (and lobby)
+ *   'mafia' — only alive Mafia during night
+ *
+ * Call joinVoice(channel) ONLY on user interaction (e.g. button tap).
+ * The browser will then show the microphone/camera permission prompt.
+ */
+
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { socket } from '@/lib/socket';
+import { WebRTCSession, ConnectionState, PeerState, log } from '@/services/webrtcService';
 
-const ICE_SERVERS = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-  ],
-};
+export type VoiceChannel = 'room' | 'mafia';
 
-export interface VoicePeer {
-  name: string;
+export interface VoiceState {
+  channel: VoiceChannel | null;
+  status: ConnectionState;
+  isMuted: boolean;
+  cameraOn: boolean;
+  isLocalSpeaking: boolean;
+  peers: PeerState[];
+  error: string | null;
 }
 
+const INITIAL: VoiceState = {
+  channel:         null,
+  status:          'disconnected',
+  isMuted:         false,
+  cameraOn:        false,
+  isLocalSpeaking: false,
+  peers:           [],
+  error:           null,
+};
+
 export function useVoiceChat() {
-  const [isInVoice, setIsInVoice] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [peers, setPeers] = useState<Map<string, VoicePeer>>(new Map());
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [micError, setMicError] = useState<string | null>(null);
+  const [state, setState] = useState<VoiceState>(INITIAL);
+  const sessionRef = useRef<WebRTCSession | null>(null);
 
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
-  const audiosRef = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const patch = useCallback((partial: Partial<VoiceState>) => {
+    setState(s => ({ ...s, ...partial }));
+  }, []);
 
-  const getOrCreatePc = useCallback((socketId: string): RTCPeerConnection => {
-    if (pcsRef.current.has(socketId)) return pcsRef.current.get(socketId)!;
+  // ── Socket signaling listeners ─────────────────────────────────────
 
-    const pc = new RTCPeerConnection(ICE_SERVERS);
+  useEffect(() => {
+    function onPeerJoined({ socketId, name, channel }: { socketId: string; name: string; channel: VoiceChannel }) {
+      const s = sessionRef.current;
+      if (!s) return;
+      log('peer-joined', socketId, name, 'ch:', channel);
+      // The joining peer will send us an offer — we just add them to the peer list here
+      // so the UI can show them immediately; createPeerConnection happens in onOffer
+      s.createPeerConnection(socketId, name, (candidate) => {
+        (socket as any).emit('voice:ice-candidate', { to: socketId, candidate });
+      });
+      patch({ peers: s.getPeers() });
+    }
 
-    if (localStreamRef.current) {
-      for (const track of localStreamRef.current.getTracks()) {
-        pc.addTrack(track, localStreamRef.current);
+    function onPeerLeft({ socketId }: { socketId: string }) {
+      log('peer-left', socketId);
+      sessionRef.current?.removePeer(socketId);
+      patch({ peers: sessionRef.current?.getPeers() ?? [] });
+    }
+
+    async function onOffer({ from, sdp }: { from: string; sdp: RTCSessionDescriptionInit }) {
+      const s = sessionRef.current;
+      if (!s) return;
+      log('offer from', from);
+      try {
+        // We need to know the peer's name. Use existing peer info if available,
+        // or fall back to 'Player' (peer-joined fires before offer in normal flow).
+        const existingName = s.getPeers().find(p => p.socketId === from)?.name ?? 'Player';
+        const answer = await s.handleOffer(from, existingName, sdp, (candidate) => {
+          (socket as any).emit('voice:ice-candidate', { to: from, candidate });
+        });
+        (socket as any).emit('voice:answer', { to: from, sdp: answer }, () => {});
+        patch({ peers: s.getPeers() });
+      } catch (e: any) {
+        log('offer handling failed:', e.message);
       }
     }
 
-    pc.ontrack = (event) => {
-      const [remoteStream] = event.streams;
-      let audio = audiosRef.current.get(socketId);
-      if (!audio) {
-        audio = new Audio();
-        audio.autoplay = true;
-        audiosRef.current.set(socketId, audio);
+    async function onAnswer({ from, sdp }: { from: string; sdp: RTCSessionDescriptionInit }) {
+      log('answer from', from);
+      try {
+        await sessionRef.current?.handleAnswer(from, sdp);
+      } catch (e: any) {
+        log('answer handling failed:', e.message);
       }
-      audio.srcObject = remoteStream;
-    };
+    }
 
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        (socket as any).emit('webrtc:ice', { to: socketId, candidate: event.candidate.toJSON() });
+    async function onIceCandidate({ from, candidate }: { from: string; candidate: RTCIceCandidateInit }) {
+      try {
+        await sessionRef.current?.addIceCandidate(from, candidate);
+      } catch {}
+    }
+
+    (socket as any).on('voice:peer-joined',   onPeerJoined);
+    (socket as any).on('voice:peer-left',      onPeerLeft);
+    (socket as any).on('voice:offer',          onOffer);
+    (socket as any).on('voice:answer',         onAnswer);
+    (socket as any).on('voice:ice-candidate',  onIceCandidate);
+
+    return () => {
+      (socket as any).off('voice:peer-joined',   onPeerJoined);
+      (socket as any).off('voice:peer-left',      onPeerLeft);
+      (socket as any).off('voice:offer',          onOffer);
+      (socket as any).off('voice:answer',         onAnswer);
+      (socket as any).off('voice:ice-candidate',  onIceCandidate);
+    };
+  }, [patch]);
+
+  // ── Actions ────────────────────────────────────────────────────────
+
+  /** Join a voice channel. Requests mic permission on call — must be triggered by user gesture. */
+  const joinVoice = useCallback(async (channel: VoiceChannel, withCamera = false) => {
+    if (sessionRef.current) return; // already in voice
+
+    const session = new WebRTCSession();
+    sessionRef.current = session;
+
+    // Subscribe to session events
+    session.subscribe(event => {
+      if (event.type === 'state') {
+        patch({ status: event.state, error: null });
+      } else if (event.type === 'peer-added') {
+        patch({ peers: session.getPeers() });
+      } else if (event.type === 'peer-removed') {
+        patch({ peers: session.getPeers() });
+      } else if (event.type === 'speaking') {
+        if (event.socketId === 'local') {
+          patch({ isLocalSpeaking: event.isSpeaking });
+        } else {
+          patch({ peers: session.getPeers() });
+        }
+      } else if (event.type === 'error') {
+        patch({ error: event.message, status: 'failed' });
       }
-    };
+    });
 
-    pcsRef.current.set(socketId, pc);
-    return pc;
-  }, []);
-
-  const closePeer = useCallback((socketId: string) => {
-    const pc = pcsRef.current.get(socketId);
-    if (pc) { try { pc.close(); } catch {} pcsRef.current.delete(socketId); }
-    const audio = audiosRef.current.get(socketId);
-    if (audio) { audio.srcObject = null; audiosRef.current.delete(socketId); }
-    setPeers(p => { const n = new Map(p); n.delete(socketId); return n; });
-  }, []);
-
-  const joinVoice = useCallback(async () => {
-    if (isInVoice || isConnecting) return;
-    setIsConnecting(true);
-    setMicError(null);
-
-    let stream: MediaStream;
+    // 1. Request mic (triggers browser permission prompt)
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      await session.requestMedia(true, withCamera);
     } catch {
-      setMicError('Microphone access denied. Enable it in browser settings.');
-      setIsConnecting(false);
+      session.destroy();
+      sessionRef.current = null;
       return;
     }
 
-    localStreamRef.current = stream;
-
-    (socket as any).emit('webrtc:join_voice', async (res: any) => {
+    // 2. Join the server channel
+    (socket as any).emit('voice:join', { channel }, async (res: any) => {
       if (!res.ok) {
-        stream.getTracks().forEach(t => t.stop());
-        localStreamRef.current = null;
-        setIsConnecting(false);
+        const msg = res.error ?? 'Failed to join voice channel.';
+        log('voice:join rejected:', msg);
+        session.destroy();
+        sessionRef.current = null;
+        patch({ status: 'failed', error: msg });
         return;
       }
 
-      setIsInVoice(true);
-      setIsConnecting(false);
-
+      patch({ channel, cameraOn: withCamera });
       const existingPeers: Array<{ socketId: string; name: string }> = res.data.peers;
-      const peerMap = new Map<string, VoicePeer>();
-      for (const p of existingPeers) peerMap.set(p.socketId, { name: p.name });
-      setPeers(peerMap);
+      log('joined voice, existing peers:', existingPeers.length);
 
-      // Send offer to each existing peer
-      for (const { socketId } of existingPeers) {
-        const pc = getOrCreatePc(socketId);
+      // 3. Initiate connection to each existing peer
+      for (const { socketId: peerId, name } of existingPeers) {
+        session.createPeerConnection(peerId, name, (candidate) => {
+          (socket as any).emit('voice:ice-candidate', { to: peerId, candidate });
+        });
         try {
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          (socket as any).emit('webrtc:offer', { to: socketId, sdp: offer }, () => {});
-        } catch {}
+          const offer = await session.createOffer(peerId);
+          (socket as any).emit('voice:offer', { to: peerId, sdp: offer }, () => {});
+          log('offer sent to', peerId);
+        } catch (e: any) {
+          log('offer creation failed for', peerId, ':', e.message);
+        }
       }
+
+      patch({ peers: session.getPeers() });
     });
-  }, [isInVoice, isConnecting, getOrCreatePc]);
+  }, [patch]);
 
   const leaveVoice = useCallback(() => {
-    (socket as any).emit('webrtc:leave_voice');
-    for (const sid of pcsRef.current.keys()) closePeer(sid);
-    localStreamRef.current?.getTracks().forEach(t => t.stop());
-    localStreamRef.current = null;
-    setIsInVoice(false);
-    setIsMuted(false);
-    setPeers(new Map());
-  }, [closePeer]);
+    (socket as any).emit('voice:leave');
+    sessionRef.current?.destroy();
+    sessionRef.current = null;
+    setState(INITIAL);
+    log('left voice');
+  }, []);
 
   const toggleMute = useCallback(() => {
-    if (!localStreamRef.current) return;
-    const nextMuted = !isMuted;
-    for (const track of localStreamRef.current.getAudioTracks()) {
-      track.enabled = !nextMuted;
-    }
-    setIsMuted(nextMuted);
-  }, [isMuted]);
+    const s = sessionRef.current;
+    if (!s) return;
+    const nextMuted = !state.isMuted;
+    s.setMuted(nextMuted);
+    patch({ isMuted: nextMuted });
+  }, [state.isMuted, patch]);
 
-  useEffect(() => {
-    const onPeerJoined = ({ socketId, name }: { socketId: string; name: string }) => {
-      setPeers(p => new Map(p).set(socketId, { name }));
-      // The new peer will initiate the offer to us
-    };
+  const toggleCamera = useCallback(() => {
+    const s = sessionRef.current;
+    if (!s) return;
+    const nextOn = !state.cameraOn;
+    s.setCameraEnabled(nextOn);
+    patch({ cameraOn: nextOn });
+  }, [state.cameraOn, patch]);
 
-    const onPeerLeft = ({ socketId }: { socketId: string }) => {
-      closePeer(socketId);
-    };
-
-    const onOffer = async ({ from, sdp }: { from: string; sdp: RTCSessionDescriptionInit }) => {
-      if (!localStreamRef.current) return;
-      const pc = getOrCreatePc(from);
-      try {
-        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        (socket as any).emit('webrtc:answer', { to: from, sdp: answer }, () => {});
-      } catch {}
-    };
-
-    const onAnswer = async ({ from, sdp }: { from: string; sdp: RTCSessionDescriptionInit }) => {
-      const pc = pcsRef.current.get(from);
-      if (!pc) return;
-      try { await pc.setRemoteDescription(new RTCSessionDescription(sdp)); } catch {}
-    };
-
-    const onIce = async ({ from, candidate }: { from: string; candidate: RTCIceCandidateInit }) => {
-      const pc = pcsRef.current.get(from);
-      if (!pc) return;
-      try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch {}
-    };
-
-    (socket as any).on('webrtc:peer_joined', onPeerJoined);
-    (socket as any).on('webrtc:peer_left', onPeerLeft);
-    (socket as any).on('webrtc:offer', onOffer);
-    (socket as any).on('webrtc:answer', onAnswer);
-    (socket as any).on('webrtc:ice', onIce);
-
-    return () => {
-      (socket as any).off('webrtc:peer_joined', onPeerJoined);
-      (socket as any).off('webrtc:peer_left', onPeerLeft);
-      (socket as any).off('webrtc:offer', onOffer);
-      (socket as any).off('webrtc:answer', onAnswer);
-      (socket as any).off('webrtc:ice', onIce);
-    };
-  }, [closePeer, getOrCreatePc]);
-
-  // Leave voice on unmount
+  // ── Cleanup on unmount ─────────────────────────────────────────────
   useEffect(() => {
     return () => {
-      if (isInVoice) {
-        (socket as any).emit('webrtc:leave_voice');
-        for (const sid of [...pcsRef.current.keys()]) {
-          const pc = pcsRef.current.get(sid);
-          if (pc) { try { pc.close(); } catch {} }
-        }
-        pcsRef.current.clear();
-        localStreamRef.current?.getTracks().forEach(t => t.stop());
+      if (sessionRef.current) {
+        (socket as any).emit('voice:leave');
+        sessionRef.current.destroy();
+        sessionRef.current = null;
       }
     };
-  }, [isInVoice]);
+  }, []);
 
-  return { isInVoice, isMuted, peers, isConnecting, micError, joinVoice, leaveVoice, toggleMute };
+  return {
+    ...state,
+    joinVoice,
+    leaveVoice,
+    toggleMute,
+    toggleCamera,
+  };
 }

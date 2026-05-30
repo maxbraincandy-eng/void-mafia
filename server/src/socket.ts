@@ -28,13 +28,12 @@ import {
   canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer,
   warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers,
 } from './services/moderationService.js';
+import {
+  canJoin as voiceCanJoin, join as voiceJoin, leave as voiceLeave, VoiceChannel,
+} from './services/voiceService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
-
-// ── Voice rooms: roomId → Set<socketId> ──────────────────────────────
-const voiceRooms = new Map<string, Set<string>>();
-const voiceNames = new Map<string, string>(); // socketId → playerName
 
 // ── Validation Schemas ────────────────────────────────────────────────
 const CreateRoomSchema = z.object({
@@ -650,59 +649,67 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
-    // ── WebRTC: Join Voice ──────────────────────────────────────────
-    socket.on('webrtc:join_voice', (cb) => {
-      const { roomId, playerId } = socket.data;
-      if (!roomId || !playerId) return cb(err('Not in a room.'));
-      const room = getRoom(roomId);
-      if (!room) return cb(err('Room not found.'));
-      const player = room.players.get(playerId);
-      if (!player) return cb(err('Player not found.'));
+    // ── Voice: Join Channel ─────────────────────────────────────────
+    socket.on('voice:join', ({ channel }, cb) => {
+      try {
+        const { roomId, playerId } = socket.data;
+        if (!roomId || !playerId) return cb(err('Not in a room.'));
+        const room = getRoom(roomId);
+        if (!room) return cb(err('Room not found.'));
 
-      if (!voiceRooms.has(roomId)) voiceRooms.set(roomId, new Set());
-      const peers = voiceRooms.get(roomId)!;
+        const validChannel: VoiceChannel = (channel === 'room' || channel === 'mafia') ? channel : 'room';
+        const authError = voiceCanJoin(room, playerId, validChannel);
+        if (authError) return cb(err(authError));
 
-      const peerList = Array.from(peers)
-        .filter(sid => sid !== socket.id)
-        .map(sid => ({ socketId: sid, name: voiceNames.get(sid) ?? 'Unknown' }));
+        const player = room.players.get(playerId)!;
+        const existing = voiceJoin(roomId, validChannel, {
+          socketId: socket.id,
+          playerId,
+          name: player.name,
+        });
 
-      // Notify existing peers about the newcomer
-      for (const sid of peers) {
-        io.to(sid).emit('webrtc:peer_joined', { socketId: socket.id, name: player.name });
+        // Notify existing peers a new participant joined
+        for (const peer of existing) {
+          io.to(peer.socketId).emit('voice:peer-joined', {
+            socketId: socket.id,
+            name: player.name,
+            channel: validChannel,
+          });
+        }
+
+        cb(ok({ peers: existing.map(p => ({ socketId: p.socketId, name: p.name })) }));
+      } catch (e: any) {
+        cb(err(e.message ?? 'Failed to join voice.'));
       }
-
-      peers.add(socket.id);
-      voiceNames.set(socket.id, player.name);
-      cb(ok({ peers: peerList }));
     });
 
-    // ── WebRTC: Leave Voice ─────────────────────────────────────────
-    socket.on('webrtc:leave_voice', () => {
-      cleanupVoice(io, socket);
+    // ── Voice: Leave Channel ────────────────────────────────────────
+    socket.on('voice:leave', () => {
+      handleVoiceLeave(io, socket.id);
     });
 
-    // ── WebRTC: Relay Offer ─────────────────────────────────────────
-    socket.on('webrtc:offer', ({ to, sdp }, cb) => {
-      io.to(to).emit('webrtc:offer', { from: socket.id, sdp });
+    // ── Voice: Relay Offer ──────────────────────────────────────────
+    socket.on('voice:offer', ({ to, sdp }, cb) => {
+      io.to(to).emit('voice:offer', { from: socket.id, sdp });
       cb(ok(null));
     });
 
-    // ── WebRTC: Relay Answer ────────────────────────────────────────
-    socket.on('webrtc:answer', ({ to, sdp }, cb) => {
-      io.to(to).emit('webrtc:answer', { from: socket.id, sdp });
+    // ── Voice: Relay Answer ─────────────────────────────────────────
+    socket.on('voice:answer', ({ to, sdp }, cb) => {
+      io.to(to).emit('voice:answer', { from: socket.id, sdp });
       cb(ok(null));
     });
 
-    // ── WebRTC: Relay ICE Candidate ─────────────────────────────────
-    socket.on('webrtc:ice', ({ to, candidate }) => {
-      io.to(to).emit('webrtc:ice', { from: socket.id, candidate });
+    // ── Voice: Relay ICE Candidate ──────────────────────────────────
+    socket.on('voice:ice-candidate', ({ to, candidate }) => {
+      io.to(to).emit('voice:ice-candidate', { from: socket.id, candidate });
     });
 
     // ── Disconnect ──────────────────────────────────────────────────
     socket.on('disconnect', () => {
       const { roomId, playerId } = socket.data;
       if (roomId && playerId) handlePlayerLeave(io, socket, roomId, playerId);
-      cleanupVoice(io, socket);
+      handleVoiceLeave(io, socket.id);
     });
   });
 }
@@ -740,16 +747,11 @@ function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, pla
   }
 }
 
-function cleanupVoice(io: AppServer, socket: AppSocket): void {
-  voiceNames.delete(socket.id);
-  for (const [roomId, peers] of voiceRooms.entries()) {
-    if (peers.has(socket.id)) {
-      peers.delete(socket.id);
-      for (const sid of peers) {
-        io.to(sid).emit('webrtc:peer_left', { socketId: socket.id });
-      }
-      if (peers.size === 0) voiceRooms.delete(roomId);
-      break;
+function handleVoiceLeave(io: AppServer, socketId: string): void {
+  const removed = voiceLeave(socketId);
+  for (const { channel, remaining } of removed) {
+    for (const peer of remaining) {
+      io.to(peer.socketId).emit('voice:peer-left', { socketId, channel });
     }
   }
 }

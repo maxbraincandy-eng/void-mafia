@@ -15,7 +15,9 @@ import { GameOver } from '@/components/game/GameOver';
 import { NightResultOverlay } from '@/components/game/NightResultOverlay';
 import { PlayerStatsModal } from '@/components/ui/PlayerStatsModal';
 import { ReportModal } from '@/components/ui/ReportModal';
-import { useVoiceChat } from '@/hooks/useVoiceChat';
+import { VoiceControls } from '@/components/game/VoiceControls';
+import { VoiceParticipants } from '@/components/game/VoiceParticipants';
+import { useVoiceChat, VoiceChannel } from '@/hooks/useVoiceChat';
 import { useGameSounds } from '@/hooks/useSoundFX';
 
 type MobileTab = 'action' | 'players' | 'chat';
@@ -69,6 +71,15 @@ export function GamePage() {
   const voice = useVoiceChat();
   useGameSounds();
 
+  const isInVoice = voice.channel !== null;
+
+  // Determine appropriate voice channel for this player/phase
+  const isMafiaPlayer = myRole?.key === 'mafia' || myRole?.key === 'don';
+  const voiceChannel: VoiceChannel =
+    isMafiaPlayer && room?.phase === 'night' ? 'mafia' : 'room';
+  const voiceChannelLabel =
+    voiceChannel === 'mafia' ? '🔴 Mafia Voice' : '🎙 Room Voice';
+
   // Track unread chat messages
   const chatLen = room?.chat.length ?? 0;
   const prevChatLen = useRef(chatLen);
@@ -93,7 +104,41 @@ export function GamePage() {
     if (p.id !== myPlayer?.id) setStatsPlayer(p);
   };
 
-  // ── Phase center content (shared between desktop main & mobile action tab)
+  // Voice panel — shown in sidebar (desktop) and action tab (mobile)
+  const VoicePanel = (
+    <div className="mt-4">
+      <VoiceControls
+        channel={voice.channel}
+        status={voice.status}
+        isMuted={voice.isMuted}
+        cameraOn={voice.cameraOn}
+        isLocalSpeaking={voice.isLocalSpeaking}
+        peerCount={voice.peers.length}
+        error={voice.error}
+        defaultChannel={voiceChannel}
+        channelLabel={voiceChannelLabel}
+        onJoin={(ch, withCam) => voice.joinVoice(ch, withCam)}
+        onLeave={voice.leaveVoice}
+        onToggleMute={voice.toggleMute}
+        onToggleCamera={voice.toggleCamera}
+      />
+      {isInVoice && voice.peers.length > 0 && (
+        <div className="mt-3">
+          <p className="text-xs font-display uppercase tracking-widest text-white/30 mb-2">
+            In Voice ({voice.peers.length + 1})
+          </p>
+          <VoiceParticipants
+            localName={myPlayer?.name ?? 'You'}
+            isLocalSpeaking={voice.isLocalSpeaking}
+            isMuted={voice.isMuted}
+            peers={voice.peers}
+          />
+        </div>
+      )}
+    </div>
+  );
+
+  // ── Phase center content (shared)
   const PhaseContent = (
     <AnimatePresence mode="wait">
       <motion.div
@@ -118,6 +163,27 @@ export function GamePage() {
                 {amAlive ? 'Complete your night action.' : 'You have been eliminated.'}
               </p>
             </div>
+            {/* Mafia voice panel in action area during night */}
+            {isMafiaPlayer && amAlive && (
+              <Card glow="none" padding="sm">
+                <p className="text-xs font-display uppercase tracking-widest text-neon-red/60 mb-2">Mafia Voice Channel</p>
+                <VoiceControls
+                  channel={voice.channel}
+                  status={voice.status}
+                  isMuted={voice.isMuted}
+                  cameraOn={voice.cameraOn}
+                  isLocalSpeaking={voice.isLocalSpeaking}
+                  peerCount={voice.peers.length}
+                  error={voice.error}
+                  defaultChannel="mafia"
+                  channelLabel="🔴 Mafia Voice"
+                  onJoin={(ch, wc) => voice.joinVoice(ch, wc)}
+                  onLeave={voice.leaveVoice}
+                  onToggleMute={voice.toggleMute}
+                  onToggleCamera={voice.toggleCamera}
+                />
+              </Card>
+            )}
             <NightPanel />
           </div>
         )}
@@ -195,10 +261,10 @@ export function GamePage() {
       {/* Game Over */}
       {gameOverResult && <GameOver result={gameOverResult} />}
 
-      {/* Night result overlay */}
+      {/* Night result */}
       <NightResultOverlay result={nightResult} onDismiss={dismissNightResult} />
 
-      {/* Investigation result overlay */}
+      {/* Investigation result */}
       <AnimatePresence>
         {investigationResult && (
           <motion.div
@@ -267,7 +333,7 @@ export function GamePage() {
             )}
 
             <div className="ml-auto flex items-center gap-1.5 md:gap-3">
-              {/* Room code (hidden on very small screens) */}
+              {/* Room code */}
               <div className="hidden sm:block text-right">
                 <p className="text-[10px] text-white/30 font-mono">Room</p>
                 <p className="font-mono text-xs md:text-sm text-neon-cyan font-bold tracking-widest">{room.code}</p>
@@ -286,8 +352,16 @@ export function GamePage() {
                 </div>
               )}
 
-              {/* Voice button */}
-              <VoiceButton voice={voice} />
+              {/* Compact voice status in header */}
+              {isInVoice && (
+                <VoiceParticipants
+                  localName={myPlayer?.name ?? 'You'}
+                  isLocalSpeaking={voice.isLocalSpeaking}
+                  isMuted={voice.isMuted}
+                  peers={voice.peers}
+                  compact
+                />
+              )}
 
               {amHost && phase !== 'role_reveal' && phase !== 'game_over' && phase !== 'lobby' && (
                 <Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>
@@ -300,29 +374,32 @@ export function GamePage() {
               </Button>
             </div>
           </div>
-
-          {/* Voice error */}
-          {voice.micError && (
-            <p className="text-neon-red text-xs font-mono text-center mt-1 pb-1">{voice.micError}</p>
-          )}
         </header>
 
         {/* ── DESKTOP layout (md+) ──────────────────────────────────── */}
         <div className="hidden md:flex flex-1 overflow-hidden max-w-7xl w-full mx-auto">
-          {/* Players sidebar */}
-          <aside className="w-64 lg:w-72 flex-shrink-0 overflow-y-auto p-4 border-r border-white/5">
-            <h2 className="text-xs font-display uppercase tracking-widest text-white/40 mb-3">
-              Players · {alivePlayers} alive
-            </h2>
-            <PlayerList
-              players={room.players}
-              phase={phase}
-              showVotes={phase === 'voting'}
-              onSelectTarget={handlePlayerSelect}
-            />
+          {/* Players + Voice sidebar */}
+          <aside className="w-64 lg:w-72 flex-shrink-0 overflow-y-auto p-4 border-r border-white/5 flex flex-col">
+            <div className="flex-shrink-0">
+              <h2 className="text-xs font-display uppercase tracking-widest text-white/40 mb-3">
+                Players · {alivePlayers} alive
+              </h2>
+              <PlayerList
+                players={room.players}
+                phase={phase}
+                showVotes={phase === 'voting'}
+                onSelectTarget={handlePlayerSelect}
+              />
+            </div>
+            {/* Voice panel in sidebar — only for non-mafia-night or non-mafia players */}
+            {phase !== 'night' || !isMafiaPlayer ? (
+              <div className="mt-auto pt-4">
+                {VoicePanel}
+              </div>
+            ) : null}
           </aside>
 
-          {/* Center */}
+          {/* Center: Phase content */}
           <main className="flex-1 overflow-y-auto p-4 md:p-6">
             {PhaseContent}
           </main>
@@ -340,12 +417,13 @@ export function GamePage() {
 
         {/* ── MOBILE layout (<md) ───────────────────────────────────── */}
         <div className="md:hidden flex-1 overflow-hidden flex flex-col">
-          {/* Mobile tab content */}
           <div className="flex-1 overflow-y-auto p-4 pb-2">
             <AnimatePresence mode="wait">
               {mobileTab === 'action' && (
                 <motion.div key="action" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
                   {PhaseContent}
+                  {/* Voice panel in action tab on mobile */}
+                  {phase !== 'night' || !isMafiaPlayer ? VoicePanel : null}
                 </motion.div>
               )}
               {mobileTab === 'players' && (
@@ -403,9 +481,6 @@ export function GamePage() {
         </div>
       </div>
 
-      {/* Voice peers indicator (floating) */}
-      <VoicePeersHUD voice={voice} />
-
       {/* Player stats modal */}
       {statsPlayer && (
         <PlayerStatsModal
@@ -424,84 +499,6 @@ export function GamePage() {
           onClose={() => setReportProfileId(null)}
           onSuccess={() => setReportProfileId(null)}
         />
-      )}
-    </div>
-  );
-}
-
-// ── Voice button in header ────────────────────────────────────────────
-
-function VoiceButton({ voice }: { voice: ReturnType<typeof useVoiceChat> }) {
-  const { isInVoice, isMuted, isConnecting, peers, joinVoice, leaveVoice, toggleMute } = voice;
-
-  if (!isInVoice) {
-    return (
-      <button
-        onClick={joinVoice}
-        disabled={isConnecting}
-        className={clsx(
-          'flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] md:text-xs font-mono font-bold transition-all',
-          isConnecting
-            ? 'border-white/10 text-white/30 cursor-wait'
-            : 'border-neon-green/30 text-neon-green/70 hover:bg-neon-green/10 hover:text-neon-green hover:border-neon-green/50',
-        )}
-      >
-        {isConnecting ? '...' : '🎙'}
-        <span className="hidden sm:inline">{isConnecting ? 'Connecting' : 'Voice'}</span>
-      </button>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-1">
-      <button
-        onClick={toggleMute}
-        className={clsx(
-          'px-2 py-1 rounded-lg border text-[10px] md:text-xs font-mono font-bold transition-all',
-          isMuted
-            ? 'border-neon-red/40 text-neon-red bg-neon-red/10'
-            : 'border-neon-green/40 text-neon-green bg-neon-green/10',
-        )}
-      >
-        {isMuted ? '🔇' : '🎙'}
-        {peers.size > 0 && <span className="ml-1 hidden sm:inline">{peers.size + 1}</span>}
-      </button>
-      <button
-        onClick={leaveVoice}
-        className="px-1.5 py-1 rounded-lg border border-white/10 text-white/30 hover:text-neon-red text-[10px] font-mono transition-all"
-      >
-        ✕
-      </button>
-    </div>
-  );
-}
-
-// ── Floating voice peers HUD ──────────────────────────────────────────
-
-function VoicePeersHUD({ voice }: { voice: ReturnType<typeof useVoiceChat> }) {
-  const { isInVoice, peers, isMuted } = voice;
-  if (!isInVoice || peers.size === 0) return null;
-
-  return (
-    <div className="fixed top-20 right-3 z-30 flex flex-col gap-1">
-      <AnimatePresence>
-        {[...peers.entries()].map(([sid, p]) => (
-          <motion.div
-            key={sid}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            className="glass-card border border-neon-green/20 px-2 py-1 rounded-lg flex items-center gap-1.5"
-          >
-            <span className="text-neon-green text-xs">🎙</span>
-            <span className="text-xs font-mono text-white/60 max-w-[80px] truncate">{p.name}</span>
-          </motion.div>
-        ))}
-      </AnimatePresence>
-      {isMuted && (
-        <div className="glass-card border border-neon-red/30 px-2 py-1 rounded-lg text-center">
-          <span className="text-neon-red text-xs font-mono">MUTED</span>
-        </div>
       )}
     </div>
   );

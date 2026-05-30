@@ -9,6 +9,9 @@ import { Avatar } from '@/components/ui/Avatar';
 import { ChatPanel } from '@/components/chat/ChatPanel';
 import { PlayerStatsModal } from '@/components/ui/PlayerStatsModal';
 import { ReportModal } from '@/components/ui/ReportModal';
+import { VoiceControls } from '@/components/game/VoiceControls';
+import { VoiceParticipants } from '@/components/game/VoiceParticipants';
+import { useVoiceChat } from '@/hooks/useVoiceChat';
 import { GameSettings, PlayerPublic } from '@/types/index';
 
 export function LobbyPage() {
@@ -31,6 +34,7 @@ export function LobbyPage() {
   const [statsPlayer, setStatsPlayer] = useState<PlayerPublic | null>(null);
   const [reportProfileId, setReportProfileId] = useState<string | null>(null);
   const t = useT();
+  const voice = useVoiceChat();
 
   if (!room) return null;
 
@@ -189,6 +193,32 @@ export function LobbyPage() {
 
             {showSettings && amHost && (
               <SettingsPanel settings={room.settings} onUpdate={updateSettings} />
+            )}
+
+            {/* Voice controls */}
+            <VoiceControls
+              channel={voice.channel}
+              status={voice.status}
+              isMuted={voice.isMuted}
+              cameraOn={voice.cameraOn}
+              isLocalSpeaking={voice.isLocalSpeaking}
+              peerCount={voice.peers.length}
+              error={voice.error}
+              defaultChannel="room"
+              onJoin={(ch, wc) => voice.joinVoice(ch, wc)}
+              onLeave={voice.leaveVoice}
+              onToggleMute={voice.toggleMute}
+              onToggleCamera={voice.toggleCamera}
+            />
+            {voice.channel && voice.peers.length > 0 && (
+              <div className="mt-2 px-1">
+                <VoiceParticipants
+                  localName={myPlayer?.name ?? 'You'}
+                  isLocalSpeaking={voice.isLocalSpeaking}
+                  isMuted={voice.isMuted}
+                  peers={voice.peers}
+                />
+              </div>
             )}
           </div>
 
