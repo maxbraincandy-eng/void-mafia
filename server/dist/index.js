@@ -41,7 +41,9 @@ app.get('/api/health', (_req, res) => {
 });
 // ── Rooms List ────────────────────────────────────────────────────────
 app.get('/api/rooms', (_req, res) => {
-    const list = getAllRooms().map(toRoomListItem);
+    const list = getAllRooms()
+        .filter(r => !r.settings.isPrivate)
+        .map(toRoomListItem);
     res.json({ ok: true, data: list });
 });
 // ── Player Profile ────────────────────────────────────────────────────

@@ -11,6 +11,7 @@ export const DEFAULT_SETTINGS = {
     allowDoctorSelfHeal: true,
     tieVoteRule: 'no_elimination',
     minPlayers: 4,
+    isPrivate: false,
     roles: {
         mafia: 0, // overridden by distribution table at game start
         don: 0,
@@ -214,6 +215,7 @@ export function toRoomListItem(room) {
         phase: room.phase,
         createdAt: room.createdAt,
         hostName: host?.name ?? 'Unknown',
+        isPrivate: room.settings.isPrivate ?? false,
     };
 }
 // ── Helpers ───────────────────────────────────────────────────────────

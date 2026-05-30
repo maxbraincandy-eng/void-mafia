@@ -188,6 +188,7 @@ export interface GameSettings {
   allowDoctorSelfHeal: boolean;
   tieVoteRule: TieRule;
   minPlayers: number;
+  isPrivate: boolean;
   roles: {
     mafia: number;
     don: number;
@@ -262,6 +263,7 @@ export interface RoomListItem {
   phase: Phase;
   createdAt: number;
   hostName: string;
+  isPrivate: boolean;
 }
 
 export interface NightResult {

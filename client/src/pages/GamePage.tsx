@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
-import { Phase } from '@/types/index';
+import { Phase, PlayerPublic } from '@/types/index';
 import { Timer } from '@/components/ui/Timer';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -12,6 +13,8 @@ import { NightPanel } from '@/components/game/NightPanel';
 import { VotingPanel } from '@/components/game/VotingPanel';
 import { GameOver } from '@/components/game/GameOver';
 import { NightResultOverlay } from '@/components/game/NightResultOverlay';
+import { PlayerStatsModal } from '@/components/ui/PlayerStatsModal';
+import { ReportModal } from '@/components/ui/ReportModal';
 
 const PHASE_LABELS: Record<Phase, string> = {
   lobby:        'Lobby',
@@ -32,6 +35,9 @@ const PHASE_COLORS: Record<Phase, string> = {
 };
 
 export function GamePage() {
+  const [statsPlayer, setStatsPlayer] = useState<PlayerPublic | null>(null);
+  const [reportProfileId, setReportProfileId] = useState<string | null>(null);
+
   const {
     room, myPlayer, myRole, amHost, amAlive,
     nightResult, investigationResult, gameOverResult,
@@ -202,6 +208,9 @@ export function GamePage() {
                 players={room.players}
                 phase={phase}
                 showVotes={phase === 'voting'}
+                onSelectTarget={p => {
+                  if (p.id !== myPlayer?.id) setStatsPlayer(p);
+                }}
               />
             </aside>
 
@@ -304,6 +313,26 @@ export function GamePage() {
           </div>
         </div>
       </div>
+
+      {/* Player stats modal — click player name to view */}
+      {statsPlayer && (
+        <PlayerStatsModal
+          profileId={statsPlayer.profileId ?? null}
+          playerName={statsPlayer.name}
+          onClose={() => setStatsPlayer(null)}
+          onReport={pid => { setReportProfileId(pid); setStatsPlayer(null); }}
+        />
+      )}
+
+      {reportProfileId && (
+        <ReportModal
+          targetProfileId={reportProfileId}
+          targetName={room.players.find(p => p.profileId === reportProfileId)?.name ?? ''}
+          roomId={room.id}
+          onClose={() => setReportProfileId(null)}
+          onSuccess={() => setReportProfileId(null)}
+        />
+      )}
     </div>
   );
 }

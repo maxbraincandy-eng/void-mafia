@@ -20,13 +20,19 @@ interface AuthStore {
 
   login: (username: string) => Promise<void>;
   logout: () => void;
-  refreshProfile: () => void;
 }
 
 export const useAuthStore = create<AuthStore>((set, get) => {
-  // Listen for profile updates pushed by server
   socket.on('player:profile', (profile: PlayerProfilePublic) => {
     set({ profile, isAuthed: true });
+  });
+
+  // Auto-authenticate when socket connects if credentials exist
+  socket.on('connect', () => {
+    const { uid, username, isAuthed } = get();
+    if (uid && username && !isAuthed) {
+      get().login(username).catch(() => {});
+    }
   });
 
   return {
@@ -71,12 +77,6 @@ export const useAuthStore = create<AuthStore>((set, get) => {
       localStorage.removeItem(UID_KEY);
       localStorage.removeItem(NAME_KEY);
       set({ uid: null, username: null, profile: null, isAuthed: false });
-    },
-
-    refreshProfile: () => {
-      const uid = get().uid;
-      const username = get().username;
-      if (uid && username) get().login(username).catch(() => {});
     },
   };
 });

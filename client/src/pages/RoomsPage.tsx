@@ -3,18 +3,16 @@ import { motion } from 'framer-motion';
 import { RoomListItem } from '@/types/index';
 import { useGameStore } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
+import { useT } from '@/store/langStore';
+import { useAmbientDrone } from '@/hooks/useAudio';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 
-interface Props {
-  onEnterRoom: () => void;
-}
-
-export function RoomsPage({ onEnterRoom }: Props) {
+export function RoomsPage() {
   const [mode, setMode] = useState<'browse' | 'create' | 'join'>('browse');
   const [rooms, setRooms] = useState<RoomListItem[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
-  const [name, setName] = useState('');
+  const [isPrivate, setIsPrivate] = useState(false);
   const [code, setCode] = useState('');
 
   const { createRoom, joinRoom, isLoading } = useGameStore(s => ({
@@ -23,6 +21,8 @@ export function RoomsPage({ onEnterRoom }: Props) {
     isLoading: s.isLoading,
   }));
   const username = useAuthStore(s => s.username) ?? '';
+  const t = useT();
+  useAmbientDrone(0.05);
 
   const fetchRooms = async () => {
     setLoadingRooms(true);
@@ -42,29 +42,22 @@ export function RoomsPage({ onEnterRoom }: Props) {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createRoom(name || username);
-    onEnterRoom();
+    await createRoom(username, isPrivate ? { isPrivate: true } : undefined);
   };
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (code.length < 6) return;
     await joinRoom(code.toUpperCase(), username);
-    onEnterRoom();
   };
 
   const handleQuickJoin = async (room: RoomListItem) => {
     await joinRoom(room.code, username);
-    onEnterRoom();
   };
 
-  const phaseLabel: Record<string, string> = {
-    lobby: 'Waiting',
-    role_reveal: 'Starting',
-    night: 'Night',
-    day: 'Day',
-    voting: 'Voting',
-    game_over: 'Ended',
-  };
+  const phaseLabel: Record<string, string> = t.rooms.phase;
+
+  const roomCount = rooms.length;
 
   return (
     <div className="min-h-screen bg-neon-grid-animated scanlines pb-20 relative overflow-hidden">
@@ -72,12 +65,12 @@ export function RoomsPage({ onEnterRoom }: Props) {
 
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-8">
         {/* Header */}
-        <div className="mb-6">
+        <div className="mb-6 pr-20">
           <h1 className="font-display text-3xl font-bold gradient-text tracking-wide">VOID MAFIA</h1>
-          <p className="text-neon-green/50 font-mono text-xs tracking-widest">powered by ბატონი მაქსი</p>
+          <p className="text-neon-green/50 font-mono text-xs tracking-widest">{t.common.poweredBy}</p>
         </div>
 
-        {/* Action tabs */}
+        {/* Mode tabs */}
         <div className="flex gap-2 mb-6">
           {(['browse', 'create', 'join'] as const).map(m => (
             <button
@@ -89,7 +82,7 @@ export function RoomsPage({ onEnterRoom }: Props) {
                   : 'border border-white/5 text-white/30 hover:text-white/60'
               }`}
             >
-              {m === 'browse' ? 'Browse' : m === 'create' ? 'Create' : 'Join Code'}
+              {m === 'browse' ? t.rooms.browse : m === 'create' ? t.rooms.create : t.rooms.joinCode}
             </button>
           ))}
         </div>
@@ -99,21 +92,21 @@ export function RoomsPage({ onEnterRoom }: Props) {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-mono text-white/40 uppercase tracking-widest">
-                {rooms.length} active room{rooms.length !== 1 ? 's' : ''}
+                {roomCount} {roomCount === 1 ? t.rooms.activeRooms : t.rooms.activeRoomsPlural}
               </span>
               <button onClick={fetchRooms} className="text-xs text-neon-cyan/60 hover:text-neon-cyan font-mono">
-                ↻ refresh
+                {t.rooms.refresh}
               </button>
             </div>
 
             {loadingRooms && rooms.length === 0 && (
-              <p className="text-center text-white/30 font-mono text-sm py-8">Loading…</p>
+              <p className="text-center text-white/30 font-mono text-sm py-8">{t.common.loading}</p>
             )}
 
             {!loadingRooms && rooms.length === 0 && (
               <div className="text-center py-12">
-                <p className="text-white/25 font-mono text-sm">No active rooms</p>
-                <p className="text-white/15 font-mono text-xs mt-1">Create the first one!</p>
+                <p className="text-white/25 font-mono text-sm">{t.rooms.noRooms}</p>
+                <p className="text-white/15 font-mono text-xs mt-1">{t.rooms.noRoomsHint}</p>
               </div>
             )}
 
@@ -141,7 +134,7 @@ export function RoomsPage({ onEnterRoom }: Props) {
                           </span>
                         </div>
                         <p className="text-white/40 text-xs font-mono">
-                          Host: {room.hostName} · {room.playerCount} player{room.playerCount !== 1 ? 's' : ''}
+                          {t.rooms.host}: {room.hostName} · {room.playerCount} {t.rooms.players}
                         </p>
                       </div>
 
@@ -152,7 +145,7 @@ export function RoomsPage({ onEnterRoom }: Props) {
                           loading={isLoading}
                           onClick={() => handleQuickJoin(room)}
                         >
-                          Join
+                          {t.rooms.joinCode}
                         </Button>
                       )}
                     </div>
@@ -165,48 +158,75 @@ export function RoomsPage({ onEnterRoom }: Props) {
 
         {/* Create */}
         {mode === 'create' && (
-          <motion.form initial={{ opacity: 0 }} animate={{ opacity: 1 }} onSubmit={handleCreate}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <Card glow="purple" padding="md">
               <h3 className="font-display font-bold text-neon-purple tracking-widest uppercase mb-4">
-                Create Room
+                {t.rooms.createRoom}
               </h3>
-              <label className="block text-xs font-mono text-white/40 mb-1">Your name in room</label>
-              <input
-                type="text"
-                value={name || username}
-                onChange={e => setName(e.target.value)}
-                placeholder={username}
-                maxLength={24}
-                className="w-full bg-void-50/80 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 font-mono text-sm focus:outline-none focus:border-neon-purple/40 mb-4"
-              />
-              <Button fullWidth variant="primary" loading={isLoading} onClick={() => {}}>
-                Create Room
-              </Button>
+
+              {/* Public / Private toggle */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => setIsPrivate(false)}
+                  className={`flex-1 py-2 rounded-xl text-xs font-mono font-bold transition-all border ${
+                    !isPrivate
+                      ? 'bg-neon-cyan/15 border-neon-cyan/40 text-neon-cyan'
+                      : 'border-white/10 text-white/30 hover:text-white/60'
+                  }`}
+                >
+                  🌐 {t.rooms.publicRoom}
+                </button>
+                <button
+                  onClick={() => setIsPrivate(true)}
+                  className={`flex-1 py-2 rounded-xl text-xs font-mono font-bold transition-all border ${
+                    isPrivate
+                      ? 'bg-neon-pink/15 border-neon-pink/40 text-neon-pink'
+                      : 'border-white/10 text-white/30 hover:text-white/60'
+                  }`}
+                >
+                  🔒 {t.rooms.privateRoom}
+                </button>
+              </div>
+
+              <div className="text-xs font-mono text-white/30 mb-4 p-3 rounded-xl bg-void-50/60 border border-white/5">
+                {isPrivate
+                  ? '🔒 Room will not appear in the public list. Share the code manually.'
+                  : '🌐 Room will be visible in the public browser.'}
+              </div>
+
+              <form onSubmit={handleCreate}>
+                <Button fullWidth variant="primary" loading={isLoading}>
+                  {t.rooms.createRoom}
+                </Button>
+              </form>
             </Card>
-          </motion.form>
+          </motion.div>
         )}
 
         {/* Join by code */}
         {mode === 'join' && (
-          <motion.form initial={{ opacity: 0 }} animate={{ opacity: 1 }} onSubmit={handleJoin}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <Card glow="cyan" padding="md">
               <h3 className="font-display font-bold text-neon-cyan tracking-widest uppercase mb-4">
-                Join by Code
+                {t.rooms.joinRoom}
               </h3>
-              <label className="block text-xs font-mono text-white/40 mb-1">Room code (6 characters)</label>
-              <input
-                type="text"
-                value={code}
-                onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
-                placeholder="XXXXXX"
-                maxLength={6}
-                className="w-full bg-void-50/80 border border-white/10 rounded-xl px-4 py-3 text-neon-cyan placeholder-white/20 font-mono text-xl tracking-[0.4em] text-center focus:outline-none focus:border-neon-cyan/40 mb-4"
-              />
-              <Button fullWidth variant="neon-cyan" loading={isLoading} disabled={code.length < 6} onClick={() => {}}>
-                Join Room
-              </Button>
+              <label className="block text-xs font-mono text-white/40 mb-1">{t.rooms.roomCodeLabel}</label>
+              <form onSubmit={handleJoin}>
+                <input
+                  type="text"
+                  value={code}
+                  onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
+                  placeholder={t.rooms.roomCodePlaceholder}
+                  maxLength={6}
+                  autoFocus
+                  className="w-full bg-void-50/80 border border-white/10 rounded-xl px-4 py-3 text-neon-cyan placeholder-white/20 font-mono text-xl tracking-[0.4em] text-center focus:outline-none focus:border-neon-cyan/40 mb-4"
+                />
+                <Button fullWidth variant="neon-cyan" loading={isLoading} disabled={code.length < 6}>
+                  {t.rooms.joinRoom}
+                </Button>
+              </form>
             </Card>
-          </motion.form>
+          </motion.div>
         )}
       </div>
     </div>

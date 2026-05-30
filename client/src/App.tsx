@@ -1,17 +1,30 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
-import { LandingPage } from '@/pages/LandingPage';
+import { useAuthStore } from '@/store/authStore';
+import { LoginPage } from '@/pages/LoginPage';
 import { LobbyPage } from '@/pages/LobbyPage';
 import { GamePage } from '@/pages/GamePage';
+import { RoomsPage } from '@/pages/RoomsPage';
+import { ProfilePage } from '@/pages/ProfilePage';
+import { ClansPage } from '@/pages/ClansPage';
+import { LeaderboardPage } from '@/pages/LeaderboardPage';
+import { ModDashboardPage } from '@/pages/ModDashboardPage';
+import { BottomNav, NavTab } from '@/components/layout/BottomNav';
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 
-function Toast() {
+interface Toast {
+  id: string;
+  text: string;
+  type: 'info' | 'success' | 'error';
+}
+
+function ToastLayer() {
   const toasts = useGameStore(s => s.toasts);
-
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 items-center pointer-events-none">
+    <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 items-center pointer-events-none">
       <AnimatePresence>
-        {toasts.map(t => (
+        {toasts.map((t: Toast) => (
           <motion.div
             key={t.id}
             initial={{ opacity: 0, y: 16, scale: 0.9 }}
@@ -33,13 +46,35 @@ function Toast() {
   );
 }
 
-function Screen() {
-  const room = useGameStore(s => s.room);
-  const phase = room?.phase;
+function MainApp() {
+  const [page, setPage] = useState<NavTab>('rooms');
+  const profile = useAuthStore(s => s.profile);
+  const isMod = profile?.isModerator ?? false;
 
-  if (!room) return <LandingPage />;
-  if (phase === 'lobby') return <LobbyPage />;
-  return <GamePage />;
+  return (
+    <div className="pb-20 min-h-screen">
+      <AnimatePresence mode="wait">
+        {page === 'rooms'       && <RoomsPage key="rooms" />}
+        {page === 'clans'       && <ClansPage key="clans" />}
+        {page === 'leaderboard' && <LeaderboardPage key="leaderboard" />}
+        {page === 'profile'     && <ProfilePage key="profile" />}
+        {page === 'mod' && isMod && <ModDashboardPage key="mod" />}
+      </AnimatePresence>
+      <BottomNav active={page} isMod={isMod} onChange={setPage} />
+    </div>
+  );
+}
+
+function Screen() {
+  const isAuthed = useAuthStore(s => s.isAuthed);
+  const room = useGameStore(s => s.room);
+
+  if (!isAuthed) return <LoginPage />;
+  if (room) {
+    if (room.phase === 'lobby') return <LobbyPage />;
+    return <GamePage />;
+  }
+  return <MainApp />;
 }
 
 export default function App() {
@@ -51,10 +86,15 @@ export default function App() {
 
   return (
     <>
+      {/* Global language switcher — top-right corner */}
+      <div className="fixed top-3 right-3 z-[200]">
+        <LanguageSwitcher />
+      </div>
+
       <AnimatePresence mode="wait">
         <Screen />
       </AnimatePresence>
-      <Toast />
+      <ToastLayer />
     </>
   );
 }

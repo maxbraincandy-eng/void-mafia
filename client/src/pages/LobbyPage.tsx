@@ -2,11 +2,14 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
+import { useT } from '@/store/langStore';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
 import { ChatPanel } from '@/components/chat/ChatPanel';
-import { GameSettings } from '@/types/index';
+import { PlayerStatsModal } from '@/components/ui/PlayerStatsModal';
+import { ReportModal } from '@/components/ui/ReportModal';
+import { GameSettings, PlayerPublic } from '@/types/index';
 
 export function LobbyPage() {
   const {
@@ -25,6 +28,9 @@ export function LobbyPage() {
   }));
 
   const [showSettings, setShowSettings] = useState(false);
+  const [statsPlayer, setStatsPlayer] = useState<PlayerPublic | null>(null);
+  const [reportProfileId, setReportProfileId] = useState<string | null>(null);
+  const t = useT();
 
   if (!room) return null;
 
@@ -35,7 +41,6 @@ export function LobbyPage() {
 
   return (
     <div className="min-h-screen bg-neon-grid-animated scanlines relative overflow-hidden">
-      {/* Ambient */}
       <div className="absolute top-0 right-0 w-64 h-64 bg-neon-purple/10 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-48 h-48 bg-neon-cyan/8 rounded-full blur-[80px] pointer-events-none" />
 
@@ -44,11 +49,12 @@ export function LobbyPage() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between mb-8"
+          className="flex items-center justify-between mb-8 pr-20"
         >
           <div>
             <h1 className="font-display text-4xl font-bold gradient-text tracking-wide">VOID MAFIA</h1>
-            <p className="text-white/40 text-sm font-mono mt-1">Lobby · Waiting for players</p>
+            <p className="text-neon-green/50 font-mono text-xs tracking-widest">{t.common.poweredBy}</p>
+            <p className="text-white/40 text-sm font-mono mt-1">{t.lobby.subtitle}</p>
           </div>
 
           {/* Room code */}
@@ -59,6 +65,9 @@ export function LobbyPage() {
                 {room.code}
               </span>
             </div>
+            {room.settings.isPrivate && (
+              <span className="text-xs text-neon-pink/70 font-mono mt-1 block">🔒 PRIVATE</span>
+            )}
           </div>
         </motion.div>
 
@@ -68,10 +77,10 @@ export function LobbyPage() {
             <Card glow="cyan" padding="md">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-display font-bold text-neon-cyan tracking-widest uppercase">
-                  Players
+                  {t.lobby.players}
                 </h2>
                 <span className="text-sm font-mono text-white/40">
-                  {playerCount}/{room.settings.minPlayers} min · {room.settings.roles.mafia + room.settings.roles.don} mafia
+                  {playerCount}/{minPlayers} {t.lobby.min}
                 </span>
               </div>
 
@@ -83,19 +92,25 @@ export function LobbyPage() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05 }}
                     className={clsx(
-                      'flex items-center gap-3 p-3 rounded-xl border transition-all',
+                      'flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer',
                       player.id === myPlayer?.id
                         ? 'border-neon-purple/30 bg-neon-purple/5'
-                        : 'border-white/5 bg-void-50/40',
+                        : 'border-white/5 bg-void-50/40 hover:border-neon-cyan/20 hover:bg-neon-cyan/5',
                     )}
+                    onClick={() => player.id !== myPlayer?.id && setStatsPlayer(player)}
                   >
                     <Avatar name={player.name} isHost={player.isHost} size="md" />
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-white truncate">{player.name}</span>
+                        <span className={clsx(
+                          'text-sm font-semibold truncate',
+                          player.isModerator ? 'text-neon-green' : 'text-white',
+                        )}>
+                          {player.name}
+                        </span>
                         {player.id === myPlayer?.id && (
-                          <span className="text-xs text-neon-purple">(you)</span>
+                          <span className="text-xs text-neon-purple">{t.common.you}</span>
                         )}
                         {!player.isConnected && (
                           <span className="text-xs text-white/30">disconnected</span>
@@ -103,7 +118,7 @@ export function LobbyPage() {
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         {player.isHost ? (
-                          <span className="text-xs text-yellow-400 font-mono">HOST</span>
+                          <span className="text-xs text-yellow-400 font-mono">{t.common.host}</span>
                         ) : (
                           <span className={clsx('text-xs font-mono',
                             player.isReady ? 'text-neon-green' : 'text-white/30',
@@ -117,23 +132,21 @@ export function LobbyPage() {
                     {/* Host kick control */}
                     {amHost && player.id !== myPlayer?.id && (
                       <button
-                        onClick={() => kickPlayer(player.id)}
+                        onClick={e => { e.stopPropagation(); kickPlayer(player.id); }}
                         className="text-white/20 hover:text-neon-red text-xs transition-colors px-2 py-1 rounded"
                       >
                         kick
                       </button>
                     )}
 
-                    {/* Seat */}
                     <span className="text-xs font-mono text-white/25">#{player.seat}</span>
                   </motion.div>
                 ))}
               </div>
 
-              {/* Start requirements */}
               {playerCount < minPlayers && (
                 <p className="text-center text-xs text-white/30 font-mono mt-4 pt-4 border-t border-white/5">
-                  Need {minPlayers - playerCount} more player{minPlayers - playerCount !== 1 ? 's' : ''} to start
+                  {minPlayers - playerCount} {minPlayers - playerCount === 1 ? t.lobby.needMore : t.lobby.needMorePlural}
                 </p>
               )}
             </Card>
@@ -147,7 +160,7 @@ export function LobbyPage() {
                   loading={isLoading}
                   onClick={() => toggleReady()}
                 >
-                  {myPlayer?.isReady ? '✓ Ready!' : 'Mark Ready'}
+                  {myPlayer?.isReady ? t.lobby.readyDone : t.lobby.ready}
                 </Button>
               )}
               {amHost && (
@@ -159,7 +172,7 @@ export function LobbyPage() {
                     disabled={!canStart}
                     onClick={() => startGame()}
                   >
-                    ▶ Start Game {!canStart ? `(need ${minPlayers})` : allReady ? '' : ''}
+                    {t.lobby.startGame} {!canStart ? `(need ${minPlayers})` : ''}
                   </Button>
                   <Button
                     variant="secondary"
@@ -170,11 +183,10 @@ export function LobbyPage() {
                 </>
               )}
               <Button variant="danger" onClick={() => leaveRoom()} loading={isLoading}>
-                Leave
+                {t.lobby.leave}
               </Button>
             </div>
 
-            {/* Settings panel */}
             {showSettings && amHost && (
               <SettingsPanel settings={room.settings} onUpdate={updateSettings} />
             )}
@@ -184,7 +196,7 @@ export function LobbyPage() {
           <div className="lg:col-span-1">
             <Card glow="none" padding="md" className="h-full min-h-[400px] flex flex-col">
               <h2 className="font-display font-bold text-white/60 tracking-widest uppercase text-sm mb-4 flex-shrink-0">
-                Lobby Chat
+                {t.lobby.chat}
               </h2>
               <div className="flex-1 min-h-0">
                 <ChatPanel />
@@ -193,6 +205,27 @@ export function LobbyPage() {
           </div>
         </div>
       </div>
+
+      {/* Player stats modal */}
+      {statsPlayer && (
+        <PlayerStatsModal
+          profileId={statsPlayer.profileId ?? null}
+          playerName={statsPlayer.name}
+          onClose={() => setStatsPlayer(null)}
+          onReport={pid => { setReportProfileId(pid); setStatsPlayer(null); }}
+        />
+      )}
+
+      {/* Report modal */}
+      {reportProfileId && (
+        <ReportModal
+          targetProfileId={reportProfileId}
+          targetName={room.players.find(p => p.profileId === reportProfileId)?.name ?? ''}
+          roomId={room.id}
+          onClose={() => setReportProfileId(null)}
+          onSuccess={() => setReportProfileId(null)}
+        />
+      )}
     </div>
   );
 }
@@ -205,18 +238,16 @@ function SettingsPanel({
   onUpdate: (s: Partial<GameSettings>) => Promise<void>;
 }) {
   const [local, setLocal] = useState(settings);
-
-  const handleSave = () => onUpdate(local);
+  const t = useT();
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-    >
+    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
       <Card glow="purple" padding="md">
         <h3 className="font-display font-bold text-neon-purple tracking-widest uppercase mb-4">
-          Game Settings
+          {t.lobby.settings}
         </h3>
+
+        {/* Timers */}
         <div className="grid grid-cols-2 gap-4 mb-4">
           {(
             [
@@ -239,24 +270,34 @@ function SettingsPanel({
             </div>
           ))}
         </div>
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          {(['mafia', 'sheriff', 'doctor'] as const).map(role => (
-            <div key={role}>
-              <label className="block text-xs text-white/40 font-mono mb-1 capitalize">{role}</label>
+
+        {/* Auto-role info */}
+        <div className="p-3 rounded-xl bg-neon-cyan/5 border border-neon-cyan/15 mb-4">
+          <p className="text-xs font-mono text-neon-cyan/70">{t.lobby.autoRoles}</p>
+          <p className="text-xs font-mono text-white/25 mt-0.5">Mafia · Sheriff · Doctor</p>
+        </div>
+
+        {/* Optional extra roles */}
+        <p className="text-xs text-white/40 font-mono mb-2">{t.lobby.optionalRoles}</p>
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          {(['don', 'maniac', 'jester', 'bodyguard'] as const).map(role => (
+            <div key={role} className="flex items-center gap-2">
               <input
-                type="number"
-                min={role === 'mafia' ? 1 : 0}
-                max={6}
-                value={local.roles[role]}
+                type="checkbox"
+                id={`role-${role}`}
+                checked={local.roles[role] > 0}
                 onChange={e => setLocal(s => ({
                   ...s,
-                  roles: { ...s.roles, [role]: Number(e.target.value) },
+                  roles: { ...s.roles, [role]: e.target.checked ? 1 : 0 },
                 }))}
-                className="w-full bg-void-50/80 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-neon-purple/40"
+                className="w-4 h-4 accent-neon-purple"
               />
+              <label htmlFor={`role-${role}`} className="text-sm text-white/70 capitalize">{role}</label>
             </div>
           ))}
         </div>
+
+        {/* Other toggles */}
         <div className="flex items-center gap-3 mb-4">
           <input
             type="checkbox"
@@ -265,10 +306,22 @@ function SettingsPanel({
             onChange={e => setLocal(s => ({ ...s, allowDoctorSelfHeal: e.target.checked }))}
             className="w-4 h-4 accent-neon-purple"
           />
-          <label htmlFor="doctorSelfHeal" className="text-sm text-white/60">Allow Doctor self-heal</label>
+          <label htmlFor="doctorSelfHeal" className="text-sm text-white/60">Doctor self-heal</label>
         </div>
-        <Button fullWidth variant="neon-purple" onClick={handleSave}>
-          Save Settings
+
+        <div className="flex items-center gap-3 mb-4">
+          <input
+            type="checkbox"
+            id="privateRoom"
+            checked={local.isPrivate}
+            onChange={e => setLocal(s => ({ ...s, isPrivate: e.target.checked }))}
+            className="w-4 h-4 accent-neon-pink"
+          />
+          <label htmlFor="privateRoom" className="text-sm text-white/60">{t.lobby.privateRoom}</label>
+        </div>
+
+        <Button fullWidth variant="neon-purple" onClick={() => onUpdate(local)}>
+          {t.lobby.saveSettings}
         </Button>
       </Card>
     </motion.div>

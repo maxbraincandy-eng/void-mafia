@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import { useT } from '@/store/langStore';
 
 export type NavTab = 'rooms' | 'clans' | 'leaderboard' | 'profile' | 'mod';
 
@@ -8,20 +9,22 @@ interface Props {
   onChange: (tab: NavTab) => void;
 }
 
-const TABS: { id: NavTab; label: string; icon: string; modOnly?: boolean }[] = [
-  { id: 'rooms',       label: 'Rooms',       icon: '⬡' },
-  { id: 'clans',       label: 'Clans',       icon: '⚔' },
-  { id: 'leaderboard', label: 'Top',         icon: '◈' },
-  { id: 'profile',     label: 'Profile',     icon: '◉' },
-  { id: 'mod',         label: 'MOD',         icon: '⚡', modOnly: true },
-];
-
 export function BottomNav({ active, isMod, onChange }: Props) {
-  const visible = TABS.filter(t => !t.modOnly || isMod);
+  const t = useT();
+
+  const TABS: { id: NavTab; label: string; icon: string; modOnly?: boolean }[] = [
+    { id: 'rooms',       label: t.nav.rooms,       icon: '⬡' },
+    { id: 'clans',       label: t.nav.clans,       icon: '⚔' },
+    { id: 'leaderboard', label: t.nav.leaderboard, icon: '◈' },
+    { id: 'profile',     label: t.nav.profile,     icon: '◉' },
+    { id: 'mod',         label: t.nav.mod,         icon: '⚡', modOnly: true },
+  ];
+
+  const visible = TABS.filter(tab => !tab.modOnly || isMod);
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-void/95 border-t border-white/5 backdrop-blur-xl">
-      <div className="flex items-center justify-around max-w-lg mx-auto">
+      <div className="flex items-center justify-around max-w-lg mx-auto relative">
         {visible.map(tab => {
           const isActive = active === tab.id;
           const isModeTab = tab.id === 'mod';
