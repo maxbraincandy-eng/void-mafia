@@ -1372,6 +1372,18 @@ io.on("connection", socket => {
     emitRoom(room);
   });
 
+  socket.on("webrtc:ready", payload => {
+    const room = roomOf(payload.roomId);
+    if (!room) return;
+    socket.to(room.id).emit("webrtc:peer-ready", { socketId: socket.id });
+  });
+
+  socket.on("webrtc:reset", payload => {
+    const room = roomOf(payload.roomId);
+    if (!room) return;
+    socket.to(room.id).emit("webrtc:reset-peer", { socketId: socket.id });
+  });
+
   socket.on("signal:offer", ({ to, signal }) => io.to(to).emit("signal:offer", { from: socket.id, signal }));
   socket.on("signal:answer", ({ to, signal }) => io.to(to).emit("signal:answer", { from: socket.id, signal }));
   socket.on("signal:ice", ({ to, candidate }) => io.to(to).emit("signal:ice", { from: socket.id, candidate }));
