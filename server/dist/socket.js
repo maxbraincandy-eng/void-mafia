@@ -5,7 +5,7 @@ import { startGame, setPhase, advancePhase, submitNightAction, submitVote, build
 import { createPlayerMessage, createSystemMessage, addMessage, validateChat, } from './services/chatService.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
-import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, } from './services/playerService.js';
+import { getOrCreatePlayer, getPlayer, getAllPlayers, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, } from './services/playerService.js';
 import { canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer, warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, } from './services/moderationService.js';
 import { canJoin as voiceCanJoin, join as voiceJoin, leave as voiceLeave, } from './services/voiceService.js';
 // ── Validation Schemas ────────────────────────────────────────────────
@@ -109,8 +109,12 @@ function announceNightResult(io, room) {
     const result = { killed: room.killedLastNight, saved: room.savedLastNight };
     io.to(room.id).emit('game:night_result', result);
     if (room.killedLastNight.length > 0) {
-        const names = room.killedLastNight.map(k => k.name).join(', ');
-        broadcastSystemMsg(io, room, `Dawn breaks. ${names} was found dead.`);
+        for (const killed of room.killedLastNight) {
+            let msg = `Dawn breaks. ${killed.name} was found dead.`;
+            if (killed.lastWill)
+                msg += `\n📜 Last Will: "${killed.lastWill}"`;
+            broadcastSystemMsg(io, room, msg);
+        }
     }
     else if (room.savedLastNight) {
         broadcastSystemMsg(io, room, 'Dawn breaks. Everyone survived the night.');
@@ -137,8 +141,12 @@ function announceVoteResult(io, room) {
     const eliminated = resolveVotes(room);
     if (eliminated) {
         const target = room.players.get(eliminated);
-        if (target)
-            broadcastSystemMsg(io, room, `${target.name} was eliminated by vote.`);
+        if (target) {
+            let msg = `${target.name} was eliminated by vote.`;
+            if (target.lastWill)
+                msg += `\n📜 Last Will: "${target.lastWill}"`;
+            broadcastSystemMsg(io, room, msg);
+        }
     }
     else {
         broadcastSystemMsg(io, room, 'The vote ended in a tie. No one was eliminated.');
@@ -481,6 +489,60 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
+        // ── Set Last Will ────────────────────────────────────────────────────
+        socket.on('game:set_will', ({ text }, cb) => {
+            try {
+                const room = getRoomFromSocket(socket);
+                const player = getPlayerOrError(socket, room);
+                if (!player.isAlive)
+                    throw new Error('Eliminated players cannot change their last will.');
+                player.lastWill = text.slice(0, 200);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Pause / Resume Timer ─────────────────────────────────────────────
+        socket.on('game:pause', (cb) => {
+            try {
+                const room = getRoomFromSocket(socket);
+                const host = getPlayerOrError(socket, room);
+                if (!host.isHost)
+                    throw new Error('Only the host can pause.');
+                if (room.phase === 'lobby' || room.phase === 'game_over')
+                    throw new Error('Cannot pause now.');
+                if (room.isPaused) {
+                    room.isPaused = false;
+                    timerService.resume(room.id);
+                    broadcastSystemMsg(io, room, '▶ Game resumed.');
+                }
+                else {
+                    room.isPaused = true;
+                    timerService.pause(room.id);
+                    broadcastSystemMsg(io, room, '⏸ Game paused by host.');
+                }
+                broadcastRoom(io, room);
+                cb(ok({ isPaused: room.isPaused }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Leaderboard ──────────────────────────────────────────────────────
+        socket.on('leaderboard:get', (cb) => {
+            try {
+                const players = getAllPlayers()
+                    .filter(p => p.stats.gamesPlayed >= 3)
+                    .sort((a, b) => b.stats.winRate - a.stats.winRate || b.stats.gamesPlayed - a.stats.gamesPlayed)
+                    .slice(0, 20)
+                    .map(toPublicProfile);
+                cb(ok(players));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
         // ── Restart ─────────────────────────────────────────────────────
         socket.on('game:restart', (cb) => {
             try {
@@ -537,6 +599,13 @@ export function attachSocketHandlers(io) {
                     for (const p of room.players.values()) {
                         if (p.team === 'mafia' && p.socketId)
                             io.to(p.socketId).emit('chat:new', msg);
+                    }
+                }
+                else if (msg.channel === 'dead') {
+                    for (const p of room.players.values()) {
+                        if ((!p.isAlive || p.isSpectator) && p.socketId) {
+                            io.to(p.socketId).emit('chat:new', msg);
+                        }
                     }
                 }
                 else {

@@ -61,6 +61,7 @@ export function createRoom(
     joinedAt: Date.now(),
     profileId,
     isSpectator: false,
+    lastWill: null,
   };
 
   const mergedSettings: GameSettings = {
@@ -90,6 +91,7 @@ export function createRoom(
     currentSpeakerIdx: 0,
     daySkipVotes: [],
     createdAt: Date.now(),
+    isPaused: false,
   };
 
   rooms.set(id, room);
@@ -147,6 +149,7 @@ export function addPlayer(room: Room, socketId: string, name: string, profileId:
     joinedAt: Date.now(),
     profileId,
     isSpectator: false,
+    lastWill: null,
   };
 
   room.players.set(player.id, player);
@@ -242,6 +245,7 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     currentSpeakerId: room.speechOrder[room.currentSpeakerIdx] ?? null,
     daySkipVoteCount: room.daySkipVotes.length,
     spectatorCount: [...room.players.values()].filter(p => p.isSpectator).length,
+    isPaused: room.isPaused,
   };
 }
 

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import {
-  RoomPublic, PlayerPublic, Role, ChatMessage, Phase,
+  RoomPublic, PlayerPublic, PlayerProfilePublic, Role, ChatMessage, Phase,
   NightResult, InvestigationResult, GameOverResult, ChatChannel, GameSettings,
 } from '@/types/index';
 import { socket, connectSocket, disconnectSocket, emitWithAck } from '@/lib/socket';
@@ -59,6 +59,9 @@ interface GameStore {
   dismissGameOver: () => void;
   addToast: (text: string, type?: Toast['type']) => void;
   clearError: () => void;
+  setWill: (text: string) => Promise<void>;
+  pauseTimer: () => Promise<void>;
+  getLeaderboard: () => Promise<PlayerProfilePublic[]>;
 }
 
 let toastCounter = 0;
@@ -253,5 +256,19 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     clearError: () => set({ error: null }),
+
+    setWill: withLoading(async (text: string) => {
+      await emit('game:set_will', { text });
+    }),
+
+    pauseTimer: withLoading(async () => {
+      await emit('game:pause');
+    }),
+
+    getLeaderboard: async () => {
+      const res = await emitWithAck<unknown, any>('leaderboard:get', undefined);
+      if (!res.ok) throw new Error(res.error);
+      return res.data;
+    },
   };
 });

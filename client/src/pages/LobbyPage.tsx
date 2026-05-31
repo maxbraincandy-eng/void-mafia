@@ -33,6 +33,7 @@ export function LobbyPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [statsPlayer, setStatsPlayer] = useState<PlayerPublic | null>(null);
   const [reportProfileId, setReportProfileId] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const t = useT();
   const voice = useVoiceChat();
   const autoJoined = useRef(false);
@@ -77,10 +78,22 @@ export function LobbyPage() {
           {/* Room code */}
           <div className="text-right">
             <p className="text-xs font-mono text-white/40 uppercase tracking-widest mb-1">Room Code</p>
-            <div className="glass-card border border-neon-cyan/30 px-4 py-2 shadow-neon-cyan">
-              <span className="font-mono text-2xl font-bold text-neon-cyan text-glow-cyan tracking-[0.3em]">
-                {room.code}
-              </span>
+            <div className="flex items-center gap-2 justify-end">
+              <div className="glass-card border border-neon-cyan/30 px-4 py-2 shadow-neon-cyan">
+                <span className="font-mono text-2xl font-bold text-neon-cyan text-glow-cyan tracking-[0.3em]">
+                  {room.code}
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`https://voidmafia.one/join/${room.code}`);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                className="text-xs font-mono px-2 py-1 rounded border border-neon-cyan/30 text-neon-cyan/70 hover:text-neon-cyan hover:border-neon-cyan/60 transition-colors bg-void-50/40"
+              >
+                {copied ? 'Copied!' : 'Copy link'}
+              </button>
             </div>
             {room.settings.isPrivate && (
               <span className="text-xs text-neon-pink/70 font-mono mt-1 block">🔒 PRIVATE</span>

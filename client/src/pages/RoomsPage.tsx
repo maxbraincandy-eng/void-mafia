@@ -7,9 +7,11 @@ import { useT } from '@/store/langStore';
 import { useAmbientDrone } from '@/hooks/useAudio';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { LeaderboardModal } from '@/components/ui/LeaderboardModal';
 
 export function RoomsPage() {
   const [mode, setMode] = useState<'browse' | 'create' | 'join'>('browse');
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [rooms, setRooms] = useState<RoomListItem[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
@@ -76,11 +78,22 @@ export function RoomsPage() {
     <div className="min-h-screen bg-neon-grid-animated scanlines pb-20 relative overflow-hidden">
       <div className="absolute top-0 right-0 w-72 h-72 bg-neon-cyan/8 rounded-full blur-[100px] pointer-events-none" />
 
+      <LeaderboardModal open={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
+
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-8">
         {/* Header */}
-        <div className="mb-6 pr-20">
-          <h1 className="font-display text-3xl font-bold gradient-text tracking-wide">VOID MAFIA</h1>
-          <p className="text-neon-green/50 font-mono text-xs tracking-widest">{t.common.poweredBy}</p>
+        <div className="mb-6 flex items-start justify-between">
+          <div>
+            <h1 className="font-display text-3xl font-bold gradient-text tracking-wide">VOID MAFIA</h1>
+            <p className="text-neon-green/50 font-mono text-xs tracking-widest">{t.common.poweredBy}</p>
+          </div>
+          <button
+            onClick={() => setShowLeaderboard(true)}
+            className="mt-1 px-3 py-2 rounded-xl border border-white/10 text-white/30 hover:text-neon-cyan hover:border-neon-cyan/30 font-mono text-sm transition-all"
+            title="Leaderboard"
+          >
+            🏆
+          </button>
         </div>
 
         {/* Mode tabs */}

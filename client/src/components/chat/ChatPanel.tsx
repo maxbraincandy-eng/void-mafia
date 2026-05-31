@@ -27,7 +27,11 @@ export function ChatPanel({ compact = false }: Props) {
   const canMafiaChat = isMafia && isNight;
   const canDeadChat = !amAlive;
 
-  const messages = channel === 'mafia' ? (room?.mafiaChat ?? []) : (room?.chat ?? []);
+  const messages = channel === 'mafia'
+    ? (room?.mafiaChat ?? [])
+    : channel === 'dead'
+      ? (room?.chat ?? []).filter(m => m.channel === 'dead')
+      : (room?.chat ?? []).filter(m => m.channel !== 'dead');
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });

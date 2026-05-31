@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { PlayerPublic } from '@/types/index';
+import { motion, AnimatePresence } from 'framer-motion';
+import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
 import { PlayerList } from './PlayerList';
 import { Button } from '@/components/ui/Button';
@@ -13,7 +13,8 @@ export function VotingPanel() {
     isLoading: s.isLoading,
   }));
 
-  const [selectedId, setSelectedId] = useState<string | null>(myPlayer?.voteTarget ?? null);
+  // Two-tap: pendingId = first tap selection, confirmed by tapping the confirm card
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   if (!room || !myPlayer) return null;
 
@@ -28,23 +29,39 @@ export function VotingPanel() {
 
   const alivePlayers = room.players.filter(p => p.isAlive && p.id !== myPlayer.id);
   const selectableIds = new Set(alivePlayers.map(p => p.id));
-  const hasVoted = !!myPlayer.voteTarget;
 
   // Live vote counts
   const voteCounts: Record<string, number> = {};
   for (const p of room.players) {
-    if (p.voteTarget) {
-      voteCounts[p.voteTarget] = (voteCounts[p.voteTarget] ?? 0) + 1;
-    }
+    if (p.voteTarget) voteCounts[p.voteTarget] = (voteCounts[p.voteTarget] ?? 0) + 1;
   }
   const topVotes = Math.max(0, ...Object.values(voteCounts));
+
+  const pendingPlayer = pendingId ? room.players.find(p => p.id === pendingId) : null;
+  const hasVoted = !!myPlayer.voteTarget;
+
+  const handleSelect = (id: string) => {
+    // Tapping the already-pending player confirms the vote
+    if (id === pendingId) {
+      submitVote(id);
+      setPendingId(null);
+    } else {
+      setPendingId(id);
+    }
+  };
+
+  const handleConfirm = () => {
+    if (!pendingId) return;
+    submitVote(pendingId);
+    setPendingId(null);
+  };
 
   return (
     <div className="space-y-4">
       <div className="p-3 rounded-xl border border-neon-red/20 bg-neon-red/5">
         <p className="text-xs font-mono text-white/40 uppercase tracking-widest mb-1">Town Vote</p>
         <p className="text-sm text-white/80">
-          Choose a player to eliminate. You can change your vote before time runs out.
+          Tap a player to select, then tap again (or confirm) to cast your vote.
         </p>
       </div>
 
@@ -74,33 +91,68 @@ export function VotingPanel() {
       <PlayerList
         players={room.players}
         phase="voting"
-        onSelectTarget={p => setSelectedId(p.id)}
+        onSelectTarget={p => handleSelect(p.id)}
         selectableIds={selectableIds}
-        selectedId={selectedId}
+        selectedId={pendingId}
         showVotes
       />
 
-      <div className="flex gap-2">
-        {selectedId && selectedId !== myPlayer.voteTarget && (
-          <motion.div className="flex-1" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-            <Button
-              fullWidth
-              variant="danger"
-              loading={isLoading}
-              onClick={() => submitVote(selectedId)}
-            >
-              {hasVoted ? 'Change Vote' : 'Vote Out'}: {room.players.find(p => p.id === selectedId)?.name}
-            </Button>
+      {/* Confirm / abstain row */}
+      <AnimatePresence>
+        {pendingPlayer && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.97 }}
+            className="p-4 rounded-xl border border-neon-red/40 bg-neon-red/10 space-y-3"
+          >
+            <p className="text-xs font-mono text-white/50 uppercase tracking-widest">Confirm vote</p>
+            <p className="text-white font-semibold">
+              Eliminate <span className="text-neon-red font-bold">{pendingPlayer.name}</span>?
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="danger"
+                fullWidth
+                loading={isLoading}
+                onClick={handleConfirm}
+              >
+                {hasVoted ? 'Change Vote' : 'Vote Out'} ✓
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setPendingId(null)}
+              >
+                Cancel
+              </Button>
+            </div>
           </motion.div>
         )}
-        <Button
-          variant="ghost"
-          loading={isLoading}
-          onClick={() => { setSelectedId(null); submitVote(null); }}
-        >
-          Abstain
-        </Button>
-      </div>
+      </AnimatePresence>
+
+      {/* Abstain button always visible */}
+      {myPlayer.voteTarget && !pendingId && (
+        <div className="text-center">
+          <button
+            onClick={() => { submitVote(null); }}
+            disabled={isLoading}
+            className="text-xs text-white/30 font-mono hover:text-white/60 transition-colors disabled:opacity-40"
+          >
+            Clear vote (abstain)
+          </button>
+        </div>
+      )}
+      {!myPlayer.voteTarget && !pendingId && (
+        <div className="text-center">
+          <button
+            onClick={() => { submitVote(null); }}
+            disabled={isLoading}
+            className="text-xs text-white/30 font-mono hover:text-white/60 transition-colors disabled:opacity-40"
+          >
+            Abstain
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -15,6 +15,7 @@ import { GameOver } from '@/components/game/GameOver';
 import { NightResultOverlay } from '@/components/game/NightResultOverlay';
 import { PlayerStatsModal } from '@/components/ui/PlayerStatsModal';
 import { ReportModal } from '@/components/ui/ReportModal';
+import { LeaderboardModal } from '@/components/ui/LeaderboardModal';
 import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { useVoiceChat, VoiceChannel } from '@/hooks/useVoiceChat';
@@ -47,11 +48,15 @@ export function GamePage() {
   const [reportProfileId, setReportProfileId] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<MobileTab>('action');
   const [unreadChat, setUnreadChat] = useState(0);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [willText, setWillText] = useState('');
+  const [willSaved, setWillSaved] = useState(false);
 
   const {
     room, myPlayer, myRole, amHost, amAlive,
     nightResult, investigationResult, spyReport, gameOverResult,
     skipPhase, daySkipVote, leaveRoom, dismissNightResult, dismissInvestigation, dismissSpyReport, dismissGameOver,
+    setWill, pauseTimer,
     isLoading,
   } = useGameStore(s => ({
     room: s.room,
@@ -70,6 +75,8 @@ export function GamePage() {
     dismissInvestigation: s.dismissInvestigation,
     dismissSpyReport: s.dismissSpyReport,
     dismissGameOver: s.dismissGameOver,
+    setWill: s.setWill,
+    pauseTimer: s.pauseTimer,
     isLoading: s.isLoading,
   }));
 
@@ -134,6 +141,12 @@ export function GamePage() {
     if (p.id !== myPlayer?.id) setStatsPlayer(p);
   };
 
+  const handleSaveWill = async () => {
+    await setWill(willText.slice(0, 200));
+    setWillSaved(true);
+    setTimeout(() => setWillSaved(false), 2000);
+  };
+
   // Voice panel — shown in sidebar (desktop) and action tab (mobile)
   const VoicePanel = (
     <div className="mt-4">
@@ -168,6 +181,38 @@ export function GamePage() {
       )}
     </div>
   );
+
+  // Last will panel — shown in action area for alive players during active phases
+  const showWill = amAlive && phase !== 'lobby' && phase !== 'role_reveal' && phase !== 'game_over';
+  const LastWillPanel = showWill ? (
+    <div className="mt-4 rounded-2xl border border-white/8 bg-void-50/40 p-3 space-y-2">
+      <p className="text-xs font-display uppercase tracking-widest text-white/30">📜 Last Will</p>
+      <textarea
+        value={willText}
+        onChange={e => { setWillText(e.target.value.slice(0, 200)); setWillSaved(false); }}
+        placeholder="Write your last will… revealed when eliminated."
+        rows={2}
+        maxLength={200}
+        className="w-full bg-void-50/60 border border-white/8 rounded-xl px-3 py-2 text-xs font-mono text-white placeholder-white/20 focus:outline-none focus:border-neon-cyan/30 resize-none transition-all"
+      />
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] text-white/20 font-mono flex-1">{willText.length}/200</span>
+        <button
+          onClick={handleSaveWill}
+          disabled={isLoading}
+          className={clsx(
+            'px-3 py-1 rounded-lg text-[10px] font-display font-bold tracking-wider uppercase transition-all',
+            willSaved
+              ? 'text-neon-green border border-neon-green/40 bg-neon-green/10'
+              : 'text-white/50 border border-white/15 hover:text-white hover:border-white/30',
+            'disabled:opacity-40',
+          )}
+        >
+          {willSaved ? '✓ Saved' : 'Save'}
+        </button>
+      </div>
+    </div>
+  ) : null;
 
   // ── Phase center content (shared)
   const PhaseContent = (
@@ -309,6 +354,14 @@ export function GamePage() {
     </AnimatePresence>
   );
 
+  // Wrap PhaseContent with Last Will below it
+  const PhaseContentWithWill = (
+    <>
+      {PhaseContent}
+      {LastWillPanel}
+    </>
+  );
+
   return (
     <div className={clsx(
       'min-h-screen relative overflow-hidden transition-all duration-1000',
@@ -331,6 +384,9 @@ export function GamePage() {
       <div className="fixed inset-0 pointer-events-none z-0 opacity-40"
         style={{ background: 'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px)' }}
       />
+
+      {/* Leaderboard */}
+      <LeaderboardModal open={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
 
       {/* Game Over */}
       {gameOverResult && <GameOver result={gameOverResult} />}
@@ -480,6 +536,39 @@ export function GamePage() {
                 />
               )}
 
+              {/* Leaderboard button */}
+              <button
+                onClick={() => setShowLeaderboard(true)}
+                className="hidden sm:flex items-center px-2 py-1 rounded-lg text-white/30 hover:text-neon-cyan transition-colors text-sm"
+                title="Leaderboard"
+              >
+                🏆
+              </button>
+
+              {/* Pause button (host only, during active phases) */}
+              {amHost && phase !== 'role_reveal' && phase !== 'game_over' && phase !== 'lobby' && (
+                <button
+                  onClick={() => pauseTimer()}
+                  disabled={isLoading}
+                  title={room.isPaused ? 'Resume timer' : 'Pause timer'}
+                  className={clsx(
+                    'px-2 py-1 rounded-lg text-sm transition-all',
+                    room.isPaused
+                      ? 'text-yellow-400 border border-yellow-400/40 bg-yellow-400/10 animate-pulse'
+                      : 'text-white/30 hover:text-white/60',
+                  )}
+                >
+                  {room.isPaused ? '▶' : '⏸'}
+                </button>
+              )}
+
+              {/* PAUSED indicator for all players */}
+              {room.isPaused && (
+                <span className="text-xs font-display font-bold text-yellow-400 tracking-widest uppercase animate-pulse">
+                  PAUSED
+                </span>
+              )}
+
               {amHost && phase !== 'role_reveal' && phase !== 'game_over' && phase !== 'lobby' && (
                 <Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>
                   <span className="hidden sm:inline">Skip </span>⏭
@@ -519,7 +608,7 @@ export function GamePage() {
 
           {/* Center: Phase content */}
           <main className="flex-1 overflow-y-auto p-4 md:p-6">
-            {PhaseContent}
+            {PhaseContentWithWill}
           </main>
 
           {/* Chat sidebar */}
@@ -539,7 +628,7 @@ export function GamePage() {
             <AnimatePresence mode="wait">
               {mobileTab === 'action' && (
                 <motion.div key="action" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
-                  {PhaseContent}
+                  {PhaseContentWithWill}
                   {/* Voice panel in action tab on mobile */}
                   {phase !== 'night' || !isMafiaPlayer ? VoicePanel : null}
                 </motion.div>

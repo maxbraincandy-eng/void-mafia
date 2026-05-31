@@ -137,6 +137,7 @@ export interface RoomPublic {
   currentSpeakerId: string | null;
   daySkipVoteCount: number;
   spectatorCount: number;
+  isPaused: boolean;
 }
 
 export interface RoomListItem {

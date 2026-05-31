@@ -154,14 +154,14 @@ export function resolveNight(room) {
             const bodyguard = room.players.get(bodyguardId);
             if (bodyguard && bodyguard.isAlive) {
                 bodyguard.isAlive = false;
-                room.killedLastNight.push({ id: bodyguardId, name: bodyguard.name });
+                room.killedLastNight.push({ id: bodyguardId, name: bodyguard.name, lastWill: bodyguard.lastWill ?? null });
                 room.savedLastNight = true;
                 continue;
             }
         }
         // No protection → target dies
         target.isAlive = false;
-        room.killedLastNight.push({ id: targetId, name: target.name });
+        room.killedLastNight.push({ id: targetId, name: target.name, lastWill: target.lastWill ?? null });
     }
 }
 // ── Night Action ──────────────────────────────────────────────────────

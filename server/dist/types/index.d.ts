@@ -116,6 +116,7 @@ export interface Player {
     joinedAt: number;
     profileId: string | null;
     isSpectator: boolean;
+    lastWill: string | null;
 }
 export interface NightAction {
     actorId: string;
@@ -173,6 +174,7 @@ export interface Room {
     killedLastNight: Array<{
         id: string;
         name: string;
+        lastWill?: string | null;
     }>;
     savedLastNight: boolean;
     winner: Team | null;
@@ -182,6 +184,7 @@ export interface Room {
     currentSpeakerIdx: number;
     daySkipVotes: string[];
     createdAt: number;
+    isPaused: boolean;
 }
 export interface PlayerPublic {
     id: string;
@@ -214,6 +217,7 @@ export interface RoomPublic {
     killedLastNight: Array<{
         id: string;
         name: string;
+        lastWill?: string | null;
     }>;
     savedLastNight: boolean;
     winner: Team | null;
@@ -221,6 +225,7 @@ export interface RoomPublic {
     currentSpeakerId: string | null;
     daySkipVoteCount: number;
     spectatorCount: number;
+    isPaused: boolean;
 }
 export interface RoomListItem {
     id: string;
@@ -235,6 +240,7 @@ export interface NightResult {
     killed: Array<{
         id: string;
         name: string;
+        lastWill?: string | null;
     }>;
     saved: boolean;
 }
@@ -370,6 +376,13 @@ export interface ClientToServerEvents {
     'game:skip': (cb: Cb<null>) => void;
     'game:day_skip_vote': (cb: Cb<null>) => void;
     'game:restart': (cb: Cb<null>) => void;
+    'game:set_will': (data: {
+        text: string;
+    }, cb: Cb<null>) => void;
+    'game:pause': (cb: Cb<{
+        isPaused: boolean;
+    }>) => void;
+    'leaderboard:get': (cb: Cb<PlayerProfilePublic[]>) => void;
     'chat:send': (data: {
         text: string;
         channel: ChatChannel;
