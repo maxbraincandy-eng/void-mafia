@@ -818,7 +818,7 @@ export function GamePage() {
           {useGridView ? (
             /* ── Grid-primary layout (day / speech / voting / role_reveal) ── */
             <>
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-hidden flex flex-col">
                 <AnimatePresence mode="wait">
                   {mobileTab === 'chat' ? (
                     <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4 h-full">
@@ -874,24 +874,27 @@ export function GamePage() {
                       </div>
                     </motion.div>
                   ) : (
-                    /* Default: player grid — during voting, tapping selects vote target */
-                    <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-3 pb-2 relative">
-                      <PlayerGrid
-                        players={room.players}
-                        phase={phase}
-                        currentSpeakerId={room.currentSpeakerId}
-                        myPlayerId={myPlayer?.id ?? null}
-                        voteCounts={voteCounts}
-                        selectedVoteId={phase === 'voting' ? (pendingVoteId ?? myVoteTarget) : myVoteTarget}
-                        showRoles={amSpectator || phase === 'game_over'}
-                        onSelect={handlePlayerSelect}
-                      />
+                    /* Default: player grid fills entire available height */
+                    <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full flex flex-col">
+                      <div className="flex-1 min-h-0">
+                        <PlayerGrid
+                          players={room.players}
+                          phase={phase}
+                          currentSpeakerId={room.currentSpeakerId}
+                          myPlayerId={myPlayer?.id ?? null}
+                          voteCounts={voteCounts}
+                          selectedVoteId={phase === 'voting' ? (pendingVoteId ?? myVoteTarget) : myVoteTarget}
+                          showRoles={amSpectator || phase === 'game_over'}
+                          fillHeight
+                          onSelect={handlePlayerSelect}
+                        />
+                      </div>
 
-                      {/* Floating vote-confirm bar when a grid target is pending */}
+                      {/* Vote confirm bar pinned at bottom */}
                       {phase === 'voting' && pendingVoteId && (() => {
                         const target = room.players.find(p => p.id === pendingVoteId);
                         return target ? (
-                          <div className="sticky bottom-2 mt-3 mx-1 rounded-2xl border border-neon-red/50 bg-[rgba(20,0,5,0.95)] backdrop-blur p-3 flex items-center gap-3 shadow-[0_0_20px_rgba(255,45,85,0.3)]">
+                          <div className="flex-shrink-0 mx-2 mb-2 mt-1 rounded-2xl border border-neon-red/50 bg-[rgba(20,0,5,0.97)] backdrop-blur p-3 flex items-center gap-3 shadow-[0_0_20px_rgba(255,45,85,0.3)]">
                             <div className="flex-1 min-w-0">
                               <p className="text-[10px] font-mono text-white/40 uppercase tracking-widest">{t.game.voting.confirmTitle}</p>
                               <p className="text-sm font-semibold text-white truncate">{target.name}</p>
@@ -1019,6 +1022,46 @@ export function GamePage() {
           )}
         </div>
       </div>
+
+      {/* ── Mobile Role Reveal full-screen overlay ─────────────────────── */}
+      {/* On desktop, RoleReveal is shown in the center main column.        */}
+      {/* On mobile, role_reveal uses the grid layout path which never      */}
+      {/* renders PhaseContent, so we show a dedicated overlay here.        */}
+      <AnimatePresence>
+        {phase === 'role_reveal' && !amSpectator && myRole && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="md:hidden fixed inset-0 z-[35] bg-black/93 backdrop-blur-md flex items-center justify-center p-6 overflow-y-auto"
+          >
+            <div className="w-full max-w-xs">
+              <RoleReveal
+                role={myRole}
+                teammates={
+                  myRole?.team === 'mafia'
+                    ? (room?.players ?? [])
+                        .filter(p => p.team === 'mafia' && p.id !== myPlayer?.id)
+                        .map((p): TeamMate => ({
+                          name: p.name,
+                          roleName: p.role ? (t.game.roles[p.role as keyof typeof t.game.roles] ?? p.role) : 'Mafia',
+                          roleKey: p.role ?? 'mafia',
+                        }))
+                    : myRole?.team === 'cult'
+                      ? (room?.players ?? [])
+                          .filter(p => p.team === 'cult' && p.id !== myPlayer?.id)
+                          .map((p): TeamMate => ({
+                            name: p.name,
+                            roleName: p.role ? (t.game.roles[p.role as keyof typeof t.game.roles] ?? p.role) : 'Cultist',
+                            roleKey: p.role ?? 'cultist',
+                          }))
+                      : []
+                }
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Player stats modal */}
       {statsPlayer && (

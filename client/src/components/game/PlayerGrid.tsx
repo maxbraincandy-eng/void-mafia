@@ -11,6 +11,7 @@ interface Props {
   voteCounts?: Record<string, number>;
   selectedVoteId?: string | null;
   showRoles?: boolean;
+  fillHeight?: boolean;
   onSelect?: (p: PlayerPublic) => void;
 }
 
@@ -139,6 +140,7 @@ function PlayerCard({
   showRole,
   phase,
   totalAlive,
+  fillHeight,
   onClick,
 }: {
   player: PlayerPublic;
@@ -149,6 +151,7 @@ function PlayerCard({
   showRole?: boolean;
   phase?: Phase;
   totalAlive?: number;
+  fillHeight?: boolean;
   onClick: () => void;
 }) {
   const dead = !player.isAlive && !player.isSpectator;
@@ -165,7 +168,7 @@ function PlayerCard({
       whileTap={{ scale: 0.97 }}
       className={clsx(
         'relative w-full rounded-2xl border transition-all duration-200 overflow-hidden text-left',
-        'flex flex-col items-center pb-3 pt-4 gap-2',
+        fillHeight ? 'flex flex-col items-center justify-center pb-2 pt-2 gap-2 h-full' : 'flex flex-col items-center pb-3 pt-4 gap-2',
         dead
           ? 'border-white/8 bg-black/60 opacity-45 grayscale pointer-events-none'
           : isSelected
@@ -262,11 +265,13 @@ export function PlayerGrid({
   voteCounts = {},
   selectedVoteId,
   showRoles,
+  fillHeight,
   onSelect,
 }: Props) {
   const isSpeechPhase = phase === 'speech';
   const alivePlayers = players.filter(p => p.isAlive && !p.isSpectator);
   const totalAlive = alivePlayers.length;
+  const numRows = Math.ceil(players.length / 2);
 
   if (isSpeechPhase && currentSpeakerId) {
     const speaker = players.find(p => p.id === currentSpeakerId);
@@ -287,7 +292,10 @@ export function PlayerGrid({
   }
 
   return (
-    <div className="grid grid-cols-2 gap-2 p-1">
+    <div
+      className={clsx('grid grid-cols-2 gap-2 p-1', fillHeight && 'h-full')}
+      style={fillHeight ? { gridTemplateRows: `repeat(${numRows}, 1fr)` } : undefined}
+    >
       <AnimatePresence>
         {players.map((player, i) => (
           <motion.div
@@ -295,6 +303,7 @@ export function PlayerGrid({
             initial={{ opacity: 0, scale: 0.88 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: i * 0.03, duration: 0.25 }}
+            className={fillHeight ? 'h-full' : undefined}
           >
             <PlayerCard
               player={player}
@@ -305,6 +314,7 @@ export function PlayerGrid({
               showRole={showRoles}
               phase={phase}
               totalAlive={totalAlive}
+              fillHeight={fillHeight}
               onClick={() => onSelect?.(player)}
             />
           </motion.div>
