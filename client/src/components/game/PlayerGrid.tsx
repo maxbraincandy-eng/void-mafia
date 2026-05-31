@@ -1,7 +1,14 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
-import { PlayerPublic, Phase } from '@/types/index';
+import { PlayerPublic, Phase, RoleKey } from '@/types/index';
 import { ModBadge } from '@/components/ui/ModBadge';
+
+const ROLE_ICONS: Partial<Record<RoleKey, string>> = {
+  citizen: '🏙', sheriff: '🔍', doctor: '💉', bodyguard: '🛡',
+  vigilante: '⚖️', escort: '💃', mayor: '👑', tracker: '👁',
+  veteran: '🎖️', spy: '🕵️', mafia: '🔫', don: '♛',
+  arsonist: '🔥', maniac: '🌀', jester: '🃏', cult_leader: '🕯️', cultist: '🔮',
+};
 
 interface Props {
   players: PlayerPublic[];
@@ -219,6 +226,16 @@ function PlayerCard({
           <span className="text-[9px] text-neon-purple/60 font-mono flex-shrink-0">👁</span>
         )}
       </div>
+
+      {/* Role badge — own card only */}
+      {isMe && player.role && !showRole && (
+        <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-neon-purple/30 bg-neon-purple/12 -mt-1">
+          <span className="text-sm">{ROLE_ICONS[player.role] ?? '?'}</span>
+          <span className="text-[9px] font-mono font-bold text-neon-purple/80 uppercase tracking-wider">
+            {player.role.replace(/_/g, ' ')}
+          </span>
+        </div>
+      )}
 
       {/* Avatar */}
       <BigAvatar player={player} size={72} />

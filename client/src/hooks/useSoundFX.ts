@@ -11,7 +11,6 @@ function getCtx(): AudioContext | null {
   if (_muted) return null;
   try {
     if (!_ctx || _ctx.state === 'closed') _ctx = new AudioContext();
-    if (_ctx.state === 'suspended') _ctx.resume();
     return _ctx;
   } catch { return null; }
 }
@@ -51,10 +50,17 @@ function scheduleTone(ctx: AudioContext, master: GainNode, opts: ToneOpts): void
 function play(tones: ToneOpts[], masterVol = 0.5): void {
   const ctx = getCtx();
   if (!ctx) return;
-  const master = ctx.createGain();
-  master.gain.value = masterVol;
-  master.connect(ctx.destination);
-  for (const t of tones) scheduleTone(ctx, master, t);
+  const schedule = () => {
+    const master = ctx.createGain();
+    master.gain.value = masterVol;
+    master.connect(ctx.destination);
+    for (const t of tones) scheduleTone(ctx, master, t);
+  };
+  if (ctx.state === 'running') {
+    schedule();
+  } else {
+    ctx.resume().then(schedule).catch(() => {});
+  }
 }
 
 // ── Named sound effects ───────────────────────────────────────────────

@@ -80,6 +80,8 @@ export function GamePage() {
   const [eliminationVictims, setEliminationVictims] = useState<Array<{ name: string; seat: number }>>([]);
   const handleElimDone = useCallback(() => setEliminationVictims([]), []);
   const prevAliveRef = useRef<Map<string, boolean>>(new Map());
+  const [showSelfVoicePanel, setShowSelfVoicePanel] = useState(false);
+  const selfVoicePanelTimer = useRef<ReturnType<typeof setTimeout>>();
 
   const {
     room, myPlayer, myRole, amHost, amAlive,
@@ -243,16 +245,24 @@ export function GamePage() {
 
   // During voting phase, grid taps select vote target; elsewhere open stats
   const handlePlayerSelect = (p: PlayerPublic) => {
-    if (phase === 'voting' && amAlive && !amSpectator && p.isAlive && p.id !== myPlayer?.id) {
+    if (p.id === myPlayer?.id) {
+      // Own card — show quick mic/cam controls if in voice
+      if (voice.channel) {
+        setShowSelfVoicePanel(true);
+        clearTimeout(selfVoicePanelTimer.current);
+        selfVoicePanelTimer.current = setTimeout(() => setShowSelfVoicePanel(false), 3500);
+      }
+      return;
+    }
+    if (phase === 'voting' && amAlive && !amSpectator && p.isAlive) {
       if (pendingVoteId === p.id) {
-        // Double-tap confirms
         SFX.voteConfirm();
         submitVote(p.id);
         setPendingVoteId(null);
       } else {
         setPendingVoteId(p.id);
       }
-    } else if (p.id !== myPlayer?.id) {
+    } else {
       setStatsPlayer(p);
     }
   };
@@ -534,6 +544,35 @@ export function GamePage() {
 
       {/* Role Guide */}
       <RoleInfoModal open={showRoleGuide} onClose={() => setShowRoleGuide(false)} />
+
+      {/* Quick voice controls — appears briefly when player taps their own card */}
+      <AnimatePresence>
+        {showSelfVoicePanel && voice.channel && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            transition={{ duration: 0.2 }}
+            className="fixed bottom-20 sm:bottom-8 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-4 px-6 py-3.5 rounded-2xl border border-white/15 bg-black/90 backdrop-blur-xl shadow-[0_8px_40px_rgba(0,0,0,0.7)]"
+            onClick={() => { clearTimeout(selfVoicePanelTimer.current); setShowSelfVoicePanel(false); }}
+          >
+            <button
+              onClick={e => { e.stopPropagation(); voice.toggleMute(); clearTimeout(selfVoicePanelTimer.current); selfVoicePanelTimer.current = setTimeout(() => setShowSelfVoicePanel(false), 2000); }}
+              className={clsx('flex flex-col items-center gap-1.5 px-3 py-2 rounded-xl transition-all', voice.isMuted ? 'text-red-400 bg-red-500/10 border border-red-500/25' : 'text-neon-cyan bg-neon-cyan/8 border border-neon-cyan/25')}
+            >
+              <span className="text-2xl">{voice.isMuted ? '🔇' : '🎙'}</span>
+              <span className="text-[9px] font-mono uppercase tracking-wider">{voice.isMuted ? 'Muted' : 'Mic On'}</span>
+            </button>
+            <button
+              onClick={e => { e.stopPropagation(); voice.toggleCamera(); clearTimeout(selfVoicePanelTimer.current); selfVoicePanelTimer.current = setTimeout(() => setShowSelfVoicePanel(false), 2000); }}
+              className={clsx('flex flex-col items-center gap-1.5 px-3 py-2 rounded-xl transition-all', voice.cameraOn ? 'text-neon-cyan bg-neon-cyan/8 border border-neon-cyan/25' : 'text-white/35 bg-white/4 border border-white/10')}
+            >
+              <span className="text-2xl">📷</span>
+              <span className="text-[9px] font-mono uppercase tracking-wider">{voice.cameraOn ? 'Cam On' : 'Cam Off'}</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Vote elimination cinematic */}
       <VoteEliminationOverlay result={voteEliminationResult} onDismiss={dismissVoteElimination} />
