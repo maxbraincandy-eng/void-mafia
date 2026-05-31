@@ -97,8 +97,19 @@ export function setPhase(room: Room, phase: Phase): void {
 // ── Advance Phase ─────────────────────────────────────────────────────
 /** Called when a phase timer expires OR host skips. Returns next phase after mutation. */
 export function advancePhase(room: Room): Phase {
+  // Never advance past game_over
+  if (room.winner) {
+    setPhase(room, 'game_over');
+    return 'game_over';
+  }
+
   switch (room.phase) {
     case 'role_reveal':
+      // Check win before starting play (catches initial parity like 2M vs 2T)
+      if (checkWin(room)) {
+        setPhase(room, 'game_over');
+        return 'game_over';
+      }
       setPhase(room, 'day');
       return 'day';
 
@@ -328,21 +339,34 @@ export function checkWin(room: Room): boolean {
   const townAlive = alive.filter(p => p.team === 'town').length;
   const neutralAlive = alive.filter(p => p.team === 'neutral').length;
 
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[WinCheck] phase=${room.phase} mafia=${mafiaAlive} town=${townAlive} neutral=${neutralAlive}`);
+  }
+
   // Maniac solo win: only neutral left
   if (neutralAlive >= 1 && mafiaAlive === 0 && townAlive === 0) {
     room.winner = 'neutral';
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[WinCheck] winner=NEUTRAL reason="maniac last standing"');
+    }
     return true;
   }
 
   // Town wins: all mafia eliminated
   if (mafiaAlive === 0) {
     room.winner = 'town';
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[WinCheck] winner=TOWN reason="all mafia eliminated"');
+    }
     return true;
   }
 
-  // Mafia wins: equal to or outnumber town (+neutral)
+  // Mafia wins: mafia count equals or exceeds town + neutral
   if (mafiaAlive >= townAlive + neutralAlive) {
     room.winner = 'mafia';
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[WinCheck] winner=MAFIA reason="mafia parity reached" mafia=${mafiaAlive} town+neutral=${townAlive + neutralAlive}`);
+    }
     return true;
   }
 

@@ -61,10 +61,20 @@ export function VotingPanel() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="p-3 rounded-xl border border-neon-red/20 bg-neon-red/5">
-        <p className="text-xs font-mono text-white/40 uppercase tracking-widest mb-1">{t.game.voting.townVote}</p>
-        <p className="text-sm text-white/80">{t.game.voting.instruction}</p>
+    <div className="space-y-3">
+      {/* Vote status banner */}
+      <div className={clsx(
+        'px-3 py-2 rounded-xl border text-xs font-mono flex items-center gap-2',
+        hasVoted
+          ? 'border-neon-green/30 bg-neon-green/8 text-neon-green'
+          : 'border-neon-red/20 bg-neon-red/5 text-white/50',
+      )}>
+        <span>{hasVoted ? '✓' : '○'}</span>
+        <span>
+          {hasVoted
+            ? `${t.game.voting.voteOut}: ${room.players.find(p => p.id === myPlayer.voteTarget)?.name ?? '?'} · ${t.game.voting.changeVote}`
+            : t.game.voting.instruction}
+        </span>
       </div>
 
       {/* Vote tally */}
