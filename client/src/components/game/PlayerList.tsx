@@ -18,7 +18,7 @@ interface Props {
 const ROLE_LABELS: Record<RoleKey, string> = {
   mafia: 'Mafia', citizen: 'Citizen', sheriff: 'Sheriff', doctor: 'Doctor',
   don: 'Don', maniac: 'Maniac', jester: 'Jester', bodyguard: 'Bodyguard',
-  spy: 'Spy', escort: 'Escort', vigilante: 'Vigilante',
+  spy: 'Fortune Teller', escort: 'Escort', vigilante: 'Vigilante',
   cult_leader: 'Cult Leader', cultist: 'Cultist',
   veteran: 'Veteran', tracker: 'Tracker', arsonist: 'Arsonist', mayor: 'Mayor',
 };

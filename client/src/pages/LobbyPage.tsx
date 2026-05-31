@@ -415,7 +415,7 @@ function SettingsPanel({
               { key: 'sheriff',   name: 'Sheriff',   max: 2 },
               { key: 'doctor',    name: 'Doctor',    max: 2 },
               { key: 'bodyguard', name: 'Bodyguard', max: 2 },
-              { key: 'spy',       name: 'Spy',       max: 2 },
+              { key: 'spy',       name: 'Fortune Teller', max: 2 },
               { key: 'vigilante', name: 'Vigilante', max: 2 },
               { key: 'escort',    name: 'Escort',    max: 2 },
               { key: 'veteran',   name: 'Veteran',   max: 2 },

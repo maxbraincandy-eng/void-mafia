@@ -54,10 +54,10 @@ export const ROLES: Record<RoleKey, Role> = {
   },
   spy: {
     key: 'spy',
-    name: 'Spy',
+    name: 'Fortune Teller',
     team: 'town',
-    description: 'A covert operative who watches from the shadows. You observe who the mafia targets each night.',
-    ability: 'Each dawn, receive a private report naming the player mafia tried to kill — even if they were saved.',
+    description: 'A mystic who senses danger before it strikes. You peer into the night and see the mafia\'s target.',
+    ability: 'Each dawn, receive a private vision naming the player mafia tried to kill — even if they were saved.',
     wakeAtNight: false,
     color: 'cyan',
     glowColor: '#00e5ff',
