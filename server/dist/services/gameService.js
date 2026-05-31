@@ -1,4 +1,4 @@
-import { buildRoleDeck, getTeam, isSuspiciousToSheriff, getRole } from './roleService.js';
+import { buildRoleDeck, buildAutoRoleDeck, validateRoleDistribution, getTeam, isSuspiciousToSheriff, getRole } from './roleService.js';
 import { getAlivePlayers } from './roomService.js';
 // ── Start Game ────────────────────────────────────────────────────────
 export function startGame(room) {
@@ -16,7 +16,16 @@ export function startGame(room) {
             p.team = null;
         }
     }
-    const deck = buildRoleDeck(room.settings, count);
+    const r = room.settings.roles;
+    const mafiaTotal = (r.mafia ?? 0) + (r.don ?? 0);
+    let deck;
+    if (mafiaTotal === 0) {
+        deck = buildAutoRoleDeck(count);
+    }
+    else {
+        validateRoleDistribution(count, room.settings);
+        deck = buildRoleDeck(room.settings, count);
+    }
     // Sort active players by seat for deterministic role assignment
     activePlayers.sort((a, b) => a.seat - b.seat);
     activePlayers.forEach((player, i) => {
@@ -87,8 +96,12 @@ export function setPhase(room, phase) {
 export function advancePhase(room) {
     switch (room.phase) {
         case 'role_reveal':
-            setPhase(room, 'day');
-            return 'day';
+            if (checkWin(room)) {
+                setPhase(room, 'game_over');
+                return 'game_over';
+            }
+            setPhase(room, 'night');
+            return 'night';
         case 'night':
             resolveNight(room);
             if (checkWin(room)) {
@@ -96,7 +109,6 @@ export function advancePhase(room) {
                 return 'game_over';
             }
             setPhase(room, 'day');
-            room.day++;
             return 'day';
         case 'day':
             setPhase(room, 'speech');
@@ -118,6 +130,7 @@ export function advancePhase(room) {
                 setPhase(room, 'game_over');
                 return 'game_over';
             }
+            room.day++;
             setPhase(room, 'night');
             return 'night';
         default:

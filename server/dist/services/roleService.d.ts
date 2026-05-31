@@ -1,4 +1,6 @@
 import { Role, RoleKey, GameSettings, Team } from '../types/index.js';
+export declare function validateRoleDistribution(playerCount: number, settings: GameSettings): void;
+export declare function buildAutoRoleDeck(count: number): RoleKey[];
 export declare const ROLES: Record<RoleKey, Role>;
 export declare function getRole(key: RoleKey): Role;
 /**

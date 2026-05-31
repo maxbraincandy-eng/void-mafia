@@ -1,7 +1,7 @@
 import {
   Room, Player, Phase, RoleKey, Team, NightAction, GameOverResult,
 } from '../types/index.js';
-import { buildRoleDeck, getTeam, isSuspiciousToSheriff, getRole } from './roleService.js';
+import { buildRoleDeck, buildAutoRoleDeck, validateRoleDistribution, getTeam, isSuspiciousToSheriff, getRole } from './roleService.js';
 import { getAlivePlayers } from './roomService.js';
 
 // ── Start Game ────────────────────────────────────────────────────────
@@ -23,7 +23,15 @@ export function startGame(room: Room): void {
     }
   }
 
-  const deck = buildRoleDeck(room.settings, count);
+  const r = room.settings.roles;
+  const mafiaTotal = (r.mafia ?? 0) + (r.don ?? 0);
+  let deck: RoleKey[];
+  if (mafiaTotal === 0) {
+    deck = buildAutoRoleDeck(count);
+  } else {
+    validateRoleDistribution(count, room.settings);
+    deck = buildRoleDeck(room.settings, count);
+  }
 
   // Sort active players by seat for deterministic role assignment
   activePlayers.sort((a, b) => a.seat - b.seat);
@@ -99,8 +107,12 @@ export function setPhase(room: Room, phase: Phase): void {
 export function advancePhase(room: Room): Phase {
   switch (room.phase) {
     case 'role_reveal':
-      setPhase(room, 'day');
-      return 'day';
+      if (checkWin(room)) {
+        setPhase(room, 'game_over');
+        return 'game_over';
+      }
+      setPhase(room, 'night');
+      return 'night';
 
     case 'night':
       resolveNight(room);
@@ -109,7 +121,6 @@ export function advancePhase(room: Room): Phase {
         return 'game_over';
       }
       setPhase(room, 'day');
-      room.day++;
       return 'day';
 
     case 'day':
@@ -134,6 +145,7 @@ export function advancePhase(room: Room): Phase {
         setPhase(room, 'game_over');
         return 'game_over';
       }
+      room.day++;
       setPhase(room, 'night');
       return 'night';
 
