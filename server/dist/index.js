@@ -30,6 +30,7 @@ app.use(cors({
 }));
 app.use(express.json());
 // ── Health Check ──────────────────────────────────────────────────────
+const BUILD_TIME = new Date().toISOString();
 app.get('/api/health', (_req, res) => {
     const rooms = getAllRooms();
     res.json({
@@ -37,6 +38,7 @@ app.get('/api/health', (_req, res) => {
         uptime: process.uptime(),
         rooms: rooms.length,
         players: rooms.reduce((n, r) => n + r.players.size, 0),
+        buildTime: BUILD_TIME,
     });
 });
 // ── Rooms List ────────────────────────────────────────────────────────
@@ -58,8 +60,19 @@ app.get('/api/player/:id', (req, res) => {
 // ── Serve built client in production ─────────────────────────────────
 if (IS_PROD) {
     const clientDist = path.resolve(__dirname, '../../client/dist');
-    app.use(express.static(clientDist));
+    // Hashed assets (index-abc123.js) can be cached for a year
+    app.use(express.static(clientDist, {
+        maxAge: '1y',
+        immutable: true,
+        setHeaders: (res, filePath) => {
+            // index.html must never be cached so browsers always get the latest
+            if (filePath.endsWith('index.html')) {
+                res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            }
+        },
+    }));
     app.get('*', (_req, res) => {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.sendFile(path.join(clientDist, 'index.html'));
     });
 }
