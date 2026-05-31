@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
 import { ChatPanel } from '@/components/chat/ChatPanel';
-import { SeatMap } from '@/components/lobby/SeatMap';
 import { PlayerStatsModal } from '@/components/ui/PlayerStatsModal';
 import { ReportModal } from '@/components/ui/ReportModal';
 import { VoiceControls } from '@/components/game/VoiceControls';
@@ -120,10 +119,6 @@ export function LobbyPage() {
                   {playerCount}/{minPlayers} {t.lobby.min}
                 </span>
               </div>
-
-              <SeatMap players={room.players} myPlayerId={myPlayer?.id ?? null} />
-
-              <div className="my-4 border-t border-white/5" />
 
               <div className="space-y-2">
                 {room.players.map((player, i) => (
