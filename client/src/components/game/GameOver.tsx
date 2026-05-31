@@ -21,12 +21,20 @@ const ROLE_COLORS: Record<RoleKey, string> = {
   maniac: 'text-neon-purple', jester: 'text-purple-400',
 };
 
+const TEAM_CONFIG: Record<Team, { label: string; color: string; border: string; bg: string }> = {
+  mafia:   { label: 'MAFIA',   color: 'text-neon-pink',   border: 'border-neon-pink/20',   bg: 'bg-neon-pink/5' },
+  town:    { label: 'TOWN',    color: 'text-neon-cyan',   border: 'border-neon-cyan/20',   bg: 'bg-neon-cyan/5' },
+  neutral: { label: 'NEUTRAL', color: 'text-neon-purple', border: 'border-neon-purple/20', bg: 'bg-neon-purple/5' },
+};
+
 export function GameOver({ result }: Props) {
-  const { amHost, restartGame, leaveRoom, isLoading } = useGameStore(s => ({
+  const { amHost, restartGame, leaveRoom, isLoading, room, myPlayerId } = useGameStore(s => ({
     amHost: s.amHost(),
     restartGame: s.restartGame,
     leaveRoom: s.leaveRoom,
     isLoading: s.isLoading,
+    room: s.room,
+    myPlayerId: s.myPlayerId,
   }));
   const t = useT();
 
@@ -37,7 +45,23 @@ export function GameOver({ result }: Props) {
   };
 
   const cfg = WINNER_CONFIG[result.winner];
-  const players = Object.entries(result.allRoles).map(([id, data]) => ({ id, ...data }));
+
+  // Survival info from room state
+  const survivalMap = new Map<string, boolean>(
+    (room?.players ?? []).map(p => [p.id, p.isAlive])
+  );
+
+  const myData = myPlayerId ? result.allRoles[myPlayerId] : null;
+
+  const players = Object.entries(result.allRoles).map(([id, data]) => ({
+    id, ...data, survived: survivalMap.get(id) ?? false,
+  }));
+
+  const byTeam = {
+    mafia:   players.filter(p => p.team === 'mafia'),
+    town:    players.filter(p => p.team === 'town'),
+    neutral: players.filter(p => p.team === 'neutral'),
+  };
 
   const roleLabel = (role: RoleKey) =>
     t.game.roles[role as keyof typeof t.game.roles] ?? role;
@@ -54,7 +78,7 @@ export function GameOver({ result }: Props) {
           initial={{ scale: 0.7, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-          className="text-center mb-8"
+          className="text-center mb-6"
         >
           <div
             className="text-8xl mb-4 filter drop-shadow-lg"
@@ -73,33 +97,86 @@ export function GameOver({ result }: Props) {
           </p>
         </motion.div>
 
-        {/* Role reveal */}
+        {/* Personal callout */}
+        {myData && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="text-center mb-5 glass-card border border-white/8 py-4 px-6 rounded-2xl"
+          >
+            <p className="text-[10px] font-mono uppercase tracking-widest text-white/30 mb-1">
+              {t.game.gameOver.youWere}
+            </p>
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <span className="text-2xl">{ROLE_ICONS[myData.role]}</span>
+              <h2 className={`font-display text-2xl font-bold tracking-widest uppercase ${ROLE_COLORS[myData.role]}`}>
+                {roleLabel(myData.role)}
+              </h2>
+            </div>
+            <span className={`text-xs font-mono font-bold ${survivalMap.get(myPlayerId!) ? 'text-neon-green' : 'text-neon-red/80'}`}>
+              {survivalMap.get(myPlayerId!) ? t.game.gameOver.survived : t.game.gameOver.eliminated}
+            </span>
+          </motion.div>
+        )}
+
+        {/* Roles grouped by team */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="glass-card border border-white/8 p-4 mb-6"
+          transition={{ delay: 0.35 }}
+          className="glass-card border border-white/8 p-4 mb-6 space-y-4"
         >
-          <h2 className="text-xs font-display uppercase tracking-widest text-white/40 mb-3">
+          <h2 className="text-xs font-display uppercase tracking-widest text-white/40">
             {t.game.gameOver.finalRoles}
           </h2>
-          <div className="grid grid-cols-2 gap-2">
-            {players.map((p, i) => (
-              <motion.div
-                key={p.id}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.4 + i * 0.05 }}
-                className="flex items-center gap-2 p-2 rounded-lg bg-void-50/60 border border-white/5"
-              >
-                <span className="text-xl">{ROLE_ICONS[p.role]}</span>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-white truncate">{p.name}</p>
-                  <p className={`text-xs font-mono ${ROLE_COLORS[p.role]}`}>{roleLabel(p.role)}</p>
+
+          {(['mafia', 'town', 'neutral'] as Team[]).map(team => {
+            const group = byTeam[team];
+            if (group.length === 0) return null;
+            const tc = TEAM_CONFIG[team];
+            const aliveCount = group.filter(p => p.survived).length;
+            return (
+              <div key={team}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`text-[10px] font-display font-bold tracking-widest uppercase ${tc.color}`}>
+                    {tc.label}
+                  </span>
+                  <div className="flex-1 h-px bg-white/5" />
+                  <span className="text-[10px] font-mono text-white/25">
+                    {aliveCount}/{group.length} alive
+                  </span>
                 </div>
-              </motion.div>
-            ))}
-          </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {group.map((p, i) => (
+                    <motion.div
+                      key={p.id}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.45 + i * 0.04 }}
+                      className={`flex items-center gap-2 p-2 rounded-xl border ${tc.border} ${tc.bg} ${
+                        p.id === myPlayerId ? 'ring-1 ring-white/15' : ''
+                      }`}
+                    >
+                      <span className="text-lg shrink-0">{ROLE_ICONS[p.role]}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-white truncate leading-tight">
+                          {p.name}
+                          {p.id === myPlayerId && (
+                            <span className="text-[9px] text-white/30 font-mono ml-1">you</span>
+                          )}
+                        </p>
+                        <p className={`text-[10px] font-mono ${ROLE_COLORS[p.role]}`}>{roleLabel(p.role)}</p>
+                      </div>
+                      <span className={`text-[10px] shrink-0 font-bold ${p.survived ? 'text-neon-green/70' : 'text-white/20'}`}>
+                        {p.survived ? '✓' : '☠'}
+                      </span>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </motion.div>
 
         {/* Actions */}

@@ -71,7 +71,29 @@ let toastCounter = 0;
 
 export const useGameStore = create<GameStore>((set, get) => {
   // ── Socket event bindings ────────────────────────────────────────
-  socket.on('connect', () => set({ isConnected: true }));
+  socket.on('connect', () => {
+    const { room, myPlayerId } = get();
+    set({ isConnected: true });
+    // Auto-rejoin room after transport reconnect
+    if (room && myPlayerId) {
+      const player = room.players.find(p => p.id === myPlayerId);
+      if (player) {
+        emitWithAck<unknown, Res<RoomPublic>>('room:join', {
+          code: room.code,
+          name: player.name,
+          isSpectator: player.isSpectator,
+        }).then(res => {
+          if (res.ok) {
+            set({ room: res.data });
+            get().addToast('Reconnected ✓', 'success');
+          } else {
+            set({ room: null, myPlayerId: null, myRole: null, nightResult: null, investigationResult: null, gameOverResult: null });
+            get().addToast('Room closed while disconnected', 'error');
+          }
+        }).catch(() => {});
+      }
+    }
+  });
   socket.on('disconnect', () => set({ isConnected: false }));
 
   socket.on('room:update', (room: RoomPublic) => {

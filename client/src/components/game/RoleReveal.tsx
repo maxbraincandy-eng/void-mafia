@@ -2,9 +2,18 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import { Role } from '@/types/index';
+import { SFX } from '@/hooks/useSoundFX';
+import { useT } from '@/store/langStore';
+
+export interface TeamMate {
+  name: string;
+  roleName: string;
+  roleKey: string;
+}
 
 interface Props {
   role: Role | null;
+  teammates?: TeamMate[];
 }
 
 const ROLE_GRADIENTS: Record<string, string> = {
@@ -30,12 +39,16 @@ const ROLE_ICONS: Record<string, string> = {
   vigilante: '⚖️',
 };
 
-export function RoleReveal({ role }: Props) {
+export function RoleReveal({ role, teammates }: Props) {
   const [flipped, setFlipped] = useState(false);
+  const t = useT();
 
   useEffect(() => {
-    const t = setTimeout(() => setFlipped(true), 700);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => {
+      setFlipped(true);
+      SFX.cardFlip();
+    }, 700);
+    return () => clearTimeout(timer);
   }, []);
 
   if (!role) return null;
@@ -52,8 +65,10 @@ export function RoleReveal({ role }: Props) {
     textShadow: `0 0 20px ${role.glowColor}, 0 0 40px ${role.glowColor}60`,
   };
 
+  const showCrew = flipped && teammates && teammates.length > 0;
+
   return (
-    <div className="flex flex-col items-center justify-center h-full py-8">
+    <div className="flex flex-col items-center justify-center h-full py-6">
       <motion.p
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -115,15 +130,12 @@ export function RoleReveal({ role }: Props) {
                 `bg-gradient-to-b ${gradient}`,
               )}
             >
-              {/* Background glow blob */}
               <div
                 className="absolute inset-0 opacity-20 pointer-events-none"
                 style={{ background: `radial-gradient(circle at 50% 30%, ${role.glowColor}60, transparent 70%)` }}
               />
 
-              <div className="text-6xl mb-4 relative z-10">
-                {icon}
-              </div>
+              <div className="text-6xl mb-4 relative z-10">{icon}</div>
 
               <h2
                 style={textGlowStyle}
@@ -148,11 +160,35 @@ export function RoleReveal({ role }: Props) {
         </motion.div>
       </div>
 
+      {/* Mafia crew reveal */}
+      {showCrew && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="mt-5 w-64 rounded-2xl border border-neon-pink/25 bg-neon-pink/5 p-4"
+          style={{ boxShadow: '0 0 30px rgba(255,0,204,0.08)' }}
+        >
+          <p className="text-[10px] font-display tracking-[0.25em] uppercase text-neon-pink/50 mb-3">
+            {t.game.gameOver.yourCrew}
+          </p>
+          <div className="space-y-2">
+            {teammates!.map(tm => (
+              <div key={tm.name} className="flex items-center gap-2">
+                <span className="text-base">{ROLE_ICONS[tm.roleKey] ?? '🔫'}</span>
+                <span className="text-sm text-white font-semibold flex-1 truncate">{tm.name}</span>
+                <span className="text-[10px] text-neon-pink/50 font-mono">{tm.roleName}</span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 1.5 }}
-        className="mt-6 text-xs text-white/30 font-mono animate-pulse"
+        transition={{ delay: 1.6 }}
+        className="mt-5 text-xs text-white/30 font-mono animate-pulse"
       >
         Game begins shortly…
       </motion.p>

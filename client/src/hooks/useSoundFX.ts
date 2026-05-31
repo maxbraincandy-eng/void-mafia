@@ -144,6 +144,15 @@ export const SFX = {
     ], 0.4);
   },
 
+  /** Role card flip — swoosh + reveal sting */
+  cardFlip() {
+    play([
+      { freq: 1600, type: 'sine',     duration: 0.07, vol: 0.12, freqEnd: 800 },
+      { freq: 800,  type: 'triangle', duration: 0.15, vol: 0.09, startAt: 0.06, freqEnd: 500 },
+      { freq: 500,  type: 'sine',     duration: 0.35, vol: 0.07, startAt: 0.18 },
+    ], 0.55);
+  },
+
   /** Game over — final, spacious chord */
   gameOver() {
     play([

@@ -42,7 +42,9 @@ export function RoomsPage() {
   useEffect(() => {
     fetchRooms();
     const id = setInterval(fetchRooms, 5000);
-    return () => clearInterval(id);
+    const onFocus = () => fetchRooms();
+    window.addEventListener('focus', onFocus);
+    return () => { clearInterval(id); window.removeEventListener('focus', onFocus); };
   }, []);
 
   // Request mic permission during user gesture so lobby can auto-join voice
@@ -168,7 +170,7 @@ export function RoomsPage() {
                         </p>
                       </div>
 
-                      {room.phase === 'lobby' && (
+                      {room.phase === 'lobby' ? (
                         <Button
                           size="sm"
                           variant="neon-cyan"
@@ -176,6 +178,15 @@ export function RoomsPage() {
                           onClick={() => setSpectatorModal(room)}
                         >
                           {t.rooms.joinCode}
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          loading={isLoading}
+                          onClick={() => handleQuickJoin(room, true)}
+                        >
+                          👁 Watch
                         </Button>
                       )}
                     </div>

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { ChatPanel } from '@/components/chat/ChatPanel';
 import { PlayerList } from '@/components/game/PlayerList';
-import { RoleReveal } from '@/components/game/RoleReveal';
+import { RoleReveal, TeamMate } from '@/components/game/RoleReveal';
 import { NightPanel } from '@/components/game/NightPanel';
 import { VotingPanel } from '@/components/game/VotingPanel';
 import { GameOver } from '@/components/game/GameOver';
@@ -282,7 +282,20 @@ export function GamePage() {
               <p className="text-white/40 text-sm font-mono">Roles are being revealed to players…</p>
             </div>
           ) : (
-            <RoleReveal role={myRole} />
+            <RoleReveal
+              role={myRole}
+              teammates={
+                myRole?.team === 'mafia'
+                  ? (room?.players ?? [])
+                      .filter(p => p.team === 'mafia' && p.id !== myPlayer?.id)
+                      .map((p): TeamMate => ({
+                        name: p.name,
+                        roleName: p.role ? (t.game.roles[p.role as keyof typeof t.game.roles] ?? p.role) : 'Mafia',
+                        roleKey: p.role ?? 'mafia',
+                      }))
+                  : []
+              }
+            />
           )
         )}
 
