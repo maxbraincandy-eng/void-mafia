@@ -12,8 +12,8 @@ interface Props {
 export function SeatMap({ players, myPlayerId, maxSeats = 16 }: Props) {
   const cx = 50; // percent
   const cy = 50; // percent
-  const rx = 40; // percent
-  const ry = 38; // percent
+  const rx = 38; // percent — slightly smaller so seats don't clip
+  const ry = 38; // percent — equal → perfect circle
 
   // Build a seat-indexed map for quick lookup
   const seatMap = new Map<number, PlayerPublic>();
@@ -29,14 +29,15 @@ export function SeatMap({ players, myPlayerId, maxSeats = 16 }: Props) {
 
   return (
     <div className="relative w-full" style={{ aspectRatio: '1' }}>
-      {/* Table oval */}
+      {/* Table oval — centered with transform for pixel-perfect centering */}
       <div
         className="absolute"
         style={{
-          left: '25%',
-          top: '25%',
-          width: '50%',
-          height: '50%',
+          left: '50%',
+          top: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: '46%',
+          height: '46%',
           borderRadius: '50%',
           background: 'radial-gradient(ellipse at center, rgba(10,5,32,0.9) 60%, rgba(0,245,255,0.04) 100%)',
           border: '1px solid rgba(0,245,255,0.08)',
@@ -69,68 +70,56 @@ export function SeatMap({ players, myPlayerId, maxSeats = 16 }: Props) {
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: index * 0.04 }}
-            className="absolute flex flex-col items-center"
+            className="absolute"
             style={{
               left: `${x}%`,
               top: `${y}%`,
-              transform: 'translate(-50%, -50%)',
+              // translate by exactly half the circle size (40px = w-10) so the circle center
+              // sits precisely at the calculated coordinate — name label floats below via absolute
+              transform: 'translate(-20px, -20px)',
             }}
           >
-            {player ? (
-              /* Occupied seat */
-              <div className="relative flex flex-col items-center gap-0.5">
-                <div
-                  className={clsx(
-                    'w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center',
-                    'transition-all duration-200',
-                    isMe && 'ring-2 ring-neon-purple',
-                    isSpectator && 'opacity-60',
-                  )}
-                >
-                  <Avatar
-                    name={player.name}
-                    size="md"
-                    isAlive={player.isAlive}
-                    isHost={false}
-                    className={clsx(isSpectator && 'opacity-70 [filter:hue-rotate(240deg)]')}
-                  />
-                  {/* Overlays */}
+            {/* Fixed 40×40 anchor — circle center = element top-left + 20px */}
+            <div className="relative w-10 h-10">
+              {player ? (
+                <>
+                  <div
+                    className={clsx(
+                      'w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200',
+                      isMe && 'ring-2 ring-neon-purple',
+                      isSpectator && 'opacity-60',
+                    )}
+                  >
+                    <Avatar
+                      name={player.name}
+                      size="md"
+                      isAlive={player.isAlive}
+                      isHost={false}
+                      className={clsx(isSpectator && 'opacity-70 [filter:hue-rotate(240deg)]')}
+                    />
+                  </div>
                   {isHost && (
-                    <span
-                      className="absolute -top-1 -right-1 text-xs leading-none"
-                      title="Host"
-                    >
-                      👑
-                    </span>
+                    <span className="absolute -top-1 -right-1 text-xs leading-none pointer-events-none">👑</span>
                   )}
                   {isSpectator && (
-                    <span
-                      className="absolute bottom-0 right-0 text-[10px] leading-none"
-                      title="Spectator"
-                    >
-                      👁
-                    </span>
+                    <span className="absolute bottom-0 right-0 text-[10px] leading-none pointer-events-none">👁</span>
                   )}
-                </div>
-                <span className="font-mono text-[9px] text-white/50 text-center max-w-[48px] truncate leading-tight">
-                  {player.name}
-                </span>
-              </div>
-            ) : (
-              /* Empty seat */
-              <div className="relative flex flex-col items-center gap-0.5">
+                  {/* Name floats below without affecting the anchor box */}
+                  <span className="absolute top-full left-1/2 -translate-x-1/2 mt-0.5 font-mono text-[9px] text-white/50 text-center w-12 truncate leading-tight pointer-events-none">
+                    {player.name}
+                  </span>
+                </>
+              ) : (
                 <div
                   className={clsx(
-                    'w-10 h-10 md:w-12 md:h-12 rounded-full',
-                    'border border-white/10 bg-white/5',
+                    'w-10 h-10 rounded-full border border-white/10 bg-white/5',
                     'flex items-center justify-center',
                   )}
                 >
                   <span className="font-mono text-[10px] text-white/20">#{seatNum}</span>
                 </div>
-                <span className="font-mono text-[9px] text-white/15 leading-tight">&nbsp;</span>
-              </div>
-            )}
+              )}
+            </div>
           </motion.div>
         );
       })}
