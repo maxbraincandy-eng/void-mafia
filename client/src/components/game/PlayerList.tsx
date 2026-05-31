@@ -54,7 +54,7 @@ export function PlayerList({ players, phase, onSelectTarget, selectableIds, sele
               onClick={() => isSelectable && onSelectTarget?.(player)}
               className={clsx(
                 'flex items-center gap-2 p-2 rounded-xl border transition-all duration-200',
-                !player.isAlive && 'opacity-40',
+                !player.isAlive && !player.isSpectator && 'opacity-40 grayscale pointer-events-none',
                 isSelectable && !isSelected && 'cursor-pointer hover:border-neon-cyan/40 hover:bg-neon-cyan/5',
                 isSelected && 'border-neon-cyan/60 bg-neon-cyan/10 shadow-neon-cyan',
                 isSpeaking && 'border-neon-green ring-2 ring-neon-green/40 shadow-neon-green',
@@ -75,7 +75,7 @@ export function PlayerList({ players, phase, onSelectTarget, selectableIds, sele
                     'text-xs font-semibold truncate',
                     !player.isAlive ? 'line-through text-white/40' : 'text-white',
                   )}>
-                    #{player.seat} {player.name}
+                    {!player.isAlive && !player.isSpectator && '💀 '}#{player.seat} {player.name}
                     {isMe && <span className="text-neon-purple text-[10px] ml-0.5">(you)</span>}
                   </span>
                   {player.isModerator && player.moderatorLevel && (

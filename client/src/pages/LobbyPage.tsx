@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
 import { ChatPanel } from '@/components/chat/ChatPanel';
+import { SeatMap } from '@/components/lobby/SeatMap';
 import { PlayerStatsModal } from '@/components/ui/PlayerStatsModal';
 import { ReportModal } from '@/components/ui/ReportModal';
 import { VoiceControls } from '@/components/game/VoiceControls';
@@ -108,13 +109,17 @@ export function LobbyPage() {
           <div className="lg:col-span-2 space-y-4">
             <Card glow="cyan" padding="md">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="font-display font-bold text-neon-cyan tracking-widest uppercase">
+                <h2 className="font-display font-bold text-sm text-white/50 tracking-widest uppercase">
                   {t.lobby.players}
                 </h2>
                 <span className="text-sm font-mono text-white/40">
                   {playerCount}/{minPlayers} {t.lobby.min}
                 </span>
               </div>
+
+              <SeatMap players={room.players} myPlayerId={myPlayer?.id ?? null} />
+
+              <div className="my-4 border-t border-white/5" />
 
               <div className="space-y-2">
                 {room.players.map((player, i) => (
@@ -124,7 +129,7 @@ export function LobbyPage() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05 }}
                     className={clsx(
-                      'flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer',
+                      'flex items-center gap-4 p-4 rounded-xl border transition-all cursor-pointer',
                       player.id === myPlayer?.id
                         ? 'border-neon-purple/30 bg-neon-purple/5'
                         : 'border-white/5 bg-void-50/40 hover:border-neon-cyan/20 hover:bg-neon-cyan/5',
@@ -136,7 +141,7 @@ export function LobbyPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className={clsx(
-                          'text-sm font-semibold truncate',
+                          'text-base font-semibold truncate',
                           player.isModerator ? 'text-neon-green' : 'text-white',
                         )}>
                           {player.name}
@@ -150,11 +155,11 @@ export function LobbyPage() {
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         {player.isHost ? (
-                          <span className="text-xs text-yellow-400 font-mono">{t.common.host}</span>
+                          <span className="text-[11px] text-yellow-400 font-mono">{t.common.host}</span>
                         ) : player.isSpectator ? (
-                          <span className="text-xs text-neon-purple/70 font-mono">👁 watching</span>
+                          <span className="text-[11px] text-neon-purple/70 font-mono">👁 watching</span>
                         ) : (
-                          <span className={clsx('text-xs font-mono',
+                          <span className={clsx('text-[11px] font-mono',
                             player.isReady ? 'text-neon-green' : 'text-white/30',
                           )}>
                             {player.isReady ? '✓ READY' : 'not ready'}
@@ -179,7 +184,7 @@ export function LobbyPage() {
               </div>
 
               {playerCount < minPlayers && (
-                <p className="text-center text-xs text-white/30 font-mono mt-4 pt-4 border-t border-white/5">
+                <p className="text-center text-xs text-neon-cyan/60 font-mono mt-4 pt-4 border-t border-white/5">
                   {minPlayers - playerCount} {minPlayers - playerCount === 1 ? t.lobby.needMore : t.lobby.needMorePlural}
                 </p>
               )}

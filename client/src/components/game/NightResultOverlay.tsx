@@ -28,33 +28,75 @@ export function NightResultOverlay({ result, onDismiss }: Props) {
           animate={{ scale: 1, y: 0, opacity: 1 }}
           exit={{ scale: 0.85, y: 30, opacity: 0 }}
           transition={{ type: 'spring', damping: 25 }}
-          className="glass-card border border-neon-cyan/20 p-8 text-center max-w-sm w-full shadow-neon-cyan"
+          className={
+            noDeaths
+              ? 'glass-card border border-neon-green/30 p-8 py-10 text-center max-w-md w-full shadow-[0_0_40px_rgba(0,255,136,0.12)]'
+              : 'glass-card border border-neon-red/40 p-8 py-10 text-center max-w-md w-full shadow-[0_0_40px_rgba(255,45,85,0.2)]'
+          }
           onClick={e => e.stopPropagation()}
         >
           <p className="text-xs font-mono uppercase tracking-widest text-white/40 mb-4">{t.game.dawn.title}</p>
 
           {noDeaths ? (
             <>
-              <div className="text-5xl mb-4">{result.saved ? '💊' : '🌅'}</div>
+              {/* Icon with pulsing glow ring */}
+              <div className="relative inline-flex items-center justify-center mb-6">
+                <motion.div
+                  animate={{ scale: [1, 1.15, 1], opacity: [0.6, 1, 0.6] }}
+                  transition={{ repeat: Infinity, duration: 1.5 }}
+                  className="absolute rounded-full"
+                  style={{
+                    width: '5rem',
+                    height: '5rem',
+                    background: result.saved
+                      ? 'radial-gradient(circle, rgba(0,255,136,0.5), transparent 70%)'
+                      : 'radial-gradient(circle, rgba(0,229,255,0.5), transparent 70%)',
+                    filter: 'blur(8px)',
+                  }}
+                />
+                <div className="text-5xl relative z-10">{result.saved ? '💊' : '🌅'}</div>
+              </div>
+
               <h2 className="font-display text-2xl font-bold text-neon-green text-glow-green tracking-widest mb-2">
                 {t.game.dawn.noDeaths}
               </h2>
               <p className="text-white/60 text-sm">
                 {result.saved ? t.game.dawn.doctorSaved : t.game.dawn.quietNight}
               </p>
+              <p className="text-white/40 text-xs font-mono mt-2">
+                {result.saved ? 'The Doctor intervened' : 'The city survived the night'}
+              </p>
             </>
           ) : (
             <>
-              <div className="text-5xl mb-4">💀</div>
-              <h2 className="font-display text-2xl font-bold text-neon-red text-glow-red tracking-widest mb-2">
+              {/* Skull with pulsing red glow ring */}
+              <div className="relative inline-flex items-center justify-center mb-6">
+                <motion.div
+                  animate={{ scale: [1, 1.15, 1], opacity: [0.6, 1, 0.6] }}
+                  transition={{ repeat: Infinity, duration: 1.5 }}
+                  className="absolute rounded-full"
+                  style={{
+                    width: '5rem',
+                    height: '5rem',
+                    background: 'radial-gradient(circle, rgba(255,45,85,0.6), transparent 70%)',
+                    filter: 'blur(8px)',
+                  }}
+                />
+                <div className="text-5xl relative z-10">💀</div>
+              </div>
+
+              <h2 className="font-display text-2xl font-bold text-neon-red text-glow-red tracking-widest mb-4">
                 {t.game.dawn.eliminated}
               </h2>
-              <div className="space-y-1 mb-3">
+              <div className="space-y-2 mb-3">
                 {result.killed.map(k => (
-                  <p key={k.id} className="text-white font-semibold text-lg">{k.name}</p>
+                  <div key={k.id} className="border-l-2 border-neon-red pl-3 py-1 text-left">
+                    <p className="text-white font-semibold text-lg">{k.name}</p>
+                  </div>
                 ))}
               </div>
               <p className="text-white/40 text-xs font-mono">{t.game.dawn.foundDead}</p>
+              <p className="text-white/30 text-xs font-mono mt-1">was found dead at dawn</p>
             </>
           )}
 

@@ -20,6 +20,7 @@ import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { useVoiceChat, VoiceChannel } from '@/hooks/useVoiceChat';
 import { useGameSounds, setSoundMuted, isSoundMuted } from '@/hooks/useSoundFX';
+import { PhaseTransition } from '@/components/game/PhaseTransition';
 import { useT } from '@/store/langStore';
 
 type MobileTab = 'action' | 'players' | 'chat';
@@ -28,8 +29,8 @@ const PHASE_COLORS: Record<Phase, string> = {
   lobby:        'text-white',
   role_reveal:  'text-neon-purple',
   night:        'text-neon-cyan',
-  day:          'text-yellow-300',
-  speech:       'text-neon-green',
+  day:          'text-neon-cyan',
+  speech:       'text-neon-cyan',
   voting:       'text-neon-red',
   game_over:    'text-white',
 };
@@ -43,6 +44,7 @@ export function GamePage() {
   const [willText, setWillText] = useState('');
   const [willSaved, setWillSaved] = useState(false);
   const [soundMuted, setSoundMutedState] = useState(isSoundMuted());
+  const [transitionPhase, setTransitionPhase] = useState<Phase | null>(null);
 
   const {
     room, myPlayer, myRole, amHost, amAlive,
@@ -121,6 +123,16 @@ export function GamePage() {
   useEffect(() => {
     if (mobileTab === 'chat') setUnreadChat(0);
   }, [mobileTab]);
+
+  // Phase transition overlay
+  const prevPhaseForTransition = useRef<Phase | null>(null);
+  useEffect(() => {
+    const cur = room?.phase ?? null;
+    if (prevPhaseForTransition.current !== null && cur !== null && prevPhaseForTransition.current !== cur) {
+      setTransitionPhase(cur);
+    }
+    prevPhaseForTransition.current = cur;
+  }, [room?.phase]);
 
   if (!room) return null;
 
@@ -371,7 +383,7 @@ export function GamePage() {
       'min-h-screen relative overflow-hidden transition-all duration-1000',
       isNight
         ? 'bg-gradient-to-b from-[#030010] via-void to-[#040020]'
-        : 'bg-neon-grid-animated',
+        : 'bg-gradient-to-b from-[#020a10] to-[#010508]',
     )}>
       {/* Atmospheric overlays */}
       {isNight && (
@@ -385,12 +397,15 @@ export function GamePage() {
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[200px] bg-neon-cyan/5 rounded-full blur-[100px]" />
         </div>
       )}
-      <div className="fixed inset-0 pointer-events-none z-0 opacity-40"
+      <div className="fixed inset-0 pointer-events-none z-0 opacity-20"
         style={{ background: 'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px)' }}
       />
 
       {/* Leaderboard */}
       <LeaderboardModal open={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
+
+      {/* Phase transition overlay */}
+      <PhaseTransition phase={transitionPhase} onDone={() => setTransitionPhase(null)} />
 
       {/* Game Over */}
       {gameOverResult && <GameOver result={gameOverResult} />}
@@ -487,7 +502,7 @@ export function GamePage() {
             {/* Phase */}
             <div className="min-w-0">
               <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest hidden sm:block">{t.game.header.phase}</p>
-              <h1 className={clsx('font-display text-base md:text-xl font-bold tracking-widest uppercase truncate', PHASE_COLORS[phase])}>
+              <h1 className={clsx('font-display text-lg md:text-xl font-bold tracking-widest uppercase truncate', PHASE_COLORS[phase])}>
                 {t.game.phaseLabels[phase]}
                 {phase !== 'role_reveal' && phase !== 'game_over' && (
                   <span className="text-white/40"> · D{room.day}</span>
@@ -506,7 +521,7 @@ export function GamePage() {
               {/* Room code */}
               <div className="hidden sm:block text-right">
                 <p className="text-[10px] text-white/30 font-mono">{t.game.header.room}</p>
-                <p className="font-mono text-xs md:text-sm text-neon-cyan font-bold tracking-widest">{room.code}</p>
+                <p className="font-mono text-xs md:text-sm text-neon-cyan/70 font-bold tracking-widest">{room.code}</p>
               </div>
 
               {/* Spectator badge */}
@@ -551,7 +566,7 @@ export function GamePage() {
               {/* Leaderboard button */}
               <button
                 onClick={() => setShowLeaderboard(true)}
-                className="hidden sm:flex items-center px-2 py-1 rounded-lg text-white/30 hover:text-neon-cyan transition-colors text-sm"
+                className="hidden sm:flex items-center px-2 py-1 rounded-lg text-white/30 hover:text-white/70 transition-colors text-sm"
                 title={t.game.header.leaderboard}
               >
                 🏆
@@ -567,7 +582,7 @@ export function GamePage() {
                     'px-2 py-1 rounded-lg text-sm transition-all',
                     room.isPaused
                       ? 'text-yellow-400 border border-yellow-400/40 bg-yellow-400/10 animate-pulse'
-                      : 'text-white/30 hover:text-white/60',
+                      : 'text-white/30 hover:text-white/70',
                   )}
                 >
                   {room.isPaused ? '▶' : '⏸'}
@@ -591,7 +606,7 @@ export function GamePage() {
               <button
                 onClick={() => { const m = !soundMuted; setSoundMuted(m); setSoundMutedState(m); }}
                 title={soundMuted ? 'Unmute sounds' : 'Mute sounds'}
-                className="px-2 py-1 rounded-lg text-sm text-white/30 hover:text-white/60 transition-colors"
+                className="px-2 py-1 rounded-lg text-sm text-white/30 hover:text-white/70 transition-colors"
               >
                 {soundMuted ? '🔇' : '🔊'}
               </button>

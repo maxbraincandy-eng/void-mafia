@@ -157,7 +157,7 @@ export function RoomsPage() {
                           </span>
                           <span className={`text-xs px-2 py-0.5 rounded-full font-mono ${
                             room.phase === 'lobby'
-                              ? 'bg-neon-green/10 text-neon-green border border-neon-green/20'
+                              ? 'bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/20'
                               : 'bg-neon-red/10 text-neon-red border border-neon-red/20'
                           }`}>
                             {phaseLabel[room.phase] ?? room.phase}
