@@ -20,9 +20,15 @@ export type RoleKey =
   | 'bodyguard'
   | 'spy'
   | 'escort'
-  | 'vigilante';
+  | 'vigilante'
+  | 'cult_leader'
+  | 'cultist'
+  | 'veteran'
+  | 'tracker'
+  | 'arsonist'
+  | 'mayor';
 
-export type Team = 'mafia' | 'town' | 'neutral';
+export type Team = 'mafia' | 'town' | 'neutral' | 'cult';
 export type TieRule = 'no_elimination' | 'random';
 export type ChatChannel = 'room' | 'mafia' | 'dead';
 export type ModeratorLevel = 'moderator' | 'senior_moderator' | 'admin' | 'owner';
@@ -106,6 +112,11 @@ export interface GameSettings {
     spy: number;
     escort: number;
     vigilante: number;
+    cult_leader: number;
+    veteran: number;
+    tracker: number;
+    arsonist: number;
+    mayor: number;
   };
 }
 

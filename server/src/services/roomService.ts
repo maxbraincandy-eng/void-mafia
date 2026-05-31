@@ -29,6 +29,11 @@ export const DEFAULT_SETTINGS: GameSettings = {
     escort: 0,
     maniac: 0,
     jester: 0,
+    cult_leader: 0,
+    veteran: 0,
+    tracker: 0,
+    arsonist: 0,
+    mayor: 0,
   },
 };
 
@@ -92,6 +97,8 @@ export function createRoom(
     daySkipVotes: [],
     createdAt: Date.now(),
     isPaused: false,
+    dousedPlayers: new Set(),
+    newlyConvertedCultists: [],
   };
 
   rooms.set(id, room);
@@ -213,6 +220,7 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
   const isGameOver = room.phase === 'game_over';
   const viewer = room.players.get(viewerPlayerId);
   const isMafia = viewer?.team === 'mafia';
+  const isCultLeader = viewer?.role === 'cult_leader';
 
   const players: PlayerPublic[] = [...room.players.values()]
     .sort((a, b) => a.seat - b.seat)
@@ -230,6 +238,8 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
         team: (p.id === viewerPlayerId || isGameOver || !viewer?.isAlive || viewer?.isSpectator) ? p.team : null,
         // Mafia sees fellow mafia roles
         ...(isMafia && p.team === 'mafia' ? { role: p.role, team: p.team } : {}),
+        // Cult leader sees all cult members
+        ...(isCultLeader && p.team === 'cult' ? { role: p.role, team: p.team } : {}),
         voteTarget: room.phase === 'voting' ? p.voteTarget : null,
         hasActed: p.hasActedThisPhase,
         seat: p.seat,

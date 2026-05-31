@@ -137,6 +137,13 @@ export const useGameStore = create<GameStore>((set, get) => {
     set({ investigationResult: result });
   });
 
+  (socket as any).on('game:track_result', ({ trackedName, visitedName }: { trackedName: string; visitedName: string | null }) => {
+    const msg = visitedName
+      ? `🔎 You tracked ${trackedName}: they visited ${visitedName}.`
+      : `🔎 You tracked ${trackedName}: they did not leave the house.`;
+    get().addToast(msg, 'info');
+  });
+
   (socket as any).on('spy:night_report', (data: { mafiaTarget: string | null; mafiaTargetName: string | null }) => {
     set({ spyReport: data });
   });

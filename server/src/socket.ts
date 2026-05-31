@@ -13,7 +13,7 @@ import {
 import {
   startGame, setPhase, advancePhase, submitNightAction, submitVote,
   checkWin, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult,
-  resolveVotes,
+  getTrackResult, resolveVotes,
 } from './services/gameService.js';
 import {
   createPlayerMessage, createSystemMessage, addMessage, validateChat,
@@ -86,7 +86,7 @@ function startPhaseTimer(io: AppServer, room: Room): void {
       const wasNight = room.phase === 'night';
       if (room.phase === 'voting') announceVoteResult(io, room);
       advancePhase(room); const nextPhase = room.phase as Phase;
-      if (wasNight) { announceNightResult(io, room); notifySpies(io, room); }
+      if (wasNight) { announceNightResult(io, room); notifySpies(io, room); notifyTrackers(io, room); notifyCultConversions(io, room); }
       if (nextPhase === 'game_over') emitGameOver(io, room);
       broadcastRoom(io, room);
       if (room.phase !== 'game_over') startPhaseTimer(io, room);
@@ -150,6 +150,24 @@ function announceNightResult(io: AppServer, room: Room): void {
     broadcastSystemMsg(io, room, 'Dawn breaks. Everyone survived the night.');
   } else {
     broadcastSystemMsg(io, room, 'Dawn breaks. The night passed quietly.');
+  }
+}
+
+function notifyTrackers(io: AppServer, room: Room): void {
+  for (const p of room.players.values()) {
+    if (p.role === 'tracker' && p.isAlive && p.socketId) {
+      const result = getTrackResult(room, p);
+      if (result) io.to(p.socketId).emit('game:track_result', result);
+    }
+  }
+}
+
+function notifyCultConversions(io: AppServer, room: Room): void {
+  for (const cultistId of room.newlyConvertedCultists) {
+    const cultist = room.players.get(cultistId);
+    if (cultist && cultist.socketId) {
+      io.to(cultist.socketId).emit('game:role', { role: getRole('cultist') });
+    }
   }
 }
 
@@ -460,6 +478,8 @@ export function attachSocketHandlers(io: AppServer): void {
           advancePhase(room); const nextPhase = room.phase as Phase;
           announceNightResult(io, room);
           notifySpies(io, room);
+          notifyTrackers(io, room);
+          notifyCultConversions(io, room);
           if (nextPhase === 'game_over') emitGameOver(io, room);
           broadcastRoom(io, room);
           if (room.phase !== 'game_over') startPhaseTimer(io, room);

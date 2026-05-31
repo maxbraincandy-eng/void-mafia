@@ -12,6 +12,8 @@ const ROLE_ICONS: Record<RoleKey, string> = {
   mafia: '🔫', citizen: '🏙', sheriff: '🔍', doctor: '💉', don: '♛',
   maniac: '🌀', jester: '🃏', bodyguard: '🛡',
   spy: '🕵️', escort: '💃', vigilante: '⚖️',
+  cult_leader: '🕯️', cultist: '🔮', veteran: '🎖️',
+  tracker: '👁', arsonist: '🔥', mayor: '👑',
 };
 
 const ROLE_COLORS: Record<RoleKey, string> = {
@@ -19,12 +21,16 @@ const ROLE_COLORS: Record<RoleKey, string> = {
   citizen: 'text-neon-cyan', sheriff: 'text-blue-400', doctor: 'text-neon-green',
   bodyguard: 'text-neon-green', spy: 'text-cyan-400', vigilante: 'text-yellow-400', escort: 'text-pink-400',
   maniac: 'text-neon-purple', jester: 'text-purple-400',
+  cult_leader: 'text-fuchsia-400', cultist: 'text-fuchsia-300',
+  veteran: 'text-yellow-400', tracker: 'text-blue-400',
+  arsonist: 'text-orange-400', mayor: 'text-yellow-300',
 };
 
 const TEAM_CONFIG: Record<Team, { label: string; color: string; border: string; bg: string }> = {
-  mafia:   { label: 'MAFIA',   color: 'text-neon-pink',   border: 'border-neon-pink/20',   bg: 'bg-neon-pink/5' },
-  town:    { label: 'TOWN',    color: 'text-neon-cyan',   border: 'border-neon-cyan/20',   bg: 'bg-neon-cyan/5' },
-  neutral: { label: 'NEUTRAL', color: 'text-neon-purple', border: 'border-neon-purple/20', bg: 'bg-neon-purple/5' },
+  mafia:   { label: 'MAFIA',   color: 'text-neon-pink',    border: 'border-neon-pink/20',    bg: 'bg-neon-pink/5' },
+  town:    { label: 'TOWN',    color: 'text-neon-cyan',    border: 'border-neon-cyan/20',    bg: 'bg-neon-cyan/5' },
+  neutral: { label: 'NEUTRAL', color: 'text-neon-purple',  border: 'border-neon-purple/20',  bg: 'bg-neon-purple/5' },
+  cult:    { label: 'CULT',    color: 'text-fuchsia-400',  border: 'border-fuchsia-400/20',  bg: 'bg-fuchsia-400/5' },
 };
 
 export function GameOver({ result }: Props) {
@@ -42,6 +48,7 @@ export function GameOver({ result }: Props) {
     town:    { label: t.game.gameOver.townWins,  color: 'text-neon-cyan',   glowColor: '#00f5ff', icon: '⚖️' },
     mafia:   { label: t.game.gameOver.mafiaWins, color: 'text-neon-pink',   glowColor: '#ff00cc', icon: '🔫' },
     neutral: { label: t.game.gameOver.soloWin,   color: 'text-neon-purple', glowColor: '#9b00ff', icon: '🌀' },
+    cult:    { label: t.game.gameOver.cultWins,  color: 'text-fuchsia-400', glowColor: '#c026d3', icon: '🕯️' },
   };
 
   const cfg = WINNER_CONFIG[result.winner];
@@ -57,10 +64,11 @@ export function GameOver({ result }: Props) {
     id, ...data, survived: survivalMap.get(id) ?? false,
   }));
 
-  const byTeam = {
+  const byTeam: Record<Team, typeof players> = {
     mafia:   players.filter(p => p.team === 'mafia'),
     town:    players.filter(p => p.team === 'town'),
     neutral: players.filter(p => p.team === 'neutral'),
+    cult:    players.filter(p => p.team === 'cult'),
   };
 
   const roleLabel = (role: RoleKey) =>
@@ -131,7 +139,7 @@ export function GameOver({ result }: Props) {
             {t.game.gameOver.finalRoles}
           </h2>
 
-          {(['mafia', 'town', 'neutral'] as Team[]).map(team => {
+          {(['mafia', 'town', 'neutral', 'cult'] as Team[]).map(team => {
             const group = byTeam[team];
             if (group.length === 0) return null;
             const tc = TEAM_CONFIG[team];

@@ -14,7 +14,6 @@ export function startGame(room: Room): void {
     throw new Error(`Need at least ${room.settings.minPlayers} players to start.`);
   }
 
-  // Spectators stay isAlive=false so toPublicRoom's visibility rule lets them see all roles
   for (const p of allPlayers) {
     if (p.isSpectator) {
       p.isAlive = false;
@@ -25,7 +24,6 @@ export function startGame(room: Room): void {
 
   const deck = buildRoleDeck(room.settings, count);
 
-  // Sort active players by seat for deterministic role assignment
   activePlayers.sort((a, b) => a.seat - b.seat);
   activePlayers.forEach((player, i) => {
     const role = deck[i]!;
@@ -42,13 +40,14 @@ export function startGame(room: Room): void {
   room.savedLastNight = false;
   room.chat = [];
   room.mafiaChat = [];
+  room.dousedPlayers = new Set();
+  room.newlyConvertedCultists = [];
 }
 
 // ── Set Phase ─────────────────────────────────────────────────────────
 export function setPhase(room: Room, phase: Phase): void {
   room.phase = phase;
 
-  // Reset per-phase state
   for (const p of room.players.values()) {
     p.hasActedThisPhase = false;
     if (phase === 'voting') p.voteTarget = null;
@@ -59,6 +58,7 @@ export function setPhase(room: Room, phase: Phase): void {
       room.nightActions = new Map();
       room.killedLastNight = [];
       room.savedLastNight = false;
+      room.newlyConvertedCultists = [];
       room.timer = room.settings.nightDuration;
       room.maxTimer = room.settings.nightDuration;
       break;
@@ -68,7 +68,6 @@ export function setPhase(room: Room, phase: Phase): void {
       room.daySkipVotes = [];
       break;
     case 'speech': {
-      // Build ordered list of alive non-spectator players by seat
       const alivePlayers = [...room.players.values()]
         .filter(p => p.isAlive && !p.isSpectator)
         .sort((a, b) => a.seat - b.seat);
@@ -95,9 +94,7 @@ export function setPhase(room: Room, phase: Phase): void {
 }
 
 // ── Advance Phase ─────────────────────────────────────────────────────
-/** Called when a phase timer expires OR host skips. Returns next phase after mutation. */
 export function advancePhase(room: Room): Phase {
-  // Never advance past game_over
   if (room.winner) {
     setPhase(room, 'game_over');
     return 'game_over';
@@ -105,7 +102,6 @@ export function advancePhase(room: Room): Phase {
 
   switch (room.phase) {
     case 'role_reveal':
-      // Check win before starting play (catches initial parity like 2M vs 2T)
       if (checkWin(room)) {
         setPhase(room, 'game_over');
         return 'game_over';
@@ -157,11 +153,11 @@ export function advancePhase(room: Room): Phase {
 export function resolveNight(room: Room): void {
   const allActions = [...room.nightActions.values()];
 
-  // Escort roleblocks: the escorted player's action is cancelled
+  // Escort roleblocks
   const escortBlocked = new Set(
     allActions.filter(a => a.role === 'escort').map(a => a.targetId)
   );
-  // Effective actions: escort's own action counts, blocked players' actions do not
+  // Effective actions (escort's own action counts; blocked players' actions do not)
   const actions = allActions.filter(a => a.role === 'escort' || !escortBlocked.has(a.actorId));
 
   // Doctor saves
@@ -174,35 +170,75 @@ export function resolveNight(room: Room): void {
     actions.filter(a => a.role === 'bodyguard').map(a => [a.targetId, a.actorId])
   );
 
-  // Kill intents: mafia + don + maniac + vigilante
-  const mafiaKills = actions
-    .filter(a => a.role === 'mafia' || a.role === 'don')
-    .map(a => a.targetId);
-
-  const maniacKills = actions
-    .filter(a => a.role === 'maniac')
-    .map(a => a.targetId);
-
-  const vigilanteKills = actions
-    .filter(a => a.role === 'vigilante')
-    .map(a => a.targetId);
-
-  const allKillIntents = [...mafiaKills, ...maniacKills, ...vigilanteKills];
-
   room.killedLastNight = [];
   room.savedLastNight = false;
+  room.newlyConvertedCultists = [];
 
-  for (const targetId of allKillIntents) {
+  // ── Veteran alerts ───────────────────────────────────────────────────
+  const alertedVeterans = new Set(
+    actions.filter(a => a.role === 'veteran' && a.actorId === a.targetId).map(a => a.actorId)
+  );
+  // Anyone (in effective actions) who visited an alerted veteran dies
+  const veteranKillTargets = new Set<string>();
+  for (const action of actions) {
+    if (alertedVeterans.has(action.targetId) && action.actorId !== action.targetId) {
+      veteranKillTargets.add(action.actorId);
+    }
+  }
+  for (const killId of veteranKillTargets) {
+    const victim = room.players.get(killId);
+    if (victim && victim.isAlive) {
+      victim.isAlive = false;
+      room.killedLastNight.push({ id: killId, name: victim.name, lastWill: victim.lastWill ?? null });
+    }
+  }
+
+  // ── Cult leader recruits ─────────────────────────────────────────────
+  for (const action of actions) {
+    if (action.role !== 'cult_leader') continue;
+    const target = room.players.get(action.targetId);
+    if (!target || !target.isAlive || target.team === 'cult') continue;
+    // Convert target to cultist
+    target.role = 'cultist';
+    target.team = 'cult';
+    room.newlyConvertedCultists.push(target.id);
+  }
+
+  // ── Arsonist actions ─────────────────────────────────────────────────
+  for (const action of actions) {
+    if (action.role !== 'arsonist') continue;
+    if (action.actorId === action.targetId) {
+      // Ignite: kill all currently doused players
+      for (const dousedId of room.dousedPlayers) {
+        const doused = room.players.get(dousedId);
+        if (!doused || !doused.isAlive) continue;
+        if (savedByDoctor.has(dousedId)) { room.savedLastNight = true; continue; }
+        doused.isAlive = false;
+        room.killedLastNight.push({ id: dousedId, name: doused.name, lastWill: doused.lastWill ?? null });
+      }
+      room.dousedPlayers.clear();
+    } else {
+      // Douse the target
+      room.dousedPlayers.add(action.targetId);
+    }
+  }
+
+  // ── Standard kill intents ────────────────────────────────────────────
+  const mafiaKills   = actions.filter(a => a.role === 'mafia' || a.role === 'don').map(a => a.targetId);
+  const maniacKills  = actions.filter(a => a.role === 'maniac').map(a => a.targetId);
+  const vigilanteKills = actions.filter(a => a.role === 'vigilante').map(a => a.targetId);
+  // Skip veteran-alerted targets (veteran kills them already; or veteran is immune while on alert)
+  const killIntents = [...mafiaKills, ...maniacKills, ...vigilanteKills].filter(id => !alertedVeterans.has(id));
+
+  for (const targetId of killIntents) {
     const target = room.players.get(targetId);
     if (!target || !target.isAlive) continue;
 
-    // Doctor saved → target lives
     if (savedByDoctor.has(targetId)) {
       room.savedLastNight = true;
       continue;
     }
 
-    // Bodyguard protected → bodyguard dies, target lives
     const bodyguardId = bodyguardProtects.get(targetId);
     if (bodyguardId) {
       const bodyguard = room.players.get(bodyguardId);
@@ -214,7 +250,6 @@ export function resolveNight(room: Room): void {
       }
     }
 
-    // No protection → target dies
     target.isAlive = false;
     room.killedLastNight.push({ id: targetId, name: target.name, lastWill: target.lastWill ?? null });
   }
@@ -228,10 +263,29 @@ export function submitNightAction(room: Room, actor: Player, targetId: string): 
 
   const target = room.players.get(targetId);
   if (!target) throw new Error('Target not found.');
+
+  const isSelfTarget = actor.id === targetId;
+
+  // Veteran goes on alert by self-targeting
+  if (actor.role === 'veteran') {
+    if (!isSelfTarget) throw new Error('To go on alert, target yourself.');
+    room.nightActions.set(actor.id, { actorId: actor.id, targetId, role: actor.role, submittedAt: Date.now() });
+    actor.hasActedThisPhase = true;
+    return;
+  }
+
+  // Arsonist can douse a player OR ignite (self-target)
+  if (actor.role === 'arsonist') {
+    if (!isSelfTarget && !target.isAlive) throw new Error('Cannot douse an eliminated player.');
+    room.nightActions.set(actor.id, { actorId: actor.id, targetId, role: actor.role, submittedAt: Date.now() });
+    actor.hasActedThisPhase = true;
+    return;
+  }
+
   if (!target.isAlive) throw new Error('Cannot target an eliminated player.');
 
   // Doctor/bodyguard self-target validation
-  if ((actor.role === 'doctor' || actor.role === 'bodyguard') && actor.id === targetId && !room.settings.allowDoctorSelfHeal) {
+  if ((actor.role === 'doctor' || actor.role === 'bodyguard') && isSelfTarget && !room.settings.allowDoctorSelfHeal) {
     throw new Error('Self-protection is disabled in this room.');
   }
 
@@ -241,13 +295,15 @@ export function submitNightAction(room: Room, actor: Player, targetId: string): 
   }
 
   // Vigilante cannot target themselves
-  if (actor.role === 'vigilante' && actor.id === targetId) {
-    throw new Error('You cannot target yourself.');
-  }
+  if (actor.role === 'vigilante' && isSelfTarget) throw new Error('You cannot target yourself.');
 
   // Escort cannot target themselves
-  if (actor.role === 'escort' && actor.id === targetId) {
-    throw new Error('You cannot target yourself.');
+  if (actor.role === 'escort' && isSelfTarget) throw new Error('You cannot target yourself.');
+
+  // Cult leader cannot recruit cult members or self
+  if (actor.role === 'cult_leader') {
+    if (isSelfTarget) throw new Error('You cannot recruit yourself.');
+    if (target.team === 'cult') throw new Error('Already a cult member.');
   }
 
   room.nightActions.set(actor.id, {
@@ -271,6 +327,21 @@ export function getInvestigationResult(room: Room, actor: Player): { targetId: s
   };
 }
 
+export function getTrackResult(room: Room, actor: Player): { trackedName: string; visitedName: string | null } | null {
+  const action = room.nightActions.get(actor.id);
+  if (!action) return null;
+  const tracked = room.players.get(action.targetId);
+  if (!tracked) return null;
+
+  const trackedAction = room.nightActions.get(tracked.id);
+  const visited = trackedAction ? room.players.get(trackedAction.targetId) : null;
+
+  return {
+    trackedName: tracked.name,
+    visitedName: visited?.name ?? null,
+  };
+}
+
 // ── Voting ────────────────────────────────────────────────────────────
 export function submitVote(room: Room, voter: Player, targetId: string | null): void {
   if (room.phase !== 'voting') throw new Error('Not voting phase.');
@@ -290,9 +361,11 @@ export function submitVote(room: Room, voter: Player, targetId: string | null): 
 export function resolveVotes(room: Room): string | null {
   const counts = new Map<string, number>();
 
-  for (const targetId of room.votes.values()) {
+  for (const [voterId, targetId] of room.votes.entries()) {
     if (!targetId) continue;
-    counts.set(targetId, (counts.get(targetId) ?? 0) + 1);
+    const voter = room.players.get(voterId);
+    const weight = voter?.role === 'mayor' ? 2 : 1;
+    counts.set(targetId, (counts.get(targetId) ?? 0) + weight);
   }
 
   if (counts.size === 0) return null;
@@ -300,10 +373,8 @@ export function resolveVotes(room: Room): string | null {
   const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
   const [topId, topCount] = sorted[0]!;
 
-  // Tie check
   if (sorted.length > 1 && sorted[1]![1] === topCount) {
     if (room.settings.tieVoteRule === 'no_elimination') return null;
-    // random: pick one of the tied players
     const tied = sorted.filter(([, c]) => c === topCount).map(([id]) => id);
     const winnerId = tied[Math.floor(Math.random() * tied.length)]!;
     eliminatePlayer(room, winnerId, true);
@@ -313,7 +384,6 @@ export function resolveVotes(room: Room): string | null {
   const target = room.players.get(topId);
   if (!target || !target.isAlive) return null;
 
-  // Jester wins if voted out
   if (target.role === 'jester') {
     target.isAlive = false;
     room.winner = 'neutral';
@@ -335,38 +405,37 @@ export function checkWin(room: Room): boolean {
   if (room.winner) return true;
 
   const alive = getAlivePlayers(room);
-  const mafiaAlive = alive.filter(p => p.team === 'mafia').length;
-  const townAlive = alive.filter(p => p.team === 'town').length;
+  const mafiaAlive   = alive.filter(p => p.team === 'mafia').length;
+  const townAlive    = alive.filter(p => p.team === 'town').length;
+  const cultAlive    = alive.filter(p => p.team === 'cult').length;
+  const cultLeaderAlive = alive.some(p => p.role === 'cult_leader');
   const neutralAlive = alive.filter(p => p.team === 'neutral').length;
 
   if (process.env.NODE_ENV !== 'production') {
-    console.log(`[WinCheck] phase=${room.phase} mafia=${mafiaAlive} town=${townAlive} neutral=${neutralAlive}`);
+    console.log(`[WinCheck] phase=${room.phase} mafia=${mafiaAlive} town=${townAlive} cult=${cultAlive} neutral=${neutralAlive}`);
   }
 
-  // Maniac solo win: only neutral left
-  if (neutralAlive >= 1 && mafiaAlive === 0 && townAlive === 0) {
+  // Cult win: leader alive and cult outnumbers everyone else
+  if (cultLeaderAlive && cultAlive >= mafiaAlive + townAlive + neutralAlive && cultAlive > 0) {
+    room.winner = 'cult';
+    return true;
+  }
+
+  // Maniac/Arsonist solo win: only neutral left
+  if (neutralAlive >= 1 && mafiaAlive === 0 && townAlive === 0 && cultAlive === 0) {
     room.winner = 'neutral';
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[WinCheck] winner=NEUTRAL reason="maniac last standing"');
-    }
     return true;
   }
 
-  // Town wins: all mafia eliminated
-  if (mafiaAlive === 0) {
+  // Town wins: all mafia and cult eliminated
+  if (mafiaAlive === 0 && cultAlive === 0) {
     room.winner = 'town';
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[WinCheck] winner=TOWN reason="all mafia eliminated"');
-    }
     return true;
   }
 
-  // Mafia wins: mafia count equals or exceeds town + neutral
-  if (mafiaAlive >= townAlive + neutralAlive) {
+  // Mafia wins: mafia count equals or exceeds all others
+  if (mafiaAlive >= townAlive + neutralAlive + cultAlive) {
     room.winner = 'mafia';
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`[WinCheck] winner=MAFIA reason="mafia parity reached" mafia=${mafiaAlive} town+neutral=${townAlive + neutralAlive}`);
-    }
     return true;
   }
 
@@ -389,7 +458,6 @@ export function buildGameOverResult(room: Room): GameOverResult {
   };
 }
 
-/** Check if all required night actions have been submitted (so we can skip waiting) */
 export function allNightActionsSubmitted(room: Room): boolean {
   const alivePlayers = getAlivePlayers(room);
   const actorsNeeded = alivePlayers.filter(p => {

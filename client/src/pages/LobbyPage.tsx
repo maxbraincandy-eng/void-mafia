@@ -421,9 +421,22 @@ function SettingsPanel({
             ],
           },
           {
+            label: 'Town (new)', color: 'text-neon-green', roles: [
+              { key: 'veteran',  name: 'Veteran',  max: 2 },
+              { key: 'tracker',  name: 'Tracker',  max: 2 },
+              { key: 'mayor',    name: 'Mayor',    max: 1 },
+            ],
+          },
+          {
             label: 'Neutral', color: 'text-neon-purple', roles: [
-              { key: 'maniac', name: 'Maniac', max: 2 },
-              { key: 'jester', name: 'Jester', max: 2 },
+              { key: 'maniac',   name: 'Maniac',   max: 2 },
+              { key: 'jester',   name: 'Jester',   max: 2 },
+              { key: 'arsonist', name: 'Arsonist', max: 2 },
+            ],
+          },
+          {
+            label: 'Cult', color: 'text-fuchsia-400', roles: [
+              { key: 'cult_leader', name: 'Cult Leader', max: 1 },
             ],
           },
         ] as const).map(group => (

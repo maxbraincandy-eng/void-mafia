@@ -18,9 +18,15 @@ export type RoleKey =
   | 'bodyguard'
   | 'spy'
   | 'escort'
-  | 'vigilante';
+  | 'vigilante'
+  | 'cult_leader'
+  | 'cultist'
+  | 'veteran'
+  | 'tracker'
+  | 'arsonist'
+  | 'mayor';
 
-export type Team = 'mafia' | 'town' | 'neutral';
+export type Team = 'mafia' | 'town' | 'neutral' | 'cult';
 export type TieRule = 'no_elimination' | 'random';
 export type ChatChannel = 'room' | 'mafia' | 'dead';
 export type ModeratorLevel = 'moderator' | 'senior_moderator' | 'admin' | 'owner';
@@ -213,6 +219,11 @@ export interface GameSettings {
     spy: number;
     escort: number;
     vigilante: number;
+    cult_leader: number;
+    veteran: number;
+    tracker: number;
+    arsonist: number;
+    mayor: number;
   };
 }
 
@@ -239,6 +250,8 @@ export interface Room {
   daySkipVotes: string[];
   createdAt: number;
   isPaused: boolean;
+  dousedPlayers: Set<string>;
+  newlyConvertedCultists: string[];
 }
 
 // ── Public Types (sent to clients) ────────────────────────────────────
@@ -319,6 +332,7 @@ export interface ServerToClientEvents {
   'game:role':          (data: { role: Role }) => void;
   'game:night_result':  (result: NightResult) => void;
   'game:investigation': (result: InvestigationResult) => void;
+  'game:track_result':  (result: { trackedName: string; visitedName: string | null }) => void;
   'game:over':          (result: GameOverResult) => void;
   'error':              (data: { message: string }) => void;
   'kicked':             (data: { reason: string }) => void;
