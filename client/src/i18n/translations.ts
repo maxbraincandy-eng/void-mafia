@@ -223,6 +223,7 @@ export const TRANSLATIONS = {
         finalRoles: '🔓 Final Roles',
         playAgain: '↻ Play Again',
         leaveRoom: 'Leave Room',
+        waitingForHost: 'Waiting for host to start a new game…',
       },
       header: {
         phase: 'Phase',
@@ -493,6 +494,7 @@ export const TRANSLATIONS = {
         finalRoles: '🔓 საბოლოო როლები',
         playAgain: '↻ ხელახლა თამაში',
         leaveRoom: 'ოთახის დატოვება',
+        waitingForHost: 'ჰოსტი ახალ თამაშს იწყებს…',
       },
       header: {
         phase: 'ფაზა',

@@ -401,6 +401,7 @@ export function attachSocketHandlers(io: AppServer): void {
         const room = getRoomFromSocket(socket);
         const host = getPlayerOrError(socket, room);
         if (!host.isHost) throw new Error('Only the host can start the game.');
+        if (room.phase !== 'lobby') throw new Error('Game is already in progress.');
 
         startGame(room);
         setPhase(room, 'role_reveal');
@@ -562,16 +563,23 @@ export function attachSocketHandlers(io: AppServer): void {
         const host = getPlayerOrError(socket, room);
         if (!host.isHost) throw new Error('Only the host can restart.');
 
+        // Stop any running timers immediately so stale onComplete callbacks cannot fire
         timerService.stop(room.id);
+
+        // Full game-state wipe — only room-level fields persist (id, code, players, settings)
         room.phase = 'lobby';
         room.winner = null;
         room.day = 0;
         room.timer = 0;
         room.maxTimer = 0;
+        room.isPaused = false;
         room.nightActions = new Map();
         room.votes = new Map();
         room.killedLastNight = [];
         room.savedLastNight = false;
+        room.daySkipVotes = [];
+        room.speechOrder = [];
+        room.currentSpeakerIdx = 0;
 
         for (const p of room.players.values()) {
           p.role = null;
@@ -580,6 +588,7 @@ export function attachSocketHandlers(io: AppServer): void {
           p.isReady = false;
           p.voteTarget = null;
           p.hasActedThisPhase = false;
+          p.lastWill = null;
         }
 
         broadcastSystemMsg(io, room, 'The host has restarted the room. Prepare for a new game.');

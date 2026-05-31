@@ -107,14 +107,21 @@ export function GameOver({ result }: Props) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6 }}
-          className="flex gap-3"
+          className="space-y-3"
         >
-          {amHost && (
+          {amHost ? (
             <Button variant="primary" fullWidth loading={isLoading} onClick={restartGame}>
               {t.game.gameOver.playAgain}
             </Button>
+          ) : (
+            <div className="flex items-center justify-center gap-2 py-3 rounded-xl border border-white/10 bg-white/4">
+              <span className="text-white/40 font-mono text-sm animate-pulse">
+                ⏳ {t.game.gameOver.waitingForHost}
+              </span>
+            </div>
           )}
-          <Button variant="secondary" fullWidth loading={isLoading} onClick={() => leaveRoom()}>
+
+          <Button variant="ghost" fullWidth loading={isLoading} onClick={() => leaveRoom()}>
             {t.game.gameOver.leaveRoom}
           </Button>
         </motion.div>

@@ -74,7 +74,19 @@ export const useGameStore = create<GameStore>((set, get) => {
   socket.on('disconnect', () => set({ isConnected: false }));
 
   socket.on('room:update', (room: RoomPublic) => {
-    set({ room });
+    const prev = get();
+    const prevPhase = prev.room?.phase;
+
+    // When any client sees the phase leave game_over (host restarted),
+    // clear all stale per-game state so old overlays don't bleed into the new game.
+    if (prevPhase === 'game_over' && room.phase !== 'game_over') {
+      set({ room, gameOverResult: null, myRole: null, nightResult: null, investigationResult: null, spyReport: null });
+    } else if (room.phase === 'role_reveal' && prevPhase === 'lobby') {
+      // New game just started — ensure game-over overlay is gone
+      set({ room, gameOverResult: null, nightResult: null, investigationResult: null, spyReport: null });
+    } else {
+      set({ room });
+    }
   });
 
   socket.on('chat:new', (msg: ChatMessage) => {
