@@ -127,6 +127,9 @@ export function GamePage() {
   const isNight = phase === 'night';
   const alivePlayers = room.players.filter(p => p.isAlive).length;
 
+  // Mic is locked when another player has the floor
+  const micLocked = phase === 'speech' && room.currentSpeakerId !== myPlayer?.id && room.currentSpeakerId !== null;
+
   const handlePlayerSelect = (p: PlayerPublic) => {
     if (p.id !== myPlayer?.id) setStatsPlayer(p);
   };
@@ -142,6 +145,7 @@ export function GamePage() {
         isLocalSpeaking={voice.isLocalSpeaking}
         peerCount={voice.peers.length}
         error={voice.error}
+        muteLocked={micLocked}
         defaultChannel={voiceChannel}
         channelLabel={voiceChannelLabel}
         onJoin={(ch, withCam) => voice.joinVoice(ch, withCam)}

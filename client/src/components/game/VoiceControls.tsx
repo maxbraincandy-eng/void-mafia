@@ -28,6 +28,7 @@ interface VoiceControlsProps {
   isLocalSpeaking: boolean;
   peerCount: number;
   error: string | null;
+  muteLocked?: boolean;
 
   onJoin: (channel: VoiceChannel, withCamera: boolean) => void;
   onLeave: () => void;
@@ -62,6 +63,7 @@ export function VoiceControls({
   isLocalSpeaking,
   peerCount,
   error,
+  muteLocked = false,
   onJoin,
   onLeave,
   onToggleMute,
@@ -188,16 +190,20 @@ export function VoiceControls({
           <div className="flex gap-2">
             {/* Mute / Unmute */}
             <button
-              onClick={onToggleMute}
+              onClick={muteLocked ? undefined : onToggleMute}
+              disabled={muteLocked}
+              title={muteLocked ? 'Mic locked during another player\'s floor time' : undefined}
               className={clsx(
                 'flex-1 py-3 rounded-xl font-display font-bold tracking-widest text-sm uppercase',
-                'border transition-all duration-200 active:scale-95',
-                isMuted
-                  ? 'border-neon-red/50 text-neon-red bg-neon-red/15 hover:bg-neon-red/25'
-                  : 'border-neon-green/40 text-neon-green bg-neon-green/10 hover:bg-neon-green/20',
+                'border transition-all duration-200',
+                muteLocked
+                  ? 'border-white/10 text-white/25 bg-white/5 cursor-not-allowed'
+                  : isMuted
+                    ? 'border-neon-red/50 text-neon-red bg-neon-red/15 hover:bg-neon-red/25 active:scale-95'
+                    : 'border-neon-green/40 text-neon-green bg-neon-green/10 hover:bg-neon-green/20 active:scale-95',
               )}
             >
-              {isMuted ? '🔇 Muted' : '🎙 Mic On'}
+              {muteLocked ? '🔒 Muted' : isMuted ? '🔇 Muted' : '🎙 Mic On'}
             </button>
 
             {/* Camera toggle — tapping requests permission if not yet granted */}
@@ -224,7 +230,12 @@ export function VoiceControls({
             </button>
           </div>
 
-          {!cameraOn && (
+          {muteLocked && (
+            <p className="text-[10px] text-neon-red/50 font-mono text-center">
+              Mic locked — wait for your floor time.
+            </p>
+          )}
+          {!muteLocked && !cameraOn && (
             <p className="text-[10px] text-white/20 font-mono text-center">
               Tap "Cam Off" to enable camera — browser will ask for permission.
             </p>
