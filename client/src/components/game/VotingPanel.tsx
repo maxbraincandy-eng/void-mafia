@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
+import { useT } from '@/store/langStore';
 import { PlayerList } from './PlayerList';
 import { Button } from '@/components/ui/Button';
 
@@ -12,6 +13,7 @@ export function VotingPanel() {
     submitVote: s.submitVote,
     isLoading: s.isLoading,
   }));
+  const t = useT();
 
   // Two-tap: pendingId = first tap selection, confirmed by tapping the confirm card
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -22,7 +24,7 @@ export function VotingPanel() {
     return (
       <div className="flex flex-col items-center justify-center h-40 gap-3">
         <div className="text-3xl">💀</div>
-        <p className="text-white/40 font-mono text-sm">Eliminated players cannot vote.</p>
+        <p className="text-white/40 font-mono text-sm">{t.game.voting.eliminated}</p>
       </div>
     );
   }
@@ -59,10 +61,8 @@ export function VotingPanel() {
   return (
     <div className="space-y-4">
       <div className="p-3 rounded-xl border border-neon-red/20 bg-neon-red/5">
-        <p className="text-xs font-mono text-white/40 uppercase tracking-widest mb-1">Town Vote</p>
-        <p className="text-sm text-white/80">
-          Tap a player to select, then tap again (or confirm) to cast your vote.
-        </p>
+        <p className="text-xs font-mono text-white/40 uppercase tracking-widest mb-1">{t.game.voting.townVote}</p>
+        <p className="text-sm text-white/80">{t.game.voting.instruction}</p>
       </div>
 
       {/* Vote tally */}
@@ -106,9 +106,9 @@ export function VotingPanel() {
             exit={{ opacity: 0, y: 10, scale: 0.97 }}
             className="p-4 rounded-xl border border-neon-red/40 bg-neon-red/10 space-y-3"
           >
-            <p className="text-xs font-mono text-white/50 uppercase tracking-widest">Confirm vote</p>
+            <p className="text-xs font-mono text-white/50 uppercase tracking-widest">{t.game.voting.confirmTitle}</p>
             <p className="text-white font-semibold">
-              Eliminate <span className="text-neon-red font-bold">{pendingPlayer.name}</span>?
+              {t.game.voting.confirmQuestion.replace('{name}', pendingPlayer.name)}
             </p>
             <div className="flex gap-2">
               <Button
@@ -117,13 +117,13 @@ export function VotingPanel() {
                 loading={isLoading}
                 onClick={handleConfirm}
               >
-                {hasVoted ? 'Change Vote' : 'Vote Out'} ✓
+                {hasVoted ? t.game.voting.changeVote : t.game.voting.voteOut} {t.game.voting.confirm}
               </Button>
               <Button
                 variant="ghost"
                 onClick={() => setPendingId(null)}
               >
-                Cancel
+                {t.game.voting.cancel}
               </Button>
             </div>
           </motion.div>
@@ -131,25 +131,14 @@ export function VotingPanel() {
       </AnimatePresence>
 
       {/* Abstain button always visible */}
-      {myPlayer.voteTarget && !pendingId && (
+      {!pendingId && (
         <div className="text-center">
           <button
             onClick={() => { submitVote(null); }}
             disabled={isLoading}
             className="text-xs text-white/30 font-mono hover:text-white/60 transition-colors disabled:opacity-40"
           >
-            Clear vote (abstain)
-          </button>
-        </div>
-      )}
-      {!myPlayer.voteTarget && !pendingId && (
-        <div className="text-center">
-          <button
-            onClick={() => { submitVote(null); }}
-            disabled={isLoading}
-            className="text-xs text-white/30 font-mono hover:text-white/60 transition-colors disabled:opacity-40"
-          >
-            Abstain
+            {myPlayer.voteTarget ? t.game.voting.clearVote : t.game.voting.abstain}
           </button>
         </div>
       )}

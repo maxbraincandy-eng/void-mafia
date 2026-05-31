@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
 import { useT } from '@/store/langStore';
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 
 type Tab = 'guest' | 'signin' | 'register';
 
@@ -47,6 +48,10 @@ export function LoginPage() {
     <div className="min-h-screen bg-neon-grid-animated scanlines flex flex-col items-center justify-center px-4 relative overflow-hidden">
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-neon-purple/15 rounded-full blur-[120px] pointer-events-none animate-pulse-glow" />
       <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-neon-cyan/10 rounded-full blur-[80px] pointer-events-none" />
+      {/* Language switcher — top-right on login */}
+      <div className="absolute top-4 right-4 z-10">
+        <LanguageSwitcher />
+      </div>
 
       <div className="relative z-10 w-full max-w-sm">
         {/* Logo */}

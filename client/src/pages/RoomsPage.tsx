@@ -8,6 +8,7 @@ import { useAmbientDrone } from '@/hooks/useAudio';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { LeaderboardModal } from '@/components/ui/LeaderboardModal';
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 
 export function RoomsPage() {
   const [mode, setMode] = useState<'browse' | 'create' | 'join'>('browse');
@@ -82,18 +83,21 @@ export function RoomsPage() {
 
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-8">
         {/* Header */}
-        <div className="mb-6 flex items-start justify-between">
-          <div>
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div className="min-w-0">
             <h1 className="font-display text-3xl font-bold gradient-text tracking-wide">VOID MAFIA</h1>
             <p className="text-neon-green/50 font-mono text-xs tracking-widest">{t.common.poweredBy}</p>
           </div>
-          <button
-            onClick={() => setShowLeaderboard(true)}
-            className="mt-1 px-3 py-2 rounded-xl border border-white/10 text-white/30 hover:text-neon-cyan hover:border-neon-cyan/30 font-mono text-sm transition-all"
-            title="Leaderboard"
-          >
-            🏆
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0 mt-1">
+            <LanguageSwitcher />
+            <button
+              onClick={() => setShowLeaderboard(true)}
+              className="px-3 py-1.5 rounded-lg border border-white/10 text-white/30 hover:text-neon-cyan hover:border-neon-cyan/30 font-mono text-sm transition-all"
+              title={t.game.header.leaderboard}
+            >
+              🏆
+            </button>
+          </div>
         </div>
 
         {/* Mode tabs */}
