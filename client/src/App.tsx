@@ -11,7 +11,6 @@ import { ClansPage } from '@/pages/ClansPage';
 import { LeaderboardPage } from '@/pages/LeaderboardPage';
 import { ModDashboardPage } from '@/pages/ModDashboardPage';
 import { BottomNav, NavTab } from '@/components/layout/BottomNav';
-import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 
 interface Toast {
   id: string;
@@ -86,11 +85,6 @@ export default function App() {
 
   return (
     <>
-      {/* Global language switcher — top-right corner */}
-      <div className="fixed top-3 right-3 z-[200]">
-        <LanguageSwitcher />
-      </div>
-
       <AnimatePresence mode="wait">
         <Screen />
       </AnimatePresence>

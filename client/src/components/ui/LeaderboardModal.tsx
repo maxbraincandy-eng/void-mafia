@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PlayerProfilePublic } from '@/types/index';
 import { useGameStore } from '@/store/gameStore';
+import { useT } from '@/store/langStore';
 
 interface Props {
   open: boolean;
@@ -10,6 +11,7 @@ interface Props {
 
 export function LeaderboardModal({ open, onClose }: Props) {
   const getLeaderboard = useGameStore(s => s.getLeaderboard);
+  const t = useT();
   const [players, setPlayers] = useState<PlayerProfilePublic[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -43,18 +45,18 @@ export function LeaderboardModal({ open, onClose }: Props) {
           >
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-display text-xl font-bold text-neon-cyan tracking-widest uppercase">
-                🏆 Leaderboard
+                🏆 {t.leaderboard.title}
               </h2>
               <button onClick={onClose} className="text-white/30 hover:text-white text-sm">✕</button>
             </div>
 
             {loading && (
-              <div className="text-center py-8 text-white/40 font-mono text-sm">Loading…</div>
+              <div className="text-center py-8 text-white/40 font-mono text-sm">{t.common.loading}</div>
             )}
 
             {!loading && players.length === 0 && (
               <div className="text-center py-8 text-white/30 font-mono text-sm">
-                No players with 3+ games yet.
+                {t.leaderboard.noPlayers}
               </div>
             )}
 
@@ -69,7 +71,7 @@ export function LeaderboardModal({ open, onClose }: Props) {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-white font-mono truncate">{p.username}</p>
-                      <p className="text-xs text-white/40 font-mono">{p.stats.gamesPlayed} games</p>
+                      <p className="text-xs text-white/40 font-mono">{p.stats.gamesPlayed} {t.leaderboard.gamesCount}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold font-mono text-neon-green">{p.stats.winRate}%</p>
@@ -81,7 +83,7 @@ export function LeaderboardModal({ open, onClose }: Props) {
             )}
 
             <p className="text-xs text-white/20 font-mono text-center mt-4">
-              Players with 3+ games · sorted by win rate
+              {t.leaderboard.sortedBy}
             </p>
           </motion.div>
         </motion.div>

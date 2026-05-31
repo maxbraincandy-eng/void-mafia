@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
+import { useT } from '@/store/langStore';
 import { ChatMessage, ChatChannel } from '@/types/index';
 
 interface Props {
@@ -15,6 +16,7 @@ export function ChatPanel({ compact = false }: Props) {
     sendChat: s.sendChat,
     amAlive: s.amAlive(),
   }));
+  const t = useT();
 
   const [text, setText] = useState('');
   const [channel, setChannel] = useState<ChatChannel>('room');
@@ -70,7 +72,7 @@ export function ChatPanel({ compact = false }: Props) {
                 : 'text-white/30 hover:text-white/60',
             )}
           >
-            {ch === 'mafia' ? '🔴 Mafia' : ch === 'dead' ? '💀 Dead' : '💬 Room'}
+            {ch === 'mafia' ? t.game.chat.mafiaChannel : ch === 'dead' ? t.game.chat.deadChannel : t.game.chat.roomChannel}
           </button>
         ))}
       </div>
@@ -94,8 +96,8 @@ export function ChatPanel({ compact = false }: Props) {
           onKeyDown={handleKey}
           placeholder={
             !canSendInChannel
-              ? isNight && channel === 'room' ? 'Silence during the night…' : 'You cannot send here'
-              : channel === 'mafia' ? 'Mafia chat…' : 'Send a message…'
+              ? isNight && channel === 'room' ? t.game.chat.nightSilence : t.game.chat.cannotSend
+              : channel === 'mafia' ? t.game.chat.mafiaChatPlaceholder : t.game.chat.sendPlaceholder
           }
           disabled={!canSendInChannel}
           maxLength={400}

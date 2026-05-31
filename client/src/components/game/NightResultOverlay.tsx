@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { NightResult } from '@/types/index';
 import { Button } from '@/components/ui/Button';
+import { useT } from '@/store/langStore';
 
 interface Props {
   result: NightResult | null;
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function NightResultOverlay({ result, onDismiss }: Props) {
+  const t = useT();
   if (!result) return null;
 
   const noDeaths = result.killed.length === 0;
@@ -29,39 +31,35 @@ export function NightResultOverlay({ result, onDismiss }: Props) {
           className="glass-card border border-neon-cyan/20 p-8 text-center max-w-sm w-full shadow-neon-cyan"
           onClick={e => e.stopPropagation()}
         >
-          <p className="text-xs font-mono uppercase tracking-widest text-white/40 mb-4">Dawn</p>
+          <p className="text-xs font-mono uppercase tracking-widest text-white/40 mb-4">{t.game.dawn.title}</p>
 
           {noDeaths ? (
             <>
               <div className="text-5xl mb-4">{result.saved ? '💊' : '🌅'}</div>
               <h2 className="font-display text-2xl font-bold text-neon-green text-glow-green tracking-widest mb-2">
-                No Deaths
+                {t.game.dawn.noDeaths}
               </h2>
               <p className="text-white/60 text-sm">
-                {result.saved
-                  ? 'The Doctor saved someone from elimination tonight.'
-                  : 'The night passed quietly. No one was killed.'}
+                {result.saved ? t.game.dawn.doctorSaved : t.game.dawn.quietNight}
               </p>
             </>
           ) : (
             <>
               <div className="text-5xl mb-4">💀</div>
               <h2 className="font-display text-2xl font-bold text-neon-red text-glow-red tracking-widest mb-2">
-                Eliminated
+                {t.game.dawn.eliminated}
               </h2>
               <div className="space-y-1 mb-3">
                 {result.killed.map(k => (
                   <p key={k.id} className="text-white font-semibold text-lg">{k.name}</p>
                 ))}
               </div>
-              <p className="text-white/40 text-xs font-mono">
-                was found dead at dawn.
-              </p>
+              <p className="text-white/40 text-xs font-mono">{t.game.dawn.foundDead}</p>
             </>
           )}
 
           <Button variant="secondary" className="mt-6" onClick={onDismiss} fullWidth>
-            Continue
+            {t.game.dawn.continue}
           </Button>
         </motion.div>
       </motion.div>

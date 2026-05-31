@@ -20,18 +20,9 @@ import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { useVoiceChat, VoiceChannel } from '@/hooks/useVoiceChat';
 import { useGameSounds } from '@/hooks/useSoundFX';
+import { useT } from '@/store/langStore';
 
 type MobileTab = 'action' | 'players' | 'chat';
-
-const PHASE_LABELS: Record<Phase, string> = {
-  lobby:        'Lobby',
-  role_reveal:  'Role Reveal',
-  night:        'Night',
-  day:          'Day',
-  speech:       'Floor Time',
-  voting:       'Voting',
-  game_over:    'Game Over',
-};
 
 const PHASE_COLORS: Record<Phase, string> = {
   lobby:        'text-white',
@@ -82,6 +73,7 @@ export function GamePage() {
 
   const voice = useVoiceChat();
   useGameSounds();
+  const t = useT();
 
   const isInVoice = voice.channel !== null;
 
@@ -169,7 +161,7 @@ export function GamePage() {
       {isInVoice && voice.peers.length > 0 && (
         <div className="mt-3">
           <p className="text-xs font-display uppercase tracking-widest text-white/30 mb-2">
-            In Voice ({voice.peers.length + 1})
+            {t.game.voice.inVoice.replace('{n}', String(voice.peers.length + 1))}
           </p>
           <VoiceParticipants
             localName={myPlayer?.name ?? 'You'}
@@ -186,11 +178,11 @@ export function GamePage() {
   const showWill = amAlive && phase !== 'lobby' && phase !== 'role_reveal' && phase !== 'game_over';
   const LastWillPanel = showWill ? (
     <div className="mt-4 rounded-2xl border border-white/8 bg-void-50/40 p-3 space-y-2">
-      <p className="text-xs font-display uppercase tracking-widest text-white/30">📜 Last Will</p>
+      <p className="text-xs font-display uppercase tracking-widest text-white/30">{t.game.will.title}</p>
       <textarea
         value={willText}
         onChange={e => { setWillText(e.target.value.slice(0, 200)); setWillSaved(false); }}
-        placeholder="Write your last will… revealed when eliminated."
+        placeholder={t.game.will.placeholder}
         rows={2}
         maxLength={200}
         className="w-full bg-void-50/60 border border-white/8 rounded-xl px-3 py-2 text-xs font-mono text-white placeholder-white/20 focus:outline-none focus:border-neon-cyan/30 resize-none transition-all"
@@ -208,7 +200,7 @@ export function GamePage() {
             'disabled:opacity-40',
           )}
         >
-          {willSaved ? '✓ Saved' : 'Save'}
+          {willSaved ? t.game.will.saved : t.game.will.save}
         </button>
       </div>
     </div>
@@ -233,16 +225,16 @@ export function GamePage() {
             <div className="text-center py-4">
               <div className="text-4xl mb-2" style={{ filter: 'drop-shadow(0 0 20px #9b00ff)' }}>🌙</div>
               <h2 className="font-display text-2xl font-bold text-neon-purple tracking-widest uppercase">
-                Night Falls
+                {t.game.night.title}
               </h2>
               <p className="text-white/40 text-sm mt-1 font-mono">
-                {amAlive ? 'Complete your night action.' : 'You have been eliminated.'}
+                {amAlive ? t.game.night.activeMsg : t.game.night.eliminatedMsg}
               </p>
             </div>
             {/* Mafia voice panel in action area during night */}
             {isMafiaPlayer && amAlive && (
               <Card glow="none" padding="sm">
-                <p className="text-xs font-display uppercase tracking-widest text-neon-red/60 mb-2">Mafia Voice Channel</p>
+                <p className="text-xs font-display uppercase tracking-widest text-neon-red/60 mb-2">🔴 Mafia Voice</p>
                 <VoiceControls
                   channel={voice.channel}
                   status={voice.status}
@@ -272,27 +264,25 @@ export function GamePage() {
             <div className="space-y-4">
               {room.killedLastNight.length > 0 && (
                 <Card glow="red" padding="md">
-                  <p className="text-xs font-mono text-white/40 uppercase tracking-widest mb-2">Night Report</p>
+                  <p className="text-xs font-mono text-white/40 uppercase tracking-widest mb-2">{t.game.day.nightReport}</p>
                   {room.killedLastNight.map(k => (
                     <p key={k.id} className="text-white font-semibold">
-                      <span className="text-neon-red">💀</span> {k.name} was eliminated during the night.
+                      <span className="text-neon-red">💀</span> {k.name} {t.game.day.eliminatedNight}
                     </p>
                   ))}
                 </Card>
               )}
               {room.savedLastNight && room.killedLastNight.length === 0 && (
                 <Card glow="green" padding="md">
-                  <p className="text-neon-green text-sm">
-                    💊 The Doctor saved someone. No one was killed last night.
-                  </p>
+                  <p className="text-neon-green text-sm">💊 {t.game.day.doctorSaved}</p>
                 </Card>
               )}
               <div className="text-center py-4">
                 <div className="text-4xl mb-2">☀️</div>
                 <h2 className="font-display text-2xl font-bold text-yellow-300 tracking-widest uppercase">
-                  Day {room.day}
+                  {t.game.day.title} {room.day}
                 </h2>
-                <p className="text-white/40 text-sm mt-1 font-mono">Discuss and find the Mafia.</p>
+                <p className="text-white/40 text-sm mt-1 font-mono">{t.game.day.discuss}</p>
               </div>
               {amAlive && (
                 <div className="text-center">
@@ -301,7 +291,9 @@ export function GamePage() {
                     disabled={isLoading}
                     className="px-6 py-2 border border-white/15 text-white/40 text-xs font-mono rounded-xl hover:border-neon-cyan/40 hover:text-neon-cyan transition-all disabled:opacity-40"
                   >
-                    ⏭ Skip discussion ({alreadyVoted}/{skipNeeded} votes)
+                    {t.game.day.skipDiscussion
+                      .replace('{voted}', String(alreadyVoted))
+                      .replace('{needed}', String(skipNeeded))}
                   </button>
                 </div>
               )}
@@ -319,17 +311,17 @@ export function GamePage() {
               <div className="text-center py-4">
                 <div className="text-4xl mb-2">🎤</div>
                 <h2 className="font-display text-2xl font-bold text-neon-green tracking-widest uppercase">
-                  Floor Time
+                  {t.game.speech.title}
                 </h2>
                 {speaker ? (
                   <>
                     <p className="text-neon-green font-bold text-lg mt-2">{speaker.name}</p>
                     <p className="text-white/40 text-xs font-mono mt-1">
-                      Speaker {speakerIdx + 1} of {totalSpeakers}
+                      {t.game.speech.speaker} {speakerIdx + 1} {t.game.speech.of} {totalSpeakers}
                     </p>
                   </>
                 ) : (
-                  <p className="text-white/40 text-sm font-mono mt-1">Loading…</p>
+                  <p className="text-white/40 text-sm font-mono mt-1">{t.game.speech.loading}</p>
                 )}
               </div>
             </div>
@@ -341,10 +333,10 @@ export function GamePage() {
             <div className="text-center py-4">
               <div className="text-4xl mb-2">⚖️</div>
               <h2 className="font-display text-2xl font-bold text-neon-red tracking-widest uppercase">
-                Town Vote
+                {t.game.voting.title}
               </h2>
               <p className="text-white/40 text-sm mt-1 font-mono">
-                {alivePlayers} players voting.
+                {t.game.voting.alivePlaying.replace('{n}', String(alivePlayers))}
               </p>
             </div>
             <VotingPanel />
@@ -416,7 +408,7 @@ export function GamePage() {
               )}
               onClick={e => e.stopPropagation()}
             >
-              <p className="text-xs font-mono uppercase tracking-widest text-white/40 mb-4">Investigation Result</p>
+              <p className="text-xs font-mono uppercase tracking-widest text-white/40 mb-4">{t.game.investigation.title}</p>
               <div className="text-5xl mb-4">
                 {investigationResult.result === 'suspicious' ? '🔴' : '🟢'}
               </div>
@@ -424,14 +416,15 @@ export function GamePage() {
                 'font-display text-3xl font-bold tracking-widest uppercase mb-2',
                 investigationResult.result === 'suspicious' ? 'text-neon-pink' : 'text-neon-green',
               )}>
-                {investigationResult.result === 'suspicious' ? 'Suspicious' : 'Clear'}
+                {investigationResult.result === 'suspicious' ? t.game.investigation.suspicious : t.game.investigation.clear}
               </h2>
               <p className="text-white/70 text-sm">
-                <strong>{investigationResult.targetName}</strong> appears to be{' '}
-                {investigationResult.result === 'suspicious' ? 'Mafia.' : 'an innocent citizen.'}
+                {investigationResult.result === 'suspicious'
+                  ? t.game.investigation.suspiciousDesc.replace('{name}', investigationResult.targetName)
+                  : t.game.investigation.clearDesc.replace('{name}', investigationResult.targetName)}
               </p>
               <Button variant="secondary" className="mt-6" onClick={dismissInvestigation} fullWidth>
-                Got it
+                {t.game.investigation.gotIt}
               </Button>
             </motion.div>
           </motion.div>
@@ -455,18 +448,18 @@ export function GamePage() {
               className="glass-card border border-neon-cyan/30 shadow-neon-cyan p-8 text-center max-w-sm w-full"
               onClick={e => e.stopPropagation()}
             >
-              <p className="text-xs font-mono uppercase tracking-widest text-white/40 mb-4">Spy Report</p>
+              <p className="text-xs font-mono uppercase tracking-widest text-white/40 mb-4">{t.game.spyReport.title}</p>
               <div className="text-5xl mb-4">🕵️</div>
               <h2 className="font-display text-3xl font-bold tracking-widest uppercase mb-2 text-neon-cyan">
-                Intel
+                {t.game.spyReport.intel}
               </h2>
               <p className="text-white/70 text-sm">
                 {spyReport.mafiaTargetName
-                  ? <>Last night, mafia targeted <strong className="text-white">{spyReport.mafiaTargetName}</strong>.</>
-                  : 'Last night, mafia made no move.'}
+                  ? <><span dangerouslySetInnerHTML={{ __html: t.game.spyReport.targeted.replace('{name}', `<strong class="text-white">${spyReport.mafiaTargetName}</strong>`) }} /></>
+                  : t.game.spyReport.noMove}
               </p>
               <Button variant="secondary" className="mt-6" onClick={dismissSpyReport} fullWidth>
-                Got it
+                {t.game.spyReport.gotIt}
               </Button>
             </motion.div>
           </motion.div>
@@ -481,9 +474,9 @@ export function GamePage() {
           <div className="max-w-7xl mx-auto flex items-center gap-2 md:gap-4">
             {/* Phase */}
             <div className="min-w-0">
-              <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest hidden sm:block">Phase</p>
+              <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest hidden sm:block">{t.game.header.phase}</p>
               <h1 className={clsx('font-display text-base md:text-xl font-bold tracking-widest uppercase truncate', PHASE_COLORS[phase])}>
-                {PHASE_LABELS[phase]}
+                {t.game.phaseLabels[phase]}
                 {phase !== 'role_reveal' && phase !== 'game_over' && (
                   <span className="text-white/40"> · D{room.day}</span>
                 )}
@@ -500,7 +493,7 @@ export function GamePage() {
             <div className="ml-auto flex items-center gap-1.5 md:gap-3">
               {/* Room code */}
               <div className="hidden sm:block text-right">
-                <p className="text-[10px] text-white/30 font-mono">Room</p>
+                <p className="text-[10px] text-white/30 font-mono">{t.game.header.room}</p>
                 <p className="font-mono text-xs md:text-sm text-neon-cyan font-bold tracking-widest">{room.code}</p>
               </div>
 
@@ -540,7 +533,7 @@ export function GamePage() {
               <button
                 onClick={() => setShowLeaderboard(true)}
                 className="hidden sm:flex items-center px-2 py-1 rounded-lg text-white/30 hover:text-neon-cyan transition-colors text-sm"
-                title="Leaderboard"
+                title={t.game.header.leaderboard}
               >
                 🏆
               </button>
@@ -550,7 +543,7 @@ export function GamePage() {
                 <button
                   onClick={() => pauseTimer()}
                   disabled={isLoading}
-                  title={room.isPaused ? 'Resume timer' : 'Pause timer'}
+                  title={room.isPaused ? t.game.header.resume : t.game.header.pause}
                   className={clsx(
                     'px-2 py-1 rounded-lg text-sm transition-all',
                     room.isPaused
@@ -565,18 +558,18 @@ export function GamePage() {
               {/* PAUSED indicator for all players */}
               {room.isPaused && (
                 <span className="text-xs font-display font-bold text-yellow-400 tracking-widest uppercase animate-pulse">
-                  PAUSED
+                  {t.game.header.paused}
                 </span>
               )}
 
               {amHost && phase !== 'role_reveal' && phase !== 'game_over' && phase !== 'lobby' && (
                 <Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>
-                  <span className="hidden sm:inline">Skip </span>⏭
+                  <span className="hidden sm:inline">{t.game.header.skip} </span>⏭
                 </Button>
               )}
 
               <Button size="sm" variant="ghost" onClick={() => leaveRoom()}>
-                ✕
+                {t.game.header.leave}
               </Button>
             </div>
           </div>
@@ -588,7 +581,7 @@ export function GamePage() {
           <aside className="w-64 lg:w-72 flex-shrink-0 overflow-y-auto p-4 border-r border-white/5 flex flex-col">
             <div className="flex-shrink-0">
               <h2 className="text-xs font-display uppercase tracking-widest text-white/40 mb-3">
-                Players · {alivePlayers} alive
+                {t.lobby.players} · {alivePlayers}
               </h2>
               <PlayerList
                 players={room.players}
@@ -614,7 +607,7 @@ export function GamePage() {
           {/* Chat sidebar */}
           <aside className="w-64 lg:w-72 flex-shrink-0 overflow-hidden p-4 border-l border-white/5 hidden lg:flex flex-col">
             <h2 className="text-xs font-display uppercase tracking-widest text-white/40 mb-3 flex-shrink-0">
-              Chat
+              {t.lobby.chat}
             </h2>
             <div className="flex-1 min-h-0">
               <ChatPanel compact />
@@ -662,9 +655,9 @@ export function GamePage() {
           <div className="flex-shrink-0 glass-panel border-t border-white/10 flex">
             {(
               [
-                { id: 'action',  label: '⚡ Action'  },
-                { id: 'players', label: '👥 Players' },
-                { id: 'chat',    label: '💬 Chat'    },
+                { id: 'action',  label: `⚡ ${t.game.phaseLabels[phase] || 'Action'}` },
+                { id: 'players', label: `👥 ${t.lobby.players}` },
+                { id: 'chat',    label: `💬 ${t.lobby.chat}` },
               ] as { id: MobileTab; label: string }[]
             ).map(tab => (
               <button

@@ -1,17 +1,5 @@
 /**
  * VoiceControls — voice/video UI panel.
- *
- * Before joining:
- *   - Camera toggle checkbox (opt-in)
- *   - "Join Voice" button (calls getUserMedia on tap — browser permission prompt)
- *
- * After joining:
- *   - Mute / Unmute mic
- *   - Enable / Disable camera (requests permission on first enable)
- *   - Leave button
- *   - Connection status
- *   - Speaking indicator
- *   - Error / HTTPS warning
  */
 
 import { useState } from 'react';
@@ -19,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { VoiceChannel } from '@/hooks/useVoiceChat';
 import { ConnectionState } from '@/services/webrtcService';
+import { useT } from '@/store/langStore';
 
 interface VoiceControlsProps {
   channel: VoiceChannel | null;
@@ -39,22 +28,6 @@ interface VoiceControlsProps {
   channelLabel?: string;
 }
 
-const STATUS_LABEL: Record<ConnectionState, string> = {
-  disconnected: 'Not connected',
-  requesting:   'Requesting permission…',
-  connecting:   'Connecting…',
-  connected:    'Connected',
-  failed:       'Connection failed',
-};
-
-const STATUS_COLOR: Record<ConnectionState, string> = {
-  disconnected: 'text-white/40',
-  requesting:   'text-yellow-400',
-  connecting:   'text-yellow-400',
-  connected:    'text-neon-green',
-  failed:       'text-neon-red',
-};
-
 export function VoiceControls({
   channel,
   status,
@@ -71,10 +44,28 @@ export function VoiceControls({
   defaultChannel = 'room',
   channelLabel,
 }: VoiceControlsProps) {
+  const t = useT();
+  const v = t.game.voice;
+
+  const STATUS_LABEL: Record<ConnectionState, string> = {
+    disconnected: v.notConnected,
+    requesting:   v.requesting,
+    connecting:   v.connecting,
+    connected:    v.connected,
+    failed:       v.failed,
+  };
+
+  const STATUS_COLOR: Record<ConnectionState, string> = {
+    disconnected: 'text-white/40',
+    requesting:   'text-yellow-400',
+    connecting:   'text-yellow-400',
+    connected:    'text-neon-green',
+    failed:       'text-neon-red',
+  };
+
   const isInVoice = channel !== null;
   const isConnecting = status === 'requesting' || status === 'connecting';
 
-  // Pre-join camera opt-in (local UI state)
   const [wantCamera, setWantCamera] = useState(false);
 
   const label = channelLabel ?? (defaultChannel === 'mafia' ? '🔴 Mafia Voice' : '🎙 Room Voice');
@@ -85,10 +76,10 @@ export function VoiceControls({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs font-display uppercase tracking-widest text-white/40">Voice</p>
+          <p className="text-xs font-display uppercase tracking-widest text-white/40">{v.title}</p>
           <p className={clsx('text-xs font-mono mt-0.5 transition-colors', STATUS_COLOR[status])}>
             {isInVoice && status === 'connected'
-              ? `${label} · ${peerCount + 1} connected`
+              ? v.connectedLabel.replace('{label}', label).replace('{n}', String(peerCount + 1))
               : STATUS_LABEL[status]}
           </p>
         </div>
@@ -120,13 +111,13 @@ export function VoiceControls({
         )}
       </AnimatePresence>
 
-      {/* ── Pre-join state ───────────────────────────────────────────── */}
+      {/* ── Pre-join state ── */}
       {!isInVoice && (
         <div className="space-y-3">
           {/* Camera opt-in toggle */}
           <label className="flex items-center gap-3 cursor-pointer select-none group">
             <div
-              onClick={() => setWantCamera(v => !v)}
+              onClick={() => setWantCamera(vv => !vv)}
               className={clsx(
                 'w-10 h-6 rounded-full flex items-center px-0.5 transition-all flex-shrink-0',
                 wantCamera ? 'bg-neon-cyan/40 border border-neon-cyan/50' : 'bg-white/10 border border-white/10',
@@ -143,12 +134,10 @@ export function VoiceControls({
             </div>
             <div>
               <p className="text-xs font-mono text-white/60 group-hover:text-white/80 transition-colors">
-                📷 Include camera
+                {v.includeCamera}
               </p>
               <p className="text-[10px] font-mono text-white/25">
-                {wantCamera
-                  ? 'Browser will ask for camera permission'
-                  : 'Mic only — camera off'}
+                {wantCamera ? v.cameraBrowserAsk : v.micOnly}
               </p>
             </div>
           </label>
@@ -173,18 +162,18 @@ export function VoiceControls({
             ) : (
               <>
                 {wantCamera ? '📷 ' : '🎙 '}
-                Join {defaultChannel === 'mafia' ? 'Mafia ' : ''}Voice
+                {defaultChannel === 'mafia' ? v.joinMafia : v.join}
               </>
             )}
           </button>
 
           <p className="text-[10px] text-white/20 font-mono text-center">
-            Browser will ask for microphone permission{wantCamera ? ' and camera' : ''} when you tap Join.
+            {v.joinHint.replace('{cam}', wantCamera ? v.andCamera : '')}
           </p>
         </div>
       )}
 
-      {/* ── In-voice controls ────────────────────────────────────────── */}
+      {/* ── In-voice controls ── */}
       {isInVoice && (
         <div className="space-y-2">
           <div className="flex gap-2">
@@ -192,7 +181,7 @@ export function VoiceControls({
             <button
               onClick={muteLocked ? undefined : onToggleMute}
               disabled={muteLocked}
-              title={muteLocked ? 'Mic locked during another player\'s floor time' : undefined}
+              title={muteLocked ? v.lockedTitle : undefined}
               className={clsx(
                 'flex-1 py-3 rounded-xl font-display font-bold tracking-widest text-sm uppercase',
                 'border transition-all duration-200',
@@ -203,10 +192,10 @@ export function VoiceControls({
                     : 'border-neon-green/40 text-neon-green bg-neon-green/10 hover:bg-neon-green/20 active:scale-95',
               )}
             >
-              {muteLocked ? '🔒 Muted' : isMuted ? '🔇 Muted' : '🎙 Mic On'}
+              {muteLocked ? v.micLocked : isMuted ? v.muted : v.micOn}
             </button>
 
-            {/* Camera toggle — tapping requests permission if not yet granted */}
+            {/* Camera toggle */}
             <button
               onClick={onToggleCamera}
               className={clsx(
@@ -217,14 +206,14 @@ export function VoiceControls({
                   : 'border-white/15 text-white/40 bg-white/5 hover:bg-white/10 hover:text-white/70',
               )}
             >
-              {cameraOn ? '📷 Cam On' : '📷 Cam Off'}
+              {cameraOn ? v.camOn : v.camOff}
             </button>
 
             {/* Leave */}
             <button
               onClick={onLeave}
               className="px-4 py-3 rounded-xl border border-white/10 text-white/40 hover:text-neon-red hover:border-neon-red/30 font-mono transition-all active:scale-95"
-              title="Leave voice"
+              title={v.leave}
             >
               ✕
             </button>
@@ -232,12 +221,12 @@ export function VoiceControls({
 
           {muteLocked && (
             <p className="text-[10px] text-neon-red/50 font-mono text-center">
-              Mic locked — wait for your floor time.
+              {v.micLockedHint}
             </p>
           )}
           {!muteLocked && !cameraOn && (
             <p className="text-[10px] text-white/20 font-mono text-center">
-              Tap "Cam Off" to enable camera — browser will ask for permission.
+              {v.camHint}
             </p>
           )}
         </div>
