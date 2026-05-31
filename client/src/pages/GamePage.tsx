@@ -21,6 +21,7 @@ import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { useVoiceChat, VoiceChannel } from '@/hooks/useVoiceChat';
 import { useGameSounds, setSoundMuted, isSoundMuted } from '@/hooks/useSoundFX';
 import { PhaseTransition } from '@/components/game/PhaseTransition';
+import { PlayerGrid } from '@/components/game/PlayerGrid';
 import { useT } from '@/store/langStore';
 
 type MobileTab = 'action' | 'players' | 'chat';
@@ -139,6 +140,19 @@ export function GamePage() {
   const phase = room.phase;
   const isNight = phase === 'night';
   const alivePlayers = room.players.filter(p => p.isAlive).length;
+
+  // Grid view is shown as primary content for social phases
+  const useGridView = ['day', 'speech', 'voting', 'role_reveal'].includes(phase);
+
+  // Vote counts for grid overlay
+  const voteCounts: Record<string, number> = {};
+  for (const p of room.players) {
+    if (p.voteTarget) voteCounts[p.voteTarget] = (voteCounts[p.voteTarget] ?? 0) + 1;
+  }
+
+  // My pending vote selection (for PlayerGrid highlight)
+  // We read this from VotingPanel indirectly — simpler to just track via room state
+  const myVoteTarget = myPlayer?.voteTarget ?? null;
 
   // Mic is locked when another player has the floor
   const micLocked = phase === 'speech' && room.currentSpeakerId !== myPlayer?.id && room.currentSpeakerId !== null;
@@ -660,68 +674,123 @@ export function GamePage() {
 
         {/* ── MOBILE layout (<md) ───────────────────────────────────── */}
         <div className="md:hidden flex-1 overflow-hidden flex flex-col">
-          <div className="flex-1 overflow-y-auto p-4 pb-2">
-            <AnimatePresence mode="wait">
-              {mobileTab === 'action' && (
-                <motion.div key="action" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
-                  {PhaseContentWithWill}
-                  {/* Voice panel in action tab on mobile */}
-                  {phase !== 'night' || !isMafiaPlayer ? VoicePanel : null}
-                </motion.div>
-              )}
-              {mobileTab === 'players' && (
-                <motion.div key="players" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
-                  <h2 className="text-xs font-display uppercase tracking-widest text-white/40 mb-3">
-                    Players · {alivePlayers} alive
-                  </h2>
-                  <PlayerList
-                    players={room.players}
-                    phase={phase}
-                    showVotes={phase === 'voting'}
-                    currentSpeakerId={phase === 'speech' ? room.currentSpeakerId : null}
-                    onSelectTarget={handlePlayerSelect}
-                  />
-                </motion.div>
-              )}
-              {mobileTab === 'chat' && (
-                <motion.div key="chat" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="h-full">
-                  <h2 className="text-xs font-display uppercase tracking-widest text-white/40 mb-3">Chat</h2>
-                  <div className="h-[calc(100%-2rem)]">
-                    <ChatPanel />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
 
-          {/* Mobile bottom tab bar */}
-          <div className="flex-shrink-0 glass-panel border-t border-white/10 flex">
-            {(
-              [
-                { id: 'action',  label: `⚡ ${t.game.phaseLabels[phase] || 'Action'}` },
-                { id: 'players', label: `👥 ${t.lobby.players}` },
-                { id: 'chat',    label: `💬 ${t.lobby.chat}` },
-              ] as { id: MobileTab; label: string }[]
-            ).map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setMobileTab(tab.id)}
-                className={clsx(
-                  'flex-1 py-3 text-xs font-display font-bold tracking-widest uppercase transition-all relative',
-                  mobileTab === tab.id
-                    ? 'text-neon-cyan bg-neon-cyan/10 border-t-2 border-neon-cyan -mt-[2px]'
-                    : 'text-white/40 hover:text-white/70',
-                )}
-              >
-                {tab.label}
-                {tab.id === 'chat' && unreadChat > 0 && (
-                  <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-neon-red text-white text-[9px] flex items-center justify-center font-bold">
-                    {unreadChat > 9 ? '9+' : unreadChat}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
+          {useGridView ? (
+            /* ── Grid-primary layout (day / speech / voting / role_reveal) ── */
+            <>
+              <div className="flex-1 overflow-y-auto">
+                <AnimatePresence mode="wait">
+                  {mobileTab === 'chat' ? (
+                    <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4 h-full">
+                      <div className="h-[calc(100vh-12rem)]">
+                        <ChatPanel />
+                      </div>
+                    </motion.div>
+                  ) : mobileTab === 'action' ? (
+                    <motion.div key="action" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4">
+                      {PhaseContentWithWill}
+                      {VoicePanel}
+                    </motion.div>
+                  ) : (
+                    /* Default: player grid */
+                    <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-3 pb-2">
+                      <PlayerGrid
+                        players={room.players}
+                        phase={phase}
+                        currentSpeakerId={room.currentSpeakerId}
+                        myPlayerId={myPlayer?.id ?? null}
+                        voteCounts={voteCounts}
+                        selectedVoteId={myVoteTarget}
+                        showRoles={amSpectator || phase === 'game_over'}
+                        onSelect={handlePlayerSelect}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Slim 3-button nav */}
+              <div className="flex-shrink-0 glass-panel border-t border-white/8 flex">
+                {([
+                  { id: 'grid',   label: '👥', sublabel: t.lobby.players },
+                  { id: 'action', label: '⚡', sublabel: t.game.phaseLabels[phase] || 'Action' },
+                  { id: 'chat',   label: '💬', sublabel: t.lobby.chat },
+                ] as { id: MobileTab | 'grid'; label: string; sublabel: string }[]).map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setMobileTab(tab.id === 'grid' ? 'players' : tab.id)}
+                    className={clsx(
+                      'flex-1 py-2.5 flex flex-col items-center gap-0.5 transition-all relative',
+                      (tab.id === 'grid' ? mobileTab !== 'action' && mobileTab !== 'chat' : mobileTab === tab.id)
+                        ? 'text-neon-cyan border-t-2 border-neon-cyan -mt-[2px]'
+                        : 'text-white/35 hover:text-white/60',
+                    )}
+                  >
+                    <span className="text-base leading-none">{tab.label}</span>
+                    <span className="text-[9px] font-mono uppercase tracking-wide">{tab.sublabel}</span>
+                    {tab.id === 'chat' && unreadChat > 0 && (
+                      <span className="absolute top-1 right-3 w-4 h-4 rounded-full bg-neon-red text-white text-[9px] flex items-center justify-center font-bold">
+                        {unreadChat > 9 ? '9+' : unreadChat}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            /* ── Original tab layout (night / game_over) ── */
+            <>
+              <div className="flex-1 overflow-y-auto p-4 pb-2">
+                <AnimatePresence mode="wait">
+                  {mobileTab === 'action' && (
+                    <motion.div key="action" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+                      {PhaseContentWithWill}
+                      {phase !== 'night' || !isMafiaPlayer ? VoicePanel : null}
+                    </motion.div>
+                  )}
+                  {mobileTab === 'players' && (
+                    <motion.div key="players" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+                      <PlayerList
+                        players={room.players}
+                        phase={phase}
+                        showVotes={false}
+                        currentSpeakerId={null}
+                        onSelectTarget={handlePlayerSelect}
+                      />
+                    </motion.div>
+                  )}
+                  {mobileTab === 'chat' && (
+                    <motion.div key="chat" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="h-full">
+                      <div className="h-[calc(100%-2rem)]"><ChatPanel /></div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+              <div className="flex-shrink-0 glass-panel border-t border-white/10 flex">
+                {([
+                  { id: 'action',  label: `⚡ ${t.game.phaseLabels[phase] || 'Action'}` },
+                  { id: 'players', label: `👥 ${t.lobby.players}` },
+                  { id: 'chat',    label: `💬 ${t.lobby.chat}` },
+                ] as { id: MobileTab; label: string }[]).map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setMobileTab(tab.id)}
+                    className={clsx(
+                      'flex-1 py-3 text-xs font-display font-bold tracking-widest uppercase transition-all relative',
+                      mobileTab === tab.id ? 'text-neon-cyan bg-neon-cyan/10 border-t-2 border-neon-cyan -mt-[2px]' : 'text-white/40 hover:text-white/70',
+                    )}
+                  >
+                    {tab.label}
+                    {tab.id === 'chat' && unreadChat > 0 && (
+                      <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-neon-red text-white text-[9px] flex items-center justify-center font-bold">
+                        {unreadChat > 9 ? '9+' : unreadChat}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
