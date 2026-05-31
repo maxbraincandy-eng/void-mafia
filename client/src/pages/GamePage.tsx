@@ -125,12 +125,16 @@ export function GamePage() {
     if (mobileTab === 'chat') setUnreadChat(0);
   }, [mobileTab]);
 
-  // Phase transition overlay
+  // Phase transition overlay + auto-switch to grid view
   const prevPhaseForTransition = useRef<Phase | null>(null);
   useEffect(() => {
     const cur = room?.phase ?? null;
     if (prevPhaseForTransition.current !== null && cur !== null && prevPhaseForTransition.current !== cur) {
       setTransitionPhase(cur);
+      // Switch to player grid automatically on social phases
+      if (['day', 'speech', 'voting', 'role_reveal'].includes(cur)) {
+        setMobileTab('players');
+      }
     }
     prevPhaseForTransition.current = cur;
   }, [room?.phase]);
@@ -687,8 +691,28 @@ export function GamePage() {
                       </div>
                     </motion.div>
                   ) : mobileTab === 'action' ? (
-                    <motion.div key="action" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4">
-                      {PhaseContentWithWill}
+                    <motion.div key="action" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4 space-y-4">
+                      {/* In grid-view mode: action tab shows phase actions + voice only (no full phase content) */}
+                      {phase === 'voting' && !amSpectator && <VotingPanel />}
+                      {phase === 'day' && !amSpectator && (() => {
+                        const active = room.players.filter(p => p.isAlive && !p.isSpectator);
+                        const skipNeeded = Math.floor(active.length / 2) + 1;
+                        const alreadyVoted = room.daySkipVoteCount ?? 0;
+                        return (
+                          <div className="text-center pt-4">
+                            <button onClick={() => daySkipVote()} disabled={isLoading}
+                              className="px-6 py-3 border border-white/15 text-white/50 text-sm font-mono rounded-xl hover:border-neon-cyan/40 hover:text-neon-cyan transition-all disabled:opacity-40">
+                              {t.game.day.skipDiscussion.replace('{voted}', String(alreadyVoted)).replace('{needed}', String(skipNeeded))}
+                            </button>
+                          </div>
+                        );
+                      })()}
+                      {phase === 'speech' && !amSpectator && (
+                        <div className="text-center py-4 text-white/40 text-sm font-mono">
+                          {amHost && <Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>⏭ {t.game.header.skip}</Button>}
+                        </div>
+                      )}
+                      {LastWillPanel}
                       {VoicePanel}
                     </motion.div>
                   ) : (

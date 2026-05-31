@@ -69,9 +69,9 @@ export function PhaseTransition({ phase, onDone }: Props) {
             enter: { duration: 0.25, ease: 'easeOut' },
             exit: { duration: 0.4, ease: 'easeIn' },
           }}
-          className={`fixed inset-0 z-[300] flex items-center justify-center bg-gradient-radial ${config.bg} to-black/95`}
+          className="fixed inset-0 z-[300] flex items-center justify-center"
           style={{
-            background: `radial-gradient(ellipse at center, ${config.color}18 0%, #000010 70%)`,
+            background: `radial-gradient(ellipse at 50% 45%, ${config.color}30 0%, rgba(0,0,8,0.97) 60%)`,
           }}
         >
           {/* Pulsing glow ring behind icon */}
