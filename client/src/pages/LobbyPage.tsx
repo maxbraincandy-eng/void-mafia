@@ -418,13 +418,9 @@ function SettingsPanel({
               { key: 'spy',       name: 'Spy',       max: 2 },
               { key: 'vigilante', name: 'Vigilante', max: 2 },
               { key: 'escort',    name: 'Escort',    max: 2 },
-            ],
-          },
-          {
-            label: 'Town (new)', color: 'text-neon-green', roles: [
-              { key: 'veteran',  name: 'Veteran',  max: 2 },
-              { key: 'tracker',  name: 'Tracker',  max: 2 },
-              { key: 'mayor',    name: 'Mayor',    max: 1 },
+              { key: 'veteran',   name: 'Veteran',   max: 2 },
+              { key: 'tracker',   name: 'Tracker',   max: 2 },
+              { key: 'mayor',     name: 'Mayor',     max: 1 },
             ],
           },
           {
