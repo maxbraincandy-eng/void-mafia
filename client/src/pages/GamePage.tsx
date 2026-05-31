@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
@@ -46,6 +46,7 @@ export function GamePage() {
   const [willSaved, setWillSaved] = useState(false);
   const [soundMuted, setSoundMutedState] = useState(isSoundMuted());
   const [transitionPhase, setTransitionPhase] = useState<Phase | null>(null);
+  const handleTransitionDone = useCallback(() => setTransitionPhase(null), []);
 
   const {
     room, myPlayer, myRole, amHost, amAlive,
@@ -423,7 +424,7 @@ export function GamePage() {
       <LeaderboardModal open={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
 
       {/* Phase transition overlay */}
-      <PhaseTransition phase={transitionPhase} onDone={() => setTransitionPhase(null)} />
+      <PhaseTransition phase={transitionPhase} onDone={handleTransitionDone} />
 
       {/* Game Over */}
       {gameOverResult && <GameOver result={gameOverResult} />}

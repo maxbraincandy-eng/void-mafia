@@ -53,7 +53,8 @@ export function PhaseTransition({ phase, onDone }: Props) {
     // total visible time: 0.25s in + 1.0s hold + 0.4s out = 1.65s
     const t = setTimeout(onDone, 1650);
     return () => clearTimeout(t);
-  }, [phase, onDone]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
   const config = phase ? PHASE_CONFIG[phase] : null;
 
@@ -70,10 +71,17 @@ export function PhaseTransition({ phase, onDone }: Props) {
             exit: { duration: 0.4, ease: 'easeIn' },
           }}
           className="fixed inset-0 z-[300] flex items-center justify-center"
-          style={{
-            background: `radial-gradient(ellipse at 50% 45%, ${config.color}30 0%, rgba(0,0,8,0.97) 60%)`,
-          }}
+          style={{ backgroundColor: 'rgba(0,0,8,0.98)' }}
         >
+          {/* Colored glow overlay — separate so base is always opaque */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: `radial-gradient(ellipse at 50% 45%, ${config.color}28 0%, transparent 60%)`,
+              pointerEvents: 'none',
+            }}
+          />
           {/* Pulsing glow ring behind icon */}
           <div className="relative flex flex-col items-center gap-6">
             <div className="relative flex items-center justify-center">
