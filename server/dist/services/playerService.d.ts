@@ -1,6 +1,7 @@
-import { PlayerProfile, PlayerProfilePublic, BanRecord, MuteRecord, Warning } from '../types/index.js';
+import { PlayerProfile, PlayerProfilePublic, ModeratorLevel, BanRecord, MuteRecord, Warning } from '../types/index.js';
 export declare function registerWithEmail(email: string, password: string, username: string): PlayerProfile;
 export declare function authenticateWithEmail(email: string, password: string): PlayerProfile;
+export declare function getModPermissions(level: ModeratorLevel | null): string[];
 export declare function getOrCreatePlayer(uid: string, username: string): PlayerProfile;
 export declare function getPlayer(uid: string): PlayerProfile | null;
 export declare function getAllPlayers(): PlayerProfile[];

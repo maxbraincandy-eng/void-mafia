@@ -54,6 +54,7 @@ export interface PlayerProfile {
     isModerator: boolean;
     moderatorLevel: ModeratorLevel | null;
     moderatorBadgeVisible: boolean;
+    moderatorPermissions: string[];
     ban: BanRecord | null;
     mute: MuteRecord | null;
     warnings: Warning[];
@@ -71,6 +72,7 @@ export interface PlayerProfilePublic {
     isModerator: boolean;
     moderatorLevel: ModeratorLevel | null;
     moderatorBadgeVisible: boolean;
+    moderatorPermissions: string[];
     joinedAt: number;
 }
 export interface Report {
@@ -98,6 +100,7 @@ export interface ModLog {
     reason: string;
     duration: number | null;
     createdAt: number;
+    expiresAt?: number;
 }
 export interface Player {
     id: string;
@@ -392,6 +395,11 @@ export interface ClientToServerEvents {
         roomId: string;
         reason: string;
     }, cb: Cb<null>) => void;
+    'mod:kick_player': (data: {
+        targetProfileId: string;
+        reason: string;
+    }, cb: Cb<null>) => void;
+    'mod:get_active_rooms': (cb: Cb<RoomListItem[]>) => void;
     'mod:ban': (data: {
         targetProfileId: string;
         reason: string;

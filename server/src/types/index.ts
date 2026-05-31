@@ -98,6 +98,7 @@ export interface PlayerProfile {
   isModerator: boolean;
   moderatorLevel: ModeratorLevel | null;
   moderatorBadgeVisible: boolean;
+  moderatorPermissions: string[];
   ban: BanRecord | null;
   mute: MuteRecord | null;
   warnings: Warning[];
@@ -116,6 +117,7 @@ export interface PlayerProfilePublic {
   isModerator: boolean;
   moderatorLevel: ModeratorLevel | null;
   moderatorBadgeVisible: boolean;
+  moderatorPermissions: string[];
   joinedAt: number;
 }
 
@@ -147,6 +149,7 @@ export interface ModLog {
   reason: string;
   duration: number | null;
   createdAt: number;
+  expiresAt?: number;
 }
 
 // ── Internal Server Types ─────────────────────────────────────────────
@@ -357,6 +360,8 @@ export interface ClientToServerEvents {
   'leaderboard:get':    (cb: Cb<PlayerProfilePublic[]>) => void;
   'chat:send':          (data: { text: string; channel: ChatChannel }, cb: Cb<null>) => void;
   'mod:kick_from_room': (data: { targetProfileId: string; roomId: string; reason: string }, cb: Cb<null>) => void;
+  'mod:kick_player':    (data: { targetProfileId: string; reason: string }, cb: Cb<null>) => void;
+  'mod:get_active_rooms': (cb: Cb<RoomListItem[]>) => void;
   'mod:ban':            (data: { targetProfileId: string; reason: string; duration: number }, cb: Cb<null>) => void;
   'mod:mute':           (data: { targetProfileId: string; reason: string; duration: number }, cb: Cb<null>) => void;
   'mod:warn':           (data: { targetProfileId: string; reason: string }, cb: Cb<null>) => void;

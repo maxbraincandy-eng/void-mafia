@@ -148,6 +148,7 @@ function MessageBubble({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
     >
       <span className={clsx('text-xs font-mono', isMafiaMsg ? 'text-neon-pink/70' : 'text-neon-cyan/60')}>
         {msg.seat ? `#${msg.seat} ` : ''}{msg.senderName}
+        {msg.isMod && <span className="ml-1 text-[9px] font-bold text-neon-green border border-neon-green/30 px-1 rounded bg-neon-green/10">MOD</span>}
       </span>
       <div
         className={clsx(

@@ -179,3 +179,12 @@ export function getLogs(): ModLog[] {
 export function getModPlayers() {
   return getAllPlayers().map(toPublicProfile);
 }
+
+// ── Kick Log ──────────────────────────────────────────────────────────
+export function logKick(
+  modProfileId: string, modName: string,
+  targetId: string, targetName: string,
+  roomId: string | null, reason: string,
+): void {
+  addLog({ actionType: 'kick', moderatorId: modProfileId, moderatorName: modName, targetPlayerId: targetId, targetName, roomId, reason, duration: null });
+}

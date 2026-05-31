@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
+import clsx from 'clsx';
 import { useAuthStore } from '@/store/authStore';
 import { LoginPage } from '@/pages/LoginPage';
 import { LobbyPage } from '@/pages/LobbyPage';
@@ -76,6 +77,95 @@ function Screen() {
   return <MainApp />;
 }
 
+function ModNoticeOverlay() {
+  const { modNotice, dismissModNotice } = useGameStore(s => ({
+    modNotice: s.modNotice,
+    dismissModNotice: s.dismissModNotice,
+  }));
+
+  if (!modNotice) return null;
+
+  const config = {
+    ban:  { title: 'YOU HAVE BEEN BANNED',  color: 'text-neon-red',   border: 'border-neon-red/30',   bg: 'bg-neon-red/10',   icon: '🔨' },
+    mute: { title: 'YOU HAVE BEEN MUTED',   color: 'text-neon-pink',  border: 'border-neon-pink/30',  bg: 'bg-neon-pink/10',  icon: '🔇' },
+    warn: { title: 'WARNING',               color: 'text-yellow-400', border: 'border-yellow-400/30', bg: 'bg-yellow-400/10', icon: '⚠️' },
+  } as const;
+  const cfg = config[modNotice.type];
+
+  const formatExpiry = (expiresAt?: number) => {
+    if (!expiresAt) return null;
+    const d = new Date(expiresAt);
+    return d.toLocaleString();
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[500] flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
+    >
+      <motion.div
+        initial={{ scale: 0.85, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        className={clsx(
+          'glass-panel rounded-2xl p-6 w-full max-w-sm border-2',
+          cfg.border,
+          cfg.bg,
+        )}
+      >
+        <div className="text-center mb-4">
+          <div className="text-4xl mb-2">{cfg.icon}</div>
+          <h2 className={clsx('font-display font-bold tracking-widest text-lg', cfg.color)}>
+            {cfg.title}
+          </h2>
+        </div>
+
+        <div className="space-y-2 mb-5">
+          <div className={clsx('rounded-xl p-3 border', cfg.border)}>
+            <p className="text-white/40 text-[10px] font-mono uppercase tracking-widest mb-0.5">Reason</p>
+            <p className="text-white text-sm font-mono">{modNotice.reason}</p>
+          </div>
+
+          {modNotice.expiresAt && (
+            <div className={clsx('rounded-xl p-3 border', cfg.border)}>
+              <p className="text-white/40 text-[10px] font-mono uppercase tracking-widest mb-0.5">Expires</p>
+              <p className="text-white text-sm font-mono">{formatExpiry(modNotice.expiresAt)}</p>
+            </div>
+          )}
+
+          {modNotice.moderatorName && (
+            <div className={clsx('rounded-xl p-3 border', cfg.border)}>
+              <p className="text-white/40 text-[10px] font-mono uppercase tracking-widest mb-0.5">Moderator</p>
+              <p className="text-white text-sm font-mono">{modNotice.moderatorName}</p>
+            </div>
+          )}
+        </div>
+
+        {modNotice.type !== 'ban' && (
+          <button
+            onClick={dismissModNotice}
+            className={clsx(
+              'w-full py-2.5 rounded-xl font-display font-bold text-sm tracking-widest uppercase border transition-all',
+              cfg.border,
+              cfg.color,
+              'hover:opacity-80',
+            )}
+          >
+            Got it
+          </button>
+        )}
+
+        {modNotice.type === 'ban' && (
+          <p className="text-white/30 text-xs font-mono text-center">
+            This action cannot be dismissed. You have been removed from the platform.
+          </p>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
 export default function App() {
   const connect = useGameStore(s => s.connect);
 
@@ -89,6 +179,9 @@ export default function App() {
         <Screen />
       </AnimatePresence>
       <ToastLayer />
+      <AnimatePresence>
+        <ModNoticeOverlay />
+      </AnimatePresence>
     </>
   );
 }

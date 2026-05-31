@@ -62,6 +62,7 @@ export interface PlayerProfilePublic {
   isModerator: boolean;
   moderatorLevel: ModeratorLevel | null;
   moderatorBadgeVisible: boolean;
+  moderatorPermissions: string[];
   joinedAt: number;
 }
 

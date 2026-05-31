@@ -10,4 +10,5 @@ export declare function getReports(): Report[];
 export declare function resolveReport(moderatorId: string, reportId: string, status: 'resolved' | 'rejected', notes: string): void;
 export declare function getLogs(): ModLog[];
 export declare function getModPlayers(): import("../types/index.js").PlayerProfilePublic[];
+export declare function logKick(modProfileId: string, modName: string, targetId: string, targetName: string, roomId: string | null, reason: string): void;
 //# sourceMappingURL=moderationService.d.ts.map

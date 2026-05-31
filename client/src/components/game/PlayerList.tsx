@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { PlayerPublic, Phase, RoleKey } from '@/types/index';
 import { Avatar } from '@/components/ui/Avatar';
+import { ModBadge } from '@/components/ui/ModBadge';
 import { useGameStore } from '@/store/gameStore';
 
 interface Props {
@@ -77,6 +78,9 @@ export function PlayerList({ players, phase, onSelectTarget, selectableIds, sele
                     #{player.seat} {player.name}
                     {isMe && <span className="text-neon-purple text-[10px] ml-0.5">(you)</span>}
                   </span>
+                  {player.isModerator && player.moderatorLevel && (
+                    <ModBadge level={player.moderatorLevel} size="xs" />
+                  )}
                   {isSpeaking && (
                     <span className="text-[9px] font-mono font-bold text-neon-green bg-neon-green/10 px-1 rounded flex-shrink-0">
                       🎤 SPEAKING

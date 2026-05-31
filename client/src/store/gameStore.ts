@@ -26,6 +26,7 @@ interface GameStore {
   investigationResult: InvestigationResult | null;
   spyReport: { mafiaTarget: string | null; mafiaTargetName: string | null } | null;
   gameOverResult: GameOverResult | null;
+  modNotice: { type: 'ban' | 'mute' | 'warn'; reason: string; expiresAt?: number; moderatorName?: string } | null;
   toasts: Toast[];
 
   // UI
@@ -57,6 +58,7 @@ interface GameStore {
   dismissInvestigation: () => void;
   dismissSpyReport: () => void;
   dismissGameOver: () => void;
+  dismissModNotice: () => void;
   addToast: (text: string, type?: Toast['type']) => void;
   clearError: () => void;
   setWill: (text: string) => Promise<void>;
@@ -116,8 +118,24 @@ export const useGameStore = create<GameStore>((set, get) => {
       nightResult: null,
       investigationResult: null,
       gameOverResult: null,
+      modNotice: { type: 'warn', reason },
     });
     get().addToast(reason, 'error');
+  });
+
+  socket.on('ban:received', ({ reason, expiresAt }: { reason: string; expiresAt?: number }) => {
+    set({
+      modNotice: { type: 'ban', reason, expiresAt },
+      room: null,
+    });
+  });
+
+  socket.on('mute:received', ({ reason, expiresAt }: { reason: string; expiresAt?: number }) => {
+    set({ modNotice: { type: 'mute', reason, expiresAt } });
+  });
+
+  socket.on('warning:received', ({ reason, moderatorName }: { reason: string; moderatorName?: string }) => {
+    set({ modNotice: { type: 'warn', reason, moderatorName } });
   });
 
   socket.on('error', ({ message }: { message: string }) => {
@@ -157,6 +175,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     investigationResult: null,
     spyReport: null,
     gameOverResult: null,
+    modNotice: null,
     toasts: [],
     isLoading: false,
     error: null,
@@ -246,6 +265,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     dismissInvestigation: () => set({ investigationResult: null }),
     dismissSpyReport: () => set({ spyReport: null }),
     dismissGameOver: () => set({ gameOverResult: null }),
+    dismissModNotice: () => set({ modNotice: null }),
 
     addToast: (text: string, type: Toast['type'] = 'info') => {
       const id = `t_${++toastCounter}`;

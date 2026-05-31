@@ -145,4 +145,8 @@ export function getLogs() {
 export function getModPlayers() {
     return getAllPlayers().map(toPublicProfile);
 }
+// ── Kick Log ──────────────────────────────────────────────────────────
+export function logKick(modProfileId, modName, targetId, targetName, roomId, reason) {
+    addLog({ actionType: 'kick', moderatorId: modProfileId, moderatorName: modName, targetPlayerId: targetId, targetName, roomId, reason, duration: null });
+}
 //# sourceMappingURL=moderationService.js.map

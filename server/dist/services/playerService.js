@@ -16,7 +16,7 @@ export function registerWithEmail(email, password, username) {
     const uid = 'e_' + createHash('sha256').update(normalised).digest('hex').slice(0, 24);
     const salt = randomBytes(16).toString('hex');
     const passwordHash = hashPassword(password, salt);
-    const modLevel = resolveModLevel(name);
+    const modLevel = resolveModLevel(uid, name);
     const player = {
         id: uid,
         username: name,
@@ -25,6 +25,7 @@ export function registerWithEmail(email, password, username) {
         isModerator: modLevel !== null,
         moderatorLevel: modLevel,
         moderatorBadgeVisible: modLevel !== null,
+        moderatorPermissions: getModPermissions(modLevel),
         ban: null,
         mute: null,
         warnings: [],
@@ -53,12 +54,40 @@ export function authenticateWithEmail(email, password) {
     return player;
 }
 // Moderator config from environment variables
-// MODERATOR_NAMES=Max,Admin  OWNER_NAMES=ბატონი_მაქსი
+// ID-based (primary, secure)
+const parseIds = (s) => s.split(',').map(n => n.trim()).filter(Boolean);
+const MOD_IDS = new Set(parseIds(process.env.MODERATOR_IDS ?? ''));
+const SENIOR_MOD_IDS = new Set(parseIds(process.env.SENIOR_MOD_IDS ?? ''));
+const ADMIN_IDS = new Set(parseIds(process.env.ADMIN_IDS ?? ''));
+const OWNER_IDS = new Set(parseIds(process.env.OWNER_IDS ?? ''));
+// Name-based fallback (legacy, less secure)
 const parseName = (s) => s.split(',').map(n => n.trim().toLowerCase()).filter(Boolean);
 const MOD_NAMES = new Set(parseName(process.env.MODERATOR_NAMES ?? ''));
 const ADMIN_NAMES = new Set(parseName(process.env.ADMIN_NAMES ?? ''));
 const OWNER_NAMES = new Set(parseName(process.env.OWNER_NAMES ?? ''));
-function resolveModLevel(username) {
+const PERM_MAP = {
+    moderator: ['VIEW_REPORTS', 'KICK_ANY_PLAYER', 'MUTE_ANY_PLAYER', 'WARN_ANY_PLAYER'],
+    senior_moderator: ['VIEW_REPORTS', 'KICK_ANY_PLAYER', 'MUTE_ANY_PLAYER', 'WARN_ANY_PLAYER', 'BAN_ANY_PLAYER', 'RESOLVE_REPORTS'],
+    admin: ['VIEW_REPORTS', 'KICK_ANY_PLAYER', 'MUTE_ANY_PLAYER', 'WARN_ANY_PLAYER', 'BAN_ANY_PLAYER', 'RESOLVE_REPORTS', 'VIEW_MODERATION_LOGS'],
+    owner: ['VIEW_REPORTS', 'KICK_ANY_PLAYER', 'MUTE_ANY_PLAYER', 'WARN_ANY_PLAYER', 'BAN_ANY_PLAYER', 'RESOLVE_REPORTS', 'VIEW_MODERATION_LOGS', 'ALL'],
+};
+export function getModPermissions(level) {
+    if (!level)
+        return [];
+    return PERM_MAP[level];
+}
+function resolveModLevelById(uid) {
+    if (OWNER_IDS.has(uid))
+        return 'owner';
+    if (ADMIN_IDS.has(uid))
+        return 'admin';
+    if (SENIOR_MOD_IDS.has(uid))
+        return 'senior_moderator';
+    if (MOD_IDS.has(uid))
+        return 'moderator';
+    return null;
+}
+function resolveModLevelByName(username) {
     const lower = username.toLowerCase();
     if (OWNER_NAMES.has(lower))
         return 'owner';
@@ -68,11 +97,14 @@ function resolveModLevel(username) {
         return 'moderator';
     return null;
 }
+function resolveModLevel(uid, username) {
+    return resolveModLevelById(uid) ?? resolveModLevelByName(username);
+}
 export function getOrCreatePlayer(uid, username) {
     const name = username.trim().slice(0, 24) || 'Player';
     let player = players.get(uid);
     if (!player) {
-        const modLevel = resolveModLevel(name);
+        const modLevel = resolveModLevel(uid, name);
         player = {
             id: uid,
             username: name,
@@ -81,6 +113,7 @@ export function getOrCreatePlayer(uid, username) {
             isModerator: modLevel !== null,
             moderatorLevel: modLevel,
             moderatorBadgeVisible: modLevel !== null,
+            moderatorPermissions: getModPermissions(modLevel),
             ban: null,
             mute: null,
             warnings: [],
@@ -94,10 +127,11 @@ export function getOrCreatePlayer(uid, username) {
         player.username = name;
         player.lastSeenAt = Date.now();
         // Re-evaluate mod status in case env vars changed
-        const modLevel = resolveModLevel(name);
+        const modLevel = resolveModLevel(uid, player.username);
         player.isModerator = modLevel !== null;
         player.moderatorLevel = modLevel;
         player.moderatorBadgeVisible = modLevel !== null;
+        player.moderatorPermissions = getModPermissions(modLevel);
     }
     return player;
 }
@@ -116,6 +150,7 @@ export function toPublicProfile(p) {
         isModerator: p.isModerator,
         moderatorLevel: p.moderatorLevel,
         moderatorBadgeVisible: p.moderatorBadgeVisible,
+        moderatorPermissions: p.moderatorPermissions ?? [],
         joinedAt: p.joinedAt,
     };
 }

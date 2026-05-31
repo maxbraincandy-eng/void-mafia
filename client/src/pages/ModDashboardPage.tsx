@@ -6,6 +6,7 @@ import type { Res } from '@/types/index';
 import { ModBadge } from '@/components/ui/ModBadge';
 
 type Tab = 'reports' | 'rooms' | 'players' | 'logs';
+type ActionType = 'ban' | 'mute' | 'warn' | 'kick' | 'unban' | 'unmute';
 
 export function ModDashboardPage() {
   const [tab, setTab] = useState<Tab>('reports');
@@ -15,9 +16,10 @@ export function ModDashboardPage() {
   const [logs, setLogs] = useState<ModLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionTarget, setActionTarget] = useState<{ profileId: string; name: string } | null>(null);
-  const [actionType, setActionType] = useState<'ban' | 'mute' | 'warn' | null>(null);
+  const [actionType, setActionType] = useState<ActionType | null>(null);
   const [actionReason, setActionReason] = useState('');
   const [actionDuration, setActionDuration] = useState(3600);
+  const [playerSearch, setPlayerSearch] = useState('');
 
   const load = (t: Tab) => {
     setLoading(true);
@@ -45,20 +47,29 @@ export function ModDashboardPage() {
     });
   };
 
+  const closeAction = () => { setActionTarget(null); setActionType(null); setActionReason(''); };
+
   const doAction = () => {
-    if (!actionTarget || !actionType || !actionReason.trim()) return;
+    if (!actionTarget || !actionType) return;
+
+    const clearOnOk = (res: Res<null>) => { if (res.ok) closeAction(); };
+
     if (actionType === 'ban') {
-      socket.emit('mod:ban', { targetProfileId: actionTarget.profileId, reason: actionReason, duration: actionDuration }, (res: Res<null>) => {
-        if (res.ok) { setActionTarget(null); setActionType(null); }
-      });
+      if (!actionReason.trim()) return;
+      socket.emit('mod:ban', { targetProfileId: actionTarget.profileId, reason: actionReason, duration: actionDuration }, clearOnOk);
     } else if (actionType === 'mute') {
-      socket.emit('mod:mute', { targetProfileId: actionTarget.profileId, reason: actionReason, duration: actionDuration }, (res: Res<null>) => {
-        if (res.ok) { setActionTarget(null); setActionType(null); }
-      });
-    } else {
-      socket.emit('mod:warn', { targetProfileId: actionTarget.profileId, reason: actionReason }, (res: Res<null>) => {
-        if (res.ok) { setActionTarget(null); setActionType(null); }
-      });
+      if (!actionReason.trim()) return;
+      socket.emit('mod:mute', { targetProfileId: actionTarget.profileId, reason: actionReason, duration: actionDuration }, clearOnOk);
+    } else if (actionType === 'warn') {
+      if (!actionReason.trim()) return;
+      socket.emit('mod:warn', { targetProfileId: actionTarget.profileId, reason: actionReason }, clearOnOk);
+    } else if (actionType === 'kick') {
+      if (!actionReason.trim()) return;
+      socket.emit('mod:kick_player' as any, { targetProfileId: actionTarget.profileId, reason: actionReason }, clearOnOk);
+    } else if (actionType === 'unban') {
+      socket.emit('mod:unban' as any, { targetProfileId: actionTarget.profileId }, clearOnOk);
+    } else if (actionType === 'unmute') {
+      socket.emit('mod:unmute' as any, { targetProfileId: actionTarget.profileId }, clearOnOk);
     }
   };
 
@@ -177,28 +188,58 @@ export function ModDashboardPage() {
         {/* Players */}
         {!loading && tab === 'players' && (
           <div className="space-y-2">
-            {players.length === 0 && <p className="text-white/25 font-mono text-sm text-center py-8">No players online</p>}
-            {players.map(p => (
-              <div key={p.id} className="glass-panel border border-white/5 rounded-xl p-3 flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className={`font-mono text-sm font-bold ${p.isModerator ? 'text-neon-green' : 'text-white'}`}>{p.username}</span>
-                    {p.isModerator && <ModBadge level={p.moderatorLevel} />}
+            {/* Search */}
+            <input
+              type="text"
+              value={playerSearch}
+              onChange={e => setPlayerSearch(e.target.value)}
+              placeholder="Search by name or ID…"
+              className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono placeholder-white/25 focus:outline-none focus:border-neon-green/40 mb-1"
+            />
+            {players.filter(p =>
+              playerSearch.trim() === '' ||
+              p.username.toLowerCase().includes(playerSearch.toLowerCase()) ||
+              p.id.toLowerCase().includes(playerSearch.toLowerCase())
+            ).length === 0 && <p className="text-white/25 font-mono text-sm text-center py-8">No players found</p>}
+            {players
+              .filter(p =>
+                playerSearch.trim() === '' ||
+                p.username.toLowerCase().includes(playerSearch.toLowerCase()) ||
+                p.id.toLowerCase().includes(playerSearch.toLowerCase())
+              )
+              .map(p => (
+              <div key={p.id} className="glass-panel border border-white/5 rounded-xl p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className={`font-mono text-sm font-bold ${p.isModerator ? 'text-neon-green' : 'text-white'}`}>{p.username}</span>
+                      {p.isModerator && <ModBadge level={p.moderatorLevel} />}
+                    </div>
+                    <p className="text-white/25 text-xs font-mono">G:{p.stats.gamesPlayed} W:{p.stats.wins} ({p.stats.winRate}%)</p>
+                    <p className="text-white/15 text-[9px] font-mono truncate max-w-[160px]">{p.id}</p>
                   </div>
-                  <p className="text-white/25 text-xs font-mono">G:{p.stats.gamesPlayed} W:{p.stats.wins} ({p.stats.winRate}%)</p>
-                </div>
-                <div className="flex gap-1">
-                  {(['warn', 'mute', 'ban'] as const).map(a => (
-                    <button key={a} onClick={() => { setActionTarget({ profileId: p.id, name: p.username }); setActionType(a); }}
-                      className={`px-2 py-1 text-[10px] font-mono uppercase rounded-lg border transition-all ${
-                        a === 'ban' ? 'border-neon-red/30 text-neon-red hover:bg-neon-red/10'
-                        : a === 'mute' ? 'border-neon-pink/30 text-neon-pink hover:bg-neon-pink/10'
-                        : 'border-white/10 text-white/30 hover:text-white/60'
-                      }`}
-                    >
-                      {a}
+                  <div className="flex flex-wrap gap-1 justify-end max-w-[130px]">
+                    {(['warn', 'mute', 'ban', 'kick'] as const).map(a => (
+                      <button key={a} onClick={() => { setActionTarget({ profileId: p.id, name: p.username }); setActionType(a); setActionReason(''); }}
+                        className={`px-2 py-1 text-[10px] font-mono uppercase rounded-lg border transition-all ${
+                          a === 'ban' ? 'border-neon-red/30 text-neon-red hover:bg-neon-red/10'
+                          : a === 'mute' ? 'border-neon-pink/30 text-neon-pink hover:bg-neon-pink/10'
+                          : a === 'kick' ? 'border-neon-blue/30 text-neon-blue hover:bg-neon-blue/10'
+                          : 'border-white/10 text-white/30 hover:text-white/60'
+                        }`}
+                      >
+                        {a}
+                      </button>
+                    ))}
+                    <button onClick={() => { setActionTarget({ profileId: p.id, name: p.username }); setActionType('unban'); }}
+                      className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-neon-green/20 text-neon-green/50 hover:text-neon-green hover:border-neon-green/40 transition-all">
+                      unban
                     </button>
-                  ))}
+                    <button onClick={() => { setActionTarget({ profileId: p.id, name: p.username }); setActionType('unmute'); }}
+                      className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-neon-cyan/20 text-neon-cyan/50 hover:text-neon-cyan hover:border-neon-cyan/40 transition-all">
+                      unmute
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -228,44 +269,67 @@ export function ModDashboardPage() {
       {/* Action Modal */}
       {actionTarget && actionType && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-          onClick={() => { setActionTarget(null); setActionType(null); }}>
+          onClick={closeAction}>
           <div className="glass-panel border border-neon-green/20 rounded-2xl p-6 w-full max-w-sm"
             onClick={e => e.stopPropagation()}>
-            <h3 className="font-display font-bold text-neon-green tracking-widest uppercase mb-1 capitalize">
+            <h3 className={`font-display font-bold tracking-widest uppercase mb-1 capitalize ${
+              actionType === 'ban' ? 'text-neon-red'
+              : actionType === 'mute' ? 'text-neon-pink'
+              : actionType === 'kick' ? 'text-neon-blue'
+              : actionType === 'unban' || actionType === 'unmute' ? 'text-neon-green'
+              : 'text-yellow-400'
+            }`}>
               {actionType} Player
             </h3>
             <p className="text-white/40 font-mono text-xs mb-4">{actionTarget.name}</p>
 
-            <input
-              type="text"
-              value={actionReason}
-              onChange={e => setActionReason(e.target.value)}
-              placeholder="Reason…"
-              className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-neon-green/40 mb-3"
-            />
+            {(actionType === 'unban' || actionType === 'unmute') ? (
+              <p className="text-white/50 font-mono text-sm mb-4">
+                This will {actionType === 'unban' ? 'remove the ban on' : 'unmute'} <span className="text-white font-bold">{actionTarget.name}</span>.
+                Are you sure?
+              </p>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  value={actionReason}
+                  onChange={e => setActionReason(e.target.value)}
+                  placeholder="Reason…"
+                  className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-neon-green/40 mb-3"
+                />
 
-            {(actionType === 'ban' || actionType === 'mute') && (
-              <select
-                value={actionDuration}
-                onChange={e => setActionDuration(Number(e.target.value))}
-                className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none mb-3"
-              >
-                <option value={900}>15 minutes</option>
-                <option value={3600}>1 hour</option>
-                <option value={10800}>3 hours</option>
-                <option value={43200}>12 hours</option>
-                <option value={86400}>24 hours</option>
-                <option value={604800}>7 days</option>
-              </select>
+                {(actionType === 'ban' || actionType === 'mute') && (
+                  <select
+                    value={actionDuration}
+                    onChange={e => setActionDuration(Number(e.target.value))}
+                    className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none mb-3"
+                  >
+                    <option value={900}>15 minutes</option>
+                    <option value={3600}>1 hour</option>
+                    <option value={10800}>3 hours</option>
+                    <option value={43200}>12 hours</option>
+                    <option value={86400}>24 hours</option>
+                    <option value={604800}>7 days</option>
+                  </select>
+                )}
+              </>
             )}
 
             <div className="flex gap-2">
-              <button onClick={() => { setActionTarget(null); setActionType(null); }}
+              <button onClick={closeAction}
                 className="flex-1 py-2 border border-white/10 text-white/40 font-mono text-xs rounded-xl hover:text-white/70">
                 Cancel
               </button>
-              <button onClick={doAction} disabled={!actionReason.trim()}
-                className="flex-1 py-2 bg-neon-green/15 border border-neon-green/30 text-neon-green font-mono font-bold text-xs rounded-xl hover:bg-neon-green/25 disabled:opacity-40 capitalize">
+              <button
+                onClick={doAction}
+                disabled={actionType !== 'unban' && actionType !== 'unmute' && !actionReason.trim()}
+                className={`flex-1 py-2 border font-mono font-bold text-xs rounded-xl transition-all disabled:opacity-40 capitalize ${
+                  actionType === 'ban' ? 'bg-neon-red/15 border-neon-red/30 text-neon-red hover:bg-neon-red/25'
+                  : actionType === 'mute' ? 'bg-neon-pink/15 border-neon-pink/30 text-neon-pink hover:bg-neon-pink/25'
+                  : actionType === 'kick' ? 'bg-neon-blue/15 border-neon-blue/30 text-neon-blue hover:bg-neon-blue/25'
+                  : 'bg-neon-green/15 border-neon-green/30 text-neon-green hover:bg-neon-green/25'
+                }`}
+              >
                 {actionType}
               </button>
             </div>

@@ -6,7 +6,7 @@ import { createPlayerMessage, createSystemMessage, addMessage, validateChat, } f
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
 import { getOrCreatePlayer, getPlayer, getAllPlayers, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, } from './services/playerService.js';
-import { canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer, warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, } from './services/moderationService.js';
+import { canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer, warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, logKick, } from './services/moderationService.js';
 import { canJoin as voiceCanJoin, join as voiceJoin, leave as voiceLeave, } from './services/voiceService.js';
 // ── Validation Schemas ────────────────────────────────────────────────
 const CreateRoomSchema = z.object({
@@ -640,8 +640,60 @@ export function attachSocketHandlers(io) {
                 removePlayer(room, target.id);
                 broadcastSystemMsg(io, room, `${target.name} was removed by a moderator.`);
                 broadcastRoom(io, room);
+                logKick(modProfileId, mod.username, target.profileId ?? targetProfileId, target.name, roomId, reason);
                 notifyMods(io, 'mod_kick', `${mod.username} kicked ${target.name} from room`, target.name);
                 cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Mod: Kick player (any room) ──────────────────────────────────
+        socket.on('mod:kick_player', ({ targetProfileId, reason }, cb) => {
+            try {
+                const modProfileId = socket.data.profileId;
+                if (!modProfileId)
+                    throw new Error('Not authenticated.');
+                const mod = getPlayer(modProfileId);
+                if (!mod || !canDo(mod, 'kick'))
+                    throw new Error('Insufficient permissions.');
+                // Scan all rooms to find the target
+                let foundRoom = null;
+                let foundTarget = null;
+                for (const room of getAllRooms()) {
+                    const player = getPlayerByProfile(room, targetProfileId);
+                    if (player) {
+                        foundRoom = room;
+                        foundTarget = player;
+                        break;
+                    }
+                }
+                if (!foundRoom || !foundTarget)
+                    throw new Error('Player is not currently in any room.');
+                if (foundTarget.socketId) {
+                    const targetSock = io.sockets.sockets.get(foundTarget.socketId);
+                    targetSock?.emit('kicked', { reason: `Removed by moderator. Reason: ${reason}` });
+                    targetSock?.leave(foundRoom.id);
+                }
+                removePlayer(foundRoom, foundTarget.id);
+                broadcastSystemMsg(io, foundRoom, `${foundTarget.name} was removed by a moderator.`);
+                broadcastRoom(io, foundRoom);
+                logKick(modProfileId, mod.username, foundTarget.profileId ?? targetProfileId, foundTarget.name, foundRoom.id, reason);
+                notifyMods(io, 'mod_kick', `${mod.username} kicked ${foundTarget.name} from room`, foundTarget.name);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Mod: Get active rooms ────────────────────────────────────────
+        socket.on('mod:get_active_rooms', (cb) => {
+            try {
+                const modProfileId = socket.data.profileId;
+                const mod = modProfileId ? getPlayer(modProfileId) : null;
+                if (!mod || !canDo(mod, 'view_reports'))
+                    throw new Error('Insufficient permissions.');
+                cb(ok(getAllRooms().map(toRoomListItem)));
             }
             catch (e) {
                 cb(err(e.message));
