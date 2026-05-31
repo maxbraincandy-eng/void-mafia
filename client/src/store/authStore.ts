@@ -21,6 +21,8 @@ interface AuthStore {
   error: string | null;
 
   login: (username: string) => Promise<void>;
+  register: (email: string, password: string, username: string) => Promise<void>;
+  loginEmail: (email: string, password: string) => Promise<void>;
   logout: () => void;
   setLocalAvatar: (src: string | null) => void;
 }
@@ -71,6 +73,38 @@ export const useAuthStore = create<AuthStore>((set, get) => {
           isLoading: false,
           error: null,
         });
+      } catch (e: any) {
+        set({ isLoading: false, error: e.message ?? 'Login failed.' });
+        throw e;
+      }
+    },
+
+    register: async (email: string, password: string, username: string) => {
+      set({ isLoading: true, error: null });
+      try {
+        const res = await new Promise<Res<{ uid: string; profile: PlayerProfilePublic }>>((resolve) => {
+          (socket as any).emit('player:register', { email, password, username }, resolve);
+        });
+        if (!res.ok) throw new Error(res.error);
+        localStorage.setItem(UID_KEY, res.data.uid);
+        localStorage.setItem(NAME_KEY, res.data.profile.username);
+        set({ uid: res.data.uid, username: res.data.profile.username, profile: res.data.profile, isAuthed: true, isLoading: false, error: null });
+      } catch (e: any) {
+        set({ isLoading: false, error: e.message ?? 'Registration failed.' });
+        throw e;
+      }
+    },
+
+    loginEmail: async (email: string, password: string) => {
+      set({ isLoading: true, error: null });
+      try {
+        const res = await new Promise<Res<{ uid: string; profile: PlayerProfilePublic }>>((resolve) => {
+          (socket as any).emit('player:login_email', { email, password }, resolve);
+        });
+        if (!res.ok) throw new Error(res.error);
+        localStorage.setItem(UID_KEY, res.data.uid);
+        localStorage.setItem(NAME_KEY, res.data.profile.username);
+        set({ uid: res.data.uid, username: res.data.profile.username, profile: res.data.profile, isAuthed: true, isLoading: false, error: null });
       } catch (e: any) {
         set({ isLoading: false, error: e.message ?? 'Login failed.' });
         throw e;

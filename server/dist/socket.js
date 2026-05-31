@@ -5,7 +5,7 @@ import { startGame, setPhase, advancePhase, submitNightAction, submitVote, build
 import { createPlayerMessage, createSystemMessage, addMessage, validateChat, } from './services/chatService.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
-import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, } from './services/playerService.js';
+import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, } from './services/playerService.js';
 import { canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer, warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, } from './services/moderationService.js';
 import { canJoin as voiceCanJoin, join as voiceJoin, leave as voiceLeave, } from './services/voiceService.js';
 // ── Validation Schemas ────────────────────────────────────────────────
@@ -150,6 +150,44 @@ export function attachSocketHandlers(io) {
             }
             catch (e) {
                 cb(err(e.message ?? 'Auth failed.'));
+            }
+        });
+        // ── Email Register ───────────────────────────────────────────────
+        socket.on('player:register', (data, cb) => {
+            try {
+                const { email, password, username } = z.object({
+                    email: z.string().email().max(200),
+                    password: z.string().min(6).max(128),
+                    username: z.string().min(2).max(24),
+                }).parse(data);
+                const profile = registerWithEmail(email, password, username);
+                socket.data.profileId = profile.id;
+                socket.emit('player:profile', toPublicProfile(profile));
+                cb(ok({ uid: profile.id, profile: toPublicProfile(profile) }));
+            }
+            catch (e) {
+                cb(err(e.message ?? 'Registration failed.'));
+            }
+        });
+        // ── Email Login ──────────────────────────────────────────────────
+        socket.on('player:login_email', (data, cb) => {
+            try {
+                const { email, password } = z.object({
+                    email: z.string().email(),
+                    password: z.string().min(1),
+                }).parse(data);
+                const profile = authenticateWithEmail(email, password);
+                const ban = getActiveBan(profile.id);
+                if (ban) {
+                    cb(err(`You are banned until ${new Date(ban.expiresAt).toLocaleString()}. Reason: ${ban.reason}`));
+                    return;
+                }
+                socket.data.profileId = profile.id;
+                socket.emit('player:profile', toPublicProfile(profile));
+                cb(ok({ uid: profile.id, profile: toPublicProfile(profile) }));
+            }
+            catch (e) {
+                cb(err(e.message ?? 'Login failed.'));
             }
         });
         // ── Player Stats ─────────────────────────────────────────────────

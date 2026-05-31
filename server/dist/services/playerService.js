@@ -1,5 +1,57 @@
 import { nameToAvatar } from '../utils/helpers.js';
+import { createHash, randomBytes } from 'crypto';
 const players = new Map();
+// email (lowercase) → profile id
+const emailIndex = new Map();
+function hashPassword(password, salt) {
+    return createHash('sha256').update(salt + password + salt).digest('hex');
+}
+export function registerWithEmail(email, password, username) {
+    const normalised = email.trim().toLowerCase();
+    if (emailIndex.has(normalised))
+        throw new Error('This email is already registered.');
+    if (password.length < 6)
+        throw new Error('Password must be at least 6 characters.');
+    const name = username.trim().slice(0, 24) || 'Player';
+    const uid = 'e_' + createHash('sha256').update(normalised).digest('hex').slice(0, 24);
+    const salt = randomBytes(16).toString('hex');
+    const passwordHash = hashPassword(password, salt);
+    const modLevel = resolveModLevel(name);
+    const player = {
+        id: uid,
+        username: name,
+        avatar: nameToAvatar(name),
+        stats: { gamesPlayed: 0, wins: 0, losses: 0, winRate: 0 },
+        isModerator: modLevel !== null,
+        moderatorLevel: modLevel,
+        moderatorBadgeVisible: modLevel !== null,
+        ban: null,
+        mute: null,
+        warnings: [],
+        joinedAt: Date.now(),
+        lastSeenAt: Date.now(),
+        email: normalised,
+        passwordHash,
+        passwordSalt: salt,
+    };
+    players.set(uid, player);
+    emailIndex.set(normalised, uid);
+    return player;
+}
+export function authenticateWithEmail(email, password) {
+    const normalised = email.trim().toLowerCase();
+    const uid = emailIndex.get(normalised);
+    if (!uid)
+        throw new Error('Email not found. Please register first.');
+    const player = players.get(uid);
+    if (!player || !player.passwordHash || !player.passwordSalt)
+        throw new Error('Account error.');
+    const hash = hashPassword(password, player.passwordSalt);
+    if (hash !== player.passwordHash)
+        throw new Error('Incorrect password.');
+    player.lastSeenAt = Date.now();
+    return player;
+}
 // Moderator config from environment variables
 // MODERATOR_NAMES=Max,Admin  OWNER_NAMES=ბატონი_მაქსი
 const parseName = (s) => s.split(',').map(n => n.trim().toLowerCase()).filter(Boolean);

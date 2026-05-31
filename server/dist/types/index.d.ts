@@ -59,6 +59,9 @@ export interface PlayerProfile {
     warnings: Warning[];
     joinedAt: number;
     lastSeenAt: number;
+    email?: string;
+    passwordHash?: string;
+    passwordSalt?: string;
 }
 export interface PlayerProfilePublic {
     id: string;
@@ -310,6 +313,21 @@ export interface ClientToServerEvents {
         uid: string;
         username: string;
     }, cb: Cb<PlayerProfilePublic>) => void;
+    'player:register': (data: {
+        email: string;
+        password: string;
+        username: string;
+    }, cb: Cb<{
+        uid: string;
+        profile: PlayerProfilePublic;
+    }>) => void;
+    'player:login_email': (data: {
+        email: string;
+        password: string;
+    }, cb: Cb<{
+        uid: string;
+        profile: PlayerProfilePublic;
+    }>) => void;
     'player:stats': (data: {
         profileId: string;
     }, cb: Cb<PlayerProfilePublic>) => void;

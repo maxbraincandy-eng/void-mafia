@@ -100,6 +100,9 @@ export interface PlayerProfile {
   warnings: Warning[];
   joinedAt: number;
   lastSeenAt: number;
+  email?: string;
+  passwordHash?: string;
+  passwordSalt?: string;
 }
 
 export interface PlayerProfilePublic {
@@ -323,6 +326,8 @@ export interface ServerToClientEvents {
 
 export interface ClientToServerEvents {
   'player:auth':        (data: { uid: string; username: string }, cb: Cb<PlayerProfilePublic>) => void;
+  'player:register':    (data: { email: string; password: string; username: string }, cb: Cb<{ uid: string; profile: PlayerProfilePublic }>) => void;
+  'player:login_email': (data: { email: string; password: string }, cb: Cb<{ uid: string; profile: PlayerProfilePublic }>) => void;
   'player:stats':       (data: { profileId: string }, cb: Cb<PlayerProfilePublic>) => void;
   'player:report':      (data: { targetProfileId: string; roomId: string | null; reason: ReportReason; details: string }, cb: Cb<null>) => void;
   'room:create':        (data: { name: string; settings?: Record<string, unknown> }, cb: Cb<RoomPublic>) => void;
