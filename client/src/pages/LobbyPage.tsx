@@ -92,32 +92,32 @@ export function LobbyPage() {
             <p className="text-neon-green/50 font-mono text-[10px] tracking-widest mb-2">
               {t.common?.poweredBy ?? 'powered by ბატონი მაქსი'}
             </p>
-            {/* Status chip */}
-            <div className={clsx(
-              'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-mono uppercase tracking-widest',
-              allReady && canStart
-                ? 'border-neon-green/40 bg-neon-green/8 text-neon-green'
-                : 'border-white/10 bg-white/4 text-white/40',
-            )}>
-              <span className={clsx(
-                'w-1.5 h-1.5 rounded-full',
-                allReady && canStart ? 'bg-neon-green animate-pulse' : 'bg-white/30',
-              )} />
-              {allReady && canStart ? 'All ready — start game' : `Waiting for players · ${playerCount}/${minPlayers}`}
-            </div>
-          </div>
-
-          {/* Right: Role guide + Room code */}
-          <div className="text-right flex-shrink-0">
-            <div className="flex items-center justify-end gap-2 mb-1.5">
+            {/* Status chip + role guide */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className={clsx(
+                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-mono uppercase tracking-widest',
+                allReady && canStart
+                  ? 'border-neon-green/40 bg-neon-green/8 text-neon-green'
+                  : 'border-white/10 bg-white/4 text-white/40',
+              )}>
+                <span className={clsx(
+                  'w-1.5 h-1.5 rounded-full',
+                  allReady && canStart ? 'bg-neon-green animate-pulse' : 'bg-white/30',
+                )} />
+                {allReady && canStart ? 'All ready — start game' : `Waiting for players · ${playerCount}/${minPlayers}`}
+              </div>
               <button
                 onClick={() => setShowRoleGuide(true)}
-                className="text-[10px] font-mono text-white/35 hover:text-neon-cyan/80 border border-white/8 hover:border-neon-cyan/30 px-2 py-0.5 rounded-md transition-all"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-neon-purple/30 bg-neon-purple/8 text-neon-purple/70 hover:border-neon-purple/60 hover:text-neon-purple hover:bg-neon-purple/15 text-[10px] font-mono uppercase tracking-widest transition-all"
               >
                 📖 Roles
               </button>
-              <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest">Room Code</p>
             </div>
+          </div>
+
+          {/* Right: Room code */}
+          <div className="text-right flex-shrink-0">
+            <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest mb-1.5">Room Code</p>
             <button
               onClick={handleCopy}
               className="group flex items-center gap-2 justify-end"
