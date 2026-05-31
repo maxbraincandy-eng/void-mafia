@@ -1,13 +1,30 @@
+import { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
 import { ModBadge } from '@/components/ui/ModBadge';
 
 export function ProfilePage() {
-  const { profile, username, logout } = useAuthStore();
+  const { profile, username, logout, localAvatar, setLocalAvatar } = useAuthStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!profile) return null;
 
   const { stats } = profile;
+
+  const handleAvatarClick = () => fileInputRef.current?.click();
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const dataUrl = ev.target?.result as string;
+      if (dataUrl) setLocalAvatar(dataUrl);
+    };
+    reader.readAsDataURL(file);
+    // reset so the same file can be re-selected if needed
+    e.target.value = '';
+  };
 
   return (
     <div className="min-h-screen bg-neon-grid-animated scanlines pb-20 relative overflow-hidden">
@@ -26,9 +43,32 @@ export function ProfilePage() {
           className="glass-panel border border-neon-purple/20 rounded-2xl p-6 mb-4"
         >
           <div className="flex items-center gap-4 mb-6">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-neon-pink to-neon-purple flex items-center justify-center text-2xl font-bold text-white shadow-neon-purple">
-              {profile.avatar}
-            </div>
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            {/* Clickable avatar circle */}
+            <button
+              type="button"
+              onClick={handleAvatarClick}
+              className="relative w-16 h-16 rounded-full group flex-shrink-0"
+              title="Click to upload profile picture"
+            >
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-neon-pink to-neon-purple flex items-center justify-center text-2xl font-bold text-white shadow-neon-purple overflow-hidden">
+                {localAvatar
+                  ? <img src={localAvatar} alt={profile.username} className="w-full h-full object-cover rounded-full" />
+                  : profile.avatar
+                }
+              </div>
+              {/* Camera icon overlay */}
+              <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-xl">📷</span>
+              </div>
+            </button>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className={`font-display font-bold text-xl ${profile.isModerator ? 'text-neon-green' : 'text-white'}`}>

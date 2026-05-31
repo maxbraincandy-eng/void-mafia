@@ -11,6 +11,7 @@ interface Props {
   selectableIds?: Set<string>;
   selectedId?: string | null;
   showVotes?: boolean;
+  currentSpeakerId?: string | null;
 }
 
 const ROLE_LABELS: Record<RoleKey, string> = {
@@ -35,16 +36,17 @@ const ROLE_COLORS: Record<RoleKey, string> = {
   jester: 'text-neon-purple',
 };
 
-export function PlayerList({ players, phase, onSelectTarget, selectableIds, selectedId, showVotes }: Props) {
+export function PlayerList({ players, phase, onSelectTarget, selectableIds, selectedId, showVotes, currentSpeakerId }: Props) {
   const myPlayerId = useGameStore(s => s.myPlayerId);
 
   return (
-    <div className="space-y-2">
+    <div className="grid grid-cols-2 gap-2">
       <AnimatePresence>
         {players.map(player => {
           const isMe = player.id === myPlayerId;
           const isSelectable = selectableIds?.has(player.id);
           const isSelected = selectedId === player.id;
+          const isSpeaking = currentSpeakerId != null && player.id === currentSpeakerId;
           const voteCount = showVotes
             ? players.filter(p => p.voteTarget === player.id).length
             : 0;
@@ -58,62 +60,64 @@ export function PlayerList({ players, phase, onSelectTarget, selectableIds, sele
               exit={{ opacity: 0, x: -10 }}
               onClick={() => isSelectable && onSelectTarget?.(player)}
               className={clsx(
-                'flex items-center gap-3 p-3 rounded-xl border transition-all duration-200',
+                'flex items-center gap-2 p-2 rounded-xl border transition-all duration-200',
                 !player.isAlive && 'opacity-40',
                 isSelectable && !isSelected && 'cursor-pointer hover:border-neon-cyan/40 hover:bg-neon-cyan/5',
                 isSelected && 'border-neon-cyan/60 bg-neon-cyan/10 shadow-neon-cyan',
-                !isSelectable && !isSelected && 'border-white/5 bg-void-50/40',
-                isMe && !isSelected && 'border-neon-purple/25 bg-neon-purple/5',
+                isSpeaking && 'border-neon-green ring-2 ring-neon-green/40 shadow-neon-green',
+                !isSelectable && !isSelected && !isSpeaking && 'border-white/5 bg-void-50/40',
+                isMe && !isSelected && !isSpeaking && 'border-neon-purple/25 bg-neon-purple/5',
               )}
             >
               <Avatar
                 name={player.name}
                 isAlive={player.isAlive}
                 isHost={player.isHost}
-                size="md"
+                size="sm"
               />
 
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 flex-wrap">
                   <span className={clsx(
-                    'text-sm font-semibold truncate',
+                    'text-xs font-semibold truncate',
                     !player.isAlive ? 'line-through text-white/40' : 'text-white',
                   )}>
                     #{player.seat} {player.name}
-                    {isMe && <span className="text-neon-purple text-xs ml-1">(you)</span>}
+                    {isMe && <span className="text-neon-purple text-[10px] ml-0.5">(you)</span>}
                   </span>
-                  {player.isHost && (
-                    <span className="text-xs text-yellow-400 flex-shrink-0">HOST</span>
+                  {isSpeaking && (
+                    <span className="text-[9px] font-mono font-bold text-neon-green bg-neon-green/10 px-1 rounded flex-shrink-0">
+                      🎤 SPEAKING
+                    </span>
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 mt-0.5">
+                <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                   {player.role && (
-                    <span className={clsx('text-xs font-mono', ROLE_COLORS[player.role])}>
+                    <span className={clsx('text-[10px] font-mono', ROLE_COLORS[player.role])}>
                       {ROLE_LABELS[player.role]}
                     </span>
                   )}
                   {!player.isConnected && (
-                    <span className="text-xs text-white/30">disconnected</span>
+                    <span className="text-[10px] text-white/30">dc</span>
                   )}
                   {phase === 'night' && player.hasActed && player.isAlive && (
-                    <span className="text-xs text-neon-green">✓ acted</span>
+                    <span className="text-[10px] text-neon-green">✓</span>
                   )}
                 </div>
               </div>
 
               {/* Vote indicator */}
               {showVotes && voteCount > 0 && (
-                <div className="flex-shrink-0 flex items-center gap-1">
-                  <span className="text-neon-red font-bold font-mono text-sm">{voteCount}</span>
-                  <span className="text-xs text-white/40">vote{voteCount !== 1 ? 's' : ''}</span>
+                <div className="flex-shrink-0 flex items-center gap-0.5">
+                  <span className="text-neon-red font-bold font-mono text-xs">{voteCount}</span>
                 </div>
               )}
 
               {/* Selection indicator */}
               {isSelected && (
-                <div className="flex-shrink-0 w-5 h-5 rounded-full bg-neon-cyan flex items-center justify-center">
-                  <span className="text-void text-xs font-bold">✓</span>
+                <div className="flex-shrink-0 w-4 h-4 rounded-full bg-neon-cyan flex items-center justify-center">
+                  <span className="text-void text-[9px] font-bold">✓</span>
                 </div>
               )}
             </motion.div>

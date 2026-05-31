@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { RoomListItem } from '@/types/index';
 import { useGameStore } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
@@ -14,6 +14,8 @@ export function RoomsPage() {
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
   const [code, setCode] = useState('');
+  const [joinAsSpectator, setJoinAsSpectator] = useState(false);
+  const [spectatorModal, setSpectatorModal] = useState<RoomListItem | null>(null);
 
   const { createRoom, joinRoom, isLoading } = useGameStore(s => ({
     createRoom: s.createRoom,
@@ -57,12 +59,13 @@ export function RoomsPage() {
     e.preventDefault();
     if (code.length < 6) return;
     primeMicPermission();
-    await joinRoom(code.toUpperCase(), username);
+    await joinRoom(code.toUpperCase(), username, joinAsSpectator);
   };
 
-  const handleQuickJoin = async (room: RoomListItem) => {
+  const handleQuickJoin = async (room: RoomListItem, isSpectator: boolean) => {
     primeMicPermission();
-    await joinRoom(room.code, username);
+    setSpectatorModal(null);
+    await joinRoom(room.code, username, isSpectator);
   };
 
   const phaseLabel: Record<string, string> = t.rooms.phase;
@@ -153,7 +156,7 @@ export function RoomsPage() {
                           size="sm"
                           variant="neon-cyan"
                           loading={isLoading}
-                          onClick={() => handleQuickJoin(room)}
+                          onClick={() => setSpectatorModal(room)}
                         >
                           {t.rooms.joinCode}
                         </Button>
@@ -231,6 +234,17 @@ export function RoomsPage() {
                   autoFocus
                   className="w-full bg-void-50/80 border border-white/10 rounded-xl px-4 py-3 text-neon-cyan placeholder-white/20 font-mono text-xl tracking-[0.4em] text-center focus:outline-none focus:border-neon-cyan/40 mb-4"
                 />
+                <label className="flex items-center gap-3 mb-4 cursor-pointer select-none">
+                  <div
+                    onClick={() => setJoinAsSpectator(v => !v)}
+                    className={`w-10 h-6 rounded-full flex items-center transition-colors relative ${joinAsSpectator ? 'bg-neon-purple/60' : 'bg-white/10'}`}
+                  >
+                    <div className={`absolute w-4 h-4 rounded-full bg-white transition-transform ${joinAsSpectator ? 'translate-x-5' : 'translate-x-1'}`} />
+                  </div>
+                  <span className="text-xs font-mono text-white/50">
+                    👁 Watch as spectator
+                  </span>
+                </label>
                 <Button fullWidth variant="neon-cyan" loading={isLoading} disabled={code.length < 6}>
                   {t.rooms.joinRoom}
                 </Button>
@@ -239,6 +253,50 @@ export function RoomsPage() {
           </motion.div>
         )}
       </div>
+
+      {/* Spectator choice modal */}
+      <AnimatePresence>
+        {spectatorModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            onClick={() => setSpectatorModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="glass-panel border border-white/10 rounded-2xl p-6 max-w-xs w-full"
+              onClick={e => e.stopPropagation()}
+            >
+              <p className="text-xs font-mono text-white/40 uppercase tracking-widest mb-1">Join Room</p>
+              <p className="font-display font-bold text-neon-cyan tracking-widest text-lg mb-4">
+                {spectatorModal.code}
+              </p>
+              <div className="flex flex-col gap-3">
+                <Button
+                  fullWidth
+                  variant="neon-cyan"
+                  loading={isLoading}
+                  onClick={() => handleQuickJoin(spectatorModal, false)}
+                >
+                  🎮 Join as Player
+                </Button>
+                <Button
+                  fullWidth
+                  variant="ghost"
+                  loading={isLoading}
+                  onClick={() => handleQuickJoin(spectatorModal, true)}
+                >
+                  👁 Watch as Spectator
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

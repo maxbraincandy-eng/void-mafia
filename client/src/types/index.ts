@@ -5,6 +5,7 @@ export type Phase =
   | 'role_reveal'
   | 'night'
   | 'day'
+  | 'speech'
   | 'voting'
   | 'game_over';
 
@@ -69,6 +70,7 @@ export interface PlayerPublic {
   isAlive: boolean;
   isConnected: boolean;
   isReady: boolean;
+  isSpectator: boolean;
   role: RoleKey | null;
   team: Team | null;
   voteTarget: string | null;
@@ -84,6 +86,7 @@ export interface GameSettings {
   dayDuration: number;
   voteDuration: number;
   roleRevealDuration: number;
+  speechDuration: number;
   allowDoctorSelfHeal: boolean;
   tieVoteRule: TieRule;
   minPlayers: number;
@@ -125,6 +128,9 @@ export interface RoomPublic {
   savedLastNight: boolean;
   winner: Team | null;
   settings: GameSettings;
+  currentSpeakerId: string | null;
+  daySkipVoteCount: number;
+  spectatorCount: number;
 }
 
 export interface RoomListItem {

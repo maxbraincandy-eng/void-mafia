@@ -1,4 +1,4 @@
-export type Phase = 'lobby' | 'role_reveal' | 'night' | 'day' | 'voting' | 'game_over';
+export type Phase = 'lobby' | 'role_reveal' | 'night' | 'day' | 'speech' | 'voting' | 'game_over';
 export type RoleKey = 'mafia' | 'citizen' | 'sheriff' | 'doctor' | 'don' | 'maniac' | 'jester' | 'bodyguard';
 export type Team = 'mafia' | 'town' | 'neutral';
 export type TieRule = 'no_elimination' | 'random';
@@ -112,6 +112,7 @@ export interface Player {
     seat: number;
     joinedAt: number;
     profileId: string | null;
+    isSpectator: boolean;
 }
 export interface NightAction {
     actorId: string;
@@ -135,6 +136,7 @@ export interface GameSettings {
     dayDuration: number;
     voteDuration: number;
     roleRevealDuration: number;
+    speechDuration: number;
     allowDoctorSelfHeal: boolean;
     tieVoteRule: TieRule;
     minPlayers: number;
@@ -170,6 +172,9 @@ export interface Room {
     winner: Team | null;
     winnerNames?: string[];
     settings: GameSettings;
+    speechOrder: string[];
+    currentSpeakerIdx: number;
+    daySkipVotes: string[];
     createdAt: number;
 }
 export interface PlayerPublic {
@@ -188,6 +193,7 @@ export interface PlayerPublic {
     profileId: string | null;
     isModerator: boolean;
     moderatorLevel: ModeratorLevel | null;
+    isSpectator: boolean;
 }
 export interface RoomPublic {
     id: string;
@@ -206,6 +212,9 @@ export interface RoomPublic {
     savedLastNight: boolean;
     winner: Team | null;
     settings: GameSettings;
+    currentSpeakerId: string | null;
+    daySkipVoteCount: number;
+    spectatorCount: number;
 }
 export interface RoomListItem {
     id: string;
@@ -334,6 +343,7 @@ export interface ClientToServerEvents {
         targetId: string | null;
     }, cb: Cb<null>) => void;
     'game:skip': (cb: Cb<null>) => void;
+    'game:day_skip_vote': (cb: Cb<null>) => void;
     'game:restart': (cb: Cb<null>) => void;
     'chat:send': (data: {
         text: string;

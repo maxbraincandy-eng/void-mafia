@@ -3,8 +3,9 @@ import { PlayerProfilePublic } from '@/types/index';
 import { socket } from '@/lib/socket';
 import type { Res } from '@/types/index';
 
-const UID_KEY  = 'void-mafia-uid';
-const NAME_KEY = 'void-mafia-username';
+const UID_KEY    = 'void-mafia-uid';
+const NAME_KEY   = 'void-mafia-username';
+const AVATAR_KEY = 'void-mafia-avatar';
 
 function generateUid(): string {
   return 'u_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -14,12 +15,14 @@ interface AuthStore {
   uid: string | null;
   username: string | null;
   profile: PlayerProfilePublic | null;
+  localAvatar: string | null;
   isAuthed: boolean;
   isLoading: boolean;
   error: string | null;
 
   login: (username: string) => Promise<void>;
   logout: () => void;
+  setLocalAvatar: (src: string | null) => void;
 }
 
 export const useAuthStore = create<AuthStore>((set, get) => {
@@ -39,6 +42,7 @@ export const useAuthStore = create<AuthStore>((set, get) => {
     uid: localStorage.getItem(UID_KEY),
     username: localStorage.getItem(NAME_KEY),
     profile: null,
+    localAvatar: localStorage.getItem(AVATAR_KEY),
     isAuthed: false,
     isLoading: false,
     error: null,
@@ -77,6 +81,12 @@ export const useAuthStore = create<AuthStore>((set, get) => {
       localStorage.removeItem(UID_KEY);
       localStorage.removeItem(NAME_KEY);
       set({ uid: null, username: null, profile: null, isAuthed: false });
+    },
+
+    setLocalAvatar: (src) => {
+      if (src) localStorage.setItem(AVATAR_KEY, src);
+      else localStorage.removeItem(AVATAR_KEY);
+      set({ localAvatar: src });
     },
   };
 });

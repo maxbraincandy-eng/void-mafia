@@ -40,7 +40,7 @@ interface GameStore {
   connect: () => void;
   disconnect: () => void;
   createRoom: (name: string, settings?: Partial<GameSettings>) => Promise<void>;
-  joinRoom: (code: string, name: string) => Promise<void>;
+  joinRoom: (code: string, name: string, isSpectator?: boolean) => Promise<void>;
   leaveRoom: () => Promise<void>;
   toggleReady: () => Promise<void>;
   kickPlayer: (playerId: string) => Promise<void>;
@@ -50,6 +50,7 @@ interface GameStore {
   submitVote: (targetId: string | null) => Promise<void>;
   sendChat: (text: string, channel: ChatChannel) => Promise<void>;
   skipPhase: () => Promise<void>;
+  daySkipVote: () => Promise<void>;
   restartGame: () => Promise<void>;
   dismissNightResult: () => void;
   dismissInvestigation: () => void;
@@ -171,8 +172,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       set({ room, myPlayerId: room.players.find(p => p.isHost)?.id ?? null });
     }),
 
-    joinRoom: withLoading(async (code: string, name: string) => {
-      const room = await emit<RoomPublic>('room:join', { code, name });
+    joinRoom: withLoading(async (code: string, name: string, isSpectator = false) => {
+      const room = await emit<RoomPublic>('room:join', { code, name, isSpectator });
       // My player is the one who isn't already in our store
       const myPlayer = room.players.find(p => p.name === name);
       set({ room, myPlayerId: myPlayer?.id ?? null });
@@ -220,6 +221,10 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     skipPhase: withLoading(async () => {
       await emit('game:skip');
+    }),
+
+    daySkipVote: withLoading(async () => {
+      await emit('game:day_skip_vote');
     }),
 
     restartGame: withLoading(async () => {

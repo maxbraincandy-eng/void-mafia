@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS = {
     dayDuration: 120,
     voteDuration: 60,
     roleRevealDuration: 8,
+    speechDuration: 45,
     allowDoctorSelfHeal: true,
     tieVoteRule: 'no_elimination',
     minPlayers: 4,
@@ -43,6 +44,7 @@ export function createRoom(hostSocketId, hostName, profileId, settings) {
         seat: 1,
         joinedAt: Date.now(),
         profileId,
+        isSpectator: false,
     };
     const mergedSettings = {
         ...DEFAULT_SETTINGS,
@@ -66,6 +68,9 @@ export function createRoom(hostSocketId, hostName, profileId, settings) {
         savedLastNight: false,
         winner: null,
         settings: mergedSettings,
+        speechOrder: [],
+        currentSpeakerIdx: 0,
+        daySkipVotes: [],
         createdAt: Date.now(),
     };
     rooms.set(id, room);
@@ -119,6 +124,7 @@ export function addPlayer(room, socketId, name, profileId) {
         seat,
         joinedAt: Date.now(),
         profileId,
+        isSpectator: false,
     };
     room.players.set(player.id, player);
     return player;
@@ -188,6 +194,7 @@ export function toPublicRoom(room, viewerPlayerId) {
             profileId: p.profileId,
             isModerator: profile?.isModerator ?? false,
             moderatorLevel: profile?.moderatorLevel ?? null,
+            isSpectator: p.isSpectator,
         };
     });
     return {
@@ -204,6 +211,9 @@ export function toPublicRoom(room, viewerPlayerId) {
         savedLastNight: room.savedLastNight,
         winner: room.winner,
         settings: room.settings,
+        currentSpeakerId: room.speechOrder[room.currentSpeakerIdx] ?? null,
+        daySkipVoteCount: room.daySkipVotes.length,
+        spectatorCount: [...room.players.values()].filter(p => p.isSpectator).length,
     };
 }
 export function toRoomListItem(room) {

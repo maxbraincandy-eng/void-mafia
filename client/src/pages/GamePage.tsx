@@ -27,6 +27,7 @@ const PHASE_LABELS: Record<Phase, string> = {
   role_reveal:  'Role Reveal',
   night:        'Night',
   day:          'Day',
+  speech:       'Floor Time',
   voting:       'Voting',
   game_over:    'Game Over',
 };
@@ -36,6 +37,7 @@ const PHASE_COLORS: Record<Phase, string> = {
   role_reveal:  'text-neon-purple',
   night:        'text-neon-cyan',
   day:          'text-yellow-300',
+  speech:       'text-neon-green',
   voting:       'text-neon-red',
   game_over:    'text-white',
 };
@@ -49,7 +51,7 @@ export function GamePage() {
   const {
     room, myPlayer, myRole, amHost, amAlive,
     nightResult, investigationResult, gameOverResult,
-    skipPhase, leaveRoom, dismissNightResult, dismissInvestigation, dismissGameOver,
+    skipPhase, daySkipVote, leaveRoom, dismissNightResult, dismissInvestigation, dismissGameOver,
     isLoading,
   } = useGameStore(s => ({
     room: s.room,
@@ -61,6 +63,7 @@ export function GamePage() {
     investigationResult: s.investigationResult,
     gameOverResult: s.gameOverResult,
     skipPhase: s.skipPhase,
+    daySkipVote: s.daySkipVote,
     leaveRoom: s.leaveRoom,
     dismissNightResult: s.dismissNightResult,
     dismissInvestigation: s.dismissInvestigation,
@@ -79,6 +82,15 @@ export function GamePage() {
     isMafiaPlayer && room?.phase === 'night' ? 'mafia' : 'room';
   const voiceChannelLabel =
     voiceChannel === 'mafia' ? '🔴 Mafia Voice' : '🎙 Room Voice';
+
+  // During speech phase, mute local mic when it's not my turn
+  useEffect(() => {
+    if (!voice.channel || room?.phase !== 'speech') return;
+    const isMyTurn = room.currentSpeakerId === myPlayer?.id;
+    if (!isMyTurn && !voice.isMuted) voice.toggleMute();
+    if (isMyTurn && voice.isMuted) voice.toggleMute();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.phase, room?.currentSpeakerId, myPlayer?.id, voice.channel]);
 
   // Auto-join voice if mic permission was already granted
   const autoJoined = useRef(false);
@@ -201,34 +213,77 @@ export function GamePage() {
           </div>
         )}
 
-        {phase === 'day' && (
-          <div className="space-y-4">
-            {room.killedLastNight.length > 0 && (
-              <Card glow="red" padding="md">
-                <p className="text-xs font-mono text-white/40 uppercase tracking-widest mb-2">Night Report</p>
-                {room.killedLastNight.map(k => (
-                  <p key={k.id} className="text-white font-semibold">
-                    <span className="text-neon-red">💀</span> {k.name} was eliminated during the night.
+        {phase === 'day' && (() => {
+          const activePlayers = room.players.filter(p => p.isAlive && !p.isSpectator);
+          const skipNeeded = Math.floor(activePlayers.length / 2) + 1;
+          const alreadyVoted = room.daySkipVoteCount ?? 0;
+          return (
+            <div className="space-y-4">
+              {room.killedLastNight.length > 0 && (
+                <Card glow="red" padding="md">
+                  <p className="text-xs font-mono text-white/40 uppercase tracking-widest mb-2">Night Report</p>
+                  {room.killedLastNight.map(k => (
+                    <p key={k.id} className="text-white font-semibold">
+                      <span className="text-neon-red">💀</span> {k.name} was eliminated during the night.
+                    </p>
+                  ))}
+                </Card>
+              )}
+              {room.savedLastNight && room.killedLastNight.length === 0 && (
+                <Card glow="green" padding="md">
+                  <p className="text-neon-green text-sm">
+                    💊 The Doctor saved someone. No one was killed last night.
                   </p>
-                ))}
-              </Card>
-            )}
-            {room.savedLastNight && room.killedLastNight.length === 0 && (
-              <Card glow="green" padding="md">
-                <p className="text-neon-green text-sm">
-                  💊 The Doctor saved someone. No one was killed last night.
-                </p>
-              </Card>
-            )}
-            <div className="text-center py-4">
-              <div className="text-4xl mb-2">☀️</div>
-              <h2 className="font-display text-2xl font-bold text-yellow-300 tracking-widest uppercase">
-                Day {room.day}
-              </h2>
-              <p className="text-white/40 text-sm mt-1 font-mono">Discuss and find the Mafia.</p>
+                </Card>
+              )}
+              <div className="text-center py-4">
+                <div className="text-4xl mb-2">☀️</div>
+                <h2 className="font-display text-2xl font-bold text-yellow-300 tracking-widest uppercase">
+                  Day {room.day}
+                </h2>
+                <p className="text-white/40 text-sm mt-1 font-mono">Discuss and find the Mafia.</p>
+              </div>
+              {amAlive && (
+                <div className="text-center">
+                  <button
+                    onClick={() => daySkipVote()}
+                    disabled={isLoading}
+                    className="px-6 py-2 border border-white/15 text-white/40 text-xs font-mono rounded-xl hover:border-neon-cyan/40 hover:text-neon-cyan transition-all disabled:opacity-40"
+                  >
+                    ⏭ Skip discussion ({alreadyVoted}/{skipNeeded} votes)
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
+
+        {phase === 'speech' && (() => {
+          const speaker = room.players.find(p => p.id === room.currentSpeakerId);
+          const speakerIdx = room.players.filter(p => p.isAlive && !p.isSpectator)
+            .findIndex(p => p.id === room.currentSpeakerId);
+          const totalSpeakers = room.players.filter(p => p.isAlive && !p.isSpectator).length;
+          return (
+            <div className="space-y-4">
+              <div className="text-center py-4">
+                <div className="text-4xl mb-2">🎤</div>
+                <h2 className="font-display text-2xl font-bold text-neon-green tracking-widest uppercase">
+                  Floor Time
+                </h2>
+                {speaker ? (
+                  <>
+                    <p className="text-neon-green font-bold text-lg mt-2">{speaker.name}</p>
+                    <p className="text-white/40 text-xs font-mono mt-1">
+                      Speaker {speakerIdx + 1} of {totalSpeakers}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-white/40 text-sm font-mono mt-1">Loading…</p>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {phase === 'voting' && (
           <div className="space-y-4">
@@ -365,6 +420,14 @@ export function GamePage() {
                 </div>
               )}
 
+              {/* Spectator count eye icon */}
+              {(room.spectatorCount ?? 0) > 0 && (
+                <div className="hidden sm:flex items-center gap-1 text-white/30 text-xs font-mono" title="Spectators watching">
+                  <span>👁</span>
+                  <span>{room.spectatorCount}</span>
+                </div>
+              )}
+
               {/* Compact voice status in header */}
               {isInVoice && (
                 <VoiceParticipants
@@ -401,6 +464,7 @@ export function GamePage() {
                 players={room.players}
                 phase={phase}
                 showVotes={phase === 'voting'}
+                currentSpeakerId={phase === 'speech' ? room.currentSpeakerId : null}
                 onSelectTarget={handlePlayerSelect}
               />
             </div>
@@ -448,6 +512,7 @@ export function GamePage() {
                     players={room.players}
                     phase={phase}
                     showVotes={phase === 'voting'}
+                    currentSpeakerId={phase === 'speech' ? room.currentSpeakerId : null}
                     onSelectTarget={handlePlayerSelect}
                   />
                 </motion.div>

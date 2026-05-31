@@ -16,6 +16,7 @@ const CreateRoomSchema = z.object({
 const JoinRoomSchema = z.object({
     code: z.string().length(6),
     name: z.string().min(1).max(24),
+    isSpectator: z.boolean().optional().default(false),
 });
 const ChatSchema = z.object({
     text: z.string().min(1).max(400),
@@ -216,6 +217,8 @@ export function attachSocketHandlers(io) {
                     throw new Error('Room not found. Check the code and try again.');
                 const username = profileId ? getPlayer(profileId)?.username ?? parsed.name : parsed.name;
                 const player = addPlayer(room, socket.id, username, profileId);
+                if (parsed.isSpectator)
+                    player.isSpectator = true;
                 socket.join(room.id);
                 socket.data.playerId = player.id;
                 socket.data.roomId = room.id;
@@ -382,6 +385,37 @@ export function attachSocketHandlers(io) {
                 broadcastRoom(io, room);
                 if (nextPhase !== 'game_over')
                     startPhaseTimer(io, room);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Day Skip Vote ───────────────────────────────────────────────
+        socket.on('game:day_skip_vote', (cb) => {
+            try {
+                const room = getRoomFromSocket(socket);
+                const player = getPlayerOrError(socket, room);
+                if (room.phase !== 'day')
+                    throw new Error('Can only skip during day phase.');
+                if (!player.isAlive || player.isSpectator)
+                    throw new Error('Cannot vote to skip.');
+                if (room.daySkipVotes.includes(player.id))
+                    throw new Error('Already voted to skip.');
+                room.daySkipVotes.push(player.id);
+                const alivePlayers = [...room.players.values()].filter(p => p.isAlive && !p.isSpectator);
+                const majority = Math.floor(alivePlayers.length / 2) + 1;
+                if (room.daySkipVotes.length >= majority) {
+                    timerService.stop(room.id);
+                    room.timer = 0;
+                    const nextPhase = advancePhase(room);
+                    broadcastRoom(io, room);
+                    if (nextPhase !== 'game_over')
+                        startPhaseTimer(io, room);
+                }
+                else {
+                    broadcastRoom(io, room);
+                }
                 cb(ok(null));
             }
             catch (e) {

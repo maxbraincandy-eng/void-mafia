@@ -55,7 +55,19 @@ export function setPhase(room: Room, phase: Phase): void {
     case 'day':
       room.timer = room.settings.dayDuration;
       room.maxTimer = room.settings.dayDuration;
+      room.daySkipVotes = [];
       break;
+    case 'speech': {
+      // Build ordered list of alive non-spectator players by seat
+      const alivePlayers = [...room.players.values()]
+        .filter(p => p.isAlive && !p.isSpectator)
+        .sort((a, b) => a.seat - b.seat);
+      room.speechOrder = alivePlayers.map(p => p.id);
+      room.currentSpeakerIdx = 0;
+      room.timer = room.settings.speechDuration;
+      room.maxTimer = room.settings.speechDuration;
+      break;
+    }
     case 'voting':
       room.votes = new Map();
       room.timer = room.settings.voteDuration;
@@ -77,8 +89,8 @@ export function setPhase(room: Room, phase: Phase): void {
 export function advancePhase(room: Room): Phase {
   switch (room.phase) {
     case 'role_reveal':
-      setPhase(room, 'night');
-      return 'night';
+      setPhase(room, 'day');
+      return 'day';
 
     case 'night':
       resolveNight(room);
@@ -91,8 +103,20 @@ export function advancePhase(room: Room): Phase {
       return 'day';
 
     case 'day':
+      setPhase(room, 'speech');
+      return 'speech';
+
+    case 'speech': {
+      const nextIdx = room.currentSpeakerIdx + 1;
+      if (nextIdx < room.speechOrder.length) {
+        room.currentSpeakerIdx = nextIdx;
+        room.timer = room.settings.speechDuration;
+        room.maxTimer = room.settings.speechDuration;
+        return 'speech';
+      }
       setPhase(room, 'voting');
       return 'voting';
+    }
 
     case 'voting':
       resolveVotes(room);

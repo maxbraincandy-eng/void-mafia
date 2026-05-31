@@ -5,6 +5,7 @@ interface Props {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   isAlive?: boolean;
   isHost?: boolean;
+  src?: string;
   className?: string;
 }
 
@@ -15,7 +16,7 @@ const sizeMap = {
   xl: 'w-16 h-16 text-xl',
 };
 
-export function Avatar({ name, size = 'md', isAlive = true, isHost = false, className }: Props) {
+export function Avatar({ name, size = 'md', isAlive = true, isHost = false, src, className }: Props) {
   const initials = name
     .trim()
     .split(/\s+/)
@@ -27,7 +28,7 @@ export function Avatar({ name, size = 'md', isAlive = true, isHost = false, clas
     <div className={clsx('relative flex-shrink-0', className)}>
       <div
         className={clsx(
-          'rounded-full flex items-center justify-center font-display font-bold',
+          'rounded-full flex items-center justify-center font-display font-bold overflow-hidden',
           'transition-all duration-300',
           sizeMap[size],
           isAlive
@@ -35,7 +36,10 @@ export function Avatar({ name, size = 'md', isAlive = true, isHost = false, clas
             : 'bg-white/5 border border-white/10 text-white/30 grayscale',
         )}
       >
-        {initials || '?'}
+        {src
+          ? <img src={src} alt={name} className="w-full h-full object-cover rounded-full" />
+          : (initials || '?')
+        }
       </div>
       {isHost && (
         <span className="absolute -top-1 -right-1 text-xs">👑</span>
