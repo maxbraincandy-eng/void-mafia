@@ -17,7 +17,10 @@ export type RoleKey =
   | 'don'
   | 'maniac'
   | 'jester'
-  | 'bodyguard';
+  | 'bodyguard'
+  | 'spy'
+  | 'escort'
+  | 'vigilante';
 
 export type Team = 'mafia' | 'town' | 'neutral';
 export type TieRule = 'no_elimination' | 'random';
@@ -99,6 +102,9 @@ export interface GameSettings {
     maniac: number;
     jester: number;
     bodyguard: number;
+    spy: number;
+    escort: number;
+    vigilante: number;
   };
 }
 

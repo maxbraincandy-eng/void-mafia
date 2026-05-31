@@ -19,13 +19,16 @@ export const DEFAULT_SETTINGS: GameSettings = {
   minPlayers: 4,
   isPrivate: false,
   roles: {
-    mafia: 0,     // overridden by distribution table at game start
+    mafia: 2,
     don: 0,
-    sheriff: 0,   // overridden by distribution table at game start
-    doctor: 0,    // overridden by distribution table at game start
+    sheriff: 1,
+    doctor: 1,
+    bodyguard: 0,
+    spy: 0,
+    vigilante: 0,
+    escort: 0,
     maniac: 0,
     jester: 0,
-    bodyguard: 0,
   },
 };
 

@@ -314,31 +314,62 @@ function SettingsPanel({
           ))}
         </div>
 
-        {/* Auto-role info */}
-        <div className="p-3 rounded-xl bg-neon-cyan/5 border border-neon-cyan/15 mb-4">
-          <p className="text-xs font-mono text-neon-cyan/70">{t.lobby.autoRoles}</p>
-          <p className="text-xs font-mono text-white/25 mt-0.5">Mafia · Sheriff · Doctor</p>
-        </div>
+        {/* Role configuration */}
+        <p className="text-xs text-white/40 font-mono uppercase tracking-widest mb-3">Role Configuration</p>
 
-        {/* Optional extra roles */}
-        <p className="text-xs text-white/40 font-mono mb-2">{t.lobby.optionalRoles}</p>
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          {(['don', 'maniac', 'jester', 'bodyguard'] as const).map(role => (
-            <div key={role} className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id={`role-${role}`}
-                checked={local.roles[role] > 0}
-                onChange={e => setLocal(s => ({
-                  ...s,
-                  roles: { ...s.roles, [role]: e.target.checked ? 1 : 0 },
-                }))}
-                className="w-4 h-4 accent-neon-purple"
-              />
-              <label htmlFor={`role-${role}`} className="text-sm text-white/70 capitalize">{role}</label>
+        {([
+          {
+            label: 'Mafia', color: 'text-neon-pink', roles: [
+              { key: 'mafia',  name: 'Mafia',  max: 6 },
+              { key: 'don',    name: 'Don',    max: 1 },
+            ],
+          },
+          {
+            label: 'Town', color: 'text-neon-cyan', roles: [
+              { key: 'sheriff',   name: 'Sheriff',   max: 2 },
+              { key: 'doctor',    name: 'Doctor',    max: 2 },
+              { key: 'bodyguard', name: 'Bodyguard', max: 2 },
+              { key: 'spy',       name: 'Spy',       max: 2 },
+              { key: 'vigilante', name: 'Vigilante', max: 2 },
+              { key: 'escort',    name: 'Escort',    max: 2 },
+            ],
+          },
+          {
+            label: 'Neutral', color: 'text-neon-purple', roles: [
+              { key: 'maniac', name: 'Maniac', max: 2 },
+              { key: 'jester', name: 'Jester', max: 2 },
+            ],
+          },
+        ] as const).map(group => (
+          <div key={group.label} className="mb-4">
+            <p className={`text-xs font-mono font-bold ${group.color} mb-2`}>{group.label}</p>
+            <div className="grid grid-cols-2 gap-2">
+              {(group.roles as ReadonlyArray<{ key: keyof typeof local.roles; name: string; max: number }>).map(({ key, name, max }) => {
+                const count = local.roles[key] ?? 0;
+                return (
+                  <div key={key} className="flex items-center justify-between bg-white/5 rounded-lg px-2 py-1.5">
+                    <span className="text-xs text-white/70 font-mono">{name}</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setLocal(s => ({ ...s, roles: { ...s.roles, [key]: Math.max(0, count - 1) } }))}
+                        disabled={count === 0}
+                        className="w-5 h-5 rounded text-white/50 hover:text-white disabled:opacity-20 text-sm font-bold leading-none"
+                      >−</button>
+                      <span className="w-4 text-center text-xs text-white font-mono">{count}</span>
+                      <button
+                        type="button"
+                        onClick={() => setLocal(s => ({ ...s, roles: { ...s.roles, [key]: Math.min(max, count + 1) } }))}
+                        disabled={count >= max}
+                        className="w-5 h-5 rounded text-white/50 hover:text-white disabled:opacity-20 text-sm font-bold leading-none"
+                      >+</button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
 
         {/* Other toggles */}
         <div className="flex items-center gap-3 mb-4">

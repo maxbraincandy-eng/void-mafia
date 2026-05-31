@@ -1,5 +1,5 @@
 export type Phase = 'lobby' | 'role_reveal' | 'night' | 'day' | 'speech' | 'voting' | 'game_over';
-export type RoleKey = 'mafia' | 'citizen' | 'sheriff' | 'doctor' | 'don' | 'maniac' | 'jester' | 'bodyguard';
+export type RoleKey = 'mafia' | 'citizen' | 'sheriff' | 'doctor' | 'don' | 'maniac' | 'jester' | 'bodyguard' | 'spy' | 'escort' | 'vigilante';
 export type Team = 'mafia' | 'town' | 'neutral';
 export type TieRule = 'no_elimination' | 'random';
 export type ChatChannel = 'room' | 'mafia' | 'dead';
@@ -152,6 +152,9 @@ export interface GameSettings {
         maniac: number;
         jester: number;
         bodyguard: number;
+        spy: number;
+        escort: number;
+        vigilante: number;
     };
 }
 export interface Room {
@@ -266,6 +269,10 @@ export interface ServerToClientEvents {
         reason: string;
     }) => void;
     'player:profile': (profile: PlayerProfilePublic) => void;
+    'spy:night_report': (data: {
+        mafiaTarget: string | null;
+        mafiaTargetName: string | null;
+    }) => void;
     'mod:notification': (data: {
         type: string;
         message: string;

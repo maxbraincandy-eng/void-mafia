@@ -134,7 +134,14 @@ export function advancePhase(room: Room): Phase {
 
 // ── Night Resolution ──────────────────────────────────────────────────
 export function resolveNight(room: Room): void {
-  const actions = [...room.nightActions.values()];
+  const allActions = [...room.nightActions.values()];
+
+  // Escort roleblocks: the escorted player's action is cancelled
+  const escortBlocked = new Set(
+    allActions.filter(a => a.role === 'escort').map(a => a.targetId)
+  );
+  // Effective actions: escort's own action counts, blocked players' actions do not
+  const actions = allActions.filter(a => a.role === 'escort' || !escortBlocked.has(a.actorId));
 
   // Doctor saves
   const savedByDoctor = new Set(
@@ -146,7 +153,7 @@ export function resolveNight(room: Room): void {
     actions.filter(a => a.role === 'bodyguard').map(a => [a.targetId, a.actorId])
   );
 
-  // Kill intents: mafia + don (one kill) + maniac (independent kill)
+  // Kill intents: mafia + don + maniac + vigilante
   const mafiaKills = actions
     .filter(a => a.role === 'mafia' || a.role === 'don')
     .map(a => a.targetId);
@@ -155,7 +162,11 @@ export function resolveNight(room: Room): void {
     .filter(a => a.role === 'maniac')
     .map(a => a.targetId);
 
-  const allKillIntents = [...mafiaKills, ...maniacKills];
+  const vigilanteKills = actions
+    .filter(a => a.role === 'vigilante')
+    .map(a => a.targetId);
+
+  const allKillIntents = [...mafiaKills, ...maniacKills, ...vigilanteKills];
 
   room.killedLastNight = [];
   room.savedLastNight = false;
@@ -164,7 +175,7 @@ export function resolveNight(room: Room): void {
     const target = room.players.get(targetId);
     if (!target || !target.isAlive) continue;
 
-    // Doctor saved → target lives, no one dies
+    // Doctor saved → target lives
     if (savedByDoctor.has(targetId)) {
       room.savedLastNight = true;
       continue;
@@ -208,9 +219,14 @@ export function submitNightAction(room: Room, actor: Player, targetId: string): 
     throw new Error('You cannot target a fellow mafia member.');
   }
 
-  // Bodyguard cannot protect fellow town members who are already dead
-  if (actor.role === 'bodyguard' && !target.isAlive) {
-    throw new Error('Cannot protect an eliminated player.');
+  // Vigilante cannot target themselves
+  if (actor.role === 'vigilante' && actor.id === targetId) {
+    throw new Error('You cannot target yourself.');
+  }
+
+  // Escort cannot target themselves
+  if (actor.role === 'escort' && actor.id === targetId) {
+    throw new Error('You cannot target yourself.');
   }
 
   room.nightActions.set(actor.id, {

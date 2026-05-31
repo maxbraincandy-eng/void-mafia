@@ -7,12 +7,14 @@ import { PlayerList } from './PlayerList';
 import { Button } from '@/components/ui/Button';
 
 const NIGHT_ROLE_DESCRIPTIONS: Partial<Record<RoleKey, string>> = {
-  mafia: 'Choose a citizen to eliminate tonight.',
-  don:   'Choose a citizen to eliminate. You appear innocent to investigators.',
-  sheriff: 'Investigate a player — learn if they are Mafia.',
-  doctor: 'Protect one player from elimination tonight.',
-  bodyguard: 'Guard a player. If mafia attacks them tonight, you die in their place.',
-  maniac: 'Choose anyone to eliminate. You win alone.',
+  mafia:      'Choose a player to eliminate tonight.',
+  don:        'Choose a player to eliminate. You appear innocent to investigators.',
+  sheriff:    'Investigate a player — learn if they are Mafia.',
+  doctor:     'Protect one player from elimination tonight.',
+  bodyguard:  'Guard a player. If mafia attacks them tonight, you die in their place.',
+  maniac:     'Choose anyone to eliminate. You win alone.',
+  vigilante:  'Choose a player to eliminate. Be careful — mistakes cost the town.',
+  escort:     'Distract a player — their night action is cancelled.',
 };
 
 export function NightPanel() {
@@ -30,14 +32,17 @@ export function NightPanel() {
 
   const role = myPlayer.role;
   const hasActed = myPlayer.hasActed;
-  const wakeAtNight = role && ['mafia', 'don', 'sheriff', 'doctor', 'bodyguard', 'maniac'].includes(role);
+  const wakeAtNight = role && ['mafia', 'don', 'sheriff', 'doctor', 'bodyguard', 'maniac', 'vigilante', 'escort'].includes(role);
 
   if (!wakeAtNight) {
+    const isSpy = role === 'spy';
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <div className="text-4xl animate-pulse">😴</div>
+        <div className="text-4xl animate-pulse">{isSpy ? '🕵️' : '😴'}</div>
         <p className="text-white/50 font-mono text-sm text-center">
-          Citizens sleep during the night.<br />Wait for dawn…
+          {isSpy
+            ? <>You observe from the shadows.<br />A report will arrive at dawn…</>
+            : <>Citizens sleep during the night.<br />Wait for dawn…</>}
         </p>
       </div>
     );
@@ -69,13 +74,11 @@ export function NightPanel() {
   const alivePlayers = room.players.filter(p => p.isAlive);
   const targetablePlayers = alivePlayers.filter(p => {
     if (p.id === myPlayer.id) return false;
-    // Mafia cannot target their own team (except doctor can protect anyone)
     if ((role === 'mafia' || role === 'don') && p.team === 'mafia') return false;
-    // Doctor can target themselves if allowed (handled server-side)
     return true;
   });
 
-  // Doctor and bodyguard can include themselves as a target
+  // Doctor and bodyguard can include self as a target
   const targets = (role === 'doctor' || role === 'bodyguard')
     ? [myPlayer, ...targetablePlayers.filter(p => p.id !== myPlayer.id)]
     : targetablePlayers;
@@ -85,6 +88,7 @@ export function NightPanel() {
   const actionLabel = role === 'sheriff' ? 'Investigate'
     : role === 'doctor' ? 'Protect'
     : role === 'bodyguard' ? 'Guard'
+    : role === 'escort' ? 'Distract'
     : 'Eliminate';
 
   return (

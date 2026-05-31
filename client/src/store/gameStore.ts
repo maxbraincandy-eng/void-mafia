@@ -24,6 +24,7 @@ interface GameStore {
   // Notifications
   nightResult: NightResult | null;
   investigationResult: InvestigationResult | null;
+  spyReport: { mafiaTarget: string | null; mafiaTargetName: string | null } | null;
   gameOverResult: GameOverResult | null;
   toasts: Toast[];
 
@@ -54,6 +55,7 @@ interface GameStore {
   restartGame: () => Promise<void>;
   dismissNightResult: () => void;
   dismissInvestigation: () => void;
+  dismissSpyReport: () => void;
   dismissGameOver: () => void;
   addToast: (text: string, type?: Toast['type']) => void;
   clearError: () => void;
@@ -93,6 +95,10 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   socket.on('game:investigation', (result: InvestigationResult) => {
     set({ investigationResult: result });
+  });
+
+  (socket as any).on('spy:night_report', (data: { mafiaTarget: string | null; mafiaTargetName: string | null }) => {
+    set({ spyReport: data });
   });
 
   socket.on('game:over', (result: GameOverResult) => {
@@ -146,6 +152,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     myRole: null,
     nightResult: null,
     investigationResult: null,
+    spyReport: null,
     gameOverResult: null,
     toasts: [],
     isLoading: false,
@@ -229,11 +236,12 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     restartGame: withLoading(async () => {
       await emit('game:restart');
-      set({ myRole: null, nightResult: null, investigationResult: null, gameOverResult: null });
+      set({ myRole: null, nightResult: null, investigationResult: null, spyReport: null, gameOverResult: null });
     }),
 
     dismissNightResult: () => set({ nightResult: null }),
     dismissInvestigation: () => set({ investigationResult: null }),
+    dismissSpyReport: () => set({ spyReport: null }),
     dismissGameOver: () => set({ gameOverResult: null }),
 
     addToast: (text: string, type: Toast['type'] = 'info') => {

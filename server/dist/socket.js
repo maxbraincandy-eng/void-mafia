@@ -46,12 +46,15 @@ function startPhaseTimer(io, room) {
         return;
     timerService.start(room.id, room.timer, (remaining) => { room.timer = remaining; broadcastRoom(io, room); }, async () => {
         room.timer = 0;
+        const wasNight = room.phase === 'night';
         if (room.phase === 'voting')
             announceVoteResult(io, room);
-        if (room.phase === 'night')
-            announceNightResult(io, room);
         advancePhase(room);
         const nextPhase = room.phase;
+        if (wasNight) {
+            announceNightResult(io, room);
+            notifySpies(io, room);
+        }
         if (nextPhase === 'game_over')
             emitGameOver(io, room);
         broadcastRoom(io, room);
@@ -114,6 +117,20 @@ function announceNightResult(io, room) {
     }
     else {
         broadcastSystemMsg(io, room, 'Dawn breaks. The night passed quietly.');
+    }
+}
+function notifySpies(io, room) {
+    const mafiaAction = [...room.nightActions.values()]
+        .find(a => a.role === 'mafia' || a.role === 'don');
+    const targetId = mafiaAction?.targetId ?? null;
+    const targetName = targetId ? (room.players.get(targetId)?.name ?? null) : null;
+    for (const p of room.players.values()) {
+        if (p.role === 'spy' && p.isAlive && p.socketId) {
+            io.to(p.socketId).emit('spy:night_report', {
+                mafiaTarget: targetId,
+                mafiaTargetName: targetName,
+            });
+        }
     }
 }
 function announceVoteResult(io, room) {
@@ -373,9 +390,10 @@ export function attachSocketHandlers(io) {
                 if (allNightActionsSubmitted(room)) {
                     timerService.stop(room.id);
                     room.timer = 0;
-                    announceNightResult(io, room);
                     advancePhase(room);
                     const nextPhase = room.phase;
+                    announceNightResult(io, room);
+                    notifySpies(io, room);
                     if (nextPhase === 'game_over')
                         emitGameOver(io, room);
                     broadcastRoom(io, room);
@@ -412,12 +430,15 @@ export function attachSocketHandlers(io) {
                     throw new Error('Cannot skip this phase.');
                 timerService.stop(room.id);
                 room.timer = 0;
+                const wasNightSkip = room.phase === 'night';
                 if (room.phase === 'voting')
                     announceVoteResult(io, room);
-                if (room.phase === 'night')
-                    announceNightResult(io, room);
                 advancePhase(room);
                 const nextPhase = room.phase;
+                if (wasNightSkip) {
+                    announceNightResult(io, room);
+                    notifySpies(io, room);
+                }
                 if (nextPhase === 'game_over')
                     emitGameOver(io, room);
                 broadcastRoom(io, room);

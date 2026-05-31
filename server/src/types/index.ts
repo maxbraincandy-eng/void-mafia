@@ -15,7 +15,10 @@ export type RoleKey =
   | 'don'
   | 'maniac'
   | 'jester'
-  | 'bodyguard';
+  | 'bodyguard'
+  | 'spy'
+  | 'escort'
+  | 'vigilante';
 
 export type Team = 'mafia' | 'town' | 'neutral';
 export type TieRule = 'no_elimination' | 'random';
@@ -203,6 +206,9 @@ export interface GameSettings {
     maniac: number;
     jester: number;
     bodyguard: number;
+    spy: number;
+    escort: number;
+    vigilante: number;
   };
 }
 
@@ -311,6 +317,7 @@ export interface ServerToClientEvents {
   'error':              (data: { message: string }) => void;
   'kicked':             (data: { reason: string }) => void;
   'player:profile':     (profile: PlayerProfilePublic) => void;
+  'spy:night_report':   (data: { mafiaTarget: string | null; mafiaTargetName: string | null }) => void;
   'mod:notification':   (data: { type: string; message: string; targetName?: string }) => void;
   'warning:received':   (data: { reason: string; moderatorName: string }) => void;
   'ban:received':       (data: { reason: string; expiresAt: number }) => void;

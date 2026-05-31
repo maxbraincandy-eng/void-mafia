@@ -50,8 +50,8 @@ export function GamePage() {
 
   const {
     room, myPlayer, myRole, amHost, amAlive,
-    nightResult, investigationResult, gameOverResult,
-    skipPhase, daySkipVote, leaveRoom, dismissNightResult, dismissInvestigation, dismissGameOver,
+    nightResult, investigationResult, spyReport, gameOverResult,
+    skipPhase, daySkipVote, leaveRoom, dismissNightResult, dismissInvestigation, dismissSpyReport, dismissGameOver,
     isLoading,
   } = useGameStore(s => ({
     room: s.room,
@@ -61,12 +61,14 @@ export function GamePage() {
     amAlive: s.amAlive(),
     nightResult: s.nightResult,
     investigationResult: s.investigationResult,
+    spyReport: s.spyReport,
     gameOverResult: s.gameOverResult,
     skipPhase: s.skipPhase,
     daySkipVote: s.daySkipVote,
     leaveRoom: s.leaveRoom,
     dismissNightResult: s.dismissNightResult,
     dismissInvestigation: s.dismissInvestigation,
+    dismissSpyReport: s.dismissSpyReport,
     dismissGameOver: s.dismissGameOver,
     isLoading: s.isLoading,
   }));
@@ -369,6 +371,41 @@ export function GamePage() {
                 {investigationResult.result === 'suspicious' ? 'Mafia.' : 'an innocent citizen.'}
               </p>
               <Button variant="secondary" className="mt-6" onClick={dismissInvestigation} fullWidth>
+                Got it
+              </Button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Spy night report */}
+      <AnimatePresence>
+        {spyReport && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            onClick={dismissSpyReport}
+          >
+            <motion.div
+              initial={{ scale: 0.85, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.85, y: 20 }}
+              className="glass-card border border-neon-cyan/30 shadow-neon-cyan p-8 text-center max-w-sm w-full"
+              onClick={e => e.stopPropagation()}
+            >
+              <p className="text-xs font-mono uppercase tracking-widest text-white/40 mb-4">Spy Report</p>
+              <div className="text-5xl mb-4">🕵️</div>
+              <h2 className="font-display text-3xl font-bold tracking-widest uppercase mb-2 text-neon-cyan">
+                Intel
+              </h2>
+              <p className="text-white/70 text-sm">
+                {spyReport.mafiaTargetName
+                  ? <>Last night, mafia targeted <strong className="text-white">{spyReport.mafiaTargetName}</strong>.</>
+                  : 'Last night, mafia made no move.'}
+              </p>
+              <Button variant="secondary" className="mt-6" onClick={dismissSpyReport} fullWidth>
                 Got it
               </Button>
             </motion.div>

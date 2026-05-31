@@ -5,7 +5,7 @@ export const ROLES = {
         name: 'Mafia',
         team: 'mafia',
         description: 'Member of the criminal underworld. You know your fellow mafia members.',
-        ability: 'Each night, choose a citizen to eliminate.',
+        ability: 'Each night, choose a player to eliminate.',
         wakeAtNight: true,
         color: 'pink',
         glowColor: '#ff00cc',
@@ -50,12 +50,42 @@ export const ROLES = {
         color: 'green',
         glowColor: '#00cc66',
     },
+    spy: {
+        key: 'spy',
+        name: 'Spy',
+        team: 'town',
+        description: 'A covert operative who watches from the shadows. You observe who the mafia targets each night.',
+        ability: 'Each dawn, receive a private report naming the player mafia tried to kill — even if they were saved.',
+        wakeAtNight: false,
+        color: 'cyan',
+        glowColor: '#00e5ff',
+    },
+    vigilante: {
+        key: 'vigilante',
+        name: 'Vigilante',
+        team: 'town',
+        description: 'A lone crusader who takes justice into their own hands. You can eliminate players at night.',
+        ability: 'Each night, choose a player to eliminate. Be careful — you might kill an innocent.',
+        wakeAtNight: true,
+        color: 'yellow',
+        glowColor: '#fbbf24',
+    },
+    escort: {
+        key: 'escort',
+        name: 'Escort',
+        team: 'town',
+        description: 'A charming distraction who prevents players from acting at night.',
+        ability: 'Each night, roleblock one player — cancelling their night action.',
+        wakeAtNight: true,
+        color: 'pink',
+        glowColor: '#f472b6',
+    },
     don: {
         key: 'don',
         name: 'Don',
         team: 'mafia',
         description: 'Leader of the mafia. You appear innocent to Sheriff investigations.',
-        ability: 'Each night, choose a citizen to eliminate. Appears clean to Sheriff.',
+        ability: 'Each night, choose a player to eliminate. Appears clean to Sheriff.',
         wakeAtNight: true,
         color: 'pink',
         glowColor: '#ff00cc',
@@ -81,59 +111,30 @@ export const ROLES = {
         glowColor: '#a855f7',
     },
 };
-// ── Role distribution table ───────────────────────────────────────────
-// Keys: player count → { mafia, sheriff, doctor } (citizens fill the rest)
-const DISTRIBUTION = {
-    4: { mafia: 1, sheriff: 1, doctor: 0 },
-    5: { mafia: 1, sheriff: 1, doctor: 1 },
-    6: { mafia: 1, sheriff: 1, doctor: 1 },
-    7: { mafia: 2, sheriff: 1, doctor: 1 },
-    8: { mafia: 2, sheriff: 1, doctor: 1 },
-    9: { mafia: 2, sheriff: 1, doctor: 1 },
-    10: { mafia: 3, sheriff: 1, doctor: 0 }, // no Doctor at 10 by spec
-    11: { mafia: 3, sheriff: 1, doctor: 1 },
-    12: { mafia: 3, sheriff: 1, doctor: 1 },
-    13: { mafia: 4, sheriff: 1, doctor: 1 },
-    14: { mafia: 4, sheriff: 1, doctor: 1 },
-    15: { mafia: 4, sheriff: 2, doctor: 1 },
-    16: { mafia: 5, sheriff: 2, doctor: 1 },
-};
-export function getRecommendedRoles(playerCount) {
-    if (playerCount in DISTRIBUTION)
-        return DISTRIBUTION[playerCount];
-    const mafia = Math.max(1, Math.floor(playerCount / 3));
-    return { mafia, sheriff: 1, doctor: 1 };
-}
 export function getRole(key) {
     return ROLES[key];
 }
 /**
- * Build a shuffled role deck.
- * Base distribution (mafia/sheriff/doctor) is determined by player count.
- * Optional extra roles (don/maniac/jester/bodyguard) come from room settings.
- * Citizens fill remaining slots.
+ * Build a shuffled role deck entirely from room settings.
+ * Citizens fill any remaining slots.
  */
 export function buildRoleDeck(settings, playerCount) {
-    const base = getRecommendedRoles(playerCount);
-    const deck = [];
-    // Base roles (auto by player count)
-    for (let i = 0; i < base.mafia; i++)
-        deck.push('mafia');
-    for (let i = 0; i < base.sheriff; i++)
-        deck.push('sheriff');
-    for (let i = 0; i < base.doctor; i++)
-        deck.push('doctor');
-    // Optional extra roles from room settings
     const r = settings.roles;
-    for (let i = 0; i < (r.don ?? 0); i++)
-        deck.push('don');
-    for (let i = 0; i < (r.maniac ?? 0); i++)
-        deck.push('maniac');
-    for (let i = 0; i < (r.jester ?? 0); i++)
-        deck.push('jester');
-    for (let i = 0; i < (r.bodyguard ?? 0); i++)
-        deck.push('bodyguard');
-    // Fill remaining with citizens
+    const deck = [];
+    const push = (role, count) => {
+        for (let i = 0; i < count; i++)
+            deck.push(role);
+    };
+    push('mafia', r.mafia ?? 0);
+    push('don', r.don ?? 0);
+    push('sheriff', r.sheriff ?? 0);
+    push('doctor', r.doctor ?? 0);
+    push('bodyguard', r.bodyguard ?? 0);
+    push('spy', r.spy ?? 0);
+    push('vigilante', r.vigilante ?? 0);
+    push('escort', r.escort ?? 0);
+    push('maniac', r.maniac ?? 0);
+    push('jester', r.jester ?? 0);
     while (deck.length < playerCount)
         deck.push('citizen');
     return shuffle(deck).slice(0, playerCount);
@@ -142,6 +143,6 @@ export function getTeam(role) {
     return ROLES[role].team;
 }
 export function isSuspiciousToSheriff(role) {
-    return role === 'mafia'; // Don appears innocent
+    return role === 'mafia'; // Don appears innocent; all other roles are not suspicious
 }
 //# sourceMappingURL=roleService.js.map

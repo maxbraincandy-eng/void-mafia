@@ -12,16 +12,21 @@ const ROLE_GRADIENTS: Record<string, string> = {
   blue:   'from-neon-blue/20 via-void-100 to-void',
   green:  'from-neon-green/20 via-void-100 to-void',
   purple: 'from-neon-purple/20 via-void-100 to-void',
+  yellow: 'from-yellow-400/20 via-void-100 to-void',
 };
 
 const ROLE_ICONS: Record<string, string> = {
-  mafia:   '🔫',
-  citizen: '🏙',
-  sheriff: '🔍',
-  doctor:  '💉',
-  don:     '♛',
-  maniac:  '🌀',
-  jester:  '🃏',
+  mafia:     '🔫',
+  citizen:   '🏙',
+  sheriff:   '🔍',
+  doctor:    '💉',
+  don:       '♛',
+  maniac:    '🌀',
+  jester:    '🃏',
+  bodyguard: '🛡',
+  spy:       '🕵️',
+  escort:    '💃',
+  vigilante: '⚖️',
 };
 
 export function RoleReveal({ role }: Props) {
