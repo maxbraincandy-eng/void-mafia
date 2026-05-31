@@ -2,15 +2,24 @@ import { buildRoleDeck, getTeam, isSuspiciousToSheriff, getRole } from './roleSe
 import { getAlivePlayers } from './roomService.js';
 // ── Start Game ────────────────────────────────────────────────────────
 export function startGame(room) {
-    const players = [...room.players.values()];
-    const count = players.length;
+    const allPlayers = [...room.players.values()];
+    const activePlayers = allPlayers.filter(p => !p.isSpectator);
+    const count = activePlayers.length;
     if (count < room.settings.minPlayers) {
         throw new Error(`Need at least ${room.settings.minPlayers} players to start.`);
     }
+    // Spectators stay isAlive=false so toPublicRoom's visibility rule lets them see all roles
+    for (const p of allPlayers) {
+        if (p.isSpectator) {
+            p.isAlive = false;
+            p.role = null;
+            p.team = null;
+        }
+    }
     const deck = buildRoleDeck(room.settings, count);
-    // Sort players by seat for deterministic assignment
-    players.sort((a, b) => a.seat - b.seat);
-    players.forEach((player, i) => {
+    // Sort active players by seat for deterministic role assignment
+    activePlayers.sort((a, b) => a.seat - b.seat);
+    activePlayers.forEach((player, i) => {
         const role = deck[i];
         player.role = role;
         player.team = getTeam(role);
@@ -299,6 +308,8 @@ export function checkWin(room) {
 export function buildGameOverResult(room) {
     const allRoles = {};
     for (const p of room.players.values()) {
+        if (p.isSpectator)
+            continue;
         allRoles[p.id] = {
             name: p.name,
             role: p.role ?? 'citizen',

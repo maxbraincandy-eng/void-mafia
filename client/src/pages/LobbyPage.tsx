@@ -52,10 +52,12 @@ export function LobbyPage() {
 
   if (!room) return null;
 
-  const playerCount = room.players.length;
+  const amSpectator = myPlayer?.isSpectator ?? false;
+  const activePlayers = room.players.filter(p => !p.isSpectator);
+  const playerCount = activePlayers.length;
   const minPlayers = room.settings.minPlayers;
   const canStart = amHost && playerCount >= minPlayers;
-  const allReady = room.players.filter(p => !p.isHost).every(p => p.isReady);
+  const allReady = activePlayers.filter(p => !p.isHost).every(p => p.isReady);
 
   return (
     <div className="min-h-screen bg-neon-grid-animated scanlines relative overflow-hidden">
@@ -149,6 +151,8 @@ export function LobbyPage() {
                       <div className="flex items-center gap-2 mt-0.5">
                         {player.isHost ? (
                           <span className="text-xs text-yellow-400 font-mono">{t.common.host}</span>
+                        ) : player.isSpectator ? (
+                          <span className="text-xs text-neon-purple/70 font-mono">👁 watching</span>
                         ) : (
                           <span className={clsx('text-xs font-mono',
                             player.isReady ? 'text-neon-green' : 'text-white/30',
@@ -183,7 +187,7 @@ export function LobbyPage() {
 
             {/* Actions */}
             <div className="flex gap-3">
-              {!amHost && (
+              {!amHost && !amSpectator && (
                 <Button
                   fullWidth
                   variant={myPlayer?.isReady ? 'neon-green' : 'neon-cyan'}
@@ -192,6 +196,11 @@ export function LobbyPage() {
                 >
                   {myPlayer?.isReady ? t.lobby.readyDone : t.lobby.ready}
                 </Button>
+              )}
+              {amSpectator && (
+                <div className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-neon-purple/20 bg-neon-purple/5 text-neon-purple/70 text-sm font-mono">
+                  👁 Watching as spectator
+                </div>
               )}
               {amHost && (
                 <>

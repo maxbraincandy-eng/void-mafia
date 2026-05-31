@@ -171,7 +171,7 @@ export function getHostPlayer(room) {
     return room.players.get(room.hostId);
 }
 export function getAlivePlayers(room) {
-    return [...room.players.values()].filter(p => p.isAlive);
+    return [...room.players.values()].filter(p => p.isAlive && !p.isSpectator);
 }
 // ── Public View Builder ───────────────────────────────────────────────
 export function toPublicRoom(room, viewerPlayerId) {
@@ -190,8 +190,8 @@ export function toPublicRoom(room, viewerPlayerId) {
             isAlive: p.isAlive,
             isConnected: p.isConnected,
             isReady: p.isReady,
-            role: (p.id === viewerPlayerId || isGameOver || !viewer?.isAlive) ? p.role : null,
-            team: (p.id === viewerPlayerId || isGameOver || !viewer?.isAlive) ? p.team : null,
+            role: (p.id === viewerPlayerId || isGameOver || !viewer?.isAlive || viewer?.isSpectator) ? p.role : null,
+            team: (p.id === viewerPlayerId || isGameOver || !viewer?.isAlive || viewer?.isSpectator) ? p.team : null,
             // Mafia sees fellow mafia roles
             ...(isMafia && p.team === 'mafia' ? { role: p.role, team: p.team } : {}),
             voteTarget: room.phase === 'voting' ? p.voteTarget : null,

@@ -19,7 +19,7 @@ import { LeaderboardModal } from '@/components/ui/LeaderboardModal';
 import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { useVoiceChat, VoiceChannel } from '@/hooks/useVoiceChat';
-import { useGameSounds } from '@/hooks/useSoundFX';
+import { useGameSounds, setSoundMuted, isSoundMuted } from '@/hooks/useSoundFX';
 import { useT } from '@/store/langStore';
 
 type MobileTab = 'action' | 'players' | 'chat';
@@ -42,6 +42,7 @@ export function GamePage() {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [willText, setWillText] = useState('');
   const [willSaved, setWillSaved] = useState(false);
+  const [soundMuted, setSoundMutedState] = useState(isSoundMuted());
 
   const {
     room, myPlayer, myRole, amHost, amAlive,
@@ -75,6 +76,7 @@ export function GamePage() {
   useGameSounds();
   const t = useT();
 
+  const amSpectator = myPlayer?.isSpectator ?? false;
   const isInVoice = voice.channel !== null;
 
   // Determine appropriate voice channel for this player/phase
@@ -174,8 +176,8 @@ export function GamePage() {
     </div>
   );
 
-  // Last will panel — shown in action area for alive players during active phases
-  const showWill = amAlive && phase !== 'lobby' && phase !== 'role_reveal' && phase !== 'game_over';
+  // Last will panel — shown in action area for alive players during active phases (not spectators)
+  const showWill = amAlive && !amSpectator && phase !== 'lobby' && phase !== 'role_reveal' && phase !== 'game_over';
   const LastWillPanel = showWill ? (
     <div className="mt-4 rounded-2xl border border-white/8 bg-void-50/40 p-3 space-y-2">
       <p className="text-xs font-display uppercase tracking-widest text-white/30">{t.game.will.title}</p>
@@ -217,7 +219,17 @@ export function GamePage() {
         transition={{ duration: 0.35 }}
       >
         {phase === 'role_reveal' && (
-          <RoleReveal role={myRole} />
+          amSpectator ? (
+            <div className="text-center py-8">
+              <div className="text-5xl mb-4">👁</div>
+              <h2 className="font-display text-2xl font-bold text-neon-purple tracking-widest uppercase mb-2">
+                Spectating
+              </h2>
+              <p className="text-white/40 text-sm font-mono">Roles are being revealed to players…</p>
+            </div>
+          ) : (
+            <RoleReveal role={myRole} />
+          )
         )}
 
         {phase === 'night' && (
@@ -228,11 +240,11 @@ export function GamePage() {
                 {t.game.night.title}
               </h2>
               <p className="text-white/40 text-sm mt-1 font-mono">
-                {amAlive ? t.game.night.activeMsg : t.game.night.eliminatedMsg}
+                {amSpectator ? 'Players are taking their night actions…' : amAlive ? t.game.night.activeMsg : t.game.night.eliminatedMsg}
               </p>
             </div>
             {/* Mafia voice panel in action area during night */}
-            {isMafiaPlayer && amAlive && (
+            {isMafiaPlayer && amAlive && !amSpectator && (
               <Card glow="none" padding="sm">
                 <p className="text-xs font-display uppercase tracking-widest text-neon-red/60 mb-2">🔴 Mafia Voice</p>
                 <VoiceControls
@@ -252,7 +264,7 @@ export function GamePage() {
                 />
               </Card>
             )}
-            <NightPanel />
+            {!amSpectator && <NightPanel />}
           </div>
         )}
 
@@ -339,7 +351,7 @@ export function GamePage() {
                 {t.game.voting.alivePlaying.replace('{n}', String(alivePlayers))}
               </p>
             </div>
-            <VotingPanel />
+            {!amSpectator && <VotingPanel />}
           </div>
         )}
       </motion.div>
@@ -497,8 +509,15 @@ export function GamePage() {
                 <p className="font-mono text-xs md:text-sm text-neon-cyan font-bold tracking-widest">{room.code}</p>
               </div>
 
+              {/* Spectator badge */}
+              {amSpectator && (
+                <div className="px-2 py-1 rounded-lg border border-neon-purple/40 bg-neon-purple/10 text-[10px] md:text-xs font-display font-bold tracking-wider uppercase text-neon-purple/80">
+                  👁 SPECTATOR
+                </div>
+              )}
+
               {/* Role badge */}
-              {myRole && (
+              {myRole && !amSpectator && (
                 <div className="px-2 py-1 rounded-lg border text-[10px] md:text-xs font-display font-bold tracking-wider uppercase"
                   style={{
                     borderColor: `${myRole.glowColor}40`,
@@ -567,6 +586,15 @@ export function GamePage() {
                   <span className="hidden sm:inline">{t.game.header.skip} </span>⏭
                 </Button>
               )}
+
+              {/* Sound mute toggle */}
+              <button
+                onClick={() => { const m = !soundMuted; setSoundMuted(m); setSoundMutedState(m); }}
+                title={soundMuted ? 'Unmute sounds' : 'Mute sounds'}
+                className="px-2 py-1 rounded-lg text-sm text-white/30 hover:text-white/60 transition-colors"
+              >
+                {soundMuted ? '🔇' : '🔊'}
+              </button>
 
               <Button size="sm" variant="ghost" onClick={() => leaveRoom()}>
                 {t.game.header.leave}

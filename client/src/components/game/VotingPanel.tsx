@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
 import { useT } from '@/store/langStore';
+import { SFX } from '@/hooks/useSoundFX';
 import { PlayerList } from './PlayerList';
 import { Button } from '@/components/ui/Button';
 
@@ -43,8 +44,8 @@ export function VotingPanel() {
   const hasVoted = !!myPlayer.voteTarget;
 
   const handleSelect = (id: string) => {
-    // Tapping the already-pending player confirms the vote
     if (id === pendingId) {
+      SFX.voteConfirm();
       submitVote(id);
       setPendingId(null);
     } else {
@@ -54,6 +55,7 @@ export function VotingPanel() {
 
   const handleConfirm = () => {
     if (!pendingId) return;
+    SFX.voteConfirm();
     submitVote(pendingId);
     setPendingId(null);
   };
