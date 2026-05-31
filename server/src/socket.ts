@@ -8,7 +8,7 @@ import {
 import {
   createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, removePlayer,
   getPlayerBySocket, toPublicRoom, getAlivePlayers, getHostPlayer,
-  toRoomListItem, getAllRooms, getPlayerByProfile,
+  toRoomListItem, getAllRooms, getPlayerByProfile, transferHost,
 } from './services/roomService.js';
 import {
   startGame, setPhase, advancePhase, submitNightAction, submitVote,
@@ -372,6 +372,24 @@ export function attachSocketHandlers(io: AppServer): void {
         if (target.socketId) io.to(target.socketId).emit('kicked', { reason: 'You were removed by the host.' });
         removePlayer(room, playerId);
         broadcastSystemMsg(io, room, `${target.name} was removed from the room.`);
+        broadcastRoom(io, room);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Transfer Host ───────────────────────────────────────────────
+    socket.on('room:transfer_host', ({ playerId }, cb) => {
+      try {
+        const room = getRoomFromSocket(socket);
+        const host = getPlayerOrError(socket, room);
+        if (!host.isHost) throw new Error('Only the host can transfer host status.');
+        if (playerId === host.id) throw new Error('You are already the host.');
+
+        const newHost = room.players.get(playerId);
+        if (!newHost) throw new Error('Player not found.');
+
+        transferHost(room, playerId);
+        broadcastSystemMsg(io, room, `👑 ${host.name} transferred host to ${newHost.name}.`);
         broadcastRoom(io, room);
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }

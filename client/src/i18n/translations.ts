@@ -69,6 +69,8 @@ export const TRANSLATIONS = {
       needMorePlural: 'more players to start',
       copyInvite: 'Copy Invite Link',
       copied: 'Copied!',
+      leaveConfirm: 'Leave and close the room?',
+      leaveConfirmHost: 'Leave? Host will be reassigned automatically.',
     },
     profile: {
       title: 'Profile',

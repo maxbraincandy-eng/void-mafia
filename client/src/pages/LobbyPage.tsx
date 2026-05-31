@@ -18,7 +18,7 @@ import { GameSettings, PlayerPublic } from '@/types/index';
 export function LobbyPage() {
   const {
     room, myPlayer, amHost, toggleReady, kickPlayer, startGame,
-    updateSettings, leaveRoom, isLoading,
+    updateSettings, leaveRoom, transferHost, isLoading,
   } = useGameStore(s => ({
     room: s.room,
     myPlayer: s.myPlayer(),
@@ -28,6 +28,7 @@ export function LobbyPage() {
     startGame: s.startGame,
     updateSettings: s.updateSettings,
     leaveRoom: s.leaveRoom,
+    transferHost: s.transferHost,
     isLoading: s.isLoading,
   }));
 
@@ -35,6 +36,9 @@ export function LobbyPage() {
   const [statsPlayer, setStatsPlayer] = useState<PlayerPublic | null>(null);
   const [reportProfileId, setReportProfileId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // Inline confirm state for host transfer
+  const [confirmTransferId, setConfirmTransferId] = useState<string | null>(null);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const t = useT();
   const voice = useVoiceChat();
   const autoJoined = useRef(false);
@@ -168,14 +172,43 @@ export function LobbyPage() {
                       </div>
                     </div>
 
-                    {/* Host kick control */}
+                    {/* Host controls: transfer host + kick */}
                     {amHost && player.id !== myPlayer?.id && (
-                      <button
-                        onClick={e => { e.stopPropagation(); kickPlayer(player.id); }}
-                        className="text-white/20 hover:text-neon-red text-xs transition-colors px-2 py-1 rounded"
-                      >
-                        kick
-                      </button>
+                      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                        {confirmTransferId === player.id ? (
+                          /* Inline confirm */
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-white/40 font-mono">make host?</span>
+                            <button
+                              onClick={() => { transferHost(player.id); setConfirmTransferId(null); }}
+                              disabled={isLoading}
+                              className="text-[11px] px-1.5 py-0.5 rounded border border-yellow-400/40 text-yellow-400 hover:bg-yellow-400/10 transition-colors disabled:opacity-40"
+                            >
+                              ✓
+                            </button>
+                            <button
+                              onClick={() => setConfirmTransferId(null)}
+                              className="text-[11px] px-1.5 py-0.5 rounded border border-white/15 text-white/30 hover:text-white/60 transition-colors"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmTransferId(player.id)}
+                            className="text-white/20 hover:text-yellow-400 text-sm transition-colors px-1.5 py-0.5 rounded"
+                            title="Make host"
+                          >
+                            👑
+                          </button>
+                        )}
+                        <button
+                          onClick={() => kickPlayer(player.id)}
+                          className="text-white/20 hover:text-neon-red text-xs transition-colors px-2 py-1 rounded"
+                        >
+                          kick
+                        </button>
+                      </div>
                     )}
 
                     <span className="text-xs font-mono text-white/25">#{player.seat}</span>
@@ -226,9 +259,40 @@ export function LobbyPage() {
                   </Button>
                 </>
               )}
-              <Button variant="danger" onClick={() => leaveRoom()} loading={isLoading}>
-                {t.lobby.leave}
-              </Button>
+              {showLeaveConfirm ? (
+                /* Inline leave confirmation for host */
+                <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl border border-neon-red/30 bg-neon-red/5">
+                  <span className="text-xs text-white/60 font-mono flex-1">
+                    {playerCount > 1
+                      ? (t.lobby.leaveConfirmHost ?? 'Leave room? Host will be auto-assigned.')
+                      : (t.lobby.leaveConfirm ?? 'Leave and close the room?')}
+                  </span>
+                  <button
+                    onClick={() => leaveRoom()}
+                    disabled={isLoading}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-neon-red/80 text-white font-display font-bold uppercase tracking-wider hover:bg-neon-red transition-colors disabled:opacity-40"
+                  >
+                    {t.lobby.leave}
+                  </button>
+                  <button
+                    onClick={() => setShowLeaveConfirm(false)}
+                    className="text-xs px-2 py-1.5 text-white/30 hover:text-white/60 transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    if (amHost) setShowLeaveConfirm(true);
+                    else leaveRoom();
+                  }}
+                  loading={isLoading}
+                >
+                  {t.lobby.leave}
+                </Button>
+              )}
             </div>
 
             {showSettings && amHost && (

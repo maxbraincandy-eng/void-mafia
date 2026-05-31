@@ -174,6 +174,18 @@ export function removePlayer(room: Room, playerId: string): void {
   }
 }
 
+export function transferHost(room: Room, newHostId: string): void {
+  const newHost = room.players.get(newHostId);
+  if (!newHost) throw new Error('Player not found.');
+  if (newHost.isSpectator) throw new Error('Cannot make a spectator the host.');
+
+  const current = room.players.get(room.hostId);
+  if (current) current.isHost = false;
+
+  newHost.isHost = true;
+  room.hostId = newHostId;
+}
+
 export function getPlayerBySocket(room: Room, socketId: string): Player | undefined {
   for (const p of room.players.values()) {
     if (p.socketId === socketId) return p;
