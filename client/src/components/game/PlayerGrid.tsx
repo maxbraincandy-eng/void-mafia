@@ -1,7 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
-import { PlayerPublic } from '@/types/index';
-import { Phase } from '@/types/index';
+import { PlayerPublic, Phase } from '@/types/index';
 import { ModBadge } from '@/components/ui/ModBadge';
 
 interface Props {
@@ -15,7 +14,6 @@ interface Props {
   onSelect?: (p: PlayerPublic) => void;
 }
 
-// Large avatar that fills the card — initials or photo
 function BigAvatar({ player, size = 80 }: { player: PlayerPublic; size?: number }) {
   const initials = player.name
     .trim()
@@ -55,8 +53,12 @@ function BigAvatar({ player, size = 80 }: { player: PlayerPublic; size?: number 
   );
 }
 
-// ── Speaker hero — shown solo during speech phase ─────────────────────
-function SpeakerHero({ player, isMe }: { player: PlayerPublic; isMe: boolean }) {
+function SpeakerHero({ player, isMe, speakerIndex, totalSpeakers }: {
+  player: PlayerPublic;
+  isMe: boolean;
+  speakerIndex: number;
+  totalSpeakers: number;
+}) {
   return (
     <motion.div
       key={player.id}
@@ -66,6 +68,23 @@ function SpeakerHero({ player, isMe }: { player: PlayerPublic; isMe: boolean }) 
       transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
       className="flex flex-col items-center py-6 gap-5"
     >
+      {/* Progress indicator */}
+      <div className="flex items-center gap-1.5">
+        {Array.from({ length: totalSpeakers }).map((_, i) => (
+          <div
+            key={i}
+            className={clsx(
+              'rounded-full transition-all duration-300',
+              i < speakerIndex
+                ? 'w-1.5 h-1.5 bg-white/20'
+                : i === speakerIndex
+                  ? 'w-3 h-1.5 bg-neon-cyan shadow-[0_0_6px_rgba(0,229,255,0.8)]'
+                  : 'w-1.5 h-1.5 bg-white/10',
+            )}
+          />
+        ))}
+      </div>
+
       {/* Pulsing ring behind avatar */}
       <div className="relative flex items-center justify-center">
         <motion.div
@@ -79,6 +98,10 @@ function SpeakerHero({ player, isMe }: { player: PlayerPublic; isMe: boolean }) 
             filter: 'blur(8px)',
           }}
         />
+        {/* Seat badge on avatar */}
+        <div className="absolute -top-1 -left-1 z-10 w-6 h-6 rounded-full bg-void border border-neon-cyan/50 flex items-center justify-center shadow-[0_0_8px_rgba(0,229,255,0.4)]">
+          <span className="text-[10px] font-mono font-bold text-neon-cyan/80">{player.seat}</span>
+        </div>
         <div className="relative z-10">
           <BigAvatar player={player} size={110} />
         </div>
@@ -99,12 +122,14 @@ function SpeakerHero({ player, isMe }: { player: PlayerPublic; isMe: boolean }) 
             <ModBadge level={player.moderatorLevel} size="sm" />
           </div>
         )}
+        <p className="text-[10px] font-mono text-white/25">
+          {speakerIndex + 1} / {totalSpeakers}
+        </p>
       </div>
     </motion.div>
   );
 }
 
-// ── Individual player card ────────────────────────────────────────────
 function PlayerCard({
   player,
   isMe,
@@ -112,6 +137,8 @@ function PlayerCard({
   voteCount,
   isSelected,
   showRole,
+  phase,
+  totalAlive,
   onClick,
 }: {
   player: PlayerPublic;
@@ -120,9 +147,16 @@ function PlayerCard({
   voteCount: number;
   isSelected: boolean;
   showRole?: boolean;
+  phase?: Phase;
+  totalAlive?: number;
   onClick: () => void;
 }) {
   const dead = !player.isAlive && !player.isSpectator;
+  const isVoting = phase === 'voting';
+  const majorityVotes = totalAlive ? Math.ceil(totalAlive / 2) : 1;
+  const voteBarPct = isVoting && voteCount > 0
+    ? Math.min(100, (voteCount / majorityVotes) * 100)
+    : 0;
 
   return (
     <motion.button
@@ -143,9 +177,32 @@ function PlayerCard({
                 : 'border-neon-green/30 bg-black/80 hover:border-neon-green/60 hover:bg-black/90',
       )}
     >
-      {/* Seat number + name row */}
-      <div className="w-full px-3 flex items-center gap-1.5 min-w-0">
-        <span className="text-[10px] font-mono text-white/30 flex-shrink-0">({player.seat})</span>
+      {/* Seat badge — absolute top-left */}
+      <div className={clsx(
+        'absolute top-1.5 left-1.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1',
+        dead
+          ? 'bg-white/5 border border-white/8'
+          : isMe
+            ? 'bg-neon-purple/20 border border-neon-purple/40'
+            : 'bg-white/8 border border-white/15',
+      )}>
+        <span className={clsx(
+          'text-[9px] font-mono font-bold',
+          dead ? 'text-white/20' : isMe ? 'text-neon-purple/70' : 'text-white/45',
+        )}>
+          {player.seat}
+        </span>
+      </div>
+
+      {/* Vote badge — top-right */}
+      {voteCount > 0 && (
+        <div className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] rounded-full bg-neon-red flex items-center justify-center px-1 shadow-[0_0_8px_rgba(255,45,85,0.6)]">
+          <span className="text-[9px] font-bold text-white">{voteCount}</span>
+        </div>
+      )}
+
+      {/* Name row */}
+      <div className="w-full px-5 flex items-center gap-1.5 min-w-0">
         <span className={clsx(
           'text-xs font-semibold truncate',
           dead ? 'text-white/30' : isMe ? 'text-neon-purple' : 'text-white/90',
@@ -163,31 +220,40 @@ function PlayerCard({
       {/* Avatar */}
       <BigAvatar player={player} size={72} />
 
-      {/* Role (spectator view / game over) */}
+      {/* Role (spectator/game over view) */}
       {showRole && player.role && (
         <span className="text-[9px] font-mono text-white/40 uppercase tracking-wider px-2 py-0.5 rounded-full border border-white/10 bg-white/5">
           {player.role}
         </span>
       )}
 
-      {/* Vote count badge */}
-      {voteCount > 0 && (
-        <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-neon-red flex items-center justify-center text-[10px] font-bold text-white shadow-[0_0_8px_rgba(255,45,85,0.6)]">
-          {voteCount}
+      {/* Speaking indicator */}
+      {isSpeaker && (
+        <div className="absolute bottom-5 left-1/2 -translate-x-1/2">
+          <span className="text-[9px] font-mono text-neon-cyan/80 animate-pulse">▶ speaking</span>
         </div>
       )}
 
-      {/* Speaking indicator */}
-      {isSpeaker && (
-        <div className="absolute bottom-1 left-1/2 -translate-x-1/2">
-          <span className="text-[9px] font-mono text-neon-cyan/80 animate-pulse">▶ speaking</span>
+      {/* Vote progress bar at bottom */}
+      {isVoting && voteBarPct > 0 && (
+        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/5">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${voteBarPct}%` }}
+            transition={{ duration: 0.4, ease: 'easeOut' }}
+            className={clsx(
+              'h-full',
+              voteBarPct >= 100
+                ? 'bg-neon-red shadow-[0_0_8px_rgba(255,45,85,0.9)]'
+                : 'bg-neon-red/60',
+            )}
+          />
         </div>
       )}
     </motion.button>
   );
 }
 
-// ── Main export ───────────────────────────────────────────────────────
 export function PlayerGrid({
   players,
   phase,
@@ -199,16 +265,21 @@ export function PlayerGrid({
   onSelect,
 }: Props) {
   const isSpeechPhase = phase === 'speech';
+  const alivePlayers = players.filter(p => p.isAlive && !p.isSpectator);
+  const totalAlive = alivePlayers.length;
 
   if (isSpeechPhase && currentSpeakerId) {
     const speaker = players.find(p => p.id === currentSpeakerId);
     if (speaker) {
+      const speakerIndex = alivePlayers.findIndex(p => p.id === currentSpeakerId);
       return (
         <AnimatePresence mode="wait">
           <SpeakerHero
             key={currentSpeakerId}
             player={speaker}
             isMe={speaker.id === myPlayerId}
+            speakerIndex={speakerIndex >= 0 ? speakerIndex : 0}
+            totalSpeakers={totalAlive}
           />
         </AnimatePresence>
       );
@@ -232,6 +303,8 @@ export function PlayerGrid({
               voteCount={voteCounts[player.id] ?? 0}
               isSelected={selectedVoteId === player.id}
               showRole={showRoles}
+              phase={phase}
+              totalAlive={totalAlive}
               onClick={() => onSelect?.(player)}
             />
           </motion.div>

@@ -36,9 +36,13 @@ const ROLE_COLORS: Record<RoleKey, string> = {
 
 export function PlayerList({ players, phase, onSelectTarget, selectableIds, selectedId, showVotes, currentSpeakerId }: Props) {
   const myPlayerId = useGameStore(s => s.myPlayerId);
+  const isNight = phase === 'night';
 
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className={clsx(
+      'grid grid-cols-2 gap-2 rounded-xl transition-all duration-700',
+      isNight && 'ring-1 ring-neon-purple/10 bg-neon-purple/3',
+    )}>
       <AnimatePresence>
         {players.map(player => {
           const isMe = player.id === myPlayerId;
@@ -76,11 +80,22 @@ export function PlayerList({ players, phase, onSelectTarget, selectableIds, sele
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1 flex-wrap">
+                  {/* Seat badge */}
+                  <span className={clsx(
+                    'flex-shrink-0 min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 text-[9px] font-mono font-bold',
+                    !player.isAlive && !player.isSpectator
+                      ? 'bg-white/5 border border-white/8 text-white/20'
+                      : isMe
+                        ? 'bg-neon-purple/20 border border-neon-purple/40 text-neon-purple/70'
+                        : 'bg-white/8 border border-white/15 text-white/45',
+                  )}>
+                    {player.seat}
+                  </span>
                   <span className={clsx(
                     'text-xs font-semibold truncate',
                     !player.isAlive ? 'line-through text-white/40' : 'text-white',
                   )}>
-                    {!player.isAlive && !player.isSpectator && '💀 '}#{player.seat} {player.name}
+                    {!player.isAlive && !player.isSpectator && '💀 '}{player.name}
                     {isMe && <span className="text-neon-purple text-[10px] ml-0.5">(you)</span>}
                   </span>
                   {player.isModerator && player.moderatorLevel && (
@@ -102,8 +117,10 @@ export function PlayerList({ players, phase, onSelectTarget, selectableIds, sele
                   {!player.isConnected && (
                     <span className="text-[10px] text-white/30">dc</span>
                   )}
-                  {phase === 'night' && player.hasActed && player.isAlive && (
-                    <span className="text-[10px] text-neon-green">✓</span>
+                  {phase === 'night' && player.isAlive && (
+                    player.hasActed
+                      ? <span className="text-[10px] text-neon-green font-bold bg-neon-green/10 px-1 rounded">✓ done</span>
+                      : <span className="text-[10px] text-neon-purple/50 animate-pulse">…</span>
                   )}
                 </div>
               </div>

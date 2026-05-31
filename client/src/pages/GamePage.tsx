@@ -22,9 +22,12 @@ import { useVoiceChat, VoiceChannel } from '@/hooks/useVoiceChat';
 import { useGameSounds, setSoundMuted, isSoundMuted, SFX } from '@/hooks/useSoundFX';
 import { PhaseTransition } from '@/components/game/PhaseTransition';
 import { PlayerGrid } from '@/components/game/PlayerGrid';
+import { EliminationCinematic } from '@/components/game/EliminationCinematic';
+import { GameEventLog } from '@/components/game/GameEventLog';
 import { useT } from '@/store/langStore';
 
 type MobileTab = 'action' | 'players' | 'chat';
+type RightTab = 'events' | 'chat';
 
 const PHASE_COLORS: Record<Phase, string> = {
   lobby:        'text-white',
@@ -36,11 +39,23 @@ const PHASE_COLORS: Record<Phase, string> = {
   game_over:    'text-white',
 };
 
+const PHASE_STRIP: Record<Phase, string> = {
+  lobby:        'rgba(255,255,255,0.05)',
+  role_reveal:  '#9b00ff',
+  night:        '#3b00cc',
+  day:          '#00c4cc',
+  speech:       '#00e5ff',
+  voting:       '#ff2d55',
+  game_over:    'rgba(255,255,255,0.1)',
+};
+
 export function GamePage() {
   const [statsPlayer, setStatsPlayer] = useState<PlayerPublic | null>(null);
   const [reportProfileId, setReportProfileId] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<MobileTab>('action');
+  const [rightTab, setRightTab] = useState<RightTab>('events');
   const [unreadChat, setUnreadChat] = useState(0);
+  const [unreadEvents, setUnreadEvents] = useState(0);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [willText, setWillText] = useState('');
   const [willSaved, setWillSaved] = useState(false);
@@ -49,6 +64,9 @@ export function GamePage() {
   const handleTransitionDone = useCallback(() => setTransitionPhase(null), []);
   const [mobileVoiceOpen, setMobileVoiceOpen] = useState(false);
   const [pendingVoteId, setPendingVoteId] = useState<string | null>(null);
+  const [eliminationVictims, setEliminationVictims] = useState<Array<{ name: string; seat: number }>>([]);
+  const handleElimDone = useCallback(() => setEliminationVictims([]), []);
+  const prevAliveRef = useRef<Map<string, boolean>>(new Map());
 
   const {
     room, myPlayer, myRole, amHost, amAlive,
@@ -128,6 +146,42 @@ export function GamePage() {
   useEffect(() => {
     if (mobileTab === 'chat') setUnreadChat(0);
   }, [mobileTab]);
+
+  // Elimination cinematic: detect when players go from alive → dead
+  useEffect(() => {
+    if (!room) return;
+    // Reset tracking on new game
+    if (room.phase === 'lobby' || room.phase === 'role_reveal') {
+      prevAliveRef.current.clear();
+      return;
+    }
+    const prev = prevAliveRef.current;
+    const newVictims: Array<{ name: string; seat: number }> = [];
+    for (const p of room.players) {
+      if (!p.isSpectator) {
+        const wasAlive = prev.get(p.id);
+        if (wasAlive === true && !p.isAlive) {
+          newVictims.push({ name: p.name, seat: p.seat });
+        }
+        prev.set(p.id, p.isAlive);
+      }
+    }
+    if (newVictims.length > 0) setEliminationVictims(newVictims);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.players]);
+
+  // Track unread events (system messages) when on chat tab
+  const eventLen = room?.chat.filter(m => m.isSystem).length ?? 0;
+  const prevEventLen = useRef(eventLen);
+  useEffect(() => {
+    if (rightTab !== 'events' && eventLen > prevEventLen.current) {
+      setUnreadEvents(u => u + eventLen - prevEventLen.current);
+    }
+    prevEventLen.current = eventLen;
+  }, [eventLen, rightTab]);
+  useEffect(() => {
+    if (rightTab === 'events') setUnreadEvents(0);
+  }, [rightTab]);
 
   // Phase transition overlay + auto-switch to best tab for each phase
   const prevPhaseForTransition = useRef<Phase | null>(null);
@@ -465,6 +519,9 @@ export function GamePage() {
       {/* Game Over */}
       {gameOverResult && <GameOver result={gameOverResult} />}
 
+      {/* Elimination cinematic */}
+      <EliminationCinematic victims={eliminationVictims} onDone={handleElimDone} />
+
       {/* Night result */}
       <NightResultOverlay result={nightResult} onDismiss={dismissNightResult} />
 
@@ -552,7 +609,13 @@ export function GamePage() {
       <div className="relative z-10 h-screen flex flex-col">
 
         {/* Top bar */}
-        <header className="flex-shrink-0 glass-panel border-b border-white/6 px-3 py-2 md:px-4 md:py-3">
+        <header className="flex-shrink-0 glass-panel border-b border-white/6">
+          {/* Phase color strip */}
+          <div
+            className="h-[2px] w-full transition-all duration-700"
+            style={{ background: PHASE_STRIP[phase], opacity: 0.85 }}
+          />
+          <div className="px-3 py-2 md:px-4 md:py-3">
           <div className="max-w-7xl mx-auto flex items-center gap-2 md:gap-4">
             {/* Phase */}
             <div className="min-w-0">
@@ -571,6 +634,13 @@ export function GamePage() {
                 <Timer seconds={room.timer} max={room.maxTimer} size="sm" />
               </div>
             )}
+
+            {/* Alive count pill */}
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-neon-green/20 bg-neon-green/5">
+              <div className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
+              <span className="text-xs font-mono text-neon-green/80 font-bold">{alivePlayers}</span>
+              <span className="text-[10px] font-mono text-white/30">alive</span>
+            </div>
 
             <div className="ml-auto flex items-center gap-1.5 md:gap-3">
               {/* Room code */}
@@ -671,6 +741,7 @@ export function GamePage() {
               </Button>
             </div>
           </div>
+          </div>
         </header>
 
         {/* ── DESKTOP layout (md+) ──────────────────────────────────── */}
@@ -702,13 +773,41 @@ export function GamePage() {
             {PhaseContentWithWill}
           </main>
 
-          {/* Chat sidebar */}
+          {/* Events + Chat sidebar */}
           <aside className="w-64 lg:w-72 flex-shrink-0 overflow-hidden p-4 border-l border-white/5 hidden lg:flex flex-col">
-            <h2 className="text-xs font-display uppercase tracking-widest text-white/40 mb-3 flex-shrink-0">
-              {t.lobby.chat}
-            </h2>
+            {/* Tab switcher */}
+            <div className="flex gap-1 mb-3 flex-shrink-0">
+              {(['events', 'chat'] as RightTab[]).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setRightTab(tab)}
+                  className={clsx(
+                    'flex-1 py-1.5 rounded-lg text-[10px] font-display font-bold tracking-widest uppercase transition-all relative',
+                    rightTab === tab
+                      ? 'bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan'
+                      : 'border border-white/8 text-white/30 hover:text-white/60',
+                  )}
+                >
+                  {tab === 'events' ? '📋' : '💬'} {tab}
+                  {tab === 'events' && unreadEvents > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-neon-cyan text-void text-[8px] flex items-center justify-center font-bold">
+                      {unreadEvents > 9 ? '9+' : unreadEvents}
+                    </span>
+                  )}
+                  {tab === 'chat' && unreadChat > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-neon-red text-white text-[8px] flex items-center justify-center font-bold">
+                      {unreadChat > 9 ? '9+' : unreadChat}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
             <div className="flex-1 min-h-0">
-              <ChatPanel compact />
+              {rightTab === 'chat' ? (
+                <ChatPanel compact />
+              ) : (
+                <GameEventLog messages={room.chat} className="h-full" />
+              )}
             </div>
           </aside>
         </div>

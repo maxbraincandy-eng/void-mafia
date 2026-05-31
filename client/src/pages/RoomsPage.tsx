@@ -74,8 +74,15 @@ export function RoomsPage() {
   };
 
   const phaseLabel: Record<string, string> = t.rooms.phase;
-
   const roomCount = rooms.length;
+
+  const timeSince = (ts: number): string => {
+    const secs = Math.floor((Date.now() - ts) / 1000);
+    if (secs < 60) return `${secs}s`;
+    const mins = Math.floor(secs / 60);
+    if (mins < 60) return `${mins}m`;
+    return `${Math.floor(mins / 60)}h`;
+  };
 
   return (
     <div className="min-h-screen bg-neon-grid-animated scanlines pb-20 relative overflow-hidden">
@@ -151,13 +158,21 @@ export function RoomsPage() {
                   transition={{ delay: i * 0.04 }}
                 >
                   <Card glow="none" padding="sm">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-mono text-neon-cyan text-sm font-bold tracking-widest">
-                            {room.code}
-                          </span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-mono ${
+                    <div className="flex items-start gap-3">
+                      {/* Host avatar circle */}
+                      <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-display font-bold border ${
+                        room.phase === 'lobby'
+                          ? 'bg-neon-cyan/10 border-neon-cyan/25 text-neon-cyan'
+                          : 'bg-neon-red/10 border-neon-red/25 text-neon-red'
+                      }`}>
+                        {room.hostName[0]?.toUpperCase() ?? '?'}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        {/* Host + phase badge */}
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="font-semibold text-white text-sm truncate">{room.hostName}</span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono flex-shrink-0 ${
                             room.phase === 'lobby'
                               ? 'bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/20'
                               : 'bg-neon-red/10 text-neon-red border border-neon-red/20'
@@ -165,30 +180,44 @@ export function RoomsPage() {
                             {phaseLabel[room.phase] ?? room.phase}
                           </span>
                         </div>
-                        <p className="text-white/40 text-xs font-mono">
-                          {t.rooms.host}: {room.hostName} · {room.playerCount} {t.rooms.players}
-                        </p>
+
+                        {/* Code + meta */}
+                        <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
+                          <span className="font-mono text-neon-cyan/60 font-bold tracking-widest">{room.code}</span>
+                          <span className="text-white/15">·</span>
+                          <span className="text-white/40 font-mono">{room.playerCount} {t.rooms.players}</span>
+                          <span className="text-white/15">·</span>
+                          <span className="text-white/25 font-mono">{timeSince(room.createdAt)} ago</span>
+                        </div>
+
+                        {/* Player count dots */}
+                        <div className="flex items-center gap-0.5 mt-1.5">
+                          {Array.from({ length: Math.min(room.playerCount, 14) }).map((_, j) => (
+                            <div
+                              key={j}
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                room.phase === 'lobby' ? 'bg-neon-cyan/40' : 'bg-neon-red/40'
+                              }`}
+                            />
+                          ))}
+                          {room.playerCount > 14 && (
+                            <span className="text-[9px] text-white/25 font-mono ml-0.5">+{room.playerCount - 14}</span>
+                          )}
+                        </div>
                       </div>
 
-                      {room.phase === 'lobby' ? (
-                        <Button
-                          size="sm"
-                          variant="neon-cyan"
-                          loading={isLoading}
-                          onClick={() => setSpectatorModal(room)}
-                        >
-                          {t.rooms.joinCode}
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          loading={isLoading}
-                          onClick={() => handleQuickJoin(room, true)}
-                        >
-                          👁 Watch
-                        </Button>
-                      )}
+                      {/* Action */}
+                      <div className="flex-shrink-0 self-center">
+                        {room.phase === 'lobby' ? (
+                          <Button size="sm" variant="neon-cyan" loading={isLoading} onClick={() => setSpectatorModal(room)}>
+                            {t.rooms.joinCode}
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="ghost" loading={isLoading} onClick={() => handleQuickJoin(room, true)}>
+                            👁 Watch
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </Card>
                 </motion.div>
