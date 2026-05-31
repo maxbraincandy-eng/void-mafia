@@ -1,11 +1,13 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
 import { ModBadge } from '@/components/ui/ModBadge';
+import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 
 export function ProfilePage() {
   const { profile, username, logout, localAvatar, setLocalAvatar } = useAuthStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showRoleGuide, setShowRoleGuide] = useState(false);
 
   if (!profile) return null;
 
@@ -87,23 +89,53 @@ export function ProfilePage() {
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Stats grid */}
+          <div className="grid grid-cols-4 gap-2 mb-4">
             {[
-              { label: 'Games', value: stats.gamesPlayed, color: 'text-neon-cyan' },
-              { label: 'Wins', value: stats.wins, color: 'text-neon-green' },
+              { label: 'Games',    value: stats.gamesPlayed, color: 'text-neon-cyan' },
+              { label: 'Wins',     value: stats.wins,        color: 'text-neon-green' },
+              { label: 'Losses',   value: stats.losses,      color: 'text-neon-red/80' },
               { label: 'Win Rate', value: `${stats.winRate}%`, color: 'text-neon-pink' },
             ].map(s => (
-              <div key={s.label} className="glass-panel border border-white/5 rounded-xl p-3 text-center">
-                <p className={`font-display font-bold text-2xl ${s.color}`}>{s.value}</p>
-                <p className="text-white/30 text-xs font-mono mt-0.5">{s.label}</p>
+              <div key={s.label} className="glass-panel border border-white/5 rounded-xl p-2.5 text-center">
+                <p className={`font-display font-bold text-xl ${s.color}`}>{s.value}</p>
+                <p className="text-white/30 text-[10px] font-mono mt-0.5">{s.label}</p>
               </div>
             ))}
           </div>
+
+          {/* Win/Loss bar */}
+          {stats.gamesPlayed > 0 && (
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-[10px] font-mono text-white/30">
+                <span>{stats.wins} wins</span>
+                <span>{stats.losses} losses</span>
+              </div>
+              <div className="h-2 rounded-full bg-white/8 overflow-hidden flex">
+                <div
+                  className="h-full bg-gradient-to-r from-neon-green to-neon-cyan rounded-l-full transition-all"
+                  style={{ width: `${stats.winRate}%` }}
+                />
+                <div
+                  className="h-full bg-neon-red/40 rounded-r-full flex-1"
+                />
+              </div>
+            </div>
+          )}
+        </motion.div>
+
+        {/* Role Guide */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 0.25 } }} className="mb-3">
+          <button
+            onClick={() => setShowRoleGuide(true)}
+            className="w-full py-3 border border-neon-cyan/20 text-neon-cyan/70 font-display font-bold tracking-widest rounded-xl hover:bg-neon-cyan/8 transition-all text-sm flex items-center justify-center gap-2"
+          >
+            📖 Role Guide
+          </button>
         </motion.div>
 
         {/* Logout */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 0.2 } }}>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 0.3 } }}>
           <button
             onClick={logout}
             className="w-full py-3 border border-neon-red/30 text-neon-red font-display font-bold tracking-widest rounded-xl hover:bg-neon-red/10 transition-all text-sm"
@@ -112,6 +144,8 @@ export function ProfilePage() {
           </button>
         </motion.div>
       </div>
+
+      <RoleInfoModal open={showRoleGuide} onClose={() => setShowRoleGuide(false)} />
     </div>
   );
 }

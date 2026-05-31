@@ -1,10 +1,15 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { PlayerPublic, RoleKey } from '@/types/index';
+import { RoleKey } from '@/types/index';
 import { useGameStore } from '@/store/gameStore';
 import { useT } from '@/store/langStore';
 import { PlayerList } from './PlayerList';
 import { Button } from '@/components/ui/Button';
+
+const WAKE_ROLES = new Set<RoleKey>([
+  'mafia', 'don', 'sheriff', 'doctor', 'bodyguard', 'maniac', 'vigilante',
+  'escort', 'tracker', 'veteran', 'arsonist', 'cult_leader',
+]);
 
 export function NightPanel() {
   const { room, myPlayer, myRole, submitNightAction, isLoading } = useGameStore(s => ({
@@ -20,9 +25,9 @@ export function NightPanel() {
 
   if (!room || !myPlayer) return null;
 
-  const role = myPlayer.role;
+  const role = myPlayer.role as RoleKey | undefined;
   const hasActed = myPlayer.hasActed;
-  const wakeAtNight = role && ['mafia', 'don', 'sheriff', 'doctor', 'bodyguard', 'maniac', 'vigilante', 'escort'].includes(role);
+  const wakeAtNight = role && WAKE_ROLES.has(role);
 
   if (!wakeAtNight) {
     const isSpy = role === 'spy';
@@ -57,30 +62,61 @@ export function NightPanel() {
     );
   }
 
-  // Determine valid targets
-  const alivePlayers = room.players.filter(p => p.isAlive);
-  const targetablePlayers = alivePlayers.filter(p => {
+  const nightRoleDesc = t.game.nightRoleDesc as Record<string, string>;
+  const nightActions  = t.game.nightActions  as Record<string, string>;
+  const roleDesc = nightRoleDesc[role ?? ''] ?? t.game.night.actionDefault;
+
+  // ── Veteran: single "Go on Alert" button, self-targets ───────────
+  if (role === 'veteran') {
+    return (
+      <div className="space-y-4">
+        <div className="p-3 rounded-xl border border-white/8 bg-void-50/40">
+          <p className="text-xs font-mono text-white/40 uppercase tracking-widest mb-1">{t.game.night.objective}</p>
+          <p className="text-sm text-white/80">{roleDesc}</p>
+        </div>
+        <Button
+          fullWidth
+          variant="danger"
+          loading={isLoading}
+          onClick={() => submitNightAction(myPlayer.id)}
+        >
+          🎖️ {nightActions['alert'] ?? 'Go on Alert'}
+        </Button>
+      </div>
+    );
+  }
+
+  // ── Determine valid targets ───────────────────────────────────────
+  const targetablePlayers = room.players.filter(p => {
+    if (!p.isAlive) return false;
     if (p.id === myPlayer.id) return false;
     if ((role === 'mafia' || role === 'don') && p.team === 'mafia') return false;
+    if (role === 'cult_leader' && p.team === 'cult') return false;
     return true;
   });
 
-  // Doctor and bodyguard can include self as a target
+  // Doctor/Bodyguard can protect themselves
   const targets = (role === 'doctor' || role === 'bodyguard')
-    ? [myPlayer, ...targetablePlayers.filter(p => p.id !== myPlayer.id)]
+    ? [myPlayer, ...targetablePlayers]
     : targetablePlayers;
 
   const selectableIds = new Set(targets.map(p => p.id));
 
   const actionLabel =
-    role === 'sheriff'   ? t.game.nightActions.investigate
-    : role === 'doctor'  ? t.game.nightActions.protect
-    : role === 'bodyguard' ? t.game.nightActions.guard
-    : role === 'escort'  ? t.game.nightActions.distract
-    : t.game.nightActions.eliminate;
+    role === 'sheriff'     ? nightActions['investigate'] ?? 'Investigate'
+    : role === 'doctor'   ? nightActions['protect']     ?? 'Protect'
+    : role === 'bodyguard' ? nightActions['guard']      ?? 'Guard'
+    : role === 'escort'   ? nightActions['distract']    ?? 'Distract'
+    : role === 'tracker'  ? nightActions['track']       ?? 'Track'
+    : role === 'arsonist' ? nightActions['douse']       ?? 'Douse'
+    : role === 'cult_leader' ? nightActions['convert']  ?? 'Convert'
+    : nightActions['eliminate'] ?? 'Eliminate';
 
-  const roleDesc = t.game.nightRoleDesc[role as keyof typeof t.game.nightRoleDesc]
-    ?? t.game.night.actionDefault;
+  const confirmVariant =
+    role === 'doctor' || role === 'bodyguard' ? 'neon-green'
+    : role === 'sheriff' || role === 'tracker' ? 'neon-cyan'
+    : role === 'cult_leader' ? 'neon-purple'
+    : 'neon-pink';
 
   return (
     <div className="space-y-4">
@@ -97,6 +133,18 @@ export function NightPanel() {
         selectedId={selectedId}
       />
 
+      {/* Arsonist: always-visible Ignite button (self-target) */}
+      {role === 'arsonist' && (
+        <Button
+          fullWidth
+          variant="danger"
+          loading={isLoading}
+          onClick={() => submitNightAction(myPlayer.id)}
+        >
+          🔥 {nightActions['ignite'] ?? 'Ignite All Doused'}
+        </Button>
+      )}
+
       {selectedId && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -105,8 +153,8 @@ export function NightPanel() {
           <Button
             fullWidth
             loading={isLoading}
-            onClick={() => submitNightAction(selectedId)}
-            variant={role === 'doctor' ? 'neon-green' : role === 'sheriff' ? 'neon-cyan' : 'neon-pink'}
+            onClick={() => { submitNightAction(selectedId); setSelectedId(null); }}
+            variant={confirmVariant}
           >
             {actionLabel}: {room.players.find(p => p.id === selectedId)?.name}
           </Button>

@@ -16,6 +16,7 @@ import { NightResultOverlay } from '@/components/game/NightResultOverlay';
 import { PlayerStatsModal } from '@/components/ui/PlayerStatsModal';
 import { ReportModal } from '@/components/ui/ReportModal';
 import { LeaderboardModal } from '@/components/ui/LeaderboardModal';
+import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { useVoiceChat, VoiceChannel } from '@/hooks/useVoiceChat';
@@ -66,6 +67,7 @@ export function GamePage() {
   const [unreadChat, setUnreadChat] = useState(0);
   const [unreadEvents, setUnreadEvents] = useState(0);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showRoleGuide, setShowRoleGuide] = useState(false);
   const [willText, setWillText] = useState('');
   const [willSaved, setWillSaved] = useState(false);
   const [soundMuted, setSoundMutedState] = useState(isSoundMuted());
@@ -522,6 +524,9 @@ export function GamePage() {
       {/* Leaderboard */}
       <LeaderboardModal open={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
 
+      {/* Role Guide */}
+      <RoleInfoModal open={showRoleGuide} onClose={() => setShowRoleGuide(false)} />
+
       {/* Phase transition overlay */}
       <PhaseTransition phase={transitionPhase} onDone={handleTransitionDone} />
 
@@ -705,6 +710,15 @@ export function GamePage() {
                   compact
                 />
               )}
+
+              {/* Role Guide button */}
+              <button
+                onClick={() => setShowRoleGuide(true)}
+                className="flex items-center px-2 py-1 rounded-lg text-white/30 hover:text-white/70 transition-colors text-sm"
+                title="Role Guide"
+              >
+                📖
+              </button>
 
               {/* Leaderboard button */}
               <button
