@@ -86,7 +86,7 @@ function startPhaseTimer(io: AppServer, room: Room): void {
       const wasNight = room.phase === 'night';
       if (room.phase === 'voting') announceVoteResult(io, room);
       advancePhase(room); const nextPhase = room.phase as Phase;
-      if (wasNight) { announceNightResult(io, room); notifySpies(io, room); notifyTrackers(io, room); notifyCultConversions(io, room); }
+      if (wasNight) { announceNightResult(io, room); notifySpies(io, room); notifyTrackers(io, room); notifyCultConversions(io, room); notifyRoleblocked(io, room); }
       if (nextPhase === 'game_over') emitGameOver(io, room);
       broadcastRoom(io, room);
       if (room.phase !== 'game_over') startPhaseTimer(io, room);
@@ -192,12 +192,29 @@ function announceVoteResult(io: AppServer, room: Room): void {
   if (eliminated) {
     const target = room.players.get(eliminated);
     if (target) {
+      // Broadcast overlay event so clients can show a cinematic
+      io.to(room.id).emit('game:vote_result', {
+        name: target.name,
+        role: target.role ?? null,
+        lastWill: target.lastWill ?? null,
+        seat: target.seat,
+      });
       let msg = `${target.name} was eliminated by vote.`;
       if (target.lastWill) msg += `\n📜 Last Will: "${target.lastWill}"`;
       broadcastSystemMsg(io, room, msg);
     }
   } else {
     broadcastSystemMsg(io, room, 'The vote ended in a tie. No one was eliminated.');
+  }
+}
+
+function notifyRoleblocked(io: AppServer, room: Room): void {
+  const escortActions = [...room.nightActions.values()].filter(a => a.role === 'escort');
+  for (const action of escortActions) {
+    const blocked = room.players.get(action.targetId);
+    if (blocked?.isAlive && blocked.socketId) {
+      io.to(blocked.socketId).emit('game:roleblocked');
+    }
   }
 }
 
@@ -480,6 +497,7 @@ export function attachSocketHandlers(io: AppServer): void {
           notifySpies(io, room);
           notifyTrackers(io, room);
           notifyCultConversions(io, room);
+          notifyRoleblocked(io, room);
           if (nextPhase === 'game_over') emitGameOver(io, room);
           broadcastRoom(io, room);
           if (room.phase !== 'game_over') startPhaseTimer(io, room);
@@ -515,7 +533,7 @@ export function attachSocketHandlers(io: AppServer): void {
         if (room.phase === 'voting') announceVoteResult(io, room);
 
         advancePhase(room); const nextPhase = room.phase as Phase;
-        if (wasNightSkip) { announceNightResult(io, room); notifySpies(io, room); }
+        if (wasNightSkip) { announceNightResult(io, room); notifySpies(io, room); notifyTrackers(io, room); notifyCultConversions(io, room); notifyRoleblocked(io, room); }
         if (nextPhase === 'game_over') emitGameOver(io, room);
         broadcastRoom(io, room);
         if (nextPhase !== 'game_over') startPhaseTimer(io, room);

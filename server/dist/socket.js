@@ -56,6 +56,7 @@ function startPhaseTimer(io, room) {
             notifySpies(io, room);
             notifyTrackers(io, room);
             notifyCultConversions(io, room);
+            notifyRoleblocked(io, room);
         }
         if (nextPhase === 'game_over')
             emitGameOver(io, room);
@@ -161,6 +162,13 @@ function announceVoteResult(io, room) {
     if (eliminated) {
         const target = room.players.get(eliminated);
         if (target) {
+            // Broadcast overlay event so clients can show a cinematic
+            io.to(room.id).emit('game:vote_result', {
+                name: target.name,
+                role: target.role ?? null,
+                lastWill: target.lastWill ?? null,
+                seat: target.seat,
+            });
             let msg = `${target.name} was eliminated by vote.`;
             if (target.lastWill)
                 msg += `\n📜 Last Will: "${target.lastWill}"`;
@@ -169,6 +177,15 @@ function announceVoteResult(io, room) {
     }
     else {
         broadcastSystemMsg(io, room, 'The vote ended in a tie. No one was eliminated.');
+    }
+}
+function notifyRoleblocked(io, room) {
+    const escortActions = [...room.nightActions.values()].filter(a => a.role === 'escort');
+    for (const action of escortActions) {
+        const blocked = room.players.get(action.targetId);
+        if (blocked?.isAlive && blocked.socketId) {
+            io.to(blocked.socketId).emit('game:roleblocked');
+        }
     }
 }
 // ── Main ──────────────────────────────────────────────────────────────
@@ -446,6 +463,7 @@ export function attachSocketHandlers(io) {
                     notifySpies(io, room);
                     notifyTrackers(io, room);
                     notifyCultConversions(io, room);
+                    notifyRoleblocked(io, room);
                     if (nextPhase === 'game_over')
                         emitGameOver(io, room);
                     broadcastRoom(io, room);
@@ -490,6 +508,9 @@ export function attachSocketHandlers(io) {
                 if (wasNightSkip) {
                     announceNightResult(io, room);
                     notifySpies(io, room);
+                    notifyTrackers(io, room);
+                    notifyCultConversions(io, room);
+                    notifyRoleblocked(io, room);
                 }
                 if (nextPhase === 'game_over')
                     emitGameOver(io, room);

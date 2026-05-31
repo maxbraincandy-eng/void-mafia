@@ -158,6 +158,12 @@ export function NightResultOverlay({ result, onDismiss }: Props) {
                         <p className="text-[10px] font-mono text-white/30 mt-0.5 tracking-widest">
                           {t.game.dawn.foundDead}
                         </p>
+                        {k.lastWill && (
+                          <div className="mt-2 px-2 py-1.5 bg-white/4 border border-white/8 rounded-lg">
+                            <p className="text-[9px] font-mono uppercase tracking-widest text-white/25 mb-0.5">📜 Last Will</p>
+                            <p className="text-xs text-white/60 italic leading-snug">"{k.lastWill}"</p>
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   ))}

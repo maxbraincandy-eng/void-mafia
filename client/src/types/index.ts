@@ -163,8 +163,15 @@ export interface RoomListItem {
 }
 
 export interface NightResult {
-  killed: Array<{ id: string; name: string }>;
+  killed: Array<{ id: string; name: string; lastWill?: string | null }>;
   saved: boolean;
+}
+
+export interface VoteEliminationResult {
+  name: string;
+  role: string | null;
+  lastWill: string | null;
+  seat: number;
 }
 
 export interface InvestigationResult {

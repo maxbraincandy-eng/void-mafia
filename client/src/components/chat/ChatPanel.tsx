@@ -146,10 +146,15 @@ function MessageBubble({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
       animate={{ opacity: 1, x: 0 }}
       className={clsx('flex flex-col gap-0.5', isMe ? 'items-end' : 'items-start')}
     >
-      <span className={clsx('text-xs font-mono', isMafiaMsg ? 'text-neon-pink/70' : 'text-neon-cyan/60')}>
-        {msg.seat ? `#${msg.seat} ` : ''}{msg.senderName}
-        {msg.isMod && <span className="ml-1 text-[9px] font-bold text-neon-green border border-neon-green/30 px-1 rounded bg-neon-green/10">MOD</span>}
-      </span>
+      <div className="flex items-baseline gap-1.5">
+        <span className={clsx('text-xs font-mono', isMafiaMsg ? 'text-neon-pink/70' : 'text-neon-cyan/60')}>
+          {msg.seat ? `#${msg.seat} ` : ''}{msg.senderName}
+          {msg.isMod && <span className="ml-1 text-[9px] font-bold text-neon-green border border-neon-green/30 px-1 rounded bg-neon-green/10">MOD</span>}
+        </span>
+        <span className="text-[9px] font-mono text-white/15">
+          {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      </div>
       <div
         className={clsx(
           'max-w-[80%] px-3 py-2 rounded-xl text-sm break-words',

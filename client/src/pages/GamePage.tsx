@@ -26,6 +26,8 @@ import { PlayerGrid } from '@/components/game/PlayerGrid';
 import { EliminationCinematic } from '@/components/game/EliminationCinematic';
 import { GameEventLog } from '@/components/game/GameEventLog';
 import { PhaseAtmosphere } from '@/components/game/PhaseAtmosphere';
+import { VoteEliminationOverlay } from '@/components/game/VoteEliminationOverlay';
+import { CultConversionOverlay } from '@/components/game/CultConversionOverlay';
 import { useT } from '@/store/langStore';
 
 type MobileTab = 'action' | 'players' | 'chat';
@@ -82,7 +84,9 @@ export function GamePage() {
   const {
     room, myPlayer, myRole, amHost, amAlive,
     nightResult, investigationResult, spyReport, gameOverResult,
+    voteEliminationResult, cultConversionNotice,
     skipPhase, daySkipVote, leaveRoom, dismissNightResult, dismissInvestigation, dismissSpyReport, dismissGameOver,
+    dismissVoteElimination, dismissCultConversion,
     setWill, pauseTimer, submitVote,
     isLoading,
   } = useGameStore(s => ({
@@ -95,6 +99,8 @@ export function GamePage() {
     investigationResult: s.investigationResult,
     spyReport: s.spyReport,
     gameOverResult: s.gameOverResult,
+    voteEliminationResult: s.voteEliminationResult,
+    cultConversionNotice: s.cultConversionNotice,
     skipPhase: s.skipPhase,
     daySkipVote: s.daySkipVote,
     leaveRoom: s.leaveRoom,
@@ -102,6 +108,8 @@ export function GamePage() {
     dismissInvestigation: s.dismissInvestigation,
     dismissSpyReport: s.dismissSpyReport,
     dismissGameOver: s.dismissGameOver,
+    dismissVoteElimination: s.dismissVoteElimination,
+    dismissCultConversion: s.dismissCultConversion,
     setWill: s.setWill,
     pauseTimer: s.pauseTimer,
     submitVote: s.submitVote,
@@ -526,6 +534,12 @@ export function GamePage() {
 
       {/* Role Guide */}
       <RoleInfoModal open={showRoleGuide} onClose={() => setShowRoleGuide(false)} />
+
+      {/* Vote elimination cinematic */}
+      <VoteEliminationOverlay result={voteEliminationResult} onDismiss={dismissVoteElimination} />
+
+      {/* Cult conversion notification */}
+      <CultConversionOverlay visible={cultConversionNotice} onDismiss={dismissCultConversion} />
 
       {/* Phase transition overlay */}
       <PhaseTransition phase={transitionPhase} onDone={handleTransitionDone} />

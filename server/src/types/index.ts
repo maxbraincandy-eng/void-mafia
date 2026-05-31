@@ -338,6 +338,8 @@ export interface ServerToClientEvents {
   'kicked':             (data: { reason: string }) => void;
   'player:profile':     (profile: PlayerProfilePublic) => void;
   'spy:night_report':   (data: { mafiaTarget: string | null; mafiaTargetName: string | null }) => void;
+  'game:vote_result':   (data: { name: string; role: string | null; lastWill: string | null; seat: number }) => void;
+  'game:roleblocked':   () => void;
   'mod:notification':   (data: { type: string; message: string; targetName?: string }) => void;
   'warning:received':   (data: { reason: string; moderatorName: string }) => void;
   'ban:received':       (data: { reason: string; expiresAt: number }) => void;

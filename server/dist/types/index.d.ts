@@ -293,6 +293,13 @@ export interface ServerToClientEvents {
         mafiaTarget: string | null;
         mafiaTargetName: string | null;
     }) => void;
+    'game:vote_result': (data: {
+        name: string;
+        role: string | null;
+        lastWill: string | null;
+        seat: number;
+    }) => void;
+    'game:roleblocked': () => void;
     'mod:notification': (data: {
         type: string;
         message: string;
