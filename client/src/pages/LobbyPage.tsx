@@ -11,6 +11,7 @@ import { ReportModal } from '@/components/ui/ReportModal';
 import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { RolePickerPanel } from '@/components/lobby/RolePickerPanel';
+import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
 import { PlayerPublic } from '@/types/index';
 
@@ -32,6 +33,7 @@ export function LobbyPage() {
   }));
 
   const [showSettings, setShowSettings] = useState(false);
+  const [showRoleGuide, setShowRoleGuide] = useState(false);
   const [statsPlayer, setStatsPlayer] = useState<PlayerPublic | null>(null);
   const [reportProfileId, setReportProfileId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -105,9 +107,17 @@ export function LobbyPage() {
             </div>
           </div>
 
-          {/* Right: Room code */}
+          {/* Right: Role guide + Room code */}
           <div className="text-right flex-shrink-0">
-            <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest mb-1.5">Room Code</p>
+            <div className="flex items-center justify-end gap-2 mb-1.5">
+              <button
+                onClick={() => setShowRoleGuide(true)}
+                className="text-[10px] font-mono text-white/35 hover:text-neon-cyan/80 border border-white/8 hover:border-neon-cyan/30 px-2 py-0.5 rounded-md transition-all"
+              >
+                📖 Roles
+              </button>
+              <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest">Room Code</p>
+            </div>
             <button
               onClick={handleCopy}
               className="group flex items-center gap-2 justify-end"
@@ -471,6 +481,7 @@ export function LobbyPage() {
           onSuccess={() => setReportProfileId(null)}
         />
       )}
+      <RoleInfoModal open={showRoleGuide} onClose={() => setShowRoleGuide(false)} />
     </div>
   );
 }
