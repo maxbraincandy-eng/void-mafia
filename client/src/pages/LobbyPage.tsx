@@ -1,18 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
 import { useT } from '@/store/langStore';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
 import { ChatPanel } from '@/components/chat/ChatPanel';
 import { PlayerStatsModal } from '@/components/ui/PlayerStatsModal';
 import { ReportModal } from '@/components/ui/ReportModal';
 import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
+import { RolePickerPanel } from '@/components/lobby/RolePickerPanel';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
-import { GameSettings, PlayerPublic } from '@/types/index';
+import { PlayerPublic } from '@/types/index';
 
 export function LobbyPage() {
   const {
@@ -35,21 +35,17 @@ export function LobbyPage() {
   const [statsPlayer, setStatsPlayer] = useState<PlayerPublic | null>(null);
   const [reportProfileId, setReportProfileId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  // Inline confirm state for host transfer
   const [confirmTransferId, setConfirmTransferId] = useState<string | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const t = useT();
   const voice = useVoiceChat();
   const autoJoined = useRef(false);
 
-  // Auto-join room voice if mic permission was already granted
   useEffect(() => {
     if (!room?.id || autoJoined.current || voice.channel) return;
     autoJoined.current = true;
     navigator.permissions?.query({ name: 'microphone' as PermissionName })
-      .then(result => {
-        if (result.state === 'granted') voice.joinVoice('room');
-      })
+      .then(result => { if (result.state === 'granted') voice.joinVoice('room'); })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id]);
@@ -61,165 +57,261 @@ export function LobbyPage() {
   const playerCount = activePlayers.length;
   const minPlayers = room.settings.minPlayers;
   const canStart = amHost && playerCount >= minPlayers;
-  const allReady = activePlayers.filter(p => !p.isHost).every(p => p.isReady);
+  const readyCount = activePlayers.filter(p => !p.isHost && p.isReady).length;
+  const nonHostCount = activePlayers.filter(p => !p.isHost).length;
+  const allReady = nonHostCount > 0 && readyCount === nonHostCount;
+  const readyPct = nonHostCount > 0 ? (readyCount / nonHostCount) * 100 : 0;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(`https://voidmafia.one/join/${room.code}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <div className="min-h-screen bg-neon-grid-animated scanlines relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-64 h-64 bg-neon-purple/10 rounded-full blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-48 h-48 bg-neon-cyan/8 rounded-full blur-[80px] pointer-events-none" />
+      {/* Ambient glows */}
+      <div className="absolute top-0 right-0 w-72 h-72 bg-neon-purple/8 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-56 h-56 bg-neon-cyan/6 rounded-full blur-[100px] pointer-events-none" />
 
-      <div className="relative z-10 max-w-5xl mx-auto px-4 py-8">
-        {/* Header */}
+      <div className="relative z-10 max-w-5xl mx-auto px-4 py-6">
+
+        {/* ── Top bar ──────────────────────────────────────────────── */}
         <motion.div
-          initial={{ opacity: 0, y: -10 }}
+          initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between mb-8 pr-20"
+          className="flex items-start justify-between mb-6 gap-4"
         >
+          {/* Left: Title + status */}
           <div>
-            <h1 className="font-display text-4xl font-bold gradient-text tracking-wide">VOID MAFIA</h1>
-            <p className="text-neon-green/50 font-mono text-xs tracking-widest">{t.common.poweredBy}</p>
-            <p className="text-white/40 text-sm font-mono mt-1">{t.lobby.subtitle}</p>
+            <h1 className="font-display text-3xl font-bold gradient-text tracking-wide leading-none mb-1">
+              VOID MAFIA
+            </h1>
+            <p className="text-neon-green/50 font-mono text-[10px] tracking-widest mb-2">
+              {t.common?.poweredBy ?? 'powered by ბატონი მაქსი'}
+            </p>
+            {/* Status chip */}
+            <div className={clsx(
+              'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-mono uppercase tracking-widest',
+              allReady && canStart
+                ? 'border-neon-green/40 bg-neon-green/8 text-neon-green'
+                : 'border-white/10 bg-white/4 text-white/40',
+            )}>
+              <span className={clsx(
+                'w-1.5 h-1.5 rounded-full',
+                allReady && canStart ? 'bg-neon-green animate-pulse' : 'bg-white/30',
+              )} />
+              {allReady && canStart ? 'All ready — start game' : `Waiting for players · ${playerCount}/${minPlayers}`}
+            </div>
           </div>
 
-          {/* Room code */}
-          <div className="text-right">
-            <p className="text-xs font-mono text-white/40 uppercase tracking-widest mb-1">Room Code</p>
-            <div className="flex items-center gap-2 justify-end">
-              <div className="glass-card border border-neon-cyan/30 px-4 py-2 shadow-neon-cyan">
-                <span className="font-mono text-2xl font-bold text-neon-cyan text-glow-cyan tracking-[0.3em]">
+          {/* Right: Room code */}
+          <div className="text-right flex-shrink-0">
+            <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest mb-1.5">Room Code</p>
+            <button
+              onClick={handleCopy}
+              className="group flex items-center gap-2 justify-end"
+              title="Click to copy invite link"
+            >
+              <div
+                className="glass-card border border-neon-cyan/30 px-4 py-2 group-hover:border-neon-cyan/60 transition-all"
+                style={{ boxShadow: '0 0 16px rgba(0,245,255,0.08)' }}
+              >
+                <span className="font-mono text-2xl font-bold text-neon-cyan tracking-[0.3em]"
+                  style={{ textShadow: '0 0 16px rgba(0,245,255,0.5)' }}>
                   {room.code}
                 </span>
               </div>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(`https://voidmafia.one/join/${room.code}`);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                }}
-                className="text-xs font-mono px-2 py-1 rounded border border-neon-cyan/30 text-neon-cyan/70 hover:text-neon-cyan hover:border-neon-cyan/60 transition-colors bg-void-50/40"
-              >
-                {copied ? 'Copied!' : 'Copy link'}
-              </button>
-            </div>
+              <span className={clsx(
+                'text-[10px] font-mono px-2.5 py-1.5 rounded-lg border transition-all',
+                copied
+                  ? 'border-neon-green/40 bg-neon-green/10 text-neon-green'
+                  : 'border-white/10 bg-white/4 text-white/40 group-hover:border-neon-cyan/30 group-hover:text-neon-cyan/70',
+              )}>
+                {copied ? '✓ Copied' : '⎘ Copy'}
+              </span>
+            </button>
             {room.settings.isPrivate && (
-              <span className="text-xs text-neon-pink/70 font-mono mt-1 block">🔒 PRIVATE</span>
+              <p className="text-[10px] text-neon-pink/60 font-mono mt-1.5 tracking-widest">🔒 PRIVATE</p>
             )}
           </div>
         </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Players */}
+        {/* ── Main grid ───────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+          {/* Players column */}
           <div className="lg:col-span-2 space-y-4">
-            <Card glow="cyan" padding="md">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-display font-bold text-sm text-white/50 tracking-widest uppercase">
-                  {t.lobby.players}
-                </h2>
-                <span className="text-sm font-mono text-white/40">
-                  {playerCount}/{minPlayers} {t.lobby.min}
-                </span>
-              </div>
 
-              <div className="space-y-2">
-                {room.players.map((player, i) => (
-                  <motion.div
-                    key={player.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    className={clsx(
-                      'flex items-center gap-4 p-4 rounded-xl border transition-all cursor-pointer',
-                      player.id === myPlayer?.id
-                        ? 'border-neon-purple/30 bg-neon-purple/5'
-                        : 'border-white/5 bg-void-50/40 hover:border-neon-cyan/20 hover:bg-neon-cyan/5',
-                    )}
-                    onClick={() => player.id !== myPlayer?.id && setStatsPlayer(player)}
-                  >
-                    <Avatar name={player.name} isHost={player.isHost} size="md" />
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={clsx(
-                          'text-base font-semibold truncate',
-                          player.isModerator ? 'text-neon-green' : 'text-white',
-                        )}>
-                          {player.name}
-                        </span>
-                        {player.id === myPlayer?.id && (
-                          <span className="text-xs text-neon-purple">{t.common.you}</span>
-                        )}
-                        {!player.isConnected && (
-                          <span className="text-xs text-white/30">disconnected</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {player.isHost ? (
-                          <span className="text-[11px] text-yellow-400 font-mono">{t.common.host}</span>
-                        ) : player.isSpectator ? (
-                          <span className="text-[11px] text-neon-purple/70 font-mono">👁 watching</span>
-                        ) : (
-                          <span className={clsx('text-[11px] font-mono',
-                            player.isReady ? 'text-neon-green' : 'text-white/30',
-                          )}>
-                            {player.isReady ? '✓ READY' : 'not ready'}
-                          </span>
-                        )}
-                      </div>
+            {/* Player list card */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className="glass-panel border border-white/8 rounded-2xl p-4"
+            >
+              {/* Card header */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xs font-display font-bold text-white/50 tracking-widest uppercase">
+                    {t.lobby.players}
+                  </h2>
+                  <span className="text-[10px] font-mono text-white/25">{playerCount} joined</span>
+                </div>
+                {/* Readiness bar */}
+                {nonHostCount > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono text-white/30">{readyCount}/{nonHostCount} ready</span>
+                    <div className="w-20 h-1.5 bg-white/8 rounded-full overflow-hidden">
+                      <motion.div
+                        className={clsx('h-full rounded-full', allReady ? 'bg-neon-green' : 'bg-neon-cyan/60')}
+                        animate={{ width: `${readyPct}%` }}
+                        transition={{ duration: 0.4 }}
+                      />
                     </div>
-
-                    {/* Host controls: transfer host + kick */}
-                    {amHost && player.id !== myPlayer?.id && (
-                      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                        {confirmTransferId === player.id ? (
-                          /* Inline confirm */
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-white/40 font-mono">make host?</span>
-                            <button
-                              onClick={() => { transferHost(player.id); setConfirmTransferId(null); }}
-                              disabled={isLoading}
-                              className="text-[11px] px-1.5 py-0.5 rounded border border-yellow-400/40 text-yellow-400 hover:bg-yellow-400/10 transition-colors disabled:opacity-40"
-                            >
-                              ✓
-                            </button>
-                            <button
-                              onClick={() => setConfirmTransferId(null)}
-                              className="text-[11px] px-1.5 py-0.5 rounded border border-white/15 text-white/30 hover:text-white/60 transition-colors"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setConfirmTransferId(player.id)}
-                            className="text-white/20 hover:text-yellow-400 text-sm transition-colors px-1.5 py-0.5 rounded"
-                            title="Make host"
-                          >
-                            👑
-                          </button>
-                        )}
-                        <button
-                          onClick={() => kickPlayer(player.id)}
-                          className="text-white/20 hover:text-neon-red text-xs transition-colors px-2 py-1 rounded"
-                        >
-                          kick
-                        </button>
-                      </div>
-                    )}
-
-                    <span className="text-xs font-mono text-white/25">#{player.seat}</span>
-                  </motion.div>
-                ))}
+                  </div>
+                )}
               </div>
 
-              {playerCount < minPlayers && (
-                <p className="text-center text-xs text-neon-cyan/60 font-mono mt-4 pt-4 border-t border-white/5">
-                  {minPlayers - playerCount} {minPlayers - playerCount === 1 ? t.lobby.needMore : t.lobby.needMorePlural}
-                </p>
-              )}
-            </Card>
+              {/* Player rows */}
+              <div className="space-y-1.5">
+                {room.players.map((player, i) => {
+                  const isMe = player.id === myPlayer?.id;
+                  return (
+                    <motion.div
+                      key={player.id}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.06 + i * 0.04 }}
+                      onClick={() => !isMe && setStatsPlayer(player)}
+                      className={clsx(
+                        'flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all',
+                        isMe
+                          ? 'border-neon-purple/25 bg-neon-purple/6'
+                          : !player.isSpectator
+                            ? 'border-white/6 bg-white/2 hover:border-neon-cyan/20 hover:bg-neon-cyan/3 cursor-pointer'
+                            : 'border-white/4 bg-white/1 opacity-60',
+                      )}
+                    >
+                      {/* Seat badge */}
+                      <div className="w-6 h-6 rounded-full bg-white/6 border border-white/10 flex items-center justify-center shrink-0">
+                        <span className="text-[10px] font-mono text-white/30 font-bold">{player.seat}</span>
+                      </div>
 
-            {/* Actions */}
-            <div className="flex gap-3">
+                      <Avatar name={player.name} isHost={player.isHost} size="sm" />
+
+                      {/* Name + tags */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={clsx(
+                            'text-sm font-semibold truncate',
+                            player.isModerator ? 'text-neon-green'
+                            : player.isHost ? 'text-yellow-400'
+                            : isMe ? 'text-neon-purple/90'
+                            : 'text-white/80',
+                          )}>
+                            {player.name}
+                          </span>
+                          {isMe && (
+                            <span className="text-[9px] font-mono text-neon-purple/60 border border-neon-purple/20 rounded px-1">
+                              you
+                            </span>
+                          )}
+                          {!player.isConnected && (
+                            <span className="text-[9px] font-mono text-white/20 border border-white/10 rounded px-1">
+                              reconnecting
+                            </span>
+                          )}
+                          {player.isModerator && (
+                            <span className="text-[9px] font-mono text-neon-green border border-neon-green/20 rounded px-1">
+                              MOD
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Status pill */}
+                      <div className="shrink-0">
+                        {player.isHost ? (
+                          <span className="text-[10px] font-mono text-yellow-400/80 flex items-center gap-1">
+                            <span>👑</span> Host
+                          </span>
+                        ) : player.isSpectator ? (
+                          <span className="text-[10px] font-mono text-neon-purple/50">👁 Spectating</span>
+                        ) : player.isReady ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-neon-green"
+                            style={{ textShadow: '0 0 8px rgba(0,255,136,0.5)' }}>
+                            <span className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
+                            READY
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-mono text-white/20">waiting…</span>
+                        )}
+                      </div>
+
+                      {/* Host controls */}
+                      {amHost && !isMe && (
+                        <div className="flex items-center gap-1 ml-1 shrink-0" onClick={e => e.stopPropagation()}>
+                          {confirmTransferId === player.id ? (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[9px] text-white/30 font-mono">make host?</span>
+                              <button
+                                onClick={() => { transferHost(player.id); setConfirmTransferId(null); }}
+                                disabled={isLoading}
+                                className="text-[10px] px-1.5 py-0.5 rounded border border-yellow-400/40 text-yellow-400 hover:bg-yellow-400/10 transition-colors"
+                              >✓</button>
+                              <button
+                                onClick={() => setConfirmTransferId(null)}
+                                className="text-[10px] px-1 text-white/25 hover:text-white/50 transition-colors"
+                              >✕</button>
+                            </div>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => setConfirmTransferId(player.id)}
+                                title="Transfer host"
+                                className="w-6 h-6 flex items-center justify-center rounded text-white/15 hover:text-yellow-400 transition-colors text-sm"
+                              >👑</button>
+                              <button
+                                onClick={() => kickPlayer(player.id)}
+                                className="w-6 h-6 flex items-center justify-center rounded text-white/15 hover:text-neon-red transition-colors text-xs font-mono"
+                                title="Kick"
+                              >✕</button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </motion.div>
+                  );
+                })}
+              </div>
+
+              {/* Need more players */}
+              {playerCount < minPlayers && (
+                <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-center gap-2">
+                  <div className="flex gap-0.5">
+                    {Array.from({ length: minPlayers }).map((_, i) => (
+                      <div key={i} className={clsx(
+                        'w-1.5 h-1.5 rounded-full',
+                        i < playerCount ? 'bg-neon-cyan/70' : 'bg-white/10',
+                      )} />
+                    ))}
+                  </div>
+                  <span className="text-[10px] font-mono text-white/30">
+                    Need {minPlayers - playerCount} more player{minPlayers - playerCount !== 1 ? 's' : ''} to start
+                  </span>
+                </div>
+              )}
+            </motion.div>
+
+            {/* ── Action bar ─────────────────────────────────────── */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="flex gap-2.5"
+            >
+              {/* Non-host ready toggle */}
               {!amHost && !amSpectator && (
                 <Button
                   fullWidth
@@ -227,14 +319,18 @@ export function LobbyPage() {
                   loading={isLoading}
                   onClick={() => toggleReady()}
                 >
-                  {myPlayer?.isReady ? t.lobby.readyDone : t.lobby.ready}
+                  {myPlayer?.isReady ? '✓ Ready!' : 'Mark Ready'}
                 </Button>
               )}
+
+              {/* Spectator badge */}
               {amSpectator && (
-                <div className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-neon-purple/20 bg-neon-purple/5 text-neon-purple/70 text-sm font-mono">
+                <div className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-neon-purple/20 bg-neon-purple/5 text-neon-purple/60 text-sm font-mono">
                   👁 Watching as spectator
                 </div>
               )}
+
+              {/* Host: start + settings */}
               {amHost && (
                 <>
                   <Button
@@ -243,58 +339,74 @@ export function LobbyPage() {
                     loading={isLoading}
                     disabled={!canStart}
                     onClick={() => startGame()}
+                    className={canStart ? 'ring-1 ring-neon-green/20' : ''}
                   >
-                    {t.lobby.startGame} {!canStart ? `(need ${minPlayers})` : ''}
+                    {canStart ? '▶ Start Game' : `▶ Start  (need ${minPlayers - playerCount} more)`}
                   </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setShowSettings(!showSettings)}
+                  <button
+                    onClick={() => setShowSettings(s => !s)}
+                    className={clsx(
+                      'px-3.5 py-2 rounded-xl border text-sm transition-all',
+                      showSettings
+                        ? 'border-neon-purple/40 bg-neon-purple/10 text-neon-purple'
+                        : 'border-white/10 bg-white/4 text-white/40 hover:border-neon-purple/30 hover:text-neon-purple/70',
+                    )}
+                    title="Game Settings"
                   >
                     ⚙
-                  </Button>
+                  </button>
                 </>
               )}
+
+              {/* Leave */}
               {showLeaveConfirm ? (
-                /* Inline leave confirmation for host */
-                <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl border border-neon-red/30 bg-neon-red/5">
-                  <span className="text-xs text-white/60 font-mono flex-1">
-                    {playerCount > 1
-                      ? (t.lobby.leaveConfirmHost ?? 'Leave room? Host will be auto-assigned.')
-                      : (t.lobby.leaveConfirm ?? 'Leave and close the room?')}
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-neon-red/25 bg-neon-red/5 flex-1">
+                  <span className="text-[10px] text-white/50 font-mono flex-1 leading-tight">
+                    {playerCount > 1 ? 'Leave? Host reassigned automatically.' : 'Leave and close the room?'}
                   </span>
                   <button
                     onClick={() => leaveRoom()}
                     disabled={isLoading}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-neon-red/80 text-white font-display font-bold uppercase tracking-wider hover:bg-neon-red transition-colors disabled:opacity-40"
+                    className="text-[10px] px-2.5 py-1.5 rounded-lg bg-neon-red/80 text-white font-display font-bold uppercase tracking-wider hover:bg-neon-red transition-colors disabled:opacity-40 shrink-0"
                   >
-                    {t.lobby.leave}
+                    Leave
                   </button>
-                  <button
-                    onClick={() => setShowLeaveConfirm(false)}
-                    className="text-xs px-2 py-1.5 text-white/30 hover:text-white/60 transition-colors"
-                  >
-                    ✕
-                  </button>
+                  <button onClick={() => setShowLeaveConfirm(false)} className="text-white/25 hover:text-white/60 text-xs shrink-0">✕</button>
                 </div>
               ) : (
-                <Button
-                  variant="danger"
-                  onClick={() => {
-                    if (amHost) setShowLeaveConfirm(true);
-                    else leaveRoom();
-                  }}
-                  loading={isLoading}
+                <button
+                  onClick={() => amHost ? setShowLeaveConfirm(true) : leaveRoom()}
+                  disabled={isLoading}
+                  className="px-3.5 py-2 rounded-xl border border-neon-red/20 text-neon-red/50 text-xs font-mono hover:border-neon-red/40 hover:text-neon-red/80 hover:bg-neon-red/5 transition-all disabled:opacity-30"
+                  title="Leave room"
                 >
-                  {t.lobby.leave}
-                </Button>
+                  Leave
+                </button>
               )}
-            </div>
+            </motion.div>
 
-            {showSettings && amHost && (
-              <SettingsPanel settings={room.settings} onUpdate={updateSettings} />
-            )}
+            {/* ── Settings panel ─────────────────────────────────── */}
+            <AnimatePresence>
+              {showSettings && amHost && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-1">
+                    <RolePickerPanel
+                      settings={room.settings}
+                      playerCount={playerCount}
+                      onUpdate={updateSettings}
+                      isLoading={isLoading}
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-            {/* Voice controls */}
+            {/* ── Voice ──────────────────────────────────────────── */}
             <VoiceControls
               channel={voice.channel}
               status={voice.status}
@@ -310,7 +422,7 @@ export function LobbyPage() {
               onToggleCamera={voice.toggleCamera}
             />
             {voice.channel && voice.peers.length > 0 && (
-              <div className="mt-2 px-1">
+              <div className="px-1">
                 <VoiceParticipants
                   localName={myPlayer?.name ?? 'You'}
                   isLocalSpeaking={voice.isLocalSpeaking}
@@ -321,21 +433,27 @@ export function LobbyPage() {
             )}
           </div>
 
-          {/* Chat */}
-          <div className="lg:col-span-1">
-            <Card glow="none" padding="md" className="h-full min-h-[400px] flex flex-col">
-              <h2 className="font-display font-bold text-white/60 tracking-widest uppercase text-sm mb-4 flex-shrink-0">
-                {t.lobby.chat}
+          {/* ── Chat column ───────────────────────────────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.12 }}
+            className="lg:col-span-1 glass-panel border border-white/8 rounded-2xl p-4 min-h-[360px] flex flex-col"
+          >
+            <div className="flex items-center justify-between mb-3 flex-shrink-0">
+              <h2 className="text-xs font-display font-bold text-white/50 tracking-widest uppercase">
+                Chat
               </h2>
-              <div className="flex-1 min-h-0">
-                <ChatPanel />
-              </div>
-            </Card>
-          </div>
+              <span className="text-[10px] font-mono text-white/20">lobby channel</span>
+            </div>
+            <div className="flex-1 min-h-0">
+              <ChatPanel />
+            </div>
+          </motion.div>
         </div>
       </div>
 
-      {/* Player stats modal */}
+      {/* Modals */}
       {statsPlayer && (
         <PlayerStatsModal
           profileId={statsPlayer.profileId ?? null}
@@ -344,8 +462,6 @@ export function LobbyPage() {
           onReport={pid => { setReportProfileId(pid); setStatsPlayer(null); }}
         />
       )}
-
-      {/* Report modal */}
       {reportProfileId && (
         <ReportModal
           targetProfileId={reportProfileId}
@@ -356,143 +472,5 @@ export function LobbyPage() {
         />
       )}
     </div>
-  );
-}
-
-function SettingsPanel({
-  settings,
-  onUpdate,
-}: {
-  settings: GameSettings;
-  onUpdate: (s: Partial<GameSettings>) => Promise<void>;
-}) {
-  const [local, setLocal] = useState(settings);
-  const t = useT();
-
-  return (
-    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-      <Card glow="purple" padding="md">
-        <h3 className="font-display font-bold text-neon-purple tracking-widest uppercase mb-4">
-          {t.lobby.settings}
-        </h3>
-
-        {/* Timers */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          {(
-            [
-              ['Night Duration', 'nightDuration', 15, 300],
-              ['Day Duration', 'dayDuration', 30, 600],
-              ['Vote Duration', 'voteDuration', 15, 300],
-              ['Min Players', 'minPlayers', 4, 16],
-            ] as [string, keyof GameSettings, number, number][]
-          ).map(([label, key, min, max]) => (
-            <div key={key}>
-              <label className="block text-xs text-white/40 font-mono mb-1">{label}</label>
-              <input
-                type="number"
-                min={min}
-                max={max}
-                value={local[key] as number}
-                onChange={e => setLocal(s => ({ ...s, [key]: Number(e.target.value) }))}
-                className="w-full bg-void-50/80 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-neon-purple/40"
-              />
-            </div>
-          ))}
-        </div>
-
-        {/* Role configuration */}
-        <p className="text-xs text-white/40 font-mono uppercase tracking-widest mb-3">Role Configuration</p>
-
-        {([
-          {
-            label: 'Mafia', color: 'text-neon-pink', roles: [
-              { key: 'mafia',  name: 'Mafia',  max: 6 },
-              { key: 'don',    name: 'Don',    max: 1 },
-            ],
-          },
-          {
-            label: 'Town', color: 'text-neon-cyan', roles: [
-              { key: 'sheriff',   name: 'Sheriff',   max: 2 },
-              { key: 'doctor',    name: 'Doctor',    max: 2 },
-              { key: 'bodyguard', name: 'Bodyguard', max: 2 },
-              { key: 'spy',       name: 'Fortune Teller', max: 2 },
-              { key: 'vigilante', name: 'Vigilante', max: 2 },
-              { key: 'escort',    name: 'Escort',    max: 2 },
-              { key: 'veteran',   name: 'Veteran',   max: 2 },
-              { key: 'tracker',   name: 'Tracker',   max: 2 },
-              { key: 'mayor',     name: 'Mayor',     max: 1 },
-            ],
-          },
-          {
-            label: 'Neutral', color: 'text-neon-purple', roles: [
-              { key: 'maniac',   name: 'Maniac',   max: 2 },
-              { key: 'jester',   name: 'Jester',   max: 2 },
-              { key: 'arsonist', name: 'Arsonist', max: 2 },
-            ],
-          },
-          {
-            label: 'Cult', color: 'text-fuchsia-400', roles: [
-              { key: 'cult_leader', name: 'Cult Leader', max: 1 },
-            ],
-          },
-        ] as const).map(group => (
-          <div key={group.label} className="mb-4">
-            <p className={`text-xs font-mono font-bold ${group.color} mb-2`}>{group.label}</p>
-            <div className="grid grid-cols-2 gap-2">
-              {(group.roles as ReadonlyArray<{ key: keyof typeof local.roles; name: string; max: number }>).map(({ key, name, max }) => {
-                const count = local.roles[key] ?? 0;
-                return (
-                  <div key={key} className="flex items-center justify-between bg-white/5 rounded-lg px-2 py-1.5">
-                    <span className="text-xs text-white/70 font-mono">{name}</span>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setLocal(s => ({ ...s, roles: { ...s.roles, [key]: Math.max(0, count - 1) } }))}
-                        disabled={count === 0}
-                        className="w-5 h-5 rounded text-white/50 hover:text-white disabled:opacity-20 text-sm font-bold leading-none"
-                      >−</button>
-                      <span className="w-4 text-center text-xs text-white font-mono">{count}</span>
-                      <button
-                        type="button"
-                        onClick={() => setLocal(s => ({ ...s, roles: { ...s.roles, [key]: Math.min(max, count + 1) } }))}
-                        disabled={count >= max}
-                        className="w-5 h-5 rounded text-white/50 hover:text-white disabled:opacity-20 text-sm font-bold leading-none"
-                      >+</button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-
-        {/* Other toggles */}
-        <div className="flex items-center gap-3 mb-4">
-          <input
-            type="checkbox"
-            id="doctorSelfHeal"
-            checked={local.allowDoctorSelfHeal}
-            onChange={e => setLocal(s => ({ ...s, allowDoctorSelfHeal: e.target.checked }))}
-            className="w-4 h-4 accent-neon-purple"
-          />
-          <label htmlFor="doctorSelfHeal" className="text-sm text-white/60">Doctor self-heal</label>
-        </div>
-
-        <div className="flex items-center gap-3 mb-4">
-          <input
-            type="checkbox"
-            id="privateRoom"
-            checked={local.isPrivate}
-            onChange={e => setLocal(s => ({ ...s, isPrivate: e.target.checked }))}
-            className="w-4 h-4 accent-neon-pink"
-          />
-          <label htmlFor="privateRoom" className="text-sm text-white/60">{t.lobby.privateRoom}</label>
-        </div>
-
-        <Button fullWidth variant="neon-purple" onClick={() => onUpdate(local)}>
-          {t.lobby.saveSettings}
-        </Button>
-      </Card>
-    </motion.div>
   );
 }
