@@ -3,6 +3,21 @@ import { GameOverResult, RoleKey, Team } from '@/types/index';
 import { Button } from '@/components/ui/Button';
 import { useGameStore } from '@/store/gameStore';
 import { useT } from '@/store/langStore';
+import { ConfettiEffect } from './ConfettiEffect';
+
+const TEAM_CONFETTI: Record<Team, string[]> = {
+  town:    ['#00f5ff', '#00e5ff', '#ffffff', '#60a5fa', '#00ccff'],
+  mafia:   ['#ff00cc', '#ff2d55', '#cc0066', '#ff69b4', '#330011'],
+  neutral: ['#9b00ff', '#a855f7', '#c084fc', '#ffffff', '#7c3aed'],
+  cult:    ['#c026d3', '#e879f9', '#a21caf', '#f0abfc', '#6b21a8'],
+};
+
+const WINNER_BG: Record<Team, string> = {
+  town:    'radial-gradient(ellipse 180% 60% at 50% -10%, rgba(0,200,255,0.18) 0%, transparent 60%)',
+  mafia:   'radial-gradient(ellipse 180% 60% at 50% -10%, rgba(255,0,180,0.18) 0%, transparent 60%)',
+  neutral: 'radial-gradient(ellipse 180% 60% at 50% -10%, rgba(140,0,255,0.18) 0%, transparent 60%)',
+  cult:    'radial-gradient(ellipse 180% 60% at 50% -10%, rgba(192,38,211,0.18) 0%, transparent 60%)',
+};
 
 interface Props {
   result: GameOverResult;
@@ -74,13 +89,23 @@ export function GameOver({ result }: Props) {
   const roleLabel = (role: RoleKey) =>
     t.game.roles[role as keyof typeof t.game.roles] ?? role;
 
+  const iWon = myData?.team === result.winner;
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 overflow-y-auto"
     >
-      <div className="w-full max-w-lg py-8">
+      {/* Confetti for winners */}
+      {iWon && <ConfettiEffect colors={TEAM_CONFETTI[result.winner]} />}
+
+      {/* Winner team background glow */}
+      <div
+        className="fixed inset-0 pointer-events-none transition-opacity duration-1000"
+        style={{ background: WINNER_BG[result.winner], zIndex: 0 }}
+      />
+      <div className="relative z-10 w-full max-w-lg py-8">
         {/* Winner announcement */}
         <motion.div
           initial={{ scale: 0.7, opacity: 0 }}
