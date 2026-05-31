@@ -208,6 +208,7 @@ export interface GameSettings {
   tieVoteRule: TieRule;
   minPlayers: number;
   isPrivate: boolean;
+  startWithNight: boolean;
   roles: {
     mafia: number;
     don: number;

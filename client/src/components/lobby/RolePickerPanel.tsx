@@ -368,10 +368,12 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
         <h4 className="text-xs font-display font-bold text-white/50 uppercase tracking-widest">Rules</h4>
 
         {[
-          { id: 'selfHeal', label: '💊 Doctor can self-heal', value: local.allowDoctorSelfHeal,
+          { id: 'selfHeal',  label: '💊 Doctor can self-heal',        value: local.allowDoctorSelfHeal,
             toggle: () => setLocal(s => ({ ...s, allowDoctorSelfHeal: !s.allowDoctorSelfHeal })) },
-          { id: 'private',  label: '🔒 Private room (invite only)', value: local.isPrivate,
+          { id: 'private',   label: '🔒 Private room (invite only)',   value: local.isPrivate,
             toggle: () => setLocal(s => ({ ...s, isPrivate: !s.isPrivate })) },
+          { id: 'startNight', label: '🌙 Start game at night (skip day discussion)', value: local.startWithNight,
+            toggle: () => setLocal(s => ({ ...s, startWithNight: !s.startWithNight })) },
         ].map(opt => (
           <button
             key={opt.id}
