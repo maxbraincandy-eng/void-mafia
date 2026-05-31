@@ -24,6 +24,7 @@ import { PhaseTransition } from '@/components/game/PhaseTransition';
 import { PlayerGrid } from '@/components/game/PlayerGrid';
 import { EliminationCinematic } from '@/components/game/EliminationCinematic';
 import { GameEventLog } from '@/components/game/GameEventLog';
+import { PhaseAtmosphere } from '@/components/game/PhaseAtmosphere';
 import { useT } from '@/store/langStore';
 
 type MobileTab = 'action' | 'players' | 'chat';
@@ -47,6 +48,14 @@ const PHASE_STRIP: Record<Phase, string> = {
   speech:       '#00e5ff',
   voting:       '#ff2d55',
   game_over:    'rgba(255,255,255,0.1)',
+};
+
+const PHASE_GLOW: Partial<Record<Phase, string>> = {
+  night:       '0 0 12px rgba(59,0,204,0.8)',
+  voting:      '0 0 12px rgba(255,45,85,0.7)',
+  role_reveal: '0 0 12px rgba(155,0,255,0.7)',
+  speech:      '0 0 10px rgba(0,229,255,0.5)',
+  day:         '0 0 10px rgba(0,196,204,0.5)',
 };
 
 export function GamePage() {
@@ -605,6 +614,9 @@ export function GamePage() {
         )}
       </AnimatePresence>
 
+      {/* ── Phase atmosphere (ambient tinted background per phase) ── */}
+      <PhaseAtmosphere phase={phase} />
+
       {/* ── Main layout ─────────────────────────────────────────────── */}
       <div className="relative z-10 h-screen flex flex-col">
 
@@ -612,15 +624,21 @@ export function GamePage() {
         <header className="flex-shrink-0 glass-panel border-b border-white/6">
           {/* Phase color strip */}
           <div
-            className="h-[2px] w-full transition-all duration-700"
-            style={{ background: PHASE_STRIP[phase], opacity: 0.85 }}
+            className="h-[3px] w-full transition-all duration-700"
+            style={{
+              background: `linear-gradient(90deg, transparent 0%, ${PHASE_STRIP[phase]} 20%, ${PHASE_STRIP[phase]} 80%, transparent 100%)`,
+              boxShadow: `0 0 12px ${PHASE_STRIP[phase]}60`,
+            }}
           />
           <div className="px-3 py-2 md:px-4 md:py-3">
           <div className="max-w-7xl mx-auto flex items-center gap-2 md:gap-4">
             {/* Phase */}
             <div className="min-w-0">
               <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest hidden sm:block">{t.game.header.phase}</p>
-              <h1 className={clsx('font-display text-lg md:text-xl font-bold tracking-widest uppercase truncate', PHASE_COLORS[phase])}>
+              <h1
+                className={clsx('font-display text-lg md:text-xl font-bold tracking-widest uppercase truncate transition-all duration-700', PHASE_COLORS[phase])}
+                style={{ textShadow: PHASE_GLOW[phase] }}
+              >
                 {t.game.phaseLabels[phase]}
                 {phase !== 'role_reveal' && phase !== 'game_over' && (
                   <span className="text-white/40"> · D{room.day}</span>
