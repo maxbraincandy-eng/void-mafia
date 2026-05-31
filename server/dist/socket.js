@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ok, err, } from './types/index.js';
-import { createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, removePlayer, getPlayerBySocket, toPublicRoom, toRoomListItem, getAllRooms, getPlayerByProfile, } from './services/roomService.js';
-import { startGame, setPhase, advancePhase, submitNightAction, submitVote, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult, resolveVotes, } from './services/gameService.js';
+import { createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, removePlayer, getPlayerBySocket, toPublicRoom, toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, } from './services/roomService.js';
+import { startGame, setPhase, advancePhase, submitNightAction, submitVote, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult, getTrackResult, resolveVotes, } from './services/gameService.js';
 import { createPlayerMessage, createSystemMessage, addMessage, validateChat, } from './services/chatService.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
@@ -54,6 +54,8 @@ function startPhaseTimer(io, room) {
         if (wasNight) {
             announceNightResult(io, room);
             notifySpies(io, room);
+            notifyTrackers(io, room);
+            notifyCultConversions(io, room);
         }
         if (nextPhase === 'game_over')
             emitGameOver(io, room);
@@ -121,6 +123,23 @@ function announceNightResult(io, room) {
     }
     else {
         broadcastSystemMsg(io, room, 'Dawn breaks. The night passed quietly.');
+    }
+}
+function notifyTrackers(io, room) {
+    for (const p of room.players.values()) {
+        if (p.role === 'tracker' && p.isAlive && p.socketId) {
+            const result = getTrackResult(room, p);
+            if (result)
+                io.to(p.socketId).emit('game:track_result', result);
+        }
+    }
+}
+function notifyCultConversions(io, room) {
+    for (const cultistId of room.newlyConvertedCultists) {
+        const cultist = room.players.get(cultistId);
+        if (cultist && cultist.socketId) {
+            io.to(cultist.socketId).emit('game:role', { role: getRole('cultist') });
+        }
     }
 }
 function notifySpies(io, room) {
@@ -338,6 +357,27 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
+        // ── Transfer Host ───────────────────────────────────────────────
+        socket.on('room:transfer_host', ({ playerId }, cb) => {
+            try {
+                const room = getRoomFromSocket(socket);
+                const host = getPlayerOrError(socket, room);
+                if (!host.isHost)
+                    throw new Error('Only the host can transfer host status.');
+                if (playerId === host.id)
+                    throw new Error('You are already the host.');
+                const newHost = room.players.get(playerId);
+                if (!newHost)
+                    throw new Error('Player not found.');
+                transferHost(room, playerId);
+                broadcastSystemMsg(io, room, `👑 ${host.name} transferred host to ${newHost.name}.`);
+                broadcastRoom(io, room);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
         // ── Update Settings ─────────────────────────────────────────────
         socket.on('room:settings', ({ settings }, cb) => {
             try {
@@ -366,6 +406,8 @@ export function attachSocketHandlers(io) {
                 const host = getPlayerOrError(socket, room);
                 if (!host.isHost)
                     throw new Error('Only the host can start the game.');
+                if (room.phase !== 'lobby')
+                    throw new Error('Game is already in progress.');
                 startGame(room);
                 setPhase(room, 'role_reveal');
                 for (const player of room.players.values()) {
@@ -402,6 +444,8 @@ export function attachSocketHandlers(io) {
                     const nextPhase = room.phase;
                     announceNightResult(io, room);
                     notifySpies(io, room);
+                    notifyTrackers(io, room);
+                    notifyCultConversions(io, room);
                     if (nextPhase === 'game_over')
                         emitGameOver(io, room);
                     broadcastRoom(io, room);
@@ -550,16 +594,22 @@ export function attachSocketHandlers(io) {
                 const host = getPlayerOrError(socket, room);
                 if (!host.isHost)
                     throw new Error('Only the host can restart.');
+                // Stop any running timers immediately so stale onComplete callbacks cannot fire
                 timerService.stop(room.id);
+                // Full game-state wipe — only room-level fields persist (id, code, players, settings)
                 room.phase = 'lobby';
                 room.winner = null;
                 room.day = 0;
                 room.timer = 0;
                 room.maxTimer = 0;
+                room.isPaused = false;
                 room.nightActions = new Map();
                 room.votes = new Map();
                 room.killedLastNight = [];
                 room.savedLastNight = false;
+                room.daySkipVotes = [];
+                room.speechOrder = [];
+                room.currentSpeakerIdx = 0;
                 for (const p of room.players.values()) {
                     p.role = null;
                     p.team = null;
@@ -567,6 +617,7 @@ export function attachSocketHandlers(io) {
                     p.isReady = false;
                     p.voteTarget = null;
                     p.hasActedThisPhase = false;
+                    p.lastWill = null;
                 }
                 broadcastSystemMsg(io, room, 'The host has restarted the room. Prepare for a new game.');
                 broadcastRoom(io, room);

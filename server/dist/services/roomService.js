@@ -14,16 +14,21 @@ export const DEFAULT_SETTINGS = {
     minPlayers: 4,
     isPrivate: false,
     roles: {
-        mafia: 2,
+        mafia: 0,
         don: 0,
-        sheriff: 1,
-        doctor: 1,
+        sheriff: 0,
+        doctor: 0,
         bodyguard: 0,
         spy: 0,
         vigilante: 0,
         escort: 0,
         maniac: 0,
         jester: 0,
+        cult_leader: 0,
+        veteran: 0,
+        tracker: 0,
+        arsonist: 0,
+        mayor: 0,
     },
 };
 // ── CRUD ──────────────────────────────────────────────────────────────
@@ -77,6 +82,8 @@ export function createRoom(hostSocketId, hostName, profileId, settings) {
         daySkipVotes: [],
         createdAt: Date.now(),
         isPaused: false,
+        dousedPlayers: new Set(),
+        newlyConvertedCultists: [],
     };
     rooms.set(id, room);
     return room;
@@ -153,6 +160,18 @@ export function removePlayer(room, playerId) {
         player.socketId = '';
     }
 }
+export function transferHost(room, newHostId) {
+    const newHost = room.players.get(newHostId);
+    if (!newHost)
+        throw new Error('Player not found.');
+    if (newHost.isSpectator)
+        throw new Error('Cannot make a spectator the host.');
+    const current = room.players.get(room.hostId);
+    if (current)
+        current.isHost = false;
+    newHost.isHost = true;
+    room.hostId = newHostId;
+}
 export function getPlayerBySocket(room, socketId) {
     for (const p of room.players.values()) {
         if (p.socketId === socketId)
@@ -178,6 +197,7 @@ export function toPublicRoom(room, viewerPlayerId) {
     const isGameOver = room.phase === 'game_over';
     const viewer = room.players.get(viewerPlayerId);
     const isMafia = viewer?.team === 'mafia';
+    const isCultLeader = viewer?.role === 'cult_leader';
     const players = [...room.players.values()]
         .sort((a, b) => a.seat - b.seat)
         .map(p => {
@@ -194,6 +214,8 @@ export function toPublicRoom(room, viewerPlayerId) {
             team: (p.id === viewerPlayerId || isGameOver || !viewer?.isAlive || viewer?.isSpectator) ? p.team : null,
             // Mafia sees fellow mafia roles
             ...(isMafia && p.team === 'mafia' ? { role: p.role, team: p.team } : {}),
+            // Cult leader sees all cult members
+            ...(isCultLeader && p.team === 'cult' ? { role: p.role, team: p.team } : {}),
             voteTarget: room.phase === 'voting' ? p.voteTarget : null,
             hasActed: p.hasActedThisPhase,
             seat: p.seat,

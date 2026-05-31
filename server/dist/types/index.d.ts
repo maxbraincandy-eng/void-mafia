@@ -1,6 +1,6 @@
 export type Phase = 'lobby' | 'role_reveal' | 'night' | 'day' | 'speech' | 'voting' | 'game_over';
-export type RoleKey = 'mafia' | 'citizen' | 'sheriff' | 'doctor' | 'don' | 'maniac' | 'jester' | 'bodyguard' | 'spy' | 'escort' | 'vigilante';
-export type Team = 'mafia' | 'town' | 'neutral';
+export type RoleKey = 'mafia' | 'citizen' | 'sheriff' | 'doctor' | 'don' | 'maniac' | 'jester' | 'bodyguard' | 'spy' | 'escort' | 'vigilante' | 'cult_leader' | 'cultist' | 'veteran' | 'tracker' | 'arsonist' | 'mayor';
+export type Team = 'mafia' | 'town' | 'neutral' | 'cult';
 export type TieRule = 'no_elimination' | 'random';
 export type ChatChannel = 'room' | 'mafia' | 'dead';
 export type ModeratorLevel = 'moderator' | 'senior_moderator' | 'admin' | 'owner';
@@ -159,6 +159,11 @@ export interface GameSettings {
         spy: number;
         escort: number;
         vigilante: number;
+        cult_leader: number;
+        veteran: number;
+        tracker: number;
+        arsonist: number;
+        mayor: number;
     };
 }
 export interface Room {
@@ -188,6 +193,8 @@ export interface Room {
     daySkipVotes: string[];
     createdAt: number;
     isPaused: boolean;
+    dousedPlayers: Set<string>;
+    newlyConvertedCultists: string[];
 }
 export interface PlayerPublic {
     id: string;
@@ -270,6 +277,10 @@ export interface ServerToClientEvents {
     }) => void;
     'game:night_result': (result: NightResult) => void;
     'game:investigation': (result: InvestigationResult) => void;
+    'game:track_result': (result: {
+        trackedName: string;
+        visitedName: string | null;
+    }) => void;
     'game:over': (result: GameOverResult) => void;
     'error': (data: {
         message: string;
@@ -364,6 +375,9 @@ export interface ClientToServerEvents {
     'room:leave': (cb: Cb<null>) => void;
     'room:ready': (cb: Cb<null>) => void;
     'room:kick': (data: {
+        playerId: string;
+    }, cb: Cb<null>) => void;
+    'room:transfer_host': (data: {
         playerId: string;
     }, cb: Cb<null>) => void;
     'room:settings': (data: {

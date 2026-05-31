@@ -1,4 +1,33 @@
 import { shuffle } from '../utils/helpers.js';
+export function validateRoleDistribution(playerCount, settings) {
+    const r = settings.roles;
+    const mafiaCount = (r.mafia ?? 0) + (r.don ?? 0);
+    const nonMafiaCount = playerCount - mafiaCount;
+    if (mafiaCount >= nonMafiaCount) {
+        throw new Error(`Invalid role balance: Mafia count (${mafiaCount}) cannot be equal to or greater than non-Mafia count (${nonMafiaCount}).`);
+    }
+}
+export function buildAutoRoleDeck(count) {
+    const presets = {
+        4: ['mafia', 'sheriff', 'citizen', 'citizen'],
+        5: ['mafia', 'sheriff', 'doctor', 'citizen', 'citizen'],
+        6: ['mafia', 'sheriff', 'doctor', 'citizen', 'citizen', 'citizen'],
+        7: ['mafia', 'mafia', 'sheriff', 'doctor', 'citizen', 'citizen', 'citizen'],
+        8: ['mafia', 'mafia', 'sheriff', 'doctor', 'citizen', 'citizen', 'citizen', 'citizen'],
+        9: ['mafia', 'mafia', 'sheriff', 'doctor', 'citizen', 'citizen', 'citizen', 'citizen', 'citizen'],
+        10: ['mafia', 'mafia', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen', 'citizen', 'citizen', 'citizen'],
+    };
+    if (presets[count])
+        return shuffle([...presets[count]]);
+    const mafiaCount = Math.max(1, Math.floor(count * 0.28));
+    const deck = Array(mafiaCount).fill('mafia');
+    deck.push('sheriff');
+    if (count >= 6)
+        deck.push('doctor');
+    while (deck.length < count)
+        deck.push('citizen');
+    return shuffle(deck);
+}
 export const ROLES = {
     mafia: {
         key: 'mafia',
@@ -52,10 +81,10 @@ export const ROLES = {
     },
     spy: {
         key: 'spy',
-        name: 'Spy',
+        name: 'Fortune Teller',
         team: 'town',
-        description: 'A covert operative who watches from the shadows. You observe who the mafia targets each night.',
-        ability: 'Each dawn, receive a private report naming the player mafia tried to kill — even if they were saved.',
+        description: 'A mystic who senses danger before it strikes. You peer into the night and see the mafia\'s target.',
+        ability: 'Each dawn, receive a private vision naming the player mafia tried to kill — even if they were saved.',
         wakeAtNight: false,
         color: 'cyan',
         glowColor: '#00e5ff',
@@ -110,6 +139,66 @@ export const ROLES = {
         color: 'purple',
         glowColor: '#a855f7',
     },
+    cult_leader: {
+        key: 'cult_leader',
+        name: 'Cult Leader',
+        team: 'cult',
+        description: 'A charismatic manipulator who bends others to their will. Grow your cult and seize control.',
+        ability: 'Each night, recruit one player to your cult — they lose their old allegiance and win with you.',
+        wakeAtNight: true,
+        color: 'purple',
+        glowColor: '#c026d3',
+    },
+    cultist: {
+        key: 'cultist',
+        name: 'Cultist',
+        team: 'cult',
+        description: 'You have been drawn into the cult. Your old life is gone — the Cult Leader is your master now.',
+        ability: 'Win when the cult outnumbers all other factions.',
+        wakeAtNight: false,
+        color: 'purple',
+        glowColor: '#c026d3',
+    },
+    veteran: {
+        key: 'veteran',
+        name: 'Veteran',
+        team: 'town',
+        description: 'A battle-hardened soldier who trusts no one at night. Your paranoia is your protection.',
+        ability: 'Go on alert: target yourself to kill anyone who visits you tonight.',
+        wakeAtNight: true,
+        color: 'yellow',
+        glowColor: '#eab308',
+    },
+    tracker: {
+        key: 'tracker',
+        name: 'Tracker',
+        team: 'town',
+        description: 'A surveillance expert who follows suspects through the night.',
+        ability: 'Each night, follow a player to discover who they visited.',
+        wakeAtNight: true,
+        color: 'blue',
+        glowColor: '#60a5fa',
+    },
+    arsonist: {
+        key: 'arsonist',
+        name: 'Arsonist',
+        team: 'neutral',
+        description: 'A pyromaniac preparing the perfect massacre. You act in two stages.',
+        ability: 'Target a player to douse them with gasoline. Target yourself to ignite — killing all doused players at once.',
+        wakeAtNight: true,
+        color: 'yellow',
+        glowColor: '#f97316',
+    },
+    mayor: {
+        key: 'mayor',
+        name: 'Mayor',
+        team: 'town',
+        description: 'An elected official with the trust of the people. Your word carries more weight.',
+        ability: 'Your vote counts twice during the tribunal.',
+        wakeAtNight: false,
+        color: 'yellow',
+        glowColor: '#fbbf24',
+    },
 };
 export function getRole(key) {
     return ROLES[key];
@@ -135,6 +224,11 @@ export function buildRoleDeck(settings, playerCount) {
     push('escort', r.escort ?? 0);
     push('maniac', r.maniac ?? 0);
     push('jester', r.jester ?? 0);
+    push('cult_leader', r.cult_leader ?? 0);
+    push('veteran', r.veteran ?? 0);
+    push('tracker', r.tracker ?? 0);
+    push('arsonist', r.arsonist ?? 0);
+    push('mayor', r.mayor ?? 0);
     while (deck.length < playerCount)
         deck.push('citizen');
     return shuffle(deck).slice(0, playerCount);
@@ -143,6 +237,7 @@ export function getTeam(role) {
     return ROLES[role].team;
 }
 export function isSuspiciousToSheriff(role) {
-    return role === 'mafia'; // Don appears innocent; all other roles are not suspicious
+    // Don appears innocent; cult_leader and arsonist are suspicious; everyone else is clean
+    return role === 'mafia' || role === 'cult_leader' || role === 'arsonist';
 }
 //# sourceMappingURL=roleService.js.map

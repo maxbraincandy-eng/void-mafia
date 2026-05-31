@@ -1,6 +1,36 @@
 import { Role, RoleKey, GameSettings, Team } from '../types/index.js';
 import { shuffle } from '../utils/helpers.js';
 
+export function validateRoleDistribution(playerCount: number, settings: GameSettings): void {
+  const r = settings.roles;
+  const mafiaCount = (r.mafia ?? 0) + (r.don ?? 0);
+  const nonMafiaCount = playerCount - mafiaCount;
+  if (mafiaCount >= nonMafiaCount) {
+    throw new Error(
+      `Invalid role balance: Mafia count (${mafiaCount}) cannot be equal to or greater than non-Mafia count (${nonMafiaCount}).`,
+    );
+  }
+}
+
+export function buildAutoRoleDeck(count: number): RoleKey[] {
+  const presets: Partial<Record<number, RoleKey[]>> = {
+    4:  ['mafia', 'sheriff', 'citizen', 'citizen'],
+    5:  ['mafia', 'sheriff', 'doctor', 'citizen', 'citizen'],
+    6:  ['mafia', 'sheriff', 'doctor', 'citizen', 'citizen', 'citizen'],
+    7:  ['mafia', 'mafia', 'sheriff', 'doctor', 'citizen', 'citizen', 'citizen'],
+    8:  ['mafia', 'mafia', 'sheriff', 'doctor', 'citizen', 'citizen', 'citizen', 'citizen'],
+    9:  ['mafia', 'mafia', 'sheriff', 'doctor', 'citizen', 'citizen', 'citizen', 'citizen', 'citizen'],
+    10: ['mafia', 'mafia', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen', 'citizen', 'citizen', 'citizen'],
+  };
+  if (presets[count]) return shuffle([...presets[count]!]);
+  const mafiaCount = Math.max(1, Math.floor(count * 0.28));
+  const deck: RoleKey[] = Array(mafiaCount).fill('mafia' as RoleKey);
+  deck.push('sheriff');
+  if (count >= 6) deck.push('doctor');
+  while (deck.length < count) deck.push('citizen');
+  return shuffle(deck);
+}
+
 export const ROLES: Record<RoleKey, Role> = {
   mafia: {
     key: 'mafia',

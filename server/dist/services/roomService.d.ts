@@ -6,6 +6,7 @@ export declare function getRoomByCode(code: string): Room | undefined;
 export declare function deleteRoom(id: string): void;
 export declare function addPlayer(room: Room, socketId: string, name: string, profileId: string | null): Player;
 export declare function removePlayer(room: Room, playerId: string): void;
+export declare function transferHost(room: Room, newHostId: string): void;
 export declare function getPlayerBySocket(room: Room, socketId: string): Player | undefined;
 export declare function getPlayerByProfile(room: Room, profileId: string): Player | undefined;
 export declare function getHostPlayer(room: Room): Player | undefined;

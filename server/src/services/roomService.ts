@@ -19,10 +19,10 @@ export const DEFAULT_SETTINGS: GameSettings = {
   minPlayers: 4,
   isPrivate: false,
   roles: {
-    mafia: 2,
+    mafia: 0,
     don: 0,
-    sheriff: 1,
-    doctor: 1,
+    sheriff: 0,
+    doctor: 0,
     bodyguard: 0,
     spy: 0,
     vigilante: 0,
