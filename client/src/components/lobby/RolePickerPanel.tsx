@@ -154,13 +154,12 @@ function BalanceBar({ roles, playerCount }: { roles: GameSettings['roles']; play
 }
 
 function RoleCard({
-  role, count, onInc, onDec, disabled,
+  role, count, onInc, onDec,
 }: {
   role: RoleMeta;
   count: number;
   onInc: () => void;
   onDec: () => void;
-  disabled?: boolean;
 }) {
   const [showTip, setShowTip] = useState(false);
   const active = count > 0;
@@ -197,7 +196,7 @@ function RoleCard({
           <button
             type="button"
             onClick={onDec}
-            disabled={count === 0 || disabled}
+            disabled={count === 0}
             className="w-6 h-6 rounded-lg border border-white/10 text-white/50 hover:text-white hover:border-white/30 disabled:opacity-20 transition-all flex items-center justify-center text-sm font-bold"
           >
             −
@@ -213,7 +212,7 @@ function RoleCard({
           <button
             type="button"
             onClick={onInc}
-            disabled={count >= role.max || disabled}
+            disabled={count >= role.max}
             className="w-6 h-6 rounded-lg border border-white/10 text-white/50 hover:text-white hover:border-white/30 disabled:opacity-20 transition-all flex items-center justify-center text-sm font-bold"
           >
             +
@@ -349,7 +348,6 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
                 count={(local.roles[role.key] ?? 0) as number}
                 onInc={() => setRole(role.key, +1)}
                 onDec={() => setRole(role.key, -1)}
-                disabled={balance.isAutoMode && local.roles[role.key] === 0}
               />
             ))}
           </div>
