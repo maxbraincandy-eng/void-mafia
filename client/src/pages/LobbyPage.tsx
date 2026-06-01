@@ -4,7 +4,6 @@ import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
 import { useT } from '@/store/langStore';
 import { Button } from '@/components/ui/Button';
-import { PoweredBy } from '@/components/ui/PoweredBy';
 import { Avatar } from '@/components/ui/Avatar';
 import { ChatPanel } from '@/components/chat/ChatPanel';
 import { PlayerStatsModal } from '@/components/ui/PlayerStatsModal';
@@ -15,6 +14,9 @@ import { RolePickerPanel } from '@/components/lobby/RolePickerPanel';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
 import { PlayerPublic } from '@/types/index';
+
+const SURFACE = 'rounded-2xl border border-white/[0.06]';
+const SURFACE_BG = { background: 'rgba(10, 6, 28, 0.92)' } as const;
 
 export function LobbyPage() {
   const {
@@ -73,206 +75,189 @@ export function LobbyPage() {
   };
 
   return (
-    <div className="min-h-screen bg-neon-grid-animated scanlines relative overflow-hidden">
-      {/* Ambient glows */}
-      <div className="absolute top-0 right-0 w-72 h-72 bg-neon-purple/8 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-56 h-56 bg-neon-cyan/6 rounded-full blur-[100px] pointer-events-none" />
+    <div
+      className="min-h-screen relative overflow-hidden pb-24"
+      style={{ background: 'linear-gradient(160deg, #0c0525 0%, #050311 50%)' }}
+    >
+      {/* Ambient — single top glow only */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: 'radial-gradient(ellipse 90% 35% at 50% -5%, rgba(100,0,240,0.08) 0%, transparent 55%)' }}
+      />
 
-      <div className="relative z-10 max-w-5xl mx-auto px-4 py-6">
+      <div className="relative z-10 max-w-5xl mx-auto px-4 py-5">
 
-        {/* ── Top bar ──────────────────────────────────────────────── */}
+        {/* ── Header ──────────────────────────────────────────── */}
         <motion.div
-          initial={{ opacity: 0, y: -12 }}
+          initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           className="flex items-start justify-between mb-6 gap-4"
         >
-          {/* Left: Title + status */}
           <div>
-            <h1 className="font-display text-3xl font-bold gradient-text tracking-wide leading-none mb-1">
+            <h1 className="font-display text-2xl font-bold gradient-text tracking-wide mb-2 leading-none">
               VOID MAFIA
             </h1>
-            <PoweredBy className="block mb-2" />
-            {/* Status chip + role guide */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className={clsx(
-                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-mono uppercase tracking-widest',
-                allReady && canStart
-                  ? 'border-neon-green/40 bg-neon-green/8 text-neon-green'
-                  : 'border-white/10 bg-white/4 text-white/40',
-              )}>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
                 <span className={clsx(
-                  'w-1.5 h-1.5 rounded-full',
-                  allReady && canStart ? 'bg-neon-green animate-pulse' : 'bg-white/30',
+                  'w-1.5 h-1.5 rounded-full shrink-0 transition-colors',
+                  allReady && canStart ? 'bg-neon-green animate-pulse' : 'bg-white/[0.18]',
                 )} />
-                {allReady && canStart ? 'All ready — start game' : `Waiting for players · ${playerCount}/${minPlayers}`}
+                <span className="text-[11px] font-mono text-white/35">
+                  {allReady && canStart
+                    ? 'All players ready'
+                    : `${playerCount} / ${minPlayers} joined`}
+                </span>
               </div>
+              <span className="text-white/10 select-none">·</span>
               <button
                 onClick={() => setShowRoleGuide(true)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-neon-purple/30 bg-neon-purple/8 text-neon-purple/70 hover:border-neon-purple/60 hover:text-neon-purple hover:bg-neon-purple/15 text-[10px] font-mono uppercase tracking-widest transition-all"
+                className="text-[11px] font-mono text-white/22 hover:text-white/50 transition-colors"
               >
-                📖 Roles
+                Role Guide ↗
               </button>
             </div>
           </div>
 
-          {/* Right: Room code */}
-          <div className="text-right flex-shrink-0">
-            <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest mb-1.5">Room Code</p>
-            <button
-              onClick={handleCopy}
-              className="group flex items-center gap-2 justify-end"
-              title="Click to copy invite link"
-            >
-              <div
-                className="glass-card border border-neon-cyan/30 px-4 py-2 group-hover:border-neon-cyan/60 transition-all"
-                style={{ boxShadow: '0 0 16px rgba(0,245,255,0.08)' }}
-              >
-                <span className="font-mono text-2xl font-bold text-neon-cyan tracking-[0.3em]"
-                  style={{ textShadow: '0 0 16px rgba(0,245,255,0.5)' }}>
-                  {room.code}
-                </span>
-              </div>
+          {/* Room code */}
+          <div className="text-right shrink-0">
+            <p className="text-[9px] font-mono text-white/18 uppercase tracking-[0.18em] mb-1">Room</p>
+            <button onClick={handleCopy} className="group flex items-center justify-end gap-2">
+              <span className="font-mono text-xl font-bold text-neon-cyan/80 tracking-[0.22em]">
+                {room.code}
+              </span>
               <span className={clsx(
-                'text-[10px] font-mono px-2.5 py-1.5 rounded-lg border transition-all',
+                'text-[10px] px-2 py-0.5 rounded border font-mono transition-all',
                 copied
-                  ? 'border-neon-green/40 bg-neon-green/10 text-neon-green'
-                  : 'border-white/10 bg-white/4 text-white/40 group-hover:border-neon-cyan/30 group-hover:text-neon-cyan/70',
+                  ? 'border-neon-green/35 bg-neon-green/[0.07] text-neon-green/80'
+                  : 'border-white/[0.08] text-white/22 group-hover:border-white/18 group-hover:text-white/45',
               )}>
-                {copied ? '✓ Copied' : '⎘ Copy'}
+                {copied ? '✓' : 'Copy'}
               </span>
             </button>
             {room.settings.isPrivate && (
-              <p className="text-[10px] text-neon-pink/60 font-mono mt-1.5 tracking-widest">🔒 PRIVATE</p>
+              <p className="text-[10px] text-white/22 font-mono mt-1">Private room</p>
             )}
           </div>
         </motion.div>
 
-        {/* ── Main grid ───────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* ── Main grid ────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-          {/* Players column */}
-          <div className="lg:col-span-2 space-y-4">
+          {/* Left column — players + actions */}
+          <div className="lg:col-span-2 space-y-3">
 
-            {/* Player list card */}
+            {/* ── Player list ─────────────────────────────────── */}
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05 }}
-              className="glass-panel border border-white/8 rounded-2xl p-4"
+              transition={{ delay: 0.04 }}
+              className={SURFACE}
+              style={SURFACE_BG}
             >
               {/* Card header */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xs font-display font-bold text-white/50 tracking-widest uppercase">
-                    {t.lobby.players}
-                  </h2>
-                  <span className="text-[10px] font-mono text-white/25">{playerCount} joined</span>
-                </div>
-                {/* Readiness bar */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
+                <span className="text-[11px] font-mono text-white/35">
+                  {t.lobby.players}
+                  <span className="ml-2 text-white/50">{playerCount}</span>
+                </span>
                 {nonHostCount > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono text-white/30">{readyCount}/{nonHostCount} ready</span>
-                    <div className="w-20 h-1.5 bg-white/8 rounded-full overflow-hidden">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-[10px] font-mono text-white/22">
+                      {readyCount}/{nonHostCount} ready
+                    </span>
+                    <div className="w-16 h-0.5 bg-white/[0.07] rounded-full overflow-hidden">
                       <motion.div
-                        className={clsx('h-full rounded-full', allReady ? 'bg-neon-green' : 'bg-neon-cyan/60')}
+                        className={clsx('h-full rounded-full', allReady ? 'bg-neon-green' : 'bg-neon-cyan/50')}
                         animate={{ width: `${readyPct}%` }}
-                        transition={{ duration: 0.4 }}
+                        transition={{ duration: 0.5 }}
                       />
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Player rows */}
-              <div className="space-y-1.5">
+              {/* Rows */}
+              <div className="px-2 py-2">
                 {room.players.map((player, i) => {
                   const isMe = player.id === myPlayer?.id;
                   return (
                     <motion.div
                       key={player.id}
-                      initial={{ opacity: 0, x: -8 }}
+                      initial={{ opacity: 0, x: -6 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.06 + i * 0.04 }}
+                      transition={{ delay: 0.06 + i * 0.03 }}
                       onClick={() => !isMe && setStatsPlayer(player)}
                       className={clsx(
-                        'flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all',
+                        'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors',
                         isMe
-                          ? 'border-neon-purple/25 bg-neon-purple/6'
+                          ? 'bg-white/[0.03]'
                           : !player.isSpectator
-                            ? 'border-white/6 bg-white/2 hover:border-neon-cyan/20 hover:bg-neon-cyan/3 cursor-pointer'
-                            : 'border-white/4 bg-white/1 opacity-60',
+                          ? 'hover:bg-white/[0.025] cursor-pointer'
+                          : 'opacity-45',
                       )}
                     >
-                      {/* Seat badge */}
-                      <div className="w-6 h-6 rounded-full bg-white/6 border border-white/10 flex items-center justify-center shrink-0">
-                        <span className="text-[10px] font-mono text-white/30 font-bold">{player.seat}</span>
-                      </div>
-
                       <Avatar name={player.name} isHost={player.isHost} size="sm" />
 
-                      {/* Name + tags */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={clsx(
-                            'text-sm font-semibold truncate',
-                            player.isModerator ? 'text-neon-green'
-                            : player.isHost ? 'text-yellow-400'
-                            : isMe ? 'text-neon-purple/90'
-                            : 'text-white/80',
+                            'text-sm font-medium truncate',
+                            player.isModerator ? 'text-neon-green/75'
+                            : player.isHost ? 'text-yellow-400/75'
+                            : isMe ? 'text-white/90'
+                            : 'text-white/60',
                           )}>
                             {player.name}
                           </span>
                           {isMe && (
-                            <span className="text-[9px] font-mono text-neon-purple/60 border border-neon-purple/20 rounded px-1">
+                            <span className="text-[9px] font-mono text-white/18 border border-white/[0.08] rounded px-1 py-px">
                               you
                             </span>
                           )}
-                          {!player.isConnected && (
-                            <span className="text-[9px] font-mono text-white/20 border border-white/10 rounded px-1">
-                              reconnecting
+                          {player.isModerator && (
+                            <span className="text-[9px] font-mono text-neon-green/50 border border-neon-green/15 rounded px-1 py-px">
+                              mod
                             </span>
                           )}
-                          {player.isModerator && (
-                            <span className="text-[9px] font-mono text-neon-green border border-neon-green/20 rounded px-1">
-                              MOD
+                          {!player.isConnected && (
+                            <span className="text-[9px] font-mono text-white/18 border border-white/[0.07] rounded px-1 py-px">
+                              reconnecting
                             </span>
                           )}
                         </div>
                       </div>
 
-                      {/* Status pill */}
-                      <div className="shrink-0">
+                      {/* Status */}
+                      <div className="shrink-0 text-right">
                         {player.isHost ? (
-                          <span className="text-[10px] font-mono text-yellow-400/80 flex items-center gap-1">
-                            <span>👑</span> Host
-                          </span>
+                          <span className="text-[10px] font-mono text-yellow-400/50">Host</span>
                         ) : player.isSpectator ? (
-                          <span className="text-[10px] font-mono text-neon-purple/50">👁 Spectating</span>
+                          <span className="text-[10px] font-mono text-neon-purple/35">Spectator</span>
                         ) : player.isReady ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-neon-green"
-                            style={{ textShadow: '0 0 8px rgba(0,255,136,0.5)' }}>
-                            <span className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
-                            READY
+                          <span className="flex items-center gap-1.5 text-[10px] font-mono text-neon-green/60">
+                            <span className="w-1 h-1 rounded-full bg-neon-green/60" />
+                            Ready
                           </span>
                         ) : (
-                          <span className="text-[10px] font-mono text-white/20">waiting…</span>
+                          <span className="text-[10px] font-mono text-white/18">—</span>
                         )}
                       </div>
 
                       {/* Host controls */}
                       {amHost && !isMe && (
-                        <div className="flex items-center gap-1 ml-1 shrink-0" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-1 ml-0.5 shrink-0" onClick={e => e.stopPropagation()}>
                           {confirmTransferId === player.id ? (
                             <div className="flex items-center gap-1">
-                              <span className="text-[9px] text-white/30 font-mono">make host?</span>
+                              <span className="text-[9px] text-white/22 font-mono">make host?</span>
                               <button
                                 onClick={() => { transferHost(player.id); setConfirmTransferId(null); }}
                                 disabled={isLoading}
-                                className="text-[10px] px-1.5 py-0.5 rounded border border-yellow-400/40 text-yellow-400 hover:bg-yellow-400/10 transition-colors"
+                                className="text-[10px] px-1.5 py-0.5 rounded border border-yellow-400/25 text-yellow-400/60 hover:bg-yellow-400/8 transition-colors"
                               >✓</button>
                               <button
                                 onClick={() => setConfirmTransferId(null)}
-                                className="text-[10px] px-1 text-white/25 hover:text-white/50 transition-colors"
+                                className="text-[10px] px-1 text-white/18 hover:text-white/45 transition-colors"
                               >✕</button>
                             </div>
                           ) : (
@@ -280,13 +265,17 @@ export function LobbyPage() {
                               <button
                                 onClick={() => setConfirmTransferId(player.id)}
                                 title="Transfer host"
-                                className="w-6 h-6 flex items-center justify-center rounded text-white/15 hover:text-yellow-400 transition-colors text-sm"
-                              >👑</button>
+                                className="w-6 h-6 flex items-center justify-center rounded text-white/12 hover:text-yellow-400/60 transition-colors text-[13px]"
+                              >
+                                ♛
+                              </button>
                               <button
                                 onClick={() => kickPlayer(player.id)}
-                                className="w-6 h-6 flex items-center justify-center rounded text-white/15 hover:text-neon-red transition-colors text-xs font-mono"
+                                className="w-6 h-6 flex items-center justify-center rounded text-white/10 hover:text-neon-red/60 transition-colors text-xs font-mono font-bold"
                                 title="Kick"
-                              >✕</button>
+                              >
+                                ✕
+                              </button>
                             </>
                           )}
                         </div>
@@ -298,30 +287,29 @@ export function LobbyPage() {
 
               {/* Need more players */}
               {playerCount < minPlayers && (
-                <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-center gap-2">
+                <div className="mx-4 mb-3 pt-2.5 border-t border-white/[0.04] flex items-center gap-2.5">
                   <div className="flex gap-0.5">
                     {Array.from({ length: minPlayers }).map((_, i) => (
                       <div key={i} className={clsx(
-                        'w-1.5 h-1.5 rounded-full',
-                        i < playerCount ? 'bg-neon-cyan/70' : 'bg-white/10',
+                        'w-1 h-1 rounded-full transition-colors',
+                        i < playerCount ? 'bg-neon-cyan/40' : 'bg-white/[0.07]',
                       )} />
                     ))}
                   </div>
-                  <span className="text-[10px] font-mono text-white/30">
-                    Need {minPlayers - playerCount} more player{minPlayers - playerCount !== 1 ? 's' : ''} to start
+                  <span className="text-[10px] font-mono text-white/22">
+                    {minPlayers - playerCount} more player{minPlayers - playerCount !== 1 ? 's' : ''} needed
                   </span>
                 </div>
               )}
             </motion.div>
 
-            {/* ── Action bar ─────────────────────────────────────── */}
+            {/* ── Action bar ─────────────────────────────────── */}
             <motion.div
-              initial={{ opacity: 0, y: 8 }}
+              initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="flex gap-2.5"
+              transition={{ delay: 0.08 }}
+              className="flex gap-2"
             >
-              {/* Non-host ready toggle */}
               {!amHost && !amSpectator && (
                 <Button
                   fullWidth
@@ -329,18 +317,16 @@ export function LobbyPage() {
                   loading={isLoading}
                   onClick={() => toggleReady()}
                 >
-                  {myPlayer?.isReady ? '✓ Ready!' : 'Mark Ready'}
+                  {myPlayer?.isReady ? '✓ Ready' : t.lobby.ready}
                 </Button>
               )}
 
-              {/* Spectator badge */}
               {amSpectator && (
-                <div className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-neon-purple/20 bg-neon-purple/5 text-neon-purple/60 text-sm font-mono">
-                  👁 Watching as spectator
+                <div className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/[0.07] text-white/28 text-sm font-mono">
+                  Watching as spectator
                 </div>
               )}
 
-              {/* Host: start + settings */}
               {amHost && (
                 <>
                   <Button
@@ -349,70 +335,82 @@ export function LobbyPage() {
                     loading={isLoading}
                     disabled={!canStart}
                     onClick={() => startGame()}
-                    className={canStart ? 'ring-1 ring-neon-green/20' : ''}
                   >
-                    {canStart ? '▶ Start Game' : `▶ Start  (need ${minPlayers - playerCount} more)`}
+                    {canStart ? t.lobby.startGame : `Need ${minPlayers - playerCount} more`}
                   </Button>
                   <button
                     onClick={() => setShowSettings(s => !s)}
                     className={clsx(
-                      'px-3.5 py-2 rounded-xl border text-sm transition-all',
+                      'px-4 py-2 rounded-xl border text-[11px] font-mono whitespace-nowrap transition-all',
                       showSettings
-                        ? 'border-neon-purple/40 bg-neon-purple/10 text-neon-purple'
-                        : 'border-white/10 bg-white/4 text-white/40 hover:border-neon-purple/30 hover:text-neon-purple/70',
+                        ? 'border-white/18 bg-white/[0.04] text-white/55'
+                        : 'border-white/[0.07] bg-white/[0.02] text-white/28 hover:border-white/14 hover:text-white/50',
                     )}
-                    title="Game Settings"
                   >
-                    ⚙
+                    Settings
                   </button>
                 </>
               )}
 
               {/* Leave */}
-              {showLeaveConfirm ? (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-neon-red/25 bg-neon-red/5 flex-1">
-                  <span className="text-[10px] text-white/50 font-mono flex-1 leading-tight">
-                    {playerCount > 1 ? 'Leave? Host reassigned automatically.' : 'Leave and close the room?'}
-                  </span>
-                  <button
-                    onClick={() => leaveRoom()}
+              <AnimatePresence mode="wait">
+                {showLeaveConfirm ? (
+                  <motion.div
+                    key="confirm"
+                    initial={{ opacity: 0, scale: 0.97 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.97 }}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl border border-neon-red/18 bg-neon-red/[0.03] shrink-0"
+                  >
+                    <span className="text-[10px] text-white/35 font-mono leading-tight whitespace-nowrap">
+                      {playerCount > 1 ? 'Leave?' : 'Close room?'}
+                    </span>
+                    <button
+                      onClick={() => leaveRoom()}
+                      disabled={isLoading}
+                      className="text-[10px] px-2.5 py-1 rounded-lg bg-neon-red/70 text-white font-mono font-bold hover:bg-neon-red/90 transition-colors disabled:opacity-40 whitespace-nowrap"
+                    >
+                      Leave
+                    </button>
+                    <button
+                      onClick={() => setShowLeaveConfirm(false)}
+                      className="text-white/18 hover:text-white/50 text-xs shrink-0"
+                    >✕</button>
+                  </motion.div>
+                ) : (
+                  <motion.button
+                    key="leave"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => amHost ? setShowLeaveConfirm(true) : leaveRoom()}
                     disabled={isLoading}
-                    className="text-[10px] px-2.5 py-1.5 rounded-lg bg-neon-red/80 text-white font-display font-bold uppercase tracking-wider hover:bg-neon-red transition-colors disabled:opacity-40 shrink-0"
+                    className="px-3 py-2 rounded-xl text-[11px] font-mono text-white/20 hover:text-neon-red/55 transition-colors disabled:opacity-30 whitespace-nowrap"
                   >
                     Leave
-                  </button>
-                  <button onClick={() => setShowLeaveConfirm(false)} className="text-white/25 hover:text-white/60 text-xs shrink-0">✕</button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => amHost ? setShowLeaveConfirm(true) : leaveRoom()}
-                  disabled={isLoading}
-                  className="px-3.5 py-2 rounded-xl border border-neon-red/20 text-neon-red/50 text-xs font-mono hover:border-neon-red/40 hover:text-neon-red/80 hover:bg-neon-red/5 transition-all disabled:opacity-30"
-                  title="Leave room"
-                >
-                  Leave
-                </button>
-              )}
+                  </motion.button>
+                )}
+              </AnimatePresence>
             </motion.div>
 
-            {/* ── Auto-start countdown ───────────────────────────── */}
+            {/* ── Auto-start countdown ────────────────────────── */}
             <AnimatePresence>
               {autoStartCountdown !== null && (
                 <motion.div
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
-                  className="flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-neon-green/30 bg-neon-green/6"
+                  className="flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-neon-green/18 bg-neon-green/[0.035]"
                 >
-                  <div className="w-2 h-2 rounded-full bg-neon-green animate-ping" />
-                  <span className="font-mono text-sm text-neon-green">
-                    Game starting in <span className="font-bold text-base">{autoStartCountdown}s</span>…
+                  <span className="w-1.5 h-1.5 rounded-full bg-neon-green/80 animate-ping" />
+                  <span className="font-mono text-sm text-neon-green/75">
+                    Starting in <span className="font-bold text-neon-green">{autoStartCountdown}s</span>
                   </span>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* ── Settings panel ─────────────────────────────────── */}
+            {/* ── Settings panel ──────────────────────────────── */}
             <AnimatePresence>
               {showSettings && amHost && (
                 <motion.div
@@ -422,10 +420,9 @@ export function LobbyPage() {
                   className="overflow-hidden"
                 >
                   <div className="pt-1 space-y-3">
-                    {/* Password field */}
-                    <div className="glass-panel border border-white/8 rounded-xl p-4">
-                      <label className="block text-[10px] font-mono text-white/30 uppercase tracking-widest mb-2">
-                        Room Password (optional)
+                    <div className={`${SURFACE} p-4`} style={SURFACE_BG}>
+                      <label className="block text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2.5">
+                        Room Password
                       </label>
                       <input
                         type="text"
@@ -433,11 +430,11 @@ export function LobbyPage() {
                         placeholder="Leave blank for open room"
                         value={room.settings.password ?? ''}
                         onChange={e => updateSettings({ password: e.target.value })}
-                        className="w-full bg-white/4 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono text-white/80 placeholder-white/20 focus:outline-none focus:border-neon-cyan/40 transition-colors"
+                        className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-3 py-2 text-sm font-mono text-white/65 placeholder-white/15 focus:outline-none focus:border-neon-cyan/28 transition-colors"
                       />
                       {room.settings.password && (
-                        <p className="text-[10px] font-mono text-neon-pink/60 mt-1.5 tracking-wider">
-                          🔒 Players need this password to join
+                        <p className="text-[10px] font-mono text-white/28 mt-2">
+                          Players will need this password to join.
                         </p>
                       )}
                     </div>
@@ -452,7 +449,7 @@ export function LobbyPage() {
               )}
             </AnimatePresence>
 
-            {/* ── Voice ──────────────────────────────────────────── */}
+            {/* ── Voice ───────────────────────────────────────── */}
             <VoiceControls
               channel={voice.channel}
               status={voice.status}
@@ -479,20 +476,19 @@ export function LobbyPage() {
             )}
           </div>
 
-          {/* ── Chat column ───────────────────────────────────────── */}
+          {/* ── Chat column ─────────────────────────────────────── */}
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.12 }}
-            className="lg:col-span-1 glass-panel border border-white/8 rounded-2xl p-4 min-h-[360px] flex flex-col"
+            transition={{ delay: 0.1 }}
+            className={`lg:col-span-1 ${SURFACE} p-0 min-h-[360px] flex flex-col overflow-hidden`}
+            style={SURFACE_BG}
           >
-            <div className="flex items-center justify-between mb-3 flex-shrink-0">
-              <h2 className="text-xs font-display font-bold text-white/50 tracking-widest uppercase">
-                Chat
-              </h2>
-              <span className="text-[10px] font-mono text-white/20">lobby channel</span>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04] flex-shrink-0">
+              <span className="text-[11px] font-mono text-white/35">Chat</span>
+              <span className="text-[10px] font-mono text-white/15">lobby</span>
             </div>
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 p-3">
               <ChatPanel />
             </div>
           </motion.div>
