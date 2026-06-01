@@ -13,6 +13,8 @@ import { NightPanel } from '@/components/game/NightPanel';
 import { VotingPanel } from '@/components/game/VotingPanel';
 import { GameOver } from '@/components/game/GameOver';
 import { NightResultOverlay } from '@/components/game/NightResultOverlay';
+import { NightSummaryOverlay } from '@/components/game/NightSummaryOverlay';
+import { AchievementToast } from '@/components/ui/AchievementToast';
 import { PlayerStatsModal } from '@/components/ui/PlayerStatsModal';
 import { ReportModal } from '@/components/ui/ReportModal';
 import { LeaderboardModal } from '@/components/ui/LeaderboardModal';
@@ -101,10 +103,10 @@ export function GamePage() {
   const {
     room, myPlayer, myRole, amHost, amAlive,
     nightResult, investigationResult, spyReport, gameOverResult,
-    voteEliminationResult, cultConversionNotice,
+    voteEliminationResult, cultConversionNotice, nightSummary, newAchievements,
     skipPhase, daySkipVote, leaveRoom, terminateGame,
     dismissNightResult, dismissInvestigation, dismissSpyReport, dismissGameOver,
-    dismissVoteElimination, dismissCultConversion,
+    dismissVoteElimination, dismissCultConversion, dismissNightSummary, dismissNewAchievements,
     setWill, pauseTimer, submitVote,
     isLoading,
   } = useGameStore(s => ({
@@ -119,6 +121,8 @@ export function GamePage() {
     gameOverResult: s.gameOverResult,
     voteEliminationResult: s.voteEliminationResult,
     cultConversionNotice: s.cultConversionNotice,
+    nightSummary: s.nightSummary,
+    newAchievements: s.newAchievements,
     skipPhase: s.skipPhase,
     daySkipVote: s.daySkipVote,
     leaveRoom: s.leaveRoom,
@@ -129,6 +133,8 @@ export function GamePage() {
     dismissGameOver: s.dismissGameOver,
     dismissVoteElimination: s.dismissVoteElimination,
     dismissCultConversion: s.dismissCultConversion,
+    dismissNightSummary: s.dismissNightSummary,
+    dismissNewAchievements: s.dismissNewAchievements,
     setWill: s.setWill,
     pauseTimer: s.pauseTimer,
     submitVote: s.submitVote,
@@ -661,6 +667,8 @@ export function GamePage() {
 
       {/* Night result */}
       <NightResultOverlay result={nightResult} onDismiss={dismissNightResult} />
+      <NightSummaryOverlay summary={nightSummary} onDismiss={dismissNightSummary} />
+      <AchievementToast achievements={newAchievements} onDismiss={dismissNewAchievements} />
 
       {/* Investigation result */}
       <AnimatePresence>

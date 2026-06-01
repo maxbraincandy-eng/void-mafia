@@ -6,6 +6,9 @@ import { createPlayerMessage, createSystemMessage, addMessage, validateChat, } f
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
 import { getOrCreatePlayer, getPlayer, getAllPlayers, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, } from './services/playerService.js';
+import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
+import { recordGame, getPlayerHistory } from './services/gameHistoryService.js';
+import { createClan, getClan, getClanByPlayer, getAllClans, getClanMembers, joinClan, leaveClan, } from './services/clanService.js';
 import { canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer, warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, logKick, } from './services/moderationService.js';
 import { canJoin as voiceCanJoin, join as voiceJoin, leave as voiceLeave, } from './services/voiceService.js';
 // ── Validation Schemas ────────────────────────────────────────────────
@@ -87,13 +90,27 @@ function getRoomFromSocket(socket) {
 }
 function emitGameOver(io, room) {
     const result = buildGameOverResult(room);
+    // Record persistent game history
+    try {
+        recordGame(room);
+    }
+    catch { /* non-fatal */ }
     for (const p of room.players.values()) {
         if (p.socketId)
             io.to(p.socketId).emit('game:over', result);
-        // Record stats
         if (p.profileId && room.winner) {
             const won = p.team === room.winner;
             addGameResult(p.profileId, won);
+            // Check and award achievements
+            try {
+                const newKeys = checkAchievements(room, p.id);
+                if (newKeys.length > 0 && p.socketId) {
+                    const allAchs = getPlayerAchievements(p.profileId);
+                    const earned = allAchs.filter(a => newKeys.includes(a.key));
+                    io.to(p.socketId).emit('achievement:earned', { achievements: earned });
+                }
+            }
+            catch { /* non-fatal */ }
         }
     }
 }
@@ -111,6 +128,17 @@ function notifyMods(io, type, message, targetName) {
 function announceNightResult(io, room) {
     const result = { killed: room.killedLastNight, saved: room.savedLastNight };
     io.to(room.id).emit('game:night_result', result);
+    // Night summary card (aggregate stats for all players)
+    const summary = {
+        day: room.day,
+        totalTargeted: room.nightActions.size,
+        saved: room.savedLastNight,
+        eliminated: room.killedLastNight.map(k => {
+            const p = room.players.get(k.id);
+            return { name: k.name, role: p?.role ?? null };
+        }),
+    };
+    io.to(room.id).emit('game:night_summary', summary);
     if (room.killedLastNight.length > 0) {
         for (const killed of room.killedLastNight) {
             let msg = `Dawn breaks. ${killed.name} was found dead.`;
@@ -214,14 +242,14 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Email Register ───────────────────────────────────────────────
-        socket.on('player:register', (data, cb) => {
+        socket.on('player:register', async (data, cb) => {
             try {
                 const { email, password, username } = z.object({
                     email: z.string().email().max(200),
                     password: z.string().min(6).max(128),
                     username: z.string().min(2).max(24),
                 }).parse(data);
-                const profile = registerWithEmail(email, password, username);
+                const profile = await registerWithEmail(email, password, username);
                 socket.data.profileId = profile.id;
                 socket.emit('player:profile', toPublicProfile(profile));
                 cb(ok({ uid: profile.id, profile: toPublicProfile(profile) }));
@@ -231,13 +259,13 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Email Login ──────────────────────────────────────────────────
-        socket.on('player:login_email', (data, cb) => {
+        socket.on('player:login_email', async (data, cb) => {
             try {
                 const { email, password } = z.object({
                     email: z.string().email(),
                     password: z.string().min(1),
                 }).parse(data);
-                const profile = authenticateWithEmail(email, password);
+                const profile = await authenticateWithEmail(email, password);
                 const ban = getActiveBan(profile.id);
                 if (ban) {
                     cb(err(`You are banned until ${new Date(ban.expiresAt).toLocaleString()}. Reason: ${ban.reason}`));
@@ -970,6 +998,94 @@ export function attachSocketHandlers(io) {
                 if (!mod || !canDo(mod, 'resolve_reports'))
                     throw new Error('Insufficient permissions.');
                 resolveReport(modProfileId, reportId, status, notes);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Achievements ─────────────────────────────────────────────────
+        socket.on('player:achievements', ({ profileId }, cb) => {
+            try {
+                const achs = getPlayerAchievements(profileId);
+                cb(ok(achs));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Game History ──────────────────────────────────────────────────
+        socket.on('player:history', ({ profileId }, cb) => {
+            try {
+                const history = getPlayerHistory(profileId, 20);
+                cb(ok(history));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Clans ─────────────────────────────────────────────────────────
+        socket.on('clan:list', (cb) => {
+            try {
+                cb(ok(getAllClans()));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('clan:get', ({ clanId }, cb) => {
+            try {
+                const clan = getClan(clanId);
+                if (!clan)
+                    throw new Error('Clan not found.');
+                const members = getClanMembers(clanId);
+                cb(ok({ clan, members }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('clan:mine', (cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    return cb(ok(null));
+                cb(ok(getClanByPlayer(profileId)));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('clan:create', ({ name, tag, description }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const clan = createClan(profileId, name, tag, description);
+                cb(ok(clan));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('clan:join', ({ clanId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                joinClan(profileId, clanId);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('clan:leave', (cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                leaveClan(profileId);
                 cb(ok(null));
             }
             catch (e) {

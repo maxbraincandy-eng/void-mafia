@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { useEffect, useRef } from 'react';
 import clsx from 'clsx';
 
 interface Props {
@@ -21,9 +22,36 @@ const CONFIGS = {
   lg: { r: 38, stroke: 4,   box: 88, textClass: 'text-3xl' },
 };
 
+function playTick(urgent: boolean) {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = urgent ? 880 : 660;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.12);
+    osc.onended = () => ctx.close();
+  } catch { /* AudioContext not available */ }
+}
+
 export function Timer({ seconds, max, size = 'md' }: Props) {
+  const prevSecondsRef = useRef(seconds);
   const pct = max > 0 ? Math.max(0, Math.min(1, seconds / max)) : 0;
-  const isUrgent  = pct < 0.25;
+  const isUrgent = pct < 0.25;
+
+  useEffect(() => {
+    const prev = prevSecondsRef.current;
+    prevSecondsRef.current = seconds;
+    // Tick for last 10 seconds, only when counting down
+    if (seconds <= 10 && seconds > 0 && seconds < prev) {
+      playTick(seconds <= 5);
+    }
+  }, [seconds]);
   const isWarning = pct < 0.5;
 
   const { r, stroke, box, textClass } = CONFIGS[size];

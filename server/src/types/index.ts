@@ -325,6 +325,59 @@ export interface GameOverResult {
 // ── Voice channel type (kept in sync with client/src/hooks/useVoiceChat) ──
 export type VoiceChannel = 'room' | 'mafia';
 
+// ── Achievement ───────────────────────────────────────────────────────
+export interface AchievementEarned {
+  key: string;
+  name: string;
+  description: string;
+  icon: string;
+  rarity: string;
+}
+
+// ── Night Summary ─────────────────────────────────────────────────────
+export interface NightSummary {
+  day: number;
+  totalTargeted: number;
+  saved: boolean;
+  eliminated: Array<{ name: string; role: RoleKey | null }>;
+}
+
+// ── Clan (public) ─────────────────────────────────────────────────────
+export interface ClanPublic {
+  id: string;
+  name: string;
+  tag: string;
+  ownerId: string;
+  description: string;
+  wins: number;
+  losses: number;
+  createdAt: number;
+  memberCount: number;
+}
+
+// ── Clan Member ───────────────────────────────────────────────────────
+export interface ClanMember {
+  playerId: string;
+  username: string;
+  avatar: string;
+  role: 'owner' | 'officer' | 'member';
+  joinedAt: number;
+}
+
+// ── Game History (public) ─────────────────────────────────────────────
+export interface GameHistoryEntry {
+  id: string;
+  roomCode: string;
+  startedAt: number;
+  endedAt: number;
+  winner: string | null;
+  dayReached: number;
+  playerCount: number;
+  myRole: string | null;
+  myTeam: string | null;
+  won: boolean;
+}
+
 // ── Socket Event Maps ─────────────────────────────────────────────────
 type Cb<T> = (res: Res<T>) => void;
 
@@ -337,6 +390,8 @@ export interface ServerToClientEvents {
   'game:investigation': (result: InvestigationResult) => void;
   'game:track_result':  (result: { trackedName: string; visitedName: string | null }) => void;
   'game:over':          (result: GameOverResult) => void;
+  'game:night_summary': (summary: NightSummary) => void;
+  'achievement:earned': (data: { achievements: AchievementEarned[] }) => void;
   'error':              (data: { message: string }) => void;
   'kicked':             (data: { reason: string }) => void;
   'player:profile':     (profile: PlayerProfilePublic) => void;
@@ -379,6 +434,14 @@ export interface ClientToServerEvents {
   'game:pause':         (cb: Cb<{ isPaused: boolean }>) => void;
   'game:terminate':     (cb: Cb<null>) => void;
   'leaderboard:get':    (cb: Cb<PlayerProfilePublic[]>) => void;
+  'player:achievements': (data: { profileId: string }, cb: Cb<AchievementEarned[]>) => void;
+  'player:history':     (data: { profileId: string }, cb: Cb<GameHistoryEntry[]>) => void;
+  'clan:list':          (cb: Cb<ClanPublic[]>) => void;
+  'clan:get':           (data: { clanId: string }, cb: Cb<{ clan: ClanPublic; members: ClanMember[] }>) => void;
+  'clan:create':        (data: { name: string; tag: string; description: string }, cb: Cb<ClanPublic>) => void;
+  'clan:join':          (data: { clanId: string }, cb: Cb<null>) => void;
+  'clan:leave':         (cb: Cb<null>) => void;
+  'clan:mine':          (cb: Cb<ClanPublic | null>) => void;
   'chat:send':          (data: { text: string; channel: ChatChannel }, cb: Cb<null>) => void;
   'mod:kick_from_room': (data: { targetProfileId: string; roomId: string; reason: string }, cb: Cb<null>) => void;
   'mod:kick_player':    (data: { targetProfileId: string; reason: string }, cb: Cb<null>) => void;

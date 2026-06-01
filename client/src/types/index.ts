@@ -217,3 +217,56 @@ export interface ModLog {
 
 // Generic response envelope from server
 export type Res<T> = { ok: true; data: T } | { ok: false; error: string };
+
+// ── Achievement ───────────────────────────────────────────────────────
+export interface AchievementEarned {
+  key: string;
+  name: string;
+  description: string;
+  icon: string;
+  rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+  earnedAt: number;
+}
+
+// ── Night Summary ─────────────────────────────────────────────────────
+export interface NightSummary {
+  day: number;
+  totalTargeted: number;
+  saved: boolean;
+  eliminated: Array<{ name: string; role: RoleKey | null }>;
+}
+
+// ── Clan ─────────────────────────────────────────────────────────────
+export interface ClanPublic {
+  id: string;
+  name: string;
+  tag: string;
+  ownerId: string;
+  description: string;
+  wins: number;
+  losses: number;
+  createdAt: number;
+  memberCount: number;
+}
+
+export interface ClanMember {
+  playerId: string;
+  username: string;
+  avatar: string;
+  role: 'owner' | 'officer' | 'member';
+  joinedAt: number;
+}
+
+// ── Game History ─────────────────────────────────────────────────────
+export interface GameHistoryEntry {
+  id: string;
+  roomCode: string;
+  startedAt: number;
+  endedAt: number;
+  winner: string | null;
+  dayReached: number;
+  playerCount: number;
+  myRole: string | null;
+  myTeam: string | null;
+  won: boolean;
+}
