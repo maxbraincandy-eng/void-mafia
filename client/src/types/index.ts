@@ -60,6 +60,51 @@ export interface PlayerStats {
   winRate: number;
 }
 
+// ── Cosmetics ─────────────────────────────────────────────────────────
+export interface PlayerCosmetics {
+  equippedNameColor: string | null;
+  equippedFrame: string | null;
+  unlockedItems: string[];
+}
+
+// ── XP Gain ───────────────────────────────────────────────────────────
+export interface XPGain {
+  amount: number;
+  newXP: number;
+  newLevel: number;
+  leveledUp: boolean;
+  challengeCompleted: boolean;
+  challengeBonus: number;
+}
+
+// ── Friend ────────────────────────────────────────────────────────────
+export interface Friend {
+  profileId: string;
+  username: string;
+  avatar: string;
+  level: number;
+  isOnline: boolean;
+  status: 'accepted';
+}
+
+export interface FriendRequest {
+  id: string;
+  fromId: string;
+  fromUsername: string;
+  fromAvatar: string;
+  createdAt: number;
+}
+
+// ── Daily Challenge ───────────────────────────────────────────────────
+export interface DailyChallenge {
+  id: string;
+  description: string;
+  xpReward: number;
+  completedToday: boolean;
+  progressCount: number;
+  targetCount: number;
+}
+
 export interface PlayerProfilePublic {
   id: string;
   username: string;
@@ -70,6 +115,9 @@ export interface PlayerProfilePublic {
   moderatorBadgeVisible: boolean;
   moderatorPermissions: string[];
   joinedAt: number;
+  xp?: number;
+  level?: number;
+  cosmetics?: PlayerCosmetics;
 }
 
 export interface PlayerPublic {
@@ -145,6 +193,7 @@ export interface RoomPublic {
   players: PlayerPublic[];
   chat: ChatMessage[];
   mafiaChat: ChatMessage[];
+  deadChat: ChatMessage[];
   killedLastNight: Array<{ id: string; name: string }>;
   savedLastNight: boolean;
   winner: Team | null;

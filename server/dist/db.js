@@ -138,7 +138,32 @@ db.exec(`
     joined_at INTEGER NOT NULL,
     PRIMARY KEY (clan_id, player_id)
   );
+
+  CREATE TABLE IF NOT EXISTS friendships (
+    id         TEXT PRIMARY KEY,
+    from_id    TEXT NOT NULL,
+    to_id      TEXT NOT NULL,
+    status     TEXT NOT NULL DEFAULT 'pending',
+    created_at INTEGER NOT NULL,
+    UNIQUE(from_id, to_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS daily_completions (
+    player_id    TEXT NOT NULL,
+    challenge_id TEXT NOT NULL,
+    date_key     TEXT NOT NULL,
+    completed_at INTEGER NOT NULL,
+    PRIMARY KEY (player_id, challenge_id, date_key)
+  );
 `);
+// Migration-safe column additions
+const addCol = (sql) => { try {
+    db.exec(sql);
+}
+catch { /* column already exists */ } };
+addCol("ALTER TABLE players ADD COLUMN xp INTEGER NOT NULL DEFAULT 0");
+addCol("ALTER TABLE players ADD COLUMN level INTEGER NOT NULL DEFAULT 1");
+addCol("ALTER TABLE players ADD COLUMN cosmetics TEXT NOT NULL DEFAULT '{}'");
 // Seed achievement definitions
 const ACHIEVEMENTS = [
     { key: 'first_blood', name: 'First Blood', icon: '🩸', rarity: 'common', description: 'Win your first game' },

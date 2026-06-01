@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { createHash } from 'crypto';
 import {
-  PlayerProfile, PlayerProfilePublic, ModeratorLevel, BanRecord, MuteRecord, Warning,
+  PlayerProfile, PlayerProfilePublic, ModeratorLevel, BanRecord, MuteRecord, Warning, PlayerCosmetics,
 } from '../types/index.js';
 import { nameToAvatar } from '../utils/helpers.js';
 import { db } from '../db.js';
@@ -47,6 +47,18 @@ function rowToProfile(row: any): PlayerProfile {
   const activeMute = getActiveMute(row.id);
   const warnings   = getWarnings(row.id);
 
+  let cosmetics: PlayerCosmetics;
+  try {
+    const parsed = JSON.parse(row.cosmetics ?? '{}') as Partial<PlayerCosmetics>;
+    cosmetics = {
+      equippedNameColor: parsed.equippedNameColor ?? null,
+      equippedFrame: parsed.equippedFrame ?? null,
+      unlockedItems: parsed.unlockedItems ?? [],
+    };
+  } catch {
+    cosmetics = { equippedNameColor: null, equippedFrame: null, unlockedItems: [] };
+  }
+
   return {
     id:                     row.id,
     username:               row.username,
@@ -68,6 +80,9 @@ function rowToProfile(row: any): PlayerProfile {
     warnings,
     joinedAt:               row.joined_at,
     lastSeenAt:             row.last_seen_at,
+    xp:                     row.xp ?? 0,
+    level:                  row.level ?? 1,
+    cosmetics,
   };
 }
 
@@ -168,6 +183,9 @@ export function toPublicProfile(p: PlayerProfile): PlayerProfilePublic {
     moderatorBadgeVisible: p.moderatorBadgeVisible,
     moderatorPermissions:  p.moderatorPermissions ?? [],
     joinedAt:              p.joinedAt,
+    xp:                    p.xp,
+    level:                 p.level,
+    cosmetics:             p.cosmetics,
   };
 }
 
@@ -258,4 +276,65 @@ export function findSocketByProfile(
     if ((socket.data as any).profileId === profileId) return socket as any;
   }
   return null;
+}
+
+// ── XP & Level System ─────────────────────────────────────────────────
+export const LEVEL_THRESHOLDS = [0, 100, 250, 500, 900, 1400, 2100, 3000, 4100, 5400];
+
+export function getLevel(xp: number): number {
+  for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
+    if (xp >= LEVEL_THRESHOLDS[i]) return i + 1;
+  }
+  return 1;
+}
+
+export function addXP(profileId: string, amount: number): { newXP: number; newLevel: number; leveledUp: boolean } {
+  const row = db.prepare('SELECT xp, level FROM players WHERE id = ?').get(profileId) as { xp: number; level: number } | undefined;
+  if (!row) return { newXP: 0, newLevel: 1, leveledUp: false };
+  const newXP = (row.xp ?? 0) + amount;
+  const newLevel = getLevel(newXP);
+  db.prepare('UPDATE players SET xp = ?, level = ? WHERE id = ?').run(newXP, newLevel, profileId);
+  checkLevelCosmetics(profileId, newLevel);
+  return { newXP, newLevel, leveledUp: newLevel > (row.level ?? 1) };
+}
+
+export function getCosmetics(profileId: string): PlayerCosmetics {
+  const row = db.prepare('SELECT cosmetics FROM players WHERE id = ?').get(profileId) as { cosmetics: string } | undefined;
+  try {
+    const parsed = JSON.parse(row?.cosmetics ?? '{}') as Partial<PlayerCosmetics>;
+    return {
+      equippedNameColor: parsed.equippedNameColor ?? null,
+      equippedFrame: parsed.equippedFrame ?? null,
+      unlockedItems: parsed.unlockedItems ?? [],
+    };
+  } catch {
+    return { equippedNameColor: null, equippedFrame: null, unlockedItems: [] };
+  }
+}
+
+export function equipCosmetic(profileId: string, type: 'name_color' | 'frame', itemId: string | null): PlayerCosmetics {
+  const cosmetics = getCosmetics(profileId);
+  if (itemId && !cosmetics.unlockedItems.includes(itemId)) throw new Error('Item not unlocked.');
+  if (type === 'name_color') cosmetics.equippedNameColor = itemId;
+  else cosmetics.equippedFrame = itemId;
+  db.prepare('UPDATE players SET cosmetics = ? WHERE id = ?').run(JSON.stringify(cosmetics), profileId);
+  return cosmetics;
+}
+
+function checkLevelCosmetics(profileId: string, level: number): void {
+  const unlocks: Record<number, string[]> = {
+    2: ['name_cyan'],
+    3: ['name_pink', 'frame_bronze'],
+    5: ['name_gold', 'frame_silver'],
+    7: ['name_rainbow'],
+    8: ['frame_gold'],
+    10: ['frame_legendary'],
+  };
+  const items = unlocks[level];
+  if (!items) return;
+  const cosmetics = getCosmetics(profileId);
+  for (const item of items) {
+    if (!cosmetics.unlockedItems.includes(item)) cosmetics.unlockedItems.push(item);
+  }
+  db.prepare('UPDATE players SET cosmetics = ? WHERE id = ?').run(JSON.stringify(cosmetics), profileId);
 }

@@ -3,6 +3,7 @@ import {
   RoomPublic, PlayerPublic, PlayerProfilePublic, Role, ChatMessage, Phase,
   NightResult, InvestigationResult, GameOverResult, ChatChannel, GameSettings,
   VoteEliminationResult, NightSummary, AchievementEarned, VoteBreakdownEntry,
+  XPGain, FriendRequest,
 } from '@/types/index';
 import { socket, connectSocket, disconnectSocket, emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
@@ -33,6 +34,9 @@ interface GameStore {
   newAchievements: AchievementEarned[];
   voteBreakdown: VoteBreakdownEntry[] | null;
   autoStartCountdown: number | null;
+  xpGain: XPGain | null;
+  queuePosition: number | null;
+  pendingFriendRequests: FriendRequest[];
   modNotice: { type: 'ban' | 'mute' | 'warn'; reason: string; expiresAt?: number; moderatorName?: string } | null;
   toasts: Toast[];
 
@@ -72,7 +76,9 @@ interface GameStore {
   dismissNightSummary: () => void;
   dismissNewAchievements: () => void;
   dismissVoteBreakdown: () => void;
+  dismissXPGain: () => void;
   dismissModNotice: () => void;
+  rematch: () => Promise<void>;
   addToast: (text: string, type?: Toast['type']) => void;
   clearError: () => void;
   setWill: (text: string) => Promise<void>;
@@ -87,6 +93,9 @@ export const useGameStore = create<GameStore>((set, get) => {
   socket.on('connect', () => {
     const { room, myPlayerId } = get();
     set({ isConnected: true });
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
     // Auto-rejoin room after transport reconnect
     if (room && myPlayerId) {
       const player = room.players.find(p => p.id === myPlayerId);
@@ -128,7 +137,7 @@ export const useGameStore = create<GameStore>((set, get) => {
   socket.on('chat:new', (msg: ChatMessage) => {
     set(state => {
       if (!state.room) return state;
-      const field = msg.channel === 'mafia' ? 'mafiaChat' : 'chat';
+      const field = msg.channel === 'mafia' ? 'mafiaChat' : msg.channel === 'dead' ? 'deadChat' : 'chat';
       return {
         room: {
           ...state.room,
@@ -192,6 +201,31 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   (socket as any).on('lobby:autostart', ({ secondsLeft }: { secondsLeft: number }) => {
     set({ autoStartCountdown: secondsLeft < 0 ? null : secondsLeft });
+  });
+
+  (socket as any).on('xp:gained', (data: XPGain) => {
+    set({ xpGain: data });
+  });
+
+  (socket as any).on('queue:position', ({ position }: { position: number }) => {
+    set({ queuePosition: position });
+    get().addToast(`You're #${position} in the spectate queue`, 'info');
+  });
+
+  (socket as any).on('queue:promoted', () => {
+    set({ queuePosition: null });
+    get().addToast('Spot opened — joining room!', 'success');
+  });
+
+  (socket as any).on('friend:request_received', (req: FriendRequest) => {
+    set(s => ({ pendingFriendRequests: [...s.pendingFriendRequests, req] }));
+    get().addToast(`Friend request from ${req.fromUsername}`, 'info');
+  });
+
+  (socket as any).on('game:notification', ({ title, body }: { title: string; body: string }) => {
+    if (document.visibilityState === 'hidden' && Notification.permission === 'granted') {
+      try { new Notification(title, { body, icon: '/icon-192.png' }); } catch {}
+    }
   });
 
   socket.on('kicked', ({ reason }: { reason: string }) => {
@@ -277,6 +311,9 @@ export const useGameStore = create<GameStore>((set, get) => {
     newAchievements: [],
     voteBreakdown: null,
     autoStartCountdown: null,
+    xpGain: null,
+    queuePosition: null,
+    pendingFriendRequests: [],
     modNotice: null,
     toasts: [],
     isLoading: false,
@@ -383,7 +420,12 @@ export const useGameStore = create<GameStore>((set, get) => {
     dismissNightSummary: () => set({ nightSummary: null }),
     dismissNewAchievements: () => set({ newAchievements: [] }),
     dismissVoteBreakdown: () => set({ voteBreakdown: null }),
+    dismissXPGain: () => set({ xpGain: null }),
     dismissModNotice: () => set({ modNotice: null }),
+
+    rematch: withLoading(async () => {
+      await emit('game:rematch');
+    }),
 
     addToast: (text: string, type: Toast['type'] = 'info') => {
       const id = `t_${++toastCounter}`;

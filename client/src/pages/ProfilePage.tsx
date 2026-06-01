@@ -4,9 +4,14 @@ import { useAuthStore } from '@/store/authStore';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { PoweredBy } from '@/components/ui/PoweredBy';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
+import { FriendsPanel } from '@/components/ui/FriendsPanel';
 import { emitWithAck } from '@/lib/socket';
 import { AchievementEarned, GameHistoryEntry } from '@/types/index';
 import type { Res } from '@/types/index';
+
+const LEVEL_THRESHOLDS = [0, 100, 250, 500, 900, 1400, 2100, 3000, 4100, 5400];
+function xpForLevel(level: number): number { return LEVEL_THRESHOLDS[level - 1] ?? 0; }
+function xpForNextLevel(level: number): number { return LEVEL_THRESHOLDS[level] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1]; }
 
 const RARITY_GLOW: Record<string, string> = {
   common:    'rgba(255,255,255,0.12)',
@@ -37,7 +42,7 @@ export function ProfilePage() {
   const [showRoleGuide, setShowRoleGuide] = useState(false);
   const [achievements, setAchievements] = useState<AchievementEarned[]>([]);
   const [history, setHistory]           = useState<GameHistoryEntry[]>([]);
-  const [tab, setTab] = useState<'achievements' | 'history'>('achievements');
+  const [tab, setTab] = useState<'achievements' | 'history' | 'friends'>('achievements');
   const [loadingAch, setLoadingAch] = useState(false);
 
   useEffect(() => {
@@ -86,17 +91,31 @@ export function ProfilePage() {
           animate={{ opacity: 1, y: 0 }}
           className="glass-panel border border-neon-purple/20 rounded-2xl p-6 mb-4"
         >
-          <div className="flex items-center gap-4 mb-6">
+          <div className="flex items-center gap-4 mb-4">
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-            <button type="button" onClick={handleAvatarClick} className="relative w-16 h-16 rounded-full group flex-shrink-0" title="Click to upload profile picture">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-neon-pink to-neon-purple flex items-center justify-center text-2xl font-bold text-white shadow-neon-purple overflow-hidden">
-                {localAvatar ? <img src={localAvatar} alt={profile.username} className="w-full h-full object-cover rounded-full" /> : profile.avatar}
+            <div className="relative flex-shrink-0">
+              <button type="button" onClick={handleAvatarClick} className="relative w-16 h-16 rounded-full group" title="Click to upload profile picture">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-neon-pink to-neon-purple flex items-center justify-center text-2xl font-bold text-white shadow-neon-purple overflow-hidden">
+                  {localAvatar ? <img src={localAvatar} alt={profile.username} className="w-full h-full object-cover rounded-full" /> : profile.avatar}
+                </div>
+                <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="text-xl">📷</span>
+                </div>
+              </button>
+              {/* Level badge */}
+              <div
+                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-display font-bold border"
+                style={{
+                  background: 'rgba(155,0,255,0.4)',
+                  borderColor: 'rgba(155,0,255,0.7)',
+                  color: '#c084fc',
+                  boxShadow: '0 0 8px rgba(155,0,255,0.5)',
+                }}
+              >
+                {profile.level ?? 1}
               </div>
-              <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-xl">📷</span>
-              </div>
-            </button>
-            <div>
+            </div>
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <h2 className={`font-display font-bold text-xl ${profile.isModerator ? 'text-neon-green' : 'text-white'}`}>{profile.username}</h2>
                 {profile.isModerator && profile.moderatorBadgeVisible && <ModBadge level={profile.moderatorLevel} />}
@@ -105,6 +124,36 @@ export function ProfilePage() {
               <p className="text-white/20 font-mono text-xs">Joined {new Date(profile.joinedAt).toLocaleDateString()}</p>
             </div>
           </div>
+
+          {/* XP bar */}
+          {(() => {
+            const xp = profile.xp ?? 0;
+            const level = profile.level ?? 1;
+            const levelMin = xpForLevel(level);
+            const levelMax = xpForNextLevel(level);
+            const pct = levelMax > levelMin ? Math.min(1, (xp - levelMin) / (levelMax - levelMin)) * 100 : 100;
+            return (
+              <div className="mb-4 p-3 rounded-xl border border-neon-purple/15 bg-neon-purple/5">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-display font-bold tracking-widest uppercase text-neon-purple/60">
+                    Level {level}
+                  </span>
+                  <span className="text-[10px] font-mono text-white/30">{xp} XP</span>
+                </div>
+                <div className="h-2 rounded-full bg-white/8 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-1000"
+                    style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #9b00ff, #c084fc)' }}
+                  />
+                </div>
+                {level < 10 && (
+                  <p className="text-[9px] font-mono text-white/20 mt-1 text-right">
+                    {levelMax - xp} XP to Level {level + 1}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Stats */}
           <div className="grid grid-cols-4 gap-2 mb-4">
@@ -137,7 +186,7 @@ export function ProfilePage() {
 
         {/* Tab switcher */}
         <div className="flex gap-1 mb-4 p-1 rounded-xl bg-white/4 border border-white/6">
-          {(['achievements', 'history'] as const).map(t => (
+          {(['achievements', 'history', 'friends'] as const).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -145,7 +194,7 @@ export function ProfilePage() {
                 tab === t ? 'bg-neon-purple/20 text-neon-purple border border-neon-purple/30' : 'text-white/30 hover:text-white/50'
               }`}
             >
-              {t === 'achievements' ? `🏅 Achievements (${achievements.length})` : `📋 History`}
+              {t === 'achievements' ? `🏅 (${achievements.length})` : t === 'history' ? `📋 History` : `👥 Friends`}
             </button>
           ))}
         </div>
@@ -219,6 +268,13 @@ export function ProfilePage() {
                 ))}
               </div>
             )}
+          </motion.div>
+        )}
+
+        {/* Friends tab */}
+        {tab === 'friends' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <FriendsPanel />
           </motion.div>
         )}
 

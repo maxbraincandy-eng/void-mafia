@@ -10,6 +10,7 @@ import { PoweredBy } from '@/components/ui/PoweredBy';
 import { Card } from '@/components/ui/Card';
 import { LeaderboardModal } from '@/components/ui/LeaderboardModal';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
+import { DailyChallengeCard } from '@/components/ui/DailyChallengeCard';
 
 export function RoomsPage() {
   const [mode, setMode] = useState<'browse' | 'create' | 'join'>('browse');
@@ -110,6 +111,9 @@ export function RoomsPage() {
             </button>
           </div>
         </div>
+
+        {/* Daily challenge */}
+        <DailyChallengeCard />
 
         {/* Mode tabs */}
         <div className="flex gap-2 mb-6">

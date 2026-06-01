@@ -32,7 +32,7 @@ export function ChatPanel({ compact = false }: Props) {
   const messages = channel === 'mafia'
     ? (room?.mafiaChat ?? [])
     : channel === 'dead'
-      ? (room?.chat ?? []).filter(m => m.channel === 'dead')
+      ? (room?.deadChat ?? [])
       : (room?.chat ?? []).filter(m => m.channel !== 'dead');
 
   useEffect(() => {

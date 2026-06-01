@@ -29,6 +29,11 @@ export function addMessage(room, msg) {
         if (room.mafiaChat.length > 200)
             room.mafiaChat.shift();
     }
+    else if (msg.channel === 'dead') {
+        room.deadChat.push(msg);
+        if (room.deadChat.length > 200)
+            room.deadChat.shift();
+    }
     else {
         room.chat.push(msg);
         if (room.chat.length > 400)

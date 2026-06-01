@@ -61,6 +61,51 @@ export interface Role {
   glowColor: string;
 }
 
+// ── Cosmetics ─────────────────────────────────────────────────────────
+export interface PlayerCosmetics {
+  equippedNameColor: string | null;
+  equippedFrame: string | null;
+  unlockedItems: string[];
+}
+
+// ── XP Gain ───────────────────────────────────────────────────────────
+export interface XPGain {
+  amount: number;
+  newXP: number;
+  newLevel: number;
+  leveledUp: boolean;
+  challengeCompleted: boolean;
+  challengeBonus: number;
+}
+
+// ── Friend ────────────────────────────────────────────────────────────
+export interface Friend {
+  profileId: string;
+  username: string;
+  avatar: string;
+  level: number;
+  isOnline: boolean;
+  status: 'accepted';
+}
+
+export interface FriendRequest {
+  id: string;
+  fromId: string;
+  fromUsername: string;
+  fromAvatar: string;
+  createdAt: number;
+}
+
+// ── Daily Challenge ───────────────────────────────────────────────────
+export interface DailyChallenge {
+  id: string;
+  description: string;
+  xpReward: number;
+  completedToday: boolean;
+  progressCount: number;
+  targetCount: number;
+}
+
 // ── Player Profile (persistent, app-level) ────────────────────────────
 export interface PlayerStats {
   gamesPlayed: number;
@@ -113,6 +158,9 @@ export interface PlayerProfile {
   email?: string;
   passwordHash?: string;
   passwordSalt?: string;
+  xp: number;
+  level: number;
+  cosmetics: PlayerCosmetics;
 }
 
 export interface PlayerProfilePublic {
@@ -125,6 +173,9 @@ export interface PlayerProfilePublic {
   moderatorBadgeVisible: boolean;
   moderatorPermissions: string[];
   joinedAt: number;
+  xp: number;
+  level: number;
+  cosmetics: PlayerCosmetics;
 }
 
 // ── Report ────────────────────────────────────────────────────────────
@@ -254,6 +305,9 @@ export interface Room {
   isPaused: boolean;
   dousedPlayers: Set<string>;
   newlyConvertedCultists: string[];
+  deadChat: ChatMessage[];
+  spectateQueue: string[];
+  startedAt: number;
 }
 
 // ── Public Types (sent to clients) ────────────────────────────────────
@@ -295,6 +349,7 @@ export interface RoomPublic {
   daySkipVoteCount: number;
   spectatorCount: number;
   isPaused: boolean;
+  deadChat: ChatMessage[];
 }
 
 export interface RoomListItem {
@@ -421,6 +476,15 @@ export interface ServerToClientEvents {
   'voice:answer':        (data: { from: string; sdp: object }) => void;
   'voice:ice-candidate': (data: { from: string; candidate: object }) => void;
   'voice:error':         (data: { message: string }) => void;
+  // XP / levels / cosmetics
+  'xp:gained':           (data: XPGain) => void;
+  // Spectate queue
+  'queue:position':      (data: { position: number; roomCode: string }) => void;
+  'queue:promoted':      (data: { roomCode: string }) => void;
+  // Friends
+  'friend:request_received': (req: FriendRequest) => void;
+  // Push notifications
+  'game:notification':   (data: { title: string; body: string }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -475,6 +539,20 @@ export interface ClientToServerEvents {
   'voice:offer':         (data: { to: string; sdp: object }, cb: Cb<null>) => void;
   'voice:answer':        (data: { to: string; sdp: object }, cb: Cb<null>) => void;
   'voice:ice-candidate': (data: { to: string; candidate: object }) => void;
+  // Rematch
+  'game:rematch':        (cb: Cb<null>) => void;
+  // Friends
+  'friend:request':      (data: { toProfileId: string }, cb: Cb<null>) => void;
+  'friend:accept':       (data: { fromProfileId: string }, cb: Cb<null>) => void;
+  'friend:decline':      (data: { fromProfileId: string }, cb: Cb<null>) => void;
+  'friend:remove':       (data: { profileId: string }, cb: Cb<null>) => void;
+  'friend:list':         (cb: Cb<Friend[]>) => void;
+  'friend:requests':     (cb: Cb<FriendRequest[]>) => void;
+  // Challenges
+  'challenge:today':     (cb: Cb<DailyChallenge>) => void;
+  // Cosmetics
+  'cosmetics:equip':     (data: { type: 'name_color' | 'frame'; itemId: string | null }, cb: Cb<PlayerCosmetics>) => void;
+  'cosmetics:get':       (data: { profileId: string }, cb: Cb<PlayerCosmetics>) => void;
 }
 
 export interface InterServerEvents {}

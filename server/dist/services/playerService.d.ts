@@ -1,4 +1,4 @@
-import { PlayerProfile, PlayerProfilePublic, ModeratorLevel, BanRecord, MuteRecord, Warning } from '../types/index.js';
+import { PlayerProfile, PlayerProfilePublic, ModeratorLevel, BanRecord, MuteRecord, Warning, PlayerCosmetics } from '../types/index.js';
 export declare function getModPermissions(level: ModeratorLevel | null): string[];
 export declare function registerWithEmail(email: string, password: string, username: string): Promise<PlayerProfile>;
 export declare function authenticateWithEmail(email: string, password: string): Promise<PlayerProfile>;
@@ -16,4 +16,13 @@ export declare function clearMute(uid: string): void;
 export declare function getWarnings(uid: string): Warning[];
 export declare function addWarning(uid: string, warning: Warning): void;
 export declare function findSocketByProfile(io: import('socket.io').Server, profileId: string): import('socket.io').Socket | null;
+export declare const LEVEL_THRESHOLDS: number[];
+export declare function getLevel(xp: number): number;
+export declare function addXP(profileId: string, amount: number): {
+    newXP: number;
+    newLevel: number;
+    leveledUp: boolean;
+};
+export declare function getCosmetics(profileId: string): PlayerCosmetics;
+export declare function equipCosmetic(profileId: string, type: 'name_color' | 'frame', itemId: string | null): PlayerCosmetics;
 //# sourceMappingURL=playerService.d.ts.map

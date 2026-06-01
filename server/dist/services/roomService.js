@@ -73,6 +73,7 @@ export function createRoom(hostSocketId, hostName, profileId, settings) {
         maxTimer: 0,
         chat: [],
         mafiaChat: [],
+        deadChat: [],
         nightActions: new Map(),
         votes: new Map(),
         killedLastNight: [],
@@ -86,6 +87,8 @@ export function createRoom(hostSocketId, hostName, profileId, settings) {
         isPaused: false,
         dousedPlayers: new Set(),
         newlyConvertedCultists: [],
+        spectateQueue: [],
+        startedAt: 0,
     };
     rooms.set(id, room);
     return room;
@@ -228,6 +231,7 @@ export function toPublicRoom(room, viewerPlayerId) {
             isSpectator: p.isSpectator,
         };
     });
+    const isDeadViewer = viewer ? (!viewer.isAlive || viewer.isSpectator) : false;
     return {
         id: room.id,
         code: room.code,
@@ -238,6 +242,7 @@ export function toPublicRoom(room, viewerPlayerId) {
         players,
         chat: room.chat.slice(-100),
         mafiaChat: isMafia ? room.mafiaChat.slice(-100) : [],
+        deadChat: isDeadViewer ? room.deadChat.slice(-100) : [],
         killedLastNight: room.killedLastNight,
         savedLastNight: room.savedLastNight,
         winner: room.winner,
@@ -274,5 +279,36 @@ function reassignSeats(room) {
 }
 export function getAllRooms() {
     return [...rooms.values()];
+}
+// ── Rematch: reset room to lobby keeping players ───────────────────────
+export function rematchRoom(room) {
+    room.phase = 'lobby';
+    room.day = 0;
+    room.timer = 0;
+    room.maxTimer = 0;
+    room.nightActions = new Map();
+    room.votes = new Map();
+    room.chat = [];
+    room.mafiaChat = [];
+    room.deadChat = [];
+    room.killedLastNight = [];
+    room.savedLastNight = false;
+    room.winner = null;
+    room.speechOrder = [];
+    room.currentSpeakerIdx = 0;
+    room.daySkipVotes = [];
+    room.isPaused = false;
+    room.dousedPlayers = new Set();
+    room.newlyConvertedCultists = [];
+    room.startedAt = 0;
+    for (const p of room.players.values()) {
+        p.role = null;
+        p.team = null;
+        p.voteTarget = null;
+        p.hasActedThisPhase = false;
+        p.isAlive = true;
+        p.isReady = false;
+        p.lastWill = null;
+    }
 }
 //# sourceMappingURL=roomService.js.map

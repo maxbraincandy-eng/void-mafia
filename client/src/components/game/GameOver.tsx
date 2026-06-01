@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { useGameStore } from '@/store/gameStore';
 import { useT } from '@/store/langStore';
 import { ConfettiEffect } from './ConfettiEffect';
+import { XPToast } from '@/components/ui/XPToast';
 
 const TEAM_CONFETTI: Record<Team, string[]> = {
   town:    ['#00f5ff', '#00e5ff', '#ffffff', '#60a5fa', '#00ccff'],
@@ -49,13 +50,16 @@ const TEAM_CONFIG: Record<Team, { label: string; color: string; border: string; 
 };
 
 export function GameOver({ result }: Props) {
-  const { amHost, restartGame, leaveRoom, isLoading, room, myPlayerId } = useGameStore(s => ({
+  const { amHost, restartGame, leaveRoom, isLoading, room, myPlayerId, xpGain, dismissXPGain, rematch } = useGameStore(s => ({
     amHost: s.amHost(),
     restartGame: s.restartGame,
     leaveRoom: s.leaveRoom,
     isLoading: s.isLoading,
     room: s.room,
     myPlayerId: s.myPlayerId,
+    xpGain: s.xpGain,
+    dismissXPGain: s.dismissXPGain,
+    rematch: s.rematch,
   }));
   const t = useT();
 
@@ -220,14 +224,21 @@ export function GameOver({ result }: Props) {
           className="space-y-3"
         >
           {amHost ? (
-            <Button variant="primary" fullWidth loading={isLoading} onClick={restartGame}>
-              {t.game.gameOver.playAgain}
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="primary" fullWidth loading={isLoading} onClick={restartGame}>
+                {t.game.gameOver.playAgain}
+              </Button>
+              <Button variant="secondary" fullWidth loading={isLoading} onClick={rematch}>
+                🔁 Rematch
+              </Button>
+            </div>
           ) : (
-            <div className="flex items-center justify-center gap-2 py-3 rounded-xl border border-white/10 bg-white/4">
-              <span className="text-white/40 font-mono text-sm animate-pulse">
-                ⏳ {t.game.gameOver.waitingForHost}
-              </span>
+            <div className="space-y-2">
+              <div className="flex items-center justify-center gap-2 py-3 rounded-xl border border-white/10 bg-white/4">
+                <span className="text-white/40 font-mono text-sm animate-pulse">
+                  ⏳ {t.game.gameOver.waitingForHost}
+                </span>
+              </div>
             </div>
           )}
 
@@ -236,6 +247,8 @@ export function GameOver({ result }: Props) {
           </Button>
         </motion.div>
       </div>
+
+      <XPToast gain={xpGain} onDismiss={dismissXPGain} />
     </motion.div>
   );
 }

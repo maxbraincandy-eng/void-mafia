@@ -16,6 +16,42 @@ export interface Role {
     color: string;
     glowColor: string;
 }
+export interface PlayerCosmetics {
+    equippedNameColor: string | null;
+    equippedFrame: string | null;
+    unlockedItems: string[];
+}
+export interface XPGain {
+    amount: number;
+    newXP: number;
+    newLevel: number;
+    leveledUp: boolean;
+    challengeCompleted: boolean;
+    challengeBonus: number;
+}
+export interface Friend {
+    profileId: string;
+    username: string;
+    avatar: string;
+    level: number;
+    isOnline: boolean;
+    status: 'accepted';
+}
+export interface FriendRequest {
+    id: string;
+    fromId: string;
+    fromUsername: string;
+    fromAvatar: string;
+    createdAt: number;
+}
+export interface DailyChallenge {
+    id: string;
+    description: string;
+    xpReward: number;
+    completedToday: boolean;
+    progressCount: number;
+    targetCount: number;
+}
 export interface PlayerStats {
     gamesPlayed: number;
     wins: number;
@@ -63,6 +99,9 @@ export interface PlayerProfile {
     email?: string;
     passwordHash?: string;
     passwordSalt?: string;
+    xp: number;
+    level: number;
+    cosmetics: PlayerCosmetics;
 }
 export interface PlayerProfilePublic {
     id: string;
@@ -74,6 +113,9 @@ export interface PlayerProfilePublic {
     moderatorBadgeVisible: boolean;
     moderatorPermissions: string[];
     joinedAt: number;
+    xp: number;
+    level: number;
+    cosmetics: PlayerCosmetics;
 }
 export interface Report {
     id: string;
@@ -197,6 +239,9 @@ export interface Room {
     isPaused: boolean;
     dousedPlayers: Set<string>;
     newlyConvertedCultists: string[];
+    deadChat: ChatMessage[];
+    spectateQueue: string[];
+    startedAt: number;
 }
 export interface PlayerPublic {
     id: string;
@@ -239,6 +284,7 @@ export interface RoomPublic {
     daySkipVoteCount: number;
     spectatorCount: number;
     isPaused: boolean;
+    deadChat: ChatMessage[];
 }
 export interface RoomListItem {
     id: string;
@@ -408,6 +454,19 @@ export interface ServerToClientEvents {
     'voice:error': (data: {
         message: string;
     }) => void;
+    'xp:gained': (data: XPGain) => void;
+    'queue:position': (data: {
+        position: number;
+        roomCode: string;
+    }) => void;
+    'queue:promoted': (data: {
+        roomCode: string;
+    }) => void;
+    'friend:request_received': (req: FriendRequest) => void;
+    'game:notification': (data: {
+        title: string;
+        body: string;
+    }) => void;
 }
 export interface ClientToServerEvents {
     'player:auth': (data: {
@@ -565,6 +624,29 @@ export interface ClientToServerEvents {
         to: string;
         candidate: object;
     }) => void;
+    'game:rematch': (cb: Cb<null>) => void;
+    'friend:request': (data: {
+        toProfileId: string;
+    }, cb: Cb<null>) => void;
+    'friend:accept': (data: {
+        fromProfileId: string;
+    }, cb: Cb<null>) => void;
+    'friend:decline': (data: {
+        fromProfileId: string;
+    }, cb: Cb<null>) => void;
+    'friend:remove': (data: {
+        profileId: string;
+    }, cb: Cb<null>) => void;
+    'friend:list': (cb: Cb<Friend[]>) => void;
+    'friend:requests': (cb: Cb<FriendRequest[]>) => void;
+    'challenge:today': (cb: Cb<DailyChallenge>) => void;
+    'cosmetics:equip': (data: {
+        type: 'name_color' | 'frame';
+        itemId: string | null;
+    }, cb: Cb<PlayerCosmetics>) => void;
+    'cosmetics:get': (data: {
+        profileId: string;
+    }, cb: Cb<PlayerCosmetics>) => void;
 }
 export interface InterServerEvents {
 }

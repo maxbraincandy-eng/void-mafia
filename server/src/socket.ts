@@ -8,7 +8,7 @@ import {
 import {
   createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, removePlayer,
   getPlayerBySocket, toPublicRoom, getAlivePlayers, getHostPlayer,
-  toRoomListItem, getAllRooms, getPlayerByProfile, transferHost,
+  toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom,
 } from './services/roomService.js';
 import {
   startGame, setPhase, advancePhase, submitNightAction, submitVote,
@@ -24,7 +24,15 @@ import {
   getOrCreatePlayer, getPlayer, getAllPlayers, toPublicProfile, addGameResult,
   getActiveBan, getActiveMute, findSocketByProfile,
   registerWithEmail, authenticateWithEmail,
+  addXP, getCosmetics, equipCosmetic,
 } from './services/playerService.js';
+import {
+  markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend,
+  removeFriend, getFriends, getPendingRequests,
+} from './services/friendService.js';
+import {
+  checkAndAwardChallenge, getTodayChallenge, getDailyChallengeForPlayer,
+} from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
 import { recordGame, getPlayerHistory } from './services/gameHistoryService.js';
 import {
@@ -58,6 +66,9 @@ function cancelAutoStart(roomId: string): void {
   const t = autoStartTimers.get(roomId);
   if (t) { clearTimeout(t); autoStartTimers.delete(roomId); }
 }
+
+// ── Spectate queues (roomId → socketIds waiting) ──────────────────────
+const spectateQueues = new Map<string, string[]>();
 
 // ── Role-specific death messages ──────────────────────────────────────
 const NIGHT_DEATH: Partial<Record<string, string>> = {
@@ -155,6 +166,9 @@ function startPhaseTimer(io: AppServer, room: Room): void {
       if (room.phase === 'voting') announceVoteResult(io, room);
       advancePhase(room); const nextPhase = room.phase as Phase;
       if (wasNight) { announceNightResult(io, room); notifySpies(io, room); notifyTrackers(io, room); notifyCultConversions(io, room); notifyRoleblocked(io, room); }
+      if (nextPhase === 'night') {
+        io.to(room.id).emit('game:notification', { title: 'Night Falls', body: 'Perform your night action.' });
+      }
       if (nextPhase === 'game_over') emitGameOver(io, room);
       broadcastRoom(io, room);
       if (room.phase !== 'game_over') startPhaseTimer(io, room);
@@ -188,11 +202,43 @@ function emitGameOver(io: AppServer, room: Room): void {
   // Record persistent game history
   try { recordGame(room); } catch { /* non-fatal */ }
 
+  // Send game:notification push event
+  io.to(room.id).emit('game:notification', {
+    title: 'Game Over',
+    body: room.winner ? `${room.winner.charAt(0).toUpperCase() + room.winner.slice(1)} wins!` : 'Game ended.',
+  });
+
   for (const p of room.players.values()) {
     if (p.socketId) io.to(p.socketId).emit('game:over', result);
     if (p.profileId && room.winner) {
       const won = p.team === room.winner;
       addGameResult(p.profileId, won);
+
+      // Award XP
+      try {
+        const roundsAlive = Math.min(room.day, 10);
+        let xpAmount = won ? 150 : 50;
+        xpAmount += Math.min(roundsAlive * 5, 50);
+
+        // Check daily challenge
+        const challengeCompleted = checkAndAwardChallenge(p.profileId, won, p.role, room.day, p.team);
+        const todayChallenge = getTodayChallenge();
+        const challengeBonus = challengeCompleted ? todayChallenge.xpReward : 0;
+        xpAmount += challengeBonus;
+
+        const xpResult = addXP(p.profileId, xpAmount);
+
+        if (p.socketId) {
+          io.to(p.socketId).emit('xp:gained', {
+            amount: xpAmount,
+            newXP: xpResult.newXP,
+            newLevel: xpResult.newLevel,
+            leveledUp: xpResult.leveledUp,
+            challengeCompleted,
+            challengeBonus,
+          });
+        }
+      } catch { /* non-fatal */ }
 
       // Check and award achievements
       try {
@@ -359,6 +405,7 @@ export function attachSocketHandlers(io: AppServer): void {
         }
 
         socket.data.profileId = parsed.uid;
+        markOnline(parsed.uid);
         socket.emit('player:profile', toPublicProfile(profile));
         cb(ok(toPublicProfile(profile)));
       } catch (e: any) {
@@ -377,6 +424,7 @@ export function attachSocketHandlers(io: AppServer): void {
 
         const profile = await registerWithEmail(email, password, username);
         socket.data.profileId = profile.id;
+        markOnline(profile.id);
         socket.emit('player:profile', toPublicProfile(profile));
         cb(ok({ uid: profile.id, profile: toPublicProfile(profile) }));
       } catch (e: any) {
@@ -399,6 +447,7 @@ export function attachSocketHandlers(io: AppServer): void {
           return;
         }
         socket.data.profileId = profile.id;
+        markOnline(profile.id);
         socket.emit('player:profile', toPublicProfile(profile));
         cb(ok({ uid: profile.id, profile: toPublicProfile(profile) }));
       } catch (e: any) {
@@ -485,6 +534,25 @@ export function attachSocketHandlers(io: AppServer): void {
           }
         }
 
+        // Check if this is a re-join attempt (existing player reconnecting)
+        const isRejoin = profileId
+          ? [...room.players.values()].some(p => p.profileId === profileId)
+          : [...room.players.values()].some(p => p.name === parsed.name.trim());
+
+        // Spectate queue: if room is full during active game and not a re-join
+        const activePlayers = [...room.players.values()].filter(p => !p.isSpectator);
+        if (!isRejoin && room.phase !== 'lobby' && activePlayers.length >= 16) {
+          const queue = spectateQueues.get(room.id) ?? [];
+          if (!queue.includes(socket.id)) {
+            queue.push(socket.id);
+            spectateQueues.set(room.id, queue);
+          }
+          const position = queue.indexOf(socket.id) + 1;
+          socket.emit('queue:position', { position, roomCode: room.code });
+          cb(err(`Room is full. You are #${position} in queue.`));
+          return;
+        }
+
         const username = profileId ? getPlayer(profileId)?.username ?? parsed.name : parsed.name;
         const player = addPlayer(room, socket.id, username, profileId);
         if (parsed.isSpectator) player.isSpectator = true;
@@ -533,9 +601,13 @@ export function attachSocketHandlers(io: AppServer): void {
               const still = [...room.players.values()].filter(p => !p.isSpectator);
               if (room.phase === 'lobby' && still.length >= room.settings.minPlayers && still.every(p => p.isReady)) {
                 startGame(room);
+                room.startedAt = Date.now();
                 setPhase(room, 'role_reveal');
                 for (const p of room.players.values()) {
-                  if (p.socketId && p.role) io.to(p.socketId).emit('game:role', { role: getRole(p.role) });
+                  if (p.socketId && p.role) {
+                    io.to(p.socketId).emit('game:role', { role: getRole(p.role) });
+                    io.to(p.socketId).emit('game:notification', { title: 'Game Started!', body: `Your role: ${p.role}` });
+                  }
                 }
                 broadcastSystemMsg(io, room, 'The game has begun. Roles are being revealed…');
                 broadcastRoom(io, room);
@@ -624,11 +696,16 @@ export function attachSocketHandlers(io: AppServer): void {
         if (room.phase !== 'lobby') throw new Error('Game is already in progress.');
 
         startGame(room);
+        room.startedAt = Date.now();
         setPhase(room, 'role_reveal');
 
         for (const player of room.players.values()) {
           if (player.socketId && player.role) {
             io.to(player.socketId).emit('game:role', { role: getRole(player.role) });
+            io.to(player.socketId).emit('game:notification', {
+              title: 'Game Started!',
+              body: `Your role: ${player.role}`,
+            });
           }
         }
 
@@ -1244,11 +1321,124 @@ export function attachSocketHandlers(io: AppServer): void {
       io.to(to).emit('voice:ice-candidate', { from: socket.id, candidate });
     });
 
+    // ── Rematch ─────────────────────────────────────────────────────
+    socket.on('game:rematch', (cb) => {
+      try {
+        const { roomId } = socket.data;
+        if (!roomId) throw new Error('Not in a room.');
+        const room = getRoom(roomId);
+        if (!room) throw new Error('Room not found.');
+        if (room.phase !== 'game_over') throw new Error('Game is not over yet.');
+        const player = getPlayerBySocket(room, socket.id);
+        if (!player?.isHost) throw new Error('Only the host can start a rematch.');
+        cancelAutoStart(roomId);
+        timerService.stop(roomId);
+        rematchRoom(room);
+        broadcastSystemMsg(io, room, 'The host started a rematch. Prepare for a new game!');
+        broadcastRoom(io, room);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Friends ──────────────────────────────────────────────────────
+    socket.on('friend:request', ({ toProfileId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        sendFriendRequest(profileId, toProfileId);
+        // Notify the recipient if online
+        const targetSock = findSocketByProfile(io as any, toProfileId);
+        if (targetSock) {
+          const reqs = getPendingRequests(toProfileId);
+          const thisReq = reqs.find(r => r.fromId === profileId);
+          if (thisReq) targetSock.emit('friend:request_received', thisReq);
+        }
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('friend:accept', ({ fromProfileId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        acceptFriend(fromProfileId, profileId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('friend:decline', ({ fromProfileId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        declineFriend(fromProfileId, profileId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('friend:remove', ({ profileId: friendId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        removeFriend(profileId, friendId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('friend:list', (cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        cb(ok(getFriends(profileId)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('friend:requests', (cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        cb(ok(getPendingRequests(profileId)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Daily Challenge ──────────────────────────────────────────────
+    socket.on('challenge:today', (cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        cb(ok(getDailyChallengeForPlayer(profileId)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Cosmetics ────────────────────────────────────────────────────
+    socket.on('cosmetics:equip', ({ type, itemId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const cosmetics = equipCosmetic(profileId, type, itemId);
+        cb(ok(cosmetics));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('cosmetics:get', ({ profileId }, cb) => {
+      try {
+        cb(ok(getCosmetics(profileId)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     // ── Disconnect ──────────────────────────────────────────────────
     socket.on('disconnect', () => {
-      const { roomId, playerId } = socket.data;
+      const { roomId, playerId, profileId } = socket.data;
+      if (profileId) markOffline(profileId);
       if (roomId && playerId) handlePlayerLeave(io, socket, roomId, playerId);
       handleVoiceLeave(io, socket.id);
+      // Remove from any spectate queues
+      for (const [qRoomId, queue] of spectateQueues) {
+        const idx = queue.indexOf(socket.id);
+        if (idx !== -1) {
+          queue.splice(idx, 1);
+          if (queue.length === 0) spectateQueues.delete(qRoomId);
+        }
+      }
     });
   });
 }
@@ -1263,6 +1453,15 @@ function closeRoom(io: AppServer, room: Room, reason: string): void {
   }
   io.socketsLeave(room.id);
   deleteRoom(room.id);
+}
+
+function promoteFromQueue(io: AppServer, room: Room): void {
+  const queue = spectateQueues.get(room.id);
+  if (!queue || queue.length === 0) return;
+  const nextSocketId = queue.shift()!;
+  if (queue.length === 0) spectateQueues.delete(room.id);
+  else spectateQueues.set(room.id, queue);
+  io.to(nextSocketId).emit('queue:promoted', { roomCode: room.code });
 }
 
 function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, playerId: string): void {
@@ -1284,21 +1483,25 @@ function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, pla
     if (room.players.size === 0) {
       timerService.stop(roomId);
       deleteRoom(roomId);
+      spectateQueues.delete(roomId);
       return;
     }
 
     // Host left lobby — close the room for everyone
     if (wasHost) {
       closeRoom(io, room, `${player.name} (host) left. The room has been closed.`);
+      spectateQueues.delete(roomId);
       return;
     }
 
     broadcastSystemMsg(io, room, `${player.name} left the room.`);
     broadcastRoom(io, room);
+    promoteFromQueue(io, room);
   } else {
     // Host left during active game — close the entire room
     if (wasHost) {
       closeRoom(io, room, `${player.name} (host) left. The room has been closed.`);
+      spectateQueues.delete(roomId);
       return;
     }
 
@@ -1306,6 +1509,7 @@ function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, pla
     player.socketId = '';
     broadcastSystemMsg(io, room, `${player.name} disconnected.`);
     broadcastRoom(io, room);
+    promoteFromQueue(io, room);
   }
 }
 

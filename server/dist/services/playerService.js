@@ -45,6 +45,18 @@ function rowToProfile(row) {
     const activeBan = getActiveBan(row.id);
     const activeMute = getActiveMute(row.id);
     const warnings = getWarnings(row.id);
+    let cosmetics;
+    try {
+        const parsed = JSON.parse(row.cosmetics ?? '{}');
+        cosmetics = {
+            equippedNameColor: parsed.equippedNameColor ?? null,
+            equippedFrame: parsed.equippedFrame ?? null,
+            unlockedItems: parsed.unlockedItems ?? [],
+        };
+    }
+    catch {
+        cosmetics = { equippedNameColor: null, equippedFrame: null, unlockedItems: [] };
+    }
     return {
         id: row.id,
         username: row.username,
@@ -66,6 +78,9 @@ function rowToProfile(row) {
         warnings,
         joinedAt: row.joined_at,
         lastSeenAt: row.last_seen_at,
+        xp: row.xp ?? 0,
+        level: row.level ?? 1,
+        cosmetics,
     };
 }
 // ── Auth ──────────────────────────────────────────────────────────────
@@ -138,6 +153,9 @@ export function toPublicProfile(p) {
         moderatorBadgeVisible: p.moderatorBadgeVisible,
         moderatorPermissions: p.moderatorPermissions ?? [],
         joinedAt: p.joinedAt,
+        xp: p.xp,
+        level: p.level,
+        cosmetics: p.cosmetics,
     };
 }
 export function addGameResult(uid, won) {
@@ -218,5 +236,68 @@ export function findSocketByProfile(io, profileId) {
             return socket;
     }
     return null;
+}
+// ── XP & Level System ─────────────────────────────────────────────────
+export const LEVEL_THRESHOLDS = [0, 100, 250, 500, 900, 1400, 2100, 3000, 4100, 5400];
+export function getLevel(xp) {
+    for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
+        if (xp >= LEVEL_THRESHOLDS[i])
+            return i + 1;
+    }
+    return 1;
+}
+export function addXP(profileId, amount) {
+    const row = db.prepare('SELECT xp, level FROM players WHERE id = ?').get(profileId);
+    if (!row)
+        return { newXP: 0, newLevel: 1, leveledUp: false };
+    const newXP = (row.xp ?? 0) + amount;
+    const newLevel = getLevel(newXP);
+    db.prepare('UPDATE players SET xp = ?, level = ? WHERE id = ?').run(newXP, newLevel, profileId);
+    checkLevelCosmetics(profileId, newLevel);
+    return { newXP, newLevel, leveledUp: newLevel > (row.level ?? 1) };
+}
+export function getCosmetics(profileId) {
+    const row = db.prepare('SELECT cosmetics FROM players WHERE id = ?').get(profileId);
+    try {
+        const parsed = JSON.parse(row?.cosmetics ?? '{}');
+        return {
+            equippedNameColor: parsed.equippedNameColor ?? null,
+            equippedFrame: parsed.equippedFrame ?? null,
+            unlockedItems: parsed.unlockedItems ?? [],
+        };
+    }
+    catch {
+        return { equippedNameColor: null, equippedFrame: null, unlockedItems: [] };
+    }
+}
+export function equipCosmetic(profileId, type, itemId) {
+    const cosmetics = getCosmetics(profileId);
+    if (itemId && !cosmetics.unlockedItems.includes(itemId))
+        throw new Error('Item not unlocked.');
+    if (type === 'name_color')
+        cosmetics.equippedNameColor = itemId;
+    else
+        cosmetics.equippedFrame = itemId;
+    db.prepare('UPDATE players SET cosmetics = ? WHERE id = ?').run(JSON.stringify(cosmetics), profileId);
+    return cosmetics;
+}
+function checkLevelCosmetics(profileId, level) {
+    const unlocks = {
+        2: ['name_cyan'],
+        3: ['name_pink', 'frame_bronze'],
+        5: ['name_gold', 'frame_silver'],
+        7: ['name_rainbow'],
+        8: ['frame_gold'],
+        10: ['frame_legendary'],
+    };
+    const items = unlocks[level];
+    if (!items)
+        return;
+    const cosmetics = getCosmetics(profileId);
+    for (const item of items) {
+        if (!cosmetics.unlockedItems.includes(item))
+            cosmetics.unlockedItems.push(item);
+    }
+    db.prepare('UPDATE players SET cosmetics = ? WHERE id = ?').run(JSON.stringify(cosmetics), profileId);
 }
 //# sourceMappingURL=playerService.js.map
