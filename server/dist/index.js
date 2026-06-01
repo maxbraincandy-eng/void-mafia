@@ -6,7 +6,8 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import { attachSocketHandlers } from './socket.js';
-import { getAllRooms, toRoomListItem } from './services/roomService.js';
+import { getAllRooms, toRoomListItem, deleteRoom } from './services/roomService.js';
+import { timerService } from './services/timerService.js';
 import { getPlayer, toPublicProfile } from './services/playerService.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
@@ -44,7 +45,7 @@ app.get('/api/health', (_req, res) => {
 // ── Rooms List ────────────────────────────────────────────────────────
 app.get('/api/rooms', (_req, res) => {
     const list = getAllRooms()
-        .filter(r => !r.settings.isPrivate)
+        .filter(r => !r.settings.isPrivate && r.phase !== 'game_over')
         .map(toRoomListItem);
     res.json({ ok: true, data: list });
 });
@@ -76,6 +77,43 @@ if (IS_PROD) {
         res.sendFile(path.join(clientDist, 'index.html'));
     });
 }
+// ── Stale Room Cleanup ────────────────────────────────────────────────
+// Delete game_over rooms after 10 min, and lobby/game rooms with zero
+// connected players after 5 min (handles abandoned rooms / server restarts).
+const GAME_OVER_TTL = 10 * 60 * 1000; // 10 minutes
+const EMPTY_ROOM_TTL = 5 * 60 * 1000; //  5 minutes
+setInterval(() => {
+    const now = Date.now();
+    for (const room of getAllRooms()) {
+        // Count connected (socket) players
+        const connected = [...room.players.values()].filter(p => p.isConnected && p.socketId).length;
+        if (room.phase === 'game_over') {
+            // Use maxTimer=0 as a proxy for when game_over was set (timer is already 0 at game_over)
+            // Instead track via room.createdAt vs now — just clean up after TTL since createdAt
+            const gameOverSince = room._gameOverAt;
+            if (gameOverSince && now - gameOverSince > GAME_OVER_TTL) {
+                timerService.stop(room.id);
+                deleteRoom(room.id);
+                console.log(`[cleanup] deleted game_over room ${room.code}`);
+            }
+        }
+        else if (connected === 0) {
+            const emptyAt = room._emptyAt;
+            if (emptyAt && now - emptyAt > EMPTY_ROOM_TTL) {
+                timerService.stop(room.id);
+                deleteRoom(room.id);
+                console.log(`[cleanup] deleted empty room ${room.code}`);
+            }
+            else if (!emptyAt) {
+                room._emptyAt = now;
+            }
+        }
+        else {
+            // Room has connected players — reset the empty timer
+            delete room._emptyAt;
+        }
+    }
+}, 60000); // check every minute
 // ── Socket.IO ─────────────────────────────────────────────────────────
 attachSocketHandlers(io);
 // ── Start ─────────────────────────────────────────────────────────────

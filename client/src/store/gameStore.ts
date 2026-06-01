@@ -71,7 +71,21 @@ let toastCounter = 0;
 
 export const useGameStore = create<GameStore>((set, get) => {
   // ── Socket event bindings ────────────────────────────────────────
-  socket.on('connect', () => set({ isConnected: true }));
+  let _wasConnected = false;
+  socket.on('connect', () => {
+    const wasReconnect = _wasConnected;
+    _wasConnected = true;
+    set({ isConnected: true });
+    // On reconnect (not initial connect) clear stale room state —
+    // the server has reset socket.data on the new socket ID.
+    if (wasReconnect && get().room) {
+      set({
+        room: null, myPlayerId: null, myRole: null,
+        nightResult: null, investigationResult: null, gameOverResult: null,
+      });
+      get().addToast('Reconnected. Please rejoin your room.', 'info');
+    }
+  });
   socket.on('disconnect', () => set({ isConnected: false }));
 
   socket.on('room:update', (room: RoomPublic) => {

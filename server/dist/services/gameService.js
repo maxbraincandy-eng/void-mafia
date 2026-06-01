@@ -88,6 +88,7 @@ export function setPhase(room, phase) {
         case 'game_over':
             room.timer = 0;
             room.maxTimer = 0;
+            room._gameOverAt = Date.now();
             break;
     }
 }
