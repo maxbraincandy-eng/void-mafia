@@ -63,7 +63,8 @@ export function useVoiceChat() {
     function onPeerLeft({ socketId }: { socketId: string }) {
       log('peer-left', socketId);
       sessionRef.current?.removePeer(socketId);
-      patch({ peers: sessionRef.current?.getPeers() ?? [] });
+      const s = sessionRef.current;
+      patch({ peers: s?.getPeers() ?? [], remoteStreams: s?.getRemoteStreams() ?? {} });
     }
 
     async function onOffer({ from, sdp }: { from: string; sdp: RTCSessionDescriptionInit }) {
@@ -130,7 +131,7 @@ export function useVoiceChat() {
       } else if (event.type === 'peer-added') {
         patch({ peers: session.getPeers() });
       } else if (event.type === 'peer-removed') {
-        patch({ peers: session.getPeers() });
+        patch({ peers: session.getPeers(), remoteStreams: session.getRemoteStreams() });
       } else if (event.type === 'speaking') {
         if (event.socketId === 'local') {
           patch({ isLocalSpeaking: event.isSpeaking });

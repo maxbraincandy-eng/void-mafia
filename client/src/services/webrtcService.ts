@@ -195,13 +195,30 @@ export class WebRTCSession {
     sdp: RTCSessionDescriptionInit,
     onIceCandidate: (c: RTCIceCandidateInit) => void,
   ): Promise<RTCSessionDescriptionInit> {
-    log('handling offer from', peerId);
-    this.createPeerConnection(peerId, peerName, onIceCandidate);
-    const pc = this.pcs.get(peerId)!;
+    const isRenegotiation = this.pcs.has(peerId);
+    log('handling offer from', peerId, isRenegotiation ? '(renegotiation)' : '(new)');
+
+    let pc: RTCPeerConnection;
+    if (isRenegotiation) {
+      // Reuse existing PC — just refresh the ICE candidate handler
+      pc = this.pcs.get(peerId)!;
+      pc.onicecandidate = (ev) => {
+        if (ev.candidate) {
+          log('ICE candidate (renegotiation) →', peerId);
+          onIceCandidate(ev.candidate.toJSON());
+        }
+      };
+      log('reusing existing PC for renegotiation with', peerId);
+    } else {
+      // First connection: create a new peer connection
+      this.createPeerConnection(peerId, peerName, onIceCandidate);
+      pc = this.pcs.get(peerId)!;
+    }
+
     await pc.setRemoteDescription(new RTCSessionDescription(sdp));
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
-    log('answer created for', peerId);
+    log('answer created for', peerId, isRenegotiation ? '(renegotiation done)' : '(initial)');
     return answer;
   }
 

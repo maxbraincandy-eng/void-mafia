@@ -54,7 +54,7 @@ function initialsOf(name: string): string {
     .join('') || '?';
 }
 
-/** Live <video> element bound to the local MediaStream (mirrored). */
+/** Live <video> element bound to the local MediaStream. */
 function LocalVideo({ stream }: { stream: MediaStream }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
@@ -69,7 +69,7 @@ function LocalVideo({ stream }: { stream: MediaStream }) {
       muted
       playsInline
       className="absolute inset-0 w-full h-full object-cover"
-      style={{ transform: 'scaleX(-1)' }}
+      style={{ transform: 'scaleX(-1)' }} // mirror own camera
     />
   );
 }
@@ -97,23 +97,31 @@ function RemoteVideo({ stream }: { stream: MediaStream }) {
   );
 }
 
-function SpeakerHero({ player, isMe, speakerIndex, totalSpeakers }: {
+function SpeakerHero({ player, isMe, speakerIndex, totalSpeakers, voice }: {
   player: PlayerPublic;
   isMe: boolean;
   speakerIndex: number;
   totalSpeakers: number;
+  voice?: TileVoice;
 }) {
   const initials = initialsOf(player.name);
+  const isSpeaking = isMe
+    ? (voice?.isLocalSpeaking && !voice?.isMuted)
+    : (voice?.speakingSocketIds.has(player.socketId) ?? false);
+  const showLocalVideo = isMe && voice?.inVoice && voice.cameraOn && !!voice.localStream;
+  const remoteStream = !isMe ? (voice?.remoteStreams?.[player.socketId] ?? null) : null;
+  const hasRemoteVideo = !!remoteStream && remoteStream.getVideoTracks().some(t => t.readyState === 'live');
+
   return (
     <motion.div
       key={player.id}
-      initial={{ opacity: 0, scale: 0.92 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.92 }}
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -16 }}
       transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
-      className="flex flex-col items-center py-6 gap-5"
+      className="flex flex-col items-center py-4 gap-4 px-3 w-full"
     >
-      {/* Progress indicator */}
+      {/* Progress dots */}
       <div className="flex items-center gap-1.5">
         {Array.from({ length: totalSpeakers }).map((_, i) => (
           <div
@@ -130,42 +138,157 @@ function SpeakerHero({ player, isMe, speakerIndex, totalSpeakers }: {
         ))}
       </div>
 
-      {/* Pulsing ring behind avatar */}
-      <div className="relative flex items-center justify-center">
-        <motion.div
-          animate={{ scale: [1, 1.18, 1], opacity: [0.4, 0.8, 0.4] }}
-          transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
-          className="absolute rounded-full"
-          style={{
-            width: '140px',
-            height: '140px',
-            background: 'radial-gradient(circle, rgba(0,229,255,0.35) 0%, transparent 70%)',
-            filter: 'blur(8px)',
-          }}
-        />
-        <div className="absolute -top-1 -left-1 z-10 w-6 h-6 rounded-full bg-void border border-neon-cyan/50 flex items-center justify-center shadow-[0_0_8px_rgba(0,229,255,0.4)]">
-          <span className="text-[10px] font-mono font-bold text-neon-cyan/80">{player.seat}</span>
+      {/* Speaker card */}
+      <motion.div
+        className="relative w-full rounded-2xl overflow-hidden"
+        style={{
+          maxWidth: '360px',
+          aspectRatio: '4/3',
+          border: isSpeaking
+            ? '2px solid rgba(0,255,136,0.7)'
+            : '2px solid rgba(0,229,255,0.35)',
+          boxShadow: isSpeaking
+            ? '0 0 28px rgba(0,255,136,0.25), 0 8px 32px rgba(0,0,0,0.6)'
+            : '0 0 24px rgba(0,229,255,0.12), 0 8px 32px rgba(0,0,0,0.6)',
+          background: 'rgba(4,2,16,0.97)',
+          transition: 'border-color 0.2s, box-shadow 0.2s',
+        }}
+      >
+        {/* Video or avatar fill */}
+        <div className="absolute inset-0">
+          {showLocalVideo ? (
+            <LocalVideo stream={voice!.localStream!} />
+          ) : (remoteStream && hasRemoteVideo) ? (
+            <RemoteVideo stream={remoteStream} />
+          ) : (
+            <div
+              className="absolute inset-0 flex items-center justify-center"
+              style={{
+                background: isMe
+                  ? 'linear-gradient(150deg, rgba(40,0,70,0.55) 0%, rgba(5,2,20,0.95) 70%)'
+                  : 'linear-gradient(150deg, rgba(0,30,50,0.45) 0%, rgba(2,5,16,0.95) 70%)',
+              }}
+            >
+              <motion.div
+                animate={{ scale: [1, 1.04, 1] }}
+                transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
+                className="rounded-full flex items-center justify-center font-display font-bold"
+                style={{
+                  width: 88, height: 88, fontSize: 34,
+                  background: 'linear-gradient(135deg, rgba(155,0,255,0.4) 0%, rgba(0,229,255,0.25) 100%)',
+                  border: '2px solid rgba(0,229,255,0.3)',
+                  color: '#00e5ff',
+                  boxShadow: '0 0 30px rgba(0,229,255,0.18)',
+                }}
+              >
+                {initials}
+              </motion.div>
+            </div>
+          )}
         </div>
-        <div
-          className="relative z-10 rounded-full flex items-center justify-center font-display font-bold"
-          style={{
-            width: 110, height: 110, fontSize: 38,
-            background: 'linear-gradient(135deg, rgba(155,0,255,0.3) 0%, rgba(0,229,255,0.2) 100%)',
-            border: '2px solid rgba(0,229,255,0.25)',
-            color: '#00e5ff',
-          }}
-        >
-          {initials}
-        </div>
-      </div>
 
-      <div className="text-center space-y-1">
-        <p className="text-xs font-mono text-neon-cyan/60 uppercase tracking-widest">🎤 Speaking</p>
-        <p className="font-display text-2xl font-bold text-white tracking-wide">{player.name}</p>
-        {isMe && <p className="text-xs text-neon-purple font-mono">it's your turn</p>}
-        {player.isModerator && player.moderatorLevel && (
-          <div className="flex justify-center"><ModBadge level={player.moderatorLevel} size="sm" /></div>
+        {/* Speaking pulse overlay */}
+        {isSpeaking && (
+          <motion.div
+            className="absolute inset-0 pointer-events-none rounded-2xl"
+            animate={{ opacity: [0.05, 0.13, 0.05] }}
+            transition={{ repeat: Infinity, duration: 0.75, ease: 'easeInOut' }}
+            style={{ background: 'rgba(0,255,136,0.35)' }}
+          />
         )}
+
+        {/* Top gradient: seat + name + "you" badge */}
+        <div
+          className="absolute top-0 left-0 right-0 px-3 pt-2.5 pb-10 pointer-events-none"
+          style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.78) 0%, transparent 100%)' }}
+        >
+          <div className="flex items-center gap-1.5">
+            <span
+              className="flex-shrink-0 w-[18px] h-[18px] rounded-full flex items-center justify-center text-[9px] font-mono font-bold"
+              style={{ background: 'rgba(0,229,255,0.22)', color: '#00e5ff' }}
+            >
+              {player.seat}
+            </span>
+            <span className="font-display font-bold text-white text-sm leading-tight truncate flex-1">
+              {player.name}
+            </span>
+            {isMe && (
+              <span
+                className="flex-shrink-0 text-[9px] font-display font-bold tracking-wider uppercase px-1.5 py-0.5 rounded-full"
+                style={{ background: 'rgba(155,0,255,0.3)', border: '1px solid rgba(155,0,255,0.5)', color: '#c084fc' }}
+              >
+                you
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Bottom gradient: controls (me) or status (remote) */}
+        <div
+          className="absolute bottom-0 left-0 right-0 px-3 pb-2.5 pt-10"
+          style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.82) 0%, transparent 100%)' }}
+          onClick={e => e.stopPropagation()}
+        >
+          {isMe && voice?.inVoice ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={voice.onToggleMute}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-mono font-bold active:scale-90 transition-all"
+                style={voice.isMuted
+                  ? { background: 'rgba(255,45,85,0.22)', border: '1px solid rgba(255,45,85,0.55)', color: '#ff6677' }
+                  : { background: 'rgba(0,255,136,0.16)', border: '1px solid rgba(0,255,136,0.5)', color: '#00ff88' }}
+              >
+                <span>{voice.isMuted ? '🔇' : '🎙'}</span>
+                <span>{voice.isMuted ? 'muted' : 'mic on'}</span>
+              </button>
+              <button
+                onClick={voice.onToggleCamera}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-mono font-bold active:scale-90 transition-all"
+                style={voice.cameraOn
+                  ? { background: 'rgba(0,229,255,0.16)', border: '1px solid rgba(0,229,255,0.5)', color: '#00e5ff' }
+                  : { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.5)' }}
+              >
+                <span>{voice.cameraOn ? '📹' : '📷'}</span>
+                <span>{voice.cameraOn ? 'cam on' : 'camera'}</span>
+              </button>
+            </div>
+          ) : isMe && !voice?.inVoice ? (
+            <button
+              onClick={() => voice?.onJoin()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-mono font-bold active:scale-90 transition-all"
+              style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.38)', color: '#00e5ff' }}
+            >
+              <span>🎙</span><span>Join Voice</span>
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-mono"
+                style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.1)' }}
+              >
+                <span>{hasRemoteVideo ? '📹' : '📷'}</span>
+                <span style={{ color: hasRemoteVideo ? '#00e5ff' : 'rgba(255,255,255,0.3)' }}>
+                  {hasRemoteVideo ? 'cam on' : 'cam off'}
+                </span>
+              </div>
+              {isSpeaking && (
+                <div
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-mono animate-pulse"
+                  style={{ background: 'rgba(0,255,136,0.1)', border: '1px solid rgba(0,255,136,0.4)', color: '#00ff88' }}
+                >
+                  🔊
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </motion.div>
+
+      {/* Label below card */}
+      <div className="text-center space-y-0.5">
+        <p className="text-xs font-mono uppercase tracking-widest" style={{ color: isMe ? '#a78bfa' : '#00e5ff', opacity: 0.75 }}>
+          {isMe ? '🎤 your turn to speak' : '🎤 speaking now'}
+        </p>
         <p className="text-[10px] font-mono text-white/25">{speakerIndex + 1} / {totalSpeakers}</p>
       </div>
     </motion.div>
@@ -206,7 +329,6 @@ function PlayerCard({
   const peerSpeaking = voice?.speakingSocketIds.has(player.socketId) ?? false;
   const isVoiceSpeaking = isMe ? (voice?.isLocalSpeaking && !voice?.isMuted) : peerSpeaking;
   const showLocalVideo = isMe && voice?.inVoice && voice.cameraOn && voice.localStream;
-  const remoteStream = !isMe ? (voice?.remoteStreams[player.socketId] ?? null) : null;
   // The local player can control their own mic/cam once they're in voice
   const showLocalControls = isMe && !dead;
   const initials = initialsOf(player.name);
@@ -239,8 +361,6 @@ function PlayerCard({
       <div className="absolute inset-0">
         {showLocalVideo ? (
           <LocalVideo stream={voice!.localStream!} />
-        ) : remoteStream ? (
-          <RemoteVideo stream={remoteStream} />
         ) : (
           <div
             className="absolute inset-0 flex items-center justify-center"
@@ -444,6 +564,7 @@ export function PlayerGrid({
             isMe={speaker.id === myPlayerId}
             speakerIndex={speakerIndex >= 0 ? speakerIndex : 0}
             totalSpeakers={totalAlive}
+            voice={voice}
           />
         </AnimatePresence>
       );

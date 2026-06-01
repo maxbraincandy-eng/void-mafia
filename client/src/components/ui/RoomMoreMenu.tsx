@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Phase, PlayerPublic } from '@/types/index';
+import type { GameSettings } from '@/types/index';
 import { ConfirmModal } from './ConfirmModal';
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
   spectators: PlayerPublic[];
   amHost: boolean;
   isInVoice: boolean;
+  settings?: GameSettings;
   // Actions
   onLeaveRoom: () => void;
   onTerminateGame?: () => void;
@@ -22,7 +24,7 @@ interface Props {
 type ConfirmAction = 'leave' | 'terminate' | null;
 
 export function RoomMoreMenu({
-  open, onClose, phase, roomCode, spectators, amHost, isInVoice,
+  open, onClose, phase, roomCode, spectators, amHost, isInVoice, settings,
   onLeaveRoom, onTerminateGame, onResetVoice, onShowRoleGuide,
 }: Props) {
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
@@ -115,6 +117,76 @@ export function RoomMoreMenu({
                     </div>
                   )}
                 </div>
+
+                {/* Active Roles section */}
+                {settings && (() => {
+                  const ROLE_ICONS: Record<string, string> = {
+                    mafia: '🔫', don: '♛', sheriff: '🔍', doctor: '💉',
+                    maniac: '🌀', jester: '🃏', bodyguard: '🛡', spy: '🕵️',
+                    escort: '💃', vigilante: '⚖️', cult_leader: '🕯️',
+                    veteran: '🎖️', tracker: '👁', arsonist: '🔥', mayor: '👑',
+                  };
+                  const ROLE_COLORS: Record<string, string> = {
+                    mafia: '#ff2d55', don: '#ff2d55',
+                    sheriff: '#60a5fa', doctor: '#00ff88',
+                    maniac: '#9b00ff', jester: '#a855f7',
+                    bodyguard: '#34d399', spy: '#00e5ff',
+                    escort: '#f472b6', vigilante: '#fbbf24',
+                    cult_leader: '#e879f9', veteran: '#fbbf24',
+                    tracker: '#60a5fa', arsonist: '#fb923c',
+                    mayor: '#ffd700',
+                  };
+                  const enabledRoles = Object.entries(settings.roles)
+                    .filter(([, count]) => count > 0)
+                    .sort(([a], [b]) => {
+                      const order = ['mafia', 'don', 'sheriff', 'doctor', 'bodyguard', 'spy', 'escort', 'vigilante', 'tracker', 'veteran', 'mayor', 'maniac', 'arsonist', 'jester', 'cult_leader'];
+                      return (order.indexOf(a) ?? 99) - (order.indexOf(b) ?? 99);
+                    });
+
+                  return (
+                    <div className="rounded-xl border border-white/8 bg-white/3 overflow-hidden">
+                      <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
+                        <span className="text-base">⚔️</span>
+                        <span className="text-xs font-display font-bold text-white/60 tracking-widest uppercase">
+                          Active Roles
+                        </span>
+                        <span className="ml-auto text-xs font-mono text-white/30">
+                          {enabledRoles.reduce((s, [, c]) => s + c, 0)} special
+                        </span>
+                      </div>
+                      {enabledRoles.length === 0 ? (
+                        <p className="text-xs text-white/25 font-mono text-center py-3">All citizens</p>
+                      ) : (
+                        <div className="p-3 grid grid-cols-2 gap-1.5">
+                          {enabledRoles.map(([role, count]) => (
+                            <div
+                              key={role}
+                              className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl"
+                              style={{
+                                background: 'rgba(255,255,255,0.04)',
+                                border: `1px solid ${ROLE_COLORS[role] ?? 'rgba(255,255,255,0.12)'}22`,
+                              }}
+                            >
+                              <span className="text-base flex-shrink-0">{ROLE_ICONS[role] ?? '?'}</span>
+                              <span className="text-[11px] font-mono text-white/70 truncate capitalize flex-1">
+                                {role.replace(/_/g, ' ')}
+                              </span>
+                              <span
+                                className="flex-shrink-0 text-[11px] font-display font-bold"
+                                style={{ color: ROLE_COLORS[role] ?? 'rgba(255,255,255,0.5)' }}
+                              >
+                                ×{count}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="px-4 pb-2.5">
+                        <p className="text-[9px] font-mono text-white/20">Remaining slots filled with Citizens</p>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Role Guide */}
                 {onShowRoleGuide && (

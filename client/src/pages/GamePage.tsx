@@ -603,9 +603,14 @@ export function GamePage() {
         spectators={room.players.filter(p => p.isSpectator)}
         amHost={amHost}
         isInVoice={isInVoice}
+        settings={room.settings}
         onLeaveRoom={leaveRoom}
         onTerminateGame={amHost ? terminateGame : undefined}
-        onResetVoice={isInVoice ? () => { voice.leaveVoice(); setTimeout(() => voice.joinVoice(voiceChannel), 800); } : undefined}
+        onResetVoice={isInVoice ? () => {
+          const hadCamera = voice.cameraOn;
+          voice.leaveVoice();
+          setTimeout(() => voice.joinVoice(voiceChannel, hadCamera), 800);
+        } : undefined}
         onShowRoleGuide={() => setShowRoleGuide(true)}
       />
 
