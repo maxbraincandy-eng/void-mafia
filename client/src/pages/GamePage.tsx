@@ -158,7 +158,7 @@ export function GamePage() {
   const voiceChannel: VoiceChannel =
     isMafiaPlayer && room?.phase === 'night' ? 'mafia' : 'room';
   const voiceChannelLabel =
-    voiceChannel === 'mafia' ? '🔴 Mafia Voice' : '🎙 Room Voice';
+    voiceChannel === 'mafia' ? '◉ Mafia Voice' : '◎ Room Voice';
 
   // During speech phase, mute local mic when it's not my turn
   useEffect(() => {
@@ -398,11 +398,12 @@ export function GamePage() {
       >
         {phase === 'role_reveal' && (
           amSpectator ? (
-            <div className="text-center py-8">
-              <div className="text-5xl mb-4">👁</div>
-              <h2 className="font-display text-2xl font-bold text-neon-purple tracking-widest uppercase mb-2">
-                Spectating
-              </h2>
+            <div className="py-8">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-1.5 h-1.5 rounded-full bg-neon-purple/60" />
+                <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-neon-purple/60">Spectating</span>
+                <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(155,0,255,0.2), transparent)' }} />
+              </div>
               <p className="text-white/40 text-sm font-mono">Roles are being revealed to players…</p>
             </div>
           ) : (
@@ -425,19 +426,22 @@ export function GamePage() {
 
         {phase === 'night' && (
           <div className="space-y-4">
-            <div className="text-center py-4">
-              <div className="text-4xl mb-2" style={{ filter: 'drop-shadow(0 0 20px #9b00ff)' }}>🌙</div>
-              <h2 className="font-display text-2xl font-bold text-neon-purple tracking-widest uppercase">
-                {t.game.night.title}
-              </h2>
-              <p className="text-white/40 text-sm mt-1 font-mono">
+            <div className="py-4">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-neon-purple/70" style={{ boxShadow: '0 0 6px rgba(155,0,255,0.8)' }} />
+                <span className="font-mono text-[10px] tracking-[0.25em] uppercase" style={{ color: 'rgba(155,0,255,0.8)' }}>
+                  {t.game.night.title} · {t.game.header.phase} {room.day}
+                </span>
+                <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(155,0,255,0.25), transparent)' }} />
+              </div>
+              <p className="text-white/40 text-sm font-mono pl-4">
                 {amSpectator ? 'Players are taking their night actions…' : amAlive ? t.game.night.activeMsg : t.game.night.eliminatedMsg}
               </p>
             </div>
             {/* Mafia voice panel in action area during night */}
             {isMafiaPlayer && amAlive && !amSpectator && (
               <Card glow="none" padding="sm">
-                <p className="text-xs font-display uppercase tracking-widest text-neon-red/60 mb-2">🔴 Mafia Voice</p>
+                <p className="text-[10px] font-mono tracking-[0.2em] uppercase text-neon-red/60 mb-2">◉ Mafia Channel</p>
                 <VoiceControls
                   channel={voice.channel}
                   status={voice.status}
@@ -480,12 +484,15 @@ export function GamePage() {
                   <p className="text-neon-green text-sm">💊 {t.game.day.doctorSaved}</p>
                 </Card>
               )}
-              <div className="text-center py-4">
-                <div className="text-4xl mb-2">☀️</div>
-                <h2 className="font-display text-2xl font-bold text-yellow-300 tracking-widest uppercase">
-                  {t.game.day.title} {room.day}
-                </h2>
-                <p className="text-white/40 text-sm mt-1 font-mono">{t.game.day.discuss}</p>
+              <div className="py-4">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-neon-cyan/70" style={{ boxShadow: '0 0 6px rgba(0,196,204,0.8)' }} />
+                  <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-neon-cyan/70">
+                    {t.game.day.title} {room.day}
+                  </span>
+                  <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(0,196,204,0.25), transparent)' }} />
+                </div>
+                <p className="text-white/40 text-sm font-mono pl-4">{t.game.day.discuss}</p>
               </div>
               {amAlive && (
                 <div className="text-center">
@@ -511,20 +518,23 @@ export function GamePage() {
           const totalSpeakers = room.players.filter(p => p.isAlive && !p.isSpectator).length;
           return (
             <div className="space-y-4">
-              <div className="text-center py-4">
-                <div className="text-4xl mb-2">🎤</div>
-                <h2 className="font-display text-2xl font-bold text-neon-green tracking-widest uppercase">
-                  {t.game.speech.title}
-                </h2>
+              <div className="py-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-1.5 h-1.5 rounded-full bg-neon-green/70" style={{ boxShadow: '0 0 6px rgba(0,230,100,0.8)' }} />
+                  <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-neon-green/70">
+                    {t.game.speech.title}
+                  </span>
+                  <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(0,230,100,0.25), transparent)' }} />
+                </div>
                 {speaker ? (
-                  <>
-                    <p className="text-neon-green font-bold text-lg mt-2">{speaker.name}</p>
-                    <p className="text-white/40 text-xs font-mono mt-1">
+                  <div className="pl-4 space-y-0.5">
+                    <p className="text-white font-semibold text-base">{speaker.name}</p>
+                    <p className="text-white/35 text-xs font-mono">
                       {t.game.speech.speaker} {speakerIdx + 1} {t.game.speech.of} {totalSpeakers}
                     </p>
-                  </>
+                  </div>
                 ) : (
-                  <p className="text-white/40 text-sm font-mono mt-1">{t.game.speech.loading}</p>
+                  <p className="text-white/40 text-sm font-mono pl-4">{t.game.speech.loading}</p>
                 )}
               </div>
             </div>
@@ -533,12 +543,15 @@ export function GamePage() {
 
         {phase === 'voting' && (
           <div className="space-y-4">
-            <div className="text-center py-4">
-              <div className="text-4xl mb-2">⚖️</div>
-              <h2 className="font-display text-2xl font-bold text-neon-red tracking-widest uppercase">
-                {t.game.voting.title}
-              </h2>
-              <p className="text-white/40 text-sm mt-1 font-mono">
+            <div className="py-4">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-neon-red/70" style={{ boxShadow: '0 0 6px rgba(255,45,85,0.8)' }} />
+                <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-neon-red/70">
+                  {t.game.voting.title}
+                </span>
+                <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(255,45,85,0.25), transparent)' }} />
+              </div>
+              <p className="text-white/40 text-sm font-mono pl-4">
                 {t.game.voting.alivePlaying.replace('{n}', String(alivePlayers))}
               </p>
             </div>
@@ -558,27 +571,19 @@ export function GamePage() {
   );
 
   return (
-    <div className={clsx(
-      'min-h-screen relative overflow-hidden transition-all duration-1000',
-      isNight
-        ? 'bg-gradient-to-b from-[#030010] via-void to-[#040020]'
-        : 'bg-gradient-to-b from-[#020a10] to-[#010508]',
-    )}>
-      {/* Atmospheric overlays */}
-      {isNight && (
-        <div className="fixed inset-0 pointer-events-none z-0">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-neon-purple/8 rounded-full blur-[120px]" />
-          <div className="absolute bottom-0 right-0 w-[400px] h-[200px] bg-neon-pink/5 rounded-full blur-[100px]" />
-        </div>
-      )}
-      {phase === 'day' && (
-        <div className="fixed inset-0 pointer-events-none z-0">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[200px] bg-neon-cyan/5 rounded-full blur-[100px]" />
-        </div>
-      )}
-      <div className="fixed inset-0 pointer-events-none z-0 opacity-20"
-        style={{ background: 'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px)' }}
-      />
+    <div className="min-h-screen relative overflow-hidden" style={{ background: '#060314' }}>
+      {/* Phase ambient glow */}
+      <div className="fixed inset-0 pointer-events-none z-0 transition-all duration-1000">
+        {isNight && (
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[220px] rounded-full blur-[100px]" style={{ background: 'rgba(100,0,220,0.07)' }} />
+        )}
+        {(phase === 'day' || phase === 'speech') && (
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[180px] rounded-full blur-[90px]" style={{ background: 'rgba(0,180,200,0.06)' }} />
+        )}
+        {phase === 'voting' && (
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[180px] rounded-full blur-[90px]" style={{ background: 'rgba(220,0,50,0.06)' }} />
+        )}
+      </div>
 
       {/* Leaderboard */}
       <LeaderboardModal open={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
@@ -776,8 +781,8 @@ export function GamePage() {
 
               {/* Spectator badge */}
               {amSpectator && (
-                <div className="px-2 py-1 rounded-lg border border-neon-purple/40 bg-neon-purple/10 text-[10px] md:text-xs font-display font-bold tracking-wider uppercase text-neon-purple/80">
-                  👁 SPECTATOR
+                <div className="px-2 py-1 rounded-lg border border-neon-purple/40 bg-neon-purple/10 text-[10px] font-mono tracking-widest uppercase text-neon-purple/80">
+                  SPECTATOR
                 </div>
               )}
 
@@ -816,19 +821,19 @@ export function GamePage() {
               {/* Role Guide button */}
               <button
                 onClick={() => setShowRoleGuide(true)}
-                className="flex items-center px-2 py-1 rounded-lg text-white/30 hover:text-white/70 transition-colors text-sm"
+                className="px-2.5 py-1 rounded-lg text-[10px] font-mono tracking-widest uppercase text-white/30 hover:text-white/70 hover:bg-white/5 transition-all"
                 title="Role Guide"
               >
-                📖
+                Guide
               </button>
 
               {/* Leaderboard button */}
               <button
                 onClick={() => setShowLeaderboard(true)}
-                className="hidden sm:flex items-center px-2 py-1 rounded-lg text-white/30 hover:text-white/70 transition-colors text-sm"
+                className="hidden sm:flex px-2.5 py-1 rounded-lg text-[10px] font-mono tracking-widest uppercase text-white/30 hover:text-white/70 hover:bg-white/5 transition-all"
                 title={t.game.header.leaderboard}
               >
-                🏆
+                Ranks
               </button>
 
               {/* Pause button (host only, during active phases) */}
@@ -865,9 +870,9 @@ export function GamePage() {
               <button
                 onClick={() => { const m = !soundMuted; setSoundMuted(m); setSoundMutedState(m); }}
                 title={soundMuted ? 'Unmute sounds' : 'Mute sounds'}
-                className="px-2 py-1 rounded-lg text-sm text-white/30 hover:text-white/70 transition-colors"
+                className="px-2.5 py-1 rounded-lg text-[10px] font-mono tracking-widest uppercase text-white/30 hover:text-white/70 hover:bg-white/5 transition-all"
               >
-                {soundMuted ? '🔇' : '🔊'}
+                {soundMuted ? 'SFX ∅' : 'SFX'}
               </button>
 
               <Button size="sm" variant="ghost" onClick={() => setShowMoreMenu(true)}>
@@ -922,7 +927,7 @@ export function GamePage() {
                       : 'border border-white/8 text-white/30 hover:text-white/60',
                   )}
                 >
-                  {tab === 'events' ? '📋' : '💬'} {tab}
+                  {tab === 'events' ? 'Events' : 'Chat'}
                   {tab === 'events' && unreadEvents > 0 && (
                     <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-neon-cyan text-void text-[8px] flex items-center justify-center font-bold">
                       {unreadEvents > 9 ? '9+' : unreadEvents}
@@ -997,7 +1002,7 @@ export function GamePage() {
                           onClick={() => setMobileVoiceOpen(o => !o)}
                           className="w-full flex items-center justify-between px-3 py-2 text-xs font-mono text-white/40 hover:text-white/60 transition-colors"
                         >
-                          <span>{isInVoice ? '🎙 ' + voiceChannelLabel : '🎙 ' + t.game.voice.join}</span>
+                          <span>{isInVoice ? voiceChannelLabel : t.game.voice.join}</span>
                           <span className="text-[10px]">{mobileVoiceOpen ? '▲' : '▼'}</span>
                         </button>
                         {mobileVoiceOpen && (
@@ -1056,35 +1061,39 @@ export function GamePage() {
               </div>
 
               {/* Slim 3-button nav */}
-              <div className="flex-shrink-0 glass-panel border-t border-white/8 flex" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+              <div className="flex-shrink-0 border-t border-white/[0.06] flex" style={{ background: 'rgba(8,4,22,0.96)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
                 {([
-                  { id: 'grid',   label: '👥', sublabel: t.lobby.players },
-                  { id: 'action', label: phase === 'voting' ? '⚖️' : '⚡', sublabel: phase === 'voting' ? t.game.voting.title : (t.game.phaseLabels[phase] || 'Action') },
-                  { id: 'chat',   label: '💬', sublabel: t.lobby.chat },
-                ] as { id: MobileTab | 'grid'; label: string; sublabel: string }[]).map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setMobileTab(tab.id === 'grid' ? 'players' : tab.id)}
-                    className={clsx(
-                      'flex-1 py-2.5 flex flex-col items-center gap-0.5 transition-all relative',
-                      (tab.id === 'grid' ? mobileTab !== 'action' && mobileTab !== 'chat' : mobileTab === tab.id)
-                        ? 'text-neon-cyan border-t-2 border-neon-cyan -mt-[2px]'
-                        : 'text-white/35 hover:text-white/60',
-                    )}
-                  >
-                    <span className="text-base leading-none">{tab.label}</span>
-                    <span className="text-[9px] font-mono uppercase tracking-wide">{tab.sublabel}</span>
-                    {tab.id === 'chat' && unreadChat > 0 && (
-                      <span className="absolute top-1 right-3 w-4 h-4 rounded-full bg-neon-red text-white text-[9px] flex items-center justify-center font-bold">
-                        {unreadChat > 9 ? '9+' : unreadChat}
-                      </span>
-                    )}
-                    {/* Vote indicator badge on action tab during voting */}
-                    {tab.id === 'action' && phase === 'voting' && !myVoteTarget && amAlive && !amSpectator && (
-                      <span className="absolute top-1 left-3 w-2 h-2 rounded-full bg-neon-red animate-pulse" />
-                    )}
-                  </button>
-                ))}
+                  { id: 'grid',   label: t.lobby.players },
+                  { id: 'action', label: phase === 'voting' ? t.game.voting.title : (t.game.phaseLabels[phase] || 'Action') },
+                  { id: 'chat',   label: t.lobby.chat },
+                ] as { id: MobileTab | 'grid'; label: string }[]).map(tab => {
+                  const isActive = tab.id === 'grid'
+                    ? mobileTab !== 'action' && mobileTab !== 'chat'
+                    : mobileTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setMobileTab(tab.id === 'grid' ? 'players' : tab.id)}
+                      className={clsx(
+                        'flex-1 py-3 flex flex-col items-center gap-0.5 transition-all relative',
+                        isActive ? 'text-neon-cyan' : 'text-white/30 hover:text-white/55',
+                      )}
+                    >
+                      {isActive && (
+                        <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-px rounded-full bg-neon-cyan/60" />
+                      )}
+                      <span className="text-[10px] font-mono tracking-widest uppercase">{tab.label}</span>
+                      {tab.id === 'chat' && unreadChat > 0 && (
+                        <span className="absolute top-1 right-3 w-4 h-4 rounded-full bg-neon-red text-white text-[9px] flex items-center justify-center font-bold">
+                          {unreadChat > 9 ? '9+' : unreadChat}
+                        </span>
+                      )}
+                      {tab.id === 'action' && phase === 'voting' && !myVoteTarget && amAlive && !amSpectator && (
+                        <span className="absolute top-1.5 left-4 w-1.5 h-1.5 rounded-full bg-neon-red animate-pulse" />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </>
           ) : (
@@ -1102,7 +1111,7 @@ export function GamePage() {
                             onClick={() => setMobileVoiceOpen(o => !o)}
                             className="w-full flex items-center justify-between px-3 py-2 text-xs font-mono text-white/40 hover:text-white/60 transition-colors"
                           >
-                            <span>{isInVoice ? '🎙 ' + voiceChannelLabel : '🎙 ' + t.game.voice.join}</span>
+                            <span>{isInVoice ? voiceChannelLabel : t.game.voice.join}</span>
                             <span className="text-[10px]">{mobileVoiceOpen ? '▲' : '▼'}</span>
                           </button>
                           {mobileVoiceOpen && <div className="px-3 pb-3">{VoicePanel}</div>}
@@ -1130,23 +1139,26 @@ export function GamePage() {
                   )}
                 </AnimatePresence>
               </div>
-              <div className="flex-shrink-0 glass-panel border-t border-white/10 flex" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+              <div className="flex-shrink-0 border-t border-white/[0.06] flex" style={{ background: 'rgba(8,4,22,0.96)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
                 {([
-                  { id: 'action',  label: `⚡ ${t.game.phaseLabels[phase] || 'Action'}` },
-                  { id: 'players', label: `👥 ${t.lobby.players}` },
-                  { id: 'chat',    label: `💬 ${t.lobby.chat}` },
+                  { id: 'action',  label: t.game.phaseLabels[phase] || 'Action' },
+                  { id: 'players', label: t.lobby.players },
+                  { id: 'chat',    label: t.lobby.chat },
                 ] as { id: MobileTab; label: string }[]).map(tab => (
                   <button
                     key={tab.id}
                     onClick={() => setMobileTab(tab.id)}
                     className={clsx(
-                      'flex-1 py-3 text-xs font-display font-bold tracking-widest uppercase transition-all relative',
-                      mobileTab === tab.id ? 'text-neon-cyan bg-neon-cyan/10 border-t-2 border-neon-cyan -mt-[2px]' : 'text-white/40 hover:text-white/70',
+                      'flex-1 py-3 flex flex-col items-center gap-0.5 transition-all relative',
+                      mobileTab === tab.id ? 'text-neon-cyan' : 'text-white/30 hover:text-white/55',
                     )}
                   >
-                    {tab.label}
+                    {mobileTab === tab.id && (
+                      <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-px rounded-full bg-neon-cyan/60" />
+                    )}
+                    <span className="text-[10px] font-mono tracking-widest uppercase">{tab.label}</span>
                     {tab.id === 'chat' && unreadChat > 0 && (
-                      <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-neon-red text-white text-[9px] flex items-center justify-center font-bold">
+                      <span className="absolute top-1.5 right-3 w-4 h-4 rounded-full bg-neon-red text-white text-[9px] flex items-center justify-center font-bold">
                         {unreadChat > 9 ? '9+' : unreadChat}
                       </span>
                     )}
