@@ -102,8 +102,12 @@ export function advancePhase(room) {
                 setPhase(room, 'game_over');
                 return 'game_over';
             }
-            setPhase(room, 'night');
-            return 'night';
+            if (room.settings.startWithNight) {
+                setPhase(room, 'night');
+                return 'night';
+            }
+            setPhase(room, 'day');
+            return 'day';
         case 'night':
             resolveNight(room);
             if (checkWin(room)) {
