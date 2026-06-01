@@ -351,7 +351,7 @@ export const TRANSLATIONS = {
       title: 'სათამაშო ოთახები',
       browse: 'ნახვა',
       create: 'შექმნა',
-      joinCode: 'კოდით',
+      joinCode: 'შესვლა',
       noRooms: 'ოთახები არ არის',
       noRoomsHint: 'შექმენი პირველი!',
       players: 'მოთამაშე',
