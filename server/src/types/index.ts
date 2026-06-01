@@ -208,6 +208,7 @@ export interface GameSettings {
   tieVoteRule: TieRule;
   minPlayers: number;
   isPrivate: boolean;
+  password: string;
   startWithNight: boolean;
   roles: {
     mafia: number;
@@ -334,6 +335,15 @@ export interface AchievementEarned {
   rarity: string;
 }
 
+// ── Vote Breakdown ────────────────────────────────────────────────────
+export interface VoteBreakdownEntry {
+  voterId: string;
+  voterName: string;
+  targetId: string;
+  targetName: string;
+  weight: number;
+}
+
 // ── Night Summary ─────────────────────────────────────────────────────
 export interface NightSummary {
   day: number;
@@ -389,9 +399,11 @@ export interface ServerToClientEvents {
   'game:night_result':  (result: NightResult) => void;
   'game:investigation': (result: InvestigationResult) => void;
   'game:track_result':  (result: { trackedName: string; visitedName: string | null }) => void;
-  'game:over':          (result: GameOverResult) => void;
-  'game:night_summary': (summary: NightSummary) => void;
-  'achievement:earned': (data: { achievements: AchievementEarned[] }) => void;
+  'game:over':            (result: GameOverResult) => void;
+  'game:night_summary':   (summary: NightSummary) => void;
+  'achievement:earned':   (data: { achievements: AchievementEarned[] }) => void;
+  'game:vote_breakdown':  (entries: VoteBreakdownEntry[]) => void;
+  'lobby:autostart':      (data: { secondsLeft: number }) => void;
   'error':              (data: { message: string }) => void;
   'kicked':             (data: { reason: string }) => void;
   'player:profile':     (profile: PlayerProfilePublic) => void;
@@ -434,6 +446,7 @@ export interface ClientToServerEvents {
   'game:pause':         (cb: Cb<{ isPaused: boolean }>) => void;
   'game:terminate':     (cb: Cb<null>) => void;
   'leaderboard:get':    (cb: Cb<PlayerProfilePublic[]>) => void;
+  'player:profile':     (data: { profileId: string }, cb: Cb<PlayerProfilePublic>) => void;
   'player:achievements': (data: { profileId: string }, cb: Cb<AchievementEarned[]>) => void;
   'player:history':     (data: { profileId: string }, cb: Cb<GameHistoryEntry[]>) => void;
   'clan:list':          (cb: Cb<ClanPublic[]>) => void;

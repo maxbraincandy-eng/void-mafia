@@ -11,6 +11,72 @@ import { recordGame, getPlayerHistory } from './services/gameHistoryService.js';
 import { createClan, getClan, getClanByPlayer, getAllClans, getClanMembers, joinClan, leaveClan, } from './services/clanService.js';
 import { canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer, warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, logKick, } from './services/moderationService.js';
 import { canJoin as voiceCanJoin, join as voiceJoin, leave as voiceLeave, } from './services/voiceService.js';
+// ── Rate limiting ─────────────────────────────────────────────────────
+const rateLimits = new Map();
+function rateOk(socketId, limit = 15) {
+    const now = Date.now();
+    const r = rateLimits.get(socketId);
+    if (!r || now > r.resetAt) {
+        rateLimits.set(socketId, { count: 1, resetAt: now + 1000 });
+        return true;
+    }
+    if (r.count >= limit)
+        return false;
+    r.count++;
+    return true;
+}
+// ── Lobby auto-start timers ───────────────────────────────────────────
+const autoStartTimers = new Map();
+function cancelAutoStart(roomId) {
+    const t = autoStartTimers.get(roomId);
+    if (t) {
+        clearTimeout(t);
+        autoStartTimers.delete(roomId);
+    }
+}
+// ── Role-specific death messages ──────────────────────────────────────
+const NIGHT_DEATH = {
+    sheriff: 'The badge falls silent. The town lost its protector.',
+    doctor: 'The healer is gone. No one is safe tonight.',
+    bodyguard: 'The guardian fell in the line of duty.',
+    don: 'The Don has fallen — but who will take the throne?',
+    cult_leader: 'The Cult Leader is dead. The cult crumbles.',
+    veteran: 'The Veteran fought to the last.',
+    mayor: 'The Mayor is gone. The town is leaderless.',
+    vigilante: 'The Vigilante fires no more.',
+    spy: "The Spy's final report goes unread.",
+    escort: 'The Escort danced her last.',
+    tracker: "The Tracker's trail goes cold.",
+    arsonist: 'The Arsonist burns out.',
+};
+const VOTE_DEATH = {
+    jester: '🃏 The Jester laughs from beyond the grave.',
+    sheriff: '⚖️ The town voted out one of their own. The badge was real.',
+    doctor: '⚖️ The healer is exiled. The town will regret this.',
+    mafia: '⚖️ Justice is served. A killer leaves the shadows.',
+    don: '⚖️ The Godfather is dethroned by his own people.',
+    cult_leader: '⚖️ The Cult Leader is exposed and cast out.',
+    maniac: '⚖️ The Maniac smiles. You voted out a madman.',
+    arsonist: '⚖️ The Arsonist is extinguished.',
+};
+function nightDeathMsg(name, role, lastWill) {
+    const flavour = role ? NIGHT_DEATH[role] : null;
+    let msg = flavour
+        ? `Dawn breaks. ${name} was found dead.\n${flavour}`
+        : `Dawn breaks. ${name} was found dead.`;
+    if (lastWill)
+        msg += `\n📜 Last Will: "${lastWill}"`;
+    return msg;
+}
+function voteDeathMsg(name, role, lastWill) {
+    const flavour = role ? VOTE_DEATH[role] : null;
+    let msg = flavour
+        ? `${name} was eliminated by vote.\n${flavour}`
+        : `${name} was eliminated by vote.`;
+    if (lastWill)
+        msg += `\n📜 Last Will: "${lastWill}"`;
+    return msg;
+}
 // ── Validation Schemas ────────────────────────────────────────────────
 const CreateRoomSchema = z.object({
     name: z.string().min(1).max(24),
@@ -20,6 +86,7 @@ const JoinRoomSchema = z.object({
     code: z.string().length(6),
     name: z.string().min(1).max(24),
     isSpectator: z.boolean().optional().default(false),
+    password: z.string().max(64).optional().default(''),
 });
 const ChatSchema = z.object({
     text: z.string().min(1).max(400),
@@ -141,10 +208,8 @@ function announceNightResult(io, room) {
     io.to(room.id).emit('game:night_summary', summary);
     if (room.killedLastNight.length > 0) {
         for (const killed of room.killedLastNight) {
-            let msg = `Dawn breaks. ${killed.name} was found dead.`;
-            if (killed.lastWill)
-                msg += `\n📜 Last Will: "${killed.lastWill}"`;
-            broadcastSystemMsg(io, room, msg);
+            const p = room.players.get(killed.id);
+            broadcastSystemMsg(io, room, nightDeathMsg(killed.name, p?.role ?? null, killed.lastWill));
         }
     }
     else if (room.savedLastNight) {
@@ -186,21 +251,30 @@ function notifySpies(io, room) {
     }
 }
 function announceVoteResult(io, room) {
+    // Emit vote breakdown before resolving
+    const breakdown = [...room.votes.entries()]
+        .filter(([, tid]) => tid !== null)
+        .map(([vid, tid]) => {
+        const voter = room.players.get(vid);
+        const target = room.players.get(tid);
+        return {
+            voterId: vid, voterName: voter?.name ?? '?',
+            targetId: tid, targetName: target?.name ?? '?',
+            weight: voter?.role === 'mayor' ? 2 : 1,
+        };
+    });
+    io.to(room.id).emit('game:vote_breakdown', breakdown);
     const eliminated = resolveVotes(room);
     if (eliminated) {
         const target = room.players.get(eliminated);
         if (target) {
-            // Broadcast overlay event so clients can show a cinematic
             io.to(room.id).emit('game:vote_result', {
                 name: target.name,
                 role: target.role ?? null,
                 lastWill: target.lastWill ?? null,
                 seat: target.seat,
             });
-            let msg = `${target.name} was eliminated by vote.`;
-            if (target.lastWill)
-                msg += `\n📜 Last Will: "${target.lastWill}"`;
-            broadcastSystemMsg(io, room, msg);
+            broadcastSystemMsg(io, room, voteDeathMsg(target.name, target.role ?? null, target.lastWill));
         }
     }
     else {
@@ -222,6 +296,19 @@ export function attachSocketHandlers(io) {
         socket.data.playerId = null;
         socket.data.roomId = null;
         socket.data.profileId = null;
+        // Rate-limit every incoming event
+        socket.use(([event], next) => {
+            const authEvents = new Set(['player:auth', 'player:register', 'player:login_email']);
+            const limit = authEvents.has(event) ? 3 : 20;
+            if (!rateOk(socket.id, limit)) {
+                socket.emit('error', { message: 'Too many requests. Slow down.' });
+                return;
+            }
+            next();
+        });
+        socket.on('disconnect', () => {
+            rateLimits.delete(socket.id);
+        });
         // ── Auth ─────────────────────────────────────────────────────────
         socket.on('player:auth', (data, cb) => {
             try {
@@ -342,6 +429,13 @@ export function attachSocketHandlers(io) {
                 const room = getRoomByCode(parsed.code);
                 if (!room)
                     throw new Error('Room not found. Check the code and try again.');
+                // Password check
+                if (room.settings.password) {
+                    const existing = room.players ? [...room.players.values()].find(p => p.profileId === profileId && p.isConnected) : null;
+                    if (!existing && parsed.password !== room.settings.password) {
+                        throw new Error('Wrong room password.');
+                    }
+                }
                 const username = profileId ? getPlayer(profileId)?.username ?? parsed.name : parsed.name;
                 const player = addPlayer(room, socket.id, username, profileId);
                 if (parsed.isSpectator)
@@ -371,6 +465,46 @@ export function attachSocketHandlers(io) {
                 const player = getPlayerOrError(socket, room);
                 player.isReady = !player.isReady;
                 broadcastRoom(io, room);
+                // Auto-start: if all non-spectator players are ready and >= minPlayers
+                const activePlayers = [...room.players.values()].filter(p => !p.isSpectator);
+                const allReady = activePlayers.length >= room.settings.minPlayers
+                    && activePlayers.every(p => p.isReady);
+                if (allReady) {
+                    let countdown = 10;
+                    io.to(room.id).emit('lobby:autostart', { secondsLeft: countdown });
+                    const tick = setInterval(() => {
+                        countdown--;
+                        if (countdown <= 0) {
+                            clearInterval(tick);
+                            autoStartTimers.delete(room.id);
+                            // Only auto-start if still in lobby and all still ready
+                            const still = [...room.players.values()].filter(p => !p.isSpectator);
+                            if (room.phase === 'lobby' && still.length >= room.settings.minPlayers && still.every(p => p.isReady)) {
+                                startGame(room);
+                                setPhase(room, 'role_reveal');
+                                for (const p of room.players.values()) {
+                                    if (p.socketId && p.role)
+                                        io.to(p.socketId).emit('game:role', { role: getRole(p.role) });
+                                }
+                                broadcastSystemMsg(io, room, 'The game has begun. Roles are being revealed…');
+                                broadcastRoom(io, room);
+                                startPhaseTimer(io, room);
+                            }
+                        }
+                        else {
+                            io.to(room.id).emit('lobby:autostart', { secondsLeft: countdown });
+                        }
+                    }, 1000);
+                    cancelAutoStart(room.id);
+                    autoStartTimers.set(room.id, tick);
+                }
+                else {
+                    // Cancel auto-start if someone unreadied
+                    if (autoStartTimers.has(room.id)) {
+                        cancelAutoStart(room.id);
+                        io.to(room.id).emit('lobby:autostart', { secondsLeft: -1 }); // cancel signal
+                    }
+                }
                 cb(ok(null));
             }
             catch (e) {
@@ -999,6 +1133,18 @@ export function attachSocketHandlers(io) {
                     throw new Error('Insufficient permissions.');
                 resolveReport(modProfileId, reportId, status, notes);
                 cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Player Profile (by profileId) ─────────────────────────────────
+        socket.on('player:profile', ({ profileId }, cb) => {
+            try {
+                const profile = getPlayer(profileId);
+                if (!profile)
+                    throw new Error('Profile not found.');
+                cb(ok(toPublicProfile(profile)));
             }
             catch (e) {
                 cb(err(e.message));

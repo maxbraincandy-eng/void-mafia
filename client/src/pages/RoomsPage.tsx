@@ -19,6 +19,7 @@ export function RoomsPage() {
   const [isPrivate, setIsPrivate] = useState(false);
   const [code, setCode] = useState('');
   const [joinAsSpectator, setJoinAsSpectator] = useState(false);
+  const [joinPassword, setJoinPassword] = useState('');
   const [spectatorModal, setSpectatorModal] = useState<RoomListItem | null>(null);
 
   const { createRoom, joinRoom, isLoading } = useGameStore(s => ({
@@ -65,7 +66,7 @@ export function RoomsPage() {
     e.preventDefault();
     if (code.length < 6) return;
     primeMicPermission();
-    await joinRoom(code.toUpperCase(), username, joinAsSpectator);
+    await joinRoom(code.toUpperCase(), username, joinAsSpectator, joinPassword);
   };
 
   const handleQuickJoin = async (room: RoomListItem, isSpectator: boolean) => {
@@ -291,6 +292,14 @@ export function RoomsPage() {
                   maxLength={6}
                   autoFocus
                   className="w-full bg-void-50/80 border border-white/10 rounded-xl px-4 py-3 text-neon-cyan placeholder-white/20 font-mono text-xl tracking-[0.4em] text-center focus:outline-none focus:border-neon-cyan/40 mb-4"
+                />
+                <input
+                  type="password"
+                  value={joinPassword}
+                  onChange={e => setJoinPassword(e.target.value)}
+                  placeholder="Password (if required)"
+                  maxLength={64}
+                  className="w-full bg-void-50/80 border border-white/10 rounded-xl px-4 py-2.5 text-white/70 placeholder-white/20 font-mono text-sm focus:outline-none focus:border-neon-pink/40 mb-4"
                 />
                 <label className="flex items-center gap-3 mb-4 cursor-pointer select-none">
                   <div

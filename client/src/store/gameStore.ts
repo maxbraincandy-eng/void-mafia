@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import {
   RoomPublic, PlayerPublic, PlayerProfilePublic, Role, ChatMessage, Phase,
   NightResult, InvestigationResult, GameOverResult, ChatChannel, GameSettings,
-  VoteEliminationResult, NightSummary, AchievementEarned,
+  VoteEliminationResult, NightSummary, AchievementEarned, VoteBreakdownEntry,
 } from '@/types/index';
 import { socket, connectSocket, disconnectSocket, emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
@@ -31,6 +31,8 @@ interface GameStore {
   cultConversionNotice: boolean;
   nightSummary: NightSummary | null;
   newAchievements: AchievementEarned[];
+  voteBreakdown: VoteBreakdownEntry[] | null;
+  autoStartCountdown: number | null;
   modNotice: { type: 'ban' | 'mute' | 'warn'; reason: string; expiresAt?: number; moderatorName?: string } | null;
   toasts: Toast[];
 
@@ -47,7 +49,7 @@ interface GameStore {
   connect: () => void;
   disconnect: () => void;
   createRoom: (name: string, settings?: Partial<GameSettings>) => Promise<void>;
-  joinRoom: (code: string, name: string, isSpectator?: boolean) => Promise<void>;
+  joinRoom: (code: string, name: string, isSpectator?: boolean, password?: string) => Promise<void>;
   leaveRoom: () => Promise<void>;
   terminateGame: () => Promise<void>;
   toggleReady: () => Promise<void>;
@@ -69,6 +71,7 @@ interface GameStore {
   dismissCultConversion: () => void;
   dismissNightSummary: () => void;
   dismissNewAchievements: () => void;
+  dismissVoteBreakdown: () => void;
   dismissModNotice: () => void;
   addToast: (text: string, type?: Toast['type']) => void;
   clearError: () => void;
@@ -183,6 +186,14 @@ export const useGameStore = create<GameStore>((set, get) => {
     set({ newAchievements: achievements });
   });
 
+  (socket as any).on('game:vote_breakdown', ({ breakdown }: { breakdown: VoteBreakdownEntry[] }) => {
+    set({ voteBreakdown: breakdown });
+  });
+
+  (socket as any).on('lobby:autostart', ({ secondsLeft }: { secondsLeft: number }) => {
+    set({ autoStartCountdown: secondsLeft < 0 ? null : secondsLeft });
+  });
+
   socket.on('kicked', ({ reason }: { reason: string }) => {
     set({
       room: null,
@@ -264,6 +275,8 @@ export const useGameStore = create<GameStore>((set, get) => {
     cultConversionNotice: false,
     nightSummary: null,
     newAchievements: [],
+    voteBreakdown: null,
+    autoStartCountdown: null,
     modNotice: null,
     toasts: [],
     isLoading: false,
@@ -290,8 +303,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       set({ room, myPlayerId: room.players.find(p => p.isHost)?.id ?? null });
     }),
 
-    joinRoom: withLoading(async (code: string, name: string, isSpectator = false) => {
-      const room = await emit<RoomPublic>('room:join', { code, name, isSpectator });
+    joinRoom: withLoading(async (code: string, name: string, isSpectator = false, password = '') => {
+      const room = await emit<RoomPublic>('room:join', { code, name, isSpectator, password });
       // My player is the one who isn't already in our store
       const myPlayer = room.players.find(p => p.name === name);
       set({ room, myPlayerId: myPlayer?.id ?? null });
@@ -369,6 +382,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     dismissCultConversion: () => set({ cultConversionNotice: false }),
     dismissNightSummary: () => set({ nightSummary: null }),
     dismissNewAchievements: () => set({ newAchievements: [] }),
+    dismissVoteBreakdown: () => set({ voteBreakdown: null }),
     dismissModNotice: () => set({ modNotice: null }),
 
     addToast: (text: string, type: Toast['type'] = 'info') => {

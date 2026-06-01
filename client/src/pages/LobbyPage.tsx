@@ -19,7 +19,7 @@ import { PlayerPublic } from '@/types/index';
 export function LobbyPage() {
   const {
     room, myPlayer, amHost, toggleReady, kickPlayer, startGame,
-    updateSettings, leaveRoom, transferHost, isLoading,
+    updateSettings, leaveRoom, transferHost, isLoading, autoStartCountdown,
   } = useGameStore(s => ({
     room: s.room,
     myPlayer: s.myPlayer(),
@@ -31,6 +31,7 @@ export function LobbyPage() {
     leaveRoom: s.leaveRoom,
     transferHost: s.transferHost,
     isLoading: s.isLoading,
+    autoStartCountdown: s.autoStartCountdown,
   }));
 
   const [showSettings, setShowSettings] = useState(false);
@@ -394,6 +395,23 @@ export function LobbyPage() {
               )}
             </motion.div>
 
+            {/* ── Auto-start countdown ───────────────────────────── */}
+            <AnimatePresence>
+              {autoStartCountdown !== null && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  className="flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-neon-green/30 bg-neon-green/6"
+                >
+                  <div className="w-2 h-2 rounded-full bg-neon-green animate-ping" />
+                  <span className="font-mono text-sm text-neon-green">
+                    Game starting in <span className="font-bold text-base">{autoStartCountdown}s</span>…
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* ── Settings panel ─────────────────────────────────── */}
             <AnimatePresence>
               {showSettings && amHost && (
@@ -403,7 +421,26 @@ export function LobbyPage() {
                   exit={{ opacity: 0, height: 0 }}
                   className="overflow-hidden"
                 >
-                  <div className="pt-1">
+                  <div className="pt-1 space-y-3">
+                    {/* Password field */}
+                    <div className="glass-panel border border-white/8 rounded-xl p-4">
+                      <label className="block text-[10px] font-mono text-white/30 uppercase tracking-widest mb-2">
+                        Room Password (optional)
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={64}
+                        placeholder="Leave blank for open room"
+                        value={room.settings.password ?? ''}
+                        onChange={e => updateSettings({ password: e.target.value })}
+                        className="w-full bg-white/4 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono text-white/80 placeholder-white/20 focus:outline-none focus:border-neon-cyan/40 transition-colors"
+                      />
+                      {room.settings.password && (
+                        <p className="text-[10px] font-mono text-neon-pink/60 mt-1.5 tracking-wider">
+                          🔒 Players need this password to join
+                        </p>
+                      )}
+                    </div>
                     <RolePickerPanel
                       settings={room.settings}
                       playerCount={playerCount}

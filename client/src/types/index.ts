@@ -102,6 +102,7 @@ export interface GameSettings {
   tieVoteRule: TieRule;
   minPlayers: number;
   isPrivate: boolean;
+  password: string;
   startWithNight: boolean;
   roles: {
     mafia: number;
@@ -255,6 +256,15 @@ export interface ClanMember {
   avatar: string;
   role: 'owner' | 'officer' | 'member';
   joinedAt: number;
+}
+
+// ── Vote Breakdown ────────────────────────────────────────────────────
+export interface VoteBreakdownEntry {
+  voterId: string;
+  voterName: string;
+  targetId: string;
+  targetName: string;
+  weight: number;
 }
 
 // ── Game History ─────────────────────────────────────────────────────

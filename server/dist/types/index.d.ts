@@ -148,6 +148,7 @@ export interface GameSettings {
     tieVoteRule: TieRule;
     minPlayers: number;
     isPrivate: boolean;
+    password: string;
     startWithNight: boolean;
     roles: {
         mafia: number;
@@ -277,6 +278,13 @@ export interface AchievementEarned {
     icon: string;
     rarity: string;
 }
+export interface VoteBreakdownEntry {
+    voterId: string;
+    voterName: string;
+    targetId: string;
+    targetName: string;
+    weight: number;
+}
 export interface NightSummary {
     day: number;
     totalTargeted: number;
@@ -336,6 +344,10 @@ export interface ServerToClientEvents {
     'game:night_summary': (summary: NightSummary) => void;
     'achievement:earned': (data: {
         achievements: AchievementEarned[];
+    }) => void;
+    'game:vote_breakdown': (entries: VoteBreakdownEntry[]) => void;
+    'lobby:autostart': (data: {
+        secondsLeft: number;
     }) => void;
     'error': (data: {
         message: string;
@@ -463,6 +475,9 @@ export interface ClientToServerEvents {
     }>) => void;
     'game:terminate': (cb: Cb<null>) => void;
     'leaderboard:get': (cb: Cb<PlayerProfilePublic[]>) => void;
+    'player:profile': (data: {
+        profileId: string;
+    }, cb: Cb<PlayerProfilePublic>) => void;
     'player:achievements': (data: {
         profileId: string;
     }, cb: Cb<AchievementEarned[]>) => void;

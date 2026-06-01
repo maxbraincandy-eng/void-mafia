@@ -31,6 +31,9 @@ import { GameEventLog } from '@/components/game/GameEventLog';
 import { PhaseAtmosphere } from '@/components/game/PhaseAtmosphere';
 import { VoteEliminationOverlay } from '@/components/game/VoteEliminationOverlay';
 import { CultConversionOverlay } from '@/components/game/CultConversionOverlay';
+import { VoteRevealScreen } from '@/components/game/VoteRevealScreen';
+import { PlayerProfileModal } from '@/components/ui/PlayerProfileModal';
+import { TutorialOverlay } from '@/components/ui/TutorialOverlay';
 import { useT } from '@/store/langStore';
 
 type MobileTab = 'action' | 'players' | 'chat';
@@ -80,6 +83,7 @@ function getPhaseSubtitle(phase: Phase, day: number, currentSpeakerName?: string
 export function GamePage() {
   const [statsPlayer, setStatsPlayer] = useState<PlayerPublic | null>(null);
   const [reportProfileId, setReportProfileId] = useState<string | null>(null);
+  const [profileModalId, setProfileModalId] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<MobileTab>('action');
   const [rightTab, setRightTab] = useState<RightTab>('events');
   const [unreadChat, setUnreadChat] = useState(0);
@@ -104,9 +108,11 @@ export function GamePage() {
     room, myPlayer, myRole, amHost, amAlive,
     nightResult, investigationResult, spyReport, gameOverResult,
     voteEliminationResult, cultConversionNotice, nightSummary, newAchievements,
+    voteBreakdown,
     skipPhase, daySkipVote, leaveRoom, terminateGame,
     dismissNightResult, dismissInvestigation, dismissSpyReport, dismissGameOver,
     dismissVoteElimination, dismissCultConversion, dismissNightSummary, dismissNewAchievements,
+    dismissVoteBreakdown,
     setWill, pauseTimer, submitVote,
     isLoading,
   } = useGameStore(s => ({
@@ -123,6 +129,7 @@ export function GamePage() {
     cultConversionNotice: s.cultConversionNotice,
     nightSummary: s.nightSummary,
     newAchievements: s.newAchievements,
+    voteBreakdown: s.voteBreakdown,
     skipPhase: s.skipPhase,
     daySkipVote: s.daySkipVote,
     leaveRoom: s.leaveRoom,
@@ -135,6 +142,7 @@ export function GamePage() {
     dismissCultConversion: s.dismissCultConversion,
     dismissNightSummary: s.dismissNightSummary,
     dismissNewAchievements: s.dismissNewAchievements,
+    dismissVoteBreakdown: s.dismissVoteBreakdown,
     setWill: s.setWill,
     pauseTimer: s.pauseTimer,
     submitVote: s.submitVote,
@@ -1258,6 +1266,10 @@ export function GamePage() {
           onSuccess={() => setReportProfileId(null)}
         />
       )}
+
+      <VoteRevealScreen breakdown={voteBreakdown} onDismiss={dismissVoteBreakdown} />
+      <PlayerProfileModal playerId={profileModalId} onClose={() => setProfileModalId(null)} />
+      <TutorialOverlay />
     </div>
   );
 }
