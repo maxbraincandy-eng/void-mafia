@@ -6,11 +6,12 @@ import { useAuthStore } from '@/store/authStore';
 import { useT } from '@/store/langStore';
 import { useAmbientDrone } from '@/hooks/useAudio';
 import { Button } from '@/components/ui/Button';
-import { PoweredBy } from '@/components/ui/PoweredBy';
-import { Card } from '@/components/ui/Card';
 import { LeaderboardModal } from '@/components/ui/LeaderboardModal';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { DailyChallengeCard } from '@/components/ui/DailyChallengeCard';
+
+const SURFACE = 'rounded-2xl border border-white/[0.06]';
+const SURFACE_BG = { background: 'rgba(10, 6, 28, 0.92)' } as const;
 
 export function RoomsPage() {
   const [mode, setMode] = useState<'browse' | 'create' | 'join'>('browse');
@@ -50,7 +51,6 @@ export function RoomsPage() {
     return () => { clearInterval(id); window.removeEventListener('focus', onFocus); };
   }, []);
 
-  // Request mic permission during user gesture so lobby can auto-join voice
   const primeMicPermission = () => {
     navigator.mediaDevices?.getUserMedia?.({ audio: true })
       .then(s => s.getTracks().forEach(t => t.stop()))
@@ -77,7 +77,6 @@ export function RoomsPage() {
   };
 
   const phaseLabel: Record<string, string> = t.rooms.phase;
-  const roomCount = rooms.length;
 
   const timeSince = (ts: number): string => {
     const secs = Math.floor((Date.now() - ts) / 1000);
@@ -87,27 +86,44 @@ export function RoomsPage() {
     return `${Math.floor(mins / 60)}h`;
   };
 
+  const MODES: { id: typeof mode; label: string }[] = [
+    { id: 'browse', label: t.rooms.browse },
+    { id: 'create', label: t.rooms.create },
+    { id: 'join',   label: t.rooms.joinCode },
+  ];
+
   return (
-    <div className="min-h-screen bg-neon-grid-animated scanlines pb-20 relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-72 h-72 bg-neon-cyan/8 rounded-full blur-[100px] pointer-events-none" />
+    <div
+      className="min-h-screen relative overflow-hidden pb-24"
+      style={{ background: 'linear-gradient(160deg, #0c0525 0%, #050311 50%)' }}
+    >
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: 'radial-gradient(ellipse 90% 35% at 50% -5%, rgba(100,0,240,0.08) 0%, transparent 55%)' }}
+      />
 
       <LeaderboardModal open={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
 
-      <div className="relative z-10 max-w-lg mx-auto px-4 pt-8">
-        {/* Header */}
-        <div className="mb-6 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="font-display text-3xl font-bold gradient-text tracking-wide">VOID MAFIA</h1>
-            <PoweredBy className="block mt-0.5" />
+      <div className="relative z-10 max-w-lg mx-auto px-4 pt-7">
+
+        {/* ── Header ──────────────────────────────────────────── */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="font-display text-2xl font-bold gradient-text tracking-wide leading-none">
+              VOID MAFIA
+            </h1>
+            <p className="text-[10px] font-mono text-white/20 mt-1 tracking-widest">
+              SOCIAL DEDUCTION
+            </p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0 mt-1">
+          <div className="flex items-center gap-2">
             <LanguageSwitcher />
             <button
               onClick={() => setShowLeaderboard(true)}
-              className="px-3 py-1.5 rounded-lg border border-white/10 text-white/30 hover:text-neon-cyan hover:border-neon-cyan/30 font-mono text-sm transition-all"
+              className="px-3 py-1.5 rounded-xl border border-white/[0.07] text-white/25 hover:text-white/55 hover:border-white/14 font-mono text-sm transition-all"
               title={t.game.header.leaderboard}
             >
-              🏆
+              ◈
             </button>
           </div>
         </div>
@@ -115,159 +131,144 @@ export function RoomsPage() {
         {/* Daily challenge */}
         <DailyChallengeCard />
 
-        {/* Mode tabs */}
-        <div className="flex gap-2 mb-6">
-          {(['browse', 'create', 'join'] as const).map(m => (
+        {/* ── Mode tabs — underline style ─────────────────────── */}
+        <div className="flex border-b border-white/[0.06] mb-5">
+          {MODES.map(m => (
             <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={`flex-1 py-2 rounded-xl font-display font-bold text-xs tracking-widest uppercase transition-all ${
-                mode === m
-                  ? 'bg-neon-cyan/15 border border-neon-cyan/40 text-neon-cyan'
-                  : 'border border-white/5 text-white/30 hover:text-white/60'
+              key={m.id}
+              onClick={() => setMode(m.id)}
+              className={`flex-1 py-2.5 text-xs font-mono tracking-widest uppercase transition-all relative ${
+                mode === m.id ? 'text-white/75' : 'text-white/22 hover:text-white/45'
               }`}
             >
-              {m === 'browse' ? t.rooms.browse : m === 'create' ? t.rooms.create : t.rooms.joinCode}
+              {m.label}
+              {mode === m.id && (
+                <motion.span
+                  layoutId="tab-indicator"
+                  className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-px bg-neon-cyan/60 rounded-full"
+                />
+              )}
             </button>
           ))}
         </div>
 
-        {/* Browse */}
+        {/* ── Browse ──────────────────────────────────────────── */}
         {mode === 'browse' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-mono text-white/40 uppercase tracking-widest">
-                {roomCount} {roomCount === 1 ? t.rooms.activeRooms : t.rooms.activeRoomsPlural}
+              <span className="text-[11px] font-mono text-white/28">
+                {rooms.length} {rooms.length === 1 ? t.rooms.activeRooms : t.rooms.activeRoomsPlural}
               </span>
-              <button onClick={fetchRooms} className="text-xs text-neon-cyan/60 hover:text-neon-cyan font-mono">
+              <button
+                onClick={fetchRooms}
+                className="text-[11px] font-mono text-white/22 hover:text-white/55 transition-colors"
+              >
                 {t.rooms.refresh}
               </button>
             </div>
 
             {loadingRooms && rooms.length === 0 && (
-              <p className="text-center text-white/30 font-mono text-sm py-8">{t.common.loading}</p>
+              <p className="text-center text-white/25 font-mono text-sm py-10">{t.common.loading}</p>
             )}
 
             {!loadingRooms && rooms.length === 0 && (
-              <div className="text-center py-12">
-                <p className="text-white/25 font-mono text-sm">{t.rooms.noRooms}</p>
-                <p className="text-white/15 font-mono text-xs mt-1">{t.rooms.noRoomsHint}</p>
+              <div className="text-center py-14">
+                <p className="text-white/22 font-mono text-sm">{t.rooms.noRooms}</p>
+                <p className="text-white/12 font-mono text-xs mt-1.5">{t.rooms.noRoomsHint}</p>
               </div>
             )}
 
-            <div className="space-y-3">
-              {rooms.map((room, i) => (
-                <motion.div
-                  key={room.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.04 }}
-                >
-                  <Card glow="none" padding="sm">
-                    <div className="flex items-start gap-3">
-                      {/* Host avatar circle */}
-                      <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-display font-bold border ${
-                        room.phase === 'lobby'
-                          ? 'bg-neon-cyan/10 border-neon-cyan/25 text-neon-cyan'
-                          : 'bg-neon-red/10 border-neon-red/25 text-neon-red'
-                      }`}>
-                        {room.hostName[0]?.toUpperCase() ?? '?'}
+            <div className="space-y-2">
+              {rooms.map((room, i) => {
+                const isLobby = room.phase === 'lobby';
+                return (
+                  <motion.div
+                    key={room.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.04 }}
+                    className={`${SURFACE} px-4 py-3.5 flex items-center gap-3`}
+                    style={SURFACE_BG}
+                  >
+                    {/* Status dot */}
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${isLobby ? 'bg-neon-cyan/50' : 'bg-neon-red/50'}`} />
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="font-medium text-sm text-white/70 truncate">{room.hostName}</span>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono tracking-wider uppercase flex-shrink-0 ${
+                          isLobby
+                            ? 'bg-neon-cyan/[0.08] text-neon-cyan/60 border border-neon-cyan/[0.12]'
+                            : 'bg-neon-red/[0.08] text-neon-red/55 border border-neon-red/[0.12]'
+                        }`}>
+                          {phaseLabel[room.phase] ?? room.phase}
+                        </span>
                       </div>
-
-                      <div className="flex-1 min-w-0">
-                        {/* Host + phase badge */}
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="font-semibold text-white text-sm truncate">{room.hostName}</span>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono flex-shrink-0 ${
-                            room.phase === 'lobby'
-                              ? 'bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/20'
-                              : 'bg-neon-red/10 text-neon-red border border-neon-red/20'
-                          }`}>
-                            {phaseLabel[room.phase] ?? room.phase}
-                          </span>
-                        </div>
-
-                        {/* Code + meta */}
-                        <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
-                          <span className="font-mono text-neon-cyan/60 font-bold tracking-widest">{room.code}</span>
-                          <span className="text-white/15">·</span>
-                          <span className="text-white/40 font-mono">{room.playerCount} {t.rooms.players}</span>
-                          <span className="text-white/15">·</span>
-                          <span className="text-white/25 font-mono">{timeSince(room.createdAt)} ago</span>
-                        </div>
-
-                        {/* Player count dots */}
-                        <div className="flex items-center gap-0.5 mt-1.5">
-                          {Array.from({ length: Math.min(room.playerCount, 14) }).map((_, j) => (
-                            <div
-                              key={j}
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                room.phase === 'lobby' ? 'bg-neon-cyan/40' : 'bg-neon-red/40'
-                              }`}
-                            />
-                          ))}
-                          {room.playerCount > 14 && (
-                            <span className="text-[9px] text-white/25 font-mono ml-0.5">+{room.playerCount - 14}</span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Action */}
-                      <div className="flex-shrink-0 self-center">
-                        {room.phase === 'lobby' ? (
-                          <Button size="sm" variant="neon-cyan" loading={isLoading} onClick={() => setSpectatorModal(room)}>
-                            {t.rooms.joinCode}
-                          </Button>
-                        ) : (
-                          <Button size="sm" variant="ghost" loading={isLoading} onClick={() => handleQuickJoin(room, true)}>
-                            👁 Watch
-                          </Button>
-                        )}
+                      <div className="flex items-center gap-1.5 text-[11px] font-mono">
+                        <span className="text-neon-cyan/50 font-bold tracking-widest">{room.code}</span>
+                        <span className="text-white/12">·</span>
+                        <span className="text-white/30">{room.playerCount} {t.rooms.players}</span>
+                        <span className="text-white/12">·</span>
+                        <span className="text-white/18">{timeSince(room.createdAt)}</span>
                       </div>
                     </div>
-                  </Card>
-                </motion.div>
-              ))}
+
+                    <div className="shrink-0">
+                      {isLobby ? (
+                        <Button
+                          size="sm"
+                          variant="neon-cyan"
+                          loading={isLoading}
+                          onClick={() => setSpectatorModal(room)}
+                        >
+                          {t.rooms.joinCode}
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          loading={isLoading}
+                          onClick={() => handleQuickJoin(room, true)}
+                        >
+                          Watch
+                        </Button>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
           </motion.div>
         )}
 
-        {/* Create */}
+        {/* ── Create ──────────────────────────────────────────── */}
         {mode === 'create' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <Card glow="purple" padding="md">
-              <h3 className="font-display font-bold text-neon-purple tracking-widest uppercase mb-4">
+            <div className={`${SURFACE} p-5`} style={SURFACE_BG}>
+              <h3 className="font-display font-bold text-white/70 tracking-widest uppercase text-sm mb-5">
                 {t.rooms.createRoom}
               </h3>
 
               {/* Public / Private toggle */}
-              <div className="flex gap-2 mb-4">
-                <button
-                  onClick={() => setIsPrivate(false)}
-                  className={`flex-1 py-2 rounded-xl text-xs font-mono font-bold transition-all border ${
-                    !isPrivate
-                      ? 'bg-neon-cyan/15 border-neon-cyan/40 text-neon-cyan'
-                      : 'border-white/10 text-white/30 hover:text-white/60'
-                  }`}
-                >
-                  🌐 {t.rooms.publicRoom}
-                </button>
-                <button
-                  onClick={() => setIsPrivate(true)}
-                  className={`flex-1 py-2 rounded-xl text-xs font-mono font-bold transition-all border ${
-                    isPrivate
-                      ? 'bg-neon-pink/15 border-neon-pink/40 text-neon-pink'
-                      : 'border-white/10 text-white/30 hover:text-white/60'
-                  }`}
-                >
-                  🔒 {t.rooms.privateRoom}
-                </button>
-              </div>
-
-              <div className="text-xs font-mono text-white/30 mb-4 p-3 rounded-xl bg-void-50/60 border border-white/5">
-                {isPrivate
-                  ? '🔒 Room will not appear in the public list. Share the code manually.'
-                  : '🌐 Room will be visible in the public browser.'}
+              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2">Visibility</p>
+              <div className="grid grid-cols-2 gap-2 mb-5">
+                {[
+                  { val: false, label: t.rooms.publicRoom, desc: 'Visible in browser' },
+                  { val: true,  label: t.rooms.privateRoom, desc: 'Share code to invite' },
+                ].map(opt => (
+                  <button
+                    key={String(opt.val)}
+                    onClick={() => setIsPrivate(opt.val)}
+                    className={`py-3 px-3 rounded-xl border text-left transition-all ${
+                      isPrivate === opt.val
+                        ? 'border-white/20 bg-white/[0.04] text-white/70'
+                        : 'border-white/[0.06] text-white/28 hover:border-white/12 hover:text-white/45'
+                    }`}
+                  >
+                    <p className="text-xs font-mono font-bold">{opt.label}</p>
+                    <p className="text-[10px] font-mono text-white/30 mt-0.5">{opt.desc}</p>
+                  </button>
+                ))}
               </div>
 
               <form onSubmit={handleCreate}>
@@ -275,85 +276,104 @@ export function RoomsPage() {
                   {t.rooms.createRoom}
                 </Button>
               </form>
-            </Card>
+            </div>
           </motion.div>
         )}
 
-        {/* Join by code */}
+        {/* ── Join by code ─────────────────────────────────────── */}
         {mode === 'join' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <Card glow="cyan" padding="md">
-              <h3 className="font-display font-bold text-neon-cyan tracking-widest uppercase mb-4">
+            <div className={`${SURFACE} p-5`} style={SURFACE_BG}>
+              <h3 className="font-display font-bold text-white/70 tracking-widest uppercase text-sm mb-5">
                 {t.rooms.joinRoom}
               </h3>
-              <label className="block text-xs font-mono text-white/40 mb-1">{t.rooms.roomCodeLabel}</label>
-              <form onSubmit={handleJoin}>
-                <input
-                  type="text"
-                  value={code}
-                  onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
-                  placeholder={t.rooms.roomCodePlaceholder}
-                  maxLength={6}
-                  autoFocus
-                  className="w-full bg-void-50/80 border border-white/10 rounded-xl px-4 py-3 text-neon-cyan placeholder-white/20 font-mono text-xl tracking-[0.4em] text-center focus:outline-none focus:border-neon-cyan/40 mb-4"
-                />
-                <input
-                  type="password"
-                  value={joinPassword}
-                  onChange={e => setJoinPassword(e.target.value)}
-                  placeholder="Password (if required)"
-                  maxLength={64}
-                  className="w-full bg-void-50/80 border border-white/10 rounded-xl px-4 py-2.5 text-white/70 placeholder-white/20 font-mono text-sm focus:outline-none focus:border-neon-pink/40 mb-4"
-                />
-                <label className="flex items-center gap-3 mb-4 cursor-pointer select-none">
-                  <div
+
+              <form onSubmit={handleJoin} className="space-y-3">
+                <div>
+                  <label className="block text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2">
+                    {t.rooms.roomCodeLabel}
+                  </label>
+                  <input
+                    type="text"
+                    value={code}
+                    onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
+                    placeholder={t.rooms.roomCodePlaceholder}
+                    maxLength={6}
+                    autoFocus
+                    className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-3 text-neon-cyan/80 placeholder-white/15 font-mono text-2xl tracking-[0.4em] text-center focus:outline-none focus:border-neon-cyan/28 transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    value={joinPassword}
+                    onChange={e => setJoinPassword(e.target.value)}
+                    placeholder="Leave blank if none"
+                    maxLength={64}
+                    className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-2.5 text-white/60 placeholder-white/15 font-mono text-sm focus:outline-none focus:border-white/20 transition-colors"
+                  />
+                </div>
+
+                {/* Spectator toggle */}
+                <label className="flex items-center gap-3 cursor-pointer select-none py-1">
+                  <button
+                    type="button"
                     onClick={() => setJoinAsSpectator(v => !v)}
-                    className={`w-10 h-6 rounded-full flex items-center transition-colors relative ${joinAsSpectator ? 'bg-neon-purple/60' : 'bg-white/10'}`}
+                    className={`w-9 h-5 rounded-full flex items-center relative transition-colors shrink-0 ${
+                      joinAsSpectator ? 'bg-neon-purple/50' : 'bg-white/[0.07]'
+                    }`}
                   >
-                    <div className={`absolute w-4 h-4 rounded-full bg-white transition-transform ${joinAsSpectator ? 'translate-x-5' : 'translate-x-1'}`} />
-                  </div>
-                  <span className="text-xs font-mono text-white/50">
-                    👁 Watch as spectator
-                  </span>
+                    <div className={`absolute w-3.5 h-3.5 rounded-full bg-white/80 transition-transform ${
+                      joinAsSpectator ? 'translate-x-4' : 'translate-x-0.5'
+                    }`} />
+                  </button>
+                  <span className="text-xs font-mono text-white/40">Watch as spectator</span>
                 </label>
+
                 <Button fullWidth variant="neon-cyan" loading={isLoading} disabled={code.length < 6}>
                   {t.rooms.joinRoom}
                 </Button>
               </form>
-            </Card>
+            </div>
           </motion.div>
         )}
       </div>
 
-      {/* Spectator choice modal */}
+      {/* Spectator modal */}
       <AnimatePresence>
         {spectatorModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4"
             onClick={() => setSpectatorModal(null)}
           >
             <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="glass-panel border border-white/10 rounded-2xl p-6 max-w-xs w-full"
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 20, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              className={`${SURFACE} p-5 w-full max-w-xs`}
+              style={SURFACE_BG}
               onClick={e => e.stopPropagation()}
             >
-              <p className="text-xs font-mono text-white/40 uppercase tracking-widest mb-1">Join Room</p>
-              <p className="font-display font-bold text-neon-cyan tracking-widest text-lg mb-4">
+              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-0.5">Join</p>
+              <p className="font-mono font-bold text-neon-cyan/75 tracking-[0.25em] text-xl mb-5">
                 {spectatorModal.code}
               </p>
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
                 <Button
                   fullWidth
                   variant="neon-cyan"
                   loading={isLoading}
                   onClick={() => handleQuickJoin(spectatorModal, false)}
                 >
-                  🎮 Join as Player
+                  Join as Player
                 </Button>
                 <Button
                   fullWidth
@@ -361,7 +381,7 @@ export function RoomsPage() {
                   loading={isLoading}
                   onClick={() => handleQuickJoin(spectatorModal, true)}
                 >
-                  👁 Watch as Spectator
+                  Watch as Spectator
                 </Button>
               </div>
             </motion.div>
