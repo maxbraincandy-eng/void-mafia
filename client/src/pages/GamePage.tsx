@@ -265,7 +265,7 @@ export function GamePage() {
     micLocked,
     onToggleMute: voice.toggleMute,
     onToggleCamera: voice.toggleCamera,
-    onJoin: () => voice.joinVoice(voiceChannel),
+    onJoin: (withCamera?: boolean) => voice.joinVoice(voiceChannel, withCamera),
   };
 
   // During voting phase, grid taps select vote target; elsewhere open stats

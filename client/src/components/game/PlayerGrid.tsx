@@ -24,7 +24,7 @@ export interface TileVoice {
   micLocked?: boolean;
   onToggleMute: () => void;
   onToggleCamera: () => void;
-  onJoin: () => void;
+  onJoin: (withCamera?: boolean) => void;
 }
 
 interface Props {
@@ -290,66 +290,77 @@ function PlayerCard({
         </div>
       )}
 
-      {/* ── Bottom-right voice controls / status (compact, off-center) ── */}
-      <div
-        className="absolute bottom-1.5 right-1.5 flex items-center gap-1 z-10"
-        onClick={e => { if (showLocalControls && voice?.inVoice) e.stopPropagation(); }}
-      >
-        {showLocalControls && voice?.inVoice ? (
-          <>
-            {/* Mic toggle */}
-            <span
-              role="button"
-              onClick={e => { e.stopPropagation(); if (!voice.micLocked) voice.onToggleMute(); }}
-              className={clsx(
-                'w-7 h-7 rounded-full flex items-center justify-center text-xs backdrop-blur-sm transition-all active:scale-90',
-                voice.micLocked
-                  ? 'bg-black/60 border border-white/15 opacity-50'
+      {/* ── Voice controls bar — own tile ── */}
+      {showLocalControls && (
+        <div className="absolute bottom-0 left-0 right-0 z-10"
+          onClick={e => e.stopPropagation()}>
+          {voice?.inVoice ? (
+            /* In voice: mic + camera toggles */
+            <div
+              className="flex items-center justify-center gap-2 px-2 py-1.5"
+              style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.85) 0%, transparent 100%)' }}
+            >
+              <button
+                onClick={e => { e.stopPropagation(); if (!voice.micLocked) voice.onToggleMute(); }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold active:scale-90 transition-all"
+                style={voice.micLocked
+                  ? { background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.3)' }
                   : voice.isMuted
-                    ? 'bg-neon-red/25 border border-neon-red/50'
-                    : 'bg-neon-green/20 border border-neon-green/50',
-              )}
-              title={voice.micLocked ? 'Mic locked' : voice.isMuted ? 'Unmute' : 'Mute'}
+                    ? { background: 'rgba(255,45,85,0.2)', border: '1px solid rgba(255,45,85,0.55)', color: '#ff6677' }
+                    : { background: 'rgba(0,255,136,0.15)', border: '1px solid rgba(0,255,136,0.45)', color: '#00ff88' }}
+              >
+                <span>{voice.micLocked ? '🔒' : voice.isMuted ? '🔇' : '🎙'}</span>
+                <span className="hidden xs:inline">{voice.isMuted ? 'muted' : 'mic'}</span>
+              </button>
+              <button
+                onClick={e => { e.stopPropagation(); voice.onToggleCamera(); }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold active:scale-90 transition-all"
+                style={voice.cameraOn
+                  ? { background: 'rgba(0,229,255,0.15)', border: '1px solid rgba(0,229,255,0.45)', color: '#00e5ff' }
+                  : { background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.55)' }}
+              >
+                <span>{voice.cameraOn ? '📹' : '📷'}</span>
+                <span className="hidden xs:inline">{voice.cameraOn ? 'cam on' : 'camera'}</span>
+              </button>
+            </div>
+          ) : (
+            /* Not in voice: join options */
+            <div
+              className="flex items-center justify-center gap-1.5 px-2 py-1.5"
+              style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.85) 0%, transparent 100%)' }}
             >
-              {voice.micLocked ? '🔒' : voice.isMuted ? '🔇' : '🎙'}
-            </span>
-            {/* Camera toggle */}
-            <span
-              role="button"
-              onClick={e => { e.stopPropagation(); voice.onToggleCamera(); }}
-              className={clsx(
-                'w-7 h-7 rounded-full flex items-center justify-center text-xs backdrop-blur-sm transition-all active:scale-90',
-                voice.cameraOn
-                  ? 'bg-neon-cyan/20 border border-neon-cyan/50'
-                  : 'bg-black/60 border border-white/20',
-              )}
-              title={voice.cameraOn ? 'Turn camera off' : 'Turn camera on'}
-            >
-              {voice.cameraOn ? '📹' : '📷'}
-            </span>
-          </>
-        ) : showLocalControls ? (
-          /* Local player not yet in voice — quick join */
-          <span
-            role="button"
-            onClick={e => { e.stopPropagation(); voice?.onJoin(); }}
-            className="w-7 h-7 rounded-full flex items-center justify-center text-xs bg-black/60 border border-neon-cyan/40 backdrop-blur-sm transition-all active:scale-90"
-            title="Join voice"
-          >
-            🎙
+              <button
+                onClick={e => { e.stopPropagation(); voice?.onJoin(); }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold active:scale-90 transition-all"
+                style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.4)', color: '#00e5ff' }}
+                title="Join voice"
+              >
+                <span>🎙</span>
+                <span>Join</span>
+              </button>
+              <button
+                onClick={e => { e.stopPropagation(); voice?.onJoin(true); }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold active:scale-90 transition-all"
+                style={{ background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.35)', color: 'rgba(205,150,255,0.9)' }}
+                title="Join with camera"
+              >
+                <span>📷</span>
+                <span>+cam</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Remote speaking indicator ── */}
+      {!showLocalControls && isVoiceSpeaking && (
+        <div className="absolute bottom-1.5 right-1.5 z-10">
+          <span className="flex items-center justify-center w-6 h-6 rounded-full text-[11px]"
+            style={{ background: 'rgba(0,255,136,0.2)', border: '1px solid rgba(0,255,136,0.55)', boxShadow: '0 0 8px rgba(0,255,136,0.4)' }}>
+            🔊
           </span>
-        ) : (
-          /* Remote player — status icons only */
-          <span className={clsx(
-            'w-6 h-6 rounded-full flex items-center justify-center text-[11px] backdrop-blur-sm border',
-            isVoiceSpeaking
-              ? 'bg-neon-green/25 border-neon-green/60 shadow-[0_0_6px_#00ff88]'
-              : 'bg-black/50 border-white/15',
-          )}>
-            {isVoiceSpeaking ? '🔊' : '🔈'}
-          </span>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ── Speaking indicator (tribunal) ── */}
       {isSpeaker && (
