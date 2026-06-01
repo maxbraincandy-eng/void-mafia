@@ -280,6 +280,7 @@ export interface RoomPublic {
     savedLastNight: boolean;
     winner: Team | null;
     settings: GameSettings;
+    activeRoleCounts: Record<string, number>;
     currentSpeakerId: string | null;
     daySkipVoteCount: number;
     spectatorCount: number;

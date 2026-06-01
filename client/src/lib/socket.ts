@@ -24,7 +24,7 @@ export function emitWithAck<TData, TRes>(
   data?: TData,
 ): Promise<TRes> {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('Request timed out.')), 10_000);
+    const timeout = setTimeout(() => reject(new Error('Connection slow — please try again.')), 30_000);
 
     socket.emit(event as any, data, (res: TRes) => {
       clearTimeout(timeout);

@@ -49,6 +49,7 @@ const ROLE_ICONS: Record<string, string> = {
 
 export function RoleReveal({ role, teammates }: Props) {
   const [flipped, setFlipped] = useState(false);
+  const [flipDone, setFlipDone] = useState(false);
   const t = useT();
 
   useEffect(() => {
@@ -90,6 +91,7 @@ export function RoleReveal({ role, teammates }: Props) {
         <motion.div
           animate={{ rotateY: flipped ? 180 : 0 }}
           transition={{ duration: 0.7, ease: [0.4, 0, 0.2, 1] }}
+          onAnimationComplete={() => { if (flipped) setFlipDone(true); }}
           style={{
             transformStyle: 'preserve-3d',
             WebkitTransformStyle: 'preserve-3d',
@@ -100,7 +102,7 @@ export function RoleReveal({ role, teammates }: Props) {
         >
           {/* Back face — question mark */}
           <div
-            style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
+            style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', display: flipDone ? 'none' : undefined }}
             className="absolute inset-0 w-full h-full rounded-3xl border border-white/10 bg-void-50 flex flex-col items-center justify-center gap-4"
           >
             <div

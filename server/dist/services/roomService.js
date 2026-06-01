@@ -247,6 +247,7 @@ export function toPublicRoom(room, viewerPlayerId) {
         savedLastNight: room.savedLastNight,
         winner: room.winner,
         settings: room.settings,
+        activeRoleCounts: computeActiveRoleCounts(room),
         currentSpeakerId: room.speechOrder[room.currentSpeakerIdx] ?? null,
         daySkipVoteCount: room.daySkipVotes.length,
         spectatorCount: [...room.players.values()].filter(p => p.isSpectator).length,
@@ -264,6 +265,25 @@ export function toRoomListItem(room) {
         hostName: host?.name ?? 'Unknown',
         isPrivate: room.settings.isPrivate ?? false,
     };
+}
+function computeActiveRoleCounts(room) {
+    const counts = {};
+    if (room.phase === 'lobby') {
+        // Show configured role distribution before game starts
+        for (const [role, count] of Object.entries(room.settings.roles)) {
+            if (count > 0)
+                counts[role] = count;
+        }
+    }
+    else {
+        // Show actual role counts once roles have been assigned
+        for (const p of room.players.values()) {
+            if (!p.isSpectator && p.role) {
+                counts[p.role] = (counts[p.role] ?? 0) + 1;
+            }
+        }
+    }
+    return counts;
 }
 // ── Helpers ───────────────────────────────────────────────────────────
 function getNextSeat(room) {
