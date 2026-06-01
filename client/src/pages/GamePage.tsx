@@ -101,9 +101,6 @@ export function GamePage() {
   const [eliminationVictims, setEliminationVictims] = useState<Array<{ name: string; seat: number }>>([]);
   const handleElimDone = useCallback(() => setEliminationVictims([]), []);
   const prevAliveRef = useRef<Map<string, boolean>>(new Map());
-  const [showSelfVoicePanel, setShowSelfVoicePanel] = useState(false);
-  const selfVoicePanelTimer = useRef<ReturnType<typeof setTimeout>>();
-
   const {
     room, myPlayer, myRole, amHost, amAlive,
     nightResult, investigationResult, spyReport, gameOverResult,
@@ -294,11 +291,7 @@ export function GamePage() {
   // During voting phase, grid taps select vote target; elsewhere open stats
   const handlePlayerSelect = (p: PlayerPublic) => {
     if (p.id === myPlayer?.id) {
-      if (voice.channel) {
-        setShowSelfVoicePanel(true);
-        clearTimeout(selfVoicePanelTimer.current);
-        selfVoicePanelTimer.current = setTimeout(() => setShowSelfVoicePanel(false), 3500);
-      }
+      // Tapping own tile does nothing extra — controls are already inline in the tile
       return;
     }
     if (phase === 'voting' && amAlive && !amSpectator && p.isAlive) {
@@ -603,7 +596,7 @@ export function GamePage() {
         spectators={room.players.filter(p => p.isSpectator)}
         amHost={amHost}
         isInVoice={isInVoice}
-        settings={room.settings}
+        activeRoleCounts={room.activeRoleCounts}
         onLeaveRoom={leaveRoom}
         onTerminateGame={amHost ? terminateGame : undefined}
         onResetVoice={isInVoice ? () => {
@@ -614,55 +607,7 @@ export function GamePage() {
         onShowRoleGuide={() => setShowRoleGuide(true)}
       />
 
-      {/* Quick voice controls — appears when player taps their own card */}
-      <AnimatePresence>
-        {showSelfVoicePanel && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            transition={{ duration: 0.18 }}
-            className="fixed bottom-24 sm:bottom-10 left-1/2 -translate-x-1/2 z-[70] rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.8)]"
-            style={{ background: 'rgba(8,4,20,0.96)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(20px)' }}
-            onClick={() => { clearTimeout(selfVoicePanelTimer.current); setShowSelfVoicePanel(false); }}
-          >
-            {voice.channel ? (
-              /* In voice — show mic + cam toggles */
-              <div className="flex items-center gap-3 px-5 py-3">
-                <button
-                  onClick={e => { e.stopPropagation(); voice.toggleMute(); clearTimeout(selfVoicePanelTimer.current); selfVoicePanelTimer.current = setTimeout(() => setShowSelfVoicePanel(false), 2000); }}
-                  className="flex flex-col items-center gap-1.5 px-4 py-2.5 rounded-xl transition-all active:scale-95"
-                  style={voice.isMuted ? { background: 'rgba(255,22,84,0.15)', border: '1px solid rgba(255,22,84,0.4)', color: '#ff5577' } : { background: 'rgba(0,229,255,0.1)', border: '1px solid rgba(0,229,255,0.35)', color: '#00e5ff' }}
-                >
-                  <span className="text-2xl">{voice.isMuted ? '🔇' : '🎙'}</span>
-                  <span className="text-[9px] font-mono uppercase tracking-wider">{voice.isMuted ? t.game.voice.muted : t.game.voice.micOn}</span>
-                </button>
-                <div className="w-px h-10 bg-white/10" />
-                <button
-                  onClick={e => { e.stopPropagation(); voice.toggleCamera(); clearTimeout(selfVoicePanelTimer.current); selfVoicePanelTimer.current = setTimeout(() => setShowSelfVoicePanel(false), 2000); }}
-                  className="flex flex-col items-center gap-1.5 px-4 py-2.5 rounded-xl transition-all active:scale-95"
-                  style={voice.cameraOn ? { background: 'rgba(0,229,255,0.1)', border: '1px solid rgba(0,229,255,0.35)', color: '#00e5ff' } : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)' }}
-                >
-                  <span className="text-2xl">📷</span>
-                  <span className="text-[9px] font-mono uppercase tracking-wider">{voice.cameraOn ? t.game.voice.camOn : t.game.voice.camOff}</span>
-                </button>
-              </div>
-            ) : (
-              /* Not in voice — offer to join */
-              <div className="px-5 py-3 flex items-center gap-3">
-                <button
-                  onClick={e => { e.stopPropagation(); voice.joinVoice(voiceChannel); setShowSelfVoicePanel(false); }}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all active:scale-95"
-                  style={{ background: 'rgba(0,229,255,0.1)', border: '1px solid rgba(0,229,255,0.35)', color: '#00e5ff' }}
-                >
-                  <span className="text-lg">🎙</span>
-                  <span className="text-xs font-mono uppercase tracking-wider">{t.game.voice.join}</span>
-                </button>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+
 
       {/* Vote elimination cinematic */}
       <VoteEliminationOverlay result={voteEliminationResult} onDismiss={dismissVoteElimination} />

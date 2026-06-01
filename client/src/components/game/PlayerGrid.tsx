@@ -328,7 +328,9 @@ function PlayerCard({
   // Voice state for this specific tile
   const peerSpeaking = voice?.speakingSocketIds.has(player.socketId) ?? false;
   const isVoiceSpeaking = isMe ? (voice?.isLocalSpeaking && !voice?.isMuted) : peerSpeaking;
-  const showLocalVideo = isMe && voice?.inVoice && voice.cameraOn && voice.localStream;
+  const showLocalVideo = isMe && voice?.inVoice && voice.cameraOn && !!voice.localStream;
+  const remoteStream = !isMe ? (voice?.remoteStreams?.[player.socketId] ?? null) : null;
+  const hasRemoteVideo = !!remoteStream && remoteStream.getVideoTracks().some(t => t.readyState === 'live');
   // The local player can control their own mic/cam once they're in voice
   const showLocalControls = isMe && !dead;
   const initials = initialsOf(player.name);
@@ -357,10 +359,12 @@ function PlayerCard({
                   : 'border-neon-green/25 hover:border-neon-green/50',
       )}
     >
-      {/* ── Main area: live video, or avatar/initials placeholder ── */}
+      {/* ── Main area: local video, remote video, or avatar/initials ── */}
       <div className="absolute inset-0">
         {showLocalVideo ? (
           <LocalVideo stream={voice!.localStream!} />
+        ) : hasRemoteVideo ? (
+          <RemoteVideo stream={remoteStream!} />
         ) : (
           <div
             className="absolute inset-0 flex items-center justify-center"
