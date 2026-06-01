@@ -83,8 +83,7 @@ function RemoteVideo({ stream }: { stream: MediaStream }) {
     }
   }, [stream]);
 
-  // Only render if the stream actually has an active video track
-  const hasVideo = stream.getVideoTracks().some(t => t.readyState === 'live');
+  const hasVideo = stream.getVideoTracks().some(t => t.readyState !== 'ended');
   if (!hasVideo) return null;
 
   return (
@@ -110,7 +109,7 @@ function SpeakerHero({ player, isMe, speakerIndex, totalSpeakers, voice }: {
     : (voice?.speakingSocketIds.has(player.socketId) ?? false);
   const showLocalVideo = isMe && voice?.inVoice && voice.cameraOn && !!voice.localStream;
   const remoteStream = !isMe ? (voice?.remoteStreams?.[player.socketId] ?? null) : null;
-  const hasRemoteVideo = !!remoteStream && remoteStream.getVideoTracks().some(t => t.readyState === 'live');
+  const hasRemoteVideo = !!remoteStream && remoteStream.getVideoTracks().some(t => t.readyState !== 'ended');
 
   return (
     <motion.div
@@ -330,7 +329,7 @@ function PlayerCard({
   const isVoiceSpeaking = isMe ? (voice?.isLocalSpeaking && !voice?.isMuted) : peerSpeaking;
   const showLocalVideo = isMe && voice?.inVoice && voice.cameraOn && !!voice.localStream;
   const remoteStream = !isMe ? (voice?.remoteStreams?.[player.socketId] ?? null) : null;
-  const hasRemoteVideo = !!remoteStream && remoteStream.getVideoTracks().some(t => t.readyState === 'live');
+  const hasRemoteVideo = !!remoteStream && remoteStream.getVideoTracks().some(t => t.readyState !== 'ended');
   // The local player can control their own mic/cam once they're in voice
   const showLocalControls = isMe && !dead;
   const initials = initialsOf(player.name);

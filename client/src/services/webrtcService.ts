@@ -166,14 +166,22 @@ export class WebRTCSession {
 
     pc.ontrack = (ev) => {
       log('remote track from', peerId, ':', ev.track.kind);
-      const [stream] = ev.streams;
-      if (!stream) return;
 
-      // Store the stream so subscribers can access video tracks
-      this.remoteStreams.set(peerId, stream);
+      // Use a persistent per-peer stream instead of ev.streams[0].
+      // ev.streams can be empty on iOS Safari during renegotiation, so we
+      // always build the stream ourselves from individual tracks.
+      let stream = this.remoteStreams.get(peerId);
+      if (!stream) {
+        stream = new MediaStream();
+        this.remoteStreams.set(peerId, stream);
+      }
+
+      if (!stream.getTrackById(ev.track.id)) {
+        stream.addTrack(ev.track);
+        log('added', ev.track.kind, 'track to peer stream', peerId);
+      }
+
       this.emit({ type: 'stream-update', socketId: peerId, stream });
-
-      // Always wire up audio playback (audio elements handle audio tracks)
       this.attachRemoteAudio(peerId, stream);
     };
 

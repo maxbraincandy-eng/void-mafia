@@ -377,9 +377,21 @@ export const useGameStore = create<GameStore>((set, get) => {
       await emit('room:settings', { settings });
     }),
 
-    startGame: withLoading(async () => {
-      await emit('game:start');
-    }),
+    startGame: async () => {
+      set({ isLoading: true, error: null });
+      try {
+        await emit('game:start');
+      } catch (e: any) {
+        const msg = e?.message ?? 'An error occurred.';
+        // Suppress slow-connection errors — game start success is visible from room:update
+        if (!msg.includes('Connection slow') && !msg.includes('timed out')) {
+          set({ error: msg });
+          get().addToast(msg, 'error');
+        }
+      } finally {
+        set({ isLoading: false });
+      }
+    },
 
     submitNightAction: withLoading(async (targetId: string) => {
       await emit('game:action', { targetId });
