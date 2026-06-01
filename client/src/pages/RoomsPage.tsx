@@ -142,12 +142,11 @@ export function RoomsPage() {
               }`}
             >
               {m.label}
-              {mode === m.id && (
-                <motion.span
-                  layoutId="tab-indicator"
-                  className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-px bg-neon-cyan/60 rounded-full"
-                />
-              )}
+              <span
+                className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-px rounded-full transition-all duration-200 ${
+                  mode === m.id ? 'bg-neon-cyan/60' : 'bg-transparent'
+                }`}
+              />
             </button>
           ))}
         </div>
