@@ -227,12 +227,15 @@ function PlayerCard({
         )}
       </div>
 
-      {/* Role badge — own card only */}
-      {isMe && player.role && !showRole && (
-        <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-neon-purple/30 bg-neon-purple/12 -mt-1">
-          <span className="text-sm">{ROLE_ICONS[player.role] ?? '?'}</span>
-          <span className="text-[9px] font-mono font-bold text-neon-purple/80 uppercase tracking-wider">
-            {player.role.replace(/_/g, ' ')}
+      {/* Role badge — own card only, always shown */}
+      {isMe && player.role && (
+        <div
+          className="flex items-center gap-1 px-2.5 py-0.5 rounded-full -mt-1"
+          style={{ background: 'rgba(155,0,255,0.15)', border: '1px solid rgba(155,0,255,0.4)' }}
+        >
+          <span className="text-sm leading-none">{ROLE_ICONS[player.role] ?? '?'}</span>
+          <span className="text-[9px] font-mono font-bold uppercase tracking-wider" style={{ color: 'rgba(200,130,255,0.95)' }}>
+            {player.role.replace(/_/g, ' ')}
           </span>
         </div>
       )}
