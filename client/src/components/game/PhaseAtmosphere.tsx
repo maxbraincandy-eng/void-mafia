@@ -1,5 +1,4 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { useEffect, useRef } from 'react';
 import { Phase } from '@/types/index';
 
 interface Star { x: number; y: number; r: number; delay: number; dur: number }
@@ -19,14 +18,12 @@ const STARS = generateStars(60);
 function NightLayer() {
   return (
     <div className="absolute inset-0">
-      {/* Dark purple veil */}
       <div
         className="absolute inset-0"
         style={{
           background: 'radial-gradient(ellipse 160% 80% at 50% -10%, rgba(28,0,80,0.55) 0%, rgba(8,0,30,0.30) 55%, transparent 80%)',
         }}
       />
-      {/* Star field */}
       <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="xMidYMid slice">
         {STARS.map((s, i) => (
           <circle key={i} cx={`${s.x}%`} cy={`${s.y}%`} r={s.r} fill="rgba(200,200,255,0.7)">

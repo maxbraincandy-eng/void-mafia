@@ -17,6 +17,7 @@ import { PlayerStatsModal } from '@/components/ui/PlayerStatsModal';
 import { ReportModal } from '@/components/ui/ReportModal';
 import { LeaderboardModal } from '@/components/ui/LeaderboardModal';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
+import { RoomMoreMenu } from '@/components/ui/RoomMoreMenu';
 import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { useVoiceChat, VoiceChannel } from '@/hooks/useVoiceChat';
@@ -61,6 +62,19 @@ const PHASE_GLOW: Partial<Record<Phase, string>> = {
   day:         '0 0 10px rgba(0,196,204,0.5)',
 };
 
+function getPhaseSubtitle(phase: Phase, day: number, currentSpeakerName?: string | null, amAlive = true, isSpectator = false): string {
+  if (isSpectator) return 'Watching…';
+  switch (phase) {
+    case 'role_reveal': return 'Your role has been assigned.';
+    case 'night':       return amAlive ? 'Use your ability or wait for dawn.' : 'You are eliminated. Watch silently.';
+    case 'day':         return day === 1 ? 'Common discussion — no vote yet.' : 'Discuss and find the Mafia.';
+    case 'speech':      return currentSpeakerName ? `${currentSpeakerName} is speaking…` : 'Players take turns to speak.';
+    case 'voting':      return 'Vote to eliminate a suspect.';
+    case 'game_over':   return 'The game is over.';
+    default:            return '';
+  }
+}
+
 export function GamePage() {
   const [statsPlayer, setStatsPlayer] = useState<PlayerPublic | null>(null);
   const [reportProfileId, setReportProfileId] = useState<string | null>(null);
@@ -76,6 +90,7 @@ export function GamePage() {
   const [transitionPhase, setTransitionPhase] = useState<Phase | null>(null);
   const handleTransitionDone = useCallback(() => setTransitionPhase(null), []);
   const [mobileVoiceOpen, setMobileVoiceOpen] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [pendingVoteId, setPendingVoteId] = useState<string | null>(null);
   const [eliminationVictims, setEliminationVictims] = useState<Array<{ name: string; seat: number }>>([]);
   const handleElimDone = useCallback(() => setEliminationVictims([]), []);
@@ -87,7 +102,8 @@ export function GamePage() {
     room, myPlayer, myRole, amHost, amAlive,
     nightResult, investigationResult, spyReport, gameOverResult,
     voteEliminationResult, cultConversionNotice,
-    skipPhase, daySkipVote, leaveRoom, dismissNightResult, dismissInvestigation, dismissSpyReport, dismissGameOver,
+    skipPhase, daySkipVote, leaveRoom, terminateGame,
+    dismissNightResult, dismissInvestigation, dismissSpyReport, dismissGameOver,
     dismissVoteElimination, dismissCultConversion,
     setWill, pauseTimer, submitVote,
     isLoading,
@@ -106,6 +122,7 @@ export function GamePage() {
     skipPhase: s.skipPhase,
     daySkipVote: s.daySkipVote,
     leaveRoom: s.leaveRoom,
+    terminateGame: s.terminateGame,
     dismissNightResult: s.dismissNightResult,
     dismissInvestigation: s.dismissInvestigation,
     dismissSpyReport: s.dismissSpyReport,
@@ -243,10 +260,25 @@ export function GamePage() {
   // Mic is locked when another player has the floor
   const micLocked = phase === 'speech' && room.currentSpeakerId !== myPlayer?.id && room.currentSpeakerId !== null;
 
+  // Per-tile voice state — drives in-frame mic/camera controls & speaking rings
+  const speakingSocketIds = new Set(voice.peers.filter(p => p.isSpeaking).map(p => p.socketId));
+  const tileVoice = {
+    speakingSocketIds,
+    localSocketId: myPlayer?.socketId ?? null,
+    inVoice: voice.channel !== null,
+    isMuted: voice.isMuted,
+    cameraOn: voice.cameraOn,
+    isLocalSpeaking: voice.isLocalSpeaking,
+    localStream: voice.getLocalStream(),
+    micLocked,
+    onToggleMute: voice.toggleMute,
+    onToggleCamera: voice.toggleCamera,
+    onJoin: (withCamera?: boolean) => voice.joinVoice(voiceChannel, withCamera),
+  };
+
   // During voting phase, grid taps select vote target; elsewhere open stats
   const handlePlayerSelect = (p: PlayerPublic) => {
     if (p.id === myPlayer?.id) {
-      // Own card — show quick mic/cam controls if in voice
       if (voice.channel) {
         setShowSelfVoicePanel(true);
         clearTimeout(selfVoicePanelTimer.current);
@@ -266,6 +298,7 @@ export function GamePage() {
       setStatsPlayer(p);
     }
   };
+
 
   // Clear pending vote when phase changes
   useEffect(() => {
@@ -545,6 +578,22 @@ export function GamePage() {
       {/* Role Guide */}
       <RoleInfoModal open={showRoleGuide} onClose={() => setShowRoleGuide(false)} />
 
+
+      {/* More Menu */}
+      <RoomMoreMenu
+        open={showMoreMenu}
+        onClose={() => setShowMoreMenu(false)}
+        phase={phase}
+        roomCode={room.code}
+        spectators={room.players.filter(p => p.isSpectator)}
+        amHost={amHost}
+        isInVoice={isInVoice}
+        onLeaveRoom={leaveRoom}
+        onTerminateGame={amHost ? terminateGame : undefined}
+        onResetVoice={isInVoice ? () => { voice.leaveVoice(); setTimeout(() => voice.joinVoice(voiceChannel), 800); } : undefined}
+        onShowRoleGuide={() => setShowRoleGuide(true)}
+      />
+
       {/* Quick voice controls — appears when player taps their own card */}
       <AnimatePresence>
         {showSelfVoicePanel && (
@@ -711,6 +760,15 @@ export function GamePage() {
           />
           <div className="px-3 py-2 md:px-4 md:py-3">
           <div className="max-w-7xl mx-auto flex items-center gap-2 md:gap-4">
+            {/* More menu button */}
+            <button
+              onClick={() => setShowMoreMenu(true)}
+              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/8 transition-all active:scale-90"
+              title="More options"
+            >
+              <span className="text-lg leading-none">⋯</span>
+            </button>
+
             {/* Phase */}
             <div className="min-w-0">
               <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest hidden sm:block">{t.game.header.phase}</p>
@@ -720,9 +778,12 @@ export function GamePage() {
               >
                 {t.game.phaseLabels[phase]}
                 {phase !== 'role_reveal' && phase !== 'game_over' && (
-                  <span className="text-white/40"> · D{room.day}</span>
+                  <span className="text-white/40 text-sm"> · D{room.day}</span>
                 )}
               </h1>
+              <p className="text-[10px] font-mono text-white/35 truncate hidden sm:block leading-tight mt-0.5">
+                {getPhaseSubtitle(phase, room.day, room.players.find(p => p.id === room.currentSpeakerId)?.name, amAlive, amSpectator)}
+              </p>
             </div>
 
             {/* Timer */}
@@ -842,7 +903,7 @@ export function GamePage() {
                 {soundMuted ? '🔇' : '🔊'}
               </button>
 
-              <Button size="sm" variant="ghost" onClick={() => leaveRoom()}>
+              <Button size="sm" variant="ghost" onClick={() => setShowMoreMenu(true)}>
                 {t.game.header.leave}
               </Button>
             </div>
@@ -992,6 +1053,7 @@ export function GamePage() {
                           selectedVoteId={phase === 'voting' ? (pendingVoteId ?? myVoteTarget) : myVoteTarget}
                           showRoles={amSpectator || phase === 'game_over'}
                           fillHeight
+                          voice={tileVoice}
                           onSelect={handlePlayerSelect}
                         />
                       </div>
@@ -1027,7 +1089,7 @@ export function GamePage() {
               </div>
 
               {/* Slim 3-button nav */}
-              <div className="flex-shrink-0 glass-panel border-t border-white/8 flex">
+              <div className="flex-shrink-0 glass-panel border-t border-white/8 flex" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
                 {([
                   { id: 'grid',   label: '👥', sublabel: t.lobby.players },
                   { id: 'action', label: phase === 'voting' ? '⚖️' : '⚡', sublabel: phase === 'voting' ? t.game.voting.title : (t.game.phaseLabels[phase] || 'Action') },
@@ -1101,7 +1163,7 @@ export function GamePage() {
                   )}
                 </AnimatePresence>
               </div>
-              <div className="flex-shrink-0 glass-panel border-t border-white/10 flex">
+              <div className="flex-shrink-0 glass-panel border-t border-white/10 flex" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
                 {([
                   { id: 'action',  label: `⚡ ${t.game.phaseLabels[phase] || 'Action'}` },
                   { id: 'players', label: `👥 ${t.lobby.players}` },

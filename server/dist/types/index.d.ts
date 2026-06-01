@@ -199,6 +199,7 @@ export interface Room {
 }
 export interface PlayerPublic {
     id: string;
+    socketId: string;
     name: string;
     avatar: string;
     isHost: boolean;
@@ -272,6 +273,9 @@ export type VoiceChannel = 'room' | 'mafia';
 type Cb<T> = (res: Res<T>) => void;
 export interface ServerToClientEvents {
     'room:update': (room: RoomPublic) => void;
+    'room:closed': (data: {
+        reason: string;
+    }) => void;
     'chat:new': (msg: ChatMessage) => void;
     'game:role': (data: {
         role: Role;
@@ -407,6 +411,7 @@ export interface ClientToServerEvents {
     'game:pause': (cb: Cb<{
         isPaused: boolean;
     }>) => void;
+    'game:terminate': (cb: Cb<null>) => void;
     'leaderboard:get': (cb: Cb<PlayerProfilePublic[]>) => void;
     'chat:send': (data: {
         text: string;

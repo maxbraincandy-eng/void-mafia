@@ -608,6 +608,45 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
+        // ── Terminate Game (host-only, resets to lobby) ─────────────────
+        socket.on('game:terminate', (cb) => {
+            try {
+                const room = getRoomFromSocket(socket);
+                const host = getPlayerOrError(socket, room);
+                if (!host.isHost)
+                    throw new Error('Only the host can terminate the game.');
+                if (room.phase === 'lobby')
+                    throw new Error('No active game to terminate.');
+                timerService.stop(room.id);
+                room.phase = 'lobby';
+                room.winner = null;
+                room.day = 0;
+                room.timer = 0;
+                room.maxTimer = 0;
+                room.nightActions = new Map();
+                room.votes = new Map();
+                room.killedLastNight = [];
+                room.savedLastNight = false;
+                room.daySkipVotes = [];
+                room.speechOrder = [];
+                room.currentSpeakerIdx = 0;
+                room.isPaused = false;
+                for (const p of room.players.values()) {
+                    p.role = null;
+                    p.team = null;
+                    p.isAlive = true;
+                    p.isReady = false;
+                    p.voteTarget = null;
+                    p.hasActedThisPhase = false;
+                }
+                broadcastSystemMsg(io, room, 'The host terminated the game. Returning to lobby.');
+                broadcastRoom(io, room);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
         // ── Restart ─────────────────────────────────────────────────────
         socket.on('game:restart', (cb) => {
             try {
@@ -998,6 +1037,16 @@ export function attachSocketHandlers(io) {
     });
 }
 // ── Leave / Disconnect Logic ──────────────────────────────────────────
+function closeRoom(io, room, reason) {
+    timerService.stop(room.id);
+    for (const p of room.players.values()) {
+        if (p.socketId) {
+            io.to(p.socketId).emit('room:closed', { reason });
+        }
+    }
+    io.socketsLeave(room.id);
+    deleteRoom(room.id);
+}
 function handlePlayerLeave(io, socket, roomId, playerId) {
     const room = getRoom(roomId);
     if (!room)
@@ -1005,21 +1054,31 @@ function handlePlayerLeave(io, socket, roomId, playerId) {
     const player = room.players.get(playerId);
     if (!player)
         return;
+    const wasHost = player.isHost;
     socket.leave(roomId);
     socket.data.playerId = null;
     socket.data.roomId = null;
     if (room.phase === 'lobby') {
         removePlayer(room, playerId);
-        const wasHost = player.isHost;
-        broadcastSystemMsg(io, room, `${player.name} left the room.`);
         if (room.players.size === 0) {
             timerService.stop(roomId);
             deleteRoom(roomId);
             return;
         }
+        // Host left lobby — close the room for everyone
+        if (wasHost) {
+            closeRoom(io, room, `${player.name} (host) left. The room has been closed.`);
+            return;
+        }
+        broadcastSystemMsg(io, room, `${player.name} left the room.`);
         broadcastRoom(io, room);
     }
     else {
+        // Host left during active game — close the entire room
+        if (wasHost) {
+            closeRoom(io, room, `${player.name} (host) left. The room has been closed.`);
+            return;
+        }
         player.isConnected = false;
         player.socketId = '';
         broadcastSystemMsg(io, room, `${player.name} disconnected.`);

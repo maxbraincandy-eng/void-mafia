@@ -97,6 +97,7 @@ export function setPhase(room: Room, phase: Phase): void {
     case 'game_over':
       room.timer = 0;
       room.maxTimer = 0;
+      (room as any)._gameOverAt = Date.now();
       break;
   }
 }
@@ -114,12 +115,13 @@ export function advancePhase(room: Room): Phase {
         setPhase(room, 'game_over');
         return 'game_over';
       }
-      if (room.settings.startWithNight) {
-        setPhase(room, 'night');
-        return 'night';
+      // Day-first: go to day(1) discussion before first night
+      if (!room.settings.startWithNight) {
+        setPhase(room, 'day');
+        return 'day';
       }
-      setPhase(room, 'day');
-      return 'day';
+      setPhase(room, 'night');
+      return 'night';
 
     case 'night':
       resolveNight(room);
@@ -127,10 +129,18 @@ export function advancePhase(room: Room): Phase {
         setPhase(room, 'game_over');
         return 'game_over';
       }
+      // Morning of a new day
+      room.day++;
       setPhase(room, 'day');
       return 'day';
 
     case 'day':
+      // Opening shared discussion (day-first start) has no tribunal/vote —
+      // everyone talks publicly first, then it becomes night.
+      if (room.day === 1 && !room.settings.startWithNight) {
+        setPhase(room, 'night');
+        return 'night';
+      }
       setPhase(room, 'speech');
       return 'speech';
 

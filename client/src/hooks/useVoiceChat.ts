@@ -228,11 +228,15 @@ export function useVoiceChat() {
     };
   }, []);
 
+  /** Current local MediaStream (mic + optional camera), or null if not in voice. */
+  const getLocalStream = useCallback(() => sessionRef.current?.getLocalStream() ?? null, []);
+
   return {
     ...state,
     joinVoice,
     leaveVoice,
     toggleMute,
     toggleCamera,
+    getLocalStream,
   };
 }

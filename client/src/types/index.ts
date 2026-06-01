@@ -74,6 +74,7 @@ export interface PlayerProfilePublic {
 
 export interface PlayerPublic {
   id: string;
+  socketId: string;
   name: string;
   avatar: string;
   isHost: boolean;

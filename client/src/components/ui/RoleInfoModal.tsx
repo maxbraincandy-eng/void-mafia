@@ -17,7 +17,6 @@ const ROLES_META: RoleMeta[] = [
   { key: 'bodyguard',   icon: '🛡',  team: 'town' },
   { key: 'vigilante',   icon: '⚖️',  team: 'town' },
   { key: 'escort',      icon: '💃',  team: 'town' },
-  { key: 'mayor',       icon: '👑',  team: 'town' },
   { key: 'tracker',     icon: '👁',  team: 'town' },
   { key: 'veteran',     icon: '🎖️',  team: 'town' },
   { key: 'spy',         icon: '🕵️',  team: 'town' },
@@ -68,10 +67,8 @@ export function RoleInfoModal({ open, onClose }: Props) {
             className="w-full sm:max-w-lg bg-[#0a0a0f] border border-white/10 rounded-t-3xl sm:rounded-3xl overflow-hidden max-h-[90vh] flex flex-col"
             style={{ boxShadow: '0 -20px 60px rgba(0,0,0,0.8), 0 0 40px rgba(0,0,0,0.5)' }}
           >
-            {/* Drag handle (mobile) */}
             <div className="w-10 h-1 bg-white/15 rounded-full mx-auto mt-3 mb-1 sm:hidden" />
 
-            {/* Header */}
             <div className="flex items-center justify-between px-5 pt-4 pb-4 border-b border-white/8 shrink-0">
               <div>
                 <h2 className="font-display font-bold text-lg text-white tracking-widest uppercase">{rg.title}</h2>
@@ -85,7 +82,6 @@ export function RoleInfoModal({ open, onClose }: Props) {
               </button>
             </div>
 
-            {/* Scrollable role list */}
             <div className="overflow-y-auto flex-1 p-4 space-y-5">
               {(['town', 'mafia', 'neutral', 'cult'] as const).map(team => {
                 const roles = ROLES_META.filter(r => r.team === team);
@@ -108,7 +104,6 @@ export function RoleInfoModal({ open, onClose }: Props) {
                 );
               })}
 
-              {/* Win conditions summary */}
               <div className="mt-2 p-4 rounded-2xl border border-white/6 bg-white/2">
                 <p className="text-[10px] font-mono uppercase tracking-widest text-white/30 mb-3">{rg.winConditions}</p>
                 <div className="space-y-2">
