@@ -184,6 +184,7 @@ export function toPublicRoom(room, viewerPlayerId) {
         const profile = p.profileId ? getPlayer(p.profileId) : null;
         return {
             id: p.id,
+            socketId: p.socketId,
             name: p.name,
             avatar: p.avatar,
             isHost: p.isHost,

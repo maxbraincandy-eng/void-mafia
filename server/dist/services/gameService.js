@@ -108,9 +108,17 @@ export function advancePhase(room) {
                 setPhase(room, 'game_over');
                 return 'game_over';
             }
+            // Morning of a new day
+            room.day++;
             setPhase(room, 'day');
             return 'day';
         case 'day':
+            // Opening shared discussion (day-first start) has no tribunal/vote —
+            // everyone talks publicly first, then it becomes night.
+            if (room.day === 1 && !room.settings.startWithNight) {
+                setPhase(room, 'night');
+                return 'night';
+            }
             setPhase(room, 'speech');
             return 'speech';
         case 'speech': {
@@ -130,7 +138,6 @@ export function advancePhase(room) {
                 setPhase(room, 'game_over');
                 return 'game_over';
             }
-            room.day++;
             setPhase(room, 'night');
             return 'night';
         default:

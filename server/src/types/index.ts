@@ -244,6 +244,7 @@ export interface Room {
 // ── Public Types (sent to clients) ────────────────────────────────────
 export interface PlayerPublic {
   id: string;
+  socketId: string;
   name: string;
   avatar: string;
   isHost: boolean;

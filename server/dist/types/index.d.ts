@@ -191,6 +191,7 @@ export interface Room {
 }
 export interface PlayerPublic {
     id: string;
+    socketId: string;
     name: string;
     avatar: string;
     isHost: boolean;

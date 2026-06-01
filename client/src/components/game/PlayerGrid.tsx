@@ -1,8 +1,32 @@
+import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
-import { PlayerPublic } from '@/types/index';
-import { Phase } from '@/types/index';
+import { PlayerPublic, Phase, RoleKey } from '@/types/index';
 import { ModBadge } from '@/components/ui/ModBadge';
+
+const ROLE_ICONS: Partial<Record<RoleKey, string>> = {
+  citizen: '🏙', sheriff: '🔍', doctor: '💉', bodyguard: '🛡',
+  vigilante: '⚖️', escort: '💃', mayor: '👑', tracker: '👁',
+  veteran: '🎖️', spy: '🕵️', mafia: '🔫', don: '♛',
+  arsonist: '🔥', maniac: '🌀', jester: '🃏', cult_leader: '🕯️', cultist: '🔮',
+};
+
+/** Voice state for the local player's tile (camera/mic). */
+export interface TileVoice {
+  /** socketId of every peer that is currently speaking */
+  speakingSocketIds: Set<string>;
+  /** local player socketId */
+  localSocketId: string | null;
+  inVoice: boolean;
+  isMuted: boolean;
+  cameraOn: boolean;
+  isLocalSpeaking: boolean;
+  localStream: MediaStream | null;
+  micLocked?: boolean;
+  onToggleMute: () => void;
+  onToggleCamera: () => void;
+  onJoin: () => void;
+}
 
 interface Props {
   players: PlayerPublic[];
@@ -12,51 +36,47 @@ interface Props {
   voteCounts?: Record<string, number>;
   selectedVoteId?: string | null;
   showRoles?: boolean;
+  fillHeight?: boolean;
+  voice?: TileVoice;
   onSelect?: (p: PlayerPublic) => void;
 }
 
-// Large avatar that fills the card — initials or photo
-function BigAvatar({ player, size = 80 }: { player: PlayerPublic; size?: number }) {
-  const initials = player.name
+function initialsOf(name: string): string {
+  return name
     .trim()
     .split(/\s+/)
     .map(w => w[0]?.toUpperCase() ?? '')
     .slice(0, 2)
     .join('') || '?';
+}
 
-  const dim = `${size}px`;
-
-  if (!player.isAlive && !player.isSpectator) {
-    return (
-      <div
-        className="rounded-full flex items-center justify-center font-display font-bold text-2xl bg-white/5 border border-white/10 text-white/20 grayscale"
-        style={{ width: dim, height: dim }}
-      >
-        💀
-      </div>
-    );
-  }
-
+/** Live <video> element bound to the local MediaStream. */
+function LocalVideo({ stream }: { stream: MediaStream }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (ref.current && ref.current.srcObject !== stream) {
+      ref.current.srcObject = stream;
+    }
+  }, [stream]);
   return (
-    <div
-      className="rounded-full flex items-center justify-center font-display font-bold overflow-hidden"
-      style={{
-        width: dim,
-        height: dim,
-        fontSize: `${Math.round(size * 0.35)}px`,
-        background: 'linear-gradient(135deg, rgba(155,0,255,0.3) 0%, rgba(0,229,255,0.2) 100%)',
-        border: '2px solid rgba(0,229,255,0.25)',
-        color: '#00e5ff',
-        boxShadow: 'inset 0 0 20px rgba(0,229,255,0.08)',
-      }}
-    >
-      {initials}
-    </div>
+    <video
+      ref={ref}
+      autoPlay
+      muted
+      playsInline
+      className="absolute inset-0 w-full h-full object-cover"
+      style={{ transform: 'scaleX(-1)' }} // mirror own camera
+    />
   );
 }
 
-// ── Speaker hero — shown solo during speech phase ─────────────────────
-function SpeakerHero({ player, isMe }: { player: PlayerPublic; isMe: boolean }) {
+function SpeakerHero({ player, isMe, speakerIndex, totalSpeakers }: {
+  player: PlayerPublic;
+  isMe: boolean;
+  speakerIndex: number;
+  totalSpeakers: number;
+}) {
+  const initials = initialsOf(player.name);
   return (
     <motion.div
       key={player.id}
@@ -66,6 +86,23 @@ function SpeakerHero({ player, isMe }: { player: PlayerPublic; isMe: boolean }) 
       transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
       className="flex flex-col items-center py-6 gap-5"
     >
+      {/* Progress indicator */}
+      <div className="flex items-center gap-1.5">
+        {Array.from({ length: totalSpeakers }).map((_, i) => (
+          <div
+            key={i}
+            className={clsx(
+              'rounded-full transition-all duration-300',
+              i < speakerIndex
+                ? 'w-1.5 h-1.5 bg-white/20'
+                : i === speakerIndex
+                  ? 'w-3 h-1.5 bg-neon-cyan shadow-[0_0_6px_rgba(0,229,255,0.8)]'
+                  : 'w-1.5 h-1.5 bg-white/10',
+            )}
+          />
+        ))}
+      </div>
+
       {/* Pulsing ring behind avatar */}
       <div className="relative flex items-center justify-center">
         <motion.div
@@ -79,32 +116,35 @@ function SpeakerHero({ player, isMe }: { player: PlayerPublic; isMe: boolean }) 
             filter: 'blur(8px)',
           }}
         />
-        <div className="relative z-10">
-          <BigAvatar player={player} size={110} />
+        <div className="absolute -top-1 -left-1 z-10 w-6 h-6 rounded-full bg-void border border-neon-cyan/50 flex items-center justify-center shadow-[0_0_8px_rgba(0,229,255,0.4)]">
+          <span className="text-[10px] font-mono font-bold text-neon-cyan/80">{player.seat}</span>
+        </div>
+        <div
+          className="relative z-10 rounded-full flex items-center justify-center font-display font-bold"
+          style={{
+            width: 110, height: 110, fontSize: 38,
+            background: 'linear-gradient(135deg, rgba(155,0,255,0.3) 0%, rgba(0,229,255,0.2) 100%)',
+            border: '2px solid rgba(0,229,255,0.25)',
+            color: '#00e5ff',
+          }}
+        >
+          {initials}
         </div>
       </div>
 
       <div className="text-center space-y-1">
-        <p className="text-xs font-mono text-neon-cyan/60 uppercase tracking-widest">
-          🎤 Speaking
-        </p>
-        <p className="font-display text-2xl font-bold text-white tracking-wide">
-          {player.name}
-        </p>
-        {isMe && (
-          <p className="text-xs text-neon-purple font-mono">it's your turn</p>
-        )}
+        <p className="text-xs font-mono text-neon-cyan/60 uppercase tracking-widest">🎤 Speaking</p>
+        <p className="font-display text-2xl font-bold text-white tracking-wide">{player.name}</p>
+        {isMe && <p className="text-xs text-neon-purple font-mono">it's your turn</p>}
         {player.isModerator && player.moderatorLevel && (
-          <div className="flex justify-center">
-            <ModBadge level={player.moderatorLevel} size="sm" />
-          </div>
+          <div className="flex justify-center"><ModBadge level={player.moderatorLevel} size="sm" /></div>
         )}
+        <p className="text-[10px] font-mono text-white/25">{speakerIndex + 1} / {totalSpeakers}</p>
       </div>
     </motion.div>
   );
 }
 
-// ── Individual player card ────────────────────────────────────────────
 function PlayerCard({
   player,
   isMe,
@@ -112,6 +152,10 @@ function PlayerCard({
   voteCount,
   isSelected,
   showRole,
+  phase,
+  totalAlive,
+  fillHeight,
+  voice,
   onClick,
 }: {
   player: PlayerPublic;
@@ -120,74 +164,216 @@ function PlayerCard({
   voteCount: number;
   isSelected: boolean;
   showRole?: boolean;
+  phase?: Phase;
+  totalAlive?: number;
+  fillHeight?: boolean;
+  voice?: TileVoice;
   onClick: () => void;
 }) {
   const dead = !player.isAlive && !player.isSpectator;
+  const isVoting = phase === 'voting';
+  const majorityVotes = totalAlive ? Math.ceil(totalAlive / 2) : 1;
+  const voteBarPct = isVoting && voteCount > 0 ? Math.min(100, (voteCount / majorityVotes) * 100) : 0;
+
+  // Voice state for this specific tile
+  const peerSpeaking = voice?.speakingSocketIds.has(player.socketId) ?? false;
+  const isVoiceSpeaking = isMe ? (voice?.isLocalSpeaking && !voice?.isMuted) : peerSpeaking;
+  const showLocalVideo = isMe && voice?.inVoice && voice.cameraOn && voice.localStream;
+  // The local player can control their own mic/cam once they're in voice
+  const showLocalControls = isMe && !dead;
+  const initials = initialsOf(player.name);
+
+  // Role to display inside the tile (own role always; others only when revealed)
+  const tileRole = (isMe || showRole) ? player.role : null;
 
   return (
     <motion.button
       layout
       onClick={onClick}
-      whileTap={{ scale: 0.97 }}
+      whileTap={{ scale: 0.98 }}
       className={clsx(
-        'relative w-full rounded-2xl border transition-all duration-200 overflow-hidden text-left',
-        'flex flex-col items-center pb-3 pt-4 gap-2',
+        'relative w-full rounded-2xl border overflow-hidden text-left transition-all duration-200',
+        fillHeight ? 'h-full' : 'aspect-[3/4]',
         dead
-          ? 'border-white/8 bg-black/60 opacity-45 grayscale pointer-events-none'
+          ? 'border-white/8 opacity-50 grayscale pointer-events-none'
           : isSelected
-            ? 'border-neon-red/70 bg-neon-red/10 shadow-[0_0_18px_rgba(255,45,85,0.25)]'
-            : isSpeaker
-              ? 'border-neon-cyan/70 bg-neon-cyan/8 shadow-[0_0_18px_rgba(0,229,255,0.2)]'
-              : isMe
-                ? 'border-neon-purple/50 bg-neon-purple/8'
-                : 'border-neon-green/30 bg-black/80 hover:border-neon-green/60 hover:bg-black/90',
+            ? 'border-neon-red/70 shadow-[0_0_18px_rgba(255,45,85,0.3)]'
+            : isVoiceSpeaking
+              ? 'border-neon-green/70 shadow-[0_0_16px_rgba(0,255,136,0.35)]'
+              : isSpeaker
+                ? 'border-neon-cyan/70 shadow-[0_0_18px_rgba(0,229,255,0.25)]'
+                : isMe
+                  ? 'border-neon-purple/50'
+                  : 'border-neon-green/25 hover:border-neon-green/50',
       )}
     >
-      {/* Seat number + name row */}
-      <div className="w-full px-3 flex items-center gap-1.5 min-w-0">
-        <span className="text-[10px] font-mono text-white/30 flex-shrink-0">({player.seat})</span>
-        <span className={clsx(
-          'text-xs font-semibold truncate',
-          dead ? 'text-white/30' : isMe ? 'text-neon-purple' : 'text-white/90',
-        )}>
-          {player.name}
-        </span>
-        {player.isModerator && player.moderatorLevel && (
-          <ModBadge level={player.moderatorLevel} size="xs" />
-        )}
-        {player.isSpectator && (
-          <span className="text-[9px] text-neon-purple/60 font-mono flex-shrink-0">👁</span>
+      {/* ── Main area: live video, or avatar/initials placeholder ── */}
+      <div className="absolute inset-0">
+        {showLocalVideo ? (
+          <LocalVideo stream={voice!.localStream!} />
+        ) : (
+          <div
+            className="absolute inset-0 flex items-center justify-center"
+            style={{
+              background: dead
+                ? 'rgba(0,0,0,0.6)'
+                : isMe
+                  ? 'linear-gradient(150deg, rgba(40,0,70,0.55) 0%, rgba(5,2,20,0.9) 70%)'
+                  : 'linear-gradient(150deg, rgba(0,30,40,0.4) 0%, rgba(2,5,12,0.92) 70%)',
+            }}
+          >
+            {dead ? (
+              <span className="text-4xl opacity-40">💀</span>
+            ) : (
+              <div
+                className="rounded-full flex items-center justify-center font-display font-bold"
+                style={{
+                  width: 'clamp(44px, 28%, 72px)',
+                  aspectRatio: '1',
+                  fontSize: 'clamp(16px, 8vw, 26px)',
+                  background: 'linear-gradient(135deg, rgba(155,0,255,0.35) 0%, rgba(0,229,255,0.22) 100%)',
+                  border: '2px solid rgba(0,229,255,0.25)',
+                  color: '#00e5ff',
+                }}
+              >
+                {initials}
+              </div>
+            )}
+          </div>
         )}
       </div>
 
-      {/* Avatar */}
-      <BigAvatar player={player} size={72} />
+      {/* ── Top scrim + name/role row ── */}
+      <div
+        className="absolute top-0 left-0 right-0 px-2 pt-1.5 pb-3 pointer-events-none"
+        style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.7) 0%, transparent 100%)' }}
+      >
+        <div className="flex items-center gap-1 min-w-0">
+          {/* Seat */}
+          <span
+            className="flex-shrink-0 min-w-[16px] h-[16px] px-1 rounded-full flex items-center justify-center text-[9px] font-mono font-bold"
+            style={isMe
+              ? { background: 'rgba(155,0,255,0.3)', color: 'rgba(205,150,255,0.98)' }
+              : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.6)' }}
+          >
+            {player.seat}
+          </span>
+          {/* Name */}
+          <span className={clsx(
+            'text-[11px] font-semibold truncate flex-1',
+            isMe ? '' : 'text-white',
+          )} style={isMe ? { color: 'rgba(210,150,255,0.98)' } : undefined}>
+            {player.name}
+          </span>
+          {player.isModerator && player.moderatorLevel && (
+            <ModBadge level={player.moderatorLevel} size="xs" />
+          )}
+          {player.isSpectator && <span className="text-[9px] flex-shrink-0">👁</span>}
+        </div>
 
-      {/* Role (spectator view / game over) */}
-      {showRole && player.role && (
-        <span className="text-[9px] font-mono text-white/40 uppercase tracking-wider px-2 py-0.5 rounded-full border border-white/10 bg-white/5">
-          {player.role}
-        </span>
-      )}
+        {/* Role chip (own tile, or revealed) */}
+        {tileRole && (
+          <div className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md"
+            style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(155,0,255,0.4)' }}>
+            <span className="text-[11px] leading-none">{ROLE_ICONS[tileRole] ?? '?'}</span>
+            <span className="text-[8px] font-mono font-bold uppercase tracking-wider"
+              style={{ color: 'rgba(205,150,255,0.95)' }}>
+              {tileRole.replace(/_/g, ' ')}
+            </span>
+          </div>
+        )}
+      </div>
 
-      {/* Vote count badge */}
+      {/* ── Vote count badge — top-right ── */}
       {voteCount > 0 && (
-        <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-neon-red flex items-center justify-center text-[10px] font-bold text-white shadow-[0_0_8px_rgba(255,45,85,0.6)]">
-          {voteCount}
+        <div className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] rounded-full bg-neon-red flex items-center justify-center px-1 shadow-[0_0_8px_rgba(255,45,85,0.6)] z-10">
+          <span className="text-[9px] font-bold text-white">{voteCount}</span>
         </div>
       )}
 
-      {/* Speaking indicator */}
+      {/* ── Bottom-right voice controls / status (compact, off-center) ── */}
+      <div
+        className="absolute bottom-1.5 right-1.5 flex items-center gap-1 z-10"
+        onClick={e => { if (showLocalControls && voice?.inVoice) e.stopPropagation(); }}
+      >
+        {showLocalControls && voice?.inVoice ? (
+          <>
+            {/* Mic toggle */}
+            <span
+              role="button"
+              onClick={e => { e.stopPropagation(); if (!voice.micLocked) voice.onToggleMute(); }}
+              className={clsx(
+                'w-7 h-7 rounded-full flex items-center justify-center text-xs backdrop-blur-sm transition-all active:scale-90',
+                voice.micLocked
+                  ? 'bg-black/60 border border-white/15 opacity-50'
+                  : voice.isMuted
+                    ? 'bg-neon-red/25 border border-neon-red/50'
+                    : 'bg-neon-green/20 border border-neon-green/50',
+              )}
+              title={voice.micLocked ? 'Mic locked' : voice.isMuted ? 'Unmute' : 'Mute'}
+            >
+              {voice.micLocked ? '🔒' : voice.isMuted ? '🔇' : '🎙'}
+            </span>
+            {/* Camera toggle */}
+            <span
+              role="button"
+              onClick={e => { e.stopPropagation(); voice.onToggleCamera(); }}
+              className={clsx(
+                'w-7 h-7 rounded-full flex items-center justify-center text-xs backdrop-blur-sm transition-all active:scale-90',
+                voice.cameraOn
+                  ? 'bg-neon-cyan/20 border border-neon-cyan/50'
+                  : 'bg-black/60 border border-white/20',
+              )}
+              title={voice.cameraOn ? 'Turn camera off' : 'Turn camera on'}
+            >
+              {voice.cameraOn ? '📹' : '📷'}
+            </span>
+          </>
+        ) : showLocalControls ? (
+          /* Local player not yet in voice — quick join */
+          <span
+            role="button"
+            onClick={e => { e.stopPropagation(); voice?.onJoin(); }}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-xs bg-black/60 border border-neon-cyan/40 backdrop-blur-sm transition-all active:scale-90"
+            title="Join voice"
+          >
+            🎙
+          </span>
+        ) : (
+          /* Remote player — status icons only */
+          <span className={clsx(
+            'w-6 h-6 rounded-full flex items-center justify-center text-[11px] backdrop-blur-sm border',
+            isVoiceSpeaking
+              ? 'bg-neon-green/25 border-neon-green/60 shadow-[0_0_6px_#00ff88]'
+              : 'bg-black/50 border-white/15',
+          )}>
+            {isVoiceSpeaking ? '🔊' : '🔈'}
+          </span>
+        )}
+      </div>
+
+      {/* ── Speaking indicator (tribunal) ── */}
       {isSpeaker && (
-        <div className="absolute bottom-1 left-1/2 -translate-x-1/2">
-          <span className="text-[9px] font-mono text-neon-cyan/80 animate-pulse">▶ speaking</span>
+        <div className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-black/55 z-10">
+          <span className="text-[9px] font-mono text-neon-cyan animate-pulse">▶ floor</span>
+        </div>
+      )}
+
+      {/* ── Vote progress bar at very bottom ── */}
+      {isVoting && voteBarPct > 0 && (
+        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/5 z-10">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${voteBarPct}%` }}
+            transition={{ duration: 0.4, ease: 'easeOut' }}
+            className={clsx('h-full', voteBarPct >= 100 ? 'bg-neon-red shadow-[0_0_8px_rgba(255,45,85,0.9)]' : 'bg-neon-red/60')}
+          />
         </div>
       )}
     </motion.button>
   );
 }
 
-// ── Main export ───────────────────────────────────────────────────────
 export function PlayerGrid({
   players,
   phase,
@@ -196,19 +382,27 @@ export function PlayerGrid({
   voteCounts = {},
   selectedVoteId,
   showRoles,
+  fillHeight,
+  voice,
   onSelect,
 }: Props) {
   const isSpeechPhase = phase === 'speech';
+  const alivePlayers = players.filter(p => p.isAlive && !p.isSpectator);
+  const totalAlive = alivePlayers.length;
+  const numRows = Math.ceil(players.length / 2);
 
   if (isSpeechPhase && currentSpeakerId) {
     const speaker = players.find(p => p.id === currentSpeakerId);
     if (speaker) {
+      const speakerIndex = alivePlayers.findIndex(p => p.id === currentSpeakerId);
       return (
         <AnimatePresence mode="wait">
           <SpeakerHero
             key={currentSpeakerId}
             player={speaker}
             isMe={speaker.id === myPlayerId}
+            speakerIndex={speakerIndex >= 0 ? speakerIndex : 0}
+            totalSpeakers={totalAlive}
           />
         </AnimatePresence>
       );
@@ -216,7 +410,10 @@ export function PlayerGrid({
   }
 
   return (
-    <div className="grid grid-cols-2 gap-2 p-1">
+    <div
+      className={clsx('grid grid-cols-2 gap-2 p-1', fillHeight && 'h-full')}
+      style={fillHeight ? { gridTemplateRows: `repeat(${numRows}, 1fr)` } : undefined}
+    >
       <AnimatePresence>
         {players.map((player, i) => (
           <motion.div
@@ -224,6 +421,7 @@ export function PlayerGrid({
             initial={{ opacity: 0, scale: 0.88 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: i * 0.03, duration: 0.25 }}
+            className={fillHeight ? 'h-full' : undefined}
           >
             <PlayerCard
               player={player}
@@ -232,6 +430,10 @@ export function PlayerGrid({
               voteCount={voteCounts[player.id] ?? 0}
               isSelected={selectedVoteId === player.id}
               showRole={showRoles}
+              phase={phase}
+              totalAlive={totalAlive}
+              fillHeight={fillHeight}
+              voice={voice}
               onClick={() => onSelect?.(player)}
             />
           </motion.div>

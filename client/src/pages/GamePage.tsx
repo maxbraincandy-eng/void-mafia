@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { ChatPanel } from '@/components/chat/ChatPanel';
 import { PlayerList } from '@/components/game/PlayerList';
-import { RoleReveal } from '@/components/game/RoleReveal';
+import { RoleReveal, TeamMate } from '@/components/game/RoleReveal';
 import { NightPanel } from '@/components/game/NightPanel';
 import { VotingPanel } from '@/components/game/VotingPanel';
 import { GameOver } from '@/components/game/GameOver';
@@ -16,15 +16,22 @@ import { NightResultOverlay } from '@/components/game/NightResultOverlay';
 import { PlayerStatsModal } from '@/components/ui/PlayerStatsModal';
 import { ReportModal } from '@/components/ui/ReportModal';
 import { LeaderboardModal } from '@/components/ui/LeaderboardModal';
+import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { useVoiceChat, VoiceChannel } from '@/hooks/useVoiceChat';
-import { useGameSounds, setSoundMuted, isSoundMuted } from '@/hooks/useSoundFX';
+import { useGameSounds, setSoundMuted, isSoundMuted, SFX } from '@/hooks/useSoundFX';
 import { PhaseTransition } from '@/components/game/PhaseTransition';
 import { PlayerGrid } from '@/components/game/PlayerGrid';
+import { EliminationCinematic } from '@/components/game/EliminationCinematic';
+import { GameEventLog } from '@/components/game/GameEventLog';
+import { PhaseAtmosphere } from '@/components/game/PhaseAtmosphere';
+import { VoteEliminationOverlay } from '@/components/game/VoteEliminationOverlay';
+import { CultConversionOverlay } from '@/components/game/CultConversionOverlay';
 import { useT } from '@/store/langStore';
 
 type MobileTab = 'action' | 'players' | 'chat';
+type RightTab = 'events' | 'chat';
 
 const PHASE_COLORS: Record<Phase, string> = {
   lobby:        'text-white',
@@ -36,22 +43,53 @@ const PHASE_COLORS: Record<Phase, string> = {
   game_over:    'text-white',
 };
 
+const PHASE_STRIP: Record<Phase, string> = {
+  lobby:        'rgba(255,255,255,0.05)',
+  role_reveal:  '#9b00ff',
+  night:        '#3b00cc',
+  day:          '#00c4cc',
+  speech:       '#00e5ff',
+  voting:       '#ff2d55',
+  game_over:    'rgba(255,255,255,0.1)',
+};
+
+const PHASE_GLOW: Partial<Record<Phase, string>> = {
+  night:       '0 0 12px rgba(59,0,204,0.8)',
+  voting:      '0 0 12px rgba(255,45,85,0.7)',
+  role_reveal: '0 0 12px rgba(155,0,255,0.7)',
+  speech:      '0 0 10px rgba(0,229,255,0.5)',
+  day:         '0 0 10px rgba(0,196,204,0.5)',
+};
+
 export function GamePage() {
   const [statsPlayer, setStatsPlayer] = useState<PlayerPublic | null>(null);
   const [reportProfileId, setReportProfileId] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<MobileTab>('action');
+  const [rightTab, setRightTab] = useState<RightTab>('events');
   const [unreadChat, setUnreadChat] = useState(0);
+  const [unreadEvents, setUnreadEvents] = useState(0);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showRoleGuide, setShowRoleGuide] = useState(false);
   const [willText, setWillText] = useState('');
   const [willSaved, setWillSaved] = useState(false);
   const [soundMuted, setSoundMutedState] = useState(isSoundMuted());
   const [transitionPhase, setTransitionPhase] = useState<Phase | null>(null);
+  const handleTransitionDone = useCallback(() => setTransitionPhase(null), []);
+  const [mobileVoiceOpen, setMobileVoiceOpen] = useState(false);
+  const [pendingVoteId, setPendingVoteId] = useState<string | null>(null);
+  const [eliminationVictims, setEliminationVictims] = useState<Array<{ name: string; seat: number }>>([]);
+  const handleElimDone = useCallback(() => setEliminationVictims([]), []);
+  const prevAliveRef = useRef<Map<string, boolean>>(new Map());
+  const [showSelfVoicePanel, setShowSelfVoicePanel] = useState(false);
+  const selfVoicePanelTimer = useRef<ReturnType<typeof setTimeout>>();
 
   const {
     room, myPlayer, myRole, amHost, amAlive,
     nightResult, investigationResult, spyReport, gameOverResult,
+    voteEliminationResult, cultConversionNotice,
     skipPhase, daySkipVote, leaveRoom, dismissNightResult, dismissInvestigation, dismissSpyReport, dismissGameOver,
-    setWill, pauseTimer,
+    dismissVoteElimination, dismissCultConversion,
+    setWill, pauseTimer, submitVote,
     isLoading,
   } = useGameStore(s => ({
     room: s.room,
@@ -63,6 +101,8 @@ export function GamePage() {
     investigationResult: s.investigationResult,
     spyReport: s.spyReport,
     gameOverResult: s.gameOverResult,
+    voteEliminationResult: s.voteEliminationResult,
+    cultConversionNotice: s.cultConversionNotice,
     skipPhase: s.skipPhase,
     daySkipVote: s.daySkipVote,
     leaveRoom: s.leaveRoom,
@@ -70,8 +110,11 @@ export function GamePage() {
     dismissInvestigation: s.dismissInvestigation,
     dismissSpyReport: s.dismissSpyReport,
     dismissGameOver: s.dismissGameOver,
+    dismissVoteElimination: s.dismissVoteElimination,
+    dismissCultConversion: s.dismissCultConversion,
     setWill: s.setWill,
     pauseTimer: s.pauseTimer,
+    submitVote: s.submitVote,
     isLoading: s.isLoading,
   }));
 
@@ -125,14 +168,53 @@ export function GamePage() {
     if (mobileTab === 'chat') setUnreadChat(0);
   }, [mobileTab]);
 
-  // Phase transition overlay + auto-switch to grid view
+  // Elimination cinematic: detect when players go from alive → dead
+  useEffect(() => {
+    if (!room) return;
+    // Reset tracking on new game
+    if (room.phase === 'lobby' || room.phase === 'role_reveal') {
+      prevAliveRef.current.clear();
+      return;
+    }
+    const prev = prevAliveRef.current;
+    const newVictims: Array<{ name: string; seat: number }> = [];
+    for (const p of room.players) {
+      if (!p.isSpectator) {
+        const wasAlive = prev.get(p.id);
+        if (wasAlive === true && !p.isAlive) {
+          newVictims.push({ name: p.name, seat: p.seat });
+        }
+        prev.set(p.id, p.isAlive);
+      }
+    }
+    if (newVictims.length > 0) setEliminationVictims(newVictims);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.players]);
+
+  // Track unread events (system messages) when on chat tab
+  const eventLen = room?.chat.filter(m => m.isSystem).length ?? 0;
+  const prevEventLen = useRef(eventLen);
+  useEffect(() => {
+    if (rightTab !== 'events' && eventLen > prevEventLen.current) {
+      setUnreadEvents(u => u + eventLen - prevEventLen.current);
+    }
+    prevEventLen.current = eventLen;
+  }, [eventLen, rightTab]);
+  useEffect(() => {
+    if (rightTab === 'events') setUnreadEvents(0);
+  }, [rightTab]);
+
+  // Phase transition overlay + auto-switch to best tab for each phase
   const prevPhaseForTransition = useRef<Phase | null>(null);
   useEffect(() => {
     const cur = room?.phase ?? null;
     if (prevPhaseForTransition.current !== null && cur !== null && prevPhaseForTransition.current !== cur) {
       setTransitionPhase(cur);
-      // Switch to player grid automatically on social phases
-      if (['day', 'speech', 'voting', 'role_reveal'].includes(cur)) {
+      setMobileVoiceOpen(false); // collapse voice panel on phase change
+      if (cur === 'voting' || cur === 'night') {
+        // Action panel must be front-and-center for time-sensitive interactions
+        setMobileTab('action');
+      } else if (['day', 'speech', 'role_reveal'].includes(cur)) {
         setMobileTab('players');
       }
     }
@@ -161,9 +243,50 @@ export function GamePage() {
   // Mic is locked when another player has the floor
   const micLocked = phase === 'speech' && room.currentSpeakerId !== myPlayer?.id && room.currentSpeakerId !== null;
 
-  const handlePlayerSelect = (p: PlayerPublic) => {
-    if (p.id !== myPlayer?.id) setStatsPlayer(p);
+  // Per-tile voice state — drives in-frame mic/camera controls & speaking rings
+  const speakingSocketIds = new Set(voice.peers.filter(p => p.isSpeaking).map(p => p.socketId));
+  const tileVoice = {
+    speakingSocketIds,
+    localSocketId: myPlayer?.socketId ?? null,
+    inVoice: voice.channel !== null,
+    isMuted: voice.isMuted,
+    cameraOn: voice.cameraOn,
+    isLocalSpeaking: voice.isLocalSpeaking,
+    localStream: voice.getLocalStream(),
+    micLocked,
+    onToggleMute: voice.toggleMute,
+    onToggleCamera: voice.toggleCamera,
+    onJoin: () => voice.joinVoice(voiceChannel),
   };
+
+  // During voting phase, grid taps select vote target; elsewhere open stats
+  const handlePlayerSelect = (p: PlayerPublic) => {
+    if (p.id === myPlayer?.id) {
+      // Own card — show quick mic/cam controls if in voice
+      if (voice.channel) {
+        setShowSelfVoicePanel(true);
+        clearTimeout(selfVoicePanelTimer.current);
+        selfVoicePanelTimer.current = setTimeout(() => setShowSelfVoicePanel(false), 3500);
+      }
+      return;
+    }
+    if (phase === 'voting' && amAlive && !amSpectator && p.isAlive) {
+      if (pendingVoteId === p.id) {
+        SFX.voteConfirm();
+        submitVote(p.id);
+        setPendingVoteId(null);
+      } else {
+        setPendingVoteId(p.id);
+      }
+    } else {
+      setStatsPlayer(p);
+    }
+  };
+
+  // Clear pending vote when phase changes
+  useEffect(() => {
+    setPendingVoteId(null);
+  }, [phase]);
 
   const handleSaveWill = async () => {
     await setWill(willText.slice(0, 200));
@@ -258,7 +381,20 @@ export function GamePage() {
               <p className="text-white/40 text-sm font-mono">Roles are being revealed to players…</p>
             </div>
           ) : (
-            <RoleReveal role={myRole} />
+            <RoleReveal
+              role={myRole}
+              teammates={
+                myRole?.team === 'mafia'
+                  ? (room?.players ?? [])
+                      .filter(p => p.team === 'mafia' && p.id !== myPlayer?.id)
+                      .map((p): TeamMate => ({
+                        name: p.name,
+                        roleName: p.role ? (t.game.roles[p.role as keyof typeof t.game.roles] ?? p.role) : 'Mafia',
+                        roleKey: p.role ?? 'mafia',
+                      }))
+                  : []
+              }
+            />
           )
         )}
 
@@ -422,11 +558,73 @@ export function GamePage() {
       {/* Leaderboard */}
       <LeaderboardModal open={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
 
+      {/* Role Guide */}
+      <RoleInfoModal open={showRoleGuide} onClose={() => setShowRoleGuide(false)} />
+
+      {/* Quick voice controls — appears when player taps their own card */}
+      <AnimatePresence>
+        {showSelfVoicePanel && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ duration: 0.18 }}
+            className="fixed bottom-24 sm:bottom-10 left-1/2 -translate-x-1/2 z-[70] rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.8)]"
+            style={{ background: 'rgba(8,4,20,0.96)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(20px)' }}
+            onClick={() => { clearTimeout(selfVoicePanelTimer.current); setShowSelfVoicePanel(false); }}
+          >
+            {voice.channel ? (
+              /* In voice — show mic + cam toggles */
+              <div className="flex items-center gap-3 px-5 py-3">
+                <button
+                  onClick={e => { e.stopPropagation(); voice.toggleMute(); clearTimeout(selfVoicePanelTimer.current); selfVoicePanelTimer.current = setTimeout(() => setShowSelfVoicePanel(false), 2000); }}
+                  className="flex flex-col items-center gap-1.5 px-4 py-2.5 rounded-xl transition-all active:scale-95"
+                  style={voice.isMuted ? { background: 'rgba(255,22,84,0.15)', border: '1px solid rgba(255,22,84,0.4)', color: '#ff5577' } : { background: 'rgba(0,229,255,0.1)', border: '1px solid rgba(0,229,255,0.35)', color: '#00e5ff' }}
+                >
+                  <span className="text-2xl">{voice.isMuted ? '🔇' : '🎙'}</span>
+                  <span className="text-[9px] font-mono uppercase tracking-wider">{voice.isMuted ? t.game.voice.muted : t.game.voice.micOn}</span>
+                </button>
+                <div className="w-px h-10 bg-white/10" />
+                <button
+                  onClick={e => { e.stopPropagation(); voice.toggleCamera(); clearTimeout(selfVoicePanelTimer.current); selfVoicePanelTimer.current = setTimeout(() => setShowSelfVoicePanel(false), 2000); }}
+                  className="flex flex-col items-center gap-1.5 px-4 py-2.5 rounded-xl transition-all active:scale-95"
+                  style={voice.cameraOn ? { background: 'rgba(0,229,255,0.1)', border: '1px solid rgba(0,229,255,0.35)', color: '#00e5ff' } : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)' }}
+                >
+                  <span className="text-2xl">📷</span>
+                  <span className="text-[9px] font-mono uppercase tracking-wider">{voice.cameraOn ? t.game.voice.camOn : t.game.voice.camOff}</span>
+                </button>
+              </div>
+            ) : (
+              /* Not in voice — offer to join */
+              <div className="px-5 py-3 flex items-center gap-3">
+                <button
+                  onClick={e => { e.stopPropagation(); voice.joinVoice(voiceChannel); setShowSelfVoicePanel(false); }}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all active:scale-95"
+                  style={{ background: 'rgba(0,229,255,0.1)', border: '1px solid rgba(0,229,255,0.35)', color: '#00e5ff' }}
+                >
+                  <span className="text-lg">🎙</span>
+                  <span className="text-xs font-mono uppercase tracking-wider">{t.game.voice.join}</span>
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Vote elimination cinematic */}
+      <VoteEliminationOverlay result={voteEliminationResult} onDismiss={dismissVoteElimination} />
+
+      {/* Cult conversion notification */}
+      <CultConversionOverlay visible={cultConversionNotice} onDismiss={dismissCultConversion} />
+
       {/* Phase transition overlay */}
-      <PhaseTransition phase={transitionPhase} onDone={() => setTransitionPhase(null)} />
+      <PhaseTransition phase={transitionPhase} onDone={handleTransitionDone} />
 
       {/* Game Over */}
       {gameOverResult && <GameOver result={gameOverResult} />}
+
+      {/* Elimination cinematic */}
+      <EliminationCinematic victims={eliminationVictims} onDone={handleElimDone} />
 
       {/* Night result */}
       <NightResultOverlay result={nightResult} onDismiss={dismissNightResult} />
@@ -511,16 +709,31 @@ export function GamePage() {
         )}
       </AnimatePresence>
 
+      {/* ── Phase atmosphere (ambient tinted background per phase) ── */}
+      <PhaseAtmosphere phase={phase} />
+
       {/* ── Main layout ─────────────────────────────────────────────── */}
       <div className="relative z-10 h-screen flex flex-col">
 
         {/* Top bar */}
-        <header className="flex-shrink-0 glass-panel border-b border-white/6 px-3 py-2 md:px-4 md:py-3">
+        <header className="flex-shrink-0 glass-panel border-b border-white/6">
+          {/* Phase color strip */}
+          <div
+            className="h-[3px] w-full transition-all duration-700"
+            style={{
+              background: `linear-gradient(90deg, transparent 0%, ${PHASE_STRIP[phase]} 20%, ${PHASE_STRIP[phase]} 80%, transparent 100%)`,
+              boxShadow: `0 0 12px ${PHASE_STRIP[phase]}60`,
+            }}
+          />
+          <div className="px-3 py-2 md:px-4 md:py-3">
           <div className="max-w-7xl mx-auto flex items-center gap-2 md:gap-4">
             {/* Phase */}
             <div className="min-w-0">
               <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest hidden sm:block">{t.game.header.phase}</p>
-              <h1 className={clsx('font-display text-lg md:text-xl font-bold tracking-widest uppercase truncate', PHASE_COLORS[phase])}>
+              <h1
+                className={clsx('font-display text-lg md:text-xl font-bold tracking-widest uppercase truncate transition-all duration-700', PHASE_COLORS[phase])}
+                style={{ textShadow: PHASE_GLOW[phase] }}
+              >
                 {t.game.phaseLabels[phase]}
                 {phase !== 'role_reveal' && phase !== 'game_over' && (
                   <span className="text-white/40"> · D{room.day}</span>
@@ -534,6 +747,13 @@ export function GamePage() {
                 <Timer seconds={room.timer} max={room.maxTimer} size="sm" />
               </div>
             )}
+
+            {/* Alive count pill */}
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-neon-green/20 bg-neon-green/5">
+              <div className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
+              <span className="text-xs font-mono text-neon-green/80 font-bold">{alivePlayers}</span>
+              <span className="text-[10px] font-mono text-white/30">alive</span>
+            </div>
 
             <div className="ml-auto flex items-center gap-1.5 md:gap-3">
               {/* Room code */}
@@ -580,6 +800,15 @@ export function GamePage() {
                   compact
                 />
               )}
+
+              {/* Role Guide button */}
+              <button
+                onClick={() => setShowRoleGuide(true)}
+                className="flex items-center px-2 py-1 rounded-lg text-white/30 hover:text-white/70 transition-colors text-sm"
+                title="Role Guide"
+              >
+                📖
+              </button>
 
               {/* Leaderboard button */}
               <button
@@ -634,6 +863,7 @@ export function GamePage() {
               </Button>
             </div>
           </div>
+          </div>
         </header>
 
         {/* ── DESKTOP layout (md+) ──────────────────────────────────── */}
@@ -665,13 +895,41 @@ export function GamePage() {
             {PhaseContentWithWill}
           </main>
 
-          {/* Chat sidebar */}
+          {/* Events + Chat sidebar */}
           <aside className="w-64 lg:w-72 flex-shrink-0 overflow-hidden p-4 border-l border-white/5 hidden lg:flex flex-col">
-            <h2 className="text-xs font-display uppercase tracking-widest text-white/40 mb-3 flex-shrink-0">
-              {t.lobby.chat}
-            </h2>
+            {/* Tab switcher */}
+            <div className="flex gap-1 mb-3 flex-shrink-0">
+              {(['events', 'chat'] as RightTab[]).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setRightTab(tab)}
+                  className={clsx(
+                    'flex-1 py-1.5 rounded-lg text-[10px] font-display font-bold tracking-widest uppercase transition-all relative',
+                    rightTab === tab
+                      ? 'bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan'
+                      : 'border border-white/8 text-white/30 hover:text-white/60',
+                  )}
+                >
+                  {tab === 'events' ? '📋' : '💬'} {tab}
+                  {tab === 'events' && unreadEvents > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-neon-cyan text-void text-[8px] flex items-center justify-center font-bold">
+                      {unreadEvents > 9 ? '9+' : unreadEvents}
+                    </span>
+                  )}
+                  {tab === 'chat' && unreadChat > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-neon-red text-white text-[8px] flex items-center justify-center font-bold">
+                      {unreadChat > 9 ? '9+' : unreadChat}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
             <div className="flex-1 min-h-0">
-              <ChatPanel compact />
+              {rightTab === 'chat' ? (
+                <ChatPanel compact />
+              ) : (
+                <GameEventLog messages={room.chat} className="h-full" />
+              )}
             </div>
           </aside>
         </div>
@@ -682,7 +940,7 @@ export function GamePage() {
           {useGridView ? (
             /* ── Grid-primary layout (day / speech / voting / role_reveal) ── */
             <>
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-hidden flex flex-col">
                 <AnimatePresence mode="wait">
                   {mobileTab === 'chat' ? (
                     <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4 h-full">
@@ -691,15 +949,19 @@ export function GamePage() {
                       </div>
                     </motion.div>
                   ) : mobileTab === 'action' ? (
-                    <motion.div key="action" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4 space-y-4">
-                      {/* In grid-view mode: action tab shows phase actions + voice only (no full phase content) */}
+                    <motion.div key="action" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-3 space-y-3">
+                      {/* Voting: show panel immediately — no tab switching needed */}
                       {phase === 'voting' && !amSpectator && <VotingPanel />}
+                      {phase === 'voting' && amSpectator && (
+                        <div className="text-center py-6 text-white/40 text-sm font-mono">👁 Spectating votes…</div>
+                      )}
+
                       {phase === 'day' && !amSpectator && (() => {
                         const active = room.players.filter(p => p.isAlive && !p.isSpectator);
                         const skipNeeded = Math.floor(active.length / 2) + 1;
                         const alreadyVoted = room.daySkipVoteCount ?? 0;
                         return (
-                          <div className="text-center pt-4">
+                          <div className="text-center pt-2">
                             <button onClick={() => daySkipVote()} disabled={isLoading}
                               className="px-6 py-3 border border-white/15 text-white/50 text-sm font-mono rounded-xl hover:border-neon-cyan/40 hover:text-neon-cyan transition-all disabled:opacity-40">
                               {t.game.day.skipDiscussion.replace('{voted}', String(alreadyVoted)).replace('{needed}', String(skipNeeded))}
@@ -707,27 +969,75 @@ export function GamePage() {
                           </div>
                         );
                       })()}
+
                       {phase === 'speech' && !amSpectator && (
-                        <div className="text-center py-4 text-white/40 text-sm font-mono">
+                        <div className="text-center py-2">
                           {amHost && <Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>⏭ {t.game.header.skip}</Button>}
                         </div>
                       )}
+
+                      {/* Last Will — compact on mobile */}
                       {LastWillPanel}
-                      {VoicePanel}
+
+                      {/* Voice — collapsible on mobile */}
+                      <div className="rounded-xl border border-white/8 overflow-hidden">
+                        <button
+                          onClick={() => setMobileVoiceOpen(o => !o)}
+                          className="w-full flex items-center justify-between px-3 py-2 text-xs font-mono text-white/40 hover:text-white/60 transition-colors"
+                        >
+                          <span>{isInVoice ? '🎙 ' + voiceChannelLabel : '🎙 ' + t.game.voice.join}</span>
+                          <span className="text-[10px]">{mobileVoiceOpen ? '▲' : '▼'}</span>
+                        </button>
+                        {mobileVoiceOpen && (
+                          <div className="px-3 pb-3">
+                            {VoicePanel}
+                          </div>
+                        )}
+                      </div>
                     </motion.div>
                   ) : (
-                    /* Default: player grid */
-                    <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-3 pb-2">
-                      <PlayerGrid
-                        players={room.players}
-                        phase={phase}
-                        currentSpeakerId={room.currentSpeakerId}
-                        myPlayerId={myPlayer?.id ?? null}
-                        voteCounts={voteCounts}
-                        selectedVoteId={myVoteTarget}
-                        showRoles={amSpectator || phase === 'game_over'}
-                        onSelect={handlePlayerSelect}
-                      />
+                    /* Default: player grid fills entire available height */
+                    <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full flex flex-col">
+                      <div className="flex-1 min-h-0">
+                        <PlayerGrid
+                          players={room.players}
+                          phase={phase}
+                          currentSpeakerId={room.currentSpeakerId}
+                          myPlayerId={myPlayer?.id ?? null}
+                          voteCounts={voteCounts}
+                          selectedVoteId={phase === 'voting' ? (pendingVoteId ?? myVoteTarget) : myVoteTarget}
+                          showRoles={amSpectator || phase === 'game_over'}
+                          fillHeight
+                          voice={tileVoice}
+                          onSelect={handlePlayerSelect}
+                        />
+                      </div>
+
+                      {/* Vote confirm bar pinned at bottom */}
+                      {phase === 'voting' && pendingVoteId && (() => {
+                        const target = room.players.find(p => p.id === pendingVoteId);
+                        return target ? (
+                          <div className="flex-shrink-0 mx-2 mb-2 mt-1 rounded-2xl border border-neon-red/50 bg-[rgba(20,0,5,0.97)] backdrop-blur p-3 flex items-center gap-3 shadow-[0_0_20px_rgba(255,45,85,0.3)]">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] font-mono text-white/40 uppercase tracking-widest">{t.game.voting.confirmTitle}</p>
+                              <p className="text-sm font-semibold text-white truncate">{target.name}</p>
+                            </div>
+                            <button
+                              onClick={() => { SFX.voteConfirm(); submitVote(pendingVoteId); setPendingVoteId(null); }}
+                              disabled={isLoading}
+                              className="flex-shrink-0 px-4 py-2 rounded-xl bg-neon-red text-white text-xs font-display font-bold tracking-wider uppercase shadow-[0_0_12px_rgba(255,45,85,0.5)] disabled:opacity-40"
+                            >
+                              {t.game.voting.voteOut}
+                            </button>
+                            <button
+                              onClick={() => setPendingVoteId(null)}
+                              className="flex-shrink-0 p-2 text-white/30 hover:text-white/60"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : null;
+                      })()}
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -737,7 +1047,7 @@ export function GamePage() {
               <div className="flex-shrink-0 glass-panel border-t border-white/8 flex">
                 {([
                   { id: 'grid',   label: '👥', sublabel: t.lobby.players },
-                  { id: 'action', label: '⚡', sublabel: t.game.phaseLabels[phase] || 'Action' },
+                  { id: 'action', label: phase === 'voting' ? '⚖️' : '⚡', sublabel: phase === 'voting' ? t.game.voting.title : (t.game.phaseLabels[phase] || 'Action') },
                   { id: 'chat',   label: '💬', sublabel: t.lobby.chat },
                 ] as { id: MobileTab | 'grid'; label: string; sublabel: string }[]).map(tab => (
                   <button
@@ -757,6 +1067,10 @@ export function GamePage() {
                         {unreadChat > 9 ? '9+' : unreadChat}
                       </span>
                     )}
+                    {/* Vote indicator badge on action tab during voting */}
+                    {tab.id === 'action' && phase === 'voting' && !myVoteTarget && amAlive && !amSpectator && (
+                      <span className="absolute top-1 left-3 w-2 h-2 rounded-full bg-neon-red animate-pulse" />
+                    )}
                   </button>
                 ))}
               </div>
@@ -764,12 +1078,26 @@ export function GamePage() {
           ) : (
             /* ── Original tab layout (night / game_over) ── */
             <>
-              <div className="flex-1 overflow-y-auto p-4 pb-2">
+              <div className="flex-1 overflow-y-auto p-3 pb-2">
                 <AnimatePresence mode="wait">
                   {mobileTab === 'action' && (
-                    <motion.div key="action" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+                    <motion.div key="action" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-3">
                       {PhaseContentWithWill}
-                      {phase !== 'night' || !isMafiaPlayer ? VoicePanel : null}
+                      {/* Voice — collapsible during night to keep action visible */}
+                      {(phase !== 'night' || !isMafiaPlayer) && (
+                        <div className="rounded-xl border border-white/8 overflow-hidden">
+                          <button
+                            onClick={() => setMobileVoiceOpen(o => !o)}
+                            className="w-full flex items-center justify-between px-3 py-2 text-xs font-mono text-white/40 hover:text-white/60 transition-colors"
+                          >
+                            <span>{isInVoice ? '🎙 ' + voiceChannelLabel : '🎙 ' + t.game.voice.join}</span>
+                            <span className="text-[10px]">{mobileVoiceOpen ? '▲' : '▼'}</span>
+                          </button>
+                          {mobileVoiceOpen && <div className="px-3 pb-3">{VoicePanel}</div>}
+                        </div>
+                      )}
+                      {/* Mafia voice during night shown inline without collapse */}
+                      {phase === 'night' && isMafiaPlayer && VoicePanel}
                     </motion.div>
                   )}
                   {mobileTab === 'players' && (
@@ -817,6 +1145,46 @@ export function GamePage() {
           )}
         </div>
       </div>
+
+      {/* ── Mobile Role Reveal full-screen overlay ─────────────────────── */}
+      {/* On desktop, RoleReveal is shown in the center main column.        */}
+      {/* On mobile, role_reveal uses the grid layout path which never      */}
+      {/* renders PhaseContent, so we show a dedicated overlay here.        */}
+      <AnimatePresence>
+        {phase === 'role_reveal' && !amSpectator && myRole && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="md:hidden fixed inset-0 z-[35] bg-black/93 backdrop-blur-md flex items-center justify-center p-6 overflow-y-auto"
+          >
+            <div className="w-full max-w-xs">
+              <RoleReveal
+                role={myRole}
+                teammates={
+                  myRole?.team === 'mafia'
+                    ? (room?.players ?? [])
+                        .filter(p => p.team === 'mafia' && p.id !== myPlayer?.id)
+                        .map((p): TeamMate => ({
+                          name: p.name,
+                          roleName: p.role ? (t.game.roles[p.role as keyof typeof t.game.roles] ?? p.role) : 'Mafia',
+                          roleKey: p.role ?? 'mafia',
+                        }))
+                    : myRole?.team === 'cult'
+                      ? (room?.players ?? [])
+                          .filter(p => p.team === 'cult' && p.id !== myPlayer?.id)
+                          .map((p): TeamMate => ({
+                            name: p.name,
+                            roleName: p.role ? (t.game.roles[p.role as keyof typeof t.game.roles] ?? p.role) : 'Cultist',
+                            roleKey: p.role ?? 'cultist',
+                          }))
+                      : []
+                }
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Player stats modal */}
       {statsPlayer && (
