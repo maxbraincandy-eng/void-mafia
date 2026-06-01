@@ -22,6 +22,7 @@ export interface VoiceState {
   cameraOn: boolean;
   isLocalSpeaking: boolean;
   peers: PeerState[];
+  remoteStreams: Record<string, MediaStream>;
   error: string | null;
 }
 
@@ -32,6 +33,7 @@ const INITIAL: VoiceState = {
   cameraOn:        false,
   isLocalSpeaking: false,
   peers:           [],
+  remoteStreams:   {},
   error:           null,
 };
 
@@ -135,6 +137,8 @@ export function useVoiceChat() {
         } else {
           patch({ peers: session.getPeers() });
         }
+      } else if (event.type === 'stream-update') {
+        patch({ remoteStreams: session.getRemoteStreams() });
       } else if (event.type === 'error') {
         patch({ error: event.message, status: 'failed' });
       }
@@ -203,13 +207,18 @@ export function useVoiceChat() {
     if (!s) return;
 
     if (state.cameraOn) {
-      // Turn off: remove the track so permission is cleanly released
-      s.removeCamera();
+      // Turn off: remove the track and renegotiate so remote peers drop the video
+      await s.removeCamera((peerId, offer) => {
+        (socket as any).emit('voice:offer', { to: peerId, sdp: offer }, () => {});
+      });
       patch({ cameraOn: false });
     } else {
-      // Turn on: request camera permission if we don't have the track yet
+      // Turn on: request camera permission if we don't have the track yet.
+      // Pass a renegotiation callback so existing peers receive the video track.
       try {
-        await s.addCamera();
+        await s.addCamera((peerId, offer) => {
+          (socket as any).emit('voice:offer', { to: peerId, sdp: offer }, () => {});
+        });
         patch({ cameraOn: true, error: null });
       } catch {
         // error already emitted by webrtcService to the subscriber → patch via event

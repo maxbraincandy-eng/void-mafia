@@ -284,6 +284,7 @@ export function GamePage() {
     cameraOn: voice.cameraOn,
     isLocalSpeaking: voice.isLocalSpeaking,
     localStream: voice.getLocalStream(),
+    remoteStreams: voice.remoteStreams,
     micLocked,
     onToggleMute: voice.toggleMute,
     onToggleCamera: voice.toggleCamera,

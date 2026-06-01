@@ -24,6 +24,8 @@ export interface TileVoice {
   cameraOn: boolean;
   isLocalSpeaking: boolean;
   localStream: MediaStream | null;
+  /** remote video streams keyed by peer socketId */
+  remoteStreams: Record<string, MediaStream>;
   micLocked?: boolean;
   onToggleMute: () => void;
   onToggleCamera: () => void;
@@ -52,7 +54,7 @@ function initialsOf(name: string): string {
     .join('') || '?';
 }
 
-/** Live <video> element bound to the local MediaStream. */
+/** Live <video> element bound to the local MediaStream (mirrored). */
 function LocalVideo({ stream }: { stream: MediaStream }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
@@ -67,7 +69,30 @@ function LocalVideo({ stream }: { stream: MediaStream }) {
       muted
       playsInline
       className="absolute inset-0 w-full h-full object-cover"
-      style={{ transform: 'scaleX(-1)' }} // mirror own camera
+      style={{ transform: 'scaleX(-1)' }}
+    />
+  );
+}
+
+/** Live <video> element bound to a remote peer's MediaStream. */
+function RemoteVideo({ stream }: { stream: MediaStream }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (ref.current && ref.current.srcObject !== stream) {
+      ref.current.srcObject = stream;
+    }
+  }, [stream]);
+
+  // Only render if the stream actually has an active video track
+  const hasVideo = stream.getVideoTracks().some(t => t.readyState === 'live');
+  if (!hasVideo) return null;
+
+  return (
+    <video
+      ref={ref}
+      autoPlay
+      playsInline
+      className="absolute inset-0 w-full h-full object-cover"
     />
   );
 }
@@ -181,6 +206,7 @@ function PlayerCard({
   const peerSpeaking = voice?.speakingSocketIds.has(player.socketId) ?? false;
   const isVoiceSpeaking = isMe ? (voice?.isLocalSpeaking && !voice?.isMuted) : peerSpeaking;
   const showLocalVideo = isMe && voice?.inVoice && voice.cameraOn && voice.localStream;
+  const remoteStream = !isMe ? (voice?.remoteStreams[player.socketId] ?? null) : null;
   // The local player can control their own mic/cam once they're in voice
   const showLocalControls = isMe && !dead;
   const initials = initialsOf(player.name);
@@ -213,6 +239,8 @@ function PlayerCard({
       <div className="absolute inset-0">
         {showLocalVideo ? (
           <LocalVideo stream={voice!.localStream!} />
+        ) : remoteStream ? (
+          <RemoteVideo stream={remoteStream} />
         ) : (
           <div
             className="absolute inset-0 flex items-center justify-center"

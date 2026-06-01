@@ -92,6 +92,7 @@ export function RoleReveal({ role, teammates }: Props) {
           transition={{ duration: 0.7, ease: [0.4, 0, 0.2, 1] }}
           style={{
             transformStyle: 'preserve-3d',
+            WebkitTransformStyle: 'preserve-3d',
             position: 'relative',
             width: '256px',
             minHeight: '320px',
@@ -99,7 +100,7 @@ export function RoleReveal({ role, teammates }: Props) {
         >
           {/* Back face — question mark */}
           <div
-            style={{ backfaceVisibility: 'hidden' }}
+            style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
             className="absolute inset-0 w-full h-full rounded-3xl border border-white/10 bg-void-50 flex flex-col items-center justify-center gap-4"
           >
             <div
@@ -126,6 +127,7 @@ export function RoleReveal({ role, teammates }: Props) {
           <div
             style={{
               backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
               transform: 'rotateY(180deg)',
               position: 'absolute',
               inset: 0,

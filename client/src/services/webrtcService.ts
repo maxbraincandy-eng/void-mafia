@@ -29,11 +29,12 @@ export interface PeerState {
 }
 
 export type WebRTCEvent =
-  | { type: 'state';       state: ConnectionState }
-  | { type: 'peer-added';  peer: PeerState }
-  | { type: 'peer-removed'; socketId: string }
-  | { type: 'speaking';    socketId: string | 'local'; isSpeaking: boolean }
-  | { type: 'error';       message: string };
+  | { type: 'state';         state: ConnectionState }
+  | { type: 'peer-added';    peer: PeerState }
+  | { type: 'peer-removed';  socketId: string }
+  | { type: 'speaking';      socketId: string | 'local'; isSpeaking: boolean }
+  | { type: 'stream-update'; socketId: string; stream: MediaStream | null }
+  | { type: 'error';         message: string };
 
 type Listener = (event: WebRTCEvent) => void;
 
@@ -43,6 +44,7 @@ export class WebRTCSession {
   private localStream: MediaStream | null = null;
   private pcs = new Map<string, RTCPeerConnection>();
   private audioEls = new Map<string, HTMLAudioElement>();
+  private remoteStreams = new Map<string, MediaStream>();
   private peers = new Map<string, PeerState>();
   private state: ConnectionState = 'disconnected';
   private listeners = new Set<Listener>();
@@ -69,6 +71,10 @@ export class WebRTCSession {
   getState(): ConnectionState { return this.state; }
   getLocalStream(): MediaStream | null { return this.localStream; }
   getPeers(): PeerState[] { return [...this.peers.values()]; }
+  getRemoteStream(socketId: string): MediaStream | null { return this.remoteStreams.get(socketId) ?? null; }
+  getRemoteStreams(): Record<string, MediaStream> {
+    return Object.fromEntries(this.remoteStreams.entries());
+  }
 
   // ── Media ──────────────────────────────────────────────────────────
 
@@ -161,6 +167,13 @@ export class WebRTCSession {
     pc.ontrack = (ev) => {
       log('remote track from', peerId, ':', ev.track.kind);
       const [stream] = ev.streams;
+      if (!stream) return;
+
+      // Store the stream so subscribers can access video tracks
+      this.remoteStreams.set(peerId, stream);
+      this.emit({ type: 'stream-update', socketId: peerId, stream });
+
+      // Always wire up audio playback (audio elements handle audio tracks)
       this.attachRemoteAudio(peerId, stream);
     };
 
@@ -215,6 +228,7 @@ export class WebRTCSession {
     this.closePeer(socketId);
     this.peers.delete(socketId);
     this.remoteSpeakingCooldowns.delete(socketId);
+    this.remoteStreams.delete(socketId);
     this.emit({ type: 'peer-removed', socketId });
     log('peer removed:', socketId);
   }
@@ -239,8 +253,12 @@ export class WebRTCSession {
   /**
    * Request camera permission and add the video track to the local stream
    * and all existing peer connections. Call this when user first enables camera.
+   * Pass onRenegotiate to trigger offer/answer with each existing peer so they
+   * receive the new video track.
    */
-  async addCamera(): Promise<void> {
+  async addCamera(
+    onRenegotiate?: (peerId: string, offer: RTCSessionDescriptionInit) => void,
+  ): Promise<void> {
     if (!this.localStream) throw new Error('Not in voice.');
     if (this.hasCameraTrack()) { this.setCameraEnabled(true); return; }
 
@@ -266,22 +284,54 @@ export class WebRTCSession {
     this.localStream.addTrack(videoTrack);
     log('camera track added to local stream');
 
-    // Add to all existing peer connections and renegotiate
+    // Add to each existing peer connection, then renegotiate so remote peers
+    // receive the new video track.
     for (const [peerId, pc] of this.pcs.entries()) {
       pc.addTrack(videoTrack, this.localStream);
       log('camera track added to peer connection', peerId);
+
+      if (onRenegotiate) {
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          onRenegotiate(peerId, offer);
+          log('renegotiation offer sent to', peerId);
+        } catch (e: any) {
+          log('renegotiation offer failed for', peerId, ':', e.message);
+        }
+      }
     }
   }
 
   /** Stop and remove the camera track from local stream and peer connections. */
-  removeCamera(): void {
+  async removeCamera(
+    onRenegotiate?: (peerId: string, offer: RTCSessionDescriptionInit) => void,
+  ): Promise<void> {
     if (!this.localStream) return;
     const tracks = this.localStream.getVideoTracks();
     for (const track of tracks) {
       track.stop();
       this.localStream.removeTrack(track);
+      // Remove the sender from every peer connection
+      for (const pc of this.pcs.values()) {
+        const sender = pc.getSenders().find(s => s.track === track);
+        if (sender) pc.removeTrack(sender);
+      }
     }
     log('camera track removed');
+
+    // Renegotiate so remote peers know the video track is gone
+    if (onRenegotiate) {
+      for (const [peerId, pc] of this.pcs.entries()) {
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          onRenegotiate(peerId, offer);
+        } catch (e: any) {
+          log('renegotiation (remove camera) failed for', peerId, ':', e.message);
+        }
+      }
+    }
   }
 
   // ── Cleanup ────────────────────────────────────────────────────────
@@ -294,6 +344,7 @@ export class WebRTCSession {
     this.pcs.clear();
     this.peers.clear();
     this.audioEls.clear();
+    this.remoteStreams.clear();
 
     this.localStream?.getTracks().forEach(t => { t.stop(); log('stopped track:', t.kind); });
     this.localStream = null;
