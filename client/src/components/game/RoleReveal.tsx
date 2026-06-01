@@ -3,8 +3,15 @@ import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import { Role } from '@/types/index';
 
+export interface TeamMate {
+  name: string;
+  roleName: string;
+  roleKey: string;
+}
+
 interface Props {
   role: Role | null;
+  teammates?: TeamMate[];
 }
 
 const ROLE_GRADIENTS: Record<string, string> = {
@@ -30,7 +37,7 @@ const ROLE_ICONS: Record<string, string> = {
   vigilante: '⚖️',
 };
 
-export function RoleReveal({ role }: Props) {
+export function RoleReveal({ role, teammates = [] }: Props) {
   const [flipped, setFlipped] = useState(false);
 
   useEffect(() => {
@@ -147,6 +154,29 @@ export function RoleReveal({ role }: Props) {
           </div>
         </motion.div>
       </div>
+
+      {teammates.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.8 }}
+          className="mt-5 w-64"
+        >
+          <p className="text-[10px] font-display uppercase tracking-[0.25em] text-neon-red/60 mb-2 text-center">
+            Your Team
+          </p>
+          <div className="space-y-1.5">
+            {teammates.map((tm, i) => (
+              <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-xl"
+                style={{ background: 'rgba(255,45,85,0.08)', border: '1px solid rgba(255,45,85,0.2)' }}>
+                <span className="text-sm">{ROLE_ICONS[tm.roleKey] ?? '◆'}</span>
+                <span className="text-sm text-white/80 font-semibold flex-1 truncate">{tm.name}</span>
+                <span className="text-[10px] text-neon-red/60 font-mono uppercase">{tm.roleName}</span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
       <motion.p
         initial={{ opacity: 0 }}

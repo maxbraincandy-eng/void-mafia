@@ -17,6 +17,7 @@ import { PlayerStatsModal } from '@/components/ui/PlayerStatsModal';
 import { ReportModal } from '@/components/ui/ReportModal';
 import { LeaderboardModal } from '@/components/ui/LeaderboardModal';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
+import { RoomMoreMenu } from '@/components/ui/RoomMoreMenu';
 import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { useVoiceChat, VoiceChannel } from '@/hooks/useVoiceChat';
@@ -26,8 +27,6 @@ import { PlayerGrid } from '@/components/game/PlayerGrid';
 import { EliminationCinematic } from '@/components/game/EliminationCinematic';
 import { GameEventLog } from '@/components/game/GameEventLog';
 import { PhaseAtmosphere } from '@/components/game/PhaseAtmosphere';
-import { VoteEliminationOverlay } from '@/components/game/VoteEliminationOverlay';
-import { CultConversionOverlay } from '@/components/game/CultConversionOverlay';
 import { useT } from '@/store/langStore';
 
 type MobileTab = 'action' | 'players' | 'chat';
@@ -61,6 +60,19 @@ const PHASE_GLOW: Partial<Record<Phase, string>> = {
   day:         '0 0 10px rgba(0,196,204,0.5)',
 };
 
+function getPhaseSubtitle(phase: Phase, day: number, currentSpeakerName?: string | null, amAlive = true, isSpectator = false): string {
+  if (isSpectator) return 'Watching…';
+  switch (phase) {
+    case 'role_reveal': return 'Your role has been assigned.';
+    case 'night':       return amAlive ? 'Use your ability or wait for dawn.' : 'You are eliminated. Watch silently.';
+    case 'day':         return day === 1 ? 'Common discussion — no vote yet.' : 'Discuss and find the Mafia.';
+    case 'speech':      return currentSpeakerName ? `${currentSpeakerName} is speaking…` : 'Players take turns to speak.';
+    case 'voting':      return 'Vote to eliminate a suspect.';
+    case 'game_over':   return 'The game is over.';
+    default:            return '';
+  }
+}
+
 export function GamePage() {
   const [statsPlayer, setStatsPlayer] = useState<PlayerPublic | null>(null);
   const [reportProfileId, setReportProfileId] = useState<string | null>(null);
@@ -76,6 +88,7 @@ export function GamePage() {
   const [transitionPhase, setTransitionPhase] = useState<Phase | null>(null);
   const handleTransitionDone = useCallback(() => setTransitionPhase(null), []);
   const [mobileVoiceOpen, setMobileVoiceOpen] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [pendingVoteId, setPendingVoteId] = useState<string | null>(null);
   const [eliminationVictims, setEliminationVictims] = useState<Array<{ name: string; seat: number }>>([]);
   const handleElimDone = useCallback(() => setEliminationVictims([]), []);
@@ -86,9 +99,8 @@ export function GamePage() {
   const {
     room, myPlayer, myRole, amHost, amAlive,
     nightResult, investigationResult, spyReport, gameOverResult,
-    voteEliminationResult, cultConversionNotice,
-    skipPhase, daySkipVote, leaveRoom, dismissNightResult, dismissInvestigation, dismissSpyReport, dismissGameOver,
-    dismissVoteElimination, dismissCultConversion,
+    skipPhase, daySkipVote, leaveRoom, terminateGame,
+    dismissNightResult, dismissInvestigation, dismissSpyReport, dismissGameOver,
     setWill, pauseTimer, submitVote,
     isLoading,
   } = useGameStore(s => ({
@@ -101,17 +113,14 @@ export function GamePage() {
     investigationResult: s.investigationResult,
     spyReport: s.spyReport,
     gameOverResult: s.gameOverResult,
-    voteEliminationResult: s.voteEliminationResult,
-    cultConversionNotice: s.cultConversionNotice,
     skipPhase: s.skipPhase,
     daySkipVote: s.daySkipVote,
     leaveRoom: s.leaveRoom,
+    terminateGame: s.terminateGame,
     dismissNightResult: s.dismissNightResult,
     dismissInvestigation: s.dismissInvestigation,
     dismissSpyReport: s.dismissSpyReport,
     dismissGameOver: s.dismissGameOver,
-    dismissVoteElimination: s.dismissVoteElimination,
-    dismissCultConversion: s.dismissCultConversion,
     setWill: s.setWill,
     pauseTimer: s.pauseTimer,
     submitVote: s.submitVote,
@@ -561,6 +570,21 @@ export function GamePage() {
       {/* Role Guide */}
       <RoleInfoModal open={showRoleGuide} onClose={() => setShowRoleGuide(false)} />
 
+      {/* More Menu */}
+      <RoomMoreMenu
+        open={showMoreMenu}
+        onClose={() => setShowMoreMenu(false)}
+        phase={phase}
+        roomCode={room.code}
+        spectators={room.players.filter(p => p.isSpectator)}
+        amHost={amHost}
+        isInVoice={isInVoice}
+        onLeaveRoom={leaveRoom}
+        onTerminateGame={amHost ? terminateGame : undefined}
+        onResetVoice={isInVoice ? () => { voice.leaveVoice(); setTimeout(() => voice.joinVoice(voiceChannel), 800); } : undefined}
+        onShowRoleGuide={() => setShowRoleGuide(true)}
+      />
+
       {/* Quick voice controls — appears when player taps their own card */}
       <AnimatePresence>
         {showSelfVoicePanel && (
@@ -610,12 +634,6 @@ export function GamePage() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Vote elimination cinematic */}
-      <VoteEliminationOverlay result={voteEliminationResult} onDismiss={dismissVoteElimination} />
-
-      {/* Cult conversion notification */}
-      <CultConversionOverlay visible={cultConversionNotice} onDismiss={dismissCultConversion} />
 
       {/* Phase transition overlay */}
       <PhaseTransition phase={transitionPhase} onDone={handleTransitionDone} />
@@ -727,18 +745,29 @@ export function GamePage() {
           />
           <div className="px-3 py-2 md:px-4 md:py-3">
           <div className="max-w-7xl mx-auto flex items-center gap-2 md:gap-4">
+            {/* More menu button */}
+            <button
+              onClick={() => setShowMoreMenu(true)}
+              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/8 transition-all active:scale-90"
+              title="More options"
+            >
+              <span className="text-lg leading-none">⋯</span>
+            </button>
+
             {/* Phase */}
             <div className="min-w-0">
-              <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest hidden sm:block">{t.game.header.phase}</p>
               <h1
-                className={clsx('font-display text-lg md:text-xl font-bold tracking-widest uppercase truncate transition-all duration-700', PHASE_COLORS[phase])}
+                className={clsx('font-display text-base md:text-lg font-bold tracking-widest uppercase truncate transition-all duration-700', PHASE_COLORS[phase])}
                 style={{ textShadow: PHASE_GLOW[phase] }}
               >
                 {t.game.phaseLabels[phase]}
                 {phase !== 'role_reveal' && phase !== 'game_over' && (
-                  <span className="text-white/40"> · D{room.day}</span>
+                  <span className="text-white/40 text-sm"> · D{room.day}</span>
                 )}
               </h1>
+              <p className="text-[10px] font-mono text-white/35 truncate hidden sm:block leading-tight mt-0.5">
+                {getPhaseSubtitle(phase, room.day, room.players.find(p => p.id === room.currentSpeakerId)?.name, amAlive, amSpectator)}
+              </p>
             </div>
 
             {/* Timer */}
@@ -858,7 +887,7 @@ export function GamePage() {
                 {soundMuted ? '🔇' : '🔊'}
               </button>
 
-              <Button size="sm" variant="ghost" onClick={() => leaveRoom()}>
+              <Button size="sm" variant="ghost" onClick={() => setShowMoreMenu(true)}>
                 {t.game.header.leave}
               </Button>
             </div>
@@ -1044,7 +1073,7 @@ export function GamePage() {
               </div>
 
               {/* Slim 3-button nav */}
-              <div className="flex-shrink-0 glass-panel border-t border-white/8 flex">
+              <div className="flex-shrink-0 glass-panel border-t border-white/8 flex" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
                 {([
                   { id: 'grid',   label: '👥', sublabel: t.lobby.players },
                   { id: 'action', label: phase === 'voting' ? '⚖️' : '⚡', sublabel: phase === 'voting' ? t.game.voting.title : (t.game.phaseLabels[phase] || 'Action') },
@@ -1118,7 +1147,7 @@ export function GamePage() {
                   )}
                 </AnimatePresence>
               </div>
-              <div className="flex-shrink-0 glass-panel border-t border-white/10 flex">
+              <div className="flex-shrink-0 glass-panel border-t border-white/10 flex" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
                 {([
                   { id: 'action',  label: `⚡ ${t.game.phaseLabels[phase] || 'Action'}` },
                   { id: 'players', label: `👥 ${t.lobby.players}` },
@@ -1170,15 +1199,7 @@ export function GamePage() {
                           roleName: p.role ? (t.game.roles[p.role as keyof typeof t.game.roles] ?? p.role) : 'Mafia',
                           roleKey: p.role ?? 'mafia',
                         }))
-                    : myRole?.team === 'cult'
-                      ? (room?.players ?? [])
-                          .filter(p => p.team === 'cult' && p.id !== myPlayer?.id)
-                          .map((p): TeamMate => ({
-                            name: p.name,
-                            roleName: p.role ? (t.game.roles[p.role as keyof typeof t.game.roles] ?? p.role) : 'Cultist',
-                            roleKey: p.role ?? 'cultist',
-                          }))
-                      : []
+                    : []
                 }
               />
             </div>

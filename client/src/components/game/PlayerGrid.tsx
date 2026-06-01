@@ -6,9 +6,8 @@ import { ModBadge } from '@/components/ui/ModBadge';
 
 const ROLE_ICONS: Partial<Record<RoleKey, string>> = {
   citizen: '🏙', sheriff: '🔍', doctor: '💉', bodyguard: '🛡',
-  vigilante: '⚖️', escort: '💃', mayor: '👑', tracker: '👁',
-  veteran: '🎖️', spy: '🕵️', mafia: '🔫', don: '♛',
-  arsonist: '🔥', maniac: '🌀', jester: '🃏', cult_leader: '🕯️', cultist: '🔮',
+  vigilante: '⚖️', escort: '💃', spy: '🕵️',
+  mafia: '🔫', don: '♛', maniac: '🌀', jester: '🃏',
 };
 
 /** Voice state for the local player's tile (camera/mic). */

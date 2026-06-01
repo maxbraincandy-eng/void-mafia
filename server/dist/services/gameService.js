@@ -100,6 +100,11 @@ export function advancePhase(room) {
                 setPhase(room, 'game_over');
                 return 'game_over';
             }
+            // Day-first: go to day(1) discussion before first night
+            if (!room.settings.startWithNight) {
+                setPhase(room, 'day');
+                return 'day';
+            }
             setPhase(room, 'night');
             return 'night';
         case 'night':

@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS = {
     tieVoteRule: 'no_elimination',
     minPlayers: 4,
     isPrivate: false,
+    startWithNight: false,
     roles: {
         mafia: 0,
         don: 0,

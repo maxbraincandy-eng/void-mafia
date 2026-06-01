@@ -10,6 +10,8 @@ import { ChatPanel } from '@/components/chat/ChatPanel';
 import { SeatMap } from '@/components/lobby/SeatMap';
 import { PlayerStatsModal } from '@/components/ui/PlayerStatsModal';
 import { ReportModal } from '@/components/ui/ReportModal';
+import { RoomMoreMenu } from '@/components/ui/RoomMoreMenu';
+import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
@@ -32,6 +34,8 @@ export function LobbyPage() {
   }));
 
   const [showSettings, setShowSettings] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showRoleGuide, setShowRoleGuide] = useState(false);
   const [statsPlayer, setStatsPlayer] = useState<PlayerPublic | null>(null);
   const [reportProfileId, setReportProfileId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -70,12 +74,21 @@ export function LobbyPage() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between mb-8 pr-20"
+          className="flex items-center justify-between mb-8"
         >
-          <div>
+          <div className="flex items-start gap-3">
+            <button
+              onClick={() => setShowMoreMenu(true)}
+              className="mt-1.5 w-9 h-9 rounded-xl flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/8 border border-white/8 transition-all active:scale-90"
+              title="More options"
+            >
+              <span className="text-xl leading-none">⋯</span>
+            </button>
+            <div>
             <h1 className="font-display text-4xl font-bold gradient-text tracking-wide">VOID MAFIA</h1>
             <p className="text-neon-green/50 font-mono text-xs tracking-widest">{t.common.poweredBy}</p>
             <p className="text-white/40 text-sm font-mono mt-1">{t.lobby.subtitle}</p>
+            </div>
           </div>
 
           {/* Room code */}
@@ -226,7 +239,7 @@ export function LobbyPage() {
                   </Button>
                 </>
               )}
-              <Button variant="danger" onClick={() => leaveRoom()} loading={isLoading}>
+              <Button variant="danger" onClick={() => setShowMoreMenu(true)} loading={isLoading}>
                 {t.lobby.leave}
               </Button>
             </div>
@@ -296,6 +309,20 @@ export function LobbyPage() {
           onSuccess={() => setReportProfileId(null)}
         />
       )}
+
+      <RoleInfoModal open={showRoleGuide} onClose={() => setShowRoleGuide(false)} />
+
+      <RoomMoreMenu
+        open={showMoreMenu}
+        onClose={() => setShowMoreMenu(false)}
+        phase="lobby"
+        roomCode={room.code}
+        spectators={room.players.filter(p => p.isSpectator)}
+        amHost={amHost}
+        isInVoice={voice.channel !== null}
+        onLeaveRoom={leaveRoom}
+        onShowRoleGuide={() => setShowRoleGuide(true)}
+      />
     </div>
   );
 }
@@ -419,6 +446,17 @@ function SettingsPanel({
             className="w-4 h-4 accent-neon-pink"
           />
           <label htmlFor="privateRoom" className="text-sm text-white/60">{t.lobby.privateRoom}</label>
+        </div>
+
+        <div className="flex items-center gap-3 mb-4">
+          <input
+            type="checkbox"
+            id="startWithNight"
+            checked={local.startWithNight ?? false}
+            onChange={e => setLocal(s => ({ ...s, startWithNight: e.target.checked }))}
+            className="w-4 h-4 accent-neon-cyan"
+          />
+          <label htmlFor="startWithNight" className="text-sm text-white/60">Start with Night <span className="text-white/30 text-xs">(skip day 1 discussion)</span></label>
         </div>
 
         <Button fullWidth variant="neon-purple" onClick={() => onUpdate(local)}>

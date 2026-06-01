@@ -44,6 +44,7 @@ interface GameStore {
   createRoom: (name: string, settings?: Partial<GameSettings>) => Promise<void>;
   joinRoom: (code: string, name: string, isSpectator?: boolean) => Promise<void>;
   leaveRoom: () => Promise<void>;
+  terminateGame: () => Promise<void>;
   toggleReady: () => Promise<void>;
   kickPlayer: (playerId: string) => Promise<void>;
   updateSettings: (settings: Partial<GameSettings>) => Promise<void>;
@@ -140,6 +141,18 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   socket.on('error', ({ message }: { message: string }) => {
     get().addToast(message, 'error');
+  });
+
+  (socket as any).on('room:closed', ({ reason }: { reason: string }) => {
+    set({
+      room: null,
+      myPlayerId: null,
+      myRole: null,
+      nightResult: null,
+      investigationResult: null,
+      gameOverResult: null,
+    });
+    get().addToast(reason, 'error');
   });
 
   // ── Helper ───────────────────────────────────────────────────────
@@ -258,6 +271,11 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     restartGame: withLoading(async () => {
       await emit('game:restart');
+      set({ myRole: null, nightResult: null, investigationResult: null, spyReport: null, gameOverResult: null });
+    }),
+
+    terminateGame: withLoading(async () => {
+      await emit('game:terminate');
       set({ myRole: null, nightResult: null, investigationResult: null, spyReport: null, gameOverResult: null });
     }),
 

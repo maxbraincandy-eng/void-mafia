@@ -202,6 +202,7 @@ export interface GameSettings {
   tieVoteRule: TieRule;
   minPlayers: number;
   isPrivate: boolean;
+  startWithNight: boolean;
   roles: {
     mafia: number;
     don: number;
@@ -316,6 +317,7 @@ type Cb<T> = (res: Res<T>) => void;
 
 export interface ServerToClientEvents {
   'room:update':        (room: RoomPublic) => void;
+  'room:closed':        (data: { reason: string }) => void;
   'chat:new':           (msg: ChatMessage) => void;
   'game:role':          (data: { role: Role }) => void;
   'game:night_result':  (result: NightResult) => void;
@@ -358,6 +360,7 @@ export interface ClientToServerEvents {
   'game:restart':       (cb: Cb<null>) => void;
   'game:set_will':      (data: { text: string }, cb: Cb<null>) => void;
   'game:pause':         (cb: Cb<{ isPaused: boolean }>) => void;
+  'game:terminate':     (cb: Cb<null>) => void;
   'leaderboard:get':    (cb: Cb<PlayerProfilePublic[]>) => void;
   'chat:send':          (data: { text: string; channel: ChatChannel }, cb: Cb<null>) => void;
   'mod:kick_from_room': (data: { targetProfileId: string; roomId: string; reason: string }, cb: Cb<null>) => void;
