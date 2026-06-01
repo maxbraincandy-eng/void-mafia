@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
 import { useT } from '@/store/langStore';
 import { Button } from '@/components/ui/Button';
+import { PoweredBy } from '@/components/ui/PoweredBy';
 import { Avatar } from '@/components/ui/Avatar';
 import { ChatPanel } from '@/components/chat/ChatPanel';
 import { PlayerStatsModal } from '@/components/ui/PlayerStatsModal';
@@ -89,9 +90,7 @@ export function LobbyPage() {
             <h1 className="font-display text-3xl font-bold gradient-text tracking-wide leading-none mb-1">
               VOID MAFIA
             </h1>
-            <p className="text-neon-green/50 font-mono text-[10px] tracking-widest mb-2">
-              {t.common?.poweredBy ?? 'powered by ბატონი მაქსი'}
-            </p>
+            <PoweredBy className="block mb-2" />
             {/* Status chip + role guide */}
             <div className="flex items-center gap-2 flex-wrap">
               <div className={clsx(

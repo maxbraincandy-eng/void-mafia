@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { PoweredBy } from '@/components/ui/PoweredBy';
 
 export function ClansPage() {
   return (
@@ -7,7 +8,7 @@ export function ClansPage() {
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-8">
         <div className="mb-8">
           <h1 className="font-display text-3xl font-bold gradient-text tracking-wide">VOID MAFIA</h1>
-          <p className="text-neon-green/50 font-mono text-xs tracking-widest">powered by ბატონი მაქსი</p>
+          <PoweredBy className="block mt-0.5" />
         </div>
 
         <motion.div

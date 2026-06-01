@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
+import { PoweredBy } from '@/components/ui/PoweredBy';
 import { PlayerProfilePublic } from '@/types/index';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
@@ -43,7 +44,7 @@ export function LeaderboardPage() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="font-display text-3xl font-bold gradient-text tracking-wide">VOID MAFIA</h1>
-            <p className="text-neon-green/50 font-mono text-xs tracking-widest">powered by ბატონი მაქსი</p>
+            <PoweredBy className="block mt-0.5" />
           </div>
           <button
             onClick={load}

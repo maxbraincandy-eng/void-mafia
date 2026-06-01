@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
 import { useT } from '@/store/langStore';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
+import { PoweredBy } from '@/components/ui/PoweredBy';
 
 type Tab = 'guest' | 'signin' | 'register';
 
@@ -72,7 +73,7 @@ export function LoginPage() {
             MAFIA
           </h1>
           <p className="text-white/30 font-mono text-xs tracking-widest mt-3">{t.login.subtitle}</p>
-          <p className="text-neon-green/60 font-mono text-xs tracking-widest mt-1">{t.common.poweredBy}</p>
+          <PoweredBy className="block mt-1.5" />
         </motion.div>
 
         {/* Tab switcher */}

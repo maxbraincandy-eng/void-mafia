@@ -109,3 +109,60 @@
   .preserve-3d      { transform-style: preserve-3d; }
   .backface-hidden  { backface-visibility: hidden; }
 }
+
+/* ── Powered-by cyberpunk badge ───────────────────────────── */
+.powered-by-cyber {
+  position: relative;
+  display: inline-block;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(0, 255, 136, 0.55);
+  text-shadow:
+    0 0 8px  rgba(0, 255, 136, 0.55),
+    0 0 22px rgba(0, 255, 136, 0.22);
+  animation: cyberFlicker 9s ease-in-out infinite;
+}
+
+.powered-by-cyber::before,
+.powered-by-cyber::after {
+  content: attr(data-text);
+  position: absolute;
+  left: 0; top: 0;
+  width: 100%;
+  overflow: hidden;
+  opacity: 0;
+  animation: cyberGlitch 9s ease-in-out infinite;
+}
+
+.powered-by-cyber::before {
+  left: 2px;
+  color: rgba(255, 0, 204, 0.75);
+  text-shadow: none;
+  clip-path: inset(15% 0 55% 0);
+  animation-delay: 0.06s;
+}
+
+.powered-by-cyber::after {
+  left: -2px;
+  color: rgba(0, 245, 255, 0.75);
+  text-shadow: none;
+  clip-path: inset(60% 0 8% 0);
+  animation-delay: 0.12s;
+}
+
+@keyframes cyberFlicker {
+  0%, 85%, 87%, 89%, 96%, 100% { opacity: 0.75; }
+  86%, 88%                     { opacity: 1; }
+  90%, 95%                     { opacity: 0.5; }
+}
+
+@keyframes cyberGlitch {
+  0%, 84%, 91%, 100%  { opacity: 0; transform: none; }
+  85%  { opacity: 1; transform: translateX( 3px) skewX( 3deg); }
+  86%  { opacity: 1; transform: translateX(-3px) skewX(-2deg); }
+  87%  { opacity: 1; transform: translateX( 2px); }
+  88%  { opacity: 0; }
+  90%  { opacity: 1; transform: translateX(-2px) skewX(1deg); }
+}

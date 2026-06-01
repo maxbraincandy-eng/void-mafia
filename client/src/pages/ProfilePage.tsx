@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
 import { ModBadge } from '@/components/ui/ModBadge';
+import { PoweredBy } from '@/components/ui/PoweredBy';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 
 export function ProfilePage() {
@@ -35,7 +36,7 @@ export function ProfilePage() {
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-8">
         <div className="mb-6">
           <h1 className="font-display text-3xl font-bold gradient-text tracking-wide">VOID MAFIA</h1>
-          <p className="text-neon-green/50 font-mono text-xs tracking-widest">powered by ბატონი მაქსი</p>
+          <PoweredBy className="block mt-0.5" />
         </div>
 
         {/* Profile card */}

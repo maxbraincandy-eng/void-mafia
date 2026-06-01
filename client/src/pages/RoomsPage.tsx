@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useT } from '@/store/langStore';
 import { useAmbientDrone } from '@/hooks/useAudio';
 import { Button } from '@/components/ui/Button';
+import { PoweredBy } from '@/components/ui/PoweredBy';
 import { Card } from '@/components/ui/Card';
 import { LeaderboardModal } from '@/components/ui/LeaderboardModal';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
@@ -95,7 +96,7 @@ export function RoomsPage() {
         <div className="mb-6 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="font-display text-3xl font-bold gradient-text tracking-wide">VOID MAFIA</h1>
-            <p className="text-neon-green/50 font-mono text-xs tracking-widest">{t.common.poweredBy}</p>
+            <PoweredBy className="block mt-0.5" />
           </div>
           <div className="flex items-center gap-2 flex-shrink-0 mt-1">
             <LanguageSwitcher />
