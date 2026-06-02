@@ -167,7 +167,10 @@ function startPhaseTimer(io: AppServer, room: Room): void {
 
   timerService.start(
     room.id, room.timer,
-    (remaining) => { room.timer = remaining; broadcastRoom(io, room); },
+    (remaining) => {
+      room.timer = remaining;
+      io.to(room.id).emit('room:timer', remaining);
+    },
     async () => {
       room.timer = 0;
       const wasNight = room.phase === 'night';

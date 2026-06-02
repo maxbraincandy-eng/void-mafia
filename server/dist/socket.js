@@ -118,7 +118,10 @@ function startPhaseTimer(io, room) {
     timerService.stop(room.id);
     if (!room.timer || room.timer <= 0)
         return;
-    timerService.start(room.id, room.timer, (remaining) => { room.timer = remaining; broadcastRoom(io, room); }, async () => {
+    timerService.start(room.id, room.timer, (remaining) => {
+        room.timer = remaining;
+        io.to(room.id).emit('room:timer', remaining);
+    }, async () => {
         room.timer = 0;
         const wasNight = room.phase === 'night';
         if (room.phase === 'voting')

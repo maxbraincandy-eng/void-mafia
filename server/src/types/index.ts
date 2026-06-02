@@ -453,6 +453,7 @@ type Cb<T> = (res: Res<T>) => void;
 
 export interface ServerToClientEvents {
   'room:update':        (room: RoomPublic) => void;
+  'room:timer':         (remaining: number) => void;
   'room:closed':        (data: { reason: string }) => void;
   'chat:new':           (msg: ChatMessage) => void;
   'game:role':          (data: { role: Role }) => void;

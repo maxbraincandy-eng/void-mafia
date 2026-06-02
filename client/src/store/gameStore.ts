@@ -92,7 +92,8 @@ export const useGameStore = create<GameStore>((set, get) => {
   // ── Socket event bindings ────────────────────────────────────────
   socket.on('connect', () => {
     const { room, myPlayerId } = get();
-    set({ isConnected: true });
+    // Clear stuck loading state on any reconnect
+    set({ isConnected: true, isLoading: false, error: null });
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission().catch(() => {});
     }
@@ -116,7 +117,12 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
     }
   });
-  socket.on('disconnect', () => set({ isConnected: false }));
+  socket.on('disconnect', () => set({ isConnected: false, isLoading: false }));
+
+  // Lightweight timer tick — avoids broadcasting full room state every second
+  socket.on('room:timer', (remaining: number) => {
+    set(s => s.room ? { room: { ...s.room, timer: remaining } } : {});
+  });
 
   socket.on('room:update', (room: RoomPublic) => {
     const prev = get();
