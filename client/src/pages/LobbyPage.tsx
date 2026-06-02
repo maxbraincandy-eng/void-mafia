@@ -57,10 +57,10 @@ export function LobbyPage() {
       // Spectators auto-join as listen-only — no mic permission needed
       voice.joinVoiceListenOnly('room');
     } else {
-      // Players auto-join if mic already granted; otherwise READY button triggers it
-      navigator.permissions?.query({ name: 'microphone' as PermissionName })
-        .then(result => { if (result.state === 'granted') voice.joinVoice('room'); })
-        .catch(() => {});
+      // Attempt silent auto-join; fails gracefully on iOS Safari where
+      // navigator.permissions.query is unsupported or mic isn't pre-granted.
+      // READY button acts as user-gesture fallback.
+      voice.joinVoice('room', false, true).catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id, amSpectator]);

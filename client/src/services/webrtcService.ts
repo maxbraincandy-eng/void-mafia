@@ -85,7 +85,7 @@ export class WebRTCSession {
     this.setState('connecting');
   }
 
-  async requestMedia(wantAudio: boolean, wantVideo: boolean): Promise<void> {
+  async requestMedia(wantAudio: boolean, wantVideo: boolean, silent = false): Promise<void> {
     this.setState('requesting');
 
     if (!navigator?.mediaDevices?.getUserMedia) {
@@ -93,7 +93,7 @@ export class WebRTCSession {
         ? 'Microphone and camera require HTTPS.'
         : 'Your browser does not support media devices.';
       this.setState('failed');
-      this.emit({ type: 'error', message: msg });
+      if (!silent) this.emit({ type: 'error', message: msg });
       throw new Error(msg);
     }
 
@@ -118,7 +118,7 @@ export class WebRTCSession {
       } else if (e.name === 'NotReadableError') {
         msg = 'Microphone is in use by another application.';
       }
-      this.emit({ type: 'error', message: msg });
+      if (!silent) this.emit({ type: 'error', message: msg });
       throw new Error(msg);
     }
   }

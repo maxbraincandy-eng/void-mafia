@@ -171,17 +171,12 @@ export function GamePage() {
     const prev = prevPhaseForVoice.current;
     prevPhaseForVoice.current = cur;
     if (!amAlive || amSpectator) return;
-    navigator.permissions?.query({ name: 'microphone' as PermissionName })
-      .then(r => {
-        if (r.state !== 'granted') return;
-        if (cur === 'night' && isMafiaPlayer && !voice.channel) {
-          voice.joinVoice('mafia');
-        } else if (prev === 'night' && cur !== 'night' && isMafiaPlayer && !voice.channel) {
-          // Mafia was kicked from room channel when night started — rejoin now
-          voice.joinVoice('room');
-        }
-      })
-      .catch(() => {});
+    if (cur === 'night' && isMafiaPlayer && !voice.channel) {
+      voice.joinVoice('mafia', false, true).catch(() => {});
+    } else if (prev === 'night' && cur !== 'night' && isMafiaPlayer && !voice.channel) {
+      // Mafia was kicked from room channel when night started — rejoin now
+      voice.joinVoice('room', false, true).catch(() => {});
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.phase, isMafiaPlayer, amAlive, amSpectator]);
 
@@ -194,12 +189,9 @@ export function GamePage() {
       // Spectators auto-join as listen-only — no mic permission needed
       voice.joinVoiceListenOnly('room');
     } else {
-      // Players auto-join if mic already granted (permission was primed on join button click)
-      navigator.permissions?.query({ name: 'microphone' as PermissionName })
-        .then(result => {
-          if (result.state === 'granted') voice.joinVoice(voiceChannel);
-        })
-        .catch(() => {});
+      // Attempt silent auto-join; fails gracefully on iOS Safari where
+      // navigator.permissions.query is unsupported or mic isn't pre-granted.
+      voice.joinVoice(voiceChannel, false, true).catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id]);
