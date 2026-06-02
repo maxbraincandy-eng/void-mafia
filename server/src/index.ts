@@ -12,6 +12,7 @@ import { attachSocketHandlers } from './socket.js';
 import { getAllRooms, toRoomListItem, deleteRoom } from './services/roomService.js';
 import { timerService } from './services/timerService.js';
 import { getPlayer, toPublicProfile, getAllPlayers } from './services/playerService.js';
+import { DB_FILE_PATH } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
@@ -51,6 +52,7 @@ app.get('/api/health', (_req, res) => {
     rooms: rooms.length,
     players: rooms.reduce((n, r) => n + r.players.size, 0),
     buildTime: BUILD_TIME,
+    dbPath: DB_FILE_PATH,
   });
 });
 

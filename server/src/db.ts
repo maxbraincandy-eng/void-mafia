@@ -6,7 +6,10 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DATABASE_PATH ?? resolve(__dirname, '../../data/void.db');
 
+export const DB_FILE_PATH = DB_PATH;
+
 mkdirSync(dirname(DB_PATH), { recursive: true });
+console.log(`[db] using database at: ${DB_PATH}`);
 
 export const db: DatabaseType = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
