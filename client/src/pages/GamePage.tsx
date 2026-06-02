@@ -171,11 +171,27 @@ export function GamePage() {
     const prev = prevPhaseForVoice.current;
     prevPhaseForVoice.current = cur;
     if (!amAlive || amSpectator) return;
-    if (cur === 'night' && isMafiaPlayer && !voice.channel) {
-      voice.joinVoice('mafia', false, true).catch(() => {});
-    } else if (prev === 'night' && cur !== 'night' && isMafiaPlayer && !voice.channel) {
-      // Mafia was kicked from room channel when night started — rejoin now
-      voice.joinVoice('room', false, true).catch(() => {});
+
+    if (cur === 'night' && isMafiaPlayer) {
+      if (voice.channel === 'room') {
+        // Leave room and join mafia channel. The server also sends voice:force-leave,
+        // but handling it explicitly avoids a race where room:update arrives first.
+        voice.leaveVoice();
+        setTimeout(() => voice.joinVoice('mafia', false, true).catch(() => {}), 400);
+      } else if (!voice.channel) {
+        voice.joinVoice('mafia', false, true).catch(() => {});
+      }
+    } else if (prev === 'night' && cur !== 'night') {
+      if (isMafiaPlayer && voice.channel === 'mafia') {
+        // Leave mafia channel and switch back to room.
+        // Same race-condition guard: handle regardless of server force-leave order.
+        voice.leaveVoice();
+        setTimeout(() => voice.joinVoice('room', false, true).catch(() => {}), 400);
+      } else if (!voice.channel) {
+        // Session was already destroyed (force-leave arrived first, or network drop).
+        // Covers both mafia and non-mafia players whose session was lost during night.
+        voice.joinVoice('room', false, true).catch(() => {});
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.phase, isMafiaPlayer, amAlive, amSpectator]);
