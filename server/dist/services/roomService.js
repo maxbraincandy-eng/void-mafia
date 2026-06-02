@@ -41,7 +41,7 @@ export function createRoom(hostSocketId, hostName, profileId, settings) {
     const hostPlayer = {
         id: generateId(),
         name: hostName.trim().slice(0, 24) || 'Player',
-        avatar: nameToAvatar(hostName),
+        avatar: profile?.avatar || nameToAvatar(hostName),
         socketId: hostSocketId,
         isHost: true,
         isAlive: true,
@@ -131,7 +131,7 @@ export function addPlayer(room, socketId, name, profileId) {
     const player = {
         id: generateId(),
         name: name.trim().slice(0, 24) || 'Player',
-        avatar: nameToAvatar(name),
+        avatar: joinProfile?.avatar || nameToAvatar(name),
         socketId,
         isHost: false,
         isAlive: true,
