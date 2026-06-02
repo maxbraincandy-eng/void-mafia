@@ -22,6 +22,7 @@ export function NightPanel() {
   const t = useT();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [lastAction, setLastAction] = useState<{ verb: string; name: string } | null>(null);
 
   if (!room || !myPlayer) return null;
 
@@ -58,6 +59,11 @@ export function NightPanel() {
       >
         <div className="text-3xl">✅</div>
         <p className="text-neon-green font-mono text-sm">{t.game.night.waitingMsg}</p>
+        {lastAction && (
+          <p className="text-white/40 font-mono text-xs">
+            {lastAction.verb}: <span className="text-white/65">{lastAction.name}</span>
+          </p>
+        )}
       </motion.div>
     );
   }
@@ -78,7 +84,7 @@ export function NightPanel() {
           fullWidth
           variant="danger"
           loading={isLoading}
-          onClick={() => submitNightAction(myPlayer.id)}
+          onClick={() => { setLastAction({ verb: 'Alert', name: 'active' }); submitNightAction(myPlayer.id); }}
         >
           🎖️ {nightActions['alert'] ?? 'Go on Alert'}
         </Button>
@@ -139,7 +145,7 @@ export function NightPanel() {
           fullWidth
           variant="danger"
           loading={isLoading}
-          onClick={() => submitNightAction(myPlayer.id)}
+          onClick={() => { setLastAction({ verb: 'Ignite', name: 'all doused' }); submitNightAction(myPlayer.id); }}
         >
           🔥 {nightActions['ignite'] ?? 'Ignite All Doused'}
         </Button>
@@ -153,7 +159,12 @@ export function NightPanel() {
           <Button
             fullWidth
             loading={isLoading}
-            onClick={() => { submitNightAction(selectedId); setSelectedId(null); }}
+            onClick={() => {
+              const targetName = room.players.find(p => p.id === selectedId)?.name ?? '';
+              setLastAction({ verb: actionLabel, name: targetName });
+              submitNightAction(selectedId);
+              setSelectedId(null);
+            }}
             variant={confirmVariant}
           >
             {actionLabel}: {room.players.find(p => p.id === selectedId)?.name}

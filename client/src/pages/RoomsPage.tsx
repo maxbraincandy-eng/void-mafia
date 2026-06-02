@@ -14,10 +14,19 @@ const SURFACE = 'rounded-2xl border border-white/[0.06]';
 const SURFACE_BG = { background: 'rgba(10, 6, 28, 0.92)' } as const;
 
 export function RoomsPage() {
+  type Preset = 'quick' | 'classic' | 'hardcore';
+
+  const PRESET_SETTINGS: Record<Preset, { nightDuration: number; dayDuration: number; voteDuration: number; speechDuration: number }> = {
+    quick:    { nightDuration: 25, dayDuration: 60,  voteDuration: 25,  speechDuration: 20 },
+    classic:  { nightDuration: 45, dayDuration: 90,  voteDuration: 45,  speechDuration: 40 },
+    hardcore: { nightDuration: 60, dayDuration: 120, voteDuration: 60,  speechDuration: 60 },
+  };
+
   const [mode, setMode] = useState<'browse' | 'create' | 'join'>('browse');
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [rooms, setRooms] = useState<RoomListItem[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
+  const [preset, setPreset] = useState<Preset>('classic');
   const [isPrivate, setIsPrivate] = useState(false);
   const [code, setCode] = useState('');
   const [joinAsSpectator, setJoinAsSpectator] = useState(false);
@@ -60,7 +69,7 @@ export function RoomsPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     primeMicPermission();
-    await createRoom(username, isPrivate ? { isPrivate: true } : undefined);
+    await createRoom(username, { ...PRESET_SETTINGS[preset], isPrivate });
   };
 
   const handleJoin = async (e: React.FormEvent) => {
@@ -260,6 +269,30 @@ export function RoomsPage() {
                     onClick={() => setIsPrivate(opt.val)}
                     className={`py-3 px-3 rounded-xl border text-left transition-all ${
                       isPrivate === opt.val
+                        ? 'border-white/20 bg-white/[0.04] text-white/70'
+                        : 'border-white/[0.06] text-white/28 hover:border-white/12 hover:text-white/45'
+                    }`}
+                  >
+                    <p className="text-xs font-mono font-bold">{opt.label}</p>
+                    <p className="text-[10px] font-mono text-white/30 mt-0.5">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
+
+              {/* Preset selector */}
+              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2 mt-1">Game Pace</p>
+              <div className="grid grid-cols-3 gap-2 mb-5">
+                {([
+                  { id: 'quick'    as Preset, label: 'Quick',    desc: '~25 min' },
+                  { id: 'classic'  as Preset, label: 'Classic',  desc: '~45 min' },
+                  { id: 'hardcore' as Preset, label: 'Hardcore', desc: '~70 min' },
+                ]).map(opt => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setPreset(opt.id)}
+                    className={`py-3 px-2 rounded-xl border text-center transition-all ${
+                      preset === opt.id
                         ? 'border-white/20 bg-white/[0.04] text-white/70'
                         : 'border-white/[0.06] text-white/28 hover:border-white/12 hover:text-white/45'
                     }`}

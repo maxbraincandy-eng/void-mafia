@@ -98,6 +98,8 @@ export function GamePage() {
   const [mobileVoiceOpen, setMobileVoiceOpen] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [pendingVoteId, setPendingVoteId] = useState<string | null>(null);
+  const [showRoleCard, setShowRoleCard] = useState(false);
+  const [reconnectBanner, setReconnectBanner] = useState(false);
   const [eliminationVictims, setEliminationVictims] = useState<Array<{ name: string; seat: number }>>([]);
   const handleElimDone = useCallback(() => setEliminationVictims([]), []);
   const prevAliveRef = useRef<Map<string, boolean>>(new Map());
@@ -269,6 +271,8 @@ export function GamePage() {
   for (const p of room.players) {
     if (p.voteTarget) voteCounts[p.voteTarget] = (voteCounts[p.voteTarget] ?? 0) + 1;
   }
+  const aliveVoters = room.players.filter(p => p.isAlive && !p.isSpectator);
+  const votedCount = aliveVoters.filter(p => p.voteTarget).length;
 
   // My pending vote selection (for PlayerGrid highlight)
   // We read this from VotingPanel indirectly — simpler to just track via room state
@@ -318,6 +322,19 @@ export function GamePage() {
   useEffect(() => {
     setPendingVoteId(null);
   }, [phase]);
+
+  // Reconnect banner: show briefly when mounting into an active game (mid-session rejoin)
+  const reconnectChecked = useRef(false);
+  useEffect(() => {
+    if (!room || reconnectChecked.current) return;
+    reconnectChecked.current = true;
+    const activePhase = room.phase !== 'lobby' && room.phase !== 'role_reveal' && room.phase !== 'game_over';
+    if (activePhase) {
+      setReconnectBanner(true);
+      setTimeout(() => setReconnectBanner(false), 3500);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.id]);
 
   const handleSaveWill = async () => {
     await setWill(willText.slice(0, 200));
@@ -412,13 +429,25 @@ export function GamePage() {
       >
         {phase === 'role_reveal' && (
           amSpectator ? (
-            <div className="py-8">
-              <div className="flex items-center gap-3 mb-4">
+            <div className="py-8 space-y-4">
+              <div className="flex items-center gap-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-neon-purple/60" />
                 <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-neon-purple/60">Spectating</span>
                 <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(155,0,255,0.2), transparent)' }} />
               </div>
               <p className="text-white/40 text-sm font-mono">Roles are being revealed to players…</p>
+              {Object.keys(room.activeRoleCounts ?? {}).length > 0 && (
+                <div className="rounded-xl border border-neon-purple/15 bg-neon-purple/[0.04] p-3">
+                  <p className="text-[10px] font-mono tracking-widest uppercase text-neon-purple/50 mb-2">Role Distribution</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.entries(room.activeRoleCounts).map(([role, count]) => (
+                      <span key={role} className="text-[10px] font-mono px-2 py-0.5 rounded border border-white/10 text-white/40">
+                        {t.game.roles[role as keyof typeof t.game.roles] ?? role} ×{count}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <RoleReveal
@@ -583,9 +612,23 @@ export function GamePage() {
                 </span>
                 <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(255,45,85,0.25), transparent)' }} />
               </div>
-              <p className="text-white/40 text-sm font-mono pl-4">
-                {t.game.voting.alivePlaying.replace('{n}', String(alivePlayers))}
-              </p>
+              <div className="pl-4 flex items-center gap-3">
+                <p className="text-white/40 text-sm font-mono">
+                  {t.game.voting.alivePlaying.replace('{n}', String(alivePlayers))}
+                </p>
+                <span className="text-white/15 text-xs">·</span>
+                <p className="text-white/30 text-xs font-mono">
+                  {votedCount}/{aliveVoters.length} voted
+                </p>
+                {votedCount > 0 && (
+                  <div className="flex-1 h-0.5 bg-white/[0.06] rounded-full overflow-hidden max-w-[60px]">
+                    <div
+                      className="h-full bg-neon-red/50 rounded-full transition-all duration-500"
+                      style={{ width: `${(votedCount / Math.max(aliveVoters.length, 1)) * 100}%` }}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
             {!amSpectator && <VotingPanel />}
           </div>
@@ -645,6 +688,95 @@ export function GamePage() {
       />
 
 
+
+      {/* Reconnect banner */}
+      <AnimatePresence>
+        {reconnectBanner && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-xl border border-neon-cyan/30 bg-[rgba(0,20,30,0.95)] backdrop-blur-sm shadow-lg"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-neon-cyan animate-pulse flex-shrink-0" />
+            <span className="text-xs font-mono text-neon-cyan/80">Reconnected · syncing game state</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Role card modal */}
+      <AnimatePresence>
+        {showRoleCard && myRole && (() => {
+          const roleInfo = (t.roleGuide.roles as Record<string, { desc: string; ability: string; win: string }>)[myRole.key];
+          return (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-6"
+              onClick={() => setShowRoleCard(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+                className="w-full max-w-xs rounded-3xl border p-6 space-y-5"
+                style={{
+                  background: `radial-gradient(ellipse 120% 80% at 50% -10%, ${myRole.glowColor}18 0%, rgba(6,3,20,0.98) 55%)`,
+                  borderColor: `${myRole.glowColor}35`,
+                  boxShadow: `0 0 40px ${myRole.glowColor}25`,
+                }}
+                onClick={e => e.stopPropagation()}
+              >
+                {/* Role name */}
+                <div className="text-center">
+                  <p className="text-[10px] font-mono tracking-[0.3em] uppercase mb-2" style={{ color: `${myRole.glowColor}80` }}>Your Role</p>
+                  <h2
+                    className="font-display text-3xl font-bold tracking-widest uppercase"
+                    style={{ color: myRole.glowColor, textShadow: `0 0 20px ${myRole.glowColor}` }}
+                  >
+                    {myRole.name}
+                  </h2>
+                </div>
+
+                {/* Divider */}
+                <div className="h-px" style={{ background: `linear-gradient(90deg, transparent, ${myRole.glowColor}40, transparent)` }} />
+
+                {/* Description */}
+                {roleInfo && (
+                  <div className="space-y-4">
+                    <p className="text-white/65 text-sm leading-relaxed text-center">{roleInfo.desc}</p>
+
+                    <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3 space-y-3">
+                      <div>
+                        <p className="text-[10px] font-mono tracking-widest uppercase mb-1" style={{ color: `${myRole.glowColor}70` }}>
+                          {t.roleGuide.nightAbility}
+                        </p>
+                        <p className="text-white/55 text-xs">{roleInfo.ability}</p>
+                      </div>
+                      <div className="h-px bg-white/[0.05]" />
+                      <div>
+                        <p className="text-[10px] font-mono tracking-widest uppercase mb-1" style={{ color: `${myRole.glowColor}70` }}>
+                          {t.roleGuide.winCondition}
+                        </p>
+                        <p className="text-white/55 text-xs">{roleInfo.win}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => setShowRoleCard(false)}
+                  className="w-full py-2 rounded-xl border border-white/10 text-white/35 text-xs font-mono tracking-widest uppercase hover:text-white/60 hover:border-white/20 transition-all"
+                >
+                  {t.common.close}
+                </button>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
 
       {/* Vote elimination cinematic */}
       <VoteEliminationOverlay result={voteEliminationResult} onDismiss={dismissVoteElimination} />
@@ -818,9 +950,11 @@ export function GamePage() {
                 </div>
               )}
 
-              {/* Role badge */}
+              {/* Role badge — tap to open role card */}
               {myRole && !amSpectator && (
-                <div className="px-2 py-1 rounded-lg border text-[10px] md:text-xs font-display font-bold tracking-wider uppercase"
+                <button
+                  onClick={() => setShowRoleCard(true)}
+                  className="px-2 py-1 rounded-lg border text-[10px] md:text-xs font-display font-bold tracking-wider uppercase transition-all hover:scale-105 active:scale-95"
                   style={{
                     borderColor: `${myRole.glowColor}40`,
                     color: myRole.glowColor,
@@ -828,7 +962,7 @@ export function GamePage() {
                     textShadow: `0 0 10px ${myRole.glowColor}`,
                   }}>
                   {myRole.name}
-                </div>
+                </button>
               )}
 
               {/* Spectator count eye icon */}
@@ -946,6 +1080,19 @@ export function GamePage() {
 
           {/* Events + Chat sidebar */}
           <aside className="w-64 lg:w-72 flex-shrink-0 overflow-hidden p-4 border-l border-white/5 hidden lg:flex flex-col">
+            {/* Spectator role distribution panel */}
+            {amSpectator && phase !== 'lobby' && phase !== 'role_reveal' && Object.keys(room.activeRoleCounts ?? {}).length > 0 && (
+              <div className="mb-3 rounded-xl border border-neon-purple/15 bg-neon-purple/[0.04] p-3 flex-shrink-0">
+                <p className="text-[10px] font-mono tracking-widest uppercase text-neon-purple/50 mb-2">Roles in play</p>
+                <div className="flex flex-wrap gap-1">
+                  {Object.entries(room.activeRoleCounts).map(([role, count]) => (
+                    <span key={role} className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/8 text-white/35">
+                      {t.game.roles[role as keyof typeof t.game.roles] ?? role} ×{count}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             {/* Tab switcher */}
             <div className="flex gap-1 mb-3 flex-shrink-0">
               {(['events', 'chat'] as RightTab[]).map(tab => (

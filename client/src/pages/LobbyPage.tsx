@@ -41,6 +41,7 @@ export function LobbyPage() {
   const [statsPlayer, setStatsPlayer] = useState<PlayerPublic | null>(null);
   const [reportProfileId, setReportProfileId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [shared, setShared] = useState(false);
   const [confirmTransferId, setConfirmTransferId] = useState<string | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const t = useT();
@@ -72,6 +73,21 @@ export function LobbyPage() {
     navigator.clipboard.writeText(`https://voidmafia.one/join/${room.code}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShare = async () => {
+    const url = `https://voidmafia.one/join/${room.code}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Void Mafia', text: `Join my game — code: ${room.code}`, url });
+        setShared(true);
+        setTimeout(() => setShared(false), 2000);
+      } catch {}
+    } else {
+      navigator.clipboard.writeText(url);
+      setShared(true);
+      setTimeout(() => setShared(false), 2000);
+    }
   };
 
   return (
@@ -122,19 +138,27 @@ export function LobbyPage() {
           {/* Room code */}
           <div className="text-right shrink-0">
             <p className="text-[9px] font-mono text-white/18 uppercase tracking-[0.18em] mb-1">Room</p>
-            <button onClick={handleCopy} className="group flex items-center justify-end gap-2">
+            <div className="flex items-center justify-end gap-2">
               <span className="font-mono text-xl font-bold text-neon-cyan/80 tracking-[0.22em]">
                 {room.code}
               </span>
-              <span className={clsx(
+              <button onClick={handleCopy} className={clsx(
                 'text-[10px] px-2 py-0.5 rounded border font-mono transition-all',
                 copied
                   ? 'border-neon-green/35 bg-neon-green/[0.07] text-neon-green/80'
-                  : 'border-white/[0.08] text-white/22 group-hover:border-white/18 group-hover:text-white/45',
+                  : 'border-white/[0.08] text-white/22 hover:border-white/18 hover:text-white/45',
               )}>
                 {copied ? '✓' : 'Copy'}
-              </span>
-            </button>
+              </button>
+              <button onClick={handleShare} className={clsx(
+                'text-[10px] px-2 py-0.5 rounded border font-mono transition-all',
+                shared
+                  ? 'border-neon-cyan/35 bg-neon-cyan/[0.07] text-neon-cyan/80'
+                  : 'border-white/[0.08] text-white/22 hover:border-white/18 hover:text-white/45',
+              )}>
+                {shared ? '✓' : 'Share'}
+              </button>
+            </div>
             {room.settings.isPrivate && (
               <p className="text-[10px] text-white/22 font-mono mt-1">Private room</p>
             )}
