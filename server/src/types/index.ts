@@ -477,6 +477,9 @@ export interface ServerToClientEvents {
   'voice:answer':        (data: { from: string; sdp: object }) => void;
   'voice:ice-candidate': (data: { from: string; candidate: object }) => void;
   'voice:error':         (data: { message: string }) => void;
+  'voice:force-leave':   (data: { channel: VoiceChannel; reason: string }) => void;
+  'voice:force-mute':    (data: { reason: string }) => void;
+  'voice:force-unmute':  () => void;
   // XP / levels / cosmetics
   'xp:gained':           (data: XPGain) => void;
   // Spectate queue

@@ -160,14 +160,28 @@ export function GamePage() {
   const voiceChannelLabel =
     voiceChannel === 'mafia' ? '◉ Mafia Voice' : '◎ Room Voice';
 
-  // During speech phase, mute local mic when it's not my turn
+  // Speech phase voice enforcement is handled server-side via voice:force-mute / voice:force-unmute.
+  // Auto-join Mafia voice when night starts; rejoin room channel when night ends.
+  const prevPhaseForVoice = useRef<string | null>(null);
   useEffect(() => {
-    if (!voice.channel || room?.phase !== 'speech') return;
-    const isMyTurn = room.currentSpeakerId === myPlayer?.id;
-    if (!isMyTurn && !voice.isMuted) voice.toggleMute();
-    if (isMyTurn && voice.isMuted) voice.toggleMute();
+    const cur = room?.phase ?? null;
+    if (!cur || cur === prevPhaseForVoice.current) return;
+    const prev = prevPhaseForVoice.current;
+    prevPhaseForVoice.current = cur;
+    if (!amAlive || amSpectator) return;
+    navigator.permissions?.query({ name: 'microphone' as PermissionName })
+      .then(r => {
+        if (r.state !== 'granted') return;
+        if (cur === 'night' && isMafiaPlayer && !voice.channel) {
+          voice.joinVoice('mafia');
+        } else if (prev === 'night' && cur !== 'night' && isMafiaPlayer && !voice.channel) {
+          // Mafia was kicked from room channel when night started — rejoin now
+          voice.joinVoice('room');
+        }
+      })
+      .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room?.phase, room?.currentSpeakerId, myPlayer?.id, voice.channel]);
+  }, [room?.phase, isMafiaPlayer, amAlive, amSpectator]);
 
   // Auto-join voice if mic permission was already granted
   const autoJoined = useRef(false);

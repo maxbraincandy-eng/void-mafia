@@ -77,3 +77,18 @@ export function leave(socketId: string): Array<{
 export function getMembers(roomId: string, channel: VoiceChannel): VoiceMember[] {
   return Array.from(state.get(roomId)?.get(channel)?.values() ?? []);
 }
+
+/** Remove one socket from a specific channel. Returns remaining members, or null if socket wasn't in that channel. */
+export function removeFromChannel(
+  socketId: string,
+  channel: VoiceChannel,
+): { roomId: string; remaining: VoiceMember[] } | null {
+  for (const [roomId, channels] of state.entries()) {
+    const ch = channels.get(channel);
+    if (ch?.has(socketId)) {
+      ch.delete(socketId);
+      return { roomId, remaining: Array.from(ch.values()) };
+    }
+  }
+  return null;
+}

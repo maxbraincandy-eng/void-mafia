@@ -43,7 +43,12 @@ import {
   warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, logKick,
 } from './services/moderationService.js';
 import {
-  canJoin as voiceCanJoin, join as voiceJoin, leave as voiceLeave, VoiceChannel,
+  canJoin as voiceCanJoin,
+  join as voiceJoin,
+  leave as voiceLeave,
+  getMembers as voiceGetMembers,
+  removeFromChannel as voiceRemoveFromChannel,
+  VoiceChannel,
 } from './services/voiceService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -1519,5 +1524,63 @@ function handleVoiceLeave(io: AppServer, socketId: string): void {
     for (const peer of remaining) {
       io.to(peer.socketId).emit('voice:peer-left', { socketId, channel });
     }
+  }
+}
+
+function forceLeaveVoiceChannel(io: AppServer, roomId: string, channel: VoiceChannel, reason: string): void {
+  const members = [...voiceGetMembers(roomId, channel)];
+  for (const member of members) {
+    io.to(member.socketId).emit('voice:force-leave', { channel, reason });
+    const removed = voiceRemoveFromChannel(member.socketId, channel);
+    if (removed) {
+      for (const peer of removed.remaining) {
+        io.to(peer.socketId).emit('voice:peer-left', { socketId: member.socketId, channel });
+      }
+    }
+  }
+}
+
+function enforceVoicePhaseRules(io: AppServer, room: Room): void {
+  const { id: roomId, phase } = room;
+
+  if (phase === 'night') {
+    // Mafia players leave the room channel (so they can join the mafia channel).
+    // Non-mafia players stay in the room channel but are muted until day resumes.
+    const roomMembers = [...voiceGetMembers(roomId, 'room')];
+    for (const member of roomMembers) {
+      const player = room.players.get(member.playerId);
+      if (player?.team === 'mafia') {
+        io.to(member.socketId).emit('voice:force-leave', { channel: 'room', reason: 'Use the Mafia channel during night.' });
+        const removed = voiceRemoveFromChannel(member.socketId, 'room');
+        if (removed) {
+          for (const peer of removed.remaining) {
+            io.to(peer.socketId).emit('voice:peer-left', { socketId: member.socketId, channel: 'room' });
+          }
+        }
+      } else {
+        io.to(member.socketId).emit('voice:force-mute', { reason: 'Voice muted during night phase.' });
+      }
+    }
+    return;
+  }
+
+  // Leaving night — clean up any stale mafia channel connections
+  forceLeaveVoiceChannel(io, roomId, 'mafia', 'Mafia voice is only available during night.');
+
+  if (phase === 'speech') {
+    const speakerId = room.speechOrder[room.currentSpeakerIdx] ?? null;
+    for (const member of voiceGetMembers(roomId, 'room')) {
+      if (member.playerId === speakerId) {
+        io.to(member.socketId).emit('voice:force-unmute');
+      } else {
+        io.to(member.socketId).emit('voice:force-mute', { reason: 'Only the current speaker may transmit.' });
+      }
+    }
+    return;
+  }
+
+  // day, voting, lobby, role_reveal, game_over — lift any force mutes
+  for (const member of voiceGetMembers(roomId, 'room')) {
+    io.to(member.socketId).emit('voice:force-unmute');
   }
 }
