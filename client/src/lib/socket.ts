@@ -24,11 +24,23 @@ export function emitWithAck<TData, TRes>(
   data?: TData,
 ): Promise<TRes> {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('Connection slow — please try again.')), 30_000);
+    const timeout = setTimeout(() => {
+      console.warn(`[ack-timeout] ${event} connected=${socket.connected}`);
+      reject(new Error('Connection slow — please try again.'));
+    }, 30_000);
 
-    socket.emit(event as any, data, (res: TRes) => {
+    const cb = (res: TRes) => {
       clearTimeout(timeout);
       resolve(res);
-    });
+    };
+
+    // Never pass undefined/null as data — Socket.IO serialises it to null,
+    // and the server handler (cb) => {} would receive null as its first arg
+    // instead of the ack callback, causing the ack to never fire.
+    if (data !== undefined && data !== null) {
+      socket.emit(event as any, data, cb);
+    } else {
+      socket.emit(event as any, cb);
+    }
   });
 }

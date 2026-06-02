@@ -122,15 +122,19 @@ export const useGameStore = create<GameStore>((set, get) => {
     const prev = get();
     const prevPhase = prev.room?.phase;
 
+    // room:update confirms the server processed our action — always clear loading.
+    // This is a safety net for cases where the ack callback arrives late or not at all.
+    const extra: Partial<GameStore> = { isLoading: false };
+
     // When any client sees the phase leave game_over (host restarted),
     // clear all stale per-game state so old overlays don't bleed into the new game.
     if (prevPhase === 'game_over' && room.phase !== 'game_over') {
-      set({ room, gameOverResult: null, myRole: null, nightResult: null, investigationResult: null, spyReport: null });
+      set({ room, gameOverResult: null, myRole: null, nightResult: null, investigationResult: null, spyReport: null, ...extra });
     } else if (room.phase === 'role_reveal' && prevPhase === 'lobby') {
       // New game just started — ensure game-over overlay is gone
-      set({ room, gameOverResult: null, nightResult: null, investigationResult: null, spyReport: null });
+      set({ room, gameOverResult: null, nightResult: null, investigationResult: null, spyReport: null, ...extra });
     } else {
-      set({ room });
+      set({ room, ...extra });
     }
   });
 
