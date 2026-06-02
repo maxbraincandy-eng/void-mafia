@@ -4,11 +4,13 @@ const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? '';
 
 export const socket: Socket = io(SERVER_URL, {
   autoConnect: false,
-  transports: ['websocket'],
+  transports: ['websocket', 'polling'],
+  upgrade: true,
   reconnection: true,
   reconnectionAttempts: 10,
   reconnectionDelay: 500,
   reconnectionDelayMax: 3000,
+  timeout: 5000,
 });
 
 export function connectSocket(): void {
@@ -25,7 +27,7 @@ export function emitWithAck<TData, TRes>(
   data?: TData,
 ): Promise<TRes> {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('Connection slow — please try again.')), 8_000);
+    const timeout = setTimeout(() => reject(new Error('Connection slow — please try again.')), 10_000);
 
     socket.emit(event as any, data, (res: TRes) => {
       clearTimeout(timeout);

@@ -21,8 +21,10 @@ const io = new Server(httpServer, {
         methods: ['GET', 'POST'],
         credentials: true,
     },
-    pingTimeout: 10000,
-    pingInterval: 5000,
+    transports: ['websocket', 'polling'],
+    pingTimeout: 20000,
+    pingInterval: 10000,
+    upgradeTimeout: 10000,
 });
 // ── Middleware ────────────────────────────────────────────────────────
 app.use(cors({
