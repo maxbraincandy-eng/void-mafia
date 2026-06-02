@@ -120,7 +120,9 @@ export function ProfilePage() {
                 <h2 className={`font-display font-bold text-xl ${profile.isModerator ? 'text-neon-green' : 'text-white'}`}>{profile.username}</h2>
                 {profile.isModerator && profile.moderatorBadgeVisible && <ModBadge level={profile.moderatorLevel} />}
               </div>
-              <p className="text-white/30 font-mono text-xs mt-0.5">ID: {profile.id.slice(0, 12)}…</p>
+              <p className="text-neon-cyan/60 font-display font-bold text-sm mt-0.5 tracking-widest">
+                #{profile.friendCode ?? '????'}
+              </p>
               <p className="text-white/20 font-mono text-xs">Joined {new Date(profile.joinedAt).toLocaleDateString()}</p>
             </div>
           </div>

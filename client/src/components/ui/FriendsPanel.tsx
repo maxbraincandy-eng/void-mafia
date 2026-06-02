@@ -4,16 +4,18 @@ import { emitWithAck } from '@/lib/socket';
 import { Friend, FriendRequest } from '@/types/index';
 import type { Res } from '@/types/index';
 import { useGameStore } from '@/store/gameStore';
+import { useAuthStore } from '@/store/authStore';
 
 const LEVEL_COLORS = ['text-white/40', 'text-neon-cyan/70', 'text-neon-purple/80', 'text-neon-pink/80', 'text-yellow-400'];
 function lvlColor(level: number) { return LEVEL_COLORS[Math.min(Math.floor((level - 1) / 2), LEVEL_COLORS.length - 1)]; }
 
 export function FriendsPanel() {
   const [friends, setFriends] = useState<Friend[]>([]);
-  const [addId, setAddId] = useState('');
+  const [addCode, setAddCode] = useState('');
   const [addError, setAddError] = useState('');
   const [addLoading, setAddLoading] = useState(false);
   const { pendingFriendRequests } = useGameStore(s => ({ pendingFriendRequests: s.pendingFriendRequests }));
+  const profile = useAuthStore(s => s.profile);
 
   const refresh = () => {
     emitWithAck<undefined, Res<Friend[]>>('friend:list', undefined)
@@ -25,13 +27,13 @@ export function FriendsPanel() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addId.trim()) return;
+    if (!addCode.trim()) return;
     setAddLoading(true);
     setAddError('');
-    const res = await emitWithAck<{ toProfileId: string }, Res<null>>('friend:request', { toProfileId: addId.trim() });
+    const res = await emitWithAck<{ friendCode: string }, Res<null>>('friend:request', { friendCode: addCode.trim() });
     setAddLoading(false);
     if (res.ok) {
-      setAddId('');
+      setAddCode('');
     } else {
       setAddError(res.error);
     }
@@ -62,17 +64,35 @@ export function FriendsPanel() {
 
   return (
     <div className="space-y-4">
+      {/* My friend code */}
+      {profile?.friendCode && (
+        <div className="px-3 py-2 rounded-xl border border-neon-cyan/20 bg-neon-cyan/5 flex items-center justify-between">
+          <div>
+            <p className="font-mono text-[9px] uppercase tracking-wider text-white/30">Your code</p>
+            <p className="font-display font-bold text-neon-cyan text-lg tracking-widest">#{profile.friendCode}</p>
+          </div>
+          <button
+            onClick={() => navigator.clipboard?.writeText(profile.friendCode!)}
+            className="font-mono text-[9px] text-white/30 hover:text-neon-cyan/70 transition-colors uppercase tracking-wider"
+          >
+            copy
+          </button>
+        </div>
+      )}
+
       {/* Add friend */}
       <form onSubmit={handleAdd} className="flex gap-2">
         <input
-          value={addId}
-          onChange={e => setAddId(e.target.value)}
-          placeholder="Player ID to add…"
-          className="flex-1 bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:border-neon-cyan/30"
+          value={addCode}
+          onChange={e => setAddCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
+          placeholder="4-digit code…"
+          inputMode="numeric"
+          maxLength={4}
+          className="flex-1 bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:border-neon-cyan/30 font-mono tracking-widest"
         />
         <button
           type="submit"
-          disabled={addLoading}
+          disabled={addLoading || addCode.length < 4}
           className="px-4 py-2 rounded-xl font-display font-bold text-xs tracking-wider uppercase border border-neon-cyan/30 text-neon-cyan hover:bg-neon-cyan/10 transition-all disabled:opacity-40"
         >
           {addLoading ? '…' : 'Add'}
@@ -139,7 +159,7 @@ export function FriendsPanel() {
         <div className="text-center py-8 text-white/20 font-mono text-sm">
           <p className="text-3xl mb-2">👥</p>
           <p>No friends yet</p>
-          <p className="text-[10px] mt-1 text-white/15">Add friends by their Player ID</p>
+          <p className="text-[10px] mt-1 text-white/15">Add friends by their 4-digit code</p>
         </div>
       )}
     </div>

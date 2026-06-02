@@ -164,6 +164,23 @@ catch { /* column already exists */ } };
 addCol("ALTER TABLE players ADD COLUMN xp INTEGER NOT NULL DEFAULT 0");
 addCol("ALTER TABLE players ADD COLUMN level INTEGER NOT NULL DEFAULT 1");
 addCol("ALTER TABLE players ADD COLUMN cosmetics TEXT NOT NULL DEFAULT '{}'");
+addCol("ALTER TABLE players ADD COLUMN friend_code TEXT NOT NULL DEFAULT ''");
+addCol("ALTER TABLE players ADD COLUMN granted_mod_level TEXT");
+// Backfill friend codes for existing players
+{
+    const needsCodes = db.prepare("SELECT id FROM players WHERE friend_code = '' OR friend_code IS NULL").all();
+    if (needsCodes.length > 0) {
+        const setCode = db.prepare("UPDATE players SET friend_code = ? WHERE id = ?");
+        const hasCode = db.prepare("SELECT id FROM players WHERE friend_code = ?");
+        for (const p of needsCodes) {
+            let code;
+            do {
+                code = String(1000 + Math.floor(Math.random() * 9000));
+            } while (hasCode.get(code));
+            setCode.run(code, p.id);
+        }
+    }
+}
 // Seed achievement definitions
 const ACHIEVEMENTS = [
     { key: 'first_blood', name: 'First Blood', icon: '🩸', rarity: 'common', description: 'Win your first game' },

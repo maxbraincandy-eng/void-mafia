@@ -118,6 +118,7 @@ export interface PlayerProfilePublic {
   xp?: number;
   level?: number;
   cosmetics?: PlayerCosmetics;
+  friendCode?: string;
 }
 
 export interface PlayerPublic {

@@ -102,6 +102,7 @@ export interface PlayerProfile {
     xp: number;
     level: number;
     cosmetics: PlayerCosmetics;
+    friendCode: string;
 }
 export interface PlayerProfilePublic {
     id: string;
@@ -116,6 +117,7 @@ export interface PlayerProfilePublic {
     xp: number;
     level: number;
     cosmetics: PlayerCosmetics;
+    friendCode: string;
 }
 export interface Report {
     id: string;
@@ -635,7 +637,8 @@ export interface ClientToServerEvents {
     }) => void;
     'game:rematch': (cb: Cb<null>) => void;
     'friend:request': (data: {
-        toProfileId: string;
+        toProfileId?: string;
+        friendCode?: string;
     }, cb: Cb<null>) => void;
     'friend:accept': (data: {
         fromProfileId: string;
@@ -648,6 +651,16 @@ export interface ClientToServerEvents {
     }, cb: Cb<null>) => void;
     'friend:list': (cb: Cb<Friend[]>) => void;
     'friend:requests': (cb: Cb<FriendRequest[]>) => void;
+    'player:find_by_code': (data: {
+        friendCode: string;
+    }, cb: Cb<PlayerProfilePublic>) => void;
+    'mod:set_level_by_code': (data: {
+        friendCode: string;
+        level: string | null;
+    }, cb: Cb<{
+        username: string;
+        newLevel: string | null;
+    }>) => void;
     'challenge:today': (cb: Cb<DailyChallenge>) => void;
     'cosmetics:equip': (data: {
         type: 'name_color' | 'frame';

@@ -32,11 +32,13 @@ export const useAuthStore = create<AuthStore>((set, get) => {
     set({ profile, isAuthed: true });
   });
 
-  // Auto-authenticate when socket connects if credentials exist
+  // Re-authenticate on every connect (handles reconnects — server loses socket.data on reconnect)
   socket.on('connect', () => {
-    const { uid, username, isAuthed } = get();
-    if (uid && username && !isAuthed) {
-      get().login(username).catch(() => {});
+    const { uid, username } = get();
+    if (uid && username) {
+      socket.emit('player:auth', { uid, username }, (res: any) => {
+        if (res?.ok) set({ profile: res.data, isAuthed: true, isLoading: false });
+      });
     }
   });
 

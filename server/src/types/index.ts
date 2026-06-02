@@ -161,6 +161,7 @@ export interface PlayerProfile {
   xp: number;
   level: number;
   cosmetics: PlayerCosmetics;
+  friendCode: string;
 }
 
 export interface PlayerProfilePublic {
@@ -176,6 +177,7 @@ export interface PlayerProfilePublic {
   xp: number;
   level: number;
   cosmetics: PlayerCosmetics;
+  friendCode: string;
 }
 
 // ── Report ────────────────────────────────────────────────────────────
@@ -546,17 +548,21 @@ export interface ClientToServerEvents {
   // Rematch
   'game:rematch':        (cb: Cb<null>) => void;
   // Friends
-  'friend:request':      (data: { toProfileId: string }, cb: Cb<null>) => void;
-  'friend:accept':       (data: { fromProfileId: string }, cb: Cb<null>) => void;
-  'friend:decline':      (data: { fromProfileId: string }, cb: Cb<null>) => void;
-  'friend:remove':       (data: { profileId: string }, cb: Cb<null>) => void;
-  'friend:list':         (cb: Cb<Friend[]>) => void;
-  'friend:requests':     (cb: Cb<FriendRequest[]>) => void;
+  'friend:request':        (data: { toProfileId?: string; friendCode?: string }, cb: Cb<null>) => void;
+  'friend:accept':         (data: { fromProfileId: string }, cb: Cb<null>) => void;
+  'friend:decline':        (data: { fromProfileId: string }, cb: Cb<null>) => void;
+  'friend:remove':         (data: { profileId: string }, cb: Cb<null>) => void;
+  'friend:list':           (cb: Cb<Friend[]>) => void;
+  'friend:requests':       (cb: Cb<FriendRequest[]>) => void;
+  // Friend code lookup
+  'player:find_by_code':   (data: { friendCode: string }, cb: Cb<PlayerProfilePublic>) => void;
+  // Mod grant by code (owner only)
+  'mod:set_level_by_code': (data: { friendCode: string; level: string | null }, cb: Cb<{ username: string; newLevel: string | null }>) => void;
   // Challenges
-  'challenge:today':     (cb: Cb<DailyChallenge>) => void;
+  'challenge:today':       (cb: Cb<DailyChallenge>) => void;
   // Cosmetics
-  'cosmetics:equip':     (data: { type: 'name_color' | 'frame'; itemId: string | null }, cb: Cb<PlayerCosmetics>) => void;
-  'cosmetics:get':       (data: { profileId: string }, cb: Cb<PlayerCosmetics>) => void;
+  'cosmetics:equip':       (data: { type: 'name_color' | 'frame'; itemId: string | null }, cb: Cb<PlayerCosmetics>) => void;
+  'cosmetics:get':         (data: { profileId: string }, cb: Cb<PlayerCosmetics>) => void;
 }
 
 export interface InterServerEvents {}

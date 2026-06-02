@@ -17,6 +17,10 @@ const PERM_MAP: Record<ModeratorLevel, string[]> = {
   owner:            ['VIEW_REPORTS', 'KICK_ANY_PLAYER', 'MUTE_ANY_PLAYER', 'WARN_ANY_PLAYER', 'BAN_ANY_PLAYER', 'RESOLVE_REPORTS', 'VIEW_MODERATION_LOGS', 'ALL'],
 };
 
+const MOD_RANK: Record<ModeratorLevel, number> = {
+  moderator: 1, senior_moderator: 2, admin: 3, owner: 4,
+};
+
 export function getModPermissions(level: ModeratorLevel | null): string[] {
   return level ? PERM_MAP[level] : [];
 }
@@ -31,15 +35,59 @@ function resolveModLevel(uid: string, username: string): ModeratorLevel | null {
   const adminNames    = new Set(parseName(process.env.ADMIN_NAMES        ?? ''));
   const modNames      = new Set(parseName(process.env.MODERATOR_NAMES    ?? ''));
 
-  if (ownerIds.has(uid))     return 'owner';
-  if (adminIds.has(uid))     return 'admin';
-  if (seniorModIds.has(uid)) return 'senior_moderator';
-  if (modIds.has(uid))       return 'moderator';
-  const lower = username.toLowerCase();
-  if (ownerNames.has(lower)) return 'owner';
-  if (adminNames.has(lower)) return 'admin';
-  if (modNames.has(lower))   return 'moderator';
-  return null;
+  let envLevel: ModeratorLevel | null = null;
+  if (ownerIds.has(uid))     envLevel = 'owner';
+  else if (adminIds.has(uid))     envLevel = 'admin';
+  else if (seniorModIds.has(uid)) envLevel = 'senior_moderator';
+  else if (modIds.has(uid))       envLevel = 'moderator';
+  else {
+    const lower = username.toLowerCase();
+    if (ownerNames.has(lower)) envLevel = 'owner';
+    else if (adminNames.has(lower)) envLevel = 'admin';
+    else if (modNames.has(lower))   envLevel = 'moderator';
+  }
+
+  // Also check DB-granted level and take whichever is higher
+  try {
+    const row = db.prepare('SELECT granted_mod_level FROM players WHERE id = ?').get(uid) as any;
+    const granted = row?.granted_mod_level as ModeratorLevel | null;
+    if (granted) {
+      if (!envLevel) return granted;
+      return MOD_RANK[envLevel] >= MOD_RANK[granted] ? envLevel : granted;
+    }
+  } catch { /* ignore if column doesn't exist yet */ }
+
+  return envLevel;
+}
+
+// ── Friend code helpers ──────────────────────────────────────────────
+function generateUniqueFriendCode(): string {
+  let code: string;
+  do {
+    code = String(1000 + Math.floor(Math.random() * 9000));
+  } while (db.prepare('SELECT id FROM players WHERE friend_code = ?').get(code));
+  return code;
+}
+
+export function getPlayerByFriendCode(code: string): PlayerProfile | null {
+  const row = db.prepare('SELECT * FROM players WHERE friend_code = ?').get(code.trim()) as any;
+  return row ? rowToProfile(row) : null;
+}
+
+export function setGrantedModLevel(uid: string, level: ModeratorLevel | null): void {
+  db.prepare('UPDATE players SET granted_mod_level = ? WHERE id = ?').run(level, uid);
+  // Refresh stored moderator fields
+  const player = getPlayer(uid);
+  if (!player) return;
+  const newLevel = resolveModLevel(uid, player.username);
+  db.prepare(`
+    UPDATE players SET is_moderator = ?, moderator_level = ?, moderator_badge_visible = ?, moderator_permissions = ?
+    WHERE id = ?
+  `).run(
+    newLevel ? 1 : 0, newLevel, newLevel ? 1 : 0,
+    JSON.stringify(getModPermissions(newLevel)),
+    uid,
+  );
 }
 
 // ── DB → PlayerProfile ───────────────────────────────────────────────
@@ -85,6 +133,7 @@ function rowToProfile(row: any): PlayerProfile {
     xp:                     row.xp ?? 0,
     level:                  row.level ?? 1,
     cosmetics,
+    friendCode:             row.friend_code ?? '',
   };
 }
 
@@ -103,16 +152,17 @@ export async function registerWithEmail(
   const passwordHash = await bcrypt.hash(password, 10);
   const modLevel     = resolveModLevel(uid, name);
   const now          = Date.now();
+  const friendCode   = generateUniqueFriendCode();
 
   db.prepare(`
     INSERT INTO players (id, username, avatar, email, password_hash, games_played, wins, losses,
-      is_moderator, moderator_level, moderator_badge_visible, moderator_permissions, joined_at, last_seen_at)
-    VALUES (?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?, ?)
+      is_moderator, moderator_level, moderator_badge_visible, moderator_permissions, joined_at, last_seen_at, friend_code)
+    VALUES (?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     uid, name, nameToAvatar(name), normalised, passwordHash,
     modLevel ? 1 : 0, modLevel, modLevel ? 1 : 0,
     JSON.stringify(getModPermissions(modLevel)),
-    now, now,
+    now, now, friendCode,
   );
 
   return getPlayer(uid)!;
@@ -136,16 +186,17 @@ export function getOrCreatePlayer(uid: string, username: string): PlayerProfile 
   const row  = db.prepare('SELECT * FROM players WHERE id = ?').get(uid) as any;
 
   if (!row) {
-    const modLevel = resolveModLevel(uid, name);
+    const modLevel   = resolveModLevel(uid, name);
+    const friendCode = generateUniqueFriendCode();
     db.prepare(`
       INSERT INTO players (id, username, avatar, games_played, wins, losses,
-        is_moderator, moderator_level, moderator_badge_visible, moderator_permissions, joined_at, last_seen_at)
-      VALUES (?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?, ?)
+        is_moderator, moderator_level, moderator_badge_visible, moderator_permissions, joined_at, last_seen_at, friend_code)
+      VALUES (?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       uid, name, nameToAvatar(name),
       modLevel ? 1 : 0, modLevel, modLevel ? 1 : 0,
       JSON.stringify(getModPermissions(modLevel)),
-      now, now,
+      now, now, friendCode,
     );
   } else {
     const modLevel = resolveModLevel(uid, name);
@@ -188,6 +239,7 @@ export function toPublicProfile(p: PlayerProfile): PlayerProfilePublic {
     xp:                    p.xp,
     level:                 p.level,
     cosmetics:             p.cosmetics,
+    friendCode:            p.friendCode,
   };
 }
 

@@ -25,6 +25,7 @@ import {
   getActiveBan, getActiveMute, findSocketByProfile,
   registerWithEmail, authenticateWithEmail,
   addXP, getCosmetics, equipCosmetic,
+  getPlayerByFriendCode, setGrantedModLevel,
 } from './services/playerService.js';
 import {
   markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend,
@@ -1365,19 +1366,54 @@ export function attachSocketHandlers(io: AppServer): void {
     });
 
     // ── Friends ──────────────────────────────────────────────────────
-    socket.on('friend:request', ({ toProfileId }, cb) => {
+    socket.on('friend:request', ({ toProfileId, friendCode }: { toProfileId?: string; friendCode?: string }, cb) => {
       try {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('Not authenticated.');
-        sendFriendRequest(profileId, toProfileId);
-        // Notify the recipient if online
-        const targetSock = findSocketByProfile(io as any, toProfileId);
+
+        let targetId = toProfileId;
+        if (!targetId && friendCode) {
+          const target = getPlayerByFriendCode(friendCode);
+          if (!target) throw new Error('No player found with that code.');
+          targetId = target.id;
+        }
+        if (!targetId) throw new Error('Provide a friend code.');
+        if (targetId === profileId) throw new Error('Cannot add yourself.');
+
+        sendFriendRequest(profileId, targetId);
+        const targetSock = findSocketByProfile(io as any, targetId);
         if (targetSock) {
-          const reqs = getPendingRequests(toProfileId);
+          const reqs = getPendingRequests(targetId);
           const thisReq = reqs.find(r => r.fromId === profileId);
           if (thisReq) targetSock.emit('friend:request_received', thisReq);
         }
         cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('player:find_by_code', ({ friendCode }: { friendCode: string }, cb) => {
+      try {
+        const player = getPlayerByFriendCode(friendCode);
+        if (!player) return cb(err('No player found with that code.'));
+        cb(ok(toPublicProfile(player)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mod:set_level_by_code', ({ friendCode, level }: { friendCode: string; level: string | null }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const mod = getPlayer(profileId);
+        if (!mod || mod.moderatorLevel !== 'owner') throw new Error('Owner only.');
+        const target = getPlayerByFriendCode(friendCode);
+        if (!target) throw new Error('No player found with that code.');
+        const validLevels = ['moderator', 'senior_moderator', 'admin', 'owner', null];
+        if (!validLevels.includes(level as any)) throw new Error('Invalid level.');
+        setGrantedModLevel(target.id, level as any);
+        const updated = getPlayer(target.id)!;
+        const targetSock = findSocketByProfile(io as any, target.id);
+        if (targetSock) targetSock.emit('player:profile', toPublicProfile(updated));
+        cb(ok({ username: target.username, newLevel: level }));
       } catch (e: any) { cb(err(e.message)); }
     });
 

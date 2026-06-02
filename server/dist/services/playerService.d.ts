@@ -1,5 +1,7 @@
 import { PlayerProfile, PlayerProfilePublic, ModeratorLevel, BanRecord, MuteRecord, Warning, PlayerCosmetics } from '../types/index.js';
 export declare function getModPermissions(level: ModeratorLevel | null): string[];
+export declare function getPlayerByFriendCode(code: string): PlayerProfile | null;
+export declare function setGrantedModLevel(uid: string, level: ModeratorLevel | null): void;
 export declare function registerWithEmail(email: string, password: string, username: string): Promise<PlayerProfile>;
 export declare function authenticateWithEmail(email: string, password: string): Promise<PlayerProfile>;
 export declare function getOrCreatePlayer(uid: string, username: string): PlayerProfile;
