@@ -12,7 +12,7 @@ import { checkAchievements, getPlayerAchievements } from './services/achievement
 import { recordGame, getPlayerHistory } from './services/gameHistoryService.js';
 import { createClan, getClan, getClanByPlayer, getAllClans, getClanMembers, joinClan, leaveClan, } from './services/clanService.js';
 import { canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer, warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, logKick, } from './services/moderationService.js';
-import { canJoin as voiceCanJoin, join as voiceJoin, leave as voiceLeave, } from './services/voiceService.js';
+import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as voiceLeave, getMembers as voiceGetMembers, getSharedChannel as voiceGetSharedChannel, removeFromChannel as voiceRemoveFromChannel, } from './services/voiceService.js';
 // ── Rate limiting ─────────────────────────────────────────────────────
 const rateLimits = new Map();
 function rateOk(socketId, limit = 15) {
@@ -138,6 +138,7 @@ function startPhaseTimer(io, room) {
         if (nextPhase === 'game_over')
             emitGameOver(io, room);
         broadcastRoom(io, room);
+        enforceVoicePhaseRules(io, room);
         if (room.phase !== 'game_over')
             startPhaseTimer(io, room);
     });
@@ -659,6 +660,7 @@ export function attachSocketHandlers(io) {
                 }
                 broadcastSystemMsg(io, room, 'The game has begun. Roles are being revealed…');
                 broadcastRoom(io, room);
+                enforceVoicePhaseRules(io, room);
                 startPhaseTimer(io, room);
                 cb(ok(null));
             }
@@ -692,6 +694,7 @@ export function attachSocketHandlers(io) {
                     if (nextPhase === 'game_over')
                         emitGameOver(io, room);
                     broadcastRoom(io, room);
+                    enforceVoicePhaseRules(io, room);
                     if (room.phase !== 'game_over')
                         startPhaseTimer(io, room);
                 }
@@ -740,6 +743,7 @@ export function attachSocketHandlers(io) {
                 if (nextPhase === 'game_over')
                     emitGameOver(io, room);
                 broadcastRoom(io, room);
+                enforceVoicePhaseRules(io, room);
                 if (nextPhase !== 'game_over')
                     startPhaseTimer(io, room);
                 cb(ok(null));
@@ -767,6 +771,7 @@ export function attachSocketHandlers(io) {
                     room.timer = 0;
                     const nextPhase = advancePhase(room);
                     broadcastRoom(io, room);
+                    enforceVoicePhaseRules(io, room);
                     if (nextPhase !== 'game_over')
                         startPhaseTimer(io, room);
                 }
@@ -1328,7 +1333,8 @@ export function attachSocketHandlers(io) {
                         channel: validChannel,
                     });
                 }
-                cb(ok({ peers: existing.map(p => ({ socketId: p.socketId, name: p.name })) }));
+                const transmitAllowed = !canTransmitVoice(room, playerId, validChannel);
+                cb(ok({ peers: existing.map(p => ({ socketId: p.socketId, name: p.name })), transmitAllowed }));
             }
             catch (e) {
                 cb(err(e.message ?? 'Failed to join voice.'));
@@ -1340,6 +1346,18 @@ export function attachSocketHandlers(io) {
         });
         // ── Voice: Relay Offer ──────────────────────────────────────────
         socket.on('voice:offer', ({ to, sdp }, cb) => {
+            const { roomId, playerId } = socket.data;
+            if (roomId && playerId) {
+                const room = getRoom(roomId);
+                if (room) {
+                    const channel = voiceGetSharedChannel(socket.id, to);
+                    if (channel) {
+                        const txErr = canTransmitVoice(room, playerId, channel);
+                        if (txErr)
+                            return cb(err(txErr));
+                    }
+                }
+            }
             io.to(to).emit('voice:offer', { from: socket.id, sdp });
             cb(ok(null));
         });
@@ -1580,6 +1598,43 @@ function handleVoiceLeave(io, socketId) {
         for (const peer of remaining) {
             io.to(peer.socketId).emit('voice:peer-left', { socketId, channel });
         }
+    }
+}
+function forceLeaveVoiceChannel(io, roomId, channel, reason) {
+    const members = [...voiceGetMembers(roomId, channel)];
+    for (const member of members) {
+        io.to(member.socketId).emit('voice:force-leave', { channel, reason });
+        const removed = voiceRemoveFromChannel(member.socketId, channel);
+        if (removed) {
+            for (const peer of removed.remaining) {
+                io.to(peer.socketId).emit('voice:peer-left', { socketId: member.socketId, channel });
+            }
+        }
+    }
+}
+function enforceVoicePhaseRules(io, room) {
+    const { id: roomId, phase } = room;
+    if (phase === 'night') {
+        forceLeaveVoiceChannel(io, roomId, 'room', 'Public voice is disabled during night.');
+        return;
+    }
+    // Leaving night — clean up any stale mafia channel connections
+    forceLeaveVoiceChannel(io, roomId, 'mafia', 'Mafia voice is only available during night.');
+    if (phase === 'speech') {
+        const speakerId = room.speechOrder[room.currentSpeakerIdx] ?? null;
+        for (const member of voiceGetMembers(roomId, 'room')) {
+            if (member.playerId === speakerId) {
+                io.to(member.socketId).emit('voice:force-unmute');
+            }
+            else {
+                io.to(member.socketId).emit('voice:force-mute', { reason: 'Only the current speaker may transmit.' });
+            }
+        }
+        return;
+    }
+    // day, voting, lobby, role_reveal, game_over — lift any force mutes
+    for (const member of voiceGetMembers(roomId, 'room')) {
+        io.to(member.socketId).emit('voice:force-unmute');
     }
 }
 //# sourceMappingURL=socket.js.map

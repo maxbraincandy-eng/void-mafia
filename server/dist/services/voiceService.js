@@ -59,4 +59,54 @@ export function leave(socketId) {
 export function getMembers(roomId, channel) {
     return Array.from(state.get(roomId)?.get(channel)?.values() ?? []);
 }
+/** Returns null if player may transmit in this channel right now, or an error string. */
+export function canTransmitVoice(room, playerId, channel) {
+    const player = room.players.get(playerId);
+    if (!player)
+        return 'Player not found.';
+    if (!player.isAlive)
+        return 'Dead players cannot transmit voice.';
+    if (player.isSpectator)
+        return 'Spectators cannot transmit voice.';
+    if (channel === 'room') {
+        if (room.phase === 'night')
+            return 'Public voice is disabled during night.';
+        if (room.phase === 'speech') {
+            const speakerId = room.speechOrder[room.currentSpeakerIdx] ?? null;
+            if (playerId !== speakerId)
+                return 'Only the current speaker may transmit.';
+        }
+        return null;
+    }
+    if (channel === 'mafia') {
+        if (room.phase !== 'night')
+            return 'Mafia voice is only available during night.';
+        if (player.team !== 'mafia')
+            return 'Only Mafia members can transmit in this channel.';
+        return null;
+    }
+    return 'Unknown channel.';
+}
+/** Returns the voice channel that both sockets share (for offer-relay authorization). */
+export function getSharedChannel(socketId1, socketId2) {
+    for (const [, channels] of state.entries()) {
+        for (const [channel, members] of channels.entries()) {
+            if (members.has(socketId1) && members.has(socketId2)) {
+                return channel;
+            }
+        }
+    }
+    return null;
+}
+/** Remove one socket from a specific channel. Returns remaining members, or null if socket wasn't in that channel. */
+export function removeFromChannel(socketId, channel) {
+    for (const [roomId, channels] of state.entries()) {
+        const ch = channels.get(channel);
+        if (ch?.has(socketId)) {
+            ch.delete(socketId);
+            return { roomId, remaining: Array.from(ch.values()) };
+        }
+    }
+    return null;
+}
 //# sourceMappingURL=voiceService.js.map

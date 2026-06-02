@@ -455,6 +455,14 @@ export interface ServerToClientEvents {
     'voice:error': (data: {
         message: string;
     }) => void;
+    'voice:force-mute': (data: {
+        reason: string;
+    }) => void;
+    'voice:force-unmute': () => void;
+    'voice:force-leave': (data: {
+        channel: VoiceChannel;
+        reason: string;
+    }) => void;
     'xp:gained': (data: XPGain) => void;
     'queue:position': (data: {
         position: number;

@@ -24,17 +24,21 @@ export interface VoiceState {
   peers: PeerState[];
   remoteStreams: Record<string, MediaStream>;
   error: string | null;
+  forceMuted: boolean;
+  forceMutedReason: string | null;
 }
 
 const INITIAL: VoiceState = {
-  channel:         null,
-  status:          'disconnected',
-  isMuted:         false,
-  cameraOn:        false,
-  isLocalSpeaking: false,
-  peers:           [],
-  remoteStreams:   {},
-  error:           null,
+  channel:          null,
+  status:           'disconnected',
+  isMuted:          false,
+  cameraOn:         false,
+  isLocalSpeaking:  false,
+  peers:            [],
+  remoteStreams:    {},
+  error:            null,
+  forceMuted:       false,
+  forceMutedReason: null,
 };
 
 export function useVoiceChat() {
@@ -100,11 +104,36 @@ export function useVoiceChat() {
       } catch {}
     }
 
+    function onForceMute({ reason }: { reason: string }) {
+      const s = sessionRef.current;
+      if (s) s.setMuted(true);
+      patch({ isMuted: true, forceMuted: true, forceMutedReason: reason });
+    }
+
+    function onForceUnmute() {
+      const s = sessionRef.current;
+      if (s) s.setMuted(false);
+      patch({ isMuted: false, forceMuted: false, forceMutedReason: null });
+    }
+
+    function onForceLeave() {
+      if (sessionRef.current) {
+        (socket as any).emit('voice:leave');
+        sessionRef.current.destroy();
+        sessionRef.current = null;
+        setState(INITIAL);
+        log('force-left voice channel');
+      }
+    }
+
     (socket as any).on('voice:peer-joined',   onPeerJoined);
     (socket as any).on('voice:peer-left',      onPeerLeft);
     (socket as any).on('voice:offer',          onOffer);
     (socket as any).on('voice:answer',         onAnswer);
     (socket as any).on('voice:ice-candidate',  onIceCandidate);
+    (socket as any).on('voice:force-mute',     onForceMute);
+    (socket as any).on('voice:force-unmute',   onForceUnmute);
+    (socket as any).on('voice:force-leave',    onForceLeave);
 
     return () => {
       (socket as any).off('voice:peer-joined',   onPeerJoined);
@@ -112,6 +141,9 @@ export function useVoiceChat() {
       (socket as any).off('voice:offer',          onOffer);
       (socket as any).off('voice:answer',         onAnswer);
       (socket as any).off('voice:ice-candidate',  onIceCandidate);
+      (socket as any).off('voice:force-mute',     onForceMute);
+      (socket as any).off('voice:force-unmute',   onForceUnmute);
+      (socket as any).off('voice:force-leave',    onForceLeave);
     };
   }, [patch]);
 
@@ -165,7 +197,9 @@ export function useVoiceChat() {
         return;
       }
 
-      patch({ channel, cameraOn: withCamera });
+      const transmitAllowed: boolean = res.data.transmitAllowed ?? true;
+      patch({ channel, cameraOn: withCamera, forceMuted: !transmitAllowed, forceMutedReason: transmitAllowed ? null : 'Only the current speaker may transmit.' });
+      if (!transmitAllowed) session.setMuted(true);
       const existingPeers: Array<{ socketId: string; name: string }> = res.data.peers;
       log('joined voice, existing peers:', existingPeers.length);
 
@@ -198,10 +232,11 @@ export function useVoiceChat() {
   const toggleMute = useCallback(() => {
     const s = sessionRef.current;
     if (!s) return;
+    if (state.forceMuted) return; // server-enforced — cannot override
     const nextMuted = !state.isMuted;
     s.setMuted(nextMuted);
     patch({ isMuted: nextMuted });
-  }, [state.isMuted, patch]);
+  }, [state.isMuted, state.forceMuted, patch]);
 
   const toggleCamera = useCallback(async () => {
     const s = sessionRef.current;

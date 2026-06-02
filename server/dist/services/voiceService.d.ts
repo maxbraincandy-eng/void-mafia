@@ -16,4 +16,13 @@ export declare function leave(socketId: string): Array<{
     remaining: VoiceMember[];
 }>;
 export declare function getMembers(roomId: string, channel: VoiceChannel): VoiceMember[];
+/** Returns null if player may transmit in this channel right now, or an error string. */
+export declare function canTransmitVoice(room: Room, playerId: string, channel: VoiceChannel): string | null;
+/** Returns the voice channel that both sockets share (for offer-relay authorization). */
+export declare function getSharedChannel(socketId1: string, socketId2: string): VoiceChannel | null;
+/** Remove one socket from a specific channel. Returns remaining members, or null if socket wasn't in that channel. */
+export declare function removeFromChannel(socketId: string, channel: VoiceChannel): {
+    roomId: string;
+    remaining: VoiceMember[];
+} | null;
 //# sourceMappingURL=voiceService.d.ts.map

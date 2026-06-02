@@ -160,14 +160,20 @@ export function GamePage() {
   const voiceChannelLabel =
     voiceChannel === 'mafia' ? '◉ Mafia Voice' : '◎ Room Voice';
 
-  // During speech phase, mute local mic when it's not my turn
+  // Speech phase voice enforcement is handled server-side via voice:force-mute / voice:force-unmute.
+  // Auto-join Mafia voice when night starts (if mic was previously granted)
+  const prevPhaseForVoice = useRef<string | null>(null);
   useEffect(() => {
-    if (!voice.channel || room?.phase !== 'speech') return;
-    const isMyTurn = room.currentSpeakerId === myPlayer?.id;
-    if (!isMyTurn && !voice.isMuted) voice.toggleMute();
-    if (isMyTurn && voice.isMuted) voice.toggleMute();
+    const cur = room?.phase ?? null;
+    if (!cur || cur === prevPhaseForVoice.current) return;
+    prevPhaseForVoice.current = cur;
+    if (cur === 'night' && isMafiaPlayer && amAlive && !amSpectator && !voice.channel) {
+      navigator.permissions?.query({ name: 'microphone' as PermissionName })
+        .then(r => { if (r.state === 'granted') voice.joinVoice('mafia'); })
+        .catch(() => {});
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room?.phase, room?.currentSpeakerId, myPlayer?.id, voice.channel]);
+  }, [room?.phase, isMafiaPlayer, amAlive, amSpectator]);
 
   // Auto-join voice if mic permission was already granted
   const autoJoined = useRef(false);
@@ -268,8 +274,8 @@ export function GamePage() {
   // We read this from VotingPanel indirectly — simpler to just track via room state
   const myVoteTarget = myPlayer?.voteTarget ?? null;
 
-  // Mic is locked when another player has the floor
-  const micLocked = phase === 'speech' && room.currentSpeakerId !== myPlayer?.id && room.currentSpeakerId !== null;
+  // Mic is locked when server force-muted this player (speech phase non-speaker, or night for non-mafia)
+  const micLocked = voice.forceMuted;
 
   // Per-tile voice state — drives in-frame mic/camera controls & speaking rings
   const speakingSocketIds = new Set(voice.peers.filter(p => p.isSpeaking).map(p => p.socketId));
@@ -322,6 +328,14 @@ export function GamePage() {
   // Voice panel — shown in sidebar (desktop) and action tab (mobile)
   const VoicePanel = (
     <div className="mt-4">
+      {voice.forceMuted && voice.channel && (
+        <div className="mb-2 px-3 py-1.5 rounded-lg border border-yellow-500/20 bg-yellow-500/5 flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-yellow-500/70 flex-shrink-0" />
+          <p className="text-[10px] font-mono text-yellow-500/70 leading-tight">
+            {voice.forceMutedReason ?? 'Muted by system'}
+          </p>
+        </div>
+      )}
       <VoiceControls
         channel={voice.channel}
         status={voice.status}
@@ -438,26 +452,39 @@ export function GamePage() {
                 {amSpectator ? 'Players are taking their night actions…' : amAlive ? t.game.night.activeMsg : t.game.night.eliminatedMsg}
               </p>
             </div>
-            {/* Mafia voice panel in action area during night */}
+            {/* Mafia Radio — private night channel */}
             {isMafiaPlayer && amAlive && !amSpectator && (
-              <Card glow="none" padding="sm">
-                <p className="text-[10px] font-mono tracking-[0.2em] uppercase text-neon-red/60 mb-2">◉ Mafia Channel</p>
-                <VoiceControls
-                  channel={voice.channel}
-                  status={voice.status}
-                  isMuted={voice.isMuted}
-                  cameraOn={voice.cameraOn}
-                  isLocalSpeaking={voice.isLocalSpeaking}
-                  peerCount={voice.peers.length}
-                  error={voice.error}
-                  defaultChannel="mafia"
-                  channelLabel="🔴 Mafia Voice"
-                  onJoin={(ch, wc) => voice.joinVoice(ch, wc)}
-                  onLeave={voice.leaveVoice}
-                  onToggleMute={voice.toggleMute}
-                  onToggleCamera={voice.toggleCamera}
-                />
-              </Card>
+              <div className="rounded-2xl border border-neon-red/20 overflow-hidden" style={{ background: 'rgba(30,0,8,0.7)' }}>
+                <div className="flex items-center gap-2.5 px-3 py-2 border-b border-neon-red/10">
+                  <span className="text-xs" style={{ filter: 'drop-shadow(0 0 4px rgba(255,45,85,0.8))' }}>📻</span>
+                  <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-neon-red/70">Mafia Radio</span>
+                  <span className="text-[9px] font-mono text-white/25 ml-auto">Only Mafia can hear this</span>
+                </div>
+                <div className="p-3">
+                  <VoiceControls
+                    channel={voice.channel}
+                    status={voice.status}
+                    isMuted={voice.isMuted}
+                    cameraOn={voice.cameraOn}
+                    isLocalSpeaking={voice.isLocalSpeaking}
+                    peerCount={voice.peers.length}
+                    error={voice.error}
+                    defaultChannel="mafia"
+                    channelLabel="◉ Mafia Radio"
+                    onJoin={(ch, wc) => voice.joinVoice(ch, wc)}
+                    onLeave={voice.leaveVoice}
+                    onToggleMute={voice.toggleMute}
+                    onToggleCamera={voice.toggleCamera}
+                  />
+                </div>
+              </div>
+            )}
+            {/* Night message for non-Mafia alive players */}
+            {!isMafiaPlayer && amAlive && !amSpectator && (
+              <div className="rounded-xl border border-white/[0.06] px-4 py-3" style={{ background: 'rgba(10,6,28,0.6)' }}>
+                <p className="text-[10px] font-mono tracking-widest uppercase text-white/25 mb-1">Voice</p>
+                <p className="text-white/35 text-xs font-mono">Public voice is disabled at night.</p>
+              </div>
             )}
             {!amSpectator && <NightPanel />}
           </div>
@@ -527,11 +554,16 @@ export function GamePage() {
                   <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(0,230,100,0.25), transparent)' }} />
                 </div>
                 {speaker ? (
-                  <div className="pl-4 space-y-0.5">
+                  <div className="pl-4 space-y-1">
                     <p className="text-white font-semibold text-base">{speaker.name}</p>
                     <p className="text-white/35 text-xs font-mono">
                       {t.game.speech.speaker} {speakerIdx + 1} {t.game.speech.of} {totalSpeakers}
                     </p>
+                    {room.currentSpeakerId === myPlayer?.id ? (
+                      <p className="text-neon-green text-[10px] font-mono tracking-widest uppercase">It's your turn — mic is live</p>
+                    ) : (
+                      <p className="text-yellow-500/60 text-[10px] font-mono tracking-widest uppercase">Listening · mic muted</p>
+                    )}
                   </div>
                 ) : (
                   <p className="text-white/40 text-sm font-mono pl-4">{t.game.speech.loading}</p>
