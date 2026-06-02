@@ -9,13 +9,6 @@ import { db } from '../db.js';
 // ── Moderator config from env ─────────────────────────────────────────
 const parseIds  = (s: string) => s.split(',').map(n => n.trim()).filter(Boolean);
 const parseName = (s: string) => s.split(',').map(n => n.trim().toLowerCase()).filter(Boolean);
-const MOD_IDS        = new Set(parseIds(process.env.MODERATOR_IDS    ?? ''));
-const SENIOR_MOD_IDS = new Set(parseIds(process.env.SENIOR_MOD_IDS   ?? ''));
-const ADMIN_IDS      = new Set(parseIds(process.env.ADMIN_IDS         ?? ''));
-const OWNER_IDS      = new Set(parseIds(process.env.OWNER_IDS         ?? ''));
-const MOD_NAMES      = new Set(parseName(process.env.MODERATOR_NAMES  ?? ''));
-const ADMIN_NAMES    = new Set(parseName(process.env.ADMIN_NAMES      ?? ''));
-const OWNER_NAMES    = new Set(parseName(process.env.OWNER_NAMES      ?? ''));
 
 const PERM_MAP: Record<ModeratorLevel, string[]> = {
   moderator:        ['VIEW_REPORTS', 'KICK_ANY_PLAYER', 'MUTE_ANY_PLAYER', 'WARN_ANY_PLAYER'],
@@ -28,15 +21,24 @@ export function getModPermissions(level: ModeratorLevel | null): string[] {
   return level ? PERM_MAP[level] : [];
 }
 
+// Read env vars at call time so Railway variable changes take effect on next login without redeploy
 function resolveModLevel(uid: string, username: string): ModeratorLevel | null {
-  if (OWNER_IDS.has(uid))      return 'owner';
-  if (ADMIN_IDS.has(uid))      return 'admin';
-  if (SENIOR_MOD_IDS.has(uid)) return 'senior_moderator';
-  if (MOD_IDS.has(uid))        return 'moderator';
+  const ownerIds      = new Set(parseIds(process.env.OWNER_IDS         ?? ''));
+  const adminIds      = new Set(parseIds(process.env.ADMIN_IDS          ?? ''));
+  const seniorModIds  = new Set(parseIds(process.env.SENIOR_MOD_IDS     ?? ''));
+  const modIds        = new Set(parseIds(process.env.MODERATOR_IDS       ?? ''));
+  const ownerNames    = new Set(parseName(process.env.OWNER_NAMES        ?? ''));
+  const adminNames    = new Set(parseName(process.env.ADMIN_NAMES        ?? ''));
+  const modNames      = new Set(parseName(process.env.MODERATOR_NAMES    ?? ''));
+
+  if (ownerIds.has(uid))     return 'owner';
+  if (adminIds.has(uid))     return 'admin';
+  if (seniorModIds.has(uid)) return 'senior_moderator';
+  if (modIds.has(uid))       return 'moderator';
   const lower = username.toLowerCase();
-  if (OWNER_NAMES.has(lower))  return 'owner';
-  if (ADMIN_NAMES.has(lower))  return 'admin';
-  if (MOD_NAMES.has(lower))    return 'moderator';
+  if (ownerNames.has(lower)) return 'owner';
+  if (adminNames.has(lower)) return 'admin';
+  if (modNames.has(lower))   return 'moderator';
   return null;
 }
 
