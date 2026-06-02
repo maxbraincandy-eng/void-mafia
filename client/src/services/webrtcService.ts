@@ -42,6 +42,7 @@ type Listener = (event: WebRTCEvent) => void;
 
 export class WebRTCSession {
   private localStream: MediaStream | null = null;
+  private listenOnly = false;
   private pcs = new Map<string, RTCPeerConnection>();
   private audioEls = new Map<string, HTMLAudioElement>();
   private remoteStreams = new Map<string, MediaStream>();
@@ -77,6 +78,12 @@ export class WebRTCSession {
   }
 
   // ── Media ──────────────────────────────────────────────────────────
+
+  /** Skip getUserMedia entirely — receive audio/video without a local mic/camera. */
+  setListenOnlyMode(): void {
+    this.listenOnly = true;
+    this.setState('connecting');
+  }
 
   async requestMedia(wantAudio: boolean, wantVideo: boolean): Promise<void> {
     this.setState('requesting');
@@ -143,6 +150,11 @@ export class WebRTCSession {
         pc.addTrack(track, this.localStream);
         log('  added', track.kind, 'track');
       }
+    } else if (this.listenOnly) {
+      // No local stream — add recvonly audio transceiver so the SDP offer
+      // includes an audio section that tells the remote peer to send us audio.
+      pc.addTransceiver('audio', { direction: 'recvonly' });
+      log('  added recvonly audio transceiver (listen-only)');
     }
 
     pc.onicecandidate = (ev) => {

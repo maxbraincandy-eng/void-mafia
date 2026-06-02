@@ -48,18 +48,24 @@ export function LobbyPage() {
   const voice = useVoiceChat();
   const autoJoined = useRef(false);
 
+  const amSpectator = myPlayer?.isSpectator ?? false;
+
   useEffect(() => {
     if (!room?.id || autoJoined.current || voice.channel) return;
     autoJoined.current = true;
-    navigator.permissions?.query({ name: 'microphone' as PermissionName })
-      .then(result => { if (result.state === 'granted') voice.joinVoice('room'); })
-      .catch(() => {});
+    if (amSpectator) {
+      // Spectators auto-join as listen-only — no mic permission needed
+      voice.joinVoiceListenOnly('room');
+    } else {
+      // Players auto-join if mic already granted; otherwise READY button triggers it
+      navigator.permissions?.query({ name: 'microphone' as PermissionName })
+        .then(result => { if (result.state === 'granted') voice.joinVoice('room'); })
+        .catch(() => {});
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room?.id]);
+  }, [room?.id, amSpectator]);
 
   if (!room) return null;
-
-  const amSpectator = myPlayer?.isSpectator ?? false;
   const activePlayers = room.players.filter(p => !p.isSpectator);
   const playerCount = activePlayers.length;
   const minPlayers = room.settings.minPlayers;
@@ -485,6 +491,7 @@ export function LobbyPage() {
               isLocalSpeaking={voice.isLocalSpeaking}
               peerCount={voice.peers.length}
               error={voice.error}
+              listenOnly={voice.listenOnly}
               defaultChannel="room"
               onJoin={(ch, wc) => voice.joinVoice(ch, wc)}
               onLeave={voice.leaveVoice}

@@ -185,16 +185,22 @@ export function GamePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.phase, isMafiaPlayer, amAlive, amSpectator]);
 
-  // Auto-join voice if mic permission was already granted
+  // Auto-join voice on room entry
   const autoJoined = useRef(false);
   useEffect(() => {
     if (!room?.id || autoJoined.current || voice.channel) return;
     autoJoined.current = true;
-    navigator.permissions?.query({ name: 'microphone' as PermissionName })
-      .then(result => {
-        if (result.state === 'granted') voice.joinVoice(voiceChannel);
-      })
-      .catch(() => {});
+    if (amSpectator) {
+      // Spectators auto-join as listen-only — no mic permission needed
+      voice.joinVoiceListenOnly('room');
+    } else {
+      // Players auto-join if mic already granted (permission was primed on join button click)
+      navigator.permissions?.query({ name: 'microphone' as PermissionName })
+        .then(result => {
+          if (result.state === 'granted') voice.joinVoice(voiceChannel);
+        })
+        .catch(() => {});
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id]);
 
@@ -353,7 +359,13 @@ export function GamePage() {
   // Voice panel — shown in sidebar (desktop) and action tab (mobile)
   const VoicePanel = (
     <div className="mt-4">
-      {voice.forceMuted && voice.channel && (
+      {/* Night phase notice for spectators and non-mafia */}
+      {isNight && amSpectator && (
+        <div className="mb-2 px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 flex items-center gap-2">
+          <span className="text-[10px] font-mono text-white/40">🌙 Night phase — Mafia private channel is hidden.</span>
+        </div>
+      )}
+      {voice.forceMuted && voice.channel && !voice.listenOnly && (
         <div className="mb-2 px-3 py-1.5 rounded-lg border border-yellow-500/20 bg-yellow-500/5 flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-yellow-500/70 flex-shrink-0" />
           <p className="text-[10px] font-mono text-yellow-500/70 leading-tight">
@@ -370,6 +382,7 @@ export function GamePage() {
         peerCount={voice.peers.length}
         error={voice.error}
         muteLocked={micLocked}
+        listenOnly={voice.listenOnly || !amAlive}
         defaultChannel={voiceChannel}
         channelLabel={voiceChannelLabel}
         onJoin={(ch, withCam) => voice.joinVoice(ch, withCam)}

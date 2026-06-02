@@ -296,6 +296,10 @@ function announceNightResult(io: AppServer, room: Room): void {
     for (const killed of room.killedLastNight) {
       const p = room.players.get(killed.id);
       broadcastSystemMsg(io, room, nightDeathMsg(killed.name, p?.role ?? null, killed.lastWill));
+      // Force-mute the eliminated player in any voice channel they're in
+      if (p?.socketId) {
+        io.to(p.socketId).emit('voice:force-mute', { reason: 'You were eliminated.' });
+      }
     }
   } else if (room.savedLastNight) {
     broadcastSystemMsg(io, room, 'Dawn breaks. Everyone survived the night.');
@@ -364,6 +368,10 @@ function announceVoteResult(io: AppServer, room: Room): void {
         seat: target.seat,
       });
       broadcastSystemMsg(io, room, voteDeathMsg(target.name, target.role ?? null, target.lastWill));
+      // Force-mute the eliminated player
+      if (target.socketId) {
+        io.to(target.socketId).emit('voice:force-mute', { reason: 'You were eliminated.' });
+      }
     }
   } else {
     broadcastSystemMsg(io, room, 'The vote ended in a tie. No one was eliminated.');
@@ -1323,17 +1331,11 @@ export function attachSocketHandlers(io: AppServer): void {
 
     // ── Voice: Relay Offer ──────────────────────────────────────────
     socket.on('voice:offer', ({ to, sdp }, cb) => {
-      const { roomId, playerId } = socket.data;
-      if (roomId && playerId) {
-        const room = getRoom(roomId);
-        if (room) {
-          const channel = voiceGetSharedChannel(socket.id, to);
-          if (channel) {
-            const txErr = canTransmitVoice(room, playerId, channel);
-            if (txErr) return cb(err(txErr));
-          }
-        }
-      }
+      // Only allow relay if both sockets share a voice channel (channel auth).
+      // Transmit permission is enforced at the WebRTC layer — listen-only peers
+      // have no local tracks, so relaying their signaling offers is safe.
+      const channel = voiceGetSharedChannel(socket.id, to);
+      if (!channel) return cb(err('Not in the same voice channel.'));
       io.to(to).emit('voice:offer', { from: socket.id, sdp });
       cb(ok(null));
     });
@@ -1628,7 +1630,10 @@ function enforceVoicePhaseRules(io: AppServer, room: Room): void {
   if (phase === 'speech') {
     const speakerId = room.speechOrder[room.currentSpeakerIdx] ?? null;
     for (const member of voiceGetMembers(roomId, 'room')) {
-      if (member.playerId === speakerId) {
+      const player = room.players.get(member.playerId);
+      if (!player?.isAlive || player?.isSpectator) {
+        io.to(member.socketId).emit('voice:force-mute', { reason: 'Listen only.' });
+      } else if (member.playerId === speakerId) {
         io.to(member.socketId).emit('voice:force-unmute');
       } else {
         io.to(member.socketId).emit('voice:force-mute', { reason: 'Only the current speaker may transmit.' });
@@ -1637,8 +1642,14 @@ function enforceVoicePhaseRules(io: AppServer, room: Room): void {
     return;
   }
 
-  // day, voting, lobby, role_reveal, game_over — lift any force mutes
+  // day, voting, lobby, role_reveal, game_over — lift force mutes for alive players only
   for (const member of voiceGetMembers(roomId, 'room')) {
-    io.to(member.socketId).emit('voice:force-unmute');
+    const player = room.players.get(member.playerId);
+    if (player?.isAlive && !player?.isSpectator) {
+      io.to(member.socketId).emit('voice:force-unmute');
+    } else {
+      // Dead players and spectators remain listen-only
+      io.to(member.socketId).emit('voice:force-mute', { reason: 'Listen only.' });
+    }
   }
 }

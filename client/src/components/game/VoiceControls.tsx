@@ -18,6 +18,7 @@ interface VoiceControlsProps {
   peerCount: number;
   error: string | null;
   muteLocked?: boolean;
+  listenOnly?: boolean;
 
   onJoin: (channel: VoiceChannel, withCamera: boolean) => void;
   onLeave: () => void;
@@ -37,6 +38,7 @@ export function VoiceControls({
   peerCount,
   error,
   muteLocked = false,
+  listenOnly = false,
   onJoin,
   onLeave,
   onToggleMute,
@@ -173,8 +175,23 @@ export function VoiceControls({
         </div>
       )}
 
-      {/* ── In-voice controls ── */}
-      {isInVoice && (
+      {/* ── Listen-only state (spectators / dead players) ── */}
+      {isInVoice && listenOnly && (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-mono text-white/40">
+            👁 Listening • {peerCount} speaker{peerCount !== 1 ? 's' : ''}
+          </p>
+          <button
+            onClick={onLeave}
+            className="px-3 py-1.5 rounded-lg border border-white/10 text-white/30 hover:text-neon-red hover:border-neon-red/30 font-mono text-xs transition-all"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* ── In-voice controls (active speakers) ── */}
+      {isInVoice && !listenOnly && (
         <div className="space-y-2">
           <div className="flex gap-2">
             {/* Mute / Unmute */}

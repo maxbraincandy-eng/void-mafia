@@ -26,6 +26,7 @@ export interface VoiceState {
   error: string | null;
   forceMuted: boolean;
   forceMutedReason: string | null;
+  listenOnly: boolean;
 }
 
 const INITIAL: VoiceState = {
@@ -39,6 +40,7 @@ const INITIAL: VoiceState = {
   error:            null,
   forceMuted:       false,
   forceMutedReason: null,
+  listenOnly:       false,
 };
 
 export function useVoiceChat() {
@@ -221,6 +223,63 @@ export function useVoiceChat() {
     });
   }, [patch]);
 
+  /**
+   * Join a voice channel as a listen-only participant.
+   * Does NOT request microphone permission — safe to call from useEffect without a user gesture.
+   * Spectators and observers use this to hear game discussion without a mic prompt.
+   */
+  const joinVoiceListenOnly = useCallback(async (channel: VoiceChannel) => {
+    if (sessionRef.current) return;
+
+    const session = new WebRTCSession();
+    sessionRef.current = session;
+
+    session.subscribe(event => {
+      if (event.type === 'state') {
+        patch({ status: event.state, error: null });
+      } else if (event.type === 'peer-added') {
+        patch({ peers: session.getPeers() });
+      } else if (event.type === 'peer-removed') {
+        patch({ peers: session.getPeers(), remoteStreams: session.getRemoteStreams() });
+      } else if (event.type === 'speaking') {
+        patch({ peers: session.getPeers() });
+      } else if (event.type === 'stream-update') {
+        patch({ remoteStreams: session.getRemoteStreams() });
+      } else if (event.type === 'error') {
+        patch({ error: event.message, status: 'failed' });
+      }
+    });
+
+    // Skip mic request — listen-only mode
+    session.setListenOnlyMode();
+
+    (socket as any).emit('voice:join', { channel }, async (res: any) => {
+      if (!res.ok) {
+        session.destroy();
+        sessionRef.current = null;
+        patch({ status: 'failed', error: res.error ?? 'Failed to join voice.' });
+        return;
+      }
+
+      patch({ channel, listenOnly: true, forceMuted: true, forceMutedReason: 'Listen only' });
+      const existingPeers: Array<{ socketId: string; name: string }> = res.data.peers;
+
+      for (const { socketId: peerId, name } of existingPeers) {
+        session.createPeerConnection(peerId, name, (candidate) => {
+          (socket as any).emit('voice:ice-candidate', { to: peerId, candidate });
+        });
+        try {
+          const offer = await session.createOffer(peerId);
+          (socket as any).emit('voice:offer', { to: peerId, sdp: offer }, () => {});
+        } catch (e: any) {
+          log('listen-only offer failed for', peerId, ':', e.message);
+        }
+      }
+
+      patch({ peers: session.getPeers() });
+    });
+  }, [patch]);
+
   const leaveVoice = useCallback(() => {
     (socket as any).emit('voice:leave');
     sessionRef.current?.destroy();
@@ -279,6 +338,7 @@ export function useVoiceChat() {
   return {
     ...state,
     joinVoice,
+    joinVoiceListenOnly,
     leaveVoice,
     toggleMute,
     toggleCamera,

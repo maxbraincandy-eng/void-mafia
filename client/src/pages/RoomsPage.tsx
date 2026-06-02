@@ -75,12 +75,12 @@ export function RoomsPage() {
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (code.length < 6) return;
-    primeMicPermission();
+    if (!joinAsSpectator) primeMicPermission(); // spectators don't need mic permission
     await joinRoom(code.toUpperCase(), username, joinAsSpectator, joinPassword);
   };
 
   const handleQuickJoin = async (room: RoomListItem, isSpectator: boolean) => {
-    primeMicPermission();
+    if (!isSpectator) primeMicPermission(); // spectators don't need mic permission
     setSpectatorModal(null);
     await joinRoom(room.code, username, isSpectator);
   };
