@@ -282,23 +282,18 @@ export function RoomsPage() {
               {/* Preset selector */}
               <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2 mt-1">Game Pace</p>
               <div className="grid grid-cols-3 gap-2 mb-5">
-                {([
-                  { id: 'quick'    as Preset, label: 'Quick',    desc: '~25 min' },
-                  { id: 'classic'  as Preset, label: 'Classic',  desc: '~45 min' },
-                  { id: 'hardcore' as Preset, label: 'Hardcore', desc: '~70 min' },
-                ]).map(opt => (
+                {(['quick', 'classic', 'hardcore'] as Preset[]).map(id => (
                   <button
-                    key={opt.id}
+                    key={id}
                     type="button"
-                    onClick={() => setPreset(opt.id)}
-                    className={`py-3 px-2 rounded-xl border text-center transition-all ${
-                      preset === opt.id
+                    onClick={() => setPreset(id)}
+                    className={`py-3 px-2 rounded-xl border text-center transition-all capitalize ${
+                      preset === id
                         ? 'border-white/20 bg-white/[0.04] text-white/70'
                         : 'border-white/[0.06] text-white/28 hover:border-white/12 hover:text-white/45'
                     }`}
                   >
-                    <p className="text-xs font-mono font-bold">{opt.label}</p>
-                    <p className="text-[10px] font-mono text-white/30 mt-0.5">{opt.desc}</p>
+                    <p className="text-xs font-mono font-bold">{id}</p>
                   </button>
                 ))}
               </div>
