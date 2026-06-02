@@ -13,12 +13,17 @@
     "android:run": "npx cap run android",
     "android:build-debug": "cd android && ./gradlew assembleDebug",
     "android:build-release": "cd android && ./gradlew assembleRelease",
-    "android:apk": "npm run build && npm run android:sync && npm run android:build-debug"
+    "android:apk": "npm run build && npm run android:sync && npm run android:build-debug",
+    "ios:sync": "npx cap sync ios",
+    "ios:open": "npx cap open ios",
+    "ios:run": "npx cap run ios",
+    "cap:sync": "npx cap sync"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.4",
     "@capacitor/cli": "^8.3.4",
     "@capacitor/core": "^8.3.4",
+    "@capacitor/ios": "^8.3.4",
     "clsx": "^2.1.1",
     "framer-motion": "^11.3.0",
     "react": "^18.3.1",
