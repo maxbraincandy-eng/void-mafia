@@ -163,17 +163,25 @@ export function GamePage() {
     voiceChannel === 'mafia' ? '◉ Mafia Voice' : '◎ Room Voice';
 
   // Speech phase voice enforcement is handled server-side via voice:force-mute / voice:force-unmute.
-  // Auto-join Mafia voice when night starts (if mic was previously granted)
+  // Auto-join Mafia voice when night starts; rejoin room channel when night ends.
   const prevPhaseForVoice = useRef<string | null>(null);
   useEffect(() => {
     const cur = room?.phase ?? null;
     if (!cur || cur === prevPhaseForVoice.current) return;
+    const prev = prevPhaseForVoice.current;
     prevPhaseForVoice.current = cur;
-    if (cur === 'night' && isMafiaPlayer && amAlive && !amSpectator && !voice.channel) {
-      navigator.permissions?.query({ name: 'microphone' as PermissionName })
-        .then(r => { if (r.state === 'granted') voice.joinVoice('mafia'); })
-        .catch(() => {});
-    }
+    if (!amAlive || amSpectator) return;
+    navigator.permissions?.query({ name: 'microphone' as PermissionName })
+      .then(r => {
+        if (r.state !== 'granted') return;
+        if (cur === 'night' && isMafiaPlayer && !voice.channel) {
+          voice.joinVoice('mafia');
+        } else if (prev === 'night' && cur !== 'night' && isMafiaPlayer && !voice.channel) {
+          // Mafia was kicked from room channel when night started — rejoin now
+          voice.joinVoice('room');
+        }
+      })
+      .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.phase, isMafiaPlayer, amAlive, amSpectator]);
 

@@ -115,6 +115,7 @@ export function getSharedChannel(socketId1: string, socketId2: string): VoiceCha
   return null;
 }
 
+
 /** Remove one socket from a specific channel. Returns remaining members, or null if socket wasn't in that channel. */
 export function removeFromChannel(
   socketId: string,

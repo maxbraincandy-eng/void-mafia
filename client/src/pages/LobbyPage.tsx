@@ -339,7 +339,10 @@ export function LobbyPage() {
                   fullWidth
                   variant={myPlayer?.isReady ? 'neon-green' : 'neon-cyan'}
                   loading={isLoading}
-                  onClick={() => toggleReady()}
+                  onClick={() => {
+                    toggleReady();
+                    if (!voice.channel) voice.joinVoice('room').catch(() => {});
+                  }}
                 >
                   {myPlayer?.isReady ? '✓ Ready' : t.lobby.ready}
                 </Button>

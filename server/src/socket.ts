@@ -1602,7 +1602,23 @@ function enforceVoicePhaseRules(io: AppServer, room: Room): void {
   const { id: roomId, phase } = room;
 
   if (phase === 'night') {
-    forceLeaveVoiceChannel(io, roomId, 'room', 'Public voice is disabled during night.');
+    // Mafia players leave the room channel (so they can join the mafia channel).
+    // Non-mafia players stay in the room channel but are muted until day resumes.
+    const roomMembers = [...voiceGetMembers(roomId, 'room')];
+    for (const member of roomMembers) {
+      const player = room.players.get(member.playerId);
+      if (player?.team === 'mafia') {
+        io.to(member.socketId).emit('voice:force-leave', { channel: 'room', reason: 'Use the Mafia channel during night.' });
+        const removed = voiceRemoveFromChannel(member.socketId, 'room');
+        if (removed) {
+          for (const peer of removed.remaining) {
+            io.to(peer.socketId).emit('voice:peer-left', { socketId: member.socketId, channel: 'room' });
+          }
+        }
+      } else {
+        io.to(member.socketId).emit('voice:force-mute', { reason: 'Voice muted during night phase.' });
+      }
+    }
     return;
   }
 
