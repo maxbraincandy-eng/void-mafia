@@ -27,8 +27,8 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, InterServerEve
     methods: ['GET', 'POST'],
     credentials: true,
   },
-  pingTimeout: 30_000,
-  pingInterval: 10_000,
+  pingTimeout: 10_000,
+  pingInterval: 5_000,
 });
 
 // ── Middleware ────────────────────────────────────────────────────────

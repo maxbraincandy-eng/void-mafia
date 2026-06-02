@@ -4,10 +4,11 @@ const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? '';
 
 export const socket: Socket = io(SERVER_URL, {
   autoConnect: false,
-  transports: ['websocket', 'polling'],
+  transports: ['websocket'],
   reconnection: true,
-  reconnectionAttempts: 5,
-  reconnectionDelay: 1000,
+  reconnectionAttempts: 10,
+  reconnectionDelay: 500,
+  reconnectionDelayMax: 3000,
 });
 
 export function connectSocket(): void {

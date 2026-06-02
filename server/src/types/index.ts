@@ -230,6 +230,8 @@ export interface Player {
   profileId: string | null;
   isSpectator: boolean;
   lastWill: string | null;
+  isModerator: boolean;
+  moderatorLevel: ModeratorLevel | null;
 }
 
 export interface NightAction {

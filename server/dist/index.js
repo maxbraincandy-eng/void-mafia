@@ -21,8 +21,8 @@ const io = new Server(httpServer, {
         methods: ['GET', 'POST'],
         credentials: true,
     },
-    pingTimeout: 30000,
-    pingInterval: 10000,
+    pingTimeout: 10000,
+    pingInterval: 5000,
 });
 // ── Middleware ────────────────────────────────────────────────────────
 app.use(cors({

@@ -69,6 +69,8 @@ export function createRoom(
     profileId,
     isSpectator: false,
     lastWill: null,
+    isModerator: profile?.isModerator ?? false,
+    moderatorLevel: profile?.moderatorLevel ?? null,
   };
 
   const mergedSettings: GameSettings = {
@@ -143,6 +145,7 @@ export function addPlayer(room: Room, socketId: string, name: string, profileId:
   if (room.phase !== 'lobby') throw new Error('Game already started — cannot join.');
   if (room.players.size >= 16) throw new Error('Room is full (max 16 players).');
 
+  const joinProfile = profileId ? getPlayer(profileId) : null;
   const seat = getNextSeat(room);
   const player: Player = {
     id: generateId(),
@@ -162,6 +165,8 @@ export function addPlayer(room: Room, socketId: string, name: string, profileId:
     profileId,
     isSpectator: false,
     lastWill: null,
+    isModerator: joinProfile?.isModerator ?? false,
+    moderatorLevel: joinProfile?.moderatorLevel ?? null,
   };
 
   room.players.set(player.id, player);
@@ -229,32 +234,29 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
 
   const players: PlayerPublic[] = [...room.players.values()]
     .sort((a, b) => a.seat - b.seat)
-    .map(p => {
-      const profile = p.profileId ? getPlayer(p.profileId) : null;
-      return {
-        id: p.id,
-        socketId: p.socketId,
-        name: p.name,
-        avatar: p.avatar,
-        isHost: p.isHost,
-        isAlive: p.isAlive,
-        isConnected: p.isConnected,
-        isReady: p.isReady,
-        role: (p.id === viewerPlayerId || isGameOver || !viewer?.isAlive || viewer?.isSpectator) ? p.role : null,
-        team: (p.id === viewerPlayerId || isGameOver || !viewer?.isAlive || viewer?.isSpectator) ? p.team : null,
-        // Mafia sees fellow mafia roles
-        ...(isMafia && p.team === 'mafia' ? { role: p.role, team: p.team } : {}),
-        // Cult leader sees all cult members
-        ...(isCultLeader && p.team === 'cult' ? { role: p.role, team: p.team } : {}),
-        voteTarget: room.phase === 'voting' ? p.voteTarget : null,
-        hasActed: p.hasActedThisPhase,
-        seat: p.seat,
-        profileId: p.profileId,
-        isModerator: profile?.isModerator ?? false,
-        moderatorLevel: profile?.moderatorLevel ?? null,
-        isSpectator: p.isSpectator,
-      };
-    });
+    .map(p => ({
+      id: p.id,
+      socketId: p.socketId,
+      name: p.name,
+      avatar: p.avatar,
+      isHost: p.isHost,
+      isAlive: p.isAlive,
+      isConnected: p.isConnected,
+      isReady: p.isReady,
+      role: (p.id === viewerPlayerId || isGameOver || !viewer?.isAlive || viewer?.isSpectator) ? p.role : null,
+      team: (p.id === viewerPlayerId || isGameOver || !viewer?.isAlive || viewer?.isSpectator) ? p.team : null,
+      // Mafia sees fellow mafia roles
+      ...(isMafia && p.team === 'mafia' ? { role: p.role, team: p.team } : {}),
+      // Cult leader sees all cult members
+      ...(isCultLeader && p.team === 'cult' ? { role: p.role, team: p.team } : {}),
+      voteTarget: room.phase === 'voting' ? p.voteTarget : null,
+      hasActed: p.hasActedThisPhase,
+      seat: p.seat,
+      profileId: p.profileId,
+      isModerator: p.isModerator,
+      moderatorLevel: p.moderatorLevel,
+      isSpectator: p.isSpectator,
+    }));
 
   const isDeadViewer = viewer ? (!viewer.isAlive || viewer.isSpectator) : false;
 
