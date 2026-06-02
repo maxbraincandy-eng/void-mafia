@@ -153,6 +153,8 @@ export function GamePage() {
   const t = useT();
 
   const amSpectator = myPlayer?.isSpectator ?? false;
+  const activePlayers = room?.players.filter(p => !p.isSpectator) ?? [];
+  const spectatorSocketIds = new Set(room?.players.filter(p => p.isSpectator).map(p => p.socketId) ?? []);
   const isInVoice = voice.channel !== null;
 
   // Determine appropriate voice channel for this player/phase
@@ -390,10 +392,12 @@ export function GamePage() {
         peerCount={voice.peers.length}
         error={voice.error}
         muteLocked={micLocked}
-        listenOnly={voice.listenOnly || !amAlive}
+        listenOnly={voice.listenOnly || !amAlive || amSpectator}
         defaultChannel={voiceChannel}
         channelLabel={voiceChannelLabel}
-        onJoin={(ch, withCam) => voice.joinVoice(ch, withCam)}
+        onJoin={amSpectator
+          ? () => voice.joinVoiceListenOnly('room')
+          : (ch, withCam) => voice.joinVoice(ch, withCam)}
         onLeave={voice.leaveVoice}
         onToggleMute={voice.toggleMute}
         onToggleCamera={voice.toggleCamera}
@@ -408,6 +412,7 @@ export function GamePage() {
             isLocalSpeaking={voice.isLocalSpeaking}
             isMuted={voice.isMuted}
             peers={voice.peers}
+            spectatorSocketIds={spectatorSocketIds}
           />
         </div>
       )}
@@ -1010,6 +1015,7 @@ export function GamePage() {
                   isMuted={voice.isMuted}
                   peers={voice.peers}
                   compact
+                  spectatorSocketIds={spectatorSocketIds}
                 />
               )}
 
@@ -1087,7 +1093,7 @@ export function GamePage() {
                 {t.lobby.players} · {alivePlayers}
               </h2>
               <PlayerList
-                players={room.players}
+                players={activePlayers}
                 phase={phase}
                 showVotes={phase === 'voting'}
                 currentSpeakerId={phase === 'speech' ? room.currentSpeakerId : null}
@@ -1225,7 +1231,7 @@ export function GamePage() {
                     <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full flex flex-col">
                       <div className="flex-1 min-h-0">
                         <PlayerGrid
-                          players={room.players}
+                          players={activePlayers}
                           phase={phase}
                           currentSpeakerId={room.currentSpeakerId}
                           myPlayerId={myPlayer?.id ?? null}
@@ -1332,7 +1338,7 @@ export function GamePage() {
                   {mobileTab === 'players' && (
                     <motion.div key="players" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
                       <PlayerList
-                        players={room.players}
+                        players={activePlayers}
                         phase={phase}
                         showVotes={false}
                         currentSpeakerId={null}

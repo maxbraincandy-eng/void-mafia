@@ -116,37 +116,39 @@ export function VoiceControls({
       {/* ── Pre-join state ── */}
       {!isInVoice && (
         <div className="space-y-3">
-          {/* Camera opt-in toggle */}
-          <label className="flex items-center gap-3 cursor-pointer select-none group">
-            <div
-              onClick={() => setWantCamera(vv => !vv)}
-              className={clsx(
-                'w-10 h-6 rounded-full flex items-center px-0.5 transition-all flex-shrink-0',
-                wantCamera ? 'bg-neon-cyan/40 border border-neon-cyan/50' : 'bg-white/10 border border-white/10',
-              )}
-            >
-              <motion.div
-                animate={{ x: wantCamera ? 16 : 0 }}
-                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+          {!listenOnly && (
+            /* Camera opt-in toggle — only for speaking participants */
+            <label className="flex items-center gap-3 cursor-pointer select-none group">
+              <div
+                onClick={() => setWantCamera(vv => !vv)}
                 className={clsx(
-                  'w-5 h-5 rounded-full transition-colors',
-                  wantCamera ? 'bg-neon-cyan' : 'bg-white/40',
+                  'w-10 h-6 rounded-full flex items-center px-0.5 transition-all flex-shrink-0',
+                  wantCamera ? 'bg-neon-cyan/40 border border-neon-cyan/50' : 'bg-white/10 border border-white/10',
                 )}
-              />
-            </div>
-            <div>
-              <p className="text-xs font-mono text-white/60 group-hover:text-white/80 transition-colors">
-                {v.includeCamera}
-              </p>
-              <p className="text-[10px] font-mono text-white/25">
-                {wantCamera ? v.cameraBrowserAsk : v.micOnly}
-              </p>
-            </div>
-          </label>
+              >
+                <motion.div
+                  animate={{ x: wantCamera ? 16 : 0 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                  className={clsx(
+                    'w-5 h-5 rounded-full transition-colors',
+                    wantCamera ? 'bg-neon-cyan' : 'bg-white/40',
+                  )}
+                />
+              </div>
+              <div>
+                <p className="text-xs font-mono text-white/60 group-hover:text-white/80 transition-colors">
+                  {v.includeCamera}
+                </p>
+                <p className="text-[10px] font-mono text-white/25">
+                  {wantCamera ? v.cameraBrowserAsk : v.micOnly}
+                </p>
+              </div>
+            </label>
+          )}
 
           {/* Join button */}
           <button
-            onClick={() => onJoin(defaultChannel, wantCamera)}
+            onClick={() => onJoin(defaultChannel, listenOnly ? false : wantCamera)}
             disabled={isConnecting}
             className={clsx(
               'w-full py-3 rounded-xl font-display font-bold tracking-widest text-sm uppercase',
@@ -161,6 +163,8 @@ export function VoiceControls({
                 <span className="inline-block animate-spin">◌</span>
                 {STATUS_LABEL[status]}
               </span>
+            ) : listenOnly ? (
+              '👁 Listen'
             ) : (
               <>
                 {wantCamera ? '📷 ' : '🎙 '}
@@ -169,9 +173,11 @@ export function VoiceControls({
             )}
           </button>
 
-          <p className="text-[10px] text-white/20 font-mono text-center">
-            {v.joinHint.replace('{cam}', wantCamera ? v.andCamera : '')}
-          </p>
+          {!listenOnly && (
+            <p className="text-[10px] text-white/20 font-mono text-center">
+              {v.joinHint.replace('{cam}', wantCamera ? v.andCamera : '')}
+            </p>
+          )}
         </div>
       )}
 

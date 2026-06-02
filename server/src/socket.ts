@@ -742,7 +742,7 @@ export function attachSocketHandlers(io: AppServer): void {
       try {
         const room = getRoomFromSocket(socket);
         const actor = getPlayerOrError(socket, room);
-
+        if (actor.isSpectator) throw new Error('Spectators cannot perform night actions.');
         submitNightAction(room, actor, targetId);
 
         if (actor.role === 'sheriff') {
@@ -778,6 +778,7 @@ export function attachSocketHandlers(io: AppServer): void {
       try {
         const room = getRoomFromSocket(socket);
         const voter = getPlayerOrError(socket, room);
+        if (voter.isSpectator) throw new Error('Spectators cannot vote.');
         submitVote(room, voter, targetId);
         broadcastRoom(io, room);
         cb(ok(null));

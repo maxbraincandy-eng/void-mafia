@@ -13,6 +13,7 @@ interface VoiceParticipantsProps {
   isMuted: boolean;
   peers: PeerState[];
   compact?: boolean;
+  spectatorSocketIds?: Set<string>;
 }
 
 export function VoiceParticipants({
@@ -21,8 +22,13 @@ export function VoiceParticipants({
   isMuted,
   peers,
   compact = false,
+  spectatorSocketIds,
 }: VoiceParticipantsProps) {
-  const total = peers.length + 1;
+  const visiblePeers = spectatorSocketIds
+    ? peers.filter(p => !spectatorSocketIds.has(p.socketId))
+    : peers;
+
+  const total = visiblePeers.length + 1;
   if (total === 0) return null;
 
   if (compact) {
@@ -30,7 +36,7 @@ export function VoiceParticipants({
       <div className="flex items-center gap-1 flex-wrap">
         <ParticipantDot name={localName} speaking={isLocalSpeaking && !isMuted} muted={isMuted} />
         <AnimatePresence>
-          {peers.map(p => (
+          {visiblePeers.map(p => (
             <ParticipantDot key={p.socketId} name={p.name} speaking={p.isSpeaking} />
           ))}
         </AnimatePresence>
@@ -42,7 +48,7 @@ export function VoiceParticipants({
     <div className="space-y-1">
       <ParticipantRow name={localName} speaking={isLocalSpeaking && !isMuted} muted={isMuted} isLocal />
       <AnimatePresence>
-        {peers.map(p => (
+        {visiblePeers.map(p => (
           <motion.div
             key={p.socketId}
             initial={{ opacity: 0, x: -8 }}

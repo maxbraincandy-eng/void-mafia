@@ -44,6 +44,7 @@ export function LobbyPage() {
   const [shared, setShared] = useState(false);
   const [confirmTransferId, setConfirmTransferId] = useState<string | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [showSpectators, setShowSpectators] = useState(false);
   const t = useT();
   const voice = useVoiceChat();
   const autoJoined = useRef(false);
@@ -67,6 +68,7 @@ export function LobbyPage() {
 
   if (!room) return null;
   const activePlayers = room.players.filter(p => !p.isSpectator);
+  const spectators = room.players.filter(p => p.isSpectator);
   const playerCount = activePlayers.length;
   const minPlayers = room.settings.minPlayers;
   const canStart = amHost && playerCount >= minPlayers;
@@ -191,6 +193,17 @@ export function LobbyPage() {
                   {t.lobby.players}
                   <span className="ml-2 text-white/50">{playerCount}</span>
                 </span>
+                <div className="flex items-center gap-3">
+                  {spectators.length > 0 && (
+                    <button
+                      onClick={() => setShowSpectators(s => !s)}
+                      className="flex items-center gap-1 text-[10px] font-mono text-white/30 hover:text-white/55 transition-colors"
+                      title="Spectators"
+                    >
+                      <span>👁</span>
+                      <span>{spectators.length}</span>
+                    </button>
+                  )}
                 {nonHostCount > 0 && (
                   <div className="flex items-center gap-2.5">
                     <span className="text-[10px] font-mono text-white/22">
@@ -205,11 +218,12 @@ export function LobbyPage() {
                     </div>
                   </div>
                 )}
+                </div>
               </div>
 
               {/* Rows */}
               <div className="px-2 py-2">
-                {room.players.map((player, i) => {
+                {activePlayers.map((player, i) => {
                   const isMe = player.id === myPlayer?.id;
                   return (
                     <motion.div
@@ -222,9 +236,7 @@ export function LobbyPage() {
                         'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors',
                         isMe
                           ? 'bg-white/[0.03]'
-                          : !player.isSpectator
-                          ? 'hover:bg-white/[0.025] cursor-pointer'
-                          : 'opacity-45',
+                          : 'hover:bg-white/[0.025] cursor-pointer',
                       )}
                     >
                       <Avatar name={player.name} isHost={player.isHost} size="sm" />
@@ -262,8 +274,6 @@ export function LobbyPage() {
                       <div className="shrink-0 text-right">
                         {player.isHost ? (
                           <span className="text-[10px] font-mono text-yellow-400/50">Host</span>
-                        ) : player.isSpectator ? (
-                          <span className="text-[10px] font-mono text-neon-purple/35">Spectator</span>
                         ) : player.isReady ? (
                           <span className="flex items-center gap-1.5 text-[10px] font-mono text-neon-green/60">
                             <span className="w-1 h-1 rounded-full bg-neon-green/60" />
@@ -314,6 +324,21 @@ export function LobbyPage() {
                   );
                 })}
               </div>
+
+              {/* Spectator list (collapsible) */}
+              {showSpectators && spectators.length > 0 && (
+                <div className="px-4 pb-3 border-t border-white/[0.04]">
+                  <p className="text-[9px] font-mono text-white/20 uppercase tracking-[0.2em] pt-2 mb-1.5">Watching</p>
+                  <div className="space-y-0.5">
+                    {spectators.map(s => (
+                      <div key={s.id} className="flex items-center gap-2 px-1 py-1">
+                        <span className="text-[10px] text-white/25">👁</span>
+                        <span className="text-[11px] font-mono text-white/40">{s.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Need more players */}
               {playerCount < minPlayers && (
@@ -491,9 +516,11 @@ export function LobbyPage() {
               isLocalSpeaking={voice.isLocalSpeaking}
               peerCount={voice.peers.length}
               error={voice.error}
-              listenOnly={voice.listenOnly}
+              listenOnly={voice.listenOnly || amSpectator}
               defaultChannel="room"
-              onJoin={(ch, wc) => voice.joinVoice(ch, wc)}
+              onJoin={amSpectator
+                ? () => voice.joinVoiceListenOnly('room')
+                : (ch, wc) => voice.joinVoice(ch, wc)}
               onLeave={voice.leaveVoice}
               onToggleMute={voice.toggleMute}
               onToggleCamera={voice.toggleCamera}
@@ -505,6 +532,7 @@ export function LobbyPage() {
                   isLocalSpeaking={voice.isLocalSpeaking}
                   isMuted={voice.isMuted}
                   peers={voice.peers}
+                  spectatorSocketIds={new Set(room.players.filter(p => p.isSpectator).map(p => p.socketId))}
                 />
               </div>
             )}
