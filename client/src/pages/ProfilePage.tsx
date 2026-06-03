@@ -60,8 +60,14 @@ async function resizeImage(file: File): Promise<string> {
   });
 }
 
+interface LinkedProvider {
+  provider: string;
+  email: string | null;
+  displayName: string | null;
+}
+
 export function ProfilePage() {
-  const { profile, username, logout, localAvatar, uploadAvatar, removeAvatar } = useAuthStore();
+  const { profile, username, logout, localAvatar, uploadAvatar, removeAvatar, uid } = useAuthStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showRoleGuide, setShowRoleGuide] = useState(false);
   const [achievements, setAchievements] = useState<AchievementEarned[]>([]);
@@ -71,6 +77,62 @@ export function ProfilePage() {
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+  const [linkedProviders, setLinkedProviders] = useState<LinkedProvider[]>([]);
+  const [linkMsg, setLinkMsg] = useState('');
+  const [linkError, setLinkError] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('oauth_linked')) {
+      window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+      setLinkMsg(`${params.get('oauth_linked')} account connected successfully!`);
+      setTimeout(() => setLinkMsg(''), 4000);
+    }
+    if (params.get('oauth_error')) {
+      window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+      const msg = params.get('oauth_error');
+      setLinkError(msg === '1' ? 'Connection failed. Please try again.' : decodeURIComponent(msg ?? ''));
+      setTimeout(() => setLinkError(''), 5000);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!uid) return;
+    fetch(`/api/auth/linked?uid=${encodeURIComponent(uid)}`)
+      .then(r => r.json())
+      .then(data => { if (data.ok) setLinkedProviders(data.providers); })
+      .catch(() => {});
+  }, [uid]);
+
+  const handleLinkOAuth = async (provider: 'google' | 'facebook') => {
+    if (!uid) return;
+    try {
+      await fetch('/api/auth/init-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ uid }),
+      });
+      window.location.href = `/api/auth/${provider}?link=1`;
+    } catch {
+      setLinkError('Failed to start linking. Please try again.');
+    }
+  };
+
+  const handleUnlink = async (provider: string) => {
+    if (!uid) return;
+    try {
+      const res = await fetch(`/api/auth/unlink/${provider}?uid=${encodeURIComponent(uid)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (data.ok) setLinkedProviders(prev => prev.filter(p => p.provider !== provider));
+      else setLinkError('Unlink failed.');
+    } catch {
+      setLinkError('Unlink failed.');
+    }
+  };
 
   useEffect(() => {
     if (!profile) return;
@@ -385,6 +447,88 @@ export function ProfilePage() {
             <FriendsPanel />
           </motion.div>
         )}
+
+        {/* Connected Accounts */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="mt-4 glass-panel border border-white/8 rounded-2xl p-4"
+        >
+          <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/25 mb-3">Connected Accounts</p>
+
+          {linkMsg && <p className="text-neon-green text-xs font-mono mb-2">{linkMsg}</p>}
+          {linkError && <p className="text-neon-red text-xs font-mono mb-2">{linkError}</p>}
+
+          {/* Google */}
+          {(() => {
+            const linked = linkedProviders.find(p => p.provider === 'google');
+            return (
+              <div className="flex items-center justify-between py-2 border-b border-white/5">
+                <div className="flex items-center gap-3">
+                  <svg viewBox="0 0 24 24" className="w-5 h-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                  </svg>
+                  <div>
+                    <p className="text-white/60 font-mono text-xs">Google</p>
+                    {linked && <p className="text-white/25 font-mono text-[9px]">{linked.email ?? linked.displayName ?? 'Connected'}</p>}
+                  </div>
+                </div>
+                {linked ? (
+                  <button
+                    onClick={() => handleUnlink('google')}
+                    className="text-[9px] font-mono text-neon-red/50 hover:text-neon-red/80 transition-colors uppercase tracking-wider"
+                  >
+                    Disconnect
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleLinkOAuth('google')}
+                    className="text-[9px] font-mono text-neon-cyan/50 hover:text-neon-cyan/80 transition-colors uppercase tracking-wider"
+                  >
+                    Connect
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Facebook */}
+          {(() => {
+            const linked = linkedProviders.find(p => p.provider === 'facebook');
+            return (
+              <div className="flex items-center justify-between py-2">
+                <div className="flex items-center gap-3">
+                  <svg viewBox="0 0 24 24" className="w-5 h-5 flex-shrink-0 fill-current text-[#1877F2]" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                  </svg>
+                  <div>
+                    <p className="text-white/60 font-mono text-xs">Facebook</p>
+                    {linked && <p className="text-white/25 font-mono text-[9px]">{linked.email ?? linked.displayName ?? 'Connected'}</p>}
+                  </div>
+                </div>
+                {linked ? (
+                  <button
+                    onClick={() => handleUnlink('facebook')}
+                    className="text-[9px] font-mono text-neon-red/50 hover:text-neon-red/80 transition-colors uppercase tracking-wider"
+                  >
+                    Disconnect
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleLinkOAuth('facebook')}
+                    className="text-[9px] font-mono text-neon-cyan/50 hover:text-neon-cyan/80 transition-colors uppercase tracking-wider"
+                  >
+                    Connect
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+        </motion.div>
 
         {/* Actions */}
         <div className="mt-4 space-y-2">

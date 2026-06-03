@@ -20,6 +20,7 @@ interface AuthStore {
   error: string | null;
 
   login: (username: string) => Promise<void>;
+  loginOAuth: () => Promise<void>;
   register: (email: string, password: string, username: string) => Promise<void>;
   loginEmail: (email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -50,6 +51,35 @@ export const useAuthStore = create<AuthStore>((set, get) => {
     isAuthed: false,
     isLoading: false,
     error: null,
+
+    loginOAuth: async () => {
+      set({ isLoading: true, error: null });
+      try {
+        const res = await fetch('/api/auth/me', { credentials: 'include' });
+        const data = await res.json();
+        if (!data.ok || !data.uid) throw new Error('OAuth session not found');
+        const uid = data.uid as string;
+        const username = data.username as string;
+        localStorage.setItem(UID_KEY, uid);
+        localStorage.setItem(NAME_KEY, username);
+        const authRes = await new Promise<Res<PlayerProfilePublic>>((resolve) => {
+          socket.emit('player:auth', { uid, username }, resolve);
+        });
+        if (!authRes.ok) throw new Error(authRes.error);
+        set({
+          uid,
+          username,
+          profile: authRes.data,
+          localAvatar: authRes.data?.avatarUrl ?? null,
+          isAuthed: true,
+          isLoading: false,
+          error: null,
+        });
+      } catch (e: any) {
+        set({ isLoading: false, error: e.message ?? 'OAuth login failed.' });
+        throw e;
+      }
+    },
 
     login: async (username: string) => {
       set({ isLoading: true, error: null });

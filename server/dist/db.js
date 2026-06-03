@@ -286,6 +286,24 @@ export async function initializeDatabase() {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_players_public_id ON players(public_id)
     WHERE public_id IS NOT NULL
   `;
+    // OAuth accounts table (safe to add — will no-op if already exists)
+    await sql `
+    CREATE TABLE IF NOT EXISTS auth_accounts (
+      id               TEXT PRIMARY KEY,
+      user_id          TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      provider         TEXT NOT NULL,
+      provider_user_id TEXT NOT NULL,
+      email            TEXT,
+      display_name     TEXT,
+      avatar_url       TEXT,
+      created_at       BIGINT NOT NULL,
+      updated_at       BIGINT NOT NULL,
+      UNIQUE(provider, provider_user_id)
+    )
+  `;
+    await sql `
+    CREATE INDEX IF NOT EXISTS idx_auth_accounts_user_id ON auth_accounts(user_id)
+  `;
     // Seed achievement definitions
     for (const a of ACHIEVEMENTS) {
         await sql `

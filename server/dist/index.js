@@ -5,11 +5,15 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import session from 'express-session';
+import passport from 'passport';
 import { attachSocketHandlers, setDbReady } from './socket.js';
 import { getAllRooms, toRoomListItem, deleteRoom } from './services/roomService.js';
 import { timerService } from './services/timerService.js';
 import { getPlayer, toPublicProfile } from './services/playerService.js';
 import { sql, initializeDatabase } from './db.js';
+import { configurePassport, createAuthRouter } from './auth.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
@@ -35,6 +39,21 @@ app.use(cors({
     origin: IS_PROD ? false : CLIENT_URL,
     credentials: true,
 }));
+app.use(cookieParser());
+app.use(session({
+    secret: process.env.AUTH_SESSION_SECRET ?? 'void-mafia-dev-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        httpOnly: true,
+        secure: IS_PROD,
+        sameSite: IS_PROD ? 'none' : 'lax',
+        maxAge: 10 * 60 * 1000, // 10 minutes — just long enough for OAuth callback
+    },
+}));
+app.use(passport.initialize());
+configurePassport();
+app.use('/api/auth', createAuthRouter());
 app.use(express.json());
 // ── Lightweight health endpoint (no DB dependency) ────────────────────
 // Railway healthcheck hits this — must always respond 200 instantly.
