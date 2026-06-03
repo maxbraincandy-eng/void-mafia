@@ -713,7 +713,7 @@ export function GamePage() {
         amHost={amHost}
         isInVoice={isInVoice}
         activeRoleCounts={room.activeRoleCounts}
-        onLeaveRoom={leaveRoom}
+        onLeaveRoom={() => { voice.leaveVoice(); leaveRoom(); }}
         onTerminateGame={amHost ? terminateGame : undefined}
         onResetVoice={isInVoice ? () => {
           const hadCamera = voice.cameraOn;

@@ -636,6 +636,10 @@ export function attachSocketHandlers(io) {
                     player.avatarUrl = playerProfile.avatarUrl;
                 if (parsed.isSpectator)
                     player.isSpectator = true;
+                if (playerProfile?.isModerator) {
+                    player.isModerator = playerProfile.isModerator;
+                    player.moderatorLevel = playerProfile.moderatorLevel;
+                }
                 socket.join(room.id);
                 socket.data.playerId = player.id;
                 socket.data.roomId = room.id;

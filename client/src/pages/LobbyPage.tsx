@@ -35,6 +35,8 @@ export function LobbyPage() {
   }));
 
   const { openProfile, openDmList, unreadDmCount } = useSocialStore();
+
+  const handleLeave = () => { voice.leaveVoice(); leaveRoom(); };
   const [showSettings, setShowSettings] = useState(false);
   const [showRoleGuide, setShowRoleGuide] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -449,7 +451,7 @@ export function LobbyPage() {
                       {playerCount > 1 ? 'Leave?' : 'Close room?'}
                     </span>
                     <button
-                      onClick={() => leaveRoom()}
+                      onClick={handleLeave}
                       disabled={isLoading}
                       className="text-[10px] px-2.5 py-1 rounded-lg bg-neon-red/70 text-white font-mono font-bold hover:bg-neon-red/90 transition-colors disabled:opacity-40 whitespace-nowrap"
                     >
@@ -466,7 +468,7 @@ export function LobbyPage() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    onClick={() => amHost ? setShowLeaveConfirm(true) : leaveRoom()}
+                    onClick={() => amHost ? setShowLeaveConfirm(true) : handleLeave()}
                     disabled={isLoading}
                     className="px-3 py-2 rounded-xl text-[11px] font-mono text-white/20 hover:text-neon-red/55 transition-colors disabled:opacity-30 whitespace-nowrap"
                   >

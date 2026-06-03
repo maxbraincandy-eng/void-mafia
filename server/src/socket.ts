@@ -696,6 +696,10 @@ export function attachSocketHandlers(io: AppServer): void {
         const player = addPlayer(room, socket.id, username, profileId);
         if (playerProfile?.avatarUrl) player.avatarUrl = playerProfile.avatarUrl;
         if (parsed.isSpectator) player.isSpectator = true;
+        if (playerProfile?.isModerator) {
+          player.isModerator = playerProfile.isModerator;
+          player.moderatorLevel = playerProfile.moderatorLevel;
+        }
 
         socket.join(room.id);
         socket.data.playerId = player.id;
