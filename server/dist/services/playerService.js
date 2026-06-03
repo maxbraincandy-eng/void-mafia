@@ -225,9 +225,20 @@ export async function getOrCreatePlayer(uid, username) {
       )
     `;
         await assignNextPublicId(uid);
+        // Re-check after publicId assigned in case ADMIN_PUBLIC_IDS matches
+        const finalLevel = await resolveModLevel(uid, name);
+        if (finalLevel !== modLevel) {
+            await sql `
+        UPDATE players SET
+          is_moderator = ${finalLevel ? 1 : 0}, moderator_level = ${finalLevel},
+          moderator_badge_visible = ${finalLevel ? 1 : 0},
+          moderator_permissions = ${JSON.stringify(getModPermissions(finalLevel))}
+        WHERE id = ${uid}
+      `;
+        }
     }
     else {
-        const modLevel = resolveModLevelFromEnv(uid, name);
+        const modLevel = await resolveModLevel(uid, name);
         await sql `
       UPDATE players SET
         username = ${name}, last_seen_at = ${now},
