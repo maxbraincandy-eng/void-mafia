@@ -243,6 +243,7 @@ export interface Player {
   lastWill: string | null;
   isModerator: boolean;
   moderatorLevel: ModeratorLevel | null;
+  deathType: 'night' | 'vote' | null;
 }
 
 export interface NightAction {
@@ -347,6 +348,7 @@ export interface PlayerPublic {
   isModerator: boolean;
   moderatorLevel: ModeratorLevel | null;
   isSpectator: boolean;
+  deathType: 'night' | 'vote' | null;
 }
 
 export interface RoomPublic {

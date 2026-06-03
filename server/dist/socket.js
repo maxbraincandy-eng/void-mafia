@@ -1018,6 +1018,7 @@ export function attachSocketHandlers(io) {
                     p.isReady = false;
                     p.voteTarget = null;
                     p.hasActedThisPhase = false;
+                    p.deathType = null;
                 }
                 broadcastSystemMsg(io, room, 'The host terminated the game. Returning to lobby.');
                 broadcastRoom(io, room);
@@ -1057,6 +1058,7 @@ export function attachSocketHandlers(io) {
                     p.isReady = false;
                     p.voteTarget = null;
                     p.hasActedThisPhase = false;
+                    p.deathType = null;
                     p.lastWill = null;
                 }
                 broadcastSystemMsg(io, room, 'The host has restarted the room. Prepare for a new game.');
@@ -1391,6 +1393,7 @@ export function attachSocketHandlers(io) {
                     p.isReady = false;
                     p.voteTarget = null;
                     p.hasActedThisPhase = false;
+                    p.deathType = null;
                 }
                 broadcastSystemMsg(io, room, `A moderator terminated the game. Reason: ${reason || 'Rule violation'}`);
                 broadcastRoom(io, room);

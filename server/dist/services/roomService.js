@@ -59,6 +59,7 @@ export function createRoom(hostSocketId, hostName, profileId, settings) {
         lastWill: null,
         isModerator: false,
         moderatorLevel: null,
+        deathType: null,
     };
     const mergedSettings = {
         ...DEFAULT_SETTINGS,
@@ -149,6 +150,7 @@ export function addPlayer(room, socketId, name, profileId) {
         lastWill: null,
         isModerator: false,
         moderatorLevel: null,
+        deathType: null,
     };
     room.players.set(player.id, player);
     return player;
@@ -209,6 +211,7 @@ export function toPublicRoom(room, viewerPlayerId) {
     const viewer = room.players.get(viewerPlayerId);
     const isMafia = viewer?.team === 'mafia';
     const isCultLeader = viewer?.role === 'cult_leader';
+    const isYakuza = viewer?.team === 'yakuza';
     const players = [...room.players.values()]
         .sort((a, b) => a.seat - b.seat)
         .map(p => ({
@@ -227,6 +230,8 @@ export function toPublicRoom(room, viewerPlayerId) {
         ...(isMafia && p.team === 'mafia' ? { role: p.role, team: p.team } : {}),
         // Cult leader sees all cult members
         ...(isCultLeader && p.team === 'cult' ? { role: p.role, team: p.team } : {}),
+        // Yakuza team members see each other
+        ...(isYakuza && p.team === 'yakuza' ? { role: p.role, team: p.team } : {}),
         voteTarget: room.phase === 'voting' ? p.voteTarget : null,
         hasActed: p.hasActedThisPhase,
         seat: p.seat,
@@ -234,6 +239,7 @@ export function toPublicRoom(room, viewerPlayerId) {
         isModerator: p.isModerator,
         moderatorLevel: p.moderatorLevel,
         isSpectator: p.isSpectator,
+        deathType: p.deathType,
     }));
     const isDeadViewer = viewer ? (!viewer.isAlive || viewer.isSpectator) : false;
     return {

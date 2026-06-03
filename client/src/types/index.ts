@@ -147,6 +147,7 @@ export interface PlayerPublic {
   profileId: string | null;
   isModerator: boolean;
   moderatorLevel: ModeratorLevel | null;
+  deathType: 'night' | 'vote' | null;
 }
 
 export interface GameSettings {

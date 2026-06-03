@@ -229,7 +229,17 @@ function PlayerRow({
           {!player.isConnected && !dead && (
             <span className="text-[9px] font-mono text-yellow-500/50">reconnecting…</span>
           )}
-          {dead && (
+          {dead && player.deathType === 'night' && (
+            <span className="text-[9px] font-mono font-bold text-red-400 bg-red-500/15 border border-red-500/30 px-1.5 py-0.5 rounded-full">
+              ☠ KILLED
+            </span>
+          )}
+          {dead && player.deathType === 'vote' && (
+            <span className="text-[9px] font-mono font-bold text-orange-400 bg-orange-500/15 border border-orange-500/30 px-1.5 py-0.5 rounded-full">
+              ⚖ VOTED OUT
+            </span>
+          )}
+          {dead && !player.deathType && (
             <span className="text-[9px] font-mono text-white/25">eliminated</span>
           )}
         </div>

@@ -181,6 +181,7 @@ export function resolveNight(room) {
         const victim = room.players.get(killId);
         if (victim && victim.isAlive) {
             victim.isAlive = false;
+            victim.deathType = 'night';
             room.killedLastNight.push({ id: killId, name: victim.name, lastWill: victim.lastWill ?? null });
         }
     }
@@ -211,6 +212,7 @@ export function resolveNight(room) {
                     continue;
                 }
                 doused.isAlive = false;
+                doused.deathType = 'night';
                 room.killedLastNight.push({ id: dousedId, name: doused.name, lastWill: doused.lastWill ?? null });
             }
             room.dousedPlayers.clear();
@@ -240,12 +242,14 @@ export function resolveNight(room) {
             const bodyguard = room.players.get(bodyguardId);
             if (bodyguard && bodyguard.isAlive) {
                 bodyguard.isAlive = false;
+                bodyguard.deathType = 'night';
                 room.killedLastNight.push({ id: bodyguardId, name: bodyguard.name, lastWill: bodyguard.lastWill ?? null });
                 room.savedLastNight = true;
                 continue;
             }
         }
         target.isAlive = false;
+        target.deathType = 'night';
         room.killedLastNight.push({ id: targetId, name: target.name, lastWill: target.lastWill ?? null });
     }
 }
@@ -383,6 +387,7 @@ export function resolveVotes(room) {
         return null;
     if (target.role === 'jester') {
         target.isAlive = false;
+        target.deathType = 'vote';
         room.winner = 'neutral';
         return topId;
     }
@@ -394,6 +399,7 @@ function eliminatePlayer(room, playerId, byVote) {
     if (!player)
         return;
     player.isAlive = false;
+    player.deathType = byVote ? 'vote' : 'night';
 }
 // ── Win Condition ─────────────────────────────────────────────────────
 export function checkWin(room) {

@@ -1037,6 +1037,7 @@ export function attachSocketHandlers(io: AppServer): void {
           p.isReady = false;
           p.voteTarget = null;
           p.hasActedThisPhase = false;
+          p.deathType = null;
         }
 
         broadcastSystemMsg(io, room, 'The host terminated the game. Returning to lobby.');
@@ -1077,6 +1078,7 @@ export function attachSocketHandlers(io: AppServer): void {
           p.isReady = false;
           p.voteTarget = null;
           p.hasActedThisPhase = false;
+          p.deathType = null;
           p.lastWill = null;
         }
 
@@ -1376,6 +1378,7 @@ export function attachSocketHandlers(io: AppServer): void {
           p.isReady = false;
           p.voteTarget = null;
           p.hasActedThisPhase = false;
+          p.deathType = null;
         }
 
         broadcastSystemMsg(io, room, `A moderator terminated the game. Reason: ${reason || 'Rule violation'}`);
