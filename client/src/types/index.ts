@@ -215,6 +215,8 @@ export interface RoomPublic {
   daySkipVoteCount: number;
   spectatorCount: number;
   isPaused: boolean;
+  /** Mafia-team-only: each alive Mafia member's current kill vote. null when viewer is not Mafia. */
+  mafiaVotes: Record<string, { voterName: string; targetName: string }> | null;
 }
 
 export interface RoomListItem {

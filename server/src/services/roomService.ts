@@ -107,6 +107,7 @@ export function createRoom(
     newlyConvertedCultists: [],
     spectateQueue: [],
     startedAt: 0,
+    mafiaKillTarget: null,
   };
 
   rooms.set(id, room);
@@ -287,6 +288,20 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     daySkipVoteCount: room.daySkipVotes.length,
     spectatorCount: [...room.players.values()].filter(p => p.isSpectator).length,
     isPaused: room.isPaused,
+    mafiaVotes: isMafia && room.phase === 'night'
+      ? (() => {
+          const votes: Record<string, { voterName: string; targetName: string }> = {};
+          for (const action of room.nightActions.values()) {
+            if (action.role !== 'mafia' && action.role !== 'don') continue;
+            const voter = room.players.get(action.actorId);
+            const target = room.players.get(action.targetId);
+            if (voter && target) {
+              votes[action.actorId] = { voterName: voter.name, targetName: target.name };
+            }
+          }
+          return votes;
+        })()
+      : null,
   };
 }
 

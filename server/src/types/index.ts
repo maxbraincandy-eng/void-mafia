@@ -326,6 +326,7 @@ export interface Room {
   deadChat: ChatMessage[];
   spectateQueue: string[];
   startedAt: number;
+  mafiaKillTarget: string | null;
 }
 
 // ── Public Types (sent to clients) ────────────────────────────────────
@@ -371,6 +372,8 @@ export interface RoomPublic {
   spectatorCount: number;
   isPaused: boolean;
   deadChat: ChatMessage[];
+  /** Mafia-team-only: each alive Mafia member's current kill vote. null when viewer is not Mafia. */
+  mafiaVotes: Record<string, { voterName: string; targetName: string }> | null;
 }
 
 export interface RoomListItem {
@@ -400,7 +403,7 @@ export interface GameOverResult {
 }
 
 // ── Voice channel type (kept in sync with client/src/hooks/useVoiceChat) ──
-export type VoiceChannel = 'room' | 'mafia';
+export type VoiceChannel = 'room' | 'mafia' | 'yakuza';
 
 // ── Achievement ───────────────────────────────────────────────────────
 export interface AchievementEarned {

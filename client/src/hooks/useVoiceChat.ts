@@ -15,7 +15,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { socket } from '@/lib/socket';
 import { WebRTCSession, ConnectionState, PeerState, log } from '@/services/webrtcService';
 
-export type VoiceChannel = 'room' | 'mafia';
+export type VoiceChannel = 'room' | 'mafia' | 'yakuza';
 
 export interface VoiceState {
   channel: VoiceChannel | null;

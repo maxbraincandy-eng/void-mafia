@@ -70,7 +70,11 @@ export function VoiceControls({
 
   const [wantCamera, setWantCamera] = useState(false);
 
-  const label = channelLabel ?? (defaultChannel === 'mafia' ? '🔴 Mafia Voice' : '🎙 Room Voice');
+  const label = channelLabel ?? (
+    defaultChannel === 'mafia'  ? '🔴 Mafia Voice'
+    : defaultChannel === 'yakuza' ? '⚔️ Yakuza Voice'
+    : '🎙 Room Voice'
+  );
 
   return (
     <div className="rounded-2xl border border-white/10 bg-void-50/60 p-4 space-y-3">
@@ -168,7 +172,7 @@ export function VoiceControls({
             ) : (
               <>
                 {wantCamera ? '📷 ' : '🎙 '}
-                {defaultChannel === 'mafia' ? v.joinMafia : v.join}
+                {defaultChannel === 'mafia' ? v.joinMafia : defaultChannel === 'yakuza' ? '⚔️ Join Yakuza Voice' : v.join}
               </>
             )}
           </button>

@@ -150,12 +150,52 @@ export function NightPanel() {
     : role === 'yakuza' ? 'danger'
     : 'neon-pink';
 
+  // Mafia teammates' current kill votes (only visible to Mafia/Don)
+  const mafiaVotePanel = (role === 'mafia' || role === 'don') && room.mafiaVotes
+    ? Object.values(room.mafiaVotes).filter(v => v.voterName !== myPlayer.name)
+    : null;
+
+  // Compute consensus state for Mafia
+  const allMafiaTeammates = room.players.filter(
+    p => p.isAlive && (p.role === 'mafia' || p.role === 'don') && p.id !== myPlayer.id,
+  );
+  const mafiaVoteTargets = room.mafiaVotes ? Object.values(room.mafiaVotes).map(v => v.targetName) : [];
+  const myMafiaVote = room.mafiaVotes?.[myPlayer.id];
+  const allVotesSame = mafiaVoteTargets.length > 0
+    && mafiaVoteTargets.every(t => t === mafiaVoteTargets[0]);
+
   return (
     <div className="space-y-4">
       <div className="p-3 rounded-xl border border-white/8 bg-void-50/40">
         <p className="text-xs font-mono text-white/40 uppercase tracking-widest mb-1">{t.game.night.objective}</p>
         <p className="text-sm text-white/80">{roleDesc}</p>
       </div>
+
+      {/* Mafia teammate votes panel */}
+      {(role === 'mafia' || role === 'don') && allMafiaTeammates.length > 0 && (
+        <div className="p-3 rounded-xl border border-pink-500/30 bg-pink-950/20 space-y-1.5">
+          <p className="text-[10px] font-mono text-pink-400/60 uppercase tracking-widest">
+            Team Kill — {allVotesSame && mafiaVoteTargets.length > 0 ? '✓ Agreed' : mafiaVoteTargets.length > 0 ? '⚠ Disagreement' : 'Waiting…'}
+          </p>
+          {allMafiaTeammates.map(tm => {
+            const vote = room.mafiaVotes?.[tm.id];
+            return (
+              <div key={tm.id} className="flex items-center justify-between text-xs font-mono">
+                <span className="text-pink-300">{tm.role === 'don' ? '👑' : '🔫'} {tm.name}</span>
+                <span className={vote ? 'text-white/70' : 'text-white/25 animate-pulse'}>
+                  {vote ? `→ ${vote.targetName}` : '…'}
+                </span>
+              </div>
+            );
+          })}
+          {myMafiaVote && (
+            <div className="flex items-center justify-between text-xs font-mono border-t border-pink-500/20 pt-1.5 mt-1">
+              <span className="text-pink-300/60">You</span>
+              <span className="text-white/70">→ {myMafiaVote.targetName}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {yakuzaShogunInfo && (
         <div className="p-3 rounded-xl border border-red-500/30 bg-red-950/20">

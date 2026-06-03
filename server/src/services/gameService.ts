@@ -68,6 +68,7 @@ export function setPhase(room: Room, phase: Phase): void {
       room.killedLastNight = [];
       room.savedLastNight = false;
       room.newlyConvertedCultists = [];
+      room.mafiaKillTarget = null;
       room.timer = room.settings.nightDuration;
       room.maxTimer = room.settings.nightDuration;
       break;
@@ -249,7 +250,29 @@ export function resolveNight(room: Room): void {
   }
 
   // ── Standard kill intents ────────────────────────────────────────────
-  const mafiaKills     = actions.filter(a => a.role === 'mafia' || a.role === 'don').map(a => a.targetId);
+
+  // Mafia collective kill — majority consensus required.
+  // If Mafia members vote for different targets, Don breaks a tie; otherwise no kill.
+  {
+    const mafiaVotes = actions.filter(a => a.role === 'mafia' || a.role === 'don').map(a => a.targetId);
+    if (mafiaVotes.length === 1) {
+      room.mafiaKillTarget = mafiaVotes[0]!;
+    } else if (mafiaVotes.length > 1) {
+      const counts = new Map<string, number>();
+      for (const t of mafiaVotes) counts.set(t, (counts.get(t) ?? 0) + 1);
+      const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+      const [topId, topCount] = sorted[0]!;
+      if (sorted.length === 1 || sorted[1]![1] < topCount) {
+        room.mafiaKillTarget = topId;
+      } else {
+        // Tied vote: Don's choice breaks the tie
+        const donVote = actions.find(a => a.role === 'don')?.targetId;
+        room.mafiaKillTarget = donVote ?? null;
+      }
+    }
+  }
+
+  const mafiaKills     = room.mafiaKillTarget ? [room.mafiaKillTarget] : [];
   const maniacKills    = actions.filter(a => a.role === 'maniac').map(a => a.targetId);
   const vigilanteKills = actions.filter(a => a.role === 'vigilante').map(a => a.targetId);
   const yakuzaKills    = actions.filter(a => a.role === 'yakuza').map(a => a.targetId);

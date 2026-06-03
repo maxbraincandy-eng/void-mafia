@@ -1,6 +1,6 @@
 import type { Room } from '../types/index.js';
 
-export type VoiceChannel = 'room' | 'mafia';
+export type VoiceChannel = 'room' | 'mafia' | 'yakuza';
 
 export interface VoiceMember {
   socketId: string;
@@ -14,8 +14,9 @@ const state = new Map<string, Map<VoiceChannel, Map<string, VoiceMember>>>();
 function ensureRoom(roomId: string): Map<VoiceChannel, Map<string, VoiceMember>> {
   if (!state.has(roomId)) {
     state.set(roomId, new Map([
-      ['room',  new Map()],
-      ['mafia', new Map()],
+      ['room',   new Map()],
+      ['mafia',  new Map()],
+      ['yakuza', new Map()],
     ]));
   }
   return state.get(roomId)!;
@@ -38,6 +39,13 @@ export function canJoin(room: Room, playerId: string, channel: VoiceChannel): st
     if (room.phase !== 'night')    return 'Mafia voice is only available during night.';
     if (!player.isAlive)           return 'Dead players cannot join mafia voice.';
     if (player.team !== 'mafia')   return 'Only Mafia members can join mafia voice.';
+    return null;
+  }
+
+  if (channel === 'yakuza') {
+    if (room.phase !== 'night')    return 'Yakuza voice is only available during night.';
+    if (!player.isAlive)           return 'Dead players cannot join Yakuza voice.';
+    if (player.team !== 'yakuza')  return 'Only Yakuza faction members can join Yakuza voice.';
     return null;
   }
 
@@ -97,6 +105,12 @@ export function canTransmitVoice(room: Room, playerId: string, channel: VoiceCha
   if (channel === 'mafia') {
     if (room.phase !== 'night')  return 'Mafia voice is only available during night.';
     if (player.team !== 'mafia') return 'Only Mafia members can transmit in this channel.';
+    return null;
+  }
+
+  if (channel === 'yakuza') {
+    if (room.phase !== 'night')    return 'Yakuza voice is only available during night.';
+    if (player.team !== 'yakuza')  return 'Only Yakuza faction members can transmit in this channel.';
     return null;
   }
 

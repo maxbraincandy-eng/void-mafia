@@ -163,11 +163,16 @@ export function GamePage() {
   const isInVoice = voice.channel !== null;
 
   // Determine appropriate voice channel for this player/phase
-  const isMafiaPlayer = myRole?.key === 'mafia' || myRole?.key === 'don';
+  const isMafiaPlayer  = myRole?.key === 'mafia' || myRole?.key === 'don';
+  const isYakuzaPlayer = myRole?.key === 'yakuza' || myRole?.key === 'shogun';
   const voiceChannel: VoiceChannel =
-    isMafiaPlayer && room?.phase === 'night' ? 'mafia' : 'room';
+    isMafiaPlayer  && room?.phase === 'night' ? 'mafia'
+    : isYakuzaPlayer && room?.phase === 'night' ? 'yakuza'
+    : 'room';
   const voiceChannelLabel =
-    voiceChannel === 'mafia' ? '◉ Mafia Voice' : '◎ Room Voice';
+    voiceChannel === 'mafia'  ? '◉ Mafia Voice'
+    : voiceChannel === 'yakuza' ? '⚔️ Yakuza Voice'
+    : '◎ Room Voice';
 
   // Speech phase voice enforcement is handled server-side via voice:force-mute / voice:force-unmute.
   // Auto-join Mafia voice when night starts; rejoin room channel when night ends.
@@ -181,27 +186,31 @@ export function GamePage() {
 
     if (cur === 'night' && isMafiaPlayer) {
       if (voice.channel === 'room') {
-        // Leave room and join mafia channel. The server also sends voice:force-leave,
-        // but handling it explicitly avoids a race where room:update arrives first.
+        // Leave room and join mafia channel.
         voice.leaveVoice();
         setTimeout(() => voice.joinVoice('mafia', false, true).catch(() => {}), 400);
       } else if (!voice.channel) {
         voice.joinVoice('mafia', false, true).catch(() => {});
       }
+    } else if (cur === 'night' && isYakuzaPlayer) {
+      if (voice.channel === 'room') {
+        voice.leaveVoice();
+        setTimeout(() => voice.joinVoice('yakuza', false, true).catch(() => {}), 400);
+      } else if (!voice.channel) {
+        voice.joinVoice('yakuza', false, true).catch(() => {});
+      }
     } else if (prev === 'night' && cur !== 'night') {
-      if (isMafiaPlayer && voice.channel === 'mafia') {
-        // Leave mafia channel and switch back to room.
-        // Same race-condition guard: handle regardless of server force-leave order.
+      if ((isMafiaPlayer && voice.channel === 'mafia') || (isYakuzaPlayer && voice.channel === 'yakuza')) {
+        // Leave faction channel and switch back to room.
         voice.leaveVoice();
         setTimeout(() => voice.joinVoice('room', false, true).catch(() => {}), 400);
       } else if (!voice.channel) {
         // Session was already destroyed (force-leave arrived first, or network drop).
-        // Covers both mafia and non-mafia players whose session was lost during night.
         voice.joinVoice('room', false, true).catch(() => {});
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room?.phase, isMafiaPlayer, amAlive, amSpectator]);
+  }, [room?.phase, isMafiaPlayer, isYakuzaPlayer, amAlive, amSpectator]);
 
   // Auto-join voice on room entry
   const autoJoined = useRef(false);

@@ -296,6 +296,14 @@ function announceNightResult(io: AppServer, room: Room): void {
   const result = { killed: room.killedLastNight, saved: room.savedLastNight };
   io.to(room.id).emit('game:night_result', result);
 
+  // Notify Mafia privately if they had votes but couldn't reach consensus
+  const mafiaVoteCount = [...room.nightActions.values()]
+    .filter(a => a.role === 'mafia' || a.role === 'don').length;
+  if (mafiaVoteCount > 0 && room.mafiaKillTarget === null) {
+    const msg = createSystemMessage("Your team couldn't agree on a target. No kill happened.", 'mafia');
+    addMessage(room, msg);
+  }
+
   // Night summary card (aggregate stats for all players)
   const summary: NightSummary = {
     day: room.day,
@@ -363,9 +371,8 @@ function notifyYakuzaAllies(io: AppServer, room: Room): void {
 }
 
 function notifySpies(io: AppServer, room: Room): void {
-  const mafiaAction = [...room.nightActions.values()]
-    .find(a => a.role === 'mafia' || a.role === 'don');
-  const targetId = mafiaAction?.targetId ?? null;
+  // Use the resolved consensus kill target (even if Doctor saved the victim)
+  const targetId = room.mafiaKillTarget;
   const targetName = targetId ? (room.players.get(targetId)?.name ?? null) : null;
 
   for (const p of room.players.values()) {
@@ -873,6 +880,16 @@ export function attachSocketHandlers(io: AppServer): void {
           if (result && actor.socketId) {
             io.to(actor.socketId).emit('game:investigation', result);
           }
+        }
+
+        // Broadcast Mafia/Don kill choice to private Mafia chat so teammates see it
+        if ((actor.role === 'mafia' || actor.role === 'don') && room.phase === 'night') {
+          const targetName = room.players.get(targetId)?.name ?? '?';
+          const label = actor.role === 'don' ? 'Don' : 'Mafia';
+          const choiceMsg = createSystemMessage(
+            `[${label}] ${actor.name} → ${targetName}`, 'mafia',
+          );
+          addMessage(room, choiceMsg);
         }
 
         broadcastRoom(io, room);
@@ -1884,13 +1901,21 @@ function enforceVoicePhaseRules(io: AppServer, room: Room): void {
   const { id: roomId, phase } = room;
 
   if (phase === 'night') {
-    // Mafia players leave the room channel (so they can join the mafia channel).
-    // Non-mafia players stay in the room channel but are muted until day resumes.
+    // Faction players leave the room channel to join their private faction channel.
+    // All other players stay in room channel but are muted until day resumes.
     const roomMembers = [...voiceGetMembers(roomId, 'room')];
     for (const member of roomMembers) {
       const player = room.players.get(member.playerId);
       if (player?.team === 'mafia') {
         io.to(member.socketId).emit('voice:force-leave', { channel: 'room', reason: 'Use the Mafia channel during night.' });
+        const removed = voiceRemoveFromChannel(member.socketId, 'room');
+        if (removed) {
+          for (const peer of removed.remaining) {
+            io.to(peer.socketId).emit('voice:peer-left', { socketId: member.socketId, channel: 'room' });
+          }
+        }
+      } else if (player?.team === 'yakuza') {
+        io.to(member.socketId).emit('voice:force-leave', { channel: 'room', reason: 'Use the Yakuza channel during night.' });
         const removed = voiceRemoveFromChannel(member.socketId, 'room');
         if (removed) {
           for (const peer of removed.remaining) {
@@ -1904,8 +1929,9 @@ function enforceVoicePhaseRules(io: AppServer, room: Room): void {
     return;
   }
 
-  // Leaving night — clean up any stale mafia channel connections
-  forceLeaveVoiceChannel(io, roomId, 'mafia', 'Mafia voice is only available during night.');
+  // Leaving night — clean up any stale private faction channel connections
+  forceLeaveVoiceChannel(io, roomId, 'mafia',  'Mafia voice is only available during night.');
+  forceLeaveVoiceChannel(io, roomId, 'yakuza', 'Yakuza voice is only available during night.');
 
   if (phase === 'speech') {
     const speakerId = room.speechOrder[room.currentSpeakerIdx] ?? null;
