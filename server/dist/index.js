@@ -150,8 +150,15 @@ initializeDatabase().then(() => {
     dbReady = true;
     console.log('[Startup] Database ready.');
 }).catch(err => {
-    console.error('[Startup] Database init failed — restarting:', err);
-    process.exit(1);
+    console.error('[Startup] Database init failed:', err.message);
+    // Delay exit by 8 s so Railway's healthcheck at /health can respond 200
+    // at least once before the process dies and triggers a restart.
+    // Without the delay, the process exits before the first healthcheck fires
+    // and Railway marks the deployment as permanently failed.
+    setTimeout(() => {
+        console.error('[Startup] Exiting now for Railway restart.');
+        process.exit(1);
+    }, 8000);
 });
 // Graceful shutdown
 process.on('SIGTERM', () => {
