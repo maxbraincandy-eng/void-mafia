@@ -2,7 +2,7 @@
 buildCommand = "npm install --include=dev && npm run build"
 
 [deploy]
-startCommand = "npx vite preview --host 0.0.0.0 --port $PORT"
+startCommand = "npx --yes serve dist -l $PORT -s"
 healthcheckPath = "/"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
