@@ -1578,7 +1578,7 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
-    socket.on('dm:list', async (_: any, cb: any) => {
+    socket.on('dm:list', async (cb: any) => {
       try {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('Not authenticated.');
@@ -1610,7 +1610,7 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
-    socket.on('dm:unread_count', async (_: any, cb: any) => {
+    socket.on('dm:unread_count', async (cb: any) => {
       try {
         const profileId = socket.data.profileId;
         if (!profileId) { cb(ok(0)); return; }

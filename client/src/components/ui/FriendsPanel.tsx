@@ -19,8 +19,8 @@ export function FriendsPanel() {
   const profile = useAuthStore(s => s.profile);
 
   const refresh = () => {
-    emitWithAck<undefined, Res<Friend[]>>('friend:list', undefined)
-      .then(res => { if (res.ok) setFriends(res.data); })
+    emitWithAck<void, Res<Friend[]>>('friend:list')
+      .then(res => { if (res.ok) setFriends(res.data ?? []); })
       .catch(() => {});
   };
 

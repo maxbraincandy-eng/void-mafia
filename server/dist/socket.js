@@ -1660,7 +1660,7 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
-        socket.on('dm:list', async (_, cb) => {
+        socket.on('dm:list', async (cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId)
@@ -1701,7 +1701,7 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
-        socket.on('dm:unread_count', async (_, cb) => {
+        socket.on('dm:unread_count', async (cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId) {
