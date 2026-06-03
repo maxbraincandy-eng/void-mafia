@@ -624,6 +624,10 @@ export interface ClientToServerEvents {
         status: 'resolved' | 'rejected';
         notes: string;
     }, cb: Cb<null>) => void;
+    'mod:terminate_game': (data: {
+        roomId: string;
+        reason: string;
+    }, cb: Cb<null>) => void;
     'voice:join': (data: {
         channel: VoiceChannel;
     }, cb: Cb<{

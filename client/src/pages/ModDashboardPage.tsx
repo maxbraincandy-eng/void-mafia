@@ -6,7 +6,7 @@ import type { Res } from '@/types/index';
 import { ModBadge } from '@/components/ui/ModBadge';
 
 type Tab = 'reports' | 'rooms' | 'players' | 'logs';
-type ActionType = 'ban' | 'mute' | 'warn' | 'kick' | 'unban' | 'unmute';
+type ActionType = 'ban' | 'mute' | 'warn' | 'kick' | 'unban' | 'unmute' | 'terminate_game';
 
 export function ModDashboardPage() {
   const [tab, setTab] = useState<Tab>('reports');
@@ -70,6 +70,8 @@ export function ModDashboardPage() {
       socket.emit('mod:unban' as any, { targetProfileId: actionTarget.profileId }, clearOnOk);
     } else if (actionType === 'unmute') {
       socket.emit('mod:unmute' as any, { targetProfileId: actionTarget.profileId }, clearOnOk);
+    } else if (actionType === 'terminate_game') {
+      socket.emit('mod:terminate_game' as any, { roomId: actionTarget.profileId, reason: actionReason || 'Rule violation' }, clearOnOk);
     }
   };
 
@@ -180,6 +182,14 @@ export function ModDashboardPage() {
                   <span className="text-white/30 font-mono text-xs ml-2">{r.playerCount} players · {r.phase}</span>
                   <p className="text-white/20 text-xs font-mono">Host: {r.hostName}</p>
                 </div>
+                {r.phase !== 'lobby' && r.phase !== 'game_over' && (
+                  <button
+                    onClick={() => { setActionTarget({ profileId: r.id, name: `Room ${r.code}` }); setActionType('terminate_game'); setActionReason(''); }}
+                    className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-neon-red/30 text-neon-red hover:bg-neon-red/10 transition-all"
+                  >
+                    Terminate
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -193,20 +203,24 @@ export function ModDashboardPage() {
               type="text"
               value={playerSearch}
               onChange={e => setPlayerSearch(e.target.value)}
-              placeholder="Search by name or ID…"
+              placeholder="Search by name, #ID or internal ID…"
               className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono placeholder-white/25 focus:outline-none focus:border-neon-green/40 mb-1"
             />
-            {players.filter(p =>
-              playerSearch.trim() === '' ||
-              p.username.toLowerCase().includes(playerSearch.toLowerCase()) ||
-              p.id.toLowerCase().includes(playerSearch.toLowerCase())
-            ).length === 0 && <p className="text-white/25 font-mono text-sm text-center py-8">No players found</p>}
+            {players.filter(p => {
+              const q = playerSearch.trim().toLowerCase().replace(/^#/, '');
+              return q === '' ||
+                p.username.toLowerCase().includes(q) ||
+                p.id.toLowerCase().includes(q) ||
+                (p.publicId != null && String(p.publicId).includes(q));
+            }).length === 0 && <p className="text-white/25 font-mono text-sm text-center py-8">No players found</p>}
             {players
-              .filter(p =>
-                playerSearch.trim() === '' ||
-                p.username.toLowerCase().includes(playerSearch.toLowerCase()) ||
-                p.id.toLowerCase().includes(playerSearch.toLowerCase())
-              )
+              .filter(p => {
+                const q = playerSearch.trim().toLowerCase().replace(/^#/, '');
+                return q === '' ||
+                  p.username.toLowerCase().includes(q) ||
+                  p.id.toLowerCase().includes(q) ||
+                  (p.publicId != null && String(p.publicId).includes(q));
+              })
               .map(p => (
               <div key={p.id} className="glass-panel border border-white/5 rounded-xl p-3">
                 <div className="flex items-center justify-between mb-2">
@@ -215,7 +229,10 @@ export function ModDashboardPage() {
                       <span className={`font-mono text-sm font-bold ${p.isModerator ? 'text-neon-green' : 'text-white'}`}>{p.username}</span>
                       {p.isModerator && <ModBadge level={p.moderatorLevel} />}
                     </div>
-                    <p className="text-white/25 text-xs font-mono">G:{p.stats.gamesPlayed} W:{p.stats.wins} ({p.stats.winRate}%)</p>
+                    <p className="text-white/25 text-xs font-mono">
+                      G:{p.stats.gamesPlayed} W:{p.stats.wins} ({p.stats.winRate}%)
+                      {p.publicId != null && <span className="ml-2 text-neon-cyan/50">#{p.publicId}</span>}
+                    </p>
                     <p className="text-white/15 text-[9px] font-mono truncate max-w-[160px]">{p.id}</p>
                   </div>
                   <div className="flex flex-wrap gap-1 justify-end max-w-[130px]">
@@ -276,10 +293,11 @@ export function ModDashboardPage() {
               actionType === 'ban' ? 'text-neon-red'
               : actionType === 'mute' ? 'text-neon-pink'
               : actionType === 'kick' ? 'text-neon-blue'
+              : actionType === 'terminate_game' ? 'text-orange-400'
               : actionType === 'unban' || actionType === 'unmute' ? 'text-neon-green'
               : 'text-yellow-400'
             }`}>
-              {actionType} Player
+              {actionType === 'terminate_game' ? 'Terminate Game' : `${actionType} Player`}
             </h3>
             <p className="text-white/40 font-mono text-xs mb-4">{actionTarget.name}</p>
 
@@ -294,7 +312,7 @@ export function ModDashboardPage() {
                   type="text"
                   value={actionReason}
                   onChange={e => setActionReason(e.target.value)}
-                  placeholder="Reason…"
+                  placeholder={actionType === 'terminate_game' ? 'Reason for termination…' : 'Reason…'}
                   className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-neon-green/40 mb-3"
                 />
 
@@ -322,15 +340,16 @@ export function ModDashboardPage() {
               </button>
               <button
                 onClick={doAction}
-                disabled={actionType !== 'unban' && actionType !== 'unmute' && !actionReason.trim()}
+                disabled={actionType !== 'unban' && actionType !== 'unmute' && actionType !== 'terminate_game' && !actionReason.trim()}
                 className={`flex-1 py-2 border font-mono font-bold text-xs rounded-xl transition-all disabled:opacity-40 capitalize ${
                   actionType === 'ban' ? 'bg-neon-red/15 border-neon-red/30 text-neon-red hover:bg-neon-red/25'
                   : actionType === 'mute' ? 'bg-neon-pink/15 border-neon-pink/30 text-neon-pink hover:bg-neon-pink/25'
                   : actionType === 'kick' ? 'bg-neon-blue/15 border-neon-blue/30 text-neon-blue hover:bg-neon-blue/25'
+                  : actionType === 'terminate_game' ? 'bg-orange-400/15 border-orange-400/30 text-orange-400 hover:bg-orange-400/25'
                   : 'bg-neon-green/15 border-neon-green/30 text-neon-green hover:bg-neon-green/25'
                 }`}
               >
-                {actionType}
+                {actionType === 'terminate_game' ? 'Terminate' : actionType}
               </button>
             </div>
           </div>

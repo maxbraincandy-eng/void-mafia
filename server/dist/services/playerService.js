@@ -5,6 +5,7 @@ import { sql } from '../db.js';
 // ── Moderator config from env ─────────────────────────────────────────
 const parseIds = (s) => s.split(',').map(n => n.trim()).filter(Boolean);
 const parseName = (s) => s.split(',').map(n => n.trim().toLowerCase()).filter(Boolean);
+const parsePublicIds = (s) => s.split(',').map(n => Number(n.trim())).filter(n => !isNaN(n) && n > 0);
 const PERM_MAP = {
     moderator: ['VIEW_REPORTS', 'KICK_ANY_PLAYER', 'MUTE_ANY_PLAYER', 'WARN_ANY_PLAYER'],
     senior_moderator: ['VIEW_REPORTS', 'KICK_ANY_PLAYER', 'MUTE_ANY_PLAYER', 'WARN_ANY_PLAYER', 'BAN_ANY_PLAYER', 'RESOLVE_REPORTS'],
@@ -42,16 +43,33 @@ function resolveModLevelFromEnv(uid, username) {
         return 'moderator';
     return null;
 }
+function resolveModLevelFromPublicId(publicId) {
+    const ownerPids = new Set(parsePublicIds(process.env.OWNER_PUBLIC_IDS ?? ''));
+    const adminPids = new Set(parsePublicIds(process.env.ADMIN_PUBLIC_IDS ?? ''));
+    const seniorModPids = new Set(parsePublicIds(process.env.SENIOR_MOD_PUBLIC_IDS ?? ''));
+    const modPids = new Set(parsePublicIds(process.env.MODERATOR_PUBLIC_IDS ?? ''));
+    if (ownerPids.has(publicId))
+        return 'owner';
+    if (adminPids.has(publicId))
+        return 'admin';
+    if (seniorModPids.has(publicId))
+        return 'senior_moderator';
+    if (modPids.has(publicId))
+        return 'moderator';
+    return null;
+}
 async function resolveModLevel(uid, username) {
     const envLevel = resolveModLevelFromEnv(uid, username);
     try {
-        const [row] = await sql `SELECT granted_mod_level FROM players WHERE id = ${uid}`;
+        const [row] = await sql `SELECT granted_mod_level, public_id FROM players WHERE id = ${uid}`;
         const granted = row?.granted_mod_level;
-        if (granted) {
-            if (!envLevel)
-                return granted;
-            return MOD_RANK[envLevel] >= MOD_RANK[granted] ? envLevel : granted;
-        }
+        const publicId = row?.public_id != null ? Number(row.public_id) : null;
+        const publicIdLevel = publicId != null ? resolveModLevelFromPublicId(publicId) : null;
+        const candidates = [envLevel, publicIdLevel, granted];
+        const best = candidates
+            .filter((l) => l != null)
+            .sort((a, b) => MOD_RANK[b] - MOD_RANK[a])[0] ?? null;
+        return best;
     }
     catch { /* ignore */ }
     return envLevel;

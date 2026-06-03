@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
 import { useSocialStore } from '@/store/socialStore';
 import { PoweredBy } from '@/components/ui/PoweredBy';
+import { ModBadge } from '@/components/ui/ModBadge';
 import { PlayerProfilePublic } from '@/types/index';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
@@ -151,12 +152,13 @@ export function LeaderboardPage() {
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <p className={clsx(
                       'font-display font-semibold text-sm truncate',
-                      i < 3 ? MEDAL_TEXT[i] : 'text-white/60',
+                      player.isModerator ? 'text-neon-green'
+                        : i < 3 ? MEDAL_TEXT[i] : 'text-white/60',
                     )}>
                       {player.username}
                     </p>
-                    {player.isModerator && (
-                      <span className="text-[9px] font-mono text-neon-green border border-neon-green/30 rounded px-1 shrink-0">MOD</span>
+                    {player.isModerator && player.moderatorBadgeVisible && (
+                      <ModBadge level={player.moderatorLevel} size="xs" />
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-1">

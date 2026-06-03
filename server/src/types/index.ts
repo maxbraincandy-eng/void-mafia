@@ -545,7 +545,8 @@ export interface ClientToServerEvents {
   'mod:get_rooms':      (cb: Cb<RoomListItem[]>) => void;
   'mod:get_players':    (cb: Cb<PlayerProfilePublic[]>) => void;
   'mod:get_logs':       (cb: Cb<ModLog[]>) => void;
-  'mod:resolve_report': (data: { reportId: string; status: 'resolved' | 'rejected'; notes: string }, cb: Cb<null>) => void;
+  'mod:resolve_report':  (data: { reportId: string; status: 'resolved' | 'rejected'; notes: string }, cb: Cb<null>) => void;
+  'mod:terminate_game':  (data: { roomId: string; reason: string }, cb: Cb<null>) => void;
   // Voice signaling (replaces webrtc:*)
   'voice:join':          (data: { channel: VoiceChannel }, cb: Cb<{ peers: Array<{ socketId: string; name: string }> }>) => void;
   'voice:leave':         () => void;

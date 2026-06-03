@@ -1229,6 +1229,50 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    // ── Mod: Terminate any room's game ───────────────────────────────
+    socket.on('mod:terminate_game', async ({ roomId, reason }: { roomId: string; reason: string }, cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        if (!modProfileId) throw new Error('Not authenticated.');
+        const mod = await getPlayer(modProfileId);
+        if (!mod || !canDo(mod, 'ban_long')) throw new Error('Insufficient permissions.');
+
+        const room = getRoom(roomId);
+        if (!room) throw new Error('Room not found.');
+        if (room.phase === 'lobby') throw new Error('No active game to terminate.');
+
+        timerService.stop(room.id);
+        room.phase = 'lobby';
+        room.winner = null;
+        room.day = 0;
+        room.timer = 0;
+        room.maxTimer = 0;
+        room.nightActions = new Map();
+        room.votes = new Map();
+        room.killedLastNight = [];
+        room.savedLastNight = false;
+        room.daySkipVotes = [];
+        room.speechOrder = [];
+        room.currentSpeakerIdx = 0;
+        room.isPaused = false;
+
+        for (const p of room.players.values()) {
+          p.role = null;
+          p.team = null;
+          p.isAlive = true;
+          p.isReady = false;
+          p.voteTarget = null;
+          p.hasActedThisPhase = false;
+        }
+
+        broadcastSystemMsg(io, room, `A moderator terminated the game. Reason: ${reason || 'Rule violation'}`);
+        broadcastRoom(io, room);
+        await logKick(modProfileId, mod.username, roomId, room.code, roomId, `Terminated game: ${reason || 'Rule violation'}`);
+        await notifyMods(io, 'mod_kick', `${mod.username} terminated game in room ${room.code}`, room.code);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     // ── Player Profile (by profileId) ─────────────────────────────────
     socket.on('player:profile', async ({ profileId }, cb) => {
       try {
