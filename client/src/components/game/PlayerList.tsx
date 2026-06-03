@@ -71,12 +71,19 @@ export function PlayerList({ players, phase, onSelectTarget, selectableIds, sele
                 isMe && !isSelected && !isSpeaking && 'border-neon-purple/25 bg-neon-purple/5',
               )}
             >
-              <Avatar
-                name={player.name}
-                isAlive={player.isAlive}
-                isHost={player.isHost}
-                size="sm"
-              />
+              {player.avatarUrl ? (
+                <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0"
+                  style={{ border: '1px solid rgba(138,43,226,0.3)' }}>
+                  <img src={player.avatarUrl} alt={player.name} className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <Avatar
+                  name={player.name}
+                  isAlive={player.isAlive}
+                  isHost={player.isHost}
+                  size="sm"
+                />
+              )}
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1 flex-wrap">

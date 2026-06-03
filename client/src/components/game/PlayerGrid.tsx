@@ -168,20 +168,35 @@ function SpeakerHero({ player, isMe, speakerIndex, totalSpeakers, voice }: {
                   : 'linear-gradient(150deg, rgba(0,30,50,0.45) 0%, rgba(2,5,16,0.95) 70%)',
               }}
             >
-              <motion.div
-                animate={{ scale: [1, 1.04, 1] }}
-                transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
-                className="rounded-full flex items-center justify-center font-display font-bold"
-                style={{
-                  width: 88, height: 88, fontSize: 34,
-                  background: 'linear-gradient(135deg, rgba(155,0,255,0.4) 0%, rgba(0,229,255,0.25) 100%)',
-                  border: '2px solid rgba(0,229,255,0.3)',
-                  color: '#00e5ff',
-                  boxShadow: '0 0 30px rgba(0,229,255,0.18)',
-                }}
-              >
-                {initials}
-              </motion.div>
+              {player.avatarUrl ? (
+                <motion.div
+                  animate={{ scale: [1, 1.02, 1] }}
+                  transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
+                  className="rounded-full overflow-hidden"
+                  style={{
+                    width: 88, height: 88,
+                    border: '2px solid rgba(0,229,255,0.3)',
+                    boxShadow: '0 0 30px rgba(0,229,255,0.18)',
+                  }}
+                >
+                  <img src={player.avatarUrl} alt={player.name} className="w-full h-full object-cover" />
+                </motion.div>
+              ) : (
+                <motion.div
+                  animate={{ scale: [1, 1.04, 1] }}
+                  transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
+                  className="rounded-full flex items-center justify-center font-display font-bold"
+                  style={{
+                    width: 88, height: 88, fontSize: 34,
+                    background: 'linear-gradient(135deg, rgba(155,0,255,0.4) 0%, rgba(0,229,255,0.25) 100%)',
+                    border: '2px solid rgba(0,229,255,0.3)',
+                    color: '#00e5ff',
+                    boxShadow: '0 0 30px rgba(0,229,255,0.18)',
+                  }}
+                >
+                  {player.avatar || initials}
+                </motion.div>
+              )}
             </div>
           )}
         </div>
@@ -377,19 +392,30 @@ function PlayerCard({
           >
             {dead ? (
               <span className="text-4xl opacity-40">💀</span>
+            ) : player.avatarUrl ? (
+              <div
+                className="rounded-full overflow-hidden"
+                style={{
+                  width: 'clamp(44px, 28%, 72px)',
+                  aspectRatio: '1',
+                  border: '2px solid rgba(0,229,255,0.25)',
+                }}
+              >
+                <img src={player.avatarUrl} alt={player.name} className="w-full h-full object-cover" />
+              </div>
             ) : (
               <div
                 className="rounded-full flex items-center justify-center font-display font-bold"
                 style={{
                   width: 'clamp(44px, 28%, 72px)',
                   aspectRatio: '1',
-                  fontSize: 'clamp(16px, 8vw, 26px)',
+                  fontSize: 'clamp(18px, 9vw, 30px)',
                   background: 'linear-gradient(135deg, rgba(155,0,255,0.35) 0%, rgba(0,229,255,0.22) 100%)',
                   border: '2px solid rgba(0,229,255,0.25)',
                   color: '#00e5ff',
                 }}
               >
-                {initials}
+                {player.avatar || initials}
               </div>
             )}
           </div>
@@ -413,7 +439,7 @@ function PlayerCard({
           </span>
           {/* Name */}
           <span className={clsx(
-            'text-[11px] font-semibold truncate flex-1',
+            'text-xs font-bold truncate flex-1 leading-tight',
             isMe ? '' : 'text-white',
           )} style={isMe ? { color: 'rgba(210,150,255,0.98)' } : undefined}>
             {player.name}
