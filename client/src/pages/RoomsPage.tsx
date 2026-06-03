@@ -4,6 +4,7 @@ import { RoomListItem } from '@/types/index';
 import { useGameStore } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
 import { useSocialStore } from '@/store/socialStore';
+import { MorePanel } from '@/components/ui/MorePanel';
 import { useT } from '@/store/langStore';
 import { useAmbientDrone } from '@/hooks/useAudio';
 import { Button } from '@/components/ui/Button';
@@ -40,7 +41,7 @@ export function RoomsPage() {
     isLoading: s.isLoading,
   }));
   const username = useAuthStore(s => s.username) ?? '';
-  const onlineCount = useSocialStore(s => s.onlineCount);
+  const { onlineCount, openMoreMenu } = useSocialStore(s => ({ onlineCount: s.onlineCount, openMoreMenu: s.openMoreMenu }));
   const t = useT();
   useAmbientDrone(0.05);
 
@@ -115,11 +116,26 @@ export function RoomsPage() {
 
       <LeaderboardModal open={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
 
+      <MorePanel />
+
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-7">
 
         {/* ── Header ──────────────────────────────────────────── */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
+        <div className="flex items-center gap-3 mb-6">
+          {/* More / hamburger button */}
+          <button
+            onClick={openMoreMenu}
+            className="flex-shrink-0 w-9 h-9 rounded-xl flex flex-col items-center justify-center gap-[4.5px] transition-all hover:bg-white/5 active:scale-95"
+            style={{ border: '1px solid rgba(255,255,255,0.07)' }}
+            aria-label="More options"
+          >
+            <span className="block w-4 h-[1.5px] rounded-full bg-white/40" />
+            <span className="block w-4 h-[1.5px] rounded-full bg-white/40" />
+            <span className="block w-2.5 h-[1.5px] rounded-full bg-white/25" />
+          </button>
+
+          {/* Title — pushed slightly right by the gap */}
+          <div className="flex-1 min-w-0">
             <h1 className="font-display text-2xl font-bold gradient-text tracking-wide leading-none">
               VOID MAFIA
             </h1>
@@ -135,7 +151,9 @@ export function RoomsPage() {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          {/* Right controls */}
+          <div className="flex items-center gap-2 flex-shrink-0">
             <LanguageSwitcher />
             <button
               onClick={() => setShowLeaderboard(true)}

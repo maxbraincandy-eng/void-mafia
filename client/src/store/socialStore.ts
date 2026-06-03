@@ -27,6 +27,10 @@ interface SocialStore {
   dmToast: DmToast | null;
   showDmToast: (toast: DmToast) => void;
   clearDmToast: () => void;
+
+  morePanelOpen: boolean;
+  openMoreMenu: () => void;
+  closeMoreMenu: () => void;
 }
 
 export const useSocialStore = create<SocialStore>((set, get) => {
@@ -77,5 +81,9 @@ export const useSocialStore = create<SocialStore>((set, get) => {
     dmToast: null,
     showDmToast: (toast) => set({ dmToast: toast }),
     clearDmToast: () => set({ dmToast: null }),
+
+    morePanelOpen: false,
+    openMoreMenu: () => set({ morePanelOpen: true }),
+    closeMoreMenu: () => set({ morePanelOpen: false }),
   };
 });
