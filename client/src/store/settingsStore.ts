@@ -37,9 +37,9 @@ interface SettingsStore extends Settings {
 
 const DEFAULTS: Settings = {
   sfxEnabled: true,
-  musicEnabled: false,
+  musicEnabled: true,
   notificationSounds: true,
-  sfxVolume: 70,
+  sfxVolume: 80,
   autoReady: false,
   showRoleAnimation: true,
   timerStyle: 'bar',
@@ -62,6 +62,16 @@ export const useSettingsStore = create<SettingsStore>()(
       update: (patch) => set(patch),
       reset: () => set(DEFAULTS),
     }),
-    { name: 'void-mafia-settings' },
+    {
+      name: 'void-mafia-settings',
+      version: 2,
+      // v2: musicEnabled defaults to true, sfxVolume bumped to 80
+      migrate: (stored: any, fromVersion: number) => {
+        if (fromVersion < 2) {
+          return { ...DEFAULTS, ...stored, musicEnabled: true, sfxVolume: Math.max(stored?.sfxVolume ?? 0, 80) };
+        }
+        return stored as SettingsStore;
+      },
+    },
   ),
 );

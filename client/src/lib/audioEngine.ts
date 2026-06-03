@@ -15,6 +15,7 @@ let _musicBus: GainNode | null = null; // music → master
 
 let _musicRunning = false;
 let _musicStopFn: (() => void) | null = null;
+let _musicPending = false; // want music but no user gesture yet
 
 // ── Context bootstrap ─────────────────────────────────────────────────
 
@@ -39,7 +40,7 @@ function syncGains() {
   const { sfxEnabled, musicEnabled, sfxVolume } = useSettingsStore.getState();
   const vol = sfxVolume / 100;
   _sfxBus.gain.value   = sfxEnabled  ? vol : 0;
-  _musicBus.gain.value = musicEnabled ? vol * 0.55 : 0;
+  _musicBus.gain.value = musicEnabled ? Math.max(0.5, vol) * 0.75 : 0;
 }
 
 /** Called by settings store subscriber — updates gains live */
@@ -127,102 +128,102 @@ function sfxPlay(tones: Tone[], masterVol = 0.5) {
 export const SFX = {
   click() {
     sfxPlay([
-      { freq: 1200, type: 'sine', dur: 0.05, vol: 0.18, attack: 0.003 },
-      { freq: 800,  type: 'sine', dur: 0.04, vol: 0.10, at: 0.04, attack: 0.002 },
-    ], 0.6);
+      { freq: 1000, type: 'sine', dur: 0.08, vol: 0.35, attack: 0.004 },
+      { freq: 650,  type: 'sine', dur: 0.07, vol: 0.20, at: 0.05, attack: 0.003 },
+    ], 0.9);
   },
 
   ping() {
     sfxPlay([
-      { freq: 880,  type: 'sine', dur: 0.35, vol: 0.12 },
-      { freq: 1320, type: 'sine', dur: 0.20, vol: 0.07, at: 0.05 },
-    ]);
+      { freq: 880,  type: 'sine', dur: 0.35, vol: 0.30 },
+      { freq: 1320, type: 'sine', dur: 0.20, vol: 0.18, at: 0.05 },
+    ], 0.8);
   },
 
   join() {
     sfxPlay([
-      { freq: 440, type: 'sine', dur: 0.18, vol: 0.18 },
-      { freq: 554, type: 'sine', dur: 0.18, vol: 0.18, at: 0.12 },
-      { freq: 659, type: 'sine', dur: 0.28, vol: 0.18, at: 0.24 },
-    ]);
+      { freq: 440, type: 'sine', dur: 0.18, vol: 0.35 },
+      { freq: 554, type: 'sine', dur: 0.18, vol: 0.35, at: 0.12 },
+      { freq: 659, type: 'sine', dur: 0.28, vol: 0.35, at: 0.24 },
+    ], 0.8);
   },
 
   gameStart() {
     sfxPlay([
-      { freq: 220, type: 'sawtooth', dur: 0.15, vol: 0.18 },
-      { freq: 277, type: 'sawtooth', dur: 0.15, vol: 0.18, at: 0.10 },
-      { freq: 330, type: 'sawtooth', dur: 0.15, vol: 0.18, at: 0.20 },
-      { freq: 440, type: 'sawtooth', dur: 0.30, vol: 0.22, at: 0.30 },
-      { freq: 440, type: 'sine',     dur: 0.50, vol: 0.10, at: 0.30, detune: 7 },
-    ]);
+      { freq: 220, type: 'sawtooth', dur: 0.15, vol: 0.35 },
+      { freq: 277, type: 'sawtooth', dur: 0.15, vol: 0.35, at: 0.10 },
+      { freq: 330, type: 'sawtooth', dur: 0.15, vol: 0.35, at: 0.20 },
+      { freq: 440, type: 'sawtooth', dur: 0.30, vol: 0.40, at: 0.30 },
+      { freq: 440, type: 'sine',     dur: 0.50, vol: 0.20, at: 0.30, detune: 7 },
+    ], 0.8);
   },
 
   nightStart() {
     sfxPlay([
-      { freq: 110, type: 'sine',     dur: 1.2, vol: 0.25 },
-      { freq: 220, type: 'triangle', dur: 0.6, vol: 0.12, freqEnd: 110 },
-      { freq: 165, type: 'sine',     dur: 0.4, vol: 0.08, at: 0.3, freqEnd: 82 },
-      { freq: 330, type: 'sawtooth', dur: 0.5, vol: 0.06, freqEnd: 165 },
-    ], 0.4);
+      { freq: 110, type: 'sine',     dur: 1.2, vol: 0.50 },
+      { freq: 220, type: 'triangle', dur: 0.6, vol: 0.30, freqEnd: 110 },
+      { freq: 165, type: 'sine',     dur: 0.4, vol: 0.20, at: 0.3, freqEnd: 82 },
+      { freq: 330, type: 'sawtooth', dur: 0.5, vol: 0.15, freqEnd: 165 },
+    ], 0.7);
   },
 
   dayStart() {
     sfxPlay([
-      { freq: 330, type: 'sine', dur: 0.20, vol: 0.20, freqEnd: 440 },
-      { freq: 440, type: 'sine', dur: 0.20, vol: 0.20, at: 0.18, freqEnd: 554 },
-      { freq: 554, type: 'sine', dur: 0.25, vol: 0.20, at: 0.36, freqEnd: 659 },
-      { freq: 659, type: 'sine', dur: 0.40, vol: 0.22, at: 0.54 },
-    ]);
+      { freq: 330, type: 'sine', dur: 0.20, vol: 0.40, freqEnd: 440 },
+      { freq: 440, type: 'sine', dur: 0.20, vol: 0.40, at: 0.18, freqEnd: 554 },
+      { freq: 554, type: 'sine', dur: 0.25, vol: 0.40, at: 0.36, freqEnd: 659 },
+      { freq: 659, type: 'sine', dur: 0.40, vol: 0.45, at: 0.54 },
+    ], 0.8);
   },
 
   voteStart() {
     sfxPlay([
-      { freq: 440, type: 'sawtooth', dur: 0.5, vol: 0.15 },
-      { freq: 466, type: 'sawtooth', dur: 0.5, vol: 0.12, detune: -12 },
-      { freq: 392, type: 'square',   dur: 0.3, vol: 0.08, at: 0.1 },
-      { freq: 523, type: 'sine',     dur: 0.4, vol: 0.10, at: 0.2 },
-    ], 0.4);
+      { freq: 440, type: 'sawtooth', dur: 0.5, vol: 0.35 },
+      { freq: 466, type: 'sawtooth', dur: 0.5, vol: 0.28, detune: -12 },
+      { freq: 392, type: 'square',   dur: 0.3, vol: 0.20, at: 0.1 },
+      { freq: 523, type: 'sine',     dur: 0.4, vol: 0.25, at: 0.2 },
+    ], 0.7);
   },
 
   voteConfirm() {
     sfxPlay([
-      { freq: 660, type: 'sine', dur: 0.08, vol: 0.20, attack: 0.005 },
-      { freq: 880, type: 'sine', dur: 0.12, vol: 0.15, at: 0.07, attack: 0.005 },
-    ], 0.5);
+      { freq: 660, type: 'sine', dur: 0.10, vol: 0.40, attack: 0.005 },
+      { freq: 880, type: 'sine', dur: 0.14, vol: 0.30, at: 0.08, attack: 0.005 },
+    ], 0.85);
   },
 
   timerWarning() {
     sfxPlay([
-      { freq: 880, type: 'square', dur: 0.06, vol: 0.18 },
-      { freq: 660, type: 'square', dur: 0.06, vol: 0.12, at: 0.10 },
-    ], 0.35);
+      { freq: 880, type: 'square', dur: 0.08, vol: 0.40 },
+      { freq: 660, type: 'square', dur: 0.08, vol: 0.30, at: 0.12 },
+    ], 0.7);
   },
 
   eliminate() {
     sfxPlay([
-      { freq: 220, type: 'sawtooth', dur: 0.8, vol: 0.22, freqEnd: 55 },
-      { freq: 440, type: 'sine',     dur: 0.5, vol: 0.15, freqEnd: 110 },
-      { freq: 110, type: 'square',   dur: 0.3, vol: 0.10, at: 0.1 },
-      { freq: 55,  type: 'sine',     dur: 1.0, vol: 0.20 },
-    ], 0.4);
+      { freq: 220, type: 'sawtooth', dur: 0.8, vol: 0.45, freqEnd: 55 },
+      { freq: 440, type: 'sine',     dur: 0.5, vol: 0.35, freqEnd: 110 },
+      { freq: 110, type: 'square',   dur: 0.3, vol: 0.25, at: 0.1 },
+      { freq: 55,  type: 'sine',     dur: 1.0, vol: 0.40 },
+    ], 0.7);
   },
 
   cardFlip() {
     sfxPlay([
-      { freq: 1600, type: 'sine',     dur: 0.07, vol: 0.12, freqEnd: 800 },
-      { freq: 800,  type: 'triangle', dur: 0.15, vol: 0.09, at: 0.06, freqEnd: 500 },
-      { freq: 500,  type: 'sine',     dur: 0.35, vol: 0.07, at: 0.18 },
-    ], 0.55);
+      { freq: 1600, type: 'sine',     dur: 0.08, vol: 0.30, freqEnd: 800 },
+      { freq: 800,  type: 'triangle', dur: 0.18, vol: 0.25, at: 0.06, freqEnd: 500 },
+      { freq: 500,  type: 'sine',     dur: 0.40, vol: 0.20, at: 0.20 },
+    ], 0.85);
   },
 
   gameOver() {
     sfxPlay([
-      { freq: 110, type: 'sine',     dur: 2.0, vol: 0.22 },
-      { freq: 220, type: 'sine',     dur: 1.8, vol: 0.18, at: 0.1 },
-      { freq: 277, type: 'triangle', dur: 1.5, vol: 0.14, at: 0.2 },
-      { freq: 330, type: 'sine',     dur: 1.2, vol: 0.10, at: 0.3 },
-      { freq: 165, type: 'sawtooth', dur: 1.0, vol: 0.08, at: 0.5, freqEnd: 110 },
-    ], 0.45);
+      { freq: 110, type: 'sine',     dur: 2.0, vol: 0.45 },
+      { freq: 220, type: 'sine',     dur: 1.8, vol: 0.38, at: 0.1 },
+      { freq: 277, type: 'triangle', dur: 1.5, vol: 0.30, at: 0.2 },
+      { freq: 330, type: 'sine',     dur: 1.2, vol: 0.25, at: 0.3 },
+      { freq: 165, type: 'sawtooth', dur: 1.0, vol: 0.20, at: 0.5, freqEnd: 110 },
+    ], 0.7);
   },
 };
 
@@ -263,7 +264,14 @@ export function startMenuMusic() {
   if (_musicRunning) return;
   if (!useSettingsStore.getState().musicEnabled) return;
 
+  // If no AudioContext yet (no user gesture), mark as pending.
+  // attachGlobalClickSounds will call us again after first interaction.
+  if (!_ctx || _ctx.state === 'suspended') {
+    _musicPending = true;
+  }
+
   resume().then(() => {
+    _musicPending = false;
     if (_musicRunning) return;
     _musicRunning = true;
     const ctx = _ctx!;
@@ -311,15 +319,15 @@ export function startMenuMusic() {
 
     // Fade everything in
     const now = ctx.currentTime;
-    bassGain.gain.linearRampToValueAtTime(0.28, now + 3);
-    padGain.gain.linearRampToValueAtTime(0.08, now + 4);
+    bassGain.gain.linearRampToValueAtTime(0.55, now + 3);
+    padGain.gain.linearRampToValueAtTime(0.18, now + 4);
 
     // ── Arpeggio scheduler ──────────────────────────────────────────
     let arpStep = 0;
     let nextTime = ctx.currentTime + 1; // start after 1s
 
     const arpGain = ctx.createGain();
-    arpGain.gain.value = 0.13;
+    arpGain.gain.value = 0.22;
     arpGain.connect(filter);
     arpGain.connect(reverbWet);
 
@@ -419,10 +427,24 @@ export function attachGlobalClickSounds() {
   if (_clickListenerAttached) return;
   _clickListenerAttached = true;
 
-  document.addEventListener('click', (e) => {
-    // Boot on first interaction (required by browsers)
+  const onInteraction = () => {
     boot();
-    if (_ctx && _ctx.state === 'suspended') _ctx.resume().catch(() => {});
+    if (_ctx && _ctx.state === 'suspended') {
+      _ctx.resume().then(() => {
+        // Start music that was requested before user gesture
+        if (_musicPending) {
+          _musicPending = false;
+          startMenuMusic();
+        }
+      }).catch(() => {});
+    } else if (_musicPending) {
+      _musicPending = false;
+      startMenuMusic();
+    }
+  };
+
+  document.addEventListener('click', (e) => {
+    onInteraction();
 
     const t = e.target as HTMLElement | null;
     if (!t) return;
@@ -431,4 +453,7 @@ export function attachGlobalClickSounds() {
     if ((el as HTMLButtonElement).disabled || el.getAttribute('aria-disabled') === 'true') return;
     SFX.click();
   }, { passive: true, capture: true });
+
+  // Also handle touch for mobile
+  document.addEventListener('touchstart', onInteraction, { passive: true, once: true });
 }
