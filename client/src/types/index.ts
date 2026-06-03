@@ -126,6 +126,7 @@ export interface PlayerPublic {
   socketId: string;
   name: string;
   avatar: string;
+  avatarUrl: string | null;
   isHost: boolean;
   isAlive: boolean;
   isConnected: boolean;
