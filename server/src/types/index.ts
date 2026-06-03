@@ -494,6 +494,10 @@ export interface ServerToClientEvents {
   'friend:request_received': (req: FriendRequest) => void;
   // Push notifications
   'game:notification':   (data: { title: string; body: string }) => void;
+  // Online count
+  'online:count':        (data: { count: number }) => void;
+  // Direct messages
+  'dm:new_message':      (data: { conversationId: string; message: any }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -566,6 +570,15 @@ export interface ClientToServerEvents {
   // Cosmetics
   'cosmetics:equip':       (data: { type: 'name_color' | 'frame'; itemId: string | null }, cb: Cb<PlayerCosmetics>) => void;
   'cosmetics:get':         (data: { profileId: string }, cb: Cb<PlayerCosmetics>) => void;
+  // Public profile popup
+  'player:public_profile': (data: { profileId: string }, cb: Cb<any>) => void;
+  // Direct messages
+  'dm:start':              (data: { profileId: string }, cb: Cb<any>) => void;
+  'dm:send':               (data: { conversationId: string; text: string }, cb: Cb<any>) => void;
+  'dm:list':               (data: Record<string, never>, cb: Cb<any[]>) => void;
+  'dm:messages':           (data: { conversationId: string }, cb: Cb<any[]>) => void;
+  'dm:mark_read':          (data: { conversationId: string }, cb: Cb<null>) => void;
+  'dm:unread_count':       (data: Record<string, never>, cb: Cb<number>) => void;
 }
 
 export interface InterServerEvents {}

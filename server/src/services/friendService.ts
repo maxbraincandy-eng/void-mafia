@@ -1,96 +1,90 @@
-import { db } from '../db.js';
+import { sql } from '../db.js';
 import { generateId } from '../utils/helpers.js';
 import type { Friend, FriendRequest } from '../types/index.js';
 
-// ── Online status tracking ────────────────────────────────────────────
+// ── Online status tracking (in-memory, ephemeral) ─────────────────────
 const onlineProfiles = new Set<string>();
 
-export function markOnline(profileId: string): void {
-  onlineProfiles.add(profileId);
-}
-
-export function markOffline(profileId: string): void {
-  onlineProfiles.delete(profileId);
-}
-
-export function isOnline(profileId: string): boolean {
-  return onlineProfiles.has(profileId);
-}
+export function markOnline(profileId: string): void { onlineProfiles.add(profileId); }
+export function markOffline(profileId: string): void { onlineProfiles.delete(profileId); }
+export function isOnline(profileId: string): boolean { return onlineProfiles.has(profileId); }
+export function getOnlineCount(): number { return onlineProfiles.size; }
 
 // ── Friend requests ───────────────────────────────────────────────────
-export function sendFriendRequest(fromId: string, toId: string): void {
+export async function sendFriendRequest(fromId: string, toId: string): Promise<void> {
   if (fromId === toId) throw new Error('Cannot friend yourself.');
-  const existing = db.prepare(
-    'SELECT status FROM friendships WHERE (from_id=? AND to_id=?) OR (from_id=? AND to_id=?)',
-  ).get(fromId, toId, toId, fromId) as { status: string } | undefined;
+  const [existing] = await sql`
+    SELECT status FROM friendships
+    WHERE (from_id = ${fromId} AND to_id = ${toId}) OR (from_id = ${toId} AND to_id = ${fromId})
+  ` as any[];
   if (existing?.status === 'accepted') throw new Error('Already friends.');
   if (existing?.status === 'pending') throw new Error('Request already pending.');
-  db.prepare(
-    'INSERT OR IGNORE INTO friendships (id, from_id, to_id, status, created_at) VALUES (?,?,?,?,?)',
-  ).run(generateId(), fromId, toId, 'pending', Date.now());
+  await sql`
+    INSERT INTO friendships (id, from_id, to_id, status, created_at)
+    VALUES (${generateId()}, ${fromId}, ${toId}, 'pending', ${Date.now()})
+    ON CONFLICT DO NOTHING
+  `;
 }
 
-export function acceptFriend(requestFrom: string, accepterId: string): void {
-  const changes = (db.prepare(
-    'UPDATE friendships SET status=? WHERE from_id=? AND to_id=? AND status=?',
-  ).run('accepted', requestFrom, accepterId, 'pending') as { changes: number }).changes;
-  if (changes === 0) throw new Error('No pending request found.');
+export async function acceptFriend(requestFrom: string, accepterId: string): Promise<void> {
+  const result = await sql`
+    UPDATE friendships SET status = 'accepted'
+    WHERE from_id = ${requestFrom} AND to_id = ${accepterId} AND status = 'pending'
+  `;
+  if ((result as any).count === 0) throw new Error('No pending request found.');
 }
 
-export function declineFriend(requestFrom: string, declinerId: string): void {
-  db.prepare(
-    'DELETE FROM friendships WHERE from_id=? AND to_id=? AND status=?',
-  ).run(requestFrom, declinerId, 'pending');
+export async function declineFriend(requestFrom: string, declinerId: string): Promise<void> {
+  await sql`
+    DELETE FROM friendships
+    WHERE from_id = ${requestFrom} AND to_id = ${declinerId} AND status = 'pending'
+  `;
 }
 
-export function removeFriend(playerId: string, friendId: string): void {
-  db.prepare(
-    'DELETE FROM friendships WHERE (from_id=? AND to_id=?) OR (from_id=? AND to_id=?)',
-  ).run(playerId, friendId, friendId, playerId);
+export async function removeFriend(playerId: string, friendId: string): Promise<void> {
+  await sql`
+    DELETE FROM friendships
+    WHERE (from_id = ${playerId} AND to_id = ${friendId})
+       OR (from_id = ${friendId} AND to_id = ${playerId})
+  `;
 }
 
-export function getFriends(playerId: string): Friend[] {
-  const rows = db.prepare(`
+export async function getFriends(playerId: string): Promise<Friend[]> {
+  const rows = await sql`
     SELECT p.id, p.username, p.avatar, p.level
     FROM friendships f
     JOIN players p ON (
-      CASE WHEN f.from_id = ? THEN f.to_id ELSE f.from_id END = p.id
+      CASE WHEN f.from_id = ${playerId} THEN f.to_id ELSE f.from_id END = p.id
     )
-    WHERE (f.from_id = ? OR f.to_id = ?) AND f.status = 'accepted'
-  `).all(playerId, playerId, playerId) as Array<{
-    id: string;
-    username: string;
-    avatar: string;
-    level: number;
-  }>;
-  return rows.map(r => ({
-    profileId: r.id,
-    username: r.username,
-    avatar: r.avatar,
-    level: r.level ?? 1,
-    isOnline: onlineProfiles.has(r.id),
-    status: 'accepted' as const,
+    WHERE (f.from_id = ${playerId} OR f.to_id = ${playerId}) AND f.status = 'accepted'
+  ` as any[];
+  return rows.map((r: any) => ({
+    profileId: r.id, username: r.username, avatar: r.avatar,
+    level: Number(r.level ?? 1), isOnline: onlineProfiles.has(r.id), status: 'accepted' as const,
   }));
 }
 
-export function getPendingRequests(playerId: string): FriendRequest[] {
-  const rows = db.prepare(`
+export async function getPendingRequests(playerId: string): Promise<FriendRequest[]> {
+  const rows = await sql`
     SELECT f.id, f.from_id, p.username, p.avatar, f.created_at
     FROM friendships f
     JOIN players p ON f.from_id = p.id
-    WHERE f.to_id = ? AND f.status = 'pending'
-  `).all(playerId) as Array<{
-    id: string;
-    from_id: string;
-    username: string;
-    avatar: string;
-    created_at: number;
-  }>;
-  return rows.map(r => ({
-    id: r.id,
-    fromId: r.from_id,
-    fromUsername: r.username,
-    fromAvatar: r.avatar,
-    createdAt: r.created_at,
+    WHERE f.to_id = ${playerId} AND f.status = 'pending'
+  ` as any[];
+  return rows.map((r: any) => ({
+    id: r.id, fromId: r.from_id, fromUsername: r.username,
+    fromAvatar: r.avatar, createdAt: Number(r.created_at),
   }));
+}
+
+export async function getFriendshipStatus(userId: string, otherId: string): Promise<string> {
+  const [row] = await sql`
+    SELECT status, from_id FROM friendships
+    WHERE (from_id = ${userId} AND to_id = ${otherId})
+       OR (from_id = ${otherId} AND to_id = ${userId})
+  ` as any[];
+  if (!row) return 'none';
+  if (row.status === 'accepted') return 'friends';
+  if (row.status === 'pending') return row.from_id === userId ? 'request_sent' : 'request_received';
+  return 'none';
 }

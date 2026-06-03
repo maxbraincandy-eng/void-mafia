@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
+import { useSocialStore } from '@/store/socialStore';
 import { PoweredBy } from '@/components/ui/PoweredBy';
 import { PlayerProfilePublic } from '@/types/index';
 
@@ -12,6 +13,7 @@ const MEDAL_TEXT = ['text-yellow-400', 'text-gray-300', 'text-amber-500'];
 
 export function LeaderboardPage() {
   const getLeaderboard = useGameStore(s => s.getLeaderboard);
+  const openProfile = useSocialStore(s => s.openProfile);
   const [players, setPlayers] = useState<PlayerProfilePublic[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -101,12 +103,9 @@ export function LeaderboardPage() {
             transition={{ delay: 0.05 }}
             className="flex gap-2 mb-4 items-end"
           >
-            {/* 2nd */}
-            <PodiumCard player={top3[1]!} rank={1} />
-            {/* 1st — taller */}
-            <PodiumCard player={top3[0]!} rank={0} tall />
-            {/* 3rd */}
-            <PodiumCard player={top3[2]!} rank={2} />
+            <PodiumCard player={top3[1]!} rank={1} onClick={() => openProfile(top3[1]!.id)} />
+            <PodiumCard player={top3[0]!} rank={0} tall onClick={() => openProfile(top3[0]!.id)} />
+            <PodiumCard player={top3[2]!} rank={2} onClick={() => openProfile(top3[2]!.id)} />
           </motion.div>
         )}
 
@@ -119,9 +118,10 @@ export function LeaderboardPage() {
                 initial={{ opacity: 0, x: -16 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 + i * 0.03 }}
+                onClick={() => openProfile(player.id)}
                 className={clsx(
-                  'flex items-center gap-3 p-3 rounded-2xl border transition-colors',
-                  i < 3 ? `${MEDAL_BORDER[i]} ${MEDAL_BG[i]}` : 'border-white/5 bg-white/2',
+                  'flex items-center gap-3 p-3 rounded-2xl border transition-colors cursor-pointer active:scale-[0.98]',
+                  i < 3 ? `${MEDAL_BORDER[i]} ${MEDAL_BG[i]} hover:bg-white/5` : 'border-white/5 bg-white/2 hover:bg-white/4',
                 )}
               >
                 {/* Rank */}
@@ -206,18 +206,21 @@ function PodiumCard({
   player,
   rank,
   tall = false,
+  onClick,
 }: {
   player: PlayerProfilePublic;
   rank: number;
   tall?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.05 + rank * 0.05 }}
+      onClick={onClick}
       className={clsx(
-        'flex-1 glass-panel rounded-xl p-3 text-center border',
+        'flex-1 glass-panel rounded-xl p-3 text-center border cursor-pointer hover:brightness-110 active:scale-95 transition-transform',
         rank === 0 ? 'border-yellow-400/25' : 'border-white/8',
         tall ? 'pb-4' : '',
       )}

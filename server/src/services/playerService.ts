@@ -4,7 +4,7 @@ import {
   PlayerProfile, PlayerProfilePublic, ModeratorLevel, BanRecord, MuteRecord, Warning, PlayerCosmetics,
 } from '../types/index.js';
 import { nameToAvatar } from '../utils/helpers.js';
-import { db } from '../db.js';
+import { sql } from '../db.js';
 
 // ── Moderator config from env ─────────────────────────────────────────
 const parseIds  = (s: string) => s.split(',').map(n => n.trim()).filter(Boolean);
@@ -25,8 +25,7 @@ export function getModPermissions(level: ModeratorLevel | null): string[] {
   return level ? PERM_MAP[level] : [];
 }
 
-// Read env vars at call time so Railway variable changes take effect on next login without redeploy
-function resolveModLevel(uid: string, username: string): ModeratorLevel | null {
+function resolveModLevelFromEnv(uid: string, username: string): ModeratorLevel | null {
   const ownerIds      = new Set(parseIds(process.env.OWNER_IDS         ?? ''));
   const adminIds      = new Set(parseIds(process.env.ADMIN_IDS          ?? ''));
   const seniorModIds  = new Set(parseIds(process.env.SENIOR_MOD_IDS     ?? ''));
@@ -35,67 +34,71 @@ function resolveModLevel(uid: string, username: string): ModeratorLevel | null {
   const adminNames    = new Set(parseName(process.env.ADMIN_NAMES        ?? ''));
   const modNames      = new Set(parseName(process.env.MODERATOR_NAMES    ?? ''));
 
-  let envLevel: ModeratorLevel | null = null;
-  if (ownerIds.has(uid))     envLevel = 'owner';
-  else if (adminIds.has(uid))     envLevel = 'admin';
-  else if (seniorModIds.has(uid)) envLevel = 'senior_moderator';
-  else if (modIds.has(uid))       envLevel = 'moderator';
-  else {
-    const lower = username.toLowerCase();
-    if (ownerNames.has(lower)) envLevel = 'owner';
-    else if (adminNames.has(lower)) envLevel = 'admin';
-    else if (modNames.has(lower))   envLevel = 'moderator';
-  }
+  if (ownerIds.has(uid))     return 'owner';
+  if (adminIds.has(uid))     return 'admin';
+  if (seniorModIds.has(uid)) return 'senior_moderator';
+  if (modIds.has(uid))       return 'moderator';
 
-  // Also check DB-granted level and take whichever is higher
+  const lower = username.toLowerCase();
+  if (ownerNames.has(lower)) return 'owner';
+  if (adminNames.has(lower)) return 'admin';
+  if (modNames.has(lower))   return 'moderator';
+
+  return null;
+}
+
+async function resolveModLevel(uid: string, username: string): Promise<ModeratorLevel | null> {
+  const envLevel = resolveModLevelFromEnv(uid, username);
   try {
-    const row = db.prepare('SELECT granted_mod_level FROM players WHERE id = ?').get(uid) as any;
+    const [row] = await sql`SELECT granted_mod_level FROM players WHERE id = ${uid}` as any[];
     const granted = row?.granted_mod_level as ModeratorLevel | null;
     if (granted) {
       if (!envLevel) return granted;
       return MOD_RANK[envLevel] >= MOD_RANK[granted] ? envLevel : granted;
     }
-  } catch { /* ignore if column doesn't exist yet */ }
-
+  } catch { /* ignore */ }
   return envLevel;
 }
 
 // ── Friend code helpers ──────────────────────────────────────────────
-function generateUniqueFriendCode(): string {
+async function generateUniqueFriendCode(): Promise<string> {
   let code: string;
   do {
     code = String(1000 + Math.floor(Math.random() * 9000));
-  } while (db.prepare('SELECT id FROM players WHERE friend_code = ?').get(code));
+    const [row] = await sql`SELECT id FROM players WHERE friend_code = ${code}` as any[];
+    if (!row) break;
+  } while (true);
   return code;
 }
 
-export function getPlayerByFriendCode(code: string): PlayerProfile | null {
-  const row = db.prepare('SELECT * FROM players WHERE friend_code = ?').get(code.trim()) as any;
+export async function getPlayerByFriendCode(code: string): Promise<PlayerProfile | null> {
+  const [row] = await sql`SELECT * FROM players WHERE friend_code = ${code.trim()}` as any[];
   return row ? rowToProfile(row) : null;
 }
 
-export function setGrantedModLevel(uid: string, level: ModeratorLevel | null): void {
-  db.prepare('UPDATE players SET granted_mod_level = ? WHERE id = ?').run(level, uid);
-  // Refresh stored moderator fields
-  const player = getPlayer(uid);
+export async function setGrantedModLevel(uid: string, level: ModeratorLevel | null): Promise<void> {
+  await sql`UPDATE players SET granted_mod_level = ${level} WHERE id = ${uid}`;
+  const player = await getPlayer(uid);
   if (!player) return;
-  const newLevel = resolveModLevel(uid, player.username);
-  db.prepare(`
-    UPDATE players SET is_moderator = ?, moderator_level = ?, moderator_badge_visible = ?, moderator_permissions = ?
-    WHERE id = ?
-  `).run(
-    newLevel ? 1 : 0, newLevel, newLevel ? 1 : 0,
-    JSON.stringify(getModPermissions(newLevel)),
-    uid,
-  );
+  const newLevel = await resolveModLevel(uid, player.username);
+  await sql`
+    UPDATE players SET
+      is_moderator = ${newLevel ? 1 : 0},
+      moderator_level = ${newLevel},
+      moderator_badge_visible = ${newLevel ? 1 : 0},
+      moderator_permissions = ${JSON.stringify(getModPermissions(newLevel))}
+    WHERE id = ${uid}
+  `;
 }
 
-// ── DB → PlayerProfile ───────────────────────────────────────────────
-function rowToProfile(row: any): PlayerProfile {
+// ── DB row → PlayerProfile ───────────────────────────────────────────
+async function rowToProfile(row: any): Promise<PlayerProfile> {
   const modLevel = (row.moderator_level as ModeratorLevel | null) ?? null;
-  const activeBan  = getActiveBan(row.id);
-  const activeMute = getActiveMute(row.id);
-  const warnings   = getWarnings(row.id);
+  const [activeBan, activeMute, warnings] = await Promise.all([
+    getActiveBan(row.id),
+    getActiveMute(row.id),
+    getWarnings(row.id),
+  ]);
 
   let cosmetics: PlayerCosmetics;
   try {
@@ -116,22 +119,23 @@ function rowToProfile(row: any): PlayerProfile {
     email:                  row.email ?? undefined,
     passwordHash:           row.password_hash ?? undefined,
     stats: {
-      gamesPlayed: row.games_played,
-      wins:        row.wins,
-      losses:      row.losses,
-      winRate:     row.games_played > 0 ? Math.round((row.wins / row.games_played) * 100) : 0,
+      gamesPlayed: Number(row.games_played ?? 0),
+      wins:        Number(row.wins ?? 0),
+      losses:      Number(row.losses ?? 0),
+      winRate:     Number(row.games_played ?? 0) > 0
+        ? Math.round((Number(row.wins ?? 0) / Number(row.games_played ?? 0)) * 100) : 0,
     },
-    isModerator:            row.is_moderator === 1,
+    isModerator:            row.is_moderator === 1 || row.is_moderator === true,
     moderatorLevel:         modLevel,
-    moderatorBadgeVisible:  row.moderator_badge_visible === 1,
+    moderatorBadgeVisible:  row.moderator_badge_visible === 1 || row.moderator_badge_visible === true,
     moderatorPermissions:   JSON.parse(row.moderator_permissions ?? '[]'),
     ban:                    activeBan,
     mute:                   activeMute,
     warnings,
-    joinedAt:               row.joined_at,
-    lastSeenAt:             row.last_seen_at,
-    xp:                     row.xp ?? 0,
-    level:                  row.level ?? 1,
+    joinedAt:               Number(row.joined_at),
+    lastSeenAt:             Number(row.last_seen_at),
+    xp:                     Number(row.xp ?? 0),
+    level:                  Number(row.level ?? 1),
     cosmetics,
     friendCode:             row.friend_code ?? '',
   };
@@ -139,90 +143,85 @@ function rowToProfile(row: any): PlayerProfile {
 
 // ── Auth ──────────────────────────────────────────────────────────────
 export async function registerWithEmail(
-  email: string,
-  password: string,
-  username: string,
+  email: string, password: string, username: string,
 ): Promise<PlayerProfile> {
   const normalised = email.trim().toLowerCase();
-  const existing = db.prepare('SELECT id FROM players WHERE email = ?').get(normalised);
+  const [existing] = await sql`SELECT id FROM players WHERE email = ${normalised}` as any[];
   if (existing) throw new Error('This email is already registered.');
 
   const name = username.trim().slice(0, 24) || 'Player';
   const uid  = 'e_' + createHash('sha256').update(normalised).digest('hex').slice(0, 24);
   const passwordHash = await bcrypt.hash(password, 10);
-  const modLevel     = resolveModLevel(uid, name);
+  const modLevel     = resolveModLevelFromEnv(uid, name);
   const now          = Date.now();
-  const friendCode   = generateUniqueFriendCode();
+  const friendCode   = await generateUniqueFriendCode();
 
-  db.prepare(`
+  await sql`
     INSERT INTO players (id, username, avatar, email, password_hash, games_played, wins, losses,
-      is_moderator, moderator_level, moderator_badge_visible, moderator_permissions, joined_at, last_seen_at, friend_code)
-    VALUES (?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    uid, name, nameToAvatar(name), normalised, passwordHash,
-    modLevel ? 1 : 0, modLevel, modLevel ? 1 : 0,
-    JSON.stringify(getModPermissions(modLevel)),
-    now, now, friendCode,
-  );
-
-  return getPlayer(uid)!;
+      is_moderator, moderator_level, moderator_badge_visible, moderator_permissions,
+      joined_at, last_seen_at, friend_code)
+    VALUES (
+      ${uid}, ${name}, ${nameToAvatar(name)}, ${normalised}, ${passwordHash},
+      0, 0, 0,
+      ${modLevel ? 1 : 0}, ${modLevel}, ${modLevel ? 1 : 0},
+      ${JSON.stringify(getModPermissions(modLevel))},
+      ${now}, ${now}, ${friendCode}
+    )
+  `;
+  return (await getPlayer(uid))!;
 }
 
 export async function authenticateWithEmail(email: string, password: string): Promise<PlayerProfile> {
   const normalised = email.trim().toLowerCase();
-  const row = db.prepare('SELECT * FROM players WHERE email = ?').get(normalised) as any;
+  const [row] = await sql`SELECT * FROM players WHERE email = ${normalised}` as any[];
   if (!row || !row.password_hash) throw new Error('Email not found. Please register first.');
-
   const match = await bcrypt.compare(password, row.password_hash);
   if (!match) throw new Error('Incorrect password.');
-
-  db.prepare('UPDATE players SET last_seen_at = ? WHERE id = ?').run(Date.now(), row.id);
+  await sql`UPDATE players SET last_seen_at = ${Date.now()} WHERE id = ${row.id}`;
   return rowToProfile({ ...row, last_seen_at: Date.now() });
 }
 
-export function getOrCreatePlayer(uid: string, username: string): PlayerProfile {
+export async function getOrCreatePlayer(uid: string, username: string): Promise<PlayerProfile> {
   const name = username.trim().slice(0, 24) || 'Player';
   const now  = Date.now();
-  const row  = db.prepare('SELECT * FROM players WHERE id = ?').get(uid) as any;
+  const [row] = await sql`SELECT * FROM players WHERE id = ${uid}` as any[];
 
   if (!row) {
-    const modLevel   = resolveModLevel(uid, name);
-    const friendCode = generateUniqueFriendCode();
-    db.prepare(`
+    const modLevel   = resolveModLevelFromEnv(uid, name);
+    const friendCode = await generateUniqueFriendCode();
+    await sql`
       INSERT INTO players (id, username, avatar, games_played, wins, losses,
-        is_moderator, moderator_level, moderator_badge_visible, moderator_permissions, joined_at, last_seen_at, friend_code)
-      VALUES (?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      uid, name, nameToAvatar(name),
-      modLevel ? 1 : 0, modLevel, modLevel ? 1 : 0,
-      JSON.stringify(getModPermissions(modLevel)),
-      now, now, friendCode,
-    );
+        is_moderator, moderator_level, moderator_badge_visible, moderator_permissions,
+        joined_at, last_seen_at, friend_code)
+      VALUES (
+        ${uid}, ${name}, ${nameToAvatar(name)}, 0, 0, 0,
+        ${modLevel ? 1 : 0}, ${modLevel}, ${modLevel ? 1 : 0},
+        ${JSON.stringify(getModPermissions(modLevel))},
+        ${now}, ${now}, ${friendCode}
+      )
+    `;
   } else {
-    const modLevel = resolveModLevel(uid, name);
-    db.prepare(`
-      UPDATE players SET username = ?, last_seen_at = ?,
-        is_moderator = ?, moderator_level = ?, moderator_badge_visible = ?, moderator_permissions = ?
-      WHERE id = ?
-    `).run(
-      name, now,
-      modLevel ? 1 : 0, modLevel, modLevel ? 1 : 0,
-      JSON.stringify(getModPermissions(modLevel)),
-      uid,
-    );
+    const modLevel = resolveModLevelFromEnv(uid, name);
+    await sql`
+      UPDATE players SET
+        username = ${name}, last_seen_at = ${now},
+        is_moderator = ${modLevel ? 1 : 0}, moderator_level = ${modLevel},
+        moderator_badge_visible = ${modLevel ? 1 : 0},
+        moderator_permissions = ${JSON.stringify(getModPermissions(modLevel))}
+      WHERE id = ${uid}
+    `;
   }
-
-  return getPlayer(uid)!;
+  return (await getPlayer(uid))!;
 }
 
-export function getPlayer(uid: string): PlayerProfile | null {
-  const row = db.prepare('SELECT * FROM players WHERE id = ?').get(uid) as any;
+export async function getPlayer(uid: string): Promise<PlayerProfile | null> {
+  const [row] = await sql`SELECT * FROM players WHERE id = ${uid}` as any[];
   return row ? rowToProfile(row) : null;
 }
 
-export function getAllPlayers(): PlayerProfile[] {
-  const rows = db.prepare('SELECT * FROM players ORDER BY last_seen_at DESC').all() as any[];
-  return rows.map(rowToProfile);
+export async function getAllPlayers(): Promise<PlayerProfile[]> {
+  const rows = await sql`SELECT * FROM players ORDER BY last_seen_at DESC` as any[];
+  return Promise.all(rows.map(rowToProfile));
 }
 
 export function toPublicProfile(p: PlayerProfile): PlayerProfilePublic {
@@ -243,83 +242,92 @@ export function toPublicProfile(p: PlayerProfile): PlayerProfilePublic {
   };
 }
 
-export function addGameResult(uid: string, won: boolean): void {
-  db.prepare(`
+export async function addGameResult(uid: string, won: boolean): Promise<void> {
+  await sql`
     UPDATE players SET
       games_played = games_played + 1,
-      wins   = wins   + ?,
-      losses = losses + ?
-    WHERE id = ?
-  `).run(won ? 1 : 0, won ? 0 : 1, uid);
+      wins   = wins   + ${won ? 1 : 0},
+      losses = losses + ${won ? 0 : 1}
+    WHERE id = ${uid}
+  `;
 }
 
 // ── Bans ──────────────────────────────────────────────────────────────
-export function getActiveBan(uid: string): BanRecord | null {
+export async function getActiveBan(uid: string): Promise<BanRecord | null> {
   const now = Date.now();
-  const row = db.prepare(`
-    SELECT * FROM bans WHERE player_id = ? AND active = 1 AND expires_at > ? ORDER BY expires_at DESC LIMIT 1
-  `).get(uid, now) as any;
+  const [row] = await sql`
+    SELECT * FROM bans
+    WHERE player_id = ${uid} AND active = 1 AND expires_at > ${now}
+    ORDER BY expires_at DESC LIMIT 1
+  ` as any[];
   if (!row) return null;
   return {
     id: row.id, reason: row.reason,
     issuedBy: row.banned_by, issuedByName: row.banned_by_name,
-    issuedAt: row.issued_at, expiresAt: row.expires_at,
+    issuedAt: Number(row.issued_at), expiresAt: Number(row.expires_at),
   };
 }
 
-export function setBan(uid: string, record: BanRecord): void {
-  db.prepare('UPDATE bans SET active = 0 WHERE player_id = ?').run(uid);
-  db.prepare(`
+export async function setBan(uid: string, record: BanRecord): Promise<void> {
+  await sql`UPDATE bans SET active = 0 WHERE player_id = ${uid}`;
+  await sql`
     INSERT INTO bans (id, player_id, banned_by, banned_by_name, reason, issued_at, expires_at, active)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-  `).run(record.id, uid, record.issuedBy, record.issuedByName, record.reason, record.issuedAt, record.expiresAt);
+    VALUES (${record.id}, ${uid}, ${record.issuedBy}, ${record.issuedByName},
+            ${record.reason}, ${record.issuedAt}, ${record.expiresAt}, 1)
+  `;
 }
 
-export function clearBan(uid: string): void {
-  db.prepare('UPDATE bans SET active = 0 WHERE player_id = ?').run(uid);
+export async function clearBan(uid: string): Promise<void> {
+  await sql`UPDATE bans SET active = 0 WHERE player_id = ${uid}`;
 }
 
 // ── Mutes ─────────────────────────────────────────────────────────────
-export function getActiveMute(uid: string): MuteRecord | null {
+export async function getActiveMute(uid: string): Promise<MuteRecord | null> {
   const now = Date.now();
-  const row = db.prepare(`
-    SELECT * FROM mutes WHERE player_id = ? AND active = 1 AND expires_at > ? ORDER BY expires_at DESC LIMIT 1
-  `).get(uid, now) as any;
+  const [row] = await sql`
+    SELECT * FROM mutes
+    WHERE player_id = ${uid} AND active = 1 AND expires_at > ${now}
+    ORDER BY expires_at DESC LIMIT 1
+  ` as any[];
   if (!row) return null;
   return {
     id: row.id, reason: row.reason,
     issuedBy: row.muted_by, issuedByName: row.muted_by_name,
-    issuedAt: row.issued_at, expiresAt: row.expires_at,
+    issuedAt: Number(row.issued_at), expiresAt: Number(row.expires_at),
   };
 }
 
-export function setMute(uid: string, record: MuteRecord): void {
-  db.prepare('UPDATE mutes SET active = 0 WHERE player_id = ?').run(uid);
-  db.prepare(`
+export async function setMute(uid: string, record: MuteRecord): Promise<void> {
+  await sql`UPDATE mutes SET active = 0 WHERE player_id = ${uid}`;
+  await sql`
     INSERT INTO mutes (id, player_id, muted_by, muted_by_name, reason, issued_at, expires_at, active)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-  `).run(record.id, uid, record.issuedBy, record.issuedByName, record.reason, record.issuedAt, record.expiresAt);
+    VALUES (${record.id}, ${uid}, ${record.issuedBy}, ${record.issuedByName},
+            ${record.reason}, ${record.issuedAt}, ${record.expiresAt}, 1)
+  `;
 }
 
-export function clearMute(uid: string): void {
-  db.prepare('UPDATE mutes SET active = 0 WHERE player_id = ?').run(uid);
+export async function clearMute(uid: string): Promise<void> {
+  await sql`UPDATE mutes SET active = 0 WHERE player_id = ${uid}`;
 }
 
 // ── Warnings ──────────────────────────────────────────────────────────
-export function getWarnings(uid: string): Warning[] {
-  const rows = db.prepare('SELECT * FROM warnings WHERE player_id = ? ORDER BY issued_at DESC').all(uid) as any[];
-  return rows.map(r => ({
+export async function getWarnings(uid: string): Promise<Warning[]> {
+  const rows = await sql`
+    SELECT * FROM warnings WHERE player_id = ${uid} ORDER BY issued_at DESC
+  ` as any[];
+  return rows.map((r: any) => ({
     id: r.id, playerId: r.player_id,
     reason: r.reason, issuedBy: r.warned_by, issuedByName: r.warned_by_name,
-    issuedAt: r.issued_at,
+    issuedAt: Number(r.issued_at),
   }));
 }
 
-export function addWarning(uid: string, warning: Warning): void {
-  db.prepare(`
+export async function addWarning(uid: string, warning: Warning): Promise<void> {
+  await sql`
     INSERT INTO warnings (id, player_id, warned_by, warned_by_name, reason, issued_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(warning.id, uid, warning.issuedBy, warning.issuedByName, warning.reason, warning.issuedAt);
+    VALUES (${warning.id}, ${uid}, ${warning.issuedBy}, ${warning.issuedByName},
+            ${warning.reason}, ${warning.issuedAt})
+  `;
 }
 
 export function findSocketByProfile(
@@ -342,18 +350,18 @@ export function getLevel(xp: number): number {
   return 1;
 }
 
-export function addXP(profileId: string, amount: number): { newXP: number; newLevel: number; leveledUp: boolean } {
-  const row = db.prepare('SELECT xp, level FROM players WHERE id = ?').get(profileId) as { xp: number; level: number } | undefined;
+export async function addXP(profileId: string, amount: number): Promise<{ newXP: number; newLevel: number; leveledUp: boolean }> {
+  const [row] = await sql`SELECT xp, level FROM players WHERE id = ${profileId}` as any[];
   if (!row) return { newXP: 0, newLevel: 1, leveledUp: false };
-  const newXP = (row.xp ?? 0) + amount;
+  const newXP = Number(row.xp ?? 0) + amount;
   const newLevel = getLevel(newXP);
-  db.prepare('UPDATE players SET xp = ?, level = ? WHERE id = ?').run(newXP, newLevel, profileId);
-  checkLevelCosmetics(profileId, newLevel);
-  return { newXP, newLevel, leveledUp: newLevel > (row.level ?? 1) };
+  await sql`UPDATE players SET xp = ${newXP}, level = ${newLevel} WHERE id = ${profileId}`;
+  await checkLevelCosmetics(profileId, newLevel);
+  return { newXP, newLevel, leveledUp: newLevel > Number(row.level ?? 1) };
 }
 
-export function getCosmetics(profileId: string): PlayerCosmetics {
-  const row = db.prepare('SELECT cosmetics FROM players WHERE id = ?').get(profileId) as { cosmetics: string } | undefined;
+export async function getCosmetics(profileId: string): Promise<PlayerCosmetics> {
+  const [row] = await sql`SELECT cosmetics FROM players WHERE id = ${profileId}` as any[];
   try {
     const parsed = JSON.parse(row?.cosmetics ?? '{}') as Partial<PlayerCosmetics>;
     return {
@@ -366,16 +374,16 @@ export function getCosmetics(profileId: string): PlayerCosmetics {
   }
 }
 
-export function equipCosmetic(profileId: string, type: 'name_color' | 'frame', itemId: string | null): PlayerCosmetics {
-  const cosmetics = getCosmetics(profileId);
+export async function equipCosmetic(profileId: string, type: 'name_color' | 'frame', itemId: string | null): Promise<PlayerCosmetics> {
+  const cosmetics = await getCosmetics(profileId);
   if (itemId && !cosmetics.unlockedItems.includes(itemId)) throw new Error('Item not unlocked.');
   if (type === 'name_color') cosmetics.equippedNameColor = itemId;
   else cosmetics.equippedFrame = itemId;
-  db.prepare('UPDATE players SET cosmetics = ? WHERE id = ?').run(JSON.stringify(cosmetics), profileId);
+  await sql`UPDATE players SET cosmetics = ${JSON.stringify(cosmetics)} WHERE id = ${profileId}`;
   return cosmetics;
 }
 
-function checkLevelCosmetics(profileId: string, level: number): void {
+async function checkLevelCosmetics(profileId: string, level: number): Promise<void> {
   const unlocks: Record<number, string[]> = {
     2: ['name_cyan'],
     3: ['name_pink', 'frame_bronze'],
@@ -386,9 +394,9 @@ function checkLevelCosmetics(profileId: string, level: number): void {
   };
   const items = unlocks[level];
   if (!items) return;
-  const cosmetics = getCosmetics(profileId);
+  const cosmetics = await getCosmetics(profileId);
   for (const item of items) {
     if (!cosmetics.unlockedItems.includes(item)) cosmetics.unlockedItems.push(item);
   }
-  db.prepare('UPDATE players SET cosmetics = ? WHERE id = ?').run(JSON.stringify(cosmetics), profileId);
+  await sql`UPDATE players SET cosmetics = ${JSON.stringify(cosmetics)} WHERE id = ${profileId}`;
 }

@@ -1,5 +1,4 @@
 import { generateId, generateRoomCode, nameToAvatar } from '../utils/helpers.js';
-import { getPlayer } from './playerService.js';
 // ── In-Memory Store ───────────────────────────────────────────────────
 const rooms = new Map();
 // ── Default Settings ──────────────────────────────────────────────────
@@ -37,11 +36,10 @@ export const DEFAULT_SETTINGS = {
 export function createRoom(hostSocketId, hostName, profileId, settings) {
     const id = generateId();
     const code = generateRoomCode();
-    const profile = profileId ? getPlayer(profileId) : null;
     const hostPlayer = {
         id: generateId(),
         name: hostName.trim().slice(0, 24) || 'Player',
-        avatar: profile?.avatar || nameToAvatar(hostName),
+        avatar: nameToAvatar(hostName),
         socketId: hostSocketId,
         isHost: true,
         isAlive: true,
@@ -56,8 +54,8 @@ export function createRoom(hostSocketId, hostName, profileId, settings) {
         profileId,
         isSpectator: false,
         lastWill: null,
-        isModerator: profile?.isModerator ?? false,
-        moderatorLevel: profile?.moderatorLevel ?? null,
+        isModerator: false,
+        moderatorLevel: null,
     };
     const mergedSettings = {
         ...DEFAULT_SETTINGS,
@@ -126,12 +124,11 @@ export function addPlayer(room, socketId, name, profileId) {
         throw new Error('Game already started — cannot join.');
     if (room.players.size >= 16)
         throw new Error('Room is full (max 16 players).');
-    const joinProfile = profileId ? getPlayer(profileId) : null;
     const seat = getNextSeat(room);
     const player = {
         id: generateId(),
         name: name.trim().slice(0, 24) || 'Player',
-        avatar: joinProfile?.avatar || nameToAvatar(name),
+        avatar: nameToAvatar(name),
         socketId,
         isHost: false,
         isAlive: true,
@@ -146,8 +143,8 @@ export function addPlayer(room, socketId, name, profileId) {
         profileId,
         isSpectator: false,
         lastWill: null,
-        isModerator: joinProfile?.isModerator ?? false,
-        moderatorLevel: joinProfile?.moderatorLevel ?? null,
+        isModerator: false,
+        moderatorLevel: null,
     };
     room.players.set(player.id, player);
     return player;

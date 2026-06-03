@@ -6,13 +6,15 @@ import { createPlayerMessage, createSystemMessage, addMessage, validateChat, } f
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
 import { getOrCreatePlayer, getPlayer, getAllPlayers, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, getPlayerByFriendCode, setGrantedModLevel, } from './services/playerService.js';
-import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getPendingRequests, } from './services/friendService.js';
+import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, } from './services/friendService.js';
 import { checkAndAwardChallenge, getTodayChallenge, getDailyChallengeForPlayer, } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
 import { recordGame, getPlayerHistory } from './services/gameHistoryService.js';
 import { createClan, getClan, getClanByPlayer, getAllClans, getClanMembers, joinClan, leaveClan, } from './services/clanService.js';
 import { canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer, warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, logKick, } from './services/moderationService.js';
 import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as voiceLeave, getMembers as voiceGetMembers, getSharedChannel as voiceGetSharedChannel, removeFromChannel as voiceRemoveFromChannel, } from './services/voiceService.js';
+import { sql } from './db.js';
+import { getOrCreateConversation, listConversations, sendMessage, getMessages, markRead, getTotalUnread, } from './services/dmService.js';
 // ── Rate limiting ─────────────────────────────────────────────────────
 const rateLimits = new Map();
 function rateOk(socketId, limit = 15) {
@@ -114,6 +116,9 @@ function broadcastRoom(io, room) {
         }
     }
 }
+function broadcastOnlineCount(io) {
+    io.emit('online:count', { count: getOnlineCount() });
+}
 function startPhaseTimer(io, room) {
     timerService.stop(room.id);
     if (!room.timer || room.timer <= 0)
@@ -139,7 +144,7 @@ function startPhaseTimer(io, room) {
             io.to(room.id).emit('game:notification', { title: 'Night Falls', body: 'Perform your night action.' });
         }
         if (nextPhase === 'game_over')
-            emitGameOver(io, room);
+            await emitGameOver(io, room);
         broadcastRoom(io, room);
         enforceVoicePhaseRules(io, room);
         if (room.phase !== 'game_over')
@@ -166,11 +171,11 @@ function getRoomFromSocket(socket) {
         throw new Error('Room not found.');
     return room;
 }
-function emitGameOver(io, room) {
+async function emitGameOver(io, room) {
     const result = buildGameOverResult(room);
     // Record persistent game history
     try {
-        recordGame(room);
+        await recordGame(room);
     }
     catch { /* non-fatal */ }
     // Send game:notification push event
@@ -183,18 +188,18 @@ function emitGameOver(io, room) {
             io.to(p.socketId).emit('game:over', result);
         if (p.profileId && room.winner) {
             const won = p.team === room.winner;
-            addGameResult(p.profileId, won);
+            await addGameResult(p.profileId, won);
             // Award XP
             try {
                 const roundsAlive = Math.min(room.day, 10);
                 let xpAmount = won ? 150 : 50;
                 xpAmount += Math.min(roundsAlive * 5, 50);
                 // Check daily challenge
-                const challengeCompleted = checkAndAwardChallenge(p.profileId, won, p.role, room.day, p.team);
+                const challengeCompleted = await checkAndAwardChallenge(p.profileId, won, p.role, room.day, p.team);
                 const todayChallenge = getTodayChallenge();
                 const challengeBonus = challengeCompleted ? todayChallenge.xpReward : 0;
                 xpAmount += challengeBonus;
-                const xpResult = addXP(p.profileId, xpAmount);
+                const xpResult = await addXP(p.profileId, xpAmount);
                 if (p.socketId) {
                     io.to(p.socketId).emit('xp:gained', {
                         amount: xpAmount,
@@ -209,9 +214,9 @@ function emitGameOver(io, room) {
             catch { /* non-fatal */ }
             // Check and award achievements
             try {
-                const newKeys = checkAchievements(room, p.id);
+                const newKeys = await checkAchievements(room, p.id);
                 if (newKeys.length > 0 && p.socketId) {
-                    const allAchs = getPlayerAchievements(p.profileId);
+                    const allAchs = await getPlayerAchievements(p.profileId);
                     const earned = allAchs.filter(a => newKeys.includes(a.key));
                     io.to(p.socketId).emit('achievement:earned', { achievements: earned });
                 }
@@ -220,12 +225,12 @@ function emitGameOver(io, room) {
         }
     }
 }
-function notifyMods(io, type, message, targetName) {
+async function notifyMods(io, type, message, targetName) {
     for (const [, sock] of io.sockets.sockets) {
         const profileId = sock.data.profileId;
         if (!profileId)
             continue;
-        const profile = getPlayer(profileId);
+        const profile = await getPlayer(profileId);
         if (profile?.isModerator) {
             sock.emit('mod:notification', { type, message, targetName });
         }
@@ -249,6 +254,10 @@ function announceNightResult(io, room) {
         for (const killed of room.killedLastNight) {
             const p = room.players.get(killed.id);
             broadcastSystemMsg(io, room, nightDeathMsg(killed.name, p?.role ?? null, killed.lastWill));
+            // Force-mute the eliminated player in any voice channel they're in
+            if (p?.socketId) {
+                io.to(p.socketId).emit('voice:force-mute', { reason: 'You were eliminated.' });
+            }
         }
     }
     else if (room.savedLastNight) {
@@ -314,6 +323,10 @@ function announceVoteResult(io, room) {
                 seat: target.seat,
             });
             broadcastSystemMsg(io, room, voteDeathMsg(target.name, target.role ?? null, target.lastWill));
+            // Force-mute the eliminated player
+            if (target.socketId) {
+                io.to(target.socketId).emit('voice:force-mute', { reason: 'You were eliminated.' });
+            }
         }
     }
     else {
@@ -349,18 +362,19 @@ export function attachSocketHandlers(io) {
             rateLimits.delete(socket.id);
         });
         // ── Auth ─────────────────────────────────────────────────────────
-        socket.on('player:auth', (data, cb) => {
+        socket.on('player:auth', async (data, cb) => {
             try {
                 const parsed = AuthSchema.parse(data);
-                const profile = getOrCreatePlayer(parsed.uid, parsed.username);
+                const profile = await getOrCreatePlayer(parsed.uid, parsed.username);
                 // Check ban
-                const ban = getActiveBan(parsed.uid);
+                const ban = await getActiveBan(parsed.uid);
                 if (ban) {
                     cb(err(`You are banned until ${new Date(ban.expiresAt).toLocaleString()}. Reason: ${ban.reason}`));
                     return;
                 }
                 socket.data.profileId = parsed.uid;
                 markOnline(parsed.uid);
+                broadcastOnlineCount(io);
                 socket.emit('player:profile', toPublicProfile(profile));
                 cb(ok(toPublicProfile(profile)));
             }
@@ -379,6 +393,7 @@ export function attachSocketHandlers(io) {
                 const profile = await registerWithEmail(email, password, username);
                 socket.data.profileId = profile.id;
                 markOnline(profile.id);
+                broadcastOnlineCount(io);
                 socket.emit('player:profile', toPublicProfile(profile));
                 cb(ok({ uid: profile.id, profile: toPublicProfile(profile) }));
             }
@@ -394,13 +409,14 @@ export function attachSocketHandlers(io) {
                     password: z.string().min(1),
                 }).parse(data);
                 const profile = await authenticateWithEmail(email, password);
-                const ban = getActiveBan(profile.id);
+                const ban = await getActiveBan(profile.id);
                 if (ban) {
                     cb(err(`You are banned until ${new Date(ban.expiresAt).toLocaleString()}. Reason: ${ban.reason}`));
                     return;
                 }
                 socket.data.profileId = profile.id;
                 markOnline(profile.id);
+                broadcastOnlineCount(io);
                 socket.emit('player:profile', toPublicProfile(profile));
                 cb(ok({ uid: profile.id, profile: toPublicProfile(profile) }));
             }
@@ -409,9 +425,9 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Player Stats ─────────────────────────────────────────────────
-        socket.on('player:stats', ({ profileId }, cb) => {
+        socket.on('player:stats', async ({ profileId }, cb) => {
             try {
-                const profile = getPlayer(profileId);
+                const profile = await getPlayer(profileId);
                 if (!profile)
                     throw new Error('Player not found.');
                 cb(ok(toPublicProfile(profile)));
@@ -421,18 +437,18 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Report ───────────────────────────────────────────────────────
-        socket.on('player:report', (data, cb) => {
+        socket.on('player:report', async (data, cb) => {
             try {
                 const parsed = ReportSchema.parse(data);
                 const reporterProfileId = socket.data.profileId;
                 if (!reporterProfileId)
                     throw new Error('Not authenticated.');
-                const reporter = getPlayer(reporterProfileId);
-                const reported = getPlayer(parsed.targetProfileId);
+                const reporter = await getPlayer(reporterProfileId);
+                const reported = await getPlayer(parsed.targetProfileId);
                 if (!reporter || !reported)
                     throw new Error('Player not found.');
-                const report = createReport(reporterProfileId, reporter.username, parsed.targetProfileId, reported.username, parsed.roomId, parsed.reason, parsed.details);
-                notifyMods(io, 'new_report', `New report: ${reported.username} — ${parsed.reason}`, reported.username);
+                const report = await createReport(reporterProfileId, reporter.username, parsed.targetProfileId, reported.username, parsed.roomId, parsed.reason, parsed.details);
+                await notifyMods(io, 'new_report', `New report: ${reported.username} — ${parsed.reason}`, reported.username);
                 cb(ok(null));
             }
             catch (e) {
@@ -440,14 +456,15 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Create Room ─────────────────────────────────────────────────
-        socket.on('room:create', (data, cb) => {
+        socket.on('room:create', async (data, cb) => {
             try {
                 const parsed = CreateRoomSchema.parse(data);
                 const profileId = socket.data.profileId;
-                const ban = profileId ? getActiveBan(profileId) : null;
+                const ban = profileId ? await getActiveBan(profileId) : null;
                 if (ban)
                     throw new Error(`You are banned. Reason: ${ban.reason}`);
-                const username = profileId ? getPlayer(profileId)?.username ?? parsed.name : parsed.name;
+                const playerProfile = profileId ? await getPlayer(profileId) : null;
+                const username = playerProfile?.username ?? parsed.name;
                 const room = createRoom(socket.id, username, profileId, parsed.settings);
                 socket.join(room.id);
                 socket.data.playerId = room.hostId;
@@ -461,11 +478,11 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Join Room ───────────────────────────────────────────────────
-        socket.on('room:join', (data, cb) => {
+        socket.on('room:join', async (data, cb) => {
             try {
                 const parsed = JoinRoomSchema.parse(data);
                 const profileId = socket.data.profileId;
-                const ban = profileId ? getActiveBan(profileId) : null;
+                const ban = profileId ? await getActiveBan(profileId) : null;
                 if (ban)
                     throw new Error(`You are banned until ${new Date(ban.expiresAt).toLocaleString()}. Reason: ${ban.reason}`);
                 const room = getRoomByCode(parsed.code);
@@ -495,7 +512,8 @@ export function attachSocketHandlers(io) {
                     cb(err(`Room is full. You are #${position} in queue.`));
                     return;
                 }
-                const username = profileId ? getPlayer(profileId)?.username ?? parsed.name : parsed.name;
+                const playerProfile = profileId ? await getPlayer(profileId) : null;
+                const username = playerProfile?.username ?? parsed.name;
                 const player = addPlayer(room, socket.id, username, profileId);
                 if (parsed.isSpectator)
                     player.isSpectator = true;
@@ -672,10 +690,12 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Night Action ────────────────────────────────────────────────
-        socket.on('game:action', ({ targetId }, cb) => {
+        socket.on('game:action', async ({ targetId }, cb) => {
             try {
                 const room = getRoomFromSocket(socket);
                 const actor = getPlayerOrError(socket, room);
+                if (actor.isSpectator)
+                    throw new Error('Spectators cannot perform night actions.');
                 submitNightAction(room, actor, targetId);
                 if (actor.role === 'sheriff') {
                     const result = getInvestigationResult(room, actor);
@@ -695,7 +715,7 @@ export function attachSocketHandlers(io) {
                     notifyCultConversions(io, room);
                     notifyRoleblocked(io, room);
                     if (nextPhase === 'game_over')
-                        emitGameOver(io, room);
+                        await emitGameOver(io, room);
                     broadcastRoom(io, room);
                     enforceVoicePhaseRules(io, room);
                     if (room.phase !== 'game_over')
@@ -712,6 +732,8 @@ export function attachSocketHandlers(io) {
             try {
                 const room = getRoomFromSocket(socket);
                 const voter = getPlayerOrError(socket, room);
+                if (voter.isSpectator)
+                    throw new Error('Spectators cannot vote.');
                 submitVote(room, voter, targetId);
                 broadcastRoom(io, room);
                 cb(ok(null));
@@ -721,7 +743,7 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Skip Phase ──────────────────────────────────────────────────
-        socket.on('game:skip', (cb) => {
+        socket.on('game:skip', async (cb) => {
             try {
                 const room = getRoomFromSocket(socket);
                 const host = getPlayerOrError(socket, room);
@@ -744,7 +766,7 @@ export function attachSocketHandlers(io) {
                     notifyRoleblocked(io, room);
                 }
                 if (nextPhase === 'game_over')
-                    emitGameOver(io, room);
+                    await emitGameOver(io, room);
                 broadcastRoom(io, room);
                 enforceVoicePhaseRules(io, room);
                 if (nextPhase !== 'game_over')
@@ -828,9 +850,9 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Leaderboard ──────────────────────────────────────────────────────
-        socket.on('leaderboard:get', (cb) => {
+        socket.on('leaderboard:get', async (cb) => {
             try {
-                const players = getAllPlayers()
+                const players = (await getAllPlayers())
                     .filter(p => p.stats.gamesPlayed >= 3)
                     .sort((a, b) => b.stats.winRate - a.stats.winRate || b.stats.gamesPlayed - a.stats.gamesPlayed)
                     .slice(0, 20)
@@ -921,7 +943,7 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Chat ────────────────────────────────────────────────────────
-        socket.on('chat:send', (data, cb) => {
+        socket.on('chat:send', async (data, cb) => {
             try {
                 const parsed = ChatSchema.parse(data);
                 const room = getRoomFromSocket(socket);
@@ -929,14 +951,14 @@ export function attachSocketHandlers(io) {
                 // Check mute
                 const profileId = socket.data.profileId;
                 if (profileId) {
-                    const mute = getActiveMute(profileId);
+                    const mute = await getActiveMute(profileId);
                     if (mute)
                         throw new Error(`You are muted until ${new Date(mute.expiresAt).toLocaleString()}. Reason: ${mute.reason}`);
                 }
                 const validationError = validateChat(room, player, parsed.channel);
                 if (validationError)
                     throw new Error(validationError);
-                const profile = profileId ? getPlayer(profileId) : null;
+                const profile = profileId ? await getPlayer(profileId) : null;
                 const msg = createPlayerMessage(player, parsed.text, parsed.channel, profile?.isModerator ?? false);
                 addMessage(room, msg);
                 if (parsed.channel === 'mafia') {
@@ -962,12 +984,12 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Mod: Kick from room ──────────────────────────────────────────
-        socket.on('mod:kick_from_room', ({ targetProfileId, roomId, reason }, cb) => {
+        socket.on('mod:kick_from_room', async ({ targetProfileId, roomId, reason }, cb) => {
             try {
                 const modProfileId = socket.data.profileId;
                 if (!modProfileId)
                     throw new Error('Not authenticated.');
-                const mod = getPlayer(modProfileId);
+                const mod = await getPlayer(modProfileId);
                 if (!mod || !canDo(mod, 'kick'))
                     throw new Error('Insufficient permissions.');
                 const room = getRoom(roomId);
@@ -984,8 +1006,8 @@ export function attachSocketHandlers(io) {
                 removePlayer(room, target.id);
                 broadcastSystemMsg(io, room, `${target.name} was removed by a moderator.`);
                 broadcastRoom(io, room);
-                logKick(modProfileId, mod.username, target.profileId ?? targetProfileId, target.name, roomId, reason);
-                notifyMods(io, 'mod_kick', `${mod.username} kicked ${target.name} from room`, target.name);
+                await logKick(modProfileId, mod.username, target.profileId ?? targetProfileId, target.name, roomId, reason);
+                await notifyMods(io, 'mod_kick', `${mod.username} kicked ${target.name} from room`, target.name);
                 cb(ok(null));
             }
             catch (e) {
@@ -993,12 +1015,12 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Mod: Kick player (any room) ──────────────────────────────────
-        socket.on('mod:kick_player', ({ targetProfileId, reason }, cb) => {
+        socket.on('mod:kick_player', async ({ targetProfileId, reason }, cb) => {
             try {
                 const modProfileId = socket.data.profileId;
                 if (!modProfileId)
                     throw new Error('Not authenticated.');
-                const mod = getPlayer(modProfileId);
+                const mod = await getPlayer(modProfileId);
                 if (!mod || !canDo(mod, 'kick'))
                     throw new Error('Insufficient permissions.');
                 // Scan all rooms to find the target
@@ -1022,8 +1044,8 @@ export function attachSocketHandlers(io) {
                 removePlayer(foundRoom, foundTarget.id);
                 broadcastSystemMsg(io, foundRoom, `${foundTarget.name} was removed by a moderator.`);
                 broadcastRoom(io, foundRoom);
-                logKick(modProfileId, mod.username, foundTarget.profileId ?? targetProfileId, foundTarget.name, foundRoom.id, reason);
-                notifyMods(io, 'mod_kick', `${mod.username} kicked ${foundTarget.name} from room`, foundTarget.name);
+                await logKick(modProfileId, mod.username, foundTarget.profileId ?? targetProfileId, foundTarget.name, foundRoom.id, reason);
+                await notifyMods(io, 'mod_kick', `${mod.username} kicked ${foundTarget.name} from room`, foundTarget.name);
                 cb(ok(null));
             }
             catch (e) {
@@ -1031,10 +1053,10 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Mod: Get active rooms ────────────────────────────────────────
-        socket.on('mod:get_active_rooms', (cb) => {
+        socket.on('mod:get_active_rooms', async (cb) => {
             try {
                 const modProfileId = socket.data.profileId;
-                const mod = modProfileId ? getPlayer(modProfileId) : null;
+                const mod = modProfileId ? await getPlayer(modProfileId) : null;
                 if (!mod || !canDo(mod, 'view_reports'))
                     throw new Error('Insufficient permissions.');
                 cb(ok(getAllRooms().map(toRoomListItem)));
@@ -1044,15 +1066,15 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Mod: Ban ─────────────────────────────────────────────────────
-        socket.on('mod:ban', ({ targetProfileId, reason, duration }, cb) => {
+        socket.on('mod:ban', async ({ targetProfileId, reason, duration }, cb) => {
             try {
                 const modProfileId = socket.data.profileId;
                 if (!modProfileId)
                     throw new Error('Not authenticated.');
-                const mod = getPlayer(modProfileId);
+                const mod = await getPlayer(modProfileId);
                 if (!mod || !canDo(mod, 'ban_short'))
                     throw new Error('Insufficient permissions.');
-                const ban = banPlayer(modProfileId, mod.username, targetProfileId, reason, duration);
+                const ban = await banPlayer(modProfileId, mod.username, targetProfileId, reason, duration);
                 // Disconnect target from all rooms
                 const targetSock = findSocketByProfile(io, targetProfileId);
                 if (targetSock) {
@@ -1063,8 +1085,8 @@ export function attachSocketHandlers(io) {
                     }
                     targetSock.disconnect(true);
                 }
-                const target = getPlayer(targetProfileId);
-                notifyMods(io, 'mod_ban', `${mod.username} banned ${target?.username ?? '?'}`, target?.username);
+                const target = await getPlayer(targetProfileId);
+                await notifyMods(io, 'mod_ban', `${mod.username} banned ${target?.username ?? '?'}`, target?.username);
                 cb(ok(null));
             }
             catch (e) {
@@ -1072,15 +1094,15 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Mod: Unban ───────────────────────────────────────────────────
-        socket.on('mod:unban', ({ targetProfileId }, cb) => {
+        socket.on('mod:unban', async ({ targetProfileId }, cb) => {
             try {
                 const modProfileId = socket.data.profileId;
                 if (!modProfileId)
                     throw new Error('Not authenticated.');
-                const mod = getPlayer(modProfileId);
+                const mod = await getPlayer(modProfileId);
                 if (!mod || !canDo(mod, 'ban_short'))
                     throw new Error('Insufficient permissions.');
-                unbanPlayer(modProfileId, mod.username, targetProfileId);
+                await unbanPlayer(modProfileId, mod.username, targetProfileId);
                 cb(ok(null));
             }
             catch (e) {
@@ -1088,21 +1110,21 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Mod: Mute ────────────────────────────────────────────────────
-        socket.on('mod:mute', ({ targetProfileId, reason, duration }, cb) => {
+        socket.on('mod:mute', async ({ targetProfileId, reason, duration }, cb) => {
             try {
                 const modProfileId = socket.data.profileId;
                 if (!modProfileId)
                     throw new Error('Not authenticated.');
-                const mod = getPlayer(modProfileId);
+                const mod = await getPlayer(modProfileId);
                 if (!mod || !canDo(mod, 'mute'))
                     throw new Error('Insufficient permissions.');
-                const mute = mutePlayer(modProfileId, mod.username, targetProfileId, reason, duration);
+                const mute = await mutePlayer(modProfileId, mod.username, targetProfileId, reason, duration);
                 const targetSock = findSocketByProfile(io, targetProfileId);
                 if (targetSock) {
                     targetSock.emit('mute:received', { reason, expiresAt: mute.expiresAt });
                 }
-                const target = getPlayer(targetProfileId);
-                notifyMods(io, 'mod_mute', `${mod.username} muted ${target?.username ?? '?'}`, target?.username);
+                const target = await getPlayer(targetProfileId);
+                await notifyMods(io, 'mod_mute', `${mod.username} muted ${target?.username ?? '?'}`, target?.username);
                 cb(ok(null));
             }
             catch (e) {
@@ -1110,15 +1132,15 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Mod: Unmute ──────────────────────────────────────────────────
-        socket.on('mod:unmute', ({ targetProfileId }, cb) => {
+        socket.on('mod:unmute', async ({ targetProfileId }, cb) => {
             try {
                 const modProfileId = socket.data.profileId;
                 if (!modProfileId)
                     throw new Error('Not authenticated.');
-                const mod = getPlayer(modProfileId);
+                const mod = await getPlayer(modProfileId);
                 if (!mod || !canDo(mod, 'mute'))
                     throw new Error('Insufficient permissions.');
-                unmutePlayer(modProfileId, mod.username, targetProfileId);
+                await unmutePlayer(modProfileId, mod.username, targetProfileId);
                 cb(ok(null));
             }
             catch (e) {
@@ -1126,15 +1148,15 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Mod: Warn ────────────────────────────────────────────────────
-        socket.on('mod:warn', ({ targetProfileId, reason }, cb) => {
+        socket.on('mod:warn', async ({ targetProfileId, reason }, cb) => {
             try {
                 const modProfileId = socket.data.profileId;
                 if (!modProfileId)
                     throw new Error('Not authenticated.');
-                const mod = getPlayer(modProfileId);
+                const mod = await getPlayer(modProfileId);
                 if (!mod || !canDo(mod, 'warn'))
                     throw new Error('Insufficient permissions.');
-                const warning = warnPlayer(modProfileId, mod.username, targetProfileId, reason);
+                const warning = await warnPlayer(modProfileId, mod.username, targetProfileId, reason);
                 const targetSock = findSocketByProfile(io, targetProfileId);
                 if (targetSock) {
                     targetSock.emit('warning:received', { reason, moderatorName: mod.username });
@@ -1146,22 +1168,22 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Mod: Get data ────────────────────────────────────────────────
-        socket.on('mod:get_reports', (cb) => {
+        socket.on('mod:get_reports', async (cb) => {
             try {
                 const modProfileId = socket.data.profileId;
-                const mod = modProfileId ? getPlayer(modProfileId) : null;
+                const mod = modProfileId ? await getPlayer(modProfileId) : null;
                 if (!mod || !canDo(mod, 'view_reports'))
                     throw new Error('Insufficient permissions.');
-                cb(ok(getReports()));
+                cb(ok(await getReports()));
             }
             catch (e) {
                 cb(err(e.message));
             }
         });
-        socket.on('mod:get_rooms', (cb) => {
+        socket.on('mod:get_rooms', async (cb) => {
             try {
                 const modProfileId = socket.data.profileId;
-                const mod = modProfileId ? getPlayer(modProfileId) : null;
+                const mod = modProfileId ? await getPlayer(modProfileId) : null;
                 if (!mod || !canDo(mod, 'view_reports'))
                     throw new Error('Insufficient permissions.');
                 cb(ok(getAllRooms().map(toRoomListItem)));
@@ -1170,39 +1192,39 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
-        socket.on('mod:get_players', (cb) => {
+        socket.on('mod:get_players', async (cb) => {
             try {
                 const modProfileId = socket.data.profileId;
-                const mod = modProfileId ? getPlayer(modProfileId) : null;
+                const mod = modProfileId ? await getPlayer(modProfileId) : null;
                 if (!mod || !canDo(mod, 'view_reports'))
                     throw new Error('Insufficient permissions.');
-                cb(ok(getModPlayers()));
+                cb(ok(await getModPlayers()));
             }
             catch (e) {
                 cb(err(e.message));
             }
         });
-        socket.on('mod:get_logs', (cb) => {
+        socket.on('mod:get_logs', async (cb) => {
             try {
                 const modProfileId = socket.data.profileId;
-                const mod = modProfileId ? getPlayer(modProfileId) : null;
+                const mod = modProfileId ? await getPlayer(modProfileId) : null;
                 if (!mod || !canDo(mod, 'view_logs'))
                     throw new Error('Insufficient permissions.');
-                cb(ok(getLogs()));
+                cb(ok(await getLogs()));
             }
             catch (e) {
                 cb(err(e.message));
             }
         });
-        socket.on('mod:resolve_report', ({ reportId, status, notes }, cb) => {
+        socket.on('mod:resolve_report', async ({ reportId, status, notes }, cb) => {
             try {
                 const modProfileId = socket.data.profileId;
                 if (!modProfileId)
                     throw new Error('Not authenticated.');
-                const mod = getPlayer(modProfileId);
+                const mod = await getPlayer(modProfileId);
                 if (!mod || !canDo(mod, 'resolve_reports'))
                     throw new Error('Insufficient permissions.');
-                resolveReport(modProfileId, reportId, status, notes);
+                await resolveReport(modProfileId, reportId, status, notes);
                 cb(ok(null));
             }
             catch (e) {
@@ -1210,9 +1232,9 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Player Profile (by profileId) ─────────────────────────────────
-        socket.on('player:profile', ({ profileId }, cb) => {
+        socket.on('player:profile', async ({ profileId }, cb) => {
             try {
-                const profile = getPlayer(profileId);
+                const profile = await getPlayer(profileId);
                 if (!profile)
                     throw new Error('Profile not found.');
                 cb(ok(toPublicProfile(profile)));
@@ -1222,9 +1244,9 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Achievements ─────────────────────────────────────────────────
-        socket.on('player:achievements', ({ profileId }, cb) => {
+        socket.on('player:achievements', async ({ profileId }, cb) => {
             try {
-                const achs = getPlayerAchievements(profileId);
+                const achs = await getPlayerAchievements(profileId);
                 cb(ok(achs));
             }
             catch (e) {
@@ -1232,77 +1254,104 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Game History ──────────────────────────────────────────────────
-        socket.on('player:history', ({ profileId }, cb) => {
+        socket.on('player:history', async ({ profileId }, cb) => {
             try {
-                const history = getPlayerHistory(profileId, 20);
+                const history = await getPlayerHistory(profileId, 20);
                 cb(ok(history));
             }
             catch (e) {
                 cb(err(e.message));
             }
         });
-        // ── Clans ─────────────────────────────────────────────────────────
-        socket.on('clan:list', (cb) => {
+        // ── Public Profile (for profile popups) ──────────────────────────
+        socket.on('player:public_profile', async ({ profileId }, cb) => {
             try {
-                cb(ok(getAllClans()));
+                const profile = await getPlayer(profileId);
+                if (!profile)
+                    throw new Error('Player not found.');
+                const achievements = await getPlayerAchievements(profileId);
+                const history = await getPlayerHistory(profileId, 10);
+                const clan = await getClanByPlayer(profileId);
+                let friendshipStatus = 'none';
+                const myProfileId = socket.data.profileId;
+                if (myProfileId && myProfileId !== profileId) {
+                    friendshipStatus = await getFriendshipStatus(myProfileId, profileId);
+                }
+                cb(ok({
+                    profile: toPublicProfile(profile),
+                    achievements,
+                    recentGames: history,
+                    clan: clan ? { id: clan.id, name: clan.name, tag: clan.tag } : null,
+                    friendshipStatus,
+                    isOnline: isOnline(profileId),
+                }));
             }
             catch (e) {
                 cb(err(e.message));
             }
         });
-        socket.on('clan:get', ({ clanId }, cb) => {
+        // ── Clans ─────────────────────────────────────────────────────────
+        socket.on('clan:list', async (cb) => {
             try {
-                const clan = getClan(clanId);
+                cb(ok(await getAllClans()));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('clan:get', async ({ clanId }, cb) => {
+            try {
+                const clan = await getClan(clanId);
                 if (!clan)
                     throw new Error('Clan not found.');
-                const members = getClanMembers(clanId);
+                const members = await getClanMembers(clanId);
                 cb(ok({ clan, members }));
             }
             catch (e) {
                 cb(err(e.message));
             }
         });
-        socket.on('clan:mine', (cb) => {
+        socket.on('clan:mine', async (cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId)
                     return cb(ok(null));
-                cb(ok(getClanByPlayer(profileId)));
+                cb(ok(await getClanByPlayer(profileId)));
             }
             catch (e) {
                 cb(err(e.message));
             }
         });
-        socket.on('clan:create', ({ name, tag, description }, cb) => {
+        socket.on('clan:create', async ({ name, tag, description }, cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId)
                     throw new Error('Not authenticated.');
-                const clan = createClan(profileId, name, tag, description);
+                const clan = await createClan(profileId, name, tag, description);
                 cb(ok(clan));
             }
             catch (e) {
                 cb(err(e.message));
             }
         });
-        socket.on('clan:join', ({ clanId }, cb) => {
+        socket.on('clan:join', async ({ clanId }, cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId)
                     throw new Error('Not authenticated.');
-                joinClan(profileId, clanId);
+                await joinClan(profileId, clanId);
                 cb(ok(null));
             }
             catch (e) {
                 cb(err(e.message));
             }
         });
-        socket.on('clan:leave', (cb) => {
+        socket.on('clan:leave', async (cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId)
                     throw new Error('Not authenticated.');
-                leaveClan(profileId);
+                await leaveClan(profileId);
                 cb(ok(null));
             }
             catch (e) {
@@ -1349,18 +1398,9 @@ export function attachSocketHandlers(io) {
         });
         // ── Voice: Relay Offer ──────────────────────────────────────────
         socket.on('voice:offer', ({ to, sdp }, cb) => {
-            const { roomId, playerId } = socket.data;
-            if (roomId && playerId) {
-                const room = getRoom(roomId);
-                if (room) {
-                    const channel = voiceGetSharedChannel(socket.id, to);
-                    if (channel) {
-                        const txErr = canTransmitVoice(room, playerId, channel);
-                        if (txErr)
-                            return cb(err(txErr));
-                    }
-                }
-            }
+            const channel = voiceGetSharedChannel(socket.id, to);
+            if (!channel)
+                return cb(err('Not in the same voice channel.'));
             io.to(to).emit('voice:offer', { from: socket.id, sdp });
             cb(ok(null));
         });
@@ -1399,14 +1439,14 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Friends ──────────────────────────────────────────────────────
-        socket.on('friend:request', ({ toProfileId, friendCode }, cb) => {
+        socket.on('friend:request', async ({ toProfileId, friendCode }, cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId)
                     throw new Error('Not authenticated.');
                 let targetId = toProfileId;
                 if (!targetId && friendCode) {
-                    const target = getPlayerByFriendCode(friendCode);
+                    const target = await getPlayerByFriendCode(friendCode);
                     if (!target)
                         throw new Error('No player found with that code.');
                     targetId = target.id;
@@ -1415,10 +1455,10 @@ export function attachSocketHandlers(io) {
                     throw new Error('Provide a friend code.');
                 if (targetId === profileId)
                     throw new Error('Cannot add yourself.');
-                sendFriendRequest(profileId, targetId);
+                await sendFriendRequest(profileId, targetId);
                 const targetSock = findSocketByProfile(io, targetId);
                 if (targetSock) {
-                    const reqs = getPendingRequests(targetId);
+                    const reqs = await getPendingRequests(targetId);
                     const thisReq = reqs.find(r => r.fromId === profileId);
                     if (thisReq)
                         targetSock.emit('friend:request_received', thisReq);
@@ -1429,9 +1469,9 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
-        socket.on('player:find_by_code', ({ friendCode }, cb) => {
+        socket.on('player:find_by_code', async ({ friendCode }, cb) => {
             try {
-                const player = getPlayerByFriendCode(friendCode);
+                const player = await getPlayerByFriendCode(friendCode);
                 if (!player)
                     return cb(err('No player found with that code.'));
                 cb(ok(toPublicProfile(player)));
@@ -1440,22 +1480,24 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
-        socket.on('mod:set_level_by_code', ({ friendCode, level }, cb) => {
+        socket.on('mod:set_level_by_code', async ({ friendCode, level }, cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId)
                     throw new Error('Not authenticated.');
-                const mod = getPlayer(profileId);
+                const mod = await getPlayer(profileId);
                 if (!mod || mod.moderatorLevel !== 'owner')
                     throw new Error('Owner only.');
-                const target = getPlayerByFriendCode(friendCode);
+                const target = await getPlayerByFriendCode(friendCode);
                 if (!target)
                     throw new Error('No player found with that code.');
                 const validLevels = ['moderator', 'senior_moderator', 'admin', 'owner', null];
                 if (!validLevels.includes(level))
                     throw new Error('Invalid level.');
-                setGrantedModLevel(target.id, level);
-                const updated = getPlayer(target.id);
+                await setGrantedModLevel(target.id, level);
+                const updated = await getPlayer(target.id);
+                if (!updated)
+                    throw new Error('Player not found after update.');
                 const targetSock = findSocketByProfile(io, target.id);
                 if (targetSock)
                     targetSock.emit('player:profile', toPublicProfile(updated));
@@ -1465,92 +1507,189 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
-        socket.on('friend:accept', ({ fromProfileId }, cb) => {
+        socket.on('friend:accept', async ({ fromProfileId }, cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId)
                     throw new Error('Not authenticated.');
-                acceptFriend(fromProfileId, profileId);
+                await acceptFriend(fromProfileId, profileId);
                 cb(ok(null));
             }
             catch (e) {
                 cb(err(e.message));
             }
         });
-        socket.on('friend:decline', ({ fromProfileId }, cb) => {
+        socket.on('friend:decline', async ({ fromProfileId }, cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId)
                     throw new Error('Not authenticated.');
-                declineFriend(fromProfileId, profileId);
+                await declineFriend(fromProfileId, profileId);
                 cb(ok(null));
             }
             catch (e) {
                 cb(err(e.message));
             }
         });
-        socket.on('friend:remove', ({ profileId: friendId }, cb) => {
+        socket.on('friend:remove', async ({ profileId: friendId }, cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId)
                     throw new Error('Not authenticated.');
-                removeFriend(profileId, friendId);
+                await removeFriend(profileId, friendId);
                 cb(ok(null));
             }
             catch (e) {
                 cb(err(e.message));
             }
         });
-        socket.on('friend:list', (cb) => {
+        socket.on('friend:list', async (cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId)
                     throw new Error('Not authenticated.');
-                cb(ok(getFriends(profileId)));
+                cb(ok(await getFriends(profileId)));
             }
             catch (e) {
                 cb(err(e.message));
             }
         });
-        socket.on('friend:requests', (cb) => {
+        socket.on('friend:requests', async (cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId)
                     throw new Error('Not authenticated.');
-                cb(ok(getPendingRequests(profileId)));
+                cb(ok(await getPendingRequests(profileId)));
             }
             catch (e) {
                 cb(err(e.message));
             }
         });
         // ── Daily Challenge ──────────────────────────────────────────────
-        socket.on('challenge:today', (cb) => {
+        socket.on('challenge:today', async (cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId)
                     throw new Error('Not authenticated.');
-                cb(ok(getDailyChallengeForPlayer(profileId)));
+                cb(ok(await getDailyChallengeForPlayer(profileId)));
             }
             catch (e) {
                 cb(err(e.message));
             }
         });
         // ── Cosmetics ────────────────────────────────────────────────────
-        socket.on('cosmetics:equip', ({ type, itemId }, cb) => {
+        socket.on('cosmetics:equip', async ({ type, itemId }, cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId)
                     throw new Error('Not authenticated.');
-                const cosmetics = equipCosmetic(profileId, type, itemId);
+                const cosmetics = await equipCosmetic(profileId, type, itemId);
                 cb(ok(cosmetics));
             }
             catch (e) {
                 cb(err(e.message));
             }
         });
-        socket.on('cosmetics:get', ({ profileId }, cb) => {
+        socket.on('cosmetics:get', async ({ profileId }, cb) => {
             try {
-                cb(ok(getCosmetics(profileId)));
+                cb(ok(await getCosmetics(profileId)));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Direct Messages ────────────────────────────────────────────────
+        socket.on('dm:start', async ({ profileId: targetProfileId }, cb) => {
+            try {
+                const myProfileId = socket.data.profileId;
+                if (!myProfileId)
+                    throw new Error('Not authenticated.');
+                if (myProfileId === targetProfileId)
+                    throw new Error('Cannot message yourself.');
+                const conv = await getOrCreateConversation(myProfileId, targetProfileId);
+                const messages = await getMessages(conv.id);
+                await markRead(conv.id, myProfileId);
+                cb(ok({ conversation: conv, messages }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('dm:send', async ({ conversationId, text }, cb) => {
+            try {
+                const senderId = socket.data.profileId;
+                if (!senderId)
+                    throw new Error('Not authenticated.');
+                if (!text?.trim())
+                    throw new Error('Message cannot be empty.');
+                const [conv] = await sql `SELECT * FROM conversations WHERE id = ${conversationId}`;
+                if (!conv)
+                    throw new Error('Conversation not found.');
+                const receiverId = conv.participant1 === senderId ? conv.participant2 : conv.participant1;
+                if (conv.participant1 !== senderId && conv.participant2 !== senderId)
+                    throw new Error('Not a participant.');
+                const msg = await sendMessage(conversationId, senderId, text.trim(), receiverId);
+                // Notify recipient in real time
+                const recipientSocket = findSocketByProfile(io, receiverId);
+                if (recipientSocket) {
+                    recipientSocket.emit('dm:new_message', { conversationId, message: msg });
+                }
+                cb(ok(msg));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('dm:list', async (_, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const conversations = await listConversations(profileId);
+                cb(ok(conversations));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('dm:messages', async ({ conversationId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const [conv] = await sql `SELECT * FROM conversations WHERE id = ${conversationId}`;
+                if (!conv || (conv.participant1 !== profileId && conv.participant2 !== profileId)) {
+                    throw new Error('Not a participant.');
+                }
+                const messages = await getMessages(conversationId);
+                await markRead(conversationId, profileId);
+                cb(ok(messages));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('dm:mark_read', async ({ conversationId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                await markRead(conversationId, profileId);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('dm:unread_count', async (_, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(ok(0));
+                    return;
+                }
+                const count = await getTotalUnread(profileId);
+                cb(ok(count));
             }
             catch (e) {
                 cb(err(e.message));
@@ -1559,8 +1698,10 @@ export function attachSocketHandlers(io) {
         // ── Disconnect ──────────────────────────────────────────────────
         socket.on('disconnect', () => {
             const { roomId, playerId, profileId } = socket.data;
-            if (profileId)
+            if (profileId) {
                 markOffline(profileId);
+                broadcastOnlineCount(io);
+            }
             if (roomId && playerId)
                 handlePlayerLeave(io, socket, roomId, playerId);
             handleVoiceLeave(io, socket.id);
@@ -1664,7 +1805,24 @@ function forceLeaveVoiceChannel(io, roomId, channel, reason) {
 function enforceVoicePhaseRules(io, room) {
     const { id: roomId, phase } = room;
     if (phase === 'night') {
-        forceLeaveVoiceChannel(io, roomId, 'room', 'Public voice is disabled during night.');
+        // Mafia players leave the room channel (so they can join the mafia channel).
+        // Non-mafia players stay in the room channel but are muted until day resumes.
+        const roomMembers = [...voiceGetMembers(roomId, 'room')];
+        for (const member of roomMembers) {
+            const player = room.players.get(member.playerId);
+            if (player?.team === 'mafia') {
+                io.to(member.socketId).emit('voice:force-leave', { channel: 'room', reason: 'Use the Mafia channel during night.' });
+                const removed = voiceRemoveFromChannel(member.socketId, 'room');
+                if (removed) {
+                    for (const peer of removed.remaining) {
+                        io.to(peer.socketId).emit('voice:peer-left', { socketId: member.socketId, channel: 'room' });
+                    }
+                }
+            }
+            else {
+                io.to(member.socketId).emit('voice:force-mute', { reason: 'Voice muted during night phase.' });
+            }
+        }
         return;
     }
     // Leaving night — clean up any stale mafia channel connections
@@ -1672,7 +1830,11 @@ function enforceVoicePhaseRules(io, room) {
     if (phase === 'speech') {
         const speakerId = room.speechOrder[room.currentSpeakerIdx] ?? null;
         for (const member of voiceGetMembers(roomId, 'room')) {
-            if (member.playerId === speakerId) {
+            const player = room.players.get(member.playerId);
+            if (!player?.isAlive || player?.isSpectator) {
+                io.to(member.socketId).emit('voice:force-mute', { reason: 'Listen only.' });
+            }
+            else if (member.playerId === speakerId) {
                 io.to(member.socketId).emit('voice:force-unmute');
             }
             else {
@@ -1681,9 +1843,16 @@ function enforceVoicePhaseRules(io, room) {
         }
         return;
     }
-    // day, voting, lobby, role_reveal, game_over — lift any force mutes
+    // day, voting, lobby, role_reveal, game_over — lift force mutes for alive players only
     for (const member of voiceGetMembers(roomId, 'room')) {
-        io.to(member.socketId).emit('voice:force-unmute');
+        const player = room.players.get(member.playerId);
+        if (player?.isAlive && !player?.isSpectator) {
+            io.to(member.socketId).emit('voice:force-unmute');
+        }
+        else {
+            // Dead players and spectators remain listen-only
+            io.to(member.socketId).emit('voice:force-mute', { reason: 'Listen only.' });
+        }
     }
 }
 //# sourceMappingURL=socket.js.map
