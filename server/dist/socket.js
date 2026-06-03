@@ -1609,7 +1609,14 @@ export function attachSocketHandlers(io) {
                 const conv = await getOrCreateConversation(myProfileId, targetProfileId);
                 const messages = await getMessages(conv.id);
                 await markRead(conv.id, myProfileId);
-                cb(ok({ conversation: conv, messages }));
+                const otherProfile = await getPlayer(targetProfileId);
+                cb(ok({
+                    id: conv.id,
+                    conversation: conv,
+                    messages,
+                    otherUsername: otherProfile?.username ?? 'Unknown',
+                    otherAvatar: otherProfile?.avatar ?? '?',
+                }));
             }
             catch (e) {
                 cb(err(e.message));
