@@ -43,7 +43,7 @@ export function RoomsPage() {
   const username = useAuthStore(s => s.username) ?? '';
   const { onlineCount, openMoreMenu } = useSocialStore(s => ({ onlineCount: s.onlineCount, openMoreMenu: s.openMoreMenu }));
   const t = useT();
-  useAmbientDrone(0.05);
+  // Music now handled at MainApp level
 
   const fetchRooms = async () => {
     setLoadingRooms(true);

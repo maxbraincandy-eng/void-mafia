@@ -16,6 +16,9 @@ import { ModDashboardPage } from '@/pages/ModDashboardPage';
 import { BottomNav, NavTab } from '@/components/layout/BottomNav';
 import { PlayerProfileModal } from '@/components/ui/PlayerProfileModal';
 import { DmPanel } from '@/components/social/DmPanel';
+import { attachGlobalClickSounds, onSettingsChange } from '@/lib/audioEngine';
+import { useSettingsStore } from '@/store/settingsStore';
+import { useMenuMusic as useMenuMusicHook } from '@/hooks/useAudio';
 
 interface Toast {
   id: string;
@@ -120,6 +123,7 @@ function MainApp() {
   const profile = useAuthStore(s => s.profile);
   const isMod = profile?.isModerator ?? false;
   const { openDmList } = useSocialStore();
+  useMenuMusicHook();
 
   return (
     <div className="pb-20 min-h-screen">
@@ -242,6 +246,10 @@ export default function App() {
 
   useEffect(() => {
     connect();
+    attachGlobalClickSounds();
+    // Subscribe settings changes → audio engine
+    const unsub = useSettingsStore.subscribe(onSettingsChange);
+    return unsub;
   }, [connect]);
 
   return (

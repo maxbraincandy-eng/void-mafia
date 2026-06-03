@@ -22,7 +22,9 @@ import { RoomMoreMenu } from '@/components/ui/RoomMoreMenu';
 import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { useVoiceChat, VoiceChannel } from '@/hooks/useVoiceChat';
-import { useGameSounds, setSoundMuted, isSoundMuted, SFX } from '@/hooks/useSoundFX';
+import { useGameSounds, SFX } from '@/hooks/useSoundFX';
+import { useSettingsStore } from '@/store/settingsStore';
+import { stopMenuMusic } from '@/lib/audioEngine';
 import { PhaseTransition } from '@/components/game/PhaseTransition';
 import { PlayerGrid } from '@/components/game/PlayerGrid';
 import { EliminationCinematic } from '@/components/game/EliminationCinematic';
@@ -92,7 +94,10 @@ export function GamePage() {
   const [showRoleGuide, setShowRoleGuide] = useState(false);
   const [willText, setWillText] = useState('');
   const [willSaved, setWillSaved] = useState(false);
-  const [soundMuted, setSoundMutedState] = useState(isSoundMuted());
+  const sfxEnabled = useSettingsStore(s => s.sfxEnabled);
+  const updateSettings = useSettingsStore(s => s.update);
+  // Stop any ambient music when entering game
+  useEffect(() => { stopMenuMusic(); }, []);
   const [transitionPhase, setTransitionPhase] = useState<Phase | null>(null);
   const handleTransitionDone = useCallback(() => setTransitionPhase(null), []);
   const [mobileVoiceOpen, setMobileVoiceOpen] = useState(false);
@@ -1067,11 +1072,11 @@ export function GamePage() {
 
               {/* Sound mute toggle */}
               <button
-                onClick={() => { const m = !soundMuted; setSoundMuted(m); setSoundMutedState(m); }}
-                title={soundMuted ? 'Unmute sounds' : 'Mute sounds'}
+                onClick={() => updateSettings({ sfxEnabled: !sfxEnabled })}
+                title={sfxEnabled ? 'Mute sounds' : 'Unmute sounds'}
                 className="px-2.5 py-1 rounded-lg text-[10px] font-mono tracking-widest uppercase text-white/30 hover:text-white/70 hover:bg-white/5 transition-all"
               >
-                {soundMuted ? 'SFX ∅' : 'SFX'}
+                {sfxEnabled ? 'SFX' : 'SFX ∅'}
               </button>
 
               <Button size="sm" variant="ghost" onClick={() => setShowMoreMenu(true)}>
