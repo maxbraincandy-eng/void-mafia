@@ -127,8 +127,10 @@ export function PlayerList({ players, phase, onSelectTarget, selectableIds, sele
                     <span className="text-[10px] text-white/30">dc</span>
                   )}
                   {phase === 'night' && player.isAlive && (
-                    player.hasActed
-                      ? <span className="text-[10px] text-neon-green font-bold bg-neon-green/10 px-1 rounded">✓ done</span>
+                    isMe
+                      ? (player.hasActed
+                        ? <span className="text-[10px] text-neon-green font-bold bg-neon-green/10 px-1 rounded">✓ done</span>
+                        : <span className="text-[10px] text-neon-purple/50 animate-pulse">…</span>)
                       : <span className="text-[10px] text-neon-purple/50 animate-pulse">…</span>
                   )}
                 </div>

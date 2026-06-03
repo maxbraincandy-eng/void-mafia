@@ -256,7 +256,7 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
       // Yakuza team members see each other
       ...(isYakuza && p.team === 'yakuza' ? { role: p.role, team: p.team } : {}),
       voteTarget: room.phase === 'voting' ? p.voteTarget : null,
-      hasActed: p.hasActedThisPhase,
+      hasActed: p.id === viewerPlayerId ? p.hasActedThisPhase : false,
       seat: p.seat,
       profileId: p.profileId,
       isModerator: p.isModerator,
