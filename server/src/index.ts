@@ -171,21 +171,21 @@ httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`[Startup] Health endpoint ready at /health and /api/health`);
 });
 
-initializeDatabase().then(() => {
-  dbReady = true;
-  setDbReady(true);
-  console.log('[Startup] Database ready.');
-}).catch(err => {
-  console.error('[Startup] Database init failed:', err.message);
-  // Delay exit by 8 s so Railway's healthcheck at /health can respond 200
-  // at least once before the process dies and triggers a restart.
-  // Without the delay, the process exits before the first healthcheck fires
-  // and Railway marks the deployment as permanently failed.
-  setTimeout(() => {
-    console.error('[Startup] Exiting now for Railway restart.');
-    process.exit(1);
-  }, 8000);
-});
+async function tryInitDb(attempt = 1): Promise<void> {
+  try {
+    await initializeDatabase();
+    dbReady = true;
+    setDbReady(true);
+    console.log('[Startup] Database ready.');
+  } catch (err: any) {
+    console.error(`[Startup] DB init attempt ${attempt} failed: ${err.message}`);
+    console.error('[Startup] Server stays alive. Retrying in 30s...');
+    console.error('[Startup] ACTION REQUIRED: Link the Postgres service to @void-mafia/server in Railway dashboard → Variables → Add Reference → Postgres → DATABASE_URL');
+    setTimeout(() => tryInitDb(attempt + 1), 30_000);
+  }
+}
+
+tryInitDb();
 
 // ── Graceful shutdown ─────────────────────────────────────────────────
 process.on('SIGTERM', () => { httpServer.close(() => process.exit(0)); });
