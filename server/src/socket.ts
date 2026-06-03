@@ -1563,10 +1563,16 @@ export function attachSocketHandlers(io: AppServer): void {
         const receiverId = conv.participant1 === senderId ? conv.participant2 : conv.participant1;
         if (conv.participant1 !== senderId && conv.participant2 !== senderId) throw new Error('Not a participant.');
         const msg = await sendMessage(conversationId, senderId, text.trim(), receiverId);
-        // Notify recipient in real time
+        // Notify recipient in real time with sender info for toast
         const recipientSocket = findSocketByProfile(io, receiverId);
         if (recipientSocket) {
-          recipientSocket.emit('dm:new_message', { conversationId, message: msg });
+          const senderProfile = await getPlayer(senderId);
+          recipientSocket.emit('dm:new_message', {
+            conversationId,
+            message: msg,
+            senderUsername: senderProfile?.username ?? 'Unknown',
+            senderAvatar: senderProfile?.avatar ?? '?',
+          });
         }
         cb(ok(msg));
       } catch (e: any) { cb(err(e.message)); }

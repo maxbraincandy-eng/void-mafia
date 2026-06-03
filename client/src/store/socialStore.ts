@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import { socket } from '@/lib/socket';
 
+export interface DmToast {
+  senderUserId: string;
+  senderUsername: string;
+  senderAvatar: string;
+  preview: string;
+}
+
 interface SocialStore {
   profilePopupId: string | null;
   openProfile: (profileId: string) => void;
@@ -16,6 +23,10 @@ interface SocialStore {
   unreadDmCount: number;
   setUnreadDmCount: (n: number) => void;
   incUnread: () => void;
+
+  dmToast: DmToast | null;
+  showDmToast: (toast: DmToast) => void;
+  clearDmToast: () => void;
 }
 
 export const useSocialStore = create<SocialStore>((set, get) => {
@@ -23,9 +34,27 @@ export const useSocialStore = create<SocialStore>((set, get) => {
     set({ onlineCount: count });
   });
 
-  socket.on('dm:new_message', () => {
+  socket.on('dm:new_message', (payload: {
+    conversationId: string;
+    message: { senderId: string; text: string };
+    senderUsername?: string;
+    senderAvatar?: string;
+  }) => {
     if (!get().dmPanelOpen) {
-      set(s => ({ unreadDmCount: s.unreadDmCount + 1 }));
+      const toast: DmToast | null = payload.senderUsername
+        ? {
+            senderUserId: payload.message.senderId,
+            senderUsername: payload.senderUsername,
+            senderAvatar: payload.senderAvatar ?? '?',
+            preview: payload.message.text.length > 80
+              ? payload.message.text.slice(0, 77) + '…'
+              : payload.message.text,
+          }
+        : null;
+      set(s => ({
+        unreadDmCount: s.unreadDmCount + 1,
+        ...(toast ? { dmToast: toast } : {}),
+      }));
     }
   });
 
@@ -44,5 +73,9 @@ export const useSocialStore = create<SocialStore>((set, get) => {
     unreadDmCount: 0,
     setUnreadDmCount: (n) => set({ unreadDmCount: n }),
     incUnread: () => set(s => ({ unreadDmCount: s.unreadDmCount + 1 })),
+
+    dmToast: null,
+    showDmToast: (toast) => set({ dmToast: toast }),
+    clearDmToast: () => set({ dmToast: null }),
   };
 });

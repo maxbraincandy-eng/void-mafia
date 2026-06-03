@@ -34,7 +34,7 @@ export function LobbyPage() {
     autoStartCountdown: s.autoStartCountdown,
   }));
 
-  const { openProfile } = useSocialStore();
+  const { openProfile, openDmList, unreadDmCount } = useSocialStore();
   const [showSettings, setShowSettings] = useState(false);
   const [showRoleGuide, setShowRoleGuide] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -139,6 +139,34 @@ export function LobbyPage() {
               </button>
             </div>
           </div>
+
+          {/* Messages button */}
+          <button
+            onClick={openDmList}
+            className="relative p-2 rounded-xl transition-colors flex-shrink-0 self-start mt-0.5"
+            style={{ border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.28)' }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.borderColor = 'rgba(138,43,226,0.3)';
+              (e.currentTarget as HTMLElement).style.color = 'rgba(192,132,252,0.7)';
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.07)';
+              (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.28)';
+            }}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            {unreadDmCount > 0 && (
+              <span
+                className="absolute -top-1 -right-1 text-void text-[7px] font-bold rounded-full min-w-[13px] h-3.5 flex items-center justify-center px-0.5 leading-none"
+                style={{ background: '#ff0080' }}
+              >
+                {unreadDmCount > 9 ? '9+' : unreadDmCount}
+              </span>
+            )}
+          </button>
 
           {/* Room code */}
           <div className="text-right shrink-0">

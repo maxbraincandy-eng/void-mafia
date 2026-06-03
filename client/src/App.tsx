@@ -4,6 +4,7 @@ import { useGameStore } from '@/store/gameStore';
 import clsx from 'clsx';
 import { useAuthStore } from '@/store/authStore';
 import { useSocialStore } from '@/store/socialStore';
+import type { DmToast as DmToastData } from '@/store/socialStore';
 import { LoginPage } from '@/pages/LoginPage';
 import { LobbyPage } from '@/pages/LobbyPage';
 import { GamePage } from '@/pages/GamePage';
@@ -46,6 +47,71 @@ function ToastLayer() {
         ))}
       </AnimatePresence>
     </div>
+  );
+}
+
+function DmToastNotification() {
+  const { dmToast, clearDmToast, openDmWith } = useSocialStore();
+
+  useEffect(() => {
+    if (!dmToast) return;
+    const id = setTimeout(clearDmToast, 4500);
+    return () => clearTimeout(id);
+  }, [dmToast, clearDmToast]);
+
+  return (
+    <AnimatePresence>
+      {dmToast && (
+        <motion.div
+          key="dm-toast"
+          initial={{ opacity: 0, x: 80 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 80 }}
+          transition={{ type: 'spring', stiffness: 280, damping: 26 }}
+          className="fixed bottom-24 right-3 z-[90] cursor-pointer"
+          style={{ maxWidth: '280px' }}
+          onClick={() => {
+            openDmWith((dmToast as DmToastData).senderUserId);
+            clearDmToast();
+          }}
+        >
+          <div
+            className="rounded-2xl backdrop-blur-2xl px-3 py-2.5 flex items-center gap-3"
+            style={{
+              background: 'rgba(8,4,20,0.97)',
+              border: '1px solid rgba(138,43,226,0.45)',
+              boxShadow: '0 0 28px rgba(138,43,226,0.18), 0 4px 24px rgba(0,0,0,0.5)',
+            }}
+          >
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center text-lg flex-shrink-0"
+              style={{ background: 'linear-gradient(135deg, #ff0080, #8a2be2)' }}
+            >
+              {(dmToast as DmToastData).senderAvatar}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-mono text-[9px] uppercase tracking-[0.15em]"
+                 style={{ color: 'rgba(192,132,252,0.6)' }}>
+                New message
+              </p>
+              <p className="font-display text-xs font-bold text-white truncate">
+                {(dmToast as DmToastData).senderUsername}
+              </p>
+              <p className="font-mono text-[10px] truncate mt-0.5 leading-snug"
+                 style={{ color: 'rgba(255,255,255,0.38)' }}>
+                {(dmToast as DmToastData).preview}
+              </p>
+            </div>
+            <button
+              onClick={e => { e.stopPropagation(); clearDmToast(); }}
+              className="text-white/20 hover:text-white/50 text-sm flex-shrink-0 transition-colors ml-1"
+            >
+              ✕
+            </button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -190,6 +256,7 @@ export default function App() {
       {/* Global social overlays — rendered outside Screen so they work from any page/game view */}
       <PlayerProfileModal playerId={profilePopupId} onClose={closeProfile} />
       <DmPanel />
+      <DmToastNotification />
     </>
   );
 }

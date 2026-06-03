@@ -43,7 +43,8 @@ export function emitWithAck<TData, TRes>(
     if (data !== undefined && data !== null) {
       socket.emit(event as any, data, cb);
     } else {
-      socket.emit(event as any, cb);
+      // Pass {} so server handlers using (_, cb) receive ack in the right position
+      socket.emit(event as any, {}, cb);
     }
   });
 }

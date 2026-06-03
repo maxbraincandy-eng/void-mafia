@@ -14,6 +14,15 @@ function formatTime(ts: number): string {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
+function ChatIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
 export function DmPanel() {
   const { dmPanelOpen, activeDmUserId, closeDm, setUnreadDmCount } = useSocialStore();
   const myProfileId = useAuthStore(s => s.profile?.id);
@@ -25,33 +34,59 @@ export function DmPanel() {
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [loadingConvs, setLoadingConvs] = useState(false);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
+  const [convError, setConvError] = useState<string | null>(null);
+  const [msgError, setMsgError] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const refreshUnreadCount = useCallback(async () => {
+    try {
+      const res = await emitWithAck<void, Res<number>>('dm:unread_count');
+      if (res.ok) setUnreadDmCount(res.data);
+    } catch {}
+  }, [setUnreadDmCount]);
+
   const loadConversations = useCallback(async () => {
     setLoadingConvs(true);
-    const res = await emitWithAck<void, Res<DmConversation[]>>('dm:list');
-    if (res.ok) setConversations(res.data);
-    setLoadingConvs(false);
+    setConvError(null);
+    try {
+      const res = await emitWithAck<void, Res<DmConversation[]>>('dm:list');
+      if (res.ok) {
+        setConversations(res.data ?? []);
+      } else {
+        setConvError(res.error ?? 'Failed to load conversations');
+      }
+    } catch (e: any) {
+      setConvError(e.message ?? 'Connection error — tap to retry');
+    } finally {
+      setLoadingConvs(false);
+    }
   }, []);
-
-  const refreshUnreadCount = useCallback(async () => {
-    const res = await emitWithAck<void, Res<number>>('dm:unread_count');
-    if (res.ok) setUnreadDmCount(res.data);
-  }, [setUnreadDmCount]);
 
   const openConversation = useCallback(async (convId: string, username: string, avatar: string) => {
     setActiveConvId(convId);
     setActiveUsername(username);
     setActiveAvatar(avatar);
+    setMsgError(null);
     setLoadingMsgs(true);
-    const res = await emitWithAck<{ conversationId: string }, Res<DirectMessage[]>>('dm:messages', { conversationId: convId });
-    if (res.ok) setMessages(res.data);
-    setLoadingMsgs(false);
-    await emitWithAck('dm:mark_read', { conversationId: convId });
-    await refreshUnreadCount();
+    try {
+      const res = await emitWithAck<{ conversationId: string }, Res<DirectMessage[]>>('dm:messages', { conversationId: convId });
+      if (res.ok) {
+        setMessages(res.data ?? []);
+      } else {
+        setMsgError(res.error ?? 'Failed to load messages');
+      }
+    } catch (e: any) {
+      setMsgError(e.message ?? 'Connection error');
+    } finally {
+      setLoadingMsgs(false);
+    }
+    try {
+      await emitWithAck('dm:mark_read', { conversationId: convId });
+      await refreshUnreadCount();
+    } catch {}
     setConversations(prev => prev.map(c => c.id === convId ? { ...c, unread: false } : c));
     setTimeout(() => inputRef.current?.focus(), 100);
   }, [refreshUnreadCount]);
@@ -60,17 +95,30 @@ export function DmPanel() {
   useEffect(() => {
     if (!activeDmUserId || !dmPanelOpen) return;
     (async () => {
-      const res = await emitWithAck<{ profileId: string }, Res<{ id: string; otherUsername: string; otherAvatar: string; messages: DirectMessage[] }>>('dm:start', { profileId: activeDmUserId });
-      if (res.ok) {
-        setActiveConvId(res.data.id);
-        setActiveUsername(res.data.otherUsername);
-        setActiveAvatar(res.data.otherAvatar);
-        setMessages(res.data.messages);
-        await emitWithAck('dm:mark_read', { conversationId: res.data.id });
-        await refreshUnreadCount();
-        await loadConversations();
+      try {
+        const res = await emitWithAck<
+          { profileId: string },
+          Res<{ id: string; otherUsername: string; otherAvatar: string; messages: DirectMessage[] }>
+        >('dm:start', { profileId: activeDmUserId });
+        if (res.ok) {
+          setActiveConvId(res.data.id);
+          setActiveUsername(res.data.otherUsername);
+          setActiveAvatar(res.data.otherAvatar);
+          setMessages(res.data.messages ?? []);
+          setMsgError(null);
+          try {
+            await emitWithAck('dm:mark_read', { conversationId: res.data.id });
+            await refreshUnreadCount();
+            await loadConversations();
+          } catch {}
+        } else {
+          setMsgError(res.error ?? 'Failed to open conversation');
+        }
+      } catch (e: any) {
+        setMsgError(e.message ?? 'Connection error');
       }
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDmUserId, dmPanelOpen]);
 
   // Load conversation list when panel opens to list view
@@ -84,8 +132,10 @@ export function DmPanel() {
     if (!dmPanelOpen) {
       setActiveConvId(null);
       setMessages([]);
+      setConvError(null);
+      setMsgError(null);
     }
-  }, [dmPanelOpen, activeDmUserId]);
+  }, [dmPanelOpen, activeDmUserId, loadConversations, refreshUnreadCount]);
 
   // Real-time messages while panel is open
   useEffect(() => {
@@ -93,14 +143,17 @@ export function DmPanel() {
     const handler = ({ conversationId: convId, message }: { conversationId: string; message: DirectMessage }) => {
       if (convId === activeConvId) {
         setMessages(prev => [...prev, message]);
-        emitWithAck('dm:mark_read', { conversationId: convId });
+        emitWithAck('dm:mark_read', { conversationId: convId }).catch(() => {});
         refreshUnreadCount();
       } else {
         setConversations(prev => {
           const exists = prev.some(c => c.id === convId);
           if (exists) {
-            return prev.map(c => c.id === convId ? { ...c, unread: true, lastMessage: message.text, lastMessageAt: message.createdAt } : c);
+            return prev.map(c => c.id === convId
+              ? { ...c, unread: true, lastMessage: message.text, lastMessageAt: message.createdAt }
+              : c);
           }
+          // New conversation not in list yet — reload
           loadConversations();
           return prev;
         });
@@ -108,7 +161,7 @@ export function DmPanel() {
     };
     socket.on('dm:new_message', handler);
     return () => { socket.off('dm:new_message', handler); };
-  }, [dmPanelOpen, activeConvId]);
+  }, [dmPanelOpen, activeConvId, refreshUnreadCount, loadConversations]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -120,20 +173,30 @@ export function DmPanel() {
     setSending(true);
     const t = text.trim();
     setText('');
-    const res = await emitWithAck<{ conversationId: string; text: string }, Res<DirectMessage>>('dm:send', { conversationId: activeConvId, text: t });
-    if (res.ok) {
-      setMessages(prev => [...prev, res.data]);
-      setConversations(prev => prev.map(c => c.id === activeConvId ? { ...c, lastMessage: t, lastMessageAt: res.data.createdAt } : c));
-    } else {
+    try {
+      const res = await emitWithAck<{ conversationId: string; text: string }, Res<DirectMessage>>(
+        'dm:send', { conversationId: activeConvId, text: t }
+      );
+      if (res.ok) {
+        setMessages(prev => [...prev, res.data]);
+        setConversations(prev => prev.map(c =>
+          c.id === activeConvId ? { ...c, lastMessage: t, lastMessageAt: res.data.createdAt } : c
+        ));
+      } else {
+        setText(t);
+      }
+    } catch {
       setText(t);
+    } finally {
+      setSending(false);
     }
-    setSending(false);
     inputRef.current?.focus();
   };
 
   const handleBack = () => {
     setActiveConvId(null);
     setMessages([]);
+    setMsgError(null);
     loadConversations();
   };
 
@@ -167,10 +230,19 @@ export function DmPanel() {
                 </button>
               ) : null}
               {activeConvId && activeAvatar ? (
-                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-neon-pink to-neon-purple flex items-center justify-center text-sm shrink-0">
+                <div
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0"
+                  style={{ background: 'linear-gradient(135deg, #ff0080, #8a2be2)' }}
+                >
                   {activeAvatar}
                 </div>
-              ) : null}
+              ) : (
+                !activeConvId && (
+                  <span className="text-neon-purple/60">
+                    <ChatIcon size={18} />
+                  </span>
+                )
+              )}
               <div className="flex-1 min-w-0">
                 <h3 className="font-display font-bold text-sm text-white tracking-wide truncate">
                   {activeConvId ? activeUsername : 'MESSAGES'}
@@ -191,11 +263,25 @@ export function DmPanel() {
                   <div className="flex justify-center py-10">
                     <div className="w-5 h-5 border-2 border-neon-purple/40 border-t-neon-purple rounded-full animate-spin" />
                   </div>
+                ) : convError ? (
+                  <div className="text-center py-14 px-4">
+                    <p className="text-white/25 font-mono text-xs mb-3">{convError}</p>
+                    <button
+                      onClick={loadConversations}
+                      className="px-4 py-2 rounded-xl border border-neon-purple/30 text-neon-purple/70 font-mono text-xs hover:bg-neon-purple/10 transition-colors"
+                    >
+                      Retry
+                    </button>
+                  </div>
                 ) : conversations.length === 0 ? (
                   <div className="text-center py-14 px-4">
-                    <p className="text-4xl mb-3 opacity-20">✉</p>
-                    <p className="text-white/20 font-mono text-sm">No conversations yet</p>
-                    <p className="text-white/10 font-mono text-xs mt-1">Open a player profile and tap Message</p>
+                    <div className="flex justify-center mb-3 opacity-15">
+                      <ChatIcon size={40} />
+                    </div>
+                    <p className="text-white/20 font-mono text-sm">No messages yet.</p>
+                    <p className="text-white/10 font-mono text-xs mt-1">
+                      Open a player profile and tap Message
+                    </p>
                   </div>
                 ) : (
                   <div>
@@ -203,10 +289,13 @@ export function DmPanel() {
                       <button
                         key={conv.id}
                         onClick={() => openConversation(conv.id, conv.otherUsername, conv.otherAvatar)}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/4 transition-colors text-left border-b border-white/[0.04]"
+                        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/[0.03] transition-colors text-left border-b border-white/[0.04]"
                       >
                         <div className="relative shrink-0">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-neon-pink to-neon-purple flex items-center justify-center text-lg">
+                          <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center text-lg"
+                            style={{ background: 'linear-gradient(135deg, #ff0080, #8a2be2)' }}
+                          >
                             {conv.otherAvatar}
                           </div>
                           {conv.unread && (
@@ -241,6 +330,16 @@ export function DmPanel() {
                     <div className="flex justify-center py-10">
                       <div className="w-5 h-5 border-2 border-neon-purple/40 border-t-neon-purple rounded-full animate-spin" />
                     </div>
+                  ) : msgError ? (
+                    <div className="text-center py-10">
+                      <p className="text-white/25 font-mono text-xs mb-3">{msgError}</p>
+                      <button
+                        onClick={() => openConversation(activeConvId, activeUsername, activeAvatar)}
+                        className="px-4 py-2 rounded-xl border border-neon-purple/30 text-neon-purple/70 font-mono text-xs hover:bg-neon-purple/10 transition-colors"
+                      >
+                        Retry
+                      </button>
+                    </div>
                   ) : messages.length === 0 ? (
                     <p className="text-center text-white/15 font-mono text-xs pt-10">
                       Say hello!
@@ -253,12 +352,22 @@ export function DmPanel() {
                           <div
                             className={`max-w-[78%] px-3 py-2 rounded-2xl text-sm font-mono break-words ${
                               isMe
-                                ? 'bg-neon-purple/25 border border-neon-purple/30 text-white rounded-br-sm'
-                                : 'bg-white/8 border border-white/8 text-white/80 rounded-bl-sm'
+                                ? 'rounded-br-sm'
+                                : 'rounded-bl-sm'
                             }`}
+                            style={isMe ? {
+                              background: 'rgba(138,43,226,0.2)',
+                              border: '1px solid rgba(138,43,226,0.3)',
+                              color: '#ffffff',
+                            } : {
+                              background: 'rgba(255,255,255,0.07)',
+                              border: '1px solid rgba(255,255,255,0.08)',
+                              color: 'rgba(255,255,255,0.82)',
+                            }}
                           >
                             <p>{msg.text}</p>
-                            <p className={`text-[9px] mt-1 ${isMe ? 'text-white/25 text-right' : 'text-white/20'}`}>
+                            <p className={`text-[9px] mt-1 ${isMe ? 'text-right' : ''}`}
+                               style={{ color: 'rgba(255,255,255,0.22)' }}>
                               {formatTime(msg.createdAt)}
                             </p>
                           </div>
@@ -269,23 +378,52 @@ export function DmPanel() {
                   <div ref={bottomRef} />
                 </div>
 
-                {/* Input bar */}
-                <div className="flex gap-2 px-3 pb-4 pt-2 border-t border-white/5 flex-shrink-0">
+                {/* Input bar — uses inline styles to override iOS Safari defaults */}
+                <div
+                  className="flex gap-2 px-3 pt-2 border-t border-white/5 flex-shrink-0"
+                  style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
+                >
                   <input
                     ref={inputRef}
                     value={text}
                     onChange={e => setText(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+                    }}
                     placeholder="Message…"
                     maxLength={500}
-                    className="flex-1 bg-white/6 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/20 font-mono focus:outline-none focus:border-neon-purple/40 transition-colors"
+                    className="flex-1 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none transition-all"
+                    style={{
+                      background: 'rgba(12, 5, 28, 0.95)',
+                      border: '1px solid rgba(138,43,226,0.25)',
+                      color: '#ffffff',
+                      WebkitTextFillColor: '#ffffff',
+                      caretColor: '#c084fc',
+                      colorScheme: 'dark',
+                    }}
+                    onFocus={e => {
+                      (e.target as HTMLInputElement).style.borderColor = 'rgba(138,43,226,0.55)';
+                    }}
+                    onBlur={e => {
+                      (e.target as HTMLInputElement).style.borderColor = 'rgba(138,43,226,0.25)';
+                    }}
                   />
                   <button
                     onClick={handleSend}
                     disabled={!text.trim() || sending}
-                    className="px-4 py-2 bg-neon-purple/20 border border-neon-purple/30 rounded-xl text-neon-purple font-mono text-base hover:bg-neon-purple/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="px-3 py-2.5 rounded-xl font-mono text-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
+                    style={{
+                      background: 'rgba(138,43,226,0.2)',
+                      border: '1px solid rgba(138,43,226,0.35)',
+                      color: '#c084fc',
+                      minWidth: '2.5rem',
+                    }}
                   >
-                    ↑
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="22" y1="2" x2="11" y2="13" />
+                      <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                    </svg>
                   </button>
                 </div>
               </>
