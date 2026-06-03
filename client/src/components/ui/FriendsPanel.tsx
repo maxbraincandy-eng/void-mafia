@@ -5,6 +5,7 @@ import { Friend, FriendRequest } from '@/types/index';
 import type { Res } from '@/types/index';
 import { useGameStore } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
+import { useSocialStore } from '@/store/socialStore';
 
 const LEVEL_COLORS = ['text-white/40', 'text-neon-cyan/70', 'text-neon-purple/80', 'text-neon-pink/80', 'text-yellow-400'];
 function lvlColor(level: number) { return LEVEL_COLORS[Math.min(Math.floor((level - 1) / 2), LEVEL_COLORS.length - 1)]; }
@@ -155,6 +156,7 @@ export function FriendsPanel() {
         </div>
       )}
 
+
       {friends.length === 0 && pendingFriendRequests.length === 0 && (
         <div className="text-center py-8 text-white/20 font-mono text-sm">
           <p className="text-3xl mb-2">👥</p>
@@ -167,8 +169,12 @@ export function FriendsPanel() {
 }
 
 function FriendRow({ friend, onRemove }: { friend: Friend; onRemove: (id: string) => void }) {
+  const { openProfile, openDmWith } = useSocialStore();
   return (
-    <div className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-white/4 transition-colors group">
+    <div
+      onClick={() => openProfile(friend.profileId)}
+      className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-white/4 transition-colors group cursor-pointer"
+    >
       <div className="relative flex-shrink-0">
         <span className="text-lg">{friend.avatar}</span>
         <div
@@ -182,7 +188,14 @@ function FriendRow({ friend, onRemove }: { friend: Friend; onRemove: (id: string
         <p className={`text-[9px] font-mono ${lvlColor(friend.level)}`}>Lv.{friend.level}</p>
       </div>
       <button
-        onClick={() => onRemove(friend.profileId)}
+        onClick={e => { e.stopPropagation(); openDmWith(friend.profileId); }}
+        className="opacity-0 group-hover:opacity-100 text-white/20 hover:text-neon-purple/70 transition-all text-xs px-1"
+        title="Message"
+      >
+        ✉
+      </button>
+      <button
+        onClick={e => { e.stopPropagation(); onRemove(friend.profileId); }}
         className="opacity-0 group-hover:opacity-100 text-white/20 hover:text-neon-red/60 transition-all text-xs px-1"
         title="Remove friend"
       >

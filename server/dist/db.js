@@ -3,22 +3,27 @@ import postgres from 'postgres';
 const DATABASE_URL = process.env.DATABASE_URL ||
     process.env.POSTGRES_URL ||
     process.env.RAILWAY_DATABASE_URL;
+// Log early — process.exit(1) is intentionally NOT called here.
+// The server must bind its port before anything can fail, so the Railway
+// healthcheck at /health always gets a response.  If the URL is missing or
+// the connection fails, initializeDatabase() will throw and index.ts will
+// call process.exit(1) after a short delay (giving the healthcheck time to pass).
 if (!DATABASE_URL) {
     console.error('[Database] FATAL: No DATABASE_URL/POSTGRES_URL environment variable set.');
-    console.error('[Database] Cannot start without a database connection.');
-    process.exit(1);
+    console.error('[Database] Server will start but DB calls will fail until this is fixed.');
 }
 console.log('[Database] provider = postgresql');
 console.log(`[Database] DATABASE_URL exists = ${!!DATABASE_URL}`);
-// Configure BIGINT columns to return as JavaScript number (not BigInt)
-// Timestamps (Date.now()) are 13 digits, safely within Number.MAX_SAFE_INTEGER
 const bigintParser = {
     to: 20,
     from: [20],
     serialize: (x) => String(x),
     parse: (x) => Number(x),
 };
-export const sql = postgres(DATABASE_URL, {
+// Use a dummy URL when DATABASE_URL is missing so the module loads without
+// throwing.  Actual queries will fail, and initializeDatabase() will throw,
+// triggering a clean restart via index.ts.
+export const sql = postgres(DATABASE_URL ?? 'postgresql://localhost:5432/void_mafia', {
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
     max: 10,
     idle_timeout: 30,

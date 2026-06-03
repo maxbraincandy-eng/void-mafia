@@ -2,18 +2,16 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
+import { useSocialStore } from '@/store/socialStore';
 import { useT } from '@/store/langStore';
 import { Button } from '@/components/ui/Button';
 import { Avatar } from '@/components/ui/Avatar';
 import { ChatPanel } from '@/components/chat/ChatPanel';
-import { PlayerStatsModal } from '@/components/ui/PlayerStatsModal';
-import { ReportModal } from '@/components/ui/ReportModal';
 import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { RolePickerPanel } from '@/components/lobby/RolePickerPanel';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
-import { PlayerPublic } from '@/types/index';
 
 const SURFACE = 'rounded-2xl border border-white/[0.06]';
 const SURFACE_BG = { background: 'rgba(10, 6, 28, 0.92)' } as const;
@@ -36,10 +34,9 @@ export function LobbyPage() {
     autoStartCountdown: s.autoStartCountdown,
   }));
 
+  const { openProfile } = useSocialStore();
   const [showSettings, setShowSettings] = useState(false);
   const [showRoleGuide, setShowRoleGuide] = useState(false);
-  const [statsPlayer, setStatsPlayer] = useState<PlayerPublic | null>(null);
-  const [reportProfileId, setReportProfileId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [shared, setShared] = useState(false);
   const [confirmTransferId, setConfirmTransferId] = useState<string | null>(null);
@@ -231,7 +228,7 @@ export function LobbyPage() {
                       initial={{ opacity: 0, x: -6 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.06 + i * 0.03 }}
-                      onClick={() => !isMe && setStatsPlayer(player)}
+                      onClick={() => !isMe && player.profileId && openProfile(player.profileId)}
                       className={clsx(
                         'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors',
                         isMe
@@ -557,24 +554,6 @@ export function LobbyPage() {
         </div>
       </div>
 
-      {/* Modals */}
-      {statsPlayer && (
-        <PlayerStatsModal
-          profileId={statsPlayer.profileId ?? null}
-          playerName={statsPlayer.name}
-          onClose={() => setStatsPlayer(null)}
-          onReport={pid => { setReportProfileId(pid); setStatsPlayer(null); }}
-        />
-      )}
-      {reportProfileId && (
-        <ReportModal
-          targetProfileId={reportProfileId}
-          targetName={room.players.find(p => p.profileId === reportProfileId)?.name ?? ''}
-          roomId={room.id}
-          onClose={() => setReportProfileId(null)}
-          onSuccess={() => setReportProfileId(null)}
-        />
-      )}
       <RoleInfoModal open={showRoleGuide} onClose={() => setShowRoleGuide(false)} />
     </div>
   );
