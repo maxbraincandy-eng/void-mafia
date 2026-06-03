@@ -57,22 +57,6 @@ function resume(): Promise<void> {
   return ctx.state === 'suspended' ? ctx.resume() : Promise.resolve();
 }
 
-// ── Reverb (simple feedback delay) ───────────────────────────────────
-
-function makeReverb(ctx: AudioContext, wet: GainNode, time = 1.8, decay = 0.3) {
-  const bufLen = Math.ceil(ctx.sampleRate * time);
-  const buf = ctx.createBuffer(2, bufLen, ctx.sampleRate);
-  for (let ch = 0; ch < 2; ch++) {
-    const d = buf.getChannelData(ch);
-    for (let i = 0; i < bufLen; i++) {
-      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, decay * 10);
-    }
-  }
-  const conv = ctx.createConvolver();
-  conv.buffer = buf;
-  conv.connect(wet);
-  return conv;
-}
 
 // ── Low-level tone scheduler ──────────────────────────────────────────
 
@@ -228,186 +212,122 @@ export const SFX = {
 };
 
 // ── Mafia ambient music ───────────────────────────────────────────────
-// Procedural noir/crime atmosphere. Am key, ~56 BPM.
-// 3 layers: bass drone, chord pad, slow piano arpeggio.
+// Am minor key, loop-based scheduling (no continuous oscillators).
+// All notes 147–440 Hz — safe for phone speakers (no sub-bass buzz).
+//
+// Loop = 16 notes × 0.9 s = 14.4 s
+// Melody: triangle (piano-like), Bass: sine (plucked)
 
-const BEAT = 1.07; // seconds per beat (~56 BPM)
-
-// Am pentatonic + minor notes (Hz)
-// A2  C3     D3     E3     G3     A3   C4     E4
-const N = [110, 130.8, 146.8, 164.8, 196, 220, 261.6, 329.6];
-
-// Arpeggio pattern — indices into N, 16 steps, repeating
-// Chord groups: Am(0,2,4), Dm(1,3,5), Am, E(3,6,4)
-const ARP_SEQ = [
-  0, 2, 4, 6,   // Am up
-  5, 3, 1, 2,   // Dm down
-  0, 4, 2, 7,   // Am spread
-  3, 5, 4, 2,   // Dm/E
+// [melody_hz, bass_hz_or_0]  — 16 steps
+const MUSIC_LOOP: Array<[number, number]> = [
+  // ── Am phrase ──
+  [220,   147],  // A3 + D3 bass
+  [261.6, 0  ],  // C4
+  [329.6, 0  ],  // E4
+  [261.6, 110],  // C4 + A2 bass
+  // ── Dm phrase ──
+  [293.7, 147],  // D4 + D3 bass
+  [349.2, 0  ],  // F4
+  [440,   0  ],  // A4
+  [349.2, 147],  // F4 + D3 bass
+  // ── Am resolve ──
+  [329.6, 110],  // E4 + A2 bass
+  [261.6, 0  ],  // C4
+  [220,   0  ],  // A3
+  [196,   110],  // G3 + A2 bass
+  // ── Em phrase ──
+  [164.8, 165],  // E3 melody + E3 bass (unison octave)
+  [220,   0  ],  // A3
+  [329.6, 0  ],  // E4
+  [220,   110],  // A3 + A2 bass
 ];
 
-// Bass pattern — (noteIndex, beats duration, at beat)
-const BASS_SEQ: Array<[number, number]> = [
-  [0, 4], // A2 × 4 beats
-  [1, 2], // D2-ish (low D — we use D2 = 73.4)
-  [1, 2],
-  [0, 3], // A2
-  [3, 1], // E
-  [0, 4], // A2
-  [1, 4], // D
-  [3, 2], // E
-  [0, 2], // A2
-];
-const BASS_HZ = [55, 73.4, 82.4, 55, 73.4, 82.4, 55, 73.4, 82.4]; // ~A1, D2, E2 etc.
+const NOTE_STEP = 0.9;   // seconds per note
+const LOOP_DUR  = MUSIC_LOOP.length * NOTE_STEP; // 14.4 s
 
 export function startMenuMusic() {
   if (_musicRunning) return;
   if (!useSettingsStore.getState().musicEnabled) return;
 
-  // If no AudioContext yet (no user gesture), mark as pending.
-  // attachGlobalClickSounds will call us again after first interaction.
+  // No user gesture yet — defer until first interaction
   if (!_ctx || _ctx.state === 'suspended') {
     _musicPending = true;
+    return;
   }
 
-  resume().then(() => {
-    _musicPending = false;
-    if (_musicRunning) return;
-    _musicRunning = true;
-    const ctx = _ctx!;
-    const bus = _musicBus!;
+  _musicPending = false;
+  if (_musicRunning) return;
+  _musicRunning = true;
 
-    // Reverb send
-    const reverbWet = ctx.createGain();
-    reverbWet.gain.value = 0.35;
-    reverbWet.connect(bus);
-    const reverb = makeReverb(ctx, reverbWet, 2.5, 0.25);
+  const ctx   = _ctx!;
+  const bus   = _musicBus!;
 
-    // Lowpass filter for warmth
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 1800;
-    filter.Q.value = 0.8;
-    filter.connect(bus);
-    filter.connect(reverb);
+  // Master fade-in gain
+  const master = ctx.createGain();
+  master.gain.setValueAtTime(0, ctx.currentTime);
+  master.gain.linearRampToValueAtTime(1, ctx.currentTime + 2.5);
+  master.connect(bus);
 
-    // Bass drone — continuous detuned pair
-    const bassGain = ctx.createGain();
-    bassGain.gain.value = 0;
-    bassGain.connect(filter);
-    const bass1 = ctx.createOscillator();
-    const bass2 = ctx.createOscillator();
-    bass1.type = 'sine'; bass1.frequency.value = 55;
-    bass2.type = 'sine'; bass2.frequency.value = 55.3;
-    bass1.connect(bassGain); bass2.connect(bassGain);
-    bass1.start(); bass2.start();
+  // Delay reverb (no impulse buffer needed)
+  const dlyNode = ctx.createDelay(0.6);
+  dlyNode.delayTime.value = 0.38;
+  const dlyFb   = ctx.createGain(); dlyFb.gain.value = 0.38;
+  const dlyWet  = ctx.createGain(); dlyWet.gain.value = 0.28;
+  dlyNode.connect(dlyFb); dlyFb.connect(dlyNode);
+  dlyNode.connect(dlyWet); dlyWet.connect(master);
 
-    // Pad — 3 detuned oscillators, Am chord
-    const padGain = ctx.createGain();
-    padGain.gain.value = 0;
-    padGain.connect(filter);
-    const padFreqs = [110, 130.8, 164.8, 220];
-    const padOscs = padFreqs.map(f => {
-      const o = ctx.createOscillator();
-      o.type = 'triangle';
-      o.frequency.value = f;
-      o.detune.value = (Math.random() - 0.5) * 8; // subtle detuning
-      o.connect(padGain);
-      o.start();
-      return o;
+  // Gentle low-pass so reverb tail isn't harsh
+  const lpf = ctx.createBiquadFilter();
+  lpf.type = 'lowpass'; lpf.frequency.value = 2200;
+  dlyNode.connect(lpf); lpf.connect(master);
+
+  // Helper: schedule one note
+  function noteOn(hz: number, at: number, dur: number, vol: number, type: OscillatorType = 'triangle') {
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = hz;
+    osc.connect(g);
+    g.connect(master);   // dry
+    g.connect(dlyNode);  // send to reverb
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(vol,   at + 0.018);
+    g.gain.setValueAtTime(vol,            at + dur * 0.55);
+    g.gain.exponentialRampToValueAtTime(0.001, at + dur);
+    osc.start(at);
+    osc.stop(at + dur + 0.02);
+  }
+
+  // Schedule entire loop starting at `startAt`
+  function scheduleLoop(startAt: number) {
+    MUSIC_LOOP.forEach(([mel, bass], i) => {
+      const t = startAt + i * NOTE_STEP;
+      // Melody (triangle, piano-like)
+      noteOn(mel, t, NOTE_STEP * 1.1, 0.40, 'triangle');
+      // Bass pluck (sine, shorter)
+      if (bass > 0) noteOn(bass, t, NOTE_STEP * 0.7, 0.55, 'sine');
     });
+  }
 
-    // Fade everything in
-    const now = ctx.currentTime;
-    bassGain.gain.linearRampToValueAtTime(0.55, now + 3);
-    padGain.gain.linearRampToValueAtTime(0.18, now + 4);
+  let loopTimer: ReturnType<typeof setTimeout>;
+  let nextLoopAt = ctx.currentTime + 0.3;
 
-    // ── Arpeggio scheduler ──────────────────────────────────────────
-    let arpStep = 0;
-    let nextTime = ctx.currentTime + 1; // start after 1s
+  function tick() {
+    scheduleLoop(nextLoopAt);
+    nextLoopAt += LOOP_DUR;
+    // Re-schedule 2 s before the next loop ends
+    loopTimer = setTimeout(tick, (LOOP_DUR - 2) * 1000);
+  }
 
-    const arpGain = ctx.createGain();
-    arpGain.gain.value = 0.22;
-    arpGain.connect(filter);
-    arpGain.connect(reverbWet);
+  tick();
 
-    let scheduleId: ReturnType<typeof setTimeout>;
-
-    const scheduleArp = () => {
-      if (!_musicRunning) return;
-      const lookahead = 0.3; // schedule 300ms ahead
-      while (nextTime < ctx.currentTime + lookahead) {
-        const hz = N[ARP_SEQ[arpStep % ARP_SEQ.length]];
-        const dur = BEAT * 1.2;
-
-        // Piano-like envelope: quick attack, medium sustain, slow release
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.type = 'triangle';
-        o.frequency.value = hz;
-        o.connect(g); g.connect(arpGain);
-        g.gain.setValueAtTime(0, nextTime);
-        g.gain.linearRampToValueAtTime(0.9, nextTime + 0.015);
-        g.gain.exponentialRampToValueAtTime(0.4, nextTime + 0.1);
-        g.gain.exponentialRampToValueAtTime(0.0001, nextTime + dur);
-        o.start(nextTime);
-        o.stop(nextTime + dur + 0.05);
-
-        // Every 4th step add a soft bass note hit
-        if (arpStep % 4 === 0) {
-          const bassHz = hz / 2;
-          const bo = ctx.createOscillator();
-          const bg = ctx.createGain();
-          bo.type = 'sine'; bo.frequency.value = bassHz;
-          bo.connect(bg); bg.connect(filter);
-          bg.gain.setValueAtTime(0, nextTime);
-          bg.gain.linearRampToValueAtTime(0.22, nextTime + 0.02);
-          bg.gain.exponentialRampToValueAtTime(0.0001, nextTime + BEAT * 2.5);
-          bo.start(nextTime);
-          bo.stop(nextTime + BEAT * 2.5 + 0.1);
-        }
-
-        arpStep++;
-        nextTime += BEAT;
-      }
-      scheduleId = setTimeout(scheduleArp, 100);
-    };
-
-    scheduleArp();
-
-    // Slowly evolve pad chord every 8 beats
-    let padStep = 0;
-    const PADS = [
-      [110, 130.8, 164.8, 220],   // Am
-      [73.4, 110, 130.8, 174.6],  // Dm-ish
-      [110, 130.8, 164.8, 220],   // Am
-      [82.4, 123.5, 164.8, 220],  // E minor-ish
-    ];
-    const padEvolveId = setInterval(() => {
-      if (!_musicRunning) return;
-      padStep++;
-      const chord = PADS[padStep % PADS.length];
-      padOscs.forEach((o, i) => {
-        o.frequency.linearRampToValueAtTime(chord[i], ctx.currentTime + BEAT * 4);
-      });
-    }, BEAT * 8 * 1000);
-
-    _musicStopFn = () => {
-      _musicRunning = false;
-      clearTimeout(scheduleId);
-      clearInterval(padEvolveId);
-      const t = ctx.currentTime;
-      bassGain.gain.setValueAtTime(bassGain.gain.value, t);
-      bassGain.gain.linearRampToValueAtTime(0, t + 1.5);
-      padGain.gain.setValueAtTime(padGain.gain.value, t);
-      padGain.gain.linearRampToValueAtTime(0, t + 1.5);
-      arpGain.gain.setValueAtTime(arpGain.gain.value, t);
-      arpGain.gain.linearRampToValueAtTime(0, t + 1.5);
-      setTimeout(() => {
-        try { bass1.stop(); bass2.stop(); padOscs.forEach(o => o.stop()); } catch {}
-      }, 1600);
-    };
-  });
+  _musicStopFn = () => {
+    _musicRunning = false;
+    clearTimeout(loopTimer);
+    const t = ctx.currentTime;
+    master.gain.setValueAtTime(master.gain.value, t);
+    master.gain.linearRampToValueAtTime(0, t + 1.2);
+  };
 }
 
 export function stopMenuMusic() {
