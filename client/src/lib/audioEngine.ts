@@ -212,39 +212,61 @@ export const SFX = {
 };
 
 // ── Mafia ambient music ───────────────────────────────────────────────
-// Am minor key, pre-scheduled loop.
-// All notes 147–440 Hz — NO sub-bass, NO feedback delay (phone-safe).
+// PCB-buffer approach: melody pre-computed as Float32Array (pure sine math).
+// No oscillators, no feedback, no scheduling loops — phone-safe guaranteed.
 
-// [melody_hz, bass_hz_or_0]  — 16 steps × 0.9 s = 14.4 s loop
+// [melody_hz, bass_hz_or_0]  — 16 steps × 0.9 s = 14.4 s
 const MUSIC_LOOP: Array<[number, number]> = [
-  // ── Am phrase ──
-  [220,   147],  // A3 + D3
-  [261.6, 0  ],  // C4
-  [329.6, 0  ],  // E4
-  [261.6, 220],  // C4 + A3
-  // ── Dm phrase ──
-  [293.7, 147],  // D4 + D3
-  [349.2, 0  ],  // F4
-  [440,   0  ],  // A4
-  [349.2, 147],  // F4 + D3
-  // ── Am resolve ──
-  [329.6, 220],  // E4 + A3
-  [261.6, 0  ],  // C4
-  [220,   0  ],  // A3
-  [196,   220],  // G3 + A3
-  // ── Em phrase ──
-  [164.8, 165],  // E3 + E3
-  [220,   0  ],  // A3
-  [329.6, 0  ],  // E4
-  [220,   220],  // A3 + A3
+  [220,   147], [261.6, 0  ], [329.6, 0  ], [261.6, 220],
+  [293.7, 147], [349.2, 0  ], [440,   0  ], [349.2, 147],
+  [329.6, 220], [261.6, 0  ], [220,   0  ], [196,   220],
+  [164.8, 165], [220,   0  ], [329.6, 0  ], [220,   220],
 ];
-
 const NOTE_STEP = 0.9;
-const LOOP_DUR  = MUSIC_LOOP.length * NOTE_STEP; // 14.4 s
+const LOOP_DUR  = MUSIC_LOOP.length * NOTE_STEP;
 
-// Module-level refs so stopMenuMusic can reliably clean up
-let _loopTimer: ReturnType<typeof setTimeout> | null = null;
 let _musicMasterGain: GainNode | null = null;
+let _musicSource: AudioBufferSourceNode | null = null;
+
+function buildMusicBuffer(ctx: AudioContext): AudioBuffer {
+  const sr = ctx.sampleRate;
+  const total = Math.ceil(LOOP_DUR * sr);
+  const buf  = ctx.createBuffer(1, total, sr);
+  const data = buf.getChannelData(0);
+  const TAU  = 2 * Math.PI;
+
+  MUSIC_LOOP.forEach(([mel, bass], i) => {
+    const start = Math.floor(i * NOTE_STEP * sr);
+    const len   = Math.min(Math.ceil(NOTE_STEP * sr), total - start);
+
+    for (let s = 0; s < len; s++) {
+      const t = s / sr;
+
+      // Melody envelope: 15 ms attack → sustain → decay to 0 at 95 %
+      let me = t < 0.015
+        ? t / 0.015
+        : t < NOTE_STEP * 0.45
+          ? 1.0
+          : Math.max(0, 1 - (t - NOTE_STEP * 0.45) / (NOTE_STEP * 0.50));
+      data[start + s] += 0.28 * me * Math.sin(TAU * mel * t);
+
+      // Bass envelope: 20 ms attack → decay to 0 at 65 %
+      if (bass > 0) {
+        const be = t < 0.02
+          ? t / 0.02
+          : Math.max(0, 1 - (t - 0.02) / (NOTE_STEP * 0.65 - 0.02));
+        data[start + s] += 0.35 * be * Math.sin(TAU * bass * t);
+      }
+    }
+  });
+
+  // Normalize peak to 0.65 — no clipping on any device
+  let peak = 0;
+  for (let i = 0; i < total; i++) if (Math.abs(data[i]) > peak) peak = Math.abs(data[i]);
+  if (peak > 0) { const sc = 0.65 / peak; for (let i = 0; i < total; i++) data[i] *= sc; }
+
+  return buf;
+}
 
 export function startMenuMusic() {
   if (_musicRunning) return;
@@ -258,53 +280,25 @@ export function startMenuMusic() {
 
   const ctx = _ctx!;
 
-  // Fade-in gain — direct path to musicBus, no delay/reverb
   _musicMasterGain = ctx.createGain();
   _musicMasterGain.gain.setValueAtTime(0, ctx.currentTime);
   _musicMasterGain.gain.linearRampToValueAtTime(1, ctx.currentTime + 2);
   _musicMasterGain.connect(_musicBus!);
 
-  let nextAt = ctx.currentTime + 0.5;
-
-  const tick = () => {
-    if (!_musicRunning) return;
-    const mg = _musicMasterGain!;
-    MUSIC_LOOP.forEach(([mel, bass], i) => {
-      const t = nextAt + i * NOTE_STEP;
-      // Melody — triangle wave (piano-like attack, sustained decay)
-      const o1 = ctx.createOscillator(); const g1 = ctx.createGain();
-      o1.type = 'triangle'; o1.frequency.value = mel;
-      o1.connect(g1); g1.connect(mg);
-      g1.gain.setValueAtTime(0, t);
-      g1.gain.linearRampToValueAtTime(0.38, t + 0.015);
-      g1.gain.setValueAtTime(0.38, t + NOTE_STEP * 0.5);
-      g1.gain.exponentialRampToValueAtTime(0.001, t + NOTE_STEP * 0.95);
-      o1.start(t); o1.stop(t + NOTE_STEP);
-      // Bass — sine, plucked (shorter)
-      if (bass > 0) {
-        const o2 = ctx.createOscillator(); const g2 = ctx.createGain();
-        o2.type = 'sine'; o2.frequency.value = bass;
-        o2.connect(g2); g2.connect(mg);
-        g2.gain.setValueAtTime(0, t);
-        g2.gain.linearRampToValueAtTime(0.45, t + 0.02);
-        g2.gain.exponentialRampToValueAtTime(0.001, t + NOTE_STEP * 0.65);
-        o2.start(t); o2.stop(t + NOTE_STEP * 0.7);
-      }
-    });
-    nextAt += LOOP_DUR;
-    _loopTimer = setTimeout(tick, (LOOP_DUR - 2) * 1000);
-  };
-
-  tick();
+  _musicSource = ctx.createBufferSource();
+  _musicSource.buffer = buildMusicBuffer(ctx);
+  _musicSource.loop = true;
+  _musicSource.connect(_musicMasterGain);
+  _musicSource.start(ctx.currentTime + 0.2);
 }
 
 export function stopMenuMusic() {
   _musicRunning = false;
-  if (_loopTimer) { clearTimeout(_loopTimer); _loopTimer = null; }
+  if (_musicSource) { try { _musicSource.stop(); } catch { /* already stopped */ } _musicSource = null; }
   if (_musicMasterGain && _ctx) {
     const t = _ctx.currentTime;
     _musicMasterGain.gain.setValueAtTime(_musicMasterGain.gain.value, t);
-    _musicMasterGain.gain.linearRampToValueAtTime(0, t + 1.2);
+    _musicMasterGain.gain.linearRampToValueAtTime(0, t + 0.5);
     _musicMasterGain = null;
   }
   _musicStopFn = null;
