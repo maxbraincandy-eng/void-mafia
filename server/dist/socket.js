@@ -55,6 +55,8 @@ const NIGHT_DEATH = {
     escort: 'The Escort danced her last.',
     tracker: "The Tracker's trail goes cold.",
     arsonist: 'The Arsonist burns out.',
+    yakuza: 'The Yakuza enforcer falls. The clan is weakened.',
+    shogun: 'A hidden blade is revealed too late.',
 };
 const VOTE_DEATH = {
     jester: '🃏 The Jester laughs from beyond the grave.',
@@ -65,6 +67,8 @@ const VOTE_DEATH = {
     cult_leader: '⚖️ The Cult Leader is exposed and cast out.',
     maniac: '⚖️ The Maniac smiles. You voted out a madman.',
     arsonist: '⚖️ The Arsonist is extinguished.',
+    yakuza: '⚖️ The Yakuza enforcer is unmasked and cast out.',
+    shogun: '⚖️ A hidden ally is exposed. The Yakuza loses its shadow.',
 };
 function nightDeathMsg(name, role, lastWill) {
     const flavour = role ? NIGHT_DEATH[role] : null;
@@ -283,6 +287,24 @@ function notifyCultConversions(io, room) {
         if (cultist && cultist.socketId) {
             io.to(cultist.socketId).emit('game:role', { role: getRole('cultist') });
         }
+    }
+}
+function notifyYakuzaAllies(io, room) {
+    const yakuzaPlayer = [...room.players.values()].find(p => p.role === 'yakuza');
+    const shogunPlayer = [...room.players.values()].find(p => p.role === 'shogun');
+    if (yakuzaPlayer?.socketId) {
+        io.to(yakuzaPlayer.socketId).emit('game:yakuza_ally', {
+            allyRole: 'shogun',
+            allyId: shogunPlayer?.id ?? null,
+            allyName: shogunPlayer?.name ?? null,
+        });
+    }
+    if (shogunPlayer?.socketId) {
+        io.to(shogunPlayer.socketId).emit('game:yakuza_ally', {
+            allyRole: 'yakuza',
+            allyId: yakuzaPlayer?.id ?? null,
+            allyName: yakuzaPlayer?.name ?? null,
+        });
     }
 }
 function notifySpies(io, room) {
@@ -664,6 +686,7 @@ export function attachSocketHandlers(io) {
                                     }
                                 }
                                 broadcastSystemMsg(io, room, 'The game has begun. Roles are being revealed…');
+                                notifyYakuzaAllies(io, room);
                                 broadcastRoom(io, room);
                                 startPhaseTimer(io, room);
                             }
@@ -777,6 +800,7 @@ export function attachSocketHandlers(io) {
                     }
                 }
                 broadcastSystemMsg(io, room, 'The game has begun. Roles are being revealed…');
+                notifyYakuzaAllies(io, room);
                 broadcastRoom(io, room);
                 enforceVoicePhaseRules(io, room);
                 startPhaseTimer(io, room);

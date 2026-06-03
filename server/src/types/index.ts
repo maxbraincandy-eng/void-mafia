@@ -24,9 +24,11 @@ export type RoleKey =
   | 'veteran'
   | 'tracker'
   | 'arsonist'
-  | 'mayor';
+  | 'mayor'
+  | 'yakuza'
+  | 'shogun';
 
-export type Team = 'mafia' | 'town' | 'neutral' | 'cult';
+export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
 export type ChatChannel = 'room' | 'mafia' | 'dead';
 export type ModeratorLevel = 'moderator' | 'senior_moderator' | 'admin' | 'owner';
@@ -290,6 +292,8 @@ export interface GameSettings {
     tracker: number;
     arsonist: number;
     mayor: number;
+    yakuza: number;
+    shogun: number;
   };
 }
 
@@ -483,6 +487,7 @@ export interface ServerToClientEvents {
   'spy:night_report':   (data: { mafiaTarget: string | null; mafiaTargetName: string | null }) => void;
   'game:vote_result':   (data: { name: string; role: string | null; lastWill: string | null; seat: number }) => void;
   'game:roleblocked':   () => void;
+  'game:yakuza_ally':   (data: { allyRole: string; allyId: string | null; allyName: string | null }) => void;
   'mod:notification':   (data: { type: string; message: string; targetName?: string }) => void;
   'warning:received':   (data: { reason: string; moderatorName: string }) => void;
   'ban:received':       (data: { reason: string; expiresAt: number }) => void;

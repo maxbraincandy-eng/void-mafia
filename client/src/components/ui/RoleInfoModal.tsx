@@ -6,7 +6,7 @@ import { useT } from '@/store/langStore';
 interface RoleMeta {
   key: RoleKey;
   icon: string;
-  team: 'town' | 'mafia' | 'neutral' | 'cult';
+  team: 'town' | 'mafia' | 'neutral' | 'cult' | 'yakuza';
 }
 
 const ROLES_META: RoleMeta[] = [
@@ -30,6 +30,9 @@ const ROLES_META: RoleMeta[] = [
   // CULT
   { key: 'cult_leader', icon: '🕯️',  team: 'cult' },
   { key: 'cultist',     icon: '🔮',  team: 'cult' },
+  // YAKUZA
+  { key: 'yakuza',      icon: '🐉',  team: 'yakuza' },
+  { key: 'shogun',      icon: '⚔️',  team: 'yakuza' },
 ];
 
 const TEAM_META = {
@@ -37,6 +40,7 @@ const TEAM_META = {
   mafia:   { color: 'text-neon-pink',   border: 'border-neon-pink/20',   bg: 'bg-neon-pink/5'   },
   neutral: { color: 'text-neon-purple', border: 'border-neon-purple/20', bg: 'bg-neon-purple/5' },
   cult:    { color: 'text-fuchsia-400', border: 'border-fuchsia-400/20', bg: 'bg-fuchsia-400/5' },
+  yakuza:  { color: 'text-red-400',     border: 'border-red-500/20',     bg: 'bg-red-950/10'    },
 };
 
 interface Props {
@@ -83,7 +87,7 @@ export function RoleInfoModal({ open, onClose }: Props) {
             </div>
 
             <div className="overflow-y-auto flex-1 p-4 space-y-5">
-              {(['town', 'mafia', 'neutral', 'cult'] as const).map(team => {
+              {(['town', 'mafia', 'neutral', 'cult', 'yakuza'] as const).map(team => {
                 const roles = ROLES_META.filter(r => r.team === team);
                 const tm = TEAM_META[team];
                 return (
@@ -113,6 +117,7 @@ export function RoleInfoModal({ open, onClose }: Props) {
                     { color: 'text-fuchsia-400', icon: '🕯️', label: 'Cult',   desc: rg.winSummary.cult },
                     { color: 'text-neon-purple', icon: '🌀', label: 'Maniac', desc: rg.winSummary.maniac },
                     { color: 'text-purple-400',  icon: '🃏', label: 'Jester', desc: rg.winSummary.jester },
+                    { color: 'text-red-400',     icon: '🐉', label: 'Yakuza', desc: (rg.winSummary as any).yakuza ?? 'Equal or outnumber remaining players.' },
                   ].map(w => (
                     <div key={w.label} className="flex items-start gap-2">
                       <span className="text-base shrink-0">{w.icon}</span>

@@ -21,6 +21,7 @@ const ROLE_LABELS: Record<RoleKey, string> = {
   spy: 'Fortune Teller', escort: 'Escort', vigilante: 'Vigilante',
   cult_leader: 'Cult Leader', cultist: 'Cultist',
   veteran: 'Veteran', tracker: 'Tracker', arsonist: 'Arsonist', mayor: 'Mayor',
+  yakuza: 'Yakuza', shogun: 'Shogun',
 };
 
 const ROLE_COLORS: Record<RoleKey, string> = {
@@ -32,6 +33,7 @@ const ROLE_COLORS: Record<RoleKey, string> = {
   cult_leader: 'text-fuchsia-400', cultist: 'text-fuchsia-300',
   veteran: 'text-yellow-400', tracker: 'text-blue-400',
   arsonist: 'text-orange-400', mayor: 'text-yellow-300',
+  yakuza: 'text-red-400', shogun: 'text-red-300',
 };
 
 export function PlayerList({ players, phase, onSelectTarget, selectableIds, selectedId, showVotes, currentSpeakerId }: Props) {

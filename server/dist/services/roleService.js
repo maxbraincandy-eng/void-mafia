@@ -6,6 +6,9 @@ export function validateRoleDistribution(playerCount, settings) {
     if (mafiaCount >= nonMafiaCount) {
         throw new Error(`Invalid role balance: Mafia count (${mafiaCount}) cannot be equal to or greater than non-Mafia count (${nonMafiaCount}).`);
     }
+    if ((r.shogun ?? 0) > 0 && (r.yakuza ?? 0) === 0) {
+        throw new Error('Invalid setup: Shogun requires at least 1 Yakuza.');
+    }
 }
 export function buildAutoRoleDeck(count) {
     const presets = {
@@ -199,6 +202,26 @@ export const ROLES = {
         color: 'yellow',
         glowColor: '#fbbf24',
     },
+    yakuza: {
+        key: 'yakuza',
+        name: 'Yakuza',
+        team: 'yakuza',
+        description: 'Enforcer of the Yakuza clan. You and your Shogun share a silent pact — you kill, they hide.',
+        ability: 'Each night, choose one player to eliminate. You know who the Shogun is.',
+        wakeAtNight: true,
+        color: 'red',
+        glowColor: '#ef4444',
+    },
+    shogun: {
+        key: 'shogun',
+        name: 'Shogun',
+        team: 'yakuza',
+        description: 'The hidden blade of the Yakuza. You appear innocent — your true allegiance is secret.',
+        ability: 'No night kill. You are hidden support. You win with the Yakuza faction.',
+        wakeAtNight: false,
+        color: 'red',
+        glowColor: '#dc2626',
+    },
 };
 export function getRole(key) {
     return ROLES[key];
@@ -229,6 +252,8 @@ export function buildRoleDeck(settings, playerCount) {
     push('tracker', r.tracker ?? 0);
     push('arsonist', r.arsonist ?? 0);
     push('mayor', r.mayor ?? 0);
+    push('yakuza', r.yakuza ?? 0);
+    push('shogun', r.shogun ?? 0);
     while (deck.length < playerCount)
         deck.push('citizen');
     return shuffle(deck).slice(0, playerCount);
@@ -237,7 +262,8 @@ export function getTeam(role) {
     return ROLES[role].team;
 }
 export function isSuspiciousToSheriff(role) {
-    // Don appears innocent; cult_leader and arsonist are suspicious; everyone else is clean
-    return role === 'mafia' || role === 'cult_leader' || role === 'arsonist';
+    // Yakuza checks suspicious; Shogun checks clean (hidden support)
+    // Don appears innocent; cult_leader and arsonist are suspicious
+    return role === 'mafia' || role === 'cult_leader' || role === 'arsonist' || role === 'yakuza';
 }
 //# sourceMappingURL=roleService.js.map

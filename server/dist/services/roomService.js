@@ -30,6 +30,8 @@ export const DEFAULT_SETTINGS = {
         tracker: 0,
         arsonist: 0,
         mayor: 0,
+        yakuza: 0,
+        shogun: 0,
     },
 };
 // ── CRUD ──────────────────────────────────────────────────────────────

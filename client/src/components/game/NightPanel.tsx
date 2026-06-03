@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 
 const WAKE_ROLES = new Set<RoleKey>([
   'mafia', 'don', 'sheriff', 'doctor', 'bodyguard', 'maniac', 'vigilante',
-  'escort', 'tracker', 'veteran', 'arsonist', 'cult_leader',
+  'escort', 'tracker', 'veteran', 'arsonist', 'cult_leader', 'yakuza',
 ]);
 
 export function NightPanel() {
@@ -32,6 +32,24 @@ export function NightPanel() {
 
   if (!wakeAtNight) {
     const isSpy = role === 'spy';
+    const isShogun = role === 'shogun';
+    if (isShogun) {
+      const yakuzaPlayer = room.players.find(p => p.role === 'yakuza');
+      return (
+        <div className="flex flex-col items-center justify-center h-64 gap-4">
+          <div className="text-4xl">⚔️</div>
+          <p className="font-mono text-sm text-center" style={{ color: '#ef4444' }}>
+            You are hidden support for the Yakuza.
+          </p>
+          {yakuzaPlayer && (
+            <p className="text-white/50 font-mono text-xs text-center">
+              Yakuza: <span className="text-red-400 font-bold">{yakuzaPlayer.name}</span>
+            </p>
+          )}
+          <p className="text-white/30 font-mono text-xs text-center">Your identity appears clean to investigators.</p>
+        </div>
+      );
+    }
     const msg = isSpy ? t.game.night.spyWaiting : t.game.night.citizenSleep;
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
@@ -98,8 +116,14 @@ export function NightPanel() {
     if (p.id === myPlayer.id) return false;
     if ((role === 'mafia' || role === 'don') && p.team === 'mafia') return false;
     if (role === 'cult_leader' && p.team === 'cult') return false;
+    if (role === 'yakuza' && p.team === 'yakuza') return false;
     return true;
   });
+
+  // Yakuza info panel — show Shogun ally above target list
+  const yakuzaShogunInfo = role === 'yakuza'
+    ? room.players.find(p => p.role === 'shogun')
+    : null;
 
   // Doctor/Bodyguard can protect themselves
   const targets = (role === 'doctor' || role === 'bodyguard')
@@ -116,12 +140,14 @@ export function NightPanel() {
     : role === 'tracker'  ? nightActions['track']       ?? 'Track'
     : role === 'arsonist' ? nightActions['douse']       ?? 'Douse'
     : role === 'cult_leader' ? nightActions['convert']  ?? 'Convert'
+    : role === 'yakuza'   ? nightActions['eliminate']   ?? 'Eliminate'
     : nightActions['eliminate'] ?? 'Eliminate';
 
   const confirmVariant =
     role === 'doctor' || role === 'bodyguard' ? 'neon-green'
     : role === 'sheriff' || role === 'tracker' ? 'neon-cyan'
     : role === 'cult_leader' ? 'neon-purple'
+    : role === 'yakuza' ? 'danger'
     : 'neon-pink';
 
   return (
@@ -130,6 +156,13 @@ export function NightPanel() {
         <p className="text-xs font-mono text-white/40 uppercase tracking-widest mb-1">{t.game.night.objective}</p>
         <p className="text-sm text-white/80">{roleDesc}</p>
       </div>
+
+      {yakuzaShogunInfo && (
+        <div className="p-3 rounded-xl border border-red-500/30 bg-red-950/20">
+          <p className="text-[10px] font-mono text-red-400/60 uppercase tracking-widest mb-0.5">Your Ally</p>
+          <p className="text-sm font-bold text-red-400">⚔️ Shogun: {yakuzaShogunInfo.name}</p>
+        </div>
+      )}
 
       <PlayerList
         players={room.players}

@@ -14,6 +14,7 @@ const TEAM_CONFETTI: Record<Team, string[]> = {
   mafia:   ['#ff00cc', '#ff2d55', '#cc0066', '#ff69b4', '#330011'],
   neutral: ['#9b00ff', '#a855f7', '#c084fc', '#ffffff', '#7c3aed'],
   cult:    ['#c026d3', '#e879f9', '#a21caf', '#f0abfc', '#6b21a8'],
+  yakuza:  ['#ef4444', '#dc2626', '#fca5a5', '#991b1b', '#ffd700'],
 };
 
 const WINNER_BG: Record<Team, string> = {
@@ -21,6 +22,7 @@ const WINNER_BG: Record<Team, string> = {
   mafia:   'radial-gradient(ellipse 180% 60% at 50% -10%, rgba(255,0,180,0.18) 0%, transparent 60%)',
   neutral: 'radial-gradient(ellipse 180% 60% at 50% -10%, rgba(140,0,255,0.18) 0%, transparent 60%)',
   cult:    'radial-gradient(ellipse 180% 60% at 50% -10%, rgba(192,38,211,0.18) 0%, transparent 60%)',
+  yakuza:  'radial-gradient(ellipse 180% 60% at 50% -10%, rgba(239,68,68,0.18) 0%, transparent 60%)',
 };
 
 const ROLE_ICONS: Record<RoleKey, string> = {
@@ -29,6 +31,7 @@ const ROLE_ICONS: Record<RoleKey, string> = {
   spy: '🕵️', escort: '💃', vigilante: '⚖️',
   cult_leader: '🕯️', cultist: '🔮', veteran: '🎖️',
   tracker: '👁', arsonist: '🔥', mayor: '👑',
+  yakuza: '🐉', shogun: '⚔️',
 };
 
 const ROLE_COLORS: Record<RoleKey, string> = {
@@ -39,6 +42,7 @@ const ROLE_COLORS: Record<RoleKey, string> = {
   cult_leader: 'text-fuchsia-400', cultist: 'text-fuchsia-300',
   veteran: 'text-yellow-400', tracker: 'text-blue-400',
   arsonist: 'text-orange-400', mayor: 'text-yellow-300',
+  yakuza: 'text-red-400', shogun: 'text-red-300',
 };
 
 const TEAM_CONFIG: Record<Team, { label: string; color: string; border: string; bg: string }> = {
@@ -46,6 +50,7 @@ const TEAM_CONFIG: Record<Team, { label: string; color: string; border: string; 
   town:    { label: 'TOWN',    color: 'text-neon-cyan',    border: 'border-neon-cyan/20',    bg: 'bg-neon-cyan/5' },
   neutral: { label: 'NEUTRAL', color: 'text-neon-purple',  border: 'border-neon-purple/20',  bg: 'bg-neon-purple/5' },
   cult:    { label: 'CULT',    color: 'text-fuchsia-400',  border: 'border-fuchsia-400/20',  bg: 'bg-fuchsia-400/5' },
+  yakuza:  { label: 'YAKUZA',  color: 'text-red-400',      border: 'border-red-500/20',      bg: 'bg-red-950/10' },
 };
 
 interface MVPBadge {
@@ -194,6 +199,7 @@ export function GameOver({ result }: Props) {
     mafia:   { label: t.game.gameOver.mafiaWins, color: 'text-neon-pink',   glowColor: '#ff00cc', icon: '🔫' },
     neutral: { label: t.game.gameOver.soloWin,   color: 'text-neon-purple', glowColor: '#9b00ff', icon: '🌀' },
     cult:    { label: t.game.gameOver.cultWins,  color: 'text-fuchsia-400', glowColor: '#c026d3', icon: '🕯️' },
+    yakuza:  { label: 'Yakuza Wins',             color: 'text-red-400',     glowColor: '#ef4444', icon: '🐉' },
   };
 
   const cfg = WINNER_CONFIG[result.winner];
@@ -217,6 +223,7 @@ export function GameOver({ result }: Props) {
     town:    players.filter(p => p.team === 'town'),
     neutral: players.filter(p => p.team === 'neutral'),
     cult:    players.filter(p => p.team === 'cult'),
+    yakuza:  players.filter(p => p.team === 'yakuza'),
   }), [players]);
 
   const myData = myPlayerId ? result.allRoles[myPlayerId] : null;

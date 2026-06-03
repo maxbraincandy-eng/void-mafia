@@ -1,6 +1,6 @@
 export type Phase = 'lobby' | 'role_reveal' | 'night' | 'day' | 'speech' | 'voting' | 'game_over';
-export type RoleKey = 'mafia' | 'citizen' | 'sheriff' | 'doctor' | 'don' | 'maniac' | 'jester' | 'bodyguard' | 'spy' | 'escort' | 'vigilante' | 'cult_leader' | 'cultist' | 'veteran' | 'tracker' | 'arsonist' | 'mayor';
-export type Team = 'mafia' | 'town' | 'neutral' | 'cult';
+export type RoleKey = 'mafia' | 'citizen' | 'sheriff' | 'doctor' | 'don' | 'maniac' | 'jester' | 'bodyguard' | 'spy' | 'escort' | 'vigilante' | 'cult_leader' | 'cultist' | 'veteran' | 'tracker' | 'arsonist' | 'mayor' | 'yakuza' | 'shogun';
+export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
 export type ChatChannel = 'room' | 'mafia' | 'dead';
 export type ModeratorLevel = 'moderator' | 'senior_moderator' | 'admin' | 'owner';
@@ -221,6 +221,8 @@ export interface GameSettings {
         tracker: number;
         arsonist: number;
         mayor: number;
+        yakuza: number;
+        shogun: number;
     };
 }
 export interface Room {
@@ -431,6 +433,11 @@ export interface ServerToClientEvents {
         seat: number;
     }) => void;
     'game:roleblocked': () => void;
+    'game:yakuza_ally': (data: {
+        allyRole: string;
+        allyId: string | null;
+        allyName: string | null;
+    }) => void;
     'mod:notification': (data: {
         type: string;
         message: string;
