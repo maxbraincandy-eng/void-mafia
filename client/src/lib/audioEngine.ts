@@ -144,10 +144,10 @@ export const SFX = {
 
   nightStart() {
     sfxPlay([
-      { freq: 110, type: 'sine',     dur: 1.2, vol: 0.50 },
-      { freq: 220, type: 'triangle', dur: 0.6, vol: 0.30, freqEnd: 110 },
-      { freq: 165, type: 'sine',     dur: 0.4, vol: 0.20, at: 0.3, freqEnd: 82 },
-      { freq: 330, type: 'sawtooth', dur: 0.5, vol: 0.15, freqEnd: 165 },
+      { freq: 220, type: 'sine',     dur: 1.2, vol: 0.45 },
+      { freq: 330, type: 'triangle', dur: 0.6, vol: 0.28, freqEnd: 220 },
+      { freq: 247, type: 'sine',     dur: 0.4, vol: 0.18, at: 0.3, freqEnd: 165 },
+      { freq: 440, type: 'sawtooth', dur: 0.5, vol: 0.14, freqEnd: 220 },
     ], 0.7);
   },
 
@@ -185,10 +185,10 @@ export const SFX = {
 
   eliminate() {
     sfxPlay([
-      { freq: 220, type: 'sawtooth', dur: 0.8, vol: 0.45, freqEnd: 55 },
-      { freq: 440, type: 'sine',     dur: 0.5, vol: 0.35, freqEnd: 110 },
-      { freq: 110, type: 'square',   dur: 0.3, vol: 0.25, at: 0.1 },
-      { freq: 55,  type: 'sine',     dur: 1.0, vol: 0.40 },
+      { freq: 330, type: 'sawtooth', dur: 0.8, vol: 0.42, freqEnd: 165 },
+      { freq: 440, type: 'sine',     dur: 0.5, vol: 0.32, freqEnd: 220 },
+      { freq: 220, type: 'square',   dur: 0.3, vol: 0.22, at: 0.1 },
+      { freq: 196, type: 'sine',     dur: 1.0, vol: 0.35 },
     ], 0.7);
   },
 
@@ -202,138 +202,112 @@ export const SFX = {
 
   gameOver() {
     sfxPlay([
-      { freq: 110, type: 'sine',     dur: 2.0, vol: 0.45 },
-      { freq: 220, type: 'sine',     dur: 1.8, vol: 0.38, at: 0.1 },
-      { freq: 277, type: 'triangle', dur: 1.5, vol: 0.30, at: 0.2 },
-      { freq: 330, type: 'sine',     dur: 1.2, vol: 0.25, at: 0.3 },
-      { freq: 165, type: 'sawtooth', dur: 1.0, vol: 0.20, at: 0.5, freqEnd: 110 },
+      { freq: 220, type: 'sine',     dur: 2.0, vol: 0.42 },
+      { freq: 277, type: 'sine',     dur: 1.8, vol: 0.35, at: 0.1 },
+      { freq: 330, type: 'triangle', dur: 1.5, vol: 0.28, at: 0.2 },
+      { freq: 415, type: 'sine',     dur: 1.2, vol: 0.22, at: 0.3 },
+      { freq: 247, type: 'sawtooth', dur: 1.0, vol: 0.18, at: 0.5, freqEnd: 196 },
     ], 0.7);
   },
 };
 
 // ── Mafia ambient music ───────────────────────────────────────────────
-// Am minor key, loop-based scheduling (no continuous oscillators).
-// All notes 147–440 Hz — safe for phone speakers (no sub-bass buzz).
-//
-// Loop = 16 notes × 0.9 s = 14.4 s
-// Melody: triangle (piano-like), Bass: sine (plucked)
+// Am minor key, pre-scheduled loop.
+// All notes 147–440 Hz — NO sub-bass, NO feedback delay (phone-safe).
 
-// [melody_hz, bass_hz_or_0]  — 16 steps
+// [melody_hz, bass_hz_or_0]  — 16 steps × 0.9 s = 14.4 s loop
 const MUSIC_LOOP: Array<[number, number]> = [
   // ── Am phrase ──
-  [220,   147],  // A3 + D3 bass
+  [220,   147],  // A3 + D3
   [261.6, 0  ],  // C4
   [329.6, 0  ],  // E4
-  [261.6, 110],  // C4 + A2 bass
+  [261.6, 220],  // C4 + A3
   // ── Dm phrase ──
-  [293.7, 147],  // D4 + D3 bass
+  [293.7, 147],  // D4 + D3
   [349.2, 0  ],  // F4
   [440,   0  ],  // A4
-  [349.2, 147],  // F4 + D3 bass
+  [349.2, 147],  // F4 + D3
   // ── Am resolve ──
-  [329.6, 110],  // E4 + A2 bass
+  [329.6, 220],  // E4 + A3
   [261.6, 0  ],  // C4
   [220,   0  ],  // A3
-  [196,   110],  // G3 + A2 bass
+  [196,   220],  // G3 + A3
   // ── Em phrase ──
-  [164.8, 165],  // E3 melody + E3 bass (unison octave)
+  [164.8, 165],  // E3 + E3
   [220,   0  ],  // A3
   [329.6, 0  ],  // E4
-  [220,   110],  // A3 + A2 bass
+  [220,   220],  // A3 + A3
 ];
 
-const NOTE_STEP = 0.9;   // seconds per note
+const NOTE_STEP = 0.9;
 const LOOP_DUR  = MUSIC_LOOP.length * NOTE_STEP; // 14.4 s
+
+// Module-level refs so stopMenuMusic can reliably clean up
+let _loopTimer: ReturnType<typeof setTimeout> | null = null;
+let _musicMasterGain: GainNode | null = null;
 
 export function startMenuMusic() {
   if (_musicRunning) return;
   if (!useSettingsStore.getState().musicEnabled) return;
-
-  // No user gesture yet — defer until first interaction
-  if (!_ctx || _ctx.state === 'suspended') {
+  if (!_ctx || _ctx.state !== 'running') {
     _musicPending = true;
     return;
   }
-
   _musicPending = false;
-  if (_musicRunning) return;
   _musicRunning = true;
 
-  const ctx   = _ctx!;
-  const bus   = _musicBus!;
+  const ctx = _ctx!;
 
-  // Master fade-in gain
-  const master = ctx.createGain();
-  master.gain.setValueAtTime(0, ctx.currentTime);
-  master.gain.linearRampToValueAtTime(1, ctx.currentTime + 2.5);
-  master.connect(bus);
+  // Fade-in gain — direct path to musicBus, no delay/reverb
+  _musicMasterGain = ctx.createGain();
+  _musicMasterGain.gain.setValueAtTime(0, ctx.currentTime);
+  _musicMasterGain.gain.linearRampToValueAtTime(1, ctx.currentTime + 2);
+  _musicMasterGain.connect(_musicBus!);
 
-  // Delay reverb (no impulse buffer needed)
-  const dlyNode = ctx.createDelay(0.6);
-  dlyNode.delayTime.value = 0.38;
-  const dlyFb   = ctx.createGain(); dlyFb.gain.value = 0.38;
-  const dlyWet  = ctx.createGain(); dlyWet.gain.value = 0.28;
-  dlyNode.connect(dlyFb); dlyFb.connect(dlyNode);
-  dlyNode.connect(dlyWet); dlyWet.connect(master);
+  let nextAt = ctx.currentTime + 0.5;
 
-  // Gentle low-pass so reverb tail isn't harsh
-  const lpf = ctx.createBiquadFilter();
-  lpf.type = 'lowpass'; lpf.frequency.value = 2200;
-  dlyNode.connect(lpf); lpf.connect(master);
-
-  // Helper: schedule one note
-  function noteOn(hz: number, at: number, dur: number, vol: number, type: OscillatorType = 'triangle') {
-    const osc = ctx.createOscillator();
-    const g   = ctx.createGain();
-    osc.type = type;
-    osc.frequency.value = hz;
-    osc.connect(g);
-    g.connect(master);   // dry
-    g.connect(dlyNode);  // send to reverb
-    g.gain.setValueAtTime(0, at);
-    g.gain.linearRampToValueAtTime(vol,   at + 0.018);
-    g.gain.setValueAtTime(vol,            at + dur * 0.55);
-    g.gain.exponentialRampToValueAtTime(0.001, at + dur);
-    osc.start(at);
-    osc.stop(at + dur + 0.02);
-  }
-
-  // Schedule entire loop starting at `startAt`
-  function scheduleLoop(startAt: number) {
+  const tick = () => {
+    if (!_musicRunning) return;
+    const mg = _musicMasterGain!;
     MUSIC_LOOP.forEach(([mel, bass], i) => {
-      const t = startAt + i * NOTE_STEP;
-      // Melody (triangle, piano-like)
-      noteOn(mel, t, NOTE_STEP * 1.1, 0.40, 'triangle');
-      // Bass pluck (sine, shorter)
-      if (bass > 0) noteOn(bass, t, NOTE_STEP * 0.7, 0.55, 'sine');
+      const t = nextAt + i * NOTE_STEP;
+      // Melody — triangle wave (piano-like attack, sustained decay)
+      const o1 = ctx.createOscillator(); const g1 = ctx.createGain();
+      o1.type = 'triangle'; o1.frequency.value = mel;
+      o1.connect(g1); g1.connect(mg);
+      g1.gain.setValueAtTime(0, t);
+      g1.gain.linearRampToValueAtTime(0.38, t + 0.015);
+      g1.gain.setValueAtTime(0.38, t + NOTE_STEP * 0.5);
+      g1.gain.exponentialRampToValueAtTime(0.001, t + NOTE_STEP * 0.95);
+      o1.start(t); o1.stop(t + NOTE_STEP);
+      // Bass — sine, plucked (shorter)
+      if (bass > 0) {
+        const o2 = ctx.createOscillator(); const g2 = ctx.createGain();
+        o2.type = 'sine'; o2.frequency.value = bass;
+        o2.connect(g2); g2.connect(mg);
+        g2.gain.setValueAtTime(0, t);
+        g2.gain.linearRampToValueAtTime(0.45, t + 0.02);
+        g2.gain.exponentialRampToValueAtTime(0.001, t + NOTE_STEP * 0.65);
+        o2.start(t); o2.stop(t + NOTE_STEP * 0.7);
+      }
     });
-  }
-
-  let loopTimer: ReturnType<typeof setTimeout>;
-  let nextLoopAt = ctx.currentTime + 0.3;
-
-  function tick() {
-    scheduleLoop(nextLoopAt);
-    nextLoopAt += LOOP_DUR;
-    // Re-schedule 2 s before the next loop ends
-    loopTimer = setTimeout(tick, (LOOP_DUR - 2) * 1000);
-  }
+    nextAt += LOOP_DUR;
+    _loopTimer = setTimeout(tick, (LOOP_DUR - 2) * 1000);
+  };
 
   tick();
-
-  _musicStopFn = () => {
-    _musicRunning = false;
-    clearTimeout(loopTimer);
-    const t = ctx.currentTime;
-    master.gain.setValueAtTime(master.gain.value, t);
-    master.gain.linearRampToValueAtTime(0, t + 1.2);
-  };
 }
 
 export function stopMenuMusic() {
-  if (!_musicRunning) return;
-  if (_musicStopFn) { _musicStopFn(); _musicStopFn = null; }
   _musicRunning = false;
+  if (_loopTimer) { clearTimeout(_loopTimer); _loopTimer = null; }
+  if (_musicMasterGain && _ctx) {
+    const t = _ctx.currentTime;
+    _musicMasterGain.gain.setValueAtTime(_musicMasterGain.gain.value, t);
+    _musicMasterGain.gain.linearRampToValueAtTime(0, t + 1.2);
+    _musicMasterGain = null;
+  }
+  _musicStopFn = null;
 }
 
 export function isMusicRunning() { return _musicRunning; }
