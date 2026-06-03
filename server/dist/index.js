@@ -35,6 +35,8 @@ app.use(cors({
 app.use(express.json());
 // ── Health Check ──────────────────────────────────────────────────────
 const BUILD_TIME = new Date().toISOString();
+let dbReady = false;
+// Mark DB as ready once init completes (set below after initializeDatabase resolves)
 app.get('/api/health', (_req, res) => {
     const rooms = getAllRooms();
     res.json({
@@ -44,6 +46,7 @@ app.get('/api/health', (_req, res) => {
         players: rooms.reduce((n, r) => n + r.players.size, 0),
         buildTime: BUILD_TIME,
         database: 'postgresql',
+        dbReady,
     });
 });
 app.get('/health/db', async (_req, res) => {
@@ -136,16 +139,18 @@ setInterval(() => {
 }, 60000); // check every minute
 // ── Socket.IO ─────────────────────────────────────────────────────────
 attachSocketHandlers(io);
-// ── Start ─────────────────────────────────────────────────────────────
-async function main() {
-    await initializeDatabase();
-    httpServer.listen(PORT, () => {
-        console.log(`\n  VOID MAFIA server running on http://localhost:${PORT}`);
-        console.log(`  Mode: ${IS_PROD ? 'production' : 'development'}\n`);
-    });
-}
-main().catch(err => {
-    console.error('[Startup] Fatal error:', err);
+// ── Start — listen immediately so Railway healthcheck passes ──────────
+httpServer.listen(PORT, () => {
+    console.log(`\n  VOID MAFIA server running on http://localhost:${PORT}`);
+    console.log(`  Mode: ${IS_PROD ? 'production' : 'development'}\n`);
+});
+// Database initialises async after the server is already listening.
+// Railway healthcheck hits /api/health and gets a response straight away.
+initializeDatabase().then(() => {
+    dbReady = true;
+    console.log('[Startup] Database ready.');
+}).catch(err => {
+    console.error('[Startup] Database init failed — restarting:', err);
     process.exit(1);
 });
 // Graceful shutdown
