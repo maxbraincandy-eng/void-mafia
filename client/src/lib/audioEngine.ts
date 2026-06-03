@@ -193,6 +193,12 @@ export const SFX = {
     ], 0.7);
   },
 
+  tick(urgent: boolean) {
+    sfxPlay([
+      { freq: urgent ? 880 : 660, type: 'sine', dur: 0.12, vol: 0.20, attack: 0.004 },
+    ], 0.8);
+  },
+
   eliminate() {
     sfxPlay([
       { freq: 330, type: 'sawtooth', dur: 0.8, vol: 0.42, freqEnd: 165 },
