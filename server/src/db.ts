@@ -1,24 +1,34 @@
 import postgres from 'postgres';
 
 // ── Connection ──────────────────────────────────────────────────────────
-// Railway PostgreSQL plugin can inject the URL under several names.
+// Railway PostgreSQL plugin can inject the URL under several variable names.
 // DATABASE_PRIVATE_URL is the internal-network URL (preferred for Railway).
-const DATABASE_URL =
-  process.env.DATABASE_PRIVATE_URL ||
-  process.env.DATABASE_URL          ||
-  process.env.POSTGRES_URL          ||
-  process.env.POSTGRES_PRIVATE_URL  ||
-  process.env.RAILWAY_DATABASE_URL;
+// Some Railway plugin versions inject individual PG* vars instead of a URL.
+function buildDatabaseUrl(): string | undefined {
+  if (process.env.DATABASE_PRIVATE_URL)    { console.log('[Database] source = DATABASE_PRIVATE_URL');    return process.env.DATABASE_PRIVATE_URL; }
+  if (process.env.DATABASE_URL)            { console.log('[Database] source = DATABASE_URL');            return process.env.DATABASE_URL; }
+  if (process.env.POSTGRES_URL)            { console.log('[Database] source = POSTGRES_URL');            return process.env.POSTGRES_URL; }
+  if (process.env.POSTGRES_PRIVATE_URL)    { console.log('[Database] source = POSTGRES_PRIVATE_URL');   return process.env.POSTGRES_PRIVATE_URL; }
+  if (process.env.RAILWAY_DATABASE_URL)    { console.log('[Database] source = RAILWAY_DATABASE_URL');   return process.env.RAILWAY_DATABASE_URL; }
+
+  // Build URL from individual PG* vars (Railway newer plugin format)
+  const { PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD } = process.env;
+  if (PGHOST && PGDATABASE && PGUSER) {
+    const pass = PGPASSWORD ? `:${encodeURIComponent(PGPASSWORD)}` : '';
+    const port = PGPORT ?? '5432';
+    const url = `postgresql://${PGUSER}${pass}@${PGHOST}:${port}/${PGDATABASE}`;
+    console.log(`[Database] source = PG* vars (PGHOST=${PGHOST} PGDATABASE=${PGDATABASE})`);
+    return url;
+  }
+
+  console.error('[Database] FATAL: no database URL env var found — DB calls will fail');
+  return undefined;
+}
+
+const DATABASE_URL = buildDatabaseUrl();
 
 console.log('[Database] provider = postgresql');
 console.log(`[Database] DATABASE_URL exists = ${!!DATABASE_URL}`);
-// Log which variable resolved so Railway logs make the issue obvious
-if (process.env.DATABASE_PRIVATE_URL)    console.log('[Database] source = DATABASE_PRIVATE_URL');
-else if (process.env.DATABASE_URL)       console.log('[Database] source = DATABASE_URL');
-else if (process.env.POSTGRES_URL)       console.log('[Database] source = POSTGRES_URL');
-else if (process.env.POSTGRES_PRIVATE_URL) console.log('[Database] source = POSTGRES_PRIVATE_URL');
-else if (process.env.RAILWAY_DATABASE_URL) console.log('[Database] source = RAILWAY_DATABASE_URL');
-else                                     console.error('[Database] FATAL: no database URL env var found — DB calls will fail');
 
 const bigintParser = {
   to: 20,
