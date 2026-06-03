@@ -14,5 +14,6 @@ export declare function getAlivePlayers(room: Room): Player[];
 export declare function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic;
 export declare function toRoomListItem(room: Room): RoomListItem;
 export declare function getAllRooms(): Room[];
+export declare function setPlayerAvatarUrl(room: Room, profileId: string, avatarUrl: string | null): void;
 export declare function rematchRoom(room: Room): void;
 //# sourceMappingURL=roomService.d.ts.map

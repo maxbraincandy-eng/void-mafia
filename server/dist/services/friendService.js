@@ -47,7 +47,7 @@ export async function removeFriend(playerId, friendId) {
 }
 export async function getFriends(playerId) {
     const rows = await sql `
-    SELECT p.id, p.username, p.avatar, p.level
+    SELECT p.id, p.username, p.avatar, p.avatar_url, p.public_id, p.level
     FROM friendships f
     JOIN players p ON (
       CASE WHEN f.from_id = ${playerId} THEN f.to_id ELSE f.from_id END = p.id
@@ -56,19 +56,22 @@ export async function getFriends(playerId) {
   `;
     return rows.map((r) => ({
         profileId: r.id, username: r.username, avatar: r.avatar,
+        avatarUrl: r.avatar_url ?? null,
+        publicId: r.public_id != null ? Number(r.public_id) : null,
         level: Number(r.level ?? 1), isOnline: onlineProfiles.has(r.id), status: 'accepted',
     }));
 }
 export async function getPendingRequests(playerId) {
     const rows = await sql `
-    SELECT f.id, f.from_id, p.username, p.avatar, f.created_at
+    SELECT f.id, f.from_id, p.username, p.avatar, p.avatar_url, f.created_at
     FROM friendships f
     JOIN players p ON f.from_id = p.id
     WHERE f.to_id = ${playerId} AND f.status = 'pending'
   `;
     return rows.map((r) => ({
         id: r.id, fromId: r.from_id, fromUsername: r.username,
-        fromAvatar: r.avatar, createdAt: Number(r.created_at),
+        fromAvatar: r.avatar, fromAvatarUrl: r.avatar_url ?? null,
+        createdAt: Number(r.created_at),
     }));
 }
 export async function getFriendshipStatus(userId, otherId) {

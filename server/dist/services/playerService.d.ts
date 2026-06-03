@@ -27,4 +27,5 @@ export declare function addXP(profileId: string, amount: number): Promise<{
 }>;
 export declare function getCosmetics(profileId: string): Promise<PlayerCosmetics>;
 export declare function equipCosmetic(profileId: string, type: 'name_color' | 'frame', itemId: string | null): Promise<PlayerCosmetics>;
+export declare function updateAvatarUrl(uid: string, url: string | null): Promise<void>;
 //# sourceMappingURL=playerService.d.ts.map

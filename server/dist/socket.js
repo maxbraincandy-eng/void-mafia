@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { ok, err, } from './types/index.js';
-import { createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, removePlayer, getPlayerBySocket, toPublicRoom, toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom, } from './services/roomService.js';
+import { createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, removePlayer, getPlayerBySocket, toPublicRoom, toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom, setPlayerAvatarUrl, } from './services/roomService.js';
 import { startGame, setPhase, advancePhase, submitNightAction, submitVote, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult, getTrackResult, resolveVotes, } from './services/gameService.js';
 import { createPlayerMessage, createSystemMessage, addMessage, validateChat, } from './services/chatService.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
-import { getOrCreatePlayer, getPlayer, getAllPlayers, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, getPlayerByFriendCode, setGrantedModLevel, } from './services/playerService.js';
+import { getOrCreatePlayer, getPlayer, getAllPlayers, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, } from './services/playerService.js';
 import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, } from './services/friendService.js';
 import { checkAndAwardChallenge, getTodayChallenge, getDailyChallengeForPlayer, } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
@@ -443,6 +443,60 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
+        // ── Avatar Upload ────────────────────────────────────────────────
+        socket.on('player:update_avatar', async (data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb({ ok: false, error: 'Not authenticated.' });
+                    return;
+                }
+                const { imageData } = data;
+                if (!imageData || typeof imageData !== 'string') {
+                    cb({ ok: false, error: 'Invalid image data.' });
+                    return;
+                }
+                if (!imageData.startsWith('data:image/')) {
+                    cb({ ok: false, error: 'Unsupported image type.' });
+                    return;
+                }
+                // ~200KB base64 limit (150KB raw image)
+                if (imageData.length > 270000) {
+                    cb({ ok: false, error: 'Image is too large (max 200KB).' });
+                    return;
+                }
+                await updateAvatarUrl(profileId, imageData);
+                // Update all rooms this player is in
+                const profile = await getPlayer(profileId);
+                for (const room of getAllRooms()) {
+                    setPlayerAvatarUrl(room, profileId, imageData);
+                    broadcastRoom(io, room);
+                }
+                cb({ ok: true, data: toPublicProfile(profile) });
+            }
+            catch (e) {
+                cb({ ok: false, error: e.message ?? 'Upload failed.' });
+            }
+        });
+        socket.on('player:remove_avatar', async (cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb({ ok: false, error: 'Not authenticated.' });
+                    return;
+                }
+                await updateAvatarUrl(profileId, null);
+                const profile = await getPlayer(profileId);
+                for (const room of getAllRooms()) {
+                    setPlayerAvatarUrl(room, profileId, null);
+                    broadcastRoom(io, room);
+                }
+                cb({ ok: true, data: toPublicProfile(profile) });
+            }
+            catch (e) {
+                cb({ ok: false, error: e.message ?? 'Remove failed.' });
+            }
+        });
         // ── Report ───────────────────────────────────────────────────────
         socket.on('player:report', async (data, cb) => {
             try {
@@ -473,6 +527,9 @@ export function attachSocketHandlers(io) {
                 const playerProfile = profileId ? await getPlayer(profileId) : null;
                 const username = playerProfile?.username ?? parsed.name;
                 const room = createRoom(socket.id, username, profileId, parsed.settings);
+                const hostInRoom = [...room.players.values()][0];
+                if (hostInRoom && playerProfile?.avatarUrl)
+                    hostInRoom.avatarUrl = playerProfile.avatarUrl;
                 socket.join(room.id);
                 socket.data.playerId = room.hostId;
                 socket.data.roomId = room.id;
@@ -522,6 +579,8 @@ export function attachSocketHandlers(io) {
                 const playerProfile = profileId ? await getPlayer(profileId) : null;
                 const username = playerProfile?.username ?? parsed.name;
                 const player = addPlayer(room, socket.id, username, profileId);
+                if (playerProfile?.avatarUrl)
+                    player.avatarUrl = playerProfile.avatarUrl;
                 if (parsed.isSpectator)
                     player.isSpectator = true;
                 socket.join(room.id);
@@ -1623,6 +1682,7 @@ export function attachSocketHandlers(io) {
                     messages,
                     otherUsername: otherProfile?.username ?? 'Unknown',
                     otherAvatar: otherProfile?.avatar ?? '?',
+                    otherAvatarUrl: otherProfile?.avatarUrl ?? null,
                 }));
             }
             catch (e) {
