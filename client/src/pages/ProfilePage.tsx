@@ -28,6 +28,9 @@ const RARITY_BORDER: Record<string, string> = {
   legendary: 'rgba(255,180,0,0.5)',
 };
 
+const MAX_SIZE = 5 * 1024 * 1024; // 5MB original file limit
+const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+
 function TeamBadge({ team }: { team: string | null }) {
   const colors: Record<string, string> = {
     mafia: 'text-neon-red/80', town: 'text-neon-green/80',
@@ -36,14 +39,38 @@ function TeamBadge({ team }: { team: string | null }) {
   return <span className={`font-mono text-[9px] uppercase tracking-wider ${colors[team ?? ''] ?? 'text-white/30'}`}>{team ?? '—'}</span>;
 }
 
+async function resizeImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const maxDim = 200;
+      let w = img.width, h = img.height;
+      if (w > h) { if (w > maxDim) { h = Math.round(h * maxDim / w); w = maxDim; } }
+      else       { if (h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim; } }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/webp', 0.7));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Failed to load image.')); };
+    img.src = url;
+  });
+}
+
 export function ProfilePage() {
-  const { profile, username, logout, localAvatar, setLocalAvatar } = useAuthStore();
+  const { profile, username, logout, localAvatar, uploadAvatar, removeAvatar } = useAuthStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showRoleGuide, setShowRoleGuide] = useState(false);
   const [achievements, setAchievements] = useState<AchievementEarned[]>([]);
   const [history, setHistory]           = useState<GameHistoryEntry[]>([]);
   const [tab, setTab] = useState<'achievements' | 'history' | 'friends'>('achievements');
   const [loadingAch, setLoadingAch] = useState(false);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
 
   useEffect(() => {
     if (!profile) return;
@@ -60,19 +87,54 @@ export function ProfilePage() {
   if (!profile) return null;
 
   const { stats } = profile;
+  const displayAvatar = previewSrc ?? localAvatar;
 
-  const handleAvatarClick = () => fileInputRef.current?.click();
+  const handleAvatarClick = () => {
+    if (!uploadLoading) fileInputRef.current?.click();
+  };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const dataUrl = ev.target?.result as string;
-      if (dataUrl) setLocalAvatar(dataUrl);
-    };
-    reader.readAsDataURL(file);
     e.target.value = '';
+    if (!file) return;
+
+    setUploadError('');
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setUploadError('Unsupported image type. Use JPG, PNG, or WebP.');
+      return;
+    }
+    if (file.size > MAX_SIZE) {
+      setUploadError('Image is too large. Max 5MB.');
+      return;
+    }
+
+    setUploadLoading(true);
+    try {
+      const resized = await resizeImage(file);
+      setPreviewSrc(resized);
+      const result = await uploadAvatar(resized);
+      if (!result.ok) {
+        setUploadError(result.error ?? 'Upload failed.');
+        setPreviewSrc(null);
+      } else {
+        setPreviewSrc(null); // profile.avatarUrl now updated in store
+      }
+    } catch {
+      setUploadError('Upload failed. Please try again.');
+      setPreviewSrc(null);
+    } finally {
+      setUploadLoading(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    setUploadLoading(true);
+    setUploadError('');
+    setPreviewSrc(null);
+    const result = await removeAvatar();
+    if (!result.ok) setUploadError(result.error ?? 'Remove failed.');
+    setUploadLoading(false);
   };
 
   return (
@@ -92,14 +154,33 @@ export function ProfilePage() {
           className="glass-panel border border-neon-purple/20 rounded-2xl p-6 mb-4"
         >
           <div className="flex items-center gap-4 mb-4">
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+            <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" className="hidden" onChange={handleFileChange} />
             <div className="relative flex-shrink-0">
-              <button type="button" onClick={handleAvatarClick} className="relative w-16 h-16 rounded-full group" title="Click to upload profile picture">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-neon-pink to-neon-purple flex items-center justify-center text-2xl font-bold text-white shadow-neon-purple overflow-hidden">
-                  {localAvatar ? <img src={localAvatar} alt={profile.username} className="w-full h-full object-cover rounded-full" /> : profile.avatar}
+              <button
+                type="button"
+                onClick={handleAvatarClick}
+                disabled={uploadLoading}
+                className="relative w-16 h-16 rounded-full group"
+                title="Click to upload profile picture"
+              >
+                <div
+                  className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold text-white overflow-hidden"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(255,0,128,0.6), rgba(138,43,226,0.6))',
+                    boxShadow: displayAvatar ? '0 0 16px rgba(138,43,226,0.5)' : '0 0 8px rgba(138,43,226,0.3)',
+                    border: '2px solid rgba(138,43,226,0.4)',
+                  }}
+                >
+                  {displayAvatar
+                    ? <img src={displayAvatar} alt={profile.username} className="w-full h-full object-cover rounded-full" />
+                    : <span>{profile.avatar}</span>
+                  }
                 </div>
-                <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="text-xl">📷</span>
+                <div className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  {uploadLoading
+                    ? <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  }
                 </div>
               </button>
               {/* Level badge */}
@@ -124,6 +205,31 @@ export function ProfilePage() {
                 #{profile.friendCode ?? '????'}
               </p>
               <p className="text-white/20 font-mono text-xs">Joined {new Date(profile.joinedAt).toLocaleDateString()}</p>
+              {/* Avatar actions */}
+              <div className="flex items-center gap-2 mt-1.5">
+                <button
+                  onClick={handleAvatarClick}
+                  disabled={uploadLoading}
+                  className="font-mono text-[9px] uppercase tracking-wider text-neon-cyan/50 hover:text-neon-cyan/80 transition-colors disabled:opacity-40"
+                >
+                  {displayAvatar ? 'Change photo' : 'Upload photo'}
+                </button>
+                {displayAvatar && (
+                  <>
+                    <span className="text-white/15 font-mono text-[9px]">·</span>
+                    <button
+                      onClick={handleRemove}
+                      disabled={uploadLoading}
+                      className="font-mono text-[9px] uppercase tracking-wider text-neon-red/40 hover:text-neon-red/70 transition-colors disabled:opacity-40"
+                    >
+                      Remove
+                    </button>
+                  </>
+                )}
+              </div>
+              {uploadError && (
+                <p className="text-[10px] font-mono text-neon-red/80 mt-1">{uploadError}</p>
+              )}
             </div>
           </div>
 

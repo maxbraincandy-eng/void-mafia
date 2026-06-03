@@ -97,8 +97,12 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                 {/* Header */}
                 <div className="flex items-center gap-3 mb-4">
                   <div className="relative">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-neon-pink to-neon-purple flex items-center justify-center text-2xl font-bold flex-shrink-0">
-                      {data.profile.avatar}
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center text-2xl font-bold flex-shrink-0 overflow-hidden"
+                      style={{ background: 'linear-gradient(135deg, rgba(255,0,128,0.6), rgba(138,43,226,0.6))', border: '2px solid rgba(138,43,226,0.4)' }}>
+                      {data.profile.avatarUrl
+                        ? <img src={data.profile.avatarUrl} alt={data.profile.username} className="w-full h-full object-cover rounded-full" />
+                        : data.profile.avatar
+                      }
                     </div>
                     {data.isOnline && (
                       <span className="absolute bottom-0 right-0 w-3 h-3 bg-neon-green rounded-full border-2 border-void" />

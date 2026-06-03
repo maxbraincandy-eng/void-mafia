@@ -584,6 +584,9 @@ export interface ClientToServerEvents {
   'dm:messages':           (data: { conversationId: string }, cb: Cb<any[]>) => void;
   'dm:mark_read':          (data: { conversationId: string }, cb: Cb<null>) => void;
   'dm:unread_count':       (data: Record<string, never>, cb: Cb<number>) => void;
+  // Avatar
+  'player:update_avatar':  (data: { imageData: string }, cb: (res: any) => void) => void;
+  'player:remove_avatar':  (cb: (res: any) => void) => void;
 }
 
 export interface InterServerEvents {}

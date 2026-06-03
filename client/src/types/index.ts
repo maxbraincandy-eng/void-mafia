@@ -82,6 +82,7 @@ export interface Friend {
   profileId: string;
   username: string;
   avatar: string;
+  avatarUrl?: string | null;
   level: number;
   isOnline: boolean;
   status: 'accepted';
@@ -109,6 +110,7 @@ export interface PlayerProfilePublic {
   id: string;
   username: string;
   avatar: string;
+  avatarUrl?: string | null;
   stats: PlayerStats;
   isModerator: boolean;
   moderatorLevel: ModeratorLevel | null;
@@ -126,6 +128,7 @@ export interface PlayerPublic {
   socketId: string;
   name: string;
   avatar: string;
+  avatarUrl: string | null;
   isHost: boolean;
   isAlive: boolean;
   isConnected: boolean;
@@ -305,6 +308,7 @@ export interface ClanMember {
   playerId: string;
   username: string;
   avatar: string;
+  avatarUrl?: string | null;
   role: 'owner' | 'officer' | 'member';
   joinedAt: number;
 }
@@ -348,6 +352,7 @@ export interface DmConversation {
   otherUserId: string;
   otherUsername: string;
   otherAvatar: string;
+  otherAvatarUrl?: string | null;
   lastMessage: string | null;
   lastMessageAt: number | null;
   unread: boolean;

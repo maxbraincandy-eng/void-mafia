@@ -27,6 +27,7 @@ import {
   registerWithEmail, authenticateWithEmail,
   addXP, getCosmetics, equipCosmetic,
   getPlayerByFriendCode, setGrantedModLevel,
+  updateAvatarUrl,
 } from './services/playerService.js';
 import {
   markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend,
@@ -503,6 +504,53 @@ export function attachSocketHandlers(io: AppServer): void {
       }
     });
 
+    // ── Avatar Upload ────────────────────────────────────────────────
+    socket.on('player:update_avatar', async (data: { imageData: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb({ ok: false, error: 'Not authenticated.' }); return; }
+
+        const { imageData } = data;
+        if (!imageData || typeof imageData !== 'string') { cb({ ok: false, error: 'Invalid image data.' }); return; }
+        if (!imageData.startsWith('data:image/')) { cb({ ok: false, error: 'Unsupported image type.' }); return; }
+
+        // ~200KB base64 limit (150KB raw image)
+        if (imageData.length > 270_000) { cb({ ok: false, error: 'Image is too large (max 200KB).' }); return; }
+
+        await updateAvatarUrl(profileId, imageData);
+
+        // Update all rooms this player is in
+        const profile = await getPlayer(profileId);
+        for (const room of getAllRooms()) {
+          setPlayerAvatarUrl(room, profileId, imageData);
+          broadcastRoom(io, room);
+        }
+
+        cb({ ok: true, data: toPublicProfile(profile!) });
+      } catch (e: any) {
+        cb({ ok: false, error: e.message ?? 'Upload failed.' });
+      }
+    });
+
+    socket.on('player:remove_avatar', async (cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb({ ok: false, error: 'Not authenticated.' }); return; }
+
+        await updateAvatarUrl(profileId, null);
+
+        const profile = await getPlayer(profileId);
+        for (const room of getAllRooms()) {
+          setPlayerAvatarUrl(room, profileId, null);
+          broadcastRoom(io, room);
+        }
+
+        cb({ ok: true, data: toPublicProfile(profile!) });
+      } catch (e: any) {
+        cb({ ok: false, error: e.message ?? 'Remove failed.' });
+      }
+    });
+
     // ── Report ───────────────────────────────────────────────────────
     socket.on('player:report', async (data, cb) => {
       try {
@@ -539,6 +587,9 @@ export function attachSocketHandlers(io: AppServer): void {
         const playerProfile = profileId ? await getPlayer(profileId) : null;
         const username = playerProfile?.username ?? parsed.name;
         const room = createRoom(socket.id, username, profileId, parsed.settings as Partial<GameSettings>);
+
+        const hostInRoom = [...room.players.values()][0];
+        if (hostInRoom && playerProfile?.avatarUrl) hostInRoom.avatarUrl = playerProfile.avatarUrl;
 
         socket.join(room.id);
         socket.data.playerId = room.hostId;
@@ -594,6 +645,7 @@ export function attachSocketHandlers(io: AppServer): void {
         const playerProfile = profileId ? await getPlayer(profileId) : null;
         const username = playerProfile?.username ?? parsed.name;
         const player = addPlayer(room, socket.id, username, profileId);
+        if (playerProfile?.avatarUrl) player.avatarUrl = playerProfile.avatarUrl;
         if (parsed.isSpectator) player.isSpectator = true;
 
         socket.join(room.id);

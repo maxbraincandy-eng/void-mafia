@@ -264,7 +264,7 @@ export function LobbyPage() {
                           : 'hover:bg-white/[0.025] cursor-pointer',
                       )}
                     >
-                      <Avatar name={player.name} isHost={player.isHost} size="sm" />
+                      <Avatar name={player.name} isHost={player.isHost} size="sm" src={player.avatarUrl ?? undefined} />
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">

@@ -31,6 +31,7 @@ export function DmPanel() {
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [activeUsername, setActiveUsername] = useState('');
   const [activeAvatar, setActiveAvatar] = useState('');
+  const [activeAvatarUrl, setActiveAvatarUrl] = useState<string | null>(null);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [loadingConvs, setLoadingConvs] = useState(false);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
@@ -65,10 +66,11 @@ export function DmPanel() {
     }
   }, []);
 
-  const openConversation = useCallback(async (convId: string, username: string, avatar: string) => {
+  const openConversation = useCallback(async (convId: string, username: string, avatar: string, avatarUrl?: string | null) => {
     setActiveConvId(convId);
     setActiveUsername(username);
     setActiveAvatar(avatar);
+    setActiveAvatarUrl(avatarUrl ?? null);
     setMsgError(null);
     setLoadingMsgs(true);
     try {
@@ -104,6 +106,7 @@ export function DmPanel() {
           setActiveConvId(res.data.id);
           setActiveUsername(res.data.otherUsername);
           setActiveAvatar(res.data.otherAvatar);
+          setActiveAvatarUrl((res.data as any).otherAvatarUrl ?? null);
           setMessages(res.data.messages ?? []);
           setMsgError(null);
           try {
@@ -229,12 +232,15 @@ export function DmPanel() {
                   ←
                 </button>
               ) : null}
-              {activeConvId && activeAvatar ? (
+              {activeConvId && (activeAvatar || activeAvatarUrl) ? (
                 <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0"
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 overflow-hidden"
                   style={{ background: 'linear-gradient(135deg, #ff0080, #8a2be2)' }}
                 >
-                  {activeAvatar}
+                  {activeAvatarUrl
+                    ? <img src={activeAvatarUrl} alt={activeUsername} className="w-full h-full object-cover rounded-full" />
+                    : activeAvatar
+                  }
                 </div>
               ) : (
                 !activeConvId && (
@@ -288,15 +294,18 @@ export function DmPanel() {
                     {conversations.map(conv => (
                       <button
                         key={conv.id}
-                        onClick={() => openConversation(conv.id, conv.otherUsername, conv.otherAvatar)}
+                        onClick={() => openConversation(conv.id, conv.otherUsername, conv.otherAvatar, conv.otherAvatarUrl)}
                         className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/[0.03] transition-colors text-left border-b border-white/[0.04]"
                       >
                         <div className="relative shrink-0">
                           <div
-                            className="w-10 h-10 rounded-full flex items-center justify-center text-lg"
+                            className="w-10 h-10 rounded-full flex items-center justify-center text-lg overflow-hidden"
                             style={{ background: 'linear-gradient(135deg, #ff0080, #8a2be2)' }}
                           >
-                            {conv.otherAvatar}
+                            {conv.otherAvatarUrl
+                              ? <img src={conv.otherAvatarUrl} alt={conv.otherUsername} className="w-full h-full object-cover rounded-full" />
+                              : conv.otherAvatar
+                            }
                           </div>
                           {conv.unread && (
                             <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-neon-pink rounded-full border-2 border-void" />
@@ -334,7 +343,7 @@ export function DmPanel() {
                     <div className="text-center py-10">
                       <p className="text-white/25 font-mono text-xs mb-3">{msgError}</p>
                       <button
-                        onClick={() => openConversation(activeConvId, activeUsername, activeAvatar)}
+                        onClick={() => openConversation(activeConvId, activeUsername, activeAvatar, activeAvatarUrl)}
                         className="px-4 py-2 rounded-xl border border-neon-purple/30 text-neon-purple/70 font-mono text-xs hover:bg-neon-purple/10 transition-colors"
                       >
                         Retry
