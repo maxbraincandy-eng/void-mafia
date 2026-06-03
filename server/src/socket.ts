@@ -56,6 +56,7 @@ import {
   VoiceChannel,
 } from './services/voiceService.js';
 import { sql } from './db.js';
+import bcrypt from 'bcryptjs';
 import {
   getOrCreateConversation, listConversations, sendMessage, getMessages, markRead, getTotalUnread,
 } from './services/dmService.js';
@@ -490,6 +491,30 @@ export function attachSocketHandlers(io: AppServer): void {
         cb(ok({ uid: profile.id, profile: toPublicProfile(profile) }));
       } catch (e: any) {
         cb(err(e.message ?? 'Login failed.'));
+      }
+    });
+
+    // ── Change Password ──────────────────────────────────────────────
+    socket.on('player:change_password' as any, async (data: any, cb: any) => {
+      try {
+        const { uid, currentPassword, newPassword } = z.object({
+          uid:             z.string().min(1),
+          currentPassword: z.string().min(1),
+          newPassword:     z.string().min(6),
+        }).parse(data);
+
+        const rows = await sql`SELECT password_hash, email FROM players WHERE id = ${uid} LIMIT 1` as any[];
+        if (!rows[0]) { cb({ ok: false, error: 'Player not found.' }); return; }
+        if (!rows[0].password_hash) { cb({ ok: false, error: 'No password set on this account.' }); return; }
+
+        const match = await bcrypt.compare(currentPassword, rows[0].password_hash);
+        if (!match) { cb({ ok: false, error: 'Current password is incorrect.' }); return; }
+
+        const newHash = await bcrypt.hash(newPassword, 10);
+        await sql`UPDATE players SET password_hash = ${newHash} WHERE id = ${uid}`;
+        cb({ ok: true });
+      } catch (e: any) {
+        cb({ ok: false, error: e.message ?? 'Failed to change password.' });
       }
     });
 

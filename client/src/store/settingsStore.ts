@@ -1,0 +1,67 @@
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+export interface Settings {
+  // Audio
+  sfxEnabled: boolean;
+  musicEnabled: boolean;
+  notificationSounds: boolean;
+  sfxVolume: number;
+
+  // Game
+  autoReady: boolean;
+  showRoleAnimation: boolean;
+  timerStyle: 'bar' | 'countdown';
+  showChatTimestamps: boolean;
+  defaultLastWill: string;
+
+  // Privacy
+  friendRequestsFrom: 'everyone' | 'nobody';
+  dmsFrom: 'everyone' | 'friends' | 'nobody';
+  showOnlineStatus: boolean;
+
+  // Notifications
+  notifyGameInvites: boolean;
+  notifyFriendRequests: boolean;
+  notifyDMs: boolean;
+
+  // Accessibility
+  reduceAnimations: boolean;
+  largeText: boolean;
+}
+
+interface SettingsStore extends Settings {
+  update: (patch: Partial<Settings>) => void;
+  reset: () => void;
+}
+
+const DEFAULTS: Settings = {
+  sfxEnabled: true,
+  musicEnabled: false,
+  notificationSounds: true,
+  sfxVolume: 70,
+  autoReady: false,
+  showRoleAnimation: true,
+  timerStyle: 'bar',
+  showChatTimestamps: false,
+  defaultLastWill: '',
+  friendRequestsFrom: 'everyone',
+  dmsFrom: 'everyone',
+  showOnlineStatus: true,
+  notifyGameInvites: true,
+  notifyFriendRequests: true,
+  notifyDMs: true,
+  reduceAnimations: false,
+  largeText: false,
+};
+
+export const useSettingsStore = create<SettingsStore>()(
+  persist(
+    (set) => ({
+      ...DEFAULTS,
+      update: (patch) => set(patch),
+      reset: () => set(DEFAULTS),
+    }),
+    { name: 'void-mafia-settings' },
+  ),
+);

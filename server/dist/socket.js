@@ -14,6 +14,7 @@ import { createClan, getClan, getClanByPlayer, getAllClans, getClanMembers, join
 import { canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer, warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, logKick, } from './services/moderationService.js';
 import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as voiceLeave, getMembers as voiceGetMembers, getSharedChannel as voiceGetSharedChannel, removeFromChannel as voiceRemoveFromChannel, } from './services/voiceService.js';
 import { sql } from './db.js';
+import bcrypt from 'bcryptjs';
 import { getOrCreateConversation, listConversations, sendMessage, getMessages, markRead, getTotalUnread, } from './services/dmService.js';
 // ── Rate limiting ─────────────────────────────────────────────────────
 const rateLimits = new Map();
@@ -429,6 +430,36 @@ export function attachSocketHandlers(io) {
             }
             catch (e) {
                 cb(err(e.message ?? 'Login failed.'));
+            }
+        });
+        // ── Change Password ──────────────────────────────────────────────
+        socket.on('player:change_password', async (data, cb) => {
+            try {
+                const { uid, currentPassword, newPassword } = z.object({
+                    uid: z.string().min(1),
+                    currentPassword: z.string().min(1),
+                    newPassword: z.string().min(6),
+                }).parse(data);
+                const rows = await sql `SELECT password_hash, email FROM players WHERE id = ${uid} LIMIT 1`;
+                if (!rows[0]) {
+                    cb({ ok: false, error: 'Player not found.' });
+                    return;
+                }
+                if (!rows[0].password_hash) {
+                    cb({ ok: false, error: 'No password set on this account.' });
+                    return;
+                }
+                const match = await bcrypt.compare(currentPassword, rows[0].password_hash);
+                if (!match) {
+                    cb({ ok: false, error: 'Current password is incorrect.' });
+                    return;
+                }
+                const newHash = await bcrypt.hash(newPassword, 10);
+                await sql `UPDATE players SET password_hash = ${newHash} WHERE id = ${uid}`;
+                cb({ ok: true });
+            }
+            catch (e) {
+                cb({ ok: false, error: e.message ?? 'Failed to change password.' });
             }
         });
         // ── Player Stats ─────────────────────────────────────────────────

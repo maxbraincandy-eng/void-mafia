@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocialStore } from '@/store/socialStore';
+import { SettingsPanel } from '@/pages/SettingsPanel';
 
 interface MenuItem {
   icon: React.ReactNode;
@@ -63,6 +65,7 @@ function MenuRow({ item }: { item: MenuItem }) {
 
 export function MorePanel() {
   const { morePanelOpen, closeMoreMenu } = useSocialStore();
+  const [showSettings, setShowSettings] = useState(false);
 
   const items: MenuItem[] = [
     {
@@ -111,11 +114,12 @@ export function MorePanel() {
       ),
       label: 'Settings',
       description: 'Audio, notifications & more',
-      comingSoon: true,
+      onClick: () => { closeMoreMenu(); setTimeout(() => setShowSettings(true), 250); },
     },
   ];
 
   return (
+    <>
     <AnimatePresence>
       {morePanelOpen && (
         <>
@@ -191,5 +195,7 @@ export function MorePanel() {
         </>
       )}
     </AnimatePresence>
+    <SettingsPanel open={showSettings} onClose={() => setShowSettings(false)} />
+    </>
   );
 }
