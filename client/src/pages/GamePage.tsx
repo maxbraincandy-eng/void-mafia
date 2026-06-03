@@ -32,6 +32,7 @@ import { VoteEliminationOverlay } from '@/components/game/VoteEliminationOverlay
 import { CultConversionOverlay } from '@/components/game/CultConversionOverlay';
 import { VoteRevealScreen } from '@/components/game/VoteRevealScreen';
 import { TutorialOverlay } from '@/components/ui/TutorialOverlay';
+import { InGamePlayersPanel } from '@/components/game/InGamePlayersPanel';
 import { useT } from '@/store/langStore';
 import { useSocialStore } from '@/store/socialStore';
 
@@ -81,6 +82,7 @@ function getPhaseSubtitle(phase: Phase, day: number, currentSpeakerName?: string
 
 export function GamePage() {
   const [reportProfileId, setReportProfileId] = useState<string | null>(null);
+  const [showPlayersPanel, setShowPlayersPanel] = useState(false);
   const { openProfile } = useSocialStore();
   const [mobileTab, setMobileTab] = useState<MobileTab>('action');
   const [rightTab, setRightTab] = useState<RightTab>('events');
@@ -925,6 +927,19 @@ export function GamePage() {
           />
           <div className="px-3 py-2 md:px-4 md:py-3">
           <div className="max-w-7xl mx-auto flex items-center gap-2 md:gap-4">
+            {/* Players list button */}
+            <button
+              onClick={() => setShowPlayersPanel(true)}
+              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/8 transition-all active:scale-90"
+              title="Players"
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                <line x1="3" y1="5" x2="15" y2="5" />
+                <line x1="3" y1="9" x2="15" y2="9" />
+                <line x1="3" y1="13" x2="15" y2="13" />
+              </svg>
+            </button>
+
             {/* More menu button */}
             <button
               onClick={() => setShowMoreMenu(true)}
@@ -1418,6 +1433,17 @@ export function GamePage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* In-game players panel */}
+      <InGamePlayersPanel
+        open={showPlayersPanel}
+        onClose={() => setShowPlayersPanel(false)}
+        players={activePlayers}
+        phase={phase}
+        currentSpeakerId={phase === 'speech' ? room.currentSpeakerId : null}
+        myPlayerId={myPlayer?.id ?? null}
+        speakingSocketIds={speakingSocketIds}
+      />
 
       {reportProfileId && (
         <ReportModal
