@@ -4,7 +4,7 @@ import {
 } from '../types/index.js';
 import { generateId } from '../utils/helpers.js';
 import { sql } from '../db.js';
-import { getPlayer, getAllPlayers, setBan, clearBan, setMute, clearMute, addWarning, toPublicProfile } from './playerService.js';
+import { getPlayer, setBan, clearBan, setMute, clearMute, addWarning, getPlayersFast } from './playerService.js';
 
 const LEVEL_ORDER: ModeratorLevel[] = ['moderator', 'senior_moderator', 'admin', 'owner'];
 function levelRank(level: ModeratorLevel): number { return LEVEL_ORDER.indexOf(level); }
@@ -148,8 +148,7 @@ export async function getLogs(): Promise<ModLog[]> {
 }
 
 export async function getModPlayers() {
-  const players = await getAllPlayers();
-  return players.map(toPublicProfile);
+  return getPlayersFast();
 }
 
 export async function logKick(

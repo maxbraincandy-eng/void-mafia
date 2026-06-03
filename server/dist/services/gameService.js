@@ -413,9 +413,6 @@ export function checkWin(room) {
     const neutralAlive = alive.filter(p => p.team === 'neutral').length;
     const yakuzaAlive = alive.filter(p => p.team === 'yakuza').length;
     const yakuzaKillerAlive = alive.some(p => p.role === 'yakuza');
-    if (process.env.NODE_ENV !== 'production') {
-        console.log(`[WinCheck] phase=${room.phase} mafia=${mafiaAlive} town=${townAlive} cult=${cultAlive} neutral=${neutralAlive} yakuza=${yakuzaAlive}`);
-    }
     // Cult win: leader alive and cult outnumbers everyone else
     if (cultLeaderAlive && cultAlive >= mafiaAlive + townAlive + neutralAlive + yakuzaAlive && cultAlive > 0) {
         room.winner = 'cult';

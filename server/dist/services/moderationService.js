@@ -1,6 +1,6 @@
 import { generateId } from '../utils/helpers.js';
 import { sql } from '../db.js';
-import { getPlayer, getAllPlayers, setBan, clearBan, setMute, clearMute, addWarning, toPublicProfile } from './playerService.js';
+import { getPlayer, setBan, clearBan, setMute, clearMute, addWarning, getPlayersFast } from './playerService.js';
 const LEVEL_ORDER = ['moderator', 'senior_moderator', 'admin', 'owner'];
 function levelRank(level) { return LEVEL_ORDER.indexOf(level); }
 export function canDo(player, action) {
@@ -132,8 +132,7 @@ export async function getLogs() {
     }));
 }
 export async function getModPlayers() {
-    const players = await getAllPlayers();
-    return players.map(toPublicProfile);
+    return getPlayersFast();
 }
 export async function logKick(modProfileId, modName, targetId, targetName, roomId, reason) {
     await addLog({ actionType: 'kick', moderatorId: modProfileId, moderatorName: modName, targetPlayerId: targetId, targetName, roomId, reason, duration: null });

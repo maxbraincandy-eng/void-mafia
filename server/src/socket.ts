@@ -26,6 +26,7 @@ import {
   getActiveBan, getActiveMute, findSocketByProfile,
   registerWithEmail, authenticateWithEmail,
   addXP, getCosmetics, equipCosmetic,
+  getLeaderboard, getPlayersFast,
   getPlayerByFriendCode, setGrantedModLevel,
   updateAvatarUrl,
 } from './services/playerService.js';
@@ -444,10 +445,6 @@ export function attachSocketHandlers(io: AppServer): void {
         return;
       }
       next();
-    });
-
-    socket.on('disconnect', () => {
-      rateLimits.delete(socket.id);
     });
 
     // ── Auth ─────────────────────────────────────────────────────────
@@ -997,14 +994,8 @@ export function attachSocketHandlers(io: AppServer): void {
 
     // ── Leaderboard ──────────────────────────────────────────────────────
     socket.on('leaderboard:get', async (cb) => {
-      try {
-        const players = (await getAllPlayers())
-          .filter(p => p.stats.gamesPlayed >= 3)
-          .sort((a, b) => b.stats.winRate - a.stats.winRate || b.stats.gamesPlayed - a.stats.gamesPlayed)
-          .slice(0, 20)
-          .map(toPublicProfile);
-        cb(ok(players));
-      } catch (e: any) { cb(err(e.message)); }
+      try { cb(ok(await getLeaderboard())); }
+      catch (e: any) { cb(err(e.message)); }
     });
 
     // ── Terminate Game (host-only, resets to lobby) ─────────────────
@@ -1777,6 +1768,7 @@ export function attachSocketHandlers(io: AppServer): void {
 
     // ── Disconnect ──────────────────────────────────────────────────
     socket.on('disconnect', () => {
+      rateLimits.delete(socket.id);
       const { roomId, playerId, profileId } = socket.data;
       if (profileId) {
         markOffline(profileId);

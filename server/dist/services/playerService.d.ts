@@ -7,6 +7,8 @@ export declare function authenticateWithEmail(email: string, password: string): 
 export declare function getOrCreatePlayer(uid: string, username: string): Promise<PlayerProfile>;
 export declare function getPlayer(uid: string): Promise<PlayerProfile | null>;
 export declare function getAllPlayers(): Promise<PlayerProfile[]>;
+export declare function getLeaderboard(): Promise<PlayerProfilePublic[]>;
+export declare function getPlayersFast(): Promise<PlayerProfilePublic[]>;
 export declare function toPublicProfile(p: PlayerProfile): PlayerProfilePublic;
 export declare function addGameResult(uid: string, won: boolean): Promise<void>;
 export declare function getActiveBan(uid: string): Promise<BanRecord | null>;

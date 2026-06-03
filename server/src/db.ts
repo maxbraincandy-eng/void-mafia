@@ -43,8 +43,8 @@ const bigintParser = {
 // The key thing is the healthcheck at /health stays reachable.
 export const sql = postgres(DATABASE_URL ?? 'postgresql://no-db-url-set:5432/void', {
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
-  max: 10,
-  idle_timeout: 30,
+  max: 20,
+  idle_timeout: 20,
   connect_timeout: 10,
   onnotice: () => {},
   types: { bigint: bigintParser },

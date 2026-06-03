@@ -258,6 +258,98 @@ export async function getAllPlayers() {
     const rows = await sql `SELECT * FROM players ORDER BY last_seen_at DESC`;
     return Promise.all(rows.map(rowToProfile));
 }
+// ── Fast leaderboard — single query, no per-player sub-queries ────────
+let _leaderboardCache = null;
+let _leaderboardCachedAt = 0;
+const LEADERBOARD_TTL = 60000;
+export async function getLeaderboard() {
+    if (_leaderboardCache && Date.now() - _leaderboardCachedAt < LEADERBOARD_TTL) {
+        return _leaderboardCache;
+    }
+    const rows = await sql `
+    SELECT id, username, avatar, avatar_url, public_id,
+           games_played, wins, losses, xp, level, cosmetics,
+           friend_code, is_moderator, moderator_level, moderator_badge_visible,
+           moderator_permissions, joined_at
+    FROM players
+    WHERE games_played >= 3
+    ORDER BY
+      CASE WHEN games_played > 0 THEN ROUND(wins::numeric / games_played * 100) ELSE 0 END DESC,
+      games_played DESC
+    LIMIT 20
+  `;
+    const result = rows.map((r) => ({
+        id: r.id,
+        username: r.username,
+        avatar: r.avatar,
+        avatarUrl: r.avatar_url ?? null,
+        publicId: r.public_id != null ? Number(r.public_id) : null,
+        stats: {
+            gamesPlayed: Number(r.games_played ?? 0),
+            wins: Number(r.wins ?? 0),
+            losses: Number(r.losses ?? 0),
+            winRate: Number(r.games_played ?? 0) > 0
+                ? Math.round((Number(r.wins ?? 0) / Number(r.games_played ?? 0)) * 100) : 0,
+        },
+        isModerator: r.is_moderator === 1 || r.is_moderator === true,
+        moderatorLevel: r.moderator_level ?? null,
+        moderatorBadgeVisible: r.moderator_badge_visible === 1 || r.moderator_badge_visible === true,
+        moderatorPermissions: JSON.parse(r.moderator_permissions ?? '[]'),
+        joinedAt: Number(r.joined_at),
+        xp: Number(r.xp ?? 0),
+        level: Number(r.level ?? 1),
+        cosmetics: (() => { try {
+            return JSON.parse(r.cosmetics ?? '{}');
+        }
+        catch {
+            return { equippedNameColor: null, equippedFrame: null, unlockedItems: [] };
+        } })(),
+        friendCode: r.friend_code ?? '',
+    }));
+    _leaderboardCache = result;
+    _leaderboardCachedAt = Date.now();
+    return result;
+}
+// ── Fast mod player list — no per-player sub-queries ─────────────────
+export async function getPlayersFast() {
+    const rows = await sql `
+    SELECT id, username, avatar, avatar_url, public_id,
+           games_played, wins, losses, xp, level, cosmetics,
+           friend_code, is_moderator, moderator_level, moderator_badge_visible,
+           moderator_permissions, joined_at
+    FROM players
+    ORDER BY last_seen_at DESC
+    LIMIT 1000
+  `;
+    return rows.map((r) => ({
+        id: r.id,
+        username: r.username,
+        avatar: r.avatar,
+        avatarUrl: r.avatar_url ?? null,
+        publicId: r.public_id != null ? Number(r.public_id) : null,
+        stats: {
+            gamesPlayed: Number(r.games_played ?? 0),
+            wins: Number(r.wins ?? 0),
+            losses: Number(r.losses ?? 0),
+            winRate: Number(r.games_played ?? 0) > 0
+                ? Math.round((Number(r.wins ?? 0) / Number(r.games_played ?? 0)) * 100) : 0,
+        },
+        isModerator: r.is_moderator === 1 || r.is_moderator === true,
+        moderatorLevel: r.moderator_level ?? null,
+        moderatorBadgeVisible: r.moderator_badge_visible === 1 || r.moderator_badge_visible === true,
+        moderatorPermissions: JSON.parse(r.moderator_permissions ?? '[]'),
+        joinedAt: Number(r.joined_at),
+        xp: Number(r.xp ?? 0),
+        level: Number(r.level ?? 1),
+        cosmetics: (() => { try {
+            return JSON.parse(r.cosmetics ?? '{}');
+        }
+        catch {
+            return { equippedNameColor: null, equippedFrame: null, unlockedItems: [] };
+        } })(),
+        friendCode: r.friend_code ?? '',
+    }));
+}
 export function toPublicProfile(p) {
     return {
         id: p.id,

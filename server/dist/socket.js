@@ -5,7 +5,7 @@ import { startGame, setPhase, advancePhase, submitNightAction, submitVote, build
 import { createPlayerMessage, createSystemMessage, addMessage, validateChat, } from './services/chatService.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
-import { getOrCreatePlayer, getPlayer, getAllPlayers, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, } from './services/playerService.js';
+import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, } from './services/playerService.js';
 import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, } from './services/friendService.js';
 import { checkAndAwardChallenge, getTodayChallenge, getDailyChallengeForPlayer, } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
@@ -383,9 +383,6 @@ export function attachSocketHandlers(io) {
                 return;
             }
             next();
-        });
-        socket.on('disconnect', () => {
-            rateLimits.delete(socket.id);
         });
         // ── Auth ─────────────────────────────────────────────────────────
         socket.on('player:auth', async (data, cb) => {
@@ -977,12 +974,7 @@ export function attachSocketHandlers(io) {
         // ── Leaderboard ──────────────────────────────────────────────────────
         socket.on('leaderboard:get', async (cb) => {
             try {
-                const players = (await getAllPlayers())
-                    .filter(p => p.stats.gamesPlayed >= 3)
-                    .sort((a, b) => b.stats.winRate - a.stats.winRate || b.stats.gamesPlayed - a.stats.gamesPlayed)
-                    .slice(0, 20)
-                    .map(toPublicProfile);
-                cb(ok(players));
+                cb(ok(await getLeaderboard()));
             }
             catch (e) {
                 cb(err(e.message));
@@ -1885,6 +1877,7 @@ export function attachSocketHandlers(io) {
         });
         // ── Disconnect ──────────────────────────────────────────────────
         socket.on('disconnect', () => {
+            rateLimits.delete(socket.id);
             const { roomId, playerId, profileId } = socket.data;
             if (profileId) {
                 markOffline(profileId);

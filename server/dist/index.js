@@ -135,8 +135,8 @@ if (IS_PROD) {
     });
 }
 // ── Stale Room Cleanup ────────────────────────────────────────────────
-const GAME_OVER_TTL = 10 * 60 * 1000;
-const EMPTY_ROOM_TTL = 5 * 60 * 1000;
+const GAME_OVER_TTL = 3 * 60 * 1000;
+const EMPTY_ROOM_TTL = 2 * 60 * 1000;
 setInterval(() => {
     const now = Date.now();
     for (const room of getAllRooms()) {
@@ -164,7 +164,7 @@ setInterval(() => {
             delete room._emptyAt;
         }
     }
-}, 60000);
+}, 30000);
 // ── Socket.IO ─────────────────────────────────────────────────────────
 attachSocketHandlers(io);
 console.log('[Socket.IO] ready');

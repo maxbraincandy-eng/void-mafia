@@ -150,8 +150,8 @@ if (IS_PROD) {
 }
 
 // ── Stale Room Cleanup ────────────────────────────────────────────────
-const GAME_OVER_TTL  = 10 * 60 * 1000;
-const EMPTY_ROOM_TTL =  5 * 60 * 1000;
+const GAME_OVER_TTL  = 3 * 60 * 1000;
+const EMPTY_ROOM_TTL = 2 * 60 * 1000;
 
 setInterval(() => {
   const now = Date.now();
@@ -177,7 +177,7 @@ setInterval(() => {
       delete (room as any)._emptyAt;
     }
   }
-}, 60_000);
+}, 30_000);
 
 // ── Socket.IO ─────────────────────────────────────────────────────────
 attachSocketHandlers(io);
