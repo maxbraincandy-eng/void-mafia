@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
+import { useSocialStore } from '@/store/socialStore';
 import { useT } from '@/store/langStore';
 import { emitWithAck } from '@/lib/socket';
 import { ClanPublic, ClanMember } from '@/types/index';
@@ -26,6 +27,7 @@ function WinRate({ wins, losses }: { wins: number; losses: number }) {
 
 export function ClansPage() {
   const profile = useAuthStore(s => s.profile);
+  const { openProfile } = useSocialStore();
   const [clans, setClans]           = useState<ClanPublic[]>([]);
   const [myClan, setMyClan]         = useState<ClanPublic | null>(null);
   const [members, setMembers]       = useState<ClanMember[]>([]);
@@ -237,9 +239,13 @@ export function ClansPage() {
               {/* Members */}
               <div className="px-5 py-4 max-h-64 overflow-y-auto space-y-1.5">
                 {members.map(m => (
-                  <div key={m.playerId} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-white/2">
-                    <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold text-white/60">
-                      {m.username[0]?.toUpperCase()}
+                  <div
+                    key={m.playerId}
+                    onClick={() => openProfile(m.playerId)}
+                    className="flex items-center gap-3 px-3 py-2 rounded-xl bg-white/2 hover:bg-white/5 cursor-pointer transition-colors active:scale-[0.98]"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-neon-pink to-neon-purple flex items-center justify-center text-xs font-bold text-white">
+                      {m.avatar || m.username[0]?.toUpperCase()}
                     </div>
                     <span className="flex-1 font-mono text-xs text-white/70">{m.username}</span>
                     <span className={`font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border ${RARITY_TAG[m.role] ?? RARITY_TAG.member}`}>

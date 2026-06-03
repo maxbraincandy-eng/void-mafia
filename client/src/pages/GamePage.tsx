@@ -15,7 +15,6 @@ import { GameOver } from '@/components/game/GameOver';
 import { NightResultOverlay } from '@/components/game/NightResultOverlay';
 import { NightSummaryOverlay } from '@/components/game/NightSummaryOverlay';
 import { AchievementToast } from '@/components/ui/AchievementToast';
-import { PlayerStatsModal } from '@/components/ui/PlayerStatsModal';
 import { ReportModal } from '@/components/ui/ReportModal';
 import { LeaderboardModal } from '@/components/ui/LeaderboardModal';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
@@ -32,9 +31,9 @@ import { PhaseAtmosphere } from '@/components/game/PhaseAtmosphere';
 import { VoteEliminationOverlay } from '@/components/game/VoteEliminationOverlay';
 import { CultConversionOverlay } from '@/components/game/CultConversionOverlay';
 import { VoteRevealScreen } from '@/components/game/VoteRevealScreen';
-import { PlayerProfileModal } from '@/components/ui/PlayerProfileModal';
 import { TutorialOverlay } from '@/components/ui/TutorialOverlay';
 import { useT } from '@/store/langStore';
+import { useSocialStore } from '@/store/socialStore';
 
 type MobileTab = 'action' | 'players' | 'chat';
 type RightTab = 'events' | 'chat';
@@ -81,9 +80,8 @@ function getPhaseSubtitle(phase: Phase, day: number, currentSpeakerName?: string
 }
 
 export function GamePage() {
-  const [statsPlayer, setStatsPlayer] = useState<PlayerPublic | null>(null);
   const [reportProfileId, setReportProfileId] = useState<string | null>(null);
-  const [profileModalId, setProfileModalId] = useState<string | null>(null);
+  const { openProfile } = useSocialStore();
   const [mobileTab, setMobileTab] = useState<MobileTab>('action');
   const [rightTab, setRightTab] = useState<RightTab>('events');
   const [unreadChat, setUnreadChat] = useState(0);
@@ -322,12 +320,9 @@ export function GamePage() {
     onJoin: (withCamera?: boolean) => voice.joinVoice(voiceChannel, withCamera),
   };
 
-  // During voting phase, grid taps select vote target; elsewhere open stats
+  // During voting phase, grid taps select vote target; elsewhere open social profile
   const handlePlayerSelect = (p: PlayerPublic) => {
-    if (p.id === myPlayer?.id) {
-      // Tapping own tile does nothing extra — controls are already inline in the tile
-      return;
-    }
+    if (p.id === myPlayer?.id) return;
     if (phase === 'voting' && amAlive && !amSpectator && p.isAlive) {
       if (pendingVoteId === p.id) {
         SFX.voteConfirm();
@@ -336,8 +331,8 @@ export function GamePage() {
       } else {
         setPendingVoteId(p.id);
       }
-    } else {
-      setStatsPlayer(p);
+    } else if (p.profileId) {
+      openProfile(p.profileId);
     }
   };
 
@@ -1424,16 +1419,6 @@ export function GamePage() {
         )}
       </AnimatePresence>
 
-      {/* Player stats modal */}
-      {statsPlayer && (
-        <PlayerStatsModal
-          profileId={statsPlayer.profileId ?? null}
-          playerName={statsPlayer.name}
-          onClose={() => setStatsPlayer(null)}
-          onReport={pid => { setReportProfileId(pid); setStatsPlayer(null); }}
-        />
-      )}
-
       {reportProfileId && (
         <ReportModal
           targetProfileId={reportProfileId}
@@ -1445,7 +1430,6 @@ export function GamePage() {
       )}
 
       <VoteRevealScreen breakdown={voteBreakdown} onDismiss={dismissVoteBreakdown} />
-      <PlayerProfileModal playerId={profileModalId} onClose={() => setProfileModalId(null)} />
       <TutorialOverlay />
     </div>
   );
