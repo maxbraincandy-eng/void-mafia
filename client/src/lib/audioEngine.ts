@@ -21,15 +21,25 @@ let _musicPending = false; // want music but no user gesture yet
 
 function boot(): AudioContext {
   if (_ctx && _ctx.state !== 'closed') return _ctx;
-  _ctx = new AudioContext();
+  // latencyHint:'playback' → higher quality output, bypasses some device audio post-processing
+  _ctx = new AudioContext({ latencyHint: 'playback' });
 
   _master    = _ctx.createGain();
   _sfxBus    = _ctx.createGain();
   _musicBus  = _ctx.createGain();
 
+  // Limiter at the very end of the chain — prevents any clipping that could buzz
+  const limiter = _ctx.createDynamicsCompressor();
+  limiter.threshold.value = -6;   // start limiting above -6 dBFS
+  limiter.knee.value      = 3;
+  limiter.ratio.value     = 20;   // hard limit
+  limiter.attack.value    = 0.001;
+  limiter.release.value   = 0.1;
+
   _sfxBus.connect(_master);
   _musicBus.connect(_master);
-  _master.connect(_ctx.destination);
+  _master.connect(limiter);
+  limiter.connect(_ctx.destination);
 
   syncGains();
   return _ctx;
@@ -40,7 +50,7 @@ function syncGains() {
   const { sfxEnabled, musicEnabled, sfxVolume } = useSettingsStore.getState();
   const vol = sfxVolume / 100;
   _sfxBus.gain.value   = sfxEnabled  ? vol : 0;
-  _musicBus.gain.value = musicEnabled ? Math.max(0.5, vol) * 0.75 : 0;
+  _musicBus.gain.value = musicEnabled ? Math.max(0.3, vol) * 0.50 : 0;
 }
 
 /** Called by settings store subscriber — updates gains live */
@@ -260,10 +270,10 @@ function buildMusicBuffer(ctx: AudioContext): AudioBuffer {
     }
   });
 
-  // Normalize peak to 0.65 — no clipping on any device
+  // Normalize peak to 0.35 — conservative amplitude, no speaker distortion
   let peak = 0;
   for (let i = 0; i < total; i++) if (Math.abs(data[i]) > peak) peak = Math.abs(data[i]);
-  if (peak > 0) { const sc = 0.65 / peak; for (let i = 0; i < total; i++) data[i] *= sc; }
+  if (peak > 0) { const sc = 0.35 / peak; for (let i = 0; i < total; i++) data[i] *= sc; }
 
   return buf;
 }
