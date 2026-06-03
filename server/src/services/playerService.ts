@@ -60,6 +60,19 @@ async function resolveModLevel(uid: string, username: string): Promise<Moderator
   return envLevel;
 }
 
+// ── Public ID helpers ─────────────────────────────────────────────────
+async function assignNextPublicId(uid: string): Promise<void> {
+  // Use MAX+1 inside an UPDATE so we never leave the row without a publicId.
+  // A unique index on public_id catches any rare race condition at the DB level.
+  try {
+    await sql`
+      UPDATE players
+      SET public_id = (SELECT COALESCE(MAX(public_id), 0) + 1 FROM players WHERE id != ${uid})
+      WHERE id = ${uid} AND public_id IS NULL
+    `;
+  } catch { /* unique violation — another process beat us; retry or ignore */ }
+}
+
 // ── Friend code helpers ──────────────────────────────────────────────
 async function generateUniqueFriendCode(): Promise<string> {
   let code: string;
@@ -118,6 +131,7 @@ async function rowToProfile(row: any): Promise<PlayerProfile> {
     avatar:                 row.avatar,
     avatarUrl:              row.avatar_url ?? null,
     avatarUpdatedAt:        row.avatar_updated_at ? Number(row.avatar_updated_at) : null,
+    publicId:               row.public_id != null ? Number(row.public_id) : null,
     email:                  row.email ?? undefined,
     passwordHash:           row.password_hash ?? undefined,
     stats: {
@@ -170,6 +184,7 @@ export async function registerWithEmail(
       ${now}, ${now}, ${friendCode}
     )
   `;
+  await assignNextPublicId(uid);
   return (await getPlayer(uid))!;
 }
 
@@ -202,6 +217,7 @@ export async function getOrCreatePlayer(uid: string, username: string): Promise<
         ${now}, ${now}, ${friendCode}
       )
     `;
+    await assignNextPublicId(uid);
   } else {
     const modLevel = resolveModLevelFromEnv(uid, name);
     await sql`
@@ -232,6 +248,7 @@ export function toPublicProfile(p: PlayerProfile): PlayerProfilePublic {
     username:              p.username,
     avatar:                p.avatar,
     avatarUrl:             p.avatarUrl ?? null,
+    publicId:              p.publicId ?? null,
     stats:                 { ...p.stats },
     isModerator:           p.isModerator,
     moderatorLevel:        p.moderatorLevel,

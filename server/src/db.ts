@@ -283,6 +283,23 @@ export async function initializeDatabase(): Promise<void> {
   // Migrations — add columns introduced after initial schema
   await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS avatar_url TEXT`;
   await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS avatar_updated_at BIGINT`;
+  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS public_id INTEGER`;
+
+  // Backfill public_id for rows that don't have one yet (earliest player = #1).
+  await sql`
+    UPDATE players p
+    SET public_id = sub.rn
+    FROM (
+      SELECT id, ROW_NUMBER() OVER (ORDER BY joined_at ASC) AS rn
+      FROM players WHERE public_id IS NULL
+    ) sub
+    WHERE p.id = sub.id
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_players_public_id ON players(public_id)
+    WHERE public_id IS NOT NULL
+  `;
 
   // Seed achievement definitions
   for (const a of ACHIEVEMENTS) {

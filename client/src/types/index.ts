@@ -83,6 +83,7 @@ export interface Friend {
   username: string;
   avatar: string;
   avatarUrl?: string | null;
+  publicId?: number | null;
   level: number;
   isOnline: boolean;
   status: 'accepted';
@@ -93,6 +94,7 @@ export interface FriendRequest {
   fromId: string;
   fromUsername: string;
   fromAvatar: string;
+  fromAvatarUrl?: string | null;
   createdAt: number;
 }
 
@@ -111,6 +113,7 @@ export interface PlayerProfilePublic {
   username: string;
   avatar: string;
   avatarUrl?: string | null;
+  publicId?: number | null;
   stats: PlayerStats;
   isModerator: boolean;
   moderatorLevel: ModeratorLevel | null;
@@ -309,6 +312,7 @@ export interface ClanMember {
   username: string;
   avatar: string;
   avatarUrl?: string | null;
+  publicId?: number | null;
   role: 'owner' | 'officer' | 'member';
   joinedAt: number;
 }

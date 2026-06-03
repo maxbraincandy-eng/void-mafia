@@ -117,6 +117,11 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         <ModBadge level={data.profile.moderatorLevel} />
                       )}
                     </div>
+                    {data.profile.publicId != null && (
+                      <p className="text-neon-cyan/60 font-mono text-xs font-bold tracking-widest">
+                        #{data.profile.publicId}
+                      </p>
+                    )}
                     <div className="flex items-center gap-2 mt-0.5">
                       <p className="text-white/25 font-mono text-[10px]">
                         Joined {new Date(data.profile.joinedAt).toLocaleDateString()}

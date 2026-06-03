@@ -202,7 +202,7 @@ export function ProfilePage() {
                 {profile.isModerator && profile.moderatorBadgeVisible && <ModBadge level={profile.moderatorLevel} />}
               </div>
               <p className="text-neon-cyan/60 font-display font-bold text-sm mt-0.5 tracking-widest">
-                #{profile.friendCode ?? '????'}
+                {profile.publicId != null ? `#${profile.publicId}` : (profile.friendCode ? `#${profile.friendCode}` : '')}
               </p>
               <p className="text-white/20 font-mono text-xs">Joined {new Date(profile.joinedAt).toLocaleDateString()}</p>
               {/* Avatar actions */}

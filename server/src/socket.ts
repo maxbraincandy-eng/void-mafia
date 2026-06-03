@@ -1602,6 +1602,7 @@ export function attachSocketHandlers(io: AppServer): void {
           messages,
           otherUsername: otherProfile?.username ?? 'Unknown',
           otherAvatar: otherProfile?.avatar ?? '?',
+          otherAvatarUrl: otherProfile?.avatarUrl ?? null,
         }));
       } catch (e: any) { cb(err(e.message)); }
     });

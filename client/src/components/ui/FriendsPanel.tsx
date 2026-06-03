@@ -113,8 +113,8 @@ export function FriendsPanel() {
                 <div key={req.id} className="flex items-center gap-2 p-2 rounded-xl border border-neon-pink/15 bg-neon-pink/5">
                   <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-base flex-shrink-0"
                     style={{ background: 'linear-gradient(135deg, rgba(255,0,128,0.4), rgba(138,43,226,0.4))', border: '1px solid rgba(138,43,226,0.3)' }}>
-                    {(req as any).fromAvatarUrl
-                      ? <img src={(req as any).fromAvatarUrl} alt={req.fromUsername} className="w-full h-full object-cover rounded-full" />
+                    {req.fromAvatarUrl
+                      ? <img src={req.fromAvatarUrl} alt={req.fromUsername} className="w-full h-full object-cover rounded-full" />
                       : req.fromAvatar
                     }
                   </div>
