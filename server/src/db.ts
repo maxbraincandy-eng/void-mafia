@@ -280,6 +280,10 @@ export async function initializeDatabase(): Promise<void> {
     )
   `;
 
+  // Migrations — add columns introduced after initial schema
+  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS avatar_url TEXT`;
+  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS avatar_updated_at BIGINT`;
+
   // Seed achievement definitions
   for (const a of ACHIEVEMENTS) {
     await sql`

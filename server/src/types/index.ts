@@ -145,6 +145,8 @@ export interface PlayerProfile {
   id: string;
   username: string;
   avatar: string;
+  avatarUrl: string | null;
+  avatarUpdatedAt: number | null;
   stats: PlayerStats;
   isModerator: boolean;
   moderatorLevel: ModeratorLevel | null;
@@ -168,6 +170,7 @@ export interface PlayerProfilePublic {
   id: string;
   username: string;
   avatar: string;
+  avatarUrl?: string | null;
   stats: PlayerStats;
   isModerator: boolean;
   moderatorLevel: ModeratorLevel | null;
@@ -216,6 +219,7 @@ export interface Player {
   id: string;
   name: string;
   avatar: string;
+  avatarUrl: string | null;
   socketId: string;
   isHost: boolean;
   isAlive: boolean;
@@ -320,6 +324,7 @@ export interface PlayerPublic {
   socketId: string;
   name: string;
   avatar: string;
+  avatarUrl: string | null;
   isHost: boolean;
   isAlive: boolean;
   isConnected: boolean;

@@ -9,6 +9,7 @@ import {
   createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, removePlayer,
   getPlayerBySocket, toPublicRoom, getAlivePlayers, getHostPlayer,
   toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom,
+  setPlayerAvatarUrl,
 } from './services/roomService.js';
 import {
   startGame, setPhase, advancePhase, submitNightAction, submitVote,

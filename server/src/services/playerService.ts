@@ -116,6 +116,8 @@ async function rowToProfile(row: any): Promise<PlayerProfile> {
     id:                     row.id,
     username:               row.username,
     avatar:                 row.avatar,
+    avatarUrl:              row.avatar_url ?? null,
+    avatarUpdatedAt:        row.avatar_updated_at ? Number(row.avatar_updated_at) : null,
     email:                  row.email ?? undefined,
     passwordHash:           row.password_hash ?? undefined,
     stats: {
@@ -229,6 +231,7 @@ export function toPublicProfile(p: PlayerProfile): PlayerProfilePublic {
     id:                    p.id,
     username:              p.username,
     avatar:                p.avatar,
+    avatarUrl:             p.avatarUrl ?? null,
     stats:                 { ...p.stats },
     isModerator:           p.isModerator,
     moderatorLevel:        p.moderatorLevel,
@@ -399,4 +402,12 @@ async function checkLevelCosmetics(profileId: string, level: number): Promise<vo
     if (!cosmetics.unlockedItems.includes(item)) cosmetics.unlockedItems.push(item);
   }
   await sql`UPDATE players SET cosmetics = ${JSON.stringify(cosmetics)} WHERE id = ${profileId}`;
+}
+
+export async function updateAvatarUrl(uid: string, url: string | null): Promise<void> {
+  await sql`
+    UPDATE players
+    SET avatar_url = ${url}, avatar_updated_at = ${Date.now()}
+    WHERE id = ${uid}
+  `;
 }
