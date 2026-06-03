@@ -63,27 +63,18 @@ export function RoomsPage() {
     return () => { clearInterval(id); window.removeEventListener('focus', onFocus); };
   }, []);
 
-  const primeMicPermission = () => {
-    navigator.mediaDevices?.getUserMedia?.({ audio: true })
-      .then(s => s.getTracks().forEach(t => t.stop()))
-      .catch(() => {});
-  };
-
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    primeMicPermission();
     await createRoom(username, { ...PRESET_SETTINGS[preset], isPrivate });
   };
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (code.length < 6) return;
-    if (!joinAsSpectator) primeMicPermission(); // spectators don't need mic permission
     await joinRoom(code.toUpperCase(), username, joinAsSpectator, joinPassword);
   };
 
   const handleQuickJoin = async (room: RoomListItem, isSpectator: boolean) => {
-    if (!isSpectator) primeMicPermission(); // spectators don't need mic permission
     setSpectatorModal(null);
     await joinRoom(room.code, username, isSpectator);
   };

@@ -232,11 +232,12 @@ export const SFX = {
 // No oscillators, no feedback, no scheduling loops — phone-safe guaranteed.
 
 // [melody_hz, bass_hz_or_0]  — 16 steps × 0.9 s = 14.4 s
+// All frequencies ≥ 220 Hz to avoid phone-speaker distortion below that threshold.
 const MUSIC_LOOP: Array<[number, number]> = [
-  [220,   147], [261.6, 0  ], [329.6, 0  ], [261.6, 220],
-  [293.7, 147], [349.2, 0  ], [440,   0  ], [349.2, 147],
-  [329.6, 220], [261.6, 0  ], [220,   0  ], [196,   220],
-  [164.8, 165], [220,   0  ], [329.6, 0  ], [220,   220],
+  [220,   294], [261.6, 0  ], [329.6, 0  ], [261.6, 220],
+  [293.7, 294], [349.2, 0  ], [440,   0  ], [349.2, 294],
+  [329.6, 220], [261.6, 0  ], [220,   0  ], [392,   220],
+  [329.6, 330], [220,   0  ], [329.6, 0  ], [220,   220],
 ];
 const NOTE_STEP = 0.9;
 const LOOP_DUR  = MUSIC_LOOP.length * NOTE_STEP;
@@ -310,6 +311,7 @@ export function startMenuMusic() {
 
 export function stopMenuMusic() {
   _musicRunning = false;
+  _musicPending = false;
   if (_musicSource) { try { _musicSource.stop(); } catch { /* already stopped */ } _musicSource = null; }
   if (_musicMasterGain && _ctx) {
     const t = _ctx.currentTime;
