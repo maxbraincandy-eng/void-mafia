@@ -396,6 +396,10 @@ function notifyRoleblocked(io: AppServer, room: Room): void {
   }
 }
 
+// ── DB-ready gate ─────────────────────────────────────────────────────
+let _dbReady = false;
+export function setDbReady(v: boolean) { _dbReady = v; }
+
 // ── Main ──────────────────────────────────────────────────────────────
 export function attachSocketHandlers(io: AppServer): void {
 
@@ -421,6 +425,7 @@ export function attachSocketHandlers(io: AppServer): void {
 
     // ── Auth ─────────────────────────────────────────────────────────
     socket.on('player:auth', async (data, cb) => {
+      if (!_dbReady) { cb(err('Server is starting up — please wait a few seconds and try again.')); return; }
       try {
         const parsed = AuthSchema.parse(data);
         const profile = await getOrCreatePlayer(parsed.uid, parsed.username);

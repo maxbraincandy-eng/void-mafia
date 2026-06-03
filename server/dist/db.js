@@ -1,34 +1,43 @@
 import postgres from 'postgres';
 // ── Connection ──────────────────────────────────────────────────────────
-const DATABASE_URL = process.env.DATABASE_URL ||
+// Railway PostgreSQL plugin can inject the URL under several names.
+// DATABASE_PRIVATE_URL is the internal-network URL (preferred for Railway).
+const DATABASE_URL = process.env.DATABASE_PRIVATE_URL ||
+    process.env.DATABASE_URL ||
     process.env.POSTGRES_URL ||
+    process.env.POSTGRES_PRIVATE_URL ||
     process.env.RAILWAY_DATABASE_URL;
-// Log early — process.exit(1) is intentionally NOT called here.
-// The server must bind its port before anything can fail, so the Railway
-// healthcheck at /health always gets a response.  If the URL is missing or
-// the connection fails, initializeDatabase() will throw and index.ts will
-// call process.exit(1) after a short delay (giving the healthcheck time to pass).
-if (!DATABASE_URL) {
-    console.error('[Database] FATAL: No DATABASE_URL/POSTGRES_URL environment variable set.');
-    console.error('[Database] Server will start but DB calls will fail until this is fixed.');
-}
 console.log('[Database] provider = postgresql');
 console.log(`[Database] DATABASE_URL exists = ${!!DATABASE_URL}`);
+// Log which variable resolved so Railway logs make the issue obvious
+if (process.env.DATABASE_PRIVATE_URL)
+    console.log('[Database] source = DATABASE_PRIVATE_URL');
+else if (process.env.DATABASE_URL)
+    console.log('[Database] source = DATABASE_URL');
+else if (process.env.POSTGRES_URL)
+    console.log('[Database] source = POSTGRES_URL');
+else if (process.env.POSTGRES_PRIVATE_URL)
+    console.log('[Database] source = POSTGRES_PRIVATE_URL');
+else if (process.env.RAILWAY_DATABASE_URL)
+    console.log('[Database] source = RAILWAY_DATABASE_URL');
+else
+    console.error('[Database] FATAL: no database URL env var found — DB calls will fail');
 const bigintParser = {
     to: 20,
     from: [20],
     serialize: (x) => String(x),
     parse: (x) => Number(x),
 };
-// Use a dummy URL when DATABASE_URL is missing so the module loads without
-// throwing.  Actual queries will fail, and initializeDatabase() will throw,
-// triggering a clean restart via index.ts.
-export const sql = postgres(DATABASE_URL ?? 'postgresql://localhost:5432/void_mafia', {
+// When DATABASE_URL is missing we create a client pointing at an invalid
+// host so the module loads without throwing.  initializeDatabase() will
+// fail immediately and index.ts will restart the process after 8 s.
+// The key thing is the healthcheck at /health stays reachable.
+export const sql = postgres(DATABASE_URL ?? 'postgresql://no-db-url-set:5432/void', {
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
     max: 10,
     idle_timeout: 30,
-    connect_timeout: 30,
-    onnotice: () => { }, // suppress NOTICE messages
+    connect_timeout: 10,
+    onnotice: () => { },
     types: { bigint: bigintParser },
 });
 // ── Schema ─────────────────────────────────────────────────────────────

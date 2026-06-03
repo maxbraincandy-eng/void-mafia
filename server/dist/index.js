@@ -5,7 +5,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import { attachSocketHandlers } from './socket.js';
+import { attachSocketHandlers, setDbReady } from './socket.js';
 import { getAllRooms, toRoomListItem, deleteRoom } from './services/roomService.js';
 import { timerService } from './services/timerService.js';
 import { getPlayer, toPublicProfile } from './services/playerService.js';
@@ -158,6 +158,7 @@ httpServer.listen(PORT, '0.0.0.0', () => {
 });
 initializeDatabase().then(() => {
     dbReady = true;
+    setDbReady(true);
     console.log('[Startup] Database ready.');
 }).catch(err => {
     console.error('[Startup] Database init failed:', err.message);

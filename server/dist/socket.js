@@ -342,6 +342,9 @@ function notifyRoleblocked(io, room) {
         }
     }
 }
+// ── DB-ready gate ─────────────────────────────────────────────────────
+let _dbReady = false;
+export function setDbReady(v) { _dbReady = v; }
 // ── Main ──────────────────────────────────────────────────────────────
 export function attachSocketHandlers(io) {
     io.on('connection', (socket) => {
@@ -363,6 +366,10 @@ export function attachSocketHandlers(io) {
         });
         // ── Auth ─────────────────────────────────────────────────────────
         socket.on('player:auth', async (data, cb) => {
+            if (!_dbReady) {
+                cb(err('Server is starting up — please wait a few seconds and try again.'));
+                return;
+            }
             try {
                 const parsed = AuthSchema.parse(data);
                 const profile = await getOrCreatePlayer(parsed.uid, parsed.username);
