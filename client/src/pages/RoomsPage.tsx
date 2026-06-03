@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { RoomListItem } from '@/types/index';
 import { useGameStore } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
+import { useSocialStore } from '@/store/socialStore';
 import { useT } from '@/store/langStore';
 import { useAmbientDrone } from '@/hooks/useAudio';
 import { Button } from '@/components/ui/Button';
@@ -39,6 +40,7 @@ export function RoomsPage() {
     isLoading: s.isLoading,
   }));
   const username = useAuthStore(s => s.username) ?? '';
+  const onlineCount = useSocialStore(s => s.onlineCount);
   const t = useT();
   useAmbientDrone(0.05);
 
@@ -121,9 +123,17 @@ export function RoomsPage() {
             <h1 className="font-display text-2xl font-bold gradient-text tracking-wide leading-none">
               VOID MAFIA
             </h1>
-            <p className="text-[10px] font-mono text-white/20 mt-1 tracking-widest">
-              SOCIAL DEDUCTION
-            </p>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-[10px] font-mono text-white/20 tracking-widest">
+                SOCIAL DEDUCTION
+              </p>
+              {onlineCount > 0 && (
+                <span className="flex items-center gap-1 font-mono text-[9px] text-neon-green/60">
+                  <span className="w-1.5 h-1.5 bg-neon-green rounded-full animate-pulse" />
+                  {onlineCount} online
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <LanguageSwitcher />

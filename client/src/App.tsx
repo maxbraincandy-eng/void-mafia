@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
 import clsx from 'clsx';
 import { useAuthStore } from '@/store/authStore';
+import { useSocialStore } from '@/store/socialStore';
 import { LoginPage } from '@/pages/LoginPage';
 import { LobbyPage } from '@/pages/LobbyPage';
 import { GamePage } from '@/pages/GamePage';
@@ -12,6 +13,8 @@ import { ClansPage } from '@/pages/ClansPage';
 import { LeaderboardPage } from '@/pages/LeaderboardPage';
 import { ModDashboardPage } from '@/pages/ModDashboardPage';
 import { BottomNav, NavTab } from '@/components/layout/BottomNav';
+import { PlayerProfileModal } from '@/components/ui/PlayerProfileModal';
+import { DmPanel } from '@/components/social/DmPanel';
 
 interface Toast {
   id: string;
@@ -50,6 +53,7 @@ function MainApp() {
   const [page, setPage] = useState<NavTab>('rooms');
   const profile = useAuthStore(s => s.profile);
   const isMod = profile?.isModerator ?? false;
+  const { openDmList } = useSocialStore();
 
   return (
     <div className="pb-20 min-h-screen">
@@ -60,7 +64,7 @@ function MainApp() {
         {page === 'profile'     && <ProfilePage key="profile" />}
         {page === 'mod' && isMod && <ModDashboardPage key="mod" />}
       </AnimatePresence>
-      <BottomNav active={page} isMod={isMod} onChange={setPage} />
+      <BottomNav active={page} isMod={isMod} onChange={setPage} onMessagesClick={openDmList} />
     </div>
   );
 }
@@ -168,6 +172,7 @@ function ModNoticeOverlay() {
 
 export default function App() {
   const connect = useGameStore(s => s.connect);
+  const { profilePopupId, closeProfile } = useSocialStore();
 
   useEffect(() => {
     connect();
@@ -182,6 +187,9 @@ export default function App() {
       <AnimatePresence>
         <ModNoticeOverlay />
       </AnimatePresence>
+      {/* Global social overlays — rendered outside Screen so they work from any page/game view */}
+      <PlayerProfileModal playerId={profilePopupId} onClose={closeProfile} />
+      <DmPanel />
     </>
   );
 }

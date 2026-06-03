@@ -14,7 +14,6 @@ export interface PlayerAchievement {
     rarity: string;
     earnedAt: number;
 }
-export declare function getPlayerAchievements(playerId: string): PlayerAchievement[];
-/** Check and award achievements after a game ends. Returns list of newly earned keys. */
-export declare function checkAchievements(room: Room, playerId: string): string[];
+export declare function getPlayerAchievements(playerId: string): Promise<PlayerAchievement[]>;
+export declare function checkAchievements(room: Room, playerId: string): Promise<string[]>;
 //# sourceMappingURL=achievementService.d.ts.map

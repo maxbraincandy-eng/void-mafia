@@ -1,5 +1,5 @@
 import { Room } from '../types/index.js';
-export declare function recordGame(room: Room): string;
+export declare function recordGame(room: Room): Promise<string>;
 export interface GameHistoryEntry {
     id: string;
     roomCode: string;
@@ -12,5 +12,5 @@ export interface GameHistoryEntry {
     myTeam: string | null;
     won: boolean;
 }
-export declare function getPlayerHistory(playerId: string, limit?: number): GameHistoryEntry[];
+export declare function getPlayerHistory(playerId: string, limit?: number): Promise<GameHistoryEntry[]>;
 //# sourceMappingURL=gameHistoryService.d.ts.map

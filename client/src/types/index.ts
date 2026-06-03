@@ -331,3 +331,34 @@ export interface GameHistoryEntry {
   myTeam: string | null;
   won: boolean;
 }
+
+// ── Social ────────────────────────────────────────────────────────────
+export type FriendshipStatus = 'none' | 'pending_sent' | 'pending_received' | 'accepted';
+
+export interface PublicProfileFull {
+  profile: PlayerProfilePublic;
+  achievements: AchievementEarned[];
+  clan: ClanPublic | null;
+  friendshipStatus: FriendshipStatus;
+  isOnline: boolean;
+}
+
+export interface DmConversation {
+  id: string;
+  otherUserId: string;
+  otherUsername: string;
+  otherAvatar: string;
+  lastMessage: string | null;
+  lastMessageAt: number | null;
+  unread: boolean;
+  createdAt: number;
+}
+
+export interface DirectMessage {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  text: string;
+  createdAt: number;
+  readAt: number | null;
+}

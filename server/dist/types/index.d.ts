@@ -460,14 +460,14 @@ export interface ServerToClientEvents {
     'voice:error': (data: {
         message: string;
     }) => void;
-    'voice:force-mute': (data: {
-        reason: string;
-    }) => void;
-    'voice:force-unmute': () => void;
     'voice:force-leave': (data: {
         channel: VoiceChannel;
         reason: string;
     }) => void;
+    'voice:force-mute': (data: {
+        reason: string;
+    }) => void;
+    'voice:force-unmute': () => void;
     'xp:gained': (data: XPGain) => void;
     'queue:position': (data: {
         position: number;
@@ -480,6 +480,13 @@ export interface ServerToClientEvents {
     'game:notification': (data: {
         title: string;
         body: string;
+    }) => void;
+    'online:count': (data: {
+        count: number;
+    }) => void;
+    'dm:new_message': (data: {
+        conversationId: string;
+        message: any;
     }) => void;
 }
 export interface ClientToServerEvents {
@@ -672,6 +679,24 @@ export interface ClientToServerEvents {
     'cosmetics:get': (data: {
         profileId: string;
     }, cb: Cb<PlayerCosmetics>) => void;
+    'player:public_profile': (data: {
+        profileId: string;
+    }, cb: Cb<any>) => void;
+    'dm:start': (data: {
+        profileId: string;
+    }, cb: Cb<any>) => void;
+    'dm:send': (data: {
+        conversationId: string;
+        text: string;
+    }, cb: Cb<any>) => void;
+    'dm:list': (data: Record<string, never>, cb: Cb<any[]>) => void;
+    'dm:messages': (data: {
+        conversationId: string;
+    }, cb: Cb<any[]>) => void;
+    'dm:mark_read': (data: {
+        conversationId: string;
+    }, cb: Cb<null>) => void;
+    'dm:unread_count': (data: Record<string, never>, cb: Cb<number>) => void;
 }
 export interface InterServerEvents {
 }

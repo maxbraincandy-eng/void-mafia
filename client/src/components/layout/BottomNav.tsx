@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import { useT } from '@/store/langStore';
+import { useSocialStore } from '@/store/socialStore';
 
 export type NavTab = 'rooms' | 'clans' | 'leaderboard' | 'profile' | 'mod';
 
@@ -7,10 +8,12 @@ interface Props {
   active: NavTab;
   isMod: boolean;
   onChange: (tab: NavTab) => void;
+  onMessagesClick: () => void;
 }
 
-export function BottomNav({ active, isMod, onChange }: Props) {
+export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
   const t = useT();
+  const { unreadDmCount, dmPanelOpen } = useSocialStore();
 
   const TABS: { id: NavTab; label: string; icon: string; modOnly?: boolean }[] = [
     { id: 'rooms',       label: t.nav.rooms,       icon: '⬡' },
@@ -61,6 +64,31 @@ export function BottomNav({ active, isMod, onChange }: Props) {
             </button>
           );
         })}
+
+        {/* Messages button */}
+        <button
+          onClick={onMessagesClick}
+          className={clsx(
+            'relative flex flex-col items-center justify-center py-3 px-4 flex-1 transition-all duration-200',
+            dmPanelOpen ? 'text-neon-pink' : 'text-white/25 hover:text-white/50',
+          )}
+        >
+          <span className={clsx(
+            'text-xl leading-none mb-1 transition-all',
+            dmPanelOpen && 'text-glow-pink',
+          )}>
+            ✉
+          </span>
+          <span className="text-[9px] font-mono tracking-wider uppercase">MSG</span>
+          {unreadDmCount > 0 && (
+            <span className="absolute top-2 right-[18%] bg-neon-pink text-void text-[8px] font-bold rounded-full min-w-[14px] h-3.5 flex items-center justify-center px-0.5 leading-none">
+              {unreadDmCount > 9 ? '9+' : unreadDmCount}
+            </span>
+          )}
+          {dmPanelOpen && (
+            <span className="absolute bottom-0 w-8 h-0.5 rounded-full bg-neon-pink" />
+          )}
+        </button>
       </div>
     </nav>
   );

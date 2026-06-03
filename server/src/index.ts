@@ -12,7 +12,7 @@ import { attachSocketHandlers } from './socket.js';
 import { getAllRooms, toRoomListItem, deleteRoom } from './services/roomService.js';
 import { timerService } from './services/timerService.js';
 import { getPlayer, toPublicProfile, getAllPlayers } from './services/playerService.js';
-import { DB_FILE_PATH } from './db.js';
+import { sql, initializeDatabase } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
@@ -52,8 +52,30 @@ app.get('/api/health', (_req, res) => {
     rooms: rooms.length,
     players: rooms.reduce((n, r) => n + r.players.size, 0),
     buildTime: BUILD_TIME,
-    dbPath: DB_FILE_PATH,
+    database: 'postgresql',
   });
+});
+
+app.get('/health/db', async (_req, res) => {
+  try {
+    const [userRow] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];
+    const [clanRow] = await sql`SELECT COUNT(*) as cnt FROM clans` as any[];
+    const [matchRow] = await sql`SELECT COUNT(*) as cnt FROM game_history` as any[];
+    const [achRow]  = await sql`SELECT COUNT(*) as cnt FROM player_achievements` as any[];
+    const [convRow] = await sql`SELECT COUNT(*) as cnt FROM conversations` as any[];
+    const [msgRow]  = await sql`SELECT COUNT(*) as cnt FROM direct_messages` as any[];
+    res.json({
+      ok: true,
+      database: { connected: true, provider: 'postgresql' },
+      counts: {
+        users: Number(userRow.cnt), clans: Number(clanRow.cnt),
+        matches: Number(matchRow.cnt), achievements: Number(achRow.cnt),
+        conversations: Number(convRow.cnt), messages: Number(msgRow.cnt),
+      },
+    });
+  } catch (e: any) {
+    res.status(503).json({ ok: false, database: { connected: false, error: e.message } });
+  }
 });
 
 // ── Rooms List ────────────────────────────────────────────────────────
@@ -65,8 +87,8 @@ app.get('/api/rooms', (_req, res) => {
 });
 
 // ── Player Profile ────────────────────────────────────────────────────
-app.get('/api/player/:id', (req, res) => {
-  const profile = getPlayer(req.params.id!);
+app.get('/api/player/:id', async (req, res) => {
+  const profile = await getPlayer(req.params.id!);
   if (!profile) { res.status(404).json({ ok: false, error: 'Not found' }); return; }
   res.json({ ok: true, data: toPublicProfile(profile) });
 });
@@ -94,20 +116,15 @@ if (IS_PROD) {
 }
 
 // ── Stale Room Cleanup ────────────────────────────────────────────────
-// Delete game_over rooms after 10 min, and lobby/game rooms with zero
-// connected players after 5 min (handles abandoned rooms / server restarts).
 const GAME_OVER_TTL  = 10 * 60 * 1000;  // 10 minutes
 const EMPTY_ROOM_TTL =  5 * 60 * 1000;  //  5 minutes
 
 setInterval(() => {
   const now = Date.now();
   for (const room of getAllRooms()) {
-    // Count connected (socket) players
     const connected = [...room.players.values()].filter(p => p.isConnected && p.socketId).length;
 
     if (room.phase === 'game_over') {
-      // Use maxTimer=0 as a proxy for when game_over was set (timer is already 0 at game_over)
-      // Instead track via room.createdAt vs now — just clean up after TTL since createdAt
       const gameOverSince = (room as any)._gameOverAt as number | undefined;
       if (gameOverSince && now - gameOverSince > GAME_OVER_TTL) {
         timerService.stop(room.id);
@@ -124,7 +141,6 @@ setInterval(() => {
         (room as any)._emptyAt = now;
       }
     } else {
-      // Room has connected players — reset the empty timer
       delete (room as any)._emptyAt;
     }
   }
@@ -134,9 +150,18 @@ setInterval(() => {
 attachSocketHandlers(io);
 
 // ── Start ─────────────────────────────────────────────────────────────
-httpServer.listen(PORT, () => {
-  console.log(`\n  VOID MAFIA server running on http://localhost:${PORT}`);
-  console.log(`  Mode: ${IS_PROD ? 'production' : 'development'}\n`);
+async function main() {
+  await initializeDatabase();
+
+  httpServer.listen(PORT, () => {
+    console.log(`\n  VOID MAFIA server running on http://localhost:${PORT}`);
+    console.log(`  Mode: ${IS_PROD ? 'production' : 'development'}\n`);
+  });
+}
+
+main().catch(err => {
+  console.error('[Startup] Fatal error:', err);
+  process.exit(1);
 });
 
 // Graceful shutdown

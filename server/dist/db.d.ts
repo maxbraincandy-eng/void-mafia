@@ -1,4 +1,6 @@
-import { type Database as DatabaseType } from 'better-sqlite3';
-export declare const DB_FILE_PATH: string;
-export declare const db: DatabaseType;
+import postgres from 'postgres';
+export declare const sql: postgres.Sql<{
+    bigint: number;
+}>;
+export declare function initializeDatabase(): Promise<void>;
 //# sourceMappingURL=db.d.ts.map

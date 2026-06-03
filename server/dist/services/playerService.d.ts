@@ -1,30 +1,30 @@
 import { PlayerProfile, PlayerProfilePublic, ModeratorLevel, BanRecord, MuteRecord, Warning, PlayerCosmetics } from '../types/index.js';
 export declare function getModPermissions(level: ModeratorLevel | null): string[];
-export declare function getPlayerByFriendCode(code: string): PlayerProfile | null;
-export declare function setGrantedModLevel(uid: string, level: ModeratorLevel | null): void;
+export declare function getPlayerByFriendCode(code: string): Promise<PlayerProfile | null>;
+export declare function setGrantedModLevel(uid: string, level: ModeratorLevel | null): Promise<void>;
 export declare function registerWithEmail(email: string, password: string, username: string): Promise<PlayerProfile>;
 export declare function authenticateWithEmail(email: string, password: string): Promise<PlayerProfile>;
-export declare function getOrCreatePlayer(uid: string, username: string): PlayerProfile;
-export declare function getPlayer(uid: string): PlayerProfile | null;
-export declare function getAllPlayers(): PlayerProfile[];
+export declare function getOrCreatePlayer(uid: string, username: string): Promise<PlayerProfile>;
+export declare function getPlayer(uid: string): Promise<PlayerProfile | null>;
+export declare function getAllPlayers(): Promise<PlayerProfile[]>;
 export declare function toPublicProfile(p: PlayerProfile): PlayerProfilePublic;
-export declare function addGameResult(uid: string, won: boolean): void;
-export declare function getActiveBan(uid: string): BanRecord | null;
-export declare function setBan(uid: string, record: BanRecord): void;
-export declare function clearBan(uid: string): void;
-export declare function getActiveMute(uid: string): MuteRecord | null;
-export declare function setMute(uid: string, record: MuteRecord): void;
-export declare function clearMute(uid: string): void;
-export declare function getWarnings(uid: string): Warning[];
-export declare function addWarning(uid: string, warning: Warning): void;
+export declare function addGameResult(uid: string, won: boolean): Promise<void>;
+export declare function getActiveBan(uid: string): Promise<BanRecord | null>;
+export declare function setBan(uid: string, record: BanRecord): Promise<void>;
+export declare function clearBan(uid: string): Promise<void>;
+export declare function getActiveMute(uid: string): Promise<MuteRecord | null>;
+export declare function setMute(uid: string, record: MuteRecord): Promise<void>;
+export declare function clearMute(uid: string): Promise<void>;
+export declare function getWarnings(uid: string): Promise<Warning[]>;
+export declare function addWarning(uid: string, warning: Warning): Promise<void>;
 export declare function findSocketByProfile(io: import('socket.io').Server, profileId: string): import('socket.io').Socket | null;
 export declare const LEVEL_THRESHOLDS: number[];
 export declare function getLevel(xp: number): number;
-export declare function addXP(profileId: string, amount: number): {
+export declare function addXP(profileId: string, amount: number): Promise<{
     newXP: number;
     newLevel: number;
     leveledUp: boolean;
-};
-export declare function getCosmetics(profileId: string): PlayerCosmetics;
-export declare function equipCosmetic(profileId: string, type: 'name_color' | 'frame', itemId: string | null): PlayerCosmetics;
+}>;
+export declare function getCosmetics(profileId: string): Promise<PlayerCosmetics>;
+export declare function equipCosmetic(profileId: string, type: 'name_color' | 'frame', itemId: string | null): Promise<PlayerCosmetics>;
 //# sourceMappingURL=playerService.d.ts.map
