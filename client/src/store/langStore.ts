@@ -9,7 +9,7 @@ interface LangStore {
 const KEY = 'void-mafia-lang';
 
 export const useLangStore = create<LangStore>((set) => ({
-  lang: (localStorage.getItem(KEY) as Lang | null) ?? 'en',
+  lang: (localStorage.getItem(KEY) as Lang | null) ?? 'ka',
   setLang: (lang) => {
     localStorage.setItem(KEY, lang);
     set({ lang });
