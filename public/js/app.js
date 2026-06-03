@@ -24,39 +24,13 @@ function emit(name,payload,timeout=7000){return new Promise(res=>{if(!App.socket
 function fmt(s){s=Number(s||0);return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}
 function level(u){return u?.level||Math.max(1,Math.floor(Number(u?.stats?.xp||0)/100)+1)}
 
-function ensureAudio(){if(App.audioCtx)return App.audioCtx;const Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)return null;App.audioCtx=new Ctx();return App.audioCtx}
-function playSfx(type='tap'){
-  if(!App.sfxOn) return;
-  const ctx=ensureAudio(); if(!ctx) return;
-  if(ctx.state==='suspended') ctx.resume().catch(()=>{});
-  const o=ctx.createOscillator(), g=ctx.createGain(), f=type==='ok'?740:type==='error'?140:360;
-  o.type=type==='error'?'sawtooth':'triangle'; o.frequency.setValueAtTime(f,ctx.currentTime); o.frequency.exponentialRampToValueAtTime(type==='error'?90:f*1.6,ctx.currentTime+.12);
-  g.gain.setValueAtTime(.0001,ctx.currentTime); g.gain.exponentialRampToValueAtTime(.055,ctx.currentTime+.015); g.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.16);
-  o.connect(g).connect(ctx.destination); o.start(); o.stop(ctx.currentTime+.18);
-}
-function startMusic(){
-  if(!App.musicOn || App.room) return;
-  const ctx=ensureAudio(); if(!ctx || App.musicNodes) return;
-  if(ctx.state==='suspended') ctx.resume().catch(()=>{});
-  const master=ctx.createGain(); master.gain.value=.045; master.connect(ctx.destination);
-  const delay=ctx.createDelay(); delay.delayTime.value=.28;
-  const feedback=ctx.createGain(); feedback.gain.value=.22;
-  delay.connect(feedback); feedback.connect(delay); delay.connect(master);
-  const notes=[110,146.83,174.61,220,261.63,220,174.61,146.83];
-  let step=0;
-  const interval=setInterval(()=>{
-    if(!App.musicOn || App.room){stopMusic();return}
-    const o=ctx.createOscillator(), g=ctx.createGain();
-    o.type='sawtooth'; o.frequency.value=notes[step%notes.length];
-    g.gain.setValueAtTime(.0001,ctx.currentTime); g.gain.exponentialRampToValueAtTime(.08,ctx.currentTime+.025); g.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.32);
-    o.connect(g); g.connect(master); g.connect(delay); o.start(); o.stop(ctx.currentTime+.38); step++;
-  },360);
-  App.musicNodes={master,delay,feedback,interval};
-}
-function stopMusic(){if(!App.musicNodes)return;clearInterval(App.musicNodes.interval);try{App.musicNodes.master.disconnect()}catch(e){} App.musicNodes=null}
-function syncAudioButtons(){if($('musicToggleBtn'))$('musicToggleBtn').textContent='Music: '+(App.musicOn?'ON':'OFF');if($('sfxToggleBtn'))$('sfxToggleBtn').textContent='SFX: '+(App.sfxOn?'ON':'OFF')}
+function ensureAudio(){return null} // audio disabled — use React app
+function playSfx(){}
+function startMusic(){}
+function stopMusic(){}
+function syncAudioButtons(){if($('musicToggleBtn'))$('musicToggleBtn').textContent='Music: OFF';if($('sfxToggleBtn'))$('sfxToggleBtn').textContent='SFX: OFF'}
 
-window.addEventListener('pointerdown',()=>startMusic(),{once:true});
+// audio pointerdown listener removed
 document.addEventListener('click',e=>{if(e.target.closest('button'))playSfx('tap')});
 document.addEventListener('DOMContentLoaded', init);
 

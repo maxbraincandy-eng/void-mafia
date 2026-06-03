@@ -580,7 +580,7 @@ function glitchTransition(cb){
   setTimeout(()=>el.classList.remove("active"),350);
 }
 
-/* ── AUDIO ── */
+/* ── AUDIO — sub-bass and feedback removed, all notes ≥ 220 Hz ── */
 let audioCtx=null;
 function audio(){
   if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
@@ -594,43 +594,42 @@ function beep(type="tap"){
     const ctx=audio(),now=ctx.currentTime;
     if(type==="navigate"){
       const o=ctx.createOscillator(),g=ctx.createGain();
-      o.type="sawtooth";
-      o.frequency.setValueAtTime(300,now);
-      o.frequency.exponentialRampToValueAtTime(900,now+0.06);
-      o.frequency.exponentialRampToValueAtTime(120,now+0.14);
-      g.gain.setValueAtTime(0.06,now);g.gain.exponentialRampToValueAtTime(0.001,now+0.18);
+      o.type="triangle";
+      o.frequency.setValueAtTime(440,now);
+      o.frequency.exponentialRampToValueAtTime(880,now+0.06);
+      g.gain.setValueAtTime(0.04,now);g.gain.exponentialRampToValueAtTime(0.001,now+0.15);
       o.connect(g);g.connect(ctx.destination);
-      o.start(now);o.stop(now+0.2);
+      o.start(now);o.stop(now+0.18);
     } else if(type==="msg"){
       [880,1320].forEach((f,i)=>{
         const o=ctx.createOscillator(),g=ctx.createGain();
         o.type="sine";o.frequency.value=f;
-        g.gain.setValueAtTime(0.001,now+i*0.07);g.gain.linearRampToValueAtTime(0.05,now+i*0.07+0.01);g.gain.exponentialRampToValueAtTime(0.001,now+i*0.07+0.14);
+        g.gain.setValueAtTime(0.001,now+i*0.07);g.gain.linearRampToValueAtTime(0.04,now+i*0.07+0.01);g.gain.exponentialRampToValueAtTime(0.001,now+i*0.07+0.14);
         o.connect(g);g.connect(ctx.destination);o.start(now+i*0.07);o.stop(now+i*0.07+0.16);
       });
     } else if(type==="start"){
-      [110,165,220,330,440,660].forEach((f,i)=>{
+      [220,330,440,660,880,1100].forEach((f,i)=>{
         const o=ctx.createOscillator(),g=ctx.createGain();
-        o.type=i<3?"sawtooth":"triangle";o.frequency.value=f;
-        g.gain.setValueAtTime(0.001,now+i*0.075);g.gain.linearRampToValueAtTime(0.065,now+i*0.075+0.025);g.gain.exponentialRampToValueAtTime(0.001,now+i*0.075+0.22);
+        o.type="triangle";o.frequency.value=f;
+        g.gain.setValueAtTime(0.001,now+i*0.075);g.gain.linearRampToValueAtTime(0.05,now+i*0.075+0.025);g.gain.exponentialRampToValueAtTime(0.001,now+i*0.075+0.22);
         o.connect(g);g.connect(ctx.destination);o.start(now+i*0.075);o.stop(now+i*0.075+0.26);
       });
     } else if(type==="error"){
       const o=ctx.createOscillator(),g=ctx.createGain();
-      o.type="sawtooth";o.frequency.setValueAtTime(90,now);o.frequency.exponentialRampToValueAtTime(45,now+0.16);
-      g.gain.setValueAtTime(0.08,now);g.gain.exponentialRampToValueAtTime(0.001,now+0.2);
+      o.type="triangle";o.frequency.setValueAtTime(330,now);o.frequency.exponentialRampToValueAtTime(220,now+0.16);
+      g.gain.setValueAtTime(0.06,now);g.gain.exponentialRampToValueAtTime(0.001,now+0.2);
       o.connect(g);g.connect(ctx.destination);o.start(now);o.stop(now+0.22);
     } else if(type==="night"){
-      [55,82,110].forEach((f,i)=>{
+      [220,330,440].forEach((f,i)=>{
         const o=ctx.createOscillator(),g=ctx.createGain();
         o.type="sine";o.frequency.value=f;
-        g.gain.setValueAtTime(0.001,now+i*0.1);g.gain.linearRampToValueAtTime(0.04,now+i*0.1+0.1);g.gain.exponentialRampToValueAtTime(0.001,now+i*0.1+0.5);
+        g.gain.setValueAtTime(0.001,now+i*0.1);g.gain.linearRampToValueAtTime(0.035,now+i*0.1+0.1);g.gain.exponentialRampToValueAtTime(0.001,now+i*0.1+0.5);
         o.connect(g);g.connect(ctx.destination);o.start(now+i*0.1);o.stop(now+i*0.1+0.6);
       });
     } else {
       const o=ctx.createOscillator(),g=ctx.createGain();
-      o.type="triangle";o.frequency.value=640;
-      g.gain.setValueAtTime(0.001,now);g.gain.linearRampToValueAtTime(0.045,now+0.007);g.gain.exponentialRampToValueAtTime(0.001,now+0.055);
+      o.type="triangle";o.frequency.value=880;
+      g.gain.setValueAtTime(0.001,now);g.gain.linearRampToValueAtTime(0.035,now+0.007);g.gain.exponentialRampToValueAtTime(0.001,now+0.055);
       o.connect(g);g.connect(ctx.destination);o.start(now);o.stop(now+0.07);
     }
   }catch(e){}

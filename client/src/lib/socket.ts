@@ -37,9 +37,7 @@ export function emitWithAck<TData, TRes>(
       resolve(res);
     };
 
-    // Never pass undefined/null as data — Socket.IO serialises it to null,
-    // and the server handler (cb) => {} would receive null as its first arg
-    // instead of the ack callback, causing the ack to never fire.
+    // When no data, pass only the ack callback so server (cb) => handlers work correctly.
     if (data !== undefined && data !== null) {
       socket.emit(event as any, data, cb);
     } else {

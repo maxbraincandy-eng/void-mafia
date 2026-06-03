@@ -65,9 +65,12 @@ export function LeaderboardModal({ open, onClose }: Props) {
                 {players.map((p, i) => (
                   <div key={p.id} className="flex items-center gap-3 p-2 rounded-xl bg-white/5 border border-white/6">
                     <span className="text-lg w-6 text-center">{medals[i] ?? `${i + 1}`}</span>
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold overflow-hidden"
                       style={{ background: 'rgba(255,255,255,0.1)' }}>
-                      {p.avatar}
+                      {p.avatarUrl
+                        ? <img src={p.avatarUrl} alt={p.username} className="w-full h-full object-cover rounded-full" />
+                        : p.avatar
+                      }
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-white font-mono truncate">{p.username}</p>

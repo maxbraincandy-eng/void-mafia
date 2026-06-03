@@ -5,15 +5,22 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import { attachSocketHandlers } from './socket.js';
+import cookieParser from 'cookie-parser';
+import session from 'express-session';
+import passport from 'passport';
+import { attachSocketHandlers, setDbReady } from './socket.js';
 import { getAllRooms, toRoomListItem, deleteRoom } from './services/roomService.js';
 import { timerService } from './services/timerService.js';
 import { getPlayer, toPublicProfile } from './services/playerService.js';
 import { sql, initializeDatabase } from './db.js';
+import { configurePassport, createAuthRouter } from './auth.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
+console.log('[Startup] Void Mafia server starting');
+console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
+console.log(`[Startup] PORT=${PORT}`);
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
@@ -32,43 +39,66 @@ app.use(cors({
     origin: IS_PROD ? false : CLIENT_URL,
     credentials: true,
 }));
+app.use(cookieParser());
+app.use(session({
+    secret: process.env.AUTH_SESSION_SECRET ?? 'void-mafia-dev-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        httpOnly: true,
+        secure: IS_PROD,
+        sameSite: IS_PROD ? 'none' : 'lax',
+        maxAge: 10 * 60 * 1000, // 10 minutes — just long enough for OAuth callback
+    },
+}));
+app.use(passport.initialize());
+configurePassport();
+app.use('/api/auth', createAuthRouter());
 app.use(express.json());
-// ── Health Check ──────────────────────────────────────────────────────
+// ── Lightweight health endpoint (no DB dependency) ────────────────────
+// Railway healthcheck hits this — must always respond 200 instantly.
 const BUILD_TIME = new Date().toISOString();
 let dbReady = false;
-// Mark DB as ready once init completes (set below after initializeDatabase resolves)
-app.get('/api/health', (_req, res) => {
-    const rooms = getAllRooms();
+app.get('/health', (_req, res) => {
     res.json({
         ok: true,
+        service: 'void-mafia',
         uptime: process.uptime(),
-        rooms: rooms.length,
-        players: rooms.reduce((n, r) => n + r.players.size, 0),
+        timestamp: new Date().toISOString(),
+    });
+});
+// Keep /api/health for backward compatibility
+app.get('/api/health', (_req, res) => {
+    res.json({
+        ok: true,
+        service: 'void-mafia',
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
         buildTime: BUILD_TIME,
         database: 'postgresql',
         dbReady,
     });
 });
+// ── DB health (separate — may be slow) ───────────────────────────────
 app.get('/health/db', async (_req, res) => {
     try {
         const [userRow] = await sql `SELECT COUNT(*) as cnt FROM players`;
         const [clanRow] = await sql `SELECT COUNT(*) as cnt FROM clans`;
         const [matchRow] = await sql `SELECT COUNT(*) as cnt FROM game_history`;
-        const [achRow] = await sql `SELECT COUNT(*) as cnt FROM player_achievements`;
         const [convRow] = await sql `SELECT COUNT(*) as cnt FROM conversations`;
-        const [msgRow] = await sql `SELECT COUNT(*) as cnt FROM direct_messages`;
         res.json({
             ok: true,
-            database: { connected: true, provider: 'postgresql' },
+            connected: true,
             counts: {
-                users: Number(userRow.cnt), clans: Number(clanRow.cnt),
-                matches: Number(matchRow.cnt), achievements: Number(achRow.cnt),
-                conversations: Number(convRow.cnt), messages: Number(msgRow.cnt),
+                users: Number(userRow.cnt),
+                clans: Number(clanRow.cnt),
+                matches: Number(matchRow.cnt),
+                conversations: Number(convRow.cnt),
             },
         });
     }
     catch (e) {
-        res.status(503).json({ ok: false, database: { connected: false, error: e.message } });
+        res.status(503).json({ ok: false, connected: false, error: e.message });
     }
 });
 // ── Rooms List ────────────────────────────────────────────────────────
@@ -90,12 +120,10 @@ app.get('/api/player/:id', async (req, res) => {
 // ── Serve built client in production ─────────────────────────────────
 if (IS_PROD) {
     const clientDist = path.resolve(__dirname, '../../client/dist');
-    // Hashed assets (index-abc123.js) can be cached for a year
     app.use(express.static(clientDist, {
         maxAge: '1y',
         immutable: true,
         setHeaders: (res, filePath) => {
-            // index.html must never be cached so browsers always get the latest
             if (filePath.endsWith('index.html')) {
                 res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
             }
@@ -107,8 +135,8 @@ if (IS_PROD) {
     });
 }
 // ── Stale Room Cleanup ────────────────────────────────────────────────
-const GAME_OVER_TTL = 10 * 60 * 1000; // 10 minutes
-const EMPTY_ROOM_TTL = 5 * 60 * 1000; //  5 minutes
+const GAME_OVER_TTL = 10 * 60 * 1000;
+const EMPTY_ROOM_TTL = 5 * 60 * 1000;
 setInterval(() => {
     const now = Date.now();
     for (const room of getAllRooms()) {
@@ -136,39 +164,34 @@ setInterval(() => {
             delete room._emptyAt;
         }
     }
-}, 60000); // check every minute
+}, 60000);
 // ── Socket.IO ─────────────────────────────────────────────────────────
 attachSocketHandlers(io);
-// ── Start — listen immediately so Railway healthcheck passes ──────────
-httpServer.listen(PORT, () => {
-    console.log(`\n  VOID MAFIA server running on http://localhost:${PORT}`);
-    console.log(`  Mode: ${IS_PROD ? 'production' : 'development'}\n`);
+console.log('[Socket.IO] ready');
+// ── Start — bind to 0.0.0.0 so Railway can reach the process ─────────
+// Listen FIRST so the healthcheck at /api/health responds immediately.
+// DB init runs async in the background.
+httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`[Startup] Server listening on 0.0.0.0:${PORT}`);
+    console.log(`[Startup] Health endpoint ready at /health and /api/health`);
 });
-// Database initialises async after the server is already listening.
-// Railway healthcheck hits /api/health and gets a response straight away.
-initializeDatabase().then(() => {
-    dbReady = true;
-    console.log('[Startup] Database ready.');
-}).catch(err => {
-    console.error('[Startup] Database init failed:', err.message);
-    // Delay exit by 8 s so Railway's healthcheck at /health can respond 200
-    // at least once before the process dies and triggers a restart.
-    // Without the delay, the process exits before the first healthcheck fires
-    // and Railway marks the deployment as permanently failed.
-    setTimeout(() => {
-        console.error('[Startup] Exiting now for Railway restart.');
-        process.exit(1);
-    }, 8000);
-});
-// Graceful shutdown
-process.on('SIGTERM', () => {
-    httpServer.close(() => process.exit(0));
-});
-// Prevent crash on unhandled errors — log and continue
-process.on('uncaughtException', (err) => {
-    console.error('[uncaughtException]', err);
-});
-process.on('unhandledRejection', (reason) => {
-    console.error('[unhandledRejection]', reason);
-});
+async function tryInitDb(attempt = 1) {
+    try {
+        await initializeDatabase();
+        dbReady = true;
+        setDbReady(true);
+        console.log('[Startup] Database ready.');
+    }
+    catch (err) {
+        console.error(`[Startup] DB init attempt ${attempt} failed: ${err.message}`);
+        console.error('[Startup] Server stays alive. Retrying in 30s...');
+        console.error('[Startup] ACTION REQUIRED: Link the Postgres service to @void-mafia/server in Railway dashboard → Variables → Add Reference → Postgres → DATABASE_URL');
+        setTimeout(() => tryInitDb(attempt + 1), 30000);
+    }
+}
+tryInitDb();
+// ── Graceful shutdown ─────────────────────────────────────────────────
+process.on('SIGTERM', () => { httpServer.close(() => process.exit(0)); });
+process.on('uncaughtException', (err) => console.error('[uncaughtException]', err));
+process.on('unhandledRejection', (reason) => console.error('[unhandledRejection]', reason));
 //# sourceMappingURL=index.js.map

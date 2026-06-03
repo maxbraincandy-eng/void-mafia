@@ -193,6 +193,13 @@ export const useGameStore = create<GameStore>((set, get) => {
     set({ spyReport: data });
   });
 
+  (socket as any).on('game:yakuza_ally', ({ allyRole, allyName }: { allyRole: string; allyId: string | null; allyName: string | null }) => {
+    if (allyName) {
+      const roleLabel = allyRole === 'shogun' ? 'Shogun' : 'Yakuza';
+      get().addToast(`🐉 Your ${roleLabel}: ${allyName}`, 'info');
+    }
+  });
+
   socket.on('game:over', (result: GameOverResult) => {
     set({ gameOverResult: result });
   });

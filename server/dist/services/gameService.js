@@ -17,8 +17,9 @@ export function startGame(room) {
     }
     const r = room.settings.roles;
     const mafiaTotal = (r.mafia ?? 0) + (r.don ?? 0);
+    const yakuzaTotal = (r.yakuza ?? 0) + (r.shogun ?? 0);
     let deck;
-    if (mafiaTotal === 0) {
+    if (mafiaTotal === 0 && yakuzaTotal === 0) {
         deck = buildAutoRoleDeck(count);
     }
     else {
@@ -223,8 +224,9 @@ export function resolveNight(room) {
     const mafiaKills = actions.filter(a => a.role === 'mafia' || a.role === 'don').map(a => a.targetId);
     const maniacKills = actions.filter(a => a.role === 'maniac').map(a => a.targetId);
     const vigilanteKills = actions.filter(a => a.role === 'vigilante').map(a => a.targetId);
+    const yakuzaKills = actions.filter(a => a.role === 'yakuza').map(a => a.targetId);
     // Skip veteran-alerted targets (veteran kills them already; or veteran is immune while on alert)
-    const killIntents = [...mafiaKills, ...maniacKills, ...vigilanteKills].filter(id => !alertedVeterans.has(id));
+    const killIntents = [...mafiaKills, ...maniacKills, ...vigilanteKills, ...yakuzaKills].filter(id => !alertedVeterans.has(id));
     for (const targetId of killIntents) {
         const target = room.players.get(targetId);
         if (!target || !target.isAlive)
@@ -297,6 +299,10 @@ export function submitNightAction(room, actor, targetId) {
             throw new Error('You cannot recruit yourself.');
         if (target.team === 'cult')
             throw new Error('Already a cult member.');
+    }
+    // Yakuza cannot target fellow yakuza (Shogun is an ally)
+    if (actor.role === 'yakuza' && target.team === 'yakuza') {
+        throw new Error('You cannot target a fellow Yakuza member.');
     }
     room.nightActions.set(actor.id, {
         actorId: actor.id,
@@ -399,29 +405,40 @@ export function checkWin(room) {
     const cultAlive = alive.filter(p => p.team === 'cult').length;
     const cultLeaderAlive = alive.some(p => p.role === 'cult_leader');
     const neutralAlive = alive.filter(p => p.team === 'neutral').length;
+    const yakuzaAlive = alive.filter(p => p.team === 'yakuza').length;
+    const yakuzaKillerAlive = alive.some(p => p.role === 'yakuza');
     if (process.env.NODE_ENV !== 'production') {
-        console.log(`[WinCheck] phase=${room.phase} mafia=${mafiaAlive} town=${townAlive} cult=${cultAlive} neutral=${neutralAlive}`);
+        console.log(`[WinCheck] phase=${room.phase} mafia=${mafiaAlive} town=${townAlive} cult=${cultAlive} neutral=${neutralAlive} yakuza=${yakuzaAlive}`);
     }
     // Cult win: leader alive and cult outnumbers everyone else
-    if (cultLeaderAlive && cultAlive >= mafiaAlive + townAlive + neutralAlive && cultAlive > 0) {
+    if (cultLeaderAlive && cultAlive >= mafiaAlive + townAlive + neutralAlive + yakuzaAlive && cultAlive > 0) {
         room.winner = 'cult';
         return true;
     }
-    // Maniac/Arsonist solo win: only neutral left
-    if (neutralAlive >= 1 && mafiaAlive === 0 && townAlive === 0 && cultAlive === 0) {
+    // Maniac/Arsonist solo win: only neutral left (no other threatening factions)
+    if (neutralAlive >= 1 && mafiaAlive === 0 && townAlive === 0 && cultAlive === 0 && yakuzaAlive === 0) {
         room.winner = 'neutral';
         return true;
     }
-    // Town wins: all mafia and cult eliminated
-    if (mafiaAlive === 0 && cultAlive === 0) {
+    // Yakuza win: Yakuza team count >= all opposing alive players
+    // Shogun alone can also win by final parity (no active killer needed for the last step)
+    if (yakuzaAlive > 0 && yakuzaAlive >= mafiaAlive + townAlive + neutralAlive + cultAlive) {
+        room.winner = 'yakuza';
+        return true;
+    }
+    // Yakuza faction is completely dead — check remaining factions without yakuza
+    // Town wins: all mafia, cult, and yakuza eliminated
+    if (mafiaAlive === 0 && cultAlive === 0 && yakuzaAlive === 0) {
         room.winner = 'town';
         return true;
     }
-    // Mafia wins: mafia count equals or exceeds all others
-    if (mafiaAlive >= townAlive + neutralAlive + cultAlive) {
+    // Mafia wins: mafia count equals or exceeds all others (including yakuza)
+    if (mafiaAlive >= townAlive + neutralAlive + cultAlive + yakuzaAlive) {
         room.winner = 'mafia';
         return true;
     }
+    // Suppress unused variable warning — yakuzaKillerAlive is informational only
+    void yakuzaKillerAlive;
     return false;
 }
 export function buildGameOverResult(room) {

@@ -30,6 +30,8 @@ export const DEFAULT_SETTINGS = {
         tracker: 0,
         arsonist: 0,
         mayor: 0,
+        yakuza: 0,
+        shogun: 0,
     },
 };
 // ── CRUD ──────────────────────────────────────────────────────────────
@@ -40,6 +42,7 @@ export function createRoom(hostSocketId, hostName, profileId, settings) {
         id: generateId(),
         name: hostName.trim().slice(0, 24) || 'Player',
         avatar: nameToAvatar(hostName),
+        avatarUrl: null,
         socketId: hostSocketId,
         isHost: true,
         isAlive: true,
@@ -129,6 +132,7 @@ export function addPlayer(room, socketId, name, profileId) {
         id: generateId(),
         name: name.trim().slice(0, 24) || 'Player',
         avatar: nameToAvatar(name),
+        avatarUrl: null,
         socketId,
         isHost: false,
         isAlive: true,
@@ -212,6 +216,7 @@ export function toPublicRoom(room, viewerPlayerId) {
         socketId: p.socketId,
         name: p.name,
         avatar: p.avatar,
+        avatarUrl: p.avatarUrl,
         isHost: p.isHost,
         isAlive: p.isAlive,
         isConnected: p.isConnected,
@@ -298,6 +303,13 @@ function reassignSeats(room) {
 }
 export function getAllRooms() {
     return [...rooms.values()];
+}
+export function setPlayerAvatarUrl(room, profileId, avatarUrl) {
+    for (const p of room.players.values()) {
+        if (p.profileId === profileId) {
+            p.avatarUrl = avatarUrl;
+        }
+    }
 }
 // ── Rematch: reset room to lobby keeping players ───────────────────────
 export function rematchRoom(room) {

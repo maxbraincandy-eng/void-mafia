@@ -17,7 +17,7 @@ interface RoleMeta {
 
 const ROLE_GROUPS: Array<{
   label: string;
-  team: 'mafia' | 'town' | 'neutral' | 'cult';
+  team: 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
   color: string;
   borderColor: string;
   bgColor: string;
@@ -62,6 +62,14 @@ const ROLE_GROUPS: Array<{
       { key: 'cult_leader', name: 'Cult Leader', icon: '🕯️', desc: 'Recruits players to cult each night. Wins when cult dominates.', max: 1 },
     ],
   },
+  {
+    label: 'YAKUZA', team: 'yakuza',
+    color: 'text-red-400', borderColor: 'border-red-500/30', bgColor: 'bg-red-950/20',
+    roles: [
+      { key: 'yakuza', name: 'Yakuza', icon: '🐉', desc: 'Kills one player each night. Checks as suspicious. Knows the Shogun.', max: 1 },
+      { key: 'shogun', name: 'Shogun', icon: '⚔️', desc: 'Hidden Yakuza ally. Checks as innocent. Cannot kill. Wins with Yakuza.', max: 1 },
+    ],
+  },
 ];
 
 // ── Balance computation ────────────────────────────────────────────────
@@ -72,27 +80,30 @@ function computeBalance(roles: GameSettings['roles'], playerCount: number) {
                   (roles.veteran ?? 0) + (roles.tracker ?? 0) + (roles.mayor ?? 0);
   const neutral = (roles.maniac ?? 0) + (roles.jester ?? 0) + (roles.arsonist ?? 0);
   const cult    = roles.cult_leader ?? 0;
-  const specified = mafia + town + neutral + cult;
+  const yakuza  = (roles.yakuza ?? 0) + (roles.shogun ?? 0);
+  const specified = mafia + town + neutral + cult + yakuza;
   const citizens  = Math.max(0, playerCount - specified);
   const totalTown = town + citizens;
 
-  const isAutoMode = mafia === 0 && specified === 0;
+  const isAutoMode = mafia === 0 && yakuza === 0 && specified === 0;
   const overflow   = specified > playerCount;
-  const isValid    = !overflow && (isAutoMode || (mafia > 0 && mafia < playerCount - mafia));
+  const shogunWithoutYakuza = (roles.shogun ?? 0) > 0 && (roles.yakuza ?? 0) === 0;
+  const isValid    = !overflow && !shogunWithoutYakuza && (isAutoMode || (mafia > 0 && mafia < playerCount - mafia));
 
-  return { mafia, totalTown, neutral, cult, citizens, specified, isAutoMode, overflow, isValid };
+  return { mafia, totalTown, neutral, cult, yakuza, citizens, specified, isAutoMode, overflow, shogunWithoutYakuza, isValid };
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────
 function BalanceBar({ roles, playerCount }: { roles: GameSettings['roles']; playerCount: number }) {
   const b = computeBalance(roles, playerCount);
-  const total = b.mafia + b.totalTown + b.neutral + b.cult;
+  const total = b.mafia + b.totalTown + b.neutral + b.cult + b.yakuza;
 
   const segments = [
     { val: b.mafia,    color: '#ff00cc', label: 'Mafia',   glow: 'rgba(255,0,204,0.5)' },
     { val: b.totalTown, color: '#00e5ff', label: 'Town',   glow: 'rgba(0,229,255,0.4)' },
     { val: b.neutral,  color: '#9b00ff', label: 'Neutral', glow: 'rgba(155,0,255,0.4)' },
     { val: b.cult,     color: '#c026d3', label: 'Cult',    glow: 'rgba(192,38,211,0.4)' },
+    { val: b.yakuza,   color: '#ef4444', label: 'Yakuza',  glow: 'rgba(239,68,68,0.5)' },
   ].filter(s => s.val > 0);
 
   const statusColor = b.isAutoMode ? '#00e5ff' : b.isValid ? '#00ff88' : '#ff2d55';
@@ -101,11 +112,13 @@ function BalanceBar({ roles, playerCount }: { roles: GameSettings['roles']; play
     ? `Auto: ${playerCount} players will be auto-assigned`
     : b.overflow
       ? `Too many roles (${b.specified}) for ${playerCount} players`
-      : b.mafia === 0
-        ? 'Add at least 1 Mafia role'
-        : !b.isValid
-          ? `Mafia (${b.mafia}) must be less than Town (${playerCount - b.mafia})`
-          : `Valid: ${b.mafia}M · ${b.totalTown}T${b.neutral ? ` · ${b.neutral}N` : ''}${b.cult ? ` · ${b.cult}C` : ''}${b.citizens ? ` · ${b.citizens}★` : ''}`;
+      : b.shogunWithoutYakuza
+        ? 'Invalid: Shogun requires at least 1 Yakuza'
+        : b.mafia === 0 && b.yakuza === 0
+          ? 'Add at least 1 Mafia or Yakuza role'
+          : !b.isValid
+            ? `Mafia (${b.mafia}) must be less than Town (${playerCount - b.mafia})`
+            : `Valid: ${b.mafia ? `${b.mafia}M · ` : ''}${b.totalTown}T${b.neutral ? ` · ${b.neutral}N` : ''}${b.cult ? ` · ${b.cult}C` : ''}${b.yakuza ? ` · ${b.yakuza}Y` : ''}${b.citizens ? ` · ${b.citizens}★` : ''}`;
 
   return (
     <div className="mb-5">
@@ -301,6 +314,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
         bodyguard: 0, spy: 0, vigilante: 0, escort: 0,
         maniac: 0, jester: 0, cult_leader: 0,
         veteran: 0, tracker: 0, arsonist: 0, mayor: 0,
+        yakuza: 0, shogun: 0,
       },
     }));
   };

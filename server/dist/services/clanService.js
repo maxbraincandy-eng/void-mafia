@@ -50,7 +50,7 @@ export async function getAllClans() {
 }
 export async function getClanMembers(clanId) {
     const rows = await sql `
-    SELECT cm.player_id, cm.role, cm.joined_at, p.username, p.avatar
+    SELECT cm.player_id, cm.role, cm.joined_at, p.username, p.avatar, p.avatar_url, p.public_id
     FROM clan_members cm
     JOIN players p ON p.id = cm.player_id
     WHERE cm.clan_id = ${clanId}
@@ -60,6 +60,8 @@ export async function getClanMembers(clanId) {
   `;
     return rows.map((r) => ({
         playerId: r.player_id, username: r.username, avatar: r.avatar,
+        avatarUrl: r.avatar_url ?? null,
+        publicId: r.public_id != null ? Number(r.public_id) : null,
         role: r.role, joinedAt: Number(r.joined_at),
     }));
 }

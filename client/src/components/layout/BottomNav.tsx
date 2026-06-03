@@ -15,6 +15,7 @@ export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
   const t = useT();
   const { unreadDmCount, dmPanelOpen } = useSocialStore();
 
+  // Order: ოთახები · კლანები · ტოპი · პროფილი · (mod) — MSG always last
   const TABS: { id: NavTab; label: string; icon: string; modOnly?: boolean }[] = [
     { id: 'rooms',       label: t.nav.rooms,       icon: '⬡' },
     { id: 'clans',       label: t.nav.clans,       icon: '⚔' },
@@ -65,7 +66,7 @@ export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
           );
         })}
 
-        {/* Messages button */}
+        {/* Messages — last position */}
         <button
           onClick={onMessagesClick}
           className={clsx(
@@ -74,10 +75,13 @@ export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
           )}
         >
           <span className={clsx(
-            'text-xl leading-none mb-1 transition-all',
+            'leading-none mb-1 transition-all flex items-center justify-center',
             dmPanelOpen && 'text-glow-pink',
           )}>
-            ✉
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
           </span>
           <span className="text-[9px] font-mono tracking-wider uppercase">MSG</span>
           {unreadDmCount > 0 && (

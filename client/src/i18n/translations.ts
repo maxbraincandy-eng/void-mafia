@@ -138,6 +138,7 @@ export const TRANSLATIONS = {
         veteran: 'Go on alert to shoot anyone who visits your home tonight.',
         arsonist: 'Douse a player with accelerant, or ignite all doused targets at once.',
         cult_leader: 'Convert a player into a Cultist — grow your congregation.',
+        yakuza: 'Choose a target to eliminate. You cannot target your Shogun ally.',
       },
       day: {
         title: 'Day',
@@ -281,6 +282,8 @@ export const TRANSLATIONS = {
         tracker: 'Tracker',
         arsonist: 'Arsonist',
         mayor: 'Mayor',
+        yakuza: 'Yakuza',
+        shogun: 'Shogun',
       },
     },
     roleGuide: {
@@ -307,13 +310,16 @@ export const TRANSLATIONS = {
         jester:      { desc: "A fool who wants to be caught. Make them vote you out.",                            ability: "No night ability — convince the town you're suspicious and get voted out.",                   win: 'Be eliminated by the town vote (not by a night kill).' },
         cult_leader: { desc: 'A zealot building a secret congregation in the dark.',                               ability: 'Each night, convert one non-cult player into a Cultist.',                                    win: 'Cult must outnumber all other factions combined.' },
         cultist:     { desc: "A converted follower serving the Cult Leader's vision.",                            ability: "No active ability — support the Cult Leader's expansion.",                                  win: 'Cult must outnumber all other factions combined.' },
+        yakuza:      { desc: 'Enforcer of the Yakuza clan. You kill at night and know your hidden ally, the Shogun.', ability: 'Each night, eliminate one player. You cannot target your Shogun.', win: 'Yakuza team must equal or outnumber all remaining players.' },
+        shogun:      { desc: 'The hidden blade of the Yakuza. You appear innocent to investigators but win with the Yakuza.', ability: 'No night kill. You are hidden support — your true allegiance is secret.', win: 'Yakuza team must equal or outnumber all remaining players.' },
       },
       winSummary: {
-        town:   'Eliminate all Mafia and Cult.',
+        town:   'Eliminate all Mafia, Cult, and Yakuza.',
         mafia:  'Equal or outnumber the town.',
         cult:   'Outnumber all other factions.',
         maniac: 'Be the last one standing.',
         jester: 'Get voted out by the town.',
+        yakuza: 'Yakuza team must equal or outnumber all remaining players.',
       },
     },
     common: {
@@ -464,6 +470,7 @@ export const TRANSLATIONS = {
         veteran: 'განგაში გამოაცხადე — ვინც ამ ღამით შეგესახება, დაიღუპება.',
         arsonist: 'შეასხი საწვავი ან ააალე ყველა გადასხული სამიზნე.',
         cult_leader: 'გადააბირე მოთამაშე კულტში — გაზარდე შენი ბრბო.',
+        yakuza: 'აირჩიე სამიზნე. შოგუნს ვერ ადევნებ.',
       },
       day: {
         title: 'დღე',
@@ -607,6 +614,8 @@ export const TRANSLATIONS = {
         tracker: 'თვალთვალი',
         arsonist: 'მეხანძრე',
         mayor: 'მერი',
+        yakuza: 'იაკუზა',
+        shogun: 'შოგუნი',
       },
     },
     roleGuide: {
@@ -633,13 +642,16 @@ export const TRANSLATIONS = {
         jester:      { desc: 'სულელი, ვინც დაჭერას ეძებს. დაარწმუნე ქალაქი, გაგყარონ.',                                    ability: 'ღამის ქმედება არ გაქვს — ითამაშე საეჭვოდ, ქალაქი გაგყაროს.',                                     win: 'ქალაქის კენჭისყრით გარიყე (არა ღამის მოკვლით).' },
         cult_leader: { desc: 'ფანატიკოსი, ბნელში საიდუმლო კრებულს ქმნის.',                                                  ability: 'ყოველ ღამეს გადააბირე ერთი ადამიანი კულტისტად — გაზარდე კრებული.',                              win: 'კულტმა ყველა სხვა ფრაქციაზე ჯამში მეტი უნდა შეადგინოს.' },
         cultist:     { desc: 'გადაბირებული მიმდევარი, კულტის ლიდერის ხედვით შეპყრობილი.',                                   ability: 'ქმედება არ გაქვს — ეხმარე კულტის ლიდერს გაფართოებაში.',                                        win: 'კულტმა ყველა სხვა ფრაქციაზე ჯამში მეტი უნდა შეადგინოს.' },
+        yakuza:      { desc: 'იაკუზას კლანის გამსრიალებელი. ღამით კლავ და გაქვს ფარული მოკავშირე — შოგუნი.', ability: 'ყოველ ღამეს გაანადგურე ერთი მოთამაშე. შოგუნს ვერ ადევნებ.', win: 'იაკუზა გუნდი ყველა დარჩენილ მოთამაშეს ტოლი ან მეტი უნდა შეადგინოს.' },
+        shogun:      { desc: 'იაკუზის ფარული ლამაზი. გამოძიებაზე უმცდარად ჩანხარ, მაგრამ ჭეშმარიტება სხვაა.', ability: 'ღამის მოქმედება არ გაქვს. ფარული მხარდამჭერი ხარ — სინამდვილე დაფარულია.', win: 'იაკუზა გუნდი ყველა დარჩენილ მოთამაშეს ტოლი ან მეტი უნდა შეადგინოს.' },
       },
       winSummary: {
-        town:   'გაანადგურე ყველა მაფია და კულტი.',
+        town:   'გაანადგურე ყველა მაფია, კულტი და იაკუზა.',
         mafia:  'ქალაქის ტოლი ან მეტი შეადგინე.',
         cult:   'ყველა სხვა ფრაქციაზე გარინდე.',
         maniac: 'იყავი ბოლო გადარჩენილი.',
         jester: 'ქალაქის ხმებით გარიყე.',
+        yakuza: 'იაკუზა გუნდი ყველა დარჩენილ მოთამაშეს ტოლი ან მეტი უნდა შეადგინოს.',
       },
     },
     common: {

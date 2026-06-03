@@ -38,7 +38,8 @@ export async function listConversations(userId) {
     const rows = await sql `
     SELECT c.*,
       CASE WHEN c.participant1 = ${userId} THEN c.participant2 ELSE c.participant1 END as other_id,
-      p.username as other_username, p.avatar as other_avatar
+      p.username as other_username, p.avatar as other_avatar,
+      p.avatar_url as other_avatar_url
     FROM conversations c
     JOIN players p ON p.id = (
       CASE WHEN c.participant1 = ${userId} THEN c.participant2 ELSE c.participant1 END
@@ -52,6 +53,7 @@ export async function listConversations(userId) {
         otherUserId: r.other_id,
         otherUsername: r.other_username,
         otherAvatar: r.other_avatar,
+        otherAvatarUrl: r.other_avatar_url ?? null,
         lastMessage: r.last_message ?? null,
         lastMessageAt: r.last_message_at ? Number(r.last_message_at) : null,
         unread: r.participant1 === userId

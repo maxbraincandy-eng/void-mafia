@@ -137,14 +137,17 @@ export function LeaderboardPage() {
                 {/* Avatar */}
                 <div
                   className={clsx(
-                    'w-9 h-9 rounded-full flex items-center justify-center text-base font-bold text-white shrink-0',
+                    'w-9 h-9 rounded-full flex items-center justify-center text-base font-bold text-white shrink-0 overflow-hidden',
                     i === 0
                       ? 'bg-gradient-to-br from-yellow-400 to-amber-600'
                       : 'bg-gradient-to-br from-neon-pink to-neon-purple',
                   )}
                   style={i === 0 ? { boxShadow: '0 0 14px rgba(250,204,21,0.4)' } : undefined}
                 >
-                  {player.avatar}
+                  {player.avatarUrl
+                    ? <img src={player.avatarUrl} alt={player.username || ''} className="w-full h-full object-cover rounded-full" />
+                    : player.avatar
+                  }
                 </div>
 
                 {/* Name + win bar */}
@@ -231,12 +234,15 @@ function PodiumCard({
       <div className="text-2xl mb-1">{MEDALS[rank]}</div>
       <div
         className={clsx(
-          'rounded-full bg-gradient-to-br from-neon-pink to-neon-purple flex items-center justify-center font-bold text-white mx-auto mb-2',
+          'rounded-full bg-gradient-to-br from-neon-pink to-neon-purple flex items-center justify-center font-bold text-white mx-auto mb-2 overflow-hidden',
           tall ? 'w-12 h-12 text-xl' : 'w-10 h-10 text-base',
         )}
         style={rank === 0 ? { background: 'linear-gradient(135deg,#facc15,#d97706)', boxShadow: '0 0 16px rgba(250,204,21,0.5)' } : undefined}
       >
-        {player.avatar}
+        {player.avatarUrl
+          ? <img src={player.avatarUrl} alt={player.username || ''} className="w-full h-full object-cover rounded-full" />
+          : player.avatar
+        }
       </div>
       <p className={clsx('font-display font-bold truncate', tall ? 'text-sm' : 'text-xs', MEDAL_TEXT[rank])}>
         {player.username}

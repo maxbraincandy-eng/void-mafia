@@ -51,7 +51,7 @@ export async function removeFriend(playerId: string, friendId: string): Promise<
 
 export async function getFriends(playerId: string): Promise<Friend[]> {
   const rows = await sql`
-    SELECT p.id, p.username, p.avatar, p.level
+    SELECT p.id, p.username, p.avatar, p.avatar_url, p.public_id, p.level
     FROM friendships f
     JOIN players p ON (
       CASE WHEN f.from_id = ${playerId} THEN f.to_id ELSE f.from_id END = p.id
@@ -60,20 +60,23 @@ export async function getFriends(playerId: string): Promise<Friend[]> {
   ` as any[];
   return rows.map((r: any) => ({
     profileId: r.id, username: r.username, avatar: r.avatar,
+    avatarUrl: r.avatar_url ?? null,
+    publicId: r.public_id != null ? Number(r.public_id) : null,
     level: Number(r.level ?? 1), isOnline: onlineProfiles.has(r.id), status: 'accepted' as const,
   }));
 }
 
 export async function getPendingRequests(playerId: string): Promise<FriendRequest[]> {
   const rows = await sql`
-    SELECT f.id, f.from_id, p.username, p.avatar, f.created_at
+    SELECT f.id, f.from_id, p.username, p.avatar, p.avatar_url, f.created_at
     FROM friendships f
     JOIN players p ON f.from_id = p.id
     WHERE f.to_id = ${playerId} AND f.status = 'pending'
   ` as any[];
   return rows.map((r: any) => ({
     id: r.id, fromId: r.from_id, fromUsername: r.username,
-    fromAvatar: r.avatar, createdAt: Number(r.created_at),
+    fromAvatar: r.avatar, fromAvatarUrl: r.avatar_url ?? null,
+    createdAt: Number(r.created_at),
   }));
 }
 

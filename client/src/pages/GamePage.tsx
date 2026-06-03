@@ -22,7 +22,9 @@ import { RoomMoreMenu } from '@/components/ui/RoomMoreMenu';
 import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { useVoiceChat, VoiceChannel } from '@/hooks/useVoiceChat';
-import { useGameSounds, setSoundMuted, isSoundMuted, SFX } from '@/hooks/useSoundFX';
+import { useGameSounds, SFX } from '@/hooks/useSoundFX';
+import { useSettingsStore } from '@/store/settingsStore';
+import { stopMenuMusic } from '@/lib/audioEngine';
 import { PhaseTransition } from '@/components/game/PhaseTransition';
 import { PlayerGrid } from '@/components/game/PlayerGrid';
 import { EliminationCinematic } from '@/components/game/EliminationCinematic';
@@ -92,7 +94,10 @@ export function GamePage() {
   const [showRoleGuide, setShowRoleGuide] = useState(false);
   const [willText, setWillText] = useState('');
   const [willSaved, setWillSaved] = useState(false);
-  const [soundMuted, setSoundMutedState] = useState(isSoundMuted());
+  const sfxEnabled = useSettingsStore(s => s.sfxEnabled);
+  const updateSettings = useSettingsStore(s => s.update);
+  // Stop any ambient music when entering game
+  useEffect(() => { stopMenuMusic(); }, []);
   const [transitionPhase, setTransitionPhase] = useState<Phase | null>(null);
   const handleTransitionDone = useCallback(() => setTransitionPhase(null), []);
   const [mobileVoiceOpen, setMobileVoiceOpen] = useState(false);
@@ -1017,17 +1022,18 @@ export function GamePage() {
                 </div>
               )}
 
-              {/* Compact voice status in header */}
-              {isInVoice && (
-                <VoiceParticipants
-                  localName={myPlayer?.name ?? 'You'}
-                  isLocalSpeaking={voice.isLocalSpeaking}
-                  isMuted={voice.isMuted}
-                  peers={voice.peers}
-                  compact
-                  spectatorSocketIds={spectatorSocketIds}
-                />
-              )}
+              {/* Players list button — between role badge and Guide */}
+              <button
+                onClick={() => setShowPlayersPanel(true)}
+                className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/8 transition-all active:scale-90"
+                title="Players"
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                  <line x1="3" y1="5" x2="15" y2="5" />
+                  <line x1="3" y1="9" x2="15" y2="9" />
+                  <line x1="3" y1="13" x2="15" y2="13" />
+                </svg>
+              </button>
 
               {/* Role Guide button */}
               <button
@@ -1079,11 +1085,11 @@ export function GamePage() {
 
               {/* Sound mute toggle */}
               <button
-                onClick={() => { const m = !soundMuted; setSoundMuted(m); setSoundMutedState(m); }}
-                title={soundMuted ? 'Unmute sounds' : 'Mute sounds'}
+                onClick={() => updateSettings({ sfxEnabled: !sfxEnabled })}
+                title={sfxEnabled ? 'Mute sounds' : 'Unmute sounds'}
                 className="px-2.5 py-1 rounded-lg text-[10px] font-mono tracking-widest uppercase text-white/30 hover:text-white/70 hover:bg-white/5 transition-all"
               >
-                {soundMuted ? 'SFX ∅' : 'SFX'}
+                {sfxEnabled ? 'SFX' : 'SFX ∅'}
               </button>
 
               <Button size="sm" variant="ghost" onClick={() => setShowMoreMenu(true)}>

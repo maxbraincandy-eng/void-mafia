@@ -9,6 +9,7 @@ import {
   createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, removePlayer,
   getPlayerBySocket, toPublicRoom, getAlivePlayers, getHostPlayer,
   toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom,
+  setPlayerAvatarUrl,
 } from './services/roomService.js';
 import {
   startGame, setPhase, advancePhase, submitNightAction, submitVote,
@@ -26,6 +27,7 @@ import {
   registerWithEmail, authenticateWithEmail,
   addXP, getCosmetics, equipCosmetic,
   getPlayerByFriendCode, setGrantedModLevel,
+  updateAvatarUrl,
 } from './services/playerService.js';
 import {
   markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend,
@@ -54,6 +56,7 @@ import {
   VoiceChannel,
 } from './services/voiceService.js';
 import { sql } from './db.js';
+import bcrypt from 'bcryptjs';
 import {
   getOrCreateConversation, listConversations, sendMessage, getMessages, markRead, getTotalUnread,
 } from './services/dmService.js';
@@ -96,6 +99,8 @@ const NIGHT_DEATH: Partial<Record<string, string>> = {
   escort:     'The Escort danced her last.',
   tracker:    "The Tracker's trail goes cold.",
   arsonist:   'The Arsonist burns out.',
+  yakuza:     'The Yakuza enforcer falls. The clan is weakened.',
+  shogun:     'A hidden blade is revealed too late.',
 };
 const VOTE_DEATH: Partial<Record<string, string>> = {
   jester:     '🃏 The Jester laughs from beyond the grave.',
@@ -106,6 +111,8 @@ const VOTE_DEATH: Partial<Record<string, string>> = {
   cult_leader:'⚖️ The Cult Leader is exposed and cast out.',
   maniac:     '⚖️ The Maniac smiles. You voted out a madman.',
   arsonist:   '⚖️ The Arsonist is extinguished.',
+  yakuza:     '⚖️ The Yakuza enforcer is unmasked and cast out.',
+  shogun:     '⚖️ A hidden ally is exposed. The Yakuza loses its shadow.',
 };
 
 function nightDeathMsg(name: string, role: string | null, lastWill: string | null | undefined): string {
@@ -334,6 +341,26 @@ function notifyCultConversions(io: AppServer, room: Room): void {
   }
 }
 
+function notifyYakuzaAllies(io: AppServer, room: Room): void {
+  const yakuzaPlayer = [...room.players.values()].find(p => p.role === 'yakuza');
+  const shogunPlayer = [...room.players.values()].find(p => p.role === 'shogun');
+
+  if (yakuzaPlayer?.socketId) {
+    io.to(yakuzaPlayer.socketId).emit('game:yakuza_ally', {
+      allyRole: 'shogun',
+      allyId: shogunPlayer?.id ?? null,
+      allyName: shogunPlayer?.name ?? null,
+    });
+  }
+  if (shogunPlayer?.socketId) {
+    io.to(shogunPlayer.socketId).emit('game:yakuza_ally', {
+      allyRole: 'yakuza',
+      allyId: yakuzaPlayer?.id ?? null,
+      allyName: yakuzaPlayer?.name ?? null,
+    });
+  }
+}
+
 function notifySpies(io: AppServer, room: Room): void {
   const mafiaAction = [...room.nightActions.values()]
     .find(a => a.role === 'mafia' || a.role === 'don');
@@ -396,6 +423,10 @@ function notifyRoleblocked(io: AppServer, room: Room): void {
   }
 }
 
+// ── DB-ready gate ─────────────────────────────────────────────────────
+let _dbReady = false;
+export function setDbReady(v: boolean) { _dbReady = v; }
+
 // ── Main ──────────────────────────────────────────────────────────────
 export function attachSocketHandlers(io: AppServer): void {
 
@@ -421,6 +452,7 @@ export function attachSocketHandlers(io: AppServer): void {
 
     // ── Auth ─────────────────────────────────────────────────────────
     socket.on('player:auth', async (data, cb) => {
+      if (!_dbReady) { cb(err('Server is starting up — please wait a few seconds and try again.')); return; }
       try {
         const parsed = AuthSchema.parse(data);
         const profile = await getOrCreatePlayer(parsed.uid, parsed.username);
@@ -486,6 +518,30 @@ export function attachSocketHandlers(io: AppServer): void {
       }
     });
 
+    // ── Change Password ──────────────────────────────────────────────
+    socket.on('player:change_password' as any, async (data: any, cb: any) => {
+      try {
+        const { uid, currentPassword, newPassword } = z.object({
+          uid:             z.string().min(1),
+          currentPassword: z.string().min(1),
+          newPassword:     z.string().min(6),
+        }).parse(data);
+
+        const rows = await sql`SELECT password_hash, email FROM players WHERE id = ${uid} LIMIT 1` as any[];
+        if (!rows[0]) { cb({ ok: false, error: 'Player not found.' }); return; }
+        if (!rows[0].password_hash) { cb({ ok: false, error: 'No password set on this account.' }); return; }
+
+        const match = await bcrypt.compare(currentPassword, rows[0].password_hash);
+        if (!match) { cb({ ok: false, error: 'Current password is incorrect.' }); return; }
+
+        const newHash = await bcrypt.hash(newPassword, 10);
+        await sql`UPDATE players SET password_hash = ${newHash} WHERE id = ${uid}`;
+        cb({ ok: true });
+      } catch (e: any) {
+        cb({ ok: false, error: e.message ?? 'Failed to change password.' });
+      }
+    });
+
     // ── Player Stats ─────────────────────────────────────────────────
     socket.on('player:stats', async ({ profileId }, cb) => {
       try {
@@ -494,6 +550,53 @@ export function attachSocketHandlers(io: AppServer): void {
         cb(ok(toPublicProfile(profile)));
       } catch (e: any) {
         cb(err(e.message));
+      }
+    });
+
+    // ── Avatar Upload ────────────────────────────────────────────────
+    socket.on('player:update_avatar', async (data: { imageData: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb({ ok: false, error: 'Not authenticated.' }); return; }
+
+        const { imageData } = data;
+        if (!imageData || typeof imageData !== 'string') { cb({ ok: false, error: 'Invalid image data.' }); return; }
+        if (!imageData.startsWith('data:image/')) { cb({ ok: false, error: 'Unsupported image type.' }); return; }
+
+        // ~200KB base64 limit (150KB raw image)
+        if (imageData.length > 270_000) { cb({ ok: false, error: 'Image is too large (max 200KB).' }); return; }
+
+        await updateAvatarUrl(profileId, imageData);
+
+        // Update all rooms this player is in
+        const profile = await getPlayer(profileId);
+        for (const room of getAllRooms()) {
+          setPlayerAvatarUrl(room, profileId, imageData);
+          broadcastRoom(io, room);
+        }
+
+        cb({ ok: true, data: toPublicProfile(profile!) });
+      } catch (e: any) {
+        cb({ ok: false, error: e.message ?? 'Upload failed.' });
+      }
+    });
+
+    socket.on('player:remove_avatar', async (cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb({ ok: false, error: 'Not authenticated.' }); return; }
+
+        await updateAvatarUrl(profileId, null);
+
+        const profile = await getPlayer(profileId);
+        for (const room of getAllRooms()) {
+          setPlayerAvatarUrl(room, profileId, null);
+          broadcastRoom(io, room);
+        }
+
+        cb({ ok: true, data: toPublicProfile(profile!) });
+      } catch (e: any) {
+        cb({ ok: false, error: e.message ?? 'Remove failed.' });
       }
     });
 
@@ -533,6 +636,9 @@ export function attachSocketHandlers(io: AppServer): void {
         const playerProfile = profileId ? await getPlayer(profileId) : null;
         const username = playerProfile?.username ?? parsed.name;
         const room = createRoom(socket.id, username, profileId, parsed.settings as Partial<GameSettings>);
+
+        const hostInRoom = [...room.players.values()][0];
+        if (hostInRoom && playerProfile?.avatarUrl) hostInRoom.avatarUrl = playerProfile.avatarUrl;
 
         socket.join(room.id);
         socket.data.playerId = room.hostId;
@@ -588,6 +694,7 @@ export function attachSocketHandlers(io: AppServer): void {
         const playerProfile = profileId ? await getPlayer(profileId) : null;
         const username = playerProfile?.username ?? parsed.name;
         const player = addPlayer(room, socket.id, username, profileId);
+        if (playerProfile?.avatarUrl) player.avatarUrl = playerProfile.avatarUrl;
         if (parsed.isSpectator) player.isSpectator = true;
 
         socket.join(room.id);
@@ -643,6 +750,7 @@ export function attachSocketHandlers(io: AppServer): void {
                   }
                 }
                 broadcastSystemMsg(io, room, 'The game has begun. Roles are being revealed…');
+                notifyYakuzaAllies(io, room);
                 broadcastRoom(io, room);
                 startPhaseTimer(io, room);
               }
@@ -743,6 +851,7 @@ export function attachSocketHandlers(io: AppServer): void {
         }
 
         broadcastSystemMsg(io, room, 'The game has begun. Roles are being revealed…');
+        notifyYakuzaAllies(io, room);
         broadcastRoom(io, room);
         enforceVoicePhaseRules(io, room);
         startPhaseTimer(io, room);
@@ -1588,6 +1697,7 @@ export function attachSocketHandlers(io: AppServer): void {
           messages,
           otherUsername: otherProfile?.username ?? 'Unknown',
           otherAvatar: otherProfile?.avatar ?? '?',
+          otherAvatarUrl: otherProfile?.avatarUrl ?? null,
         }));
       } catch (e: any) { cb(err(e.message)); }
     });
@@ -1602,16 +1712,22 @@ export function attachSocketHandlers(io: AppServer): void {
         const receiverId = conv.participant1 === senderId ? conv.participant2 : conv.participant1;
         if (conv.participant1 !== senderId && conv.participant2 !== senderId) throw new Error('Not a participant.');
         const msg = await sendMessage(conversationId, senderId, text.trim(), receiverId);
-        // Notify recipient in real time
+        // Notify recipient in real time with sender info for toast
         const recipientSocket = findSocketByProfile(io, receiverId);
         if (recipientSocket) {
-          recipientSocket.emit('dm:new_message', { conversationId, message: msg });
+          const senderProfile = await getPlayer(senderId);
+          recipientSocket.emit('dm:new_message', {
+            conversationId,
+            message: msg,
+            senderUsername: senderProfile?.username ?? 'Unknown',
+            senderAvatar: senderProfile?.avatar ?? '?',
+          });
         }
         cb(ok(msg));
       } catch (e: any) { cb(err(e.message)); }
     });
 
-    socket.on('dm:list', async (_: any, cb: any) => {
+    socket.on('dm:list', async (cb: any) => {
       try {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('Not authenticated.');
@@ -1643,7 +1759,7 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
-    socket.on('dm:unread_count', async (_: any, cb: any) => {
+    socket.on('dm:unread_count', async (cb: any) => {
       try {
         const profileId = socket.data.profileId;
         if (!profileId) { cb(ok(0)); return; }

@@ -244,8 +244,11 @@ export function ClansPage() {
                     onClick={() => openProfile(m.playerId)}
                     className="flex items-center gap-3 px-3 py-2 rounded-xl bg-white/2 hover:bg-white/5 cursor-pointer transition-colors active:scale-[0.98]"
                   >
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-neon-pink to-neon-purple flex items-center justify-center text-xs font-bold text-white">
-                      {m.avatar || m.username[0]?.toUpperCase()}
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-neon-pink to-neon-purple flex items-center justify-center text-xs font-bold text-white overflow-hidden">
+                      {m.avatarUrl
+                        ? <img src={m.avatarUrl} alt={m.username} className="w-full h-full object-cover rounded-full" />
+                        : (m.avatar || m.username[0]?.toUpperCase())
+                      }
                     </div>
                     <span className="flex-1 font-mono text-xs text-white/70">{m.username}</span>
                     <span className={`font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border ${RARITY_TAG[m.role] ?? RARITY_TAG.member}`}>

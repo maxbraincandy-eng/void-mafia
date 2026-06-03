@@ -19,8 +19,8 @@ export function FriendsPanel() {
   const profile = useAuthStore(s => s.profile);
 
   const refresh = () => {
-    emitWithAck<undefined, Res<Friend[]>>('friend:list', undefined)
-      .then(res => { if (res.ok) setFriends(res.data); })
+    emitWithAck<void, Res<Friend[]>>('friend:list')
+      .then(res => { if (res.ok) setFriends(res.data ?? []); })
       .catch(() => {});
   };
 
@@ -111,7 +111,13 @@ export function FriendsPanel() {
             <div className="space-y-2">
               {pendingFriendRequests.map(req => (
                 <div key={req.id} className="flex items-center gap-2 p-2 rounded-xl border border-neon-pink/15 bg-neon-pink/5">
-                  <span className="text-lg flex-shrink-0">{req.fromAvatar}</span>
+                  <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-base flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg, rgba(255,0,128,0.4), rgba(138,43,226,0.4))', border: '1px solid rgba(138,43,226,0.3)' }}>
+                    {req.fromAvatarUrl
+                      ? <img src={req.fromAvatarUrl} alt={req.fromUsername} className="w-full h-full object-cover rounded-full" />
+                      : req.fromAvatar
+                    }
+                  </div>
                   <span className="flex-1 text-sm text-white font-semibold truncate">{req.fromUsername}</span>
                   <button
                     onClick={() => accept(req.fromId)}
@@ -176,7 +182,13 @@ function FriendRow({ friend, onRemove }: { friend: Friend; onRemove: (id: string
       className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-white/4 transition-colors group cursor-pointer"
     >
       <div className="relative flex-shrink-0">
-        <span className="text-lg">{friend.avatar}</span>
+        <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-base flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg, rgba(255,0,128,0.4), rgba(138,43,226,0.4))', border: '1px solid rgba(138,43,226,0.3)' }}>
+          {friend.avatarUrl
+            ? <img src={friend.avatarUrl} alt={friend.username} className="w-full h-full object-cover rounded-full" />
+            : friend.avatar
+          }
+        </div>
         <div
           className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-void ${
             friend.isOnline ? 'bg-neon-green' : 'bg-white/20'

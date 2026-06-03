@@ -26,9 +26,11 @@ export type RoleKey =
   | 'veteran'
   | 'tracker'
   | 'arsonist'
-  | 'mayor';
+  | 'mayor'
+  | 'yakuza'
+  | 'shogun';
 
-export type Team = 'mafia' | 'town' | 'neutral' | 'cult';
+export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
 export type ChatChannel = 'room' | 'mafia' | 'dead';
 export type ModeratorLevel = 'moderator' | 'senior_moderator' | 'admin' | 'owner';
@@ -82,6 +84,8 @@ export interface Friend {
   profileId: string;
   username: string;
   avatar: string;
+  avatarUrl?: string | null;
+  publicId?: number | null;
   level: number;
   isOnline: boolean;
   status: 'accepted';
@@ -92,6 +96,7 @@ export interface FriendRequest {
   fromId: string;
   fromUsername: string;
   fromAvatar: string;
+  fromAvatarUrl?: string | null;
   createdAt: number;
 }
 
@@ -109,6 +114,8 @@ export interface PlayerProfilePublic {
   id: string;
   username: string;
   avatar: string;
+  avatarUrl?: string | null;
+  publicId?: number | null;
   stats: PlayerStats;
   isModerator: boolean;
   moderatorLevel: ModeratorLevel | null;
@@ -170,6 +177,8 @@ export interface GameSettings {
     tracker: number;
     arsonist: number;
     mayor: number;
+    yakuza: number;
+    shogun: number;
   };
 }
 
@@ -306,6 +315,8 @@ export interface ClanMember {
   playerId: string;
   username: string;
   avatar: string;
+  avatarUrl?: string | null;
+  publicId?: number | null;
   role: 'owner' | 'officer' | 'member';
   joinedAt: number;
 }
@@ -349,6 +360,7 @@ export interface DmConversation {
   otherUserId: string;
   otherUsername: string;
   otherAvatar: string;
+  otherAvatarUrl?: string | null;
   lastMessage: string | null;
   lastMessageAt: number | null;
   unread: boolean;

@@ -28,6 +28,9 @@ const RARITY_BORDER: Record<string, string> = {
   legendary: 'rgba(255,180,0,0.5)',
 };
 
+const MAX_SIZE = 5 * 1024 * 1024; // 5MB original file limit
+const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+
 function TeamBadge({ team }: { team: string | null }) {
   const colors: Record<string, string> = {
     mafia: 'text-neon-red/80', town: 'text-neon-green/80',
@@ -36,14 +39,100 @@ function TeamBadge({ team }: { team: string | null }) {
   return <span className={`font-mono text-[9px] uppercase tracking-wider ${colors[team ?? ''] ?? 'text-white/30'}`}>{team ?? '—'}</span>;
 }
 
+async function resizeImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const maxDim = 200;
+      let w = img.width, h = img.height;
+      if (w > h) { if (w > maxDim) { h = Math.round(h * maxDim / w); w = maxDim; } }
+      else       { if (h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim; } }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/webp', 0.7));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Failed to load image.')); };
+    img.src = url;
+  });
+}
+
+interface LinkedProvider {
+  provider: string;
+  email: string | null;
+  displayName: string | null;
+}
+
 export function ProfilePage() {
-  const { profile, username, logout, localAvatar, setLocalAvatar } = useAuthStore();
+  const { profile, username, logout, localAvatar, uploadAvatar, removeAvatar, uid } = useAuthStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showRoleGuide, setShowRoleGuide] = useState(false);
   const [achievements, setAchievements] = useState<AchievementEarned[]>([]);
   const [history, setHistory]           = useState<GameHistoryEntry[]>([]);
   const [tab, setTab] = useState<'achievements' | 'history' | 'friends'>('achievements');
   const [loadingAch, setLoadingAch] = useState(false);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+  const [linkedProviders, setLinkedProviders] = useState<LinkedProvider[]>([]);
+  const [linkMsg, setLinkMsg] = useState('');
+  const [linkError, setLinkError] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('oauth_linked')) {
+      window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+      setLinkMsg(`${params.get('oauth_linked')} account connected successfully!`);
+      setTimeout(() => setLinkMsg(''), 4000);
+    }
+    if (params.get('oauth_error')) {
+      window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+      const msg = params.get('oauth_error');
+      setLinkError(msg === '1' ? 'Connection failed. Please try again.' : decodeURIComponent(msg ?? ''));
+      setTimeout(() => setLinkError(''), 5000);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!uid) return;
+    fetch(`/api/auth/linked?uid=${encodeURIComponent(uid)}`)
+      .then(r => r.json())
+      .then(data => { if (data.ok) setLinkedProviders(data.providers); })
+      .catch(() => {});
+  }, [uid]);
+
+  const handleLinkOAuth = async (provider: 'google' | 'facebook') => {
+    if (!uid) return;
+    try {
+      await fetch('/api/auth/init-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ uid }),
+      });
+      window.location.href = `/api/auth/${provider}?link=1`;
+    } catch {
+      setLinkError('Failed to start linking. Please try again.');
+    }
+  };
+
+  const handleUnlink = async (provider: string) => {
+    if (!uid) return;
+    try {
+      const res = await fetch(`/api/auth/unlink/${provider}?uid=${encodeURIComponent(uid)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (data.ok) setLinkedProviders(prev => prev.filter(p => p.provider !== provider));
+      else setLinkError('Unlink failed.');
+    } catch {
+      setLinkError('Unlink failed.');
+    }
+  };
 
   useEffect(() => {
     if (!profile) return;
@@ -60,19 +149,54 @@ export function ProfilePage() {
   if (!profile) return null;
 
   const { stats } = profile;
+  const displayAvatar = previewSrc ?? localAvatar;
 
-  const handleAvatarClick = () => fileInputRef.current?.click();
+  const handleAvatarClick = () => {
+    if (!uploadLoading) fileInputRef.current?.click();
+  };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const dataUrl = ev.target?.result as string;
-      if (dataUrl) setLocalAvatar(dataUrl);
-    };
-    reader.readAsDataURL(file);
     e.target.value = '';
+    if (!file) return;
+
+    setUploadError('');
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setUploadError('Unsupported image type. Use JPG, PNG, or WebP.');
+      return;
+    }
+    if (file.size > MAX_SIZE) {
+      setUploadError('Image is too large. Max 5MB.');
+      return;
+    }
+
+    setUploadLoading(true);
+    try {
+      const resized = await resizeImage(file);
+      setPreviewSrc(resized);
+      const result = await uploadAvatar(resized);
+      if (!result.ok) {
+        setUploadError(result.error ?? 'Upload failed.');
+        setPreviewSrc(null);
+      } else {
+        setPreviewSrc(null); // profile.avatarUrl now updated in store
+      }
+    } catch {
+      setUploadError('Upload failed. Please try again.');
+      setPreviewSrc(null);
+    } finally {
+      setUploadLoading(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    setUploadLoading(true);
+    setUploadError('');
+    setPreviewSrc(null);
+    const result = await removeAvatar();
+    if (!result.ok) setUploadError(result.error ?? 'Remove failed.');
+    setUploadLoading(false);
   };
 
   return (
@@ -92,14 +216,33 @@ export function ProfilePage() {
           className="glass-panel border border-neon-purple/20 rounded-2xl p-6 mb-4"
         >
           <div className="flex items-center gap-4 mb-4">
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+            <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" className="hidden" onChange={handleFileChange} />
             <div className="relative flex-shrink-0">
-              <button type="button" onClick={handleAvatarClick} className="relative w-16 h-16 rounded-full group" title="Click to upload profile picture">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-neon-pink to-neon-purple flex items-center justify-center text-2xl font-bold text-white shadow-neon-purple overflow-hidden">
-                  {localAvatar ? <img src={localAvatar} alt={profile.username} className="w-full h-full object-cover rounded-full" /> : profile.avatar}
+              <button
+                type="button"
+                onClick={handleAvatarClick}
+                disabled={uploadLoading}
+                className="relative w-16 h-16 rounded-full group"
+                title="Click to upload profile picture"
+              >
+                <div
+                  className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold text-white overflow-hidden"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(255,0,128,0.6), rgba(138,43,226,0.6))',
+                    boxShadow: displayAvatar ? '0 0 16px rgba(138,43,226,0.5)' : '0 0 8px rgba(138,43,226,0.3)',
+                    border: '2px solid rgba(138,43,226,0.4)',
+                  }}
+                >
+                  {displayAvatar
+                    ? <img src={displayAvatar} alt={profile.username} className="w-full h-full object-cover rounded-full" />
+                    : <span>{profile.avatar}</span>
+                  }
                 </div>
-                <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="text-xl">📷</span>
+                <div className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  {uploadLoading
+                    ? <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  }
                 </div>
               </button>
               {/* Level badge */}
@@ -121,9 +264,34 @@ export function ProfilePage() {
                 {profile.isModerator && profile.moderatorBadgeVisible && <ModBadge level={profile.moderatorLevel} />}
               </div>
               <p className="text-neon-cyan/60 font-display font-bold text-sm mt-0.5 tracking-widest">
-                #{profile.friendCode ?? '????'}
+                {profile.publicId != null ? `#${profile.publicId}` : (profile.friendCode ? `#${profile.friendCode}` : '')}
               </p>
               <p className="text-white/20 font-mono text-xs">Joined {new Date(profile.joinedAt).toLocaleDateString()}</p>
+              {/* Avatar actions */}
+              <div className="flex items-center gap-2 mt-1.5">
+                <button
+                  onClick={handleAvatarClick}
+                  disabled={uploadLoading}
+                  className="font-mono text-[9px] uppercase tracking-wider text-neon-cyan/50 hover:text-neon-cyan/80 transition-colors disabled:opacity-40"
+                >
+                  {displayAvatar ? 'Change photo' : 'Upload photo'}
+                </button>
+                {displayAvatar && (
+                  <>
+                    <span className="text-white/15 font-mono text-[9px]">·</span>
+                    <button
+                      onClick={handleRemove}
+                      disabled={uploadLoading}
+                      className="font-mono text-[9px] uppercase tracking-wider text-neon-red/40 hover:text-neon-red/70 transition-colors disabled:opacity-40"
+                    >
+                      Remove
+                    </button>
+                  </>
+                )}
+              </div>
+              {uploadError && (
+                <p className="text-[10px] font-mono text-neon-red/80 mt-1">{uploadError}</p>
+              )}
             </div>
           </div>
 
@@ -279,6 +447,88 @@ export function ProfilePage() {
             <FriendsPanel />
           </motion.div>
         )}
+
+        {/* Connected Accounts */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="mt-4 glass-panel border border-white/8 rounded-2xl p-4"
+        >
+          <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/25 mb-3">Connected Accounts</p>
+
+          {linkMsg && <p className="text-neon-green text-xs font-mono mb-2">{linkMsg}</p>}
+          {linkError && <p className="text-neon-red text-xs font-mono mb-2">{linkError}</p>}
+
+          {/* Google */}
+          {(() => {
+            const linked = linkedProviders.find(p => p.provider === 'google');
+            return (
+              <div className="flex items-center justify-between py-2 border-b border-white/5">
+                <div className="flex items-center gap-3">
+                  <svg viewBox="0 0 24 24" className="w-5 h-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                  </svg>
+                  <div>
+                    <p className="text-white/60 font-mono text-xs">Google</p>
+                    {linked && <p className="text-white/25 font-mono text-[9px]">{linked.email ?? linked.displayName ?? 'Connected'}</p>}
+                  </div>
+                </div>
+                {linked ? (
+                  <button
+                    onClick={() => handleUnlink('google')}
+                    className="text-[9px] font-mono text-neon-red/50 hover:text-neon-red/80 transition-colors uppercase tracking-wider"
+                  >
+                    Disconnect
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleLinkOAuth('google')}
+                    className="text-[9px] font-mono text-neon-cyan/50 hover:text-neon-cyan/80 transition-colors uppercase tracking-wider"
+                  >
+                    Connect
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Facebook */}
+          {(() => {
+            const linked = linkedProviders.find(p => p.provider === 'facebook');
+            return (
+              <div className="flex items-center justify-between py-2">
+                <div className="flex items-center gap-3">
+                  <svg viewBox="0 0 24 24" className="w-5 h-5 flex-shrink-0 fill-current text-[#1877F2]" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                  </svg>
+                  <div>
+                    <p className="text-white/60 font-mono text-xs">Facebook</p>
+                    {linked && <p className="text-white/25 font-mono text-[9px]">{linked.email ?? linked.displayName ?? 'Connected'}</p>}
+                  </div>
+                </div>
+                {linked ? (
+                  <button
+                    onClick={() => handleUnlink('facebook')}
+                    className="text-[9px] font-mono text-neon-red/50 hover:text-neon-red/80 transition-colors uppercase tracking-wider"
+                  >
+                    Disconnect
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleLinkOAuth('facebook')}
+                    className="text-[9px] font-mono text-neon-cyan/50 hover:text-neon-cyan/80 transition-colors uppercase tracking-wider"
+                  >
+                    Connect
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+        </motion.div>
 
         {/* Actions */}
         <div className="mt-4 space-y-2">

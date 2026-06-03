@@ -1,20 +1,31 @@
 import postgres from 'postgres';
 
 // ── Connection ──────────────────────────────────────────────────────────
-const DATABASE_URL =
-  process.env.DATABASE_URL ||
-  process.env.POSTGRES_URL ||
-  process.env.RAILWAY_DATABASE_URL;
+// Railway PostgreSQL plugin can inject the URL under several variable names.
+// DATABASE_PRIVATE_URL is the internal-network URL (preferred for Railway).
+// Some Railway plugin versions inject individual PG* vars instead of a URL.
+function buildDatabaseUrl(): string | undefined {
+  if (process.env.DATABASE_PRIVATE_URL)    { console.log('[Database] source = DATABASE_PRIVATE_URL');    return process.env.DATABASE_PRIVATE_URL; }
+  if (process.env.DATABASE_URL)            { console.log('[Database] source = DATABASE_URL');            return process.env.DATABASE_URL; }
+  if (process.env.POSTGRES_URL)            { console.log('[Database] source = POSTGRES_URL');            return process.env.POSTGRES_URL; }
+  if (process.env.POSTGRES_PRIVATE_URL)    { console.log('[Database] source = POSTGRES_PRIVATE_URL');   return process.env.POSTGRES_PRIVATE_URL; }
+  if (process.env.RAILWAY_DATABASE_URL)    { console.log('[Database] source = RAILWAY_DATABASE_URL');   return process.env.RAILWAY_DATABASE_URL; }
 
-// Log early — process.exit(1) is intentionally NOT called here.
-// The server must bind its port before anything can fail, so the Railway
-// healthcheck at /health always gets a response.  If the URL is missing or
-// the connection fails, initializeDatabase() will throw and index.ts will
-// call process.exit(1) after a short delay (giving the healthcheck time to pass).
-if (!DATABASE_URL) {
-  console.error('[Database] FATAL: No DATABASE_URL/POSTGRES_URL environment variable set.');
-  console.error('[Database] Server will start but DB calls will fail until this is fixed.');
+  // Build URL from individual PG* vars (Railway newer plugin format)
+  const { PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD } = process.env;
+  if (PGHOST && PGDATABASE && PGUSER) {
+    const pass = PGPASSWORD ? `:${encodeURIComponent(PGPASSWORD)}` : '';
+    const port = PGPORT ?? '5432';
+    const url = `postgresql://${PGUSER}${pass}@${PGHOST}:${port}/${PGDATABASE}`;
+    console.log(`[Database] source = PG* vars (PGHOST=${PGHOST} PGDATABASE=${PGDATABASE})`);
+    return url;
+  }
+
+  console.error('[Database] FATAL: no database URL env var found — DB calls will fail');
+  return undefined;
 }
+
+const DATABASE_URL = buildDatabaseUrl();
 
 console.log('[Database] provider = postgresql');
 console.log(`[Database] DATABASE_URL exists = ${!!DATABASE_URL}`);
@@ -26,15 +37,16 @@ const bigintParser = {
   parse: (x: string) => Number(x),
 };
 
-// Use a dummy URL when DATABASE_URL is missing so the module loads without
-// throwing.  Actual queries will fail, and initializeDatabase() will throw,
-// triggering a clean restart via index.ts.
-export const sql = postgres(DATABASE_URL ?? 'postgresql://localhost:5432/void_mafia', {
+// When DATABASE_URL is missing we create a client pointing at an invalid
+// host so the module loads without throwing.  initializeDatabase() will
+// fail immediately and index.ts will restart the process after 8 s.
+// The key thing is the healthcheck at /health stays reachable.
+export const sql = postgres(DATABASE_URL ?? 'postgresql://no-db-url-set:5432/void', {
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
   max: 10,
   idle_timeout: 30,
-  connect_timeout: 30,
-  onnotice: () => {}, // suppress NOTICE messages
+  connect_timeout: 10,
+  onnotice: () => {},
   types: { bigint: bigintParser },
 });
 
@@ -266,6 +278,46 @@ export async function initializeDatabase(): Promise<void> {
       created_at      BIGINT NOT NULL,
       read_at         BIGINT
     )
+  `;
+
+  // Migrations — add columns introduced after initial schema
+  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS avatar_url TEXT`;
+  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS avatar_updated_at BIGINT`;
+  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS public_id INTEGER`;
+
+  // Backfill public_id for rows that don't have one yet (earliest player = #1).
+  await sql`
+    UPDATE players p
+    SET public_id = sub.rn
+    FROM (
+      SELECT id, ROW_NUMBER() OVER (ORDER BY joined_at ASC) AS rn
+      FROM players WHERE public_id IS NULL
+    ) sub
+    WHERE p.id = sub.id
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_players_public_id ON players(public_id)
+    WHERE public_id IS NOT NULL
+  `;
+
+  // OAuth accounts table (safe to add — will no-op if already exists)
+  await sql`
+    CREATE TABLE IF NOT EXISTS auth_accounts (
+      id               TEXT PRIMARY KEY,
+      user_id          TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      provider         TEXT NOT NULL,
+      provider_user_id TEXT NOT NULL,
+      email            TEXT,
+      display_name     TEXT,
+      avatar_url       TEXT,
+      created_at       BIGINT NOT NULL,
+      updated_at       BIGINT NOT NULL,
+      UNIQUE(provider, provider_user_id)
+    )
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_auth_accounts_user_id ON auth_accounts(user_id)
   `;
 
   // Seed achievement definitions
