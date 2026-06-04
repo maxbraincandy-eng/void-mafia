@@ -47,6 +47,29 @@ interface Props {
   onSelect?: (p: PlayerPublic) => void;
 }
 
+const TEAM_ROLE_COLOR: Record<string, { bg: string; border: string; text: string }> = {
+  mafia:   { bg: 'rgba(255,45,85,0.18)',  border: 'rgba(255,45,85,0.55)',  text: '#ff6677' },
+  yakuza:  { bg: 'rgba(255,45,85,0.18)',  border: 'rgba(255,45,85,0.55)',  text: '#ff6677' },
+  town:    { bg: 'rgba(0,229,255,0.12)',  border: 'rgba(0,229,255,0.45)',  text: '#00e5ff' },
+  cult:    { bg: 'rgba(192,38,211,0.18)', border: 'rgba(192,38,211,0.55)', text: '#d946ef' },
+  neutral: { bg: 'rgba(155,0,255,0.18)', border: 'rgba(155,0,255,0.50)',  text: '#c084fc' },
+};
+
+function RoleChip({ role, team }: { role: RoleKey; team: string | null }) {
+  const c = TEAM_ROLE_COLOR[team ?? ''] ?? TEAM_ROLE_COLOR.town;
+  const icon = ROLE_ICONS[role];
+  const label = role.replace(/_/g, ' ').toUpperCase();
+  return (
+    <div
+      className="flex items-center gap-1 px-2 py-1 rounded-xl font-mono font-bold text-[10px] tracking-widest uppercase"
+      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text, textShadow: `0 0 8px ${c.text}60` }}
+    >
+      {icon && <span className="text-[11px] leading-none">{icon}</span>}
+      {label}
+    </div>
+  );
+}
+
 function initialsOf(name: string): string {
   return name
     .trim()
@@ -98,9 +121,10 @@ function RemoteVideo({ stream }: { stream: MediaStream }) {
   );
 }
 
-function SpeakerHero({ player, isMe, speakerIndex, totalSpeakers, voice }: {
+function SpeakerHero({ player, isMe, isAlly, speakerIndex, totalSpeakers, voice }: {
   player: PlayerPublic;
   isMe: boolean;
+  isAlly?: boolean;
   speakerIndex: number;
   totalSpeakers: number;
   voice?: TileVoice;
@@ -238,6 +262,13 @@ function SpeakerHero({ player, isMe, speakerIndex, totalSpeakers, voice }: {
             )}
           </div>
         </div>
+
+        {/* Role chip — bottom-right corner (own role always; ally role when team is visible) */}
+        {(isMe || isAlly) && player.role && (
+          <div className="absolute bottom-2.5 right-2.5 pointer-events-none z-10">
+            <RoleChip role={player.role} team={player.team} />
+          </div>
+        )}
 
         {/* Bottom gradient: controls (me) or status (remote) */}
         <div
@@ -464,17 +495,6 @@ function PlayerCard({
           )}
         </div>
 
-        {/* Role chip (own tile, or revealed) */}
-        {tileRole && (
-          <div className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md"
-            style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(155,0,255,0.4)' }}>
-            <span className="text-[11px] leading-none">{ROLE_ICONS[tileRole] ?? '?'}</span>
-            <span className="text-[8px] font-mono font-bold uppercase tracking-wider"
-              style={{ color: 'rgba(205,150,255,0.95)' }}>
-              {tileRole.replace(/_/g, ' ')}
-            </span>
-          </div>
-        )}
       </div>
 
       {/* ── Vote count badge — top-right ── */}
@@ -546,6 +566,13 @@ function PlayerCard({
         </div>
       )}
 
+      {/* ── Role chip — bottom-right (own card always; ally cards if role is visible) ── */}
+      {tileRole && (
+        <div className="absolute bottom-7 right-1.5 z-10">
+          <RoleChip role={tileRole} team={player.team} />
+        </div>
+      )}
+
       {/* ── Remote speaking indicator ── */}
       {!showLocalControls && isVoiceSpeaking && (
         <div className="absolute bottom-1.5 right-1.5 z-10">
@@ -606,6 +633,7 @@ export function PlayerGrid({
             key={currentSpeakerId}
             player={speaker}
             isMe={speaker.id === myPlayerId}
+            isAlly={allyIds?.has(speaker.id) ?? false}
             speakerIndex={speakerIndex >= 0 ? speakerIndex : 0}
             totalSpeakers={totalAlive}
             voice={voice}

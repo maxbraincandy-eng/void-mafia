@@ -1053,20 +1053,7 @@ export function GamePage() {
           />
           <div className="px-3 py-2 md:px-4 md:py-3">
           <div className="max-w-7xl mx-auto flex items-center gap-2 md:gap-4">
-            {/* Players list button */}
-            <button
-              onClick={() => setShowPlayersPanel(true)}
-              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/8 transition-all active:scale-90"
-              title="Players"
-            >
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-                <line x1="3" y1="5" x2="15" y2="5" />
-                <line x1="3" y1="9" x2="15" y2="9" />
-                <line x1="3" y1="13" x2="15" y2="13" />
-              </svg>
-            </button>
-
-            {/* More menu button */}
+            {/* More menu button — far-left first control */}
             <button
               onClick={() => setShowMoreMenu(true)}
               className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/8 transition-all active:scale-90"
@@ -1120,20 +1107,7 @@ export function GamePage() {
                 </div>
               )}
 
-              {/* Role badge — tap to open role card */}
-              {myRole && !amSpectator && (
-                <button
-                  onClick={() => setShowRoleCard(true)}
-                  className="px-2 py-1 rounded-lg border text-[10px] md:text-xs font-display font-bold tracking-wider uppercase transition-all hover:scale-105 active:scale-95"
-                  style={{
-                    borderColor: `${myRole.glowColor}40`,
-                    color: myRole.glowColor,
-                    backgroundColor: `${myRole.glowColor}10`,
-                    textShadow: `0 0 10px ${myRole.glowColor}`,
-                  }}>
-                  {myRole.name}
-                </button>
-              )}
+              {/* Role badge moved inside player card — tapping players list opens role guide */}
 
               {/* Spectator count eye icon */}
               {(room.spectatorCount ?? 0) > 0 && (
@@ -1156,14 +1130,6 @@ export function GamePage() {
                 </svg>
               </button>
 
-              {/* Role Guide button */}
-              <button
-                onClick={() => setShowRoleGuide(true)}
-                className="px-2.5 py-1 rounded-lg text-[10px] font-mono tracking-widest uppercase text-white/30 hover:text-white/70 hover:bg-white/5 transition-all"
-                title="Role Guide"
-              >
-                Guide
-              </button>
 
               {/* Leaderboard button */}
               <button
