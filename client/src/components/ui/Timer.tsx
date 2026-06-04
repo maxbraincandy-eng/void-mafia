@@ -25,8 +25,9 @@ const CONFIGS = {
 
 export function Timer({ seconds, max, size = 'md' }: Props) {
   const prevSecondsRef = useRef(seconds);
+  const urgencyTriggeredRef = useRef(false);
   const pct = max > 0 ? Math.max(0, Math.min(1, seconds / max)) : 0;
-  const isUrgent = pct < 0.25;
+  const isUrgent = seconds <= 10 && seconds > 0;
 
   useEffect(() => {
     const prev = prevSecondsRef.current;
@@ -34,6 +35,12 @@ export function Timer({ seconds, max, size = 'md' }: Props) {
     if (seconds <= 10 && seconds > 0 && seconds < prev) {
       SFX.tick(seconds <= 5);
     }
+    // Trigger once when dropping to 10
+    if (seconds <= 10 && seconds > 0 && prev > 10 && !urgencyTriggeredRef.current) {
+      urgencyTriggeredRef.current = true;
+      navigator.vibrate?.(50);
+    }
+    if (seconds > 10) urgencyTriggeredRef.current = false;
   }, [seconds]);
   const isWarning = pct < 0.5;
 
@@ -83,11 +90,11 @@ export function Timer({ seconds, max, size = 'md' }: Props) {
       {/* Center number */}
       <motion.span
         className={clsx('relative z-10 font-mono font-bold tabular-nums', textClass)}
-        animate={isUrgent ? { scale: [1, 1.06, 1] } : { scale: 1 }}
-        transition={isUrgent ? { repeat: Infinity, duration: 0.8 } : {}}
+        animate={isUrgent ? { scale: [1, 1.08, 1] } : { scale: 1 }}
+        transition={isUrgent ? { repeat: Infinity, duration: 0.45 } : {}}
         style={{
           color,
-          textShadow: isUrgent ? `0 0 10px ${color}` : undefined,
+          textShadow: isUrgent ? `0 0 14px ${color}` : undefined,
         }}
       >
         {fmt(seconds)}

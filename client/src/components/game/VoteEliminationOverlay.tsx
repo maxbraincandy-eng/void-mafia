@@ -88,20 +88,18 @@ export function VoteEliminationOverlay({ result, onDismiss }: Props) {
                 {result.name}
               </motion.h2>
 
-              {/* Role reveal */}
-              {result.role && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.35 }}
-                  className="flex items-center justify-center gap-2 mb-4"
-                >
-                  <span className="text-2xl">{ROLE_ICONS[result.role as RoleKey] ?? '❓'}</span>
-                  <span className="font-display font-bold text-neon-red/80 tracking-widest uppercase text-sm">
-                    {result.role.replace('_', ' ')}
-                  </span>
-                </motion.div>
-              )}
+              {/* Role hidden during game */}
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.35 }}
+                className="flex items-center justify-center gap-2 mb-4"
+              >
+                <span className="text-2xl">❓</span>
+                <span className="font-display font-bold text-neon-red/50 tracking-widest uppercase text-sm">
+                  ???
+                </span>
+              </motion.div>
 
               {/* Last Will */}
               {result.lastWill && (

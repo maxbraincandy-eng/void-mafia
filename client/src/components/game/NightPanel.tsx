@@ -73,15 +73,15 @@ export function NightPanel() {
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="flex flex-col items-center justify-center h-40 gap-3"
+        className="flex items-center justify-center gap-3 py-6"
       >
-        <div className="text-3xl">✅</div>
-        <p className="text-neon-green font-mono text-sm">{t.game.night.waitingMsg}</p>
-        {lastAction && (
-          <p className="text-white/40 font-mono text-xs">
-            {lastAction.verb}: <span className="text-white/65">{lastAction.name}</span>
+        <span className="text-2xl">✓</span>
+        <div>
+          <p className="text-sm font-display font-bold text-neon-green uppercase tracking-widest">Action confirmed</p>
+          <p className="text-xs font-mono text-white/40">
+            {lastAction ? `${lastAction.verb}: ${lastAction.name} · ` : ''}Waiting for night to end…
           </p>
-        )}
+        </div>
       </motion.div>
     );
   }

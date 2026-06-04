@@ -386,7 +386,8 @@ function PlayerCard({
   const initials = initialsOf(player.name);
 
   // Role to display: own tile always, ally tiles when server exposes their role, or spectator/game-over reveal
-  const tileRole = (isMe || showRole || isAlly) ? player.role : null;
+  // Don't show role for dead players unless showRole (spectator/game_over) is true
+  const tileRole = (isMe || showRole || isAlly) && (player.isAlive || showRole) ? player.role : null;
 
   return (
     <motion.button

@@ -119,7 +119,7 @@ export function GamePage() {
     dismissVoteElimination, dismissCultConversion, dismissNightSummary, dismissNewAchievements,
     dismissVoteBreakdown,
     pauseTimer, submitVote, nominate,
-    isLoading,
+    isLoading, addToast,
   } = useGameStore(s => ({
     room: s.room,
     myPlayer: s.myPlayer(),
@@ -152,6 +152,7 @@ export function GamePage() {
     submitVote: s.submitVote,
     nominate: s.nominate,
     isLoading: s.isLoading,
+    addToast: s.addToast,
   }));
 
   const voice = useVoiceChat();
@@ -356,6 +357,46 @@ export function GamePage() {
   useEffect(() => {
     setPendingVoteId(null);
   }, [phase]);
+
+  // Haptic feedback on phase changes
+  const prevPhaseForHaptic = useRef<string | null>(null);
+  useEffect(() => {
+    const cur = room?.phase ?? null;
+    if (!cur || cur === prevPhaseForHaptic.current) return;
+    prevPhaseForHaptic.current = cur;
+    if (cur === 'voting') navigator.vibrate?.([200, 100, 200]);
+    else if (cur === 'night') navigator.vibrate?.([300]);
+  }, [room?.phase]);
+
+  // Haptic when it becomes MY turn to speak
+  const prevSpeakerRef = useRef<string | null>(null);
+  useEffect(() => {
+    const cur = room?.currentSpeakerId ?? null;
+    if (cur !== prevSpeakerRef.current) {
+      prevSpeakerRef.current = cur;
+      if (cur === myPlayer?.id && amAlive && !amSpectator) {
+        navigator.vibrate?.([150, 50, 150]);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.currentSpeakerId]);
+
+  // Nomination notification
+  const prevNominationsRef = useRef<Record<string, string>>({});
+  useEffect(() => {
+    if (!room || !myPlayer) return;
+    const nominations = room.nominations ?? {};
+    const prevNominations = prevNominationsRef.current;
+    const iNominatedNow = Object.values(nominations).includes(myPlayer.id);
+    const iWasNominated = Object.values(prevNominations).includes(myPlayer.id);
+    if (iNominatedNow && !iWasNominated) {
+      SFX.timerWarning();
+      navigator.vibrate?.([100, 50, 100]);
+      addToast('You were nominated!', 'error');
+    }
+    prevNominationsRef.current = nominations;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.nominations, myPlayer?.id]);
 
   // Reconnect banner: show briefly when mounting into an active game (mid-session rejoin)
   const reconnectChecked = useRef(false);
@@ -1326,27 +1367,36 @@ export function GamePage() {
                   </div>
                 )}
 
-                {/* Day skip vote */}
-                {phase === 'day' && !amSpectator && (() => {
+                {/* Day skip vote — glass style */}
+                {phase === 'day' && !amSpectator && amAlive && (() => {
                   const active = room.players.filter(p => p.isAlive && !p.isSpectator);
-                  const skipNeeded = Math.floor(active.length / 2) + 1;
+                  const skipNeeded = Math.min(3, Math.floor(active.length / 2) + 1);
                   const alreadyVoted = room.daySkipVoteCount ?? 0;
                   return (
-                    <div className="flex-shrink-0 px-4 py-2 pb-20 text-center">
+                    <div className="flex-shrink-0 flex justify-center px-4 pb-4" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem))' }}>
                       <button
-                        onClick={() => daySkipVote()}
+                        onClick={() => { daySkipVote(); navigator.vibrate?.(50); }}
                         disabled={isLoading}
-                        className="px-6 py-2 border border-white/15 text-white/40 text-sm font-mono rounded-xl hover:border-neon-cyan/40 hover:text-neon-cyan transition-all disabled:opacity-40"
+                        className="px-6 py-3 rounded-2xl text-sm font-mono font-semibold transition-all active:scale-95 disabled:opacity-40"
+                        style={{
+                          background: 'rgba(255,255,255,0.05)',
+                          border: '1px solid rgba(255,255,255,0.15)',
+                          backdropFilter: 'blur(12px)',
+                          color: alreadyVoted >= skipNeeded ? 'rgba(0,229,255,0.9)' : 'rgba(255,255,255,0.5)',
+                          boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
+                        }}
                       >
-                        {t.game.day.skipDiscussion.replace('{voted}', String(alreadyVoted)).replace('{needed}', String(skipNeeded))}
+                        ⏭ Skip  ·  {alreadyVoted} / {skipNeeded}
                       </button>
                     </div>
                   );
                 })()}
 
-                {amHost && phase === 'speech' && (
+                {(amHost || (phase === 'speech' && room.currentSpeakerId === myPlayer?.id && amAlive)) && phase === 'speech' && (
                   <div className="flex-shrink-0 px-4 py-2 pb-20 text-center">
-                    <Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>⏭ {t.game.header.skip}</Button>
+                    <Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>
+                      {amHost ? <>⏭ {t.game.header.skip}</> : 'Pass →'}
+                    </Button>
                   </div>
                 )}
               </div>
@@ -1472,6 +1522,23 @@ export function GamePage() {
 
       <VoteRevealScreen breakdown={voteBreakdown} onDismiss={dismissVoteBreakdown} />
       <TutorialOverlay />
+
+      {/* Role reminder badge — fixed bottom-left, mobile only */}
+      {myRole && phase !== 'lobby' && phase !== 'game_over' && (
+        <button
+          onClick={() => setShowRoleCard(true)}
+          className="fixed bottom-6 left-4 z-40 px-3 py-2 rounded-xl flex items-center gap-2 transition-all active:scale-90 md:hidden"
+          style={{
+            background: `${myRole.glowColor}15`,
+            border: `1px solid ${myRole.glowColor}40`,
+            boxShadow: `0 0 12px ${myRole.glowColor}15`,
+          }}
+        >
+          <span className="text-[11px] font-display font-bold tracking-widest uppercase" style={{ color: myRole.glowColor }}>
+            {myRole.name}
+          </span>
+        </button>
+      )}
     </div>
   );
 }
