@@ -933,6 +933,22 @@ export function attachSocketHandlers(io: AppServer): void {
         const voter = getPlayerOrError(socket, room);
         if (voter.isSpectator) throw new Error('Spectators cannot vote.');
         submitVote(room, voter, targetId);
+
+        const target = targetId ? room.players.get(targetId) : null;
+        if (target) {
+          const voteMsg: import('./types/index.js').ChatMessage = {
+            id: crypto.randomUUID(),
+            senderId: 'system',
+            senderName: 'System',
+            text: `🗳 ${voter.name} → ${target.name}`,
+            timestamp: Date.now(),
+            channel: 'room',
+            isSystem: true,
+          };
+          room.chat.push(voteMsg);
+          io.to(room.id).emit('chat:new', voteMsg);
+        }
+
         broadcastRoom(io, room);
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
@@ -954,7 +970,16 @@ export function attachSocketHandlers(io: AppServer): void {
         });
 
         if (nomineeId) {
-          broadcastSystemMsg(io, room, `⚖️ ${actor.name} nominates ${nominee?.name ?? '?'} for tribunal.`);
+          room.chat.push({
+            id: crypto.randomUUID(),
+            senderId: 'system',
+            senderName: 'System',
+            text: `⚖️ ${actor.name} nominated ${nominee?.name ?? '?'}`,
+            timestamp: Date.now(),
+            channel: 'room',
+            isSystem: true,
+          });
+          io.to(room.id).emit('chat:new', room.chat[room.chat.length - 1]!);
         } else {
           broadcastSystemMsg(io, room, `${actor.name} withdrew their nomination.`);
         }
@@ -1001,9 +1026,9 @@ export function attachSocketHandlers(io: AppServer): void {
 
         room.daySkipVotes.push(player.id);
         const alivePlayers = [...room.players.values()].filter(p => p.isAlive && !p.isSpectator);
-        const majority = Math.floor(alivePlayers.length / 2) + 1;
+        const skipNeeded = Math.min(3, Math.floor(alivePlayers.length / 2) + 1);
 
-        if (room.daySkipVotes.length >= majority) {
+        if (room.daySkipVotes.length >= skipNeeded) {
           timerService.stop(room.id);
           room.timer = 0;
           const nextPhase = advancePhase(room);

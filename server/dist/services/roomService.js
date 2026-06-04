@@ -228,8 +228,8 @@ export function toPublicRoom(room, viewerPlayerId) {
         isAlive: p.isAlive,
         isConnected: p.isConnected,
         isReady: p.isReady,
-        role: (p.id === viewerPlayerId || isGameOver || !viewer?.isAlive || viewer?.isSpectator) ? p.role : null,
-        team: (p.id === viewerPlayerId || isGameOver || !viewer?.isAlive || viewer?.isSpectator) ? p.team : null,
+        role: (p.id === viewerPlayerId || isGameOver || viewer?.isSpectator) ? p.role : null,
+        team: (p.id === viewerPlayerId || isGameOver || viewer?.isSpectator) ? p.team : null,
         // Mafia sees fellow mafia roles
         ...(isMafia && p.team === 'mafia' ? { role: p.role, team: p.team } : {}),
         // Cult leader sees all cult members
