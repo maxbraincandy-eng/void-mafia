@@ -124,6 +124,7 @@ export interface PlayerProfilePublic {
   moderatorBadgeVisible: boolean;
   moderatorPermissions: string[];
   joinedAt: number;
+  lastSeenAt?: number;
   xp?: number;
   level?: number;
   cosmetics?: PlayerCosmetics;
@@ -358,12 +359,34 @@ export interface GameHistoryEntry {
 // ── Social ────────────────────────────────────────────────────────────
 export type FriendshipStatus = 'none' | 'pending_sent' | 'pending_received' | 'accepted';
 
+export interface PlayerRoleStats {
+  byTeam: { team: string; games: number; wins: number; survived: number }[];
+  byRole: { role: string; games: number; wins: number; survived: number }[];
+  totalGames: number;
+  totalSurvived: number;
+  firstGameAt: number | null;
+  lastGameAt: number | null;
+}
+
+export interface ClanMembership {
+  id: string;
+  name: string;
+  tag: string;
+  memberRole: 'owner' | 'officer' | 'member';
+  joinedAt: number;
+  wins: number;
+  losses: number;
+  memberCount: number;
+}
+
 export interface PublicProfileFull {
   profile: PlayerProfilePublic;
   achievements: AchievementEarned[];
-  clan: ClanPublic | null;
+  recentGames?: GameHistoryEntry[];
+  clan: ClanMembership | null;
   friendshipStatus: FriendshipStatus;
   isOnline: boolean;
+  roleStats?: PlayerRoleStats;
 }
 
 export interface DmConversation {

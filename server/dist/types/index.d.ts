@@ -122,6 +122,7 @@ export interface PlayerProfilePublic {
     moderatorBadgeVisible: boolean;
     moderatorPermissions: string[];
     joinedAt: number;
+    lastSeenAt: number;
     xp: number;
     level: number;
     cosmetics: PlayerCosmetics;
@@ -732,6 +733,10 @@ export interface ClientToServerEvents {
     'player:public_profile': (data: {
         profileId: string;
     }, cb: Cb<any>) => void;
+    'player:role_stats': (data: {
+        profileId: string;
+    }, cb: Cb<any>) => void;
+    'clan:my_membership': (cb: Cb<any>) => void;
     'dm:start': (data: {
         profileId: string;
     }, cb: Cb<any>) => void;

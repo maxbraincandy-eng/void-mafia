@@ -9,8 +9,8 @@ import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActive
 import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, } from './services/friendService.js';
 import { checkAndAwardChallenge, getTodayChallenge, getDailyChallengeForPlayer, } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
-import { recordGame, getPlayerHistory } from './services/gameHistoryService.js';
-import { createClan, getClan, getClanByPlayer, getAllClans, getClanMembers, joinClan, leaveClan, } from './services/clanService.js';
+import { recordGame, getPlayerHistory, getPlayerRoleStats } from './services/gameHistoryService.js';
+import { createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan, } from './services/clanService.js';
 import { canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer, warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, logKick, } from './services/moderationService.js';
 import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as voiceLeave, getMembers as voiceGetMembers, getSharedChannel as voiceGetSharedChannel, removeFromChannel as voiceRemoveFromChannel, } from './services/voiceService.js';
 import { sql } from './db.js';
@@ -1497,9 +1497,12 @@ export function attachSocketHandlers(io) {
                 const profile = await getPlayer(profileId);
                 if (!profile)
                     throw new Error('Player not found.');
-                const achievements = await getPlayerAchievements(profileId);
-                const history = await getPlayerHistory(profileId, 10);
-                const clan = await getClanByPlayer(profileId);
+                const [achievements, history, clanMembership, roleStats] = await Promise.all([
+                    getPlayerAchievements(profileId),
+                    getPlayerHistory(profileId, 10),
+                    getClanMembershipByPlayer(profileId),
+                    getPlayerRoleStats(profileId),
+                ]);
                 let friendshipStatus = 'none';
                 const myProfileId = socket.data.profileId;
                 if (myProfileId && myProfileId !== profileId) {
@@ -1509,10 +1512,21 @@ export function attachSocketHandlers(io) {
                     profile: toPublicProfile(profile),
                     achievements,
                     recentGames: history,
-                    clan: clan ? { id: clan.id, name: clan.name, tag: clan.tag } : null,
+                    clan: clanMembership,
                     friendshipStatus,
                     isOnline: isOnline(profileId),
+                    roleStats,
                 }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Role Stats (role/team breakdown for any player) ───────────────
+        socket.on('player:role_stats', async ({ profileId }, cb) => {
+            try {
+                const stats = await getPlayerRoleStats(profileId);
+                cb(ok(stats));
             }
             catch (e) {
                 cb(err(e.message));
@@ -1545,6 +1559,17 @@ export function attachSocketHandlers(io) {
                 if (!profileId)
                     return cb(ok(null));
                 cb(ok(await getClanByPlayer(profileId)));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('clan:my_membership', async (cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    return cb(ok(null));
+                cb(ok(await getClanMembershipByPlayer(profileId)));
             }
             catch (e) {
                 cb(err(e.message));

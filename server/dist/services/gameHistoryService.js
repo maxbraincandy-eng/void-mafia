@@ -1,5 +1,52 @@
 import { sql } from '../db.js';
 import { generateId } from '../utils/helpers.js';
+export async function getPlayerRoleStats(playerId) {
+    const [totals] = await sql `
+    SELECT COUNT(*) as total_games,
+           COALESCE(SUM(gp.survived), 0) as total_survived,
+           MIN(gh.ended_at) as first_game,
+           MAX(gh.ended_at) as last_game
+    FROM game_players gp
+    JOIN game_history gh ON gh.id = gp.game_id
+    WHERE gp.player_id = ${playerId}
+  `;
+    const teamRows = await sql `
+    SELECT team, COUNT(*) as games,
+           COALESCE(SUM(won), 0) as wins,
+           COALESCE(SUM(survived), 0) as survived
+    FROM game_players
+    WHERE player_id = ${playerId} AND team IS NOT NULL
+    GROUP BY team
+    ORDER BY COUNT(*) DESC
+  `;
+    const roleRows = await sql `
+    SELECT role, COUNT(*) as games,
+           COALESCE(SUM(won), 0) as wins,
+           COALESCE(SUM(survived), 0) as survived
+    FROM game_players
+    WHERE player_id = ${playerId} AND role IS NOT NULL
+    GROUP BY role
+    ORDER BY COUNT(*) DESC
+  `;
+    return {
+        byTeam: teamRows.map((r) => ({
+            team: r.team,
+            games: Number(r.games),
+            wins: Number(r.wins),
+            survived: Number(r.survived),
+        })),
+        byRole: roleRows.map((r) => ({
+            role: r.role,
+            games: Number(r.games),
+            wins: Number(r.wins),
+            survived: Number(r.survived),
+        })),
+        totalGames: Number(totals?.total_games ?? 0),
+        totalSurvived: Number(totals?.total_survived ?? 0),
+        firstGameAt: totals?.first_game ? Number(totals.first_game) : null,
+        lastGameAt: totals?.last_game ? Number(totals.last_game) : null,
+    };
+}
 export async function recordGame(room) {
     const id = generateId();
     const now = Date.now();

@@ -2,6 +2,66 @@ import { sql } from '../db.js';
 import { Room } from '../types/index.js';
 import { generateId } from '../utils/helpers.js';
 
+export interface PlayerRoleStats {
+  byTeam: { team: string; games: number; wins: number; survived: number }[];
+  byRole: { role: string; games: number; wins: number; survived: number }[];
+  totalGames: number;
+  totalSurvived: number;
+  firstGameAt: number | null;
+  lastGameAt: number | null;
+}
+
+export async function getPlayerRoleStats(playerId: string): Promise<PlayerRoleStats> {
+  const [totals] = await sql`
+    SELECT COUNT(*) as total_games,
+           COALESCE(SUM(gp.survived), 0) as total_survived,
+           MIN(gh.ended_at) as first_game,
+           MAX(gh.ended_at) as last_game
+    FROM game_players gp
+    JOIN game_history gh ON gh.id = gp.game_id
+    WHERE gp.player_id = ${playerId}
+  ` as any[];
+
+  const teamRows = await sql`
+    SELECT team, COUNT(*) as games,
+           COALESCE(SUM(won), 0) as wins,
+           COALESCE(SUM(survived), 0) as survived
+    FROM game_players
+    WHERE player_id = ${playerId} AND team IS NOT NULL
+    GROUP BY team
+    ORDER BY COUNT(*) DESC
+  ` as any[];
+
+  const roleRows = await sql`
+    SELECT role, COUNT(*) as games,
+           COALESCE(SUM(won), 0) as wins,
+           COALESCE(SUM(survived), 0) as survived
+    FROM game_players
+    WHERE player_id = ${playerId} AND role IS NOT NULL
+    GROUP BY role
+    ORDER BY COUNT(*) DESC
+  ` as any[];
+
+  return {
+    byTeam: teamRows.map((r: any) => ({
+      team: r.team,
+      games: Number(r.games),
+      wins: Number(r.wins),
+      survived: Number(r.survived),
+    })),
+    byRole: roleRows.map((r: any) => ({
+      role: r.role,
+      games: Number(r.games),
+      wins: Number(r.wins),
+      survived: Number(r.survived),
+    })),
+    totalGames: Number(totals?.total_games ?? 0),
+    totalSurvived: Number(totals?.total_survived ?? 0),
+    firstGameAt: totals?.first_game ? Number(totals.first_game) : null,
+    lastGameAt: totals?.last_game ? Number(totals.last_game) : null,
+  };
+}
+
 export async function recordGame(room: Room): Promise<string> {
   const id = generateId();
   const now = Date.now();

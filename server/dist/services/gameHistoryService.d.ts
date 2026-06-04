@@ -1,4 +1,23 @@
 import { Room } from '../types/index.js';
+export interface PlayerRoleStats {
+    byTeam: {
+        team: string;
+        games: number;
+        wins: number;
+        survived: number;
+    }[];
+    byRole: {
+        role: string;
+        games: number;
+        wins: number;
+        survived: number;
+    }[];
+    totalGames: number;
+    totalSurvived: number;
+    firstGameAt: number | null;
+    lastGameAt: number | null;
+}
+export declare function getPlayerRoleStats(playerId: string): Promise<PlayerRoleStats>;
 export declare function recordGame(room: Room): Promise<string>;
 export interface GameHistoryEntry {
     id: string;

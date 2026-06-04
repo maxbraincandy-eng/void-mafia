@@ -60,6 +60,38 @@ export async function getClanByPlayer(playerId: string): Promise<Clan | null> {
   return getClan(membership.clan_id);
 }
 
+export interface ClanMembership {
+  id: string;
+  name: string;
+  tag: string;
+  memberRole: 'owner' | 'officer' | 'member';
+  joinedAt: number;
+  wins: number;
+  losses: number;
+  memberCount: number;
+}
+
+export async function getClanMembershipByPlayer(playerId: string): Promise<ClanMembership | null> {
+  const rows = await sql`
+    SELECT c.id, c.name, c.tag, c.wins, c.losses,
+           cm.role as member_role, cm.joined_at as member_joined_at,
+           (SELECT COUNT(*) FROM clan_members WHERE clan_id = c.id) as member_count
+    FROM clan_members cm
+    JOIN clans c ON c.id = cm.clan_id
+    WHERE cm.player_id = ${playerId}
+    LIMIT 1
+  ` as any[];
+  if (!rows.length) return null;
+  const r = rows[0];
+  return {
+    id: r.id, name: r.name, tag: r.tag,
+    memberRole: r.member_role as 'owner' | 'officer' | 'member',
+    joinedAt: Number(r.member_joined_at),
+    wins: Number(r.wins), losses: Number(r.losses),
+    memberCount: Number(r.member_count),
+  };
+}
+
 export async function getAllClans(): Promise<Clan[]> {
   const rows = await sql`SELECT * FROM clans ORDER BY wins DESC LIMIT 100` as any[];
   return Promise.all(rows.map(rowToClan));

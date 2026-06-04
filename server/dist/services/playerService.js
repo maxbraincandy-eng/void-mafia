@@ -270,7 +270,7 @@ export async function getLeaderboard() {
     SELECT id, username, avatar, avatar_url, public_id,
            games_played, wins, losses, xp, level, cosmetics,
            friend_code, is_moderator, moderator_level, moderator_badge_visible,
-           moderator_permissions, joined_at
+           moderator_permissions, joined_at, last_seen_at
     FROM players
     WHERE games_played >= 1
     ORDER BY level DESC, xp DESC, games_played DESC
@@ -294,6 +294,7 @@ export async function getLeaderboard() {
         moderatorBadgeVisible: r.moderator_badge_visible === 1 || r.moderator_badge_visible === true,
         moderatorPermissions: JSON.parse(r.moderator_permissions ?? '[]'),
         joinedAt: Number(r.joined_at),
+        lastSeenAt: Number(r.last_seen_at ?? r.joined_at ?? 0),
         xp: Number(r.xp ?? 0),
         level: Number(r.level ?? 1),
         cosmetics: (() => { try {
@@ -337,6 +338,7 @@ export async function getPlayersFast() {
         moderatorBadgeVisible: r.moderator_badge_visible === 1 || r.moderator_badge_visible === true,
         moderatorPermissions: JSON.parse(r.moderator_permissions ?? '[]'),
         joinedAt: Number(r.joined_at),
+        lastSeenAt: Number(r.last_seen_at ?? r.joined_at ?? 0),
         xp: Number(r.xp ?? 0),
         level: Number(r.level ?? 1),
         cosmetics: (() => { try {
@@ -361,6 +363,7 @@ export function toPublicProfile(p) {
         moderatorBadgeVisible: p.moderatorBadgeVisible,
         moderatorPermissions: p.moderatorPermissions ?? [],
         joinedAt: p.joinedAt,
+        lastSeenAt: p.lastSeenAt,
         xp: p.xp,
         level: p.level,
         cosmetics: p.cosmetics,

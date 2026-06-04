@@ -44,6 +44,27 @@ export async function getClanByPlayer(playerId) {
         return null;
     return getClan(membership.clan_id);
 }
+export async function getClanMembershipByPlayer(playerId) {
+    const rows = await sql `
+    SELECT c.id, c.name, c.tag, c.wins, c.losses,
+           cm.role as member_role, cm.joined_at as member_joined_at,
+           (SELECT COUNT(*) FROM clan_members WHERE clan_id = c.id) as member_count
+    FROM clan_members cm
+    JOIN clans c ON c.id = cm.clan_id
+    WHERE cm.player_id = ${playerId}
+    LIMIT 1
+  `;
+    if (!rows.length)
+        return null;
+    const r = rows[0];
+    return {
+        id: r.id, name: r.name, tag: r.tag,
+        memberRole: r.member_role,
+        joinedAt: Number(r.member_joined_at),
+        wins: Number(r.wins), losses: Number(r.losses),
+        memberCount: Number(r.member_count),
+    };
+}
 export async function getAllClans() {
     const rows = await sql `SELECT * FROM clans ORDER BY wins DESC LIMIT 100`;
     return Promise.all(rows.map(rowToClan));

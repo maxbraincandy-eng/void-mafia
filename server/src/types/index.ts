@@ -186,6 +186,7 @@ export interface PlayerProfilePublic {
   moderatorBadgeVisible: boolean;
   moderatorPermissions: string[];
   joinedAt: number;
+  lastSeenAt: number;
   xp: number;
   level: number;
   cosmetics: PlayerCosmetics;
@@ -609,6 +610,10 @@ export interface ClientToServerEvents {
   'cosmetics:get':         (data: { profileId: string }, cb: Cb<PlayerCosmetics>) => void;
   // Public profile popup
   'player:public_profile': (data: { profileId: string }, cb: Cb<any>) => void;
+  // Role stats breakdown
+  'player:role_stats':     (data: { profileId: string }, cb: Cb<any>) => void;
+  // Clan membership with member role/join date
+  'clan:my_membership':    (cb: Cb<any>) => void;
   // Direct messages
   'dm:start':              (data: { profileId: string }, cb: Cb<any>) => void;
   'dm:send':               (data: { conversationId: string; text: string }, cb: Cb<any>) => void;

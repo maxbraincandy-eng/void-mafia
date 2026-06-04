@@ -38,9 +38,9 @@ import {
   checkAndAwardChallenge, getTodayChallenge, getDailyChallengeForPlayer,
 } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
-import { recordGame, getPlayerHistory } from './services/gameHistoryService.js';
+import { recordGame, getPlayerHistory, getPlayerRoleStats } from './services/gameHistoryService.js';
 import {
-  createClan, getClan, getClanByPlayer, getAllClans, getClanMembers, joinClan, leaveClan,
+  createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan,
 } from './services/clanService.js';
 import {
   canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer,
@@ -1476,11 +1476,15 @@ export function attachSocketHandlers(io: AppServer): void {
       try {
         const profile = await getPlayer(profileId);
         if (!profile) throw new Error('Player not found.');
-        const achievements = await getPlayerAchievements(profileId);
-        const history = await getPlayerHistory(profileId, 10);
-        const clan = await getClanByPlayer(profileId);
 
-        let friendshipStatus = 'none';
+        const [achievements, history, clanMembership, roleStats] = await Promise.all([
+          getPlayerAchievements(profileId),
+          getPlayerHistory(profileId, 10),
+          getClanMembershipByPlayer(profileId),
+          getPlayerRoleStats(profileId),
+        ]);
+
+        let friendshipStatus: string = 'none';
         const myProfileId = socket.data.profileId;
         if (myProfileId && myProfileId !== profileId) {
           friendshipStatus = await getFriendshipStatus(myProfileId, profileId);
@@ -1490,10 +1494,19 @@ export function attachSocketHandlers(io: AppServer): void {
           profile: toPublicProfile(profile),
           achievements,
           recentGames: history,
-          clan: clan ? { id: clan.id, name: clan.name, tag: clan.tag } : null,
+          clan: clanMembership,
           friendshipStatus,
           isOnline: isOnline(profileId),
+          roleStats,
         }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Role Stats (role/team breakdown for any player) ───────────────
+    socket.on('player:role_stats', async ({ profileId }: { profileId: string }, cb: any) => {
+      try {
+        const stats = await getPlayerRoleStats(profileId);
+        cb(ok(stats));
       } catch (e: any) { cb(err(e.message)); }
     });
 
@@ -1516,6 +1529,14 @@ export function attachSocketHandlers(io: AppServer): void {
         const profileId = socket.data.profileId;
         if (!profileId) return cb(ok(null));
         cb(ok(await getClanByPlayer(profileId)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('clan:my_membership', async (cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) return cb(ok(null));
+        cb(ok(await getClanMembershipByPlayer(profileId)));
       } catch (e: any) { cb(err(e.message)); }
     });
 
