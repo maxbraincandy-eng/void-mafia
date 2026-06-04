@@ -1,19 +1,41 @@
 /**
- * Build RTCConfiguration from environment variables.
+ * Build RTCConfiguration.
  *
- * Required for basic connectivity: STUN (works for most networks).
- * For reliable production use behind strict NAT/firewalls, add TURN:
+ * STUN alone fails for mobile users behind CGNAT (4G/5G carrier NAT).
+ * TURN relay is required for reliable cross-network connections.
  *
- *   VITE_TURN_URL=turn:your-turn-server.com:3478
- *   VITE_TURN_USERNAME=your-username
- *   VITE_TURN_CREDENTIAL=your-credential
+ * Override via env vars in Railway:
+ *   VITE_TURN_URL=turn:your-server.com:3478
+ *   VITE_TURN_USERNAME=...
+ *   VITE_TURN_CREDENTIAL=...
  */
 export function getRTCConfig(): RTCConfiguration {
   const iceServers: RTCIceServer[] = [
+    // STUN — public IP discovery
     { urls: import.meta.env.VITE_STUN_URL ?? 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:openrelay.metered.ca:80' },
+
+    // TURN relay — required for mobile/CGNAT users
+    // Uses OpenRelay free tier as default; override with own TURN via env vars
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
   ];
 
+  // Custom TURN (Railway env vars) — takes priority, added last so browser prefers it
   const turnUrl = import.meta.env.VITE_TURN_URL;
   if (turnUrl) {
     iceServers.push({
@@ -23,5 +45,8 @@ export function getRTCConfig(): RTCConfiguration {
     });
   }
 
-  return { iceServers };
+  return {
+    iceServers,
+    iceCandidatePoolSize: 10,
+  };
 }

@@ -166,7 +166,10 @@ export class WebRTCSession {
 
     pc.oniceconnectionstatechange = () => {
       log('ICE state [', peerId, ']', pc.iceConnectionState);
-      if (pc.iceConnectionState === 'failed') pc.restartIce();
+      if (pc.iceConnectionState === 'failed') {
+        log('ICE failed for', peerId, '— restarting');
+        pc.restartIce();
+      }
       if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
         this.setState('connected');
       }
@@ -174,6 +177,11 @@ export class WebRTCSession {
 
     pc.onconnectionstatechange = () => {
       log('conn state [', peerId, ']', pc.connectionState);
+      if (pc.connectionState === 'failed') {
+        log('Connection failed for', peerId, '— closing and cleaning up');
+        pc.close();
+        this.pcs.delete(peerId);
+      }
     };
 
     pc.ontrack = (ev) => {
@@ -417,12 +425,26 @@ export class WebRTCSession {
       audio = document.createElement('audio');
       audio.autoplay = true;
       audio.setAttribute('playsinline', 'true');
+      audio.muted = false;
+      audio.volume = 1.0;
       audio.style.display = 'none';
       document.body.appendChild(audio);
       this.audioEls.set(peerId, audio);
     }
     audio.srcObject = stream;
-    audio.play().catch(e => log('audio.play() blocked:', e.message));
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(() => {
+        // Autoplay blocked — retry on next user interaction
+        const retry = () => {
+          audio!.play().catch(() => {});
+          document.removeEventListener('click', retry);
+          document.removeEventListener('touchstart', retry);
+        };
+        document.addEventListener('click', retry, { once: true });
+        document.addEventListener('touchstart', retry, { once: true });
+      });
+    }
     this.startRemoteSpeakingDetection(peerId, stream);
   }
 
