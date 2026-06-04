@@ -227,60 +227,126 @@ export const SFX = {
   },
 };
 
-// ── Mafia ambient music ───────────────────────────────────────────────
-// PCB-buffer approach: melody pre-computed as Float32Array (pure sine math).
-// No oscillators, no feedback, no scheduling loops — phone-safe guaranteed.
+// ── Synthwave / vaporwave ambient loop ───────────────────────────────
+// PCM-buffer: pre-computed Float32Array — no oscillators, phone-safe.
+// Am → F → C → G/B  @  80 BPM, 4 bars ≈ 12 s, all freqs ≥ 220 Hz.
+//
+// Layers: warm sawtooth pad + punchy sine bass + high-octave arpeggio + lead melody w/ vibrato
 
-// [melody_hz, bass_hz_or_0]  — 16 steps × 0.9 s = 14.4 s
-// All frequencies ≥ 220 Hz to avoid phone-speaker distortion below that threshold.
-const MUSIC_LOOP: Array<[number, number]> = [
-  [220,   294], [261.6, 0  ], [329.6, 0  ], [261.6, 220],
-  [293.7, 294], [349.2, 0  ], [440,   0  ], [349.2, 294],
-  [329.6, 220], [261.6, 0  ], [220,   0  ], [392,   220],
-  [329.6, 330], [220,   0  ], [329.6, 0  ], [220,   220],
+const _SW_BPM   = 80;
+const _SW_BEAT  = 60 / _SW_BPM;       // 0.75 s
+const _SW_BAR   = _SW_BEAT * 4;       // 3.0 s
+const LOOP_DUR  = _SW_BAR * 4;        // 12.0 s
+
+// All chord tones ≥ 220 Hz (phone-speaker safe)
+// Am: A3=220, C4=261.6, E4=329.6
+// F:  A3=220, C4=261.6, F4=349.2  (A as common tone avoids going below 220)
+// C:  C4=261.6, E4=329.6, G4=392
+// G/B: B3=246.9, D4=293.7, G4=392  (first inversion, smooth bass motion 220→220→261.6→246.9)
+const _SW_CHORDS: Array<readonly [number, number, number]> = [
+  [220,   261.6, 329.6],
+  [220,   261.6, 349.2],
+  [261.6, 329.6, 392  ],
+  [246.9, 293.7, 392  ],
 ];
-const NOTE_STEP = 0.9;
-const LOOP_DUR  = MUSIC_LOOP.length * NOTE_STEP;
+const _SW_BASS = [220, 220, 261.6, 246.9] as const;
+// 8 arpeggio steps per bar (8th notes) — index into chord [0,1,2]
+const _SW_ARP  = [0, 2, 1, 2, 0, 2, 1, 2] as const;
+// Lead riff: [beat_offset, freq] per bar — memorable 4-bar synthwave hook
+const _SW_LEAD: Array<ReadonlyArray<readonly [number, number]>> = [
+  [[0, 440  ], [2, 329.6]],   // Am: A4 → E4
+  [[0, 349.2], [2, 261.6]],   // F:  F4 → C4
+  [[0, 392  ], [2, 329.6]],   // C:  G4 → E4
+  [[0, 293.7], [2, 392  ]],   // G:  D4 → G4
+];
 
 let _musicMasterGain: GainNode | null = null;
 let _musicSource: AudioBufferSourceNode | null = null;
 
 function buildMusicBuffer(ctx: AudioContext): AudioBuffer {
-  const sr = ctx.sampleRate;
-  const total = Math.ceil(LOOP_DUR * sr);
-  const buf  = ctx.createBuffer(1, total, sr);
-  const data = buf.getChannelData(0);
-  const TAU  = 2 * Math.PI;
+  const sr  = ctx.sampleRate;
+  const N   = Math.ceil(LOOP_DUR * sr);
+  const TAU = Math.PI * 2;
+  const buf = ctx.createBuffer(1, N, sr);
+  const out = buf.getChannelData(0);
 
-  MUSIC_LOOP.forEach(([mel, bass], i) => {
-    const start = Math.floor(i * NOTE_STEP * sr);
-    const len   = Math.min(Math.ceil(NOTE_STEP * sr), total - start);
+  for (let bar = 0; bar < 4; bar++) {
+    const chord  = _SW_CHORDS[bar];
+    const bSamp  = Math.floor(bar * _SW_BAR * sr);
 
-    for (let s = 0; s < len; s++) {
-      const t = s / sr;
-
-      // Melody envelope: 15 ms attack → sustain → decay to 0 at 95 %
-      let me = t < 0.015
-        ? t / 0.015
-        : t < NOTE_STEP * 0.45
-          ? 1.0
-          : Math.max(0, 1 - (t - NOTE_STEP * 0.45) / (NOTE_STEP * 0.50));
-      data[start + s] += 0.28 * me * Math.sin(TAU * mel * t);
-
-      // Bass envelope: 20 ms attack → decay to 0 at 65 %
-      if (bass > 0) {
-        const be = t < 0.02
-          ? t / 0.02
-          : Math.max(0, 1 - (t - 0.02) / (NOTE_STEP * 0.65 - 0.02));
-        data[start + s] += 0.35 * be * Math.sin(TAU * bass * t);
+    // Pad: sawtooth timbre (1st–4th harmonics), slow 0.5 s attack/release
+    for (const freq of chord) {
+      const padLen = Math.min(Math.ceil(_SW_BAR * sr), N - bSamp);
+      for (let s = 0; s < padLen; s++) {
+        const t   = s / sr;
+        const env = t < 0.5 ? t / 0.5
+                  : t > _SW_BAR - 0.5 ? Math.max(0, (_SW_BAR - t) / 0.5)
+                  : 1.0;
+        out[bSamp + s] += 0.055 * env * (
+            Math.sin(TAU * freq * t)
+          + 0.50 * Math.sin(TAU * 2 * freq * t)
+          + 0.25 * Math.sin(TAU * 3 * freq * t)
+          + 0.10 * Math.sin(TAU * 4 * freq * t)
+        );
       }
     }
-  });
 
-  // Normalize peak to 0.35 — conservative amplitude, no speaker distortion
+    // Arpeggio: 8th notes, one octave up, pure sine, 72% duty cycle
+    for (let step = 0; step < 8; step++) {
+      const aFreq  = chord[_SW_ARP[step]] * 2;
+      const aStart = bSamp + Math.floor(step * (_SW_BEAT / 2) * sr);
+      const aDurS  = Math.floor(_SW_BEAT / 2 * 0.72 * sr);
+      for (let s = 0; s < aDurS && aStart + s < N; s++) {
+        const t   = s / sr;
+        const dur = aDurS / sr;
+        const env = t < 0.012 ? t / 0.012
+                  : t > dur * 0.60 ? Math.max(0, 1 - (t - dur * 0.60) / (dur * 0.40))
+                  : 1.0;
+        out[aStart + s] += 0.075 * env * Math.sin(TAU * aFreq * t);
+      }
+    }
+
+    // Bass: punchy sine on beats 1 and 3
+    const bFreq = _SW_BASS[bar];
+    for (const beat of [0, 2]) {
+      const bNote = bSamp + Math.floor(beat * _SW_BEAT * sr);
+      const bDurS = Math.floor(_SW_BEAT * 0.60 * sr);
+      for (let s = 0; s < bDurS && bNote + s < N; s++) {
+        const t   = s / sr;
+        const dur = bDurS / sr;
+        const env = t < 0.01 ? t / 0.01
+                  : t > dur * 0.45 ? Math.max(0, 1 - (t - dur * 0.45) / (dur * 0.55))
+                  : 1.0;
+        out[bNote + s] += 0.32 * env * Math.sin(TAU * bFreq * t);
+      }
+    }
+
+    // Lead: sawtooth tone + 5.5 Hz vibrato (phase modulation), 85% of beat duration
+    for (const [beatOff, lFreq] of _SW_LEAD[bar]) {
+      const lStart = bSamp + Math.floor(beatOff * _SW_BEAT * sr);
+      const lDurS  = Math.floor(_SW_BEAT * 0.85 * sr);
+      for (let s = 0; s < lDurS && lStart + s < N; s++) {
+        const t      = s / sr;
+        const dur    = lDurS / sr;
+        const vibPhi = 0.3 * Math.sin(TAU * 5.5 * t); // ±0.3 rad PM vibrato
+        const env    = t < 0.025 ? t / 0.025
+                     : t > dur * 0.65 ? Math.max(0, 1 - (t - dur * 0.65) / (dur * 0.35))
+                     : 1.0;
+        out[lStart + s] += 0.14 * env * (
+            Math.sin(TAU * lFreq * t + vibPhi)
+          + 0.45 * Math.sin(TAU * 2 * lFreq * t + vibPhi * 2)
+        );
+      }
+    }
+  }
+
+  // Normalize peak to 0.38
   let peak = 0;
-  for (let i = 0; i < total; i++) if (Math.abs(data[i]) > peak) peak = Math.abs(data[i]);
-  if (peak > 0) { const sc = 0.35 / peak; for (let i = 0; i < total; i++) data[i] *= sc; }
+  for (let i = 0; i < N; i++) if (Math.abs(out[i]) > peak) peak = Math.abs(out[i]);
+  if (peak > 0.001) {
+    const sc = 0.38 / peak;
+    for (let i = 0; i < N; i++) out[i] *= sc;
+  }
 
   return buf;
 }

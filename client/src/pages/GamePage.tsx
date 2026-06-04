@@ -24,7 +24,6 @@ import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { useVoiceChat, VoiceChannel } from '@/hooks/useVoiceChat';
 import { useGameSounds, SFX } from '@/hooks/useSoundFX';
 import { useSettingsStore } from '@/store/settingsStore';
-import { stopMenuMusic } from '@/lib/audioEngine';
 import { PhaseTransition } from '@/components/game/PhaseTransition';
 import { PlayerGrid } from '@/components/game/PlayerGrid';
 import { EliminationCinematic } from '@/components/game/EliminationCinematic';
@@ -99,8 +98,7 @@ export function GamePage() {
   const [willSaved, setWillSaved] = useState(false);
   const sfxEnabled = useSettingsStore(s => s.sfxEnabled);
   const updateSettings = useSettingsStore(s => s.update);
-  // Stop any ambient music when entering game
-  useEffect(() => { stopMenuMusic(); }, []);
+  // Music continues playing from menu — no stop needed.
   const [transitionPhase, setTransitionPhase] = useState<Phase | null>(null);
   const handleTransitionDone = useCallback(() => setTransitionPhase(null), []);
   const [mobileVoiceOpen, setMobileVoiceOpen] = useState(false);
