@@ -70,6 +70,8 @@ function onPeerJoined({ socketId, name }: { socketId: string; name: string; chan
   const s = _session;
   if (!s) return;
   log('peer-joined', socketId, name);
+  // Clean up any existing PC for this socketId before creating a new one
+  s.removePeer(socketId);
   s.createPeerConnection(socketId, name, (candidate) => {
     (socket as any).emit('voice:ice-candidate', { to: socketId, candidate });
   });
