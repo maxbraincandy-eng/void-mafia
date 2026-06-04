@@ -886,17 +886,7 @@ export function attachSocketHandlers(io) {
                 submitVote(room, voter, targetId);
                 const target = targetId ? room.players.get(targetId) : null;
                 if (target) {
-                    const voteMsg = {
-                        id: crypto.randomUUID(),
-                        senderId: 'system',
-                        senderName: 'System',
-                        text: `🗳 ${voter.name} → ${target.name}`,
-                        timestamp: Date.now(),
-                        channel: 'room',
-                        isSystem: true,
-                    };
-                    room.chat.push(voteMsg);
-                    io.to(room.id).emit('chat:new', voteMsg);
+                    broadcastSystemMsg(io, room, `🗳 ${voter.name} → ${target.name}`);
                 }
                 broadcastRoom(io, room);
                 cb(ok(null));
@@ -919,16 +909,7 @@ export function attachSocketHandlers(io) {
                     nomineeName: nominee?.name ?? null,
                 });
                 if (nomineeId) {
-                    room.chat.push({
-                        id: crypto.randomUUID(),
-                        senderId: 'system',
-                        senderName: 'System',
-                        text: `⚖️ ${actor.name} nominated ${nominee?.name ?? '?'}`,
-                        timestamp: Date.now(),
-                        channel: 'room',
-                        isSystem: true,
-                    });
-                    io.to(room.id).emit('chat:new', room.chat[room.chat.length - 1]);
+                    broadcastSystemMsg(io, room, `⚖️ ${actor.name} nominated ${nominee?.name ?? '?'}`);
                 }
                 else {
                     broadcastSystemMsg(io, room, `${actor.name} withdrew their nomination.`);
@@ -2115,7 +2096,14 @@ function enforceVoicePhaseRules(io, room) {
         }
         return;
     }
-    // day, voting, lobby, role_reveal, game_over — lift force mutes for alive players only
+    if (phase === 'voting') {
+        // All players silent during voting — no voice chat allowed
+        for (const member of voiceGetMembers(roomId, 'room')) {
+            io.to(member.socketId).emit('voice:force-mute', { reason: 'Silent during voting.' });
+        }
+        return;
+    }
+    // day, lobby, role_reveal, game_over — lift force mutes for alive players only
     for (const member of voiceGetMembers(roomId, 'room')) {
         const player = room.players.get(member.playerId);
         if (player?.isAlive && !player?.isSpectator) {

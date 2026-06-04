@@ -1268,6 +1268,41 @@ export function GamePage() {
                 )}
                 {phase === 'night' && isMafiaPlayer && VoicePanel}
               </div>
+            ) : (phase === 'voting') ? (
+              /* Voting: full-screen vote panel — prominent like night phase */
+              <div className="flex-1 overflow-y-auto p-3 pb-20">
+                {/* Header */}
+                <div className="flex items-center gap-3 mb-4 px-1">
+                  <motion.div
+                    animate={{ opacity: [1, 0.4, 1] }}
+                    transition={{ repeat: Infinity, duration: 1.2 }}
+                    className="w-2 h-2 rounded-full bg-neon-red"
+                    style={{ boxShadow: '0 0 8px rgba(255,45,85,0.9)' }}
+                  />
+                  <span className="font-mono text-[11px] tracking-[0.25em] uppercase text-neon-red/80">
+                    {t.game.voting.title}
+                  </span>
+                  <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(255,45,85,0.35), transparent)' }} />
+                  <Timer seconds={room.timer ?? 0} max={room.maxTimer ?? 60} />
+                </div>
+                {/* Player grid for vote selection (tap to select) */}
+                <div className="mb-4">
+                  <PlayerGrid
+                    players={activePlayers}
+                    phase={phase}
+                    currentSpeakerId={null}
+                    myPlayerId={myPlayer?.id ?? null}
+                    voteCounts={voteCounts}
+                    selectedVoteId={pendingVoteId ?? myVoteTarget}
+                    showRoles={amSpectator}
+                    voice={tileVoice}
+                    allyIds={allyIds}
+                    onSelect={handlePlayerSelect}
+                  />
+                </div>
+                {/* VotingPanel with tally + confirm */}
+                {!amSpectator && <VotingPanel />}
+              </div>
             ) : (phase === 'death_speech') ? (
               /* Death speech: full-screen countdown for eliminated player */
               <div className="flex-1 flex flex-col items-center justify-center p-4 gap-6 pb-20">
@@ -1312,7 +1347,7 @@ export function GamePage() {
                   currentSpeakerId={room.currentSpeakerId}
                   myPlayerId={myPlayer?.id ?? null}
                   voteCounts={voteCounts}
-                  selectedVoteId={phase === 'voting' ? (pendingVoteId ?? myVoteTarget) : myVoteTarget}
+                  selectedVoteId={myVoteTarget}
                   showRoles={amSpectator}
                   fillHeight
                   voice={tileVoice}
@@ -1359,13 +1394,6 @@ export function GamePage() {
                     );
                   })()}
                 />
-
-                {/* Voting: compact bottom bar */}
-                {phase === 'voting' && !amSpectator && (
-                  <div className="flex-shrink-0 bg-[rgba(8,4,22,0.95)] border-t border-neon-red/20 px-4 py-2 pb-20">
-                    <VotingPanel />
-                  </div>
-                )}
 
                 {/* Day skip vote — glass style */}
                 {phase === 'day' && !amSpectator && amAlive && (() => {
