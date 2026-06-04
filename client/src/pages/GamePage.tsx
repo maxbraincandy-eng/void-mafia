@@ -297,7 +297,7 @@ export function GamePage() {
   const alivePlayers = room.players.filter(p => p.isAlive).length;
 
   // Grid view is shown as primary content for social phases
-  const useGridView = ['day', 'speech', 'voting', 'role_reveal'].includes(phase);
+  const useGridView = ['day', 'speech', 'voting', 'morning', 'role_reveal'].includes(phase);
 
   // Vote counts for grid overlay
   const voteCounts: Record<string, number> = {};
@@ -1312,11 +1312,36 @@ export function GamePage() {
                         );
                       })()}
 
-                      {phase === 'speech' && !amSpectator && (
-                        <div className="text-center py-2">
-                          {amHost && <Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>⏭ {t.game.header.skip}</Button>}
-                        </div>
-                      )}
+                      {phase === 'speech' && !amSpectator && (() => {
+                        const isMyTurnMobile = room.currentSpeakerId === myPlayer?.id && amAlive;
+                        const myNomMobile = isMyTurnMobile ? room.nominations?.[myPlayer!.id] : undefined;
+                        const nominatedMobile = myNomMobile ? room.players.find(p => p.id === myNomMobile) : null;
+                        return (
+                          <div className="space-y-2">
+                            {isMyTurnMobile && (
+                              <div className="p-3 rounded-xl border border-neon-red/20 bg-neon-red/5 space-y-2">
+                                <p className="text-[10px] font-mono text-neon-red/50 uppercase tracking-widest">⚖️ {t.game.speech.nominateLabel}</p>
+                                {nominatedMobile ? (
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-sm font-semibold text-neon-red">{nominatedMobile.name}</span>
+                                    <button onClick={() => nominate(null)} disabled={isLoading} className="text-xs text-white/40 hover:text-neon-red font-mono">✕ {t.game.speech.withdrawNomination}</button>
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {room.players.filter(p => p.isAlive && !p.isSpectator && p.id !== myPlayer!.id).map(p => (
+                                      <button key={p.id} onClick={() => nominate(p.id)} disabled={isLoading}
+                                        className="px-2.5 py-1 rounded-lg border border-neon-red/20 text-neon-red/60 text-xs font-mono hover:border-neon-red/50 hover:text-neon-red/90 transition-all disabled:opacity-40">
+                                        {p.name}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {amHost && <div className="text-center"><Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>⏭ {t.game.header.skip}</Button></div>}
+                          </div>
+                        );
+                      })()}
 
                       {/* Last Will — compact on mobile */}
                       {LastWillPanel}
@@ -1354,6 +1379,32 @@ export function GamePage() {
                           onSelect={handlePlayerSelect}
                         />
                       </div>
+
+                      {/* Nomination bar pinned at bottom during speech */}
+                      {phase === 'speech' && !amSpectator && amAlive && room.currentSpeakerId === myPlayer?.id && (() => {
+                        const myNomId = room.nominations?.[myPlayer!.id];
+                        const nomPlayer = myNomId ? room.players.find(p => p.id === myNomId) : null;
+                        return (
+                          <div className="flex-shrink-0 mx-2 mb-2 mt-1 rounded-2xl border border-neon-red/20 bg-[rgba(20,0,5,0.97)] backdrop-blur p-3 shadow-[0_0_16px_rgba(255,45,85,0.15)]">
+                            <p className="text-[10px] font-mono text-neon-red/50 uppercase tracking-widest mb-2">⚖️ {t.game.speech.nominateLabel}</p>
+                            {nomPlayer ? (
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-sm font-semibold text-neon-red">{nomPlayer.name}</span>
+                                <button onClick={() => nominate(null)} disabled={isLoading} className="text-xs text-white/40 hover:text-neon-red font-mono">✕ {t.game.speech.withdrawNomination}</button>
+                              </div>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5">
+                                {room.players.filter(p => p.isAlive && !p.isSpectator && p.id !== myPlayer!.id).map(p => (
+                                  <button key={p.id} onClick={() => nominate(p.id)} disabled={isLoading}
+                                    className="px-2.5 py-1.5 rounded-lg border border-neon-red/20 text-neon-red/60 text-xs font-mono hover:border-neon-red/50 hover:text-neon-red/90 transition-all disabled:opacity-40">
+                                    {p.name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* Vote confirm bar pinned at bottom */}
                       {phase === 'voting' && pendingVoteId && (() => {
