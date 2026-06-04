@@ -5,6 +5,7 @@ function ensureRoom(roomId) {
         state.set(roomId, new Map([
             ['room', new Map()],
             ['mafia', new Map()],
+            ['yakuza', new Map()],
         ]));
     }
     return state.get(roomId);
@@ -29,6 +30,15 @@ export function canJoin(room, playerId, channel) {
             return 'Dead players cannot join mafia voice.';
         if (player.team !== 'mafia')
             return 'Only Mafia members can join mafia voice.';
+        return null;
+    }
+    if (channel === 'yakuza') {
+        if (room.phase !== 'night')
+            return 'Yakuza voice is only available during night.';
+        if (!player.isAlive)
+            return 'Dead players cannot join Yakuza voice.';
+        if (player.team !== 'yakuza')
+            return 'Only Yakuza faction members can join Yakuza voice.';
         return null;
     }
     return 'Unknown channel.';
@@ -83,6 +93,13 @@ export function canTransmitVoice(room, playerId, channel) {
             return 'Mafia voice is only available during night.';
         if (player.team !== 'mafia')
             return 'Only Mafia members can transmit in this channel.';
+        return null;
+    }
+    if (channel === 'yakuza') {
+        if (room.phase !== 'night')
+            return 'Yakuza voice is only available during night.';
+        if (player.team !== 'yakuza')
+            return 'Only Yakuza faction members can transmit in this channel.';
         return null;
     }
     return 'Unknown channel.';

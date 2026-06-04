@@ -13,6 +13,7 @@ export declare function getTrackResult(room: Room, actor: Player): {
     trackedName: string;
     visitedName: string | null;
 } | null;
+export declare function submitNomination(room: Room, actor: Player, nomineeId: string | null): void;
 export declare function submitVote(room: Room, voter: Player, targetId: string | null): void;
 export declare function resolveVotes(room: Room): string | null;
 export declare function checkWin(room: Room): boolean;

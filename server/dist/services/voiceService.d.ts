@@ -1,5 +1,5 @@
 import type { Room } from '../types/index.js';
-export type VoiceChannel = 'room' | 'mafia';
+export type VoiceChannel = 'room' | 'mafia' | 'yakuza';
 export interface VoiceMember {
     socketId: string;
     playerId: string;

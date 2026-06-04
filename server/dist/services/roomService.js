@@ -93,6 +93,9 @@ export function createRoom(hostSocketId, hostName, profileId, settings) {
         newlyConvertedCultists: [],
         spectateQueue: [],
         startedAt: 0,
+        mafiaKillTarget: null,
+        nominations: new Map(),
+        tribunalCandidates: [],
     };
     rooms.set(id, room);
     return room;
@@ -233,7 +236,7 @@ export function toPublicRoom(room, viewerPlayerId) {
         // Yakuza team members see each other
         ...(isYakuza && p.team === 'yakuza' ? { role: p.role, team: p.team } : {}),
         voteTarget: room.phase === 'voting' ? p.voteTarget : null,
-        hasActed: p.hasActedThisPhase,
+        hasActed: p.id === viewerPlayerId ? p.hasActedThisPhase : false,
         seat: p.seat,
         profileId: p.profileId,
         isModerator: p.isModerator,
@@ -262,6 +265,23 @@ export function toPublicRoom(room, viewerPlayerId) {
         daySkipVoteCount: room.daySkipVotes.length,
         spectatorCount: [...room.players.values()].filter(p => p.isSpectator).length,
         isPaused: room.isPaused,
+        nominations: Object.fromEntries(room.nominations),
+        tribunalCandidates: room.tribunalCandidates,
+        mafiaVotes: isMafia && room.phase === 'night'
+            ? (() => {
+                const votes = {};
+                for (const action of room.nightActions.values()) {
+                    if (action.role !== 'mafia' && action.role !== 'don')
+                        continue;
+                    const voter = room.players.get(action.actorId);
+                    const target = room.players.get(action.targetId);
+                    if (voter && target) {
+                        votes[action.actorId] = { voterName: voter.name, targetName: target.name };
+                    }
+                }
+                return votes;
+            })()
+            : null,
     };
 }
 export function toRoomListItem(room) {
@@ -338,6 +358,8 @@ export function rematchRoom(room) {
     room.dousedPlayers = new Set();
     room.newlyConvertedCultists = [];
     room.startedAt = 0;
+    room.nominations = new Map();
+    room.tribunalCandidates = [];
     for (const p of room.players.values()) {
         p.role = null;
         p.team = null;

@@ -1,4 +1,4 @@
-export type Phase = 'lobby' | 'role_reveal' | 'night' | 'day' | 'speech' | 'voting' | 'game_over';
+export type Phase = 'lobby' | 'role_reveal' | 'night' | 'morning' | 'day' | 'speech' | 'voting' | 'game_over';
 export type RoleKey = 'mafia' | 'citizen' | 'sheriff' | 'doctor' | 'don' | 'maniac' | 'jester' | 'bodyguard' | 'spy' | 'escort' | 'vigilante' | 'cult_leader' | 'cultist' | 'veteran' | 'tracker' | 'arsonist' | 'mayor' | 'yakuza' | 'shogun';
 export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
@@ -258,6 +258,9 @@ export interface Room {
     deadChat: ChatMessage[];
     spectateQueue: string[];
     startedAt: number;
+    mafiaKillTarget: string | null;
+    nominations: Map<string, string>;
+    tribunalCandidates: string[];
 }
 export interface PlayerPublic {
     id: string;
@@ -304,6 +307,15 @@ export interface RoomPublic {
     spectatorCount: number;
     isPaused: boolean;
     deadChat: ChatMessage[];
+    /** Mafia-team-only: each alive Mafia member's current kill vote. null when viewer is not Mafia. */
+    mafiaVotes: Record<string, {
+        voterName: string;
+        targetName: string;
+    }> | null;
+    /** nominatorId → nomineeId for current day's speech nominations */
+    nominations: Record<string, string>;
+    /** deduped list of nominated player IDs eligible for tribunal vote */
+    tribunalCandidates: string[];
 }
 export interface RoomListItem {
     id: string;
@@ -335,7 +347,7 @@ export interface GameOverResult {
         team: Team;
     }>;
 }
-export type VoiceChannel = 'room' | 'mafia';
+export type VoiceChannel = 'room' | 'mafia' | 'yakuza';
 export interface AchievementEarned {
     key: string;
     name: string;
@@ -410,6 +422,12 @@ export interface ServerToClientEvents {
     }) => void;
     'game:over': (result: GameOverResult) => void;
     'game:night_summary': (summary: NightSummary) => void;
+    'game:nomination': (data: {
+        nominatorId: string;
+        nominatorName: string;
+        nomineeId: string | null;
+        nomineeName: string | null;
+    }) => void;
     'achievement:earned': (data: {
         achievements: AchievementEarned[];
     }) => void;
@@ -566,6 +584,9 @@ export interface ClientToServerEvents {
         targetId: string | null;
     }, cb: Cb<null>) => void;
     'game:skip': (cb: Cb<null>) => void;
+    'game:nominate': (data: {
+        nomineeId: string | null;
+    }, cb: Cb<null>) => void;
     'game:day_skip_vote': (cb: Cb<null>) => void;
     'game:restart': (cb: Cb<null>) => void;
     'game:set_will': (data: {

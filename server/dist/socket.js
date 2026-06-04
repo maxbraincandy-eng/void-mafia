@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ok, err, } from './types/index.js';
 import { createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, removePlayer, getPlayerBySocket, toPublicRoom, toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom, setPlayerAvatarUrl, } from './services/roomService.js';
-import { startGame, setPhase, advancePhase, submitNightAction, submitVote, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult, getTrackResult, resolveVotes, } from './services/gameService.js';
+import { startGame, setPhase, advancePhase, submitNightAction, submitVote, submitNomination, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult, getTrackResult, resolveVotes, } from './services/gameService.js';
 import { createPlayerMessage, createSystemMessage, addMessage, validateChat, } from './services/chatService.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
@@ -134,6 +134,7 @@ function startPhaseTimer(io, room) {
     }, async () => {
         room.timer = 0;
         const wasNight = room.phase === 'night';
+        const wasSpeech = room.phase === 'speech';
         if (room.phase === 'voting')
             announceVoteResult(io, room);
         advancePhase(room);
@@ -145,6 +146,8 @@ function startPhaseTimer(io, room) {
             notifyCultConversions(io, room);
             notifyRoleblocked(io, room);
         }
+        if (wasSpeech && nextPhase !== 'speech')
+            announceSpeechEnd(io, room, nextPhase);
         if (nextPhase === 'night') {
             io.to(room.id).emit('game:notification', { title: 'Night Falls', body: 'Perform your night action.' });
         }
@@ -241,9 +244,27 @@ async function notifyMods(io, type, message, targetName) {
         }
     }
 }
+function announceSpeechEnd(io, room, nextPhase) {
+    if (nextPhase === 'voting') {
+        const names = room.tribunalCandidates
+            .map(id => room.players.get(id)?.name ?? '?')
+            .join(', ');
+        broadcastSystemMsg(io, room, `⚖️ Tribunal begins — nominated: ${names}.`);
+    }
+    else if (nextPhase === 'night') {
+        broadcastSystemMsg(io, room, 'No one was nominated. Night begins.');
+    }
+}
 function announceNightResult(io, room) {
     const result = { killed: room.killedLastNight, saved: room.savedLastNight };
     io.to(room.id).emit('game:night_result', result);
+    // Notify Mafia privately if they had votes but couldn't reach consensus
+    const mafiaVoteCount = [...room.nightActions.values()]
+        .filter(a => a.role === 'mafia' || a.role === 'don').length;
+    if (mafiaVoteCount > 0 && room.mafiaKillTarget === null) {
+        const msg = createSystemMessage("Your team couldn't agree on a target. No kill happened.", 'mafia');
+        addMessage(room, msg);
+    }
     // Night summary card (aggregate stats for all players)
     const summary = {
         day: room.day,
@@ -308,9 +329,8 @@ function notifyYakuzaAllies(io, room) {
     }
 }
 function notifySpies(io, room) {
-    const mafiaAction = [...room.nightActions.values()]
-        .find(a => a.role === 'mafia' || a.role === 'don');
-    const targetId = mafiaAction?.targetId ?? null;
+    // Use the resolved consensus kill target (even if Doctor saved the victim)
+    const targetId = room.mafiaKillTarget;
     const targetName = targetId ? (room.players.get(targetId)?.name ?? null) : null;
     for (const p of room.players.values()) {
         if (p.role === 'spy' && p.isAlive && p.socketId) {
@@ -825,6 +845,13 @@ export function attachSocketHandlers(io) {
                         io.to(actor.socketId).emit('game:investigation', result);
                     }
                 }
+                // Broadcast Mafia/Don kill choice to private Mafia chat so teammates see it
+                if ((actor.role === 'mafia' || actor.role === 'don') && room.phase === 'night') {
+                    const targetName = room.players.get(targetId)?.name ?? '?';
+                    const label = actor.role === 'don' ? 'Don' : 'Mafia';
+                    const choiceMsg = createSystemMessage(`[${label}] ${actor.name} → ${targetName}`, 'mafia');
+                    addMessage(room, choiceMsg);
+                }
                 broadcastRoom(io, room);
                 if (allNightActionsSubmitted(room)) {
                     timerService.stop(room.id);
@@ -864,6 +891,32 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
+        // ── Nominate ────────────────────────────────────────────────────
+        socket.on('game:nominate', ({ nomineeId }, cb) => {
+            try {
+                const room = getRoomFromSocket(socket);
+                const actor = getPlayerOrError(socket, room);
+                submitNomination(room, actor, nomineeId);
+                const nominee = nomineeId ? room.players.get(nomineeId) : null;
+                io.to(room.id).emit('game:nomination', {
+                    nominatorId: actor.id,
+                    nominatorName: actor.name,
+                    nomineeId: nomineeId ?? null,
+                    nomineeName: nominee?.name ?? null,
+                });
+                if (nomineeId) {
+                    broadcastSystemMsg(io, room, `⚖️ ${actor.name} nominates ${nominee?.name ?? '?'} for tribunal.`);
+                }
+                else {
+                    broadcastSystemMsg(io, room, `${actor.name} withdrew their nomination.`);
+                }
+                broadcastRoom(io, room);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
         // ── Skip Phase ──────────────────────────────────────────────────
         socket.on('game:skip', async (cb) => {
             try {
@@ -876,6 +929,7 @@ export function attachSocketHandlers(io) {
                 timerService.stop(room.id);
                 room.timer = 0;
                 const wasNightSkip = room.phase === 'night';
+                const wasSpeechSkip = room.phase === 'speech';
                 if (room.phase === 'voting')
                     announceVoteResult(io, room);
                 advancePhase(room);
@@ -887,6 +941,8 @@ export function attachSocketHandlers(io) {
                     notifyCultConversions(io, room);
                     notifyRoleblocked(io, room);
                 }
+                if (wasSpeechSkip && nextPhase !== 'speech')
+                    announceSpeechEnd(io, room, nextPhase);
                 if (nextPhase === 'game_over')
                     await emitGameOver(io, room);
                 broadcastRoom(io, room);
@@ -1003,6 +1059,8 @@ export function attachSocketHandlers(io) {
                 room.speechOrder = [];
                 room.currentSpeakerIdx = 0;
                 room.isPaused = false;
+                room.nominations = new Map();
+                room.tribunalCandidates = [];
                 for (const p of room.players.values()) {
                     p.role = null;
                     p.team = null;
@@ -1986,13 +2044,22 @@ function forceLeaveVoiceChannel(io, roomId, channel, reason) {
 function enforceVoicePhaseRules(io, room) {
     const { id: roomId, phase } = room;
     if (phase === 'night') {
-        // Mafia players leave the room channel (so they can join the mafia channel).
-        // Non-mafia players stay in the room channel but are muted until day resumes.
+        // Faction players leave the room channel to join their private faction channel.
+        // All other players stay in room channel but are muted until day resumes.
         const roomMembers = [...voiceGetMembers(roomId, 'room')];
         for (const member of roomMembers) {
             const player = room.players.get(member.playerId);
             if (player?.team === 'mafia') {
                 io.to(member.socketId).emit('voice:force-leave', { channel: 'room', reason: 'Use the Mafia channel during night.' });
+                const removed = voiceRemoveFromChannel(member.socketId, 'room');
+                if (removed) {
+                    for (const peer of removed.remaining) {
+                        io.to(peer.socketId).emit('voice:peer-left', { socketId: member.socketId, channel: 'room' });
+                    }
+                }
+            }
+            else if (player?.team === 'yakuza') {
+                io.to(member.socketId).emit('voice:force-leave', { channel: 'room', reason: 'Use the Yakuza channel during night.' });
                 const removed = voiceRemoveFromChannel(member.socketId, 'room');
                 if (removed) {
                     for (const peer of removed.remaining) {
@@ -2006,8 +2073,9 @@ function enforceVoicePhaseRules(io, room) {
         }
         return;
     }
-    // Leaving night — clean up any stale mafia channel connections
+    // Leaving night — clean up any stale private faction channel connections
     forceLeaveVoiceChannel(io, roomId, 'mafia', 'Mafia voice is only available during night.');
+    forceLeaveVoiceChannel(io, roomId, 'yakuza', 'Yakuza voice is only available during night.');
     if (phase === 'speech') {
         const speakerId = room.speechOrder[room.currentSpeakerIdx] ?? null;
         for (const member of voiceGetMembers(roomId, 'room')) {
