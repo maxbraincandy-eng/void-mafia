@@ -161,6 +161,7 @@ export function GamePage() {
 
   const amSpectator = myPlayer?.isSpectator ?? false;
   const activePlayers = room?.players.filter(p => !p.isSpectator) ?? [];
+  const gridPlayers   = room?.players.filter(p => p.isAlive && !p.isSpectator) ?? [];
   const spectatorSocketIds = new Set(room?.players.filter(p => p.isSpectator).map(p => p.socketId) ?? []);
   const isInVoice = voice.channel !== null;
 
@@ -1081,7 +1082,21 @@ export function GamePage() {
                 </div>
               )}
 
-              {/* Role badge moved inside player card — tapping players list opens role guide */}
+              {/* Role badge — tap to open role card */}
+              {myRole && !amSpectator && phase !== 'lobby' && phase !== 'game_over' && (
+                <button
+                  onClick={() => setShowRoleCard(true)}
+                  className="flex-shrink-0 px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all active:scale-90 md:hidden"
+                  style={{
+                    background: `${myRole.glowColor}18`,
+                    border: `1px solid ${myRole.glowColor}40`,
+                  }}
+                >
+                  <span className="text-[11px] font-display font-bold tracking-widest uppercase" style={{ color: myRole.glowColor }}>
+                    {myRole.name}
+                  </span>
+                </button>
+              )}
 
               {/* Spectator count eye icon */}
               {(room.spectatorCount ?? 0) > 0 && (
@@ -1285,22 +1300,7 @@ export function GamePage() {
                   <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(255,45,85,0.35), transparent)' }} />
                   <Timer seconds={room.timer ?? 0} max={room.maxTimer ?? 60} />
                 </div>
-                {/* Player grid for vote selection (tap to select) */}
-                <div className="mb-4">
-                  <PlayerGrid
-                    players={activePlayers}
-                    phase={phase}
-                    currentSpeakerId={null}
-                    myPlayerId={myPlayer?.id ?? null}
-                    voteCounts={voteCounts}
-                    selectedVoteId={pendingVoteId ?? myVoteTarget}
-                    showRoles={amSpectator}
-                    voice={tileVoice}
-                    allyIds={allyIds}
-                    onSelect={handlePlayerSelect}
-                  />
-                </div>
-                {/* VotingPanel with tally + confirm */}
+                {/* VotingPanel — contains its own player list for selection + tally + confirm */}
                 {!amSpectator && <VotingPanel />}
               </div>
             ) : (phase === 'death_speech') ? (
@@ -1339,10 +1339,10 @@ export function GamePage() {
                 })()}
               </div>
             ) : (
-              /* Grid view: day, speech, voting, morning, role_reveal */
+              /* Grid view: day, speech, morning, role_reveal */
               <div className="flex-1 overflow-hidden">
                 <PlayerGrid
-                  players={activePlayers}
+                  players={gridPlayers}
                   phase={phase}
                   currentSpeakerId={room.currentSpeakerId}
                   myPlayerId={myPlayer?.id ?? null}
@@ -1551,22 +1551,6 @@ export function GamePage() {
       <VoteRevealScreen breakdown={voteBreakdown} onDismiss={dismissVoteBreakdown} />
       <TutorialOverlay />
 
-      {/* Role reminder badge — fixed bottom-left, mobile only */}
-      {myRole && phase !== 'lobby' && phase !== 'game_over' && (
-        <button
-          onClick={() => setShowRoleCard(true)}
-          className="fixed bottom-6 left-4 z-40 px-3 py-2 rounded-xl flex items-center gap-2 transition-all active:scale-90 md:hidden"
-          style={{
-            background: `${myRole.glowColor}15`,
-            border: `1px solid ${myRole.glowColor}40`,
-            boxShadow: `0 0 12px ${myRole.glowColor}15`,
-          }}
-        >
-          <span className="text-[11px] font-display font-bold tracking-widest uppercase" style={{ color: myRole.glowColor }}>
-            {myRole.name}
-          </span>
-        </button>
-      )}
     </div>
   );
 }
