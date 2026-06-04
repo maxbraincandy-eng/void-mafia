@@ -37,7 +37,6 @@ import { InGamePlayersPanel } from '@/components/game/InGamePlayersPanel';
 import { useT } from '@/store/langStore';
 import { useSocialStore } from '@/store/socialStore';
 
-type MobileTab = 'action' | 'players' | 'chat';
 type RightTab = 'events' | 'chat';
 
 const PHASE_COLORS: Record<Phase, string> = {
@@ -91,7 +90,6 @@ export function GamePage() {
   const [reportProfileId, setReportProfileId] = useState<string | null>(null);
   const [showPlayersPanel, setShowPlayersPanel] = useState(false);
   const { openProfile } = useSocialStore();
-  const [mobileTab, setMobileTab] = useState<MobileTab>('action');
   const [rightTab, setRightTab] = useState<RightTab>('events');
   const [unreadChat, setUnreadChat] = useState(0);
   const [unreadEvents, setUnreadEvents] = useState(0);
@@ -281,33 +279,16 @@ export function GamePage() {
     if (rightTab === 'events') setUnreadEvents(0);
   }, [rightTab]);
 
-  // Phase transition overlay + auto-switch to best tab for each phase
+  // Phase transition overlay
   const prevPhaseForTransition = useRef<Phase | null>(null);
   useEffect(() => {
     const cur = room?.phase ?? null;
     if (prevPhaseForTransition.current !== null && cur !== null && prevPhaseForTransition.current !== cur) {
       setTransitionPhase(cur);
       setMobileVoiceOpen(false); // collapse voice panel on phase change
-      if (cur === 'voting' || cur === 'night') {
-        // Action panel must be front-and-center for time-sensitive interactions
-        setMobileTab('action');
-      } else if (['day', 'speech', 'role_reveal'].includes(cur)) {
-        setMobileTab('players');
-      }
     }
     prevPhaseForTransition.current = cur;
   }, [room?.phase]);
-
-  // Auto-switch to action tab when it becomes the player's turn to speak (so nomination panel is visible)
-  const prevSpeakerId = useRef<string | null>(null);
-  useEffect(() => {
-    const cur = room?.currentSpeakerId ?? null;
-    const myId = myPlayer?.id ?? null;
-    if (room?.phase === 'speech' && cur !== null && cur === myId && cur !== prevSpeakerId.current) {
-      setMobileTab('action');
-    }
-    prevSpeakerId.current = cur;
-  }, [room?.currentSpeakerId, room?.phase, myPlayer?.id]);
 
   if (!room) return null;
 
@@ -315,8 +296,6 @@ export function GamePage() {
   const isNight = phase === 'night';
   const alivePlayers = room.players.filter(p => p.isAlive).length;
 
-  // Grid view is shown as primary content for social phases
-  const useGridView = ['day', 'speech', 'voting', 'morning', 'role_reveal', 'death_speech'].includes(phase);
 
   // Ally IDs: players the viewer knows are on their faction team (mafia/yakuza see each other)
   const viewerTeam = myPlayer?.team;
@@ -1223,278 +1202,212 @@ export function GamePage() {
         </div>
 
         {/* ── MOBILE layout (<md) ───────────────────────────────────── */}
-        <div className="md:hidden flex-1 overflow-hidden flex flex-col">
+        <div className="md:hidden flex-1 overflow-hidden flex flex-col relative">
 
-          {useGridView ? (
-            /* ── Grid-primary layout (day / speech / voting / role_reveal) ── */
-            <>
-              <div className="flex-1 overflow-hidden flex flex-col">
-                <AnimatePresence mode="wait">
-                  {mobileTab === 'chat' ? (
-                    <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4 h-full">
-                      <div className="h-[calc(100vh-12rem)]">
-                        <ChatPanel />
+          {/* Main content area */}
+          <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+            {(phase === 'game_over') ? (
+              /* Game over fills whole area */
+              <div className="flex-1 overflow-y-auto p-3">{PhaseContent}</div>
+            ) : (phase === 'night' || phase === 'lobby') ? (
+              /* Night/lobby: action panel + voice */
+              <div className="flex-1 overflow-y-auto p-3 space-y-3 pb-20">
+                {PhaseContent}
+                {(phase !== 'night' || !isMafiaPlayer) && (
+                  <div className="rounded-xl border border-white/8 overflow-hidden">
+                    <button
+                      onClick={() => setMobileVoiceOpen(o => !o)}
+                      className="w-full flex items-center justify-between px-3 py-2 text-xs font-mono text-white/40 hover:text-white/60 transition-colors"
+                    >
+                      <span>{isInVoice ? voiceChannelLabel : t.game.voice.join}</span>
+                      <span className="text-[10px]">{mobileVoiceOpen ? '▲' : '▼'}</span>
+                    </button>
+                    {mobileVoiceOpen && <div className="px-3 pb-3">{VoicePanel}</div>}
+                  </div>
+                )}
+                {phase === 'night' && isMafiaPlayer && VoicePanel}
+              </div>
+            ) : (phase === 'death_speech') ? (
+              /* Death speech: full-screen countdown for eliminated player */
+              <div className="flex-1 flex flex-col items-center justify-center p-4 gap-6 pb-20">
+                {(() => {
+                  const deathPlayer = room.players.find(p => p.id === room.deathSpeakerId);
+                  return (
+                    <>
+                      <div className="text-center space-y-2">
+                        <p className="text-[10px] font-mono tracking-[0.3em] uppercase text-neon-red/60">Final Words</p>
+                        <h2 className="text-2xl font-display font-bold text-white">
+                          {deathPlayer?.name ?? '—'}
+                        </h2>
+                        <p className="text-sm font-mono text-white/40">has 30 seconds to speak</p>
                       </div>
-                    </motion.div>
-                  ) : mobileTab === 'action' ? (
-                    <motion.div key="action" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-3 space-y-3">
-                      {/* Voting: show panel immediately — no tab switching needed */}
-                      {phase === 'voting' && !amSpectator && <VotingPanel />}
-                      {phase === 'voting' && amSpectator && (
-                        <div className="text-center py-6 text-white/40 text-sm font-mono">👁 Spectating votes…</div>
+                      <div
+                        className="w-24 h-24 rounded-full border-2 border-neon-red/40 flex items-center justify-center"
+                        style={{ boxShadow: '0 0 30px rgba(255,45,85,0.2)' }}
+                      >
+                        <span className="text-3xl font-mono font-bold text-neon-red">{room.timer}</span>
+                      </div>
+                      {room.deathSpeakerId === myPlayer?.id && (
+                        <div className="space-y-3 w-full max-w-xs">
+                          <p className="text-center text-xs font-mono text-neon-red/70">Your mic is active — speak now</p>
+                          {VoicePanel}
+                        </div>
                       )}
-
-                      {phase === 'day' && !amSpectator && (() => {
-                        const active = room.players.filter(p => p.isAlive && !p.isSpectator);
-                        const skipNeeded = Math.floor(active.length / 2) + 1;
-                        const alreadyVoted = room.daySkipVoteCount ?? 0;
-                        return (
-                          <div className="text-center pt-2">
-                            <button onClick={() => daySkipVote()} disabled={isLoading}
-                              className="px-6 py-3 border border-white/15 text-white/50 text-sm font-mono rounded-xl hover:border-neon-cyan/40 hover:text-neon-cyan transition-all disabled:opacity-40">
-                              {t.game.day.skipDiscussion.replace('{voted}', String(alreadyVoted)).replace('{needed}', String(skipNeeded))}
+                      {amHost && (
+                        <Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>
+                          ⏭ {t.game.header.skip}
+                        </Button>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            ) : (
+              /* Grid view: day, speech, voting, morning, role_reveal */
+              <div className="flex-1 overflow-hidden">
+                <PlayerGrid
+                  players={activePlayers}
+                  phase={phase}
+                  currentSpeakerId={room.currentSpeakerId}
+                  myPlayerId={myPlayer?.id ?? null}
+                  voteCounts={voteCounts}
+                  selectedVoteId={phase === 'voting' ? (pendingVoteId ?? myVoteTarget) : myVoteTarget}
+                  showRoles={amSpectator}
+                  fillHeight
+                  voice={tileVoice}
+                  allyIds={allyIds}
+                  onSelect={handlePlayerSelect}
+                  belowHero={phase === 'speech' && !amSpectator && (() => {
+                    const isMyTurn = room.currentSpeakerId === myPlayer?.id && amAlive;
+                    const myNom = isMyTurn ? room.nominations?.[myPlayer!.id] : undefined;
+                    const nominatedPlayer = myNom ? room.players.find(p => p.id === myNom) : null;
+                    if (!isMyTurn) return null;
+                    return (
+                      <div className="rounded-2xl border border-neon-red/30 bg-neon-red/8 p-4 space-y-3">
+                        <p className="text-[11px] font-mono text-neon-red/70 uppercase tracking-widest text-center">
+                          ⚖️ {t.game.speech.nominateLabel}
+                        </p>
+                        {nominatedPlayer ? (
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-base font-bold text-neon-red">{nominatedPlayer.name}</span>
+                            <button
+                              onClick={() => nominate(null)}
+                              disabled={isLoading}
+                              className="text-xs text-white/40 hover:text-neon-red font-mono transition-colors"
+                            >
+                              ✕ {t.game.speech.withdrawNomination}
                             </button>
                           </div>
-                        );
-                      })()}
-
-                      {phase === 'speech' && !amSpectator && (() => {
-                        const isMyTurnMobile = room.currentSpeakerId === myPlayer?.id && amAlive;
-                        const myNomMobile = isMyTurnMobile ? room.nominations?.[myPlayer!.id] : undefined;
-                        const nominatedMobile = myNomMobile ? room.players.find(p => p.id === myNomMobile) : null;
-                        return (
-                          <div className="space-y-2">
-                            {isMyTurnMobile && (
-                              <div className="p-3 rounded-xl border border-neon-red/20 bg-neon-red/5 space-y-2">
-                                <p className="text-[10px] font-mono text-neon-red/50 uppercase tracking-widest">⚖️ {t.game.speech.nominateLabel}</p>
-                                {nominatedMobile ? (
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="text-sm font-semibold text-neon-red">{nominatedMobile.name}</span>
-                                    <button onClick={() => nominate(null)} disabled={isLoading} className="text-xs text-white/40 hover:text-neon-red font-mono">✕ {t.game.speech.withdrawNomination}</button>
-                                  </div>
-                                ) : (
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {room.players.filter(p => p.isAlive && !p.isSpectator && p.id !== myPlayer!.id).map(p => (
-                                      <button key={p.id} onClick={() => nominate(p.id)} disabled={isLoading}
-                                        className="px-2.5 py-1 rounded-lg border border-neon-red/20 text-neon-red/60 text-xs font-mono hover:border-neon-red/50 hover:text-neon-red/90 transition-all disabled:opacity-40">
-                                        {p.name}
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                            {amHost && <div className="text-center"><Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>⏭ {t.game.header.skip}</Button></div>}
-                          </div>
-                        );
-                      })()}
-
-                      {/* Last Will — compact on mobile */}
-                      
-
-                      {/* Voice — collapsible on mobile */}
-                      <div className="rounded-xl border border-white/8 overflow-hidden">
-                        <button
-                          onClick={() => setMobileVoiceOpen(o => !o)}
-                          className="w-full flex items-center justify-between px-3 py-2 text-xs font-mono text-white/40 hover:text-white/60 transition-colors"
-                        >
-                          <span>{isInVoice ? voiceChannelLabel : t.game.voice.join}</span>
-                          <span className="text-[10px]">{mobileVoiceOpen ? '▲' : '▼'}</span>
-                        </button>
-                        {mobileVoiceOpen && (
-                          <div className="px-3 pb-3">
-                            {VoicePanel}
+                        ) : (
+                          <div className="flex flex-wrap gap-2 justify-center">
+                            {room.players
+                              .filter(p => p.isAlive && !p.isSpectator && p.id !== myPlayer!.id)
+                              .map(p => (
+                                <button
+                                  key={p.id}
+                                  onClick={() => nominate(p.id)}
+                                  disabled={isLoading}
+                                  className="px-3 py-2 rounded-xl border border-neon-red/30 text-neon-red/70 text-sm font-mono font-semibold hover:border-neon-red/70 hover:text-neon-red hover:bg-neon-red/10 transition-all disabled:opacity-40"
+                                >
+                                  {p.name}
+                                </button>
+                              ))}
                           </div>
                         )}
                       </div>
-                    </motion.div>
-                  ) : (
-                    /* Default: player grid fills entire available height */
-                    <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full flex flex-col">
-                      <div className="flex-1 min-h-0">
-                        <PlayerGrid
-                          players={activePlayers}
-                          phase={phase}
-                          currentSpeakerId={room.currentSpeakerId}
-                          myPlayerId={myPlayer?.id ?? null}
-                          voteCounts={voteCounts}
-                          selectedVoteId={phase === 'voting' ? (pendingVoteId ?? myVoteTarget) : myVoteTarget}
-                          showRoles={amSpectator || phase === 'game_over'}
-                          fillHeight
-                          voice={tileVoice}
-                          allyIds={allyIds}
-                          onSelect={handlePlayerSelect}
-                        />
-                      </div>
+                    );
+                  })()}
+                />
 
-                      {/* Nomination bar pinned at bottom during speech */}
-                      {phase === 'speech' && !amSpectator && amAlive && room.currentSpeakerId === myPlayer?.id && (() => {
-                        const myNomId = room.nominations?.[myPlayer!.id];
-                        const nomPlayer = myNomId ? room.players.find(p => p.id === myNomId) : null;
-                        return (
-                          <div className="flex-shrink-0 mx-2 mb-2 mt-1 rounded-2xl border border-neon-red/20 bg-[rgba(20,0,5,0.97)] backdrop-blur p-3 shadow-[0_0_16px_rgba(255,45,85,0.15)]">
-                            <p className="text-[10px] font-mono text-neon-red/50 uppercase tracking-widest mb-2">⚖️ {t.game.speech.nominateLabel}</p>
-                            {nomPlayer ? (
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-sm font-semibold text-neon-red">{nomPlayer.name}</span>
-                                <button onClick={() => nominate(null)} disabled={isLoading} className="text-xs text-white/40 hover:text-neon-red font-mono">✕ {t.game.speech.withdrawNomination}</button>
-                              </div>
-                            ) : (
-                              <div className="flex flex-wrap gap-1.5">
-                                {room.players.filter(p => p.isAlive && !p.isSpectator && p.id !== myPlayer!.id).map(p => (
-                                  <button key={p.id} onClick={() => nominate(p.id)} disabled={isLoading}
-                                    className="px-2.5 py-1.5 rounded-lg border border-neon-red/20 text-neon-red/60 text-xs font-mono hover:border-neon-red/50 hover:text-neon-red/90 transition-all disabled:opacity-40">
-                                    {p.name}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
+                {/* Voting: compact bottom bar */}
+                {phase === 'voting' && !amSpectator && (
+                  <div className="flex-shrink-0 bg-[rgba(8,4,22,0.95)] border-t border-neon-red/20 px-4 py-2 pb-20">
+                    <VotingPanel />
+                  </div>
+                )}
 
-                      {/* Vote confirm bar pinned at bottom */}
-                      {phase === 'voting' && pendingVoteId && (() => {
-                        const target = room.players.find(p => p.id === pendingVoteId);
-                        return target ? (
-                          <div className="flex-shrink-0 mx-2 mb-2 mt-1 rounded-2xl border border-neon-red/50 bg-[rgba(20,0,5,0.97)] backdrop-blur p-3 flex items-center gap-3 shadow-[0_0_20px_rgba(255,45,85,0.3)]">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[10px] font-mono text-white/40 uppercase tracking-widest">{t.game.voting.confirmTitle}</p>
-                              <p className="text-sm font-semibold text-white truncate">{target.name}</p>
-                            </div>
-                            <button
-                              onClick={() => { SFX.voteConfirm(); submitVote(pendingVoteId); setPendingVoteId(null); }}
-                              disabled={isLoading}
-                              className="flex-shrink-0 px-4 py-2 rounded-xl bg-neon-red text-white text-xs font-display font-bold tracking-wider uppercase shadow-[0_0_12px_rgba(255,45,85,0.5)] disabled:opacity-40"
-                            >
-                              {t.game.voting.voteOut}
-                            </button>
-                            <button
-                              onClick={() => setPendingVoteId(null)}
-                              className="flex-shrink-0 p-2 text-white/30 hover:text-white/60"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ) : null;
-                      })()}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {/* Slim 3-button nav */}
-              <div className="flex-shrink-0 border-t border-white/[0.06] flex" style={{ background: 'rgba(8,4,22,0.96)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-                {([
-                  { id: 'grid',   label: t.lobby.players },
-                  { id: 'action', label: phase === 'voting' ? t.game.voting.title : (t.game.phaseLabels[phase as keyof typeof t.game.phaseLabels] || 'Action') },
-                  { id: 'chat',   label: t.lobby.chat },
-                ] as { id: MobileTab | 'grid'; label: string }[]).map(tab => {
-                  const isActive = tab.id === 'grid'
-                    ? mobileTab !== 'action' && mobileTab !== 'chat'
-                    : mobileTab === tab.id;
+                {/* Day skip vote */}
+                {phase === 'day' && !amSpectator && (() => {
+                  const active = room.players.filter(p => p.isAlive && !p.isSpectator);
+                  const skipNeeded = Math.floor(active.length / 2) + 1;
+                  const alreadyVoted = room.daySkipVoteCount ?? 0;
                   return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setMobileTab(tab.id === 'grid' ? 'players' : tab.id)}
-                      className={clsx(
-                        'flex-1 py-3 flex flex-col items-center gap-0.5 transition-all relative',
-                        isActive ? 'text-neon-cyan' : 'text-white/30 hover:text-white/55',
-                      )}
-                    >
-                      {isActive && (
-                        <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-px rounded-full bg-neon-cyan/60" />
-                      )}
-                      <span className="text-[10px] font-mono tracking-widest uppercase">{tab.label}</span>
-                      {tab.id === 'chat' && unreadChat > 0 && (
-                        <span className="absolute top-1 right-3 w-4 h-4 rounded-full bg-neon-red text-white text-[9px] flex items-center justify-center font-bold">
-                          {unreadChat > 9 ? '9+' : unreadChat}
-                        </span>
-                      )}
-                      {tab.id === 'action' && phase === 'voting' && !myVoteTarget && amAlive && !amSpectator && (
-                        <span className="absolute top-1.5 left-4 w-1.5 h-1.5 rounded-full bg-neon-red animate-pulse" />
-                      )}
-                      {tab.id === 'action' && phase === 'speech' && room.currentSpeakerId === myPlayer?.id && amAlive && !amSpectator && (
-                        <span className="absolute top-1.5 left-4 w-1.5 h-1.5 rounded-full bg-neon-cyan animate-pulse" />
-                      )}
-                    </button>
+                    <div className="flex-shrink-0 px-4 py-2 pb-20 text-center">
+                      <button
+                        onClick={() => daySkipVote()}
+                        disabled={isLoading}
+                        className="px-6 py-2 border border-white/15 text-white/40 text-sm font-mono rounded-xl hover:border-neon-cyan/40 hover:text-neon-cyan transition-all disabled:opacity-40"
+                      >
+                        {t.game.day.skipDiscussion.replace('{voted}', String(alreadyVoted)).replace('{needed}', String(skipNeeded))}
+                      </button>
+                    </div>
                   );
-                })}
+                })()}
+
+                {amHost && phase === 'speech' && (
+                  <div className="flex-shrink-0 px-4 py-2 pb-20 text-center">
+                    <Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>⏭ {t.game.header.skip}</Button>
+                  </div>
+                )}
               </div>
-            </>
-          ) : (
-            /* ── Original tab layout (night / game_over) ── */
-            <>
-              <div className="flex-1 overflow-y-auto p-3 pb-2">
-                <AnimatePresence mode="wait">
-                  {mobileTab === 'action' && (
-                    <motion.div key="action" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-3">
-                      {PhaseContent}
-                      {/* Voice — collapsible during night to keep action visible */}
-                      {(phase !== 'night' || !isMafiaPlayer) && (
-                        <div className="rounded-xl border border-white/8 overflow-hidden">
-                          <button
-                            onClick={() => setMobileVoiceOpen(o => !o)}
-                            className="w-full flex items-center justify-between px-3 py-2 text-xs font-mono text-white/40 hover:text-white/60 transition-colors"
-                          >
-                            <span>{isInVoice ? voiceChannelLabel : t.game.voice.join}</span>
-                            <span className="text-[10px]">{mobileVoiceOpen ? '▲' : '▼'}</span>
-                          </button>
-                          {mobileVoiceOpen && <div className="px-3 pb-3">{VoicePanel}</div>}
-                        </div>
-                      )}
-                      {/* Mafia voice during night shown inline without collapse */}
-                      {phase === 'night' && isMafiaPlayer && VoicePanel}
-                    </motion.div>
-                  )}
-                  {mobileTab === 'players' && (
-                    <motion.div key="players" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
-                      <PlayerList
-                        players={activePlayers}
-                        phase={phase}
-                        showVotes={false}
-                        currentSpeakerId={null}
-                        onSelectTarget={handlePlayerSelect}
-                      />
-                    </motion.div>
-                  )}
-                  {mobileTab === 'chat' && (
-                    <motion.div key="chat" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="h-full">
-                      <div className="h-[calc(100%-2rem)]"><ChatPanel /></div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-              <div className="flex-shrink-0 border-t border-white/[0.06] flex" style={{ background: 'rgba(8,4,22,0.96)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-                {([
-                  { id: 'action',  label: t.game.phaseLabels[phase as keyof typeof t.game.phaseLabels] || 'Action' },
-                  { id: 'players', label: t.lobby.players },
-                  { id: 'chat',    label: t.lobby.chat },
-                ] as { id: MobileTab; label: string }[]).map(tab => (
+            )}
+          </div>
+
+          {/* Floating chat bubble */}
+          <button
+            onClick={() => { setShowChat(true); setUnreadChat(0); }}
+            className="fixed bottom-6 right-4 z-40 w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-90"
+            style={{
+              background: 'rgba(0,229,255,0.15)',
+              border: '1.5px solid rgba(0,229,255,0.4)',
+              boxShadow: '0 0 20px rgba(0,229,255,0.15), 0 4px 16px rgba(0,0,0,0.5)',
+            }}
+            aria-label="Open chat"
+          >
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="rgba(0,229,255,0.9)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            {unreadChat > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-neon-red text-white text-[9px] flex items-center justify-center font-bold">
+                {unreadChat > 9 ? '9+' : unreadChat}
+              </span>
+            )}
+          </button>
+
+          {/* Chat overlay panel */}
+          <AnimatePresence>
+            {showChat && (
+              <motion.div
+                key="chat-overlay"
+                initial={{ opacity: 0, y: 40 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 40 }}
+                transition={{ duration: 0.25 }}
+                className="fixed inset-0 z-50 flex flex-col"
+                style={{ background: 'rgba(4,2,16,0.97)' }}
+              >
+                <div
+                  className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0"
+                  style={{ borderColor: 'rgba(255,255,255,0.08)', paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
+                >
+                  <span className="text-sm font-display uppercase tracking-widest text-white/60">Chat</span>
                   <button
-                    key={tab.id}
-                    onClick={() => setMobileTab(tab.id)}
-                    className={clsx(
-                      'flex-1 py-3 flex flex-col items-center gap-0.5 transition-all relative',
-                      mobileTab === tab.id ? 'text-neon-cyan' : 'text-white/30 hover:text-white/55',
-                    )}
+                    onClick={() => setShowChat(false)}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/8 transition-all"
                   >
-                    {mobileTab === tab.id && (
-                      <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-px rounded-full bg-neon-cyan/60" />
-                    )}
-                    <span className="text-[10px] font-mono tracking-widest uppercase">{tab.label}</span>
-                    {tab.id === 'chat' && unreadChat > 0 && (
-                      <span className="absolute top-1.5 right-3 w-4 h-4 rounded-full bg-neon-red text-white text-[9px] flex items-center justify-center font-bold">
-                        {unreadChat > 9 ? '9+' : unreadChat}
-                      </span>
-                    )}
+                    ✕
                   </button>
-                ))}
-              </div>
-            </>
-          )}
+                </div>
+                <div className="flex-1 min-h-0 p-3">
+                  <ChatPanel />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
         </div>
       </div>
+
 
       {/* ── Mobile Role Reveal full-screen overlay ─────────────────────── */}
       {/* On desktop, RoleReveal is shown in the center main column.        */}
