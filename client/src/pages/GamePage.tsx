@@ -299,6 +299,17 @@ export function GamePage() {
     prevPhaseForTransition.current = cur;
   }, [room?.phase]);
 
+  // Auto-switch to action tab when it becomes the player's turn to speak (so nomination panel is visible)
+  const prevSpeakerId = useRef<string | null>(null);
+  useEffect(() => {
+    const cur = room?.currentSpeakerId ?? null;
+    const myId = myPlayer?.id ?? null;
+    if (room?.phase === 'speech' && cur !== null && cur === myId && cur !== prevSpeakerId.current) {
+      setMobileTab('action');
+    }
+    prevSpeakerId.current = cur;
+  }, [room?.currentSpeakerId, room?.phase, myPlayer?.id]);
+
   if (!room) return null;
 
   const phase = room.phase;
@@ -307,6 +318,12 @@ export function GamePage() {
 
   // Grid view is shown as primary content for social phases
   const useGridView = ['day', 'speech', 'voting', 'morning', 'role_reveal'].includes(phase);
+
+  // Ally IDs: players the viewer knows are on their faction team (mafia/yakuza see each other)
+  const viewerTeam = myPlayer?.team;
+  const allyIds = (viewerTeam === 'mafia' || viewerTeam === 'yakuza' || viewerTeam === 'cult')
+    ? new Set(room.players.filter(p => p.team === viewerTeam && p.id !== myPlayer!.id).map(p => p.id))
+    : new Set<string>();
 
   // Vote counts for grid overlay
   const voteCounts: Record<string, number> = {};
@@ -1385,6 +1402,7 @@ export function GamePage() {
                           showRoles={amSpectator || phase === 'game_over'}
                           fillHeight
                           voice={tileVoice}
+                          allyIds={allyIds}
                           onSelect={handlePlayerSelect}
                         />
                       </div>
@@ -1475,6 +1493,9 @@ export function GamePage() {
                       )}
                       {tab.id === 'action' && phase === 'voting' && !myVoteTarget && amAlive && !amSpectator && (
                         <span className="absolute top-1.5 left-4 w-1.5 h-1.5 rounded-full bg-neon-red animate-pulse" />
+                      )}
+                      {tab.id === 'action' && phase === 'speech' && room.currentSpeakerId === myPlayer?.id && amAlive && !amSpectator && (
+                        <span className="absolute top-1.5 left-4 w-1.5 h-1.5 rounded-full bg-neon-cyan animate-pulse" />
                       )}
                     </button>
                   );

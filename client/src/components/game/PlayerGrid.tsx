@@ -42,6 +42,8 @@ interface Props {
   showRoles?: boolean;
   fillHeight?: boolean;
   voice?: TileVoice;
+  /** IDs of faction teammates the viewer can identify (mafia, yakuza, cult) */
+  allyIds?: Set<string>;
   onSelect?: (p: PlayerPublic) => void;
 }
 
@@ -320,6 +322,7 @@ function PlayerCard({
   totalAlive,
   fillHeight,
   voice,
+  isAlly,
   onClick,
 }: {
   player: PlayerPublic;
@@ -332,6 +335,7 @@ function PlayerCard({
   totalAlive?: number;
   fillHeight?: boolean;
   voice?: TileVoice;
+  isAlly?: boolean;
   onClick: () => void;
 }) {
   const dead = !player.isAlive && !player.isSpectator;
@@ -370,7 +374,9 @@ function PlayerCard({
                 ? 'border-neon-cyan/70 shadow-[0_0_18px_rgba(0,229,255,0.25)]'
                 : isMe
                   ? 'border-neon-purple/50'
-                  : 'border-neon-green/25 hover:border-neon-green/50',
+                  : isAlly
+                    ? 'border-neon-red/50 shadow-[0_0_12px_rgba(255,45,85,0.18)]'
+                    : 'border-neon-green/25 hover:border-neon-green/50',
       )}
     >
       {/* ── Main area: local video, remote video, or avatar/initials ── */}
@@ -448,6 +454,14 @@ function PlayerCard({
             <ModBadge level={player.moderatorLevel} size="xs" />
           )}
           {player.isSpectator && <span className="text-[9px] flex-shrink-0">👁</span>}
+          {isAlly && !dead && (
+            <span
+              className="flex-shrink-0 text-[8px] font-mono font-bold px-1 py-0.5 rounded"
+              style={{ background: 'rgba(255,45,85,0.25)', color: 'rgba(255,100,120,0.95)', border: '1px solid rgba(255,45,85,0.4)' }}
+            >
+              ally
+            </span>
+          )}
         </div>
 
         {/* Role chip (own tile, or revealed) */}
@@ -574,6 +588,7 @@ export function PlayerGrid({
   showRoles,
   fillHeight,
   voice,
+  allyIds,
   onSelect,
 }: Props) {
   const isSpeechPhase = phase === 'speech';
@@ -625,6 +640,7 @@ export function PlayerGrid({
               totalAlive={totalAlive}
               fillHeight={fillHeight}
               voice={voice}
+              isAlly={allyIds?.has(player.id) ?? false}
               onClick={() => onSelect?.(player)}
             />
           </motion.div>
