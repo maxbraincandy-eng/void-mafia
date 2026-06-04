@@ -384,8 +384,8 @@ function PlayerCard({
   const showLocalControls = isMe && !dead;
   const initials = initialsOf(player.name);
 
-  // Role to display inside the tile (own role always; others only when revealed)
-  const tileRole = (isMe || showRole) ? player.role : null;
+  // Role to display: own tile always, ally tiles when server exposes their role, or spectator/game-over reveal
+  const tileRole = (isMe || showRole || isAlly) ? player.role : null;
 
   return (
     <motion.button
@@ -422,9 +422,11 @@ function PlayerCard({
             style={{
               background: dead
                 ? 'rgba(0,0,0,0.6)'
-                : isMe
-                  ? 'linear-gradient(150deg, rgba(40,0,70,0.55) 0%, rgba(5,2,20,0.9) 70%)'
-                  : 'linear-gradient(150deg, rgba(0,30,40,0.4) 0%, rgba(2,5,12,0.92) 70%)',
+                : isAlly && !dead
+                  ? 'linear-gradient(150deg, rgba(60,0,12,0.65) 0%, rgba(8,2,12,0.92) 70%)'
+                  : isMe
+                    ? 'linear-gradient(150deg, rgba(40,0,70,0.55) 0%, rgba(5,2,20,0.9) 70%)'
+                    : 'linear-gradient(150deg, rgba(0,30,40,0.4) 0%, rgba(2,5,12,0.92) 70%)',
             }}
           >
             {dead ? (
