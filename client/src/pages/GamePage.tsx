@@ -1159,15 +1159,6 @@ export function GamePage() {
                 </Button>
               )}
 
-              {/* Sound mute toggle */}
-              <button
-                onClick={() => updateSettings({ sfxEnabled: !sfxEnabled })}
-                title={sfxEnabled ? 'Mute sounds' : 'Unmute sounds'}
-                className="px-2.5 py-1 rounded-lg text-[10px] font-mono tracking-widest uppercase text-white/30 hover:text-white/70 hover:bg-white/5 transition-all"
-              >
-                {sfxEnabled ? 'SFX' : 'SFX ∅'}
-              </button>
-
               <Button size="sm" variant="ghost" onClick={() => setShowMoreMenu(true)}>
                 {t.game.header.leave}
               </Button>

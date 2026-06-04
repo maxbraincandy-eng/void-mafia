@@ -18,7 +18,6 @@ import { PlayerProfileModal } from '@/components/ui/PlayerProfileModal';
 import { DmPanel } from '@/components/social/DmPanel';
 import { attachGlobalClickSounds, onSettingsChange } from '@/lib/audioEngine';
 import { useSettingsStore } from '@/store/settingsStore';
-import { useMenuMusic as useMenuMusicHook } from '@/hooks/useAudio';
 
 interface Toast {
   id: string;
@@ -123,7 +122,6 @@ function MainApp() {
   const profile = useAuthStore(s => s.profile);
   const isMod = profile?.isModerator ?? false;
   const { openDmList } = useSocialStore();
-  useMenuMusicHook();
 
   return (
     <div className="pb-20 min-h-screen">
