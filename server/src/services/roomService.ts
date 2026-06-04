@@ -19,6 +19,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   isPrivate: false,
   password: '',
   startWithNight: false,
+  rotatingSpeech: false,
   roles: {
     mafia: 0,
     don: 0,
@@ -111,6 +112,7 @@ export function createRoom(
     nominations: new Map(),
     tribunalCandidates: [],
     deathSpeakerId: null,
+    speechStartSeat: 0,
   };
 
   rooms.set(id, room);

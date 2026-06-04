@@ -279,6 +279,7 @@ export interface GameSettings {
   isPrivate: boolean;
   password: string;
   startWithNight: boolean;
+  rotatingSpeech: boolean;
   roles: {
     mafia: number;
     don: number;
@@ -332,6 +333,7 @@ export interface Room {
   nominations: Map<string, string>;
   tribunalCandidates: string[];
   deathSpeakerId: string | null;
+  speechStartSeat: number;
 }
 
 // ── Public Types (sent to clients) ────────────────────────────────────

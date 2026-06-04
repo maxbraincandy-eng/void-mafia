@@ -388,6 +388,8 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
             toggle: () => setLocal(s => ({ ...s, isPrivate: !s.isPrivate })) },
           { id: 'startNight', label: '🌙 Start game at night (skip day discussion)', value: local.startWithNight,
             toggle: () => setLocal(s => ({ ...s, startWithNight: !s.startWithNight })) },
+          { id: 'rotating', label: '🔄 Rotating circle — each day shifts the opener by one seat', value: local.rotatingSpeech ?? false,
+            toggle: () => setLocal(s => ({ ...s, rotatingSpeech: !s.rotatingSpeech })) },
         ].map(opt => (
           <button
             key={opt.id}

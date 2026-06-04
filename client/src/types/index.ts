@@ -164,6 +164,7 @@ export interface GameSettings {
   isPrivate: boolean;
   password: string;
   startWithNight: boolean;
+  rotatingSpeech: boolean;
   roles: {
     mafia: number;
     don: number;

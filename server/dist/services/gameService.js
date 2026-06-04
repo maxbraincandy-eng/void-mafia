@@ -80,7 +80,23 @@ export function setPhase(room, phase) {
             const alivePlayers = [...room.players.values()]
                 .filter(p => p.isAlive && !p.isSpectator)
                 .sort((a, b) => a.seat - b.seat);
-            room.speechOrder = alivePlayers.map(p => p.id);
+            let startIdx = 0;
+            if (room.settings.rotatingSpeech && room.day > 1) {
+                // Find the first alive player whose seat is strictly after speechStartSeat (wrap around)
+                const afterIdx = alivePlayers.findIndex(p => p.seat > room.speechStartSeat);
+                startIdx = afterIdx >= 0 ? afterIdx : 0;
+            }
+            else {
+                // Day 1 (or non-rotating): random start
+                startIdx = Math.floor(Math.random() * alivePlayers.length);
+            }
+            // Rotate the array so the chosen player is first, preserving seat order after them
+            const rotated = [
+                ...alivePlayers.slice(startIdx),
+                ...alivePlayers.slice(0, startIdx),
+            ];
+            room.speechOrder = rotated.map(p => p.id);
+            room.speechStartSeat = rotated[0]?.seat ?? 0;
             room.currentSpeakerIdx = 0;
             room.timer = room.settings.speechDuration;
             room.maxTimer = room.settings.speechDuration;
