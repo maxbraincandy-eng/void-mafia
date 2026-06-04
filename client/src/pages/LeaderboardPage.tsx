@@ -12,6 +12,14 @@ const MEDAL_BORDER = ['border-yellow-400/25', 'border-gray-400/15', 'border-ambe
 const MEDAL_BG = ['bg-yellow-400/4', 'bg-white/3', 'bg-amber-900/5'];
 const MEDAL_TEXT = ['text-yellow-400', 'text-gray-300', 'text-amber-500'];
 
+const LEVEL_THRESHOLDS = [0, 100, 250, 500, 900, 1400, 2100, 3000, 4100, 5400];
+function xpForLevel(level: number) { return LEVEL_THRESHOLDS[level - 1] ?? 0; }
+function xpForNextLevel(level: number) { return LEVEL_THRESHOLDS[level] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1]!; }
+function levelPct(level: number, xp: number) {
+  const min = xpForLevel(level), max = xpForNextLevel(level);
+  return max > min ? Math.min(100, Math.round(((xp - min) / (max - min)) * 100)) : 100;
+}
+
 export function LeaderboardPage() {
   const getLeaderboard = useGameStore(s => s.getLeaderboard);
   const openProfile = useSocialStore(s => s.openProfile);
@@ -60,10 +68,9 @@ export function LeaderboardPage() {
 
         <div className="mb-5">
           <h2 className="font-display text-xl font-bold text-neon-pink tracking-widest uppercase">Leaderboard</h2>
-          <p className="text-white/30 font-mono text-xs mt-0.5">Players with 3+ games · sorted by win rate</p>
+          <p className="text-white/30 font-mono text-xs mt-0.5">All players · sorted by level</p>
         </div>
 
-        {/* Loading */}
         {loading && (
           <div className="flex items-center justify-center py-20">
             <div className="text-center space-y-3">
@@ -73,7 +80,6 @@ export function LeaderboardPage() {
           </div>
         )}
 
-        {/* Error */}
         {!loading && error && (
           <div className="glass-panel border border-neon-red/20 rounded-2xl p-6 text-center">
             <p className="text-neon-red/70 font-mono text-sm">{error}</p>
@@ -83,7 +89,6 @@ export function LeaderboardPage() {
           </div>
         )}
 
-        {/* Empty */}
         {!loading && !error && players.length === 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -91,12 +96,12 @@ export function LeaderboardPage() {
             className="glass-panel border border-neon-pink/20 rounded-2xl p-10 text-center"
           >
             <div className="text-5xl mb-4 opacity-30">◈</div>
-            <p className="text-white/30 font-mono text-sm">No players with 3+ games yet.</p>
+            <p className="text-white/30 font-mono text-sm">No players yet.</p>
             <p className="text-white/15 font-mono text-xs mt-1">Play some games to appear here!</p>
           </motion.div>
         )}
 
-        {/* Podium — top 3 */}
+        {/* Podium */}
         {!loading && !error && top3.length === 3 && (
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -150,7 +155,7 @@ export function LeaderboardPage() {
                   }
                 </div>
 
-                {/* Name + win bar */}
+                {/* Name + XP bar */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <p className={clsx(
@@ -167,15 +172,8 @@ export function LeaderboardPage() {
                   <div className="flex items-center gap-2 mt-1">
                     <div className="w-20 h-1 bg-white/8 rounded-full overflow-hidden">
                       <div
-                        className={clsx(
-                          'h-full rounded-full',
-                          player.stats.winRate >= 60
-                            ? 'bg-gradient-to-r from-neon-green to-neon-cyan'
-                            : player.stats.winRate >= 40
-                            ? 'bg-gradient-to-r from-neon-cyan to-blue-400'
-                            : 'bg-white/30',
-                        )}
-                        style={{ width: `${player.stats.winRate}%` }}
+                        className="h-full rounded-full bg-gradient-to-r from-neon-purple to-neon-pink"
+                        style={{ width: `${levelPct(player.level ?? 1, player.xp ?? 0)}%` }}
                       />
                     </div>
                     <span className="text-white/25 font-mono text-[10px]">
@@ -184,19 +182,17 @@ export function LeaderboardPage() {
                   </div>
                 </div>
 
-                {/* Win rate */}
+                {/* Level */}
                 <div className="text-right shrink-0">
                   <p className={clsx(
                     'font-display font-bold text-base',
-                    player.stats.winRate >= 60
-                      ? 'text-neon-green'
-                      : player.stats.winRate >= 40
-                      ? 'text-neon-cyan'
-                      : 'text-white/40',
+                    (player.level ?? 1) >= 8 ? 'text-yellow-400'
+                      : (player.level ?? 1) >= 5 ? 'text-neon-cyan'
+                      : 'text-neon-purple/80',
                   )}>
-                    {player.stats.winRate}%
+                    Lv.{player.level ?? 1}
                   </p>
-                  <p className="text-white/25 font-mono text-[10px]">{player.stats.gamesPlayed} games</p>
+                  <p className="text-white/25 font-mono text-[10px]">{player.stats.gamesPlayed}g · {player.stats.winRate}%</p>
                 </div>
               </motion.div>
             ))}
@@ -248,9 +244,9 @@ function PodiumCard({
         {player.username}
       </p>
       <p className={clsx('font-mono font-bold', tall ? 'text-lg' : 'text-sm', MEDAL_TEXT[rank])}>
-        {player.stats.winRate}%
+        Lv.{player.level ?? 1}
       </p>
-      <p className="text-white/25 font-mono text-[10px]">{player.stats.gamesPlayed}g</p>
+      <p className="text-white/25 font-mono text-[10px]">{player.stats.winRate}% · {player.stats.gamesPlayed}g</p>
     </motion.div>
   );
 }

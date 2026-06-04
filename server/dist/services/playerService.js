@@ -272,10 +272,8 @@ export async function getLeaderboard() {
            friend_code, is_moderator, moderator_level, moderator_badge_visible,
            moderator_permissions, joined_at
     FROM players
-    WHERE games_played >= 3
-    ORDER BY
-      CASE WHEN games_played > 0 THEN ROUND(wins::numeric / games_played * 100) ELSE 0 END DESC,
-      games_played DESC
+    WHERE games_played >= 1
+    ORDER BY level DESC, xp DESC, games_played DESC
     LIMIT 20
   `;
     const result = rows.map((r) => ({
