@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { PlayerPublic, Phase, RoleKey } from '@/types/index';
@@ -45,6 +45,7 @@ interface Props {
   /** IDs of faction teammates the viewer can identify (mafia, yakuza, cult) */
   allyIds?: Set<string>;
   onSelect?: (p: PlayerPublic) => void;
+  belowHero?: React.ReactNode;
 }
 
 const TEAM_ROLE_COLOR: Record<string, { bg: string; border: string; text: string }> = {
@@ -619,6 +620,7 @@ export function PlayerGrid({
   voice,
   allyIds,
   onSelect,
+  belowHero,
 }: Props) {
   const isSpeechPhase = phase === 'speech';
   const alivePlayers = players.filter(p => p.isAlive && !p.isSpectator);
@@ -629,18 +631,47 @@ export function PlayerGrid({
     const speaker = players.find(p => p.id === currentSpeakerId);
     if (speaker) {
       const speakerIndex = alivePlayers.findIndex(p => p.id === currentSpeakerId);
+      const otherPlayers = players.filter(p => p.id !== currentSpeakerId);
       return (
-        <AnimatePresence mode="wait">
-          <SpeakerHero
-            key={currentSpeakerId}
-            player={speaker}
-            isMe={speaker.id === myPlayerId}
-            isAlly={allyIds?.has(speaker.id) ?? false}
-            speakerIndex={speakerIndex >= 0 ? speakerIndex : 0}
-            totalSpeakers={totalAlive}
-            voice={voice}
-          />
-        </AnimatePresence>
+        <div className="flex flex-col overflow-y-auto w-full h-full">
+          <AnimatePresence mode="wait">
+            <SpeakerHero
+              key={currentSpeakerId}
+              player={speaker}
+              isMe={speaker.id === myPlayerId}
+              isAlly={allyIds?.has(speaker.id) ?? false}
+              speakerIndex={speakerIndex >= 0 ? speakerIndex : 0}
+              totalSpeakers={totalAlive}
+              voice={voice}
+            />
+          </AnimatePresence>
+          {belowHero && (
+            <div className="px-3 pb-2 flex-shrink-0">
+              {belowHero}
+            </div>
+          )}
+          {otherPlayers.length > 0 && (
+            <div className="grid grid-cols-3 gap-1.5 px-2 pb-2 flex-shrink-0">
+              {otherPlayers.map(player => (
+                <PlayerCard
+                  key={player.id}
+                  player={player}
+                  isMe={player.id === myPlayerId}
+                  isSpeaker={false}
+                  voteCount={0}
+                  isSelected={false}
+                  showRole={showRoles}
+                  phase={phase}
+                  totalAlive={totalAlive}
+                  fillHeight={false}
+                  voice={voice}
+                  isAlly={allyIds?.has(player.id) ?? false}
+                  onClick={() => onSelect?.(player)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       );
     }
   }

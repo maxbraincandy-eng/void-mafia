@@ -110,6 +110,7 @@ export function createRoom(
     mafiaKillTarget: null,
     nominations: new Map(),
     tribunalCandidates: [],
+    deathSpeakerId: null,
   };
 
   rooms.set(id, room);
@@ -292,6 +293,7 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     isPaused: room.isPaused,
     nominations: Object.fromEntries(room.nominations),
     tribunalCandidates: room.tribunalCandidates,
+    deathSpeakerId: room.deathSpeakerId ?? null,
     mafiaVotes: isMafia && room.phase === 'night'
       ? (() => {
           const votes: Record<string, { voterName: string; targetName: string }> = {};
@@ -388,6 +390,7 @@ export function rematchRoom(room: Room): void {
   room.startedAt = 0;
   room.nominations = new Map();
   room.tribunalCandidates = [];
+  room.deathSpeakerId = null;
   for (const p of room.players.values()) {
     p.role = null;
     p.team = null;

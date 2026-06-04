@@ -48,6 +48,7 @@ const PHASE_COLORS: Record<Phase, string> = {
   day:          'text-neon-cyan',
   speech:       'text-neon-cyan',
   voting:       'text-neon-red',
+  death_speech: 'text-neon-red',
   game_over:    'text-white',
 };
 
@@ -59,16 +60,18 @@ const PHASE_STRIP: Record<Phase, string> = {
   day:          '#00c4cc',
   speech:       '#00e5ff',
   voting:       '#ff2d55',
+  death_speech: '#cc1133',
   game_over:    'rgba(255,255,255,0.1)',
 };
 
 const PHASE_GLOW: Partial<Record<Phase, string>> = {
-  night:       '0 0 12px rgba(59,0,204,0.8)',
-  morning:     '0 0 10px rgba(0,196,204,0.5)',
-  voting:      '0 0 12px rgba(255,45,85,0.7)',
-  role_reveal: '0 0 12px rgba(155,0,255,0.7)',
-  speech:      '0 0 10px rgba(0,229,255,0.5)',
-  day:         '0 0 10px rgba(0,196,204,0.5)',
+  night:        '0 0 12px rgba(59,0,204,0.8)',
+  morning:      '0 0 10px rgba(0,196,204,0.5)',
+  voting:       '0 0 12px rgba(255,45,85,0.7)',
+  death_speech: '0 0 12px rgba(255,45,85,0.7)',
+  role_reveal:  '0 0 12px rgba(155,0,255,0.7)',
+  speech:       '0 0 10px rgba(0,229,255,0.5)',
+  day:          '0 0 10px rgba(0,196,204,0.5)',
 };
 
 function getPhaseSubtitle(phase: Phase, day: number, currentSpeakerName?: string | null, amAlive = true, isSpectator = false): string {
@@ -94,14 +97,13 @@ export function GamePage() {
   const [unreadEvents, setUnreadEvents] = useState(0);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showRoleGuide, setShowRoleGuide] = useState(false);
-  const [willText, setWillText] = useState('');
-  const [willSaved, setWillSaved] = useState(false);
   const sfxEnabled = useSettingsStore(s => s.sfxEnabled);
   const updateSettings = useSettingsStore(s => s.update);
   // Music continues playing from menu — no stop needed.
   const [transitionPhase, setTransitionPhase] = useState<Phase | null>(null);
   const handleTransitionDone = useCallback(() => setTransitionPhase(null), []);
   const [mobileVoiceOpen, setMobileVoiceOpen] = useState(false);
+  const [showChat, setShowChat] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [pendingVoteId, setPendingVoteId] = useState<string | null>(null);
   const [showRoleCard, setShowRoleCard] = useState(false);
@@ -118,7 +120,7 @@ export function GamePage() {
     dismissNightResult, dismissInvestigation, dismissSpyReport, dismissGameOver,
     dismissVoteElimination, dismissCultConversion, dismissNightSummary, dismissNewAchievements,
     dismissVoteBreakdown,
-    setWill, pauseTimer, submitVote, nominate,
+    pauseTimer, submitVote, nominate,
     isLoading,
   } = useGameStore(s => ({
     room: s.room,
@@ -148,7 +150,6 @@ export function GamePage() {
     dismissNightSummary: s.dismissNightSummary,
     dismissNewAchievements: s.dismissNewAchievements,
     dismissVoteBreakdown: s.dismissVoteBreakdown,
-    setWill: s.setWill,
     pauseTimer: s.pauseTimer,
     submitVote: s.submitVote,
     nominate: s.nominate,
@@ -234,15 +235,15 @@ export function GamePage() {
   const chatLen = room?.chat.length ?? 0;
   const prevChatLen = useRef(chatLen);
   useEffect(() => {
-    if (mobileTab !== 'chat' && chatLen > prevChatLen.current) {
+    if (!showChat && chatLen > prevChatLen.current) {
       setUnreadChat(u => u + chatLen - prevChatLen.current);
     }
     prevChatLen.current = chatLen;
-  }, [chatLen, mobileTab]);
+  }, [chatLen, showChat]);
 
   useEffect(() => {
-    if (mobileTab === 'chat') setUnreadChat(0);
-  }, [mobileTab]);
+    if (showChat) setUnreadChat(0);
+  }, [showChat]);
 
   // Elimination cinematic: detect when players go from alive → dead
   useEffect(() => {
@@ -315,7 +316,7 @@ export function GamePage() {
   const alivePlayers = room.players.filter(p => p.isAlive).length;
 
   // Grid view is shown as primary content for social phases
-  const useGridView = ['day', 'speech', 'voting', 'morning', 'role_reveal'].includes(phase);
+  const useGridView = ['day', 'speech', 'voting', 'morning', 'role_reveal', 'death_speech'].includes(phase);
 
   // Ally IDs: players the viewer knows are on their faction team (mafia/yakuza see each other)
   const viewerTeam = myPlayer?.team;
@@ -390,12 +391,6 @@ export function GamePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id]);
 
-  const handleSaveWill = async () => {
-    await setWill(willText.slice(0, 200));
-    setWillSaved(true);
-    setTimeout(() => setWillSaved(false), 2000);
-  };
-
   // Voice panel — shown in sidebar (desktop) and action tab (mobile)
   const VoicePanel = (
     <div className="mt-4">
@@ -422,7 +417,7 @@ export function GamePage() {
         peerCount={voice.peers.length}
         error={voice.error}
         muteLocked={micLocked}
-        listenOnly={voice.listenOnly || !amAlive || amSpectator}
+        listenOnly={voice.listenOnly || (!amAlive && !(phase === 'death_speech' && room.deathSpeakerId === myPlayer?.id)) || amSpectator}
         defaultChannel={voiceChannel}
         channelLabel={voiceChannelLabel}
         onJoin={amSpectator
@@ -448,38 +443,6 @@ export function GamePage() {
       )}
     </div>
   );
-
-  // Last will panel — shown in action area for alive players during active phases (not spectators)
-  const showWill = amAlive && !amSpectator && phase !== 'lobby' && phase !== 'role_reveal' && phase !== 'game_over';
-  const LastWillPanel = showWill ? (
-    <div className="mt-4 rounded-2xl border border-white/8 bg-void-50/40 p-3 space-y-2">
-      <p className="text-xs font-display uppercase tracking-widest text-white/30">{t.game.will.title}</p>
-      <textarea
-        value={willText}
-        onChange={e => { setWillText(e.target.value.slice(0, 200)); setWillSaved(false); }}
-        placeholder={t.game.will.placeholder}
-        rows={2}
-        maxLength={200}
-        className="w-full bg-void-50/60 border border-white/8 rounded-xl px-3 py-2 text-xs font-mono text-white placeholder-white/20 focus:outline-none focus:border-neon-cyan/30 resize-none transition-all"
-      />
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] text-white/20 font-mono flex-1">{willText.length}/200</span>
-        <button
-          onClick={handleSaveWill}
-          disabled={isLoading}
-          className={clsx(
-            'px-3 py-1 rounded-lg text-[10px] font-display font-bold tracking-wider uppercase transition-all',
-            willSaved
-              ? 'text-neon-green border border-neon-green/40 bg-neon-green/10'
-              : 'text-white/50 border border-white/15 hover:text-white hover:border-white/30',
-            'disabled:opacity-40',
-          )}
-        >
-          {willSaved ? t.game.will.saved : t.game.will.save}
-        </button>
-      </div>
-    </div>
-  ) : null;
 
   // ── Phase center content (shared)
   const PhaseContent = (
@@ -792,13 +755,6 @@ export function GamePage() {
     </AnimatePresence>
   );
 
-  // Wrap PhaseContent with Last Will below it
-  const PhaseContentWithWill = (
-    <>
-      {PhaseContent}
-      {LastWillPanel}
-    </>
-  );
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ background: '#060314' }}>
@@ -1067,7 +1023,7 @@ export function GamePage() {
                 className={clsx('font-display text-lg md:text-xl font-bold tracking-widest uppercase truncate transition-all duration-700', PHASE_COLORS[phase])}
                 style={{ textShadow: PHASE_GLOW[phase] }}
               >
-                {t.game.phaseLabels[phase]}
+                {t.game.phaseLabels[phase as keyof typeof t.game.phaseLabels]}
                 {phase !== 'role_reveal' && phase !== 'game_over' && (
                   <span className="text-white/40 text-sm"> · D{room.day}</span>
                 )}
@@ -1211,7 +1167,7 @@ export function GamePage() {
 
           {/* Center: Phase content */}
           <main className="flex-1 overflow-y-auto p-4 md:p-6">
-            {PhaseContentWithWill}
+            {PhaseContent}
           </main>
 
           {/* Events + Chat sidebar */}
@@ -1334,7 +1290,7 @@ export function GamePage() {
                       })()}
 
                       {/* Last Will — compact on mobile */}
-                      {LastWillPanel}
+                      
 
                       {/* Voice — collapsible on mobile */}
                       <div className="rounded-xl border border-white/8 overflow-hidden">
@@ -1431,7 +1387,7 @@ export function GamePage() {
               <div className="flex-shrink-0 border-t border-white/[0.06] flex" style={{ background: 'rgba(8,4,22,0.96)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
                 {([
                   { id: 'grid',   label: t.lobby.players },
-                  { id: 'action', label: phase === 'voting' ? t.game.voting.title : (t.game.phaseLabels[phase] || 'Action') },
+                  { id: 'action', label: phase === 'voting' ? t.game.voting.title : (t.game.phaseLabels[phase as keyof typeof t.game.phaseLabels] || 'Action') },
                   { id: 'chat',   label: t.lobby.chat },
                 ] as { id: MobileTab | 'grid'; label: string }[]).map(tab => {
                   const isActive = tab.id === 'grid'
@@ -1473,7 +1429,7 @@ export function GamePage() {
                 <AnimatePresence mode="wait">
                   {mobileTab === 'action' && (
                     <motion.div key="action" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-3">
-                      {PhaseContentWithWill}
+                      {PhaseContent}
                       {/* Voice — collapsible during night to keep action visible */}
                       {(phase !== 'night' || !isMafiaPlayer) && (
                         <div className="rounded-xl border border-white/8 overflow-hidden">
@@ -1511,7 +1467,7 @@ export function GamePage() {
               </div>
               <div className="flex-shrink-0 border-t border-white/[0.06] flex" style={{ background: 'rgba(8,4,22,0.96)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
                 {([
-                  { id: 'action',  label: t.game.phaseLabels[phase] || 'Action' },
+                  { id: 'action',  label: t.game.phaseLabels[phase as keyof typeof t.game.phaseLabels] || 'Action' },
                   { id: 'players', label: t.lobby.players },
                   { id: 'chat',    label: t.lobby.chat },
                 ] as { id: MobileTab; label: string }[]).map(tab => (

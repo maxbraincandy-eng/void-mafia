@@ -1,4 +1,4 @@
-export type Phase = 'lobby' | 'role_reveal' | 'night' | 'morning' | 'day' | 'speech' | 'voting' | 'game_over';
+export type Phase = 'lobby' | 'role_reveal' | 'night' | 'morning' | 'day' | 'speech' | 'voting' | 'death_speech' | 'game_over';
 export type RoleKey = 'mafia' | 'citizen' | 'sheriff' | 'doctor' | 'don' | 'maniac' | 'jester' | 'bodyguard' | 'spy' | 'escort' | 'vigilante' | 'cult_leader' | 'cultist' | 'veteran' | 'tracker' | 'arsonist' | 'mayor' | 'yakuza' | 'shogun';
 export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
@@ -261,6 +261,7 @@ export interface Room {
     mafiaKillTarget: string | null;
     nominations: Map<string, string>;
     tribunalCandidates: string[];
+    deathSpeakerId: string | null;
 }
 export interface PlayerPublic {
     id: string;
@@ -316,6 +317,7 @@ export interface RoomPublic {
     nominations: Record<string, string>;
     /** deduped list of nominated player IDs eligible for tribunal vote */
     tribunalCandidates: string[];
+    deathSpeakerId: string | null;
 }
 export interface RoomListItem {
     id: string;

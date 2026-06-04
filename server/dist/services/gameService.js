@@ -44,7 +44,7 @@ export function startGame(room) {
     room.dousedPlayers = new Set();
     room.newlyConvertedCultists = [];
 }
-const MORNING_DURATION = 8;
+const MORNING_DURATION = 30;
 // ── Set Phase ─────────────────────────────────────────────────────────
 export function setPhase(room, phase) {
     room.phase = phase;
@@ -91,6 +91,10 @@ export function setPhase(room, phase) {
             room.votes = new Map();
             room.timer = room.settings.voteDuration;
             room.maxTimer = room.settings.voteDuration;
+            break;
+        case 'death_speech':
+            room.timer = 30;
+            room.maxTimer = 30;
             break;
         case 'role_reveal':
             room.timer = room.settings.roleRevealDuration;
@@ -152,12 +156,22 @@ export function advancePhase(room) {
             setPhase(room, 'night');
             return 'night';
         }
-        case 'voting':
-            resolveVotes(room);
+        case 'voting': {
+            const eliminatedId = resolveVotes(room);
             if (checkWin(room)) {
                 setPhase(room, 'game_over');
                 return 'game_over';
             }
+            if (eliminatedId) {
+                room.deathSpeakerId = eliminatedId;
+                setPhase(room, 'death_speech');
+                return 'death_speech';
+            }
+            setPhase(room, 'night');
+            return 'night';
+        }
+        case 'death_speech':
+            room.deathSpeakerId = null;
             setPhase(room, 'night');
             return 'night';
         default:

@@ -103,6 +103,7 @@ export const TRANSLATIONS = {
         day: 'Day',
         speech: 'Floor Time',
         voting: 'Voting',
+        death_speech: 'Final Words',
         game_over: 'Game Over',
       },
       night: {
@@ -439,6 +440,7 @@ export const TRANSLATIONS = {
         day: 'დღე',
         speech: 'სიტყვის დრო',
         voting: 'კენჭისყრა',
+        death_speech: 'ბოლო სიტყვა',
         game_over: 'თამაში დასრულდა',
       },
       night: {
