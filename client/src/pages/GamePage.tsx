@@ -45,6 +45,7 @@ const PHASE_COLORS: Record<Phase, string> = {
   lobby:        'text-white',
   role_reveal:  'text-neon-purple',
   night:        'text-neon-cyan',
+  morning:      'text-neon-cyan',
   day:          'text-neon-cyan',
   speech:       'text-neon-cyan',
   voting:       'text-neon-red',
@@ -55,6 +56,7 @@ const PHASE_STRIP: Record<Phase, string> = {
   lobby:        'rgba(255,255,255,0.05)',
   role_reveal:  '#9b00ff',
   night:        '#3b00cc',
+  morning:      '#00c4cc',
   day:          '#00c4cc',
   speech:       '#00e5ff',
   voting:       '#ff2d55',
@@ -63,6 +65,7 @@ const PHASE_STRIP: Record<Phase, string> = {
 
 const PHASE_GLOW: Partial<Record<Phase, string>> = {
   night:       '0 0 12px rgba(59,0,204,0.8)',
+  morning:     '0 0 10px rgba(0,196,204,0.5)',
   voting:      '0 0 12px rgba(255,45,85,0.7)',
   role_reveal: '0 0 12px rgba(155,0,255,0.7)',
   speech:      '0 0 10px rgba(0,229,255,0.5)',
@@ -117,7 +120,7 @@ export function GamePage() {
     dismissNightResult, dismissInvestigation, dismissSpyReport, dismissGameOver,
     dismissVoteElimination, dismissCultConversion, dismissNightSummary, dismissNewAchievements,
     dismissVoteBreakdown,
-    setWill, pauseTimer, submitVote,
+    setWill, pauseTimer, submitVote, nominate,
     isLoading,
   } = useGameStore(s => ({
     room: s.room,
@@ -150,6 +153,7 @@ export function GamePage() {
     setWill: s.setWill,
     pauseTimer: s.pauseTimer,
     submitVote: s.submitVote,
+    nominate: s.nominate,
     isLoading: s.isLoading,
   }));
 
@@ -603,11 +607,43 @@ export function GamePage() {
           );
         })()}
 
+        {phase === 'morning' && (
+          <div className="space-y-4">
+            <div className="py-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-1.5 h-1.5 rounded-full bg-neon-cyan/70" style={{ boxShadow: '0 0 6px rgba(0,196,204,0.8)' }} />
+                <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-neon-cyan/70">
+                  {t.game.phaseLabels.morning}
+                </span>
+                <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(0,196,204,0.25), transparent)' }} />
+              </div>
+              <div className="pl-4 space-y-3">
+                {room.killedLastNight.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {room.killedLastNight.map(k => (
+                      <p key={k.id} className="text-white font-semibold text-sm">
+                        <span className="text-neon-red">💀</span> {k.name} {t.game.day.eliminatedNight}
+                      </p>
+                    ))}
+                  </div>
+                ) : room.savedLastNight ? (
+                  <p className="text-neon-green text-sm">💊 {t.game.day.doctorSaved}</p>
+                ) : (
+                  <p className="text-white/40 text-sm font-mono">The night passed quietly.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {phase === 'speech' && (() => {
           const speaker = room.players.find(p => p.id === room.currentSpeakerId);
           const speakerIdx = room.players.filter(p => p.isAlive && !p.isSpectator)
             .findIndex(p => p.id === room.currentSpeakerId);
           const totalSpeakers = room.players.filter(p => p.isAlive && !p.isSpectator).length;
+          const isMyTurn = room.currentSpeakerId === myPlayer?.id && myPlayer?.isAlive && !amSpectator;
+          const myNomination = isMyTurn ? room.nominations?.[myPlayer.id] : null;
+          const nominatedPlayer = myNomination ? room.players.find(p => p.id === myNomination) : null;
           return (
             <div className="space-y-4">
               <div className="py-4">
@@ -634,6 +670,65 @@ export function GamePage() {
                   <p className="text-white/40 text-sm font-mono pl-4">{t.game.speech.loading}</p>
                 )}
               </div>
+
+              {/* Nomination panel — only for current speaker */}
+              {isMyTurn && (
+                <div className="p-3 rounded-xl border border-neon-red/20 bg-neon-red/5 space-y-2">
+                  <p className="text-[10px] font-mono text-neon-red/50 uppercase tracking-widest">
+                    ⚖️ {t.game.speech.nominateLabel}
+                  </p>
+                  {nominatedPlayer ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-neon-red">
+                        {nominatedPlayer.name}
+                      </span>
+                      <button
+                        onClick={() => nominate(null)}
+                        disabled={isLoading}
+                        className="text-[10px] text-white/40 hover:text-neon-red font-mono transition-colors"
+                      >
+                        ✕ {t.game.speech.withdrawNomination}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {room.players
+                        .filter(p => p.isAlive && !p.isSpectator && p.id !== myPlayer.id)
+                        .map(p => (
+                          <button
+                            key={p.id}
+                            onClick={() => nominate(p.id)}
+                            disabled={isLoading}
+                            className="px-2.5 py-1 rounded-lg border border-neon-red/20 text-neon-red/60 text-xs font-mono hover:border-neon-red/50 hover:text-neon-red/90 transition-all disabled:opacity-40"
+                          >
+                            {p.name}
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Show current nominations visible to everyone */}
+              {Object.keys(room.nominations ?? {}).length > 0 && (
+                <div className="p-3 rounded-xl border border-white/8 bg-white/3 space-y-1.5">
+                  <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest">
+                    Nominations
+                  </p>
+                  {Object.entries(room.nominations ?? {}).map(([nominatorId, nomineeId]) => {
+                    const nominator = room.players.find(p => p.id === nominatorId);
+                    const nominee = room.players.find(p => p.id === nomineeId);
+                    if (!nominator || !nominee) return null;
+                    return (
+                      <div key={nominatorId} className="flex items-center gap-2 text-xs font-mono">
+                        <span className="text-white/50">{nominator.name}</span>
+                        <span className="text-white/20">→</span>
+                        <span className="text-neon-red/80 font-semibold">{nominee.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })()}

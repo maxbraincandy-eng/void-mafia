@@ -63,6 +63,7 @@ interface GameStore {
   startGame: () => Promise<void>;
   submitNightAction: (targetId: string) => Promise<void>;
   submitVote: (targetId: string | null) => Promise<void>;
+  nominate: (nomineeId: string | null) => Promise<void>;
   sendChat: (text: string, channel: ChatChannel) => Promise<void>;
   skipPhase: () => Promise<void>;
   daySkipVote: () => Promise<void>;
@@ -206,6 +207,12 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   (socket as any).on('game:night_summary', (summary: NightSummary) => {
     set({ nightSummary: summary });
+  });
+
+  (socket as any).on('game:nomination', (data: { nominatorId: string; nominatorName: string; nomineeId: string | null; nomineeName: string | null }) => {
+    if (data.nomineeId) {
+      get().addToast(`⚖️ ${data.nominatorName} nominated ${data.nomineeName}`, 'info');
+    }
   });
 
   (socket as any).on('achievement:earned', ({ achievements }: { achievements: AchievementEarned[] }) => {
@@ -416,6 +423,10 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     submitVote: withLoading(async (targetId: string | null) => {
       await emit('game:vote', { targetId });
+    }),
+
+    nominate: withLoading(async (nomineeId: string | null) => {
+      await emit('game:nominate', { nomineeId });
     }),
 
     sendChat: withLoading(async (text: string, channel: ChatChannel) => {
