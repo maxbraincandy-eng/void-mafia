@@ -53,6 +53,8 @@ export function startGame(room: Room): void {
   room.newlyConvertedCultists = [];
 }
 
+const MORNING_DURATION = 8;
+
 // ── Set Phase ─────────────────────────────────────────────────────────
 export function setPhase(room: Room, phase: Phase): void {
   room.phase = phase;
@@ -72,12 +74,20 @@ export function setPhase(room: Room, phase: Phase): void {
       room.timer = room.settings.nightDuration;
       room.maxTimer = room.settings.nightDuration;
       break;
+    case 'morning':
+      room.timer = MORNING_DURATION;
+      room.maxTimer = MORNING_DURATION;
+      break;
     case 'day':
+      room.nominations = new Map();
+      room.tribunalCandidates = [];
       room.timer = room.settings.dayDuration;
       room.maxTimer = room.settings.dayDuration;
       room.daySkipVotes = [];
       break;
     case 'speech': {
+      room.nominations = new Map();
+      room.tribunalCandidates = [];
       const alivePlayers = [...room.players.values()]
         .filter(p => p.isAlive && !p.isSpectator)
         .sort((a, b) => a.seat - b.seat);
@@ -88,6 +98,7 @@ export function setPhase(room: Room, phase: Phase): void {
       break;
     }
     case 'voting':
+      room.tribunalCandidates = [...new Set(room.nominations.values())];
       room.votes = new Map();
       room.timer = room.settings.voteDuration;
       room.maxTimer = room.settings.voteDuration;
@@ -117,7 +128,6 @@ export function advancePhase(room: Room): Phase {
         setPhase(room, 'game_over');
         return 'game_over';
       }
-      // Day-first: go to day(1) discussion before first night
       if (!room.settings.startWithNight) {
         setPhase(room, 'day');
         return 'day';
@@ -125,24 +135,21 @@ export function advancePhase(room: Room): Phase {
       setPhase(room, 'night');
       return 'night';
 
+    case 'morning':
+      room.day++;
+      setPhase(room, 'day');
+      return 'day';
+
     case 'night':
       resolveNight(room);
       if (checkWin(room)) {
         setPhase(room, 'game_over');
         return 'game_over';
       }
-      // Morning of a new day
-      room.day++;
-      setPhase(room, 'day');
-      return 'day';
+      setPhase(room, 'morning');
+      return 'morning';
 
     case 'day':
-      // Opening shared discussion (day-first start) has no tribunal/vote —
-      // everyone talks publicly first, then it becomes night.
-      if (room.day === 1 && !room.settings.startWithNight) {
-        setPhase(room, 'night');
-        return 'night';
-      }
       setPhase(room, 'speech');
       return 'speech';
 
@@ -154,8 +161,13 @@ export function advancePhase(room: Room): Phase {
         room.maxTimer = room.settings.speechDuration;
         return 'speech';
       }
-      setPhase(room, 'voting');
-      return 'voting';
+      // All speakers done — go to tribunal if anyone was nominated, else skip to night
+      if (room.nominations.size > 0) {
+        setPhase(room, 'voting');
+        return 'voting';
+      }
+      setPhase(room, 'night');
+      return 'night';
     }
 
     case 'voting':
@@ -164,7 +176,6 @@ export function advancePhase(room: Room): Phase {
         setPhase(room, 'game_over');
         return 'game_over';
       }
-      room.day++;
       setPhase(room, 'night');
       return 'night';
 
@@ -398,6 +409,28 @@ export function getTrackResult(room: Room, actor: Player): { trackedName: string
   };
 }
 
+// ── Nomination ────────────────────────────────────────────────────────
+export function submitNomination(room: Room, actor: Player, nomineeId: string | null): void {
+  if (room.phase !== 'speech') throw new Error('Nominations are only allowed during speech phase.');
+  if (!actor.isAlive) throw new Error('Eliminated players cannot nominate.');
+  if (actor.isSpectator) throw new Error('Spectators cannot nominate.');
+
+  const currentSpeakerId = room.speechOrder[room.currentSpeakerIdx];
+  if (actor.id !== currentSpeakerId) throw new Error('Only the current speaker may nominate.');
+
+  if (nomineeId === null) {
+    room.nominations.delete(actor.id);
+    return;
+  }
+
+  if (nomineeId === actor.id) throw new Error('You cannot nominate yourself.');
+  const nominee = room.players.get(nomineeId);
+  if (!nominee) throw new Error('Player not found.');
+  if (!nominee.isAlive) throw new Error('Cannot nominate an eliminated player.');
+
+  room.nominations.set(actor.id, nomineeId);
+}
+
 // ── Voting ────────────────────────────────────────────────────────────
 export function submitVote(room: Room, voter: Player, targetId: string | null): void {
   if (room.phase !== 'voting') throw new Error('Not voting phase.');
@@ -408,6 +441,9 @@ export function submitVote(room: Room, voter: Player, targetId: string | null): 
     if (!target) throw new Error('Target not found.');
     if (!target.isAlive) throw new Error('Cannot vote for an eliminated player.');
     if (target.id === voter.id) throw new Error('You cannot vote for yourself.');
+    if (room.tribunalCandidates.length > 0 && !room.tribunalCandidates.includes(targetId)) {
+      throw new Error('That player was not nominated for tribunal.');
+    }
   }
 
   voter.voteTarget = targetId;
@@ -419,6 +455,7 @@ export function resolveVotes(room: Room): string | null {
 
   for (const [voterId, targetId] of room.votes.entries()) {
     if (!targetId) continue;
+    if (room.tribunalCandidates.length > 0 && !room.tribunalCandidates.includes(targetId)) continue;
     const voter = room.players.get(voterId);
     const weight = voter?.role === 'mayor' ? 2 : 1;
     counts.set(targetId, (counts.get(targetId) ?? 0) + weight);

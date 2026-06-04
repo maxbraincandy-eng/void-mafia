@@ -2,6 +2,7 @@ export type Phase =
   | 'lobby'
   | 'role_reveal'
   | 'night'
+  | 'morning'
   | 'day'
   | 'speech'
   | 'voting'
@@ -327,6 +328,8 @@ export interface Room {
   spectateQueue: string[];
   startedAt: number;
   mafiaKillTarget: string | null;
+  nominations: Map<string, string>;
+  tribunalCandidates: string[];
 }
 
 // ── Public Types (sent to clients) ────────────────────────────────────
@@ -374,6 +377,10 @@ export interface RoomPublic {
   deadChat: ChatMessage[];
   /** Mafia-team-only: each alive Mafia member's current kill vote. null when viewer is not Mafia. */
   mafiaVotes: Record<string, { voterName: string; targetName: string }> | null;
+  /** nominatorId → nomineeId for current day's speech nominations */
+  nominations: Record<string, string>;
+  /** deduped list of nominated player IDs eligible for tribunal vote */
+  tribunalCandidates: string[];
 }
 
 export interface RoomListItem {
@@ -483,6 +490,7 @@ export interface ServerToClientEvents {
   'game:track_result':  (result: { trackedName: string; visitedName: string | null }) => void;
   'game:over':            (result: GameOverResult) => void;
   'game:night_summary':   (summary: NightSummary) => void;
+  'game:nomination':      (data: { nominatorId: string; nominatorName: string; nomineeId: string | null; nomineeName: string | null }) => void;
   'achievement:earned':   (data: { achievements: AchievementEarned[] }) => void;
   'game:vote_breakdown':  (entries: VoteBreakdownEntry[]) => void;
   'lobby:autostart':      (data: { secondsLeft: number }) => void;
@@ -539,6 +547,7 @@ export interface ClientToServerEvents {
   'game:action':        (data: { targetId: string }, cb: Cb<null>) => void;
   'game:vote':          (data: { targetId: string | null }, cb: Cb<null>) => void;
   'game:skip':          (cb: Cb<null>) => void;
+  'game:nominate':      (data: { nomineeId: string | null }, cb: Cb<null>) => void;
   'game:day_skip_vote': (cb: Cb<null>) => void;
   'game:restart':       (cb: Cb<null>) => void;
   'game:set_will':      (data: { text: string }, cb: Cb<null>) => void;

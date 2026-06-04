@@ -4,6 +4,7 @@ export type Phase =
   | 'lobby'
   | 'role_reveal'
   | 'night'
+  | 'morning'
   | 'day'
   | 'speech'
   | 'voting'
@@ -217,6 +218,10 @@ export interface RoomPublic {
   isPaused: boolean;
   /** Mafia-team-only: each alive Mafia member's current kill vote. null when viewer is not Mafia. */
   mafiaVotes: Record<string, { voterName: string; targetName: string }> | null;
+  /** nominatorId → nomineeId for current day's speech nominations */
+  nominations: Record<string, string>;
+  /** deduped list of nominated player IDs eligible for tribunal vote */
+  tribunalCandidates: string[];
 }
 
 export interface RoomListItem {

@@ -108,6 +108,8 @@ export function createRoom(
     spectateQueue: [],
     startedAt: 0,
     mafiaKillTarget: null,
+    nominations: new Map(),
+    tribunalCandidates: [],
   };
 
   rooms.set(id, room);
@@ -288,6 +290,8 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     daySkipVoteCount: room.daySkipVotes.length,
     spectatorCount: [...room.players.values()].filter(p => p.isSpectator).length,
     isPaused: room.isPaused,
+    nominations: Object.fromEntries(room.nominations),
+    tribunalCandidates: room.tribunalCandidates,
     mafiaVotes: isMafia && room.phase === 'night'
       ? (() => {
           const votes: Record<string, { voterName: string; targetName: string }> = {};
@@ -382,6 +386,8 @@ export function rematchRoom(room: Room): void {
   room.dousedPlayers = new Set();
   room.newlyConvertedCultists = [];
   room.startedAt = 0;
+  room.nominations = new Map();
+  room.tribunalCandidates = [];
   for (const p of room.players.values()) {
     p.role = null;
     p.team = null;

@@ -12,7 +12,7 @@ import {
   setPlayerAvatarUrl,
 } from './services/roomService.js';
 import {
-  startGame, setPhase, advancePhase, submitNightAction, submitVote,
+  startGame, setPhase, advancePhase, submitNightAction, submitVote, submitNomination,
   checkWin, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult,
   getTrackResult, resolveVotes,
 } from './services/gameService.js';
@@ -190,9 +190,11 @@ function startPhaseTimer(io: AppServer, room: Room): void {
     async () => {
       room.timer = 0;
       const wasNight = room.phase === 'night';
+      const wasSpeech = room.phase === 'speech';
       if (room.phase === 'voting') announceVoteResult(io, room);
       advancePhase(room); const nextPhase = room.phase as Phase;
       if (wasNight) { announceNightResult(io, room); notifySpies(io, room); notifyTrackers(io, room); notifyCultConversions(io, room); notifyRoleblocked(io, room); }
+      if (wasSpeech && nextPhase !== 'speech') announceSpeechEnd(io, room, nextPhase);
       if (nextPhase === 'night') {
         io.to(room.id).emit('game:notification', { title: 'Night Falls', body: 'Perform your night action.' });
       }
@@ -289,6 +291,17 @@ async function notifyMods(io: AppServer, type: string, message: string, targetNa
     if (profile?.isModerator) {
       sock.emit('mod:notification', { type, message, targetName });
     }
+  }
+}
+
+function announceSpeechEnd(io: AppServer, room: Room, nextPhase: Phase): void {
+  if (nextPhase === 'voting') {
+    const names = room.tribunalCandidates
+      .map(id => room.players.get(id)?.name ?? '?')
+      .join(', ');
+    broadcastSystemMsg(io, room, `⚖️ Tribunal begins — nominated: ${names}.`);
+  } else if (nextPhase === 'night') {
+    broadcastSystemMsg(io, room, 'No one was nominated. Night begins.');
   }
 }
 
@@ -925,6 +938,32 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    // ── Nominate ────────────────────────────────────────────────────
+    socket.on('game:nominate', ({ nomineeId }, cb) => {
+      try {
+        const room = getRoomFromSocket(socket);
+        const actor = getPlayerOrError(socket, room);
+        submitNomination(room, actor, nomineeId);
+
+        const nominee = nomineeId ? room.players.get(nomineeId) : null;
+        io.to(room.id).emit('game:nomination', {
+          nominatorId: actor.id,
+          nominatorName: actor.name,
+          nomineeId: nomineeId ?? null,
+          nomineeName: nominee?.name ?? null,
+        });
+
+        if (nomineeId) {
+          broadcastSystemMsg(io, room, `⚖️ ${actor.name} nominates ${nominee?.name ?? '?'} for tribunal.`);
+        } else {
+          broadcastSystemMsg(io, room, `${actor.name} withdrew their nomination.`);
+        }
+
+        broadcastRoom(io, room);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     // ── Skip Phase ──────────────────────────────────────────────────
     socket.on('game:skip', async (cb) => {
       try {
@@ -937,10 +976,12 @@ export function attachSocketHandlers(io: AppServer): void {
         room.timer = 0;
 
         const wasNightSkip = room.phase === 'night';
+        const wasSpeechSkip = room.phase === 'speech';
         if (room.phase === 'voting') announceVoteResult(io, room);
 
         advancePhase(room); const nextPhase = room.phase as Phase;
         if (wasNightSkip) { announceNightResult(io, room); notifySpies(io, room); notifyTrackers(io, room); notifyCultConversions(io, room); notifyRoleblocked(io, room); }
+        if (wasSpeechSkip && nextPhase !== 'speech') announceSpeechEnd(io, room, nextPhase);
         if (nextPhase === 'game_over') await emitGameOver(io, room);
         broadcastRoom(io, room);
         enforceVoicePhaseRules(io, room);
@@ -1037,6 +1078,8 @@ export function attachSocketHandlers(io: AppServer): void {
         room.speechOrder = [];
         room.currentSpeakerIdx = 0;
         room.isPaused = false;
+        room.nominations = new Map();
+        room.tribunalCandidates = [];
 
         for (const p of room.players.values()) {
           p.role = null;

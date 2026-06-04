@@ -30,8 +30,12 @@ export function VotingPanel() {
     );
   }
 
+  const tribunalCandidates = room.tribunalCandidates ?? [];
   const aliveAll = room.players.filter(p => p.isAlive && !p.isSpectator);
-  const alivePlayers = aliveAll.filter(p => p.id !== myPlayer.id);
+  const alivePlayers = aliveAll.filter(p =>
+    p.id !== myPlayer.id &&
+    (tribunalCandidates.length === 0 || tribunalCandidates.includes(p.id))
+  );
   const selectableIds = new Set(alivePlayers.map(p => p.id));
   const majorityThreshold = Math.ceil(aliveAll.length / 2);
 
@@ -65,6 +69,13 @@ export function VotingPanel() {
 
   return (
     <div className="space-y-3">
+      {/* Tribunal info banner */}
+      {tribunalCandidates.length > 0 && (
+        <div className="px-3 py-2 rounded-xl border border-neon-red/30 bg-neon-red/8 text-[10px] font-mono text-neon-red/70 text-center">
+          ⚖️ Tribunal — only nominated players can be voted out
+        </div>
+      )}
+
       {/* Vote status banner */}
       <div className={clsx(
         'px-3 py-2 rounded-xl border text-xs font-mono flex items-center gap-2',
