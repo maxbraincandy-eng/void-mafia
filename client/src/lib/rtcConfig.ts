@@ -1,44 +1,42 @@
 /**
  * Build RTCConfiguration.
  *
- * STUN alone fails for mobile users behind CGNAT (4G/5G carrier NAT).
- * TURN relay is required for reliable cross-network connections.
+ * Mobile 4G/5G users are behind CGNAT — direct P2P fails silently:
+ * ICE shows "connected" via srflx but media never flows.
+ * Solution: always force TURN relay (iceTransportPolicy: 'relay').
  *
- * Override via env vars in Railway:
- *   VITE_TURN_URL=turn:your-server.com:3478
- *   VITE_TURN_USERNAME=...
- *   VITE_TURN_CREDENTIAL=...
+ * Custom TURN via Railway env vars:
+ *   VITE_TURN_URL, VITE_TURN_USERNAME, VITE_TURN_CREDENTIAL
  */
 export function getRTCConfig(): RTCConfiguration {
-  const iceServers: RTCIceServer[] = [
-    // STUN — public IP discovery
-    { urls: import.meta.env.VITE_STUN_URL ?? 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:openrelay.metered.ca:80' },
-
-    // TURN relay — required for mobile/CGNAT users
-    // Uses OpenRelay free tier as default; override with own TURN via env vars
+  const turnServers: RTCIceServer[] = [
+    // OpenRelay (Metered) — free public TURN
     {
-      urls: 'turn:openrelay.metered.ca:80',
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp',
+        'turn:openrelay.metered.ca:80?transport=tcp',
+      ],
       username: 'openrelayproject',
       credential: 'openrelayproject',
     },
+    // Metered global relay — secondary
     {
-      urls: 'turn:openrelay.metered.ca:443',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
-    {
-      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      urls: [
+        'turn:global.relay.metered.ca:80',
+        'turn:global.relay.metered.ca:443',
+        'turn:global.relay.metered.ca:443?transport=tcp',
+      ],
       username: 'openrelayproject',
       credential: 'openrelayproject',
     },
   ];
 
-  // Custom TURN (Railway env vars) — takes priority, added last so browser prefers it
+  // Custom TURN via Railway env vars — preferred if set
   const turnUrl = import.meta.env.VITE_TURN_URL;
   if (turnUrl) {
-    iceServers.push({
+    turnServers.unshift({
       urls: turnUrl,
       username: import.meta.env.VITE_TURN_USERNAME ?? '',
       credential: import.meta.env.VITE_TURN_CREDENTIAL ?? '',
@@ -46,7 +44,15 @@ export function getRTCConfig(): RTCConfiguration {
   }
 
   return {
-    iceServers,
+    iceServers: [
+      // STUN only for candidate gathering — not used for actual transport
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:openrelay.metered.ca:80' },
+      ...turnServers,
+    ],
+    // Force relay — prevents fake "connected" on CGNAT mobile networks
+    // where STUN srflx candidates appear connected but never carry audio
+    iceTransportPolicy: 'relay',
     iceCandidatePoolSize: 10,
   };
 }

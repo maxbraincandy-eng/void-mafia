@@ -166,8 +166,8 @@ export class WebRTCSession {
 
     pc.oniceconnectionstatechange = () => {
       log('ICE state [', peerId, ']', pc.iceConnectionState);
-      if (pc.iceConnectionState === 'failed') {
-        log('ICE failed for', peerId, '— restarting');
+      if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+        log('ICE', pc.iceConnectionState, 'for', peerId, '— restarting');
         pc.restartIce();
       }
       if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
