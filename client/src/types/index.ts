@@ -463,3 +463,73 @@ export interface DirectMessage {
   createdAt: number;
   readAt: number | null;
 }
+
+// ── Economy ───────────────────────────────────────────────────────────────
+
+export type GiftRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+export type TxType = 'grant' | 'deduct' | 'gift_sent' | 'gift_received' | 'daily_reward' | 'refund';
+
+export interface GiftCatalogItem {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  imageUrl: string;
+  rarity: GiftRarity;
+  stars: number;
+  price: number;
+  active: boolean;
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PlayerGift {
+  id: string;
+  recipientId: string;
+  receiverPublicId: number | null;
+  receiverName: string;
+  senderId: string;
+  senderPublicId: number | null;
+  senderUsername: string;
+  senderAvatar: string;
+  senderAvatarUrl: string | null;
+  giftId: string;
+  giftKey: string;
+  giftName: string;
+  giftIcon: string;
+  giftImageUrl: string;
+  giftRarity: GiftRarity;
+  giftStars: number;
+  coinCost: number;
+  message: string;
+  transactionId: string;
+  createdAt: number;
+}
+
+export interface GiftDetail extends GiftCatalogItem {
+  totalSent: number;
+  senders: Array<{
+    senderId: string;
+    senderUsername: string;
+    senderAvatar: string;
+    senderAvatarUrl: string | null;
+    message: string;
+    sentAt: number;
+  }>;
+}
+
+export interface CoinTransaction {
+  id: string;
+  playerId: string;
+  publicId: number | null;
+  type: TxType;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  relatedUserId: string | null;
+  relatedGiftId: string | null;
+  description: string;
+  grantedBy: string | null;
+  createdAt: number;
+}

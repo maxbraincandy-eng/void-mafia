@@ -13,6 +13,7 @@ import { ProfilePage } from '@/pages/ProfilePage';
 import { ClansPage } from '@/pages/ClansPage';
 import { LeaderboardPage } from '@/pages/LeaderboardPage';
 import { ModDashboardPage } from '@/pages/ModDashboardPage';
+import { EconomyAdminPage } from '@/pages/EconomyAdminPage';
 import { BottomNav, NavTab } from '@/components/layout/BottomNav';
 import { PlayerProfileModal } from '@/components/ui/PlayerProfileModal';
 import { DmPanel } from '@/components/social/DmPanel';
@@ -120,19 +121,21 @@ function DmToastNotification() {
 function MainApp() {
   const [page, setPage] = useState<NavTab>('rooms');
   const profile = useAuthStore(s => s.profile);
-  const isMod = profile?.isModerator ?? false;
+  const isMod   = profile?.isModerator ?? false;
+  const isOwner = profile?.moderatorLevel === 'owner';
   const { openDmList } = useSocialStore();
 
   return (
     <div className="pb-20 min-h-screen">
       <AnimatePresence mode="wait">
-        {page === 'rooms'       && <RoomsPage key="rooms" />}
-        {page === 'clans'       && <ClansPage key="clans" />}
-        {page === 'leaderboard' && <LeaderboardPage key="leaderboard" />}
-        {page === 'profile'     && <ProfilePage key="profile" />}
-        {page === 'mod' && isMod && <ModDashboardPage key="mod" />}
+        {page === 'rooms'                   && <RoomsPage key="rooms" />}
+        {page === 'clans'                   && <ClansPage key="clans" />}
+        {page === 'leaderboard'             && <LeaderboardPage key="leaderboard" />}
+        {page === 'profile'                 && <ProfilePage key="profile" />}
+        {page === 'mod' && isMod            && <ModDashboardPage key="mod" />}
+        {page === 'economy' && isOwner      && <EconomyAdminPage key="economy" />}
       </AnimatePresence>
-      <BottomNav active={page} isMod={isMod} onChange={setPage} onMessagesClick={openDmList} />
+      <BottomNav active={page} isMod={isMod} isOwner={isOwner} onChange={setPage} onMessagesClick={openDmList} />
     </div>
   );
 }

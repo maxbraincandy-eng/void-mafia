@@ -600,6 +600,9 @@ export interface ServerToClientEvents {
   'dm:new_message':      (data: { conversationId: string; message: any }) => void;
   // Maintenance mode
   'maintenance:status':  (data: { enabled: boolean }) => void;
+  // Economy
+  'coins:updated':       (data: { coins: number }) => void;
+  'gift:received':       (data: { gift: any; senderName: string; senderAvatar: string; message: string }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -708,6 +711,22 @@ export interface ClientToServerEvents {
   'player:update_avatar':  (data: { imageData: string }, cb: (res: any) => void) => void;
   'player:remove_avatar':  (cb: (res: any) => void) => void;
   'player:update_name':    (data: { newName: string }, cb: (res: any) => void) => void;
+  // Economy — coins & gifts
+  'coins:balance':          (cb: Cb<{ coins: number }>) => void;
+  'coins:daily_reward':     (cb: Cb<{ coins: number; balance: number; alreadyClaimed: boolean }>) => void;
+  'coins:send_gift':        (data: { recipientId: string; giftId: string; message: string }, cb: Cb<{ newBalance: number }>) => void;
+  'coins:transactions':     (data: { profileId?: string }, cb: Cb<any[]>) => void;
+  'gifts:catalog':          (cb: Cb<any[]>) => void;
+  'gifts:player_gifts':     (data: { profileId: string }, cb: Cb<any[]>) => void;
+  'gifts:detail':           (data: { giftId: string; recipientId: string }, cb: Cb<any>) => void;
+  // Economy — owner only
+  'owner:coins_grant':      (data: { targetProfileId: string; amount: number; description: string }, cb: Cb<{ newBalance: number }>) => void;
+  'owner:coins_deduct':     (data: { targetProfileId: string; amount: number; description: string }, cb: Cb<{ newBalance: number }>) => void;
+  'owner:coins_refund':     (data: { transactionId: string }, cb: Cb<null>) => void;
+  'owner:gift_create':      (data: { name: string; description?: string; icon: string; rarity: string; stars: number; price: number }, cb: Cb<any>) => void;
+  'owner:gift_update':      (data: { giftId: string; name?: string; description?: string; icon?: string; rarity?: string; stars?: number; price?: number; active?: boolean }, cb: Cb<any>) => void;
+  'owner:gift_catalog_all': (cb: Cb<any[]>) => void;
+  'owner:all_transactions': (cb: Cb<any[]>) => void;
 }
 
 export interface InterServerEvents {}

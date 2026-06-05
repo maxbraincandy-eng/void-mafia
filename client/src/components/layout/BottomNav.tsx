@@ -2,65 +2,66 @@ import clsx from 'clsx';
 import { useT } from '@/store/langStore';
 import { useSocialStore } from '@/store/socialStore';
 
-export type NavTab = 'rooms' | 'clans' | 'leaderboard' | 'profile' | 'mod';
+export type NavTab = 'rooms' | 'clans' | 'leaderboard' | 'profile' | 'mod' | 'economy';
 
 interface Props {
   active: NavTab;
   isMod: boolean;
+  isOwner: boolean;
   onChange: (tab: NavTab) => void;
   onMessagesClick: () => void;
 }
 
-export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
+export function BottomNav({ active, isMod, isOwner, onChange, onMessagesClick }: Props) {
   const t = useT();
   const { unreadDmCount, dmPanelOpen } = useSocialStore();
 
-  // Order: ოთახები · კლანები · ტოპი · პროფილი · (mod) — MSG always last
-  const TABS: { id: NavTab; label: string; icon: string; modOnly?: boolean }[] = [
+  // Order: ოთახები · კლანები · ტოპი · პროფილი · (mod) · (economy) — MSG always last
+  const TABS: { id: NavTab; label: string; icon: string; modOnly?: boolean; ownerOnly?: boolean }[] = [
     { id: 'rooms',       label: t.nav.rooms,       icon: '⬡' },
     { id: 'clans',       label: t.nav.clans,       icon: '⚔' },
     { id: 'leaderboard', label: t.nav.leaderboard, icon: '◈' },
     { id: 'profile',     label: t.nav.profile,     icon: '◉' },
     { id: 'mod',         label: t.nav.mod,         icon: '⚡', modOnly: true },
+    { id: 'economy',     label: 'Economy',          icon: '🪙', ownerOnly: true },
   ];
 
-  const visible = TABS.filter(tab => !tab.modOnly || isMod);
+  const visible = TABS.filter(tab => {
+    if (tab.ownerOnly) return isOwner;
+    if (tab.modOnly)   return isMod;
+    return true;
+  });
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-void/95 border-t border-white/5 backdrop-blur-xl">
       <div className="flex items-center justify-around max-w-lg mx-auto relative">
         {visible.map(tab => {
           const isActive = active === tab.id;
-          const isModeTab = tab.id === 'mod';
+          const isModeTab    = tab.id === 'mod';
+          const isEconomyTab = tab.id === 'economy';
+          const activeColor = isModeTab ? 'text-neon-green' : isEconomyTab ? 'text-amber-400' : 'text-neon-cyan';
+          const glowClass   = isModeTab ? 'text-glow-green' : isEconomyTab ? '' : 'text-glow-cyan';
+          const barClass    = isModeTab ? 'bg-neon-green' : isEconomyTab ? 'bg-amber-400' : 'bg-neon-cyan';
           return (
             <button
               key={tab.id}
               onClick={() => onChange(tab.id)}
               className={clsx(
                 'flex flex-col items-center justify-center py-3 px-4 flex-1 transition-all duration-200',
-                isActive && !isModeTab && 'text-neon-cyan',
-                isActive && isModeTab && 'text-neon-green',
-                !isActive && 'text-white/25 hover:text-white/50',
+                isActive ? activeColor : 'text-white/25 hover:text-white/50',
               )}
             >
-              <span className={clsx(
-                'text-xl leading-none mb-1 transition-all',
-                isActive && !isModeTab && 'text-glow-cyan',
-                isActive && isModeTab && 'text-glow-green',
-              )}>
+              <span className={clsx('text-xl leading-none mb-1 transition-all', isActive && glowClass)}>
                 {tab.icon}
               </span>
               <span className={clsx(
                 'text-[9px] font-mono tracking-wider uppercase',
-                isModeTab && isActive && 'text-neon-green font-bold',
+                isActive && (isModeTab || isEconomyTab) && 'font-bold',
               )}>
                 {tab.label}
               </span>
               {isActive && (
-                <span className={clsx(
-                  'absolute bottom-0 w-8 h-0.5 rounded-full',
-                  isModeTab ? 'bg-neon-green shadow-neon-green' : 'bg-neon-cyan shadow-neon-cyan',
-                )} />
+                <span className={clsx('absolute bottom-0 w-8 h-0.5 rounded-full', barClass)} />
               )}
             </button>
           );
