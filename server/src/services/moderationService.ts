@@ -1,10 +1,11 @@
 import {
   Report, ReportReason, ModLog, ModActionType,
   BanRecord, MuteRecord, Warning, PlayerProfile, ModeratorLevel,
+  ModNote, ModPlayerDetail,
 } from '../types/index.js';
 import { generateId } from '../utils/helpers.js';
 import { sql } from '../db.js';
-import { getPlayer, setBan, clearBan, setMute, clearMute, addWarning, getPlayersFast } from './playerService.js';
+import { getPlayer, setBan, clearBan, setMute, clearMute, addWarning, getPlayersFast, toPublicProfile } from './playerService.js';
 
 const LEVEL_ORDER: ModeratorLevel[] = ['moderator', 'senior_moderator', 'admin', 'owner'];
 function levelRank(level: ModeratorLevel): number { return LEVEL_ORDER.indexOf(level); }
@@ -156,4 +157,93 @@ export async function logKick(
   roomId: string | null, reason: string,
 ): Promise<void> {
   await addLog({ actionType: 'kick', moderatorId: modProfileId, moderatorName: modName, targetPlayerId: targetId, targetName, roomId, reason, duration: null });
+}
+
+export async function addModLog(
+  actionType: ModActionType, moderatorId: string, moderatorName: string,
+  targetPlayerId: string, targetName: string, roomId: string | null, reason: string, duration: number | null = null,
+): Promise<void> {
+  await addLog({ actionType, moderatorId, moderatorName, targetPlayerId, targetName, roomId, reason, duration });
+}
+
+// ── Mod Notes ─────────────────────────────────────────────────────────
+export async function addModNote(modId: string, modName: string, targetId: string, note: string): Promise<ModNote> {
+  const target = await getPlayer(targetId);
+  if (!target) throw new Error('Player not found.');
+  const n: ModNote = { id: generateId(), playerId: targetId, modId, modName, note: note.slice(0, 1000), createdAt: Date.now() };
+  await sql`
+    INSERT INTO mod_notes (id, player_id, mod_id, mod_name, note, created_at)
+    VALUES (${n.id}, ${n.playerId}, ${n.modId}, ${n.modName}, ${n.note}, ${n.createdAt})
+  `;
+  await addLog({ actionType: 'note_add', moderatorId: modId, moderatorName: modName, targetPlayerId: targetId, targetName: target.username, roomId: null, reason: n.note.slice(0, 100), duration: null });
+  return n;
+}
+
+export async function getModNotes(targetId: string): Promise<ModNote[]> {
+  const rows = await sql`SELECT * FROM mod_notes WHERE player_id = ${targetId} ORDER BY created_at DESC LIMIT 50` as any[];
+  return rows.map((r: any) => ({
+    id: r.id, playerId: r.player_id, modId: r.mod_id, modName: r.mod_name, note: r.note, createdAt: Number(r.created_at),
+  }));
+}
+
+// ── Account Freeze ────────────────────────────────────────────────────
+export async function freezeAccount(modId: string, modName: string, targetId: string, reason: string): Promise<void> {
+  const target = await getPlayer(targetId);
+  if (!target) throw new Error('Player not found.');
+  await sql`UPDATE players SET account_frozen = 1 WHERE id = ${targetId}`;
+  await addLog({ actionType: 'freeze', moderatorId: modId, moderatorName: modName, targetPlayerId: targetId, targetName: target.username, roomId: null, reason, duration: null });
+}
+
+export async function unfreezeAccount(modId: string, modName: string, targetId: string): Promise<void> {
+  const target = await getPlayer(targetId);
+  if (!target) throw new Error('Player not found.');
+  await sql`UPDATE players SET account_frozen = 0 WHERE id = ${targetId}`;
+  await addLog({ actionType: 'unfreeze', moderatorId: modId, moderatorName: modName, targetPlayerId: targetId, targetName: target.username, roomId: null, reason: 'Account unfrozen', duration: null });
+}
+
+// ── Rename Player ─────────────────────────────────────────────────────
+export async function renamePlayer(modId: string, modName: string, targetId: string, newName: string, reason: string): Promise<void> {
+  const target = await getPlayer(targetId);
+  if (!target) throw new Error('Player not found.');
+  const trimmed = newName.trim().slice(0, 24);
+  if (!trimmed) throw new Error('Name cannot be empty.');
+  const existing = await sql`SELECT id FROM players WHERE username = ${trimmed} AND id != ${targetId}` as any[];
+  if (existing.length > 0) throw new Error('Username already taken.');
+  await sql`UPDATE players SET username = ${trimmed} WHERE id = ${targetId}`;
+  await addLog({ actionType: 'rename', moderatorId: modId, moderatorName: modName, targetPlayerId: targetId, targetName: target.username, roomId: null, reason: `Renamed to "${trimmed}": ${reason}`, duration: null });
+}
+
+// ── Player Detail ─────────────────────────────────────────────────────
+export async function getPlayerDetail(targetId: string): Promise<ModPlayerDetail> {
+  const player = await getPlayer(targetId);
+  if (!player) throw new Error('Player not found.');
+  const [notes, reportCountRows, frozenRows] = await Promise.all([
+    getModNotes(targetId),
+    sql`SELECT COUNT(*) as cnt FROM reports WHERE reported_id = ${targetId}` as unknown as Promise<any[]>,
+    sql`SELECT account_frozen FROM players WHERE id = ${targetId}` as unknown as Promise<any[]>,
+  ]);
+  return {
+    profile: toPublicProfile(player),
+    ban: player.ban,
+    mute: player.mute,
+    warnings: player.warnings,
+    reportCount: Number(reportCountRows[0]?.cnt ?? 0),
+    notes,
+    accountFrozen: Boolean(frozenRows[0]?.account_frozen),
+  };
+}
+
+// ── Assign Report ─────────────────────────────────────────────────────
+export async function assignReport(reportId: string, modId: string): Promise<void> {
+  await sql`UPDATE reports SET assigned_mod_id = ${modId}, status = 'reviewing' WHERE id = ${reportId}`;
+}
+
+// ── Dashboard Stats ───────────────────────────────────────────────────
+export async function getDashboardDbStats(): Promise<{ openReports: number; recentBans: number }> {
+  const since24h = Date.now() - 86_400_000;
+  const [[openRow], [banRow]] = await Promise.all([
+    sql`SELECT COUNT(*) as cnt FROM reports WHERE status = 'open'` as Promise<any[]>,
+    sql`SELECT COUNT(*) as cnt FROM mod_logs WHERE action_type = 'ban' AND created_at > ${since24h}` as Promise<any[]>,
+  ]);
+  return { openReports: Number(openRow?.cnt ?? 0), recentBans: Number(banRow?.cnt ?? 0) };
 }

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import {
   ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData,
   RoomPublic, ChatMessage, ok, err, Room, Player, Phase, GameSettings,
-  ReportReason, NightSummary,
+  ReportReason, NightSummary, LiveRoomInfo, LiveRoomPlayer,
 } from './types/index.js';
 import {
   createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, removePlayer,
@@ -45,6 +45,8 @@ import {
 import {
   canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer,
   warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, logKick,
+  addModNote, freezeAccount, unfreezeAccount, renamePlayer,
+  getPlayerDetail, assignReport, getDashboardDbStats, addModLog,
 } from './services/moderationService.js';
 import {
   canJoin as voiceCanJoin,
@@ -74,6 +76,9 @@ function rateOk(socketId: string, limit = 15): boolean {
   if (r.count >= limit) return false;
   r.count++; return true;
 }
+
+// ── Maintenance mode ─────────────────────────────────────────────────
+let maintenanceMode = false;
 
 // ── Lobby auto-start timers ───────────────────────────────────────────
 const autoStartTimers = new Map<string, NodeJS.Timeout>();
@@ -635,6 +640,18 @@ export function attachSocketHandlers(io: AppServer): void {
         );
 
         await notifyMods(io, 'new_report', `New report: ${reported.username} — ${parsed.reason}`, reported.username);
+
+        // Auto-flag: if reported player has 3+ open reports in last 24h, alert mods
+        const since24h = Date.now() - 86_400_000;
+        const [countRow] = await sql`
+          SELECT COUNT(*) as cnt FROM reports
+          WHERE reported_id = ${parsed.targetProfileId} AND status = 'open' AND created_at > ${since24h}
+        ` as any[];
+        const recentCount = Number(countRow?.cnt ?? 0);
+        if (recentCount >= 3) {
+          await notifyMods(io, 'auto_flag', `⚠️ AUTO-FLAG: ${reported.username} has ${recentCount} open reports in 24h`, reported.username);
+        }
+
         cb(ok(null));
       } catch (e: any) {
         cb(err(e.message));
@@ -651,6 +668,8 @@ export function attachSocketHandlers(io: AppServer): void {
         if (ban) throw new Error(`You are banned. Reason: ${ban.reason}`);
 
         const playerProfile = profileId ? await getPlayer(profileId) : null;
+        if (maintenanceMode && !playerProfile?.isModerator) throw new Error('Server is under maintenance. Please try again later.');
+
         const username = playerProfile?.username ?? parsed.name;
         const room = createRoom(socket.id, username, profileId, parsed.settings as Partial<GameSettings>);
 
@@ -677,6 +696,11 @@ export function attachSocketHandlers(io: AppServer): void {
 
         const ban = profileId ? await getActiveBan(profileId) : null;
         if (ban) throw new Error(`You are banned until ${new Date(ban.expiresAt).toLocaleString()}. Reason: ${ban.reason}`);
+
+        if (maintenanceMode) {
+          const joiner = profileId ? await getPlayer(profileId) : null;
+          if (!joiner?.isModerator) throw new Error('Server is under maintenance. Please try again later.');
+        }
 
         const room = getRoomByCode(parsed.code);
         if (!room) throw new Error('Room not found. Check the code and try again.');
@@ -1442,6 +1466,248 @@ export function attachSocketHandlers(io: AppServer): void {
         broadcastRoom(io, room);
         await logKick(modProfileId, mod.username, roomId, room.code, roomId, `Terminated game: ${reason || 'Rule violation'}`);
         await notifyMods(io, 'mod_kick', `${mod.username} terminated game in room ${room.code}`, room.code);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: Dashboard Stats ──────────────────────────────────────────
+    socket.on('mod:get_dashboard', async (cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'view_reports')) throw new Error('Insufficient permissions.');
+        const { openReports, recentBans } = await getDashboardDbStats();
+        const rooms = getAllRooms();
+        cb(ok({
+          onlinePlayers: getOnlineCount(),
+          activeRooms: rooms.length,
+          openReports,
+          recentBans,
+        }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: Live Rooms (NO roles/teams) ─────────────────────────────
+    socket.on('mod:get_rooms_live', async (cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'view_reports')) throw new Error('Insufficient permissions.');
+        const rooms = getAllRooms();
+        const result: LiveRoomInfo[] = rooms.map(room => {
+          const hostPlayer = getHostPlayer(room);
+          const players: LiveRoomPlayer[] = Array.from(room.players.values())
+            .filter(p => !p.isSpectator)
+            .map(p => ({
+              id: p.id,
+              name: p.name,
+              seat: p.seat,
+              isAlive: p.isAlive,
+              isConnected: p.isConnected,
+              profileId: p.profileId ?? null,
+              // role and team intentionally omitted — never expose before game_over
+            }));
+          return {
+            id: room.id,
+            code: room.code,
+            phase: room.phase,
+            day: room.day,
+            timer: room.timer,
+            maxTimer: room.maxTimer,
+            playerCount: players.length,
+            hostName: hostPlayer?.name ?? '?',
+            isPrivate: room.settings.isPrivate,
+            isPaused: room.isPaused,
+            players,
+          };
+        });
+        cb(ok(result));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: Pause Timer ──────────────────────────────────────────────
+    socket.on('mod:pause_timer', async ({ roomId }: { roomId: string }, cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'kick')) throw new Error('Insufficient permissions.');
+        const room = getRoom(roomId);
+        if (!room) throw new Error('Room not found.');
+        if (room.phase === 'lobby' || room.phase === 'game_over') throw new Error('No active game timer.');
+        timerService.pause(room.id);
+        room.isPaused = true;
+        broadcastSystemMsg(io, room, `⏸ A moderator paused the timer.`);
+        broadcastRoom(io, room);
+        await addModLog('pause_timer', modProfileId!, mod.username, roomId, room.code, roomId, 'Mod pause');
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: Resume Timer ─────────────────────────────────────────────
+    socket.on('mod:resume_timer', async ({ roomId }: { roomId: string }, cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'kick')) throw new Error('Insufficient permissions.');
+        const room = getRoom(roomId);
+        if (!room) throw new Error('Room not found.');
+        timerService.resume(room.id);
+        room.isPaused = false;
+        broadcastSystemMsg(io, room, `▶ A moderator resumed the timer.`);
+        broadcastRoom(io, room);
+        await addModLog('resume_timer', modProfileId!, mod.username, roomId, room.code, roomId, 'Mod resume');
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: Force Phase ──────────────────────────────────────────────
+    socket.on('mod:force_phase', async ({ roomId, phase }: { roomId: string; phase: Phase }, cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'ban_long')) throw new Error('Insufficient permissions.');
+        const room = getRoom(roomId);
+        if (!room) throw new Error('Room not found.');
+        if (phase === 'game_over') throw new Error('Use terminate to end a game.');
+        const allowed: Phase[] = ['night', 'morning', 'day', 'speech', 'voting'];
+        if (!allowed.includes(phase)) throw new Error('Invalid phase.');
+        timerService.stop(room.id);
+        setPhase(room, phase);
+        broadcastSystemMsg(io, room, `⚡ A moderator forced phase: ${phase}.`);
+        broadcastRoom(io, room);
+        await addModLog('force_phase', modProfileId!, mod.username, roomId, room.code, roomId, `Force phase: ${phase}`);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: System Message to Room ───────────────────────────────────
+    socket.on('mod:system_message', async ({ roomId, message }: { roomId: string; message: string }, cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'kick')) throw new Error('Insufficient permissions.');
+        const room = getRoom(roomId);
+        if (!room) throw new Error('Room not found.');
+        const text = message.trim().slice(0, 300);
+        if (!text) throw new Error('Message cannot be empty.');
+        broadcastSystemMsg(io, room, `[MOD] ${text}`);
+        await addModLog('system_message', modProfileId!, mod.username, roomId, room.code, roomId, text);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: Broadcast to All Rooms ───────────────────────────────────
+    socket.on('mod:broadcast', async ({ message }: { message: string }, cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'ban_short')) throw new Error('Insufficient permissions.');
+        const text = message.trim().slice(0, 300);
+        if (!text) throw new Error('Message cannot be empty.');
+        for (const room of getAllRooms()) {
+          broadcastSystemMsg(io, room, `[BROADCAST] ${text}`);
+        }
+        io.emit('mod:notification' as any, { type: 'broadcast', message: `[BROADCAST] ${text}` });
+        await addModLog('broadcast', modProfileId!, mod.username, 'all', 'all', null, text);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: Toggle Maintenance Mode ──────────────────────────────────
+    socket.on('mod:toggle_maintenance', async ({ enabled }: { enabled: boolean }, cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'ban_long')) throw new Error('Insufficient permissions.');
+        maintenanceMode = enabled;
+        io.emit('maintenance:status', { enabled });
+        await addModLog('broadcast', modProfileId!, mod.username, 'system', 'system', null, `Maintenance mode: ${enabled}`);
+        cb(ok({ enabled }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mod:get_maintenance', (cb: any) => {
+      cb(ok({ enabled: maintenanceMode }));
+    });
+
+    // ── Mod: Player Detail ────────────────────────────────────────────
+    socket.on('mod:get_player_detail', async ({ targetProfileId }: { targetProfileId: string }, cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'view_reports')) throw new Error('Insufficient permissions.');
+        const detail = await getPlayerDetail(targetProfileId);
+        cb(ok(detail));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: Add Note ─────────────────────────────────────────────────
+    socket.on('mod:add_note', async ({ targetProfileId, note }: { targetProfileId: string; note: string }, cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'view_reports')) throw new Error('Insufficient permissions.');
+        await addModNote(modProfileId!, mod.username, targetProfileId, note);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: Freeze / Unfreeze Account ────────────────────────────────
+    socket.on('mod:freeze_account', async ({ targetProfileId, reason }: { targetProfileId: string; reason: string }, cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'ban_short')) throw new Error('Insufficient permissions.');
+        await freezeAccount(modProfileId!, mod.username, targetProfileId, reason);
+        await notifyMods(io, 'mod_freeze', `${mod.username} froze account of ${targetProfileId}`, targetProfileId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mod:unfreeze_account', async ({ targetProfileId }: { targetProfileId: string }, cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'ban_short')) throw new Error('Insufficient permissions.');
+        await unfreezeAccount(modProfileId!, mod.username, targetProfileId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: Rename Player ────────────────────────────────────────────
+    socket.on('mod:rename_player', async ({ targetProfileId, newName, reason }: { targetProfileId: string; newName: string; reason: string }, cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'ban_short')) throw new Error('Insufficient permissions.');
+        await renamePlayer(modProfileId!, mod.username, targetProfileId, newName, reason);
+        await notifyMods(io, 'mod_rename', `${mod.username} renamed player`, targetProfileId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: Voice Mute Room ──────────────────────────────────────────
+    socket.on('mod:voice_mute_room', async ({ roomId, reason }: { roomId: string; reason: string }, cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'kick')) throw new Error('Insufficient permissions.');
+        const room = getRoom(roomId);
+        if (!room) throw new Error('Room not found.');
+        io.to(room.id).emit('voice:force-mute', { reason: reason || 'Muted by moderator' });
+        broadcastSystemMsg(io, room, `🔇 A moderator muted all voice in this room.`);
+        await addModLog('kick', modProfileId!, mod.username, roomId, room.code, roomId, `Voice mute: ${reason}`);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Mod: Assign Report ────────────────────────────────────────────
+    socket.on('mod:assign_report', async ({ reportId, modId }: { reportId: string; modId: string }, cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'view_reports')) throw new Error('Insufficient permissions.');
+        await assignReport(reportId, modId);
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });

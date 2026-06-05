@@ -51,7 +51,17 @@ export type ModActionType =
   | 'unmute'
   | 'warn'
   | 'report_resolve'
-  | 'report_reject';
+  | 'report_reject'
+  | 'freeze'
+  | 'unfreeze'
+  | 'rename'
+  | 'note_add'
+  | 'force_phase'
+  | 'pause_timer'
+  | 'resume_timer'
+  | 'system_message'
+  | 'broadcast'
+  | 'terminate_game';
 
 // ── Role Definition ───────────────────────────────────────────────────
 export interface Role {
@@ -482,6 +492,56 @@ export interface GameHistoryEntry {
   won: boolean;
 }
 
+// ── Mod Dashboard ─────────────────────────────────────────────────────
+export interface ModNote {
+  id: string;
+  playerId: string;
+  modId: string;
+  modName: string;
+  note: string;
+  createdAt: number;
+}
+
+export interface ModPlayerDetail {
+  profile: PlayerProfilePublic;
+  ban: BanRecord | null;
+  mute: MuteRecord | null;
+  warnings: Warning[];
+  reportCount: number;
+  notes: ModNote[];
+  accountFrozen: boolean;
+}
+
+export interface LiveRoomPlayer {
+  id: string;
+  name: string;
+  seat: number;
+  isAlive: boolean;
+  isConnected: boolean;
+  profileId: string | null;
+}
+
+export interface LiveRoomInfo {
+  id: string;
+  code: string;
+  phase: Phase;
+  day: number;
+  timer: number;
+  maxTimer: number;
+  playerCount: number;
+  hostName: string;
+  isPrivate: boolean;
+  isPaused: boolean;
+  players: LiveRoomPlayer[];
+}
+
+export interface DashboardStats {
+  onlinePlayers: number;
+  activeRooms: number;
+  openReports: number;
+  recentBans: number;
+}
+
 // ── Socket Event Maps ─────────────────────────────────────────────────
 type Cb<T> = (res: Res<T>) => void;
 
@@ -534,6 +594,8 @@ export interface ServerToClientEvents {
   'online:count':        (data: { count: number }) => void;
   // Direct messages
   'dm:new_message':      (data: { conversationId: string; message: any }) => void;
+  // Maintenance mode
+  'maintenance:status':  (data: { enabled: boolean }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -584,6 +646,22 @@ export interface ClientToServerEvents {
   'mod:get_logs':       (cb: Cb<ModLog[]>) => void;
   'mod:resolve_report':  (data: { reportId: string; status: 'resolved' | 'rejected'; notes: string }, cb: Cb<null>) => void;
   'mod:terminate_game':  (data: { roomId: string; reason: string }, cb: Cb<null>) => void;
+  'mod:get_dashboard':      (cb: Cb<DashboardStats>) => void;
+  'mod:get_rooms_live':     (cb: Cb<LiveRoomInfo[]>) => void;
+  'mod:pause_timer':        (data: { roomId: string }, cb: Cb<null>) => void;
+  'mod:resume_timer':       (data: { roomId: string }, cb: Cb<null>) => void;
+  'mod:force_phase':        (data: { roomId: string; phase: Phase }, cb: Cb<null>) => void;
+  'mod:system_message':     (data: { roomId: string; message: string }, cb: Cb<null>) => void;
+  'mod:broadcast':          (data: { message: string }, cb: Cb<null>) => void;
+  'mod:toggle_maintenance': (data: { enabled: boolean }, cb: Cb<{ enabled: boolean }>) => void;
+  'mod:get_maintenance':    (cb: Cb<{ enabled: boolean }>) => void;
+  'mod:get_player_detail':  (data: { targetProfileId: string }, cb: Cb<ModPlayerDetail>) => void;
+  'mod:add_note':           (data: { targetProfileId: string; note: string }, cb: Cb<null>) => void;
+  'mod:freeze_account':     (data: { targetProfileId: string; reason: string }, cb: Cb<null>) => void;
+  'mod:unfreeze_account':   (data: { targetProfileId: string }, cb: Cb<null>) => void;
+  'mod:rename_player':      (data: { targetProfileId: string; newName: string; reason: string }, cb: Cb<null>) => void;
+  'mod:voice_mute_room':    (data: { roomId: string; reason: string }, cb: Cb<null>) => void;
+  'mod:assign_report':      (data: { reportId: string; modId: string }, cb: Cb<null>) => void;
   // Voice signaling (replaces webrtc:*)
   'voice:join':          (data: { channel: VoiceChannel }, cb: Cb<{ peers: Array<{ socketId: string; name: string }> }>) => void;
   'voice:leave':         () => void;

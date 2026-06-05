@@ -329,6 +329,19 @@ export async function initializeDatabase(): Promise<void> {
     `;
   }
 
+  // Mod notes (internal mod-only notes per player)
+  await sql`
+    CREATE TABLE IF NOT EXISTS mod_notes (
+      id          TEXT PRIMARY KEY,
+      player_id   TEXT NOT NULL,
+      mod_id      TEXT NOT NULL,
+      mod_name    TEXT NOT NULL,
+      note        TEXT NOT NULL,
+      created_at  BIGINT NOT NULL
+    )
+  `;
+  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS account_frozen INTEGER NOT NULL DEFAULT 0`;
+
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];
   console.log(`[Database] connected successfully`);

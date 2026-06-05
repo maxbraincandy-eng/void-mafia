@@ -389,6 +389,56 @@ export interface PublicProfileFull {
   roleStats?: PlayerRoleStats;
 }
 
+// ── Mod Dashboard ─────────────────────────────────────────────────────
+export interface ModNote {
+  id: string;
+  playerId: string;
+  modId: string;
+  modName: string;
+  note: string;
+  createdAt: number;
+}
+
+export interface ModPlayerDetail {
+  profile: PlayerProfilePublic;
+  ban: { id: string; reason: string; issuedByName: string; issuedAt: number; expiresAt: number } | null;
+  mute: { id: string; reason: string; issuedByName: string; issuedAt: number; expiresAt: number } | null;
+  warnings: { id: string; reason: string; issuedByName: string; issuedAt: number }[];
+  reportCount: number;
+  notes: ModNote[];
+  accountFrozen: boolean;
+}
+
+export interface LiveRoomPlayer {
+  id: string;
+  name: string;
+  seat: number;
+  isAlive: boolean;
+  isConnected: boolean;
+  profileId: string | null;
+}
+
+export interface LiveRoomInfo {
+  id: string;
+  code: string;
+  phase: Phase;
+  day: number;
+  timer: number;
+  maxTimer: number;
+  playerCount: number;
+  hostName: string;
+  isPrivate: boolean;
+  isPaused: boolean;
+  players: LiveRoomPlayer[];
+}
+
+export interface DashboardStats {
+  onlinePlayers: number;
+  activeRooms: number;
+  openReports: number;
+  recentBans: number;
+}
+
 export interface DmConversation {
   id: string;
   otherUserId: string;
