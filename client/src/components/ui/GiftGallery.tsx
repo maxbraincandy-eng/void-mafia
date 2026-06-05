@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { emitWithAck } from '@/lib/socket';
+import { emitWithAck, socket } from '@/lib/socket';
 import type { PlayerGift, GiftDetail, Res } from '@/types/index';
 
 const RARITY_COLOR: Record<string, string> = {
@@ -133,6 +133,13 @@ export function GiftGallery({ profileId }: Props) {
   }, [profileId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Refresh when a gift is received in real-time
+  useEffect(() => {
+    const onGiftReceived = () => load();
+    socket.on('gift:received' as any, onGiftReceived);
+    return () => { socket.off('gift:received' as any, onGiftReceived); };
+  }, [load]);
 
   // Deduplicate by giftId — show the gift card once, even if received multiple times
   const uniqueGifts = gifts.reduce<PlayerGift[]>((acc, g) => {

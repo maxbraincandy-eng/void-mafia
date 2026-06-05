@@ -487,15 +487,21 @@ export interface GiftCatalogItem {
 export interface PlayerGift {
   id: string;
   recipientId: string;
+  receiverPublicId: number | null;
+  receiverName: string;
   senderId: string;
+  senderPublicId: number | null;
   senderUsername: string;
   senderAvatar: string;
   senderAvatarUrl: string | null;
   giftId: string;
+  giftKey: string;
   giftName: string;
   giftIcon: string;
+  giftImageUrl: string;
   giftRarity: GiftRarity;
   giftStars: number;
+  coinCost: number;
   message: string;
   transactionId: string;
   createdAt: number;
@@ -516,10 +522,13 @@ export interface GiftDetail extends GiftCatalogItem {
 export interface CoinTransaction {
   id: string;
   playerId: string;
+  publicId: number | null;
   type: TxType;
   amount: number;
+  balanceBefore: number;
   balanceAfter: number;
-  refId: string | null;
+  relatedUserId: string | null;
+  relatedGiftId: string | null;
   description: string;
   grantedBy: string | null;
   createdAt: number;

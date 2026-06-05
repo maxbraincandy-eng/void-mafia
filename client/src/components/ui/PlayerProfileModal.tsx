@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { emitWithAck } from '@/lib/socket';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { ReportModal } from '@/components/ui/ReportModal';
+import { SendGiftModal } from '@/components/ui/SendGiftModal';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { useGameStore } from '@/store/gameStore';
@@ -75,6 +76,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [showSendGift, setShowSendGift] = useState(false);
   const myProfileId = useAuthStore(s => s.profile?.id);
   const { openDmWith } = useSocialStore();
   const addToast = useGameStore(s => s.addToast);
@@ -328,6 +330,19 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         ✉ Send Message
                       </button>
 
+                      {/* ── Send Gift button ─────────────────────── */}
+                      <button
+                        onClick={() => setShowSendGift(true)}
+                        className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-colors"
+                        style={{
+                          background: 'rgba(255,180,0,0.10)',
+                          border: '1px solid rgba(255,180,0,0.30)',
+                          color: 'rgba(255,200,60,0.9)',
+                        }}
+                      >
+                        🎁 Send Gift
+                      </button>
+
                       {/* ── Friend action ───────────────────────── */}
                       {friendshipStatus === 'none' && (
                         <button
@@ -396,6 +411,17 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
         onSuccess={msg => addToast(msg, 'success')}
       />
     )}
+
+    <AnimatePresence>
+      {showSendGift && playerId && data && (
+        <SendGiftModal
+          recipientId={playerId}
+          recipientName={data.profile.username}
+          onClose={() => setShowSendGift(false)}
+          onSuccess={() => addToast('Gift sent!', 'success')}
+        />
+      )}
+    </AnimatePresence>
     </>
   );
 }

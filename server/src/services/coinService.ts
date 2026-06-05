@@ -6,10 +6,13 @@ export type TxType = 'grant' | 'deduct' | 'gift_sent' | 'gift_received' | 'daily
 export interface CoinTransaction {
   id: string;
   playerId: string;
+  publicId: number | null;
   type: TxType;
   amount: number;
+  balanceBefore: number;
   balanceAfter: number;
-  refId: string | null;
+  relatedUserId: string | null;
+  relatedGiftId: string | null;
   description: string;
   grantedBy: string | null;
   createdAt: number;
@@ -33,15 +36,21 @@ export interface GiftCatalogItem {
 export interface PlayerGift {
   id: string;
   recipientId: string;
+  receiverPublicId: number | null;
+  receiverName: string;
   senderId: string;
+  senderPublicId: number | null;
   senderUsername: string;
   senderAvatar: string;
   senderAvatarUrl: string | null;
   giftId: string;
+  giftKey: string;
   giftName: string;
   giftIcon: string;
+  giftImageUrl: string;
   giftRarity: string;
   giftStars: number;
+  coinCost: number;
   message: string;
   transactionId: string;
   createdAt: number;
@@ -71,22 +80,33 @@ async function recordTransaction(
   type: TxType,
   amount: number,
   description: string,
-  opts: { refId?: string; grantedBy?: string } = {},
-): Promise<{ id: string; balanceAfter: number }> {
+  opts: { grantedBy?: string; relatedUserId?: string; relatedGiftId?: string } = {},
+): Promise<{ id: string; balanceBefore: number; balanceAfter: number }> {
+  // Read before and after in one atomic statement
   const [row] = await sql`
+    WITH before AS (SELECT coins, public_id FROM players WHERE id = ${playerId})
     UPDATE players
     SET coins = GREATEST(0, coins + ${amount})
     WHERE id = ${playerId}
-    RETURNING coins
+    RETURNING coins AS balance_after,
+              (SELECT coins FROM before) AS balance_before,
+              (SELECT public_id FROM before) AS player_public_id
   ` as any[];
-  const balanceAfter = Number(row.coins);
+  const balanceBefore = Number(row.balance_before ?? 0);
+  const balanceAfter  = Number(row.balance_after);
+  const playerPublicId = row.player_public_id != null ? Number(row.player_public_id) : null;
+
   const id = generateId();
   await sql`
-    INSERT INTO coin_transactions (id, player_id, type, amount, balance_after, ref_id, description, granted_by, created_at)
-    VALUES (${id}, ${playerId}, ${type}, ${amount}, ${balanceAfter},
-            ${opts.refId ?? null}, ${description}, ${opts.grantedBy ?? null}, ${Date.now()})
+    INSERT INTO coin_transactions
+      (id, player_id, public_id, type, amount, balance_before, balance_after,
+       related_user_id, related_gift_id, description, granted_by, created_at)
+    VALUES
+      (${id}, ${playerId}, ${playerPublicId}, ${type}, ${amount}, ${balanceBefore}, ${balanceAfter},
+       ${opts.relatedUserId ?? null}, ${opts.relatedGiftId ?? null},
+       ${description}, ${opts.grantedBy ?? null}, ${Date.now()})
   `;
-  return { id, balanceAfter };
+  return { id, balanceBefore, balanceAfter };
 }
 
 export async function claimDailyReward(playerId: string): Promise<{ coins: number; balance: number; alreadyClaimed: boolean }> {
@@ -102,6 +122,7 @@ export async function claimDailyReward(playerId: string): Promise<{ coins: numbe
   await sql`
     INSERT INTO daily_coin_claims (player_id, date_key, coins_awarded, claimed_at)
     VALUES (${playerId}, ${dateKey}, ${DAILY_REWARD_COINS}, ${Date.now()})
+    ON CONFLICT (player_id, date_key) DO NOTHING
   `;
   return { coins: DAILY_REWARD_COINS, balance: balanceAfter, alreadyClaimed: false };
 }
@@ -139,7 +160,7 @@ export async function refundGift(txId: string, ownerId: string): Promise<void> {
   if (!tx) throw new Error('Transaction not found.');
   if (tx.type !== 'gift_sent') throw new Error('Only gift_sent transactions can be refunded.');
   const amount = Math.abs(Number(tx.amount));
-  await recordTransaction(tx.player_id, 'refund', amount, `Refund for tx ${txId}`, { refId: txId, grantedBy: ownerId });
+  await recordTransaction(tx.player_id, 'refund', amount, `Refund for tx ${txId}`, { grantedBy: ownerId, relatedGiftId: txId });
 }
 
 export async function getTransactions(playerId: string, limit = 50): Promise<CoinTransaction[]> {
@@ -161,10 +182,13 @@ function rowToTx(r: any): CoinTransaction {
   return {
     id: r.id,
     playerId: r.player_id,
+    publicId: r.public_id != null ? Number(r.public_id) : null,
     type: r.type as TxType,
     amount: Number(r.amount),
+    balanceBefore: Number(r.balance_before ?? 0),
     balanceAfter: Number(r.balance_after),
-    refId: r.ref_id ?? null,
+    relatedUserId: r.related_user_id ?? null,
+    relatedGiftId: r.related_gift_id ?? null,
     description: r.description ?? '',
     grantedBy: r.granted_by ?? null,
     createdAt: Number(r.created_at),
@@ -257,8 +281,12 @@ export async function sendGift(
   const [giftRow] = await sql`SELECT * FROM gift_catalog WHERE id = ${giftId} AND active = 1` as any[];
   if (!giftRow) throw new Error('Gift not found or unavailable.');
 
-  const [senderRow] = await sql`SELECT coins, username, avatar, avatar_url FROM players WHERE id = ${senderId}` as any[];
-  if (!senderRow) throw new Error('Sender not found.');
+  const [[senderRow], [recipientRow]] = await Promise.all([
+    sql`SELECT coins, username, avatar, avatar_url, public_id FROM players WHERE id = ${senderId}` as any,
+    sql`SELECT username, public_id FROM players WHERE id = ${recipientId}` as any,
+  ]);
+  if (!senderRow)    throw new Error('Sender not found.');
+  if (!recipientRow) throw new Error('Recipient not found.');
 
   const senderCoins = Number(senderRow.coins);
   const giftPrice   = Number(giftRow.price);
@@ -268,30 +296,47 @@ export async function sendGift(
 
   const { id: txId, balanceAfter: newSenderBalance } = await recordTransaction(
     senderId, 'gift_sent', -giftPrice,
-    `Sent gift: ${giftRow.name}`,
-    { refId: giftId },
+    `Sent gift: ${giftRow.name} → ${recipientRow.username}`,
+    { relatedUserId: recipientId, relatedGiftId: giftId },
   );
+
+  const senderPublicId    = senderRow.public_id   != null ? Number(senderRow.public_id)   : null;
+  const receiverPublicId  = recipientRow.public_id != null ? Number(recipientRow.public_id) : null;
+  const giftImageUrl      = giftRow.image_url ?? '';
 
   const giftEntryId = generateId();
   const now = Date.now();
   await sql`
-    INSERT INTO player_gifts (id, recipient_id, sender_id, gift_id, message, transaction_id, created_at)
-    VALUES (${giftEntryId}, ${recipientId}, ${senderId}, ${giftId},
-            ${message.slice(0, 200)}, ${txId}, ${now})
+    INSERT INTO player_gifts
+      (id, recipient_id, sender_id, gift_id, message, transaction_id, created_at,
+       sender_public_id, sender_name, receiver_public_id, receiver_name,
+       gift_key, gift_image_url, coin_cost)
+    VALUES
+      (${giftEntryId}, ${recipientId}, ${senderId}, ${giftId},
+       ${message.slice(0, 200)}, ${txId}, ${now},
+       ${senderPublicId}, ${senderRow.username},
+       ${receiverPublicId}, ${recipientRow.username},
+       ${giftId}, ${giftImageUrl}, ${giftPrice})
   `;
 
   const giftEntry: PlayerGift = {
     id: giftEntryId,
     recipientId,
+    receiverPublicId,
+    receiverName: recipientRow.username,
     senderId,
+    senderPublicId,
     senderUsername: senderRow.username,
     senderAvatar: senderRow.avatar ?? '',
     senderAvatarUrl: senderRow.avatar_url ?? null,
     giftId,
+    giftKey: giftId,
     giftName: giftRow.name,
     giftIcon: giftRow.icon,
+    giftImageUrl,
     giftRarity: giftRow.rarity,
     giftStars: Number(giftRow.stars),
+    coinCost: giftPrice,
     message: message.slice(0, 200),
     transactionId: txId,
     createdAt: now,
@@ -304,16 +349,20 @@ export async function getPlayerGifts(recipientId: string): Promise<PlayerGift[]>
   const rows = await sql`
     SELECT
       pg.id, pg.recipient_id, pg.sender_id, pg.gift_id, pg.message, pg.transaction_id, pg.created_at,
-      p.username  AS sender_username,
-      p.avatar    AS sender_avatar,
+      pg.sender_public_id, pg.sender_name,
+      pg.receiver_public_id, pg.receiver_name,
+      pg.gift_key, pg.gift_image_url, pg.coin_cost,
+      p.avatar     AS sender_avatar,
       p.avatar_url AS sender_avatar_url,
-      gc.name     AS gift_name,
-      gc.icon     AS gift_icon,
-      gc.rarity   AS gift_rarity,
-      gc.stars    AS gift_stars
+      COALESCE(pg.sender_name, p.username)  AS sender_username,
+      gc.name      AS gift_name,
+      gc.icon      AS gift_icon,
+      gc.rarity    AS gift_rarity,
+      gc.stars     AS gift_stars,
+      COALESCE(gc.image_url, '') AS gift_img
     FROM player_gifts pg
-    JOIN players p      ON p.id   = pg.sender_id
-    JOIN gift_catalog gc ON gc.id = pg.gift_id
+    JOIN players p       ON p.id   = pg.sender_id
+    JOIN gift_catalog gc ON gc.id  = pg.gift_id
     WHERE pg.recipient_id = ${recipientId}
     ORDER BY pg.created_at DESC
     LIMIT 200
@@ -321,15 +370,21 @@ export async function getPlayerGifts(recipientId: string): Promise<PlayerGift[]>
   return rows.map(r => ({
     id: r.id,
     recipientId: r.recipient_id,
+    receiverPublicId: r.receiver_public_id != null ? Number(r.receiver_public_id) : null,
+    receiverName: r.receiver_name ?? '',
     senderId: r.sender_id,
-    senderUsername: r.sender_username,
+    senderPublicId: r.sender_public_id != null ? Number(r.sender_public_id) : null,
+    senderUsername: r.sender_username ?? '',
     senderAvatar: r.sender_avatar ?? '',
     senderAvatarUrl: r.sender_avatar_url ?? null,
     giftId: r.gift_id,
+    giftKey: r.gift_key ?? r.gift_id,
     giftName: r.gift_name,
     giftIcon: r.gift_icon,
+    giftImageUrl: r.gift_img ?? '',
     giftRarity: r.gift_rarity,
     giftStars: Number(r.gift_stars),
+    coinCost: r.coin_cost != null ? Number(r.coin_cost) : 0,
     message: r.message ?? '',
     transactionId: r.transaction_id,
     createdAt: Number(r.created_at),

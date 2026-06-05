@@ -415,6 +415,21 @@ export async function initializeDatabase(): Promise<void> {
     `;
   }
 
+  // ── Economy schema evolution (additive) ──────────────────────────────────
+  // coin_transactions — add balance_before, public_id, related_user/gift ids
+  await sql`ALTER TABLE coin_transactions ADD COLUMN IF NOT EXISTS balance_before INTEGER NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE coin_transactions ADD COLUMN IF NOT EXISTS public_id INTEGER`;
+  await sql`ALTER TABLE coin_transactions ADD COLUMN IF NOT EXISTS related_user_id TEXT`;
+  await sql`ALTER TABLE coin_transactions ADD COLUMN IF NOT EXISTS related_gift_id TEXT`;
+  // player_gifts — add denormalized fields for richer records
+  await sql`ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS sender_public_id INTEGER`;
+  await sql`ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS sender_name TEXT`;
+  await sql`ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS receiver_public_id INTEGER`;
+  await sql`ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS receiver_name TEXT`;
+  await sql`ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS gift_key TEXT`;
+  await sql`ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS gift_image_url TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS coin_cost INTEGER NOT NULL DEFAULT 0`;
+
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];
   console.log(`[Database] connected successfully`);
