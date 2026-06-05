@@ -789,6 +789,13 @@ export function ModDashboardPage() {
 }
 
 // ── Player Detail Panel ───────────────────────────────────────────────
+const MOD_LEVELS: { value: ModeratorLevel; label: string; color: string; border: string }[] = [
+  { value: 'moderator',        label: 'Mod',        color: 'text-neon-blue',  border: 'border-neon-blue/30'  },
+  { value: 'senior_moderator', label: 'Sr. Mod',    color: 'text-neon-cyan',  border: 'border-neon-cyan/30'  },
+  { value: 'admin',            label: 'Admin',      color: 'text-neon-pink',  border: 'border-neon-pink/30'  },
+  { value: 'owner',            label: 'Owner',      color: 'text-amber-400',  border: 'border-amber-400/30'  },
+];
+
 function PlayerDetailPanel({
   detail, loading, newNote, setNewNote, rank, onClose, onSubmitNote, onAction,
 }: {
@@ -803,6 +810,21 @@ function PlayerDetailPanel({
 }) {
   const p = detail.profile;
   const can = (minRank: number) => rank >= minRank;
+  const addToast = useGameStore(s => s.addToast);
+  const [mlPending, setMlPending] = useState<string | null | 'revoke' | false>(false);
+
+  const applyModLevel = (level: ModeratorLevel | null) => {
+    socket.emit('mod:set_mod_level' as any, { targetProfileId: p.id, level }, (res: Res<any>) => {
+      if (res.ok) {
+        addToast(`${p.username} → ${level ?? 'no mod'}`, 'success');
+        setMlPending(false);
+      } else {
+        addToast(res.error, 'error');
+        setMlPending(false);
+      }
+    });
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3 mb-2">
@@ -894,6 +916,70 @@ function PlayerDetailPanel({
           </>
         )}
       </div>
+
+      {/* Mod Level (owner only) */}
+      {can(3) && (
+        <div className="glass-panel border border-amber-400/10 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-mono text-xs text-amber-400 font-bold uppercase tracking-widest">Mod Level</p>
+            <span className="text-[10px] font-mono text-white/30">
+              {p.isModerator && p.moderatorLevel ? p.moderatorLevel.replace('_', ' ') : '— none —'}
+            </span>
+          </div>
+
+          {mlPending === false ? (
+            <div className="flex flex-wrap gap-1.5">
+              {MOD_LEVELS.map(({ value, label, color, border }) => {
+                const active = p.moderatorLevel === value;
+                return (
+                  <button
+                    key={value}
+                    onClick={() => setMlPending(value)}
+                    className={`px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border transition-all ${
+                      active
+                        ? `${color} ${border} opacity-100 ring-1 ring-current/30`
+                        : `text-white/30 border-white/10 hover:${border} hover:${color}`
+                    }`}
+                  >
+                    {active ? '✓ ' : ''}{label}
+                  </button>
+                );
+              })}
+              {p.isModerator && (
+                <button
+                  onClick={() => setMlPending('revoke')}
+                  className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-neon-red/20 text-neon-red/60 hover:text-neon-red hover:border-neon-red/40 transition-all"
+                >
+                  revoke
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-white/50 font-mono text-xs">
+                Set <span className="text-white font-bold">{p.username}</span> to{' '}
+                <span className="text-amber-400 font-bold">
+                  {mlPending === 'revoke' ? 'no mod' : (mlPending as string).replace('_', ' ')}
+                </span>?
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => applyModLevel(mlPending === 'revoke' ? null : mlPending as ModeratorLevel)}
+                  className="px-4 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border border-amber-400/40 text-amber-400 bg-amber-400/10 hover:bg-amber-400/20 transition-all"
+                >
+                  Confirm
+                </button>
+                <button
+                  onClick={() => setMlPending(false)}
+                  className="px-4 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-white/10 text-white/30 hover:text-white/60 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Mod notes */}
       <div className="glass-panel border border-white/5 rounded-xl p-4 space-y-3">

@@ -639,6 +639,7 @@ export interface ClientToServerEvents {
   'mod:kick_from_room': (data: { targetProfileId: string; roomId: string; reason: string }, cb: Cb<null>) => void;
   'mod:kick_player':    (data: { targetProfileId: string; reason: string }, cb: Cb<null>) => void;
   'mod:get_active_rooms': (cb: Cb<RoomListItem[]>) => void;
+  'mod:set_mod_level':  (data: { targetProfileId: string; level: string | null }, cb: Cb<{ username: string; newLevel: string | null }>) => void;
   'mod:ban':            (data: { targetProfileId: string; reason: string; duration: number }, cb: Cb<null>) => void;
   'mod:mute':           (data: { targetProfileId: string; reason: string; duration: number }, cb: Cb<null>) => void;
   'mod:warn':           (data: { targetProfileId: string; reason: string }, cb: Cb<null>) => void;

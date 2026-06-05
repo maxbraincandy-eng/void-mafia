@@ -2043,6 +2043,27 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    // ── Mod: Set mod level by profile ID (owner only) ───────────────
+    socket.on('mod:set_mod_level', async ({ targetProfileId, level }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const mod = await getPlayer(profileId);
+        if (!mod || mod.moderatorLevel !== 'owner') throw new Error('Owner only.');
+        const target = await getPlayer(targetProfileId);
+        if (!target) throw new Error('Player not found.');
+        const validLevels = ['moderator', 'senior_moderator', 'admin', 'owner', null];
+        if (!validLevels.includes(level as any)) throw new Error('Invalid level.');
+        await setGrantedModLevel(target.id, level as any);
+        const updated = await getPlayer(target.id);
+        if (!updated) throw new Error('Player not found after update.');
+        const targetSock = findSocketByProfile(io as any, target.id);
+        if (targetSock) targetSock.emit('player:profile', toPublicProfile(updated));
+        cb(ok({ username: target.username, newLevel: level }));
+        notifyMods(io, 'mod_grant', `${mod.username} set ${target.username} → ${level ?? 'none'}`, target.username).catch(() => {});
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     socket.on('mod:set_level_by_code', async ({ friendCode, level }: { friendCode: string; level: string | null }, cb) => {
       try {
         const profileId = socket.data.profileId;
