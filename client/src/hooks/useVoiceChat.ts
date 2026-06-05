@@ -219,6 +219,16 @@ export function useVoiceChat() {
       }
 
       const transmitAllowed: boolean = res.data.transmitAllowed ?? true;
+
+      // Apply server-provided ICE config (includes TURN credentials from Railway env)
+      if (res.data.iceServers) {
+        session.setIceConfig({
+          iceServers: res.data.iceServers,
+          iceTransportPolicy: 'all',
+          iceCandidatePoolSize: 10,
+        });
+      }
+
       _patch({
         channel,
         cameraOn: withCamera,
@@ -283,6 +293,14 @@ export function useVoiceChat() {
         _session = null;
         _patch({ status: 'failed', error: res.error ?? 'Failed to join voice.' });
         return;
+      }
+
+      if (res.data.iceServers) {
+        session.setIceConfig({
+          iceServers: res.data.iceServers,
+          iceTransportPolicy: 'all',
+          iceCandidatePoolSize: 10,
+        });
       }
 
       _patch({ channel, listenOnly: true, forceMuted: true, forceMutedReason: 'Listen only' });

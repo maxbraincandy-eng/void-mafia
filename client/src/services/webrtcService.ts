@@ -49,12 +49,18 @@ export class WebRTCSession {
   private peers = new Map<string, PeerState>();
   private state: ConnectionState = 'disconnected';
   private listeners = new Set<Listener>();
+  private iceConfig: RTCConfiguration = getRTCConfig();
 
   // Speaking detection
   private audioCtx: AudioContext | null = null;
   private speakingTimer: ReturnType<typeof setInterval> | null = null;
   private localSpeakingCooldown = false;
   private remoteSpeakingCooldowns = new Map<string, boolean>();
+
+  /** Override ICE config with servers provided by the server (TURN credentials). */
+  setIceConfig(config: RTCConfiguration): void {
+    this.iceConfig = config;
+  }
 
   // ── Pub/sub ────────────────────────────────────────────────────────
 
@@ -135,7 +141,7 @@ export class WebRTCSession {
       this.closePeer(peerId);
     }
 
-    const pc = new RTCPeerConnection(getRTCConfig());
+    const pc = new RTCPeerConnection(this.iceConfig);
     this.pcs.set(peerId, pc);
 
     if (!this.peers.has(peerId)) {

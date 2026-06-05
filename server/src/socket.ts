@@ -67,6 +67,31 @@ import {
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
+// ── TURN / ICE server config ──────────────────────────────────────────
+// Reads TURN_URL, TURN_USERNAME, TURN_CREDENTIAL from Railway server env vars.
+// If set, these are returned to the client in voice:join so credentials are
+// never exposed in the client bundle.
+function buildIceServers(): object[] {
+  const servers: object[] = [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+  ];
+  const turnUrl = process.env.TURN_URL;
+  if (turnUrl) {
+    servers.push({
+      urls: turnUrl.split(',').map(s => s.trim()),
+      username: process.env.TURN_USERNAME ?? '',
+      credential: process.env.TURN_CREDENTIAL ?? '',
+    });
+  } else {
+    // Fallback public TURN (unreliable — set TURN_URL in Railway to fix mobile)
+    servers.push(
+      { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: ['turn:global.relay.metered.ca:80', 'turn:global.relay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
+    );
+  }
+  return servers;
+}
+
 // ── Rate limiting ─────────────────────────────────────────────────────
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
 function rateOk(socketId: string, limit = 15): boolean {
@@ -1960,7 +1985,7 @@ export function attachSocketHandlers(io: AppServer): void {
         }
 
         const transmitAllowed = !canTransmitVoice(room, playerId, validChannel);
-        cb(ok({ peers: existing.map(p => ({ socketId: p.socketId, name: p.name })), transmitAllowed }));
+        cb(ok({ peers: existing.map(p => ({ socketId: p.socketId, name: p.name })), transmitAllowed, iceServers: buildIceServers() }));
       } catch (e: any) {
         cb(err(e.message ?? 'Failed to join voice.'));
       }
