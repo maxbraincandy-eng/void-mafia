@@ -317,14 +317,17 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
 }
 
 async function notifyMods(io: AppServer, type: string, message: string, targetName?: string): Promise<void> {
+  const socketsWithProfile: Array<{ sock: import('socket.io').Socket; profileId: string }> = [];
   for (const [, sock] of io.sockets.sockets) {
     const profileId = (sock.data as SocketData).profileId;
-    if (!profileId) continue;
-    const profile = await getPlayer(profileId);
-    if (profile?.isModerator) {
-      sock.emit('mod:notification', { type, message, targetName });
-    }
+    if (profileId) socketsWithProfile.push({ sock, profileId });
   }
+  await Promise.all(socketsWithProfile.map(async ({ sock, profileId }) => {
+    try {
+      const profile = await getPlayer(profileId);
+      if (profile?.isModerator) sock.emit('mod:notification', { type, message, targetName });
+    } catch { /* ignore per-socket errors */ }
+  }));
 }
 
 function announceSpeechEnd(io: AppServer, room: Room, nextPhase: Phase): void {
@@ -490,11 +493,14 @@ export function attachSocketHandlers(io: AppServer): void {
     socket.data.profileId = null;
 
     // Rate-limit every incoming event
-    socket.use(([event], next) => {
+    socket.use(([event, ...args], next) => {
       const authEvents = new Set(['player:auth', 'player:register', 'player:login_email']);
       const limit = authEvents.has(event) ? 3 : 20;
       if (!rateOk(socket.id, limit)) {
         socket.emit('error', { message: 'Too many requests. Slow down.' });
+        // Call ack callback if present so client doesn't hang waiting for a response
+        const ack = typeof args[args.length - 1] === 'function' ? args[args.length - 1] as Function : null;
+        if (ack) ack(err('Too many requests. Slow down.'));
         return;
       }
       next();
@@ -1286,17 +1292,28 @@ export function attachSocketHandlers(io: AppServer): void {
 
         if (target.socketId) {
           const targetSock = io.sockets.sockets.get(target.socketId);
-          targetSock?.emit('kicked', { reason: `Removed by moderator. Reason: ${reason}` });
-          targetSock?.leave(roomId);
+          if (targetSock) {
+            targetSock.emit('kicked', { reason: `Removed by moderator. Reason: ${reason}` });
+            // Use handlePlayerLeave so host-leaves-closes-room logic is respected
+            handlePlayerLeave(io, targetSock as any, roomId, target.id);
+          } else {
+            removePlayer(room, target.id);
+            if (room.players.size > 0) {
+              broadcastSystemMsg(io, room, `${target.name} was removed by a moderator.`);
+              broadcastRoom(io, room);
+            }
+          }
+        } else {
+          removePlayer(room, target.id);
+          if (room.players.size > 0) {
+            broadcastSystemMsg(io, room, `${target.name} was removed by a moderator.`);
+            broadcastRoom(io, room);
+          }
         }
 
-        removePlayer(room, target.id);
-        broadcastSystemMsg(io, room, `${target.name} was removed by a moderator.`);
-        broadcastRoom(io, room);
-
         await logKick(modProfileId, mod.username, target.profileId ?? targetProfileId, target.name, roomId, reason);
-        await notifyMods(io, 'mod_kick', `${mod.username} kicked ${target.name} from room`, target.name);
         cb(ok(null));
+        notifyMods(io, 'mod_kick', `${mod.username} kicked ${target.name} from room`, target.name).catch(() => {});
       } catch (e: any) { cb(err(e.message)); }
     });
 
@@ -1324,17 +1341,28 @@ export function attachSocketHandlers(io: AppServer): void {
 
         if (foundTarget.socketId) {
           const targetSock = io.sockets.sockets.get(foundTarget.socketId);
-          targetSock?.emit('kicked', { reason: `Removed by moderator. Reason: ${reason}` });
-          targetSock?.leave(foundRoom.id);
+          if (targetSock) {
+            targetSock.emit('kicked', { reason: `Removed by moderator. Reason: ${reason}` });
+            // Use handlePlayerLeave so host-leaves-closes-room logic is respected
+            handlePlayerLeave(io, targetSock as any, foundRoom.id, foundTarget.id);
+          } else {
+            removePlayer(foundRoom, foundTarget.id);
+            if (foundRoom.players.size > 0) {
+              broadcastSystemMsg(io, foundRoom, `${foundTarget.name} was removed by a moderator.`);
+              broadcastRoom(io, foundRoom);
+            }
+          }
+        } else {
+          removePlayer(foundRoom, foundTarget.id);
+          if (foundRoom.players.size > 0) {
+            broadcastSystemMsg(io, foundRoom, `${foundTarget.name} was removed by a moderator.`);
+            broadcastRoom(io, foundRoom);
+          }
         }
 
-        removePlayer(foundRoom, foundTarget.id);
-        broadcastSystemMsg(io, foundRoom, `${foundTarget.name} was removed by a moderator.`);
-        broadcastRoom(io, foundRoom);
-
         await logKick(modProfileId, mod.username, foundTarget.profileId ?? targetProfileId, foundTarget.name, foundRoom.id, reason);
-        await notifyMods(io, 'mod_kick', `${mod.username} kicked ${foundTarget.name} from room`, foundTarget.name);
         cb(ok(null));
+        notifyMods(io, 'mod_kick', `${mod.username} kicked ${foundTarget.name} from room`, foundTarget.name).catch(() => {});
       } catch (e: any) { cb(err(e.message)); }
     });
 
@@ -1369,9 +1397,11 @@ export function attachSocketHandlers(io: AppServer): void {
           targetSock.disconnect(true);
         }
 
-        const target = await getPlayer(targetProfileId);
-        await notifyMods(io, 'mod_ban', `${mod.username} banned ${target?.username ?? '?'}`, target?.username);
         cb(ok(null));
+        // Notify mods in background — don't block the ack
+        getPlayer(targetProfileId).then(target => {
+          notifyMods(io, 'mod_ban', `${mod.username} banned ${target?.username ?? '?'}`, target?.username).catch(() => {});
+        }).catch(() => {});
       } catch (e: any) { cb(err(e.message)); }
     });
 
@@ -1402,9 +1432,10 @@ export function attachSocketHandlers(io: AppServer): void {
           targetSock.emit('mute:received', { reason, expiresAt: mute.expiresAt });
         }
 
-        const target = await getPlayer(targetProfileId);
-        await notifyMods(io, 'mod_mute', `${mod.username} muted ${target?.username ?? '?'}`, target?.username);
         cb(ok(null));
+        getPlayer(targetProfileId).then(target => {
+          notifyMods(io, 'mod_mute', `${mod.username} muted ${target?.username ?? '?'}`, target?.username).catch(() => {});
+        }).catch(() => {});
       } catch (e: any) { cb(err(e.message)); }
     });
 
