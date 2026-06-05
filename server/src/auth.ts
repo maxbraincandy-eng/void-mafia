@@ -100,14 +100,23 @@ export function configurePassport(): void {
   const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET ?? '';
   const FACEBOOK_APP_ID      = process.env.FACEBOOK_APP_ID ?? '';
   const FACEBOOK_APP_SECRET  = process.env.FACEBOOK_APP_SECRET ?? '';
-  const SERVER_PUBLIC_URL    = process.env.SERVER_PUBLIC_URL ?? '';
+  // Strip trailing slash to avoid double-slash in callback URL
+  const SERVER_PUBLIC_URL    = (process.env.SERVER_PUBLIC_URL ?? '').replace(/\/+$/, '');
+
+  const googleCallbackURL  = `${SERVER_PUBLIC_URL}/api/auth/google/callback`;
+  const facebookCallbackURL = `${SERVER_PUBLIC_URL}/api/auth/facebook/callback`;
+
+  console.log(`[Auth] Google callback URL = ${googleCallbackURL}`);
+  if (!SERVER_PUBLIC_URL) {
+    console.warn('[Auth] WARNING: SERVER_PUBLIC_URL is not set — OAuth callbacks will use the wrong host in production');
+  }
 
   if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
     passport.use(new GoogleStrategy(
       {
         clientID:     GOOGLE_CLIENT_ID,
         clientSecret: GOOGLE_CLIENT_SECRET,
-        callbackURL:  `${SERVER_PUBLIC_URL}/api/auth/google/callback`,
+        callbackURL:  googleCallbackURL,
       },
       async (_accessToken, _refreshToken, profile, done) => {
         try {
@@ -127,7 +136,7 @@ export function configurePassport(): void {
       {
         clientID:     FACEBOOK_APP_ID,
         clientSecret: FACEBOOK_APP_SECRET,
-        callbackURL:  `${SERVER_PUBLIC_URL}/api/auth/facebook/callback`,
+        callbackURL:  facebookCallbackURL,
         profileFields: ['id', 'displayName', 'emails', 'photos'],
       },
       async (_accessToken, _refreshToken, profile, done) => {
