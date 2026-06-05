@@ -342,6 +342,79 @@ export async function initializeDatabase(): Promise<void> {
   `;
   await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS account_frozen INTEGER NOT NULL DEFAULT 0`;
 
+  // ── Economy system ─────────────────────────────────────────────────────
+  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS coins INTEGER NOT NULL DEFAULT 0`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS coin_transactions (
+      id            TEXT PRIMARY KEY,
+      player_id     TEXT NOT NULL,
+      type          TEXT NOT NULL,
+      amount        INTEGER NOT NULL,
+      balance_after INTEGER NOT NULL,
+      ref_id        TEXT,
+      description   TEXT NOT NULL DEFAULT '',
+      granted_by    TEXT,
+      created_at    BIGINT NOT NULL
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS gift_catalog (
+      id          TEXT PRIMARY KEY,
+      name        TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      icon        TEXT NOT NULL DEFAULT '🎁',
+      image_url   TEXT NOT NULL DEFAULT '',
+      rarity      TEXT NOT NULL DEFAULT 'common',
+      stars       INTEGER NOT NULL DEFAULT 1,
+      price       INTEGER NOT NULL DEFAULT 100,
+      active      INTEGER NOT NULL DEFAULT 1,
+      created_by  TEXT NOT NULL DEFAULT 'system',
+      created_at  BIGINT NOT NULL,
+      updated_at  BIGINT NOT NULL
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS player_gifts (
+      id             TEXT PRIMARY KEY,
+      recipient_id   TEXT NOT NULL,
+      sender_id      TEXT NOT NULL,
+      gift_id        TEXT NOT NULL,
+      message        TEXT NOT NULL DEFAULT '',
+      transaction_id TEXT NOT NULL,
+      created_at     BIGINT NOT NULL
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS daily_coin_claims (
+      player_id     TEXT NOT NULL,
+      date_key      TEXT NOT NULL,
+      coins_awarded INTEGER NOT NULL,
+      claimed_at    BIGINT NOT NULL,
+      PRIMARY KEY (player_id, date_key)
+    )
+  `;
+
+  // Seed default gift catalog items (ON CONFLICT DO NOTHING — safe to re-run)
+  const _seedNow = Date.now();
+  const _defaultGifts = [
+    { id: 'gift_skull',      name: 'Skull',          icon: '💀', desc: 'A classic skull for your collection',     rarity: 'common',    stars: 1, price: 50   },
+    { id: 'gift_rose',       name: 'Red Rose',        icon: '🌹', desc: 'A mysterious red rose',                   rarity: 'uncommon',  stars: 2, price: 100  },
+    { id: 'gift_dagger',     name: 'Dagger',          icon: '🗡️', desc: 'A sharp dagger from the shadows',         rarity: 'rare',      stars: 3, price: 250  },
+    { id: 'gift_crown',      name: 'Crown',           icon: '👑', desc: 'For royalty only',                        rarity: 'epic',      stars: 4, price: 500  },
+    { id: 'gift_godfather',  name: 'Godfather Ring',  icon: '💍', desc: 'An offer they cannot refuse',             rarity: 'legendary', stars: 5, price: 1000 },
+  ];
+  for (const g of _defaultGifts) {
+    await sql`
+      INSERT INTO gift_catalog (id, name, description, icon, image_url, rarity, stars, price, active, created_by, created_at, updated_at)
+      VALUES (${g.id}, ${g.name}, ${g.desc}, ${g.icon}, ${''},  ${g.rarity}, ${g.stars}, ${g.price}, 1, ${'system'}, ${_seedNow}, ${_seedNow})
+      ON CONFLICT (id) DO NOTHING
+    `;
+  }
+
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];
   console.log(`[Database] connected successfully`);

@@ -1,11 +1,12 @@
 import { useRef, useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { PoweredBy } from '@/components/ui/PoweredBy';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { FriendsPanel } from '@/components/ui/FriendsPanel';
-import { emitWithAck } from '@/lib/socket';
+import { GiftGallery } from '@/components/ui/GiftGallery';
+import { emitWithAck, socket } from '@/lib/socket';
 import type { AchievementEarned, GameHistoryEntry, PlayerRoleStats, ClanMembership, Res } from '@/types/index';
 
 const LEVEL_THRESHOLDS = [0, 100, 250, 500, 900, 1400, 2100, 3000, 4100, 5400];
@@ -116,6 +117,9 @@ export function ProfilePage() {
   const [linkedProviders, setLinkedProviders] = useState<LinkedProvider[]>([]);
   const [linkMsg, setLinkMsg]   = useState('');
   const [linkError, setLinkError] = useState('');
+  const [coins, setCoins]           = useState<number | null>(null);
+  const [dailyClaiming, setDailyClaiming] = useState(false);
+  const [dailyMsg, setDailyMsg]     = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -155,6 +159,32 @@ export function ProfilePage() {
       setClan(clanRes.ok ? clanRes.data : null);
     }).finally(() => setLoadingAch(false));
   }, [profile]);
+
+  // Coin balance
+  useEffect(() => {
+    if (!profile) return;
+    emitWithAck<null, Res<{ coins: number }>>('coins:balance').then(res => {
+      if (res.ok) setCoins(res.data.coins);
+    });
+    const onCoinsUpdated = ({ coins: c }: { coins: number }) => setCoins(c);
+    socket.on('coins:updated' as any, onCoinsUpdated);
+    return () => { socket.off('coins:updated' as any, onCoinsUpdated); };
+  }, [profile]);
+
+  const claimDaily = async () => {
+    setDailyClaiming(true);
+    setDailyMsg(null);
+    try {
+      const res = await emitWithAck<null, Res<{ coins: number; balance: number; alreadyClaimed: boolean }>>('coins:daily_reward');
+      if (res.ok) {
+        setCoins(res.data.balance);
+        setDailyMsg(res.data.alreadyClaimed ? 'Already claimed today. Come back tomorrow!' : `+${res.data.coins} coins claimed!`);
+      }
+    } finally {
+      setDailyClaiming(false);
+      setTimeout(() => setDailyMsg(null), 3000);
+    }
+  };
 
   const handleLinkOAuth = async (provider: 'google' | 'facebook') => {
     if (!uid) return;
@@ -392,6 +422,39 @@ export function ProfilePage() {
               <StatRow label="Clan losses" value={clan.losses} />
             </>
           )}
+        </motion.div>
+
+        {/* ── Coin Wallet ────────────────────────────────────────────── */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}
+          className="glass-panel border border-amber-400/15 rounded-2xl p-4 mb-3">
+          <div className="flex items-center justify-between mb-3">
+            <SectionHeader icon="🪙" title="Coins" />
+            <span className="font-mono text-lg font-bold text-amber-400">
+              {coins != null ? coins.toLocaleString() : '—'}
+            </span>
+          </div>
+          <button
+            onClick={claimDaily}
+            disabled={dailyClaiming}
+            className="w-full py-2.5 rounded-xl bg-amber-400/10 border border-amber-400/25 text-amber-400 font-mono text-xs uppercase tracking-widest hover:bg-amber-400/20 transition-all disabled:opacity-50"
+          >
+            {dailyClaiming ? 'Claiming...' : '☀ Claim Daily Reward (50 🪙)'}
+          </button>
+          <AnimatePresence>
+            {dailyMsg && (
+              <motion.p initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                className="text-center font-mono text-xs mt-2 text-amber-400/70">
+                {dailyMsg}
+              </motion.p>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
+        {/* ── Gift Gallery ────────────────────────────────────────────── */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.085 }}
+          className="glass-panel border border-white/8 rounded-2xl p-4 mb-3">
+          <SectionHeader icon="🎁" title="Gifts Received" />
+          {profile && <GiftGallery profileId={profile.id} />}
         </motion.div>
 
         {/* ── Games by team ──────────────────────────────────────────── */}

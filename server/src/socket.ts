@@ -63,6 +63,12 @@ import bcrypt from 'bcryptjs';
 import {
   getOrCreateConversation, listConversations, sendMessage, getMessages, markRead, getTotalUnread,
 } from './services/dmService.js';
+import {
+  getCoins, claimDailyReward, grantCoins, deductCoins, refundGift,
+  getTransactions, getAllTransactions,
+  getGiftCatalog, createGift, updateGift,
+  sendGift, getPlayerGifts, getGiftDetail,
+} from './services/coinService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -2260,6 +2266,178 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!profileId) { cb(ok(0)); return; }
         const count = await getTotalUnread(profileId);
         cb(ok(count));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Economy — Coins & Gifts ─────────────────────────────────────
+
+    socket.on('coins:balance', async (cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(ok({ coins: 0 })); return; }
+        const coins = await getCoins(profileId);
+        cb(ok({ coins }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('coins:daily_reward', async (cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const result = await claimDailyReward(profileId);
+        if (!result.alreadyClaimed) {
+          socket.emit('coins:updated', { coins: result.balance });
+        }
+        cb(ok(result));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('coins:send_gift', async ({ recipientId, giftId, message }: any, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const { newSenderBalance, giftEntry } = await sendGift(profileId, recipientId, giftId, message ?? '');
+        socket.emit('coins:updated', { coins: newSenderBalance });
+        // Notify recipient in real-time if connected
+        const recipientSock = findSocketByProfile(io as any, recipientId);
+        if (recipientSock) {
+          const giftInfo = await getGiftCatalog(true);
+          const catalogItem = giftInfo.find(g => g.id === giftId);
+          if (catalogItem) {
+            recipientSock.emit('gift:received', {
+              gift: catalogItem,
+              senderName: giftEntry.senderUsername,
+              senderAvatar: giftEntry.senderAvatar,
+              message: giftEntry.message,
+            });
+          }
+        }
+        cb(ok({ newBalance: newSenderBalance }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('coins:transactions', async ({ profileId: targetId }: any, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        // A player can view their own transactions; owner can view anyone's
+        const requester = await getPlayer(profileId);
+        const resolvedId = targetId && requester?.moderatorLevel === 'owner' ? targetId : profileId;
+        const txs = await getTransactions(resolvedId);
+        cb(ok(txs));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('gifts:catalog', async (cb: any) => {
+      try {
+        const catalog = await getGiftCatalog(false);
+        cb(ok(catalog));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('gifts:player_gifts', async ({ profileId: targetId }: any, cb: any) => {
+      try {
+        if (!targetId) throw new Error('profileId required.');
+        const gifts = await getPlayerGifts(targetId);
+        cb(ok(gifts));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('gifts:detail', async ({ giftId, recipientId }: any, cb: any) => {
+      try {
+        if (!giftId || !recipientId) throw new Error('giftId and recipientId required.');
+        const detail = await getGiftDetail(giftId, recipientId);
+        if (!detail) throw new Error('Gift not found.');
+        cb(ok(detail));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Economy — Owner only ────────────────────────────────────────
+
+    socket.on('owner:coins_grant', async ({ targetProfileId, amount, description }: any, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const requester = await getPlayer(profileId);
+        if (requester?.moderatorLevel !== 'owner') throw new Error('Owner only.');
+        const target = await getPlayer(targetProfileId);
+        if (!target) throw new Error('Player not found.');
+        const result = await grantCoins(profileId, targetProfileId, Number(amount), description ?? '');
+        // Notify target if online
+        const targetSock = findSocketByProfile(io as any, targetProfileId);
+        if (targetSock) targetSock.emit('coins:updated', { coins: result.newBalance });
+        cb(ok(result));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('owner:coins_deduct', async ({ targetProfileId, amount, description }: any, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const requester = await getPlayer(profileId);
+        if (requester?.moderatorLevel !== 'owner') throw new Error('Owner only.');
+        const target = await getPlayer(targetProfileId);
+        if (!target) throw new Error('Player not found.');
+        const result = await deductCoins(profileId, targetProfileId, Number(amount), description ?? '');
+        const targetSock = findSocketByProfile(io as any, targetProfileId);
+        if (targetSock) targetSock.emit('coins:updated', { coins: result.newBalance });
+        cb(ok(result));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('owner:coins_refund', async ({ transactionId }: any, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const requester = await getPlayer(profileId);
+        if (requester?.moderatorLevel !== 'owner') throw new Error('Owner only.');
+        await refundGift(transactionId, profileId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('owner:gift_create', async (data: any, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const requester = await getPlayer(profileId);
+        if (requester?.moderatorLevel !== 'owner') throw new Error('Owner only.');
+        const gift = await createGift(profileId, data);
+        cb(ok(gift));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('owner:gift_update', async ({ giftId, ...data }: any, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const requester = await getPlayer(profileId);
+        if (requester?.moderatorLevel !== 'owner') throw new Error('Owner only.');
+        if (!giftId) throw new Error('giftId required.');
+        const gift = await updateGift(giftId, data);
+        cb(ok(gift));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('owner:gift_catalog_all', async (cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const requester = await getPlayer(profileId);
+        if (requester?.moderatorLevel !== 'owner') throw new Error('Owner only.');
+        const catalog = await getGiftCatalog(true);
+        cb(ok(catalog));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('owner:all_transactions', async (cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const requester = await getPlayer(profileId);
+        if (requester?.moderatorLevel !== 'owner') throw new Error('Owner only.');
+        const txs = await getAllTransactions(500);
+        cb(ok(txs));
       } catch (e: any) { cb(err(e.message)); }
     });
 
