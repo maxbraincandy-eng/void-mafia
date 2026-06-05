@@ -3,24 +3,34 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { socket } from '@/lib/socket';
 import {
   Report, ModLog, PlayerProfilePublic, Phase,
-  ModPlayerDetail, LiveRoomInfo, DashboardStats, ModNote,
+  ModPlayerDetail, LiveRoomInfo, DashboardStats, ModNote, ModeratorLevel,
 } from '@/types/index';
 import type { Res } from '@/types/index';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { useGameStore } from '@/store/gameStore';
+import { useAuthStore } from '@/store/authStore';
+
+// ── Permission helpers ────────────────────────────────────────────────
+const MOD_RANK: Record<ModeratorLevel, number> = {
+  moderator: 0, senior_moderator: 1, admin: 2, owner: 3,
+};
+function modRank(level: ModeratorLevel | null | undefined): number {
+  if (!level) return -1;
+  return MOD_RANK[level] ?? -1;
+}
 
 // ── Tab types ─────────────────────────────────────────────────────────
 type Tab = 'dashboard' | 'rooms' | 'reports' | 'players' | 'broadcast' | 'logs';
 type ActionType = 'ban' | 'mute' | 'warn' | 'kick' | 'unban' | 'unmute' | 'terminate' | 'freeze' | 'unfreeze' | 'rename' | 'system_msg' | 'force_phase';
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'rooms',     label: 'Rooms' },
-  { id: 'reports',   label: 'Reports' },
-  { id: 'players',   label: 'Players' },
-  { id: 'broadcast', label: 'Broadcast' },
-  { id: 'logs',      label: 'Logs' },
+const TABS: { id: Tab; label: string; minRank: number }[] = [
+  { id: 'dashboard', label: 'Dashboard', minRank: 0 },
+  { id: 'rooms',     label: 'Rooms',     minRank: 0 },
+  { id: 'reports',   label: 'Reports',   minRank: 0 },
+  { id: 'players',   label: 'Players',   minRank: 0 },
+  { id: 'broadcast', label: 'Broadcast', minRank: 1 },  // senior_mod+
+  { id: 'logs',      label: 'Logs',      minRank: 2 },  // admin+
 ];
 
 const PHASE_COLORS: Record<string, string> = {
@@ -50,6 +60,10 @@ interface ActionState {
 
 export function ModDashboardPage() {
   const addToast = useGameStore(s => s.addToast);
+  const profile = useAuthStore(s => s.profile);
+  const rank = modRank(profile?.moderatorLevel);
+  // Convenience helpers
+  const can = (minRank: number) => rank >= minRank;
 
   const [tab, setTab] = useState<Tab>('dashboard');
   const [loading, setLoading] = useState(false);
@@ -316,9 +330,9 @@ export function ModDashboardPage() {
           )}
         </div>
 
-        {/* Tabs - scrollable */}
+        {/* Tabs - scrollable, filtered by rank */}
         <div className="flex gap-1 mb-5 bg-void-50/40 rounded-xl p-1 overflow-x-auto no-scrollbar">
-          {TABS.map(t => (
+          {TABS.filter(t => can(t.minRank)).map(t => (
             <button key={t.id} onClick={() => switchTab(t.id)}
               className={`flex-shrink-0 px-3 py-2 rounded-lg font-mono text-xs transition-all whitespace-nowrap ${
                 tab === t.id ? 'bg-neon-green/15 text-neon-green border border-neon-green/25' : 'text-white/30 hover:text-white/60'
@@ -408,18 +422,22 @@ export function ModDashboardPage() {
                           ⏸ Pause
                         </button>
                       )}
-                      <button onClick={() => openAction('terminate', r.id, `Room ${r.code}`)}
-                        className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-neon-red/30 text-neon-red hover:bg-neon-red/10 transition-all">
-                        Terminate
-                      </button>
+                      {can(2) && (
+                        <button onClick={() => openAction('terminate', r.id, `Room ${r.code}`)}
+                          className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-neon-red/30 text-neon-red hover:bg-neon-red/10 transition-all">
+                          Terminate
+                        </button>
+                      )}
                       <button onClick={() => openAction('system_msg', r.id, `Room ${r.code}`)}
                         className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-neon-cyan/30 text-neon-cyan hover:bg-neon-cyan/10 transition-all">
                         Msg
                       </button>
-                      <button onClick={() => { openAction('force_phase', r.id, `Room ${r.code}`); setActionReason('night'); }}
-                        className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-neon-pink/30 text-neon-pink hover:bg-neon-pink/10 transition-all">
-                        Phase
-                      </button>
+                      {can(2) && (
+                        <button onClick={() => { openAction('force_phase', r.id, `Room ${r.code}`); setActionReason('night'); }}
+                          className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-neon-pink/30 text-neon-pink hover:bg-neon-pink/10 transition-all">
+                          Phase
+                        </button>
+                      )}
                       <button onClick={() => {
                         socket.emit('mod:voice_mute_room' as any, { roomId: r.id, reason: 'Muted by moderator' }, (res: Res<null>) => {
                           if (res.ok) addToast('Voice muted', 'success'); else addToast(res.error, 'error');
@@ -495,7 +513,7 @@ export function ModDashboardPage() {
                 </div>
                 {r.details && <p className="text-white/40 text-xs font-mono mb-3 italic line-clamp-2">"{r.details}"</p>}
                 <div className="flex gap-1 flex-wrap">
-                  {r.status === 'open' && (
+                  {r.status === 'open' && can(1) && (
                     <>
                       <button onClick={() => resolveReport(r.id, 'resolved')}
                         className="px-2 py-1 text-[10px] font-mono text-neon-green border border-neon-green/30 rounded-lg hover:bg-neon-green/10">
@@ -505,11 +523,13 @@ export function ModDashboardPage() {
                         className="px-2 py-1 text-[10px] font-mono text-white/30 border border-white/10 rounded-lg hover:text-white/60">
                         Reject
                       </button>
-                      <button onClick={() => assignReport(r.id)}
-                        className="px-2 py-1 text-[10px] font-mono text-neon-blue border border-neon-blue/30 rounded-lg hover:bg-neon-blue/10">
-                        Assign me
-                      </button>
                     </>
+                  )}
+                  {r.status === 'open' && (
+                    <button onClick={() => assignReport(r.id)}
+                      className="px-2 py-1 text-[10px] font-mono text-neon-blue border border-neon-blue/30 rounded-lg hover:bg-neon-blue/10">
+                      Assign me
+                    </button>
                   )}
                   <button onClick={() => openAction('warn', r.reportedPlayerId, r.reportedName)}
                     className="px-2 py-1 text-[10px] font-mono text-yellow-400 border border-yellow-400/30 rounded-lg hover:bg-yellow-400/10 ml-auto">
@@ -519,10 +539,12 @@ export function ModDashboardPage() {
                     className="px-2 py-1 text-[10px] font-mono text-neon-pink border border-neon-pink/30 rounded-lg hover:bg-neon-pink/10">
                     Mute
                   </button>
-                  <button onClick={() => openAction('ban', r.reportedPlayerId, r.reportedName)}
-                    className="px-2 py-1 text-[10px] font-mono text-neon-red border border-neon-red/30 rounded-lg hover:bg-neon-red/10">
-                    Ban
-                  </button>
+                  {can(1) && (
+                    <button onClick={() => openAction('ban', r.reportedPlayerId, r.reportedName)}
+                      className="px-2 py-1 text-[10px] font-mono text-neon-red border border-neon-red/30 rounded-lg hover:bg-neon-red/10">
+                      Ban
+                    </button>
+                  )}
                 </div>
               </motion.div>
             ))}
@@ -557,16 +579,20 @@ export function ModDashboardPage() {
                         </p>
                       </div>
                       <div className="flex gap-1 flex-wrap justify-end">
-                        {(['warn', 'mute', 'ban'] as const).map(a => (
-                          <button key={a} onClick={() => openAction(a, p.id, p.username)}
-                            className={`px-2 py-1 text-[10px] font-mono uppercase rounded-lg border transition-all ${
-                              a === 'ban' ? 'border-neon-red/30 text-neon-red hover:bg-neon-red/10'
-                              : a === 'mute' ? 'border-neon-pink/30 text-neon-pink hover:bg-neon-pink/10'
-                              : 'border-yellow-400/30 text-yellow-400 hover:bg-yellow-400/10'
-                            }`}>
-                            {a}
+                        <button onClick={() => openAction('warn', p.id, p.username)}
+                          className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-yellow-400/30 text-yellow-400 hover:bg-yellow-400/10 transition-all">
+                          warn
+                        </button>
+                        <button onClick={() => openAction('mute', p.id, p.username)}
+                          className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-neon-pink/30 text-neon-pink hover:bg-neon-pink/10 transition-all">
+                          mute
+                        </button>
+                        {can(1) && (
+                          <button onClick={() => openAction('ban', p.id, p.username)}
+                            className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-neon-red/30 text-neon-red hover:bg-neon-red/10 transition-all">
+                            ban
                           </button>
-                        ))}
+                        )}
                       </div>
                     </div>
                   </div>
@@ -578,6 +604,7 @@ export function ModDashboardPage() {
                 loading={detailLoading}
                 newNote={newNote}
                 setNewNote={setNewNote}
+                rank={rank}
                 onClose={() => setPlayerDetail(null)}
                 onSubmitNote={() => submitNote(playerDetail.profile.id)}
                 onAction={openAction}
@@ -741,17 +768,19 @@ export function ModDashboardPage() {
 
 // ── Player Detail Panel ───────────────────────────────────────────────
 function PlayerDetailPanel({
-  detail, loading, newNote, setNewNote, onClose, onSubmitNote, onAction,
+  detail, loading, newNote, setNewNote, rank, onClose, onSubmitNote, onAction,
 }: {
   detail: ModPlayerDetail;
   loading: boolean;
   newNote: string;
   setNewNote: (v: string) => void;
+  rank: number;
   onClose: () => void;
   onSubmitNote: () => void;
   onAction: (type: ActionType, targetId: string, targetName: string) => void;
 }) {
   const p = detail.profile;
+  const can = (minRank: number) => rank >= minRank;
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3 mb-2">
@@ -778,9 +807,11 @@ function PlayerDetailPanel({
           <p className="text-neon-red text-xs font-mono font-bold">BANNED until {new Date(detail.ban.expiresAt).toLocaleDateString()}</p>
           <p className="text-white/40 text-xs font-mono">{detail.ban.reason}</p>
           <p className="text-white/20 text-[10px] font-mono">by {detail.ban.issuedByName}</p>
-          <button onClick={() => onAction('unban', p.id, p.username)} className="mt-2 px-3 py-1 text-[10px] font-mono text-neon-green border border-neon-green/30 rounded-lg hover:bg-neon-green/10">
-            Unban
-          </button>
+          {can(1) && (
+            <button onClick={() => onAction('unban', p.id, p.username)} className="mt-2 px-3 py-1 text-[10px] font-mono text-neon-green border border-neon-green/30 rounded-lg hover:bg-neon-green/10">
+              Unban
+            </button>
+          )}
         </div>
       )}
       {detail.mute && (
@@ -805,31 +836,40 @@ function PlayerDetailPanel({
 
       {/* Actions */}
       <div className="flex flex-wrap gap-1">
-        {(['warn', 'mute', 'ban', 'kick'] as ActionType[]).map(a => (
-          <button key={a} onClick={() => onAction(a, p.id, p.username)}
-            className={`px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border transition-all ${
-              a === 'ban' ? 'border-neon-red/30 text-neon-red hover:bg-neon-red/10'
-              : a === 'mute' ? 'border-neon-pink/30 text-neon-pink hover:bg-neon-pink/10'
-              : a === 'kick' ? 'border-neon-blue/30 text-neon-blue hover:bg-neon-blue/10'
-              : 'border-yellow-400/30 text-yellow-400 hover:bg-yellow-400/10'
-            }`}>
-            {a}
-          </button>
-        ))}
-        <button onClick={() => onAction('rename', p.id, p.username)}
-          className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-neon-cyan/30 text-neon-cyan hover:bg-neon-cyan/10 transition-all">
-          Rename
+        <button onClick={() => onAction('warn', p.id, p.username)}
+          className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-yellow-400/30 text-yellow-400 hover:bg-yellow-400/10 transition-all">
+          warn
         </button>
-        {detail.accountFrozen ? (
-          <button onClick={() => onAction('unfreeze', p.id, p.username)}
-            className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-neon-green/30 text-neon-green hover:bg-neon-green/10 transition-all">
-            Unfreeze
-          </button>
-        ) : (
-          <button onClick={() => onAction('freeze', p.id, p.username)}
-            className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-orange-400/30 text-orange-400 hover:bg-orange-400/10 transition-all">
-            Freeze
-          </button>
+        <button onClick={() => onAction('mute', p.id, p.username)}
+          className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-neon-pink/30 text-neon-pink hover:bg-neon-pink/10 transition-all">
+          mute
+        </button>
+        <button onClick={() => onAction('kick', p.id, p.username)}
+          className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-neon-blue/30 text-neon-blue hover:bg-neon-blue/10 transition-all">
+          kick
+        </button>
+        {can(1) && (
+          <>
+            <button onClick={() => onAction('ban', p.id, p.username)}
+              className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-neon-red/30 text-neon-red hover:bg-neon-red/10 transition-all">
+              ban
+            </button>
+            <button onClick={() => onAction('rename', p.id, p.username)}
+              className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-neon-cyan/30 text-neon-cyan hover:bg-neon-cyan/10 transition-all">
+              rename
+            </button>
+            {detail.accountFrozen ? (
+              <button onClick={() => onAction('unfreeze', p.id, p.username)}
+                className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-neon-green/30 text-neon-green hover:bg-neon-green/10 transition-all">
+                unfreeze
+              </button>
+            ) : (
+              <button onClick={() => onAction('freeze', p.id, p.username)}
+                className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-orange-400/30 text-orange-400 hover:bg-orange-400/10 transition-all">
+                freeze
+              </button>
+            )}
+          </>
         )}
       </div>
 

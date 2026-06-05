@@ -1626,8 +1626,13 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
-    socket.on('mod:get_maintenance', (cb: any) => {
-      cb(ok({ enabled: maintenanceMode }));
+    socket.on('mod:get_maintenance', async (cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'view_reports')) throw new Error('Insufficient permissions.');
+        cb(ok({ enabled: maintenanceMode }));
+      } catch (e: any) { cb(err(e.message)); }
     });
 
     // ── Mod: Player Detail ────────────────────────────────────────────
