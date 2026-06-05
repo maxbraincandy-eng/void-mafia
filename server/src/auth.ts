@@ -175,15 +175,35 @@ export function createAuthRouter(): Router {
   });
 
   // ── Google ──────────────────────────────────────────────────────
+  // Resolve callbackURL at request time so Railway env var changes
+  // take effect without a restart, and the startup-time value never
+  // gets stale.
+  function getGoogleCallbackURL(): string {
+    const base = (process.env.SERVER_PUBLIC_URL ?? '').replace(/\/+$/, '');
+    const url = `${base}/api/auth/google/callback`;
+    console.log(`[Auth] Google callback URL = ${url}`);
+    return url;
+  }
+
   router.get('/google', (req, res, next) => {
-    // If ?link=1 store current uid for linking after callback
     if (req.query.link === '1' && req.session.uid) {
       req.session.linkUid = req.session.uid;
     }
-    passport.authenticate('google', { scope: ['profile', 'email'], session: false })(req, res, next);
+    passport.authenticate('google', {
+      scope: ['profile', 'email'],
+      session: false,
+      callbackURL: getGoogleCallbackURL(),
+    } as any)(req, res, next);
   });
 
-  router.get('/google/callback', passport.authenticate('google', { session: false, failureRedirect: `${process.env.CLIENT_URL ?? ''}/?oauth_error=1` }),
+  router.get('/google/callback',
+    (req, res, next) => {
+      passport.authenticate('google', {
+        session: false,
+        callbackURL: getGoogleCallbackURL(),
+        failureRedirect: `${process.env.CLIENT_URL ?? ''}/?oauth_error=1`,
+      } as any)(req, res, next);
+    },
     async (req, res) => {
       const CLIENT_URL = process.env.CLIENT_URL ?? '';
       try {
@@ -203,6 +223,10 @@ export function createAuthRouter(): Router {
         const rows = await sql`SELECT username FROM players WHERE id = ${uid} LIMIT 1` as any[];
         req.session.uid = uid;
         req.session.username = rows[0]?.username ?? 'Player';
+        // Explicitly save session before redirect so the cookie is flushed
+        await new Promise<void>((resolve, reject) =>
+          req.session.save(err => (err ? reject(err) : resolve()))
+        );
         res.redirect(`${CLIENT_URL}/?oauth_success=1`);
       } catch (e) {
         console.error('[Auth] Google callback error', e);
