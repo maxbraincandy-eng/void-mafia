@@ -278,6 +278,8 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   socket.on('warning:received', ({ reason, moderatorName }: { reason: string; moderatorName?: string }) => {
     set({ modNotice: { type: 'warn', reason, moderatorName } });
+    const who = moderatorName ? ` by ${moderatorName}` : '';
+    get().addToast(`⚠️ Warning received${who}: ${reason}`, 'error');
   });
 
   socket.on('error', ({ message }: { message: string }) => {

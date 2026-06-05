@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useAuthStore } from '@/store/authStore';
 import { socket } from '@/lib/socket';
+import { useT } from '@/store/langStore';
 import type { Res } from '@/types/index';
 
 interface Props {
@@ -98,6 +99,76 @@ function SelectChip<T extends string>({ options, value, onChange }: {
         </button>
       ))}
     </div>
+  );
+}
+
+// ── Change Name sub-form ──────────────────────────────────────────────
+
+function ChangeNameSection() {
+  const { profile, changeName } = useAuthStore();
+  const [newName, setNewName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+  const [show, setShow] = useState(false);
+  const t = useT();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    setLoading(true); setErr(''); setMsg('');
+    const res = await changeName(newName.trim());
+    setLoading(false);
+    if (res.ok) {
+      setMsg('Name updated!');
+      setNewName('');
+      setTimeout(() => setMsg(''), 3000);
+    } else {
+      setErr(res.error ?? 'Name change failed.');
+    }
+  };
+
+  if (!show) {
+    return (
+      <button
+        onClick={() => setShow(true)}
+        className="w-full py-2.5 rounded-xl border border-white/8 text-white/40 font-mono text-xs hover:text-white/60 hover:border-white/15 transition-all mb-1.5"
+      >
+        {t.profile.changeName} {profile?.username ? `(${profile.username})` : ''}
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-2 p-3 rounded-xl border border-white/8 bg-white/[0.02] mb-1.5">
+      <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest mb-3">{t.profile.changeName}</p>
+      <input
+        type="text"
+        placeholder="New name…"
+        value={newName}
+        onChange={e => setNewName(e.target.value)}
+        maxLength={20}
+        className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-white placeholder-white/20 font-mono text-xs focus:outline-none focus:border-neon-purple/50 transition-all"
+      />
+      {err && <p className="text-neon-red text-[10px] font-mono">{err}</p>}
+      {msg && <p className="text-neon-green text-[10px] font-mono">{msg}</p>}
+      <div className="flex gap-2 pt-1">
+        <button
+          type="button"
+          onClick={() => { setShow(false); setErr(''); setMsg(''); setNewName(''); }}
+          className="flex-1 py-2 rounded-xl border border-white/10 text-white/30 font-mono text-xs hover:text-white/50 transition-all"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={!newName.trim() || loading}
+          className="flex-1 py-2 rounded-xl bg-neon-purple/20 border border-neon-purple/40 text-neon-purple font-mono text-xs disabled:opacity-40 hover:bg-neon-purple/30 transition-all"
+        >
+          {loading ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -324,6 +395,7 @@ export function SettingsPanel({ open, onClose }: Props) {
 
               {/* ── Account ───────────────────────────────────────────── */}
               <SectionHeader label="👤 Account" />
+              <ChangeNameSection />
               {hasEmail && <ChangePasswordSection />}
 
               {/* Reset all */}

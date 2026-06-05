@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { emitWithAck } from '@/lib/socket';
 import { ModBadge } from '@/components/ui/ModBadge';
+import { ReportModal } from '@/components/ui/ReportModal';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
+import { useGameStore } from '@/store/gameStore';
 import type { Res, PublicProfileFull, FriendshipStatus, PlayerRoleStats } from '@/types/index';
 
 interface Props {
@@ -72,8 +74,10 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
   const [data, setData] = useState<PublicProfileFull | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const myProfileId = useAuthStore(s => s.profile?.id);
   const { openDmWith } = useSocialStore();
+  const addToast = useGameStore(s => s.addToast);
 
   useEffect(() => {
     if (!playerId) { setData(null); return; }
@@ -118,14 +122,10 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
     onClose();
   };
 
-  const handleReport = async () => {
-    if (!playerId || !data) return;
-    const reason = prompt('Report reason (harassment, cheating, toxic_behavior, other):');
-    if (!reason) return;
-    await emitWithAck('player:report', { reportedId: playerId, reason, details: '' });
-  };
+  const room = useGameStore(s => s.room);
 
   return (
+    <>
     <AnimatePresence>
       {playerId && (
         <motion.div
@@ -365,7 +365,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       {/* ── Report + Close ──────────────────────── */}
                       <div className="flex gap-2 pb-1">
                         <button
-                          onClick={handleReport}
+                          onClick={() => setShowReport(true)}
                           className="flex-1 py-2 rounded-xl border border-white/5 text-white/20 hover:text-neon-red/50 hover:border-neon-red/20 font-mono text-[10px] transition-colors"
                         >
                           Report
@@ -386,5 +386,16 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
         </motion.div>
       )}
     </AnimatePresence>
+
+    {showReport && playerId && data && (
+      <ReportModal
+        targetProfileId={playerId}
+        targetName={data.profile.username}
+        roomId={room?.id ?? null}
+        onClose={() => setShowReport(false)}
+        onSuccess={msg => addToast(msg, 'success')}
+      />
+    )}
+    </>
   );
 }

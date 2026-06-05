@@ -482,14 +482,25 @@ export function ModDashboardPage() {
         {/* ── Reports ───────────────────────────────────────────── */}
         {tab === 'reports' && !loading && (
           <div className="space-y-3">
-            {/* Filter */}
+            {/* Filter tabs */}
             <div className="flex gap-1 flex-wrap">
-              {(['all', 'open', 'reviewing', 'resolved', 'rejected'] as const).map(f => (
-                <button key={f} onClick={() => setReportFilter(f)}
+              {([
+                { key: 'all',       label: 'All' },
+                { key: 'open',      label: 'Open' },
+                { key: 'reviewing', label: 'Reviewing' },
+                { key: 'resolved',  label: 'Resolved' },
+                { key: 'rejected',  label: 'Dismissed' },
+              ] as const).map(f => (
+                <button key={f.key} onClick={() => setReportFilter(f.key)}
                   className={`px-3 py-1 text-[10px] font-mono uppercase rounded-lg border transition-all ${
-                    reportFilter === f ? 'border-neon-green/40 bg-neon-green/10 text-neon-green' : 'border-white/10 text-white/30 hover:text-white/60'
+                    reportFilter === f.key ? 'border-neon-green/40 bg-neon-green/10 text-neon-green' : 'border-white/10 text-white/30 hover:text-white/60'
                   }`}>
-                  {f}
+                  {f.label}
+                  {f.key !== 'all' && (
+                    <span className="ml-1 opacity-60">
+                      ({reports.filter(r => r.status === f.key).length})
+                    </span>
+                  )}
                 </button>
               ))}
               <button onClick={loadReports} className="ml-auto text-neon-green/50 font-mono text-xs hover:text-neon-green transition-all">↻</button>
@@ -502,18 +513,34 @@ export function ModDashboardPage() {
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-sm font-mono truncate">
-                      <span className="text-neon-red">{r.reportedName}</span>
-                      <span className="text-white/25 mx-1">←</span>
-                      <span className="text-neon-cyan">{r.reporterName}</span>
+                      <span className="text-neon-red font-bold">{r.reportedName}</span>
+                      <span className="text-white/25 mx-1.5">reported by</span>
+                      <span className="text-neon-cyan/70">{r.reporterName}</span>
                     </p>
-                    <p className="text-white/30 text-xs font-mono">{r.reason.replace(/_/g, ' ')} · {new Date(r.createdAt).toLocaleDateString()}</p>
-                    {r.assignedModeratorId && <p className="text-white/20 text-xs font-mono">Assigned</p>}
+                    <p className="text-white/30 text-xs font-mono mt-0.5">
+                      {r.reason.replace(/_/g, ' ')} · {new Date(r.createdAt).toLocaleDateString()}
+                    </p>
+                    {r.assignedModeratorId && <p className="text-neon-cyan/40 text-[10px] font-mono mt-0.5">● Assigned</p>}
                   </div>
-                  <span className={`text-xs font-mono uppercase ml-2 flex-shrink-0 ${statusColor[r.status] ?? 'text-white/25'}`}>{r.status}</span>
+                  <span className={`text-[10px] font-mono uppercase ml-2 flex-shrink-0 px-2 py-0.5 rounded-lg border ${
+                    r.status === 'open' ? 'border-neon-red/30 text-neon-red bg-neon-red/8' :
+                    r.status === 'reviewing' ? 'border-yellow-400/30 text-yellow-400 bg-yellow-400/8' :
+                    r.status === 'resolved' ? 'border-neon-green/30 text-neon-green bg-neon-green/8' :
+                    'border-white/10 text-white/25 bg-white/3'
+                  }`}>
+                    {r.status === 'rejected' ? 'dismissed' : r.status}
+                  </span>
                 </div>
                 {r.details && <p className="text-white/40 text-xs font-mono mb-3 italic line-clamp-2">"{r.details}"</p>}
                 <div className="flex gap-1 flex-wrap">
-                  {r.status === 'open' && can(1) && (
+                  {/* Status progression actions */}
+                  {r.status === 'open' && (
+                    <button onClick={() => assignReport(r.id)}
+                      className="px-2 py-1 text-[10px] font-mono text-yellow-400 border border-yellow-400/30 rounded-lg hover:bg-yellow-400/10">
+                      Reviewing
+                    </button>
+                  )}
+                  {(r.status === 'open' || r.status === 'reviewing') && can(1) && (
                     <>
                       <button onClick={() => resolveReport(r.id, 'resolved')}
                         className="px-2 py-1 text-[10px] font-mono text-neon-green border border-neon-green/30 rounded-lg hover:bg-neon-green/10">
@@ -521,27 +548,22 @@ export function ModDashboardPage() {
                       </button>
                       <button onClick={() => resolveReport(r.id, 'rejected')}
                         className="px-2 py-1 text-[10px] font-mono text-white/30 border border-white/10 rounded-lg hover:text-white/60">
-                        Reject
+                        Dismiss
                       </button>
                     </>
                   )}
-                  {r.status === 'open' && (
-                    <button onClick={() => assignReport(r.id)}
-                      className="px-2 py-1 text-[10px] font-mono text-neon-blue border border-neon-blue/30 rounded-lg hover:bg-neon-blue/10">
-                      Assign me
-                    </button>
-                  )}
+                  {/* Player actions */}
                   <button onClick={() => openAction('warn', r.reportedPlayerId, r.reportedName)}
-                    className="px-2 py-1 text-[10px] font-mono text-yellow-400 border border-yellow-400/30 rounded-lg hover:bg-yellow-400/10 ml-auto">
+                    className="px-2 py-1 text-[10px] font-mono text-yellow-400/70 border border-yellow-400/20 rounded-lg hover:bg-yellow-400/10 ml-auto">
                     Warn
                   </button>
                   <button onClick={() => openAction('mute', r.reportedPlayerId, r.reportedName)}
-                    className="px-2 py-1 text-[10px] font-mono text-neon-pink border border-neon-pink/30 rounded-lg hover:bg-neon-pink/10">
+                    className="px-2 py-1 text-[10px] font-mono text-neon-pink/80 border border-neon-pink/25 rounded-lg hover:bg-neon-pink/10">
                     Mute
                   </button>
                   {can(1) && (
                     <button onClick={() => openAction('ban', r.reportedPlayerId, r.reportedName)}
-                      className="px-2 py-1 text-[10px] font-mono text-neon-red border border-neon-red/30 rounded-lg hover:bg-neon-red/10">
+                      className="px-2 py-1 text-[10px] font-mono text-neon-red/80 border border-neon-red/30 rounded-lg hover:bg-neon-red/10">
                       Ban
                     </button>
                   )}

@@ -24,6 +24,7 @@ interface AuthStore {
   register: (email: string, password: string, username: string) => Promise<void>;
   loginEmail: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  changeName: (newName: string) => Promise<{ ok: boolean; error?: string }>;
   uploadAvatar: (imageData: string) => Promise<{ ok: boolean; error?: string }>;
   removeAvatar: () => Promise<{ ok: boolean; error?: string }>;
   setLocalAvatar: (src: string | null) => void;
@@ -164,6 +165,22 @@ export const useAuthStore = create<AuthStore>((set, get) => {
       localStorage.removeItem(UID_KEY);
       localStorage.removeItem(NAME_KEY);
       set({ uid: null, username: null, profile: null, localAvatar: null, isAuthed: false });
+    },
+
+    changeName: async (newName: string) => {
+      try {
+        const res = await new Promise<any>((resolve) => {
+          (socket as any).emit('player:update_name', { newName }, resolve);
+        });
+        if (res.ok) {
+          localStorage.setItem(NAME_KEY, res.data.username);
+          set({ username: res.data.username, profile: res.data });
+          return { ok: true };
+        }
+        return { ok: false, error: res.error };
+      } catch (e: any) {
+        return { ok: false, error: e.message ?? 'Name change failed.' };
+      }
     },
 
     uploadAvatar: async (imageData: string) => {

@@ -28,7 +28,7 @@ import {
   addXP, getCosmetics, equipCosmetic,
   getLeaderboard, getPlayersFast,
   getPlayerByFriendCode, setGrantedModLevel,
-  updateAvatarUrl,
+  updateAvatarUrl, updateUsername,
 } from './services/playerService.js';
 import {
   markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend,
@@ -75,6 +75,30 @@ function rateOk(socketId: string, limit = 15): boolean {
   if (!r || now > r.resetAt) { rateLimits.set(socketId, { count: 1, resetAt: now + 1000 }); return true; }
   if (r.count >= limit) return false;
   r.count++; return true;
+}
+
+// ── Report rate limiting ──────────────────────────────────────────────
+// key: reporterId+targetId+reason → lastReportAt (ms)
+const reportCooldowns = new Map<string, number>();
+// key: reporterId → timestamps of last 10min reports
+const reportWindows = new Map<string, number[]>();
+
+function reportRateOk(reporterId: string, targetId: string, reason: string): { ok: boolean; error?: string } {
+  const now = Date.now();
+  const cooldownKey = `${reporterId}:${targetId}:${reason}`;
+  const lastReport = reportCooldowns.get(cooldownKey);
+  if (lastReport && now - lastReport < 60_000) {
+    return { ok: false, error: 'Please wait before reporting the same player for the same reason.' };
+  }
+  const windowKey = reporterId;
+  const window = (reportWindows.get(windowKey) ?? []).filter(t => now - t < 600_000);
+  if (window.length >= 5) {
+    return { ok: false, error: 'You are reporting too frequently. Please wait a few minutes.' };
+  }
+  reportCooldowns.set(cooldownKey, now);
+  window.push(now);
+  reportWindows.set(windowKey, window);
+  return { ok: true };
 }
 
 // ── Maintenance mode ─────────────────────────────────────────────────
@@ -165,7 +189,11 @@ const AuthSchema = z.object({
 const ReportSchema = z.object({
   targetProfileId: z.string().min(1),
   roomId: z.string().nullable(),
-  reason: z.enum(['harassment','hate_speech','cheating','spamming','inappropriate_nickname','inappropriate_chat','toxic_behavior','other']),
+  reason: z.enum([
+    'cheating','offensive_language','voice_abuse','spamming',
+    'inappropriate_nickname','harassment','game_sabotage','bug_abuse','other',
+    'hate_speech','inappropriate_chat','toxic_behavior',
+  ]),
   details: z.string().max(500).default(''),
 });
 
@@ -622,12 +650,46 @@ export function attachSocketHandlers(io: AppServer): void {
       }
     });
 
+    socket.on('player:update_name', async (data: { newName: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb({ ok: false, error: 'Not authenticated.' }); return; }
+        const { newName } = data;
+        if (!newName || typeof newName !== 'string') { cb({ ok: false, error: 'Invalid name.' }); return; }
+        const trimmed = newName.trim();
+        if (trimmed.length < 2 || trimmed.length > 20) { cb({ ok: false, error: 'Name must be 2–20 characters.' }); return; }
+        if (!/^[a-zA-Z0-9ა-ჿ _-]+$/.test(trimmed)) { cb({ ok: false, error: 'Name contains invalid characters.' }); return; }
+
+        await updateUsername(profileId, trimmed);
+        const profile = await getPlayer(profileId);
+        if (!profile) { cb({ ok: false, error: 'Profile not found.' }); return; }
+
+        // Update in-room player names
+        for (const room of getAllRooms()) {
+          const player = getPlayerByProfile(room, profileId);
+          if (player) {
+            player.name = trimmed;
+            broadcastRoom(io, room);
+          }
+        }
+
+        socket.emit('player:profile', toPublicProfile(profile));
+        cb({ ok: true, data: toPublicProfile(profile) });
+      } catch (e: any) {
+        cb({ ok: false, error: e.message ?? 'Name change failed.' });
+      }
+    });
+
     // ── Report ───────────────────────────────────────────────────────
     socket.on('player:report', async (data, cb) => {
       try {
         const parsed = ReportSchema.parse(data);
         const reporterProfileId = socket.data.profileId;
         if (!reporterProfileId) throw new Error('Not authenticated.');
+        if (parsed.targetProfileId === reporterProfileId) throw new Error('You cannot report yourself.');
+
+        const rateCheck = reportRateOk(reporterProfileId, parsed.targetProfileId, parsed.reason);
+        if (!rateCheck.ok) throw new Error(rateCheck.error);
 
         const reporter = await getPlayer(reporterProfileId);
         const reported = await getPlayer(parsed.targetProfileId);

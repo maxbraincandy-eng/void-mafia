@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
 import { useSocialStore } from '@/store/socialStore';
+import { useAuthStore } from '@/store/authStore';
 import { useT } from '@/store/langStore';
 import { Button } from '@/components/ui/Button';
 import { Avatar } from '@/components/ui/Avatar';
@@ -11,6 +12,7 @@ import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { RolePickerPanel } from '@/components/lobby/RolePickerPanel';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
+import { ModDashboardPage } from '@/pages/ModDashboardPage';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
 
 const SURFACE = 'rounded-2xl border border-white/[0.06]';
@@ -35,10 +37,12 @@ export function LobbyPage() {
   }));
 
   const { openProfile, openDmList, unreadDmCount } = useSocialStore();
+  const isMod = useAuthStore(s => s.profile?.isModerator ?? false);
 
   const handleLeave = () => { voice.leaveVoice(); leaveRoom(); };
   const [showSettings, setShowSettings] = useState(false);
   const [showRoleGuide, setShowRoleGuide] = useState(false);
+  const [showModPanel, setShowModPanel] = useState(false);
   const [copied, setCopied] = useState(false);
   const [shared, setShared] = useState(false);
   const [confirmTransferId, setConfirmTransferId] = useState<string | null>(null);
@@ -142,10 +146,25 @@ export function LobbyPage() {
             </div>
           </div>
 
+          <div className="flex items-center gap-2 self-start mt-0.5 flex-shrink-0">
+          {/* Mod button */}
+          {isMod && (
+            <button
+              onClick={() => setShowModPanel(true)}
+              className="p-2 rounded-xl transition-colors"
+              style={{ border: '1px solid rgba(0,229,255,0.25)', color: 'rgba(0,229,255,0.7)', background: 'rgba(0,229,255,0.06)' }}
+              title="Mod Panel"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              </svg>
+            </button>
+          )}
           {/* Messages button */}
           <button
             onClick={openDmList}
-            className="relative p-2 rounded-xl transition-colors flex-shrink-0 self-start mt-0.5"
+            className="relative p-2 rounded-xl transition-colors"
             style={{ border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.28)' }}
             onMouseEnter={e => {
               (e.currentTarget as HTMLElement).style.borderColor = 'rgba(138,43,226,0.3)';
@@ -169,6 +188,7 @@ export function LobbyPage() {
               </span>
             )}
           </button>
+          </div>
 
           {/* Room code */}
           <div className="text-right shrink-0">
@@ -585,6 +605,30 @@ export function LobbyPage() {
       </div>
 
       <RoleInfoModal open={showRoleGuide} onClose={() => setShowRoleGuide(false)} />
+
+      {/* Mod panel overlay */}
+      <AnimatePresence>
+        {showModPanel && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[400] overflow-y-auto"
+            style={{ background: 'rgba(6,3,18,0.97)' }}
+          >
+            <div className="relative">
+              <button
+                onClick={() => setShowModPanel(false)}
+                className="fixed top-4 right-4 z-[401] w-9 h-9 rounded-full flex items-center justify-center font-mono text-white/50 hover:text-white/90 transition-colors"
+                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}
+              >
+                ✕
+              </button>
+              <ModDashboardPage />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

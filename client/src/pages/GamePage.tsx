@@ -36,6 +36,8 @@ import { TutorialOverlay } from '@/components/ui/TutorialOverlay';
 import { InGamePlayersPanel } from '@/components/game/InGamePlayersPanel';
 import { useT } from '@/store/langStore';
 import { useSocialStore } from '@/store/socialStore';
+import { useAuthStore } from '@/store/authStore';
+import { ModDashboardPage } from '@/pages/ModDashboardPage';
 
 type RightTab = 'events' | 'chat';
 
@@ -89,6 +91,8 @@ function getPhaseSubtitle(phase: Phase, day: number, currentSpeakerName?: string
 export function GamePage() {
   const [reportProfileId, setReportProfileId] = useState<string | null>(null);
   const [showPlayersPanel, setShowPlayersPanel] = useState(false);
+  const [showModPanel, setShowModPanel] = useState(false);
+  const isMod = useAuthStore(s => s.profile?.isModerator ?? false);
   const { openProfile } = useSocialStore();
   const [rightTab, setRightTab] = useState<RightTab>('events');
   const [unreadChat, setUnreadChat] = useState(0);
@@ -1159,6 +1163,16 @@ export function GamePage() {
                 </Button>
               )}
 
+              {isMod && (
+                <button
+                  onClick={() => setShowModPanel(true)}
+                  className="px-2 py-1 rounded-lg text-[11px] font-mono transition-all"
+                  style={{ border: '1px solid rgba(0,229,255,0.3)', color: 'rgba(0,229,255,0.8)', background: 'rgba(0,229,255,0.06)' }}
+                  title="Mod Panel"
+                >
+                  ⚡
+                </button>
+              )}
               <Button size="sm" variant="ghost" onClick={() => setShowMoreMenu(true)}>
                 {t.game.header.leave}
               </Button>
@@ -1535,12 +1549,36 @@ export function GamePage() {
           targetName={room.players.find(p => p.profileId === reportProfileId)?.name ?? ''}
           roomId={room.id}
           onClose={() => setReportProfileId(null)}
-          onSuccess={() => setReportProfileId(null)}
+          onSuccess={msg => { addToast(msg, 'success'); setReportProfileId(null); }}
         />
       )}
 
       <VoteRevealScreen breakdown={voteBreakdown} onDismiss={dismissVoteBreakdown} />
       <TutorialOverlay />
+
+      {/* Mod panel overlay */}
+      <AnimatePresence>
+        {showModPanel && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[400] overflow-y-auto"
+            style={{ background: 'rgba(6,3,18,0.97)' }}
+          >
+            <div className="relative">
+              <button
+                onClick={() => setShowModPanel(false)}
+                className="fixed top-4 right-4 z-[401] w-9 h-9 rounded-full flex items-center justify-center font-mono text-white/50 hover:text-white/90 transition-colors"
+                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}
+              >
+                ✕
+              </button>
+              <ModDashboardPage />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

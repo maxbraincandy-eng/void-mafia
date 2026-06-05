@@ -35,14 +35,18 @@ export type TieRule = 'no_elimination' | 'random';
 export type ChatChannel = 'room' | 'mafia' | 'dead';
 export type ModeratorLevel = 'moderator' | 'senior_moderator' | 'admin' | 'owner';
 export type ReportReason =
-  | 'harassment'
-  | 'hate_speech'
   | 'cheating'
+  | 'offensive_language'
+  | 'voice_abuse'
   | 'spamming'
   | 'inappropriate_nickname'
+  | 'harassment'
+  | 'game_sabotage'
+  | 'bug_abuse'
+  | 'other'
+  | 'hate_speech'
   | 'inappropriate_chat'
-  | 'toxic_behavior'
-  | 'other';
+  | 'toxic_behavior';
 export type ModActionType =
   | 'kick'
   | 'ban'
@@ -702,6 +706,7 @@ export interface ClientToServerEvents {
   // Avatar
   'player:update_avatar':  (data: { imageData: string }, cb: (res: any) => void) => void;
   'player:remove_avatar':  (cb: (res: any) => void) => void;
+  'player:update_name':    (data: { newName: string }, cb: (res: any) => void) => void;
 }
 
 export interface InterServerEvents {}

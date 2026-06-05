@@ -549,3 +549,11 @@ export async function updateAvatarUrl(uid: string, url: string | null): Promise<
     WHERE id = ${uid}
   `;
 }
+
+export async function updateUsername(uid: string, newName: string): Promise<void> {
+  await sql`
+    UPDATE players
+    SET username = ${newName}
+    WHERE id = ${uid}
+  `;
+}

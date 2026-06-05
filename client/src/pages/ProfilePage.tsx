@@ -604,7 +604,7 @@ export function ProfilePage() {
           </button>
           <button onClick={logout}
             className="w-full py-3 border border-neon-red/30 text-neon-red font-display font-bold tracking-widest rounded-xl hover:bg-neon-red/10 transition-all text-sm">
-            Change Name / Logout
+            Log Out
           </button>
         </div>
       </div>

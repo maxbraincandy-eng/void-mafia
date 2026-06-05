@@ -528,4 +528,11 @@ export async function updateAvatarUrl(uid, url) {
     WHERE id = ${uid}
   `;
 }
+export async function updateUsername(uid, newName) {
+    await sql `
+    UPDATE players
+    SET username = ${newName}
+    WHERE id = ${uid}
+  `;
+}
 //# sourceMappingURL=playerService.js.map

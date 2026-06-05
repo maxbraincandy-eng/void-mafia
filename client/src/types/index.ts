@@ -37,14 +37,18 @@ export type TieRule = 'no_elimination' | 'random';
 export type ChatChannel = 'room' | 'mafia' | 'dead';
 export type ModeratorLevel = 'moderator' | 'senior_moderator' | 'admin' | 'owner';
 export type ReportReason =
-  | 'harassment'
-  | 'hate_speech'
   | 'cheating'
+  | 'offensive_language'
+  | 'voice_abuse'
   | 'spamming'
   | 'inappropriate_nickname'
+  | 'harassment'
+  | 'game_sabotage'
+  | 'bug_abuse'
+  | 'other'
+  | 'hate_speech'
   | 'inappropriate_chat'
-  | 'toxic_behavior'
-  | 'other';
+  | 'toxic_behavior';
 
 export interface Role {
   key: RoleKey;
