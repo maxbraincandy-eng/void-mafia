@@ -2,19 +2,16 @@
  * Build RTCConfiguration.
  *
  * Policy 'all': browser tries direct P2P first, falls back to TURN relay.
- * This works for WiFi-to-WiFi (direct) and helps mobile CGNAT users via relay.
- *
- * For mobile CGNAT users the TURN relay candidates are gathered alongside
- * direct candidates. Browser negotiates the best available path.
- *
- * Custom TURN via Railway env vars:
- *   VITE_TURN_URL, VITE_TURN_USERNAME, VITE_TURN_CREDENTIAL
  */
 export function getRTCConfig(): RTCConfiguration {
   const iceServers: RTCIceServer[] = [
-    // STUN
+    // STUN Servers - for better NAT discovery
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+    
     // TURN relay — fallback for CGNAT / mobile networks
     {
       urls: [
@@ -48,10 +45,9 @@ export function getRTCConfig(): RTCConfiguration {
 
   return {
     iceServers,
-    // 'all' = try direct P2P first, relay as fallback.
-    // 'relay' was causing failures because it depends entirely on
-    // the free public TURN server being available and fast.
+    // 'all' allows direct P2P connection (host) or TURN relay (relay)
     iceTransportPolicy: 'all',
-    iceCandidatePoolSize: 10,
+    // 0 is safer for mobile networks to prevent pre-connection failures
+    iceCandidatePoolSize: 0, 
   };
 }
