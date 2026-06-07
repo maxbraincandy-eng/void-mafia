@@ -1,73 +1,30 @@
 /**
  * Build RTCConfiguration.
- *
- * Policy 'all': browser tries direct P2P first, falls back to TURN relay.
+ * * გამოიყენება მყარი (Hardcoded) კონფიგურაცია, რათა თავიდან ავიცილოთ
+ * გარემოს ცვლადებთან (ENV variables) დაკავშირებული ბილდ-შეცდომები.
  */
 export function getRTCConfig(): RTCConfiguration {
   const iceServers: RTCIceServer[] = [
-    // STUN Servers - for better NAT discovery
+    // STUN სერვერები NAT-ის აღმოსაჩენად
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
     
-    // TURN relay — fallback for CGNAT / mobile networks
+    // TURN სერვერი მობილური ქსელებისთვის (მაგთი/სილქნეტი/ჯეოსელი)
     {
-      urls: [
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp',
-      ],
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
-    {
-      urls: [
-        'turn:global.relay.metered.ca:80',
-        'turn:global.relay.metered.ca:443',
-        'turn:global.relay.metered.ca:443?transport=tcp',
-      ],
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
+      urls: 'turn:numb.viagenie.ca',
+      username: 'webrtc@live.com',
+      credential: 'muazurkiglesi'
+    }
   ];
-
-  // Custom TURN via env vars — prepended so browser tries it first
-  const turnUrl = import.meta.env.VITE_TURN_URL;
-  if (turnUrl) {
-    iceServers.unshift({
-      urls: turnUrl,
-      username: import.meta.env.VITE_TURN_USERNAME ?? '',
-      credential: import.meta.env.VITE_TURN_CREDENTIAL ?? '',
-    });
-  }
 
   return {
     iceServers,
-    // 'all' allows direct P2P connection (host) or TURN relay (relay)
+    // 'all' ნიშნავს, რომ ბრაუზერი სცდის P2P-ს, ხოლო თუ არ გამოვიდა - გადაერთვება TURN-ზე
     iceTransportPolicy: 'all',
-    // 0 is safer for mobile networks to prevent pre-connection failures
-    iceCandidatePoolSize: 0, 
-  };
-}
-
-export function getRTCConfig(): RTCConfiguration {
-  return {
-    iceServers: [
-      // Google-ის STUN სერვერები
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-      
-      // TURN სერვერი პირდაპირ კოდში (გარანტირებული მუშაობისთვის)
-      {
-        urls: 'turn:numb.viagenie.ca',
-        username: 'webrtc@live.com',
-        credential: 'muazurkiglesi'
-      }
-    ],
-    iceTransportPolicy: 'all',
+    // 0 არის უფრო უსაფრთხო მობილური ქსელებისთვის
     iceCandidatePoolSize: 0,
-  };
+  } as RTCConfiguration;
 }
-
