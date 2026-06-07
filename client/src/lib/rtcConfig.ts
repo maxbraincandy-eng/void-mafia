@@ -51,3 +51,23 @@ export function getRTCConfig(): RTCConfiguration {
     iceCandidatePoolSize: 0, 
   };
 }
+
+export function getRTCConfig(): RTCConfiguration {
+  return {
+    iceServers: [
+      // Google-ის STUN სერვერები
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      
+      // TURN სერვერი პირდაპირ კოდში (გარანტირებული მუშაობისთვის)
+      {
+        urls: 'turn:numb.viagenie.ca',
+        username: 'webrtc@live.com',
+        credential: 'muazurkiglesi'
+      }
+    ],
+    iceTransportPolicy: 'all',
+    iceCandidatePoolSize: 0,
+  };
+}
+
