@@ -1,1249 +1,1234 @@
-<!doctype html>
-<html lang="ka">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"/>
-  <title>VOID MAFIA</title>
-  <script src="/socket.io/socket.io.js"></script>
-  <style>
-@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap');
-
-:root{
-  --bg:#03000b;
-  --panel:rgba(6,1,18,.96);
-  --cyan:#00f5ff;
-  --pink:#ff00cc;
-  --purple:#8b00ff;
-  --green:#00ff88;
-  --danger:#ff1654;
-  --text:#ffffff;
-  --muted:#9370bb;
-  --line:rgba(0,245,255,.12);
-  --glow-c:0 0 20px rgba(0,245,255,.55),0 0 50px rgba(0,245,255,.15);
-  --glow-p:0 0 20px rgba(255,0,204,.55),0 0 50px rgba(255,0,204,.15);
-  --card-bg:rgba(6,2,20,.93);
-  --radius:18px;
-  --bottom:72px;
-}
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
-html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:'Rajdhani',system-ui,sans-serif;font-weight:500;overflow-x:hidden}
-
-/* animated neon grid — diagonal scroll */
-body::before{
-  content:"";position:fixed;inset:0;z-index:-3;
-  background:
-    linear-gradient(rgba(0,245,255,.035) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(0,245,255,.035) 1px,transparent 1px),
-    radial-gradient(ellipse at 15% 0%,rgba(255,0,204,.2),transparent 48%),
-    radial-gradient(ellipse at 85% 5%,rgba(0,245,255,.16),transparent 48%),
-    radial-gradient(ellipse at 50% 95%,rgba(139,0,255,.18),transparent 48%),
-    #03000b;
-  background-size:50px 50px,50px 50px,100% 100%,100% 100%,100% 100%;
-  animation:gridScroll 28s linear infinite;
-}
-@keyframes gridScroll{to{background-position:50px 50px,50px 50px,0 0,0 0,0 0}}
-
-/* scanlines */
-body::after{
-  content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
-  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.1) 3px,rgba(0,0,0,.1) 4px);
-}
-
-button,input,select{font:inherit}
-button{border:0;color:var(--text);cursor:pointer;outline:none;touch-action:manipulation;transition:.18s;min-height:48px}
-button:active{transform:scale(.95)}
-.hidden{display:none!important}
-
-/* brand */
-.brand{
-  position:sticky;top:0;z-index:50;
-  text-align:center;padding:8px 12px;
-  font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;
-  color:var(--pink);text-shadow:var(--glow-p);
-  background:linear-gradient(90deg,rgba(139,0,255,.2),rgba(255,0,204,.12),rgba(0,245,255,.1),rgba(139,0,255,.2));
-  border-bottom:1px solid rgba(255,0,204,.3);
-  animation:brandPulse 4s ease-in-out infinite;
-}
-@keyframes brandPulse{0%,100%{opacity:.8}50%{opacity:1;text-shadow:0 0 30px var(--pink),0 0 70px rgba(255,0,204,.35)}}
-
-/* top header */
-.top{
-  position:sticky;top:30px;z-index:40;
-  display:grid;grid-template-columns:52px 1fr 52px;align-items:center;gap:8px;
-  padding:10px 14px;
-  background:rgba(3,0,11,.92);backdrop-filter:blur(22px);
-  border-bottom:1px solid var(--line);
-}
-.top h1{margin:0;text-align:center;font-size:clamp(24px,7vw,36px);font-weight:700;letter-spacing:2px;color:var(--cyan);text-shadow:var(--glow-c);text-transform:uppercase}
-.top p{margin:3px 0 0;text-align:center;color:var(--muted);font-size:12px;letter-spacing:.5px}
-
-.iconbtn{width:48px;height:48px;padding:0;border-radius:14px;font-size:20px;display:grid;place-items:center;background:rgba(0,245,255,.05);border:1px solid rgba(0,245,255,.2)}
-.iconbtn:hover{border-color:var(--cyan);box-shadow:var(--glow-c)}
-
-/* primary button */
-.primary{
-  background:linear-gradient(135deg,var(--pink),var(--purple),var(--cyan));
-  color:#fff;font-weight:700;letter-spacing:1px;text-transform:uppercase;
-  border:0;border-radius:var(--radius);padding:15px 20px;
-  box-shadow:0 4px 22px rgba(139,0,255,.4),inset 0 1px 0 rgba(255,255,255,.12);
-}
-.primary:hover{box-shadow:0 6px 32px rgba(255,0,204,.5),inset 0 1px 0 rgba(255,255,255,.15)}
-
-.danger{background:rgba(255,22,84,.1)!important;border:1px solid rgba(255,22,84,.45)!important;color:var(--danger)!important;border-radius:var(--radius);padding:15px 20px}
-
-/* default buttons */
-button:not(.primary):not(.danger):not(.iconbtn):not(.drawerClose){
-  background:rgba(0,245,255,.04);border:1px solid rgba(0,245,255,.18);
-  border-radius:var(--radius);padding:14px 16px;letter-spacing:.5px;
-}
-button:not(.primary):not(.danger):not(.iconbtn):not(.drawerClose):hover{border-color:var(--cyan);box-shadow:0 0 16px rgba(0,245,255,.2)}
-
-input,select{
-  display:block;width:100%;padding:15px 18px;
-  border-radius:var(--radius);border:1px solid rgba(255,0,204,.35);
-  background:rgba(3,0,11,.8);color:var(--text);outline:none;font-size:16px;letter-spacing:.3px;
-  transition:.2s;
-}
-input:focus,select:focus{border-color:var(--cyan);box-shadow:var(--glow-c),inset 0 0 18px rgba(0,245,255,.04)}
-input::placeholder{color:var(--muted)}
-select option{background:#0a0118}
-
-.wrap{padding:16px 16px calc(var(--bottom)+24px);max-width:700px;margin:0 auto}
-.row{display:flex;gap:10px;align-items:center}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-
-/* animated gradient border cards */
-.card{
-  background:var(--card-bg);
-  border-radius:22px;padding:22px;margin:14px 0;
-  box-shadow:0 0 28px rgba(0,245,255,.05),inset 0 0 40px rgba(139,0,255,.03);
-  backdrop-filter:blur(12px);
-  position:relative;
-}
-.card::before{
-  content:"";position:absolute;inset:-1px;border-radius:23px;z-index:-1;
-  background:linear-gradient(var(--grad-angle,135deg),var(--cyan),var(--pink),var(--purple),var(--cyan));
-  background-size:300% 300%;
-  animation:gradBorder 6s ease infinite;
-  opacity:.18;
-}
-@keyframes gradBorder{0%{background-position:0% 50%;--grad-angle:135deg}50%{background-position:100% 50%;--grad-angle:225deg}100%{background-position:0% 50%;--grad-angle:135deg}}
-.card h2{font-size:clamp(20px,6vw,28px);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:14px;color:var(--cyan);text-shadow:0 0 18px rgba(0,245,255,.45)}
-.sub{color:var(--muted);font-size:13px;letter-spacing:.3px}
-
-/* bottom tabs */
-.tabs{
-  position:fixed;left:0;right:0;bottom:0;z-index:60;height:var(--bottom);
-  display:grid;grid-template-columns:repeat(4,1fr);
-  background:rgba(3,0,10,.97);border-top:1px solid rgba(0,245,255,.12);
-  padding:6px 6px max(8px,env(safe-area-inset-bottom));backdrop-filter:blur(24px);
-}
-.tabs button{
-  background:transparent!important;border:0!important;box-shadow:none!important;
-  border-radius:12px!important;color:var(--muted)!important;padding:5px!important;
-  font-size:10px!important;font-weight:700!important;letter-spacing:1px!important;
-  text-transform:uppercase!important;min-height:auto!important;
-  display:flex!important;flex-direction:column!important;align-items:center!important;gap:2px!important;
-}
-.tabs button .tab-icon{font-size:20px;line-height:1}
-.tabs button.active{color:var(--cyan)!important;text-shadow:var(--glow-c)!important;background:rgba(0,245,255,.07)!important}
-
-/* auth */
-.auth{min-height:100vh;display:grid;place-items:center;padding:20px;padding-bottom:50px}
-.authbox{width:min(500px,100%);text-align:center}
-.logo{font-size:88px;animation:logoPulse 3s ease-in-out infinite;display:block;margin-bottom:8px}
-@keyframes logoPulse{0%,100%{filter:drop-shadow(0 0 24px var(--cyan)) drop-shadow(0 0 60px rgba(255,0,204,.5))}50%{filter:drop-shadow(0 0 52px var(--cyan)) drop-shadow(0 0 100px rgba(255,0,204,.8))}}
-.authbox h1{font-size:clamp(42px,12vw,68px);font-weight:700;letter-spacing:8px;text-transform:uppercase;color:var(--cyan);text-shadow:var(--glow-c),0 0 80px rgba(0,245,255,.3);margin-bottom:26px}
-.authbox .card{text-align:left}
-
-.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:18px}
-.seg button{padding:11px 6px!important;font-size:12px!important;font-weight:700!important;letter-spacing:1px!important;text-transform:uppercase!important;border-radius:12px!important;background:rgba(0,0,0,.3)!important;border:1px solid rgba(0,245,255,.12)!important;color:var(--muted)!important;min-height:44px!important}
-.seg button.active{background:linear-gradient(135deg,rgba(255,0,204,.28),rgba(139,0,255,.28))!important;border-color:var(--pink)!important;color:#fff!important;box-shadow:0 0 18px rgba(255,0,204,.25)!important}
-
-.page{display:none}
-.page.active{display:block;animation:pageIn .28s ease}
-@keyframes pageIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-
-/* rooms */
-.room{display:grid;grid-template-columns:54px 1fr auto;gap:12px;align-items:center;padding:14px;border-radius:16px;background:rgba(0,245,255,.025);border:1px solid rgba(0,245,255,.09);margin:10px 0;transition:.2s}
-.room:hover{border-color:rgba(0,245,255,.28);background:rgba(0,245,255,.04)}
-.room h3{margin:0 0 4px;font-size:17px;font-weight:700;letter-spacing:.3px}
-.room p{margin:0;color:var(--muted);font-size:12px}
-.room button{min-width:64px;min-height:44px;padding:10px 12px!important;font-size:12px!important;font-weight:700!important;border-radius:12px!important}
-
-.pic,.avatar{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,var(--pink),var(--purple),var(--cyan));color:#fff;font-size:22px;box-shadow:0 0 18px rgba(139,0,255,.35);flex-shrink:0}
-.badge{display:inline-flex;align-items:center;border:1px solid rgba(0,245,255,.35);border-radius:999px;color:var(--cyan);font-size:10px;font-weight:700;padding:3px 9px;letter-spacing:1px;text-transform:uppercase;margin-top:5px}
-
-.item{display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;padding:13px 0;border-bottom:1px solid rgba(255,255,255,.05)}
-.item h3{margin:0 0 3px;font-size:16px;font-weight:700}
-.item p{margin:0;color:var(--muted);font-size:12px}
-
-/* drawer */
-.drawer{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.65);display:none;backdrop-filter:blur(5px)}
-.drawer.open{display:block}
-.drawerPanel{width:min(82vw,340px);height:100%;overflow-y:auto;background:linear-gradient(180deg,rgba(8,2,24,.99),rgba(3,0,14,.99));border-right:1px solid rgba(0,245,255,.18);box-shadow:0 0 60px rgba(0,245,255,.18);padding:22px 18px;animation:drawerIn .22s ease}
-@keyframes drawerIn{from{transform:translateX(-100%)}to{transform:none}}
-.drawerPanel .avatar{width:66px;height:66px;font-size:26px;margin-bottom:10px}
-.drawerPanel h2{font-size:22px;font-weight:700;letter-spacing:1px;color:var(--cyan);text-shadow:var(--glow-c);margin-bottom:2px}
-.drawerPanel button{width:100%!important;text-align:left!important;margin:5px 0!important;background:rgba(0,245,255,.035)!important;border:1px solid rgba(0,245,255,.1)!important;border-radius:13px!important;padding:13px 15px!important;color:var(--text)!important;font-size:14px!important;font-weight:600!important;letter-spacing:.3px!important;min-height:48px!important}
-.drawerPanel button:hover{border-color:rgba(0,245,255,.35)!important;box-shadow:0 0 14px rgba(0,245,255,.15)!important}
-.drawerPanel button.danger{border-color:rgba(255,22,84,.35)!important;color:var(--danger)!important;background:rgba(255,22,84,.05)!important}
-.drawerClose{width:42px!important;height:42px!important;border-radius:12px!important;padding:0!important;float:right;font-size:18px!important;text-align:center;min-height:42px!important}
-
-/* game top */
-.gameTop{position:sticky;top:30px;z-index:50;background:rgba(3,0,11,.96);backdrop-filter:blur(22px);border-bottom:1px solid rgba(0,245,255,.12);padding:10px 14px}
-.gameHud{display:grid;grid-template-columns:auto 1fr auto auto;gap:8px;align-items:center}
-.gameHud h2{font-size:20px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--cyan);text-shadow:var(--glow-c)}
-.gameHud p{font-size:12px;color:var(--muted);margin-top:2px}
-.gameHud button{padding:9px 12px!important;border-radius:11px!important;font-size:12px!important;font-weight:700!important;min-height:44px}
-#timer{font-family:'Share Tech Mono',monospace;font-size:22px;color:var(--green);text-shadow:0 0 20px rgba(0,255,136,.6);letter-spacing:2px}
-.gameTop .row{margin-top:8px;justify-content:center;gap:14px}
-
-/* players list */
-.players .player{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;padding:12px;border-radius:14px;background:rgba(0,245,255,.02);border:1px solid rgba(0,245,255,.07);margin:6px 0;transition:.25s}
-.player.dead{opacity:.3;filter:grayscale(.9)}
-.player b{font-size:15px;font-weight:700;letter-spacing:.3px}
-.player small{color:var(--muted);font-size:11px}
-.player button{padding:7px 10px!important;font-size:11px!important;border-radius:9px!important;min-height:40px}
-/* animated speaking indicator */
-.speakerPulse{animation:speakPulse .9s ease-in-out infinite!important;border-color:var(--green)!important}
-@keyframes speakPulse{0%,100%{box-shadow:0 0 8px rgba(0,255,136,.3)}50%{box-shadow:0 0 30px rgba(0,255,136,.7),0 0 50px rgba(0,255,136,.2)}}
-
-/* modals */
-.modal{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.78);display:grid;place-items:end center;padding:12px;backdrop-filter:blur(8px)}
-.modalBox{width:min(640px,100%);max-height:86vh;overflow-y:auto;background:rgba(5,1,16,.99);border:1px solid rgba(0,245,255,.28);border-radius:24px;padding:20px;box-shadow:var(--glow-c),0 20px 60px rgba(0,0,0,.6);animation:modalIn .22s ease}
-@keyframes modalIn{from{transform:translateY(18px);opacity:0}to{transform:none;opacity:1}}
-.modalBox h2{font-size:20px;font-weight:700;letter-spacing:1px;color:var(--cyan);text-shadow:var(--glow-c);margin-bottom:14px}
-.modalBox>[data-close]{float:right;width:38px!important;height:38px!important;min-height:38px!important;padding:0!important;border-radius:10px!important;font-size:17px!important;background:rgba(255,22,84,.08)!important;border-color:rgba(255,22,84,.25)!important;color:var(--danger)!important;margin-bottom:6px}
-
-/* chat */
-.chatMessages{height:260px;max-height:40vh;overflow-y:auto;scroll-behavior:smooth;background:rgba(0,0,0,.28);border-radius:13px;padding:10px;margin-bottom:10px;border:1px solid rgba(0,245,255,.08)}
-.msg{padding:7px 0;border-bottom:1px solid rgba(255,255,255,.055);font-size:13px;line-height:1.4}
-.msg b{color:var(--cyan);font-size:13px}
-
-/* lobby chat panel */
-#lobbyChatPanel{margin:14px 0}
-#lobbyChatPanel .chatMessages{height:200px}
-
-/* roles */
-.roleCard{display:grid;grid-template-columns:46px 1fr auto;gap:10px;align-items:center;padding:11px;border:1px solid rgba(255,255,255,.07);border-radius:13px;margin:7px 0;background:rgba(0,0,0,.2);transition:.2s}
-.roleCard.active{border-color:rgba(0,245,255,.25);background:rgba(0,245,255,.035)}
-.roleCard input{width:68px;padding:10px!important;text-align:center}
-
-/* video grid */
-.videoGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
-.tile{position:relative;height:128px;border:1px solid rgba(0,245,255,.28);border-radius:16px;overflow:hidden;background:radial-gradient(circle at 50% 40%,rgba(0,245,255,.055),rgba(0,0,0,.97) 60%);transition:.25s}
-.tile video{width:100%;height:100%;object-fit:cover;display:block}
-.tile.camOff video,.tile.empty video{display:none}
-.tile .label{position:absolute;left:7px;bottom:7px;right:7px;padding:5px 7px;border-radius:8px;background:rgba(0,0,0,.66);font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tile .mediaState{position:absolute;top:6px;right:6px;display:flex;gap:3px;font-size:11px}
-.tile.speaking{border-color:var(--green)!important;box-shadow:0 0 24px rgba(0,255,136,.5)!important}
-
-/* action box */
-.noAction{padding:14px;border:1px dashed rgba(0,245,255,.18);border-radius:14px;color:var(--muted);font-size:13px}
-.targets button{width:100%!important;margin:6px 0!important;text-align:left!important;padding:13px 16px!important;font-size:14px!important;border-radius:13px!important}
-
-/* toast */
-#toast{position:fixed!important;left:14px!important;right:14px!important;bottom:calc(var(--bottom) + 10px)!important;z-index:9999!important;opacity:0!important;pointer-events:none!important;transform:translateY(10px)!important;transition:.2s ease!important;background:transparent!important;font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:.5px}
-#toast.show{opacity:1!important;transform:none!important;padding:12px 16px!important;background:rgba(5,1,16,.97)!important;border:1px solid rgba(0,245,255,.55)!important;border-radius:14px!important;color:#fff!important;box-shadow:var(--glow-c)!important;font-size:14px!important}
-body.gameActive #toast{bottom:calc(14px + env(safe-area-inset-bottom))!important}
-
-/* glitch overlay */
-#glitchOverlay{position:fixed;inset:0;z-index:9998;pointer-events:none;opacity:0}
-#glitchOverlay.active{animation:glitchFlash .32s forwards}
-@keyframes glitchFlash{
-  0%{opacity:0}
-  12%{opacity:1;background:rgba(255,0,204,.11);clip-path:inset(10% 0 72% 0);transform:translateX(5px)}
-  28%{background:rgba(0,245,255,.09);clip-path:inset(66% 0 8% 0);transform:translateX(-4px)}
-  48%{background:rgba(139,0,255,.07);clip-path:inset(33% 0 42% 0);transform:translateX(3px)}
-  72%{background:rgba(255,0,204,.05);clip-path:inset(78% 0 4% 0);transform:none}
-  100%{opacity:0}
-}
-
-/* glitch text */
-.glitchTitle{position:relative;animation:glitchShift 5.5s infinite}
-.glitchTitle::before,.glitchTitle::after{content:attr(data-text);position:absolute;inset:0;opacity:.5;pointer-events:none}
-.glitchTitle::before{color:var(--pink);clip-path:inset(0 0 55% 0);transform:translateX(2px);animation:gA 5.5s infinite}
-.glitchTitle::after{color:var(--cyan);clip-path:inset(50% 0 0 0);transform:translateX(-2px);animation:gB 5.5s infinite}
-@keyframes glitchShift{0%,88%,100%{transform:none}91%{transform:skewX(4deg)}94%{transform:skewX(-2deg)}}
-@keyframes gA{0%,88%,100%{transform:translateX(2px)}91%{transform:translateX(-5px) skewX(6deg)}94%{transform:translateX(2px)}}
-@keyframes gB{0%,88%,100%{transform:translateX(-2px)}92%{transform:translateX(5px) skewX(-6deg)}95%{transform:translateX(-2px)}}
-
-.notifyHot{border-color:var(--danger)!important;color:var(--danger)!important;animation:hotPulse 1s infinite!important}
-@keyframes hotPulse{0%,100%{box-shadow:0 0 7px rgba(255,22,84,.3)}50%{box-shadow:0 0 24px rgba(255,22,84,.7)}}
-
-/* profile */
-#profileAvatar{width:96px;height:96px;font-size:34px;margin:0 auto 14px;display:grid;place-items:center}
-#profileName{font-size:24px;font-weight:700;text-align:center;color:var(--cyan);text-shadow:var(--glow-c);margin-bottom:4px}
-
-/* game active */
-body.gameActive .brand{height:26px;padding:4px 10px;font-size:9px}
-body.gameActive .wrap{padding:8px 12px 155px}
-body.gameActive .gameTop{top:26px}
-body.gameActive #gameInfoCard{display:none}
-
-/* game over overlay */
-#gameOverlay{
-  position:fixed;inset:0;z-index:9990;
-  background:rgba(0,0,0,.88);
-  display:grid;place-items:center;
-  backdrop-filter:blur(12px);
-}
-#gameOverlay .overBox{
-  text-align:center;padding:40px 28px;
-  border:1px solid rgba(0,245,255,.4);
-  border-radius:28px;
-  background:rgba(5,1,18,.96);
-  box-shadow:var(--glow-c),0 0 100px rgba(139,0,255,.3);
-  animation:overIn .5s ease;
-}
-@keyframes overIn{from{transform:scale(.85);opacity:0}to{transform:none;opacity:1}}
-#gameOverlay .overIcon{font-size:72px;display:block;margin-bottom:16px;animation:logoPulse 2s ease-in-out infinite}
-#gameOverText{font-size:clamp(28px,9vw,52px);font-weight:700;letter-spacing:4px;text-transform:uppercase;color:var(--cyan);text-shadow:var(--glow-c),0 0 80px rgba(0,245,255,.4);margin-bottom:20px}
-#gameOverlay button{min-width:180px}
-
-/* scrollbar */
-::-webkit-scrollbar{width:3px}
-::-webkit-scrollbar-thumb{background:rgba(0,245,255,.28);border-radius:4px}
-
-@media(max-width:480px){
-  .card{padding:16px;border-radius:18px}
-  .room{gap:9px;padding:12px}
-  .tile{height:110px;border-radius:13px}
-  .grid2{gap:8px}
-  button{min-height:48px}
-}
-@media(max-height:700px){.tile{height:94px!important}}
-  </style>
-</head>
-<body>
-
-<section id="auth" class="auth">
-  <div class="authbox">
-    <span class="logo">◆</span>
-    <h1>VOID MAFIA</h1>
-    <div class="card">
-      <div class="seg">
-        <button class="active" data-auth-tab="guest">Guest</button>
-        <button data-auth-tab="login">Login</button>
-        <button data-auth-tab="register">Register</button>
-      </div>
-      <div id="guestForm">
-        <input id="guestNick" placeholder="Nickname" value="Player"/>
-        <br><br>
-        <input id="guestAvatar" placeholder="Avatar symbol" value="◆"/>
-        <br><br>
-        <button id="guestBtn" class="primary" style="width:100%">Enter</button>
-      </div>
-      <div id="loginForm" class="hidden">
-        <input id="loginEmail" placeholder="Email"/>
-        <br><br>
-        <input id="loginPass" type="password" placeholder="Password"/>
-        <br><br>
-        <button id="loginBtn" class="primary" style="width:100%">Login</button>
-      </div>
-      <div id="registerForm" class="hidden">
-        <input id="regNick" placeholder="Nickname"/>
-        <br><br>
-        <input id="regEmail" placeholder="Email"/>
-        <br><br>
-        <input id="regPass" type="password" placeholder="Password"/>
-        <br><br>
-        <button id="registerBtn" class="primary" style="width:100%">Create account</button>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="app" class="hidden">
-  <div class="brand">powered by ბატონი მაქსი.</div>
-  <header class="top">
-    <button id="menuBtn" class="iconbtn">☰</button>
-    <div><h1 id="pageTitle" class="glitchTitle" data-text="Rooms">Rooms</h1><p id="userLine">ID -</p></div>
-    <button id="refreshBtn" class="iconbtn">↻</button>
-  </header>
-
-  <main class="wrap">
-    <section id="pageRooms" class="page active">
-      <div class="grid2">
-        <button id="joinByCodeBtn">🔢 JOIN CODE</button>
-        <button id="toggleCreateBtn" class="primary">+ HOST</button>
-      </div>
-      <div id="createBox" class="card hidden">
-        <h2>Create room</h2>
-        <input id="roomName" value="VOID TABLE" placeholder="Room name"/>
-        <br><br>
-        <input id="maxPlayers" type="number" min="4" max="16" value="10" placeholder="Max players"/>
-        <br><br>
-        <select id="roomLanguage">
-          <option>Georgian</option><option>English</option><option>Russian</option><option>Ukrainian</option>
-        </select>
-        <br><br>
-        <button id="createRoomBtn" class="primary" style="width:100%">Create room</button>
-      </div>
-      <h2 style="margin-top:18px;font-size:20px;color:var(--cyan);letter-spacing:1px;text-transform:uppercase">⬡ Rooms <span id="roomsCount" style="color:var(--pink)">0</span></h2>
-      <div id="roomsList">No active rooms</div>
-    </section>
-
-    <section id="pageClans" class="page">
-      <div class="card">
-        <h2>✦ Create clan</h2>
-        <input id="clanName" placeholder="Clan name"/>
-        <br><br>
-        <input id="clanTag" placeholder="Tag"/>
-        <br><br>
-        <button id="createClanBtn" class="primary">Create clan</button>
-      </div>
-      <div class="card"><h2>✦ Clans</h2><div id="clansList"></div></div>
-    </section>
-
-    <section id="pageStats" class="page">
-      <div class="card"><h2>◈ Leaderboard</h2><div id="leaderboard"></div></div>
-    </section>
-
-    <section id="pageProfile" class="page">
-      <div class="card">
-        <div class="avatar" id="profileAvatar">◆</div>
-        <h2 id="profileName">Player</h2>
-        <p class="sub" id="profileId" style="text-align:center;margin-bottom:16px">ID - · Level 1</p>
-        <div class="grid2">
-          <div class="card" style="padding:14px;text-align:center;margin:0"><b id="statXp" style="font-size:22px;color:var(--cyan)">0</b><br><span class="sub">XP</span></div>
-          <div class="card" style="padding:14px;text-align:center;margin:0"><b id="statRating" style="font-size:22px;color:var(--pink)">5.0</b><br><span class="sub">Rating</span></div>
-          <div class="card" style="padding:14px;text-align:center;margin:0"><b id="statWins" style="font-size:22px;color:var(--green)">0</b><br><span class="sub">Wins</span></div>
-          <div class="card" style="padding:14px;text-align:center;margin:0"><b id="statGames" style="font-size:22px;color:var(--purple)">0</b><br><span class="sub">Games</span></div>
-        </div>
-        <br>
-        <input id="editNick" placeholder="Nickname"/>
-        <br><br>
-        <input id="editAvatar" placeholder="Avatar symbol"/>
-        <br><br>
-        <button id="saveProfileBtn" class="primary">Save Profile</button>
-      </div>
-    </section>
-  </main>
-
-  <nav class="tabs">
-    <button class="active" data-page="Rooms"><span class="tab-icon">⬡</span><span>Rooms</span></button>
-    <button data-page="Clans"><span class="tab-icon">✦</span><span>Clans</span></button>
-    <button data-page="Stats"><span class="tab-icon">◈</span><span>Stats</span></button>
-    <button data-page="Profile"><span class="tab-icon">◉</span><span>Profile</span></button>
-  </nav>
-</section>
-
-<section id="game" class="hidden">
-  <div class="brand">powered by ბატონი მაქსი.</div>
-  <div class="gameTop">
-    <div class="gameHud">
-      <button id="leaveBtn" class="iconbtn danger" style="width:44px;height:44px;font-size:18px">✕</button>
-      <div>
-        <h2 id="phaseName">Lobby</h2>
-        <p id="phaseInfo">0/10</p>
-      </div>
-      <button id="chatTopBtn">💬 CHAT</button>
-      <button id="settingsTopBtn">⚙ ROOM</button>
-    </div>
-    <div class="row" style="justify-content:center;margin-top:8px;gap:12px">
-      <b id="timer">00:00</b>
-      <span class="sub" style="font-size:12px;letter-spacing:1px">TIME</span>
-    </div>
-  </div>
-
-  <main class="wrap">
-    <div id="gameInfoCard" class="card">
-      <h2 id="gameRoomName">VOID TABLE</h2>
-      <p class="sub" id="gameRoomInfo">waiting</p>
-      <div class="row" style="margin-top:14px;flex-wrap:wrap">
-        <button id="settingsBtn">⚙ ROOM</button>
-        <button id="startBtn" class="primary">▶ START</button>
-        <button id="nextPhaseBtn">⏭ NEXT</button>
-      </div>
-    </div>
-
-    <div id="lobbyView" class="card players">
-      <h2>Players <span id="playersCount" style="float:right;color:var(--pink)">0/10</span></h2>
-      <div id="playersList"></div>
-    </div>
-
-    <div id="lobbyChatPanel" class="hidden">
-      <div id="lobbyChatMsgs" class="chatMessages"></div>
-      <div class="row">
-        <input id="lobbyChatInput" placeholder="Message in lobby..."/>
-        <button id="sendLobbyChatBtn" class="primary">➤</button>
-      </div>
-    </div>
-
-    <div id="videoGrid" class="videoGrid hidden"></div>
-
-    <div id="actionBox" class="card hidden">
-      <h2 id="actionTitle">Action</h2>
-      <p class="sub" id="actionText"></p>
-      <div id="targets" class="targets" style="margin-top:12px"></div>
-    </div>
-  </main>
-</section>
-
-<!-- game over overlay -->
-<div id="gameOverlay" class="hidden">
-  <div class="overBox">
-    <span class="overIcon">◆</span>
-    <div id="gameOverText">GAME OVER</div>
-    <button class="primary" onclick="$('gameOverlay').classList.add('hidden')">Continue</button>
-  </div>
-</div>
-
-<div id="drawer" class="drawer">
-  <div class="drawerPanel">
-    <button id="drawerClose" class="drawerClose">✕</button>
-    <div class="avatar" id="drawerAvatar">◆</div>
-    <h2 id="drawerName">Player</h2>
-    <p class="sub" id="drawerInfo" style="margin-bottom:16px">ID - · Level 1</p>
-    <button data-drawer-page="Rooms">⬡ Rooms</button>
-    <button data-drawer-page="Clans">✦ Clans</button>
-    <button data-drawer-page="Stats">◈ Stats / Rank</button>
-    <button data-drawer-page="Profile">◉ Profile</button>
-    <button id="storeBtn">💠 Store</button>
-    <button id="musicBtn">🎵 Music: OFF</button>
-    <button id="sfxBtn">🔊 SFX: ON</button>
-    <button id="logoutBtn" class="danger">⏏ Log out</button>
-  </div>
-</div>
-
-<div id="settingsModal" class="modal hidden">
-  <div class="modalBox">
-    <button style="float:right" data-close="settingsModal">✕</button>
-    <h2>Room Settings</h2>
-    <div class="grid2">
-      <label>Max Players<input id="setMaxPlayers" type="number" min="4" max="16" value="10"></label>
-      <label>Night (sec)<input id="setNight" type="number" value="45"></label>
-      <label>Day (sec)<input id="setDay" type="number" value="90"></label>
-      <label>Vote (sec)<input id="setVote" type="number" value="35"></label>
-    </div>
-    <h2 style="margin-top:18px">Roles</h2>
-    <p class="sub">Doctor and Sheriff fixed to 1. Citizens fill automatically.</p>
-    <div id="roleSettings"></div>
-    <button id="saveSettingsBtn" class="primary" style="width:100%;margin-top:14px">Save</button>
-  </div>
-</div>
-
-<div id="chatModal" class="modal hidden">
-  <div class="modalBox">
-    <button style="float:right" data-close="chatModal" onclick="$('chatTopBtn').classList.remove('notifyHot')">✕</button>
-    <h2>💬 Room Chat</h2>
-    <div id="chatMessages" class="chatMessages"></div>
-    <div class="row">
-      <input id="chatInput" placeholder="Message..."/>
-      <button id="sendChatBtn" class="primary" style="padding:15px 18px">➤</button>
-    </div>
-    <div id="mafiaChatBox" class="hidden" style="margin-top:18px">
-      <h2>🕶 Mafia Chat</h2>
-      <div id="mafiaMessages" class="chatMessages"></div>
-      <div class="row"><input id="mafiaInput" placeholder="Mafia message..."/><button id="sendMafiaBtn" class="primary" style="padding:15px 18px">➤</button></div>
-    </div>
-  </div>
-</div>
-
-<div id="storeModal" class="modal hidden">
-  <div class="modalBox">
-    <button style="float:right" data-close="storeModal">✕</button>
-    <h2>💠 Store</h2>
-    <div id="storeList"></div>
-  </div>
-</div>
-
-<div id="glitchOverlay"></div>
-
 <script>
-const $=id=>document.getElementById(id);
-const App={user:null,socket:null,room:null,roles:[],localStream:null,peers:{},iceServers:[{urls:"stun:stun.l.google.com:19302"}],musicOn:false,sfxOn:true,lastChatCount:0,micOn:true,camOn:true};
-
-function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]))}
-function show(id){$(id)?.classList.remove("hidden")}
-function hide(id){$(id)?.classList.add("hidden")}
-
-function toast(t){
-  let el=$("toast");
-  if(!el){el=document.createElement("div");el.id="toast";el.className="toast";document.body.appendChild(el)}
-  if(!t){el.classList.remove("show");el.textContent="";return}
-  el.textContent=t;el.classList.add("show");
-  clearTimeout(el._t);el._t=setTimeout(()=>{el.classList.remove("show");el.textContent=""},2400);
+const $ = id => document.getElementById(id);
+/* ══════════════════════════════════════
+   ICE / STUN / TURN CONFIG
+   This fixes mobile internet ↔ Wi-Fi WebRTC issues as much as possible
+   without a private coturn server.
+══════════════════════════════════════ */
+function getDefaultIceServers(){
+  return [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+    // Temporary public TURN fallback for testing.
+    // Production-ისთვის საბოლოოდ საკუთარი coturn TURN server ჯობია.
+    {
+      urls: "turn:global.relay.metered.ca:80",
+      username: "openrelayproject",
+      credential: "openrelayproject"
+    },
+    {
+      urls: "turn:global.relay.metered.ca:80?transport=tcp",
+      username: "openrelayproject",
+      credential: "openrelayproject"
+    },
+    {
+      urls: "turn:global.relay.metered.ca:443",
+      username: "openrelayproject",
+      credential: "openrelayproject"
+    },
+    {
+      urls: "turns:global.relay.metered.ca:443?transport=tcp",
+      username: "openrelayproject",
+      credential: "openrelayproject"
+    }
+  ];
 }
-
+function mergeIceServers(serverIceServers){
+  const base = getDefaultIceServers();
+  if(!Array.isArray(serverIceServers) || !serverIceServers.length) return base;
+  const seen = new Set();
+  const merged = [];
+  for(const item of [...base, ...serverIceServers]){
+    if(!item || !item.urls) continue;
+    const key = JSON.stringify(item);
+    if(seen.has(key)) continue;
+    seen.add(key);
+    merged.push(item);
+  }
+  return merged;
+}
+function getRTCConfig(){
+  return {
+    iceServers: App.iceServers && App.iceServers.length
+      ? App.iceServers
+      : getDefaultIceServers(),
+    // Normal mode. Browser tries direct/STUN first and TURN when needed.
+    iceTransportPolicy: "all"
+    // Diagnostic test only:
+    // If voice still fails, temporarily change to "relay".
+    // If "relay" also fails, public TURN is not working and you need private coturn.
+    // iceTransportPolicy: "relay"
+  };
+}
+const App = {
+  user: null,
+  socket: null,
+  room: null,
+  roles: [],
+  localStream: null,
+  peers: {},
+  iceServers: getDefaultIceServers(),
+  musicOn: false,
+  sfxOn: true,
+  lastChatCount: 0,
+  micOn: true,
+  camOn: true
+};
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, m => ({
+    "&":"&amp;",
+    "<":"&lt;",
+    ">":"&gt;",
+    "\"":"&quot;",
+    "'":"&#39;"
+  }[m]));
+}
+function show(id){ $(id)?.classList.remove("hidden"); }
+function hide(id){ $(id)?.classList.add("hidden"); }
+function toast(t){
+  let el = $("toast");
+  if(!el){
+    el = document.createElement("div");
+    el.id = "toast";
+    el.className = "toast";
+    document.body.appendChild(el);
+  }
+  if(!t){
+    el.classList.remove("show");
+    el.textContent = "";
+    return;
+  }
+  el.textContent = t;
+  el.classList.add("show");
+  clearTimeout(el._t);
+  el._t = setTimeout(() => {
+    el.classList.remove("show");
+    el.textContent = "";
+  }, 2400);
+}
 /* ── GLITCH TRANSITION ── */
 function glitchTransition(cb){
-  const el=$("glitchOverlay");
-  if(!el){cb&&cb();return}
+  const el = $("glitchOverlay");
+  if(!el){
+    cb && cb();
+    return;
+  }
   el.classList.remove("active");
   void el.offsetWidth;
   el.classList.add("active");
   beep("navigate");
-  setTimeout(()=>{cb&&cb()},130);
-  setTimeout(()=>el.classList.remove("active"),350);
+  setTimeout(() => {
+    cb && cb();
+  }, 130);
+  setTimeout(() => el.classList.remove("active"), 350);
 }
-
 /* ── AUDIO — sub-bass and feedback removed, all notes ≥ 220 Hz ── */
-let audioCtx=null;
+let audioCtx = null;
 function audio(){
-  if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-  if(audioCtx.state==="suspended") audioCtx.resume().catch(()=>{});
+  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if(audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
   return audioCtx;
 }
-
-function beep(type="tap"){
+function beep(type = "tap"){
   if(!App.sfxOn) return;
   try{
-    const ctx=audio(),now=ctx.currentTime;
-    if(type==="navigate"){
-      const o=ctx.createOscillator(),g=ctx.createGain();
-      o.type="triangle";
-      o.frequency.setValueAtTime(440,now);
-      o.frequency.exponentialRampToValueAtTime(880,now+0.06);
-      g.gain.setValueAtTime(0.04,now);g.gain.exponentialRampToValueAtTime(0.001,now+0.15);
-      o.connect(g);g.connect(ctx.destination);
-      o.start(now);o.stop(now+0.18);
-    } else if(type==="msg"){
-      [880,1320].forEach((f,i)=>{
-        const o=ctx.createOscillator(),g=ctx.createGain();
-        o.type="sine";o.frequency.value=f;
-        g.gain.setValueAtTime(0.001,now+i*0.07);g.gain.linearRampToValueAtTime(0.04,now+i*0.07+0.01);g.gain.exponentialRampToValueAtTime(0.001,now+i*0.07+0.14);
-        o.connect(g);g.connect(ctx.destination);o.start(now+i*0.07);o.stop(now+i*0.07+0.16);
+    const ctx = audio();
+    const now = ctx.currentTime;
+    if(type === "navigate"){
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "triangle";
+      o.frequency.setValueAtTime(440, now);
+      o.frequency.exponentialRampToValueAtTime(880, now + 0.06);
+      g.gain.setValueAtTime(0.04, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start(now);
+      o.stop(now + 0.18);
+    } else if(type === "msg"){
+      [880, 1320].forEach((f, i) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = "sine";
+        o.frequency.value = f;
+        g.gain.setValueAtTime(0.001, now + i * 0.07);
+        g.gain.linearRampToValueAtTime(0.04, now + i * 0.07 + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.07 + 0.14);
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.start(now + i * 0.07);
+        o.stop(now + i * 0.07 + 0.16);
       });
-    } else if(type==="start"){
-      [220,330,440,660,880,1100].forEach((f,i)=>{
-        const o=ctx.createOscillator(),g=ctx.createGain();
-        o.type="triangle";o.frequency.value=f;
-        g.gain.setValueAtTime(0.001,now+i*0.075);g.gain.linearRampToValueAtTime(0.05,now+i*0.075+0.025);g.gain.exponentialRampToValueAtTime(0.001,now+i*0.075+0.22);
-        o.connect(g);g.connect(ctx.destination);o.start(now+i*0.075);o.stop(now+i*0.075+0.26);
+    } else if(type === "start"){
+      [220,330,440,660,880,1100].forEach((f, i) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = "triangle";
+        o.frequency.value = f;
+        g.gain.setValueAtTime(0.001, now + i * 0.075);
+        g.gain.linearRampToValueAtTime(0.05, now + i * 0.075 + 0.025);
+        g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.075 + 0.22);
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.start(now + i * 0.075);
+        o.stop(now + i * 0.075 + 0.26);
       });
-    } else if(type==="error"){
-      const o=ctx.createOscillator(),g=ctx.createGain();
-      o.type="triangle";o.frequency.setValueAtTime(330,now);o.frequency.exponentialRampToValueAtTime(220,now+0.16);
-      g.gain.setValueAtTime(0.06,now);g.gain.exponentialRampToValueAtTime(0.001,now+0.2);
-      o.connect(g);g.connect(ctx.destination);o.start(now);o.stop(now+0.22);
-    } else if(type==="night"){
-      [220,330,440].forEach((f,i)=>{
-        const o=ctx.createOscillator(),g=ctx.createGain();
-        o.type="sine";o.frequency.value=f;
-        g.gain.setValueAtTime(0.001,now+i*0.1);g.gain.linearRampToValueAtTime(0.035,now+i*0.1+0.1);g.gain.exponentialRampToValueAtTime(0.001,now+i*0.1+0.5);
-        o.connect(g);g.connect(ctx.destination);o.start(now+i*0.1);o.stop(now+i*0.1+0.6);
+    } else if(type === "error"){
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "triangle";
+      o.frequency.setValueAtTime(330, now);
+      o.frequency.exponentialRampToValueAtTime(220, now + 0.16);
+      g.gain.setValueAtTime(0.06, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start(now);
+      o.stop(now + 0.22);
+    } else if(type === "night"){
+      [220,330,440].forEach((f, i) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = "sine";
+        o.frequency.value = f;
+        g.gain.setValueAtTime(0.001, now + i * 0.1);
+        g.gain.linearRampToValueAtTime(0.035, now + i * 0.1 + 0.1);
+        g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.5);
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.start(now + i * 0.1);
+        o.stop(now + i * 0.1 + 0.6);
       });
     } else {
-      const o=ctx.createOscillator(),g=ctx.createGain();
-      o.type="triangle";o.frequency.value=880;
-      g.gain.setValueAtTime(0.001,now);g.gain.linearRampToValueAtTime(0.035,now+0.007);g.gain.exponentialRampToValueAtTime(0.001,now+0.055);
-      o.connect(g);g.connect(ctx.destination);o.start(now);o.stop(now+0.07);
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "triangle";
+      o.frequency.value = 880;
+      g.gain.setValueAtTime(0.001, now);
+      g.gain.linearRampToValueAtTime(0.035, now + 0.007);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start(now);
+      o.stop(now + 0.07);
     }
   }catch(e){}
 }
-
-function fmt(s){s=Number(s||0);return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")}
-function level(u){return Math.max(1,Math.floor(Number(u?.stats?.xp||0)/100)+1)}
-async function api(url,opt={}){const r=await fetch(url,{headers:{"Content-Type":"application/json"},credentials:"include",...opt,body:opt.body?JSON.stringify(opt.body):undefined});return r.json()}
-function emit(name,payload,timeout=7000){
-  return new Promise(resolve=>{
-    let done=false;
-    const t=setTimeout(()=>{if(!done){done=true;resolve({ok:false,error:"Timeout"})}},timeout);
-    App.socket.emit(name,payload,res=>{if(done)return;done=true;clearTimeout(t);resolve(res||{ok:true})});
+function fmt(s){
+  s = Number(s || 0);
+  return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+}
+function level(u){
+  return Math.max(1, Math.floor(Number(u?.stats?.xp || 0) / 100) + 1);
+}
+async function api(url, opt = {}){
+  const r = await fetch(url, {
+    headers: { "Content-Type":"application/json" },
+    credentials: "include",
+    ...opt,
+    body: opt.body ? JSON.stringify(opt.body) : undefined
+  });
+  return r.json();
+}
+function emit(name, payload, timeout = 7000){
+  return new Promise(resolve => {
+    let done = false;
+    const t = setTimeout(() => {
+      if(!done){
+        done = true;
+        resolve({ ok:false, error:"Timeout" });
+      }
+    }, timeout);
+    App.socket.emit(name, payload, res => {
+      if(done) return;
+      done = true;
+      clearTimeout(t);
+      resolve(res || { ok:true });
+    });
   });
 }
-
-document.addEventListener("DOMContentLoaded",init);
-window.addEventListener("pointerdown",()=>{if(App.sfxOn)beep("tap")},{once:true});
-
+document.addEventListener("DOMContentLoaded", init);
+window.addEventListener("pointerdown", () => {
+  if(App.sfxOn) beep("tap");
+}, { once:true });
 async function init(){
   bindUi();
-  const w=await api("/api/webrtc");if(w.ok)App.iceServers=w.iceServers;
-  const rr=await api("/api/roles");if(rr.ok){App.roles=rr.roles;renderRoleSettings(rr.defaultSettings.roles)}
-  const me=await api("/api/auth/me");
-  if(me.user)enterApp(me.user);
+  try{
+    const w = await api("/api/webrtc");
+    if(w.ok && Array.isArray(w.iceServers) && w.iceServers.length){
+      App.iceServers = mergeIceServers(w.iceServers);
+    } else {
+      App.iceServers = getDefaultIceServers();
+    }
+    console.log("[WebRTC] ICE servers loaded:", App.iceServers);
+  }catch(e){
+    console.warn("[WebRTC] /api/webrtc failed, using defaults", e);
+    App.iceServers = getDefaultIceServers();
+  }
+  const rr = await api("/api/roles");
+  if(rr.ok){
+    App.roles = rr.roles;
+    renderRoleSettings(rr.defaultSettings.roles);
+  }
+  const me = await api("/api/auth/me");
+  if(me.user) enterApp(me.user);
 }
-
 function bindUi(){
-  document.querySelectorAll("[data-auth-tab]").forEach(btn=>{
-    btn.onclick=()=>{
-      document.querySelectorAll("[data-auth-tab]").forEach(b=>b.classList.remove("active"));
+  document.querySelectorAll("[data-auth-tab]").forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll("[data-auth-tab]").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
       ["guestForm","loginForm","registerForm"].forEach(hide);
-      show(btn.dataset.authTab+"Form");
+      show(btn.dataset.authTab + "Form");
     };
   });
-
-  $("guestBtn").onclick=async()=>{const r=await api("/api/auth/guest",{method:"POST",body:{nickname:$("guestNick").value,avatar:$("guestAvatar").value}});r.ok?enterApp(r.user):toast(r.error)};
-  $("registerBtn").onclick=async()=>{const r=await api("/api/auth/register",{method:"POST",body:{nickname:$("regNick").value,email:$("regEmail").value,password:$("regPass").value}});r.ok?enterApp(r.user):toast(r.error)};
-  $("loginBtn").onclick=async()=>{const r=await api("/api/auth/login",{method:"POST",body:{email:$("loginEmail").value,password:$("loginPass").value}});r.ok?enterApp(r.user):toast(r.error)};
-
-  $("menuBtn").onclick=()=>openDrawer();
-  $("drawerClose").onclick=()=>closeDrawer();
-  $("refreshBtn").onclick=()=>loadAll();
-
-  $("toggleCreateBtn").onclick=()=>$("createBox").classList.toggle("hidden");
-  $("createRoomBtn").onclick=()=>{beep("start");createRoom()};
-  $("joinByCodeBtn").onclick=()=>{const id=prompt("Room number");if(id)joinRoom(id.trim())};
-
-  document.querySelectorAll("[data-page]").forEach(b=>b.onclick=()=>showPage(b.dataset.page));
-  document.querySelectorAll("[data-drawer-page]").forEach(b=>b.onclick=()=>{closeDrawer();showPage(b.dataset.drawerPage)});
-
-  $("createClanBtn").onclick=createClan;
-  $("saveProfileBtn").onclick=saveProfile;
-  $("logoutBtn").onclick=logout;
-  $("storeBtn").onclick=()=>{closeDrawer();loadStore();show("storeModal")};
-  $("musicBtn").onclick=()=>{toast("Music disabled · SFX only")};
-  $("sfxBtn").onclick=()=>{App.sfxOn=!App.sfxOn;$("sfxBtn").textContent="🔊 SFX: "+(App.sfxOn?"ON":"OFF")};
-
-  $("leaveBtn").onclick=leaveRoom;
-  $("chatTopBtn").onclick=()=>{$("chatTopBtn").classList.remove("notifyHot");show("chatModal");setTimeout(()=>{$("chatMessages").scrollTop=$("chatMessages").scrollHeight},50)};
-  $("settingsTopBtn").onclick=openSettings;
-  $("settingsBtn").onclick=openSettings;
-  $("startBtn").onclick=startGame;
-  $("nextPhaseBtn").onclick=nextPhase;
-  $("saveSettingsBtn").onclick=saveSettings;
-  $("sendChatBtn").onclick=()=>{beep("tap");sendChat("room")};
-  $("sendMafiaBtn").onclick=()=>{beep("tap");sendChat("mafia")};
-  $("chatInput").addEventListener("keydown",e=>{if(e.key==="Enter")sendChat("room")});
-  $("mafiaInput").addEventListener("keydown",e=>{if(e.key==="Enter")sendChat("mafia")});
-  document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>hide(b.dataset.close));
-
-  // Lobby chat bindings
-  $("sendLobbyChatBtn").onclick=()=>sendLobbyChatMsg();
-  $("lobbyChatInput").addEventListener("keydown",e=>{if(e.key==="Enter")sendLobbyChatMsg()});
+  $("guestBtn").onclick = async () => {
+    const r = await api("/api/auth/guest", {
+      method:"POST",
+      body:{
+        nickname:$("guestNick").value,
+        avatar:$("guestAvatar").value
+      }
+    });
+    r.ok ? enterApp(r.user) : toast(r.error);
+  };
+  $("registerBtn").onclick = async () => {
+    const r = await api("/api/auth/register", {
+      method:"POST",
+      body:{
+        nickname:$("regNick").value,
+        email:$("regEmail").value,
+        password:$("regPass").value
+      }
+    });
+    r.ok ? enterApp(r.user) : toast(r.error);
+  };
+  $("loginBtn").onclick = async () => {
+    const r = await api("/api/auth/login", {
+      method:"POST",
+      body:{
+        email:$("loginEmail").value,
+        password:$("loginPass").value
+      }
+    });
+    r.ok ? enterApp(r.user) : toast(r.error);
+  };
+  $("menuBtn").onclick = () => openDrawer();
+  $("drawerClose").onclick = () => closeDrawer();
+  $("refreshBtn").onclick = () => loadAll();
+  $("toggleCreateBtn").onclick = () => $("createBox").classList.toggle("hidden");
+  $("createRoomBtn").onclick = () => {
+    beep("start");
+    createRoom();
+  };
+  $("joinByCodeBtn").onclick = () => {
+    const id = prompt("Room number");
+    if(id) joinRoom(id.trim());
+  };
+  document.querySelectorAll("[data-page]").forEach(b => {
+    b.onclick = () => showPage(b.dataset.page);
+  });
+  document.querySelectorAll("[data-drawer-page]").forEach(b => {
+    b.onclick = () => {
+      closeDrawer();
+      showPage(b.dataset.drawerPage);
+    };
+  });
+  $("createClanBtn").onclick = createClan;
+  $("saveProfileBtn").onclick = saveProfile;
+  $("logoutBtn").onclick = logout;
+  $("storeBtn").onclick = () => {
+    closeDrawer();
+    loadStore();
+    show("storeModal");
+  };
+  $("musicBtn").onclick = () => {
+    toast("Music disabled · SFX only");
+  };
+  $("sfxBtn").onclick = () => {
+    App.sfxOn = !App.sfxOn;
+    $("sfxBtn").textContent = "🔊 SFX: " + (App.sfxOn ? "ON" : "OFF");
+  };
+  $("leaveBtn").onclick = leaveRoom;
+  $("chatTopBtn").onclick = () => {
+    $("chatTopBtn").classList.remove("notifyHot");
+    show("chatModal");
+    setTimeout(() => {
+      $("chatMessages").scrollTop = $("chatMessages").scrollHeight;
+    }, 50);
+  };
+  $("settingsTopBtn").onclick = openSettings;
+  $("settingsBtn").onclick = openSettings;
+  $("startBtn").onclick = startGame;
+  $("nextPhaseBtn").onclick = nextPhase;
+  $("saveSettingsBtn").onclick = saveSettings;
+  $("sendChatBtn").onclick = () => {
+    beep("tap");
+    sendChat("room");
+  };
+  $("sendMafiaBtn").onclick = () => {
+    beep("tap");
+    sendChat("mafia");
+  };
+  $("chatInput").addEventListener("keydown", e => {
+    if(e.key === "Enter") sendChat("room");
+  });
+  $("mafiaInput").addEventListener("keydown", e => {
+    if(e.key === "Enter") sendChat("mafia");
+  });
+  document.querySelectorAll("[data-close]").forEach(b => {
+    b.onclick = () => hide(b.dataset.close);
+  });
+  $("sendLobbyChatBtn").onclick = () => sendLobbyChatMsg();
+  $("lobbyChatInput").addEventListener("keydown", e => {
+    if(e.key === "Enter") sendLobbyChatMsg();
+  });
 }
-
 async function sendLobbyChatMsg(){
-  const input=$("lobbyChatInput");
-  const msg=input.value.trim();
-  if(!msg||!App.room)return;
-  input.disabled=true;
-  const r=await emit("chat:send",{roomId:App.room.id,message:msg,channel:"room"});
-  input.disabled=false;
-  if(r.ok)input.value="";
+  const input = $("lobbyChatInput");
+  const msg = input.value.trim();
+  if(!msg || !App.room) return;
+  input.disabled = true;
+  const r = await emit("chat:send", {
+    roomId:App.room.id,
+    message:msg,
+    channel:"room"
+  });
+  input.disabled = false;
+  if(r.ok) input.value = "";
   else toast(r.error);
 }
-
 function enterApp(user){
-  App.user=user;
-  glitchTransition(()=>{hide("auth");show("app")});
+  App.user = user;
+  glitchTransition(() => {
+    hide("auth");
+    show("app");
+  });
   connectSocket();
   renderMe();
   loadAll();
 }
-
 function connectSocket(){
-  if(App.socket)App.socket.disconnect();
-  App.socket=io();
-  App.socket.on("connect",()=>App.socket.emit("auth",{userId:App.user.userId},r=>{if(!r?.ok)toast(r?.error||"Socket auth failed")}));
-  App.socket.on("rooms:list",renderRooms);
-  App.socket.on("room:state",room=>{
-    const count=(room.chat||[]).length;
-    if(App.room&&count>App.lastChatCount&&$("chatModal")?.classList.contains("hidden")){$("chatTopBtn")?.classList.add("notifyHot");beep("msg")}
-    App.lastChatCount=count;App.room=room;renderRoom();
+  if(App.socket) App.socket.disconnect();
+  App.socket = io();
+  App.socket.on("connect", () => {
+    App.socket.emit("auth", { userId:App.user.userId }, r => {
+      if(!r?.ok) toast(r?.error || "Socket auth failed");
+    });
   });
-  App.socket.on("room:terminated",()=>{toast("Room terminated by host");exitGameView()});
-  App.socket.on("chat:message",m=>{
-    addMsg(m.channel==="mafia"?"mafiaMessages":"chatMessages",m);
-    // Mirror to lobby chat if in waiting phase
-    if(App.room?.phase==="waiting"&&m.channel==="room"){
-      addMsg("lobbyChatMsgs",m);
+  App.socket.on("rooms:list", renderRooms);
+  App.socket.on("room:state", room => {
+    const count = (room.chat || []).length;
+    if(App.room && count > App.lastChatCount && $("chatModal")?.classList.contains("hidden")){
+      $("chatTopBtn")?.classList.add("notifyHot");
+      beep("msg");
+    }
+    App.lastChatCount = count;
+    App.room = room;
+    renderRoom();
+  });
+  App.socket.on("room:terminated", () => {
+    toast("Room terminated by host");
+    exitGameView();
+  });
+  App.socket.on("chat:message", m => {
+    addMsg(m.channel === "mafia" ? "mafiaMessages" : "chatMessages", m);
+    if(App.room?.phase === "waiting" && m.channel === "room"){
+      addMsg("lobbyChatMsgs", m);
     }
   });
-  App.socket.on("room:closed",()=>{toast("Room closed");leaveRoom(true)});
-  // Bind WebRTC events
+  App.socket.on("room:closed", () => {
+    toast("Room closed");
+    leaveRoom(true);
+  });
   bindWebRTCEvents();
 }
-
 function renderMe(){
-  if(!App.user)return;
-  $("userLine").textContent=`ID ${App.user.userId} · ${App.user.nickname}`;
-  $("profileName").textContent=App.user.nickname;
-  $("profileId").textContent=`ID ${App.user.userId} · Level ${level(App.user)}`;
-  $("profileAvatar").textContent=App.user.avatar||"◆";
-  $("drawerAvatar").textContent=App.user.avatar||"◆";
-  $("drawerName").textContent=App.user.nickname;
-  $("drawerInfo").textContent=`ID ${App.user.userId} · Level ${level(App.user)}`;
-  $("statXp").textContent=App.user.stats?.xp||0;
-  $("statRating").textContent=Number(App.user.stats?.rating||5).toFixed(1);
-  $("statWins").textContent=App.user.stats?.wins||0;
-  $("statGames").textContent=App.user.stats?.games||0;
-  $("editNick").value=App.user.nickname||"";
-  $("editAvatar").value=App.user.avatar||"◆";
+  if(!App.user) return;
+  $("userLine").textContent = `ID ${App.user.userId} · ${App.user.nickname}`;
+  $("profileName").textContent = App.user.nickname;
+  $("profileId").textContent = `ID ${App.user.userId} · Level ${level(App.user)}`;
+  $("profileAvatar").textContent = App.user.avatar || "◆";
+  $("drawerAvatar").textContent = App.user.avatar || "◆";
+  $("drawerName").textContent = App.user.nickname;
+  $("drawerInfo").textContent = `ID ${App.user.userId} · Level ${level(App.user)}`;
+  $("statXp").textContent = App.user.stats?.xp || 0;
+  $("statRating").textContent = Number(App.user.stats?.rating || 5).toFixed(1);
+  $("statWins").textContent = App.user.stats?.wins || 0;
+  $("statGames").textContent = App.user.stats?.games || 0;
+  $("editNick").value = App.user.nickname || "";
+  $("editAvatar").value = App.user.avatar || "◆";
 }
-
-function openDrawer(){renderMe();$("drawer").classList.add("open")}
-function closeDrawer(){$("drawer").classList.remove("open")}
-
+function openDrawer(){
+  renderMe();
+  $("drawer").classList.add("open");
+}
+function closeDrawer(){
+  $("drawer").classList.remove("open");
+}
 function showPage(name){
-  glitchTransition(()=>{
-    document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
-    $("page"+name)?.classList.add("active");
-    $("pageTitle").textContent=name;
-    $("pageTitle").dataset.text=name;
-    document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===name));
-    if(name==="Rooms")loadRooms();
-    if(name==="Clans")loadClans();
-    if(name==="Stats")loadLeaderboard();
-    if(name==="Profile")renderMe();
+  glitchTransition(() => {
+    document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+    $("page" + name)?.classList.add("active");
+    $("pageTitle").textContent = name;
+    $("pageTitle").dataset.text = name;
+    document.querySelectorAll("[data-page]").forEach(b => {
+      b.classList.toggle("active", b.dataset.page === name);
+    });
+    if(name === "Rooms") loadRooms();
+    if(name === "Clans") loadClans();
+    if(name === "Stats") loadLeaderboard();
+    if(name === "Profile") renderMe();
   });
 }
-
-async function loadAll(){await loadRooms();loadClans();loadLeaderboard()}
-async function loadRooms(){const r=await api("/api/rooms");if(r.ok)renderRooms(r.rooms||[])}
+async function loadAll(){
+  await loadRooms();
+  loadClans();
+  loadLeaderboard();
+}
+async function loadRooms(){
+  const r = await api("/api/rooms");
+  if(r.ok) renderRooms(r.rooms || []);
+}
 function renderRooms(rooms){
-  $("roomsCount").textContent=rooms.length;
-  $("roomsList").innerHTML=(rooms||[]).map(r=>`
+  $("roomsCount").textContent = rooms.length;
+  $("roomsList").innerHTML = (rooms || []).map(r => `
     <div class="room">
       <div class="pic">🎭</div>
       <div>
         <h3>${esc(r.name)}</h3>
-        <p>Host: ${esc(r.hostName)} · ${r.players}/${r.maxPlayers} · ${esc(r.language||"")}</p>
+        <p>Host: ${esc(r.hostName)} · ${r.players}/${r.maxPlayers} · ${esc(r.language || "")}</p>
         <span class="badge">${esc(r.phase)}</span>
       </div>
       <button onclick="joinRoom('${r.id}')">JOIN</button>
     </div>
-  `).join("")||`<p class="sub" style="padding:18px 0">No active rooms</p>`;
+  `).join("") || `<p class="sub" style="padding:18px 0">No active rooms</p>`;
 }
-
 async function createRoom(){
-  if(!App.socket?.connected)return toast("Socket not connected. Try refresh.");
-  const settings=collectSettings();
-  settings.maxPlayers=Number($("maxPlayers").value||10);
-  settings.language=$("roomLanguage").value||"Georgian";
-  const btn=$("createRoomBtn");btn.disabled=true;btn.textContent="Creating...";
-  const r=await emit("room:create",{name:$("roomName").value||"VOID TABLE",settings});
-  btn.disabled=false;btn.textContent="Create room";
-  if(!r.ok)return toast(r.error||"Room create failed");
+  if(!App.socket?.connected) return toast("Socket not connected. Try refresh.");
+  const settings = collectSettings();
+  settings.maxPlayers = Number($("maxPlayers").value || 10);
+  settings.language = $("roomLanguage").value || "Georgian";
+  const btn = $("createRoomBtn");
+  btn.disabled = true;
+  btn.textContent = "Creating...";
+  const r = await emit("room:create", {
+    name:$("roomName").value || "VOID TABLE",
+    settings
+  });
+  btn.disabled = false;
+  btn.textContent = "Create room";
+  if(!r.ok) return toast(r.error || "Room create failed");
   enterRoom(r.room);
 }
-
 async function joinRoom(id){
-  const r=await emit("room:join",{roomId:id});
-  if(!r.ok)return toast(r.error||"Join failed");
+  const r = await emit("room:join", { roomId:id });
+  if(!r.ok) return toast(r.error || "Join failed");
   enterRoom(r.room);
 }
-
 function enterRoom(room){
-  App.room=room;
-  resetWebRTC(); // clean slate
-  glitchTransition(()=>{
+  App.room = room;
+  resetWebRTC();
+  glitchTransition(() => {
     document.body.classList.add("gameActive");
-    hide("app");show("game");
+    hide("app");
+    show("game");
     $("gameOverlay").classList.add("hidden");
     renderRoom();
-    ensureMedia().then(()=>signalReady());
+    ensureMedia().then(() => {
+      signalReady();
+    });
   });
 }
-
-async function leaveRoom(skipEmit=false){
-  if(!skipEmit&&App.socket&&App.room)App.socket.emit("room:leave",{roomId:App.room.id},()=>{});
+async function leaveRoom(skipEmit = false){
+  if(!skipEmit && App.socket && App.room){
+    App.socket.emit("room:leave", { roomId:App.room.id }, () => {});
+  }
   resetWebRTC();
-  if(App.localStream){App.localStream.getTracks().forEach(t=>t.stop());App.localStream=null}
-  App.room=null;
-  glitchTransition(()=>{document.body.classList.remove("gameActive");hide("game");show("app");loadAll()});
+  if(App.localStream){
+    App.localStream.getTracks().forEach(t => t.stop());
+    App.localStream = null;
+  }
+  App.room = null;
+  glitchTransition(() => {
+    document.body.classList.remove("gameActive");
+    hide("game");
+    show("app");
+    loadAll();
+  });
 }
-
 function exitGameView(){
   resetWebRTC();
-  App.room=null;
-  glitchTransition(()=>{
+  App.room = null;
+  glitchTransition(() => {
     document.body.classList.remove("gameActive");
-    hide("game");show("app");
+    hide("game");
+    show("app");
     loadRooms();
   });
 }
-
 function renderRoom(){
-  const r=App.room;if(!r)return;
-  const waiting=r.phase==="waiting";
-  $("phaseName").textContent=waiting?"Lobby":r.phaseLabel||r.phase;
-  $("phaseInfo").textContent=waiting?`${r.players.length}/${r.settings.maxPlayers}`:`Day ${r.day}`;
-  $("timer").textContent=waiting?"00:00":fmt(r.timer);
-  $("gameRoomName").textContent=r.name;
-  $("gameRoomInfo").textContent=`${r.phase} · Host: ${r.hostName} · Code: ${r.id}`;
-  $("playersCount").textContent=`${r.players.length}/${r.settings.maxPlayers}`;
-  ["settingsBtn","settingsTopBtn","startBtn","nextPhaseBtn"].forEach(id=>$(id).style.display=r.viewer?.isHost?"inline-flex":"none");
-  $("lobbyView").classList.toggle("hidden",!waiting);
-  document.body.classList.toggle("gameActive",!waiting&&!$("game").classList.contains("hidden"));
-  $("playersList").innerHTML=r.players.map(playerRow).join("");
+  const r = App.room;
+  if(!r) return;
+  const waiting = r.phase === "waiting";
+  $("phaseName").textContent = waiting ? "Lobby" : r.phaseLabel || r.phase;
+  $("phaseInfo").textContent = waiting ? `${r.players.length}/${r.settings.maxPlayers}` : `Day ${r.day}`;
+  $("timer").textContent = waiting ? "00:00" : fmt(r.timer);
+  $("gameRoomName").textContent = r.name;
+  $("gameRoomInfo").textContent = `${r.phase} · Host: ${r.hostName} · Code: ${r.id}`;
+  $("playersCount").textContent = `${r.players.length}/${r.settings.maxPlayers}`;
+  ["settingsBtn","settingsTopBtn","startBtn","nextPhaseBtn"].forEach(id => {
+    $(id).style.display = r.viewer?.isHost ? "inline-flex" : "none";
+  });
+  $("lobbyView").classList.toggle("hidden", !waiting);
+  document.body.classList.toggle("gameActive", !waiting && !$("game").classList.contains("hidden"));
+  $("playersList").innerHTML = r.players.map(playerRow).join("");
   renderChat();
   renderVideos();
-  if(!waiting){renderActionBox();}
+  if(!waiting) renderActionBox();
   else hide("actionBox");
-
-  // Lobby chat panel
-  $("lobbyChatPanel").classList.toggle("hidden",!waiting);
+  $("lobbyChatPanel").classList.toggle("hidden", !waiting);
   if(waiting){
-    $("lobbyChatMsgs").innerHTML=(r.chat||[]).slice(-60).map(msgHtml).join("");
-    setTimeout(()=>{$("lobbyChatMsgs").scrollTop=$("lobbyChatMsgs").scrollHeight},30);
+    $("lobbyChatMsgs").innerHTML = (r.chat || []).slice(-60).map(msgHtml).join("");
+    setTimeout(() => {
+      $("lobbyChatMsgs").scrollTop = $("lobbyChatMsgs").scrollHeight;
+    }, 30);
   }
-
-  // Game over overlay
-  const over=r.gameOver||(r.phase==="ended"?{winnerTeam:"unknown",label:"Game Over"}:null);
+  const over = r.gameOver || (r.phase === "ended" ? { winnerTeam:"unknown", label:"Game Over" } : null);
   if(over){
     $("gameOverlay").classList.remove("hidden");
-    $("gameOverText").textContent=over.label||`${over.winnerTeam} WINS`;
+    $("gameOverText").textContent = over.label || `${over.winnerTeam} WINS`;
   } else {
     $("gameOverlay").classList.add("hidden");
   }
 }
-
 function playerRow(p){
-  const me=Number(p.userId)===Number(App.user.userId);
-  const micOn=me?App.micOn:(p.micOn!==false);
-  const camOn=me?App.camOn:(p.cameraOn!==false);
-  const roleStr=p.role?` · ${esc(roleLabel(p.role))}`:"";
-  const micStyle=micOn?"":"border-color:var(--danger);color:var(--danger);";
-  const camStyle=camOn?"":"border-color:var(--danger);color:var(--danger);";
-  return `<div class="player ${p.alive?"":" dead"}">
-    <div class="pic ${p.speaking?"speakerPulse":""}">${esc(p.avatar||"◆")}</div>
+  const me = Number(p.userId) === Number(App.user.userId);
+  const micOn = me ? App.micOn : (p.micOn !== false);
+  const camOn = me ? App.camOn : (p.cameraOn !== false);
+  const roleStr = p.role ? ` · ${esc(roleLabel(p.role))}` : "";
+  const micStyle = micOn ? "" : "border-color:var(--danger);color:var(--danger);";
+  const camStyle = camOn ? "" : "border-color:var(--danger);color:var(--danger);";
+  return `<div class="player ${p.alive ? "" : " dead"}">
+    <div class="pic ${p.speaking ? "speakerPulse" : ""}">${esc(p.avatar || "◆")}</div>
     <div>
-      <b>#${p.seat} · ${esc(p.nickname)}${me?" (you)":""}</b><br>
+      <b>#${p.seat} · ${esc(p.nickname)}${me ? " (you)" : ""}</b><br>
       <small>ID ${p.userId}${roleStr}</small><br>
-      ${me?`<button onclick="toggleMic()" style="margin-top:4px;${micStyle}">${micOn?"🎙":"🔇"} MIC</button> <button onclick="toggleCam()" style="margin-top:4px;${camStyle}">${camOn?"📷":"📷✕"} CAM</button>`:""}
+      ${me ? `<button onclick="toggleMic()" style="margin-top:4px;${micStyle}">${micOn ? "🎙" : "🔇"} MIC</button> <button onclick="toggleCam()" style="margin-top:4px;${camStyle}">${camOn ? "📷" : "📷✕"} CAM</button>` : ""}
     </div>
-    <span class="badge">${p.speaking?"LIVE":p.connected?"ON":"OFF"}</span>
+    <span class="badge">${p.speaking ? "LIVE" : p.connected ? "ON" : "OFF"}</span>
   </div>`;
 }
-
-function roleLabel(key){return(App.roles.find(r=>r.key===key)||{}).label||key}
-
+function roleLabel(key){
+  return (App.roles.find(r => r.key === key) || {}).label || key;
+}
 function renderVideos(){
-  const grid=$("videoGrid");if(!grid||!App.room)return;
-  const players=App.room.players||[];
+  const grid = $("videoGrid");
+  if(!grid || !App.room) return;
+  const players = App.room.players || [];
   grid.classList.remove("hidden");
-  grid.innerHTML=players.map(p=>{
-    const isMe=Number(p.userId)===Number(App.user.userId);
-    const sid=p.socketId||p.id||p.userId;
-    return `<div class="tile ${p.speaking?"speaking":""} ${p.cameraOn===false?"camOff":""}" data-socket-id="${sid}">
-      <video id="vid_${sid}" autoplay playsinline ${isMe?"muted":""}></video>
-      <div class="mediaState"><span>${p.micOn===false?"🔇":"🎙"}</span><span>${p.cameraOn===false?"📷✕":"📷"}</span></div>
-      <div class="label">#${p.seat} · ${esc(p.nickname||"Player")}</div>
+  grid.innerHTML = players.map(p => {
+    const isMe = Number(p.userId) === Number(App.user.userId);
+    const sid = p.socketId || p.id || p.userId;
+    return `<div class="tile ${p.speaking ? "speaking" : ""} ${p.cameraOn === false ? "camOff" : ""}" data-socket-id="${sid}">
+      <video id="vid_${sid}" autoplay playsinline ${isMe ? "muted" : ""}></video>
+      <div class="mediaState"><span>${p.micOn === false ? "🔇" : "🎙"}</span><span>${p.cameraOn === false ? "📷✕" : "📷"}</span></div>
+      <div class="label">#${p.seat} · ${esc(p.nickname || "Player")}</div>
     </div>`;
   }).join("");
-  const me=players.find(p=>Number(p.userId)===Number(App.user.userId));
-  const mySid=me?.socketId||me?.id||me?.userId;
-  if(App.localStream&&mySid){const v=$("vid_"+mySid);if(v){v.srcObject=App.localStream;v.muted=true;v.play?.().catch(()=>{})}}
+  const me = players.find(p => Number(p.userId) === Number(App.user.userId));
+  const mySid = me?.socketId || me?.id || me?.userId;
+  if(App.localStream && mySid){
+    const v = $("vid_" + mySid);
+    if(v){
+      v.srcObject = App.localStream;
+      v.muted = true;
+      v.playsInline = true;
+      v.play?.().catch(() => {});
+    }
+  }
   for(const p of players){
-    const sid=p.socketId;if(!sid||sid===me?.socketId)continue;
-    const pc=App.peers[sid];
-    if(pc&&pc._remoteStream){
-      const v=$("vid_"+sid);
-      if(v&&v.srcObject!==pc._remoteStream){v.srcObject=pc._remoteStream;v.play?.().catch(()=>{})}
-      // remove hidden audio element now that video element exists
-      const aud=document.getElementById("aud_"+sid);if(aud)aud.remove();
+    const sid = p.socketId;
+    if(!sid || sid === me?.socketId) continue;
+    const pc = App.peers[sid];
+    if(pc && pc._remoteStream){
+      const v = $("vid_" + sid);
+      if(v && v.srcObject !== pc._remoteStream){
+        v.srcObject = pc._remoteStream;
+        v.muted = false;
+        v.playsInline = true;
+        v.play?.().catch(() => {});
+      }
     }
   }
 }
-
 function renderActionBox(){
-  const r=App.room,me=r.players.find(p=>p.userId===App.user.userId);
-  if(!me||!me.alive){hide("actionBox");return}
-  const nightRoles=["mafia","don","godfather","doctor","sheriff","detective","bodyguard","serial_killer","fortune_teller","lady","spy","bulletproof","lawyer","priest","witch","tracker"];
-  const canNight=r.phase==="night"&&nightRoles.includes(me.role);
-  const canNominate=r.phase==="nomination";
-  const canVote=r.phase==="vote";
-  if(!canNight&&!canNominate&&!canVote){hide("actionBox");return}
-  show("actionBox");
-
-  if(canNominate){
-    $("actionTitle").textContent="Nomination";
-    $("actionText").textContent="Nominate a player for elimination.";
-    const nominated=r.nominatedIds||[];
-    const targets=r.players.filter(p=>p.alive&&p.id!==me.id);
-    $("targets").innerHTML=targets.map(t=>`<button onclick="sendNominate('${t.id}')" ${nominated.includes(t.id)?"class='primary'":""}>#${t.seat} · ${esc(t.nickname)}${nominated.includes(t.id)?" ★":""}</button>`).join("");
+  const r = App.room;
+  const me = r.players.find(p => p.userId === App.user.userId);
+  if(!me || !me.alive){
+    hide("actionBox");
     return;
   }
-
-  $("actionTitle").textContent=canNight?"Night Action":"Vote";
-  $("actionText").textContent=canNight?`Your role: ${roleLabel(me.role)}`:"Choose a player or abstain.";
-  const canSelf=["doctor","bodyguard","priest","bulletproof"].includes(me.role);
-  let targets;
-  if(canVote&&(r.nominatedIds||[]).length>0){
-    targets=r.players.filter(p=>p.alive&&(r.nominatedIds||[]).includes(p.id));
-  } else {
-    targets=r.players.filter(p=>p.alive&&(canVote||canSelf||p.id!==me.id));
+  const nightRoles = [
+    "mafia","don","godfather","doctor","sheriff","detective","bodyguard",
+    "serial_killer","fortune_teller","lady","spy","bulletproof","lawyer",
+    "priest","witch","tracker"
+  ];
+  const canNight = r.phase === "night" && nightRoles.includes(me.role);
+  const canNominate = r.phase === "nomination";
+  const canVote = r.phase === "vote";
+  if(!canNight && !canNominate && !canVote){
+    hide("actionBox");
+    return;
   }
-  $("targets").innerHTML=targets.map(t=>`<button onclick="${canNight?"sendAction":"sendVote"}('${t.id}')">#${t.seat} · ${esc(t.nickname)}</button>`).join("")+(canVote?`<button onclick="sendVote('abstain')" style="opacity:.7">Abstain</button>`:"");
+  show("actionBox");
+  if(canNominate){
+    $("actionTitle").textContent = "Nomination";
+    $("actionText").textContent = "Nominate a player for elimination.";
+    const nominated = r.nominatedIds || [];
+    const targets = r.players.filter(p => p.alive && p.id !== me.id);
+    $("targets").innerHTML = targets.map(t => `
+      <button onclick="sendNominate('${t.id}')" ${nominated.includes(t.id) ? "class='primary'" : ""}>#${t.seat} · ${esc(t.nickname)}${nominated.includes(t.id) ? " ★" : ""}</button>
+    `).join("");
+    return;
+  }
+  $("actionTitle").textContent = canNight ? "Night Action" : "Vote";
+  $("actionText").textContent = canNight ? `Your role: ${roleLabel(me.role)}` : "Choose a player or abstain.";
+  const canSelf = ["doctor","bodyguard","priest","bulletproof"].includes(me.role);
+  let targets;
+  if(canVote && (r.nominatedIds || []).length > 0){
+    targets = r.players.filter(p => p.alive && (r.nominatedIds || []).includes(p.id));
+  } else {
+    targets = r.players.filter(p => p.alive && (canVote || canSelf || p.id !== me.id));
+  }
+  $("targets").innerHTML = targets.map(t => `
+    <button onclick="${canNight ? "sendAction" : "sendVote"}('${t.id}')">#${t.seat} · ${esc(t.nickname)}</button>
+  `).join("") + (canVote ? `<button onclick="sendVote('abstain')" style="opacity:.7">Abstain</button>` : "");
 }
-
-async function sendAction(targetId){const r=await emit("game:action",{roomId:App.room.id,targetId});if(r.privateResult)toast(r.privateResult);else toast(r.ok?"Action saved":r.error)}
-async function sendVote(targetId){const r=await emit("game:vote",{roomId:App.room.id,targetId});toast(r.ok?"Vote saved":r.error)}
-async function sendNominate(targetId){const r=await emit("game:nominate",{roomId:App.room.id,targetId});toast(r.ok?"Nominated":r.error)}
-window.sendAction=sendAction;window.sendVote=sendVote;window.sendNominate=sendNominate;window.joinRoom=joinRoom;
-
+async function sendAction(targetId){
+  const r = await emit("game:action", { roomId:App.room.id, targetId });
+  if(r.privateResult) toast(r.privateResult);
+  else toast(r.ok ? "Action saved" : r.error);
+}
+async function sendVote(targetId){
+  const r = await emit("game:vote", { roomId:App.room.id, targetId });
+  toast(r.ok ? "Vote saved" : r.error);
+}
+async function sendNominate(targetId){
+  const r = await emit("game:nominate", { roomId:App.room.id, targetId });
+  toast(r.ok ? "Nominated" : r.error);
+}
+window.sendAction = sendAction;
+window.sendVote = sendVote;
+window.sendNominate = sendNominate;
+window.joinRoom = joinRoom;
 function openSettings(){
-  if(!App.room)return;
-  const s=App.room.settings;
-  $("setMaxPlayers").value=s.maxPlayers||10;
-  $("setNight").value=s.timers?.night||45;
-  $("setDay").value=s.timers?.day||90;
-  $("setVote").value=s.timers?.vote||35;
-  renderRoleSettings(s.roles||{});
+  if(!App.room) return;
+  const s = App.room.settings;
+  $("setMaxPlayers").value = s.maxPlayers || 10;
+  $("setNight").value = s.timers?.night || 45;
+  $("setDay").value = s.timers?.day || 90;
+  $("setVote").value = s.timers?.vote || 35;
+  renderRoleSettings(s.roles || {});
   show("settingsModal");
 }
-
-function renderRoleSettings(defaultRoles={}){
-  if(!$("roleSettings"))return;
-  const allowed=["mafia","don","doctor","sheriff","detective","bodyguard","serial_killer","fortune_teller","lady","spy","bulletproof","lawyer","priest","witch","judge","jester","tracker","godfather"];
-  $("roleSettings").innerHTML=allowed.map(key=>{
-    const role=App.roles.find(r=>r.key===key)||{key,label:key};
-    const fixed=key==="doctor"||key==="sheriff";
-    const val=fixed?1:(defaultRoles[key]??(key==="mafia"?1:0));
-    const icon=key==="mafia"?"♠":key==="doctor"?"✚":key==="sheriff"?"★":key==="don"?"♛":"◆";
+function renderRoleSettings(defaultRoles = {}){
+  if(!$("roleSettings")) return;
+  const allowed = [
+    "mafia","don","doctor","sheriff","detective","bodyguard","serial_killer",
+    "fortune_teller","lady","spy","bulletproof","lawyer","priest","witch",
+    "judge","jester","tracker","godfather"
+  ];
+  $("roleSettings").innerHTML = allowed.map(key => {
+    const role = App.roles.find(r => r.key === key) || { key, label:key };
+    const fixed = key === "doctor" || key === "sheriff";
+    const val = fixed ? 1 : (defaultRoles[key] ?? (key === "mafia" ? 1 : 0));
+    const icon = key === "mafia" ? "♠" : key === "doctor" ? "✚" : key === "sheriff" ? "★" : key === "don" ? "♛" : "◆";
     return `<div class="roleCard active">
       <div class="pic" style="width:40px;height:40px;font-size:16px">${icon}</div>
-      <div><b>${esc(role.label)}</b><p class="sub" style="font-size:11px">${esc(role.desc||"")}</p></div>
-      <input id="role_${key}" type="number" min="0" max="5" value="${val}" ${fixed?"disabled":""} style="width:72px">
+      <div><b>${esc(role.label)}</b><p class="sub" style="font-size:11px">${esc(role.desc || "")}</p></div>
+      <input id="role_${key}" type="number" min="0" max="5" value="${val}" ${fixed ? "disabled" : ""} style="width:72px">
     </div>`;
   }).join("");
 }
-
 function collectSettings(){
-  const roles={};
-  ["mafia","don","doctor","sheriff","detective","bodyguard","serial_killer","fortune_teller","lady","spy","bulletproof","lawyer","priest","witch","judge","jester","tracker","godfather"].forEach(k=>{
-    roles[k]=(k==="doctor"||k==="sheriff")?1:Number($("role_"+k)?.value||0);
+  const roles = {};
+  [
+    "mafia","don","doctor","sheriff","detective","bodyguard","serial_killer",
+    "fortune_teller","lady","spy","bulletproof","lawyer","priest","witch",
+    "judge","jester","tracker","godfather"
+  ].forEach(k => {
+    roles[k] = (k === "doctor" || k === "sheriff")
+      ? 1
+      : Number($("role_" + k)?.value || 0);
   });
-  return{
-    maxPlayers:Number($("setMaxPlayers")?.value||$("maxPlayers")?.value||10),
-    language:$("roomLanguage")?.value||"Georgian",
-    timers:{night:Number($("setNight")?.value||45),day:Number($("setDay")?.value||90),vote:Number($("setVote")?.value||35)},
+  return {
+    maxPlayers:Number($("setMaxPlayers")?.value || $("maxPlayers")?.value || 10),
+    language:$("roomLanguage")?.value || "Georgian",
+    timers:{
+      night:Number($("setNight")?.value || 45),
+      day:Number($("setDay")?.value || 90),
+      vote:Number($("setVote")?.value || 35)
+    },
     roles
   };
 }
-
-async function saveSettings(){const r=await emit("room:settings",{roomId:App.room.id,settings:collectSettings()});if(!r.ok)return toast(r.error);hide("settingsModal");toast("Saved")}
-async function startGame(){beep("start");const r=await emit("game:start",{roomId:App.room.id});if(!r.ok)toast(r.error)}
-async function nextPhase(){const r=await emit("game:next",{roomId:App.room.id});if(!r.ok)toast(r.error)}
-
-function renderChat(){
-  $("chatMessages").innerHTML=(App.room?.chat||[]).slice(-80).map(msgHtml).join("");
-  $("mafiaMessages").innerHTML=(App.room?.mafiaChat||[]).slice(-80).map(msgHtml).join("");
-  setTimeout(()=>{if($("chatMessages"))$("chatMessages").scrollTop=$("chatMessages").scrollHeight;if($("mafiaMessages"))$("mafiaMessages").scrollTop=$("mafiaMessages").scrollHeight},30);
-  $("mafiaChatBox").classList.toggle("hidden",!(App.room?.viewer?.team==="mafia"&&App.room?.phase==="night"));
+async function saveSettings(){
+  const r = await emit("room:settings", {
+    roomId:App.room.id,
+    settings:collectSettings()
+  });
+  if(!r.ok) return toast(r.error);
+  hide("settingsModal");
+  toast("Saved");
 }
-function msgHtml(m){return`<div class="msg"><b>${m.seat?"#"+m.seat+" · ":""}${esc(m.nickname)}</b><br>${esc(m.message)}</div>`}
-function addMsg(id,m){
-  const box=$(id);if(!box)return;
-  box.insertAdjacentHTML("beforeend",msgHtml(m));
-  requestAnimationFrame(()=>{box.scrollTop=box.scrollHeight});
-  if(id==="chatMessages"&&!$("chatModal").classList.contains("hidden"))return;
-  if(id==="chatMessages")$("chatTopBtn")?.classList.add("notifyHot");
+async function startGame(){
+  beep("start");
+  const r = await emit("game:start", {
+    roomId:App.room.id
+  });
+  if(!r.ok) toast(r.error);
+}
+async function nextPhase(){
+  const r = await emit("game:next", {
+    roomId:App.room.id
+  });
+  if(!r.ok) toast(r.error);
+}
+function renderChat(){
+  $("chatMessages").innerHTML = (App.room?.chat || []).slice(-80).map(msgHtml).join("");
+  $("mafiaMessages").innerHTML = (App.room?.mafiaChat || []).slice(-80).map(msgHtml).join("");
+  setTimeout(() => {
+    if($("chatMessages")) $("chatMessages").scrollTop = $("chatMessages").scrollHeight;
+    if($("mafiaMessages")) $("mafiaMessages").scrollTop = $("mafiaMessages").scrollHeight;
+  }, 30);
+  $("mafiaChatBox").classList.toggle("hidden", !(App.room?.viewer?.team === "mafia" && App.room?.phase === "night"));
+}
+function msgHtml(m){
+  return `<div class="msg"><b>${m.seat ? "#" + m.seat + " · " : ""}${esc(m.nickname)}</b><br>${esc(m.message)}</div>`;
+}
+function addMsg(id, m){
+  const box = $(id);
+  if(!box) return;
+  box.insertAdjacentHTML("beforeend", msgHtml(m));
+  requestAnimationFrame(() => {
+    box.scrollTop = box.scrollHeight;
+  });
+  if(id === "chatMessages" && !$("chatModal").classList.contains("hidden")) return;
+  if(id === "chatMessages") $("chatTopBtn")?.classList.add("notifyHot");
   beep("msg");
 }
 async function sendChat(channel){
-  const input=channel==="mafia"?$("mafiaInput"):$("chatInput");
-  const message=input.value.trim();if(!message||!App.room)return;
-  input.disabled=true;
-  const r=await emit("chat:send",{roomId:App.room.id,message,channel});
-  input.disabled=false;if(r.ok)input.value="";else toast(r.error);
+  const input = channel === "mafia" ? $("mafiaInput") : $("chatInput");
+  const message = input.value.trim();
+  if(!message || !App.room) return;
+  input.disabled = true;
+  const r = await emit("chat:send", {
+    roomId:App.room.id,
+    message,
+    channel
+  });
+  input.disabled = false;
+  if(r.ok) input.value = "";
+  else toast(r.error);
 }
-
 async function loadLeaderboard(){
-  const r=await api("/api/leaderboard");if(!r.ok)return;
-  $("leaderboard").innerHTML=(r.users||[]).map((u,i)=>`<div class="item">
-    <div class="pic">${esc(u.avatar||"◆")}</div>
-    <div><h3>#${i+1} ${esc(u.nickname)}</h3><p>ID ${u.userId} · ${u.rank}</p></div>
-    <b style="color:var(--cyan)">⭐ ${u.stats?.xp||0}</b>
-  </div>`).join("");
+  const r = await api("/api/leaderboard");
+  if(!r.ok) return;
+  $("leaderboard").innerHTML = (r.users || []).map((u, i) => `
+    <div class="item">
+      <div class="pic">${esc(u.avatar || "◆")}</div>
+      <div><h3>#${i + 1} ${esc(u.nickname)}</h3><p>ID ${u.userId} · ${u.rank}</p></div>
+      <b style="color:var(--cyan)">⭐ ${u.stats?.xp || 0}</b>
+    </div>
+  `).join("");
 }
-
 async function loadClans(){
-  const r=await api("/api/clans");if(!r.ok)return;
-  $("clansList").innerHTML=(r.clans||[]).map((c,i)=>`<div class="item">
-    <div class="pic">${esc(c.emblem||"◆")}</div>
-    <div><h3>#${i+1} ${esc(c.name)} <span style="color:var(--muted)">[${esc(c.tag||"")}]</span></h3><p>Level ${c.level||1} · ${(c.members||[]).length} members</p></div>
-    <button onclick="joinClan('${c.clanId}')">JOIN</button>
-  </div>`).join("")||"<p class='sub' style='padding:14px 0'>No clans yet</p>";
+  const r = await api("/api/clans");
+  if(!r.ok) return;
+  $("clansList").innerHTML = (r.clans || []).map((c, i) => `
+    <div class="item">
+      <div class="pic">${esc(c.emblem || "◆")}</div>
+      <div><h3>#${i + 1} ${esc(c.name)} <span style="color:var(--muted)">[${esc(c.tag || "")}]</span></h3><p>Level ${c.level || 1} · ${(c.members || []).length} members</p></div>
+      <button onclick="joinClan('${c.clanId}')">JOIN</button>
+    </div>
+  `).join("") || "<p class='sub' style='padding:14px 0'>No clans yet</p>";
 }
-
-async function createClan(){const r=await api("/api/clans",{method:"POST",body:{name:$("clanName").value,tag:$("clanTag").value,user:App.user}});toast(r.ok?"Clan created":r.error);loadClans()}
-async function joinClan(id){const r=await api(`/api/clans/${id}/join`,{method:"POST",body:{user:App.user}});toast(r.ok?"Joined":r.error);loadClans()}
-window.joinClan=joinClan;
-
+async function createClan(){
+  const r = await api("/api/clans", {
+    method:"POST",
+    body:{
+      name:$("clanName").value,
+      tag:$("clanTag").value,
+      user:App.user
+    }
+  });
+  toast(r.ok ? "Clan created" : r.error);
+  loadClans();
+}
+async function joinClan(id){
+  const r = await api(`/api/clans/${id}/join`, {
+    method:"POST",
+    body:{ user:App.user }
+  });
+  toast(r.ok ? "Joined" : r.error);
+  loadClans();
+}
+window.joinClan = joinClan;
 async function loadStore(){
-  const r=await api("/api/store");if(!r.ok)return;
-  $("storeList").innerHTML=(r.items||[]).map(i=>`<div class="item">
-    <div class="pic">💠</div>
-    <div><h3>${esc(i.title)}</h3><p>${esc(i.description)}</p></div>
-    <button>${i.price?i.price+" coins":"Open"}</button>
-  </div>`).join("");
+  const r = await api("/api/store");
+  if(!r.ok) return;
+  $("storeList").innerHTML = (r.items || []).map(i => `
+    <div class="item">
+      <div class="pic">💠</div>
+      <div><h3>${esc(i.title)}</h3><p>${esc(i.description)}</p></div>
+      <button>${i.price ? i.price + " coins" : "Open"}</button>
+    </div>
+  `).join("");
 }
-
 async function saveProfile(){
-  const r=await api("/api/auth/me",{method:"PUT",body:{userId:App.user.userId,nickname:$("editNick").value,avatar:$("editAvatar").value}});
-  if(!r.ok)return toast(r.error);App.user=r.user;renderMe();toast("Saved");
+  const r = await api("/api/auth/me", {
+    method:"PUT",
+    body:{
+      userId:App.user.userId,
+      nickname:$("editNick").value,
+      avatar:$("editAvatar").value
+    }
+  });
+  if(!r.ok) return toast(r.error);
+  App.user = r.user;
+  renderMe();
+  toast("Saved");
 }
-
-async function logout(){await api("/api/auth/logout",{method:"POST"});location.reload()}
-
+async function logout(){
+  await api("/api/auth/logout", { method:"POST" });
+  location.reload();
+}
 async function ensureMedia(){
-  if(App.localStream)return App.localStream;
+  if(App.localStream) return App.localStream;
   try{
-    App.localStream=await navigator.mediaDevices.getUserMedia({
-      video:{width:{ideal:640},height:{ideal:480},facingMode:"user"},
-      audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}
+    App.localStream = await navigator.mediaDevices.getUserMedia({
+      video:{
+        width:{ ideal:640 },
+        height:{ ideal:480 },
+        facingMode:"user"
+      },
+      audio:{
+        echoCancellation:true,
+        noiseSuppression:true,
+        autoGainControl:true
+      }
     });
     setupVoiceActivity();
-    App.socket?.emit("media:state",{roomId:App.room?.id,micOn:App.localStream.getAudioTracks()[0]?.enabled!==false,cameraOn:App.localStream.getVideoTracks()[0]?.enabled!==false});
-  }catch(e){console.warn("media failed",e);toast("კამერა/მიკროფონი ვერ ჩაირთო")}
+    App.socket?.emit("media:state", {
+      roomId:App.room?.id,
+      micOn:App.localStream.getAudioTracks()[0]?.enabled !== false,
+      cameraOn:App.localStream.getVideoTracks()[0]?.enabled !== false
+    });
+  }catch(e){
+    console.warn("media failed", e);
+    toast("კამერა/მიკროფონი ვერ ჩაირთო");
+  }
   return App.localStream;
 }
-
 async function toggleMic(){
-  if(!App.localStream)await ensureMedia();
-  const t=App.localStream?.getAudioTracks?.()[0];if(!t)return toast("Microphone unavailable");
-  t.enabled=!t.enabled;
-  App.micOn=t.enabled;
-  App.socket.emit("media:state",{roomId:App.room?.id,micOn:t.enabled,speaking:t.enabled?undefined:false});
+  if(!App.localStream) await ensureMedia();
+  const t = App.localStream?.getAudioTracks?.()[0];
+  if(!t) return toast("Microphone unavailable");
+  t.enabled = !t.enabled;
+  App.micOn = t.enabled;
+  App.socket.emit("media:state", {
+    roomId:App.room?.id,
+    micOn:t.enabled,
+    speaking:t.enabled ? undefined : false
+  });
   renderRoom();
-  toast(t.enabled?"🎙 Mic ON":"🔇 Mic OFF");beep("tap");
+  toast(t.enabled ? "🎙 Mic ON" : "🔇 Mic OFF");
+  beep("tap");
 }
 function replaceSenderTracks(){
-  const videoTrack=App.localStream?.getVideoTracks?.()[0];
+  const videoTrack = App.localStream?.getVideoTracks?.()[0];
   for(const pc of Object.values(App.peers)){
-    const sender=pc.getSenders?.().find(s=>s.track?.kind==="video");
-    if(sender)sender.replaceTrack(videoTrack?.enabled?videoTrack:null).catch(()=>{});
+    const sender = pc.getSenders?.().find(s => s.track?.kind === "video");
+    if(sender){
+      sender.replaceTrack(videoTrack?.enabled ? videoTrack : null).catch(() => {});
+    }
   }
 }
 async function toggleCam(){
-  if(!App.localStream)await ensureMedia();
-  const t=App.localStream?.getVideoTracks?.()[0];if(!t)return toast("Camera unavailable");
-  t.enabled=!t.enabled;
-  App.camOn=t.enabled;
+  if(!App.localStream) await ensureMedia();
+  const t = App.localStream?.getVideoTracks?.()[0];
+  if(!t) return toast("Camera unavailable");
+  t.enabled = !t.enabled;
+  App.camOn = t.enabled;
   replaceSenderTracks();
-  App.socket.emit("media:state",{roomId:App.room?.id,cameraOn:t.enabled});
+  App.socket.emit("media:state", {
+    roomId:App.room?.id,
+    cameraOn:t.enabled
+  });
   renderRoom();
-  toast(t.enabled?"📷 Cam ON":"📷✕ Cam OFF");beep("tap");
+  toast(t.enabled ? "📷 Cam ON" : "📷✕ Cam OFF");
+  beep("tap");
 }
-window.toggleMic=toggleMic;window.toggleCam=toggleCam;
-
+window.toggleMic = toggleMic;
+window.toggleCam = toggleCam;
 function setupVoiceActivity(){
   try{
-    const Ctx=window.AudioContext||window.webkitAudioContext;
-    const ctx=new Ctx(),src=ctx.createMediaStreamSource(App.localStream),an=ctx.createAnalyser();
-    an.fftSize=512;src.connect(an);
-    const data=new Uint8Array(an.frequencyBinCount);let last=false;
-    setInterval(()=>{
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new Ctx();
+    const src = ctx.createMediaStreamSource(App.localStream);
+    const an = ctx.createAnalyser();
+    an.fftSize = 512;
+    src.connect(an);
+    const data = new Uint8Array(an.frequencyBinCount);
+    let last = false;
+    setInterval(() => {
       an.getByteFrequencyData(data);
-      const avg=data.reduce((a,b)=>a+b,0)/data.length;
-      const micOn=App.localStream?.getAudioTracks?.()[0]?.enabled!==false;
-      const speaking=micOn&&avg>18;
-      if(speaking!==last){last=speaking;App.socket?.emit("media:state",{roomId:App.room?.id,speaking})}
-    },350);
+      const avg = data.reduce((a, b) => a + b, 0) / data.length;
+      const micOn = App.localStream?.getAudioTracks?.()[0]?.enabled !== false;
+      const speaking = micOn && avg > 18;
+      if(speaking !== last){
+        last = speaking;
+        App.socket?.emit("media:state", {
+          roomId:App.room?.id,
+          speaking
+        });
+      }
+    }, 350);
   }catch(e){}
 }
-
 /* ══════════════════════════════════════
-   WebRTC — proper implementation
+   WebRTC — TURN/STUN FIXED IMPLEMENTATION
 ══════════════════════════════════════ */
-
-// ICE candidate buffer (before remote desc is set)
-const pendingIce={};
-let rtcSignaled=false;
-
+const pendingIce = {};
+let rtcSignaled = false;
 function resetWebRTC(){
-  Object.values(App.peers).forEach(pc=>{try{pc.close()}catch(e){}});
-  App.peers={};
-  Object.keys(pendingIce).forEach(k=>delete pendingIce[k]);
-  rtcSignaled=false;
-  document.querySelectorAll("audio[id^='aud_']").forEach(a=>a.remove());
+  Object.values(App.peers).forEach(pc => {
+    try{ pc.close(); }catch(e){}
+  });
+  App.peers = {};
+  Object.keys(pendingIce).forEach(k => delete pendingIce[k]);
+  rtcSignaled = false;
+  document.querySelectorAll("audio[id^='aud_']").forEach(a => a.remove());
 }
-
 async function signalReady(){
-  if(rtcSignaled||!App.room||!App.localStream)return;
-  rtcSignaled=true;
-  App.socket.emit("webrtc:ready",{roomId:App.room.id});
+  if(rtcSignaled || !App.room || !App.localStream) return;
+  rtcSignaled = true;
+  console.log("[WebRTC] signaling ready for room", App.room.id);
+  App.socket.emit("webrtc:ready", {
+    roomId:App.room.id
+  });
 }
-
-// Listen for peers who just became ready
-// (they emit webrtc:ready → server broadcasts webrtc:peer-ready to others)
-// WE create offer TO them
 function bindWebRTCEvents(){
-  App.socket.on("webrtc:peer-ready",async({socketId})=>{
-    if(!App.localStream||App.peers[socketId])return;
-    const pc=createPeer(socketId);
+  App.socket.on("webrtc:peer-ready", async ({ socketId }) => {
+    if(!App.localStream || App.peers[socketId]) return;
+    const pc = createPeer(socketId);
     try{
-      const offer=await pc.createOffer();
+      const offer = await pc.createOffer({
+        offerToReceiveAudio:true,
+        offerToReceiveVideo:true
+      });
       await pc.setLocalDescription(offer);
-      App.socket.emit("signal:offer",{to:socketId,signal:offer});
-    }catch(e){console.warn("offer err",e);}
+      console.log("[WebRTC] offer →", socketId);
+      App.socket.emit("signal:offer", {
+        to:socketId,
+        signal:offer
+      });
+    }catch(e){
+      console.warn("[WebRTC] offer error", e);
+    }
   });
-
-  App.socket.on("webrtc:reset-peer",({socketId})=>{
-    const pc=App.peers[socketId];
-    if(pc){try{pc.close()}catch(e){}delete App.peers[socketId];}
+  App.socket.on("webrtc:reset-peer", ({ socketId }) => {
+    const pc = App.peers[socketId];
+    if(pc){
+      try{ pc.close(); }catch(e){}
+      delete App.peers[socketId];
+    }
+    delete pendingIce[socketId];
+    const aud = document.getElementById("aud_" + socketId);
+    if(aud) aud.remove();
   });
-
-  App.socket.on("signal:offer",onOffer);
-  App.socket.on("signal:answer",onAnswer);
-  App.socket.on("signal:ice",onIce);
+  App.socket.on("signal:offer", onOffer);
+  App.socket.on("signal:answer", onAnswer);
+  App.socket.on("signal:ice", onIce);
 }
-
 function createPeer(id){
-  const pc=new RTCPeerConnection({iceServers:App.iceServers});
-  App.peers[id]=pc;
-  App.localStream?.getTracks().forEach(t=>pc.addTrack(t,App.localStream));
-
-  pc.onicecandidate=e=>{
-    if(e.candidate)App.socket.emit("signal:ice",{to:id,candidate:e.candidate});
-  };
-
-  pc.ontrack=e=>{
-    pc._remoteStream=e.streams[0];
-    const v=$("vid_"+id);
-    if(v){v.srcObject=e.streams[0];v.play?.().catch(()=>{});}
-    else{
-      // lobby: no video element yet — play audio through hidden element
-      let aud=document.getElementById("aud_"+id);
-      if(!aud){aud=document.createElement("audio");aud.id="aud_"+id;aud.autoplay=true;aud.setAttribute("playsinline","");document.body.appendChild(aud);}
-      aud.srcObject=e.streams[0];aud.play?.().catch(()=>{});
+  const pc = new RTCPeerConnection(getRTCConfig());
+  App.peers[id] = pc;
+  console.log("[WebRTC] create peer", id, getRTCConfig());
+  if(App.localStream){
+    App.localStream.getTracks().forEach(t => {
+      pc.addTrack(t, App.localStream);
+      console.log("[WebRTC] added local track", t.kind, "to", id);
+    });
+  } else {
+    try{
+      pc.addTransceiver("audio", { direction:"recvonly" });
+    }catch(e){}
+  }
+  pc.onicecandidate = e => {
+    if(e.candidate){
+      console.log(
+        "[WebRTC] ICE candidate →",
+        id,
+        e.candidate.type,
+        e.candidate.protocol
+      );
+      App.socket.emit("signal:ice", {
+        to:id,
+        candidate:e.candidate.toJSON ? e.candidate.toJSON() : e.candidate
+      });
     }
   };
-
-  pc.onconnectionstatechange=()=>{
-    if(["failed","closed","disconnected"].includes(pc.connectionState)){
+  pc.onicecandidateerror = e => {
+    console.warn(
+      "[WebRTC] ICE candidate error",
+      id,
+      e.errorCode,
+      e.errorText,
+      e.url
+    );
+  };
+  pc.oniceconnectionstatechange = () => {
+    console.log("[WebRTC] ICE state", id, pc.iceConnectionState);
+    if(pc.iceConnectionState === "failed"){
+      console.warn("[WebRTC] ICE failed, restarting", id);
+      try{
+        pc.restartIce();
+      }catch(e){}
+      toast("Voice connection failed. Try refresh / reset voice.");
+    }
+    if(pc.iceConnectionState === "disconnected"){
+      console.warn("[WebRTC] ICE disconnected", id);
+    }
+  };
+  pc.onconnectionstatechange = () => {
+    console.log("[WebRTC] connection state", id, pc.connectionState);
+    if(pc.connectionState === "failed" || pc.connectionState === "closed"){
+      console.warn("[WebRTC] peer connection ended", id, pc.connectionState);
       delete App.peers[id];
       delete pendingIce[id];
     }
   };
+  pc.onsignalingstatechange = () => {
+    console.log("[WebRTC] signaling state", id, pc.signalingState);
+  };
+  pc.onicegatheringstatechange = () => {
+    console.log("[WebRTC] gathering state", id, pc.iceGatheringState);
+  };
+  pc.ontrack = e => {
+    console.log("[WebRTC] remote track from", id, e.track.kind, e.streams);
+    let stream = pc._remoteStream;
+    if(!stream){
+      stream = new MediaStream();
+      pc._remoteStream = stream;
+    }
+    if(!stream.getTrackById(e.track.id)){
+      stream.addTrack(e.track);
+    }
+    attachRemoteStream(id, stream);
+  };
   return pc;
 }
-
-async function onOffer({from,signal}){
+function attachRemoteStream(id, stream){
+  const v = $("vid_" + id);
+  if(v){
+    if(v.srcObject !== stream){
+      v.srcObject = stream;
+    }
+    v.muted = false;
+    v.playsInline = true;
+    v.play?.().catch(err => {
+      console.warn("[WebRTC] video/audio play blocked", id, err);
+    });
+  }
+  let aud = document.getElementById("aud_" + id);
+  if(!aud){
+    aud = document.createElement("audio");
+    aud.id = "aud_" + id;
+    aud.autoplay = true;
+    aud.setAttribute("playsinline", "");
+    aud.muted = false;
+    aud.volume = 1.0;
+    aud.style.display = "none";
+    document.body.appendChild(aud);
+  }
+  if(aud.srcObject !== stream){
+    aud.srcObject = stream;
+  }
+  aud.play?.().catch(err => {
+    console.warn("[WebRTC] audio autoplay blocked", id, err);
+    const retry = () => {
+      aud.play?.().catch(() => {});
+      document.removeEventListener("click", retry);
+      document.removeEventListener("touchstart", retry);
+    };
+    document.addEventListener("click", retry, { once:true });
+    document.addEventListener("touchstart", retry, { once:true });
+  });
+}
+async function onOffer({ from, signal }){
   await ensureMedia();
-  let pc=App.peers[from];
-  if(!pc)pc=createPeer(from);
-  await pc.setRemoteDescription(new RTCSessionDescription(signal));
-  await flushIce(from);
-  const ans=await pc.createAnswer();
-  await pc.setLocalDescription(ans);
-  App.socket.emit("signal:answer",{to:from,signal:ans});
-  // Signal ready so the other side knows we exist
-  signalReady();
+  let pc = App.peers[from];
+  if(!pc) pc = createPeer(from);
+  try{
+    await pc.setRemoteDescription(new RTCSessionDescription(signal));
+    await flushIce(from);
+    const ans = await pc.createAnswer();
+    await pc.setLocalDescription(ans);
+    console.log("[WebRTC] answer →", from);
+    App.socket.emit("signal:answer", {
+      to:from,
+      signal:ans
+    });
+    signalReady();
+  }catch(e){
+    console.warn("[WebRTC] offer handling failed", from, e);
+  }
 }
-
-async function onAnswer({from,signal}){
-  const pc=App.peers[from];
-  if(!pc)return;
-  await pc.setRemoteDescription(new RTCSessionDescription(signal));
-  await flushIce(from);
+async function onAnswer({ from, signal }){
+  const pc = App.peers[from];
+  if(!pc) return;
+  try{
+    if(pc.signalingState === "stable"){
+      console.log("[WebRTC] already stable, skip answer", from);
+      return;
+    }
+    await pc.setRemoteDescription(new RTCSessionDescription(signal));
+    await flushIce(from);
+    console.log("[WebRTC] answer applied from", from);
+  }catch(e){
+    console.warn("[WebRTC] answer failed", from, e);
+  }
 }
-
-async function onIce({from,candidate}){
-  const pc=App.peers[from];
-  if(!pc||!pc.remoteDescription){
-    if(!pendingIce[from])pendingIce[from]=[];
+async function onIce({ from, candidate }){
+  const pc = App.peers[from];
+  if(!pc || !pc.remoteDescription){
+    if(!pendingIce[from]) pendingIce[from] = [];
     pendingIce[from].push(candidate);
     return;
   }
-  try{await pc.addIceCandidate(new RTCIceCandidate(candidate));}catch(e){}
+  try{
+    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+    console.log("[WebRTC] ICE added from", from);
+  }catch(e){
+    console.warn("[WebRTC] ICE add failed", from, e);
+  }
 }
-
 async function flushIce(from){
-  const list=pendingIce[from];
-  if(!list)return;
-  const pc=App.peers[from];
+  const list = pendingIce[from];
+  if(!list) return;
+  const pc = App.peers[from];
+  if(!pc) return;
   for(const c of list){
-    try{await pc.addIceCandidate(new RTCIceCandidate(c));}catch(e){}
+    try{
+      await pc.addIceCandidate(new RTCIceCandidate(c));
+      console.log("[WebRTC] queued ICE added from", from);
+    }catch(e){
+      console.warn("[WebRTC] queued ICE failed", from, e);
+    }
   }
   delete pendingIce[from];
 }
 </script>
-</body>
-</html>
