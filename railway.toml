@@ -1,7 +1,9 @@
 [build]
 buildCommand = "npm install --include=dev && npm run build"
+nixPackages = ["libatomic1"]
 
 [deploy]
+# დარწმუნდი, რომ path სწორია, შენი ძველი კონფიგურაციით server/dist/index.js-ია
 startCommand = "NODE_ENV=production node server/dist/index.js"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
