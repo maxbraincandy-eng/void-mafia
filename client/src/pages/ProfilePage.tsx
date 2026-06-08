@@ -6,6 +6,8 @@ import { PoweredBy } from '@/components/ui/PoweredBy';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { FriendsPanel } from '@/components/ui/FriendsPanel';
 import { GiftGallery } from '@/components/ui/GiftGallery';
+import { ShareCardModal } from '@/components/ui/ShareCardModal';
+import type { ProfileCardData } from '@/components/ui/ProfileCard';
 import { emitWithAck, socket } from '@/lib/socket';
 import type { AchievementEarned, GameHistoryEntry, PlayerRoleStats, ClanMembership, Res, PlayerCosmetics } from '@/types/index';
 import {
@@ -126,6 +128,7 @@ export function ProfilePage() {
   const [dailyMsg, setDailyMsg]     = useState<string | null>(null);
   const [cosmeticsTab, setCosmeticsTab] = useState<'frames' | 'titles' | 'skins'>('frames');
   const [equipLoading, setEquipLoading] = useState(false);
+  const [showShare, setShowShare]   = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -407,6 +410,14 @@ export function ProfilePage() {
               </div>
             </div>
           )}
+
+          {/* Share Profile button */}
+          <button
+            onClick={() => setShowShare(true)}
+            className="mt-3 w-full py-2.5 rounded-xl font-display font-bold text-sm tracking-widest uppercase transition-all border border-neon-cyan/30 bg-neon-cyan/6 text-neon-cyan/80 hover:bg-neon-cyan/12 hover:text-neon-cyan"
+          >
+            ↗ Share Profile
+          </button>
         </motion.div>
 
         {/* ── Cosmetics / Wardrobe ───────────────────────────────────── */}
@@ -916,6 +927,16 @@ export function ProfilePage() {
       </div>
 
       <RoleInfoModal open={showRoleGuide} onClose={() => setShowRoleGuide(false)} />
+
+      <ShareCardModal
+        open={showShare}
+        data={showShare ? {
+          profile,
+          clan: clan ?? null,
+          achievements,
+        } satisfies ProfileCardData : null}
+        onClose={() => setShowShare(false)}
+      />
     </div>
   );
 }
