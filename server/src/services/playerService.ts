@@ -458,16 +458,17 @@ export async function getWarnings(uid: string): Promise<Warning[]> {
   ` as any[];
   return rows.map((r: any) => ({
     id: r.id, playerId: r.player_id,
-    reason: r.reason, issuedBy: r.warned_by, issuedByName: r.warned_by_name,
+    reason: r.reason, category: (r.category ?? 'other') as Warning['category'],
+    issuedBy: r.warned_by, issuedByName: r.warned_by_name,
     issuedAt: Number(r.issued_at),
   }));
 }
 
 export async function addWarning(uid: string, warning: Warning): Promise<void> {
   await sql`
-    INSERT INTO warnings (id, player_id, warned_by, warned_by_name, reason, issued_at)
+    INSERT INTO warnings (id, player_id, warned_by, warned_by_name, reason, category, issued_at)
     VALUES (${warning.id}, ${uid}, ${warning.issuedBy}, ${warning.issuedByName},
-            ${warning.reason}, ${warning.issuedAt})
+            ${warning.reason}, ${warning.category ?? 'other'}, ${warning.issuedAt})
   `;
 }
 

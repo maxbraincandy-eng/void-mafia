@@ -153,10 +153,21 @@ export interface MuteRecord {
   expiresAt: number;
 }
 
+export type WarnCategory =
+  | 'offensive_language'
+  | 'voice_abuse'
+  | 'spam'
+  | 'game_sabotage'
+  | 'harassment'
+  | 'inappropriate_avatar_name'
+  | 'bug_abuse'
+  | 'other';
+
 export interface Warning {
   id: string;
   playerId: string;
   reason: string;
+  category: WarnCategory;
   issuedBy: string;
   issuedByName: string;
   issuedAt: number;

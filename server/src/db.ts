@@ -430,6 +430,13 @@ export async function initializeDatabase(): Promise<void> {
   await sql`ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS gift_image_url TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS coin_cost INTEGER NOT NULL DEFAULT 0`;
 
+  // ── Mod v2 schema evolution (additive) ─────────────────────────────────
+  await sql`ALTER TABLE warnings ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'other'`;
+  await sql`ALTER TABLE bans ADD COLUMN IF NOT EXISTS scope TEXT NOT NULL DEFAULT 'global'`;
+  await sql`ALTER TABLE bans ADD COLUMN IF NOT EXISTS target_public_id INTEGER`;
+  await sql`ALTER TABLE bans ADD COLUMN IF NOT EXISTS issuer_public_id INTEGER`;
+  await sql`ALTER TABLE mod_logs ADD COLUMN IF NOT EXISTS metadata TEXT`;
+
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];
   console.log(`[Database] connected successfully`);

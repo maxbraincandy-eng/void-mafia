@@ -61,12 +61,19 @@ export function configurePassport() {
     const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET ?? '';
     const FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID ?? '';
     const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET ?? '';
-    const SERVER_PUBLIC_URL = process.env.SERVER_PUBLIC_URL ?? '';
+    // Strip trailing slash to avoid double-slash in callback URL
+    const SERVER_PUBLIC_URL = (process.env.SERVER_PUBLIC_URL ?? '').replace(/\/+$/, '');
+    const googleCallbackURL = `${SERVER_PUBLIC_URL}/api/auth/google/callback`;
+    const facebookCallbackURL = `${SERVER_PUBLIC_URL}/api/auth/facebook/callback`;
+    console.log(`[Auth] Google callback URL = ${googleCallbackURL}`);
+    if (!SERVER_PUBLIC_URL) {
+        console.warn('[Auth] WARNING: SERVER_PUBLIC_URL is not set — OAuth callbacks will use the wrong host in production');
+    }
     if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
         passport.use(new GoogleStrategy({
             clientID: GOOGLE_CLIENT_ID,
             clientSecret: GOOGLE_CLIENT_SECRET,
-            callbackURL: `${SERVER_PUBLIC_URL}/api/auth/google/callback`,
+            callbackURL: googleCallbackURL,
         }, async (_accessToken, _refreshToken, profile, done) => {
             try {
                 const email = profile.emails?.[0]?.value ?? null;
@@ -83,7 +90,7 @@ export function configurePassport() {
         passport.use(new FacebookStrategy({
             clientID: FACEBOOK_APP_ID,
             clientSecret: FACEBOOK_APP_SECRET,
-            callbackURL: `${SERVER_PUBLIC_URL}/api/auth/facebook/callback`,
+            callbackURL: facebookCallbackURL,
             profileFields: ['id', 'displayName', 'emails', 'photos'],
         }, async (_accessToken, _refreshToken, profile, done) => {
             try {
@@ -117,14 +124,32 @@ export function createAuthRouter() {
         });
     });
     // ── Google ──────────────────────────────────────────────────────
+    // Resolve callbackURL at request time so Railway env var changes
+    // take effect without a restart, and the startup-time value never
+    // gets stale.
+    function getGoogleCallbackURL() {
+        const base = (process.env.SERVER_PUBLIC_URL ?? '').replace(/\/+$/, '');
+        const url = `${base}/api/auth/google/callback`;
+        console.log(`[Auth] Google callback URL = ${url}`);
+        return url;
+    }
     router.get('/google', (req, res, next) => {
-        // If ?link=1 store current uid for linking after callback
         if (req.query.link === '1' && req.session.uid) {
             req.session.linkUid = req.session.uid;
         }
-        passport.authenticate('google', { scope: ['profile', 'email'], session: false })(req, res, next);
+        passport.authenticate('google', {
+            scope: ['profile', 'email'],
+            session: false,
+            callbackURL: getGoogleCallbackURL(),
+        })(req, res, next);
     });
-    router.get('/google/callback', passport.authenticate('google', { session: false, failureRedirect: `${process.env.CLIENT_URL ?? ''}/?oauth_error=1` }), async (req, res) => {
+    router.get('/google/callback', (req, res, next) => {
+        passport.authenticate('google', {
+            session: false,
+            callbackURL: getGoogleCallbackURL(),
+            failureRedirect: `${process.env.CLIENT_URL ?? ''}/?oauth_error=1`,
+        })(req, res, next);
+    }, async (req, res) => {
         const CLIENT_URL = process.env.CLIENT_URL ?? '';
         try {
             const profile = req.user;
@@ -141,6 +166,8 @@ export function createAuthRouter() {
             const rows = await sql `SELECT username FROM players WHERE id = ${uid} LIMIT 1`;
             req.session.uid = uid;
             req.session.username = rows[0]?.username ?? 'Player';
+            // Explicitly save session before redirect so the cookie is flushed
+            await new Promise((resolve, reject) => req.session.save(err => (err ? reject(err) : resolve())));
             res.redirect(`${CLIENT_URL}/?oauth_success=1`);
         }
         catch (e) {
