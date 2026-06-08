@@ -606,6 +606,8 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
         <SendGiftModal
           recipientId={playerId}
           recipientName={data.profile.username}
+          recipientAvatar={data.profile.avatar}
+          recipientAvatarUrl={data.profile.avatarUrl}
           onClose={() => setShowSendGift(false)}
           onSuccess={() => addToast('Gift sent!', 'success')}
         />

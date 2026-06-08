@@ -28,6 +28,10 @@ export interface GiftCatalogItem {
   stars: number;
   price: number;
   active: boolean;
+  category: string;
+  limitedEdition: boolean;
+  seasonalTag: string | null;
+  displayOrder: number;
   createdBy: string;
   createdAt: number;
   updatedAt: number;
@@ -66,6 +70,50 @@ export interface GiftDetail extends GiftCatalogItem {
     message: string;
     sentAt: number;
   }>;
+}
+
+export interface GiftTimelineEntry {
+  id: string;
+  senderId: string;
+  senderPublicId: number | null;
+  senderName: string;
+  senderAvatar: string;
+  senderAvatarUrl: string | null;
+  recipientId: string;
+  receiverPublicId: number | null;
+  receiverName: string;
+  receiverAvatar: string;
+  receiverAvatarUrl: string | null;
+  giftId: string;
+  giftName: string;
+  giftIcon: string;
+  giftImageUrl: string;
+  giftRarity: string;
+  giftStars: number;
+  coinCost: number;
+  message: string;
+  createdAt: number;
+}
+
+export interface GiftStats {
+  totalReceived: number;
+  totalSent: number;
+  totalSpent: number;
+  uniqueGiftTypesReceived: number;
+  uniqueGiftTypesSent: number;
+  legendaryReceivedCount: number;
+  mostReceivedGiftName: string | null;
+  mostSentGiftName: string | null;
+}
+
+export interface PinnedGiftEntry {
+  giftId: string;
+  giftName: string;
+  giftIcon: string;
+  giftImageUrl: string;
+  giftRarity: string;
+  giftStars: number;
+  pinnedAt: number;
 }
 
 const DAILY_REWARD_COINS = 50;
@@ -262,6 +310,10 @@ function rowToGift(r: any): GiftCatalogItem {
     stars: Number(r.stars),
     price: Number(r.price),
     active: Number(r.active) === 1,
+    category: r.category ?? 'symbols',
+    limitedEdition: Number(r.limited_edition ?? 0) === 1,
+    seasonalTag: r.seasonal_tag ?? null,
+    displayOrder: Number(r.display_order ?? 0),
     createdBy: r.created_by ?? 'system',
     createdAt: Number(r.created_at),
     updatedAt: Number(r.updated_at),
@@ -306,17 +358,19 @@ export async function sendGift(
 
   const giftEntryId = generateId();
   const now = Date.now();
+  const safeMessage = message.slice(0, 120);
   await sql`
     INSERT INTO player_gifts
       (id, recipient_id, sender_id, gift_id, message, transaction_id, created_at,
        sender_public_id, sender_name, receiver_public_id, receiver_name,
-       gift_key, gift_image_url, coin_cost)
+       gift_key, gift_image_url, coin_cost, gift_rarity, gift_stars, gift_category)
     VALUES
       (${giftEntryId}, ${recipientId}, ${senderId}, ${giftId},
-       ${message.slice(0, 200)}, ${txId}, ${now},
+       ${safeMessage}, ${txId}, ${now},
        ${senderPublicId}, ${senderRow.username},
        ${receiverPublicId}, ${recipientRow.username},
-       ${giftId}, ${giftImageUrl}, ${giftPrice})
+       ${giftId}, ${giftImageUrl}, ${giftPrice},
+       ${giftRow.rarity}, ${Number(giftRow.stars)}, ${giftRow.category ?? 'symbols'})
   `;
 
   const giftEntry: PlayerGift = {
@@ -337,7 +391,7 @@ export async function sendGift(
     giftRarity: giftRow.rarity,
     giftStars: Number(giftRow.stars),
     coinCost: giftPrice,
-    message: message.slice(0, 200),
+    message: safeMessage,
     transactionId: txId,
     createdAt: now,
   };
@@ -418,4 +472,198 @@ export async function getGiftDetail(giftId: string, recipientId: string): Promis
       sentAt: Number(r.created_at),
     })),
   };
+}
+
+export async function getGiftsSent(senderId: string, limit = 50): Promise<PlayerGift[]> {
+  const rows = await sql`
+    SELECT
+      pg.id, pg.recipient_id, pg.sender_id, pg.gift_id, pg.message, pg.transaction_id, pg.created_at,
+      pg.sender_public_id, pg.sender_name,
+      pg.receiver_public_id, pg.receiver_name,
+      pg.gift_key, pg.gift_image_url, pg.coin_cost,
+      p.avatar     AS sender_avatar,
+      p.avatar_url AS sender_avatar_url,
+      COALESCE(pg.sender_name, p.username) AS sender_username,
+      gc.name      AS gift_name,
+      gc.icon      AS gift_icon,
+      gc.rarity    AS gift_rarity,
+      gc.stars     AS gift_stars,
+      COALESCE(gc.image_url, '') AS gift_img
+    FROM player_gifts pg
+    JOIN players p       ON p.id  = pg.sender_id
+    JOIN gift_catalog gc ON gc.id = pg.gift_id
+    WHERE pg.sender_id = ${senderId}
+    ORDER BY pg.created_at DESC
+    LIMIT ${limit}
+  ` as any[];
+  return rows.map(r => ({
+    id: r.id,
+    recipientId: r.recipient_id,
+    receiverPublicId: r.receiver_public_id != null ? Number(r.receiver_public_id) : null,
+    receiverName: r.receiver_name ?? '',
+    senderId: r.sender_id,
+    senderPublicId: r.sender_public_id != null ? Number(r.sender_public_id) : null,
+    senderUsername: r.sender_username ?? '',
+    senderAvatar: r.sender_avatar ?? '',
+    senderAvatarUrl: r.sender_avatar_url ?? null,
+    giftId: r.gift_id,
+    giftKey: r.gift_key ?? r.gift_id,
+    giftName: r.gift_name,
+    giftIcon: r.gift_icon,
+    giftImageUrl: r.gift_img ?? '',
+    giftRarity: r.gift_rarity,
+    giftStars: Number(r.gift_stars),
+    coinCost: r.coin_cost != null ? Number(r.coin_cost) : 0,
+    message: r.message ?? '',
+    transactionId: r.transaction_id,
+    createdAt: Number(r.created_at),
+  }));
+}
+
+export async function getGiftTimeline(playerId: string, limit = 30): Promise<GiftTimelineEntry[]> {
+  const rows = await sql`
+    SELECT
+      pg.id, pg.sender_id, pg.recipient_id, pg.message, pg.created_at,
+      pg.sender_public_id, pg.sender_name,
+      pg.receiver_public_id, pg.receiver_name,
+      pg.gift_id, pg.gift_key, pg.gift_image_url, pg.coin_cost,
+      s.avatar     AS sender_avatar,
+      s.avatar_url AS sender_avatar_url,
+      r.avatar     AS receiver_avatar,
+      r.avatar_url AS receiver_avatar_url,
+      gc.name   AS gift_name,
+      gc.icon   AS gift_icon,
+      gc.rarity AS gift_rarity,
+      gc.stars  AS gift_stars
+    FROM player_gifts pg
+    JOIN players s       ON s.id  = pg.sender_id
+    JOIN players r       ON r.id  = pg.recipient_id
+    JOIN gift_catalog gc ON gc.id = pg.gift_id
+    WHERE pg.sender_id = ${playerId} OR pg.recipient_id = ${playerId}
+    ORDER BY pg.created_at DESC
+    LIMIT ${limit}
+  ` as any[];
+  return rows.map(r => ({
+    id: r.id,
+    senderId: r.sender_id,
+    senderPublicId: r.sender_public_id != null ? Number(r.sender_public_id) : null,
+    senderName: r.sender_name ?? '',
+    senderAvatar: r.sender_avatar ?? '',
+    senderAvatarUrl: r.sender_avatar_url ?? null,
+    recipientId: r.recipient_id,
+    receiverPublicId: r.receiver_public_id != null ? Number(r.receiver_public_id) : null,
+    receiverName: r.receiver_name ?? '',
+    receiverAvatar: r.receiver_avatar ?? '',
+    receiverAvatarUrl: r.receiver_avatar_url ?? null,
+    giftId: r.gift_id,
+    giftName: r.gift_name,
+    giftIcon: r.gift_icon,
+    giftImageUrl: r.gift_image_url ?? '',
+    giftRarity: r.gift_rarity,
+    giftStars: Number(r.gift_stars),
+    coinCost: r.coin_cost != null ? Number(r.coin_cost) : 0,
+    message: r.message ?? '',
+    createdAt: Number(r.created_at),
+  }));
+}
+
+export async function getGiftStats(playerId: string): Promise<GiftStats> {
+  const [receivedRow] = await sql`
+    SELECT
+      COUNT(*) AS total_received,
+      COUNT(DISTINCT gift_id) AS unique_types_received
+    FROM player_gifts WHERE recipient_id = ${playerId}
+  ` as any[];
+
+  const [sentRow] = await sql`
+    SELECT
+      COUNT(*) AS total_sent,
+      COALESCE(SUM(coin_cost), 0) AS total_spent,
+      COUNT(DISTINCT gift_id) AS unique_types_sent
+    FROM player_gifts WHERE sender_id = ${playerId}
+  ` as any[];
+
+  const [legendaryRow] = await sql`
+    SELECT COUNT(*) AS cnt
+    FROM player_gifts pg
+    JOIN gift_catalog gc ON gc.id = pg.gift_id
+    WHERE pg.recipient_id = ${playerId} AND gc.rarity = 'legendary'
+  ` as any[];
+
+  const mostReceivedRows = await sql`
+    SELECT gc.name, COUNT(*) AS cnt
+    FROM player_gifts pg
+    JOIN gift_catalog gc ON gc.id = pg.gift_id
+    WHERE pg.recipient_id = ${playerId}
+    GROUP BY gc.name
+    ORDER BY cnt DESC
+    LIMIT 1
+  ` as any[];
+
+  const mostSentRows = await sql`
+    SELECT gc.name, COUNT(*) AS cnt
+    FROM player_gifts pg
+    JOIN gift_catalog gc ON gc.id = pg.gift_id
+    WHERE pg.sender_id = ${playerId}
+    GROUP BY gc.name
+    ORDER BY cnt DESC
+    LIMIT 1
+  ` as any[];
+
+  return {
+    totalReceived: Number(receivedRow?.total_received ?? 0),
+    totalSent: Number(sentRow?.total_sent ?? 0),
+    totalSpent: Number(sentRow?.total_spent ?? 0),
+    uniqueGiftTypesReceived: Number(receivedRow?.unique_types_received ?? 0),
+    uniqueGiftTypesSent: Number(sentRow?.unique_types_sent ?? 0),
+    legendaryReceivedCount: Number(legendaryRow?.cnt ?? 0),
+    mostReceivedGiftName: mostReceivedRows[0]?.name ?? null,
+    mostSentGiftName: mostSentRows[0]?.name ?? null,
+  };
+}
+
+export async function getPinnedGifts(playerId: string): Promise<PinnedGiftEntry[]> {
+  const rows = await sql`
+    SELECT pg.gift_id, pg.pinned_at,
+           gc.name      AS gift_name,
+           gc.icon      AS gift_icon,
+           gc.image_url AS gift_image_url,
+           gc.rarity    AS gift_rarity,
+           gc.stars     AS gift_stars
+    FROM pinned_gifts pg
+    JOIN gift_catalog gc ON gc.id = pg.gift_id
+    WHERE pg.player_id = ${playerId}
+    ORDER BY pg.pinned_at ASC
+  ` as any[];
+  return rows.map(r => ({
+    giftId: r.gift_id,
+    giftName: r.gift_name,
+    giftIcon: r.gift_icon,
+    giftImageUrl: r.gift_image_url ?? '',
+    giftRarity: r.gift_rarity,
+    giftStars: Number(r.gift_stars),
+    pinnedAt: Number(r.pinned_at),
+  }));
+}
+
+export async function pinGift(playerId: string, giftId: string): Promise<void> {
+  const [received] = await sql`
+    SELECT 1 FROM player_gifts WHERE recipient_id = ${playerId} AND gift_id = ${giftId} LIMIT 1
+  ` as any[];
+  if (!received) throw new Error('You have not received this gift.');
+
+  const [countRow] = await sql`
+    SELECT COUNT(*) AS cnt FROM pinned_gifts WHERE player_id = ${playerId}
+  ` as any[];
+  if (Number(countRow?.cnt ?? 0) >= 3) throw new Error('Maximum 3 gifts can be pinned. Unpin one first.');
+
+  await sql`
+    INSERT INTO pinned_gifts (player_id, gift_id, pinned_at)
+    VALUES (${playerId}, ${giftId}, ${Date.now()})
+    ON CONFLICT (player_id, gift_id) DO NOTHING
+  `;
+}
+
+export async function unpinGift(playerId: string, giftId: string): Promise<void> {
+  await sql`DELETE FROM pinned_gifts WHERE player_id = ${playerId} AND gift_id = ${giftId}`;
 }

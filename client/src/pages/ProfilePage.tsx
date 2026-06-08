@@ -453,8 +453,8 @@ export function ProfilePage() {
         {/* ── Gift Gallery ────────────────────────────────────────────── */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.085 }}
           className="glass-panel border border-white/8 rounded-2xl p-4 mb-3">
-          <SectionHeader icon="🎁" title="Gifts Received" />
-          {profile && <GiftGallery profileId={profile.id} />}
+          <SectionHeader icon="🎁" title="Gifts" />
+          {profile && <GiftGallery profileId={profile.id} viewerId={profile.id} />}
         </motion.div>
 
         {/* ── Games by team ──────────────────────────────────────────── */}

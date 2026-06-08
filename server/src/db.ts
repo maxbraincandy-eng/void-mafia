@@ -437,6 +437,25 @@ export async function initializeDatabase(): Promise<void> {
   await sql`ALTER TABLE bans ADD COLUMN IF NOT EXISTS issuer_public_id INTEGER`;
   await sql`ALTER TABLE mod_logs ADD COLUMN IF NOT EXISTS metadata TEXT`;
 
+  // ── Gift System V2 (additive) ─────────────────────────────────────────
+  await sql`ALTER TABLE gift_catalog ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'symbols'`;
+  await sql`ALTER TABLE gift_catalog ADD COLUMN IF NOT EXISTS limited_edition INTEGER NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE gift_catalog ADD COLUMN IF NOT EXISTS seasonal_tag TEXT`;
+  await sql`ALTER TABLE gift_catalog ADD COLUMN IF NOT EXISTS display_order INTEGER NOT NULL DEFAULT 0`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS pinned_gifts (
+      player_id TEXT NOT NULL,
+      gift_id   TEXT NOT NULL,
+      pinned_at BIGINT NOT NULL,
+      PRIMARY KEY (player_id, gift_id)
+    )
+  `;
+  await sql`ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS gift_rarity TEXT NOT NULL DEFAULT 'common'`;
+  await sql`ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS gift_stars INTEGER NOT NULL DEFAULT 1`;
+  await sql`ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS gift_category TEXT NOT NULL DEFAULT 'symbols'`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_player_gifts_sender ON player_gifts(sender_id, created_at)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_player_gifts_recipient ON player_gifts(recipient_id, created_at)`;
+
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];
   console.log(`[Database] connected successfully`);

@@ -16,7 +16,7 @@ import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as 
 import { sql } from './db.js';
 import bcrypt from 'bcryptjs';
 import { getOrCreateConversation, listConversations, sendMessage, getMessages, markRead, getTotalUnread, } from './services/dmService.js';
-import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, } from './services/coinService.js';
+import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, getGiftsSent, getGiftTimeline, getGiftStats, getPinnedGifts, pinGift, unpinGift, } from './services/coinService.js';
 // ── TURN / ICE server config ──────────────────────────────────────────
 // Centralised in server/src/lib/iceConfig.ts.  Reads Railway env vars:
 // TURN_URL, TURN_USERNAME, TURN_CREDENTIAL, FORCE_TURN_RELAY, STUN_URL.
@@ -2503,17 +2503,18 @@ export function attachSocketHandlers(io) {
                 // Notify recipient in real-time if connected
                 const recipientSock = findSocketByProfile(io, recipientId);
                 if (recipientSock) {
-                    const giftInfo = await getGiftCatalog(true);
-                    const catalogItem = giftInfo.find(g => g.id === giftId);
-                    if (catalogItem) {
-                        recipientSock.emit('gift:received', {
-                            gift: catalogItem,
-                            senderName: giftEntry.senderUsername,
-                            senderAvatar: giftEntry.senderAvatar,
-                            message: giftEntry.message,
-                        });
-                    }
+                    recipientSock.emit('gifts:received', {
+                        giftId: giftEntry.giftId,
+                        giftName: giftEntry.giftName,
+                        giftIcon: giftEntry.giftIcon,
+                        giftRarity: giftEntry.giftRarity,
+                        senderName: giftEntry.senderUsername,
+                        senderAvatar: giftEntry.senderAvatar,
+                        senderAvatarUrl: giftEntry.senderAvatarUrl,
+                        message: giftEntry.message,
+                    });
                 }
+                socket.emit('gifts:sent', { giftId: giftEntry.giftId });
                 cb(ok({ newBalance: newSenderBalance }));
             }
             catch (e) {
@@ -2563,6 +2564,78 @@ export function attachSocketHandlers(io) {
                 if (!detail)
                     throw new Error('Gift not found.');
                 cb(ok(detail));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:getSent', async ({ profileId: targetId }, cb) => {
+            try {
+                if (!targetId)
+                    throw new Error('profileId required.');
+                const gifts = await getGiftsSent(targetId);
+                cb(ok(gifts));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:getTimeline', async ({ profileId: targetId }, cb) => {
+            try {
+                if (!targetId)
+                    throw new Error('profileId required.');
+                const timeline = await getGiftTimeline(targetId);
+                cb(ok(timeline));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:getStats', async ({ profileId: targetId }, cb) => {
+            try {
+                if (!targetId)
+                    throw new Error('profileId required.');
+                const stats = await getGiftStats(targetId);
+                cb(ok(stats));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:getPinned', async ({ profileId: targetId }, cb) => {
+            try {
+                if (!targetId)
+                    throw new Error('profileId required.');
+                const pinned = await getPinnedGifts(targetId);
+                cb(ok(pinned));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:pin', async ({ giftId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                if (!giftId)
+                    throw new Error('giftId required.');
+                await pinGift(profileId, giftId);
+                cb(ok({}));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:unpin', async ({ giftId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                if (!giftId)
+                    throw new Error('giftId required.');
+                await unpinGift(profileId, giftId);
+                cb(ok({}));
             }
             catch (e) {
                 cb(err(e.message));

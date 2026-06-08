@@ -17,8 +17,11 @@ import { EconomyAdminPage } from '@/pages/EconomyAdminPage';
 import { BottomNav, NavTab } from '@/components/layout/BottomNav';
 import { PlayerProfileModal } from '@/components/ui/PlayerProfileModal';
 import { DmPanel } from '@/components/social/DmPanel';
+import { GiftNotificationToast } from '@/components/ui/GiftNotificationToast';
 import { attachGlobalClickSounds, onSettingsChange } from '@/lib/audioEngine';
 import { useSettingsStore } from '@/store/settingsStore';
+import { socket } from '@/lib/socket';
+import type { GiftReceivedNotification } from '@/types/index';
 
 interface Toast {
   id: string;
@@ -250,14 +253,20 @@ function ModNoticeOverlay() {
 export default function App() {
   const connect = useGameStore(s => s.connect);
   const { profilePopupId, closeProfile } = useSocialStore();
+  const [giftNotif, setGiftNotif] = useState<GiftReceivedNotification | null>(null);
 
   useEffect(() => {
     connect();
     attachGlobalClickSounds();
-    // Subscribe settings changes → audio engine
     const unsub = useSettingsStore.subscribe(onSettingsChange);
     return unsub;
   }, [connect]);
+
+  useEffect(() => {
+    const handler = (data: GiftReceivedNotification) => setGiftNotif(data);
+    socket.on('gifts:received' as any, handler);
+    return () => { socket.off('gifts:received' as any, handler); };
+  }, []);
 
   return (
     <>
@@ -272,6 +281,7 @@ export default function App() {
       <PlayerProfileModal playerId={profilePopupId} onClose={closeProfile} />
       <DmPanel />
       <DmToastNotification />
+      <GiftNotificationToast notification={giftNotif} onDismiss={() => setGiftNotif(null)} />
     </>
   );
 }
