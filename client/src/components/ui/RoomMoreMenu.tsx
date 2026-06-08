@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Phase, PlayerPublic } from '@/types/index';
+import { Phase, PlayerPublic, ClanRole } from '@/types/index';
 import { ConfirmModal } from './ConfirmModal';
 
 interface Props {
@@ -13,6 +13,11 @@ interface Props {
   amHost: boolean;
   isInVoice: boolean;
   activeRoleCounts?: Record<string, number>;
+  // Clan room info
+  clanId?: string | null;
+  clanRoom?: boolean;
+  viewerClanId?: string | null;
+  viewerClanRole?: ClanRole | null;
   // Actions
   onLeaveRoom: () => void;
   onTerminateGame?: () => void;
@@ -24,10 +29,14 @@ type ConfirmAction = 'leave' | 'terminate' | null;
 
 export function RoomMoreMenu({
   open, onClose, phase, roomCode, spectators, amHost, isInVoice, activeRoleCounts,
+  clanId, clanRoom, viewerClanId, viewerClanRole,
   onLeaveRoom, onTerminateGame, onResetVoice, onShowRoleGuide,
 }: Props) {
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
   const isActiveGame = phase !== 'lobby' && phase !== 'game_over';
+  const isClanRoom = !!(clanRoom && clanId);
+  const hasClanModPower = isClanRoom && clanId === viewerClanId &&
+    (viewerClanRole === 'owner' || viewerClanRole === 'admin' || viewerClanRole === 'moderator');
 
   const handleConfirm = () => {
     if (confirmAction === 'leave') {
@@ -158,6 +167,30 @@ export function RoomMoreMenu({
                       <p className="text-[10px] font-mono text-white/30">Stop game, return to lobby</p>
                     </div>
                   </button>
+                )}
+
+                {/* Clan Room Info */}
+                {isClanRoom && (
+                  <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-3 border-b border-purple-500/10">
+                      <span className="text-base">🛡</span>
+                      <span className="text-xs font-display font-bold text-purple-300/70 tracking-widest uppercase">
+                        Clan Room
+                      </span>
+                      {hasClanModPower && (
+                        <span className="ml-auto font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-400/15 text-cyan-300 border border-cyan-400/30">
+                          {viewerClanRole}
+                        </span>
+                      )}
+                    </div>
+                    <div className="px-4 py-2.5">
+                      <p className="text-[10px] font-mono text-white/30">
+                        {hasClanModPower
+                          ? 'You have clan moderation powers in this room. Click players to use warn/kick tools.'
+                          : 'This room was created by a clan. Clan moderators may have special powers here.'}
+                      </p>
+                    </div>
+                  </div>
                 )}
 
                 {/* Leave Room */}

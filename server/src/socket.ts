@@ -41,6 +41,7 @@ import { checkAchievements, getPlayerAchievements } from './services/achievement
 import { recordGame, getPlayerHistory, getPlayerRoleStats } from './services/gameHistoryService.js';
 import {
   createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan,
+  setClanMemberRole, addClanModLog, getClanModLogs,
 } from './services/clanService.js';
 import {
   canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer,
@@ -180,6 +181,7 @@ function voteDeathMsg(name: string, role: string | null, lastWill: string | null
 const CreateRoomSchema = z.object({
   name: z.string().min(1).max(24),
   settings: z.record(z.unknown()).optional(),
+  clanRoom: z.boolean().optional().default(false),
 });
 
 const JoinRoomSchema = z.object({
@@ -753,7 +755,15 @@ export function attachSocketHandlers(io: AppServer): void {
         if (maintenanceMode && !playerProfile?.isModerator) throw new Error('Server is under maintenance. Please try again later.');
 
         const username = playerProfile?.username ?? parsed.name;
-        const room = createRoom(socket.id, username, profileId, parsed.settings as Partial<GameSettings>);
+
+        // If creating a clan room, validate clan membership and get clanId
+        let clanId: string | null = null;
+        if (parsed.clanRoom && profileId) {
+          const clanMembership = await getClanMembershipByPlayer(profileId);
+          if (clanMembership) clanId = clanMembership.id;
+        }
+
+        const room = createRoom(socket.id, username, profileId, parsed.settings as Partial<GameSettings>, clanId);
 
         const hostInRoom = [...room.players.values()][0];
         if (hostInRoom && playerProfile?.avatarUrl) hostInRoom.avatarUrl = playerProfile.avatarUrl;
@@ -1964,6 +1974,146 @@ export function attachSocketHandlers(io: AppServer): void {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('Not authenticated.');
         await leaveClan(profileId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    (socket as any).on('clan:set_role', async ({ targetPlayerId, newRole }: { targetPlayerId: string; newRole: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const validRoles = ['admin', 'moderator', 'member'];
+        if (!validRoles.includes(newRole)) throw new Error('Invalid role.');
+        await setClanMemberRole(profileId, targetPlayerId, newRole as any);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    (socket as any).on('clan:get_mod_logs', async ({ clanId }: { clanId: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const membership = await getClanMembershipByPlayer(profileId);
+        if (!membership || membership.id !== clanId) throw new Error('Not authorized.');
+        const validRoles = ['owner', 'admin'];
+        if (!validRoles.includes(membership.memberRole)) throw new Error('Only clan owner/admin can view mod logs.');
+        const logs = await getClanModLogs(clanId);
+        cb(ok(logs));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Clan Room Moderation ────────────────────────────────────────
+    (socket as any).on('clanRoom:warn', async ({ targetPlayerId, reason }: { targetPlayerId: string; reason: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        const roomId = socket.data.roomId;
+        if (!profileId) throw new Error('Not authenticated.');
+        if (!roomId) throw new Error('Not in a room.');
+
+        const room = getRoom(roomId);
+        if (!room) throw new Error('Room not found.');
+        if (!room.clanId) throw new Error('This is not a clan room.');
+
+        // Check actor's clan membership
+        const actorMembership = await getClanMembershipByPlayer(profileId);
+        if (!actorMembership || actorMembership.id !== room.clanId) {
+          throw new Error('You are not a member of this clan.');
+        }
+        const actorRole = actorMembership.memberRole;
+        if (actorRole !== 'owner' && actorRole !== 'admin' && actorRole !== 'moderator') {
+          throw new Error('You do not have clan moderation permissions.');
+        }
+
+        // Find target player in room
+        const targetPlayer = [...room.players.values()].find(p => p.profileId === targetPlayerId);
+        if (!targetPlayer) throw new Error('Target player not in this room.');
+
+        // Rank protection: cannot warn owner/admin unless you are owner
+        if (targetPlayerId !== profileId) {
+          const targetMembership = await getClanMembershipByPlayer(targetPlayerId);
+          if (targetMembership && targetMembership.id === room.clanId) {
+            const targetRole = targetMembership.memberRole;
+            if (targetRole === 'owner') throw new Error('Cannot warn the clan owner.');
+            if (targetRole === 'admin' && actorRole !== 'owner') throw new Error('Cannot warn a clan admin.');
+          }
+        }
+
+        // Check target is not a global moderator/admin
+        const targetProfile = await getPlayer(targetPlayerId);
+        if (targetProfile?.isModerator) throw new Error('Cannot use clan actions on global moderators.');
+
+        // Send warning notification to target
+        const actorProfile = await getPlayer(profileId);
+        const actorName = actorProfile?.username ?? 'Clan Moderator';
+        io.to(targetPlayer.socketId).emit('clanRoom:warningReceived' as any, {
+          clanName: actorMembership.name,
+          clanTag: actorMembership.tag,
+          moderatorName: actorName,
+          moderatorRole: actorRole,
+          reason: reason.slice(0, 300),
+        });
+
+        await addClanModLog(room.clanId, profileId, actorName, targetPlayerId, targetPlayer.name, 'clan_warning', reason.slice(0, 300), room.id);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    (socket as any).on('clanRoom:kick', async ({ targetPlayerId, reason }: { targetPlayerId: string; reason: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        const roomId = socket.data.roomId;
+        if (!profileId) throw new Error('Not authenticated.');
+        if (!roomId) throw new Error('Not in a room.');
+
+        const room = getRoom(roomId);
+        if (!room) throw new Error('Room not found.');
+        if (!room.clanId) throw new Error('This is not a clan room.');
+
+        // Check actor's clan membership
+        const actorMembership = await getClanMembershipByPlayer(profileId);
+        if (!actorMembership || actorMembership.id !== room.clanId) {
+          throw new Error('You are not a member of this clan.');
+        }
+        const actorRole = actorMembership.memberRole;
+        if (actorRole !== 'owner' && actorRole !== 'admin' && actorRole !== 'moderator') {
+          throw new Error('You do not have clan moderation permissions.');
+        }
+
+        // Find target player in room
+        const targetPlayer = [...room.players.values()].find(p => p.profileId === targetPlayerId);
+        if (!targetPlayer) throw new Error('Target player not in this room.');
+
+        // Rank protection
+        if (targetPlayerId !== profileId) {
+          const targetMembership = await getClanMembershipByPlayer(targetPlayerId);
+          if (targetMembership && targetMembership.id === room.clanId) {
+            const targetRole = targetMembership.memberRole;
+            if (targetRole === 'owner') throw new Error('Cannot kick the clan owner.');
+            if (targetRole === 'admin' && actorRole !== 'owner') throw new Error('Cannot kick a clan admin.');
+          }
+        }
+
+        // Check target is not a global moderator/admin
+        const targetProfile = await getPlayer(targetPlayerId);
+        if (targetProfile?.isModerator) throw new Error('Cannot use clan actions on global moderators.');
+
+        const actorProfile = await getPlayer(profileId);
+        const actorName = actorProfile?.username ?? 'Clan Moderator';
+
+        // Notify target they are being kicked
+        io.to(targetPlayer.socketId).emit('clanRoom:kicked' as any, {
+          clanName: actorMembership.name,
+          reason: reason.slice(0, 300),
+        });
+
+        // Broadcast to room
+        broadcastSystemMsg(io, room, `${targetPlayer.name} was removed by clan moderation.`);
+
+        await addClanModLog(room.clanId, profileId, actorName, targetPlayerId, targetPlayer.name, 'clan_kick', reason.slice(0, 300), room.id);
+
+        // Remove player from room
+        removePlayer(room, targetPlayer.id);
+        socket.to(roomId).emit('room:update', toPublicRoom(room, targetPlayer.id));
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });

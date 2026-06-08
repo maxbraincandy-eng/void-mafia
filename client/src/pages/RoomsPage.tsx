@@ -30,6 +30,7 @@ export function RoomsPage() {
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [preset, setPreset] = useState<Preset>('classic');
   const [isPrivate, setIsPrivate] = useState(false);
+  const [isClanRoom, setIsClanRoom] = useState(false);
   const [code, setCode] = useState('');
   const [joinAsSpectator, setJoinAsSpectator] = useState(false);
   const [joinPassword, setJoinPassword] = useState('');
@@ -41,6 +42,7 @@ export function RoomsPage() {
     isLoading: s.isLoading,
   }));
   const username = useAuthStore(s => s.username) ?? '';
+  const myClanId = useAuthStore(s => s.myClanId);
   const { onlineCount, openMoreMenu } = useSocialStore(s => ({ onlineCount: s.onlineCount, openMoreMenu: s.openMoreMenu }));
   const t = useT();
   // Music now handled at MainApp level
@@ -65,7 +67,7 @@ export function RoomsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createRoom(username, { ...PRESET_SETTINGS[preset], isPrivate });
+    await createRoom(username, { ...PRESET_SETTINGS[preset], isPrivate }, isClanRoom && !!myClanId);
   };
 
   const handleJoin = async (e: React.FormEvent) => {
@@ -316,6 +318,27 @@ export function RoomsPage() {
                   </button>
                 ))}
               </div>
+
+              {/* Clan Room toggle (only visible if user is in a clan) */}
+              {myClanId && (
+                <div className="mb-4">
+                  <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2">Clan Room</p>
+                  <button
+                    type="button"
+                    onClick={() => setIsClanRoom(v => !v)}
+                    className={`w-full py-3 px-3 rounded-xl border text-left transition-all ${
+                      isClanRoom
+                        ? 'border-purple-500/40 bg-purple-500/10 text-purple-300'
+                        : 'border-white/[0.06] text-white/28 hover:border-white/12 hover:text-white/45'
+                    }`}
+                  >
+                    <p className="text-xs font-mono font-bold">🛡 {isClanRoom ? 'Clan Room enabled' : 'Create as Clan Room'}</p>
+                    <p className="text-[10px] font-mono opacity-60 mt-0.5">
+                      {isClanRoom ? 'Clan moderators will have powers in this room' : 'Tags room with your clan for clan moderation'}
+                    </p>
+                  </button>
+                </div>
+              )}
 
               <form onSubmit={handleCreate}>
                 <Button fullWidth variant="primary" loading={isLoading}>

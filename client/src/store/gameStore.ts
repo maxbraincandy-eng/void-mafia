@@ -52,7 +52,7 @@ interface GameStore {
   // Actions
   connect: () => void;
   disconnect: () => void;
-  createRoom: (name: string, settings?: Partial<GameSettings>) => Promise<void>;
+  createRoom: (name: string, settings?: Partial<GameSettings>, clanRoom?: boolean) => Promise<void>;
   joinRoom: (code: string, name: string, isSpectator?: boolean, password?: string) => Promise<void>;
   leaveRoom: () => Promise<void>;
   terminateGame: () => Promise<void>;
@@ -286,6 +286,17 @@ export const useGameStore = create<GameStore>((set, get) => {
     get().addToast(message, 'error');
   });
 
+  (socket as any).on('clanRoom:warningReceived', ({ clanName, moderatorName, moderatorRole, reason }: any) => {
+    const from = moderatorName ? ` from ${moderatorName}` : '';
+    set({ modNotice: { type: 'warn', reason: `[Clan Warning${from}] ${reason}`, category: 'other', moderatorName: `${clanName} ${moderatorRole}` } });
+    get().addToast(`⚠️ Clan warning received`, 'error');
+  });
+
+  (socket as any).on('clanRoom:kicked', ({ clanName, reason }: any) => {
+    set({ room: null, myPlayerId: null, myRole: null, nightResult: null, investigationResult: null, gameOverResult: null });
+    get().addToast(`You were removed from the ${clanName} room. ${reason ? `Reason: ${reason}` : ''}`, 'error');
+  });
+
   (socket as any).on('room:closed', ({ reason }: { reason: string }) => {
     set({
       room: null,
@@ -361,8 +372,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       set({ room: null, myPlayerId: null, myRole: null });
     },
 
-    createRoom: withLoading(async (name: string, settings?: Partial<GameSettings>) => {
-      const room = await emit<RoomPublic>('room:create', { name, settings });
+    createRoom: withLoading(async (name: string, settings?: Partial<GameSettings>, clanRoom = false) => {
+      const room = await emit<RoomPublic>('room:create', { name, settings, clanRoom });
       set({ room, myPlayerId: room.players.find(p => p.isHost)?.id ?? null });
     }),
 
