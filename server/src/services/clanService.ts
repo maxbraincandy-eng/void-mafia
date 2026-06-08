@@ -6,9 +6,11 @@ export interface Clan {
   description: string; wins: number; losses: number; createdAt: number; memberCount: number;
 }
 
+export type ClanRole = 'owner' | 'admin' | 'moderator' | 'member';
+
 export interface ClanMember {
   playerId: string; username: string; avatar: string;
-  role: 'owner' | 'officer' | 'member'; joinedAt: number;
+  role: ClanRole; joinedAt: number;
 }
 
 async function rowToClan(row: any): Promise<Clan> {
@@ -64,7 +66,7 @@ export interface ClanMembership {
   id: string;
   name: string;
   tag: string;
-  memberRole: 'owner' | 'officer' | 'member';
+  memberRole: ClanRole;
   joinedAt: number;
   wins: number;
   losses: number;
@@ -85,7 +87,7 @@ export async function getClanMembershipByPlayer(playerId: string): Promise<ClanM
   const r = rows[0];
   return {
     id: r.id, name: r.name, tag: r.tag,
-    memberRole: r.member_role as 'owner' | 'officer' | 'member',
+    memberRole: r.member_role as ClanRole,
     joinedAt: Number(r.member_joined_at),
     wins: Number(r.wins), losses: Number(r.losses),
     memberCount: Number(r.member_count),
@@ -104,7 +106,7 @@ export async function getClanMembers(clanId: string): Promise<ClanMember[]> {
     JOIN players p ON p.id = cm.player_id
     WHERE cm.clan_id = ${clanId}
     ORDER BY
-      CASE cm.role WHEN 'owner' THEN 0 WHEN 'officer' THEN 1 ELSE 2 END ASC,
+      CASE cm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'moderator' THEN 2 ELSE 3 END ASC,
       cm.joined_at ASC
   ` as any[];
   return rows.map((r: any) => ({
@@ -136,7 +138,7 @@ export async function leaveClan(playerId: string): Promise<void> {
     const [next] = await sql`
       SELECT player_id FROM clan_members
       WHERE clan_id = ${membership.clan_id} AND player_id != ${playerId}
-      ORDER BY CASE role WHEN 'officer' THEN 0 ELSE 1 END ASC, joined_at ASC
+      ORDER BY CASE role WHEN 'admin' THEN 0 WHEN 'moderator' THEN 1 ELSE 2 END ASC, joined_at ASC
       LIMIT 1
     ` as any[];
     if (next) {
@@ -152,6 +154,93 @@ export async function leaveClan(playerId: string): Promise<void> {
     }
   }
   await sql`DELETE FROM clan_members WHERE clan_id = ${membership.clan_id} AND player_id = ${playerId}`;
+}
+
+export async function setClanMemberRole(
+  actorId: string,
+  targetId: string,
+  newRole: ClanRole,
+): Promise<void> {
+  const [actorMem] = await sql`
+    SELECT clan_id, role FROM clan_members WHERE player_id = ${actorId}
+  ` as any[];
+  if (!actorMem) throw new Error('You are not in a clan.');
+
+  const [targetMem] = await sql`
+    SELECT clan_id, role FROM clan_members WHERE player_id = ${targetId} AND clan_id = ${actorMem.clan_id}
+  ` as any[];
+  if (!targetMem) throw new Error('Target is not in your clan.');
+
+  const actorRole: ClanRole = actorMem.role;
+
+  // Only owner can assign admin. Owner/admin can assign moderator.
+  if (newRole === 'owner') throw new Error('Cannot assign owner role directly. Use transfer ownership.');
+  if (newRole === 'admin' && actorRole !== 'owner') throw new Error('Only the clan owner can assign admin roles.');
+  if (newRole === 'moderator' && actorRole !== 'owner' && actorRole !== 'admin') {
+    throw new Error('Only owner or admin can assign moderator roles.');
+  }
+
+  // Cannot demote someone higher than you
+  const rolePriority: Record<ClanRole, number> = { owner: 3, admin: 2, moderator: 1, member: 0 };
+  if (rolePriority[targetMem.role as ClanRole] >= rolePriority[actorRole]) {
+    throw new Error('Cannot modify the role of someone with equal or higher rank.');
+  }
+
+  const now = Date.now();
+  await sql`
+    UPDATE clan_members SET role = ${newRole}, role_assigned_at = ${now}, role_assigned_by = ${actorId}
+    WHERE clan_id = ${actorMem.clan_id} AND player_id = ${targetId}
+  `;
+}
+
+export interface ClanModLog {
+  id: string;
+  clanId: string;
+  modId: string;
+  modName: string;
+  targetId: string;
+  targetName: string;
+  action: string;
+  reason: string;
+  roomId: string | null;
+  createdAt: number;
+}
+
+export async function addClanModLog(
+  clanId: string,
+  modId: string,
+  modName: string,
+  targetId: string,
+  targetName: string,
+  action: string,
+  reason: string,
+  roomId: string | null,
+): Promise<void> {
+  await sql`
+    INSERT INTO clan_mod_logs (id, clan_id, mod_id, mod_name, target_id, target_name, action, reason, room_id, created_at)
+    VALUES (${generateId()}, ${clanId}, ${modId}, ${modName}, ${targetId}, ${targetName}, ${action}, ${reason}, ${roomId}, ${Date.now()})
+  `;
+}
+
+export async function getClanModLogs(clanId: string, limit = 50): Promise<ClanModLog[]> {
+  const rows = await sql`
+    SELECT * FROM clan_mod_logs
+    WHERE clan_id = ${clanId}
+    ORDER BY created_at DESC
+    LIMIT ${limit}
+  ` as any[];
+  return rows.map((r: any) => ({
+    id: r.id,
+    clanId: r.clan_id,
+    modId: r.mod_id,
+    modName: r.mod_name,
+    targetId: r.target_id,
+    targetName: r.target_name,
+    action: r.action,
+    reason: r.reason,
+    roomId: r.room_id ?? null,
+    createdAt: Number(r.created_at),
+  }));
 }
 
 export async function updateClanStats(clanId: string, won: boolean): Promise<void> {

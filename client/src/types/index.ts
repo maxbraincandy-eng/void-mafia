@@ -242,6 +242,8 @@ export interface RoomPublic {
   tribunalCandidates: string[];
   deathSpeakerId: string | null;
   finalWordsReason: string | null;
+  clanId: string | null;
+  clanRoom: boolean;
 }
 
 export interface RoomListItem {
@@ -339,14 +341,29 @@ export interface ClanPublic {
   memberCount: number;
 }
 
+export type ClanRole = 'owner' | 'admin' | 'moderator' | 'member';
+
 export interface ClanMember {
   playerId: string;
   username: string;
   avatar: string;
   avatarUrl?: string | null;
   publicId?: number | null;
-  role: 'owner' | 'officer' | 'member';
+  role: ClanRole;
   joinedAt: number;
+}
+
+export interface ClanModLog {
+  id: string;
+  clanId: string;
+  modId: string;
+  modName: string;
+  targetId: string;
+  targetName: string;
+  action: string;
+  reason: string;
+  roomId: string | null;
+  createdAt: number;
 }
 
 // ── Vote Breakdown ────────────────────────────────────────────────────
@@ -388,7 +405,7 @@ export interface ClanMembership {
   id: string;
   name: string;
   tag: string;
-  memberRole: 'owner' | 'officer' | 'member';
+  memberRole: ClanRole;
   joinedAt: number;
   wins: number;
   losses: number;

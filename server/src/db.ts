@@ -456,6 +456,27 @@ export async function initializeDatabase(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_player_gifts_sender ON player_gifts(sender_id, created_at)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_player_gifts_recipient ON player_gifts(recipient_id, created_at)`;
 
+  // ── Clan Roles V2 (additive) ──────────────────────────────────────────
+  await sql`ALTER TABLE clan_members ADD COLUMN IF NOT EXISTS role_assigned_at BIGINT`;
+  await sql`ALTER TABLE clan_members ADD COLUMN IF NOT EXISTS role_assigned_by TEXT`;
+  // Migrate existing 'officer' roles to 'admin'
+  await sql`UPDATE clan_members SET role = 'admin' WHERE role = 'officer'`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS clan_mod_logs (
+      id           TEXT PRIMARY KEY,
+      clan_id      TEXT NOT NULL,
+      mod_id       TEXT NOT NULL,
+      mod_name     TEXT NOT NULL,
+      target_id    TEXT NOT NULL,
+      target_name  TEXT NOT NULL,
+      action       TEXT NOT NULL,
+      reason       TEXT NOT NULL DEFAULT '',
+      room_id      TEXT,
+      created_at   BIGINT NOT NULL
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_clan_mod_logs_clan ON clan_mod_logs(clan_id, created_at)`;
+
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];
   console.log(`[Database] connected successfully`);

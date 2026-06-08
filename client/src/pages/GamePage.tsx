@@ -94,6 +94,8 @@ export function GamePage() {
   const [showModPanel, setShowModPanel] = useState(false);
   const isMod = useAuthStore(s => s.profile?.isModerator ?? false);
   const myRoleSkin = useAuthStore(s => s.profile?.cosmetics?.equippedRoleSkin ?? null);
+  const myClanId = useAuthStore(s => s.myClanId);
+  const myClanRole = useAuthStore(s => s.myClanRole);
   const { openProfile } = useSocialStore();
   const [rightTab, setRightTab] = useState<RightTab>('events');
   const [unreadChat, setUnreadChat] = useState(0);
@@ -815,6 +817,10 @@ export function GamePage() {
         amHost={amHost}
         isInVoice={isInVoice}
         activeRoleCounts={room.activeRoleCounts}
+        clanId={room.clanId}
+        clanRoom={room.clanRoom}
+        viewerClanId={myClanId}
+        viewerClanRole={myClanRole}
         onLeaveRoom={() => { voice.leaveVoice(); leaveRoom(); }}
         onTerminateGame={amHost ? terminateGame : undefined}
         onResetVoice={isInVoice ? () => {

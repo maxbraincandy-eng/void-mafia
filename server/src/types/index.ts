@@ -364,6 +364,8 @@ export interface Room {
   finalWordsReason: 'night_kill' | 'vote_elimination' | null;
   pendingWinner: Team | null;
   speechStartSeat: number;
+  clanId: string | null;
+  clanRoom: boolean;
 }
 
 // ── Public Types (sent to clients) ────────────────────────────────────
@@ -417,6 +419,8 @@ export interface RoomPublic {
   tribunalCandidates: string[];
   deathSpeakerId: string | null;
   finalWordsReason: string | null;
+  clanId: string | null;
+  clanRoom: boolean;
 }
 
 export interface RoomListItem {
@@ -488,13 +492,15 @@ export interface ClanPublic {
 }
 
 // ── Clan Member ───────────────────────────────────────────────────────
+export type ClanRole = 'owner' | 'admin' | 'moderator' | 'member';
+
 export interface ClanMember {
   playerId: string;
   username: string;
   avatar: string;
   avatarUrl?: string | null;
   publicId?: number | null;
-  role: 'owner' | 'officer' | 'member';
+  role: ClanRole;
   joinedAt: number;
 }
 

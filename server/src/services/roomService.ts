@@ -47,6 +47,7 @@ export function createRoom(
   hostName: string,
   profileId: string | null,
   settings?: Partial<GameSettings>,
+  clanId?: string | null,
 ): Room {
   const id = generateId();
   const code = generateRoomCode();
@@ -115,6 +116,8 @@ export function createRoom(
     finalWordsReason: null,
     pendingWinner: null,
     speechStartSeat: 0,
+    clanId: clanId ?? null,
+    clanRoom: !!clanId,
   };
 
   rooms.set(id, room);
@@ -299,6 +302,8 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     tribunalCandidates: room.tribunalCandidates,
     deathSpeakerId: room.deathSpeakerId ?? null,
     finalWordsReason: room.finalWordsReason ?? null,
+    clanId: room.clanId,
+    clanRoom: room.clanRoom,
     mafiaVotes: isMafia && room.phase === 'night'
       ? (() => {
           const votes: Record<string, { voterName: string; targetName: string }> = {};

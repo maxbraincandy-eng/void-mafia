@@ -4,15 +4,17 @@ import { useAuthStore } from '@/store/authStore';
 import { useSocialStore } from '@/store/socialStore';
 import { useT } from '@/store/langStore';
 import { emitWithAck } from '@/lib/socket';
-import { ClanPublic, ClanMember } from '@/types/index';
+import { ClanPublic, ClanMember, ClanModLog, ClanRole } from '@/types/index';
 import { PoweredBy } from '@/components/ui/PoweredBy';
+import { ClanRoleBadge } from '@/components/ui/ClanRoleBadge';
 
 type Res<T> = { ok: true; data: T } | { ok: false; error: string };
 
 const RARITY_TAG: Record<string, string> = {
-  owner:   'bg-neon-pink/20 text-neon-pink border-neon-pink/30',
-  officer: 'bg-neon-purple/20 text-purple-300 border-purple-500/30',
-  member:  'bg-white/5 text-white/50 border-white/10',
+  owner:     'bg-yellow-400/15 text-yellow-300 border-yellow-400/30',
+  admin:     'bg-neon-purple/20 text-purple-300 border-purple-500/30',
+  moderator: 'bg-cyan-400/15 text-cyan-300 border-cyan-400/30',
+  member:    'bg-white/5 text-white/50 border-white/10',
 };
 
 function WinRate({ wins, losses }: { wins: number; losses: number }) {
@@ -27,15 +29,21 @@ function WinRate({ wins, losses }: { wins: number; losses: number }) {
 
 export function ClansPage() {
   const profile = useAuthStore(s => s.profile);
+  const myClanRole = useAuthStore(s => s.myClanRole);
+  const refreshClanMembership = useAuthStore(s => s.refreshClanMembership);
   const { openProfile } = useSocialStore();
-  const [clans, setClans]           = useState<ClanPublic[]>([]);
-  const [myClan, setMyClan]         = useState<ClanPublic | null>(null);
-  const [members, setMembers]       = useState<ClanMember[]>([]);
-  const [selected, setSelected]     = useState<ClanPublic | null>(null);
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState('');
-  const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm]             = useState({ name: '', tag: '', description: '' });
+  const [clans, setClans]               = useState<ClanPublic[]>([]);
+  const [myClan, setMyClan]             = useState<ClanPublic | null>(null);
+  const [members, setMembers]           = useState<ClanMember[]>([]);
+  const [selected, setSelected]         = useState<ClanPublic | null>(null);
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState('');
+  const [showCreate, setShowCreate]     = useState(false);
+  const [form, setForm]                 = useState({ name: '', tag: '', description: '' });
+  const [modLogs, setModLogs]           = useState<ClanModLog[]>([]);
+  const [showModLogs, setShowModLogs]   = useState(false);
+  const [roleTarget, setRoleTarget]     = useState<string | null>(null);
+  const [roleLoading, setRoleLoading]   = useState(false);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -77,11 +85,30 @@ export function ClansPage() {
     const res = await emitWithAck<null, Res<null>>('clan:leave', null);
     if (!res.ok) { setError(res.error); return; }
     setMyClan(null);
+    refreshClanMembership();
     loadAll();
+  }
+
+  async function handleSetRole(targetPlayerId: string, newRole: ClanRole) {
+    setRoleLoading(true);
+    setError('');
+    const res = await emitWithAck<{ targetPlayerId: string; newRole: ClanRole }, Res<null>>('clan:set_role', { targetPlayerId, newRole });
+    setRoleLoading(false);
+    if (!res.ok) { setError(res.error); return; }
+    setRoleTarget(null);
+    if (selected) await loadClanDetail(selected);
+  }
+
+  async function loadModLogs() {
+    if (!myClan) return;
+    setShowModLogs(true);
+    const res = await emitWithAck<{ clanId: string }, Res<ClanModLog[]>>('clan:get_mod_logs', { clanId: myClan.id });
+    if (res.ok) setModLogs(res.data);
   }
 
   const amInSelected = myClan?.id === selected?.id;
   const amInAnyClan  = !!myClan;
+  const canManageRoles = myClanRole === 'owner' || myClanRole === 'admin';
 
   return (
     <div className="min-h-screen bg-neon-grid-animated scanlines pb-20 relative overflow-hidden">
@@ -236,29 +263,144 @@ export function ClansPage() {
                 )}
               </div>
 
-              {/* Members */}
-              <div className="px-5 py-4 max-h-64 overflow-y-auto space-y-1.5">
-                {members.map(m => (
-                  <div
-                    key={m.playerId}
-                    onClick={() => openProfile(m.playerId)}
-                    className="flex items-center gap-3 px-3 py-2 rounded-xl bg-white/2 hover:bg-white/5 cursor-pointer transition-colors active:scale-[0.98]"
+              {/* Members header with mod logs button */}
+              <div className="px-5 pt-3 pb-1 flex items-center justify-between">
+                <span className="font-mono text-[9px] uppercase tracking-wider text-white/30">Members · {members.length}</span>
+                {amInSelected && canManageRoles && (
+                  <button
+                    onClick={loadModLogs}
+                    className="font-mono text-[9px] uppercase tracking-wider text-neon-cyan/60 hover:text-neon-cyan transition-colors"
                   >
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-neon-pink to-neon-purple flex items-center justify-center text-xs font-bold text-white overflow-hidden">
-                      {m.avatarUrl
-                        ? <img src={m.avatarUrl} alt={m.username} className="w-full h-full object-cover rounded-full" />
-                        : (m.avatar || m.username[0]?.toUpperCase())
-                      }
+                    Mod Logs
+                  </button>
+                )}
+              </div>
+
+              {/* Members */}
+              <div className="px-5 pb-4 max-h-64 overflow-y-auto space-y-1.5">
+                {members.map(m => {
+                  const isMe = m.playerId === profile?.id;
+                  const canEditThisMember = amInSelected && canManageRoles && !isMe && m.role !== 'owner';
+                  return (
+                    <div
+                      key={m.playerId}
+                      className="flex items-center gap-3 px-3 py-2 rounded-xl bg-white/2 hover:bg-white/5 transition-colors"
+                    >
+                      <div
+                        className="w-7 h-7 rounded-full bg-gradient-to-br from-neon-pink to-neon-purple flex items-center justify-center text-xs font-bold text-white overflow-hidden cursor-pointer flex-shrink-0"
+                        onClick={() => openProfile(m.playerId)}
+                      >
+                        {m.avatarUrl
+                          ? <img src={m.avatarUrl} alt={m.username} className="w-full h-full object-cover rounded-full" />
+                          : (m.avatar || m.username[0]?.toUpperCase())
+                        }
+                      </div>
+                      <span
+                        className="flex-1 font-mono text-xs text-white/70 cursor-pointer truncate"
+                        onClick={() => openProfile(m.playerId)}
+                      >
+                        {m.username}
+                      </span>
+                      {(m.role === 'owner' || m.role === 'admin' || m.role === 'moderator') && (
+                        <ClanRoleBadge role={m.role} />
+                      )}
+                      {canEditThisMember ? (
+                        roleTarget === m.playerId ? (
+                          <div className="flex items-center gap-1">
+                            {(['admin', 'moderator', 'member'] as ClanRole[])
+                              .filter(r => r !== m.role)
+                              .map(r => (
+                                <button
+                                  key={r}
+                                  disabled={roleLoading}
+                                  onClick={() => handleSetRole(m.playerId, r)}
+                                  className="font-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded border transition-all hover:opacity-80 disabled:opacity-40"
+                                  style={{
+                                    color: r === 'admin' ? '#c084fc' : r === 'moderator' ? '#22d3ee' : 'rgba(255,255,255,0.4)',
+                                    borderColor: r === 'admin' ? 'rgba(192,132,252,0.4)' : r === 'moderator' ? 'rgba(34,211,238,0.4)' : 'rgba(255,255,255,0.15)',
+                                    background: 'rgba(0,0,0,0.4)',
+                                  }}
+                                >
+                                  {r}
+                                </button>
+                              ))
+                            }
+                            <button
+                              onClick={() => setRoleTarget(null)}
+                              className="font-mono text-[8px] text-white/30 hover:text-white/60 ml-1"
+                            >✕</button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setRoleTarget(m.playerId)}
+                            className={`font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border cursor-pointer hover:opacity-80 ${RARITY_TAG[m.role] ?? RARITY_TAG.member}`}
+                          >
+                            {m.role}
+                          </button>
+                        )
+                      ) : (
+                        <span className={`font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border ${RARITY_TAG[m.role] ?? RARITY_TAG.member}`}>
+                          {m.role}
+                        </span>
+                      )}
                     </div>
-                    <span className="flex-1 font-mono text-xs text-white/70">{m.username}</span>
-                    <span className={`font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border ${RARITY_TAG[m.role] ?? RARITY_TAG.member}`}>
-                      {m.role}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
                 {members.length === 0 && (
                   <p className="text-center py-4 font-mono text-xs text-white/20">Loading members...</p>
                 )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mod logs modal */}
+      <AnimatePresence>
+        {showModLogs && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
+            onClick={() => setShowModLogs(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-lg rounded-3xl border border-cyan-400/20 bg-black/95 backdrop-blur-2xl overflow-hidden"
+              style={{ boxShadow: '0 0 60px rgba(0,229,255,0.1)' }}
+            >
+              <div className="px-5 pt-5 pb-3 border-b border-white/6 flex items-center justify-between">
+                <h3 className="font-display font-bold text-white text-lg">Clan Mod Logs</h3>
+                <button onClick={() => setShowModLogs(false)} className="text-white/30 hover:text-white/60">✕</button>
+              </div>
+              <div className="px-5 py-4 max-h-80 overflow-y-auto space-y-2">
+                {modLogs.length === 0 ? (
+                  <p className="text-center py-6 font-mono text-xs text-white/20">No moderation actions yet.</p>
+                ) : modLogs.map(log => (
+                  <div key={log.id} className="rounded-xl border border-white/8 bg-white/2 px-3 py-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded ${log.action === 'clan_warning' ? 'bg-yellow-400/15 text-yellow-300' : 'bg-red-500/15 text-red-400'}`}>
+                        {log.action === 'clan_warning' ? 'Warn' : 'Kick'}
+                      </span>
+                      <span className="font-mono text-[9px] text-white/25">
+                        {new Date(log.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p className="font-mono text-xs text-white/70">
+                      <span className="text-white/40">Target:</span> {log.targetName}
+                    </p>
+                    <p className="font-mono text-xs text-white/70">
+                      <span className="text-white/40">By:</span> {log.modName}
+                    </p>
+                    {log.reason && (
+                      <p className="font-mono text-xs text-white/40 mt-1">{log.reason}</p>
+                    )}
+                  </div>
+                ))}
               </div>
             </motion.div>
           </motion.div>
