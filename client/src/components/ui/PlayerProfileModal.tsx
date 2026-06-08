@@ -5,10 +5,12 @@ import { socket } from '@/lib/socket';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { ReportModal } from '@/components/ui/ReportModal';
 import { SendGiftModal } from '@/components/ui/SendGiftModal';
+import { ShareCardModal } from '@/components/ui/ShareCardModal';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { useGameStore } from '@/store/gameStore';
 import type { Res, PublicProfileFull, FriendshipStatus, PlayerRoleStats, ModeratorLevel, WarnCategory, ClanRole } from '@/types/index';
+import type { ProfileCardData } from '@/components/ui/ProfileCard';
 
 const MOD_RANK: Record<ModeratorLevel, number> = { moderator: 0, senior_moderator: 1, admin: 2, owner: 3 };
 function modRank(lvl: ModeratorLevel | null | undefined) { return lvl ? (MOD_RANK[lvl] ?? -1) : -1; }
@@ -101,6 +103,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
   const [actionLoading, setActionLoading] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showSendGift, setShowSendGift] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   // Mod action panel: null | 'warn' | 'kick' | 'ban'
   const [modPanel, setModPanel] = useState<null | 'warn' | 'kick' | 'ban'>(null);
   const [modReason, setModReason] = useState('');
@@ -449,6 +452,16 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         🎁 Send Gift
                       </button>
 
+                      {/* ── Share Profile button ─────────────────── */}
+                      {profile.publicId != null && (
+                        <button
+                          onClick={() => setShowShare(true)}
+                          className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-colors border border-neon-cyan/25 bg-neon-cyan/6 text-neon-cyan/75 hover:bg-neon-cyan/12 hover:text-neon-cyan"
+                        >
+                          ↗ Share Profile
+                        </button>
+                      )}
+
                       {/* ── Friend action ───────────────────────── */}
                       {friendshipStatus === 'none' && (
                         <button
@@ -717,6 +730,14 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
         />
       )}
     </AnimatePresence>
+
+    {showShare && data && (
+      <ShareCardModal
+        open={showShare}
+        data={{ profile: data.profile, clan: data.clan, achievements: data.achievements } satisfies ProfileCardData}
+        onClose={() => setShowShare(false)}
+      />
+    )}
     </>
   );
 }
