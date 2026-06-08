@@ -1288,9 +1288,13 @@ export function attachSocketHandlers(io: AppServer): void {
           }
         } else if (msg.channel === 'dead') {
           for (const p of room.players.values()) {
-            if ((!p.isAlive || p.isSpectator) && p.socketId) {
+            if (!p.isAlive && !p.isSpectator && p.socketId) {
               io.to(p.socketId).emit('chat:new', msg);
             }
+          }
+        } else if (msg.channel === 'spectator') {
+          for (const p of room.players.values()) {
+            if (p.isSpectator && p.socketId) io.to(p.socketId).emit('chat:new', msg);
           }
         } else {
           io.to(room.id).emit('chat:new', msg);
