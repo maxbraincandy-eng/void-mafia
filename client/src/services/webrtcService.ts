@@ -18,6 +18,14 @@ export function log(...args: unknown[]): void {
   if (isDev) console.log('[WebRTC]', ...args);
 }
 
+// Always log — used for ICE failures and errors regardless of build mode
+function logWarn(...args: unknown[]): void {
+  console.warn('[WebRTC]', ...args);
+}
+function logErr(...args: unknown[]): void {
+  console.error('[WebRTC]', ...args);
+}
+
 // ── Types ──────────────────────────────────────────────────────────────
 
 export type ConnectionState =
@@ -225,7 +233,10 @@ export class WebRTCSession {
       });
     }
 
-    log('created PC for', peerId, peerName, 'with ICE config:', this.iceConfig);
+    logWarn('created PC for', peerId, peerName,
+      '| servers:', (this.iceConfig.iceServers as any[])?.length ?? 0,
+      '| policy:', this.iceConfig.iceTransportPolicy ?? 'all',
+    );
 
     if (this.localStream) {
       for (const track of this.localStream.getTracks()) {
@@ -247,14 +258,24 @@ export class WebRTCSession {
     };
 
     pc.onicecandidateerror = (ev) => {
-      log(
-        'ICE candidate error [',
-        peerId,
-        ']',
-        ev.errorCode,
-        ev.errorText,
-        ev.url,
-      );
+      // errorCode 701/702 = server unreachable, 401 = auth failure, 300 = STUN binding error
+      logWarn(`ICE candidate error [${peerId}] code=${ev.errorCode} url=${ev.url} text="${ev.errorText}"`);
+    };
+
+    pc.onicegatheringstatechange = () => {
+      log('ICE gathering [', peerId, ']', pc.iceGatheringState);
+      if (pc.iceGatheringState === 'complete') {
+        // Log all gathered local candidate types so we can see host/srflx/relay
+        pc.getStats().then(stats => {
+          const types: string[] = [];
+          stats.forEach(r => {
+            if (r.type === 'local-candidate') {
+              types.push(`${r.candidateType}/${r.protocol ?? '?'}`);
+            }
+          });
+          logWarn(`ICE gathering complete [${peerId}] gathered: [${types.join(', ') || 'none'}]`);
+        }).catch(() => {});
+      }
     };
 
     pc.oniceconnectionstatechange = () => {
@@ -281,7 +302,7 @@ export class WebRTCSession {
       }
 
       if (pc.iceConnectionState === 'failed') {
-        log('ICE failed for', peerId, '— restarting ICE');
+        logErr('ICE FAILED for', peerId, '— gathering state:', pc.iceGatheringState, '| signaling:', pc.signalingState);
         this.setState('failed');
         this.emit({
           type: 'error',
@@ -326,7 +347,7 @@ export class WebRTCSession {
       }
 
       if (pc.connectionState === 'failed') {
-        log('Connection failed for', peerId, '— closing and cleaning up');
+        logErr('CONNECTION FAILED for', peerId, '| ICE state:', pc.iceConnectionState, '| gathering:', pc.iceGatheringState);
 
         this.setState('failed');
         this.emit({
