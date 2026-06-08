@@ -571,6 +571,7 @@ export function LobbyPage() {
               onLeave={voice.leaveVoice}
               onToggleMute={voice.toggleMute}
               onToggleCamera={voice.toggleCamera}
+              onReset={voice.resetConnection}
             />
             {voice.channel && voice.peers.length > 0 && (
               <div className="px-1">

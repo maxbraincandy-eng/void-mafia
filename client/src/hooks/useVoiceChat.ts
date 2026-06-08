@@ -358,6 +358,17 @@ export function useVoiceChat() {
 
   const getLocalStream = useCallback(() => _session?.getLocalStream() ?? null, []);
 
+  // Tear down current session cleanly so the user can rejoin from scratch.
+  // Useful after a 'failed' state or after refresh when stale peers remain.
+  const resetConnection = useCallback(() => {
+    if (_session) {
+      (socket as any).emit('voice:leave');
+      _session.destroy();
+      _reset();
+      log('voice connection reset by user');
+    }
+  }, []);
+
   return {
     ...state,
     joinVoice,
@@ -366,5 +377,6 @@ export function useVoiceChat() {
     toggleMute,
     toggleCamera,
     getLocalStream,
+    resetConnection,
   };
 }
