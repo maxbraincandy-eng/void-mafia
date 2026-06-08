@@ -36,7 +36,7 @@ export const DEFAULT_SETTINGS = {
     },
 };
 // ── CRUD ──────────────────────────────────────────────────────────────
-export function createRoom(hostSocketId, hostName, profileId, settings) {
+export function createRoom(hostSocketId, hostName, profileId, settings, clanId) {
     const id = generateId();
     const code = generateRoomCode();
     const hostPlayer = {
@@ -93,6 +93,7 @@ export function createRoom(hostSocketId, hostName, profileId, settings) {
         dousedPlayers: new Set(),
         newlyConvertedCultists: [],
         spectateQueue: [],
+        spectatorChat: [],
         startedAt: 0,
         mafiaKillTarget: null,
         nominations: new Map(),
@@ -101,6 +102,8 @@ export function createRoom(hostSocketId, hostName, profileId, settings) {
         finalWordsReason: null,
         pendingWinner: null,
         speechStartSeat: 0,
+        clanId: clanId ?? null,
+        clanRoom: !!clanId,
     };
     rooms.set(id, room);
     return room;
@@ -260,7 +263,8 @@ export function toPublicRoom(room, viewerPlayerId) {
         players,
         chat: room.chat.slice(-100),
         mafiaChat: isMafia ? room.mafiaChat.slice(-100) : [],
-        deadChat: isDeadViewer ? room.deadChat.slice(-100) : [],
+        deadChat: isDeadViewer && !viewer?.isSpectator ? room.deadChat.slice(-100) : [],
+        spectatorChat: viewer?.isSpectator ? room.spectatorChat.slice(-100) : [],
         killedLastNight: room.killedLastNight,
         savedLastNight: room.savedLastNight,
         winner: room.winner,
@@ -274,6 +278,8 @@ export function toPublicRoom(room, viewerPlayerId) {
         tribunalCandidates: room.tribunalCandidates,
         deathSpeakerId: room.deathSpeakerId ?? null,
         finalWordsReason: room.finalWordsReason ?? null,
+        clanId: room.clanId,
+        clanRoom: room.clanRoom,
         mafiaVotes: isMafia && room.phase === 'night'
             ? (() => {
                 const votes = {};

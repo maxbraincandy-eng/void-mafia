@@ -12,7 +12,9 @@ import { attachSocketHandlers, setDbReady } from './socket.js';
 import { getAllRooms, toRoomListItem, deleteRoom } from './services/roomService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
 import { timerService } from './services/timerService.js';
-import { getPlayer, toPublicProfile } from './services/playerService.js';
+import { getPlayer, getPlayerByPublicId, toPublicProfile } from './services/playerService.js';
+import { getClanMembershipByPlayer } from './services/clanService.js';
+import { getPlayerAchievements } from './services/achievementService.js';
 import { sql, initializeDatabase } from './db.js';
 import { configurePassport, createAuthRouter } from './auth.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -133,6 +135,33 @@ app.get('/api/player/:id', async (req, res) => {
         return;
     }
     res.json({ ok: true, data: toPublicProfile(profile) });
+});
+// ── Public Profile Card — no auth required ────────────────────────────
+app.get('/api/u/:publicId', async (req, res) => {
+    const publicId = parseInt(req.params.publicId ?? '', 10);
+    if (!publicId || isNaN(publicId)) {
+        res.status(400).json({ ok: false, error: 'Invalid ID' });
+        return;
+    }
+    try {
+        const profile = await getPlayerByPublicId(publicId);
+        if (!profile) {
+            res.status(404).json({ ok: false, error: 'Player not found' });
+            return;
+        }
+        const [clan, achievements] = await Promise.all([
+            getClanMembershipByPlayer(profile.id),
+            getPlayerAchievements(profile.id),
+        ]);
+        res.json({ ok: true, data: {
+                profile: toPublicProfile(profile),
+                clan: clan ?? null,
+                achievements: achievements.slice(0, 5),
+            } });
+    }
+    catch (e) {
+        res.status(500).json({ ok: false, error: 'Internal error' });
+    }
 });
 // ── Serve built client in production ─────────────────────────────────
 if (IS_PROD) {

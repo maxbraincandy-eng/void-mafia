@@ -254,6 +254,10 @@ export async function getPlayer(uid) {
     const [row] = await sql `SELECT * FROM players WHERE id = ${uid}`;
     return row ? rowToProfile(row) : null;
 }
+export async function getPlayerByPublicId(publicId) {
+    const [row] = await sql `SELECT * FROM players WHERE public_id = ${publicId} LIMIT 1`;
+    return row ? rowToProfile(row) : null;
+}
 export async function getAllPlayers() {
     const rows = await sql `SELECT * FROM players ORDER BY last_seen_at DESC`;
     return Promise.all(rows.map(rowToProfile));
