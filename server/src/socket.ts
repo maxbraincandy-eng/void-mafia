@@ -129,6 +129,11 @@ function cancelAutoStart(roomId: string): void {
 // ── Spectate queues (roomId → socketIds waiting) ──────────────────────
 const spectateQueues = new Map<string, string[]>();
 
+// ── Host disconnect grace period (roomId → reconnect data) ────────────
+const HOST_GRACE_MS = 20_000;
+interface HostGraceEntry { timer: ReturnType<typeof setTimeout>; profileId: string | null; hostName: string; }
+const hostGraceTimers = new Map<string, HostGraceEntry>();
+
 // ── Role-specific death messages ──────────────────────────────────────
 const NIGHT_DEATH: Partial<Record<string, string>> = {
   sheriff:    'The badge falls silent. The town lost its protector.',
@@ -840,7 +845,16 @@ export function attachSocketHandlers(io: AppServer): void {
         socket.data.playerId = player.id;
         socket.data.roomId = room.id;
 
-        broadcastSystemMsg(io, room, `${player.name} joined the room.`);
+        // Cancel host grace period if this is the host reconnecting
+        const grace = hostGraceTimers.get(room.id);
+        if (grace && player.isHost && (profileId === grace.profileId || (!profileId && player.name === grace.hostName))) {
+          clearTimeout(grace.timer);
+          hostGraceTimers.delete(room.id);
+          broadcastSystemMsg(io, room, `${player.name} (host) reconnected.`);
+        } else {
+          broadcastSystemMsg(io, room, `${player.name} joined the room.`);
+        }
+
         broadcastRoom(io, room);
         cb(ok(toPublicRoom(room, player.id)));
       } catch (e: any) {
@@ -851,7 +865,7 @@ export function attachSocketHandlers(io: AppServer): void {
     // ── Leave Room ──────────────────────────────────────────────────
     socket.on('room:leave', (cb) => {
       const { roomId, playerId } = socket.data;
-      if (roomId && playerId) handlePlayerLeave(io, socket, roomId, playerId);
+      if (roomId && playerId) handlePlayerLeave(io, socket, roomId, playerId, true);
       cb(ok(null));
     });
 
@@ -2685,6 +2699,28 @@ export function attachSocketHandlers(io: AppServer): void {
 }
 
 // ── Leave / Disconnect Logic ──────────────────────────────────────────
+
+function startHostGrace(io: AppServer, room: Room, hostName: string, profileId: string | null): void {
+  const roomId = room.id;
+  // Cancel any existing grace timer for this room
+  const existing = hostGraceTimers.get(roomId);
+  if (existing) clearTimeout(existing.timer);
+
+  broadcastSystemMsg(io, room, `${hostName} (host) disconnected. Room closes in 20s if they don't return.`);
+  broadcastRoom(io, room);
+
+  const timer = setTimeout(() => {
+    hostGraceTimers.delete(roomId);
+    const currentRoom = getRoom(roomId);
+    if (currentRoom) {
+      closeRoom(io, currentRoom, `${hostName} (host) did not return. Room closed.`);
+      spectateQueues.delete(roomId);
+    }
+  }, HOST_GRACE_MS);
+
+  hostGraceTimers.set(roomId, { timer, profileId, hostName });
+}
+
 function closeRoom(io: AppServer, room: Room, reason: string): void {
   timerService.stop(room.id);
   for (const p of room.players.values()) {
@@ -2705,7 +2741,7 @@ function promoteFromQueue(io: AppServer, room: Room): void {
   io.to(nextSocketId).emit('queue:promoted', { roomCode: room.code });
 }
 
-function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, playerId: string): void {
+function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, playerId: string, explicit = false): void {
   const room = getRoom(roomId);
   if (!room) return;
 
@@ -2713,6 +2749,7 @@ function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, pla
   if (!player) return;
 
   const wasHost = player.isHost;
+  const profileId = socket.data.profileId ?? null;
 
   socket.leave(roomId);
   socket.data.playerId = null;
@@ -2723,15 +2760,25 @@ function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, pla
 
     if (room.players.size === 0) {
       timerService.stop(roomId);
+      const grace = hostGraceTimers.get(roomId);
+      if (grace) { clearTimeout(grace.timer); hostGraceTimers.delete(roomId); }
       deleteRoom(roomId);
       spectateQueues.delete(roomId);
       return;
     }
 
-    // Host left lobby — close the room for everyone
     if (wasHost) {
-      closeRoom(io, room, `${player.name} (host) left. The room has been closed.`);
-      spectateQueues.delete(roomId);
+      if (explicit) {
+        // Explicit leave → close immediately
+        const grace = hostGraceTimers.get(roomId);
+        if (grace) { clearTimeout(grace.timer); hostGraceTimers.delete(roomId); }
+        closeRoom(io, room, `${player.name} (host) left. The room has been closed.`);
+        spectateQueues.delete(roomId);
+      } else {
+        // Disconnect → grace period
+        startHostGrace(io, room, player.name, profileId);
+        spectateQueues.delete(roomId);
+      }
       return;
     }
 
@@ -2739,10 +2786,19 @@ function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, pla
     broadcastRoom(io, room);
     promoteFromQueue(io, room);
   } else {
-    // Host left during active game — close the entire room
     if (wasHost) {
-      closeRoom(io, room, `${player.name} (host) left. The room has been closed.`);
-      spectateQueues.delete(roomId);
+      if (explicit) {
+        const grace = hostGraceTimers.get(roomId);
+        if (grace) { clearTimeout(grace.timer); hostGraceTimers.delete(roomId); }
+        closeRoom(io, room, `${player.name} (host) left. The room has been closed.`);
+        spectateQueues.delete(roomId);
+      } else {
+        // During active game — keep player slot, start grace
+        player.isConnected = false;
+        player.socketId = '';
+        startHostGrace(io, room, player.name, profileId);
+        spectateQueues.delete(roomId);
+      }
       return;
     }
 

@@ -148,6 +148,30 @@ function MainApp() {
   );
 }
 
+function ReconnectingOverlay() {
+  const isReconnecting = useGameStore(s => s.isReconnecting);
+  const isConnected = useGameStore(s => s.isConnected);
+  const room = useGameStore(s => s.room);
+
+  if (!room || !isReconnecting || isConnected) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[400] flex items-center justify-center pointer-events-none"
+      style={{ background: 'rgba(3,0,13,0.72)', backdropFilter: 'blur(4px)' }}
+    >
+      <div className="flex flex-col items-center gap-3 px-6 py-6 rounded-2xl border border-neon-cyan/15 bg-void/80">
+        <div className="w-8 h-8 border-2 border-neon-cyan/40 border-t-neon-cyan rounded-full animate-spin" />
+        <p className="font-mono text-sm text-neon-cyan/80 tracking-widest uppercase">Reconnecting…</p>
+        <p className="font-mono text-[10px] text-white/25">Your session is being restored</p>
+      </div>
+    </motion.div>
+  );
+}
+
 function Screen({ publicProfileId, onClearPublicProfile }: { publicProfileId: number | null; onClearPublicProfile: () => void }) {
   const isAuthed = useAuthStore(s => s.isAuthed);
   const room = useGameStore(s => s.room);
@@ -283,6 +307,9 @@ export default function App() {
         <Screen publicProfileId={publicProfileId} onClearPublicProfile={() => setPublicProfileId(null)} />
       </AnimatePresence>
       <ToastLayer />
+      <AnimatePresence>
+        <ReconnectingOverlay />
+      </AnimatePresence>
       <AnimatePresence>
         <ModNoticeOverlay />
       </AnimatePresence>

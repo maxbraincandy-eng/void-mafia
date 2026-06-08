@@ -42,6 +42,8 @@ interface GameStore {
 
   // UI
   isLoading: boolean;
+  isReconnecting: boolean;
+  connectionFailed: boolean;
   error: string | null;
 
   // Computed helpers
@@ -93,8 +95,7 @@ export const useGameStore = create<GameStore>((set, get) => {
   // ── Socket event bindings ────────────────────────────────────────
   socket.on('connect', () => {
     const { room, myPlayerId } = get();
-    // Clear stuck loading state on any reconnect
-    set({ isConnected: true, isLoading: false, error: null });
+    set({ isConnected: true, isLoading: false, error: null, connectionFailed: false });
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission().catch(() => {});
     }
@@ -108,17 +109,34 @@ export const useGameStore = create<GameStore>((set, get) => {
           isSpectator: player.isSpectator,
         }).then(res => {
           if (res.ok) {
-            set({ room: res.data });
+            set({ room: res.data, isReconnecting: false });
             get().addToast('Reconnected ✓', 'success');
           } else {
-            set({ room: null, myPlayerId: null, myRole: null, nightResult: null, investigationResult: null, gameOverResult: null });
+            set({ room: null, myPlayerId: null, myRole: null, nightResult: null, investigationResult: null, gameOverResult: null, isReconnecting: false });
             get().addToast('Room closed while disconnected', 'error');
           }
-        }).catch(() => {});
+        }).catch(() => { set({ isReconnecting: false }); });
+      } else {
+        set({ isReconnecting: false });
       }
+    } else {
+      set({ isReconnecting: false });
     }
   });
-  socket.on('disconnect', () => set({ isConnected: false, isLoading: false }));
+
+  socket.on('disconnect', () => {
+    const { room } = get();
+    set({ isConnected: false, isLoading: false });
+    if (room) {
+      set({ isReconnecting: true });
+      get().addToast('Reconnecting…', 'info');
+    }
+  });
+
+  socket.on('connect_error', () => {
+    // After repeated failures, show connection error
+    set({ isConnected: false });
+  });
 
   // Lightweight timer tick — avoids broadcasting full room state every second
   socket.on('room:timer', (remaining: number) => {
@@ -356,6 +374,8 @@ export const useGameStore = create<GameStore>((set, get) => {
     modNotice: null,
     toasts: [],
     isLoading: false,
+    isReconnecting: false,
+    connectionFailed: false,
     error: null,
 
     myPlayer: () => {
