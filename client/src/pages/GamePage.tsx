@@ -460,6 +460,7 @@ export function GamePage() {
         onLeave={voice.leaveVoice}
         onToggleMute={voice.toggleMute}
         onToggleCamera={voice.toggleCamera}
+        onReset={voice.resetConnection}
       />
       {isInVoice && voice.peers.length > 0 && (
         <div className="mt-3">
@@ -565,6 +566,7 @@ export function GamePage() {
                     onLeave={voice.leaveVoice}
                     onToggleMute={voice.toggleMute}
                     onToggleCamera={voice.toggleCamera}
+                    onReset={voice.resetConnection}
                   />
                 </div>
               </div>
