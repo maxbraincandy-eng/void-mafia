@@ -489,9 +489,68 @@ export interface GiftCatalogItem {
   stars: number;
   price: number;
   active: boolean;
+  category: string;
+  limitedEdition: boolean;
+  seasonalTag: string | null;
+  displayOrder: number;
   createdBy: string;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface GiftTimelineEntry {
+  id: string;
+  senderId: string;
+  senderPublicId: number | null;
+  senderName: string;
+  senderAvatar: string;
+  senderAvatarUrl: string | null;
+  recipientId: string;
+  receiverPublicId: number | null;
+  receiverName: string;
+  receiverAvatar: string;
+  receiverAvatarUrl: string | null;
+  giftId: string;
+  giftName: string;
+  giftIcon: string;
+  giftImageUrl: string;
+  giftRarity: GiftRarity;
+  giftStars: number;
+  coinCost: number;
+  message: string;
+  createdAt: number;
+}
+
+export interface GiftStats {
+  totalReceived: number;
+  totalSent: number;
+  totalSpent: number;
+  uniqueGiftTypesReceived: number;
+  uniqueGiftTypesSent: number;
+  legendaryReceivedCount: number;
+  mostReceivedGiftName: string | null;
+  mostSentGiftName: string | null;
+}
+
+export interface PinnedGiftEntry {
+  giftId: string;
+  giftName: string;
+  giftIcon: string;
+  giftImageUrl: string;
+  giftRarity: GiftRarity;
+  giftStars: number;
+  pinnedAt: number;
+}
+
+export interface GiftReceivedNotification {
+  giftId: string;
+  giftName: string;
+  giftIcon: string;
+  giftRarity: GiftRarity;
+  senderName: string;
+  senderAvatar: string;
+  senderAvatarUrl: string | null;
+  message: string;
 }
 
 export interface PlayerGift {
