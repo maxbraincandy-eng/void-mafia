@@ -6,6 +6,7 @@ export declare function registerWithEmail(email: string, password: string, usern
 export declare function authenticateWithEmail(email: string, password: string): Promise<PlayerProfile>;
 export declare function getOrCreatePlayer(uid: string, username: string): Promise<PlayerProfile>;
 export declare function getPlayer(uid: string): Promise<PlayerProfile | null>;
+export declare function getPlayerByPublicId(publicId: number): Promise<PlayerProfile | null>;
 export declare function getAllPlayers(): Promise<PlayerProfile[]>;
 export declare function getLeaderboard(): Promise<PlayerProfilePublic[]>;
 export declare function getPlayersFast(): Promise<PlayerProfilePublic[]>;

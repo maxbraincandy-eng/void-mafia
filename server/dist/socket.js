@@ -10,7 +10,7 @@ import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend
 import { checkAndAwardChallenge, getTodayChallenge, getDailyChallengeForPlayer, } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
 import { recordGame, getPlayerHistory, getPlayerRoleStats } from './services/gameHistoryService.js';
-import { createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan, } from './services/clanService.js';
+import { createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan, setClanMemberRole, addClanModLog, getClanModLogs, } from './services/clanService.js';
 import { canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer, warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, logKick, addModNote, freezeAccount, unfreezeAccount, renamePlayer, getPlayerDetail, assignReport, getDashboardDbStats, addModLog, } from './services/moderationService.js';
 import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as voiceLeave, getMembers as voiceGetMembers, getSharedChannel as voiceGetSharedChannel, removeFromChannel as voiceRemoveFromChannel, } from './services/voiceService.js';
 import { sql } from './db.js';
@@ -70,6 +70,9 @@ function cancelAutoStart(roomId) {
 }
 // ── Spectate queues (roomId → socketIds waiting) ──────────────────────
 const spectateQueues = new Map();
+// ── Host disconnect grace period (roomId → reconnect data) ────────────
+const HOST_GRACE_MS = 20000;
+const hostGraceTimers = new Map();
 // ── Role-specific death messages ──────────────────────────────────────
 const NIGHT_DEATH = {
     sheriff: 'The badge falls silent. The town lost its protector.',
@@ -121,6 +124,7 @@ function voteDeathMsg(name, role, lastWill) {
 const CreateRoomSchema = z.object({
     name: z.string().min(1).max(24),
     settings: z.record(z.unknown()).optional(),
+    clanRoom: z.boolean().optional().default(false),
 });
 const JoinRoomSchema = z.object({
     code: z.string().length(6),
@@ -698,7 +702,14 @@ export function attachSocketHandlers(io) {
                 if (maintenanceMode && !playerProfile?.isModerator)
                     throw new Error('Server is under maintenance. Please try again later.');
                 const username = playerProfile?.username ?? parsed.name;
-                const room = createRoom(socket.id, username, profileId, parsed.settings);
+                // If creating a clan room, validate clan membership and get clanId
+                let clanId = null;
+                if (parsed.clanRoom && profileId) {
+                    const clanMembership = await getClanMembershipByPlayer(profileId);
+                    if (clanMembership)
+                        clanId = clanMembership.id;
+                }
+                const room = createRoom(socket.id, username, profileId, parsed.settings, clanId);
                 const hostInRoom = [...room.players.values()][0];
                 if (hostInRoom && playerProfile?.avatarUrl)
                     hostInRoom.avatarUrl = playerProfile.avatarUrl;
@@ -767,7 +778,16 @@ export function attachSocketHandlers(io) {
                 socket.join(room.id);
                 socket.data.playerId = player.id;
                 socket.data.roomId = room.id;
-                broadcastSystemMsg(io, room, `${player.name} joined the room.`);
+                // Cancel host grace period if this is the host reconnecting
+                const grace = hostGraceTimers.get(room.id);
+                if (grace && player.isHost && (profileId === grace.profileId || (!profileId && player.name === grace.hostName))) {
+                    clearTimeout(grace.timer);
+                    hostGraceTimers.delete(room.id);
+                    broadcastSystemMsg(io, room, `${player.name} (host) reconnected.`);
+                }
+                else {
+                    broadcastSystemMsg(io, room, `${player.name} joined the room.`);
+                }
                 broadcastRoom(io, room);
                 cb(ok(toPublicRoom(room, player.id)));
             }
@@ -779,7 +799,7 @@ export function attachSocketHandlers(io) {
         socket.on('room:leave', (cb) => {
             const { roomId, playerId } = socket.data;
             if (roomId && playerId)
-                handlePlayerLeave(io, socket, roomId, playerId);
+                handlePlayerLeave(io, socket, roomId, playerId, true);
             cb(ok(null));
         });
         // ── Ready ───────────────────────────────────────────────────────
@@ -1257,9 +1277,15 @@ export function attachSocketHandlers(io) {
                 }
                 else if (msg.channel === 'dead') {
                     for (const p of room.players.values()) {
-                        if ((!p.isAlive || p.isSpectator) && p.socketId) {
+                        if (!p.isAlive && !p.isSpectator && p.socketId) {
                             io.to(p.socketId).emit('chat:new', msg);
                         }
+                    }
+                }
+                else if (msg.channel === 'spectator') {
+                    for (const p of room.players.values()) {
+                        if (p.isSpectator && p.socketId)
+                            io.to(p.socketId).emit('chat:new', msg);
                     }
                 }
                 else {
@@ -2077,6 +2103,158 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
+        socket.on('clan:set_role', async ({ targetPlayerId, newRole }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const validRoles = ['admin', 'moderator', 'member'];
+                if (!validRoles.includes(newRole))
+                    throw new Error('Invalid role.');
+                await setClanMemberRole(profileId, targetPlayerId, newRole);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('clan:get_mod_logs', async ({ clanId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const membership = await getClanMembershipByPlayer(profileId);
+                if (!membership || membership.id !== clanId)
+                    throw new Error('Not authorized.');
+                const validRoles = ['owner', 'admin'];
+                if (!validRoles.includes(membership.memberRole))
+                    throw new Error('Only clan owner/admin can view mod logs.');
+                const logs = await getClanModLogs(clanId);
+                cb(ok(logs));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Clan Room Moderation ────────────────────────────────────────
+        socket.on('clanRoom:warn', async ({ targetPlayerId, reason }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                const roomId = socket.data.roomId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                if (!roomId)
+                    throw new Error('Not in a room.');
+                const room = getRoom(roomId);
+                if (!room)
+                    throw new Error('Room not found.');
+                if (!room.clanId)
+                    throw new Error('This is not a clan room.');
+                // Check actor's clan membership
+                const actorMembership = await getClanMembershipByPlayer(profileId);
+                if (!actorMembership || actorMembership.id !== room.clanId) {
+                    throw new Error('You are not a member of this clan.');
+                }
+                const actorRole = actorMembership.memberRole;
+                if (actorRole !== 'owner' && actorRole !== 'admin' && actorRole !== 'moderator') {
+                    throw new Error('You do not have clan moderation permissions.');
+                }
+                // Find target player in room
+                const targetPlayer = [...room.players.values()].find(p => p.profileId === targetPlayerId);
+                if (!targetPlayer)
+                    throw new Error('Target player not in this room.');
+                // Rank protection: cannot warn owner/admin unless you are owner
+                if (targetPlayerId !== profileId) {
+                    const targetMembership = await getClanMembershipByPlayer(targetPlayerId);
+                    if (targetMembership && targetMembership.id === room.clanId) {
+                        const targetRole = targetMembership.memberRole;
+                        if (targetRole === 'owner')
+                            throw new Error('Cannot warn the clan owner.');
+                        if (targetRole === 'admin' && actorRole !== 'owner')
+                            throw new Error('Cannot warn a clan admin.');
+                    }
+                }
+                // Check target is not a global moderator/admin
+                const targetProfile = await getPlayer(targetPlayerId);
+                if (targetProfile?.isModerator)
+                    throw new Error('Cannot use clan actions on global moderators.');
+                // Send warning notification to target
+                const actorProfile = await getPlayer(profileId);
+                const actorName = actorProfile?.username ?? 'Clan Moderator';
+                io.to(targetPlayer.socketId).emit('clanRoom:warningReceived', {
+                    clanName: actorMembership.name,
+                    clanTag: actorMembership.tag,
+                    moderatorName: actorName,
+                    moderatorRole: actorRole,
+                    reason: reason.slice(0, 300),
+                });
+                await addClanModLog(room.clanId, profileId, actorName, targetPlayerId, targetPlayer.name, 'clan_warning', reason.slice(0, 300), room.id);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('clanRoom:kick', async ({ targetPlayerId, reason }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                const roomId = socket.data.roomId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                if (!roomId)
+                    throw new Error('Not in a room.');
+                const room = getRoom(roomId);
+                if (!room)
+                    throw new Error('Room not found.');
+                if (!room.clanId)
+                    throw new Error('This is not a clan room.');
+                // Check actor's clan membership
+                const actorMembership = await getClanMembershipByPlayer(profileId);
+                if (!actorMembership || actorMembership.id !== room.clanId) {
+                    throw new Error('You are not a member of this clan.');
+                }
+                const actorRole = actorMembership.memberRole;
+                if (actorRole !== 'owner' && actorRole !== 'admin' && actorRole !== 'moderator') {
+                    throw new Error('You do not have clan moderation permissions.');
+                }
+                // Find target player in room
+                const targetPlayer = [...room.players.values()].find(p => p.profileId === targetPlayerId);
+                if (!targetPlayer)
+                    throw new Error('Target player not in this room.');
+                // Rank protection
+                if (targetPlayerId !== profileId) {
+                    const targetMembership = await getClanMembershipByPlayer(targetPlayerId);
+                    if (targetMembership && targetMembership.id === room.clanId) {
+                        const targetRole = targetMembership.memberRole;
+                        if (targetRole === 'owner')
+                            throw new Error('Cannot kick the clan owner.');
+                        if (targetRole === 'admin' && actorRole !== 'owner')
+                            throw new Error('Cannot kick a clan admin.');
+                    }
+                }
+                // Check target is not a global moderator/admin
+                const targetProfile = await getPlayer(targetPlayerId);
+                if (targetProfile?.isModerator)
+                    throw new Error('Cannot use clan actions on global moderators.');
+                const actorProfile = await getPlayer(profileId);
+                const actorName = actorProfile?.username ?? 'Clan Moderator';
+                // Notify target they are being kicked
+                io.to(targetPlayer.socketId).emit('clanRoom:kicked', {
+                    clanName: actorMembership.name,
+                    reason: reason.slice(0, 300),
+                });
+                // Broadcast to room
+                broadcastSystemMsg(io, room, `${targetPlayer.name} was removed by clan moderation.`);
+                await addClanModLog(room.clanId, profileId, actorName, targetPlayerId, targetPlayer.name, 'clan_kick', reason.slice(0, 300), room.id);
+                // Remove player from room
+                removePlayer(room, targetPlayer.id);
+                socket.to(roomId).emit('room:update', toPublicRoom(room, targetPlayer.id));
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
         // ── Voice: Join Channel ─────────────────────────────────────────
         socket.on('voice:join', ({ channel }, cb) => {
             try {
@@ -2786,6 +2964,24 @@ export function attachSocketHandlers(io) {
     });
 }
 // ── Leave / Disconnect Logic ──────────────────────────────────────────
+function startHostGrace(io, room, hostName, profileId) {
+    const roomId = room.id;
+    // Cancel any existing grace timer for this room
+    const existing = hostGraceTimers.get(roomId);
+    if (existing)
+        clearTimeout(existing.timer);
+    broadcastSystemMsg(io, room, `${hostName} (host) disconnected. Room closes in 20s if they don't return.`);
+    broadcastRoom(io, room);
+    const timer = setTimeout(() => {
+        hostGraceTimers.delete(roomId);
+        const currentRoom = getRoom(roomId);
+        if (currentRoom) {
+            closeRoom(io, currentRoom, `${hostName} (host) did not return. Room closed.`);
+            spectateQueues.delete(roomId);
+        }
+    }, HOST_GRACE_MS);
+    hostGraceTimers.set(roomId, { timer, profileId, hostName });
+}
 function closeRoom(io, room, reason) {
     timerService.stop(room.id);
     for (const p of room.players.values()) {
@@ -2807,7 +3003,7 @@ function promoteFromQueue(io, room) {
         spectateQueues.set(room.id, queue);
     io.to(nextSocketId).emit('queue:promoted', { roomCode: room.code });
 }
-function handlePlayerLeave(io, socket, roomId, playerId) {
+function handlePlayerLeave(io, socket, roomId, playerId, explicit = false) {
     const room = getRoom(roomId);
     if (!room)
         return;
@@ -2815,6 +3011,7 @@ function handlePlayerLeave(io, socket, roomId, playerId) {
     if (!player)
         return;
     const wasHost = player.isHost;
+    const profileId = socket.data.profileId ?? null;
     socket.leave(roomId);
     socket.data.playerId = null;
     socket.data.roomId = null;
@@ -2822,14 +3019,31 @@ function handlePlayerLeave(io, socket, roomId, playerId) {
         removePlayer(room, playerId);
         if (room.players.size === 0) {
             timerService.stop(roomId);
+            const grace = hostGraceTimers.get(roomId);
+            if (grace) {
+                clearTimeout(grace.timer);
+                hostGraceTimers.delete(roomId);
+            }
             deleteRoom(roomId);
             spectateQueues.delete(roomId);
             return;
         }
-        // Host left lobby — close the room for everyone
         if (wasHost) {
-            closeRoom(io, room, `${player.name} (host) left. The room has been closed.`);
-            spectateQueues.delete(roomId);
+            if (explicit) {
+                // Explicit leave → close immediately
+                const grace = hostGraceTimers.get(roomId);
+                if (grace) {
+                    clearTimeout(grace.timer);
+                    hostGraceTimers.delete(roomId);
+                }
+                closeRoom(io, room, `${player.name} (host) left. The room has been closed.`);
+                spectateQueues.delete(roomId);
+            }
+            else {
+                // Disconnect → grace period
+                startHostGrace(io, room, player.name, profileId);
+                spectateQueues.delete(roomId);
+            }
             return;
         }
         broadcastSystemMsg(io, room, `${player.name} left the room.`);
@@ -2837,10 +3051,23 @@ function handlePlayerLeave(io, socket, roomId, playerId) {
         promoteFromQueue(io, room);
     }
     else {
-        // Host left during active game — close the entire room
         if (wasHost) {
-            closeRoom(io, room, `${player.name} (host) left. The room has been closed.`);
-            spectateQueues.delete(roomId);
+            if (explicit) {
+                const grace = hostGraceTimers.get(roomId);
+                if (grace) {
+                    clearTimeout(grace.timer);
+                    hostGraceTimers.delete(roomId);
+                }
+                closeRoom(io, room, `${player.name} (host) left. The room has been closed.`);
+                spectateQueues.delete(roomId);
+            }
+            else {
+                // During active game — keep player slot, start grace
+                player.isConnected = false;
+                player.socketId = '';
+                startHostGrace(io, room, player.name, profileId);
+                spectateQueues.delete(roomId);
+            }
             return;
         }
         player.isConnected = false;

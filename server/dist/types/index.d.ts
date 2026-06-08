@@ -2,7 +2,7 @@ export type Phase = 'lobby' | 'role_reveal' | 'night' | 'morning' | 'day' | 'spe
 export type RoleKey = 'mafia' | 'citizen' | 'sheriff' | 'doctor' | 'don' | 'maniac' | 'jester' | 'bodyguard' | 'spy' | 'escort' | 'vigilante' | 'cult_leader' | 'cultist' | 'veteran' | 'tracker' | 'arsonist' | 'mayor' | 'yakuza' | 'shogun';
 export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
-export type ChatChannel = 'room' | 'mafia' | 'dead';
+export type ChatChannel = 'room' | 'mafia' | 'dead' | 'spectator';
 export type ModeratorLevel = 'moderator' | 'senior_moderator' | 'admin' | 'owner';
 export type ReportReason = 'cheating' | 'offensive_language' | 'voice_abuse' | 'spamming' | 'inappropriate_nickname' | 'harassment' | 'game_sabotage' | 'bug_abuse' | 'other' | 'hate_speech' | 'inappropriate_chat' | 'toxic_behavior';
 export type ModActionType = 'kick' | 'ban' | 'unban' | 'mute' | 'unmute' | 'warn' | 'report_resolve' | 'report_reject' | 'freeze' | 'unfreeze' | 'rename' | 'note_add' | 'force_phase' | 'pause_timer' | 'resume_timer' | 'system_message' | 'broadcast' | 'terminate_game';
@@ -263,6 +263,7 @@ export interface Room {
     newlyConvertedCultists: string[];
     deadChat: ChatMessage[];
     spectateQueue: string[];
+    spectatorChat: ChatMessage[];
     startedAt: number;
     mafiaKillTarget: string | null;
     nominations: Map<string, string>;
@@ -271,6 +272,8 @@ export interface Room {
     finalWordsReason: 'night_kill' | 'vote_elimination' | null;
     pendingWinner: Team | null;
     speechStartSeat: number;
+    clanId: string | null;
+    clanRoom: boolean;
 }
 export interface PlayerPublic {
     id: string;
@@ -317,6 +320,7 @@ export interface RoomPublic {
     spectatorCount: number;
     isPaused: boolean;
     deadChat: ChatMessage[];
+    spectatorChat: ChatMessage[];
     /** Mafia-team-only: each alive Mafia member's current kill vote. null when viewer is not Mafia. */
     mafiaVotes: Record<string, {
         voterName: string;
@@ -328,6 +332,8 @@ export interface RoomPublic {
     tribunalCandidates: string[];
     deathSpeakerId: string | null;
     finalWordsReason: string | null;
+    clanId: string | null;
+    clanRoom: boolean;
 }
 export interface RoomListItem {
     id: string;
@@ -394,13 +400,14 @@ export interface ClanPublic {
     createdAt: number;
     memberCount: number;
 }
+export type ClanRole = 'owner' | 'admin' | 'moderator' | 'member';
 export interface ClanMember {
     playerId: string;
     username: string;
     avatar: string;
     avatarUrl?: string | null;
     publicId?: number | null;
-    role: 'owner' | 'officer' | 'member';
+    role: ClanRole;
     joinedAt: number;
 }
 export interface GameHistoryEntry {
