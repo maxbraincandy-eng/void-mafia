@@ -34,7 +34,7 @@ export type RoleKey =
 
 export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
-export type ChatChannel = 'room' | 'mafia' | 'dead';
+export type ChatChannel = 'room' | 'mafia' | 'dead' | 'spectator';
 export type ModeratorLevel = 'moderator' | 'senior_moderator' | 'admin' | 'owner';
 export type WarnCategory =
   | 'offensive_language'
@@ -225,6 +225,7 @@ export interface RoomPublic {
   chat: ChatMessage[];
   mafiaChat: ChatMessage[];
   deadChat: ChatMessage[];
+  spectatorChat: ChatMessage[];
   killedLastNight: Array<{ id: string; name: string }>;
   savedLastNight: boolean;
   winner: Team | null;

@@ -39,6 +39,9 @@ export function addMessage(room: Room, msg: ChatMessage): void {
   } else if (msg.channel === 'dead') {
     room.deadChat.push(msg);
     if (room.deadChat.length > 200) room.deadChat.shift();
+  } else if (msg.channel === 'spectator') {
+    room.spectatorChat.push(msg);
+    if (room.spectatorChat.length > 200) room.spectatorChat.shift();
   } else {
     room.chat.push(msg);
     if (room.chat.length > 400) room.chat.shift();
@@ -52,6 +55,15 @@ export function validateChat(
   channel: ChatChannel,
 ): string | null {
   const { phase } = room;
+
+  // Spectator channel: only spectators can use it
+  if (channel === 'spectator') {
+    if (!player.isSpectator) return 'Spectator chat is only for spectators.';
+    return null;
+  }
+
+  // Spectators cannot use any other channel
+  if (player.isSpectator) return 'Spectators can only use the spectator chat.';
 
   if (channel === 'mafia') {
     if (player.team !== 'mafia') return 'Mafia chat is restricted.';

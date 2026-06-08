@@ -32,7 +32,7 @@ export type RoleKey =
 
 export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
-export type ChatChannel = 'room' | 'mafia' | 'dead';
+export type ChatChannel = 'room' | 'mafia' | 'dead' | 'spectator';
 export type ModeratorLevel = 'moderator' | 'senior_moderator' | 'admin' | 'owner';
 export type ReportReason =
   | 'cheating'
@@ -356,6 +356,7 @@ export interface Room {
   newlyConvertedCultists: string[];
   deadChat: ChatMessage[];
   spectateQueue: string[];
+  spectatorChat: ChatMessage[];
   startedAt: number;
   mafiaKillTarget: string | null;
   nominations: Map<string, string>;
@@ -411,6 +412,7 @@ export interface RoomPublic {
   spectatorCount: number;
   isPaused: boolean;
   deadChat: ChatMessage[];
+  spectatorChat: ChatMessage[];
   /** Mafia-team-only: each alive Mafia member's current kill vote. null when viewer is not Mafia. */
   mafiaVotes: Record<string, { voterName: string; targetName: string }> | null;
   /** nominatorId → nomineeId for current day's speech nominations */

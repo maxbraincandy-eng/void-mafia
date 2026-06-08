@@ -148,13 +148,15 @@ export const useGameStore = create<GameStore>((set, get) => {
   socket.on('chat:new', (msg: ChatMessage) => {
     set(state => {
       if (!state.room) return state;
-      const field = msg.channel === 'mafia' ? 'mafiaChat' : msg.channel === 'dead' ? 'deadChat' : 'chat';
-      return {
-        room: {
-          ...state.room,
-          [field]: [...(state.room[field] ?? []), msg].slice(-200),
-        },
-      };
+      if (msg.channel === 'mafia') {
+        return { room: { ...state.room, mafiaChat: [...state.room.mafiaChat, msg].slice(-200) } };
+      } else if (msg.channel === 'dead') {
+        return { room: { ...state.room, deadChat: [...state.room.deadChat, msg].slice(-200) } };
+      } else if (msg.channel === 'spectator') {
+        return { room: { ...state.room, spectatorChat: [...(state.room.spectatorChat ?? []), msg].slice(-200) } };
+      } else {
+        return { room: { ...state.room, chat: [...state.room.chat, msg].slice(-200) } };
+      }
     });
   });
 

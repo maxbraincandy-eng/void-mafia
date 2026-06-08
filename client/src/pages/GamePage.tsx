@@ -34,12 +34,13 @@ import { CultConversionOverlay } from '@/components/game/CultConversionOverlay';
 import { VoteRevealScreen } from '@/components/game/VoteRevealScreen';
 import { TutorialOverlay } from '@/components/ui/TutorialOverlay';
 import { InGamePlayersPanel } from '@/components/game/InGamePlayersPanel';
+import { SpectatorTheater } from '@/components/game/SpectatorTheater';
 import { useT } from '@/store/langStore';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { ModDashboardPage } from '@/pages/ModDashboardPage';
 
-type RightTab = 'events' | 'chat';
+type RightTab = 'events' | 'chat' | 'spectator';
 
 const PHASE_COLORS: Record<Phase, string> = {
   lobby:        'text-white',
@@ -167,6 +168,12 @@ export function GamePage() {
   const t = useT();
 
   const amSpectator = myPlayer?.isSpectator ?? false;
+
+  // Auto-switch to spectator tab on join
+  useEffect(() => {
+    if (amSpectator) setRightTab('spectator');
+  }, [amSpectator]);
+
   const activePlayers = room?.players.filter(p => !p.isSpectator) ?? [];
   const gridPlayers   = room?.players.filter(p => p.isAlive && !p.isSpectator) ?? [];
   const spectatorSocketIds = new Set(room?.players.filter(p => p.isSpectator).map(p => p.socketId) ?? []);
@@ -1112,9 +1119,12 @@ export function GamePage() {
 
               {/* Spectator count eye icon */}
               {(room.spectatorCount ?? 0) > 0 && (
-                <div className="hidden sm:flex items-center gap-1 text-white/30 text-xs font-mono" title="Spectators watching">
+                <div
+                  className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg border border-neon-purple/20 bg-neon-purple/5 text-neon-purple/70 text-xs font-mono cursor-default"
+                  title={`${room.spectatorCount} spectator${room.spectatorCount !== 1 ? 's' : ''} watching`}
+                >
                   <span>👁</span>
-                  <span>{room.spectatorCount}</span>
+                  <span className="font-bold">{room.spectatorCount}</span>
                 </div>
               )}
 
@@ -1220,33 +1230,27 @@ export function GamePage() {
 
           {/* Events + Chat sidebar */}
           <aside className="w-64 lg:w-72 flex-shrink-0 overflow-hidden p-4 border-l border-white/5 hidden lg:flex flex-col">
-            {/* Spectator role distribution panel */}
-            {amSpectator && phase !== 'lobby' && phase !== 'role_reveal' && Object.keys(room.activeRoleCounts ?? {}).length > 0 && (
-              <div className="mb-3 rounded-xl border border-neon-purple/15 bg-neon-purple/[0.04] p-3 flex-shrink-0">
-                <p className="text-[10px] font-mono tracking-widest uppercase text-neon-purple/50 mb-2">Roles in play</p>
-                <div className="flex flex-wrap gap-1">
-                  {Object.entries(room.activeRoleCounts).map(([role, count]) => (
-                    <span key={role} className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/8 text-white/35">
-                      {t.game.roles[role as keyof typeof t.game.roles] ?? role} ×{count}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
             {/* Tab switcher */}
             <div className="flex gap-1 mb-3 flex-shrink-0">
-              {(['events', 'chat'] as RightTab[]).map(tab => (
+              {(amSpectator
+                ? (['spectator', 'events'] as RightTab[])
+                : (['events', 'chat'] as RightTab[])
+              ).map(tab => (
                 <button
                   key={tab}
                   onClick={() => setRightTab(tab)}
                   className={clsx(
                     'flex-1 py-1.5 rounded-lg text-[10px] font-display font-bold tracking-widest uppercase transition-all relative',
                     rightTab === tab
-                      ? 'bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan'
+                      ? tab === 'spectator'
+                        ? 'bg-neon-purple/10 border border-neon-purple/30 text-neon-purple'
+                        : 'bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan'
                       : 'border border-white/8 text-white/30 hover:text-white/60',
                   )}
                 >
-                  {tab === 'events' ? 'Events' : 'Chat'}
+                  {tab === 'spectator' ? '👁 Theater'
+                    : tab === 'events' ? 'Events'
+                    : 'Chat'}
                   {tab === 'events' && unreadEvents > 0 && (
                     <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-neon-cyan text-void text-[8px] flex items-center justify-center font-bold">
                       {unreadEvents > 9 ? '9+' : unreadEvents}
@@ -1260,8 +1264,10 @@ export function GamePage() {
                 </button>
               ))}
             </div>
-            <div className="flex-1 min-h-0">
-              {rightTab === 'chat' ? (
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              {rightTab === 'spectator' ? (
+                <SpectatorTheater room={room} myPlayer={myPlayer} />
+              ) : rightTab === 'chat' ? (
                 <ChatPanel compact />
               ) : (
                 <GameEventLog messages={room.chat} className="h-full" />
@@ -1455,16 +1461,24 @@ export function GamePage() {
           <button
             onClick={() => { setShowChat(true); setUnreadChat(0); }}
             className="fixed bottom-6 right-4 z-40 w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-90"
-            style={{
+            style={amSpectator ? {
+              background: 'rgba(155,0,255,0.15)',
+              border: '1.5px solid rgba(155,0,255,0.5)',
+              boxShadow: '0 0 20px rgba(155,0,255,0.15), 0 4px 16px rgba(0,0,0,0.5)',
+            } : {
               background: 'rgba(0,229,255,0.15)',
               border: '1.5px solid rgba(0,229,255,0.4)',
               boxShadow: '0 0 20px rgba(0,229,255,0.15), 0 4px 16px rgba(0,0,0,0.5)',
             }}
-            aria-label="Open chat"
+            aria-label={amSpectator ? 'Open spectator theater' : 'Open chat'}
           >
-            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="rgba(0,229,255,0.9)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
+            {amSpectator ? (
+              <span className="text-2xl" style={{ filter: 'drop-shadow(0 0 6px rgba(155,0,255,0.9))' }}>👁</span>
+            ) : (
+              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="rgba(0,229,255,0.9)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            )}
             {unreadChat > 0 && (
               <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-neon-red text-white text-[9px] flex items-center justify-center font-bold">
                 {unreadChat > 9 ? '9+' : unreadChat}
@@ -1488,7 +1502,12 @@ export function GamePage() {
                   className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0"
                   style={{ borderColor: 'rgba(255,255,255,0.08)', paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
                 >
-                  <span className="text-sm font-display uppercase tracking-widest text-white/60">Chat</span>
+                  <span className={clsx(
+                    'text-sm font-display uppercase tracking-widest',
+                    amSpectator ? 'text-neon-purple/70' : 'text-white/60',
+                  )}>
+                    {amSpectator ? '👁 Spectator Theater' : 'Chat'}
+                  </span>
                   <button
                     onClick={() => setShowChat(false)}
                     className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/8 transition-all"
@@ -1496,7 +1515,8 @@ export function GamePage() {
                     ✕
                   </button>
                 </div>
-                <div className="flex-1 min-h-0 p-3">
+                <div className="flex-1 min-h-0 p-3 overflow-y-auto space-y-4">
+                  {amSpectator && <SpectatorTheater room={room} myPlayer={myPlayer} />}
                   <ChatPanel />
                 </div>
               </motion.div>
