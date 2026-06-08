@@ -49,7 +49,7 @@ const PHASE_COLORS: Record<Phase, string> = {
   day:          'text-neon-cyan',
   speech:       'text-neon-cyan',
   voting:       'text-neon-red',
-  death_speech: 'text-neon-red',
+  final_words:  'text-neon-red',
   game_over:    'text-white',
 };
 
@@ -61,7 +61,7 @@ const PHASE_STRIP: Record<Phase, string> = {
   day:          '#00c4cc',
   speech:       '#00e5ff',
   voting:       '#ff2d55',
-  death_speech: '#cc1133',
+  final_words:  '#cc1133',
   game_over:    'rgba(255,255,255,0.1)',
 };
 
@@ -69,7 +69,7 @@ const PHASE_GLOW: Partial<Record<Phase, string>> = {
   night:        '0 0 12px rgba(59,0,204,0.8)',
   morning:      '0 0 10px rgba(0,196,204,0.5)',
   voting:       '0 0 12px rgba(255,45,85,0.7)',
-  death_speech: '0 0 12px rgba(255,45,85,0.7)',
+  final_words:  '0 0 12px rgba(255,45,85,0.7)',
   role_reveal:  '0 0 12px rgba(155,0,255,0.7)',
   speech:       '0 0 10px rgba(0,229,255,0.5)',
   day:          '0 0 10px rgba(0,196,204,0.5)',
@@ -442,7 +442,7 @@ export function GamePage() {
         peerCount={voice.peers.length}
         error={voice.error}
         muteLocked={micLocked}
-        listenOnly={voice.listenOnly || (!amAlive && !(phase === 'death_speech' && room.deathSpeakerId === myPlayer?.id)) || amSpectator}
+        listenOnly={voice.listenOnly || (!amAlive && !(phase === 'final_words' && room.deathSpeakerId === myPlayer?.id)) || amSpectator}
         defaultChannel={voiceChannel}
         channelLabel={voiceChannelLabel}
         onJoin={amSpectator
@@ -1308,18 +1308,25 @@ export function GamePage() {
                 {/* VotingPanel — contains its own player list for selection + tally + confirm */}
                 {!amSpectator && <VotingPanel />}
               </div>
-            ) : (phase === 'death_speech') ? (
-              /* Death speech: full-screen countdown for eliminated player */
+            ) : (phase === 'final_words') ? (
+              /* Final words: 30-second countdown — only the dying player can speak */
               <div className="flex-1 flex flex-col items-center justify-center p-4 gap-6 pb-20">
                 {(() => {
-                  const deathPlayer = room.players.find(p => p.id === room.deathSpeakerId);
+                  const dyingPlayer = room.players.find(p => p.id === room.deathSpeakerId);
+                  const reason = room.finalWordsReason;
+                  const badge =
+                    reason === 'night_kill'       ? 'KILLED' :
+                    reason === 'vote_elimination' ? 'ELIMINATED' : 'ELIMINATED';
                   return (
                     <>
                       <div className="text-center space-y-2">
                         <p className="text-[10px] font-mono tracking-[0.3em] uppercase text-neon-red/60">Final Words</p>
                         <h2 className="text-2xl font-display font-bold text-white">
-                          {deathPlayer?.name ?? '—'}
+                          {dyingPlayer?.name ?? '—'}
                         </h2>
+                        <span className="inline-block px-3 py-0.5 rounded-full border border-neon-red/50 bg-neon-red/10 text-neon-red text-[11px] font-mono tracking-widest uppercase">
+                          {badge}
+                        </span>
                         <p className="text-sm font-mono text-white/40">has 30 seconds to speak</p>
                       </div>
                       <div

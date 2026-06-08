@@ -380,8 +380,9 @@ function announceNightResult(io: AppServer, room: Room): void {
     for (const killed of room.killedLastNight) {
       const p = room.players.get(killed.id);
       broadcastSystemMsg(io, room, nightDeathMsg(killed.name, p?.role ?? null, killed.lastWill));
-      // Force-mute the eliminated player in any voice channel they're in
-      if (p?.socketId) {
+      // The primary kill (killedLastNight[0]) gets final_words — enforceVoicePhaseRules will
+      // unmute them. Force-mute only secondary kills that die immediately.
+      if (p?.socketId && killed.id !== room.deathSpeakerId) {
         io.to(p.socketId).emit('voice:force-mute', { reason: 'You were eliminated.' });
       }
     }
@@ -2619,6 +2620,18 @@ function enforceVoicePhaseRules(io: AppServer, room: Room): void {
     // All players silent during voting — no voice chat allowed
     for (const member of voiceGetMembers(roomId, 'room')) {
       io.to(member.socketId).emit('voice:force-mute', { reason: 'Silent during voting.' });
+    }
+    return;
+  }
+
+  if (phase === 'final_words') {
+    const speakerId = room.deathSpeakerId;
+    for (const member of voiceGetMembers(roomId, 'room')) {
+      if (member.playerId === speakerId) {
+        io.to(member.socketId).emit('voice:force-unmute');
+      } else {
+        io.to(member.socketId).emit('voice:force-mute', { reason: 'Final words — only the eliminated player may speak.' });
+      }
     }
     return;
   }

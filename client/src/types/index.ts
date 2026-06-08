@@ -8,7 +8,7 @@ export type Phase =
   | 'day'
   | 'speech'
   | 'voting'
-  | 'death_speech'
+  | 'final_words'
   | 'game_over';
 
 export type RoleKey =
@@ -239,6 +239,7 @@ export interface RoomPublic {
   /** deduped list of nominated player IDs eligible for tribunal vote */
   tribunalCandidates: string[];
   deathSpeakerId: string | null;
+  finalWordsReason: string | null;
 }
 
 export interface RoomListItem {
