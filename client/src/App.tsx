@@ -16,6 +16,7 @@ import { ModDashboardPage } from '@/pages/ModDashboardPage';
 import { EconomyAdminPage } from '@/pages/EconomyAdminPage';
 import { PublicProfilePage } from '@/pages/PublicProfilePage';
 import { BottomNav, NavTab } from '@/components/layout/BottomNav';
+import { MorePanel } from '@/components/ui/MorePanel';
 import { PlayerProfileModal } from '@/components/ui/PlayerProfileModal';
 import { DmPanel } from '@/components/social/DmPanel';
 import { GiftNotificationToast } from '@/components/ui/GiftNotificationToast';
@@ -143,7 +144,8 @@ function MainApp() {
         {page === 'mod' && isMod            && <ModDashboardPage key="mod" />}
         {page === 'economy' && isOwner      && <EconomyAdminPage key="economy" />}
       </AnimatePresence>
-      <BottomNav active={page} isMod={isMod} isOwner={isOwner} onChange={setPage} onMessagesClick={openDmList} />
+      <BottomNav active={page} isMod={isMod} onChange={setPage} onMessagesClick={openDmList} />
+      <MorePanel isOwner={isOwner} onEconomyClick={() => setPage('economy')} />
     </div>
   );
 }
