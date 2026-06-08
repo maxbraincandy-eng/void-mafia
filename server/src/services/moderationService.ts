@@ -1,6 +1,6 @@
 import {
   Report, ReportReason, ModLog, ModActionType,
-  BanRecord, MuteRecord, Warning, PlayerProfile, ModeratorLevel,
+  BanRecord, MuteRecord, Warning, WarnCategory, PlayerProfile, ModeratorLevel,
   ModNote, ModPlayerDetail,
 } from '../types/index.js';
 import { generateId } from '../utils/helpers.js';
@@ -79,16 +79,16 @@ export async function unmutePlayer(moderatorId: string, moderatorName: string, t
 }
 
 export async function warnPlayer(
-  moderatorId: string, moderatorName: string, targetId: string, reason: string,
+  moderatorId: string, moderatorName: string, targetId: string, reason: string, category: WarnCategory = 'other',
 ): Promise<Warning> {
   const target = await getPlayer(targetId);
   if (!target) throw new Error('Player not found.');
   const warning: Warning = {
-    id: generateId(), playerId: targetId, reason,
+    id: generateId(), playerId: targetId, reason, category,
     issuedBy: moderatorId, issuedByName: moderatorName, issuedAt: Date.now(),
   };
   await addWarning(targetId, warning);
-  await addLog({ actionType: 'warn', moderatorId, moderatorName, targetPlayerId: targetId, targetName: target.username, roomId: null, reason, duration: null });
+  await addLog({ actionType: 'warn', moderatorId, moderatorName, targetPlayerId: targetId, targetName: target.username, roomId: null, reason: `[${category}] ${reason}`, duration: null });
   return warning;
 }
 

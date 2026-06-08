@@ -3,9 +3,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { socket } from '@/lib/socket';
 import {
   Report, ModLog, PlayerProfilePublic, Phase,
-  ModPlayerDetail, LiveRoomInfo, DashboardStats, ModNote, ModeratorLevel,
+  ModPlayerDetail, LiveRoomInfo, DashboardStats, ModNote, ModeratorLevel, WarnCategory,
 } from '@/types/index';
 import type { Res } from '@/types/index';
+
+const WARN_CATEGORIES: { value: WarnCategory; label: string }[] = [
+  { value: 'offensive_language',        label: 'Offensive Language' },
+  { value: 'voice_abuse',               label: 'Voice Abuse' },
+  { value: 'spam',                      label: 'Spam' },
+  { value: 'game_sabotage',             label: 'Game Sabotage' },
+  { value: 'harassment',                label: 'Harassment' },
+  { value: 'inappropriate_avatar_name', label: 'Inappropriate Avatar/Name' },
+  { value: 'bug_abuse',                 label: 'Bug Abuse' },
+  { value: 'other',                     label: 'Other' },
+];
 import { ModBadge } from '@/components/ui/ModBadge';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { useGameStore } from '@/store/gameStore';
@@ -92,11 +103,18 @@ export function ModDashboardPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [newNote, setNewNote] = useState('');
 
+  // Player filters
+  const [playerFilterOnline, setPlayerFilterOnline] = useState(false);
+  const [playerFilterInRoom, setPlayerFilterInRoom] = useState(false);
+  const [playerFilterBanned, setPlayerFilterBanned] = useState(false);
+  const [playerFilterMod, setPlayerFilterMod] = useState(false);
+
   // Action modal
   const [action, setAction] = useState<ActionState | null>(null);
   const [actionReason, setActionReason] = useState('');
   const [actionDuration, setActionDuration] = useState(3600);
   const [actionNewName, setActionNewName] = useState('');
+  const [actionCategory, setActionCategory] = useState<WarnCategory>('other');
 
   // Confirm modal
   const [confirm, setConfirm] = useState<{ title: string; msg: string; onConfirm: () => void } | null>(null);
@@ -174,6 +192,7 @@ export function ModDashboardPage() {
     setAction({ type, targetId, targetName, roomId });
     setActionReason('');
     setActionNewName('');
+    setActionCategory('other');
   };
   const closeAction = () => setAction(null);
 
@@ -201,10 +220,14 @@ export function ModDashboardPage() {
       socket.emit('mod:mute' as any, { targetProfileId: targetId, reason: actionReason, duration: actionDuration }, onOk('Muted'));
     } else if (type === 'warn') {
       if (!actionReason.trim()) { addToast('Reason required', 'error'); return; }
-      socket.emit('mod:warn' as any, { targetProfileId: targetId, reason: actionReason }, onOk('Warned'));
+      socket.emit('mod:warn' as any, { targetProfileId: targetId, reason: actionReason, category: actionCategory }, onOk('Warned'));
     } else if (type === 'kick') {
       if (!actionReason.trim()) { addToast('Reason required', 'error'); return; }
-      socket.emit('mod:kick_player' as any, { targetProfileId: targetId, reason: actionReason }, onOk('Kicked'));
+      if (roomId) {
+        socket.emit('mod:kick_from_room' as any, { targetProfileId: targetId, roomId, reason: actionReason }, onOk('Kicked'));
+      } else {
+        socket.emit('mod:kick_player' as any, { targetProfileId: targetId, reason: actionReason }, onOk('Kicked'));
+      }
     } else if (type === 'unban') {
       socket.emit('mod:unban' as any, { targetProfileId: targetId }, onOk('Unbanned'));
     } else if (type === 'unmute') {
@@ -303,7 +326,9 @@ export function ModDashboardPage() {
   const filteredReports = reports.filter(r => reportFilter === 'all' || r.status === reportFilter);
   const filteredPlayers = players.filter(p => {
     const q = playerSearch.trim().toLowerCase().replace(/^#/, '');
-    return !q || p.username.toLowerCase().includes(q) || p.id.toLowerCase().includes(q) || (p.publicId != null && String(p.publicId).includes(q));
+    if (q && !p.username.toLowerCase().includes(q) && !p.id.toLowerCase().includes(q) && !(p.publicId != null && String(p.publicId).includes(q))) return false;
+    if (playerFilterMod && !p.isModerator) return false;
+    return true;
   });
   const filteredLogs = logs.filter(l => !logFilter || l.actionType.includes(logFilter) || l.targetName.toLowerCase().includes(logFilter.toLowerCase()) || l.moderatorName.toLowerCase().includes(logFilter.toLowerCase()));
 
@@ -454,19 +479,31 @@ export function ModDashboardPage() {
                   {expandedRoom === r.id && (
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
                       className="border-t border-white/5 overflow-hidden">
-                      <div className="p-3 space-y-1 max-h-48 overflow-y-auto">
+                      <div className="p-3 space-y-1.5 max-h-64 overflow-y-auto">
                         {r.players.length === 0 && <p className="text-white/25 font-mono text-xs text-center">No players</p>}
                         {r.players.map(p => (
                           <div key={p.id} className="flex items-center gap-2 py-0.5">
-                            <span className={`text-xs font-mono ${p.isAlive ? 'text-white/70' : 'text-white/25 line-through'}`}>
+                            <span className={`text-xs font-mono flex-1 truncate ${p.isAlive ? 'text-white/70' : 'text-white/25 line-through'}`}>
                               {p.seat}. {p.name}
                             </span>
-                            {!p.isConnected && <span className="text-[9px] font-mono text-white/20">offline</span>}
+                            {!p.isConnected && <span className="text-[9px] font-mono text-white/20">off</span>}
                             {p.profileId && (
-                              <button onClick={() => { openPlayerDetail(p.profileId!); switchTab('players'); }}
-                                className="ml-auto text-[9px] font-mono text-neon-cyan/40 hover:text-neon-cyan transition-all">
-                                view
-                              </button>
+                              <>
+                                <button onClick={() => openAction('warn', p.profileId!, p.name, r.id)}
+                                  className="px-1.5 py-0.5 text-[9px] font-mono text-yellow-400/60 border border-yellow-400/20 rounded hover:bg-yellow-400/10 transition-all">
+                                  W
+                                </button>
+                                <button onClick={() => openAction('kick', p.profileId!, p.name, r.id)}
+                                  className="px-1.5 py-0.5 text-[9px] font-mono text-orange-400/60 border border-orange-400/20 rounded hover:bg-orange-400/10 transition-all">
+                                  K
+                                </button>
+                                {can(1) && (
+                                  <button onClick={() => openAction('ban', p.profileId!, p.name, r.id)}
+                                    className="px-1.5 py-0.5 text-[9px] font-mono text-neon-red/60 border border-neon-red/20 rounded hover:bg-neon-red/10 transition-all">
+                                    B
+                                  </button>
+                                )}
+                              </>
                             )}
                           </div>
                         ))}
@@ -557,9 +594,9 @@ export function ModDashboardPage() {
                     className="px-2 py-1 text-[10px] font-mono text-yellow-400/70 border border-yellow-400/20 rounded-lg hover:bg-yellow-400/10 ml-auto">
                     Warn
                   </button>
-                  <button onClick={() => openAction('mute', r.reportedPlayerId, r.reportedName)}
-                    className="px-2 py-1 text-[10px] font-mono text-neon-pink/80 border border-neon-pink/25 rounded-lg hover:bg-neon-pink/10">
-                    Mute
+                  <button onClick={() => openAction('kick', r.reportedPlayerId, r.reportedName)}
+                    className="px-2 py-1 text-[10px] font-mono text-orange-400/80 border border-orange-400/25 rounded-lg hover:bg-orange-400/10">
+                    Kick
                   </button>
                   {can(1) && (
                     <button onClick={() => openAction('ban', r.reportedPlayerId, r.reportedName)}
@@ -581,6 +618,19 @@ export function ModDashboardPage() {
                 <input type="text" value={playerSearch} onChange={e => setPlayerSearch(e.target.value)}
                   placeholder="Search by name, #ID…"
                   className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono placeholder-white/25 focus:outline-none focus:border-neon-green/40" />
+                {/* Filter chips */}
+                <div className="flex gap-1 flex-wrap">
+                  {[
+                    { key: 'mod', label: 'Mods', active: playerFilterMod, set: setPlayerFilterMod },
+                  ].map(f => (
+                    <button key={f.key} onClick={() => f.set(!f.active)}
+                      className={`px-2 py-1 text-[10px] font-mono uppercase rounded-lg border transition-all ${
+                        f.active ? 'border-neon-green/40 bg-neon-green/10 text-neon-green' : 'border-white/10 text-white/30 hover:text-white/60'
+                      }`}>
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
                 <div className="flex items-center justify-between">
                   <p className="text-white/20 font-mono text-xs">{filteredPlayers.length} players</p>
                   <button onClick={loadPlayers} className="text-neon-green/50 font-mono text-xs hover:text-neon-green transition-all">↻ Refresh</button>
@@ -605,9 +655,9 @@ export function ModDashboardPage() {
                           className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-yellow-400/30 text-yellow-400 hover:bg-yellow-400/10 transition-all">
                           warn
                         </button>
-                        <button onClick={() => openAction('mute', p.id, p.username)}
-                          className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-neon-pink/30 text-neon-pink hover:bg-neon-pink/10 transition-all">
-                          mute
+                        <button onClick={() => openAction('kick', p.id, p.username)}
+                          className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-orange-400/30 text-orange-400 hover:bg-orange-400/10 transition-all">
+                          kick
                         </button>
                         {can(1) && (
                           <button onClick={() => openAction('ban', p.id, p.username)}
@@ -739,6 +789,14 @@ export function ModDashboardPage() {
                 </>
               ) : (
                 <>
+                  {action.type === 'warn' && (
+                    <select value={actionCategory} onChange={e => setActionCategory(e.target.value as WarnCategory)}
+                      className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none mb-3">
+                      {WARN_CATEGORIES.map(c => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
+                    </select>
+                  )}
                   <input type="text" value={actionReason} onChange={e => setActionReason(e.target.value)}
                     placeholder={action.type === 'system_msg' ? 'Message…' : 'Reason…'}
                     className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-neon-green/40 mb-3" />
@@ -747,11 +805,10 @@ export function ModDashboardPage() {
                       className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none mb-3">
                       <option value={900}>15 minutes</option>
                       <option value={3600}>1 hour</option>
-                      <option value={10800}>3 hours</option>
-                      <option value={43200}>12 hours</option>
+                      <option value={21600}>6 hours</option>
                       <option value={86400}>24 hours</option>
                       <option value={604800}>7 days</option>
-                      <option value={2592000}>30 days</option>
+                      {can(3) && <option value={31536000}>Permanent (1y)</option>}
                     </select>
                   )}
                 </>

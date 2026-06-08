@@ -197,9 +197,15 @@ function ModNoticeOverlay() {
         </div>
 
         <div className="space-y-2 mb-5">
+          {modNotice.type === 'warn' && modNotice.category && modNotice.category !== 'other' && (
+            <div className={clsx('rounded-xl p-3 border', cfg.border)}>
+              <p className="text-white/40 text-[10px] font-mono uppercase tracking-widest mb-0.5">Category</p>
+              <p className="text-white text-sm font-mono capitalize">{modNotice.category.replace(/_/g, ' ')}</p>
+            </div>
+          )}
           <div className={clsx('rounded-xl p-3 border', cfg.border)}>
             <p className="text-white/40 text-[10px] font-mono uppercase tracking-widest mb-0.5">Reason</p>
-            <p className="text-white text-sm font-mono">{modNotice.reason}</p>
+            <p className="text-white text-sm font-mono">{modNotice.reason || '—'}</p>
           </div>
 
           {modNotice.expiresAt && (

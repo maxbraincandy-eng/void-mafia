@@ -1325,7 +1325,7 @@ export function attachSocketHandlers(io: AppServer): void {
           const targetSock = io.sockets.sockets.get(target.socketId);
           if (targetSock) {
             targetSock.emit('kicked', { reason: `Removed by moderator. Reason: ${reason}` });
-            // Use handlePlayerLeave so host-leaves-closes-room logic is respected
+            handleVoiceLeave(io, target.socketId);
             handlePlayerLeave(io, targetSock as any, roomId, target.id);
           } else {
             removePlayer(room, target.id);
@@ -1356,6 +1356,13 @@ export function attachSocketHandlers(io: AppServer): void {
         const mod = await getPlayer(modProfileId);
         if (!mod || !canDo(mod, 'kick')) throw new Error('Insufficient permissions.');
 
+        const targetProfile = await getPlayer(targetProfileId);
+        if (targetProfile && targetProfile.moderatorLevel) {
+          const targetRank = ['moderator', 'senior_moderator', 'admin', 'owner'].indexOf(targetProfile.moderatorLevel);
+          const modRank = mod.moderatorLevel ? ['moderator', 'senior_moderator', 'admin', 'owner'].indexOf(mod.moderatorLevel) : -1;
+          if (targetRank >= modRank) throw new Error('Cannot kick a moderator of equal or higher rank.');
+        }
+
         // Scan all rooms to find the target
         let foundRoom: import('./types/index.js').Room | null = null;
         let foundTarget: import('./types/index.js').Player | null = null;
@@ -1374,7 +1381,7 @@ export function attachSocketHandlers(io: AppServer): void {
           const targetSock = io.sockets.sockets.get(foundTarget.socketId);
           if (targetSock) {
             targetSock.emit('kicked', { reason: `Removed by moderator. Reason: ${reason}` });
-            // Use handlePlayerLeave so host-leaves-closes-room logic is respected
+            handleVoiceLeave(io, foundTarget.socketId);
             handlePlayerLeave(io, targetSock as any, foundRoom.id, foundTarget.id);
           } else {
             removePlayer(foundRoom, foundTarget.id);
@@ -1414,6 +1421,13 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!modProfileId) throw new Error('Not authenticated.');
         const mod = await getPlayer(modProfileId);
         if (!mod || !canDo(mod, 'ban_short')) throw new Error('Insufficient permissions.');
+
+        const targetForRankCheck = await getPlayer(targetProfileId);
+        if (targetForRankCheck && targetForRankCheck.moderatorLevel) {
+          const targetRank = ['moderator', 'senior_moderator', 'admin', 'owner'].indexOf(targetForRankCheck.moderatorLevel);
+          const modRank = mod.moderatorLevel ? ['moderator', 'senior_moderator', 'admin', 'owner'].indexOf(mod.moderatorLevel) : -1;
+          if (targetRank >= modRank) throw new Error('Cannot ban a moderator of equal or higher rank.');
+        }
 
         const ban = await banPlayer(modProfileId, mod.username, targetProfileId, reason, duration);
 
@@ -1483,21 +1497,30 @@ export function attachSocketHandlers(io: AppServer): void {
     });
 
     // ── Mod: Warn ────────────────────────────────────────────────────
-    socket.on('mod:warn', async ({ targetProfileId, reason }, cb) => {
+    socket.on('mod:warn', async ({ targetProfileId, reason, category }: { targetProfileId: string; reason: string; category?: string }, cb) => {
       try {
         const modProfileId = socket.data.profileId;
         if (!modProfileId) throw new Error('Not authenticated.');
         const mod = await getPlayer(modProfileId);
         if (!mod || !canDo(mod, 'warn')) throw new Error('Insufficient permissions.');
 
-        const warning = await warnPlayer(modProfileId, mod.username, targetProfileId, reason);
+        const target = await getPlayer(targetProfileId);
+        if (target && target.moderatorLevel) {
+          const targetRank = ['moderator', 'senior_moderator', 'admin', 'owner'].indexOf(target.moderatorLevel);
+          const modRank = mod.moderatorLevel ? ['moderator', 'senior_moderator', 'admin', 'owner'].indexOf(mod.moderatorLevel) : -1;
+          if (targetRank >= modRank) throw new Error('Cannot warn a moderator of equal or higher rank.');
+        }
+
+        const warnCat = (category ?? 'other') as import('./types/index.js').WarnCategory;
+        const warning = await warnPlayer(modProfileId, mod.username, targetProfileId, reason, warnCat);
 
         const targetSock = findSocketByProfile(io as any, targetProfileId);
         if (targetSock) {
-          targetSock.emit('warning:received', { reason, moderatorName: mod.username });
+          targetSock.emit('warning:received', { reason, category: warnCat, moderatorName: mod.username });
         }
 
         cb(ok(null));
+        notifyMods(io, 'mod_warn', `${mod.username} warned ${target?.username ?? '?'}`, target?.username).catch(() => {});
       } catch (e: any) { cb(err(e.message)); }
     });
 

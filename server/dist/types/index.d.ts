@@ -77,10 +77,12 @@ export interface MuteRecord {
     issuedAt: number;
     expiresAt: number;
 }
+export type WarnCategory = 'offensive_language' | 'voice_abuse' | 'spam' | 'game_sabotage' | 'harassment' | 'inappropriate_avatar_name' | 'bug_abuse' | 'other';
 export interface Warning {
     id: string;
     playerId: string;
     reason: string;
+    category: WarnCategory;
     issuedBy: string;
     issuedByName: string;
     issuedAt: number;
@@ -579,6 +581,15 @@ export interface ServerToClientEvents {
     'maintenance:status': (data: {
         enabled: boolean;
     }) => void;
+    'coins:updated': (data: {
+        coins: number;
+    }) => void;
+    'gift:received': (data: {
+        gift: any;
+        senderName: string;
+        senderAvatar: string;
+        message: string;
+    }) => void;
 }
 export interface ClientToServerEvents {
     'player:auth': (data: {
@@ -689,6 +700,13 @@ export interface ClientToServerEvents {
         reason: string;
     }, cb: Cb<null>) => void;
     'mod:get_active_rooms': (cb: Cb<RoomListItem[]>) => void;
+    'mod:set_mod_level': (data: {
+        targetProfileId: string;
+        level: string | null;
+    }, cb: Cb<{
+        username: string;
+        newLevel: string | null;
+    }>) => void;
     'mod:ban': (data: {
         targetProfileId: string;
         reason: string;
@@ -860,6 +878,69 @@ export interface ClientToServerEvents {
     'player:update_name': (data: {
         newName: string;
     }, cb: (res: any) => void) => void;
+    'coins:balance': (cb: Cb<{
+        coins: number;
+    }>) => void;
+    'coins:daily_reward': (cb: Cb<{
+        coins: number;
+        balance: number;
+        alreadyClaimed: boolean;
+    }>) => void;
+    'coins:send_gift': (data: {
+        recipientId: string;
+        giftId: string;
+        message: string;
+    }, cb: Cb<{
+        newBalance: number;
+    }>) => void;
+    'coins:transactions': (data: {
+        profileId?: string;
+    }, cb: Cb<any[]>) => void;
+    'gifts:catalog': (cb: Cb<any[]>) => void;
+    'gifts:player_gifts': (data: {
+        profileId: string;
+    }, cb: Cb<any[]>) => void;
+    'gifts:detail': (data: {
+        giftId: string;
+        recipientId: string;
+    }, cb: Cb<any>) => void;
+    'owner:coins_grant': (data: {
+        targetProfileId: string;
+        amount: number;
+        description: string;
+    }, cb: Cb<{
+        newBalance: number;
+    }>) => void;
+    'owner:coins_deduct': (data: {
+        targetProfileId: string;
+        amount: number;
+        description: string;
+    }, cb: Cb<{
+        newBalance: number;
+    }>) => void;
+    'owner:coins_refund': (data: {
+        transactionId: string;
+    }, cb: Cb<null>) => void;
+    'owner:gift_create': (data: {
+        name: string;
+        description?: string;
+        icon: string;
+        rarity: string;
+        stars: number;
+        price: number;
+    }, cb: Cb<any>) => void;
+    'owner:gift_update': (data: {
+        giftId: string;
+        name?: string;
+        description?: string;
+        icon?: string;
+        rarity?: string;
+        stars?: number;
+        price?: number;
+        active?: boolean;
+    }, cb: Cb<any>) => void;
+    'owner:gift_catalog_all': (cb: Cb<any[]>) => void;
+    'owner:all_transactions': (cb: Cb<any[]>) => void;
 }
 export interface InterServerEvents {
 }

@@ -16,6 +16,29 @@ import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as 
 import { sql } from './db.js';
 import bcrypt from 'bcryptjs';
 import { getOrCreateConversation, listConversations, sendMessage, getMessages, markRead, getTotalUnread, } from './services/dmService.js';
+import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, } from './services/coinService.js';
+// ── TURN / ICE server config ──────────────────────────────────────────
+// Reads TURN_URL, TURN_USERNAME, TURN_CREDENTIAL from Railway server env vars.
+// If set, these are returned to the client in voice:join so credentials are
+// never exposed in the client bundle.
+function buildIceServers() {
+    const servers = [
+        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+    ];
+    const turnUrl = process.env.TURN_URL;
+    if (turnUrl) {
+        servers.push({
+            urls: turnUrl.split(',').map(s => s.trim()),
+            username: process.env.TURN_USERNAME ?? '',
+            credential: process.env.TURN_CREDENTIAL ?? '',
+        });
+    }
+    else {
+        // Fallback public TURN (unreliable — set TURN_URL in Railway to fix mobile)
+        servers.push({ urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' }, { urls: ['turn:global.relay.metered.ca:80', 'turn:global.relay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' });
+    }
+    return servers;
+}
 // ── Rate limiting ─────────────────────────────────────────────────────
 const rateLimits = new Map();
 function rateOk(socketId, limit = 15) {
@@ -262,15 +285,20 @@ async function emitGameOver(io, room) {
     }
 }
 async function notifyMods(io, type, message, targetName) {
+    const socketsWithProfile = [];
     for (const [, sock] of io.sockets.sockets) {
         const profileId = sock.data.profileId;
-        if (!profileId)
-            continue;
-        const profile = await getPlayer(profileId);
-        if (profile?.isModerator) {
-            sock.emit('mod:notification', { type, message, targetName });
-        }
+        if (profileId)
+            socketsWithProfile.push({ sock, profileId });
     }
+    await Promise.all(socketsWithProfile.map(async ({ sock, profileId }) => {
+        try {
+            const profile = await getPlayer(profileId);
+            if (profile?.isModerator)
+                sock.emit('mod:notification', { type, message, targetName });
+        }
+        catch { /* ignore per-socket errors */ }
+    }));
 }
 function announceSpeechEnd(io, room, nextPhase) {
     if (nextPhase === 'voting') {
@@ -423,11 +451,15 @@ export function attachSocketHandlers(io) {
         socket.data.roomId = null;
         socket.data.profileId = null;
         // Rate-limit every incoming event
-        socket.use(([event], next) => {
+        socket.use(([event, ...args], next) => {
             const authEvents = new Set(['player:auth', 'player:register', 'player:login_email']);
             const limit = authEvents.has(event) ? 3 : 20;
             if (!rateOk(socket.id, limit)) {
                 socket.emit('error', { message: 'Too many requests. Slow down.' });
+                // Call ack callback if present so client doesn't hang waiting for a response
+                const ack = typeof args[args.length - 1] === 'function' ? args[args.length - 1] : null;
+                if (ack)
+                    ack(err('Too many requests. Slow down.'));
                 return;
             }
             next();
@@ -1273,15 +1305,29 @@ export function attachSocketHandlers(io) {
                     throw new Error('Player not found in room.');
                 if (target.socketId) {
                     const targetSock = io.sockets.sockets.get(target.socketId);
-                    targetSock?.emit('kicked', { reason: `Removed by moderator. Reason: ${reason}` });
-                    targetSock?.leave(roomId);
+                    if (targetSock) {
+                        targetSock.emit('kicked', { reason: `Removed by moderator. Reason: ${reason}` });
+                        handleVoiceLeave(io, target.socketId);
+                        handlePlayerLeave(io, targetSock, roomId, target.id);
+                    }
+                    else {
+                        removePlayer(room, target.id);
+                        if (room.players.size > 0) {
+                            broadcastSystemMsg(io, room, `${target.name} was removed by a moderator.`);
+                            broadcastRoom(io, room);
+                        }
+                    }
                 }
-                removePlayer(room, target.id);
-                broadcastSystemMsg(io, room, `${target.name} was removed by a moderator.`);
-                broadcastRoom(io, room);
+                else {
+                    removePlayer(room, target.id);
+                    if (room.players.size > 0) {
+                        broadcastSystemMsg(io, room, `${target.name} was removed by a moderator.`);
+                        broadcastRoom(io, room);
+                    }
+                }
                 await logKick(modProfileId, mod.username, target.profileId ?? targetProfileId, target.name, roomId, reason);
-                await notifyMods(io, 'mod_kick', `${mod.username} kicked ${target.name} from room`, target.name);
                 cb(ok(null));
+                notifyMods(io, 'mod_kick', `${mod.username} kicked ${target.name} from room`, target.name).catch(() => { });
             }
             catch (e) {
                 cb(err(e.message));
@@ -1296,6 +1342,13 @@ export function attachSocketHandlers(io) {
                 const mod = await getPlayer(modProfileId);
                 if (!mod || !canDo(mod, 'kick'))
                     throw new Error('Insufficient permissions.');
+                const targetProfile = await getPlayer(targetProfileId);
+                if (targetProfile && targetProfile.moderatorLevel) {
+                    const targetRank = ['moderator', 'senior_moderator', 'admin', 'owner'].indexOf(targetProfile.moderatorLevel);
+                    const modRank = mod.moderatorLevel ? ['moderator', 'senior_moderator', 'admin', 'owner'].indexOf(mod.moderatorLevel) : -1;
+                    if (targetRank >= modRank)
+                        throw new Error('Cannot kick a moderator of equal or higher rank.');
+                }
                 // Scan all rooms to find the target
                 let foundRoom = null;
                 let foundTarget = null;
@@ -1311,15 +1364,29 @@ export function attachSocketHandlers(io) {
                     throw new Error('Player is not currently in any room.');
                 if (foundTarget.socketId) {
                     const targetSock = io.sockets.sockets.get(foundTarget.socketId);
-                    targetSock?.emit('kicked', { reason: `Removed by moderator. Reason: ${reason}` });
-                    targetSock?.leave(foundRoom.id);
+                    if (targetSock) {
+                        targetSock.emit('kicked', { reason: `Removed by moderator. Reason: ${reason}` });
+                        handleVoiceLeave(io, foundTarget.socketId);
+                        handlePlayerLeave(io, targetSock, foundRoom.id, foundTarget.id);
+                    }
+                    else {
+                        removePlayer(foundRoom, foundTarget.id);
+                        if (foundRoom.players.size > 0) {
+                            broadcastSystemMsg(io, foundRoom, `${foundTarget.name} was removed by a moderator.`);
+                            broadcastRoom(io, foundRoom);
+                        }
+                    }
                 }
-                removePlayer(foundRoom, foundTarget.id);
-                broadcastSystemMsg(io, foundRoom, `${foundTarget.name} was removed by a moderator.`);
-                broadcastRoom(io, foundRoom);
+                else {
+                    removePlayer(foundRoom, foundTarget.id);
+                    if (foundRoom.players.size > 0) {
+                        broadcastSystemMsg(io, foundRoom, `${foundTarget.name} was removed by a moderator.`);
+                        broadcastRoom(io, foundRoom);
+                    }
+                }
                 await logKick(modProfileId, mod.username, foundTarget.profileId ?? targetProfileId, foundTarget.name, foundRoom.id, reason);
-                await notifyMods(io, 'mod_kick', `${mod.username} kicked ${foundTarget.name} from room`, foundTarget.name);
                 cb(ok(null));
+                notifyMods(io, 'mod_kick', `${mod.username} kicked ${foundTarget.name} from room`, foundTarget.name).catch(() => { });
             }
             catch (e) {
                 cb(err(e.message));
@@ -1347,6 +1414,13 @@ export function attachSocketHandlers(io) {
                 const mod = await getPlayer(modProfileId);
                 if (!mod || !canDo(mod, 'ban_short'))
                     throw new Error('Insufficient permissions.');
+                const targetForRankCheck = await getPlayer(targetProfileId);
+                if (targetForRankCheck && targetForRankCheck.moderatorLevel) {
+                    const targetRank = ['moderator', 'senior_moderator', 'admin', 'owner'].indexOf(targetForRankCheck.moderatorLevel);
+                    const modRank = mod.moderatorLevel ? ['moderator', 'senior_moderator', 'admin', 'owner'].indexOf(mod.moderatorLevel) : -1;
+                    if (targetRank >= modRank)
+                        throw new Error('Cannot ban a moderator of equal or higher rank.');
+                }
                 const ban = await banPlayer(modProfileId, mod.username, targetProfileId, reason, duration);
                 // Disconnect target from all rooms
                 const targetSock = findSocketByProfile(io, targetProfileId);
@@ -1358,9 +1432,11 @@ export function attachSocketHandlers(io) {
                     }
                     targetSock.disconnect(true);
                 }
-                const target = await getPlayer(targetProfileId);
-                await notifyMods(io, 'mod_ban', `${mod.username} banned ${target?.username ?? '?'}`, target?.username);
                 cb(ok(null));
+                // Notify mods in background — don't block the ack
+                getPlayer(targetProfileId).then(target => {
+                    notifyMods(io, 'mod_ban', `${mod.username} banned ${target?.username ?? '?'}`, target?.username).catch(() => { });
+                }).catch(() => { });
             }
             catch (e) {
                 cb(err(e.message));
@@ -1396,9 +1472,10 @@ export function attachSocketHandlers(io) {
                 if (targetSock) {
                     targetSock.emit('mute:received', { reason, expiresAt: mute.expiresAt });
                 }
-                const target = await getPlayer(targetProfileId);
-                await notifyMods(io, 'mod_mute', `${mod.username} muted ${target?.username ?? '?'}`, target?.username);
                 cb(ok(null));
+                getPlayer(targetProfileId).then(target => {
+                    notifyMods(io, 'mod_mute', `${mod.username} muted ${target?.username ?? '?'}`, target?.username).catch(() => { });
+                }).catch(() => { });
             }
             catch (e) {
                 cb(err(e.message));
@@ -1421,7 +1498,7 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Mod: Warn ────────────────────────────────────────────────────
-        socket.on('mod:warn', async ({ targetProfileId, reason }, cb) => {
+        socket.on('mod:warn', async ({ targetProfileId, reason, category }, cb) => {
             try {
                 const modProfileId = socket.data.profileId;
                 if (!modProfileId)
@@ -1429,12 +1506,21 @@ export function attachSocketHandlers(io) {
                 const mod = await getPlayer(modProfileId);
                 if (!mod || !canDo(mod, 'warn'))
                     throw new Error('Insufficient permissions.');
-                const warning = await warnPlayer(modProfileId, mod.username, targetProfileId, reason);
+                const target = await getPlayer(targetProfileId);
+                if (target && target.moderatorLevel) {
+                    const targetRank = ['moderator', 'senior_moderator', 'admin', 'owner'].indexOf(target.moderatorLevel);
+                    const modRank = mod.moderatorLevel ? ['moderator', 'senior_moderator', 'admin', 'owner'].indexOf(mod.moderatorLevel) : -1;
+                    if (targetRank >= modRank)
+                        throw new Error('Cannot warn a moderator of equal or higher rank.');
+                }
+                const warnCat = (category ?? 'other');
+                const warning = await warnPlayer(modProfileId, mod.username, targetProfileId, reason, warnCat);
                 const targetSock = findSocketByProfile(io, targetProfileId);
                 if (targetSock) {
-                    targetSock.emit('warning:received', { reason, moderatorName: mod.username });
+                    targetSock.emit('warning:received', { reason, category: warnCat, moderatorName: mod.username });
                 }
                 cb(ok(null));
+                notifyMods(io, 'mod_warn', `${mod.username} warned ${target?.username ?? '?'}`, target?.username).catch(() => { });
             }
             catch (e) {
                 cb(err(e.message));
@@ -2036,7 +2122,7 @@ export function attachSocketHandlers(io) {
                     });
                 }
                 const transmitAllowed = !canTransmitVoice(room, playerId, validChannel);
-                cb(ok({ peers: existing.map(p => ({ socketId: p.socketId, name: p.name })), transmitAllowed }));
+                cb(ok({ peers: existing.map(p => ({ socketId: p.socketId, name: p.name })), transmitAllowed, iceServers: buildIceServers() }));
             }
             catch (e) {
                 cb(err(e.message ?? 'Failed to join voice.'));
@@ -2125,6 +2211,35 @@ export function attachSocketHandlers(io) {
                 if (!player)
                     return cb(err('No player found with that code.'));
                 cb(ok(toPublicProfile(player)));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Mod: Set mod level by profile ID (owner only) ───────────────
+        socket.on('mod:set_mod_level', async ({ targetProfileId, level }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const mod = await getPlayer(profileId);
+                if (!mod || mod.moderatorLevel !== 'owner')
+                    throw new Error('Owner only.');
+                const target = await getPlayer(targetProfileId);
+                if (!target)
+                    throw new Error('Player not found.');
+                const validLevels = ['moderator', 'senior_moderator', 'admin', 'owner', null];
+                if (!validLevels.includes(level))
+                    throw new Error('Invalid level.');
+                await setGrantedModLevel(target.id, level);
+                const updated = await getPlayer(target.id);
+                if (!updated)
+                    throw new Error('Player not found after update.');
+                const targetSock = findSocketByProfile(io, target.id);
+                if (targetSock)
+                    targetSock.emit('player:profile', toPublicProfile(updated));
+                cb(ok({ username: target.username, newLevel: level }));
+                notifyMods(io, 'mod_grant', `${mod.username} set ${target.username} → ${level ?? 'none'}`, target.username).catch(() => { });
             }
             catch (e) {
                 cb(err(e.message));
@@ -2354,6 +2469,232 @@ export function attachSocketHandlers(io) {
                 }
                 const count = await getTotalUnread(profileId);
                 cb(ok(count));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Economy — Coins & Gifts ─────────────────────────────────────
+        socket.on('coins:balance', async (cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(ok({ coins: 0 }));
+                    return;
+                }
+                const coins = await getCoins(profileId);
+                cb(ok({ coins }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('coins:daily_reward', async (cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const result = await claimDailyReward(profileId);
+                if (!result.alreadyClaimed) {
+                    socket.emit('coins:updated', { coins: result.balance });
+                }
+                cb(ok(result));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('coins:send_gift', async ({ recipientId, giftId, message }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const { newSenderBalance, giftEntry } = await sendGift(profileId, recipientId, giftId, message ?? '');
+                socket.emit('coins:updated', { coins: newSenderBalance });
+                // Notify recipient in real-time if connected
+                const recipientSock = findSocketByProfile(io, recipientId);
+                if (recipientSock) {
+                    const giftInfo = await getGiftCatalog(true);
+                    const catalogItem = giftInfo.find(g => g.id === giftId);
+                    if (catalogItem) {
+                        recipientSock.emit('gift:received', {
+                            gift: catalogItem,
+                            senderName: giftEntry.senderUsername,
+                            senderAvatar: giftEntry.senderAvatar,
+                            message: giftEntry.message,
+                        });
+                    }
+                }
+                cb(ok({ newBalance: newSenderBalance }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('coins:transactions', async ({ profileId: targetId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                // A player can view their own transactions; owner can view anyone's
+                const requester = await getPlayer(profileId);
+                const resolvedId = targetId && requester?.moderatorLevel === 'owner' ? targetId : profileId;
+                const txs = await getTransactions(resolvedId);
+                cb(ok(txs));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:catalog', async (cb) => {
+            try {
+                const catalog = await getGiftCatalog(false);
+                cb(ok(catalog));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:player_gifts', async ({ profileId: targetId }, cb) => {
+            try {
+                if (!targetId)
+                    throw new Error('profileId required.');
+                const gifts = await getPlayerGifts(targetId);
+                cb(ok(gifts));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:detail', async ({ giftId, recipientId }, cb) => {
+            try {
+                if (!giftId || !recipientId)
+                    throw new Error('giftId and recipientId required.');
+                const detail = await getGiftDetail(giftId, recipientId);
+                if (!detail)
+                    throw new Error('Gift not found.');
+                cb(ok(detail));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Economy — Owner only ────────────────────────────────────────
+        socket.on('owner:coins_grant', async ({ targetProfileId, amount, description }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const requester = await getPlayer(profileId);
+                if (requester?.moderatorLevel !== 'owner')
+                    throw new Error('Owner only.');
+                const target = await getPlayer(targetProfileId);
+                if (!target)
+                    throw new Error('Player not found.');
+                const result = await grantCoins(profileId, targetProfileId, Number(amount), description ?? '');
+                // Notify target if online
+                const targetSock = findSocketByProfile(io, targetProfileId);
+                if (targetSock)
+                    targetSock.emit('coins:updated', { coins: result.newBalance });
+                cb(ok(result));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('owner:coins_deduct', async ({ targetProfileId, amount, description }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const requester = await getPlayer(profileId);
+                if (requester?.moderatorLevel !== 'owner')
+                    throw new Error('Owner only.');
+                const target = await getPlayer(targetProfileId);
+                if (!target)
+                    throw new Error('Player not found.');
+                const result = await deductCoins(profileId, targetProfileId, Number(amount), description ?? '');
+                const targetSock = findSocketByProfile(io, targetProfileId);
+                if (targetSock)
+                    targetSock.emit('coins:updated', { coins: result.newBalance });
+                cb(ok(result));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('owner:coins_refund', async ({ transactionId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const requester = await getPlayer(profileId);
+                if (requester?.moderatorLevel !== 'owner')
+                    throw new Error('Owner only.');
+                await refundGift(transactionId, profileId);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('owner:gift_create', async (data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const requester = await getPlayer(profileId);
+                if (requester?.moderatorLevel !== 'owner')
+                    throw new Error('Owner only.');
+                const gift = await createGift(profileId, data);
+                cb(ok(gift));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('owner:gift_update', async ({ giftId, ...data }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const requester = await getPlayer(profileId);
+                if (requester?.moderatorLevel !== 'owner')
+                    throw new Error('Owner only.');
+                if (!giftId)
+                    throw new Error('giftId required.');
+                const gift = await updateGift(giftId, data);
+                cb(ok(gift));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('owner:gift_catalog_all', async (cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const requester = await getPlayer(profileId);
+                if (requester?.moderatorLevel !== 'owner')
+                    throw new Error('Owner only.');
+                const catalog = await getGiftCatalog(true);
+                cb(ok(catalog));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('owner:all_transactions', async (cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const requester = await getPlayer(profileId);
+                if (requester?.moderatorLevel !== 'owner')
+                    throw new Error('Owner only.');
+                const txs = await getAllTransactions(500);
+                cb(ok(txs));
             }
             catch (e) {
                 cb(err(e.message));

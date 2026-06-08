@@ -440,15 +440,16 @@ export async function getWarnings(uid) {
   `;
     return rows.map((r) => ({
         id: r.id, playerId: r.player_id,
-        reason: r.reason, issuedBy: r.warned_by, issuedByName: r.warned_by_name,
+        reason: r.reason, category: (r.category ?? 'other'),
+        issuedBy: r.warned_by, issuedByName: r.warned_by_name,
         issuedAt: Number(r.issued_at),
     }));
 }
 export async function addWarning(uid, warning) {
     await sql `
-    INSERT INTO warnings (id, player_id, warned_by, warned_by_name, reason, issued_at)
+    INSERT INTO warnings (id, player_id, warned_by, warned_by_name, reason, category, issued_at)
     VALUES (${warning.id}, ${uid}, ${warning.issuedBy}, ${warning.issuedByName},
-            ${warning.reason}, ${warning.issuedAt})
+            ${warning.reason}, ${warning.category ?? 'other'}, ${warning.issuedAt})
   `;
 }
 export function findSocketByProfile(io, profileId) {

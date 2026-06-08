@@ -1,13 +1,37 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { emitWithAck } from '@/lib/socket';
+import { socket } from '@/lib/socket';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { ReportModal } from '@/components/ui/ReportModal';
 import { SendGiftModal } from '@/components/ui/SendGiftModal';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { useGameStore } from '@/store/gameStore';
-import type { Res, PublicProfileFull, FriendshipStatus, PlayerRoleStats } from '@/types/index';
+import type { Res, PublicProfileFull, FriendshipStatus, PlayerRoleStats, ModeratorLevel, WarnCategory } from '@/types/index';
+
+const MOD_RANK: Record<ModeratorLevel, number> = { moderator: 0, senior_moderator: 1, admin: 2, owner: 3 };
+function modRank(lvl: ModeratorLevel | null | undefined) { return lvl ? (MOD_RANK[lvl] ?? -1) : -1; }
+
+const WARN_CATEGORIES: { value: WarnCategory; label: string }[] = [
+  { value: 'offensive_language',      label: 'Offensive Language' },
+  { value: 'voice_abuse',             label: 'Voice Abuse' },
+  { value: 'spam',                    label: 'Spam' },
+  { value: 'game_sabotage',           label: 'Game Sabotage' },
+  { value: 'harassment',              label: 'Harassment' },
+  { value: 'inappropriate_avatar_name', label: 'Inappropriate Avatar/Name' },
+  { value: 'bug_abuse',               label: 'Bug Abuse' },
+  { value: 'other',                   label: 'Other' },
+];
+
+const BAN_DURATIONS = [
+  { value: 900,     label: '15 minutes' },
+  { value: 3600,    label: '1 hour' },
+  { value: 21600,   label: '6 hours' },
+  { value: 86400,   label: '24 hours' },
+  { value: 604800,  label: '7 days' },
+  { value: -1,      label: 'Permanent (owner only)' },
+];
 
 interface Props {
   playerId: string | null;
@@ -77,7 +101,18 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
   const [actionLoading, setActionLoading] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showSendGift, setShowSendGift] = useState(false);
-  const myProfileId = useAuthStore(s => s.profile?.id);
+  // Mod action panel: null | 'warn' | 'kick' | 'ban'
+  const [modPanel, setModPanel] = useState<null | 'warn' | 'kick' | 'ban'>(null);
+  const [modReason, setModReason] = useState('');
+  const [modCategory, setModCategory] = useState<WarnCategory>('other');
+  const [modBanDuration, setModBanDuration] = useState(3600);
+  const [modActionLoading, setModActionLoading] = useState(false);
+
+  const myProfile = useAuthStore(s => s.profile);
+  const myProfileId = myProfile?.id;
+  const myRank = modRank(myProfile?.moderatorLevel);
+  const isMod = myRank >= 0;
+
   const { openDmWith } = useSocialStore();
   const addToast = useGameStore(s => s.addToast);
 
@@ -90,6 +125,47 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
       .then(res => { if (res.ok) setData(res.data); })
       .finally(() => setLoading(false));
   }, [playerId, myProfileId]);
+
+  const openModPanel = useCallback((panel: 'warn' | 'kick' | 'ban') => {
+    setModPanel(panel);
+    setModReason('');
+    setModCategory('other');
+    setModBanDuration(3600);
+  }, []);
+
+  const closeModPanel = useCallback(() => setModPanel(null), []);
+
+  const doModWarn = useCallback(() => {
+    if (!playerId || !modReason.trim()) { addToast('Reason required', 'error'); return; }
+    setModActionLoading(true);
+    socket.emit('mod:warn' as any, { targetProfileId: playerId, reason: modReason, category: modCategory }, (res: Res<null>) => {
+      setModActionLoading(false);
+      if (res.ok) { addToast(`Warning sent`, 'success'); closeModPanel(); }
+      else addToast(res.error, 'error');
+    });
+  }, [playerId, modReason, modCategory, addToast, closeModPanel]);
+
+  const doModKick = useCallback(() => {
+    if (!playerId || !modReason.trim()) { addToast('Reason required', 'error'); return; }
+    setModActionLoading(true);
+    socket.emit('mod:kick_player' as any, { targetProfileId: playerId, reason: modReason }, (res: Res<null>) => {
+      setModActionLoading(false);
+      if (res.ok) { addToast(`Player kicked`, 'success'); closeModPanel(); }
+      else addToast(res.error, 'error');
+    });
+  }, [playerId, modReason, addToast, closeModPanel]);
+
+  const doModBan = useCallback(() => {
+    if (!playerId || !modReason.trim()) { addToast('Reason required', 'error'); return; }
+    if (modBanDuration === -1 && myRank < 3) { addToast('Permanent ban requires owner', 'error'); return; }
+    const duration = modBanDuration === -1 ? 365 * 24 * 3600 : modBanDuration;
+    setModActionLoading(true);
+    socket.emit('mod:ban' as any, { targetProfileId: playerId, reason: modReason, duration }, (res: Res<null>) => {
+      setModActionLoading(false);
+      if (res.ok) { addToast(`Player banned`, 'success'); closeModPanel(); onClose(); }
+      else addToast(res.error, 'error');
+    });
+  }, [playerId, modReason, modBanDuration, myRank, addToast, closeModPanel, onClose]);
 
   const updateFriendStatus = (status: FriendshipStatus) =>
     setData(d => d ? { ...d, friendshipStatus: status } : null);
@@ -376,6 +452,119 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                           Remove Friend
                         </button>
                       )}
+
+                      {/* ── Mod Actions ────────────────────────── */}
+                      {isMod && (() => {
+                        const targetRank = modRank(profile.moderatorLevel);
+                        const canAct = targetRank < myRank;
+                        return (
+                          <div className="rounded-xl border border-yellow-400/15 bg-yellow-400/5 p-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-yellow-400/70 text-[9px] font-mono uppercase tracking-widest font-bold">🛡 Mod Actions</span>
+                              {!canAct && (
+                                <span className="text-white/20 text-[9px] font-mono">(rank protected)</span>
+                              )}
+                            </div>
+                            {!modPanel ? (
+                              <div className="flex flex-wrap gap-1">
+                                <button
+                                  disabled={!canAct}
+                                  onClick={() => openModPanel('warn')}
+                                  className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-yellow-400/30 text-yellow-400 hover:bg-yellow-400/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                  ⚠ Warn
+                                </button>
+                                <button
+                                  disabled={!canAct}
+                                  onClick={() => openModPanel('kick')}
+                                  className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-orange-400/30 text-orange-400 hover:bg-orange-400/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                  ⬆ Kick
+                                </button>
+                                {myRank >= 1 && (
+                                  <button
+                                    disabled={!canAct}
+                                    onClick={() => openModPanel('ban')}
+                                    className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-neon-red/30 text-neon-red hover:bg-neon-red/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                                  >
+                                    🔨 Ban
+                                  </button>
+                                )}
+                              </div>
+                            ) : modPanel === 'warn' ? (
+                              <div className="space-y-2">
+                                <select
+                                  value={modCategory}
+                                  onChange={e => setModCategory(e.target.value as WarnCategory)}
+                                  className="w-full bg-void-50/80 border border-yellow-400/20 rounded-lg px-2 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-yellow-400/40"
+                                >
+                                  {WARN_CATEGORIES.map(c => (
+                                    <option key={c.value} value={c.value}>{c.label}</option>
+                                  ))}
+                                </select>
+                                <input
+                                  type="text"
+                                  value={modReason}
+                                  onChange={e => setModReason(e.target.value)}
+                                  placeholder="Reason…"
+                                  className="w-full bg-void-50/80 border border-yellow-400/20 rounded-lg px-2 py-1.5 text-xs text-white font-mono placeholder-white/25 focus:outline-none focus:border-yellow-400/40"
+                                />
+                                <div className="flex gap-1">
+                                  <button onClick={closeModPanel} className="flex-1 py-1.5 text-[10px] font-mono border border-white/10 text-white/40 rounded-lg hover:text-white/60">Cancel</button>
+                                  <button onClick={doModWarn} disabled={modActionLoading || !modReason.trim()}
+                                    className="flex-1 py-1.5 text-[10px] font-mono font-bold border border-yellow-400/30 bg-yellow-400/10 text-yellow-400 rounded-lg hover:bg-yellow-400/20 disabled:opacity-40">
+                                    {modActionLoading ? '…' : 'Send Warning'}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : modPanel === 'kick' ? (
+                              <div className="space-y-2">
+                                <input
+                                  type="text"
+                                  value={modReason}
+                                  onChange={e => setModReason(e.target.value)}
+                                  placeholder="Kick reason…"
+                                  className="w-full bg-void-50/80 border border-orange-400/20 rounded-lg px-2 py-1.5 text-xs text-white font-mono placeholder-white/25 focus:outline-none focus:border-orange-400/40"
+                                />
+                                <p className="text-white/30 text-[10px] font-mono">Player will be removed from room and voice.</p>
+                                <div className="flex gap-1">
+                                  <button onClick={closeModPanel} className="flex-1 py-1.5 text-[10px] font-mono border border-white/10 text-white/40 rounded-lg hover:text-white/60">Cancel</button>
+                                  <button onClick={doModKick} disabled={modActionLoading || !modReason.trim()}
+                                    className="flex-1 py-1.5 text-[10px] font-mono font-bold border border-orange-400/30 bg-orange-400/10 text-orange-400 rounded-lg hover:bg-orange-400/20 disabled:opacity-40">
+                                    {modActionLoading ? '…' : 'Kick Player'}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : modPanel === 'ban' ? (
+                              <div className="space-y-2">
+                                <input
+                                  type="text"
+                                  value={modReason}
+                                  onChange={e => setModReason(e.target.value)}
+                                  placeholder="Ban reason…"
+                                  className="w-full bg-void-50/80 border border-neon-red/20 rounded-lg px-2 py-1.5 text-xs text-white font-mono placeholder-white/25 focus:outline-none focus:border-neon-red/40"
+                                />
+                                <select
+                                  value={modBanDuration}
+                                  onChange={e => setModBanDuration(Number(e.target.value))}
+                                  className="w-full bg-void-50/80 border border-neon-red/20 rounded-lg px-2 py-1.5 text-xs text-white font-mono focus:outline-none"
+                                >
+                                  {BAN_DURATIONS.filter(d => d.value !== -1 || myRank >= 3).map(d => (
+                                    <option key={d.value} value={d.value}>{d.label}</option>
+                                  ))}
+                                </select>
+                                <div className="flex gap-1">
+                                  <button onClick={closeModPanel} className="flex-1 py-1.5 text-[10px] font-mono border border-white/10 text-white/40 rounded-lg hover:text-white/60">Cancel</button>
+                                  <button onClick={doModBan} disabled={modActionLoading || !modReason.trim()}
+                                    className="flex-1 py-1.5 text-[10px] font-mono font-bold border border-neon-red/30 bg-neon-red/10 text-neon-red rounded-lg hover:bg-neon-red/20 disabled:opacity-40">
+                                    {modActionLoading ? '…' : 'Ban Player'}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })()}
 
                       {/* ── Report + Close ──────────────────────── */}
                       <div className="flex gap-2 pb-1">

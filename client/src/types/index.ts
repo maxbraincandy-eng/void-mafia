@@ -36,6 +36,15 @@ export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
 export type ChatChannel = 'room' | 'mafia' | 'dead';
 export type ModeratorLevel = 'moderator' | 'senior_moderator' | 'admin' | 'owner';
+export type WarnCategory =
+  | 'offensive_language'
+  | 'voice_abuse'
+  | 'spam'
+  | 'game_sabotage'
+  | 'harassment'
+  | 'inappropriate_avatar_name'
+  | 'bug_abuse'
+  | 'other';
 export type ReportReason =
   | 'cheating'
   | 'offensive_language'

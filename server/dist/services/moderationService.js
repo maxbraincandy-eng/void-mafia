@@ -71,16 +71,16 @@ export async function unmutePlayer(moderatorId, moderatorName, targetId) {
     await clearMute(targetId);
     await addLog({ actionType: 'unmute', moderatorId, moderatorName, targetPlayerId: targetId, targetName: target.username, roomId: null, reason: 'Manual unmute', duration: null });
 }
-export async function warnPlayer(moderatorId, moderatorName, targetId, reason) {
+export async function warnPlayer(moderatorId, moderatorName, targetId, reason, category = 'other') {
     const target = await getPlayer(targetId);
     if (!target)
         throw new Error('Player not found.');
     const warning = {
-        id: generateId(), playerId: targetId, reason,
+        id: generateId(), playerId: targetId, reason, category,
         issuedBy: moderatorId, issuedByName: moderatorName, issuedAt: Date.now(),
     };
     await addWarning(targetId, warning);
-    await addLog({ actionType: 'warn', moderatorId, moderatorName, targetPlayerId: targetId, targetName: target.username, roomId: null, reason, duration: null });
+    await addLog({ actionType: 'warn', moderatorId, moderatorName, targetPlayerId: targetId, targetName: target.username, roomId: null, reason: `[${category}] ${reason}`, duration: null });
     return warning;
 }
 export async function createReport(reporterProfileId, reporterName, reportedProfileId, reportedName, roomId, reason, details) {

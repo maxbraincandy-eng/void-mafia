@@ -22,6 +22,9 @@ console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
 console.log(`[Startup] PORT=${PORT}`);
 const app = express();
+// Railway / any reverse-proxy: trust the X-Forwarded-* headers so that
+// req.protocol is 'https', secure cookies are set, and sessions persist.
+app.set('trust proxy', 1);
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {

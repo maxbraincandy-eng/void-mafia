@@ -1,10 +1,10 @@
-import { Report, ReportReason, ModLog, ModActionType, BanRecord, MuteRecord, Warning, PlayerProfile, ModNote, ModPlayerDetail } from '../types/index.js';
+import { Report, ReportReason, ModLog, ModActionType, BanRecord, MuteRecord, Warning, WarnCategory, PlayerProfile, ModNote, ModPlayerDetail } from '../types/index.js';
 export declare function canDo(player: PlayerProfile, action: string): boolean;
 export declare function banPlayer(moderatorId: string, moderatorName: string, targetId: string, reason: string, durationSeconds: number): Promise<BanRecord>;
 export declare function unbanPlayer(moderatorId: string, moderatorName: string, targetId: string): Promise<void>;
 export declare function mutePlayer(moderatorId: string, moderatorName: string, targetId: string, reason: string, durationSeconds: number): Promise<MuteRecord>;
 export declare function unmutePlayer(moderatorId: string, moderatorName: string, targetId: string): Promise<void>;
-export declare function warnPlayer(moderatorId: string, moderatorName: string, targetId: string, reason: string): Promise<Warning>;
+export declare function warnPlayer(moderatorId: string, moderatorName: string, targetId: string, reason: string, category?: WarnCategory): Promise<Warning>;
 export declare function createReport(reporterProfileId: string, reporterName: string, reportedProfileId: string, reportedName: string, roomId: string | null, reason: ReportReason, details: string): Promise<Report>;
 export declare function getReports(): Promise<Report[]>;
 export declare function resolveReport(moderatorId: string, reportId: string, status: 'resolved' | 'rejected', notes: string): Promise<void>;

@@ -37,7 +37,7 @@ interface GameStore {
   xpGain: XPGain | null;
   queuePosition: number | null;
   pendingFriendRequests: FriendRequest[];
-  modNotice: { type: 'ban' | 'mute' | 'warn'; reason: string; expiresAt?: number; moderatorName?: string } | null;
+  modNotice: { type: 'ban' | 'mute' | 'warn'; reason: string; category?: string; expiresAt?: number; moderatorName?: string } | null;
   toasts: Toast[];
 
   // UI
@@ -276,10 +276,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     set({ modNotice: { type: 'mute', reason, expiresAt } });
   });
 
-  socket.on('warning:received', ({ reason, moderatorName }: { reason: string; moderatorName?: string }) => {
-    set({ modNotice: { type: 'warn', reason, moderatorName } });
+  socket.on('warning:received', ({ reason, category, moderatorName }: { reason: string; category?: string; moderatorName?: string }) => {
+    set({ modNotice: { type: 'warn', reason, category, moderatorName } });
     const who = moderatorName ? ` by ${moderatorName}` : '';
-    get().addToast(`⚠️ Warning received${who}: ${reason}`, 'error');
+    get().addToast(`⚠️ Warning received${who}`, 'error');
   });
 
   socket.on('error', ({ message }: { message: string }) => {
