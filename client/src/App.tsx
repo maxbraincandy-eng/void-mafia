@@ -14,6 +14,7 @@ import { ClansPage } from '@/pages/ClansPage';
 import { LeaderboardPage } from '@/pages/LeaderboardPage';
 import { ModDashboardPage } from '@/pages/ModDashboardPage';
 import { EconomyAdminPage } from '@/pages/EconomyAdminPage';
+import { PublicProfilePage } from '@/pages/PublicProfilePage';
 import { BottomNav, NavTab } from '@/components/layout/BottomNav';
 import { PlayerProfileModal } from '@/components/ui/PlayerProfileModal';
 import { DmPanel } from '@/components/social/DmPanel';
@@ -22,6 +23,10 @@ import { attachGlobalClickSounds, onSettingsChange } from '@/lib/audioEngine';
 import { useSettingsStore } from '@/store/settingsStore';
 import { socket } from '@/lib/socket';
 import type { GiftReceivedNotification } from '@/types/index';
+
+// Detect /u/:publicId deep link on initial load
+const _initialPathMatch = window.location.pathname.match(/^\/u\/(\d+)$/);
+const INITIAL_PUBLIC_ID: number | null = _initialPathMatch ? parseInt(_initialPathMatch[1]!, 10) : null;
 
 interface Toast {
   id: string;
@@ -143,10 +148,13 @@ function MainApp() {
   );
 }
 
-function Screen() {
+function Screen({ publicProfileId, onClearPublicProfile }: { publicProfileId: number | null; onClearPublicProfile: () => void }) {
   const isAuthed = useAuthStore(s => s.isAuthed);
   const room = useGameStore(s => s.room);
 
+  if (publicProfileId) {
+    return <PublicProfilePage publicId={publicProfileId} onEnterApp={onClearPublicProfile} />;
+  }
   if (!isAuthed) return <LoginPage />;
   if (room) {
     if (room.phase === 'lobby') return <LobbyPage />;
@@ -254,6 +262,7 @@ export default function App() {
   const connect = useGameStore(s => s.connect);
   const { profilePopupId, closeProfile } = useSocialStore();
   const [giftNotif, setGiftNotif] = useState<GiftReceivedNotification | null>(null);
+  const [publicProfileId, setPublicProfileId] = useState<number | null>(INITIAL_PUBLIC_ID);
 
   useEffect(() => {
     connect();
@@ -271,7 +280,7 @@ export default function App() {
   return (
     <>
       <AnimatePresence mode="wait">
-        <Screen />
+        <Screen publicProfileId={publicProfileId} onClearPublicProfile={() => setPublicProfileId(null)} />
       </AnimatePresence>
       <ToastLayer />
       <AnimatePresence>
