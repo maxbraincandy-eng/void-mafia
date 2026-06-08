@@ -4,7 +4,6 @@ import { RoomListItem } from '@/types/index';
 import { useGameStore } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
 import { useSocialStore } from '@/store/socialStore';
-import { MorePanel } from '@/components/ui/MorePanel';
 import { useT } from '@/store/langStore';
 import { useAmbientDrone } from '@/hooks/useAudio';
 import { Button } from '@/components/ui/Button';
@@ -108,8 +107,6 @@ export function RoomsPage() {
       />
 
       <LeaderboardModal open={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
-
-      <MorePanel />
 
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-7">
 
