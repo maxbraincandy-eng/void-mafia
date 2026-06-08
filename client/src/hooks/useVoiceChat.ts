@@ -224,7 +224,7 @@ export function useVoiceChat() {
       if (res.data.iceServers) {
         session.setIceConfig({
           iceServers: res.data.iceServers,
-          iceTransportPolicy: 'all',
+          iceTransportPolicy: res.data.iceTransportPolicy ?? 'all',
           iceCandidatePoolSize: 10,
         });
       }
@@ -298,7 +298,7 @@ export function useVoiceChat() {
       if (res.data.iceServers) {
         session.setIceConfig({
           iceServers: res.data.iceServers,
-          iceTransportPolicy: 'all',
+          iceTransportPolicy: res.data.iceTransportPolicy ?? 'all',
           iceCandidatePoolSize: 10,
         });
       }

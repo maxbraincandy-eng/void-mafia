@@ -75,6 +75,14 @@ export class WebRTCSession {
   private listeners = new Set<Listener>();
 
   /**
+   * ICE candidates arriving before setRemoteDescription() are queued here
+   * and flushed immediately after setRemoteDescription() completes.
+   * Without this buffering, candidates are silently dropped on mobile ↔ WiFi
+   * where signaling round-trips can reorder offer/answer vs ICE candidate timing.
+   */
+  private iceCandidateQueues = new Map<string, RTCIceCandidateInit[]>();
+
+  /**
    * ICE config comes from rtcConfig.ts.
    * This is where STUN/TURN is actually used by RTCPeerConnection.
    */
@@ -254,6 +262,16 @@ export class WebRTCSession {
 
       if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
         this.setState('connected');
+        // Log the selected candidate pair type (relay/srflx/host) for diagnostics
+        pc.getStats().then(stats => {
+          stats.forEach(report => {
+            if (report.type === 'candidate-pair' && report.state === 'succeeded' && report.nominated) {
+              const local = stats.get(report.localCandidateId);
+              const remote = stats.get(report.remoteCandidateId);
+              log('Selected ICE pair:', local?.candidateType, '→', remote?.candidateType, '|', local?.protocol);
+            }
+          });
+        }).catch(() => {});
         return;
       }
 
@@ -406,6 +424,8 @@ export class WebRTCSession {
     }
 
     await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    // Flush any ICE candidates that arrived before remote description was set
+    await this.flushIceCandidateQueue(peerId);
 
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
@@ -436,6 +456,8 @@ export class WebRTCSession {
     }
 
     await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    // Flush any ICE candidates that arrived before the answer was applied
+    await this.flushIceCandidateQueue(peerId);
     log('answer applied from', peerId);
   }
 
@@ -446,11 +468,42 @@ export class WebRTCSession {
     const pc = this.pcs.get(peerId);
     if (!pc) return;
 
+    // Buffer the candidate if remote description hasn't been set yet.
+    // This is the main fix for mobile ↔ WiFi ICE failures: candidates can
+    // arrive via signaling before the answer/offer has been applied, and
+    // calling addIceCandidate on a PC with no remoteDescription silently fails.
+    if (!pc.remoteDescription) {
+      const queue = this.iceCandidateQueues.get(peerId) ?? [];
+      queue.push(candidate);
+      this.iceCandidateQueues.set(peerId, queue);
+      log('ICE candidate queued for', peerId, '— waiting for remote description (queue size:', queue.length, ')');
+      return;
+    }
+
     try {
       await pc.addIceCandidate(new RTCIceCandidate(candidate));
-      log('ICE candidate added from', peerId);
+      log('ICE candidate added from', peerId, (candidate as any).type ?? '?');
     } catch (e: any) {
-      log('ICE candidate error:', e.message);
+      log('ICE candidate error from', peerId, ':', e.message);
+    }
+  }
+
+  private async flushIceCandidateQueue(peerId: string): Promise<void> {
+    const queue = this.iceCandidateQueues.get(peerId);
+    if (!queue || queue.length === 0) return;
+    this.iceCandidateQueues.delete(peerId);
+
+    const pc = this.pcs.get(peerId);
+    if (!pc) return;
+
+    log('flushing', queue.length, 'queued ICE candidate(s) for', peerId);
+    for (const candidate of queue) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        log('flushed ICE candidate for', peerId, (candidate as any).type ?? '?');
+      } catch (e: any) {
+        log('flushed ICE candidate error for', peerId, ':', e.message);
+      }
     }
   }
 
@@ -459,6 +512,7 @@ export class WebRTCSession {
     this.peers.delete(socketId);
     this.remoteSpeakingCooldowns.delete(socketId);
     this.remoteStreams.delete(socketId);
+    this.iceCandidateQueues.delete(socketId);
 
     this.emit({
       type: 'peer-removed',
@@ -604,6 +658,7 @@ export class WebRTCSession {
     this.peers.clear();
     this.remoteSpeakingCooldowns.clear();
     this.remoteStreams.clear();
+    this.iceCandidateQueues.clear();
 
     for (const audio of this.audioEls.values()) {
       audio.srcObject = null;
