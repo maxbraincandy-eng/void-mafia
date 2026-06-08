@@ -10,6 +10,7 @@ import session from 'express-session';
 import passport from 'passport';
 import { attachSocketHandlers, setDbReady } from './socket.js';
 import { getAllRooms, toRoomListItem, deleteRoom } from './services/roomService.js';
+import { buildIceConfig } from './lib/iceConfig.js';
 import { timerService } from './services/timerService.js';
 import { getPlayer, toPublicProfile } from './services/playerService.js';
 import { sql, initializeDatabase } from './db.js';
@@ -102,6 +103,19 @@ app.get('/health/db', async (_req, res) => {
     }
     catch (e) {
         res.status(503).json({ ok: false, connected: false, error: e.message });
+    }
+});
+// ── WebRTC / ICE config endpoint ──────────────────────────────────────
+// Used by clients to fetch TURN credentials without embedding them in the bundle.
+// Also useful for debugging: curl https://voidmafia.one/api/webrtc
+app.get('/api/webrtc', (_req, res) => {
+    try {
+        const cfg = buildIceConfig();
+        res.json({ ok: true, iceServers: cfg.iceServers, iceTransportPolicy: cfg.iceTransportPolicy });
+    }
+    catch (e) {
+        console.error('[/api/webrtc] error:', e.message);
+        res.status(500).json({ ok: false, error: 'Failed to build ICE config' });
     }
 });
 // ── Rooms List ────────────────────────────────────────────────────────
