@@ -37,8 +37,17 @@ export function buildIceConfig(): IceConfig {
     const rawParts = turnUrl.split(',').map(s => s.trim()).filter(Boolean);
 
     if (rawParts.every(u => u.startsWith('turn:') || u.startsWith('turns:'))) {
-      // Already full TURN URLs — use as-is (supports any provider)
-      servers.push({ urls: rawParts, username: turnUsername, credential: turnCredential });
+      // Full TURN URLs provided. For any UDP-only entry (no ?transport= param),
+      // automatically add a TCP variant on the same port so firewalls that block
+      // UDP don't silently break voice on mobile networks.
+      const tcpExtras: string[] = [];
+      for (const u of rawParts) {
+        if (!u.includes('transport=')) {
+          tcpExtras.push(u + '?transport=tcp');
+        }
+      }
+      const allUrls = [...rawParts, ...tcpExtras];
+      servers.push({ urls: allUrls, username: turnUsername, credential: turnCredential });
     } else {
       // Bare hostname — auto-generate the 4 standard Metered/coturn variants
       const host = rawParts[0]!;
