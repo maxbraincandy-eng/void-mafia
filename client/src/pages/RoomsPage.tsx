@@ -331,7 +331,7 @@ export function RoomsPage() {
                           loading={isLoading}
                           onClick={() => setActiveJoinModal(room)}
                         >
-                          Join
+                          {t.rooms.join}
                         </Button>
                       )}
                     </div>
@@ -351,11 +351,11 @@ export function RoomsPage() {
               </h3>
 
               {/* Public / Private toggle */}
-              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2">Visibility</p>
+              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2">{t.rooms.visibility}</p>
               <div className="grid grid-cols-2 gap-2 mb-5">
                 {[
-                  { val: false, label: t.rooms.publicRoom, desc: 'Visible in browser' },
-                  { val: true,  label: t.rooms.privateRoom, desc: 'Share code to invite' },
+                  { val: false, label: t.rooms.publicRoom, desc: t.rooms.visibleBrowser },
+                  { val: true,  label: t.rooms.privateRoom, desc: t.rooms.shareCode },
                 ].map(opt => (
                   <button
                     key={String(opt.val)}
@@ -373,7 +373,7 @@ export function RoomsPage() {
               </div>
 
               {/* Preset selector */}
-              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2 mt-1">Game Pace</p>
+              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2 mt-1">{t.rooms.gamePace}</p>
               <div className="grid grid-cols-3 gap-2 mb-5">
                 {(['quick', 'classic', 'hardcore'] as Preset[]).map(id => (
                   <button
@@ -447,13 +447,13 @@ export function RoomsPage() {
 
                 <div>
                   <label className="block text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2">
-                    Password
+                    {t.rooms.passwordLabel}
                   </label>
                   <input
                     type="password"
                     value={joinPassword}
                     onChange={e => setJoinPassword(e.target.value)}
-                    placeholder="Leave blank if none"
+                    placeholder={t.rooms.passwordPh}
                     maxLength={64}
                     className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-2.5 text-white/60 placeholder-white/15 font-mono text-sm focus:outline-none focus:border-white/20 transition-colors"
                   />
@@ -472,7 +472,7 @@ export function RoomsPage() {
                       joinAsSpectator ? 'translate-x-4' : 'translate-x-0.5'
                     }`} />
                   </button>
-                  <span className="text-xs font-mono text-white/40">Watch as spectator</span>
+                  <span className="text-xs font-mono text-white/40">{t.rooms.watchToggle}</span>
                 </label>
 
                 <Button fullWidth variant="neon-cyan" loading={isLoading} disabled={code.length < 6}>
@@ -503,7 +503,7 @@ export function RoomsPage() {
               style={SURFACE_BG}
               onClick={e => e.stopPropagation()}
             >
-              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-0.5">Join</p>
+              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-0.5">{t.rooms.joinCode}</p>
               <p className="font-mono font-bold text-neon-cyan/75 tracking-[0.25em] text-xl mb-5">
                 {spectatorModal.code}
               </p>
@@ -514,7 +514,7 @@ export function RoomsPage() {
                   loading={isLoading}
                   onClick={() => handleQuickJoin(spectatorModal, false)}
                 >
-                  Join as Player
+                  {t.rooms.joinAsPlayer}
                 </Button>
                 <Button
                   fullWidth
@@ -522,7 +522,7 @@ export function RoomsPage() {
                   loading={isLoading}
                   onClick={() => handleQuickJoin(spectatorModal, true)}
                 >
-                  Watch as Spectator
+                  {t.rooms.watchSpectator}
                 </Button>
               </div>
             </motion.div>
