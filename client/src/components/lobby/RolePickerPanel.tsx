@@ -1,9 +1,8 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
-import { GameSettings, RoleKey, DynamicEventSettings } from '@/types/index';
+import { GameSettings, RoleKey, DynamicEventSettings, DEFAULT_DYNAMIC_EVENTS } from '@/types/index';
 import { Button } from '@/components/ui/Button';
-import { DEFAULT_DYNAMIC_EVENTS } from '@/types/index';
 
 // ── Role metadata ──────────────────────────────────────────────────────
 type ConfigurableRoleKey = keyof GameSettings['roles'];
@@ -453,7 +452,6 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
         };
         return (
           <div className="rounded-2xl border border-white/[0.12] p-4 space-y-3" style={{ background: 'rgba(10,5,32,0.8)' }}>
-            {/* Header + master toggle */}
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h4 className="text-xs font-display font-bold text-neon-purple/70 uppercase tracking-widest">
@@ -487,9 +485,8 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
                   exit={{ opacity: 0, height: 0 }}
                   className="overflow-hidden space-y-3"
                 >
-                  {/* Frequency */}
                   <div>
-                    <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2">Frequency</p>
+                    <p className="text-[10px] font-mono text-white/35 uppercase tracking-widest mb-2">Frequency</p>
                     <div className="flex gap-2">
                       {(['low', 'medium', 'high'] as const).map(f => (
                         <button
@@ -501,7 +498,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
                             'flex-1 py-1.5 rounded-lg border text-[10px] font-mono tracking-widest uppercase transition-all',
                             de.frequency === f
                               ? 'border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan/80'
-                              : 'border-white/[0.07] text-white/25 hover:border-white/15 hover:text-white/45',
+                              : 'border-white/[0.07] text-white/30 hover:border-white/20 hover:text-white/50',
                           )}
                         >
                           {f}
@@ -513,9 +510,8 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
                     </div>
                   </div>
 
-                  {/* Event toggles */}
                   <div>
-                    <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2">Allowed Events</p>
+                    <p className="text-[10px] font-mono text-white/35 uppercase tracking-widest mb-2">Allowed Events</p>
                     <div className="grid grid-cols-1 gap-1">
                       {EVENT_LABELS.map(({ key, label, icon }) => {
                         const on = de.allowed[key] !== false;
@@ -531,8 +527,8 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
                             )}
                           >
                             <span className="text-sm leading-none flex-shrink-0">{icon}</span>
-                            <span className="text-[11px] font-mono text-white/55 flex-1">{label}</span>
-                            <span className={clsx('text-[9px] font-mono uppercase tracking-widest flex-shrink-0', on ? 'text-neon-green/50' : 'text-white/15')}>
+                            <span className="text-[11px] font-mono text-white/60 flex-1">{label}</span>
+                            <span className={clsx('text-[9px] font-mono uppercase tracking-widest flex-shrink-0', on ? 'text-neon-green/60' : 'text-white/20')}>
                               {on ? 'on' : 'off'}
                             </span>
                           </button>

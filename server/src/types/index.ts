@@ -334,7 +334,7 @@ export interface EventLogEntry {
 
 export const DEFAULT_DYNAMIC_EVENTS: DynamicEventSettings = {
   enabled: false,
-  frequency: 'low',
+  frequency: 'medium',
   allowed: {
     blackoutNight: true, silentDay: true, doubleVote: true, noRevealDay: true,
     bloodMoon: true, anonymousVoting: true, sheriffFog: true, doctorPressure: true,
