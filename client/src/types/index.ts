@@ -157,6 +157,7 @@ export interface PlayerPublic {
   isConnected: boolean;
   isReady: boolean;
   isSpectator: boolean;
+  isWaitingNextRound: boolean;
   role: RoleKey | null;
   team: Team | null;
   voteTarget: string | null;
@@ -222,6 +223,7 @@ export interface RoomPublic {
   timer: number;
   maxTimer: number;
   players: PlayerPublic[];
+  waitingNextRound: PlayerPublic[];
   chat: ChatMessage[];
   mafiaChat: ChatMessage[];
   deadChat: ChatMessage[];

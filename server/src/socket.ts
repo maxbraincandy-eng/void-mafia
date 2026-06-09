@@ -6,7 +6,7 @@ import {
   ReportReason, NightSummary, LiveRoomInfo, LiveRoomPlayer,
 } from './types/index.js';
 import {
-  createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, removePlayer,
+  createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, addWaitingPlayer, removePlayer,
   getPlayerBySocket, toPublicRoom, getAlivePlayers, getHostPlayer,
   toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom,
   setPlayerAvatarUrl,
@@ -194,6 +194,7 @@ const JoinRoomSchema = z.object({
   code: z.string().length(6),
   name: z.string().min(1).max(24),
   isSpectator: z.boolean().optional().default(false),
+  joinMode: z.enum(['player', 'spectator', 'next_round']).optional(),
   password: z.string().max(64).optional().default(''),
 });
 
@@ -814,11 +815,78 @@ export function attachSocketHandlers(io: AppServer): void {
         }
 
         // Check if this is a re-join attempt (existing player reconnecting)
-        const isRejoin = profileId
+        const isRejoinActive = profileId
           ? [...room.players.values()].some(p => p.profileId === profileId)
           : [...room.players.values()].some(p => p.name === parsed.name.trim());
+        const isRejoinWaiting = profileId
+          ? [...room.waitingNextRound.values()].some(p => p.profileId === profileId)
+          : [...room.waitingNextRound.values()].some(p => p.name === parsed.name.trim());
+        const isRejoin = isRejoinActive || isRejoinWaiting;
 
-        // Spectate queue: if room is full during active game and not a re-join
+        // If game is active and this is a new joiner (not a rejoin), route by joinMode
+        if (!isRejoin && room.phase !== 'lobby') {
+          if (!parsed.joinMode) {
+            cb(err('GAME_ALREADY_STARTED_CHOOSE_MODE'));
+            return;
+          }
+
+          const activePlayers = [...room.players.values()].filter(p => !p.isSpectator && !p.isWaitingNextRound);
+
+          // Spectate queue: if room is full and they want to watch
+          if (parsed.joinMode === 'spectator' && activePlayers.length >= 16) {
+            const queue = spectateQueues.get(room.id) ?? [];
+            if (!queue.includes(socket.id)) {
+              queue.push(socket.id);
+              spectateQueues.set(room.id, queue);
+            }
+            const position = queue.indexOf(socket.id) + 1;
+            socket.emit('queue:position', { position, roomCode: room.code });
+            cb(err(`Room is full. You are #${position} in queue.`));
+            return;
+          }
+
+          const playerProfile = profileId ? await getPlayer(profileId) : null;
+          const username = playerProfile?.username ?? parsed.name;
+
+          let player: Player;
+          if (parsed.joinMode === 'next_round') {
+            player = addWaitingPlayer(room, socket.id, username, profileId);
+            if (playerProfile?.avatarUrl) player.avatarUrl = playerProfile.avatarUrl;
+            if (playerProfile?.isModerator) {
+              player.isModerator = playerProfile.isModerator;
+              player.moderatorLevel = playerProfile.moderatorLevel;
+            }
+            socket.join(room.id);
+            socket.data.playerId = player.id;
+            socket.data.roomId = room.id;
+            broadcastSystemMsg(io, room, `${player.name} will join next round.`);
+            broadcastRoom(io, room);
+            cb(ok(toPublicRoom(room, player.id)));
+            return;
+          } else {
+            // spectator
+            player = addWaitingPlayer(room, socket.id, username, profileId);
+            player.isWaitingNextRound = false;
+            player.isSpectator = true;
+            // Move from waitingNextRound to regular players as spectator
+            room.waitingNextRound.delete(player.id);
+            room.players.set(player.id, player);
+            if (playerProfile?.avatarUrl) player.avatarUrl = playerProfile.avatarUrl;
+            if (playerProfile?.isModerator) {
+              player.isModerator = playerProfile.isModerator;
+              player.moderatorLevel = playerProfile.moderatorLevel;
+            }
+            socket.join(room.id);
+            socket.data.playerId = player.id;
+            socket.data.roomId = room.id;
+            broadcastSystemMsg(io, room, `${player.name} joined as spectator.`);
+            broadcastRoom(io, room);
+            cb(ok(toPublicRoom(room, player.id)));
+            return;
+          }
+        }
+
+        // Spectate queue: if room is full during active game for non-mode joins (legacy path)
         const activePlayers = [...room.players.values()].filter(p => !p.isSpectator);
         if (!isRejoin && room.phase !== 'lobby' && activePlayers.length >= 16) {
           const queue = spectateQueues.get(room.id) ?? [];
@@ -1025,6 +1093,7 @@ export function attachSocketHandlers(io: AppServer): void {
         const room = getRoomFromSocket(socket);
         const actor = getPlayerOrError(socket, room);
         if (actor.isSpectator) throw new Error('Spectators cannot perform night actions.');
+        if (actor.isWaitingNextRound) throw new Error('You are waiting for the next round.');
         submitNightAction(room, actor, targetId);
 
         if (actor.role === 'sheriff') {
@@ -1071,6 +1140,7 @@ export function attachSocketHandlers(io: AppServer): void {
         const room = getRoomFromSocket(socket);
         const voter = getPlayerOrError(socket, room);
         if (voter.isSpectator) throw new Error('Spectators cannot vote.');
+        if (voter.isWaitingNextRound) throw new Error('You are waiting for the next round.');
         submitVote(room, voter, targetId);
 
         const target = targetId ? room.players.get(targetId) : null;
@@ -1088,6 +1158,7 @@ export function attachSocketHandlers(io: AppServer): void {
       try {
         const room = getRoomFromSocket(socket);
         const actor = getPlayerOrError(socket, room);
+        if (actor.isWaitingNextRound) throw new Error('You are waiting for the next round.');
         submitNomination(room, actor, nomineeId);
 
         const nominee = nomineeId ? room.players.get(nomineeId) : null;
@@ -2757,6 +2828,18 @@ function promoteFromQueue(io: AppServer, room: Room): void {
 function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, playerId: string, explicit = false): void {
   const room = getRoom(roomId);
   if (!room) return;
+
+  // Handle waiting-next-round players
+  const waitingPlayer = room.waitingNextRound.get(playerId);
+  if (waitingPlayer) {
+    room.waitingNextRound.delete(playerId);
+    socket.leave(roomId);
+    socket.data.playerId = null;
+    socket.data.roomId = null;
+    broadcastSystemMsg(io, room, `${waitingPlayer.name} left.`);
+    broadcastRoom(io, room);
+    return;
+  }
 
   const player = room.players.get(playerId);
   if (!player) return;
