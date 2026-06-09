@@ -135,6 +135,7 @@ export function InGamePlayersPanel({
                         isSpeaker={false}
                         isSpeaking={false}
                         onTap={() => handleTap(p)}
+                        t={t}
                       />
                     ))}
                   </div>
