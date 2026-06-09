@@ -1,5 +1,6 @@
 import {
   Room, Player, GameSettings, RoomPublic, PlayerPublic, Phase, RoomListItem,
+  DEFAULT_DYNAMIC_EVENTS,
 } from '../types/index.js';
 import { generateId, generateRoomCode, nameToAvatar } from '../utils/helpers.js';
 
@@ -20,6 +21,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   password: '',
   startWithNight: false,
   rotatingSpeech: false,
+  dynamicEvents: DEFAULT_DYNAMIC_EVENTS,
   roles: {
     mafia: 0,
     don: 0,
@@ -81,6 +83,13 @@ export function createRoom(
     ...DEFAULT_SETTINGS,
     ...(settings || {}),
     roles: { ...DEFAULT_SETTINGS.roles, ...(settings?.roles || {}) },
+    dynamicEvents: settings?.dynamicEvents
+      ? {
+          ...DEFAULT_SETTINGS.dynamicEvents,
+          ...settings.dynamicEvents,
+          allowed: { ...DEFAULT_SETTINGS.dynamicEvents.allowed, ...(settings.dynamicEvents.allowed ?? {}) },
+        }
+      : DEFAULT_SETTINGS.dynamicEvents,
   };
 
   const room: Room = {
@@ -121,6 +130,9 @@ export function createRoom(
     speechStartSeat: 0,
     clanId: clanId ?? null,
     clanRoom: !!clanId,
+    activeEvent: null,
+    eventsLog: [],
+    lastDoctorTarget: null,
   };
 
   rooms.set(id, room);
@@ -339,7 +351,7 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     ...(isCultLeader && p.team === 'cult' ? { role: p.role, team: p.team } : {}),
     // Yakuza team members see each other
     ...(isYakuza && p.team === 'yakuza' ? { role: p.role, team: p.team } : {}),
-    voteTarget: room.phase === 'voting' ? p.voteTarget : null,
+    voteTarget: (room.phase === 'voting' && room.activeEvent?.key !== 'anonymous_voting') ? p.voteTarget : null,
     hasActed: p.id === viewerPlayerId ? p.hasActedThisPhase : false,
     seat: p.seat,
     profileId: p.profileId,
@@ -388,6 +400,7 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     finalWordsReason: room.finalWordsReason ?? null,
     clanId: room.clanId,
     clanRoom: room.clanRoom,
+    activeEvent: room.activeEvent,
     mafiaVotes: isMafia && room.phase === 'night'
       ? (() => {
           const votes: Record<string, { voterName: string; targetName: string }> = {};
@@ -488,6 +501,9 @@ export function rematchRoom(room: Room): void {
   room.deathSpeakerId   = null;
   room.finalWordsReason = null;
   room.pendingWinner    = null;
+  room.activeEvent      = null;
+  room.eventsLog        = [];
+  room.lastDoctorTarget = null;
   // Move waiting players into active lobby
   for (const p of room.waitingNextRound.values()) {
     p.isWaitingNextRound = false;
