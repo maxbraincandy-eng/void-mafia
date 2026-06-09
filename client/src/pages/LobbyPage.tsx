@@ -12,6 +12,7 @@ import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { RolePickerPanel } from '@/components/lobby/RolePickerPanel';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
+import { RoomMoreMenu } from '@/components/ui/RoomMoreMenu';
 import { ModDashboardPage } from '@/pages/ModDashboardPage';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
 
@@ -40,6 +41,7 @@ export function LobbyPage() {
   const isMod = useAuthStore(s => s.profile?.isModerator ?? false);
 
   const handleLeave = () => { voice.leaveVoice(); leaveRoom(); };
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showRoleGuide, setShowRoleGuide] = useState(false);
   const [showModPanel, setShowModPanel] = useState(false);
@@ -147,6 +149,17 @@ export function LobbyPage() {
           </div>
 
           <div className="flex items-center gap-2 self-start mt-0.5 flex-shrink-0">
+          {/* More menu button */}
+          <button
+            onClick={() => setShowMoreMenu(true)}
+            className="p-2 rounded-xl transition-all hover:bg-white/5 active:scale-95"
+            style={{ border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }}
+            title="More options"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="5" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="19" r="1" fill="currentColor" />
+            </svg>
+          </button>
           {/* Mod button */}
           {isMod && (
             <button
@@ -606,6 +619,48 @@ export function LobbyPage() {
       </div>
 
       <RoleInfoModal open={showRoleGuide} onClose={() => setShowRoleGuide(false)} />
+
+      <RoomMoreMenu
+        open={showMoreMenu}
+        onClose={() => setShowMoreMenu(false)}
+        phase="lobby"
+        roomCode={room.code}
+        players={room.players}
+        amHost={amHost}
+        isMod={isMod}
+        isSpectator={amSpectator}
+        activeRoleCounts={room.activeRoleCounts}
+        clanId={room.clanId}
+        clanRoom={room.clanRoom}
+        viewerClanId={useAuthStore.getState().myClanId}
+        viewerClanRole={useAuthStore.getState().myClanRole}
+        voice={{
+          channel: voice.channel,
+          status: voice.status,
+          isMuted: voice.isMuted,
+          cameraOn: voice.cameraOn,
+          listenOnly: amSpectator,
+          peerCount: voice.peers.length,
+          forceMuted: voice.forceMuted,
+          error: voice.error,
+          defaultChannel: 'room',
+          onJoin: (ch, withCamera) => {
+            if (amSpectator) { voice.joinVoiceListenOnly(ch ?? 'room'); return; }
+            voice.joinVoice(ch ?? 'room', withCamera);
+          },
+          onLeave: () => voice.leaveVoice(),
+          onToggleMute: voice.toggleMute,
+          onToggleCamera: voice.toggleCamera,
+          onReset: voice.channel ? () => {
+            const hadCamera = voice.cameraOn;
+            voice.leaveVoice();
+            setTimeout(() => voice.joinVoice('room', hadCamera), 800);
+          } : undefined,
+        }}
+        onLeaveRoom={handleLeave}
+        onShowRoleGuide={() => setShowRoleGuide(true)}
+        onKickPlayer={amHost ? kickPlayer : undefined}
+      />
 
       {/* Mod panel overlay */}
       <AnimatePresence>
