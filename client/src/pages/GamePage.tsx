@@ -93,6 +93,7 @@ export function GamePage() {
   const [showPlayersPanel, setShowPlayersPanel] = useState(false);
   const [showModPanel, setShowModPanel] = useState(false);
   const isMod = useAuthStore(s => s.profile?.isModerator ?? false);
+  const myRoleSkin = useAuthStore(s => s.profile?.cosmetics?.equippedRoleSkin ?? null);
   const { openProfile } = useSocialStore();
   const [rightTab, setRightTab] = useState<RightTab>('events');
   const [unreadChat, setUnreadChat] = useState(0);
@@ -504,6 +505,7 @@ export function GamePage() {
           ) : (
             <RoleReveal
               role={myRole}
+              skin={myRoleSkin}
               teammates={
                 myRole?.team === 'mafia'
                   ? (room?.players ?? [])
@@ -1514,6 +1516,7 @@ export function GamePage() {
             <div className="w-full max-w-xs">
               <RoleReveal
                 role={myRole}
+                skin={myRoleSkin}
                 teammates={
                   myRole?.team === 'mafia'
                     ? (room?.players ?? [])

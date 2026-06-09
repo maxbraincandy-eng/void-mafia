@@ -25,7 +25,7 @@ import {
   getOrCreatePlayer, getPlayer, getAllPlayers, toPublicProfile, addGameResult,
   getActiveBan, getActiveMute, findSocketByProfile,
   registerWithEmail, authenticateWithEmail,
-  addXP, getCosmetics, equipCosmetic,
+  addXP, getCosmetics, equipCosmetic, grantStarterCosmetics,
   getLeaderboard, getPlayersFast,
   getPlayerByFriendCode, setGrantedModLevel,
   updateAvatarUrl, updateUsername,
@@ -537,8 +537,10 @@ export function attachSocketHandlers(io: AppServer): void {
         socket.data.profileId = parsed.uid;
         markOnline(parsed.uid);
         broadcastOnlineCount(io);
-        socket.emit('player:profile', toPublicProfile(profile));
-        cb(ok(toPublicProfile(profile)));
+        await grantStarterCosmetics(parsed.uid);
+        const freshProfile = await getOrCreatePlayer(parsed.uid, parsed.username);
+        socket.emit('player:profile', toPublicProfile(freshProfile));
+        cb(ok(toPublicProfile(freshProfile)));
       } catch (e: any) {
         cb(err(e.message ?? 'Auth failed.'));
       }

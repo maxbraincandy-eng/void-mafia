@@ -83,6 +83,8 @@ export interface Role {
 export interface PlayerCosmetics {
   equippedNameColor: string | null;
   equippedFrame: string | null;
+  equippedTitle: string | null;
+  equippedRoleSkin: string | null;
   unlockedItems: string[];
 }
 
