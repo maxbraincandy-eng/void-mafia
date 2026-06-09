@@ -452,14 +452,14 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
           setLocal(s => ({ ...s, dynamicEvents: { ...(s.dynamicEvents ?? DEFAULT_DYNAMIC_EVENTS), ...patch } }));
         };
         return (
-          <div className="rounded-2xl border border-white/8 bg-void-50/60 p-4 space-y-3">
+          <div className="rounded-2xl border border-white/[0.12] p-4 space-y-3" style={{ background: 'rgba(10,5,32,0.8)' }}>
             {/* Header + master toggle */}
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h4 className="text-xs font-display font-bold text-white/50 uppercase tracking-widest">
-                  Dynamic Events
+                <h4 className="text-xs font-display font-bold text-neon-purple/70 uppercase tracking-widest">
+                  ⚡ Dynamic Events
                 </h4>
-                <p className="text-[10px] font-mono text-white/25 mt-0.5">
+                <p className="text-[10px] font-mono text-white/40 mt-0.5">
                   Random chaos events each phase
                 </p>
               </div>
