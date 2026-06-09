@@ -15,6 +15,7 @@ import { canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer, warnPlayer, cr
 import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as voiceLeave, getMembers as voiceGetMembers, getSharedChannel as voiceGetSharedChannel, removeFromChannel as voiceRemoveFromChannel, } from './services/voiceService.js';
 import { sql } from './db.js';
 import bcrypt from 'bcryptjs';
+import { sendPushToUser } from './pushService.js';
 import { getOrCreateConversation, listConversations, sendMessage, getMessages, markRead, getTotalUnread, } from './services/dmService.js';
 import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, getGiftsSent, getGiftTimeline, getGiftStats, getPinnedGifts, pinGift, unpinGift, } from './services/coinService.js';
 // ── TURN / ICE server config ──────────────────────────────────────────
@@ -945,6 +946,13 @@ export function attachSocketHandlers(io) {
                             title: 'Game Started!',
                             body: `Your role: ${player.role}`,
                         });
+                    }
+                    else if (player.profileId && player.role) {
+                        // Player is disconnected — send push so they know the game started
+                        sendPushToUser(player.profileId, {
+                            title: '🎮 Game Started!',
+                            body: `Your role: ${player.role}. Get back in!`,
+                        }).catch(() => { });
                     }
                 }
                 broadcastSystemMsg(io, room, 'The game has begun. Roles are being revealed…');
@@ -2571,14 +2579,21 @@ export function attachSocketHandlers(io) {
                 const msg = await sendMessage(conversationId, senderId, text.trim(), receiverId);
                 // Notify recipient in real time with sender info for toast
                 const recipientSocket = findSocketByProfile(io, receiverId);
+                const senderProfile = await getPlayer(senderId);
                 if (recipientSocket) {
-                    const senderProfile = await getPlayer(senderId);
                     recipientSocket.emit('dm:new_message', {
                         conversationId,
                         message: msg,
                         senderUsername: senderProfile?.username ?? 'Unknown',
                         senderAvatar: senderProfile?.avatar ?? '?',
                     });
+                }
+                else {
+                    // Recipient is offline — send push notification
+                    sendPushToUser(receiverId, {
+                        title: `💬 ${senderProfile?.username ?? 'Someone'}`,
+                        body: text.trim().slice(0, 100),
+                    }).catch(() => { });
                 }
                 cb(ok(msg));
             }
