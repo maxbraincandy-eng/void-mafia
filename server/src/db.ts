@@ -495,6 +495,7 @@ export async function initializeDatabase(): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS idx_clan_mod_logs_clan ON clan_mod_logs(clan_id, created_at)`;
 
+
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];
   console.log(`[Database] connected successfully`);

@@ -5,7 +5,7 @@ import { startGame, setPhase, advancePhase, submitNightAction, submitVote, submi
 import { createPlayerMessage, createSystemMessage, addMessage, validateChat, } from './services/chatService.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
-import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
+import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, grantStarterCosmetics, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
 import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, } from './services/friendService.js';
 import { checkAndAwardChallenge, getTodayChallenge, getDailyChallengeForPlayer, } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
@@ -470,8 +470,10 @@ export function attachSocketHandlers(io) {
                 socket.data.profileId = parsed.uid;
                 markOnline(parsed.uid);
                 broadcastOnlineCount(io);
-                socket.emit('player:profile', toPublicProfile(profile));
-                cb(ok(toPublicProfile(profile)));
+                await grantStarterCosmetics(parsed.uid);
+                const freshProfile = await getOrCreatePlayer(parsed.uid, parsed.username);
+                socket.emit('player:profile', toPublicProfile(freshProfile));
+                cb(ok(toPublicProfile(freshProfile)));
             }
             catch (e) {
                 cb(err(e.message ?? 'Auth failed.'));

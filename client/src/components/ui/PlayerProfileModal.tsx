@@ -11,6 +11,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useGameStore } from '@/store/gameStore';
 import type { Res, PublicProfileFull, FriendshipStatus, PlayerRoleStats, ModeratorLevel, WarnCategory, ClanRole } from '@/types/index';
 import type { ProfileCardData } from '@/components/ui/ProfileCard';
+import { getFrameById, getTitleById } from '@/constants/cosmetics';
 
 const MOD_RANK: Record<ModeratorLevel, number> = { moderator: 0, senior_moderator: 1, admin: 2, owner: 3 };
 function modRank(lvl: ModeratorLevel | null | undefined) { return lvl ? (MOD_RANK[lvl] ?? -1) : -1; }
@@ -272,6 +273,8 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
 
             {!loading && data && (() => {
               const { profile, achievements, clan, friendshipStatus, isOnline, roleStats } = data;
+              const frameDef = getFrameById(profile.cosmetics?.equippedFrame ?? null);
+              const titleDef = getTitleById(profile.cosmetics?.equippedTitle ?? null);
               const level = profile.level ?? 1;
               const xp = profile.xp ?? 0;
               const xpMin = xpForLevel(level);
@@ -294,17 +297,32 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       <div className="flex items-start gap-3">
                         {/* Avatar */}
                         <div className="relative flex-shrink-0">
-                          <div
-                            className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center text-2xl font-bold"
-                            style={{
-                              background: 'linear-gradient(135deg,rgba(255,0,128,0.6),rgba(138,43,226,0.6))',
-                              border: `2px solid ${col}60`,
-                            }}
-                          >
-                            {profile.avatarUrl
-                              ? <img src={profile.avatarUrl} alt={profile.username} className="w-full h-full object-cover" />
-                              : profile.avatar}
-                          </div>
+                          {frameDef ? (
+                            <div className="w-16 h-16 rounded-full p-[2.5px]"
+                              style={{
+                                background: `linear-gradient(135deg, ${frameDef.colors[0]}, ${frameDef.colors[1]})`,
+                                boxShadow: `0 0 10px ${frameDef.glow}`,
+                              }}>
+                              <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center text-2xl font-bold"
+                                style={{ background: 'linear-gradient(135deg,rgba(255,0,128,0.6),rgba(138,43,226,0.6))' }}>
+                                {profile.avatarUrl
+                                  ? <img src={profile.avatarUrl} alt={profile.username} className="w-full h-full object-cover" />
+                                  : profile.avatar}
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center text-2xl font-bold"
+                              style={{
+                                background: 'linear-gradient(135deg,rgba(255,0,128,0.6),rgba(138,43,226,0.6))',
+                                border: `2px solid ${col}60`,
+                              }}
+                            >
+                              {profile.avatarUrl
+                                ? <img src={profile.avatarUrl} alt={profile.username} className="w-full h-full object-cover" />
+                                : profile.avatar}
+                            </div>
+                          )}
                           {isOnline && (
                             <span className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-neon-green rounded-full border-2 border-void" />
                           )}
@@ -326,6 +344,14 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                               <ModBadge level={profile.moderatorLevel} />
                             )}
                           </div>
+                          {titleDef && (
+                            <div className="mb-1">
+                              <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded"
+                                style={{ color: titleDef.color, background: `${titleDef.color}15`, border: `1px solid ${titleDef.color}40` }}>
+                                {titleDef.name}
+                              </span>
+                            </div>
+                          )}
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {profile.publicId != null && (
                               <span
