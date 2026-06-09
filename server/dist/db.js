@@ -375,6 +375,22 @@ export async function initializeDatabase() {
       PRIMARY KEY (player_id, date_key)
     )
   `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id    TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      endpoint   TEXT NOT NULL UNIQUE,
+      p256dh     TEXT NOT NULL,
+      auth       TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `;
     // Seed default gift catalog items (ON CONFLICT DO NOTHING — safe to re-run)
     const _seedNow = Date.now();
     const _defaultGifts = [
