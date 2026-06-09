@@ -7,7 +7,6 @@ import { useSocialStore } from '@/store/socialStore';
 import { useT } from '@/store/langStore';
 import { useAmbientDrone } from '@/hooks/useAudio';
 import { Button } from '@/components/ui/Button';
-import { LeaderboardModal } from '@/components/ui/LeaderboardModal';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { DailyChallengeCard } from '@/components/ui/DailyChallengeCard';
 
@@ -24,7 +23,6 @@ export function RoomsPage() {
   };
 
   const [mode, setMode] = useState<'browse' | 'create' | 'join'>('browse');
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [rooms, setRooms] = useState<RoomListItem[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [preset, setPreset] = useState<Preset>('classic');
@@ -130,8 +128,6 @@ export function RoomsPage() {
         className="absolute inset-0 pointer-events-none"
         style={{ background: 'radial-gradient(ellipse 90% 35% at 50% -5%, rgba(100,0,240,0.08) 0%, transparent 55%)' }}
       />
-
-      <LeaderboardModal open={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
 
       {/* ── Active-game join modal ─────────────────────────────── */}
       <AnimatePresence>
