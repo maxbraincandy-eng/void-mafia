@@ -35,6 +35,7 @@ import { VoteRevealScreen } from '@/components/game/VoteRevealScreen';
 import { TutorialOverlay } from '@/components/ui/TutorialOverlay';
 import { InGamePlayersPanel } from '@/components/game/InGamePlayersPanel';
 import { SpectatorTheater } from '@/components/game/SpectatorTheater';
+import { DynamicEventBanner } from '@/components/game/DynamicEventBanner';
 import { useT } from '@/store/langStore';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
@@ -1289,6 +1290,11 @@ export function GamePage() {
 
           {/* Center: Phase content */}
           <main className="flex-1 overflow-y-auto p-4 md:p-6">
+            {room.activeEvent && (
+              <div className="mb-4">
+                <DynamicEventBanner event={room.activeEvent} />
+              </div>
+            )}
             {PhaseContent}
           </main>
 
@@ -1342,6 +1348,13 @@ export function GamePage() {
 
         {/* ── MOBILE layout (<md) ───────────────────────────────────── */}
         <div className="md:hidden flex-1 overflow-hidden flex flex-col relative">
+
+          {/* Mobile Dynamic Event Banner */}
+          {room.activeEvent && (
+            <div className="flex-shrink-0 px-3 pt-2">
+              <DynamicEventBanner event={room.activeEvent} />
+            </div>
+          )}
 
           {/* Main content area */}
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">

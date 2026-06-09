@@ -253,6 +253,7 @@ function startPhaseTimer(io: AppServer, room: Room): void {
       if (nextPhase === 'night') {
         io.to(room.id).emit('game:notification', { title: 'Night Falls', body: 'Perform your night action.' });
       }
+      announceActiveEvent(io, room);
       if (nextPhase === 'game_over') await emitGameOver(io, room);
       broadcastRoom(io, room);
       enforceVoicePhaseRules(io, room);
@@ -265,6 +266,13 @@ function broadcastSystemMsg(io: AppServer, room: Room, text: string): void {
   const msg = createSystemMessage(text);
   addMessage(room, msg);
   io.to(room.id).emit('chat:new', msg);
+}
+
+function announceActiveEvent(io: AppServer, room: Room): void {
+  if (!room.activeEvent) return;
+  const { icon, label, description } = room.activeEvent;
+  broadcastSystemMsg(io, room, `${icon} ${label} — ${description}`);
+  io.to(room.id).emit('game:notification', { title: label, body: description });
 }
 
 function getPlayerOrError(socket: AppSocket, room: Room): Player {
@@ -458,19 +466,25 @@ function notifySpies(io: AppServer, room: Room): void {
 }
 
 function announceVoteResult(io: AppServer, room: Room): void {
-  // Emit vote breakdown before resolving
-  const breakdown = [...room.votes.entries()]
-    .filter(([, tid]) => tid !== null)
-    .map(([vid, tid]) => {
-      const voter  = room.players.get(vid);
-      const target = room.players.get(tid!);
-      return {
-        voterId: vid, voterName: voter?.name ?? '?',
-        targetId: tid!, targetName: target?.name ?? '?',
-        weight: voter?.role === 'mayor' ? 2 : 1,
-      };
-    });
-  io.to(room.id).emit('game:vote_breakdown', breakdown);
+  const isAnonymous  = room.activeEvent?.key === 'anonymous_voting';
+  const isNoReveal   = room.activeEvent?.key === 'no_reveal_day';
+
+  // Emit vote breakdown (hidden for anonymous voting)
+  if (!isAnonymous) {
+    const eventMultiplier = room.activeEvent?.key === 'double_vote' ? 2 : 1;
+    const breakdown = [...room.votes.entries()]
+      .filter(([, tid]) => tid !== null)
+      .map(([vid, tid]) => {
+        const voter  = room.players.get(vid);
+        const target = room.players.get(tid!);
+        return {
+          voterId: vid, voterName: voter?.name ?? '?',
+          targetId: tid!, targetName: target?.name ?? '?',
+          weight: (voter?.role === 'mayor' ? 2 : 1) * eventMultiplier,
+        };
+      });
+    io.to(room.id).emit('game:vote_breakdown', breakdown);
+  }
 
   const eliminated = resolveVotes(room);
   if (eliminated) {
@@ -478,12 +492,15 @@ function announceVoteResult(io: AppServer, room: Room): void {
     if (target) {
       io.to(room.id).emit('game:vote_result', {
         name: target.name,
-        role: target.role ?? null,
+        role: isNoReveal ? null : (target.role ?? null),
         lastWill: target.lastWill ?? null,
         seat: target.seat,
       });
-      broadcastSystemMsg(io, room, voteDeathMsg(target.name, target.role ?? null, target.lastWill));
-      // Force-mute the eliminated player
+      const revealedRole = isNoReveal ? null : (target.role ?? null);
+      broadcastSystemMsg(io, room, voteDeathMsg(target.name, revealedRole, target.lastWill));
+      if (isNoReveal) {
+        broadcastSystemMsg(io, room, `${target.name}'s role remains hidden. (No Reveal Day)`);
+      }
       if (target.socketId) {
         io.to(target.socketId).emit('voice:force-mute', { reason: 'You were eliminated.' });
       }
@@ -1044,6 +1061,13 @@ export function attachSocketHandlers(io: AppServer): void {
           ...room.settings,
           ...settings,
           roles: { ...room.settings.roles, ...(settings.roles ?? {}) },
+          dynamicEvents: settings.dynamicEvents
+            ? {
+                ...room.settings.dynamicEvents,
+                ...settings.dynamicEvents,
+                allowed: { ...room.settings.dynamicEvents.allowed, ...(settings.dynamicEvents.allowed ?? {}) },
+              }
+            : room.settings.dynamicEvents,
         };
         broadcastRoom(io, room);
         cb(ok(null));
@@ -1124,6 +1148,7 @@ export function attachSocketHandlers(io: AppServer): void {
           notifyTrackers(io, room);
           notifyCultConversions(io, room);
           notifyRoleblocked(io, room);
+          announceActiveEvent(io, room);
           if (nextPhase === 'game_over') await emitGameOver(io, room);
           broadcastRoom(io, room);
           enforceVoicePhaseRules(io, room);
@@ -1198,6 +1223,7 @@ export function attachSocketHandlers(io: AppServer): void {
         advancePhase(room); const nextPhase = room.phase as Phase;
         if (wasNightSkip) { announceNightResult(io, room); notifySpies(io, room); notifyTrackers(io, room); notifyCultConversions(io, room); notifyRoleblocked(io, room); }
         if (wasSpeechSkip && nextPhase !== 'speech') announceSpeechEnd(io, room, nextPhase);
+        announceActiveEvent(io, room);
         if (nextPhase === 'game_over') await emitGameOver(io, room);
         broadcastRoom(io, room);
         enforceVoicePhaseRules(io, room);
@@ -1223,6 +1249,7 @@ export function attachSocketHandlers(io: AppServer): void {
           timerService.stop(room.id);
           room.timer = 0;
           const nextPhase = advancePhase(room);
+          announceActiveEvent(io, room);
           broadcastRoom(io, room);
           enforceVoicePhaseRules(io, room);
           if (nextPhase !== 'game_over') startPhaseTimer(io, room);
@@ -2963,6 +2990,19 @@ function enforceVoicePhaseRules(io: AppServer, room: Room): void {
   // Leaving night — clean up any stale private faction channel connections
   forceLeaveVoiceChannel(io, roomId, 'mafia',  'Mafia voice is only available during night.');
   forceLeaveVoiceChannel(io, roomId, 'yakuza', 'Yakuza voice is only available during night.');
+
+  // Silent Day event — mute all active players during day & speech phases
+  if ((phase === 'day' || phase === 'speech') && room.activeEvent?.key === 'silent_day') {
+    for (const member of voiceGetMembers(roomId, 'room')) {
+      const player = room.players.get(member.playerId);
+      if (player?.isAlive && !player?.isSpectator) {
+        io.to(member.socketId).emit('voice:force-mute', { reason: 'Silent Day — voice is disabled today.' });
+      } else {
+        io.to(member.socketId).emit('voice:force-mute', { reason: 'Listen only.' });
+      }
+    }
+    return;
+  }
 
   if (phase === 'speech') {
     const speakerId = room.speechOrder[room.currentSpeakerIdx] ?? null;

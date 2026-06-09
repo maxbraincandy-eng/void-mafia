@@ -296,6 +296,52 @@ export interface ChatMessage {
   isMod?: boolean;
 }
 
+// ── Dynamic Events ────────────────────────────────────────────────────
+export interface DynamicEventAllowed {
+  blackoutNight: boolean;
+  silentDay: boolean;
+  doubleVote: boolean;
+  noRevealDay: boolean;
+  bloodMoon: boolean;
+  anonymousVoting: boolean;
+  sheriffFog: boolean;
+  doctorPressure: boolean;
+  extendedFinalWords: boolean;
+}
+
+export interface DynamicEventSettings {
+  enabled: boolean;
+  frequency: 'low' | 'medium' | 'high';
+  allowed: DynamicEventAllowed;
+}
+
+export interface ActiveEvent {
+  key: string;
+  label: string;
+  description: string;
+  icon: string;
+  phase: string;
+  day: number;
+  expiresAtPhaseEnd: boolean;
+}
+
+export interface EventLogEntry {
+  day: number;
+  phase: string;
+  eventKey: string;
+  eventLabel: string;
+}
+
+export const DEFAULT_DYNAMIC_EVENTS: DynamicEventSettings = {
+  enabled: false,
+  frequency: 'low',
+  allowed: {
+    blackoutNight: true, silentDay: true, doubleVote: true, noRevealDay: true,
+    bloodMoon: true, anonymousVoting: true, sheriffFog: true, doctorPressure: true,
+    extendedFinalWords: true,
+  },
+};
+
 export interface GameSettings {
   nightDuration: number;
   dayDuration: number;
@@ -309,6 +355,7 @@ export interface GameSettings {
   password: string;
   startWithNight: boolean;
   rotatingSpeech: boolean;
+  dynamicEvents: DynamicEventSettings;
   roles: {
     mafia: number;
     don: number;
@@ -369,6 +416,9 @@ export interface Room {
   speechStartSeat: number;
   clanId: string | null;
   clanRoom: boolean;
+  activeEvent: ActiveEvent | null;
+  eventsLog: EventLogEntry[];
+  lastDoctorTarget: string | null;
 }
 
 // ── Public Types (sent to clients) ────────────────────────────────────
@@ -427,6 +477,7 @@ export interface RoomPublic {
   finalWordsReason: string | null;
   clanId: string | null;
   clanRoom: boolean;
+  activeEvent: ActiveEvent | null;
 }
 
 export interface RoomListItem {
