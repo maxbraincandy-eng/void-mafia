@@ -7,7 +7,6 @@ import { useSocialStore } from '@/store/socialStore';
 import { useT } from '@/store/langStore';
 import { useAmbientDrone } from '@/hooks/useAudio';
 import { Button } from '@/components/ui/Button';
-import { LeaderboardModal } from '@/components/ui/LeaderboardModal';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { DailyChallengeCard } from '@/components/ui/DailyChallengeCard';
 
@@ -24,7 +23,6 @@ export function RoomsPage() {
   };
 
   const [mode, setMode] = useState<'browse' | 'create' | 'join'>('browse');
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [rooms, setRooms] = useState<RoomListItem[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [preset, setPreset] = useState<Preset>('classic');
@@ -131,8 +129,6 @@ export function RoomsPage() {
         style={{ background: 'radial-gradient(ellipse 90% 35% at 50% -5%, rgba(100,0,240,0.08) 0%, transparent 55%)' }}
       />
 
-      <LeaderboardModal open={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
-
       {/* ── Active-game join modal ─────────────────────────────── */}
       <AnimatePresence>
         {(activeJoinModal || activeJoinCode) && (
@@ -226,13 +222,6 @@ export function RoomsPage() {
           {/* Right controls */}
           <div className="flex items-center gap-2 flex-shrink-0">
             <LanguageSwitcher />
-            <button
-              onClick={() => setShowLeaderboard(true)}
-              className="px-3 py-1.5 rounded-xl border border-white/[0.07] text-white/25 hover:text-white/55 hover:border-white/14 font-mono text-sm transition-all"
-              title={t.game.header.leaderboard}
-            >
-              ◈
-            </button>
           </div>
         </div>
 

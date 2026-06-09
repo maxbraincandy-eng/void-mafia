@@ -139,7 +139,7 @@ function MainApp() {
       <AnimatePresence mode="wait">
         {page === 'rooms'                   && <RoomsPage key="rooms" />}
         {page === 'clans'                   && <ClansPage key="clans" />}
-        {page === 'leaderboard'             && <LeaderboardPage key="leaderboard" />}
+        {page === 'leaderboard'             && <LeaderboardPage key="leaderboard" onBack={() => setPage('rooms')} />}
         {page === 'profile'                 && <ProfilePage key="profile" />}
         {page === 'mod' && isMod            && <ModDashboardPage key="mod" />}
         {page === 'economy' && isOwner      && <EconomyAdminPage key="economy" />}
