@@ -89,6 +89,12 @@ export function RoomsPage() {
   const handleQuickJoin = async (room: RoomListItem, isSpectator: boolean) => {
     setSpectatorModal(null);
     await joinRoom(room.code, username, isSpectator);
+    // If game started while spectator modal was open, show mode selection
+    const currentError = useGameStore.getState().error;
+    if (currentError === 'GAME_ALREADY_STARTED_CHOOSE_MODE') {
+      clearError();
+      setActiveJoinModal(room);
+    }
   };
 
   const handleActiveJoin = async (mode: 'spectator' | 'next_round') => {
@@ -148,10 +154,10 @@ export function RoomsPage() {
               onClick={e => e.stopPropagation()}
             >
               <h3 className="font-display font-bold text-white/80 tracking-widest uppercase text-sm mb-1">
-                Game In Progress
+                {t.rooms.gameInProgress}
               </h3>
               <p className="text-xs font-mono text-white/35 mb-5">
-                {activeJoinModal ? `${activeJoinModal.hostName}'s room · ${activeJoinModal.playerCount} players` : `Room ${activeJoinCode}`}
+                {activeJoinModal ? `${activeJoinModal.hostName}'s room · ${activeJoinModal.playerCount} ${t.rooms.players}` : `Room ${activeJoinCode}`}
               </p>
 
               <div className="space-y-3 mb-5">
@@ -159,16 +165,16 @@ export function RoomsPage() {
                   onClick={() => handleActiveJoin('spectator')}
                   className="w-full py-3.5 px-4 rounded-xl border border-neon-cyan/20 bg-neon-cyan/[0.04] hover:bg-neon-cyan/[0.08] text-left transition-all"
                 >
-                  <p className="text-sm font-mono font-bold text-neon-cyan/80">Watch as Spectator</p>
-                  <p className="text-[11px] font-mono text-white/30 mt-0.5">Listen-only · no game actions</p>
+                  <p className="text-sm font-mono font-bold text-neon-cyan/80">{t.rooms.watchAsSpectator}</p>
+                  <p className="text-[11px] font-mono text-white/30 mt-0.5">{t.rooms.watchSpectatorHint}</p>
                 </button>
 
                 <button
                   onClick={() => handleActiveJoin('next_round')}
                   className="w-full py-3.5 px-4 rounded-xl border border-neon-purple/20 bg-neon-purple/[0.04] hover:bg-neon-purple/[0.08] text-left transition-all"
                 >
-                  <p className="text-sm font-mono font-bold text-white/70">Join Next Round</p>
-                  <p className="text-[11px] font-mono text-white/30 mt-0.5">Wait in room · play when round ends</p>
+                  <p className="text-sm font-mono font-bold text-white/70">{t.rooms.joinNextRound}</p>
+                  <p className="text-[11px] font-mono text-white/30 mt-0.5">{t.rooms.joinNextRoundHint}</p>
                 </button>
               </div>
 
@@ -176,7 +182,7 @@ export function RoomsPage() {
                 onClick={() => { setActiveJoinModal(null); setActiveJoinCode(null); }}
                 className="w-full py-2.5 rounded-xl font-mono text-xs text-white/30 hover:text-white/55 transition-colors border border-white/[0.05] hover:border-white/10"
               >
-                Cancel
+                {t.common.cancel}
               </button>
             </motion.div>
           </motion.div>
