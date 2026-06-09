@@ -177,6 +177,7 @@ export interface Player {
     joinedAt: number;
     profileId: string | null;
     isSpectator: boolean;
+    isWaitingNextRound: boolean;
     lastWill: string | null;
     isModerator: boolean;
     moderatorLevel: ModeratorLevel | null;
@@ -199,6 +200,38 @@ export interface ChatMessage {
     seat?: number;
     isMod?: boolean;
 }
+export interface DynamicEventAllowed {
+    blackoutNight: boolean;
+    silentDay: boolean;
+    doubleVote: boolean;
+    noRevealDay: boolean;
+    bloodMoon: boolean;
+    anonymousVoting: boolean;
+    sheriffFog: boolean;
+    doctorPressure: boolean;
+    extendedFinalWords: boolean;
+}
+export interface DynamicEventSettings {
+    enabled: boolean;
+    frequency: 'low' | 'medium' | 'high';
+    allowed: DynamicEventAllowed;
+}
+export interface ActiveEvent {
+    key: string;
+    label: string;
+    description: string;
+    icon: string;
+    phase: string;
+    day: number;
+    expiresAtPhaseEnd: boolean;
+}
+export interface EventLogEntry {
+    day: number;
+    phase: string;
+    eventKey: string;
+    eventLabel: string;
+}
+export declare const DEFAULT_DYNAMIC_EVENTS: DynamicEventSettings;
 export interface GameSettings {
     nightDuration: number;
     dayDuration: number;
@@ -212,6 +245,7 @@ export interface GameSettings {
     password: string;
     startWithNight: boolean;
     rotatingSpeech: boolean;
+    dynamicEvents: DynamicEventSettings;
     roles: {
         mafia: number;
         don: number;
@@ -238,6 +272,7 @@ export interface Room {
     hostId: string;
     phase: Phase;
     players: Map<string, Player>;
+    waitingNextRound: Map<string, Player>;
     day: number;
     timer: number;
     maxTimer: number;
@@ -274,6 +309,9 @@ export interface Room {
     speechStartSeat: number;
     clanId: string | null;
     clanRoom: boolean;
+    activeEvent: ActiveEvent | null;
+    eventsLog: EventLogEntry[];
+    lastDoctorTarget: string | null;
 }
 export interface PlayerPublic {
     id: string;
@@ -294,6 +332,7 @@ export interface PlayerPublic {
     isModerator: boolean;
     moderatorLevel: ModeratorLevel | null;
     isSpectator: boolean;
+    isWaitingNextRound: boolean;
     deathType: 'night' | 'vote' | null;
 }
 export interface RoomPublic {
@@ -304,6 +343,7 @@ export interface RoomPublic {
     timer: number;
     maxTimer: number;
     players: PlayerPublic[];
+    waitingNextRound: PlayerPublic[];
     chat: ChatMessage[];
     mafiaChat: ChatMessage[];
     killedLastNight: Array<{
@@ -334,6 +374,7 @@ export interface RoomPublic {
     finalWordsReason: string | null;
     clanId: string | null;
     clanRoom: boolean;
+    activeEvent: ActiveEvent | null;
 }
 export interface RoomListItem {
     id: string;

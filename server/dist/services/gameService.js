@@ -1,7 +1,22 @@
 import { buildRoleDeck, buildAutoRoleDeck, validateRoleDistribution, getTeam, isSuspiciousToSheriff, getRole } from './roleService.js';
 import { getAlivePlayers } from './roomService.js';
+import { tryTriggerEvent, setRoomEvent, clearRoomEvent } from './dynamicEventService.js';
 // ── Start Game ────────────────────────────────────────────────────────
 export function startGame(room) {
+    // Merge waiting-next-round players into active players
+    for (const p of room.waitingNextRound.values()) {
+        p.isWaitingNextRound = false;
+        p.isAlive = true;
+        p.isConnected = true;
+        // Assign next available seat
+        const usedSeats = new Set([...room.players.values()].map(q => q.seat));
+        let seat = 1;
+        while (usedSeats.has(seat))
+            seat++;
+        p.seat = seat;
+        room.players.set(p.id, p);
+    }
+    room.waitingNextRound = new Map();
     const allPlayers = [...room.players.values()];
     const activePlayers = allPlayers.filter(p => !p.isSpectator);
     const count = activePlayers.length;
@@ -48,32 +63,44 @@ const MORNING_DURATION = 30;
 // ── Set Phase ─────────────────────────────────────────────────────────
 export function setPhase(room, phase) {
     room.phase = phase;
+    // Clear old event unless it's a silentDay persisting through speech
+    const keepSilentDay = phase === 'speech' && room.activeEvent?.key === 'silent_day';
+    if (!keepSilentDay)
+        clearRoomEvent(room);
     for (const p of room.players.values()) {
         p.hasActedThisPhase = false;
         if (phase === 'voting')
             p.voteTarget = null;
     }
     switch (phase) {
-        case 'night':
+        case 'night': {
             room.nightActions = new Map();
             room.killedLastNight = [];
             room.savedLastNight = false;
             room.newlyConvertedCultists = [];
             room.mafiaKillTarget = null;
+            const nightEvent = tryTriggerEvent(room, 'night');
+            if (nightEvent)
+                setRoomEvent(room, nightEvent);
             room.timer = room.settings.nightDuration;
             room.maxTimer = room.settings.nightDuration;
             break;
+        }
         case 'morning':
             room.timer = MORNING_DURATION;
             room.maxTimer = MORNING_DURATION;
             break;
-        case 'day':
+        case 'day': {
             room.nominations = new Map();
             room.tribunalCandidates = [];
+            const dayEvent = tryTriggerEvent(room, 'day');
+            if (dayEvent)
+                setRoomEvent(room, dayEvent);
             room.timer = room.settings.dayDuration;
             room.maxTimer = room.settings.dayDuration;
             room.daySkipVotes = [];
             break;
+        }
         case 'speech': {
             room.nominations = new Map();
             room.tribunalCandidates = [];
@@ -102,16 +129,25 @@ export function setPhase(room, phase) {
             room.maxTimer = room.settings.speechDuration;
             break;
         }
-        case 'voting':
+        case 'voting': {
             room.tribunalCandidates = [...new Set(room.nominations.values())];
             room.votes = new Map();
+            const voteEvent = tryTriggerEvent(room, 'voting');
+            if (voteEvent)
+                setRoomEvent(room, voteEvent);
             room.timer = room.settings.voteDuration;
             room.maxTimer = room.settings.voteDuration;
             break;
-        case 'final_words':
-            room.timer = 30;
-            room.maxTimer = 30;
+        }
+        case 'final_words': {
+            const fwEvent = tryTriggerEvent(room, 'final_words');
+            if (fwEvent)
+                setRoomEvent(room, fwEvent);
+            const duration = room.activeEvent?.key === 'extended_final_words' ? 45 : 30;
+            room.timer = duration;
+            room.maxTimer = duration;
             break;
+        }
         case 'role_reveal':
             room.timer = room.settings.roleRevealDuration;
             room.maxTimer = room.settings.roleRevealDuration;
@@ -394,6 +430,10 @@ export function submitNightAction(room, actor, targetId) {
     if ((actor.role === 'doctor' || actor.role === 'bodyguard') && isSelfTarget && !room.settings.allowDoctorSelfHeal) {
         throw new Error('Self-protection is disabled in this room.');
     }
+    // Doctor Pressure: cannot protect same target as last night
+    if (actor.role === 'doctor' && room.activeEvent?.key === 'doctor_pressure' && room.lastDoctorTarget && room.lastDoctorTarget === targetId) {
+        throw new Error('Doctor Pressure — you cannot protect the same player two nights in a row.');
+    }
     // Mafia cannot kill fellow mafia
     if ((actor.role === 'mafia' || actor.role === 'don') && target.team === 'mafia') {
         throw new Error('You cannot target a fellow mafia member.');
@@ -422,6 +462,10 @@ export function submitNightAction(room, actor, targetId) {
         submittedAt: Date.now(),
     });
     actor.hasActedThisPhase = true;
+    // Track doctor's target for doctorPressure event next night
+    if (actor.role === 'doctor') {
+        room.lastDoctorTarget = targetId;
+    }
 }
 export function getInvestigationResult(room, actor) {
     const action = room.nightActions.get(actor.id);
@@ -430,10 +474,18 @@ export function getInvestigationResult(room, actor) {
     const target = room.players.get(action.targetId);
     if (!target)
         return null;
+    // Blackout Night: no investigation result returned
+    if (room.activeEvent?.key === 'blackout_night')
+        return null;
+    // Sheriff Fog: 40% chance of incorrect result
+    let correct = isSuspiciousToSheriff(target.role);
+    if (room.activeEvent?.key === 'sheriff_fog' && Math.random() < 0.4) {
+        correct = !correct;
+    }
     return {
         targetId: target.id,
         targetName: target.name,
-        result: isSuspiciousToSheriff(target.role) ? 'suspicious' : 'not_suspicious',
+        result: correct ? 'suspicious' : 'not_suspicious',
     };
 }
 export function getTrackResult(room, actor) {
@@ -497,13 +549,14 @@ export function submitVote(room, voter, targetId) {
 }
 export function resolveVotes(room) {
     const counts = new Map();
+    const eventMultiplier = room.activeEvent?.key === 'double_vote' ? 2 : 1;
     for (const [voterId, targetId] of room.votes.entries()) {
         if (!targetId)
             continue;
         if (room.tribunalCandidates.length > 0 && !room.tribunalCandidates.includes(targetId))
             continue;
         const voter = room.players.get(voterId);
-        const weight = voter?.role === 'mayor' ? 2 : 1;
+        const weight = (voter?.role === 'mayor' ? 2 : 1) * eventMultiplier;
         counts.set(targetId, (counts.get(targetId) ?? 0) + weight);
     }
     if (counts.size === 0)

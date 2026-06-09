@@ -1,3 +1,4 @@
+import { DEFAULT_DYNAMIC_EVENTS, } from '../types/index.js';
 import { generateId, generateRoomCode, nameToAvatar } from '../utils/helpers.js';
 // ── In-Memory Store ───────────────────────────────────────────────────
 const rooms = new Map();
@@ -15,6 +16,7 @@ export const DEFAULT_SETTINGS = {
     password: '',
     startWithNight: false,
     rotatingSpeech: false,
+    dynamicEvents: DEFAULT_DYNAMIC_EVENTS,
     roles: {
         mafia: 0,
         don: 0,
@@ -57,6 +59,7 @@ export function createRoom(hostSocketId, hostName, profileId, settings, clanId) 
         joinedAt: Date.now(),
         profileId,
         isSpectator: false,
+        isWaitingNextRound: false,
         lastWill: null,
         isModerator: false,
         moderatorLevel: null,
@@ -66,6 +69,13 @@ export function createRoom(hostSocketId, hostName, profileId, settings, clanId) 
         ...DEFAULT_SETTINGS,
         ...(settings || {}),
         roles: { ...DEFAULT_SETTINGS.roles, ...(settings?.roles || {}) },
+        dynamicEvents: settings?.dynamicEvents
+            ? {
+                ...DEFAULT_SETTINGS.dynamicEvents,
+                ...settings.dynamicEvents,
+                allowed: { ...DEFAULT_SETTINGS.dynamicEvents.allowed, ...(settings.dynamicEvents.allowed ?? {}) },
+            }
+            : DEFAULT_SETTINGS.dynamicEvents,
     };
     const room = {
         id,
@@ -73,6 +83,7 @@ export function createRoom(hostSocketId, hostName, profileId, settings, clanId) 
         hostId: hostPlayer.id,
         phase: 'lobby',
         players: new Map([[hostPlayer.id, hostPlayer]]),
+        waitingNextRound: new Map(),
         day: 0,
         timer: 0,
         maxTimer: 0,
@@ -104,6 +115,9 @@ export function createRoom(hostSocketId, hostName, profileId, settings, clanId) 
         speechStartSeat: 0,
         clanId: clanId ?? null,
         clanRoom: !!clanId,
+        activeEvent: null,
+        eventsLog: [],
+        lastDoctorTarget: null,
     };
     rooms.set(id, room);
     return room;
@@ -122,8 +136,21 @@ export function deleteRoom(id) {
     rooms.delete(id);
 }
 export function addPlayer(room, socketId, name, profileId) {
-    // Re-join: find existing player by profileId or name
+    // Re-join: find existing player by profileId or name (active players)
     for (const player of room.players.values()) {
+        if (profileId && player.profileId === profileId) {
+            player.socketId = socketId;
+            player.isConnected = true;
+            return player;
+        }
+        if (!profileId && player.name === name.trim()) {
+            player.socketId = socketId;
+            player.isConnected = true;
+            return player;
+        }
+    }
+    // Re-join: check waiting-next-round map
+    for (const player of room.waitingNextRound.values()) {
         if (profileId && player.profileId === profileId) {
             player.socketId = socketId;
             player.isConnected = true;
@@ -158,6 +185,7 @@ export function addPlayer(room, socketId, name, profileId) {
         joinedAt: Date.now(),
         profileId,
         isSpectator: false,
+        isWaitingNextRound: false,
         lastWill: null,
         isModerator: false,
         moderatorLevel: null,
@@ -166,7 +194,54 @@ export function addPlayer(room, socketId, name, profileId) {
     room.players.set(player.id, player);
     return player;
 }
+export function addWaitingPlayer(room, socketId, name, profileId) {
+    // Check if already in waiting list
+    for (const p of room.waitingNextRound.values()) {
+        if (profileId && p.profileId === profileId) {
+            p.socketId = socketId;
+            p.isConnected = true;
+            return p;
+        }
+        if (!profileId && p.name === name.trim()) {
+            p.socketId = socketId;
+            p.isConnected = true;
+            return p;
+        }
+    }
+    const player = {
+        id: generateId(),
+        name: name.trim().slice(0, 24) || 'Player',
+        avatar: nameToAvatar(name),
+        avatarUrl: null,
+        socketId,
+        isHost: false,
+        isAlive: false,
+        isConnected: true,
+        isReady: false,
+        role: null,
+        team: null,
+        voteTarget: null,
+        hasActedThisPhase: false,
+        seat: 0,
+        joinedAt: Date.now(),
+        profileId,
+        isSpectator: false,
+        isWaitingNextRound: true,
+        lastWill: null,
+        isModerator: false,
+        moderatorLevel: null,
+        deathType: null,
+    };
+    room.waitingNextRound.set(player.id, player);
+    return player;
+}
 export function removePlayer(room, playerId) {
+    // Check waitingNextRound first
+    const waiting = room.waitingNextRound.get(playerId);
+    if (waiting) {
+        room.waitingNextRound.delete(playerId);
+        return;
+    }
     const player = room.players.get(playerId);
     if (!player)
         return;
@@ -201,10 +276,18 @@ export function getPlayerBySocket(room, socketId) {
         if (p.socketId === socketId)
             return p;
     }
+    for (const p of room.waitingNextRound.values()) {
+        if (p.socketId === socketId)
+            return p;
+    }
     return undefined;
 }
 export function getPlayerByProfile(room, profileId) {
     for (const p of room.players.values()) {
+        if (p.profileId === profileId)
+            return p;
+    }
+    for (const p of room.waitingNextRound.values()) {
         if (p.profileId === profileId)
             return p;
     }
@@ -223,9 +306,7 @@ export function toPublicRoom(room, viewerPlayerId) {
     const isMafia = viewer?.team === 'mafia';
     const isCultLeader = viewer?.role === 'cult_leader';
     const isYakuza = viewer?.team === 'yakuza';
-    const players = [...room.players.values()]
-        .sort((a, b) => a.seat - b.seat)
-        .map(p => ({
+    const mapToPublic = (p) => ({
         id: p.id,
         socketId: p.socketId,
         name: p.name,
@@ -243,15 +324,22 @@ export function toPublicRoom(room, viewerPlayerId) {
         ...(isCultLeader && p.team === 'cult' ? { role: p.role, team: p.team } : {}),
         // Yakuza team members see each other
         ...(isYakuza && p.team === 'yakuza' ? { role: p.role, team: p.team } : {}),
-        voteTarget: room.phase === 'voting' ? p.voteTarget : null,
+        voteTarget: (room.phase === 'voting' && room.activeEvent?.key !== 'anonymous_voting') ? p.voteTarget : null,
         hasActed: p.id === viewerPlayerId ? p.hasActedThisPhase : false,
         seat: p.seat,
         profileId: p.profileId,
         isModerator: p.isModerator,
         moderatorLevel: p.moderatorLevel,
         isSpectator: p.isSpectator,
+        isWaitingNextRound: p.isWaitingNextRound,
         deathType: p.deathType,
-    }));
+    });
+    const players = [...room.players.values()]
+        .sort((a, b) => a.seat - b.seat)
+        .map(mapToPublic);
+    const waitingNextRound = [...room.waitingNextRound.values()]
+        .sort((a, b) => a.joinedAt - b.joinedAt)
+        .map(mapToPublic);
     const isDeadViewer = viewer ? (!viewer.isAlive || viewer.isSpectator) : false;
     return {
         id: room.id,
@@ -261,6 +349,7 @@ export function toPublicRoom(room, viewerPlayerId) {
         timer: room.timer,
         maxTimer: room.maxTimer,
         players,
+        waitingNextRound,
         chat: room.chat.slice(-100),
         mafiaChat: isMafia ? room.mafiaChat.slice(-100) : [],
         deadChat: isDeadViewer && !viewer?.isSpectator ? room.deadChat.slice(-100) : [],
@@ -280,6 +369,7 @@ export function toPublicRoom(room, viewerPlayerId) {
         finalWordsReason: room.finalWordsReason ?? null,
         clanId: room.clanId,
         clanRoom: room.clanRoom,
+        activeEvent: room.activeEvent,
         mafiaVotes: isMafia && room.phase === 'night'
             ? (() => {
                 const votes = {};
@@ -345,9 +435,12 @@ export function getAllRooms() {
 }
 export function setPlayerAvatarUrl(room, profileId, avatarUrl) {
     for (const p of room.players.values()) {
-        if (p.profileId === profileId) {
+        if (p.profileId === profileId)
             p.avatarUrl = avatarUrl;
-        }
+    }
+    for (const p of room.waitingNextRound.values()) {
+        if (p.profileId === profileId)
+            p.avatarUrl = avatarUrl;
     }
 }
 // ── Rematch: reset room to lobby keeping players ───────────────────────
@@ -376,6 +469,17 @@ export function rematchRoom(room) {
     room.deathSpeakerId = null;
     room.finalWordsReason = null;
     room.pendingWinner = null;
+    room.activeEvent = null;
+    room.eventsLog = [];
+    room.lastDoctorTarget = null;
+    // Move waiting players into active lobby
+    for (const p of room.waitingNextRound.values()) {
+        p.isWaitingNextRound = false;
+        p.isAlive = true;
+        p.seat = getNextSeat(room);
+        room.players.set(p.id, p);
+    }
+    room.waitingNextRound = new Map();
     for (const p of room.players.values()) {
         p.role = null;
         p.team = null;
