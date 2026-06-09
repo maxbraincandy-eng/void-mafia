@@ -70,6 +70,7 @@ export function createRoom(
     joinedAt: Date.now(),
     profileId,
     isSpectator: false,
+    isWaitingNextRound: false,
     lastWill: null,
     isModerator: false,
     moderatorLevel: null,
@@ -88,6 +89,7 @@ export function createRoom(
     hostId: hostPlayer.id,
     phase: 'lobby',
     players: new Map([[hostPlayer.id, hostPlayer]]),
+    waitingNextRound: new Map(),
     day: 0,
     timer: 0,
     maxTimer: 0,
@@ -141,8 +143,22 @@ export function deleteRoom(id: string): void {
 }
 
 export function addPlayer(room: Room, socketId: string, name: string, profileId: string | null): Player {
-  // Re-join: find existing player by profileId or name
+  // Re-join: find existing player by profileId or name (active players)
   for (const player of room.players.values()) {
+    if (profileId && player.profileId === profileId) {
+      player.socketId = socketId;
+      player.isConnected = true;
+      return player;
+    }
+    if (!profileId && player.name === name.trim()) {
+      player.socketId = socketId;
+      player.isConnected = true;
+      return player;
+    }
+  }
+
+  // Re-join: check waiting-next-round map
+  for (const player of room.waitingNextRound.values()) {
     if (profileId && player.profileId === profileId) {
       player.socketId = socketId;
       player.isConnected = true;
@@ -177,6 +193,7 @@ export function addPlayer(room: Room, socketId: string, name: string, profileId:
     joinedAt: Date.now(),
     profileId,
     isSpectator: false,
+    isWaitingNextRound: false,
     lastWill: null,
     isModerator: false,
     moderatorLevel: null,
@@ -187,7 +204,58 @@ export function addPlayer(room: Room, socketId: string, name: string, profileId:
   return player;
 }
 
+export function addWaitingPlayer(room: Room, socketId: string, name: string, profileId: string | null): Player {
+  // Check if already in waiting list
+  for (const p of room.waitingNextRound.values()) {
+    if (profileId && p.profileId === profileId) {
+      p.socketId = socketId;
+      p.isConnected = true;
+      return p;
+    }
+    if (!profileId && p.name === name.trim()) {
+      p.socketId = socketId;
+      p.isConnected = true;
+      return p;
+    }
+  }
+
+  const player: Player = {
+    id: generateId(),
+    name: name.trim().slice(0, 24) || 'Player',
+    avatar: nameToAvatar(name),
+    avatarUrl: null,
+    socketId,
+    isHost: false,
+    isAlive: false,
+    isConnected: true,
+    isReady: false,
+    role: null,
+    team: null,
+    voteTarget: null,
+    hasActedThisPhase: false,
+    seat: 0,
+    joinedAt: Date.now(),
+    profileId,
+    isSpectator: false,
+    isWaitingNextRound: true,
+    lastWill: null,
+    isModerator: false,
+    moderatorLevel: null,
+    deathType: null,
+  };
+
+  room.waitingNextRound.set(player.id, player);
+  return player;
+}
+
 export function removePlayer(room: Room, playerId: string): void {
+  // Check waitingNextRound first
+  const waiting = room.waitingNextRound.get(playerId);
+  if (waiting) {
+    room.waitingNextRound.delete(playerId);
+    return;
+  }
+
   const player = room.players.get(playerId);
   if (!player) return;
 
@@ -221,11 +289,17 @@ export function getPlayerBySocket(room: Room, socketId: string): Player | undefi
   for (const p of room.players.values()) {
     if (p.socketId === socketId) return p;
   }
+  for (const p of room.waitingNextRound.values()) {
+    if (p.socketId === socketId) return p;
+  }
   return undefined;
 }
 
 export function getPlayerByProfile(room: Room, profileId: string): Player | undefined {
   for (const p of room.players.values()) {
+    if (p.profileId === profileId) return p;
+  }
+  for (const p of room.waitingNextRound.values()) {
     if (p.profileId === profileId) return p;
   }
   return undefined;
@@ -247,35 +321,42 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
   const isCultLeader = viewer?.role === 'cult_leader';
   const isYakuza = viewer?.team === 'yakuza';
 
+  const mapToPublic = (p: Player): PlayerPublic => ({
+    id: p.id,
+    socketId: p.socketId,
+    name: p.name,
+    avatar: p.avatar,
+    avatarUrl: p.avatarUrl,
+    isHost: p.isHost,
+    isAlive: p.isAlive,
+    isConnected: p.isConnected,
+    isReady: p.isReady,
+    role: (p.id === viewerPlayerId || isGameOver || viewer?.isSpectator) ? p.role : null,
+    team: (p.id === viewerPlayerId || isGameOver || viewer?.isSpectator) ? p.team : null,
+    // Mafia sees fellow mafia roles
+    ...(isMafia && p.team === 'mafia' ? { role: p.role, team: p.team } : {}),
+    // Cult leader sees all cult members
+    ...(isCultLeader && p.team === 'cult' ? { role: p.role, team: p.team } : {}),
+    // Yakuza team members see each other
+    ...(isYakuza && p.team === 'yakuza' ? { role: p.role, team: p.team } : {}),
+    voteTarget: room.phase === 'voting' ? p.voteTarget : null,
+    hasActed: p.id === viewerPlayerId ? p.hasActedThisPhase : false,
+    seat: p.seat,
+    profileId: p.profileId,
+    isModerator: p.isModerator,
+    moderatorLevel: p.moderatorLevel,
+    isSpectator: p.isSpectator,
+    isWaitingNextRound: p.isWaitingNextRound,
+    deathType: p.deathType,
+  });
+
   const players: PlayerPublic[] = [...room.players.values()]
     .sort((a, b) => a.seat - b.seat)
-    .map(p => ({
-      id: p.id,
-      socketId: p.socketId,
-      name: p.name,
-      avatar: p.avatar,
-      avatarUrl: p.avatarUrl,
-      isHost: p.isHost,
-      isAlive: p.isAlive,
-      isConnected: p.isConnected,
-      isReady: p.isReady,
-      role: (p.id === viewerPlayerId || isGameOver || viewer?.isSpectator) ? p.role : null,
-      team: (p.id === viewerPlayerId || isGameOver || viewer?.isSpectator) ? p.team : null,
-      // Mafia sees fellow mafia roles
-      ...(isMafia && p.team === 'mafia' ? { role: p.role, team: p.team } : {}),
-      // Cult leader sees all cult members
-      ...(isCultLeader && p.team === 'cult' ? { role: p.role, team: p.team } : {}),
-      // Yakuza team members see each other
-      ...(isYakuza && p.team === 'yakuza' ? { role: p.role, team: p.team } : {}),
-      voteTarget: room.phase === 'voting' ? p.voteTarget : null,
-      hasActed: p.id === viewerPlayerId ? p.hasActedThisPhase : false,
-      seat: p.seat,
-      profileId: p.profileId,
-      isModerator: p.isModerator,
-      moderatorLevel: p.moderatorLevel,
-      isSpectator: p.isSpectator,
-      deathType: p.deathType,
-    }));
+    .map(mapToPublic);
+
+  const waitingNextRound: PlayerPublic[] = [...room.waitingNextRound.values()]
+    .sort((a, b) => a.joinedAt - b.joinedAt)
+    .map(mapToPublic);
 
   const isDeadViewer = viewer ? (!viewer.isAlive || viewer.isSpectator) : false;
 
@@ -287,6 +368,7 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     timer: room.timer,
     maxTimer: room.maxTimer,
     players,
+    waitingNextRound,
     chat: room.chat.slice(-100),
     mafiaChat: isMafia ? room.mafiaChat.slice(-100) : [],
     deadChat: isDeadViewer && !viewer?.isSpectator ? room.deadChat.slice(-100) : [],
@@ -373,9 +455,10 @@ export function getAllRooms(): Room[] {
 
 export function setPlayerAvatarUrl(room: Room, profileId: string, avatarUrl: string | null): void {
   for (const p of room.players.values()) {
-    if (p.profileId === profileId) {
-      p.avatarUrl = avatarUrl;
-    }
+    if (p.profileId === profileId) p.avatarUrl = avatarUrl;
+  }
+  for (const p of room.waitingNextRound.values()) {
+    if (p.profileId === profileId) p.avatarUrl = avatarUrl;
   }
 }
 
@@ -405,6 +488,14 @@ export function rematchRoom(room: Room): void {
   room.deathSpeakerId   = null;
   room.finalWordsReason = null;
   room.pendingWinner    = null;
+  // Move waiting players into active lobby
+  for (const p of room.waitingNextRound.values()) {
+    p.isWaitingNextRound = false;
+    p.isAlive = true;
+    p.seat = getNextSeat(room);
+    room.players.set(p.id, p);
+  }
+  room.waitingNextRound = new Map();
   for (const p of room.players.values()) {
     p.role = null;
     p.team = null;

@@ -168,6 +168,7 @@ export function GamePage() {
   const t = useT();
 
   const amSpectator = myPlayer?.isSpectator ?? false;
+  const amWaitingNextRound = myPlayer?.isWaitingNextRound ?? false;
 
   // Auto-switch to spectator tab on join
   useEffect(() => {
@@ -481,7 +482,38 @@ export function GamePage() {
   );
 
   // ── Phase center content (shared)
-  const PhaseContent = (
+  const WaitingNextRoundBanner = amWaitingNextRound ? (
+    <div className="py-8 space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="w-1.5 h-1.5 rounded-full bg-white/40 animate-pulse" />
+        <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-white/40">Waiting for Next Round</span>
+        <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.08), transparent)' }} />
+      </div>
+      <p className="text-white/35 text-sm font-mono leading-relaxed">
+        The current round is still in progress. You'll be assigned a role and seat when the next round begins.
+      </p>
+      <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+        <p className="text-[10px] font-mono tracking-widest uppercase text-white/25 mb-2">Players In This Round</p>
+        <p className="font-mono text-white/50 text-lg font-bold">
+          {room.players.filter(p => !p.isSpectator && !p.isWaitingNextRound).length}
+        </p>
+      </div>
+      {(room.waitingNextRound ?? []).length > 1 && (
+        <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+          <p className="text-[10px] font-mono tracking-widest uppercase text-white/25 mb-2">Also Waiting</p>
+          <div className="flex flex-wrap gap-2">
+            {(room.waitingNextRound ?? []).filter(p => p.id !== myPlayer?.id).map(p => (
+              <span key={p.id} className="text-xs font-mono text-white/40 px-2 py-0.5 rounded border border-white/[0.07]">
+                {p.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  const PhaseContent = amWaitingNextRound ? WaitingNextRoundBanner : (
     <AnimatePresence mode="wait">
       <motion.div
         key={phase}
@@ -1149,6 +1181,17 @@ export function GamePage() {
                 </div>
               )}
 
+              {/* Waiting-next-round count */}
+              {(room.waitingNextRound?.length ?? 0) > 0 && (
+                <div
+                  className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg border border-white/10 bg-white/[0.03] text-white/40 text-xs font-mono cursor-default"
+                  title={`${room.waitingNextRound!.length} player${room.waitingNextRound!.length !== 1 ? 's' : ''} waiting for next round`}
+                >
+                  <span>⏳</span>
+                  <span className="font-bold">{room.waitingNextRound!.length}</span>
+                </div>
+              )}
+
               {/* Players list button — between role badge and Guide */}
               <button
                 onClick={() => setShowPlayersPanel(true)}
@@ -1594,6 +1637,7 @@ export function GamePage() {
         open={showPlayersPanel}
         onClose={() => setShowPlayersPanel(false)}
         players={activePlayers}
+        waitingNextRound={room.waitingNextRound ?? []}
         phase={phase}
         currentSpeakerId={phase === 'speech' ? room.currentSpeakerId : null}
         myPlayerId={myPlayer?.id ?? null}

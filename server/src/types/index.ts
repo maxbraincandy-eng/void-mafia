@@ -270,6 +270,7 @@ export interface Player {
   joinedAt: number;
   profileId: string | null;
   isSpectator: boolean;
+  isWaitingNextRound: boolean;
   lastWill: string | null;
   isModerator: boolean;
   moderatorLevel: ModeratorLevel | null;
@@ -335,6 +336,7 @@ export interface Room {
   hostId: string;
   phase: Phase;
   players: Map<string, Player>;
+  waitingNextRound: Map<string, Player>;
   day: number;
   timer: number;
   maxTimer: number;
@@ -389,6 +391,7 @@ export interface PlayerPublic {
   isModerator: boolean;
   moderatorLevel: ModeratorLevel | null;
   isSpectator: boolean;
+  isWaitingNextRound: boolean;
   deathType: 'night' | 'vote' | null;
 }
 
@@ -400,6 +403,7 @@ export interface RoomPublic {
   timer: number;
   maxTimer: number;
   players: PlayerPublic[];
+  waitingNextRound: PlayerPublic[];
   chat: ChatMessage[];
   mafiaChat: ChatMessage[];
   killedLastNight: Array<{ id: string; name: string; lastWill?: string | null }>;

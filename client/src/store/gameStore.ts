@@ -55,7 +55,7 @@ interface GameStore {
   connect: () => void;
   disconnect: () => void;
   createRoom: (name: string, settings?: Partial<GameSettings>, clanRoom?: boolean) => Promise<void>;
-  joinRoom: (code: string, name: string, isSpectator?: boolean, password?: string) => Promise<void>;
+  joinRoom: (code: string, name: string, isSpectator?: boolean, password?: string, joinMode?: 'player' | 'spectator' | 'next_round') => Promise<void>;
   leaveRoom: () => Promise<void>;
   terminateGame: () => Promise<void>;
   toggleReady: () => Promise<void>;
@@ -101,12 +101,15 @@ export const useGameStore = create<GameStore>((set, get) => {
     }
     // Auto-rejoin room after transport reconnect
     if (room && myPlayerId) {
-      const player = room.players.find(p => p.id === myPlayerId);
+      const player =
+        room.players.find(p => p.id === myPlayerId) ??
+        (room.waitingNextRound ?? []).find(p => p.id === myPlayerId);
       if (player) {
         emitWithAck<unknown, Res<RoomPublic>>('room:join', {
           code: room.code,
           name: player.name,
           isSpectator: player.isSpectator,
+          ...(player.isWaitingNextRound ? { joinMode: 'next_round' } : {}),
         }).then(res => {
           if (res.ok) {
             set({ room: res.data, isReconnecting: false });
@@ -380,7 +383,12 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     myPlayer: () => {
       const { room, myPlayerId } = get();
-      return room?.players.find(p => p.id === myPlayerId) ?? null;
+      if (!room || !myPlayerId) return null;
+      return (
+        room.players.find(p => p.id === myPlayerId) ??
+        (room.waitingNextRound ?? []).find(p => p.id === myPlayerId) ??
+        null
+      );
     },
     amHost: () => get().myPlayer()?.isHost ?? false,
     amAlive: () => get().myPlayer()?.isAlive ?? false,
@@ -399,12 +407,24 @@ export const useGameStore = create<GameStore>((set, get) => {
       set({ room, myPlayerId: room.players.find(p => p.isHost)?.id ?? null });
     }),
 
-    joinRoom: withLoading(async (code: string, name: string, isSpectator = false, password = '') => {
-      const room = await emit<RoomPublic>('room:join', { code, name, isSpectator, password });
-      // My player is the one who isn't already in our store
-      const myPlayer = room.players.find(p => p.name === name);
-      set({ room, myPlayerId: myPlayer?.id ?? null });
-    }),
+    joinRoom: async (code: string, name: string, isSpectator = false, password = '', joinMode?: 'player' | 'spectator' | 'next_round') => {
+      set({ isLoading: true, error: null });
+      try {
+        const room = await emit<RoomPublic>('room:join', { code, name, isSpectator, password, ...(joinMode ? { joinMode } : {}) });
+        // Find my player in active players or waitingNextRound
+        const myPlayer =
+          room.players.find(p => p.name === name) ??
+          (room.waitingNextRound ?? []).find(p => p.name === name);
+        set({ room, myPlayerId: myPlayer?.id ?? null, isLoading: false, error: null });
+      } catch (e: any) {
+        const msg = e?.message ?? 'An error occurred.';
+        set({ error: msg, isLoading: false });
+        // Don't toast the "choose mode" sentinel — the UI handles it as a modal
+        if (msg !== 'GAME_ALREADY_STARTED_CHOOSE_MODE') {
+          get().addToast(msg, 'error');
+        }
+      }
+    },
 
     leaveRoom: withLoading(async () => {
       await emit('room:leave');
