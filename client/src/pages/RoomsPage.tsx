@@ -34,11 +34,15 @@ export function RoomsPage() {
   const [joinAsSpectator, setJoinAsSpectator] = useState(false);
   const [joinPassword, setJoinPassword] = useState('');
   const [spectatorModal, setSpectatorModal] = useState<RoomListItem | null>(null);
+  const [activeJoinModal, setActiveJoinModal] = useState<RoomListItem | null>(null);
+  const [activeJoinCode, setActiveJoinCode] = useState<string | null>(null);
 
-  const { createRoom, joinRoom, isLoading } = useGameStore(s => ({
+  const { createRoom, joinRoom, isLoading, error, clearError } = useGameStore(s => ({
     createRoom: s.createRoom,
     joinRoom: s.joinRoom,
     isLoading: s.isLoading,
+    error: s.error,
+    clearError: s.clearError,
   }));
   const username = useAuthStore(s => s.username) ?? '';
   const myClanId = useAuthStore(s => s.myClanId);
@@ -72,12 +76,27 @@ export function RoomsPage() {
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (code.length < 6) return;
+    clearError();
     await joinRoom(code.toUpperCase(), username, joinAsSpectator, joinPassword);
+    // If the game is running, server returns this special error — show mode selection modal
+    const currentError = useGameStore.getState().error;
+    if (currentError === 'GAME_ALREADY_STARTED_CHOOSE_MODE') {
+      clearError();
+      setActiveJoinCode(code.toUpperCase());
+    }
   };
 
   const handleQuickJoin = async (room: RoomListItem, isSpectator: boolean) => {
     setSpectatorModal(null);
     await joinRoom(room.code, username, isSpectator);
+  };
+
+  const handleActiveJoin = async (mode: 'spectator' | 'next_round') => {
+    const roomCode = activeJoinModal?.code ?? activeJoinCode;
+    if (!roomCode) return;
+    setActiveJoinModal(null);
+    setActiveJoinCode(null);
+    await joinRoom(roomCode, username, false, joinPassword, mode);
   };
 
   const phaseLabel: Record<string, string> = t.rooms.phase;
@@ -107,6 +126,62 @@ export function RoomsPage() {
       />
 
       <LeaderboardModal open={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
+
+      {/* ── Active-game join modal ─────────────────────────────── */}
+      <AnimatePresence>
+        {(activeJoinModal || activeJoinCode) && (
+          <motion.div
+            key="active-join-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center px-4"
+            style={{ background: 'rgba(0,0,0,0.7)' }}
+            onClick={() => { setActiveJoinModal(null); setActiveJoinCode(null); }}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              className="w-full max-w-sm rounded-2xl border border-white/[0.08] p-6"
+              style={{ background: 'rgba(10,6,28,0.97)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <h3 className="font-display font-bold text-white/80 tracking-widest uppercase text-sm mb-1">
+                Game In Progress
+              </h3>
+              <p className="text-xs font-mono text-white/35 mb-5">
+                {activeJoinModal ? `${activeJoinModal.hostName}'s room · ${activeJoinModal.playerCount} players` : `Room ${activeJoinCode}`}
+              </p>
+
+              <div className="space-y-3 mb-5">
+                <button
+                  onClick={() => handleActiveJoin('spectator')}
+                  className="w-full py-3.5 px-4 rounded-xl border border-neon-cyan/20 bg-neon-cyan/[0.04] hover:bg-neon-cyan/[0.08] text-left transition-all"
+                >
+                  <p className="text-sm font-mono font-bold text-neon-cyan/80">Watch as Spectator</p>
+                  <p className="text-[11px] font-mono text-white/30 mt-0.5">Listen-only · no game actions</p>
+                </button>
+
+                <button
+                  onClick={() => handleActiveJoin('next_round')}
+                  className="w-full py-3.5 px-4 rounded-xl border border-neon-purple/20 bg-neon-purple/[0.04] hover:bg-neon-purple/[0.08] text-left transition-all"
+                >
+                  <p className="text-sm font-mono font-bold text-white/70">Join Next Round</p>
+                  <p className="text-[11px] font-mono text-white/30 mt-0.5">Wait in room · play when round ends</p>
+                </button>
+              </div>
+
+              <button
+                onClick={() => { setActiveJoinModal(null); setActiveJoinCode(null); }}
+                className="w-full py-2.5 rounded-xl font-mono text-xs text-white/30 hover:text-white/55 transition-colors border border-white/[0.05] hover:border-white/10"
+              >
+                Cancel
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-7">
 
@@ -254,9 +329,9 @@ export function RoomsPage() {
                           size="sm"
                           variant="ghost"
                           loading={isLoading}
-                          onClick={() => handleQuickJoin(room, true)}
+                          onClick={() => setActiveJoinModal(room)}
                         >
-                          Watch
+                          Join
                         </Button>
                       )}
                     </div>

@@ -6,6 +6,20 @@ import { getAlivePlayers } from './roomService.js';
 
 // ── Start Game ────────────────────────────────────────────────────────
 export function startGame(room: Room): void {
+  // Merge waiting-next-round players into active players
+  for (const p of room.waitingNextRound.values()) {
+    p.isWaitingNextRound = false;
+    p.isAlive = true;
+    p.isConnected = true;
+    // Assign next available seat
+    const usedSeats = new Set([...room.players.values()].map(q => q.seat));
+    let seat = 1;
+    while (usedSeats.has(seat)) seat++;
+    p.seat = seat;
+    room.players.set(p.id, p);
+  }
+  room.waitingNextRound = new Map();
+
   const allPlayers = [...room.players.values()];
   const activePlayers = allPlayers.filter(p => !p.isSpectator);
   const count = activePlayers.length;

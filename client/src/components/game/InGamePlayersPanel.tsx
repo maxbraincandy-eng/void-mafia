@@ -7,6 +7,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   players: PlayerPublic[];
+  waitingNextRound?: PlayerPublic[];
   phase: Phase;
   currentSpeakerId?: string | null;
   myPlayerId?: string | null;
@@ -18,11 +19,11 @@ function initialsOf(name: string): string {
 }
 
 export function InGamePlayersPanel({
-  open, onClose, players, phase, currentSpeakerId, myPlayerId, speakingSocketIds
+  open, onClose, players, waitingNextRound = [], phase, currentSpeakerId, myPlayerId, speakingSocketIds
 }: Props) {
   const { openProfile } = useSocialStore();
 
-  const activePlayers = players.filter(p => !p.isSpectator);
+  const activePlayers = players.filter(p => !p.isSpectator && !p.isWaitingNextRound);
   const alivePlayers  = activePlayers.filter(p => p.isAlive);
   const deadPlayers   = activePlayers.filter(p => !p.isAlive);
 
@@ -109,6 +110,26 @@ export function InGamePlayersPanel({
                         isSpeaker={false}
                         isSpeaking={false}
                         dead
+                        onTap={() => handleTap(p)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {waitingNextRound.length > 0 && (
+                <div className="pt-4">
+                  <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-white/25 mb-2 px-1">
+                    ⏳ Waiting Next Round · {waitingNextRound.length}
+                  </p>
+                  <div className="space-y-1.5 opacity-60">
+                    {waitingNextRound.map(p => (
+                      <PlayerRow
+                        key={p.id}
+                        player={p}
+                        isMe={p.id === myPlayerId}
+                        isSpeaker={false}
+                        isSpeaking={false}
                         onTap={() => handleTap(p)}
                       />
                     ))}
