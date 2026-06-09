@@ -701,6 +701,7 @@ export interface ClientToServerEvents {
   'game:action':        (data: { targetId: string }, cb: Cb<null>) => void;
   'game:vote':          (data: { targetId: string | null }, cb: Cb<null>) => void;
   'game:skip':          (cb: Cb<null>) => void;
+  'game:speech_pass':   (cb: Cb<null>) => void;
   'game:nominate':      (data: { nomineeId: string | null }, cb: Cb<null>) => void;
   'game:day_skip_vote': (cb: Cb<null>) => void;
   'game:restart':       (cb: Cb<null>) => void;

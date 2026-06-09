@@ -123,7 +123,7 @@ export function GamePage() {
     nightResult, investigationResult, spyReport, gameOverResult,
     voteEliminationResult, cultConversionNotice, nightSummary, newAchievements,
     voteBreakdown,
-    skipPhase, daySkipVote, leaveRoom, terminateGame,
+    skipPhase, speechPass, daySkipVote, leaveRoom, terminateGame,
     dismissNightResult, dismissInvestigation, dismissSpyReport, dismissGameOver,
     dismissVoteElimination, dismissCultConversion, dismissNightSummary, dismissNewAchievements,
     dismissVoteBreakdown,
@@ -145,6 +145,7 @@ export function GamePage() {
     newAchievements: s.newAchievements,
     voteBreakdown: s.voteBreakdown,
     skipPhase: s.skipPhase,
+    speechPass: s.speechPass,
     daySkipVote: s.daySkipVote,
     leaveRoom: s.leaveRoom,
     terminateGame: s.terminateGame,
@@ -1511,9 +1512,8 @@ export function GamePage() {
 
                 {/* Day skip vote — glass style */}
                 {phase === 'day' && !amSpectator && amAlive && (() => {
-                  const active = room.players.filter(p => p.isAlive && !p.isSpectator);
-                  const skipNeeded = Math.min(3, Math.floor(active.length / 2) + 1);
                   const alreadyVoted = room.daySkipVoteCount ?? 0;
+                  const skipNeeded = 3;
                   return (
                     <div className="flex-shrink-0 flex justify-center px-4 pb-4" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem))' }}>
                       <button
@@ -1524,7 +1524,7 @@ export function GamePage() {
                           background: 'rgba(255,255,255,0.05)',
                           border: '1px solid rgba(255,255,255,0.15)',
                           backdropFilter: 'blur(12px)',
-                          color: alreadyVoted >= skipNeeded ? 'rgba(0,229,255,0.9)' : 'rgba(255,255,255,0.5)',
+                          color: alreadyVoted > 0 ? 'rgba(0,229,255,0.9)' : 'rgba(255,255,255,0.5)',
                           boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
                         }}
                       >
@@ -1534,11 +1534,26 @@ export function GamePage() {
                   );
                 })()}
 
-                {(amHost || (phase === 'speech' && room.currentSpeakerId === myPlayer?.id && amAlive)) && phase === 'speech' && (
-                  <div className="flex-shrink-0 px-4 py-2 pb-20 text-center">
-                    <Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>
-                      {amHost ? <>⏭ {t.game.header.skip}</> : t.game.passTurn}
-                    </Button>
+                {/* Speech pass — current speaker skips own turn */}
+                {phase === 'speech' && !amSpectator && (amHost || (room.currentSpeakerId === myPlayer?.id && amAlive)) && (
+                  <div className="flex-shrink-0 flex justify-center px-4 pb-4" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem))' }}>
+                    <button
+                      onClick={() => {
+                        if (amHost) { skipPhase(); } else { speechPass(); }
+                        navigator.vibrate?.(50);
+                      }}
+                      disabled={isLoading}
+                      className="px-6 py-3 rounded-2xl text-sm font-mono font-semibold transition-all active:scale-95 disabled:opacity-40"
+                      style={{
+                        background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        backdropFilter: 'blur(12px)',
+                        color: 'rgba(255,255,255,0.5)',
+                        boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
+                      }}
+                    >
+                      ⏭ Skip
+                    </button>
                   </div>
                 )}
               </div>

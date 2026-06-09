@@ -1232,6 +1232,30 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    // ── Speech Pass (current speaker skips own turn) ─────────────────
+    socket.on('game:speech_pass', async (cb) => {
+      try {
+        const room = getRoomFromSocket(socket);
+        const player = getPlayerOrError(socket, room);
+        if (room.phase !== 'speech') throw new Error('Can only pass during speech phase.');
+        if (!player.isAlive || player.isSpectator) throw new Error('Only alive players can pass.');
+        const currentSpeakerId = room.speechOrder?.[room.currentSpeakerIdx ?? 0];
+        if (player.id !== currentSpeakerId) throw new Error('Only the current speaker can pass.');
+
+        timerService.stop(room.id);
+        room.timer = 0;
+
+        advancePhase(room); const nextPhase = room.phase as Phase;
+        if (nextPhase !== 'speech') announceSpeechEnd(io, room, nextPhase);
+        announceActiveEvent(io, room);
+        if (nextPhase === 'game_over') await emitGameOver(io, room);
+        broadcastRoom(io, room);
+        enforceVoicePhaseRules(io, room);
+        if (nextPhase !== 'game_over') startPhaseTimer(io, room);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     // ── Day Skip Vote ───────────────────────────────────────────────
     socket.on('game:day_skip_vote', (cb) => {
       try {
@@ -1243,7 +1267,7 @@ export function attachSocketHandlers(io: AppServer): void {
 
         room.daySkipVotes.push(player.id);
         const alivePlayers = [...room.players.values()].filter(p => p.isAlive && !p.isSpectator);
-        const skipNeeded = Math.min(3, Math.floor(alivePlayers.length / 2) + 1);
+        const skipNeeded = Math.min(3, alivePlayers.length);
 
         if (room.daySkipVotes.length >= skipNeeded) {
           timerService.stop(room.id);
