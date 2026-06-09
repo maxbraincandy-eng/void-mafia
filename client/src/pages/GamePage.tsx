@@ -75,15 +75,15 @@ const PHASE_GLOW: Partial<Record<Phase, string>> = {
   day:          '0 0 10px rgba(0,196,204,0.5)',
 };
 
-function getPhaseSubtitle(phase: Phase, day: number, currentSpeakerName?: string | null, amAlive = true, isSpectator = false): string {
-  if (isSpectator) return 'Watching…';
+function getPhaseSubtitle(phase: Phase, day: number, t: import('@/i18n/translations').T, currentSpeakerName?: string | null, amAlive = true, isSpectator = false): string {
+  if (isSpectator) return t.game.phaseSubtitles.watching;
   switch (phase) {
-    case 'role_reveal': return 'Your role has been assigned.';
-    case 'night':       return amAlive ? 'Use your ability or wait for dawn.' : 'You are eliminated. Watch silently.';
-    case 'day':         return day === 1 ? 'Common discussion — no vote yet.' : 'Discuss and find the Mafia.';
-    case 'speech':      return currentSpeakerName ? `${currentSpeakerName} is speaking…` : 'Players take turns to speak.';
-    case 'voting':      return 'Vote to eliminate a suspect.';
-    case 'game_over':   return 'The game is over.';
+    case 'role_reveal': return t.game.phaseSubtitles.roleAssigned;
+    case 'night':       return amAlive ? t.game.phaseSubtitles.nightAlive : t.game.phaseSubtitles.nightEliminated;
+    case 'day':         return day === 1 ? t.game.phaseSubtitles.dayFirst : t.game.phaseSubtitles.dayNormal;
+    case 'speech':      return currentSpeakerName ? t.game.phaseSubtitles.speechActive.replace('{name}', currentSpeakerName) : t.game.phaseSubtitles.speechTurns;
+    case 'voting':      return t.game.phaseSubtitles.voting;
+    case 'game_over':   return t.game.phaseSubtitles.gameOver;
     default:            return '';
   }
 }
@@ -484,13 +484,13 @@ export function GamePage() {
             <div className="py-8 space-y-4">
               <div className="flex items-center gap-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-neon-purple/60" />
-                <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-neon-purple/60">Spectating</span>
+                <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-neon-purple/60">{t.game.spectatingLabel}</span>
                 <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(155,0,255,0.2), transparent)' }} />
               </div>
-              <p className="text-white/40 text-sm font-mono">Roles are being revealed to players…</p>
+              <p className="text-white/40 text-sm font-mono">{t.game.roleRevealSpectating}</p>
               {Object.keys(room.activeRoleCounts ?? {}).length > 0 && (
                 <div className="rounded-xl border border-neon-purple/15 bg-neon-purple/[0.04] p-3">
-                  <p className="text-[10px] font-mono tracking-widest uppercase text-neon-purple/50 mb-2">Role Distribution</p>
+                  <p className="text-[10px] font-mono tracking-widest uppercase text-neon-purple/50 mb-2">{t.game.roleDistribution}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {Object.entries(room.activeRoleCounts).map(([role, count]) => (
                       <span key={role} className="text-[10px] font-mono px-2 py-0.5 rounded border border-white/10 text-white/40">
@@ -530,7 +530,7 @@ export function GamePage() {
                 <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(155,0,255,0.25), transparent)' }} />
               </div>
               <p className="text-white/40 text-sm font-mono pl-4">
-                {amSpectator ? 'Players are taking their night actions…' : amAlive ? t.game.night.activeMsg : t.game.night.eliminatedMsg}
+                {amSpectator ? t.game.spectatingNight : amAlive ? t.game.night.activeMsg : t.game.night.eliminatedMsg}
               </p>
             </div>
             {/* Mafia Radio — private night channel */}
@@ -538,8 +538,8 @@ export function GamePage() {
               <div className="rounded-2xl border border-neon-red/20 overflow-hidden" style={{ background: 'rgba(30,0,8,0.7)' }}>
                 <div className="flex items-center gap-2.5 px-3 py-2 border-b border-neon-red/10">
                   <span className="text-xs" style={{ filter: 'drop-shadow(0 0 4px rgba(255,45,85,0.8))' }}>📻</span>
-                  <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-neon-red/70">Mafia Radio</span>
-                  <span className="text-[9px] font-mono text-white/25 ml-auto">Only Mafia can hear this</span>
+                  <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-neon-red/70">{t.game.mafiaRadio}</span>
+                  <span className="text-[9px] font-mono text-white/25 ml-auto">{t.game.mafiaRadioOnly}</span>
                 </div>
                 <div className="p-3">
                   <VoiceControls
@@ -563,8 +563,8 @@ export function GamePage() {
             {/* Night message for non-Mafia alive players */}
             {!isMafiaPlayer && amAlive && !amSpectator && (
               <div className="rounded-xl border border-white/[0.06] px-4 py-3" style={{ background: 'rgba(10,6,28,0.6)' }}>
-                <p className="text-[10px] font-mono tracking-widest uppercase text-white/25 mb-1">Voice</p>
-                <p className="text-white/35 text-xs font-mono">Public voice is disabled at night.</p>
+                <p className="text-[10px] font-mono tracking-widest uppercase text-white/25 mb-1">{t.game.voiceLabel}</p>
+                <p className="text-white/35 text-xs font-mono">{t.game.voiceDisabledNight}</p>
               </div>
             )}
             {!amSpectator && <NightPanel />}
@@ -641,7 +641,7 @@ export function GamePage() {
                 ) : room.savedLastNight ? (
                   <p className="text-neon-green text-sm">💊 {t.game.day.doctorSaved}</p>
                 ) : (
-                  <p className="text-white/40 text-sm font-mono">The night passed quietly.</p>
+                  <p className="text-white/40 text-sm font-mono">{t.game.nightPassedQuietly}</p>
                 )}
               </div>
             </div>
@@ -673,9 +673,9 @@ export function GamePage() {
                       {t.game.speech.speaker} {speakerIdx + 1} {t.game.speech.of} {totalSpeakers}
                     </p>
                     {room.currentSpeakerId === myPlayer?.id ? (
-                      <p className="text-neon-green text-[10px] font-mono tracking-widest uppercase">It's your turn — mic is live</p>
+                      <p className="text-neon-green text-[10px] font-mono tracking-widest uppercase">{t.game.yourTurnMic}</p>
                     ) : (
-                      <p className="text-yellow-500/60 text-[10px] font-mono tracking-widest uppercase">Listening · mic muted</p>
+                      <p className="text-yellow-500/60 text-[10px] font-mono tracking-widest uppercase">{t.game.listeningMuted}</p>
                     )}
                   </div>
                 ) : (
@@ -725,7 +725,7 @@ export function GamePage() {
               {Object.keys(room.nominations ?? {}).length > 0 && (
                 <div className="p-3 rounded-xl border border-white/8 bg-white/3 space-y-1.5">
                   <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest">
-                    Nominations
+                    {t.game.nominations}
                   </p>
                   {Object.entries(room.nominations ?? {}).map(([nominatorId, nomineeId]) => {
                     const nominator = room.players.find(p => p.id === nominatorId);
@@ -761,7 +761,7 @@ export function GamePage() {
                 </p>
                 <span className="text-white/15 text-xs">·</span>
                 <p className="text-white/30 text-xs font-mono">
-                  {votedCount}/{aliveVoters.length} voted
+                  {votedCount}/{aliveVoters.length} {t.game.voted}
                 </p>
                 {votedCount > 0 && (
                   <div className="flex-1 h-0.5 bg-white/[0.06] rounded-full overflow-hidden max-w-[60px]">
@@ -835,7 +835,7 @@ export function GamePage() {
             className="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-xl border border-neon-cyan/30 bg-[rgba(0,20,30,0.95)] backdrop-blur-sm shadow-lg"
           >
             <span className="w-1.5 h-1.5 rounded-full bg-neon-cyan animate-pulse flex-shrink-0" />
-            <span className="text-xs font-mono text-neon-cyan/80">Reconnected · syncing game state</span>
+            <span className="text-xs font-mono text-neon-cyan/80">{t.game.reconnected}</span>
           </motion.div>
         )}
       </AnimatePresence>
@@ -867,7 +867,7 @@ export function GamePage() {
               >
                 {/* Role name */}
                 <div className="text-center">
-                  <p className="text-[10px] font-mono tracking-[0.3em] uppercase mb-2" style={{ color: `${myRole.glowColor}80` }}>Your Role</p>
+                  <p className="text-[10px] font-mono tracking-[0.3em] uppercase mb-2" style={{ color: `${myRole.glowColor}80` }}>{t.game.yourRole}</p>
                   <h2
                     className="font-display text-3xl font-bold tracking-widest uppercase"
                     style={{ color: myRole.glowColor, textShadow: `0 0 20px ${myRole.glowColor}` }}
@@ -1054,7 +1054,7 @@ export function GamePage() {
                 )}
               </h1>
               <p className="text-[10px] font-mono text-white/35 truncate hidden sm:block leading-tight mt-0.5">
-                {getPhaseSubtitle(phase, room.day, room.players.find(p => p.id === room.currentSpeakerId)?.name, amAlive, amSpectator)}
+                {getPhaseSubtitle(phase, room.day, t, room.players.find(p => p.id === room.currentSpeakerId)?.name, amAlive, amSpectator)}
               </p>
             </div>
 
@@ -1069,7 +1069,7 @@ export function GamePage() {
             <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-neon-green/20 bg-neon-green/5">
               <div className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
               <span className="text-xs font-mono text-neon-green/80 font-bold">{alivePlayers}</span>
-              <span className="text-[10px] font-mono text-white/30">alive</span>
+              <span className="text-[10px] font-mono text-white/30">{t.game.alive}</span>
             </div>
 
             <div className="ml-auto flex items-center gap-1.5 md:gap-3">
@@ -1082,7 +1082,7 @@ export function GamePage() {
               {/* Spectator badge */}
               {amSpectator && (
                 <div className="px-2 py-1 rounded-lg border border-neon-purple/40 bg-neon-purple/10 text-[10px] font-mono tracking-widest uppercase text-neon-purple/80">
-                  SPECTATOR
+                  {t.game.spectatorBadge}
                 </div>
               )}
 
@@ -1130,7 +1130,7 @@ export function GamePage() {
                 className="hidden sm:flex px-2.5 py-1 rounded-lg text-[10px] font-mono tracking-widest uppercase text-white/30 hover:text-white/70 hover:bg-white/5 transition-all"
                 title={t.game.header.leaderboard}
               >
-                Ranks
+                {t.game.ranks}
               </button>
 
               {/* Pause button (host only, during active phases) */}
@@ -1215,7 +1215,7 @@ export function GamePage() {
             {/* Spectator role distribution panel */}
             {amSpectator && phase !== 'lobby' && phase !== 'role_reveal' && Object.keys(room.activeRoleCounts ?? {}).length > 0 && (
               <div className="mb-3 rounded-xl border border-neon-purple/15 bg-neon-purple/[0.04] p-3 flex-shrink-0">
-                <p className="text-[10px] font-mono tracking-widest uppercase text-neon-purple/50 mb-2">Roles in play</p>
+                <p className="text-[10px] font-mono tracking-widest uppercase text-neon-purple/50 mb-2">{t.game.rolesInPlay}</p>
                 <div className="flex flex-wrap gap-1">
                   {Object.entries(room.activeRoleCounts).map(([role, count]) => (
                     <span key={role} className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/8 text-white/35">
@@ -1238,7 +1238,7 @@ export function GamePage() {
                       : 'border border-white/8 text-white/30 hover:text-white/60',
                   )}
                 >
-                  {tab === 'events' ? 'Events' : 'Chat'}
+                  {tab === 'events' ? t.game.eventsTab : t.game.chatTab}
                   {tab === 'events' && unreadEvents > 0 && (
                     <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-neon-cyan text-void text-[8px] flex items-center justify-center font-bold">
                       {unreadEvents > 9 ? '9+' : unreadEvents}
@@ -1316,11 +1316,11 @@ export function GamePage() {
                   return (
                     <>
                       <div className="text-center space-y-2">
-                        <p className="text-[10px] font-mono tracking-[0.3em] uppercase text-neon-red/60">Final Words</p>
+                        <p className="text-[10px] font-mono tracking-[0.3em] uppercase text-neon-red/60">{t.game.finalWordsTitle}</p>
                         <h2 className="text-2xl font-display font-bold text-white">
                           {deathPlayer?.name ?? '—'}
                         </h2>
-                        <p className="text-sm font-mono text-white/40">has 30 seconds to speak</p>
+                        <p className="text-sm font-mono text-white/40">{t.game.finalWordsSecs}</p>
                       </div>
                       <div
                         className="w-24 h-24 rounded-full border-2 border-neon-red/40 flex items-center justify-center"
@@ -1330,7 +1330,7 @@ export function GamePage() {
                       </div>
                       {room.deathSpeakerId === myPlayer?.id && (
                         <div className="space-y-3 w-full max-w-xs">
-                          <p className="text-center text-xs font-mono text-neon-red/70">Your mic is active — speak now</p>
+                          <p className="text-center text-xs font-mono text-neon-red/70">{t.game.finalWordsMic}</p>
                           {VoicePanel}
                         </div>
                       )}
@@ -1428,7 +1428,7 @@ export function GamePage() {
                 {(amHost || (phase === 'speech' && room.currentSpeakerId === myPlayer?.id && amAlive)) && phase === 'speech' && (
                   <div className="flex-shrink-0 px-4 py-2 pb-20 text-center">
                     <Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>
-                      {amHost ? <>⏭ {t.game.header.skip}</> : 'Pass →'}
+                      {amHost ? <>⏭ {t.game.header.skip}</> : t.game.passTurn}
                     </Button>
                   </div>
                 )}

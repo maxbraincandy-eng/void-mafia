@@ -132,8 +132,8 @@ export function LobbyPage() {
                 )} />
                 <span className="text-[11px] font-mono text-white/35">
                   {allReady && canStart
-                    ? 'All players ready'
-                    : `${playerCount} / ${minPlayers} joined`}
+                    ? t.lobby.allReady
+                    : t.lobby.joinedOf.replace('{n}', String(playerCount)).replace('{m}', String(minPlayers))}
                 </span>
               </div>
               <span className="text-white/10 select-none">·</span>
@@ -141,7 +141,7 @@ export function LobbyPage() {
                 onClick={() => setShowRoleGuide(true)}
                 className="text-[11px] font-mono text-white/22 hover:text-white/50 transition-colors"
               >
-                Role Guide ↗
+                {t.lobby.roleGuideLink}
               </button>
             </div>
           </div>
@@ -428,7 +428,7 @@ export function LobbyPage() {
 
               {amSpectator && (
                 <div className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/[0.07] text-white/28 text-sm font-mono">
-                  Watching as spectator
+                  {t.lobby.watchingSpectator}
                 </div>
               )}
 
@@ -527,19 +527,19 @@ export function LobbyPage() {
                   <div className="pt-1 space-y-3">
                     <div className={`${SURFACE} p-4`} style={SURFACE_BG}>
                       <label className="block text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2.5">
-                        Room Password
+                        {t.lobby.passwordSection}
                       </label>
                       <input
                         type="text"
                         maxLength={64}
-                        placeholder="Leave blank for open room"
+                        placeholder={t.lobby.passwordOpen}
                         value={room.settings.password ?? ''}
                         onChange={e => updateSettings({ password: e.target.value })}
                         className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-3 py-2 text-sm font-mono text-white/65 placeholder-white/15 focus:outline-none focus:border-neon-cyan/28 transition-colors"
                       />
                       {room.settings.password && (
                         <p className="text-[10px] font-mono text-white/28 mt-2">
-                          Players will need this password to join.
+                          {t.lobby.passwordHint}
                         </p>
                       )}
                     </div>

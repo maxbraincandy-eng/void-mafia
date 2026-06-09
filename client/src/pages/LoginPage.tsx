@@ -45,8 +45,8 @@ export function LoginPage() {
   };
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: 'signin',   label: '🔑 Sign In'  },
-    { id: 'register', label: '✉️ Register' },
+    { id: 'signin',   label: t.login.signInTab  },
+    { id: 'register', label: t.login.registerTab },
   ];
 
   return (
@@ -102,7 +102,7 @@ export function LoginPage() {
             }}
           >
             {oauthLoading ? (
-              <span className="text-white/50 text-sm font-mono tracking-wide">Signing in…</span>
+              <span className="text-white/50 text-sm font-mono tracking-wide">{t.login.signingIn}</span>
             ) : (
               <>
                 <svg viewBox="0 0 24 24" className="w-5 h-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg">
@@ -111,7 +111,7 @@ export function LoginPage() {
                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                 </svg>
-                <span className="text-white/80 text-sm font-mono font-bold tracking-wide">Continue with Google</span>
+                <span className="text-white/80 text-sm font-mono font-bold tracking-wide">{t.login.continueGoogle}</span>
               </>
             )}
           </button>
@@ -125,7 +125,7 @@ export function LoginPage() {
           className="flex items-center gap-3 mb-4"
         >
           <div className="flex-1 h-px bg-white/8" />
-          <span className="text-white/20 text-[10px] font-mono tracking-widest uppercase">or with email</span>
+          <span className="text-white/20 text-[10px] font-mono tracking-widest uppercase">{t.login.orEmail}</span>
           <div className="flex-1 h-px bg-white/8" />
         </motion.div>
 
@@ -169,7 +169,7 @@ export function LoginPage() {
                 exit={{ opacity: 0, x: 10 }}
                 onSubmit={handleSignIn}
               >
-                <label className="block text-xs font-mono text-white/40 uppercase tracking-widest mb-2">Email</label>
+                <label className="block text-xs font-mono text-white/40 uppercase tracking-widest mb-2">{t.login.email}</label>
                 <input
                   type="email"
                   value={email}
@@ -178,7 +178,7 @@ export function LoginPage() {
                   autoFocus
                   className="w-full bg-void-50/80 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 font-mono text-sm focus:outline-none focus:border-neon-cyan/50 transition-all mb-3"
                 />
-                <label className="block text-xs font-mono text-white/40 uppercase tracking-widest mb-2">Password</label>
+                <label className="block text-xs font-mono text-white/40 uppercase tracking-widest mb-2">{t.login.password}</label>
                 <div className="relative mb-4">
                   <input
                     type={showPass ? 'text' : 'password'}
@@ -198,12 +198,12 @@ export function LoginPage() {
                   disabled={!email || !password || isLoading}
                   className="w-full bg-gradient-to-r from-neon-cyan to-neon-purple text-white font-display font-bold tracking-widest py-3 rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-neon-cyan active:scale-95"
                 >
-                  {isLoading ? t.login.connecting : 'Sign In'}
+                  {isLoading ? t.login.connecting : t.login.signInBtn}
                 </button>
                 <p className="text-white/25 text-xs font-mono text-center mt-3">
-                  No account?{' '}
+                  {t.login.noAccountQ}{' '}
                   <button type="button" onClick={() => setTab('register')} className="text-neon-cyan hover:underline">
-                    Register
+                    {t.login.registerLink}
                   </button>
                 </p>
               </motion.form>
@@ -218,17 +218,17 @@ export function LoginPage() {
                 exit={{ opacity: 0, x: 10 }}
                 onSubmit={handleRegister}
               >
-                <label className="block text-xs font-mono text-white/40 uppercase tracking-widest mb-2">Username</label>
+                <label className="block text-xs font-mono text-white/40 uppercase tracking-widest mb-2">{t.login.usernameLabel}</label>
                 <input
                   type="text"
                   value={regName}
                   onChange={e => setRegName(e.target.value)}
-                  placeholder="Your display name"
+                  placeholder={t.login.displayNamePh}
                   maxLength={24}
                   autoFocus
                   className="w-full bg-void-50/80 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 font-mono text-sm focus:outline-none focus:border-neon-purple/50 transition-all mb-3"
                 />
-                <label className="block text-xs font-mono text-white/40 uppercase tracking-widest mb-2">Email</label>
+                <label className="block text-xs font-mono text-white/40 uppercase tracking-widest mb-2">{t.login.email}</label>
                 <input
                   type="email"
                   value={email}
@@ -236,13 +236,13 @@ export function LoginPage() {
                   placeholder="your@email.com"
                   className="w-full bg-void-50/80 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 font-mono text-sm focus:outline-none focus:border-neon-purple/50 transition-all mb-3"
                 />
-                <label className="block text-xs font-mono text-white/40 uppercase tracking-widest mb-2">Password</label>
+                <label className="block text-xs font-mono text-white/40 uppercase tracking-widest mb-2">{t.login.password}</label>
                 <div className="relative mb-4">
                   <input
                     type={showPass ? 'text' : 'password'}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    placeholder="Min. 6 characters"
+                    placeholder={t.login.minPass}
                     className="w-full bg-void-50/80 border border-white/10 rounded-xl px-4 py-3 pr-10 text-white placeholder-white/20 font-mono text-sm focus:outline-none focus:border-neon-purple/50 transition-all"
                   />
                   <button type="button" onClick={() => setShowPass(v => !v)}
@@ -256,12 +256,12 @@ export function LoginPage() {
                   disabled={regName.trim().length < 2 || !email || password.length < 6 || isLoading}
                   className="w-full bg-gradient-to-r from-neon-purple to-neon-pink text-white font-display font-bold tracking-widest py-3 rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-neon-purple active:scale-95"
                 >
-                  {isLoading ? t.login.connecting : 'Create Account'}
+                  {isLoading ? t.login.connecting : t.login.createAccount}
                 </button>
                 <p className="text-white/25 text-xs font-mono text-center mt-3">
-                  Already have an account?{' '}
+                  {t.login.alreadyAccount}{' '}
                   <button type="button" onClick={() => setTab('signin')} className="text-neon-cyan hover:underline">
-                    Sign In
+                    {t.login.signInLink}
                   </button>
                 </p>
               </motion.form>
@@ -288,7 +288,7 @@ export function LoginPage() {
               <path d="M17.523 15.341a1 1 0 1 1 0-2 1 1 0 0 1 0 2m-11.046 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2m11.4-6.021-.022.038-1.892-3.272a.5.5 0 0 0-.862.5l1.908 3.3A10.9 10.9 0 0 0 12 9c-1.684 0-3.273.384-4.7 1.065l1.909-3.302a.5.5 0 0 0-.862-.498L6.444 9.539A10.96 10.96 0 0 0 2 18.5h20a10.96 10.96 0 0 0-4.123-9.18" />
             </svg>
             <div className="min-w-0">
-              <p className="text-[11px] font-mono text-white/70 group-hover:text-white/90 transition-colors leading-tight">Download for Android</p>
+              <p className="text-[11px] font-mono text-white/70 group-hover:text-white/90 transition-colors leading-tight">{t.login.downloadAndroid}</p>
               <p className="text-[9px] font-mono text-white/28 leading-tight">APK · voidmafia.one</p>
             </div>
             <svg viewBox="0 0 16 16" className="w-3 h-3 shrink-0 text-white/20 group-hover:text-white/45 fill-current transition-colors ml-auto" xmlns="http://www.w3.org/2000/svg">
@@ -301,8 +301,8 @@ export function LoginPage() {
               <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11"/>
             </svg>
             <div className="min-w-0">
-              <p className="text-[11px] font-mono text-white/45 leading-tight">iOS coming soon</p>
-              <p className="text-[9px] font-mono text-white/20 leading-tight">TestFlight planned</p>
+              <p className="text-[11px] font-mono text-white/45 leading-tight">{t.login.iosSoon}</p>
+              <p className="text-[9px] font-mono text-white/20 leading-tight">{t.login.iosFlight}</p>
             </div>
           </div>
         </motion.div>
