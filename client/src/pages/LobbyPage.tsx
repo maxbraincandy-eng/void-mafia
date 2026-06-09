@@ -15,6 +15,7 @@ import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { RoomMoreMenu } from '@/components/ui/RoomMoreMenu';
 import { ModDashboardPage } from '@/pages/ModDashboardPage';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
+import { DEFAULT_DYNAMIC_EVENTS } from '@/types/index';
 
 const SURFACE = 'rounded-2xl border border-white/[0.06]';
 const SURFACE_BG = { background: 'rgba(10, 6, 28, 0.92)' } as const;
@@ -562,6 +563,132 @@ export function LobbyPage() {
                       onUpdate={updateSettings}
                       isLoading={isLoading}
                     />
+
+                    {/* Dynamic Events settings */}
+                    {(() => {
+                      const de = room.settings.dynamicEvents ?? DEFAULT_DYNAMIC_EVENTS;
+                      const EVENT_LABELS: Array<{ key: keyof typeof de.allowed; label: string; icon: string }> = [
+                        { key: 'blackoutNight',    label: 'Blackout Night',       icon: '🌑' },
+                        { key: 'bloodMoon',        label: 'Blood Moon',           icon: '🔴' },
+                        { key: 'sheriffFog',       label: 'Sheriff Fog',          icon: '🌫️' },
+                        { key: 'doctorPressure',   label: 'Doctor Pressure',      icon: '💊' },
+                        { key: 'silentDay',        label: 'Silent Day',           icon: '🔇' },
+                        { key: 'doubleVote',       label: 'Double Vote',          icon: '2×' },
+                        { key: 'noRevealDay',      label: 'No Reveal',            icon: '🎭' },
+                        { key: 'anonymousVoting',  label: 'Anonymous Vote',       icon: '👻' },
+                        { key: 'extendedFinalWords', label: 'Extended Final Words', icon: '⏳' },
+                      ];
+                      const updateDE = (patch: Partial<typeof de>) => {
+                        updateSettings({ dynamicEvents: { ...de, ...patch } });
+                      };
+                      return (
+                        <div className={`${SURFACE} p-4 space-y-4`} style={SURFACE_BG}>
+                          {/* Header + master toggle */}
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest">
+                                Dynamic Events
+                              </p>
+                              <p className="text-[10px] font-mono text-white/18 mt-0.5">
+                                Random chaos events each phase
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => updateDE({ enabled: !de.enabled })}
+                              disabled={isLoading}
+                              className={clsx(
+                                'relative w-10 h-5 rounded-full border transition-all flex-shrink-0',
+                                de.enabled
+                                  ? 'border-neon-cyan/50 bg-neon-cyan/15'
+                                  : 'border-white/[0.12] bg-white/[0.03]',
+                              )}
+                            >
+                              <span className={clsx(
+                                'absolute top-0.5 w-4 h-4 rounded-full transition-all',
+                                de.enabled
+                                  ? 'left-5 bg-neon-cyan'
+                                  : 'left-0.5 bg-white/20',
+                              )} />
+                            </button>
+                          </div>
+
+                          {/* Expanded options when enabled */}
+                          <AnimatePresence>
+                            {de.enabled && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="overflow-hidden space-y-3"
+                              >
+                                {/* Frequency */}
+                                <div>
+                                  <p className="text-[10px] font-mono text-white/22 uppercase tracking-widest mb-2">
+                                    Frequency
+                                  </p>
+                                  <div className="flex gap-2">
+                                    {(['low', 'medium', 'high'] as const).map(f => (
+                                      <button
+                                        key={f}
+                                        onClick={() => updateDE({ frequency: f })}
+                                        disabled={isLoading}
+                                        className={clsx(
+                                          'flex-1 py-1.5 rounded-lg border text-[10px] font-mono tracking-widest uppercase transition-all',
+                                          de.frequency === f
+                                            ? 'border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan/80'
+                                            : 'border-white/[0.07] text-white/25 hover:border-white/15 hover:text-white/45',
+                                        )}
+                                      >
+                                        {f}
+                                        <span className="block text-[8px] opacity-60 mt-0.5 normal-case tracking-normal">
+                                          {f === 'low' ? '10%' : f === 'medium' ? '20%' : '35%'}
+                                        </span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {/* Event toggles */}
+                                <div>
+                                  <p className="text-[10px] font-mono text-white/22 uppercase tracking-widest mb-2">
+                                    Allowed Events
+                                  </p>
+                                  <div className="grid grid-cols-1 gap-1">
+                                    {EVENT_LABELS.map(({ key, label, icon }) => {
+                                      const enabled = de.allowed[key] !== false;
+                                      return (
+                                        <button
+                                          key={key}
+                                          onClick={() => updateDE({
+                                            allowed: { ...de.allowed, [key]: !enabled },
+                                          })}
+                                          disabled={isLoading}
+                                          className={clsx(
+                                            'flex items-center gap-2.5 px-3 py-2 rounded-lg border text-left transition-all',
+                                            enabled
+                                              ? 'border-white/[0.08] bg-white/[0.025]'
+                                              : 'border-white/[0.04] opacity-45',
+                                          )}
+                                        >
+                                          <span className="text-sm leading-none flex-shrink-0">{icon}</span>
+                                          <span className="text-[11px] font-mono text-white/55 flex-1">{label}</span>
+                                          <span className={clsx(
+                                            'text-[9px] font-mono uppercase tracking-widest flex-shrink-0',
+                                            enabled ? 'text-neon-green/50' : 'text-white/15',
+                                          )}>
+                                            {enabled ? 'on' : 'off'}
+                                          </span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </motion.div>
               )}
