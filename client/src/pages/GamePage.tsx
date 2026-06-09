@@ -822,21 +822,40 @@ export function GamePage() {
         onClose={() => setShowMoreMenu(false)}
         phase={phase}
         roomCode={room.code}
-        spectators={room.players.filter(p => p.isSpectator)}
+        players={room.players}
         amHost={amHost}
-        isInVoice={isInVoice}
+        isMod={isMod}
+        isSpectator={amSpectator}
         activeRoleCounts={room.activeRoleCounts}
         clanId={room.clanId}
         clanRoom={room.clanRoom}
         viewerClanId={myClanId}
         viewerClanRole={myClanRole}
+        voice={{
+          channel: voice.channel,
+          status: voice.status,
+          isMuted: voice.isMuted,
+          cameraOn: voice.cameraOn,
+          listenOnly: voice.listenOnly || (!amAlive && !(phase === 'final_words' && room.deathSpeakerId === myPlayer?.id)) || amSpectator,
+          peerCount: voice.peers.length,
+          forceMuted: voice.forceMuted,
+          error: voice.error,
+          defaultChannel: voiceChannel,
+          onJoin: (ch, withCamera) => {
+            if (amSpectator) { voice.joinVoiceListenOnly(ch ?? 'room'); return; }
+            voice.joinVoice(ch ?? voiceChannel, withCamera);
+          },
+          onLeave: () => voice.leaveVoice(),
+          onToggleMute: voice.toggleMute,
+          onToggleCamera: voice.toggleCamera,
+          onReset: () => {
+            const hadCamera = voice.cameraOn;
+            voice.leaveVoice();
+            setTimeout(() => voice.joinVoice(voiceChannel, hadCamera), 800);
+          },
+        }}
         onLeaveRoom={() => { voice.leaveVoice(); leaveRoom(); }}
         onTerminateGame={amHost ? terminateGame : undefined}
-        onResetVoice={isInVoice ? () => {
-          const hadCamera = voice.cameraOn;
-          voice.leaveVoice();
-          setTimeout(() => voice.joinVoice(voiceChannel, hadCamera), 800);
-        } : undefined}
         onShowRoleGuide={() => setShowRoleGuide(true)}
       />
 
