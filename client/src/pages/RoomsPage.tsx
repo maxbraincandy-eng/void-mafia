@@ -226,13 +226,6 @@ export function RoomsPage() {
           {/* Right controls */}
           <div className="flex items-center gap-2 flex-shrink-0">
             <LanguageSwitcher />
-            <button
-              onClick={() => setShowLeaderboard(true)}
-              className="px-3 py-1.5 rounded-xl border border-white/[0.07] text-white/25 hover:text-white/55 hover:border-white/14 font-mono text-sm transition-all"
-              title={t.game.header.leaderboard}
-            >
-              ◈
-            </button>
           </div>
         </div>
 
