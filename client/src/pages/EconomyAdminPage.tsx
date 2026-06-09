@@ -229,7 +229,8 @@ export function EconomyAdminPage() {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -16 }}
-      className="min-h-screen bg-void px-4 pt-6 pb-8"
+      className="min-h-screen bg-void px-4 pb-8"
+      style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top, 1.5rem))' }}
     >
       {/* Header */}
       <div className="mb-5">

@@ -144,7 +144,7 @@ function MainApp() {
         {page === 'mod' && isMod            && <ModDashboardPage key="mod" />}
         {page === 'economy' && isOwner      && <EconomyAdminPage key="economy" />}
       </AnimatePresence>
-      <BottomNav active={page} isMod={isMod} isOwner={isOwner} onChange={setPage} onMessagesClick={openDmList} />
+      <BottomNav active={page} isMod={isMod} onChange={setPage} onMessagesClick={openDmList} />
       <MorePanel isOwner={isOwner} onEconomyClick={() => setPage('economy')} />
     </div>
   );
