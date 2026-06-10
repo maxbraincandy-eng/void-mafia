@@ -2,10 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
-import { socket, emitWithAck } from '@/lib/socket';
+import { emitWithAck } from '@/lib/socket';
 import type { LobbyMessage, Res } from '@/types/index';
-
-const SURFACE_BG = { background: 'rgba(8, 4, 22, 0.97)' } as const;
 
 function AvatarBubble({ avatar, avatarUrl, size = 28 }: { avatar: string; avatarUrl?: string | null; size?: number }) {
   if (avatarUrl) {
@@ -28,12 +26,12 @@ function AvatarBubble({ avatar, avatarUrl, size = 28 }: { avatar: string; avatar
 }
 
 export function LobbyChatPanel() {
-  const { lobbyChatOpen, closeLobbyChat, lobbyMessages, clearLobbyChatUnread } = useSocialStore(s => ({
+  const { lobbyChatOpen, closeLobbyChat, clearLobbyChatUnread } = useSocialStore(s => ({
     lobbyChatOpen: s.lobbyChatOpen,
     closeLobbyChat: s.closeLobbyChat,
-    lobbyMessages: s.lobbyMessages,
     clearLobbyChatUnread: s.clearLobbyChatUnread,
   }));
+  const msgs = useSocialStore(s => s.lobbyMessages);
   const myProfileId = useAuthStore(s => s.profile?.id);
 
   const [text, setText] = useState('');
@@ -42,21 +40,14 @@ export function LobbyChatPanel() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { lobbyMessages: msgs, pushLobbyMessage } = useSocialStore(s => ({
-    lobbyMessages: s.lobbyMessages,
-    pushLobbyMessage: s.pushLobbyMessage,
-  }));
-
-  // Load history when panel opens
   const loadHistory = useCallback(async () => {
     if (loaded) return;
     try {
       const res = await emitWithAck<Record<string, never>, Res<LobbyMessage[]>>('lobby:history', {});
       if (res.ok && res.data) {
-        // Merge history into store without duplicates
         useSocialStore.setState(s => {
           const existing = new Set(s.lobbyMessages.map(m => m.id));
-          const fresh = res.data.filter((m: LobbyMessage) => !existing.has(m.id));
+          const fresh = (res.data as LobbyMessage[]).filter(m => !existing.has(m.id));
           return { lobbyMessages: [...fresh, ...s.lobbyMessages].slice(-100) };
         });
       }
@@ -68,16 +59,15 @@ export function LobbyChatPanel() {
     if (lobbyChatOpen) {
       clearLobbyChatUnread();
       loadHistory();
-      setTimeout(() => inputRef.current?.focus(), 200);
+      setTimeout(() => inputRef.current?.focus(), 300);
     }
   }, [lobbyChatOpen]);
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     if (lobbyChatOpen) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [msgs, lobbyChatOpen]);
+  }, [msgs.length, lobbyChatOpen]);
 
   const handleSend = async () => {
     const trimmed = text.trim();
@@ -97,38 +87,37 @@ export function LobbyChatPanel() {
     }
   };
 
-  const fmt = (ts: number) => {
-    const d = new Date(ts);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+  const fmt = (ts: number) =>
+    new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   return (
     <AnimatePresence>
       {lobbyChatOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]"
-            onClick={closeLobbyChat}
-          />
+        // Full-screen overlay at z-[60] — above the bottom nav (z-50)
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[60]"
+          onClick={closeLobbyChat}
+        >
+          {/* Backdrop blur */}
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" />
 
-          {/* Panel — slides up from bottom, sits above the bottom nav (~64px) */}
+          {/* Sheet — slides up from bottom, covers 65% of screen */}
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', stiffness: 380, damping: 36 }}
-            className="fixed left-0 right-0 z-50 flex flex-col"
+            className="absolute bottom-0 left-0 right-0 flex flex-col"
             style={{
-              ...SURFACE_BG,
-              bottom: 'calc(64px + env(safe-area-inset-bottom, 0px))',
-              maxHeight: '65vh',
+              height: '65vh',
+              background: 'rgba(8, 4, 22, 0.98)',
               borderRadius: '20px 20px 0 0',
-              borderTop: '1px solid rgba(255,255,255,0.07)',
+              borderTop: '1px solid rgba(255,255,255,0.08)',
             }}
+            onClick={e => e.stopPropagation()}
           >
             {/* Header */}
             <div className="flex items-center gap-3 px-5 py-4 border-b border-white/[0.06] shrink-0">
@@ -144,7 +133,7 @@ export function LobbyChatPanel() {
               </button>
             </div>
 
-            {/* Messages */}
+            {/* Messages — flex-1 with min-h-0 so input is never pushed out */}
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
               {msgs.length === 0 && (
                 <p className="text-center text-white/20 font-mono text-xs py-8">
@@ -156,19 +145,17 @@ export function LobbyChatPanel() {
                 return (
                   <div key={msg.id} className={`flex items-start gap-2.5 ${isMe ? 'flex-row-reverse' : ''}`}>
                     <AvatarBubble avatar={msg.avatar} avatarUrl={msg.avatarUrl} size={30} />
-                    <div className={`max-w-[72%] ${isMe ? 'items-end' : 'items-start'} flex flex-col gap-0.5`}>
+                    <div className={`max-w-[72%] flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
                       <div className={`flex items-center gap-1.5 ${isMe ? 'flex-row-reverse' : ''}`}>
                         <span className="text-[10px] font-mono text-white/40">{msg.username}</span>
                         <span className="text-[9px] font-mono text-neon-cyan/30">Lv{msg.level}</span>
                         <span className="text-[9px] font-mono text-white/18">{fmt(msg.createdAt)}</span>
                       </div>
-                      <div
-                        className={`px-3 py-2 rounded-2xl text-sm font-mono leading-snug ${
-                          isMe
-                            ? 'bg-neon-cyan/[0.12] text-neon-cyan/80 rounded-tr-sm'
-                            : 'bg-white/[0.06] text-white/65 rounded-tl-sm'
-                        }`}
-                      >
+                      <div className={`px-3 py-2 rounded-2xl text-sm font-mono leading-snug ${
+                        isMe
+                          ? 'bg-neon-cyan/[0.12] text-neon-cyan/80 rounded-tr-sm'
+                          : 'bg-white/[0.06] text-white/65 rounded-tl-sm'
+                      }`}>
                         {msg.text}
                       </div>
                     </div>
@@ -178,8 +165,11 @@ export function LobbyChatPanel() {
               <div ref={bottomRef} />
             </div>
 
-            {/* Input */}
-            <div className="px-4 py-3 border-t border-white/[0.06] shrink-0">
+            {/* Input — always visible, shrink-0 */}
+            <div
+              className="px-4 pt-3 pb-4 border-t border-white/[0.06] shrink-0"
+              style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom, 16px))' }}
+            >
               <div className="flex items-center gap-2">
                 <input
                   ref={inputRef}
@@ -202,7 +192,7 @@ export function LobbyChatPanel() {
               </div>
             </div>
           </motion.div>
-        </>
+        </motion.div>
       )}
     </AnimatePresence>
   );
