@@ -84,15 +84,9 @@ export function RoomsPage() {
     }
   };
 
-  const handleQuickJoin = async (room: RoomListItem, isSpectator: boolean) => {
+  const handleQuickJoin = async (room: RoomListItem, isSpectator: boolean, joinMode?: 'player' | 'spectator' | 'next_round') => {
     setSpectatorModal(null);
-    await joinRoom(room.code, username, isSpectator);
-    // If game started while spectator modal was open, show mode selection
-    const currentError = useGameStore.getState().error;
-    if (currentError === 'GAME_ALREADY_STARTED_CHOOSE_MODE') {
-      clearError();
-      setActiveJoinModal(room);
-    }
+    await joinRoom(room.code, username, isSpectator, '', joinMode);
   };
 
   const handleActiveJoin = async (mode: 'spectator' | 'next_round') => {
@@ -310,25 +304,14 @@ export function RoomsPage() {
                     </div>
 
                     <div className="shrink-0">
-                      {isLobby ? (
-                        <Button
-                          size="sm"
-                          variant="neon-cyan"
-                          loading={isLoading}
-                          onClick={() => setSpectatorModal(room)}
-                        >
-                          {t.rooms.joinCode}
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          loading={isLoading}
-                          onClick={() => setActiveJoinModal(room)}
-                        >
-                          {t.rooms.join}
-                        </Button>
-                      )}
+                      <Button
+                        size="sm"
+                        variant={isLobby ? 'neon-cyan' : 'ghost'}
+                        loading={isLoading}
+                        onClick={() => setSpectatorModal(room)}
+                      >
+                        {isLobby ? t.rooms.joinCode : t.rooms.watch ?? 'Watch'}
+                      </Button>
                     </div>
                   </motion.div>
                 );
@@ -479,7 +462,7 @@ export function RoomsPage() {
         )}
       </div>
 
-      {/* Spectator modal */}
+      {/* Join / Spectator modal */}
       <AnimatePresence>
         {spectatorModal && (
           <motion.div
@@ -498,27 +481,61 @@ export function RoomsPage() {
               style={SURFACE_BG}
               onClick={e => e.stopPropagation()}
             >
-              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-0.5">{t.rooms.joinCode}</p>
-              <p className="font-mono font-bold text-neon-cyan/75 tracking-[0.25em] text-xl mb-5">
+              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-0.5">
+                {spectatorModal.phase === 'lobby' ? t.rooms.joinRoom : t.rooms.watch ?? 'Watch'}
+              </p>
+              <p className="font-mono font-bold text-neon-cyan/75 tracking-[0.25em] text-xl mb-1">
                 {spectatorModal.code}
               </p>
+              <p className="text-[10px] font-mono text-white/25 mb-4">
+                {spectatorModal.playerCount} {t.rooms.players} · {phaseLabel[spectatorModal.phase] ?? spectatorModal.phase}
+              </p>
               <div className="flex flex-col gap-2">
-                <Button
-                  fullWidth
-                  variant="neon-cyan"
-                  loading={isLoading}
-                  onClick={() => handleQuickJoin(spectatorModal, false)}
+                {spectatorModal.phase === 'lobby' ? (
+                  <>
+                    <Button
+                      fullWidth
+                      variant="neon-cyan"
+                      loading={isLoading}
+                      onClick={() => handleQuickJoin(spectatorModal, false)}
+                    >
+                      {t.rooms.joinAsPlayer ?? 'Join as Player'}
+                    </Button>
+                    <Button
+                      fullWidth
+                      variant="ghost"
+                      loading={isLoading}
+                      onClick={() => handleQuickJoin(spectatorModal, true)}
+                    >
+                      {t.rooms.watchOnly ?? 'Watch Only'}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      fullWidth
+                      variant="neon-purple"
+                      loading={isLoading}
+                      onClick={() => handleQuickJoin(spectatorModal, true, 'next_round')}
+                    >
+                      {t.rooms.joinQueue ?? 'Join Next Round Queue'}
+                    </Button>
+                    <Button
+                      fullWidth
+                      variant="ghost"
+                      loading={isLoading}
+                      onClick={() => handleQuickJoin(spectatorModal, true, 'spectator')}
+                    >
+                      {t.rooms.watchOnly ?? 'Watch Only'}
+                    </Button>
+                  </>
+                )}
+                <button
+                  className="text-xs font-mono text-white/25 hover:text-white/45 transition-colors py-1"
+                  onClick={() => setSpectatorModal(null)}
                 >
-                  {t.rooms.joinAsPlayer}
-                </Button>
-                <Button
-                  fullWidth
-                  variant="ghost"
-                  loading={isLoading}
-                  onClick={() => handleQuickJoin(spectatorModal, true)}
-                >
-                  {t.rooms.watchSpectator}
-                </Button>
+                  {t.common.cancel ?? 'Cancel'}
+                </button>
               </div>
             </motion.div>
           </motion.div>

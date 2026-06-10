@@ -129,6 +129,7 @@ export function GamePage() {
     dismissVoteBreakdown,
     pauseTimer, submitVote, nominate,
     isLoading, addToast,
+    joinQueue, leaveQueue, queuePosition,
   } = useGameStore(s => ({
     room: s.room,
     myPlayer: s.myPlayer(),
@@ -163,6 +164,9 @@ export function GamePage() {
     nominate: s.nominate,
     isLoading: s.isLoading,
     addToast: s.addToast,
+    joinQueue: s.joinQueue,
+    leaveQueue: s.leaveQueue,
+    queuePosition: s.queuePosition,
   }));
 
   const voice = useVoiceChat();
@@ -170,7 +174,7 @@ export function GamePage() {
   const t = useT();
 
   const amSpectator = myPlayer?.isSpectator ?? false;
-  const amWaitingNextRound = myPlayer?.isWaitingNextRound ?? false;
+  const amQueuedNextRound = myPlayer?.isQueuedNextRound ?? false;
 
   // Auto-switch to spectator tab on join
   useEffect(() => {
@@ -484,7 +488,7 @@ export function GamePage() {
   );
 
   // ── Phase center content (shared)
-  const WaitingNextRoundBanner = amWaitingNextRound ? (
+  const WaitingNextRoundBanner = amQueuedNextRound ? (
     <div className="py-8 space-y-4">
       <div className="flex items-center gap-3">
         <div className="w-1.5 h-1.5 rounded-full bg-white/40 animate-pulse" />
@@ -497,14 +501,14 @@ export function GamePage() {
       <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
         <p className="text-[10px] font-mono tracking-widest uppercase text-white/25 mb-2">Players In This Round</p>
         <p className="font-mono text-white/50 text-lg font-bold">
-          {room.players.filter(p => !p.isSpectator && !p.isWaitingNextRound).length}
+          {room.players.filter(p => !p.isSpectator && !p.isQueuedNextRound).length}
         </p>
       </div>
-      {(room.waitingNextRound ?? []).length > 1 && (
+      {(room.nextRoundQueue ?? []).length > 1 && (
         <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
           <p className="text-[10px] font-mono tracking-widest uppercase text-white/25 mb-2">Also Waiting</p>
           <div className="flex flex-wrap gap-2">
-            {(room.waitingNextRound ?? []).filter(p => p.id !== myPlayer?.id).map(p => (
+            {(room.nextRoundQueue ?? []).filter(p => p.id !== myPlayer?.id).map(p => (
               <span key={p.id} className="text-xs font-mono text-white/40 px-2 py-0.5 rounded border border-white/[0.07]">
                 {p.name}
               </span>
@@ -515,7 +519,7 @@ export function GamePage() {
     </div>
   ) : null;
 
-  const PhaseContent = amWaitingNextRound ? WaitingNextRoundBanner : (
+  const PhaseContent = amQueuedNextRound ? WaitingNextRoundBanner : (
     <AnimatePresence mode="wait">
       <motion.div
         key={phase}
@@ -1150,9 +1154,15 @@ export function GamePage() {
               </div>
 
               {/* Spectator badge */}
-              {amSpectator && (
+              {amSpectator && !amQueuedNextRound && (
                 <div className="px-2 py-1 rounded-lg border border-neon-purple/40 bg-neon-purple/10 text-[10px] font-mono tracking-widest uppercase text-neon-purple/80">
                   {t.game.spectatorBadge}
+                </div>
+              )}
+              {/* Queue badge */}
+              {amQueuedNextRound && (
+                <div className="px-2 py-1 rounded-lg border border-neon-cyan/40 bg-neon-cyan/10 text-[10px] font-mono tracking-widest uppercase text-neon-cyan/80">
+                  QUEUE #{queuePosition}
                 </div>
               )}
 
@@ -1184,13 +1194,13 @@ export function GamePage() {
               )}
 
               {/* Waiting-next-round count */}
-              {(room.waitingNextRound?.length ?? 0) > 0 && (
+              {(room.nextRoundQueue?.length ?? 0) > 0 && (
                 <div
                   className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg border border-white/10 bg-white/[0.03] text-white/40 text-xs font-mono cursor-default"
-                  title={`${room.waitingNextRound!.length} player${room.waitingNextRound!.length !== 1 ? 's' : ''} waiting for next round`}
+                  title={`${room.nextRoundQueue!.length} player${room.nextRoundQueue!.length !== 1 ? 's' : ''} waiting for next round`}
                 >
                   <span>⏳</span>
-                  <span className="font-bold">{room.waitingNextRound!.length}</span>
+                  <span className="font-bold">{room.nextRoundQueue!.length}</span>
                 </div>
               )}
 
@@ -1312,6 +1322,53 @@ export function GamePage() {
                     </span>
                   ))}
                 </div>
+              </div>
+            )}
+            {/* Next-Round Queue panel — visible to spectators during active games */}
+            {amSpectator && phase !== 'lobby' && phase !== 'game_over' && (
+              <div className="mb-3 rounded-xl border border-neon-cyan/15 bg-neon-cyan/[0.03] p-3 flex-shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-mono tracking-widest uppercase text-neon-cyan/50">
+                    {t.rooms.nextRoundQueue ?? 'Next Round Queue'}
+                    {(room.nextRoundQueue?.length ?? 0) > 0 && (
+                      <span className="ml-1 text-neon-cyan/70">({room.nextRoundQueue.length})</span>
+                    )}
+                  </p>
+                </div>
+                {(room.nextRoundQueue?.length ?? 0) > 0 ? (
+                  <div className="space-y-1 mb-2">
+                    {room.nextRoundQueue.map(p => (
+                      <div key={p.id} className="flex items-center gap-2 text-[11px] font-mono">
+                        <span className="text-neon-cyan/40 w-4">#{p.queuePosition}</span>
+                        <span className="text-white/50 truncate">{p.name}</span>
+                        {p.id === myPlayer?.id && (
+                          <span className="text-neon-cyan/60 text-[9px]">(you)</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[10px] font-mono text-white/20 mb-2">
+                    {t.rooms.nextRoundQueueHint ?? 'No players in queue'}
+                  </p>
+                )}
+                {amQueuedNextRound ? (
+                  <button
+                    onClick={() => leaveQueue()}
+                    disabled={isLoading}
+                    className="w-full text-[10px] font-mono py-1.5 rounded-lg border border-neon-red/30 text-neon-red/60 hover:bg-neon-red/10 transition-all"
+                  >
+                    {t.rooms.leaveQueue ?? 'Leave Queue'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => joinQueue()}
+                    disabled={isLoading}
+                    className="w-full text-[10px] font-mono py-1.5 rounded-lg border border-neon-cyan/30 text-neon-cyan/60 hover:bg-neon-cyan/10 transition-all"
+                  >
+                    {t.rooms.joinQueue ?? 'Join Next Round Queue'}
+                  </button>
+                )}
               </div>
             )}
             {/* Tab switcher */}
@@ -1676,7 +1733,7 @@ export function GamePage() {
         open={showPlayersPanel}
         onClose={() => setShowPlayersPanel(false)}
         players={activePlayers}
-        waitingNextRound={room.waitingNextRound ?? []}
+        nextRoundQueue={room.nextRoundQueue ?? []}
         phase={phase}
         currentSpeakerId={phase === 'speech' ? room.currentSpeakerId : null}
         myPlayerId={myPlayer?.id ?? null}

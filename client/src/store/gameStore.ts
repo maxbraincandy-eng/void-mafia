@@ -88,6 +88,8 @@ interface GameStore {
   setWill: (text: string) => Promise<void>;
   pauseTimer: () => Promise<void>;
   getLeaderboard: () => Promise<PlayerProfilePublic[]>;
+  joinQueue: () => Promise<void>;
+  leaveQueue: () => Promise<void>;
 }
 
 let toastCounter = 0;
@@ -102,15 +104,14 @@ export const useGameStore = create<GameStore>((set, get) => {
     }
     // Auto-rejoin room after transport reconnect
     if (room && myPlayerId) {
-      const player =
-        room.players.find(p => p.id === myPlayerId) ??
-        (room.waitingNextRound ?? []).find(p => p.id === myPlayerId);
+      const player = room.players.find(p => p.id === myPlayerId)
+        ?? room.nextRoundQueue?.find(p => p.id === myPlayerId);
       if (player) {
         emitWithAck<unknown, Res<RoomPublic>>('room:join', {
           code: room.code,
           name: player.name,
           isSpectator: player.isSpectator,
-          ...(player.isWaitingNextRound ? { joinMode: 'next_round' } : {}),
+          joinMode: player.isQueuedNextRound ? 'next_round' : (player.isSpectator ? 'spectator' : undefined),
         }).then(res => {
           if (res.ok) {
             set({ room: res.data, isReconnecting: false });
@@ -265,6 +266,21 @@ export const useGameStore = create<GameStore>((set, get) => {
     get().addToast('Spot opened — joining room!', 'success');
   });
 
+  (socket as any).on('queue:updated', ({ nextRoundQueue }: { nextRoundQueue: import('@/types/index').PlayerPublic[] }) => {
+    const { myPlayerId } = get();
+    set(s => {
+      if (!s.room) return s;
+      // Update the queue in room state
+      const updatedRoom = { ...s.room, nextRoundQueue };
+      return { room: updatedRoom };
+    });
+    // Update local queuePosition from queue data
+    if (myPlayerId) {
+      const myEntry = nextRoundQueue.find(p => p.id === myPlayerId);
+      set({ queuePosition: myEntry?.queuePosition ?? null });
+    }
+  });
+
   (socket as any).on('friend:request_received', (req: FriendRequest) => {
     set(s => ({ pendingFriendRequests: [...s.pendingFriendRequests, req] }));
     get().addToast(`Friend request from ${req.fromUsername}`, 'info');
@@ -385,11 +401,9 @@ export const useGameStore = create<GameStore>((set, get) => {
     myPlayer: () => {
       const { room, myPlayerId } = get();
       if (!room || !myPlayerId) return null;
-      return (
-        room.players.find(p => p.id === myPlayerId) ??
-        (room.waitingNextRound ?? []).find(p => p.id === myPlayerId) ??
-        null
-      );
+      return room.players.find(p => p.id === myPlayerId)
+        ?? room.nextRoundQueue?.find(p => p.id === myPlayerId)
+        ?? null;
     },
     amHost: () => get().myPlayer()?.isHost ?? false,
     amAlive: () => get().myPlayer()?.isAlive ?? false,
@@ -412,15 +426,12 @@ export const useGameStore = create<GameStore>((set, get) => {
       set({ isLoading: true, error: null });
       try {
         const room = await emit<RoomPublic>('room:join', { code, name, isSpectator, password, ...(joinMode ? { joinMode } : {}) });
-        // Find my player in active players or waitingNextRound
-        const myPlayer =
-          room.players.find(p => p.name === name) ??
-          (room.waitingNextRound ?? []).find(p => p.name === name);
+        const myPlayer = room.players.find(p => p.name === name)
+          ?? room.nextRoundQueue?.find(p => p.name === name);
         set({ room, myPlayerId: myPlayer?.id ?? null, isLoading: false, error: null });
       } catch (e: any) {
         const msg = e?.message ?? 'An error occurred.';
         set({ error: msg, isLoading: false });
-        // Don't toast the "choose mode" sentinel — the UI handles it as a modal
         if (msg !== 'GAME_ALREADY_STARTED_CHOOSE_MODE') {
           get().addToast(msg, 'error');
         }
@@ -550,5 +561,19 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (!res.ok) throw new Error(res.error);
       return res.data;
     },
+
+    joinQueue: withLoading(async () => {
+      const res = await emitWithAck<unknown, Res<{ position: number }>>('queue:join', undefined);
+      if (!res.ok) throw new Error(res.error);
+      set({ queuePosition: res.data.position });
+      get().addToast(`Joined queue — position #${res.data.position}`, 'success');
+    }),
+
+    leaveQueue: withLoading(async () => {
+      const res = await emitWithAck<unknown, Res<null>>('queue:leave', undefined);
+      if (!res.ok) throw new Error(res.error);
+      set({ queuePosition: null });
+      get().addToast('Left the next-round queue', 'info');
+    }),
   };
 });
