@@ -1,6 +1,6 @@
 export const DEFAULT_DYNAMIC_EVENTS = {
     enabled: false,
-    frequency: 'medium',
+    frequency: 'low',
     allowed: {
         blackoutNight: true, silentDay: true, doubleVote: true, noRevealDay: true,
         bloodMoon: true, anonymousVoting: true, sheriffFog: true, doctorPressure: true,

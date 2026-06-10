@@ -159,6 +159,11 @@ export interface ModLog {
     createdAt: number;
     expiresAt?: number;
 }
+export interface SpectatorQueueSettings {
+    enabled: boolean;
+    allowSpectatorsToQueue: boolean;
+    autoPromoteOnNextRound: boolean;
+}
 export interface Player {
     id: string;
     name: string;
@@ -177,7 +182,8 @@ export interface Player {
     joinedAt: number;
     profileId: string | null;
     isSpectator: boolean;
-    isWaitingNextRound: boolean;
+    isQueuedNextRound: boolean;
+    queuePosition: number | null;
     lastWill: string | null;
     isModerator: boolean;
     moderatorLevel: ModeratorLevel | null;
@@ -246,6 +252,7 @@ export interface GameSettings {
     startWithNight: boolean;
     rotatingSpeech: boolean;
     dynamicEvents: DynamicEventSettings;
+    spectatorQueue: SpectatorQueueSettings;
     roles: {
         mafia: number;
         don: number;
@@ -272,7 +279,8 @@ export interface Room {
     hostId: string;
     phase: Phase;
     players: Map<string, Player>;
-    waitingNextRound: Map<string, Player>;
+    /** Players waiting to join as active players in the next round */
+    nextRoundQueue: Player[];
     day: number;
     timer: number;
     maxTimer: number;
@@ -332,7 +340,8 @@ export interface PlayerPublic {
     isModerator: boolean;
     moderatorLevel: ModeratorLevel | null;
     isSpectator: boolean;
-    isWaitingNextRound: boolean;
+    isQueuedNextRound: boolean;
+    queuePosition: number | null;
     deathType: 'night' | 'vote' | null;
 }
 export interface RoomPublic {
@@ -343,7 +352,8 @@ export interface RoomPublic {
     timer: number;
     maxTimer: number;
     players: PlayerPublic[];
-    waitingNextRound: PlayerPublic[];
+    /** Spectators who are queued for next round (ordered by position) */
+    nextRoundQueue: PlayerPublic[];
     chat: ChatMessage[];
     mafiaChat: ChatMessage[];
     killedLastNight: Array<{
@@ -619,6 +629,9 @@ export interface ServerToClientEvents {
     'queue:promoted': (data: {
         roomCode: string;
     }) => void;
+    'queue:updated': (data: {
+        nextRoundQueue: PlayerPublic[];
+    }) => void;
     'friend:request_received': (req: FriendRequest) => void;
     'game:notification': (data: {
         title: string;
@@ -700,6 +713,7 @@ export interface ClientToServerEvents {
         targetId: string | null;
     }, cb: Cb<null>) => void;
     'game:skip': (cb: Cb<null>) => void;
+    'game:speech_pass': (cb: Cb<null>) => void;
     'game:nominate': (data: {
         nomineeId: string | null;
     }, cb: Cb<null>) => void;
@@ -868,6 +882,10 @@ export interface ClientToServerEvents {
         to: string;
         candidate: object;
     }) => void;
+    'queue:join': (cb: Cb<{
+        position: number;
+    }>) => void;
+    'queue:leave': (cb: Cb<null>) => void;
     'game:rematch': (cb: Cb<null>) => void;
     'friend:request': (data: {
         toProfileId?: string;

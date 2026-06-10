@@ -1,11 +1,18 @@
 import {
   Room, Player, GameSettings, RoomPublic, PlayerPublic, Phase, RoomListItem,
-  DEFAULT_DYNAMIC_EVENTS,
+  DEFAULT_DYNAMIC_EVENTS, SpectatorQueueSettings,
 } from '../types/index.js';
 import { generateId, generateRoomCode, nameToAvatar } from '../utils/helpers.js';
 
 // ── In-Memory Store ───────────────────────────────────────────────────
 const rooms = new Map<string, Room>();
+
+// ── Default Spectator Queue Settings ─────────────────────────────────
+export const DEFAULT_SPECTATOR_QUEUE: SpectatorQueueSettings = {
+  enabled: true,
+  allowSpectatorsToQueue: true,
+  autoPromoteOnNextRound: true,
+};
 
 // ── Default Settings ──────────────────────────────────────────────────
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -22,6 +29,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   startWithNight: false,
   rotatingSpeech: false,
   dynamicEvents: DEFAULT_DYNAMIC_EVENTS,
+  spectatorQueue: DEFAULT_SPECTATOR_QUEUE,
   roles: {
     mafia: 0,
     don: 0,
@@ -72,7 +80,8 @@ export function createRoom(
     joinedAt: Date.now(),
     profileId,
     isSpectator: false,
-    isWaitingNextRound: false,
+    isQueuedNextRound: false,
+    queuePosition: null,
     lastWill: null,
     isModerator: false,
     moderatorLevel: null,
@@ -82,6 +91,10 @@ export function createRoom(
   const mergedSettings: GameSettings = {
     ...DEFAULT_SETTINGS,
     ...(settings || {}),
+    spectatorQueue: {
+      ...DEFAULT_SPECTATOR_QUEUE,
+      ...(settings?.spectatorQueue || {}),
+    },
     roles: { ...DEFAULT_SETTINGS.roles, ...(settings?.roles || {}) },
     dynamicEvents: settings?.dynamicEvents
       ? {
@@ -98,7 +111,7 @@ export function createRoom(
     hostId: hostPlayer.id,
     phase: 'lobby',
     players: new Map([[hostPlayer.id, hostPlayer]]),
-    waitingNextRound: new Map(),
+    nextRoundQueue: [],
     day: 0,
     timer: 0,
     maxTimer: 0,
@@ -169,8 +182,8 @@ export function addPlayer(room: Room, socketId: string, name: string, profileId:
     }
   }
 
-  // Re-join: check waiting-next-round map
-  for (const player of room.waitingNextRound.values()) {
+  // Re-join: check next-round queue
+  for (const player of room.nextRoundQueue) {
     if (profileId && player.profileId === profileId) {
       player.socketId = socketId;
       player.isConnected = true;
@@ -205,7 +218,8 @@ export function addPlayer(room: Room, socketId: string, name: string, profileId:
     joinedAt: Date.now(),
     profileId,
     isSpectator: false,
-    isWaitingNextRound: false,
+    isQueuedNextRound: false,
+    queuePosition: null,
     lastWill: null,
     isModerator: false,
     moderatorLevel: null,
@@ -216,18 +230,32 @@ export function addPlayer(room: Room, socketId: string, name: string, profileId:
   return player;
 }
 
-export function addWaitingPlayer(room: Room, socketId: string, name: string, profileId: string | null): Player {
-  // Check if already in waiting list
-  for (const p of room.waitingNextRound.values()) {
-    if (profileId && p.profileId === profileId) {
-      p.socketId = socketId;
-      p.isConnected = true;
-      return p;
+/** Add a spectator-only player (no seat, no role). Can later queue for next round. */
+export function addSpectatorPlayer(room: Room, socketId: string, name: string, profileId: string | null): Player {
+  // Re-join check
+  for (const player of room.players.values()) {
+    if (profileId && player.profileId === profileId) {
+      player.socketId = socketId;
+      player.isConnected = true;
+      return player;
     }
-    if (!profileId && p.name === name.trim()) {
-      p.socketId = socketId;
-      p.isConnected = true;
-      return p;
+    if (!profileId && player.name === name.trim()) {
+      player.socketId = socketId;
+      player.isConnected = true;
+      return player;
+    }
+  }
+  // Also check queue
+  for (const player of room.nextRoundQueue) {
+    if (profileId && player.profileId === profileId) {
+      player.socketId = socketId;
+      player.isConnected = true;
+      return player;
+    }
+    if (!profileId && player.name === name.trim()) {
+      player.socketId = socketId;
+      player.isConnected = true;
+      return player;
     }
   }
 
@@ -248,24 +276,86 @@ export function addWaitingPlayer(room: Room, socketId: string, name: string, pro
     seat: 0,
     joinedAt: Date.now(),
     profileId,
-    isSpectator: false,
-    isWaitingNextRound: true,
+    isSpectator: true,
+    isQueuedNextRound: false,
+    queuePosition: null,
     lastWill: null,
     isModerator: false,
     moderatorLevel: null,
     deathType: null,
   };
 
-  room.waitingNextRound.set(player.id, player);
+  room.players.set(player.id, player);
   return player;
 }
 
+/**
+ * Move a spectator into the next-round queue.
+ * Returns the assigned queue position (1-based).
+ */
+export function enqueueForNextRound(room: Room, playerId: string): number {
+  const player = room.players.get(playerId);
+  if (!player) throw new Error('Player not found.');
+  if (!player.isSpectator) throw new Error('Only spectators can join the queue.');
+  if (player.isQueuedNextRound) throw new Error('Already in queue.');
+
+  const activePlayers = [...room.players.values()].filter(p => !p.isSpectator && !p.isQueuedNextRound);
+  if (activePlayers.length + room.nextRoundQueue.length >= 16) {
+    throw new Error('Queue is full — no available seats for next round.');
+  }
+
+  const position = room.nextRoundQueue.length + 1;
+  player.isQueuedNextRound = true;
+  player.queuePosition = position;
+  room.nextRoundQueue.push(player);
+  return position;
+}
+
+/**
+ * Remove a player from the next-round queue and re-number remaining positions.
+ */
+export function dequeueFromNextRound(room: Room, playerId: string): void {
+  const idx = room.nextRoundQueue.findIndex(p => p.id === playerId);
+  if (idx === -1) throw new Error('Player is not in the queue.');
+
+  const player = room.nextRoundQueue[idx];
+  player.isQueuedNextRound = false;
+  player.queuePosition = null;
+  room.nextRoundQueue.splice(idx, 1);
+
+  room.nextRoundQueue.forEach((p, i) => { p.queuePosition = i + 1; });
+}
+
+/**
+ * Promote queued players to active slots at the start of a new round.
+ */
+export function promoteQueuedPlayers(room: Room): Player[] {
+  const activePlayers = [...room.players.values()].filter(p => !p.isSpectator && !p.isQueuedNextRound);
+  const freeSlots = 16 - activePlayers.length;
+  if (freeSlots <= 0 || room.nextRoundQueue.length === 0) return [];
+
+  const toPromote = room.nextRoundQueue.splice(0, Math.min(freeSlots, room.nextRoundQueue.length));
+
+  for (const player of toPromote) {
+    player.isSpectator = false;
+    player.isQueuedNextRound = false;
+    player.queuePosition = null;
+    player.isAlive = true;
+    player.seat = getNextSeat(room);
+  }
+
+  room.nextRoundQueue.forEach((p, i) => { p.queuePosition = i + 1; });
+
+  return toPromote;
+}
+
 export function removePlayer(room: Room, playerId: string): void {
-  // Check waitingNextRound first
-  const waiting = room.waitingNextRound.get(playerId);
-  if (waiting) {
-    room.waitingNextRound.delete(playerId);
-    return;
+  const queueIdx = room.nextRoundQueue.findIndex(p => p.id === playerId);
+  if (queueIdx !== -1) {
+    room.nextRoundQueue[queueIdx].isQueuedNextRound = false;
+    room.nextRoundQueue[queueIdx].queuePosition = null;
+    room.nextRoundQueue.splice(queueIdx, 1);
+    room.nextRoundQueue.forEach((p, i) => { p.queuePosition = i + 1; });
   }
 
   const player = room.players.get(playerId);
@@ -301,7 +391,7 @@ export function getPlayerBySocket(room: Room, socketId: string): Player | undefi
   for (const p of room.players.values()) {
     if (p.socketId === socketId) return p;
   }
-  for (const p of room.waitingNextRound.values()) {
+  for (const p of room.nextRoundQueue) {
     if (p.socketId === socketId) return p;
   }
   return undefined;
@@ -311,7 +401,7 @@ export function getPlayerByProfile(room: Room, profileId: string): Player | unde
   for (const p of room.players.values()) {
     if (p.profileId === profileId) return p;
   }
-  for (const p of room.waitingNextRound.values()) {
+  for (const p of room.nextRoundQueue) {
     if (p.profileId === profileId) return p;
   }
   return undefined;
@@ -328,10 +418,42 @@ export function getAlivePlayers(room: Room): Player[] {
 // ── Public View Builder ───────────────────────────────────────────────
 export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
   const isGameOver = room.phase === 'game_over';
-  const viewer = room.players.get(viewerPlayerId);
+  // Viewer may be in active players OR in next-round queue
+  const viewer = room.players.get(viewerPlayerId) ?? room.nextRoundQueue.find(p => p.id === viewerPlayerId);
   const isMafia = viewer?.team === 'mafia';
   const isCultLeader = viewer?.role === 'cult_leader';
   const isYakuza = viewer?.team === 'yakuza';
+  const isViewerSpectatorOrQueued = viewer ? (viewer.isSpectator || viewer.isQueuedNextRound) : false;
+
+  const mapToPublic = (p: Player): PlayerPublic => ({
+    id: p.id,
+    socketId: p.socketId,
+    name: p.name,
+    avatar: p.avatar,
+    avatarUrl: p.avatarUrl,
+    isHost: p.isHost,
+    isAlive: p.isAlive,
+    isConnected: p.isConnected,
+    isReady: p.isReady,
+    role: (p.id === viewerPlayerId || isGameOver || isViewerSpectatorOrQueued) ? p.role : null,
+    team: (p.id === viewerPlayerId || isGameOver || isViewerSpectatorOrQueued) ? p.team : null,
+    // Mafia sees fellow mafia roles
+    ...(isMafia && p.team === 'mafia' ? { role: p.role, team: p.team } : {}),
+    // Cult leader sees all cult members
+    ...(isCultLeader && p.team === 'cult' ? { role: p.role, team: p.team } : {}),
+    // Yakuza team members see each other
+    ...(isYakuza && p.team === 'yakuza' ? { role: p.role, team: p.team } : {}),
+    voteTarget: (room.phase === 'voting' && room.activeEvent?.key !== 'anonymous_voting') ? p.voteTarget : null,
+    hasActed: p.id === viewerPlayerId ? p.hasActedThisPhase : false,
+    seat: p.seat,
+    profileId: p.profileId,
+    isModerator: p.isModerator,
+    moderatorLevel: p.moderatorLevel,
+    isSpectator: p.isSpectator,
+    isQueuedNextRound: p.isQueuedNextRound,
+    queuePosition: p.queuePosition,
+    deathType: p.deathType,
+  });
 
   const mapToPublic = (p: Player): PlayerPublic => ({
     id: p.id,
@@ -366,11 +488,10 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     .sort((a, b) => a.seat - b.seat)
     .map(mapToPublic);
 
-  const waitingNextRound: PlayerPublic[] = [...room.waitingNextRound.values()]
-    .sort((a, b) => a.joinedAt - b.joinedAt)
-    .map(mapToPublic);
 
-  const isDeadViewer = viewer ? (!viewer.isAlive || viewer.isSpectator) : false;
+  const nextRoundQueue: PlayerPublic[] = room.nextRoundQueue.map(mapToPublic);
+
+  const isDeadViewer = viewer ? (!viewer.isAlive || viewer.isSpectator || viewer.isQueuedNextRound) : false;
 
   return {
     id: room.id,
@@ -380,7 +501,7 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     timer: room.timer,
     maxTimer: room.maxTimer,
     players,
-    waitingNextRound,
+    nextRoundQueue,
     chat: room.chat.slice(-100),
     mafiaChat: isMafia ? room.mafiaChat.slice(-100) : [],
     deadChat: isDeadViewer && !viewer?.isSpectator ? room.deadChat.slice(-100) : [],
@@ -434,14 +555,12 @@ export function toRoomListItem(room: Room): RoomListItem {
 function computeActiveRoleCounts(room: Room): Record<string, number> {
   const counts: Record<string, number> = {};
   if (room.phase === 'lobby') {
-    // Show configured role distribution before game starts
     for (const [role, count] of Object.entries(room.settings.roles)) {
       if (count > 0) counts[role] = count;
     }
   } else {
-    // Show actual role counts once roles have been assigned
     for (const p of room.players.values()) {
-      if (!p.isSpectator && p.role) {
+      if (!p.isSpectator && !p.isQueuedNextRound && p.role) {
         counts[p.role] = (counts[p.role] ?? 0) + 1;
       }
     }
@@ -470,7 +589,7 @@ export function setPlayerAvatarUrl(room: Room, profileId: string, avatarUrl: str
   for (const p of room.players.values()) {
     if (p.profileId === profileId) p.avatarUrl = avatarUrl;
   }
-  for (const p of room.waitingNextRound.values()) {
+  for (const p of room.nextRoundQueue) {
     if (p.profileId === profileId) p.avatarUrl = avatarUrl;
   }
 }
@@ -504,21 +623,21 @@ export function rematchRoom(room: Room): void {
   room.activeEvent      = null;
   room.eventsLog        = [];
   room.lastDoctorTarget = null;
-  // Move waiting players into active lobby
-  for (const p of room.waitingNextRound.values()) {
-    p.isWaitingNextRound = false;
-    p.isAlive = true;
-    p.seat = getNextSeat(room);
-    room.players.set(p.id, p);
-  }
-  room.waitingNextRound = new Map();
+
+  // Promote queued spectators to active lobby
+  promoteQueuedPlayers(room);
+
+
   for (const p of room.players.values()) {
     p.role = null;
     p.team = null;
     p.voteTarget = null;
     p.hasActedThisPhase = false;
-    p.isAlive = true;
+    if (!p.isSpectator) {
+      p.isAlive = true;
+    }
     p.isReady = false;
     p.lastWill = null;
+    p.deathType = null;
   }
 }

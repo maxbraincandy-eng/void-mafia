@@ -157,7 +157,8 @@ export interface PlayerPublic {
   isConnected: boolean;
   isReady: boolean;
   isSpectator: boolean;
-  isWaitingNextRound: boolean;
+  isQueuedNextRound: boolean;
+  queuePosition: number | null;
   role: RoleKey | null;
   team: Team | null;
   voteTarget: string | null;
@@ -199,13 +200,20 @@ export interface ActiveEvent {
 
 export const DEFAULT_DYNAMIC_EVENTS: DynamicEventSettings = {
   enabled: false,
-  frequency: 'medium',
+  frequency: 'low',
   allowed: {
     blackoutNight: true, silentDay: true, doubleVote: true, noRevealDay: true,
     bloodMoon: true, anonymousVoting: true, sheriffFog: true, doctorPressure: true,
     extendedFinalWords: true,
   },
 };
+
+export interface SpectatorQueueSettings {
+  enabled: boolean;
+  allowSpectatorsToQueue: boolean;
+  autoPromoteOnNextRound: boolean;
+}
+
 
 export interface GameSettings {
   nightDuration: number;
@@ -220,7 +228,8 @@ export interface GameSettings {
   password: string;
   startWithNight: boolean;
   rotatingSpeech: boolean;
-  dynamicEvents: DynamicEventSettings;
+  dynamicEvents?: DynamicEventSettings;
+  spectatorQueue?: SpectatorQueueSettings;
   roles: {
     mafia: number;
     don: number;
@@ -262,7 +271,7 @@ export interface RoomPublic {
   timer: number;
   maxTimer: number;
   players: PlayerPublic[];
-  waitingNextRound: PlayerPublic[];
+  nextRoundQueue: PlayerPublic[];
   chat: ChatMessage[];
   mafiaChat: ChatMessage[];
   deadChat: ChatMessage[];

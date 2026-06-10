@@ -10,8 +10,8 @@ import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { useGameStore } from '@/store/gameStore';
 import type { Res, PublicProfileFull, FriendshipStatus, PlayerRoleStats, ModeratorLevel, WarnCategory, ClanRole } from '@/types/index';
-import type { ProfileCardData } from '@/components/ui/ProfileCard';
 import { getFrameById, getTitleById } from '@/constants/cosmetics';
+import type { ProfileCardData } from '@/components/ui/ProfileCard';
 
 const MOD_RANK: Record<ModeratorLevel, number> = { moderator: 0, senior_moderator: 1, admin: 2, owner: 3 };
 function modRank(lvl: ModeratorLevel | null | undefined) { return lvl ? (MOD_RANK[lvl] ?? -1) : -1; }
