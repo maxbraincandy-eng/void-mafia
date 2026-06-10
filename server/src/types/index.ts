@@ -249,6 +249,13 @@ export interface ModLog {
   expiresAt?: number;
 }
 
+// ── Spectator Queue Settings ──────────────────────────────────────────
+export interface SpectatorQueueSettings {
+  enabled: boolean;
+  allowSpectatorsToQueue: boolean;
+  autoPromoteOnNextRound: boolean;
+}
+
 // ── Internal Server Types ─────────────────────────────────────────────
 export interface Player {
   id: string;
@@ -268,6 +275,8 @@ export interface Player {
   joinedAt: number;
   profileId: string | null;
   isSpectator: boolean;
+  isQueuedNextRound: boolean;
+  queuePosition: number | null;
   lastWill: string | null;
   isModerator: boolean;
   moderatorLevel: ModeratorLevel | null;
@@ -306,6 +315,7 @@ export interface GameSettings {
   password: string;
   startWithNight: boolean;
   rotatingSpeech: boolean;
+  spectatorQueue: SpectatorQueueSettings;
   roles: {
     mafia: number;
     don: number;
@@ -333,6 +343,8 @@ export interface Room {
   hostId: string;
   phase: Phase;
   players: Map<string, Player>;
+  /** Players waiting to join as active players in the next round */
+  nextRoundQueue: Player[];
   day: number;
   timer: number;
   maxTimer: number;
@@ -382,6 +394,8 @@ export interface PlayerPublic {
   isModerator: boolean;
   moderatorLevel: ModeratorLevel | null;
   isSpectator: boolean;
+  isQueuedNextRound: boolean;
+  queuePosition: number | null;
   deathType: 'night' | 'vote' | null;
 }
 
@@ -393,6 +407,8 @@ export interface RoomPublic {
   timer: number;
   maxTimer: number;
   players: PlayerPublic[];
+  /** Spectators who are queued for next round (ordered by position) */
+  nextRoundQueue: PlayerPublic[];
   chat: ChatMessage[];
   mafiaChat: ChatMessage[];
   killedLastNight: Array<{ id: string; name: string; lastWill?: string | null }>;
@@ -598,9 +614,11 @@ export interface ServerToClientEvents {
   'voice:force-unmute':  () => void;
   // XP / levels / cosmetics
   'xp:gained':           (data: XPGain) => void;
-  // Spectate queue
+  // Spectate queue (legacy)
   'queue:position':      (data: { position: number; roomCode: string }) => void;
   'queue:promoted':      (data: { roomCode: string }) => void;
+  // Next-round queue
+  'queue:updated':       (data: { nextRoundQueue: PlayerPublic[] }) => void;
   // Friends
   'friend:request_received': (req: FriendRequest) => void;
   // Push notifications
@@ -687,6 +705,9 @@ export interface ClientToServerEvents {
   'voice:offer':         (data: { to: string; sdp: object }, cb: Cb<null>) => void;
   'voice:answer':        (data: { to: string; sdp: object }, cb: Cb<null>) => void;
   'voice:ice-candidate': (data: { to: string; candidate: object }) => void;
+  // Next-round queue
+  'queue:join':          (cb: Cb<{ position: number }>) => void;
+  'queue:leave':         (cb: Cb<null>) => void;
   // Rematch
   'game:rematch':        (cb: Cb<null>) => void;
   // Friends

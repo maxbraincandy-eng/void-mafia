@@ -53,7 +53,7 @@ interface GameStore {
   connect: () => void;
   disconnect: () => void;
   createRoom: (name: string, settings?: Partial<GameSettings>) => Promise<void>;
-  joinRoom: (code: string, name: string, isSpectator?: boolean, password?: string) => Promise<void>;
+  joinRoom: (code: string, name: string, isSpectator?: boolean, password?: string, joinMode?: 'player' | 'spectator' | 'next_round') => Promise<void>;
   leaveRoom: () => Promise<void>;
   terminateGame: () => Promise<void>;
   toggleReady: () => Promise<void>;
@@ -85,6 +85,8 @@ interface GameStore {
   setWill: (text: string) => Promise<void>;
   pauseTimer: () => Promise<void>;
   getLeaderboard: () => Promise<PlayerProfilePublic[]>;
+  joinQueue: () => Promise<void>;
+  leaveQueue: () => Promise<void>;
 }
 
 let toastCounter = 0;
@@ -100,12 +102,14 @@ export const useGameStore = create<GameStore>((set, get) => {
     }
     // Auto-rejoin room after transport reconnect
     if (room && myPlayerId) {
-      const player = room.players.find(p => p.id === myPlayerId);
+      const player = room.players.find(p => p.id === myPlayerId)
+        ?? room.nextRoundQueue?.find(p => p.id === myPlayerId);
       if (player) {
         emitWithAck<unknown, Res<RoomPublic>>('room:join', {
           code: room.code,
           name: player.name,
           isSpectator: player.isSpectator,
+          joinMode: player.isQueuedNextRound ? 'next_round' : (player.isSpectator ? 'spectator' : undefined),
         }).then(res => {
           if (res.ok) {
             set({ room: res.data });
@@ -241,6 +245,21 @@ export const useGameStore = create<GameStore>((set, get) => {
     get().addToast('Spot opened — joining room!', 'success');
   });
 
+  (socket as any).on('queue:updated', ({ nextRoundQueue }: { nextRoundQueue: import('@/types/index').PlayerPublic[] }) => {
+    const { myPlayerId } = get();
+    set(s => {
+      if (!s.room) return s;
+      // Update the queue in room state
+      const updatedRoom = { ...s.room, nextRoundQueue };
+      return { room: updatedRoom };
+    });
+    // Update local queuePosition from queue data
+    if (myPlayerId) {
+      const myEntry = nextRoundQueue.find(p => p.id === myPlayerId);
+      set({ queuePosition: myEntry?.queuePosition ?? null });
+    }
+  });
+
   (socket as any).on('friend:request_received', (req: FriendRequest) => {
     set(s => ({ pendingFriendRequests: [...s.pendingFriendRequests, req] }));
     get().addToast(`Friend request from ${req.fromUsername}`, 'info');
@@ -347,7 +366,10 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     myPlayer: () => {
       const { room, myPlayerId } = get();
-      return room?.players.find(p => p.id === myPlayerId) ?? null;
+      if (!room || !myPlayerId) return null;
+      return room.players.find(p => p.id === myPlayerId)
+        ?? room.nextRoundQueue?.find(p => p.id === myPlayerId)
+        ?? null;
     },
     amHost: () => get().myPlayer()?.isHost ?? false,
     amAlive: () => get().myPlayer()?.isAlive ?? false,
@@ -366,10 +388,11 @@ export const useGameStore = create<GameStore>((set, get) => {
       set({ room, myPlayerId: room.players.find(p => p.isHost)?.id ?? null });
     }),
 
-    joinRoom: withLoading(async (code: string, name: string, isSpectator = false, password = '') => {
-      const room = await emit<RoomPublic>('room:join', { code, name, isSpectator, password });
-      // My player is the one who isn't already in our store
-      const myPlayer = room.players.find(p => p.name === name);
+    joinRoom: withLoading(async (code: string, name: string, isSpectator = false, password = '', joinMode?: 'player' | 'spectator' | 'next_round') => {
+      const room = await emit<RoomPublic>('room:join', { code, name, isSpectator, password, joinMode });
+      // My player may be in the active players list or the queue
+      const myPlayer = room.players.find(p => p.name === name)
+        ?? room.nextRoundQueue?.find(p => p.name === name);
       set({ room, myPlayerId: myPlayer?.id ?? null });
     }),
 
@@ -492,5 +515,19 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (!res.ok) throw new Error(res.error);
       return res.data;
     },
+
+    joinQueue: withLoading(async () => {
+      const res = await emitWithAck<unknown, Res<{ position: number }>>('queue:join', undefined);
+      if (!res.ok) throw new Error(res.error);
+      set({ queuePosition: res.data.position });
+      get().addToast(`Joined queue — position #${res.data.position}`, 'success');
+    }),
+
+    leaveQueue: withLoading(async () => {
+      const res = await emitWithAck<unknown, Res<null>>('queue:leave', undefined);
+      if (!res.ok) throw new Error(res.error);
+      set({ queuePosition: null });
+      get().addToast('Left the next-round queue', 'info');
+    }),
   };
 });

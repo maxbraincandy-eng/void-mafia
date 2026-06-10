@@ -6,10 +6,10 @@ import {
   ReportReason, NightSummary, LiveRoomInfo, LiveRoomPlayer,
 } from './types/index.js';
 import {
-  createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, removePlayer,
+  createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, addSpectatorPlayer, removePlayer,
   getPlayerBySocket, toPublicRoom, getAlivePlayers, getHostPlayer,
   toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom,
-  setPlayerAvatarUrl,
+  setPlayerAvatarUrl, enqueueForNextRound, dequeueFromNextRound, promoteQueuedPlayers,
 } from './services/roomService.js';
 import {
   startGame, setPhase, advancePhase, submitNightAction, submitVote, submitNomination,
@@ -184,6 +184,7 @@ const JoinRoomSchema = z.object({
   code: z.string().length(6),
   name: z.string().min(1).max(24),
   isSpectator: z.boolean().optional().default(false),
+  joinMode: z.enum(['player', 'spectator', 'next_round']).optional(),
   password: z.string().max(64).optional().default(''),
 });
 
@@ -214,6 +215,43 @@ function broadcastRoom(io: AppServer, room: Room): void {
     if (player.socketId) {
       io.to(player.socketId).emit('room:update', toPublicRoom(room, player.id));
     }
+  }
+  // Also update queued players
+  for (const player of room.nextRoundQueue) {
+    if (player.socketId) {
+      io.to(player.socketId).emit('room:update', toPublicRoom(room, player.id));
+    }
+  }
+}
+
+function broadcastQueueUpdated(io: AppServer, room: Room): void {
+  const nextRoundQueue = room.nextRoundQueue.map(p => ({
+    id: p.id,
+    socketId: p.socketId,
+    name: p.name,
+    avatar: p.avatar,
+    avatarUrl: p.avatarUrl,
+    isHost: false,
+    isAlive: false,
+    isConnected: p.isConnected,
+    isReady: false,
+    role: null,
+    team: null,
+    voteTarget: null,
+    hasActed: false,
+    seat: 0,
+    profileId: p.profileId,
+    isModerator: p.isModerator,
+    moderatorLevel: p.moderatorLevel,
+    isSpectator: true,
+    isQueuedNextRound: true,
+    queuePosition: p.queuePosition,
+    deathType: null as any,
+  }));
+  io.to(room.id).emit('queue:updated', { nextRoundQueue });
+  // Also to queued players
+  for (const p of room.nextRoundQueue) {
+    if (p.socketId) io.to(p.socketId).emit('queue:updated', { nextRoundQueue });
   }
 }
 
@@ -793,11 +831,85 @@ export function attachSocketHandlers(io: AppServer): void {
         }
 
         // Check if this is a re-join attempt (existing player reconnecting)
-        const isRejoin = profileId
+        const isRejoinActive = profileId
           ? [...room.players.values()].some(p => p.profileId === profileId)
           : [...room.players.values()].some(p => p.name === parsed.name.trim());
+        const isRejoinQueued = profileId
+          ? room.nextRoundQueue.some(p => p.profileId === profileId)
+          : room.nextRoundQueue.some(p => p.name === parsed.name.trim());
+        const isRejoin = isRejoinActive || isRejoinQueued;
 
-        // Spectate queue: if room is full during active game and not a re-join
+        // If game is active and this is a new joiner (not a rejoin), route by joinMode
+        if (!isRejoin && room.phase !== 'lobby') {
+          if (!parsed.joinMode) {
+            // Signal client to show mode selection
+            cb(err('GAME_ALREADY_STARTED_CHOOSE_MODE'));
+            return;
+          }
+
+          const playerProfile = profileId ? await getPlayer(profileId) : null;
+          const username = playerProfile?.username ?? parsed.name;
+
+          if (parsed.joinMode === 'next_round') {
+            // Join as spectator first, then enqueue
+            const player = addSpectatorPlayer(room, socket.id, username, profileId);
+            if (playerProfile?.avatarUrl) player.avatarUrl = playerProfile.avatarUrl;
+            if (playerProfile?.isModerator) {
+              player.isModerator = playerProfile.isModerator;
+              player.moderatorLevel = playerProfile.moderatorLevel;
+            }
+            socket.join(room.id);
+            socket.data.playerId = player.id;
+            socket.data.roomId = room.id;
+
+            // Auto-enqueue if settings allow
+            try {
+              const position = enqueueForNextRound(room, player.id);
+              broadcastSystemMsg(io, room, `${player.name} joined the queue for next round (#${position}).`);
+              broadcastQueueUpdated(io, room);
+            } catch {
+              broadcastSystemMsg(io, room, `${player.name} joined as spectator.`);
+            }
+
+            broadcastRoom(io, room);
+            cb(ok(toPublicRoom(room, player.id)));
+            return;
+          } else {
+            // spectator mode
+            const player = addSpectatorPlayer(room, socket.id, username, profileId);
+            if (playerProfile?.avatarUrl) player.avatarUrl = playerProfile.avatarUrl;
+            if (playerProfile?.isModerator) {
+              player.isModerator = playerProfile.isModerator;
+              player.moderatorLevel = playerProfile.moderatorLevel;
+            }
+            socket.join(room.id);
+            socket.data.playerId = player.id;
+            socket.data.roomId = room.id;
+            broadcastSystemMsg(io, room, `${player.name} joined as spectator.`);
+            broadcastRoom(io, room);
+            cb(ok(toPublicRoom(room, player.id)));
+            return;
+          }
+        }
+
+        // Re-join: if queued player reconnects, find them in the queue
+        if (isRejoinQueued) {
+          const queuedPlayer = profileId
+            ? room.nextRoundQueue.find(p => p.profileId === profileId)
+            : room.nextRoundQueue.find(p => p.name === parsed.name.trim());
+          if (queuedPlayer) {
+            queuedPlayer.socketId = socket.id;
+            queuedPlayer.isConnected = true;
+            socket.join(room.id);
+            socket.data.playerId = queuedPlayer.id;
+            socket.data.roomId = room.id;
+            broadcastRoom(io, room);
+            cb(ok(toPublicRoom(room, queuedPlayer.id)));
+            return;
+          }
+        }
+
+        // Spectate queue (legacy): if room is full during active game and not a re-join
         const activePlayers = [...room.players.values()].filter(p => !p.isSpectator);
         if (!isRejoin && room.phase !== 'lobby' && activePlayers.length >= 16) {
           const queue = spectateQueues.get(room.id) ?? [];
@@ -815,7 +927,7 @@ export function attachSocketHandlers(io: AppServer): void {
         const username = playerProfile?.username ?? parsed.name;
         const player = addPlayer(room, socket.id, username, profileId);
         if (playerProfile?.avatarUrl) player.avatarUrl = playerProfile.avatarUrl;
-        if (parsed.isSpectator) player.isSpectator = true;
+        if (parsed.isSpectator || parsed.joinMode === 'spectator') player.isSpectator = true;
         if (playerProfile?.isModerator) {
           player.isModerator = playerProfile.isModerator;
           player.moderatorLevel = playerProfile.moderatorLevel;
@@ -983,12 +1095,44 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    // ── Queue: Join Next Round ───────────────────────────────────────
+    socket.on('queue:join' as any, (cb: any) => {
+      try {
+        const room = getRoomFromSocket(socket);
+        const player = getPlayerOrError(socket, room);
+        if (!player.isSpectator) throw new Error('Only spectators can join the next-round queue.');
+        if (player.isQueuedNextRound) throw new Error('Already in queue.');
+
+        const position = enqueueForNextRound(room, player.id);
+        broadcastSystemMsg(io, room, `${player.name} joined the queue for next round (#${position}).`);
+        broadcastQueueUpdated(io, room);
+        broadcastRoom(io, room);
+        cb(ok({ position }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Queue: Leave Next Round ──────────────────────────────────────
+    socket.on('queue:leave' as any, (cb: any) => {
+      try {
+        const room = getRoomFromSocket(socket);
+        const player = getPlayerOrError(socket, room);
+        if (!player.isQueuedNextRound) throw new Error('You are not in the queue.');
+
+        dequeueFromNextRound(room, player.id);
+        broadcastSystemMsg(io, room, `${player.name} left the next-round queue.`);
+        broadcastQueueUpdated(io, room);
+        broadcastRoom(io, room);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     // ── Night Action ────────────────────────────────────────────────
     socket.on('game:action', async ({ targetId }, cb) => {
       try {
         const room = getRoomFromSocket(socket);
         const actor = getPlayerOrError(socket, room);
         if (actor.isSpectator) throw new Error('Spectators cannot perform night actions.');
+        if (actor.isQueuedNextRound) throw new Error('Not an active player.');
         submitNightAction(room, actor, targetId);
 
         if (actor.role === 'sheriff') {
@@ -1035,6 +1179,7 @@ export function attachSocketHandlers(io: AppServer): void {
         const room = getRoomFromSocket(socket);
         const voter = getPlayerOrError(socket, room);
         if (voter.isSpectator) throw new Error('Spectators cannot vote.');
+        if (voter.isQueuedNextRound) throw new Error('Not an active player.');
         submitVote(room, voter, targetId);
 
         const target = targetId ? room.players.get(targetId) : null;
@@ -1052,6 +1197,7 @@ export function attachSocketHandlers(io: AppServer): void {
       try {
         const room = getRoomFromSocket(socket);
         const actor = getPlayerOrError(socket, room);
+        if (actor.isSpectator || actor.isQueuedNextRound) throw new Error('Not an active player.');
         submitNomination(room, actor, nomineeId);
 
         const nominee = nomineeId ? room.players.get(nomineeId) : null;
@@ -1200,6 +1346,13 @@ export function attachSocketHandlers(io: AppServer): void {
           p.deathType = null;
         }
 
+        // Clear the next-round queue — queued spectators stay as watch-only spectators
+        for (const p of room.nextRoundQueue) {
+          p.isQueuedNextRound = false;
+          p.queuePosition = null;
+        }
+        room.nextRoundQueue = [];
+
         broadcastSystemMsg(io, room, 'The host terminated the game. Returning to lobby.');
         broadcastRoom(io, room);
         cb(ok(null));
@@ -1231,6 +1384,9 @@ export function attachSocketHandlers(io: AppServer): void {
         room.speechOrder = [];
         room.currentSpeakerIdx = 0;
 
+        // Promote queued players into lobby seats before resetting state
+        const promoted = promoteQueuedPlayers(room);
+
         for (const p of room.players.values()) {
           p.role = null;
           p.team = null;
@@ -1240,6 +1396,12 @@ export function attachSocketHandlers(io: AppServer): void {
           p.hasActedThisPhase = false;
           p.deathType = null;
           p.lastWill = null;
+        }
+
+        if (promoted.length > 0) {
+          const names = promoted.map(p => p.name).join(', ');
+          broadcastSystemMsg(io, room, `${names} joined from the queue and will play next round!`);
+          broadcastQueueUpdated(io, room);
         }
 
         broadcastSystemMsg(io, room, 'The host has restarted the room. Prepare for a new game.');

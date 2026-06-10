@@ -124,6 +124,7 @@ export function GamePage() {
     dismissVoteBreakdown,
     pauseTimer, submitVote, nominate,
     isLoading, addToast,
+    joinQueue, leaveQueue, queuePosition,
   } = useGameStore(s => ({
     room: s.room,
     myPlayer: s.myPlayer(),
@@ -157,6 +158,9 @@ export function GamePage() {
     nominate: s.nominate,
     isLoading: s.isLoading,
     addToast: s.addToast,
+    joinQueue: s.joinQueue,
+    leaveQueue: s.leaveQueue,
+    queuePosition: s.queuePosition,
   }));
 
   const voice = useVoiceChat();
@@ -164,6 +168,7 @@ export function GamePage() {
   const t = useT();
 
   const amSpectator = myPlayer?.isSpectator ?? false;
+  const amQueuedNextRound = myPlayer?.isQueuedNextRound ?? false;
   const activePlayers = room?.players.filter(p => !p.isSpectator) ?? [];
   const gridPlayers   = room?.players.filter(p => p.isAlive && !p.isSpectator) ?? [];
   const spectatorSocketIds = new Set(room?.players.filter(p => p.isSpectator).map(p => p.socketId) ?? []);
@@ -1080,9 +1085,15 @@ export function GamePage() {
               </div>
 
               {/* Spectator badge */}
-              {amSpectator && (
+              {amSpectator && !amQueuedNextRound && (
                 <div className="px-2 py-1 rounded-lg border border-neon-purple/40 bg-neon-purple/10 text-[10px] font-mono tracking-widest uppercase text-neon-purple/80">
                   SPECTATOR
+                </div>
+              )}
+              {/* Queue badge */}
+              {amQueuedNextRound && (
+                <div className="px-2 py-1 rounded-lg border border-neon-cyan/40 bg-neon-cyan/10 text-[10px] font-mono tracking-widest uppercase text-neon-cyan/80">
+                  QUEUE #{queuePosition}
                 </div>
               )}
 
@@ -1223,6 +1234,53 @@ export function GamePage() {
                     </span>
                   ))}
                 </div>
+              </div>
+            )}
+            {/* Next-Round Queue panel — visible to spectators during active games */}
+            {amSpectator && phase !== 'lobby' && phase !== 'game_over' && (
+              <div className="mb-3 rounded-xl border border-neon-cyan/15 bg-neon-cyan/[0.03] p-3 flex-shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-mono tracking-widest uppercase text-neon-cyan/50">
+                    {t.rooms.nextRoundQueue ?? 'Next Round Queue'}
+                    {(room.nextRoundQueue?.length ?? 0) > 0 && (
+                      <span className="ml-1 text-neon-cyan/70">({room.nextRoundQueue.length})</span>
+                    )}
+                  </p>
+                </div>
+                {(room.nextRoundQueue?.length ?? 0) > 0 ? (
+                  <div className="space-y-1 mb-2">
+                    {room.nextRoundQueue.map(p => (
+                      <div key={p.id} className="flex items-center gap-2 text-[11px] font-mono">
+                        <span className="text-neon-cyan/40 w-4">#{p.queuePosition}</span>
+                        <span className="text-white/50 truncate">{p.name}</span>
+                        {p.id === myPlayer?.id && (
+                          <span className="text-neon-cyan/60 text-[9px]">(you)</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[10px] font-mono text-white/20 mb-2">
+                    {t.rooms.nextRoundQueueHint ?? 'No players in queue'}
+                  </p>
+                )}
+                {amQueuedNextRound ? (
+                  <button
+                    onClick={() => leaveQueue()}
+                    disabled={isLoading}
+                    className="w-full text-[10px] font-mono py-1.5 rounded-lg border border-neon-red/30 text-neon-red/60 hover:bg-neon-red/10 transition-all"
+                  >
+                    {t.rooms.leaveQueue ?? 'Leave Queue'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => joinQueue()}
+                    disabled={isLoading}
+                    className="w-full text-[10px] font-mono py-1.5 rounded-lg border border-neon-cyan/30 text-neon-cyan/60 hover:bg-neon-cyan/10 transition-all"
+                  >
+                    {t.rooms.joinQueue ?? 'Join Next Round Queue'}
+                  </button>
+                )}
               </div>
             )}
             {/* Tab switcher */}

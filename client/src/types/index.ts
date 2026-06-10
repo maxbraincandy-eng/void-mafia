@@ -155,6 +155,8 @@ export interface PlayerPublic {
   isConnected: boolean;
   isReady: boolean;
   isSpectator: boolean;
+  isQueuedNextRound: boolean;
+  queuePosition: number | null;
   role: RoleKey | null;
   team: Team | null;
   voteTarget: string | null;
@@ -164,6 +166,12 @@ export interface PlayerPublic {
   isModerator: boolean;
   moderatorLevel: ModeratorLevel | null;
   deathType: 'night' | 'vote' | null;
+}
+
+export interface SpectatorQueueSettings {
+  enabled: boolean;
+  allowSpectatorsToQueue: boolean;
+  autoPromoteOnNextRound: boolean;
 }
 
 export interface GameSettings {
@@ -179,6 +187,7 @@ export interface GameSettings {
   password: string;
   startWithNight: boolean;
   rotatingSpeech: boolean;
+  spectatorQueue?: SpectatorQueueSettings;
   roles: {
     mafia: number;
     don: number;
@@ -220,6 +229,7 @@ export interface RoomPublic {
   timer: number;
   maxTimer: number;
   players: PlayerPublic[];
+  nextRoundQueue: PlayerPublic[];
   chat: ChatMessage[];
   mafiaChat: ChatMessage[];
   deadChat: ChatMessage[];
