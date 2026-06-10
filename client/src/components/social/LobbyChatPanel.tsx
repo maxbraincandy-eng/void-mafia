@@ -115,14 +115,20 @@ export function LobbyChatPanel() {
             onClick={closeLobbyChat}
           />
 
-          {/* Panel — slides up from bottom */}
+          {/* Panel — slides up from bottom, sits above the bottom nav (~64px) */}
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', stiffness: 380, damping: 36 }}
-            className="fixed bottom-0 left-0 right-0 z-50 flex flex-col"
-            style={{ ...SURFACE_BG, maxHeight: '72vh', borderRadius: '20px 20px 0 0', borderTop: '1px solid rgba(255,255,255,0.07)' }}
+            className="fixed left-0 right-0 z-50 flex flex-col"
+            style={{
+              ...SURFACE_BG,
+              bottom: 64,
+              maxHeight: 'calc(72vh - 64px)',
+              borderRadius: '20px 20px 0 0',
+              borderTop: '1px solid rgba(255,255,255,0.07)',
+            }}
           >
             {/* Header */}
             <div className="flex items-center gap-3 px-5 py-4 border-b border-white/[0.06] shrink-0">
@@ -173,7 +179,7 @@ export function LobbyChatPanel() {
             </div>
 
             {/* Input */}
-            <div className="px-4 py-3 border-t border-white/[0.06] shrink-0 pb-[max(12px,env(safe-area-inset-bottom))]">
+            <div className="px-4 py-3 border-t border-white/[0.06] shrink-0">
               <div className="flex items-center gap-2">
                 <input
                   ref={inputRef}

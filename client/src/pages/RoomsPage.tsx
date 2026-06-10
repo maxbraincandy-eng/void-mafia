@@ -11,7 +11,6 @@ import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { DailyChallengeCard } from '@/components/ui/DailyChallengeCard';
 import { LobbyChatPanel } from '@/components/social/LobbyChatPanel';
 import { MorePanel } from '@/components/ui/MorePanel';
-import { LeaderboardModal } from '@/components/ui/LeaderboardModal';
 import { emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
 
@@ -28,7 +27,6 @@ export function RoomsPage() {
   };
 
   const [mode, setMode] = useState<'browse' | 'create' | 'join' | 'lfg'>('browse');
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [rooms, setRooms] = useState<RoomListItem[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [preset, setPreset] = useState<Preset>('classic');
@@ -221,7 +219,6 @@ export function RoomsPage() {
         )}
       </AnimatePresence>
 
-      <LeaderboardModal open={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
       <MorePanel />
       <LobbyChatPanel />
 
@@ -262,13 +259,6 @@ export function RoomsPage() {
           {/* Right controls */}
           <div className="flex items-center gap-2 flex-shrink-0">
             <LanguageSwitcher />
-            <button
-              onClick={() => setShowLeaderboard(true)}
-              className="px-3 py-1.5 rounded-xl border border-white/[0.07] text-white/25 hover:text-white/55 hover:border-white/14 font-mono text-sm transition-all"
-              title={t.game.header.leaderboard}
-            >
-              ◈
-            </button>
             {/* Lobby chat button */}
             <button
               onClick={openLobbyChat}
