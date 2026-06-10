@@ -124,8 +124,8 @@ export function LobbyChatPanel() {
             className="fixed left-0 right-0 z-50 flex flex-col"
             style={{
               ...SURFACE_BG,
-              bottom: 64,
-              maxHeight: 'calc(72vh - 64px)',
+              bottom: 'calc(64px + env(safe-area-inset-bottom, 0px))',
+              maxHeight: '65vh',
               borderRadius: '20px 20px 0 0',
               borderTop: '1px solid rgba(255,255,255,0.07)',
             }}
