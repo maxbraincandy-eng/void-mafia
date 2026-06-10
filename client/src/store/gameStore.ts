@@ -42,6 +42,8 @@ interface GameStore {
 
   // UI
   isLoading: boolean;
+  isReconnecting: boolean;
+  connectionFailed: boolean;
   error: string | null;
 
   // Computed helpers
@@ -52,8 +54,8 @@ interface GameStore {
   // Actions
   connect: () => void;
   disconnect: () => void;
-  createRoom: (name: string, settings?: Partial<GameSettings>) => Promise<void>;
-  joinRoom: (code: string, name: string, isSpectator?: boolean, password?: string) => Promise<void>;
+  createRoom: (name: string, settings?: Partial<GameSettings>, clanRoom?: boolean) => Promise<void>;
+  joinRoom: (code: string, name: string, isSpectator?: boolean, password?: string, joinMode?: 'player' | 'spectator' | 'next_round') => Promise<void>;
   leaveRoom: () => Promise<void>;
   terminateGame: () => Promise<void>;
   toggleReady: () => Promise<void>;
@@ -66,6 +68,7 @@ interface GameStore {
   nominate: (nomineeId: string | null) => Promise<void>;
   sendChat: (text: string, channel: ChatChannel) => Promise<void>;
   skipPhase: () => Promise<void>;
+  speechPass: () => Promise<void>;
   daySkipVote: () => Promise<void>;
   restartGame: () => Promise<void>;
   dismissNightResult: () => void;
@@ -85,6 +88,8 @@ interface GameStore {
   setWill: (text: string) => Promise<void>;
   pauseTimer: () => Promise<void>;
   getLeaderboard: () => Promise<PlayerProfilePublic[]>;
+  joinQueue: () => Promise<void>;
+  leaveQueue: () => Promise<void>;
 }
 
 let toastCounter = 0;
@@ -93,32 +98,50 @@ export const useGameStore = create<GameStore>((set, get) => {
   // ── Socket event bindings ────────────────────────────────────────
   socket.on('connect', () => {
     const { room, myPlayerId } = get();
-    // Clear stuck loading state on any reconnect
-    set({ isConnected: true, isLoading: false, error: null });
+    set({ isConnected: true, isLoading: false, error: null, connectionFailed: false });
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission().catch(() => {});
     }
     // Auto-rejoin room after transport reconnect
     if (room && myPlayerId) {
-      const player = room.players.find(p => p.id === myPlayerId);
+      const player = room.players.find(p => p.id === myPlayerId)
+        ?? room.nextRoundQueue?.find(p => p.id === myPlayerId);
       if (player) {
         emitWithAck<unknown, Res<RoomPublic>>('room:join', {
           code: room.code,
           name: player.name,
           isSpectator: player.isSpectator,
+          joinMode: player.isQueuedNextRound ? 'next_round' : (player.isSpectator ? 'spectator' : undefined),
         }).then(res => {
           if (res.ok) {
-            set({ room: res.data });
+            set({ room: res.data, isReconnecting: false });
             get().addToast('Reconnected ✓', 'success');
           } else {
-            set({ room: null, myPlayerId: null, myRole: null, nightResult: null, investigationResult: null, gameOverResult: null });
+            set({ room: null, myPlayerId: null, myRole: null, nightResult: null, investigationResult: null, gameOverResult: null, isReconnecting: false });
             get().addToast('Room closed while disconnected', 'error');
           }
-        }).catch(() => {});
+        }).catch(() => { set({ isReconnecting: false }); });
+      } else {
+        set({ isReconnecting: false });
       }
+    } else {
+      set({ isReconnecting: false });
     }
   });
-  socket.on('disconnect', () => set({ isConnected: false, isLoading: false }));
+
+  socket.on('disconnect', () => {
+    const { room } = get();
+    set({ isConnected: false, isLoading: false });
+    if (room) {
+      set({ isReconnecting: true });
+      get().addToast('Reconnecting…', 'info');
+    }
+  });
+
+  socket.on('connect_error', () => {
+    // After repeated failures, show connection error
+    set({ isConnected: false });
+  });
 
   // Lightweight timer tick — avoids broadcasting full room state every second
   socket.on('room:timer', (remaining: number) => {
@@ -148,13 +171,15 @@ export const useGameStore = create<GameStore>((set, get) => {
   socket.on('chat:new', (msg: ChatMessage) => {
     set(state => {
       if (!state.room) return state;
-      const field = msg.channel === 'mafia' ? 'mafiaChat' : msg.channel === 'dead' ? 'deadChat' : 'chat';
-      return {
-        room: {
-          ...state.room,
-          [field]: [...(state.room[field] ?? []), msg].slice(-200),
-        },
-      };
+      if (msg.channel === 'mafia') {
+        return { room: { ...state.room, mafiaChat: [...state.room.mafiaChat, msg].slice(-200) } };
+      } else if (msg.channel === 'dead') {
+        return { room: { ...state.room, deadChat: [...state.room.deadChat, msg].slice(-200) } };
+      } else if (msg.channel === 'spectator') {
+        return { room: { ...state.room, spectatorChat: [...(state.room.spectatorChat ?? []), msg].slice(-200) } };
+      } else {
+        return { room: { ...state.room, chat: [...state.room.chat, msg].slice(-200) } };
+      }
     });
   });
 
@@ -241,6 +266,21 @@ export const useGameStore = create<GameStore>((set, get) => {
     get().addToast('Spot opened — joining room!', 'success');
   });
 
+  (socket as any).on('queue:updated', ({ nextRoundQueue }: { nextRoundQueue: import('@/types/index').PlayerPublic[] }) => {
+    const { myPlayerId } = get();
+    set(s => {
+      if (!s.room) return s;
+      // Update the queue in room state
+      const updatedRoom = { ...s.room, nextRoundQueue };
+      return { room: updatedRoom };
+    });
+    // Update local queuePosition from queue data
+    if (myPlayerId) {
+      const myEntry = nextRoundQueue.find(p => p.id === myPlayerId);
+      set({ queuePosition: myEntry?.queuePosition ?? null });
+    }
+  });
+
   (socket as any).on('friend:request_received', (req: FriendRequest) => {
     set(s => ({ pendingFriendRequests: [...s.pendingFriendRequests, req] }));
     get().addToast(`Friend request from ${req.fromUsername}`, 'info');
@@ -284,6 +324,17 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   socket.on('error', ({ message }: { message: string }) => {
     get().addToast(message, 'error');
+  });
+
+  (socket as any).on('clanRoom:warningReceived', ({ clanName, moderatorName, moderatorRole, reason }: any) => {
+    const from = moderatorName ? ` from ${moderatorName}` : '';
+    set({ modNotice: { type: 'warn', reason: `[Clan Warning${from}] ${reason}`, category: 'other', moderatorName: `${clanName} ${moderatorRole}` } });
+    get().addToast(`⚠️ Clan warning received`, 'error');
+  });
+
+  (socket as any).on('clanRoom:kicked', ({ clanName, reason }: any) => {
+    set({ room: null, myPlayerId: null, myRole: null, nightResult: null, investigationResult: null, gameOverResult: null });
+    get().addToast(`You were removed from the ${clanName} room. ${reason ? `Reason: ${reason}` : ''}`, 'error');
   });
 
   (socket as any).on('room:closed', ({ reason }: { reason: string }) => {
@@ -343,11 +394,16 @@ export const useGameStore = create<GameStore>((set, get) => {
     modNotice: null,
     toasts: [],
     isLoading: false,
+    isReconnecting: false,
+    connectionFailed: false,
     error: null,
 
     myPlayer: () => {
       const { room, myPlayerId } = get();
-      return room?.players.find(p => p.id === myPlayerId) ?? null;
+      if (!room || !myPlayerId) return null;
+      return room.players.find(p => p.id === myPlayerId)
+        ?? room.nextRoundQueue?.find(p => p.id === myPlayerId)
+        ?? null;
     },
     amHost: () => get().myPlayer()?.isHost ?? false,
     amAlive: () => get().myPlayer()?.isAlive ?? false,
@@ -361,17 +417,26 @@ export const useGameStore = create<GameStore>((set, get) => {
       set({ room: null, myPlayerId: null, myRole: null });
     },
 
-    createRoom: withLoading(async (name: string, settings?: Partial<GameSettings>) => {
-      const room = await emit<RoomPublic>('room:create', { name, settings });
+    createRoom: withLoading(async (name: string, settings?: Partial<GameSettings>, clanRoom = false) => {
+      const room = await emit<RoomPublic>('room:create', { name, settings, clanRoom });
       set({ room, myPlayerId: room.players.find(p => p.isHost)?.id ?? null });
     }),
 
-    joinRoom: withLoading(async (code: string, name: string, isSpectator = false, password = '') => {
-      const room = await emit<RoomPublic>('room:join', { code, name, isSpectator, password });
-      // My player is the one who isn't already in our store
-      const myPlayer = room.players.find(p => p.name === name);
-      set({ room, myPlayerId: myPlayer?.id ?? null });
-    }),
+    joinRoom: async (code: string, name: string, isSpectator = false, password = '', joinMode?: 'player' | 'spectator' | 'next_round') => {
+      set({ isLoading: true, error: null });
+      try {
+        const room = await emit<RoomPublic>('room:join', { code, name, isSpectator, password, ...(joinMode ? { joinMode } : {}) });
+        const myPlayer = room.players.find(p => p.name === name)
+          ?? room.nextRoundQueue?.find(p => p.name === name);
+        set({ room, myPlayerId: myPlayer?.id ?? null, isLoading: false, error: null });
+      } catch (e: any) {
+        const msg = e?.message ?? 'An error occurred.';
+        set({ error: msg, isLoading: false });
+        if (msg !== 'GAME_ALREADY_STARTED_CHOOSE_MODE') {
+          get().addToast(msg, 'error');
+        }
+      }
+    },
 
     leaveRoom: withLoading(async () => {
       await emit('room:leave');
@@ -439,6 +504,10 @@ export const useGameStore = create<GameStore>((set, get) => {
       await emit('game:skip');
     }),
 
+    speechPass: withLoading(async () => {
+      await emit('game:speech_pass');
+    }),
+
     daySkipVote: withLoading(async () => {
       await emit('game:day_skip_vote');
     }),
@@ -492,5 +561,19 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (!res.ok) throw new Error(res.error);
       return res.data;
     },
+
+    joinQueue: withLoading(async () => {
+      const res = await emitWithAck<unknown, Res<{ position: number }>>('queue:join', undefined);
+      if (!res.ok) throw new Error(res.error);
+      set({ queuePosition: res.data.position });
+      get().addToast(`Joined queue — position #${res.data.position}`, 'success');
+    }),
+
+    leaveQueue: withLoading(async () => {
+      const res = await emitWithAck<unknown, Res<null>>('queue:leave', undefined);
+      if (!res.ok) throw new Error(res.error);
+      set({ queuePosition: null });
+      get().addToast('Left the next-round queue', 'info');
+    }),
   };
 });

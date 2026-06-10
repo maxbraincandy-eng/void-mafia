@@ -131,11 +131,13 @@ async function rowToProfile(row) {
         cosmetics = {
             equippedNameColor: parsed.equippedNameColor ?? null,
             equippedFrame: parsed.equippedFrame ?? null,
+            equippedTitle: parsed.equippedTitle ?? null,
+            equippedRoleSkin: parsed.equippedRoleSkin ?? null,
             unlockedItems: parsed.unlockedItems ?? [],
         };
     }
     catch {
-        cosmetics = { equippedNameColor: null, equippedFrame: null, unlockedItems: [] };
+        cosmetics = { equippedNameColor: null, equippedFrame: null, equippedTitle: null, equippedRoleSkin: null, unlockedItems: [] };
     }
     return {
         id: row.id,
@@ -252,6 +254,10 @@ export async function getOrCreatePlayer(uid, username) {
 }
 export async function getPlayer(uid) {
     const [row] = await sql `SELECT * FROM players WHERE id = ${uid}`;
+    return row ? rowToProfile(row) : null;
+}
+export async function getPlayerByPublicId(publicId) {
+    const [row] = await sql `SELECT * FROM players WHERE public_id = ${publicId} LIMIT 1`;
     return row ? rowToProfile(row) : null;
 }
 export async function getAllPlayers() {
@@ -485,11 +491,13 @@ export async function getCosmetics(profileId) {
         return {
             equippedNameColor: parsed.equippedNameColor ?? null,
             equippedFrame: parsed.equippedFrame ?? null,
+            equippedTitle: parsed.equippedTitle ?? null,
+            equippedRoleSkin: parsed.equippedRoleSkin ?? null,
             unlockedItems: parsed.unlockedItems ?? [],
         };
     }
     catch {
-        return { equippedNameColor: null, equippedFrame: null, unlockedItems: [] };
+        return { equippedNameColor: null, equippedFrame: null, equippedTitle: null, equippedRoleSkin: null, unlockedItems: [] };
     }
 }
 export async function equipCosmetic(profileId, type, itemId) {
@@ -498,19 +506,44 @@ export async function equipCosmetic(profileId, type, itemId) {
         throw new Error('Item not unlocked.');
     if (type === 'name_color')
         cosmetics.equippedNameColor = itemId;
-    else
+    else if (type === 'frame')
         cosmetics.equippedFrame = itemId;
+    else if (type === 'title')
+        cosmetics.equippedTitle = itemId;
+    else if (type === 'role_skin')
+        cosmetics.equippedRoleSkin = itemId;
     await sql `UPDATE players SET cosmetics = ${JSON.stringify(cosmetics)} WHERE id = ${profileId}`;
     return cosmetics;
 }
+// Grant starter items to a new player (call after first login)
+export async function grantStarterCosmetics(profileId) {
+    const STARTER = ['title_void_citizen', 'skin_classic', 'frame_bronze'];
+    const cosmetics = await getCosmetics(profileId);
+    let changed = false;
+    for (const item of STARTER) {
+        if (!cosmetics.unlockedItems.includes(item)) {
+            cosmetics.unlockedItems.push(item);
+            changed = true;
+        }
+    }
+    if (changed) {
+        if (!cosmetics.equippedTitle)
+            cosmetics.equippedTitle = 'title_void_citizen';
+        if (!cosmetics.equippedRoleSkin)
+            cosmetics.equippedRoleSkin = 'skin_classic';
+        if (!cosmetics.equippedFrame)
+            cosmetics.equippedFrame = 'frame_bronze';
+        await sql `UPDATE players SET cosmetics = ${JSON.stringify(cosmetics)} WHERE id = ${profileId}`;
+    }
+}
 async function checkLevelCosmetics(profileId, level) {
     const unlocks = {
-        2: ['name_cyan'],
-        3: ['name_pink', 'frame_bronze'],
-        5: ['name_gold', 'frame_silver'],
-        7: ['name_rainbow'],
-        8: ['frame_gold'],
-        10: ['frame_legendary'],
+        2: ['name_cyan', 'title_night_owl'],
+        3: ['name_pink', 'frame_bronze', 'skin_neon', 'title_city_sheriff'],
+        5: ['name_gold', 'frame_silver', 'skin_golden_don', 'title_silent_killer', 'frame_cyber_don'],
+        7: ['name_rainbow', 'title_the_betrayer', 'skin_cyber_sheriff'],
+        8: ['frame_gold', 'title_clan_boss', 'skin_cult', 'frame_blood_moon'],
+        10: ['frame_legendary', 'title_godfather', 'skin_shogun'],
     };
     const items = unlocks[level];
     if (!items)

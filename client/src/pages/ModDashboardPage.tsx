@@ -47,7 +47,7 @@ const TABS: { id: Tab; label: string; minRank: number }[] = [
 const PHASE_COLORS: Record<string, string> = {
   lobby: 'text-white/40', role_reveal: 'text-neon-pink', night: 'text-neon-blue',
   morning: 'text-yellow-300', day: 'text-yellow-400', speech: 'text-neon-cyan',
-  voting: 'text-neon-red', death_speech: 'text-orange-400', game_over: 'text-white/25',
+  voting: 'text-neon-red', final_words: 'text-orange-400', game_over: 'text-white/25',
 };
 
 function fmtTime(ms: number): string {

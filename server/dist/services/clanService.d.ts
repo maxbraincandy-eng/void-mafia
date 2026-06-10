@@ -9,11 +9,12 @@ export interface Clan {
     createdAt: number;
     memberCount: number;
 }
+export type ClanRole = 'owner' | 'admin' | 'moderator' | 'member';
 export interface ClanMember {
     playerId: string;
     username: string;
     avatar: string;
-    role: 'owner' | 'officer' | 'member';
+    role: ClanRole;
     joinedAt: number;
 }
 export declare function createClan(ownerId: string, name: string, tag: string, description: string): Promise<Clan>;
@@ -23,7 +24,7 @@ export interface ClanMembership {
     id: string;
     name: string;
     tag: string;
-    memberRole: 'owner' | 'officer' | 'member';
+    memberRole: ClanRole;
     joinedAt: number;
     wins: number;
     losses: number;
@@ -34,5 +35,20 @@ export declare function getAllClans(): Promise<Clan[]>;
 export declare function getClanMembers(clanId: string): Promise<ClanMember[]>;
 export declare function joinClan(playerId: string, clanId: string): Promise<void>;
 export declare function leaveClan(playerId: string): Promise<void>;
+export declare function setClanMemberRole(actorId: string, targetId: string, newRole: ClanRole): Promise<void>;
+export interface ClanModLog {
+    id: string;
+    clanId: string;
+    modId: string;
+    modName: string;
+    targetId: string;
+    targetName: string;
+    action: string;
+    reason: string;
+    roomId: string | null;
+    createdAt: number;
+}
+export declare function addClanModLog(clanId: string, modId: string, modName: string, targetId: string, targetName: string, action: string, reason: string, roomId: string | null): Promise<void>;
+export declare function getClanModLogs(clanId: string, limit?: number): Promise<ClanModLog[]>;
 export declare function updateClanStats(clanId: string, won: boolean): Promise<void>;
 //# sourceMappingURL=clanService.d.ts.map

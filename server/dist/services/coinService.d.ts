@@ -23,6 +23,10 @@ export interface GiftCatalogItem {
     stars: number;
     price: number;
     active: boolean;
+    category: string;
+    limitedEdition: boolean;
+    seasonalTag: string | null;
+    displayOrder: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -59,6 +63,47 @@ export interface GiftDetail extends GiftCatalogItem {
         message: string;
         sentAt: number;
     }>;
+}
+export interface GiftTimelineEntry {
+    id: string;
+    senderId: string;
+    senderPublicId: number | null;
+    senderName: string;
+    senderAvatar: string;
+    senderAvatarUrl: string | null;
+    recipientId: string;
+    receiverPublicId: number | null;
+    receiverName: string;
+    receiverAvatar: string;
+    receiverAvatarUrl: string | null;
+    giftId: string;
+    giftName: string;
+    giftIcon: string;
+    giftImageUrl: string;
+    giftRarity: string;
+    giftStars: number;
+    coinCost: number;
+    message: string;
+    createdAt: number;
+}
+export interface GiftStats {
+    totalReceived: number;
+    totalSent: number;
+    totalSpent: number;
+    uniqueGiftTypesReceived: number;
+    uniqueGiftTypesSent: number;
+    legendaryReceivedCount: number;
+    mostReceivedGiftName: string | null;
+    mostSentGiftName: string | null;
+}
+export interface PinnedGiftEntry {
+    giftId: string;
+    giftName: string;
+    giftIcon: string;
+    giftImageUrl: string;
+    giftRarity: string;
+    giftStars: number;
+    pinnedAt: number;
 }
 export declare function getCoins(playerId: string): Promise<number>;
 export declare function claimDailyReward(playerId: string): Promise<{
@@ -101,4 +146,10 @@ export declare function sendGift(senderId: string, recipientId: string, giftId: 
 }>;
 export declare function getPlayerGifts(recipientId: string): Promise<PlayerGift[]>;
 export declare function getGiftDetail(giftId: string, recipientId: string): Promise<GiftDetail | null>;
+export declare function getGiftsSent(senderId: string, limit?: number): Promise<PlayerGift[]>;
+export declare function getGiftTimeline(playerId: string, limit?: number): Promise<GiftTimelineEntry[]>;
+export declare function getGiftStats(playerId: string): Promise<GiftStats>;
+export declare function getPinnedGifts(playerId: string): Promise<PinnedGiftEntry[]>;
+export declare function pinGift(playerId: string, giftId: string): Promise<void>;
+export declare function unpinGift(playerId: string, giftId: string): Promise<void>;
 //# sourceMappingURL=coinService.d.ts.map

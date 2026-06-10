@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import { getFrameById } from '@/constants/cosmetics';
 
 interface Props {
   name: string;
@@ -6,6 +7,7 @@ interface Props {
   isAlive?: boolean;
   isHost?: boolean;
   src?: string;
+  frame?: string | null;
   className?: string;
 }
 
@@ -16,7 +18,14 @@ const sizeMap = {
   xl: 'w-16 h-16 text-xl',
 };
 
-export function Avatar({ name, size = 'md', isAlive = true, isHost = false, src, className }: Props) {
+const framePadding = {
+  sm: 'p-[2px]',
+  md: 'p-[2px]',
+  lg: 'p-[2.5px]',
+  xl: 'p-[3px]',
+};
+
+export function Avatar({ name, size = 'md', isAlive = true, isHost = false, src, frame, className }: Props) {
   const initials = name
     .trim()
     .split(/\s+/)
@@ -24,23 +33,50 @@ export function Avatar({ name, size = 'md', isAlive = true, isHost = false, src,
     .slice(0, 2)
     .join('');
 
+  const frameDef = getFrameById(frame ?? null);
+
   return (
     <div className={clsx('relative flex-shrink-0', className)}>
-      <div
-        className={clsx(
-          'rounded-full flex items-center justify-center font-display font-bold overflow-hidden',
-          'transition-all duration-300',
-          sizeMap[size],
-          isAlive
-            ? 'bg-gradient-to-br from-neon-purple/30 to-neon-cyan/20 border border-neon-cyan/30 text-neon-cyan'
-            : 'bg-white/5 border border-white/10 text-white/30 grayscale',
-        )}
-      >
-        {src
-          ? <img src={src} alt={name} className="w-full h-full object-cover rounded-full" />
-          : (initials || '?')
-        }
-      </div>
+      {frameDef ? (
+        <div
+          className={clsx('rounded-full', framePadding[size], sizeMap[size])}
+          style={{
+            background: `linear-gradient(135deg, ${frameDef.colors[0]}, ${frameDef.colors[1]})`,
+            boxShadow: `0 0 8px ${frameDef.glow}`,
+          }}
+        >
+          <div
+            className={clsx(
+              'w-full h-full rounded-full flex items-center justify-center font-display font-bold overflow-hidden',
+              'transition-all duration-300',
+              isAlive
+                ? 'bg-gradient-to-br from-neon-purple/30 to-neon-cyan/20 text-neon-cyan'
+                : 'bg-white/5 text-white/30 grayscale',
+            )}
+          >
+            {src
+              ? <img src={src} alt={name} className="w-full h-full object-cover rounded-full" />
+              : (initials || '?')
+            }
+          </div>
+        </div>
+      ) : (
+        <div
+          className={clsx(
+            'rounded-full flex items-center justify-center font-display font-bold overflow-hidden',
+            'transition-all duration-300',
+            sizeMap[size],
+            isAlive
+              ? 'bg-gradient-to-br from-neon-purple/30 to-neon-cyan/20 border border-neon-cyan/30 text-neon-cyan'
+              : 'bg-white/5 border border-white/10 text-white/30 grayscale',
+          )}
+        >
+          {src
+            ? <img src={src} alt={name} className="w-full h-full object-cover rounded-full" />
+            : (initials || '?')
+          }
+        </div>
+      )}
       {isHost && (
         <span className="absolute -top-1 -right-1 text-xs">👑</span>
       )}

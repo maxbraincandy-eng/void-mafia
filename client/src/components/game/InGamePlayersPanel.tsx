@@ -2,11 +2,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { PlayerPublic, Phase } from '@/types/index';
 import { useSocialStore } from '@/store/socialStore';
+import { useT } from '@/store/langStore';
 
 interface Props {
   open: boolean;
   onClose: () => void;
   players: PlayerPublic[];
+  nextRoundQueue?: PlayerPublic[];
   phase: Phase;
   currentSpeakerId?: string | null;
   myPlayerId?: string | null;
@@ -18,11 +20,12 @@ function initialsOf(name: string): string {
 }
 
 export function InGamePlayersPanel({
-  open, onClose, players, phase, currentSpeakerId, myPlayerId, speakingSocketIds
+  open, onClose, players, nextRoundQueue = [], phase, currentSpeakerId, myPlayerId, speakingSocketIds
 }: Props) {
   const { openProfile } = useSocialStore();
+  const t = useT();
 
-  const activePlayers = players.filter(p => !p.isSpectator);
+  const activePlayers = players.filter(p => !p.isSpectator && !p.isQueuedNextRound);
   const alivePlayers  = activePlayers.filter(p => p.isAlive);
   const deadPlayers   = activePlayers.filter(p => !p.isAlive);
 
@@ -60,9 +63,9 @@ export function InGamePlayersPanel({
             {/* Header */}
             <div className="px-5 py-3 flex items-center justify-between border-b border-white/[0.07] flex-shrink-0">
               <div>
-                <h3 className="font-display font-bold text-base text-white tracking-wide">Players</h3>
+                <h3 className="font-display font-bold text-base text-white tracking-wide">{t.players.header}</h3>
                 <p className="text-[10px] font-mono text-white/30 mt-0.5 uppercase tracking-wider">
-                  {alivePlayers.length} alive · {deadPlayers.length} eliminated
+                  {t.players.aliveOf.replace('{n}', String(alivePlayers.length)).replace('{m}', String(deadPlayers.length))}
                 </p>
               </div>
               <button
@@ -78,7 +81,7 @@ export function InGamePlayersPanel({
               {alivePlayers.length > 0 && (
                 <div className="pt-3">
                   <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-neon-green/45 mb-2 px-1">
-                    ⚔ In Battle · {alivePlayers.length}
+                    {t.players.inBattle.replace('{n}', String(alivePlayers.length))}
                   </p>
                   <div className="space-y-1.5">
                     {alivePlayers.map(p => (
@@ -89,6 +92,7 @@ export function InGamePlayersPanel({
                         isSpeaker={p.id === currentSpeakerId}
                         isSpeaking={speakingSocketIds?.has(p.socketId) ?? false}
                         onTap={() => handleTap(p)}
+                        t={t}
                       />
                     ))}
                   </div>
@@ -98,7 +102,7 @@ export function InGamePlayersPanel({
               {deadPlayers.length > 0 && (
                 <div className="pt-4">
                   <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-white/20 mb-2 px-1">
-                    💀 Eliminated · {deadPlayers.length}
+                    {t.players.eliminated.replace('{n}', String(deadPlayers.length))}
                   </p>
                   <div className="space-y-1.5 opacity-50">
                     {deadPlayers.map(p => (
@@ -110,6 +114,28 @@ export function InGamePlayersPanel({
                         isSpeaking={false}
                         dead
                         onTap={() => handleTap(p)}
+                        t={t}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {nextRoundQueue.length > 0 && (
+                <div className="pt-4">
+                  <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-white/25 mb-2 px-1">
+                    ⏳ Waiting Next Round · {nextRoundQueue.length}
+                  </p>
+                  <div className="space-y-1.5 opacity-60">
+                    {nextRoundQueue.map(p => (
+                      <PlayerRow
+                        key={p.id}
+                        player={p}
+                        isMe={p.id === myPlayerId}
+                        isSpeaker={false}
+                        isSpeaking={false}
+                        onTap={() => handleTap(p)}
+                        t={t}
                       />
                     ))}
                   </div>
@@ -124,7 +150,7 @@ export function InGamePlayersPanel({
 }
 
 function PlayerRow({
-  player, isMe, isSpeaker, isSpeaking, dead, onTap,
+  player, isMe, isSpeaker, isSpeaking, dead, onTap, t,
 }: {
   player: PlayerPublic;
   isMe: boolean;
@@ -132,6 +158,7 @@ function PlayerRow({
   isSpeaking: boolean;
   dead?: boolean;
   onTap: () => void;
+  t: import('@/i18n/translations').T;
 }) {
   const initials = initialsOf(player.name);
 
@@ -207,7 +234,7 @@ function PlayerRow({
           </span>
           {isMe && (
             <span className="flex-shrink-0 text-[9px] font-mono text-neon-purple/55 bg-neon-purple/10 px-1.5 py-0.5 rounded-full">
-              you
+              {t.common.you.replace(/[()]/g, '')}
             </span>
           )}
         </div>
@@ -215,32 +242,32 @@ function PlayerRow({
         <div className="flex items-center gap-1.5 mt-0.5">
           {isSpeaker && (
             <span className="text-[9px] font-mono text-neon-cyan font-bold bg-neon-cyan/10 px-1.5 py-0.5 rounded-full">
-              🎤 Speaking
+              {t.players.speaking}
             </span>
           )}
           {!isSpeaker && isSpeaking && (
             <span className="text-[9px] font-mono text-neon-green font-bold bg-neon-green/10 px-1.5 py-0.5 rounded-full animate-pulse">
-              🔊 Voice on
+              {t.players.voiceOn}
             </span>
           )}
           {!dead && !isSpeaker && !isSpeaking && player.isConnected && (
-            <span className="text-[9px] font-mono text-neon-green/45 tracking-wide">In Battle</span>
+            <span className="text-[9px] font-mono text-neon-green/45 tracking-wide">{t.players.inBattleLabel}</span>
           )}
           {!player.isConnected && !dead && (
-            <span className="text-[9px] font-mono text-yellow-500/50">reconnecting…</span>
+            <span className="text-[9px] font-mono text-yellow-500/50">{t.players.reconnecting}</span>
           )}
           {dead && player.deathType === 'night' && (
             <span className="text-[9px] font-mono font-bold text-red-400 bg-red-500/15 border border-red-500/30 px-1.5 py-0.5 rounded-full">
-              ☠ KILLED
+              {t.players.killed}
             </span>
           )}
           {dead && player.deathType === 'vote' && (
             <span className="text-[9px] font-mono font-bold text-orange-400 bg-orange-500/15 border border-orange-500/30 px-1.5 py-0.5 rounded-full">
-              ⚖ VOTED OUT
+              {t.players.votedOut}
             </span>
           )}
           {dead && !player.deathType && (
-            <span className="text-[9px] font-mono text-white/25">eliminated</span>
+            <span className="text-[9px] font-mono text-white/25">{t.players.eliminatedStatus}</span>
           )}
         </div>
       </div>

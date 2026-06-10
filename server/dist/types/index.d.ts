@@ -1,8 +1,8 @@
-export type Phase = 'lobby' | 'role_reveal' | 'night' | 'morning' | 'day' | 'speech' | 'voting' | 'death_speech' | 'game_over';
+export type Phase = 'lobby' | 'role_reveal' | 'night' | 'morning' | 'day' | 'speech' | 'voting' | 'final_words' | 'game_over';
 export type RoleKey = 'mafia' | 'citizen' | 'sheriff' | 'doctor' | 'don' | 'maniac' | 'jester' | 'bodyguard' | 'spy' | 'escort' | 'vigilante' | 'cult_leader' | 'cultist' | 'veteran' | 'tracker' | 'arsonist' | 'mayor' | 'yakuza' | 'shogun';
 export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
-export type ChatChannel = 'room' | 'mafia' | 'dead';
+export type ChatChannel = 'room' | 'mafia' | 'dead' | 'spectator';
 export type ModeratorLevel = 'moderator' | 'senior_moderator' | 'admin' | 'owner';
 export type ReportReason = 'cheating' | 'offensive_language' | 'voice_abuse' | 'spamming' | 'inappropriate_nickname' | 'harassment' | 'game_sabotage' | 'bug_abuse' | 'other' | 'hate_speech' | 'inappropriate_chat' | 'toxic_behavior';
 export type ModActionType = 'kick' | 'ban' | 'unban' | 'mute' | 'unmute' | 'warn' | 'report_resolve' | 'report_reject' | 'freeze' | 'unfreeze' | 'rename' | 'note_add' | 'force_phase' | 'pause_timer' | 'resume_timer' | 'system_message' | 'broadcast' | 'terminate_game';
@@ -19,6 +19,8 @@ export interface Role {
 export interface PlayerCosmetics {
     equippedNameColor: string | null;
     equippedFrame: string | null;
+    equippedTitle: string | null;
+    equippedRoleSkin: string | null;
     unlockedItems: string[];
 }
 export interface XPGain {
@@ -157,6 +159,11 @@ export interface ModLog {
     createdAt: number;
     expiresAt?: number;
 }
+export interface SpectatorQueueSettings {
+    enabled: boolean;
+    allowSpectatorsToQueue: boolean;
+    autoPromoteOnNextRound: boolean;
+}
 export interface Player {
     id: string;
     name: string;
@@ -175,6 +182,8 @@ export interface Player {
     joinedAt: number;
     profileId: string | null;
     isSpectator: boolean;
+    isQueuedNextRound: boolean;
+    queuePosition: number | null;
     lastWill: string | null;
     isModerator: boolean;
     moderatorLevel: ModeratorLevel | null;
@@ -197,6 +206,38 @@ export interface ChatMessage {
     seat?: number;
     isMod?: boolean;
 }
+export interface DynamicEventAllowed {
+    blackoutNight: boolean;
+    silentDay: boolean;
+    doubleVote: boolean;
+    noRevealDay: boolean;
+    bloodMoon: boolean;
+    anonymousVoting: boolean;
+    sheriffFog: boolean;
+    doctorPressure: boolean;
+    extendedFinalWords: boolean;
+}
+export interface DynamicEventSettings {
+    enabled: boolean;
+    frequency: 'low' | 'medium' | 'high';
+    allowed: DynamicEventAllowed;
+}
+export interface ActiveEvent {
+    key: string;
+    label: string;
+    description: string;
+    icon: string;
+    phase: string;
+    day: number;
+    expiresAtPhaseEnd: boolean;
+}
+export interface EventLogEntry {
+    day: number;
+    phase: string;
+    eventKey: string;
+    eventLabel: string;
+}
+export declare const DEFAULT_DYNAMIC_EVENTS: DynamicEventSettings;
 export interface GameSettings {
     nightDuration: number;
     dayDuration: number;
@@ -210,6 +251,8 @@ export interface GameSettings {
     password: string;
     startWithNight: boolean;
     rotatingSpeech: boolean;
+    dynamicEvents: DynamicEventSettings;
+    spectatorQueue: SpectatorQueueSettings;
     roles: {
         mafia: number;
         don: number;
@@ -236,6 +279,8 @@ export interface Room {
     hostId: string;
     phase: Phase;
     players: Map<string, Player>;
+    /** Players waiting to join as active players in the next round */
+    nextRoundQueue: Player[];
     day: number;
     timer: number;
     maxTimer: number;
@@ -261,12 +306,20 @@ export interface Room {
     newlyConvertedCultists: string[];
     deadChat: ChatMessage[];
     spectateQueue: string[];
+    spectatorChat: ChatMessage[];
     startedAt: number;
     mafiaKillTarget: string | null;
     nominations: Map<string, string>;
     tribunalCandidates: string[];
     deathSpeakerId: string | null;
+    finalWordsReason: 'night_kill' | 'vote_elimination' | null;
+    pendingWinner: Team | null;
     speechStartSeat: number;
+    clanId: string | null;
+    clanRoom: boolean;
+    activeEvent: ActiveEvent | null;
+    eventsLog: EventLogEntry[];
+    lastDoctorTarget: string | null;
 }
 export interface PlayerPublic {
     id: string;
@@ -287,6 +340,8 @@ export interface PlayerPublic {
     isModerator: boolean;
     moderatorLevel: ModeratorLevel | null;
     isSpectator: boolean;
+    isQueuedNextRound: boolean;
+    queuePosition: number | null;
     deathType: 'night' | 'vote' | null;
 }
 export interface RoomPublic {
@@ -297,6 +352,8 @@ export interface RoomPublic {
     timer: number;
     maxTimer: number;
     players: PlayerPublic[];
+    /** Spectators who are queued for next round (ordered by position) */
+    nextRoundQueue: PlayerPublic[];
     chat: ChatMessage[];
     mafiaChat: ChatMessage[];
     killedLastNight: Array<{
@@ -313,6 +370,7 @@ export interface RoomPublic {
     spectatorCount: number;
     isPaused: boolean;
     deadChat: ChatMessage[];
+    spectatorChat: ChatMessage[];
     /** Mafia-team-only: each alive Mafia member's current kill vote. null when viewer is not Mafia. */
     mafiaVotes: Record<string, {
         voterName: string;
@@ -323,6 +381,10 @@ export interface RoomPublic {
     /** deduped list of nominated player IDs eligible for tribunal vote */
     tribunalCandidates: string[];
     deathSpeakerId: string | null;
+    finalWordsReason: string | null;
+    clanId: string | null;
+    clanRoom: boolean;
+    activeEvent: ActiveEvent | null;
 }
 export interface RoomListItem {
     id: string;
@@ -408,13 +470,14 @@ export interface ClanPublic {
     createdAt: number;
     memberCount: number;
 }
+export type ClanRole = 'owner' | 'admin' | 'moderator' | 'member';
 export interface ClanMember {
     playerId: string;
     username: string;
     avatar: string;
     avatarUrl?: string | null;
     publicId?: number | null;
-    role: 'owner' | 'officer' | 'member';
+    role: ClanRole;
     joinedAt: number;
 }
 export interface GameHistoryEntry {
@@ -585,6 +648,9 @@ export interface ServerToClientEvents {
     'queue:promoted': (data: {
         roomCode: string;
     }) => void;
+    'queue:updated': (data: {
+        nextRoundQueue: PlayerPublic[];
+    }) => void;
     'friend:request_received': (req: FriendRequest) => void;
     'game:notification': (data: {
         title: string;
@@ -668,6 +734,7 @@ export interface ClientToServerEvents {
         targetId: string | null;
     }, cb: Cb<null>) => void;
     'game:skip': (cb: Cb<null>) => void;
+    'game:speech_pass': (cb: Cb<null>) => void;
     'game:nominate': (data: {
         nomineeId: string | null;
     }, cb: Cb<null>) => void;
@@ -836,6 +903,10 @@ export interface ClientToServerEvents {
         to: string;
         candidate: object;
     }) => void;
+    'queue:join': (cb: Cb<{
+        position: number;
+    }>) => void;
+    'queue:leave': (cb: Cb<null>) => void;
     'game:rematch': (cb: Cb<null>) => void;
     'friend:request': (data: {
         toProfileId?: string;

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Role } from '@/types/index';
 import { SFX } from '@/hooks/useSoundFX';
 import { useT } from '@/store/langStore';
+import { getRoleSkinById } from '@/constants/cosmetics';
 
 export interface TeamMate {
   name: string;
@@ -13,6 +14,7 @@ export interface TeamMate {
 interface Props {
   role: Role | null;
   teammates?: TeamMate[];
+  skin?: string | null;
 }
 
 const ROLE_GEO: Record<string, string> = {
@@ -96,7 +98,7 @@ const ROLE_BORDER: Record<string, [string, string]> = {
   mayor:       ['#ffcc00', '#00ccff'],
 };
 
-export function RoleReveal({ role, teammates }: Props) {
+export function RoleReveal({ role, teammates, skin }: Props) {
   const [flipped, setFlipped] = useState(false);
   const [flipDone, setFlipDone] = useState(false);
   const t = useT();
@@ -111,10 +113,14 @@ export function RoleReveal({ role, teammates }: Props) {
 
   if (!role) return null;
 
+  const skinDef = getRoleSkinById(skin ?? null);
   const geoName  = ROLE_GEO[role.key]     ?? role.name;
   const tagline  = ROLE_TAGLINE[role.key]  ?? role.description;
   const icon     = ROLE_ICONS[role.key]   ?? '◆';
-  const [c1, c2] = ROLE_BORDER[role.key]  ?? ['#ff00cc', '#00ccff'];
+  const [defaultC1, defaultC2] = ROLE_BORDER[role.key] ?? ['#ff00cc', '#00ccff'];
+  const c1 = skinDef?.c1 ?? defaultC1;
+  const c2 = skinDef?.c2 ?? defaultC2;
+  const cardBg = skinDef?.bg ?? '#03000d';
 
   const borderGradient = `linear-gradient(180deg, ${c1}, ${c2})`;
 
@@ -190,7 +196,7 @@ export function RoleReveal({ role, teammates }: Props) {
             >
               <div
                 className="relative w-full h-full rounded-2xl overflow-hidden flex flex-col"
-                style={{ background: '#03000d' }}
+                style={{ background: cardBg }}
               >
                 {/* subtle bg glow */}
                 <div
@@ -205,7 +211,7 @@ export function RoleReveal({ role, teammates }: Props) {
                     className="text-[9px] font-display tracking-[0.3em] uppercase"
                     style={{ color: c2, opacity: 0.8 }}
                   >
-                    VOID MAFIA
+                    {skinDef ? skinDef.name.toUpperCase() : 'VOID MAFIA'}
                   </span>
                   <div className="w-4 h-px" style={{ background: `linear-gradient(90deg, ${c2}, transparent)` }} />
                 </div>

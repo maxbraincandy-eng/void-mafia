@@ -24,6 +24,7 @@ interface VoiceControlsProps {
   onLeave: () => void;
   onToggleMute: () => void;
   onToggleCamera: () => void;
+  onReset?: () => void;
 
   defaultChannel?: VoiceChannel;
   channelLabel?: string;
@@ -43,6 +44,7 @@ export function VoiceControls({
   onLeave,
   onToggleMute,
   onToggleCamera,
+  onReset,
   defaultChannel = 'room',
   channelLabel,
 }: VoiceControlsProps) {
@@ -143,9 +145,19 @@ export function VoiceControls({
                 </div>
               </div>
             ) : (
-              /* Other errors — simple message */
-              <div className="text-xs font-mono text-neon-red bg-neon-red/10 border border-neon-red/20 rounded-xl px-3 py-2 leading-relaxed">
-                {error}
+              /* Other errors — simple message + reset option */
+              <div className="space-y-2">
+                <div className="text-xs font-mono text-neon-red bg-neon-red/10 border border-neon-red/20 rounded-xl px-3 py-2 leading-relaxed">
+                  {error}
+                </div>
+                {onReset && (
+                  <button
+                    onClick={onReset}
+                    className="w-full py-2 rounded-lg text-[11px] font-mono font-bold border border-white/15 bg-white/5 text-white/50 hover:text-white/80 hover:bg-white/10 transition-colors active:scale-95"
+                  >
+                    ↺ Reset Connection
+                  </button>
+                )}
               </div>
             )}
           </motion.div>

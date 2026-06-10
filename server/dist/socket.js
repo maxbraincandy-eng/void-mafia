@@ -1,22 +1,23 @@
 import { z } from 'zod';
 import { ok, err, } from './types/index.js';
-import { createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, removePlayer, getPlayerBySocket, toPublicRoom, getHostPlayer, toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom, setPlayerAvatarUrl, } from './services/roomService.js';
+import { createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, addSpectatorPlayer, removePlayer, getPlayerBySocket, toPublicRoom, getHostPlayer, toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom, setPlayerAvatarUrl, enqueueForNextRound, dequeueFromNextRound, promoteQueuedPlayers, } from './services/roomService.js';
 import { startGame, setPhase, advancePhase, submitNightAction, submitVote, submitNomination, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult, getTrackResult, resolveVotes, } from './services/gameService.js';
 import { createPlayerMessage, createSystemMessage, addMessage, validateChat, } from './services/chatService.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
-import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
+import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, grantStarterCosmetics, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
 import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, } from './services/friendService.js';
 import { checkAndAwardChallenge, getTodayChallenge, getDailyChallengeForPlayer, } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
 import { recordGame, getPlayerHistory, getPlayerRoleStats } from './services/gameHistoryService.js';
-import { createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan, } from './services/clanService.js';
+import { createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan, setClanMemberRole, addClanModLog, getClanModLogs, } from './services/clanService.js';
 import { canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer, warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, logKick, addModNote, freezeAccount, unfreezeAccount, renamePlayer, getPlayerDetail, assignReport, getDashboardDbStats, addModLog, } from './services/moderationService.js';
 import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as voiceLeave, getMembers as voiceGetMembers, getSharedChannel as voiceGetSharedChannel, removeFromChannel as voiceRemoveFromChannel, } from './services/voiceService.js';
 import { sql } from './db.js';
 import bcrypt from 'bcryptjs';
+import { sendPushToUser } from './pushService.js';
 import { getOrCreateConversation, listConversations, sendMessage, getMessages, markRead, getTotalUnread, } from './services/dmService.js';
-import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, } from './services/coinService.js';
+import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, getGiftsSent, getGiftTimeline, getGiftStats, getPinnedGifts, pinGift, unpinGift, } from './services/coinService.js';
 // ── TURN / ICE server config ──────────────────────────────────────────
 // Centralised in server/src/lib/iceConfig.ts.  Reads Railway env vars:
 // TURN_URL, TURN_USERNAME, TURN_CREDENTIAL, FORCE_TURN_RELAY, STUN_URL.
@@ -126,11 +127,13 @@ function voteDeathMsg(name, role, lastWill) {
 const CreateRoomSchema = z.object({
     name: z.string().min(1).max(24),
     settings: z.record(z.unknown()).optional(),
+    clanRoom: z.boolean().optional().default(false),
 });
 const JoinRoomSchema = z.object({
     code: z.string().length(6),
     name: z.string().min(1).max(24),
     isSpectator: z.boolean().optional().default(false),
+    joinMode: z.enum(['player', 'spectator', 'next_round']).optional(),
     password: z.string().max(64).optional().default(''),
 });
 const ChatSchema = z.object({
@@ -157,6 +160,43 @@ function broadcastRoom(io, room) {
         if (player.socketId) {
             io.to(player.socketId).emit('room:update', toPublicRoom(room, player.id));
         }
+    }
+    // Also update queued players
+    for (const player of room.nextRoundQueue) {
+        if (player.socketId) {
+            io.to(player.socketId).emit('room:update', toPublicRoom(room, player.id));
+        }
+    }
+}
+function broadcastQueueUpdated(io, room) {
+    const nextRoundQueue = room.nextRoundQueue.map(p => ({
+        id: p.id,
+        socketId: p.socketId,
+        name: p.name,
+        avatar: p.avatar,
+        avatarUrl: p.avatarUrl,
+        isHost: false,
+        isAlive: false,
+        isConnected: p.isConnected,
+        isReady: false,
+        role: null,
+        team: null,
+        voteTarget: null,
+        hasActed: false,
+        seat: 0,
+        profileId: p.profileId,
+        isModerator: p.isModerator,
+        moderatorLevel: p.moderatorLevel,
+        isSpectator: true,
+        isQueuedNextRound: true,
+        queuePosition: p.queuePosition,
+        deathType: null,
+    }));
+    io.to(room.id).emit('queue:updated', { nextRoundQueue });
+    // Also to queued players
+    for (const p of room.nextRoundQueue) {
+        if (p.socketId)
+            io.to(p.socketId).emit('queue:updated', { nextRoundQueue });
     }
 }
 function broadcastOnlineCount(io) {
@@ -189,6 +229,7 @@ function startPhaseTimer(io, room) {
         if (nextPhase === 'night') {
             io.to(room.id).emit('game:notification', { title: 'Night Falls', body: 'Perform your night action.' });
         }
+        announceActiveEvent(io, room);
         if (nextPhase === 'game_over')
             await emitGameOver(io, room);
         broadcastRoom(io, room);
@@ -201,6 +242,13 @@ function broadcastSystemMsg(io, room, text) {
     const msg = createSystemMessage(text);
     addMessage(room, msg);
     io.to(room.id).emit('chat:new', msg);
+}
+function announceActiveEvent(io, room) {
+    if (!room.activeEvent)
+        return;
+    const { icon, label, description } = room.activeEvent;
+    broadcastSystemMsg(io, room, `${icon} ${label} — ${description}`);
+    io.to(room.id).emit('game:notification', { title: label, body: description });
 }
 function getPlayerOrError(socket, room) {
     const player = getPlayerBySocket(room, socket.id);
@@ -323,8 +371,9 @@ function announceNightResult(io, room) {
         for (const killed of room.killedLastNight) {
             const p = room.players.get(killed.id);
             broadcastSystemMsg(io, room, nightDeathMsg(killed.name, p?.role ?? null, killed.lastWill));
-            // Force-mute the eliminated player in any voice channel they're in
-            if (p?.socketId) {
+            // The primary kill (killedLastNight[0]) gets final_words — enforceVoicePhaseRules will
+            // unmute them. Force-mute only secondary kills that die immediately.
+            if (p?.socketId && killed.id !== room.deathSpeakerId) {
                 io.to(p.socketId).emit('voice:force-mute', { reason: 'You were eliminated.' });
             }
         }
@@ -385,31 +434,39 @@ function notifySpies(io, room) {
     }
 }
 function announceVoteResult(io, room) {
-    // Emit vote breakdown before resolving
-    const breakdown = [...room.votes.entries()]
-        .filter(([, tid]) => tid !== null)
-        .map(([vid, tid]) => {
-        const voter = room.players.get(vid);
-        const target = room.players.get(tid);
-        return {
-            voterId: vid, voterName: voter?.name ?? '?',
-            targetId: tid, targetName: target?.name ?? '?',
-            weight: voter?.role === 'mayor' ? 2 : 1,
-        };
-    });
-    io.to(room.id).emit('game:vote_breakdown', breakdown);
+    const isAnonymous = room.activeEvent?.key === 'anonymous_voting';
+    const isNoReveal = room.activeEvent?.key === 'no_reveal_day';
+    // Emit vote breakdown (hidden for anonymous voting)
+    if (!isAnonymous) {
+        const eventMultiplier = room.activeEvent?.key === 'double_vote' ? 2 : 1;
+        const breakdown = [...room.votes.entries()]
+            .filter(([, tid]) => tid !== null)
+            .map(([vid, tid]) => {
+            const voter = room.players.get(vid);
+            const target = room.players.get(tid);
+            return {
+                voterId: vid, voterName: voter?.name ?? '?',
+                targetId: tid, targetName: target?.name ?? '?',
+                weight: (voter?.role === 'mayor' ? 2 : 1) * eventMultiplier,
+            };
+        });
+        io.to(room.id).emit('game:vote_breakdown', breakdown);
+    }
     const eliminated = resolveVotes(room);
     if (eliminated) {
         const target = room.players.get(eliminated);
         if (target) {
             io.to(room.id).emit('game:vote_result', {
                 name: target.name,
-                role: target.role ?? null,
+                role: isNoReveal ? null : (target.role ?? null),
                 lastWill: target.lastWill ?? null,
                 seat: target.seat,
             });
-            broadcastSystemMsg(io, room, voteDeathMsg(target.name, target.role ?? null, target.lastWill));
-            // Force-mute the eliminated player
+            const revealedRole = isNoReveal ? null : (target.role ?? null);
+            broadcastSystemMsg(io, room, voteDeathMsg(target.name, revealedRole, target.lastWill));
+            if (isNoReveal) {
+                broadcastSystemMsg(io, room, `${target.name}'s role remains hidden. (No Reveal Day)`);
+            }
             if (target.socketId) {
                 io.to(target.socketId).emit('voice:force-mute', { reason: 'You were eliminated.' });
             }
@@ -469,8 +526,10 @@ export function attachSocketHandlers(io) {
                 socket.data.profileId = parsed.uid;
                 markOnline(parsed.uid);
                 broadcastOnlineCount(io);
-                socket.emit('player:profile', toPublicProfile(profile));
-                cb(ok(toPublicProfile(profile)));
+                await grantStarterCosmetics(parsed.uid);
+                const freshProfile = await getOrCreatePlayer(parsed.uid, parsed.username);
+                socket.emit('player:profile', toPublicProfile(freshProfile));
+                cb(ok(toPublicProfile(freshProfile)));
             }
             catch (e) {
                 cb(err(e.message ?? 'Auth failed.'));
@@ -702,7 +761,14 @@ export function attachSocketHandlers(io) {
                 if (maintenanceMode && !playerProfile?.isModerator)
                     throw new Error('Server is under maintenance. Please try again later.');
                 const username = playerProfile?.username ?? parsed.name;
-                const room = createRoom(socket.id, username, profileId, parsed.settings);
+                // If creating a clan room, validate clan membership and get clanId
+                let clanId = null;
+                if (parsed.clanRoom && profileId) {
+                    const clanMembership = await getClanMembershipByPlayer(profileId);
+                    if (clanMembership)
+                        clanId = clanMembership.id;
+                }
+                const room = createRoom(socket.id, username, profileId, parsed.settings, clanId);
                 const hostInRoom = [...room.players.values()][0];
                 if (hostInRoom && playerProfile?.avatarUrl)
                     hostInRoom.avatarUrl = playerProfile.avatarUrl;
@@ -741,10 +807,82 @@ export function attachSocketHandlers(io) {
                     }
                 }
                 // Check if this is a re-join attempt (existing player reconnecting)
-                const isRejoin = profileId
+                const isRejoinActive = profileId
                     ? [...room.players.values()].some(p => p.profileId === profileId)
                     : [...room.players.values()].some(p => p.name === parsed.name.trim());
-                // Spectate queue: if room is full during active game and not a re-join
+                const isRejoinQueued = profileId
+                    ? room.nextRoundQueue.some(p => p.profileId === profileId)
+                    : room.nextRoundQueue.some(p => p.name === parsed.name.trim());
+                const isRejoin = isRejoinActive || isRejoinQueued;
+                // If game is active and this is a new joiner (not a rejoin), route by joinMode
+                if (!isRejoin && room.phase !== 'lobby') {
+                    if (!parsed.joinMode) {
+                        // Signal client to show mode selection
+                        cb(err('GAME_ALREADY_STARTED_CHOOSE_MODE'));
+                        return;
+                    }
+                    const playerProfile = profileId ? await getPlayer(profileId) : null;
+                    const username = playerProfile?.username ?? parsed.name;
+                    if (parsed.joinMode === 'next_round') {
+                        // Join as spectator first, then enqueue
+                        const player = addSpectatorPlayer(room, socket.id, username, profileId);
+                        if (playerProfile?.avatarUrl)
+                            player.avatarUrl = playerProfile.avatarUrl;
+                        if (playerProfile?.isModerator) {
+                            player.isModerator = playerProfile.isModerator;
+                            player.moderatorLevel = playerProfile.moderatorLevel;
+                        }
+                        socket.join(room.id);
+                        socket.data.playerId = player.id;
+                        socket.data.roomId = room.id;
+                        // Auto-enqueue if settings allow
+                        try {
+                            const position = enqueueForNextRound(room, player.id);
+                            broadcastSystemMsg(io, room, `${player.name} joined the queue for next round (#${position}).`);
+                            broadcastQueueUpdated(io, room);
+                        }
+                        catch {
+                            broadcastSystemMsg(io, room, `${player.name} joined as spectator.`);
+                        }
+                        broadcastRoom(io, room);
+                        cb(ok(toPublicRoom(room, player.id)));
+                        return;
+                    }
+                    else {
+                        // spectator mode
+                        const player = addSpectatorPlayer(room, socket.id, username, profileId);
+                        if (playerProfile?.avatarUrl)
+                            player.avatarUrl = playerProfile.avatarUrl;
+                        if (playerProfile?.isModerator) {
+                            player.isModerator = playerProfile.isModerator;
+                            player.moderatorLevel = playerProfile.moderatorLevel;
+                        }
+                        socket.join(room.id);
+                        socket.data.playerId = player.id;
+                        socket.data.roomId = room.id;
+                        broadcastSystemMsg(io, room, `${player.name} joined as spectator.`);
+                        broadcastRoom(io, room);
+                        cb(ok(toPublicRoom(room, player.id)));
+                        return;
+                    }
+                }
+                // Re-join: if queued player reconnects, find them in the queue
+                if (isRejoinQueued) {
+                    const queuedPlayer = profileId
+                        ? room.nextRoundQueue.find(p => p.profileId === profileId)
+                        : room.nextRoundQueue.find(p => p.name === parsed.name.trim());
+                    if (queuedPlayer) {
+                        queuedPlayer.socketId = socket.id;
+                        queuedPlayer.isConnected = true;
+                        socket.join(room.id);
+                        socket.data.playerId = queuedPlayer.id;
+                        socket.data.roomId = room.id;
+                        broadcastRoom(io, room);
+                        cb(ok(toPublicRoom(room, queuedPlayer.id)));
+                        return;
+                    }
+                }
+                // Spectate queue (legacy): if room is full during active game and not a re-join
                 const activePlayers = [...room.players.values()].filter(p => !p.isSpectator);
                 if (!isRejoin && room.phase !== 'lobby' && activePlayers.length >= 16) {
                     const queue = spectateQueues.get(room.id) ?? [];
@@ -762,7 +900,7 @@ export function attachSocketHandlers(io) {
                 const player = addPlayer(room, socket.id, username, profileId);
                 if (playerProfile?.avatarUrl)
                     player.avatarUrl = playerProfile.avatarUrl;
-                if (parsed.isSpectator)
+                if (parsed.isSpectator || parsed.joinMode === 'spectator')
                     player.isSpectator = true;
                 if (playerProfile?.isModerator) {
                     player.isModerator = playerProfile.isModerator;
@@ -771,7 +909,16 @@ export function attachSocketHandlers(io) {
                 socket.join(room.id);
                 socket.data.playerId = player.id;
                 socket.data.roomId = room.id;
-                broadcastSystemMsg(io, room, `${player.name} joined the room.`);
+                // Cancel host grace period if this is the host reconnecting
+                const grace = hostGraceTimers.get(room.id);
+                if (grace && player.isHost && (profileId === grace.profileId || (!profileId && player.name === grace.hostName))) {
+                    clearTimeout(grace.timer);
+                    hostGraceTimers.delete(room.id);
+                    broadcastSystemMsg(io, room, `${player.name} (host) reconnected.`);
+                }
+                else {
+                    broadcastSystemMsg(io, room, `${player.name} joined the room.`);
+                }
                 broadcastRoom(io, room);
                 cb(ok(toPublicRoom(room, player.id)));
             }
@@ -783,7 +930,7 @@ export function attachSocketHandlers(io) {
         socket.on('room:leave', (cb) => {
             const { roomId, playerId } = socket.data;
             if (roomId && playerId)
-                handlePlayerLeave(io, socket, roomId, playerId);
+                handlePlayerLeave(io, socket, roomId, playerId, true);
             cb(ok(null));
         });
         // ── Ready ───────────────────────────────────────────────────────
@@ -902,6 +1049,13 @@ export function attachSocketHandlers(io) {
                     ...room.settings,
                     ...settings,
                     roles: { ...room.settings.roles, ...(settings.roles ?? {}) },
+                    dynamicEvents: settings.dynamicEvents
+                        ? {
+                            ...room.settings.dynamicEvents,
+                            ...settings.dynamicEvents,
+                            allowed: { ...room.settings.dynamicEvents.allowed, ...(settings.dynamicEvents.allowed ?? {}) },
+                        }
+                        : room.settings.dynamicEvents,
                 };
                 broadcastRoom(io, room);
                 cb(ok(null));
@@ -930,12 +1084,55 @@ export function attachSocketHandlers(io) {
                             body: `Your role: ${player.role}`,
                         });
                     }
+                    else if (player.profileId && player.role) {
+                        // Player is disconnected — send push so they know the game started
+                        sendPushToUser(player.profileId, {
+                            title: '🎮 Game Started!',
+                            body: `Your role: ${player.role}. Get back in!`,
+                        }).catch(() => { });
+                    }
                 }
                 broadcastSystemMsg(io, room, 'The game has begun. Roles are being revealed…');
                 notifyYakuzaAllies(io, room);
                 broadcastRoom(io, room);
                 enforceVoicePhaseRules(io, room);
                 startPhaseTimer(io, room);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Queue: Join Next Round ───────────────────────────────────────
+        socket.on('queue:join', (cb) => {
+            try {
+                const room = getRoomFromSocket(socket);
+                const player = getPlayerOrError(socket, room);
+                if (!player.isSpectator)
+                    throw new Error('Only spectators can join the next-round queue.');
+                if (player.isQueuedNextRound)
+                    throw new Error('Already in queue.');
+                const position = enqueueForNextRound(room, player.id);
+                broadcastSystemMsg(io, room, `${player.name} joined the queue for next round (#${position}).`);
+                broadcastQueueUpdated(io, room);
+                broadcastRoom(io, room);
+                cb(ok({ position }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Queue: Leave Next Round ──────────────────────────────────────
+        socket.on('queue:leave', (cb) => {
+            try {
+                const room = getRoomFromSocket(socket);
+                const player = getPlayerOrError(socket, room);
+                if (!player.isQueuedNextRound)
+                    throw new Error('You are not in the queue.');
+                dequeueFromNextRound(room, player.id);
+                broadcastSystemMsg(io, room, `${player.name} left the next-round queue.`);
+                broadcastQueueUpdated(io, room);
+                broadcastRoom(io, room);
                 cb(ok(null));
             }
             catch (e) {
@@ -949,6 +1146,8 @@ export function attachSocketHandlers(io) {
                 const actor = getPlayerOrError(socket, room);
                 if (actor.isSpectator)
                     throw new Error('Spectators cannot perform night actions.');
+                if (actor.isQueuedNextRound)
+                    throw new Error('Not an active player.');
                 submitNightAction(room, actor, targetId);
                 if (actor.role === 'sheriff') {
                     const result = getInvestigationResult(room, actor);
@@ -974,6 +1173,7 @@ export function attachSocketHandlers(io) {
                     notifyTrackers(io, room);
                     notifyCultConversions(io, room);
                     notifyRoleblocked(io, room);
+                    announceActiveEvent(io, room);
                     if (nextPhase === 'game_over')
                         await emitGameOver(io, room);
                     broadcastRoom(io, room);
@@ -994,6 +1194,8 @@ export function attachSocketHandlers(io) {
                 const voter = getPlayerOrError(socket, room);
                 if (voter.isSpectator)
                     throw new Error('Spectators cannot vote.');
+                if (voter.isQueuedNextRound)
+                    throw new Error('Not an active player.');
                 submitVote(room, voter, targetId);
                 const target = targetId ? room.players.get(targetId) : null;
                 if (target) {
@@ -1011,6 +1213,8 @@ export function attachSocketHandlers(io) {
             try {
                 const room = getRoomFromSocket(socket);
                 const actor = getPlayerOrError(socket, room);
+                if (actor.isSpectator || actor.isQueuedNextRound)
+                    throw new Error('Not an active player.');
                 submitNomination(room, actor, nomineeId);
                 const nominee = nomineeId ? room.players.get(nomineeId) : null;
                 io.to(room.id).emit('game:nomination', {
@@ -1058,6 +1262,38 @@ export function attachSocketHandlers(io) {
                 }
                 if (wasSpeechSkip && nextPhase !== 'speech')
                     announceSpeechEnd(io, room, nextPhase);
+                announceActiveEvent(io, room);
+                if (nextPhase === 'game_over')
+                    await emitGameOver(io, room);
+                broadcastRoom(io, room);
+                enforceVoicePhaseRules(io, room);
+                if (nextPhase !== 'game_over')
+                    startPhaseTimer(io, room);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Speech Pass (current speaker skips own turn) ─────────────────
+        socket.on('game:speech_pass', async (cb) => {
+            try {
+                const room = getRoomFromSocket(socket);
+                const player = getPlayerOrError(socket, room);
+                if (room.phase !== 'speech')
+                    throw new Error('Can only pass during speech phase.');
+                if (!player.isAlive || player.isSpectator)
+                    throw new Error('Only alive players can pass.');
+                const currentSpeakerId = room.speechOrder?.[room.currentSpeakerIdx ?? 0];
+                if (player.id !== currentSpeakerId)
+                    throw new Error('Only the current speaker can pass.');
+                timerService.stop(room.id);
+                room.timer = 0;
+                advancePhase(room);
+                const nextPhase = room.phase;
+                if (nextPhase !== 'speech')
+                    announceSpeechEnd(io, room, nextPhase);
+                announceActiveEvent(io, room);
                 if (nextPhase === 'game_over')
                     await emitGameOver(io, room);
                 broadcastRoom(io, room);
@@ -1083,11 +1319,12 @@ export function attachSocketHandlers(io) {
                     throw new Error('Already voted to skip.');
                 room.daySkipVotes.push(player.id);
                 const alivePlayers = [...room.players.values()].filter(p => p.isAlive && !p.isSpectator);
-                const skipNeeded = Math.min(3, Math.floor(alivePlayers.length / 2) + 1);
+                const skipNeeded = Math.min(3, alivePlayers.length);
                 if (room.daySkipVotes.length >= skipNeeded) {
                     timerService.stop(room.id);
                     room.timer = 0;
                     const nextPhase = advancePhase(room);
+                    announceActiveEvent(io, room);
                     broadcastRoom(io, room);
                     enforceVoicePhaseRules(io, room);
                     if (nextPhase !== 'game_over')
@@ -1185,6 +1422,12 @@ export function attachSocketHandlers(io) {
                     p.hasActedThisPhase = false;
                     p.deathType = null;
                 }
+                // Clear the next-round queue — queued spectators stay as watch-only spectators
+                for (const p of room.nextRoundQueue) {
+                    p.isQueuedNextRound = false;
+                    p.queuePosition = null;
+                }
+                room.nextRoundQueue = [];
                 broadcastSystemMsg(io, room, 'The host terminated the game. Returning to lobby.');
                 broadcastRoom(io, room);
                 cb(ok(null));
@@ -1216,6 +1459,8 @@ export function attachSocketHandlers(io) {
                 room.daySkipVotes = [];
                 room.speechOrder = [];
                 room.currentSpeakerIdx = 0;
+                // Promote queued players into lobby seats before resetting state
+                const promoted = promoteQueuedPlayers(room);
                 for (const p of room.players.values()) {
                     p.role = null;
                     p.team = null;
@@ -1225,6 +1470,11 @@ export function attachSocketHandlers(io) {
                     p.hasActedThisPhase = false;
                     p.deathType = null;
                     p.lastWill = null;
+                }
+                if (promoted.length > 0) {
+                    const names = promoted.map(p => p.name).join(', ');
+                    broadcastSystemMsg(io, room, `${names} joined from the queue and will play next round!`);
+                    broadcastQueueUpdated(io, room);
                 }
                 broadcastSystemMsg(io, room, 'The host has restarted the room. Prepare for a new game.');
                 broadcastRoom(io, room);
@@ -1261,9 +1511,15 @@ export function attachSocketHandlers(io) {
                 }
                 else if (msg.channel === 'dead') {
                     for (const p of room.players.values()) {
-                        if ((!p.isAlive || p.isSpectator) && p.socketId) {
+                        if (!p.isAlive && !p.isSpectator && p.socketId) {
                             io.to(p.socketId).emit('chat:new', msg);
                         }
+                    }
+                }
+                else if (msg.channel === 'spectator') {
+                    for (const p of room.players.values()) {
+                        if (p.isSpectator && p.socketId)
+                            io.to(p.socketId).emit('chat:new', msg);
                     }
                 }
                 else {
@@ -2081,6 +2337,158 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
+        socket.on('clan:set_role', async ({ targetPlayerId, newRole }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const validRoles = ['admin', 'moderator', 'member'];
+                if (!validRoles.includes(newRole))
+                    throw new Error('Invalid role.');
+                await setClanMemberRole(profileId, targetPlayerId, newRole);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('clan:get_mod_logs', async ({ clanId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const membership = await getClanMembershipByPlayer(profileId);
+                if (!membership || membership.id !== clanId)
+                    throw new Error('Not authorized.');
+                const validRoles = ['owner', 'admin'];
+                if (!validRoles.includes(membership.memberRole))
+                    throw new Error('Only clan owner/admin can view mod logs.');
+                const logs = await getClanModLogs(clanId);
+                cb(ok(logs));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Clan Room Moderation ────────────────────────────────────────
+        socket.on('clanRoom:warn', async ({ targetPlayerId, reason }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                const roomId = socket.data.roomId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                if (!roomId)
+                    throw new Error('Not in a room.');
+                const room = getRoom(roomId);
+                if (!room)
+                    throw new Error('Room not found.');
+                if (!room.clanId)
+                    throw new Error('This is not a clan room.');
+                // Check actor's clan membership
+                const actorMembership = await getClanMembershipByPlayer(profileId);
+                if (!actorMembership || actorMembership.id !== room.clanId) {
+                    throw new Error('You are not a member of this clan.');
+                }
+                const actorRole = actorMembership.memberRole;
+                if (actorRole !== 'owner' && actorRole !== 'admin' && actorRole !== 'moderator') {
+                    throw new Error('You do not have clan moderation permissions.');
+                }
+                // Find target player in room
+                const targetPlayer = [...room.players.values()].find(p => p.profileId === targetPlayerId);
+                if (!targetPlayer)
+                    throw new Error('Target player not in this room.');
+                // Rank protection: cannot warn owner/admin unless you are owner
+                if (targetPlayerId !== profileId) {
+                    const targetMembership = await getClanMembershipByPlayer(targetPlayerId);
+                    if (targetMembership && targetMembership.id === room.clanId) {
+                        const targetRole = targetMembership.memberRole;
+                        if (targetRole === 'owner')
+                            throw new Error('Cannot warn the clan owner.');
+                        if (targetRole === 'admin' && actorRole !== 'owner')
+                            throw new Error('Cannot warn a clan admin.');
+                    }
+                }
+                // Check target is not a global moderator/admin
+                const targetProfile = await getPlayer(targetPlayerId);
+                if (targetProfile?.isModerator)
+                    throw new Error('Cannot use clan actions on global moderators.');
+                // Send warning notification to target
+                const actorProfile = await getPlayer(profileId);
+                const actorName = actorProfile?.username ?? 'Clan Moderator';
+                io.to(targetPlayer.socketId).emit('clanRoom:warningReceived', {
+                    clanName: actorMembership.name,
+                    clanTag: actorMembership.tag,
+                    moderatorName: actorName,
+                    moderatorRole: actorRole,
+                    reason: reason.slice(0, 300),
+                });
+                await addClanModLog(room.clanId, profileId, actorName, targetPlayerId, targetPlayer.name, 'clan_warning', reason.slice(0, 300), room.id);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('clanRoom:kick', async ({ targetPlayerId, reason }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                const roomId = socket.data.roomId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                if (!roomId)
+                    throw new Error('Not in a room.');
+                const room = getRoom(roomId);
+                if (!room)
+                    throw new Error('Room not found.');
+                if (!room.clanId)
+                    throw new Error('This is not a clan room.');
+                // Check actor's clan membership
+                const actorMembership = await getClanMembershipByPlayer(profileId);
+                if (!actorMembership || actorMembership.id !== room.clanId) {
+                    throw new Error('You are not a member of this clan.');
+                }
+                const actorRole = actorMembership.memberRole;
+                if (actorRole !== 'owner' && actorRole !== 'admin' && actorRole !== 'moderator') {
+                    throw new Error('You do not have clan moderation permissions.');
+                }
+                // Find target player in room
+                const targetPlayer = [...room.players.values()].find(p => p.profileId === targetPlayerId);
+                if (!targetPlayer)
+                    throw new Error('Target player not in this room.');
+                // Rank protection
+                if (targetPlayerId !== profileId) {
+                    const targetMembership = await getClanMembershipByPlayer(targetPlayerId);
+                    if (targetMembership && targetMembership.id === room.clanId) {
+                        const targetRole = targetMembership.memberRole;
+                        if (targetRole === 'owner')
+                            throw new Error('Cannot kick the clan owner.');
+                        if (targetRole === 'admin' && actorRole !== 'owner')
+                            throw new Error('Cannot kick a clan admin.');
+                    }
+                }
+                // Check target is not a global moderator/admin
+                const targetProfile = await getPlayer(targetPlayerId);
+                if (targetProfile?.isModerator)
+                    throw new Error('Cannot use clan actions on global moderators.');
+                const actorProfile = await getPlayer(profileId);
+                const actorName = actorProfile?.username ?? 'Clan Moderator';
+                // Notify target they are being kicked
+                io.to(targetPlayer.socketId).emit('clanRoom:kicked', {
+                    clanName: actorMembership.name,
+                    reason: reason.slice(0, 300),
+                });
+                // Broadcast to room
+                broadcastSystemMsg(io, room, `${targetPlayer.name} was removed by clan moderation.`);
+                await addClanModLog(room.clanId, profileId, actorName, targetPlayerId, targetPlayer.name, 'clan_kick', reason.slice(0, 300), room.id);
+                // Remove player from room
+                removePlayer(room, targetPlayer.id);
+                socket.to(roomId).emit('room:update', toPublicRoom(room, targetPlayer.id));
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
         // ── Voice: Join Channel ─────────────────────────────────────────
         socket.on('voice:join', ({ channel }, cb) => {
             try {
@@ -2397,14 +2805,21 @@ export function attachSocketHandlers(io) {
                 const msg = await sendMessage(conversationId, senderId, text.trim(), receiverId);
                 // Notify recipient in real time with sender info for toast
                 const recipientSocket = findSocketByProfile(io, receiverId);
+                const senderProfile = await getPlayer(senderId);
                 if (recipientSocket) {
-                    const senderProfile = await getPlayer(senderId);
                     recipientSocket.emit('dm:new_message', {
                         conversationId,
                         message: msg,
                         senderUsername: senderProfile?.username ?? 'Unknown',
                         senderAvatar: senderProfile?.avatar ?? '?',
                     });
+                }
+                else {
+                    // Recipient is offline — send push notification
+                    sendPushToUser(receiverId, {
+                        title: `💬 ${senderProfile?.username ?? 'Someone'}`,
+                        body: text.trim().slice(0, 100),
+                    }).catch(() => { });
                 }
                 cb(ok(msg));
             }
@@ -2592,17 +3007,18 @@ export function attachSocketHandlers(io) {
                 // Notify recipient in real-time if connected
                 const recipientSock = findSocketByProfile(io, recipientId);
                 if (recipientSock) {
-                    const giftInfo = await getGiftCatalog(true);
-                    const catalogItem = giftInfo.find(g => g.id === giftId);
-                    if (catalogItem) {
-                        recipientSock.emit('gift:received', {
-                            gift: catalogItem,
-                            senderName: giftEntry.senderUsername,
-                            senderAvatar: giftEntry.senderAvatar,
-                            message: giftEntry.message,
-                        });
-                    }
+                    recipientSock.emit('gifts:received', {
+                        giftId: giftEntry.giftId,
+                        giftName: giftEntry.giftName,
+                        giftIcon: giftEntry.giftIcon,
+                        giftRarity: giftEntry.giftRarity,
+                        senderName: giftEntry.senderUsername,
+                        senderAvatar: giftEntry.senderAvatar,
+                        senderAvatarUrl: giftEntry.senderAvatarUrl,
+                        message: giftEntry.message,
+                    });
                 }
+                socket.emit('gifts:sent', { giftId: giftEntry.giftId });
                 cb(ok({ newBalance: newSenderBalance }));
             }
             catch (e) {
@@ -2652,6 +3068,78 @@ export function attachSocketHandlers(io) {
                 if (!detail)
                     throw new Error('Gift not found.');
                 cb(ok(detail));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:getSent', async ({ profileId: targetId }, cb) => {
+            try {
+                if (!targetId)
+                    throw new Error('profileId required.');
+                const gifts = await getGiftsSent(targetId);
+                cb(ok(gifts));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:getTimeline', async ({ profileId: targetId }, cb) => {
+            try {
+                if (!targetId)
+                    throw new Error('profileId required.');
+                const timeline = await getGiftTimeline(targetId);
+                cb(ok(timeline));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:getStats', async ({ profileId: targetId }, cb) => {
+            try {
+                if (!targetId)
+                    throw new Error('profileId required.');
+                const stats = await getGiftStats(targetId);
+                cb(ok(stats));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:getPinned', async ({ profileId: targetId }, cb) => {
+            try {
+                if (!targetId)
+                    throw new Error('profileId required.');
+                const pinned = await getPinnedGifts(targetId);
+                cb(ok(pinned));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:pin', async ({ giftId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                if (!giftId)
+                    throw new Error('giftId required.');
+                await pinGift(profileId, giftId);
+                cb(ok({}));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:unpin', async ({ giftId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                if (!giftId)
+                    throw new Error('giftId required.');
+                await unpinGift(profileId, giftId);
+                cb(ok({}));
             }
             catch (e) {
                 cb(err(e.message));
@@ -2806,6 +3294,24 @@ export function attachSocketHandlers(io) {
     });
 }
 // ── Leave / Disconnect Logic ──────────────────────────────────────────
+function startHostGrace(io, room, hostName, profileId) {
+    const roomId = room.id;
+    // Cancel any existing grace timer for this room
+    const existing = hostGraceTimers.get(roomId);
+    if (existing)
+        clearTimeout(existing.timer);
+    broadcastSystemMsg(io, room, `${hostName} (host) disconnected. Room closes in 20s if they don't return.`);
+    broadcastRoom(io, room);
+    const timer = setTimeout(() => {
+        hostGraceTimers.delete(roomId);
+        const currentRoom = getRoom(roomId);
+        if (currentRoom) {
+            closeRoom(io, currentRoom, `${hostName} (host) did not return. Room closed.`);
+            spectateQueues.delete(roomId);
+        }
+    }, HOST_GRACE_MS);
+    hostGraceTimers.set(roomId, { timer, profileId, hostName });
+}
 function closeRoom(io, room, reason) {
     timerService.stop(room.id);
     for (const p of room.players.values()) {
@@ -2827,7 +3333,7 @@ function promoteFromQueue(io, room) {
         spectateQueues.set(room.id, queue);
     io.to(nextSocketId).emit('queue:promoted', { roomCode: room.code });
 }
-function handlePlayerLeave(io, socket, roomId, playerId) {
+function handlePlayerLeave(io, socket, roomId, playerId, explicit = false) {
     const room = getRoom(roomId);
     if (!room)
         return;
@@ -2835,6 +3341,7 @@ function handlePlayerLeave(io, socket, roomId, playerId) {
     if (!player)
         return;
     const wasHost = player.isHost;
+    const profileId = socket.data.profileId ?? null;
     socket.leave(roomId);
     socket.data.playerId = null;
     socket.data.roomId = null;
@@ -2842,14 +3349,31 @@ function handlePlayerLeave(io, socket, roomId, playerId) {
         removePlayer(room, playerId);
         if (room.players.size === 0) {
             timerService.stop(roomId);
+            const grace = hostGraceTimers.get(roomId);
+            if (grace) {
+                clearTimeout(grace.timer);
+                hostGraceTimers.delete(roomId);
+            }
             deleteRoom(roomId);
             spectateQueues.delete(roomId);
             return;
         }
-        // Host left lobby — close the room for everyone
         if (wasHost) {
-            closeRoom(io, room, `${player.name} (host) left. The room has been closed.`);
-            spectateQueues.delete(roomId);
+            if (explicit) {
+                // Explicit leave → close immediately
+                const grace = hostGraceTimers.get(roomId);
+                if (grace) {
+                    clearTimeout(grace.timer);
+                    hostGraceTimers.delete(roomId);
+                }
+                closeRoom(io, room, `${player.name} (host) left. The room has been closed.`);
+                spectateQueues.delete(roomId);
+            }
+            else {
+                // Disconnect → grace period
+                startHostGrace(io, room, player.name, profileId);
+                spectateQueues.delete(roomId);
+            }
             return;
         }
         broadcastSystemMsg(io, room, `${player.name} left the room.`);
@@ -2857,10 +3381,23 @@ function handlePlayerLeave(io, socket, roomId, playerId) {
         promoteFromQueue(io, room);
     }
     else {
-        // Host left during active game — close the entire room
         if (wasHost) {
-            closeRoom(io, room, `${player.name} (host) left. The room has been closed.`);
-            spectateQueues.delete(roomId);
+            if (explicit) {
+                const grace = hostGraceTimers.get(roomId);
+                if (grace) {
+                    clearTimeout(grace.timer);
+                    hostGraceTimers.delete(roomId);
+                }
+                closeRoom(io, room, `${player.name} (host) left. The room has been closed.`);
+                spectateQueues.delete(roomId);
+            }
+            else {
+                // During active game — keep player slot, start grace
+                player.isConnected = false;
+                player.socketId = '';
+                startHostGrace(io, room, player.name, profileId);
+                spectateQueues.delete(roomId);
+            }
             return;
         }
         player.isConnected = false;
@@ -2925,6 +3462,19 @@ function enforceVoicePhaseRules(io, room) {
     // Leaving night — clean up any stale private faction channel connections
     forceLeaveVoiceChannel(io, roomId, 'mafia', 'Mafia voice is only available during night.');
     forceLeaveVoiceChannel(io, roomId, 'yakuza', 'Yakuza voice is only available during night.');
+    // Silent Day event — mute all active players during day & speech phases
+    if ((phase === 'day' || phase === 'speech') && room.activeEvent?.key === 'silent_day') {
+        for (const member of voiceGetMembers(roomId, 'room')) {
+            const player = room.players.get(member.playerId);
+            if (player?.isAlive && !player?.isSpectator) {
+                io.to(member.socketId).emit('voice:force-mute', { reason: 'Silent Day — voice is disabled today.' });
+            }
+            else {
+                io.to(member.socketId).emit('voice:force-mute', { reason: 'Listen only.' });
+            }
+        }
+        return;
+    }
     if (phase === 'speech') {
         const speakerId = room.speechOrder[room.currentSpeakerIdx] ?? null;
         for (const member of voiceGetMembers(roomId, 'room')) {
@@ -2945,6 +3495,18 @@ function enforceVoicePhaseRules(io, room) {
         // All players silent during voting — no voice chat allowed
         for (const member of voiceGetMembers(roomId, 'room')) {
             io.to(member.socketId).emit('voice:force-mute', { reason: 'Silent during voting.' });
+        }
+        return;
+    }
+    if (phase === 'final_words') {
+        const speakerId = room.deathSpeakerId;
+        for (const member of voiceGetMembers(roomId, 'room')) {
+            if (member.playerId === speakerId) {
+                io.to(member.socketId).emit('voice:force-unmute');
+            }
+            else {
+                io.to(member.socketId).emit('voice:force-mute', { reason: 'Final words — only the eliminated player may speak.' });
+            }
         }
         return;
     }

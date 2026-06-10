@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { PlayerProfilePublic } from '@/types/index';
+import { PlayerProfilePublic, ClanRole } from '@/types/index';
 import { socket } from '@/lib/socket';
 import type { Res } from '@/types/index';
 
@@ -18,6 +18,8 @@ interface AuthStore {
   isAuthed: boolean;
   isLoading: boolean;
   error: string | null;
+  myClanId: string | null;
+  myClanRole: ClanRole | null;
 
   login: (username: string) => Promise<void>;
   loginOAuth: () => Promise<void>;
@@ -28,6 +30,7 @@ interface AuthStore {
   uploadAvatar: (imageData: string) => Promise<{ ok: boolean; error?: string }>;
   removeAvatar: () => Promise<{ ok: boolean; error?: string }>;
   setLocalAvatar: (src: string | null) => void;
+  refreshClanMembership: () => void;
 }
 
 export const useAuthStore = create<AuthStore>((set, get) => {
@@ -35,11 +38,22 @@ export const useAuthStore = create<AuthStore>((set, get) => {
     set({ profile, isAuthed: true, localAvatar: profile.avatarUrl ?? null });
   });
 
+  function fetchClanMembership() {
+    socket.emit('clan:my_membership' as any, (res: any) => {
+      if (res?.ok) {
+        set({ myClanId: res.data?.id ?? null, myClanRole: res.data?.memberRole ?? null });
+      }
+    });
+  }
+
   socket.on('connect', () => {
     const { uid, username } = get();
     if (uid && username) {
       socket.emit('player:auth', { uid, username }, (res: any) => {
-        if (res?.ok) set({ profile: res.data, isAuthed: true, isLoading: false, localAvatar: res.data?.avatarUrl ?? null });
+        if (res?.ok) {
+          set({ profile: res.data, isAuthed: true, isLoading: false, localAvatar: res.data?.avatarUrl ?? null });
+          fetchClanMembership();
+        }
       });
     }
   });
@@ -52,6 +66,8 @@ export const useAuthStore = create<AuthStore>((set, get) => {
     isAuthed: false,
     isLoading: false,
     error: null,
+    myClanId: null,
+    myClanRole: null,
 
     loginOAuth: async () => {
       set({ isLoading: true, error: null });
@@ -164,8 +180,10 @@ export const useAuthStore = create<AuthStore>((set, get) => {
     logout: () => {
       localStorage.removeItem(UID_KEY);
       localStorage.removeItem(NAME_KEY);
-      set({ uid: null, username: null, profile: null, localAvatar: null, isAuthed: false });
+      set({ uid: null, username: null, profile: null, localAvatar: null, isAuthed: false, myClanId: null, myClanRole: null });
     },
+
+    refreshClanMembership: fetchClanMembership,
 
     changeName: async (newName: string) => {
       try {
