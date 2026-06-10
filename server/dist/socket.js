@@ -71,6 +71,9 @@ function cancelAutoStart(roomId) {
 }
 // ── Spectate queues (roomId → socketIds waiting) ──────────────────────
 const spectateQueues = new Map();
+// ── Host grace timers (roomId → grace period after host disconnect) ───
+const HOST_GRACE_MS = 30000;
+const hostGraceTimers = new Map();
 // ── Lobby chat buffer (last 60 messages, in-memory) ───────────────────
 const LOBBY_CHAT_MAX = 60;
 const lobbyChatHistory = [];
@@ -3310,7 +3313,7 @@ function startHostGrace(io, room, hostName, profileId) {
             spectateQueues.delete(roomId);
         }
     }, HOST_GRACE_MS);
-    hostGraceTimers.set(roomId, { timer, profileId, hostName });
+    hostGraceTimers.set(roomId, { timer, profileId: profileId ?? '', hostName });
 }
 function closeRoom(io, room, reason) {
     timerService.stop(room.id);

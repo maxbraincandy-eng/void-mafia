@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/Button';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { DailyChallengeCard } from '@/components/ui/DailyChallengeCard';
 import { LobbyChatPanel } from '@/components/social/LobbyChatPanel';
+import { MorePanel } from '@/components/ui/MorePanel';
+import { LeaderboardModal } from '@/components/ui/LeaderboardModal';
 import { emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
 
@@ -48,6 +50,7 @@ export function RoomsPage() {
   }));
   const username = useAuthStore(s => s.username) ?? '';
   const myProfileId = useAuthStore(s => s.profile?.id);
+  const myClanId = useAuthStore(s => s.myClanId);
   const { onlineCount, openMoreMenu, openLobbyChat, lobbyChatUnread, lfgList, setLfgList } = useSocialStore(s => ({
     onlineCount: s.onlineCount,
     openMoreMenu: s.openMoreMenu,
@@ -189,6 +192,36 @@ export function RoomsPage() {
                 {activeJoinModal ? `${activeJoinModal.hostName}'s room · ${activeJoinModal.playerCount} ${t.rooms.players}` : `Room ${activeJoinCode}`}
               </p>
 
+              <div className="space-y-3 mb-5">
+                <button
+                  onClick={() => handleActiveJoin('spectator')}
+                  className="w-full py-3.5 px-4 rounded-xl border border-neon-cyan/20 bg-neon-cyan/[0.04] hover:bg-neon-cyan/[0.08] text-left transition-all"
+                >
+                  <p className="text-sm font-mono font-bold text-neon-cyan/80">{t.rooms.watchAsSpectator ?? 'Watch as Spectator'}</p>
+                  <p className="text-[11px] font-mono text-white/30 mt-0.5">{t.rooms.watchSpectatorHint ?? 'Join now and watch the ongoing game'}</p>
+                </button>
+
+                <button
+                  onClick={() => handleActiveJoin('next_round')}
+                  className="w-full py-3.5 px-4 rounded-xl border border-neon-purple/20 bg-neon-purple/[0.04] hover:bg-neon-purple/[0.08] text-left transition-all"
+                >
+                  <p className="text-sm font-mono font-bold text-white/70">{t.rooms.joinNextRound ?? 'Join Next Round'}</p>
+                  <p className="text-[11px] font-mono text-white/30 mt-0.5">{t.rooms.joinNextRoundHint ?? 'Queue up and play when the next game starts'}</p>
+                </button>
+              </div>
+
+              <button
+                onClick={() => { setActiveJoinModal(null); setActiveJoinCode(null); }}
+                className="w-full py-2.5 rounded-xl font-mono text-xs text-white/30 hover:text-white/55 transition-colors border border-white/[0.05] hover:border-white/10"
+              >
+                {t.common.cancel}
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <LeaderboardModal open={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
       <MorePanel />
       <LobbyChatPanel />
 

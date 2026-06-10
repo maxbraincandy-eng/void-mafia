@@ -131,6 +131,10 @@ function cancelAutoStart(roomId: string): void {
 // ── Spectate queues (roomId → socketIds waiting) ──────────────────────
 const spectateQueues = new Map<string, string[]>();
 
+// ── Host grace timers (roomId → grace period after host disconnect) ───
+const HOST_GRACE_MS = 30_000;
+const hostGraceTimers = new Map<string, { timer: NodeJS.Timeout; profileId: string; hostName: string }>();
+
 // ── Lobby chat buffer (last 60 messages, in-memory) ───────────────────
 const LOBBY_CHAT_MAX = 60;
 const lobbyChatHistory: LobbyMessage[] = [];
@@ -3017,7 +3021,7 @@ function startHostGrace(io: AppServer, room: Room, hostName: string, profileId: 
     }
   }, HOST_GRACE_MS);
 
-  hostGraceTimers.set(roomId, { timer, profileId, hostName });
+  hostGraceTimers.set(roomId, { timer, profileId: profileId ?? '', hostName });
 }
 
 function closeRoom(io: AppServer, room: Room, reason: string): void {
