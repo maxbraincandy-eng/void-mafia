@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RoomListItem } from '@/types/index';
+import { RoomListItem, LfgEntry } from '@/types/index';
 import { useGameStore } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
 import { useSocialStore } from '@/store/socialStore';
@@ -11,6 +11,9 @@ import { Button } from '@/components/ui/Button';
 import { LeaderboardModal } from '@/components/ui/LeaderboardModal';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { DailyChallengeCard } from '@/components/ui/DailyChallengeCard';
+import { LobbyChatPanel } from '@/components/social/LobbyChatPanel';
+import { emitWithAck } from '@/lib/socket';
+import type { Res } from '@/types/index';
 
 const SURFACE = 'rounded-2xl border border-white/[0.06]';
 const SURFACE_BG = { background: 'rgba(10, 6, 28, 0.92)' } as const;
@@ -24,7 +27,7 @@ export function RoomsPage() {
     hardcore: { nightDuration: 60, dayDuration: 120, voteDuration: 60,  speechDuration: 60 },
   };
 
-  const [mode, setMode] = useState<'browse' | 'create' | 'join'>('browse');
+  const [mode, setMode] = useState<'browse' | 'create' | 'join' | 'lfg'>('browse');
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [rooms, setRooms] = useState<RoomListItem[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
@@ -41,7 +44,18 @@ export function RoomsPage() {
     isLoading: s.isLoading,
   }));
   const username = useAuthStore(s => s.username) ?? '';
-  const { onlineCount, openMoreMenu } = useSocialStore(s => ({ onlineCount: s.onlineCount, openMoreMenu: s.openMoreMenu }));
+  const myProfileId = useAuthStore(s => s.profile?.id);
+  const { onlineCount, openMoreMenu, openLobbyChat, lobbyChatUnread, lfgList, setLfgList } = useSocialStore(s => ({
+    onlineCount: s.onlineCount,
+    openMoreMenu: s.openMoreMenu,
+    openLobbyChat: s.openLobbyChat,
+    lobbyChatUnread: s.lobbyChatUnread,
+    lfgList: s.lfgList,
+    setLfgList: s.setLfgList,
+  }));
+  const [myLfgActive, setMyLfgActive] = useState(false);
+  const [lfgNote, setLfgNote] = useState('');
+  const [lfgToggling, setLfgToggling] = useState(false);
   const t = useT();
   // Music now handled at MainApp level
 
@@ -62,6 +76,29 @@ export function RoomsPage() {
     window.addEventListener('focus', onFocus);
     return () => { clearInterval(id); window.removeEventListener('focus', onFocus); };
   }, []);
+
+  useEffect(() => {
+    emitWithAck<Record<string, never>, Res<LfgEntry[]>>('lfg:list', {})
+      .then(res => { if (res.ok) setLfgList(res.data ?? []); })
+      .catch(() => {});
+  }, []);
+
+  // Sync myLfgActive with lfgList when it changes
+  useEffect(() => {
+    if (myProfileId) {
+      setMyLfgActive(lfgList.some(e => e.profileId === myProfileId));
+    }
+  }, [lfgList, myProfileId]);
+
+  const handleLfgToggle = async () => {
+    if (lfgToggling) return;
+    setLfgToggling(true);
+    try {
+      const res = await emitWithAck<{ note?: string }, Res<{ active: boolean }>>('lfg:toggle', { note: lfgNote });
+      if (res.ok) setMyLfgActive(res.data.active);
+    } catch {}
+    setLfgToggling(false);
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,10 +126,12 @@ export function RoomsPage() {
     return `${Math.floor(mins / 60)}h`;
   };
 
-  const MODES: { id: typeof mode; label: string }[] = [
+  const lfgCount = lfgList.length;
+  const MODES: { id: typeof mode; label: string; badge?: number }[] = [
     { id: 'browse', label: t.rooms.browse },
     { id: 'create', label: t.rooms.create },
     { id: 'join',   label: t.rooms.joinCode },
+    { id: 'lfg',    label: 'LFG', badge: lfgCount > 0 ? lfgCount : undefined },
   ];
 
   return (
@@ -108,6 +147,7 @@ export function RoomsPage() {
       <LeaderboardModal open={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
 
       <MorePanel />
+      <LobbyChatPanel />
 
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-7">
 
@@ -153,6 +193,19 @@ export function RoomsPage() {
             >
               ◈
             </button>
+            {/* Lobby chat button */}
+            <button
+              onClick={openLobbyChat}
+              className="relative px-3 py-1.5 rounded-xl border border-white/[0.07] text-white/25 hover:text-white/55 hover:border-white/14 font-mono text-sm transition-all"
+              title="Lobby Chat"
+            >
+              ⌥
+              {lobbyChatUnread > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] rounded-full bg-neon-cyan/70 text-[8px] font-mono flex items-center justify-center text-black font-bold px-0.5">
+                  {lobbyChatUnread > 9 ? '9+' : lobbyChatUnread}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
@@ -169,7 +222,14 @@ export function RoomsPage() {
                 mode === m.id ? 'text-white/75' : 'text-white/22 hover:text-white/45'
               }`}
             >
-              {m.label}
+              <span className="relative inline-flex items-center gap-1">
+                {m.label}
+                {m.badge !== undefined && (
+                  <span className="inline-flex items-center justify-center min-w-[14px] h-[14px] rounded-full bg-neon-green/60 text-[8px] font-mono text-black font-bold px-0.5">
+                    {m.badge}
+                  </span>
+                )}
+              </span>
               <span
                 className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-px rounded-full transition-all duration-200 ${
                   mode === m.id ? 'bg-neon-cyan/60' : 'bg-transparent'
@@ -322,6 +382,105 @@ export function RoomsPage() {
                   {t.rooms.createRoom}
                 </Button>
               </form>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── LFG ─────────────────────────────────────────────── */}
+        {mode === 'lfg' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            {/* Toggle my LFG status */}
+            <div className={`${SURFACE} p-4 mb-4`} style={SURFACE_BG}>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex-1">
+                  <p className="text-xs font-mono font-bold text-white/60 uppercase tracking-widest">Looking for Game</p>
+                  <p className="text-[10px] font-mono text-white/25 mt-0.5">Let others know you're ready to play</p>
+                </div>
+                <button
+                  onClick={handleLfgToggle}
+                  disabled={lfgToggling}
+                  className={`w-11 h-6 rounded-full flex items-center relative transition-colors shrink-0 ${
+                    myLfgActive ? 'bg-neon-green/50' : 'bg-white/[0.07]'
+                  } disabled:opacity-50`}
+                >
+                  <div className={`absolute w-4 h-4 rounded-full bg-white/80 transition-transform ${
+                    myLfgActive ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+              {!myLfgActive && (
+                <input
+                  type="text"
+                  value={lfgNote}
+                  onChange={e => setLfgNote(e.target.value.slice(0, 60))}
+                  placeholder="Short note (optional) — e.g. 'Classic only, no drama'"
+                  className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl px-3 py-2 text-white/55 placeholder-white/18 font-mono text-xs focus:outline-none focus:border-white/16 transition-colors"
+                />
+              )}
+              {myLfgActive && (
+                <p className="text-[10px] font-mono text-neon-green/60">
+                  ● You're visible to other players. Toggle off to remove yourself.
+                </p>
+              )}
+            </div>
+
+            {/* LFG list */}
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[11px] font-mono text-white/28">
+                {lfgList.length} {lfgList.length === 1 ? 'player' : 'players'} looking
+              </span>
+            </div>
+
+            {lfgList.length === 0 && (
+              <div className="text-center py-14">
+                <p className="text-white/22 font-mono text-sm">No one is looking right now</p>
+                <p className="text-white/12 font-mono text-xs mt-1.5">Be the first — toggle on above</p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {lfgList.map((entry, i) => {
+                const isMe = entry.profileId === myProfileId;
+                return (
+                  <motion.div
+                    key={entry.profileId}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.04 }}
+                    className={`${SURFACE} px-4 py-3 flex items-center gap-3`}
+                    style={SURFACE_BG}
+                  >
+                    {/* Avatar */}
+                    {entry.avatarUrl ? (
+                      <img src={entry.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-white/[0.06] flex items-center justify-center text-white/50 font-mono font-bold text-sm shrink-0">
+                        {entry.avatar}
+                      </div>
+                    )}
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-sm text-white/70 truncate">{entry.username}</span>
+                        <span className="text-[9px] font-mono text-neon-cyan/40">Lv{entry.level}</span>
+                        {isMe && <span className="text-[9px] font-mono text-white/25">(you)</span>}
+                      </div>
+                      {entry.note && (
+                        <p className="text-[11px] font-mono text-white/35 truncate mt-0.5">{entry.note}</p>
+                      )}
+                    </div>
+
+                    {!isMe && (
+                      <button
+                        onClick={() => useSocialStore.getState().openDmWith(entry.profileId)}
+                        className="shrink-0 px-3 py-1.5 rounded-xl border border-white/[0.08] text-white/35 hover:text-white/65 hover:border-white/16 font-mono text-xs transition-all"
+                      >
+                        DM
+                      </button>
+                    )}
+                  </motion.div>
+                );
+              })}
             </div>
           </motion.div>
         )}

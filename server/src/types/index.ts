@@ -452,6 +452,29 @@ export interface AchievementEarned {
   rarity: string;
 }
 
+// ── Lobby Chat ────────────────────────────────────────────────────────
+export interface LobbyMessage {
+  id: string;
+  profileId: string;
+  username: string;
+  avatar: string;
+  avatarUrl?: string | null;
+  level: number;
+  text: string;
+  createdAt: number;
+}
+
+// ── LFG (Looking for Game) ────────────────────────────────────────────
+export interface LfgEntry {
+  profileId: string;
+  username: string;
+  avatar: string;
+  avatarUrl?: string | null;
+  level: number;
+  note: string;
+  createdAt: number;
+}
+
 // ── Vote Breakdown ────────────────────────────────────────────────────
 export interface VoteBreakdownEntry {
   voterId: string;
@@ -609,6 +632,10 @@ export interface ServerToClientEvents {
   'online:count':        (data: { count: number }) => void;
   // Direct messages
   'dm:new_message':      (data: { conversationId: string; message: any }) => void;
+  // Lobby chat
+  'lobby:message':       (msg: LobbyMessage) => void;
+  // LFG
+  'lfg:update':          (list: LfgEntry[]) => void;
   // Maintenance mode
   'maintenance:status':  (data: { enabled: boolean }) => void;
   // Economy
@@ -711,6 +738,12 @@ export interface ClientToServerEvents {
   'player:role_stats':     (data: { profileId: string }, cb: Cb<any>) => void;
   // Clan membership with member role/join date
   'clan:my_membership':    (cb: Cb<any>) => void;
+  // Lobby chat
+  'lobby:send':            (data: { text: string }, cb: Cb<null>) => void;
+  'lobby:history':         (data: Record<string, never>, cb: Cb<LobbyMessage[]>) => void;
+  // LFG
+  'lfg:toggle':            (data: { note?: string }, cb: Cb<{ active: boolean }>) => void;
+  'lfg:list':              (data: Record<string, never>, cb: Cb<LfgEntry[]>) => void;
   // Direct messages
   'dm:start':              (data: { profileId: string }, cb: Cb<any>) => void;
   'dm:send':               (data: { conversationId: string; text: string }, cb: Cb<any>) => void;

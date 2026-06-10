@@ -4,6 +4,7 @@ import {
   ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData,
   RoomPublic, ChatMessage, ok, err, Room, Player, Phase, GameSettings,
   ReportReason, NightSummary, LiveRoomInfo, LiveRoomPlayer,
+  LobbyMessage, LfgEntry,
 } from './types/index.js';
 import {
   createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, removePlayer,
@@ -125,6 +126,13 @@ function cancelAutoStart(roomId: string): void {
 
 // ── Spectate queues (roomId → socketIds waiting) ──────────────────────
 const spectateQueues = new Map<string, string[]>();
+
+// ── Lobby chat buffer (last 60 messages, in-memory) ───────────────────
+const LOBBY_CHAT_MAX = 60;
+const lobbyChatHistory: LobbyMessage[] = [];
+
+// ── LFG map (profileId → entry) ───────────────────────────────────────
+const lfgMap = new Map<string, LfgEntry>();
 
 // ── Role-specific death messages ──────────────────────────────────────
 const NIGHT_DEATH: Partial<Record<string, string>> = {
@@ -2278,6 +2286,71 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    // ── Lobby Chat ───────────────────────────────────────────────────
+
+    socket.on('lobby:history', async (cb: any) => {
+      cb(ok([...lobbyChatHistory]));
+    });
+
+    socket.on('lobby:send', async ({ text }: { text: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const trimmed = text?.trim();
+        if (!trimmed || trimmed.length > 200) { cb(err('Invalid message.')); return; }
+        if (!rateOk(socket.id, 3)) { cb(err('Slow down.')); return; }
+        const profile = await getPlayer(profileId);
+        if (!profile) { cb(err('Profile not found.')); return; }
+        const msg: LobbyMessage = {
+          id: `lm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          profileId,
+          username: profile.username,
+          avatar: profile.avatar,
+          avatarUrl: profile.avatarUrl ?? null,
+          level: profile.level ?? 1,
+          text: trimmed,
+          createdAt: Date.now(),
+        };
+        lobbyChatHistory.push(msg);
+        if (lobbyChatHistory.length > LOBBY_CHAT_MAX) lobbyChatHistory.shift();
+        io.emit('lobby:message', msg);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── LFG (Looking for Game) ───────────────────────────────────────
+
+    socket.on('lfg:list', (cb: any) => {
+      cb(ok(Array.from(lfgMap.values())));
+    });
+
+    socket.on('lfg:toggle', async ({ note }: { note?: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        if (lfgMap.has(profileId)) {
+          lfgMap.delete(profileId);
+          io.emit('lfg:update', Array.from(lfgMap.values()));
+          cb(ok({ active: false }));
+        } else {
+          const profile = await getPlayer(profileId);
+          if (!profile) { cb(err('Profile not found.')); return; }
+          const entry: LfgEntry = {
+            profileId,
+            username: profile.username,
+            avatar: profile.avatar,
+            avatarUrl: profile.avatarUrl ?? null,
+            level: profile.level ?? 1,
+            note: (note ?? '').trim().slice(0, 60),
+            createdAt: Date.now(),
+          };
+          lfgMap.set(profileId, entry);
+          io.emit('lfg:update', Array.from(lfgMap.values()));
+          cb(ok({ active: true }));
+        }
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     // ── Economy — Coins & Gifts ─────────────────────────────────────
 
     socket.on('coins:balance', async (cb: any) => {
@@ -2457,6 +2530,10 @@ export function attachSocketHandlers(io: AppServer): void {
       if (profileId) {
         markOffline(profileId);
         broadcastOnlineCount(io);
+        if (lfgMap.has(profileId)) {
+          lfgMap.delete(profileId);
+          io.emit('lfg:update', Array.from(lfgMap.values()));
+        }
       }
       if (roomId && playerId) handlePlayerLeave(io, socket, roomId, playerId);
       handleVoiceLeave(io, socket.id);

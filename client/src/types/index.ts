@@ -452,6 +452,27 @@ export interface DashboardStats {
   recentBans: number;
 }
 
+export interface LobbyMessage {
+  id: string;
+  profileId: string;
+  username: string;
+  avatar: string;
+  avatarUrl?: string | null;
+  level: number;
+  text: string;
+  createdAt: number;
+}
+
+export interface LfgEntry {
+  profileId: string;
+  username: string;
+  avatar: string;
+  avatarUrl?: string | null;
+  level: number;
+  note: string;
+  createdAt: number;
+}
+
 export interface DmConversation {
   id: string;
   otherUserId: string;

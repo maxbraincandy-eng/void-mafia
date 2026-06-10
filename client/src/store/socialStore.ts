@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { socket } from '@/lib/socket';
+import type { LobbyMessage, LfgEntry } from '@/types/index';
 
 export interface DmToast {
   senderUserId: string;
@@ -31,6 +32,19 @@ interface SocialStore {
   morePanelOpen: boolean;
   openMoreMenu: () => void;
   closeMoreMenu: () => void;
+
+  // Lobby chat
+  lobbyChatOpen: boolean;
+  openLobbyChat: () => void;
+  closeLobbyChat: () => void;
+  lobbyChatUnread: number;
+  clearLobbyChatUnread: () => void;
+  lobbyMessages: LobbyMessage[];
+  pushLobbyMessage: (msg: LobbyMessage) => void;
+
+  // LFG
+  lfgList: LfgEntry[];
+  setLfgList: (list: LfgEntry[]) => void;
 }
 
 export const useSocialStore = create<SocialStore>((set, get) => {
@@ -62,6 +76,17 @@ export const useSocialStore = create<SocialStore>((set, get) => {
     }
   });
 
+  socket.on('lobby:message', (msg: LobbyMessage) => {
+    set(s => ({
+      lobbyMessages: [...s.lobbyMessages.slice(-99), msg],
+      lobbyChatUnread: s.lobbyChatOpen ? 0 : s.lobbyChatUnread + 1,
+    }));
+  });
+
+  socket.on('lfg:update', (list: LfgEntry[]) => {
+    set({ lfgList: list });
+  });
+
   return {
     profilePopupId: null,
     openProfile: (profileId) => set({ profilePopupId: profileId }),
@@ -85,5 +110,16 @@ export const useSocialStore = create<SocialStore>((set, get) => {
     morePanelOpen: false,
     openMoreMenu: () => set({ morePanelOpen: true }),
     closeMoreMenu: () => set({ morePanelOpen: false }),
+
+    lobbyChatOpen: false,
+    openLobbyChat: () => set({ lobbyChatOpen: true, lobbyChatUnread: 0 }),
+    closeLobbyChat: () => set({ lobbyChatOpen: false }),
+    lobbyChatUnread: 0,
+    clearLobbyChatUnread: () => set({ lobbyChatUnread: 0 }),
+    lobbyMessages: [],
+    pushLobbyMessage: (msg) => set(s => ({ lobbyMessages: [...s.lobbyMessages.slice(-99), msg] })),
+
+    lfgList: [],
+    setLfgList: (list) => set({ lfgList: list }),
   };
 });

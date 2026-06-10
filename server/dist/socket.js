@@ -70,6 +70,11 @@ function cancelAutoStart(roomId) {
 }
 // ── Spectate queues (roomId → socketIds waiting) ──────────────────────
 const spectateQueues = new Map();
+// ── Lobby chat buffer (last 60 messages, in-memory) ───────────────────
+const LOBBY_CHAT_MAX = 60;
+const lobbyChatHistory = [];
+// ── LFG map (profileId → entry) ───────────────────────────────────────
+const lfgMap = new Map();
 // ── Role-specific death messages ──────────────────────────────────────
 const NIGHT_DEATH = {
     sheriff: 'The badge falls silent. The town lost its protector.',
@@ -2462,6 +2467,91 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
+        // ── Lobby Chat ───────────────────────────────────────────────────
+        socket.on('lobby:history', async (cb) => {
+            cb(ok([...lobbyChatHistory]));
+        });
+        socket.on('lobby:send', async ({ text }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(err('Not authenticated.'));
+                    return;
+                }
+                const trimmed = text?.trim();
+                if (!trimmed || trimmed.length > 200) {
+                    cb(err('Invalid message.'));
+                    return;
+                }
+                if (!rateOk(socket.id, 3)) {
+                    cb(err('Slow down.'));
+                    return;
+                }
+                const profile = await getPlayer(profileId);
+                if (!profile) {
+                    cb(err('Profile not found.'));
+                    return;
+                }
+                const msg = {
+                    id: `lm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                    profileId,
+                    username: profile.username,
+                    avatar: profile.avatar,
+                    avatarUrl: profile.avatarUrl ?? null,
+                    level: profile.level ?? 1,
+                    text: trimmed,
+                    createdAt: Date.now(),
+                };
+                lobbyChatHistory.push(msg);
+                if (lobbyChatHistory.length > LOBBY_CHAT_MAX)
+                    lobbyChatHistory.shift();
+                io.emit('lobby:message', msg);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── LFG (Looking for Game) ───────────────────────────────────────
+        socket.on('lfg:list', (cb) => {
+            cb(ok(Array.from(lfgMap.values())));
+        });
+        socket.on('lfg:toggle', async ({ note }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(err('Not authenticated.'));
+                    return;
+                }
+                if (lfgMap.has(profileId)) {
+                    lfgMap.delete(profileId);
+                    io.emit('lfg:update', Array.from(lfgMap.values()));
+                    cb(ok({ active: false }));
+                }
+                else {
+                    const profile = await getPlayer(profileId);
+                    if (!profile) {
+                        cb(err('Profile not found.'));
+                        return;
+                    }
+                    const entry = {
+                        profileId,
+                        username: profile.username,
+                        avatar: profile.avatar,
+                        avatarUrl: profile.avatarUrl ?? null,
+                        level: profile.level ?? 1,
+                        note: (note ?? '').trim().slice(0, 60),
+                        createdAt: Date.now(),
+                    };
+                    lfgMap.set(profileId, entry);
+                    io.emit('lfg:update', Array.from(lfgMap.values()));
+                    cb(ok({ active: true }));
+                }
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
         // ── Economy — Coins & Gifts ─────────────────────────────────────
         socket.on('coins:balance', async (cb) => {
             try {
@@ -2695,6 +2785,10 @@ export function attachSocketHandlers(io) {
             if (profileId) {
                 markOffline(profileId);
                 broadcastOnlineCount(io);
+                if (lfgMap.has(profileId)) {
+                    lfgMap.delete(profileId);
+                    io.emit('lfg:update', Array.from(lfgMap.values()));
+                }
             }
             if (roomId && playerId)
                 handlePlayerLeave(io, socket, roomId, playerId);

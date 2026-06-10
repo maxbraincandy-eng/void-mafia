@@ -362,6 +362,25 @@ export interface AchievementEarned {
     icon: string;
     rarity: string;
 }
+export interface LobbyMessage {
+    id: string;
+    profileId: string;
+    username: string;
+    avatar: string;
+    avatarUrl?: string | null;
+    level: number;
+    text: string;
+    createdAt: number;
+}
+export interface LfgEntry {
+    profileId: string;
+    username: string;
+    avatar: string;
+    avatarUrl?: string | null;
+    level: number;
+    note: string;
+    createdAt: number;
+}
 export interface VoteBreakdownEntry {
     voterId: string;
     voterName: string;
@@ -578,6 +597,8 @@ export interface ServerToClientEvents {
         conversationId: string;
         message: any;
     }) => void;
+    'lobby:message': (msg: LobbyMessage) => void;
+    'lfg:update': (list: LfgEntry[]) => void;
     'maintenance:status': (data: {
         enabled: boolean;
     }) => void;
@@ -856,6 +877,16 @@ export interface ClientToServerEvents {
         profileId: string;
     }, cb: Cb<any>) => void;
     'clan:my_membership': (cb: Cb<any>) => void;
+    'lobby:send': (data: {
+        text: string;
+    }, cb: Cb<null>) => void;
+    'lobby:history': (data: Record<string, never>, cb: Cb<LobbyMessage[]>) => void;
+    'lfg:toggle': (data: {
+        note?: string;
+    }, cb: Cb<{
+        active: boolean;
+    }>) => void;
+    'lfg:list': (data: Record<string, never>, cb: Cb<LfgEntry[]>) => void;
     'dm:start': (data: {
         profileId: string;
     }, cb: Cb<any>) => void;
