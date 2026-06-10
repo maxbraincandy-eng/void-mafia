@@ -455,35 +455,6 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     deathType: p.deathType,
   });
 
-  const mapToPublic = (p: Player): PlayerPublic => ({
-    id: p.id,
-    socketId: p.socketId,
-    name: p.name,
-    avatar: p.avatar,
-    avatarUrl: p.avatarUrl,
-    isHost: p.isHost,
-    isAlive: p.isAlive,
-    isConnected: p.isConnected,
-    isReady: p.isReady,
-    role: (p.id === viewerPlayerId || isGameOver || viewer?.isSpectator) ? p.role : null,
-    team: (p.id === viewerPlayerId || isGameOver || viewer?.isSpectator) ? p.team : null,
-    // Mafia sees fellow mafia roles
-    ...(isMafia && p.team === 'mafia' ? { role: p.role, team: p.team } : {}),
-    // Cult leader sees all cult members
-    ...(isCultLeader && p.team === 'cult' ? { role: p.role, team: p.team } : {}),
-    // Yakuza team members see each other
-    ...(isYakuza && p.team === 'yakuza' ? { role: p.role, team: p.team } : {}),
-    voteTarget: (room.phase === 'voting' && room.activeEvent?.key !== 'anonymous_voting') ? p.voteTarget : null,
-    hasActed: p.id === viewerPlayerId ? p.hasActedThisPhase : false,
-    seat: p.seat,
-    profileId: p.profileId,
-    isModerator: p.isModerator,
-    moderatorLevel: p.moderatorLevel,
-    isSpectator: p.isSpectator,
-    isWaitingNextRound: p.isWaitingNextRound,
-    deathType: p.deathType,
-  });
-
   const players: PlayerPublic[] = [...room.players.values()]
     .sort((a, b) => a.seat - b.seat)
     .map(mapToPublic);

@@ -129,7 +129,6 @@ export function ProfilePage() {
   const [showShare, setShowShare]   = useState(false);
   const [cosmeticsTab, setCosmeticsTab] = useState<'frames' | 'titles' | 'skins'>('frames');
   const [equipLoading, setEquipLoading] = useState(false);
-  const [showShare, setShowShare]   = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

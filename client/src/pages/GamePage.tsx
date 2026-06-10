@@ -98,8 +98,6 @@ export function GamePage() {
   const myClanId = useAuthStore(s => s.myClanId);
   const myClanRole = useAuthStore(s => s.myClanRole);
   const myRoleSkin = useAuthStore(s => s.profile?.cosmetics?.equippedRoleSkin ?? null);
-  const myClanId = useAuthStore(s => s.myClanId);
-  const myClanRole = useAuthStore(s => s.myClanRole);
   const { openProfile } = useSocialStore();
   const [rightTab, setRightTab] = useState<RightTab>('events');
   const [unreadChat, setUnreadChat] = useState(0);

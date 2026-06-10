@@ -2972,18 +2972,6 @@ function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, pla
   const room = getRoom(roomId);
   if (!room) return;
 
-  // Handle waiting-next-round players
-  const waitingPlayer = room.waitingNextRound.get(playerId);
-  if (waitingPlayer) {
-    room.waitingNextRound.delete(playerId);
-    socket.leave(roomId);
-    socket.data.playerId = null;
-    socket.data.roomId = null;
-    broadcastSystemMsg(io, room, `${waitingPlayer.name} left.`);
-    broadcastRoom(io, room);
-    return;
-  }
-
   const player = room.players.get(playerId);
   if (!player) return;
 
