@@ -29,6 +29,7 @@ export function canJoin(room: Room, playerId: string, channel: VoiceChannel): st
   if (!player.isConnected) return 'Player is not connected.';
 
   if (channel === 'room') {
+    if (player.isSpectator) return null; // spectators may always listen
     if (!player.isAlive && room.phase !== 'lobby') {
       return 'Dead players cannot join room voice.';
     }

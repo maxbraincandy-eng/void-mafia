@@ -194,7 +194,7 @@ const JoinRoomSchema = z.object({
 
 const ChatSchema = z.object({
   text: z.string().min(1).max(400),
-  channel: z.enum(['room', 'mafia', 'dead']),
+  channel: z.enum(['room', 'mafia', 'dead', 'spectator']),
 });
 
 const AuthSchema = z.object({
@@ -1323,11 +1323,15 @@ export function attachSocketHandlers(io: AppServer): void {
           for (const p of room.players.values()) {
             if (p.team === 'mafia' && p.socketId) io.to(p.socketId).emit('chat:new', msg);
           }
-        } else if (msg.channel === 'dead') {
+        } else if (parsed.channel === 'dead') {
           for (const p of room.players.values()) {
             if ((!p.isAlive || p.isSpectator) && p.socketId) {
               io.to(p.socketId).emit('chat:new', msg);
             }
+          }
+        } else if (parsed.channel === 'spectator') {
+          for (const p of room.players.values()) {
+            if (p.isSpectator && p.socketId) io.to(p.socketId).emit('chat:new', msg);
           }
         } else {
           io.to(room.id).emit('chat:new', msg);
