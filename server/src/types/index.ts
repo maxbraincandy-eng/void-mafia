@@ -6,7 +6,7 @@ export type Phase =
   | 'day'
   | 'speech'
   | 'voting'
-  | 'death_speech'
+  | 'final_words'
   | 'game_over';
 
 export type RoleKey =
@@ -32,7 +32,7 @@ export type RoleKey =
 
 export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
-export type ChatChannel = 'room' | 'mafia' | 'dead';
+export type ChatChannel = 'room' | 'mafia' | 'dead' | 'spectator';
 export type ModeratorLevel = 'moderator' | 'senior_moderator' | 'admin' | 'owner';
 export type ReportReason =
   | 'cheating'
@@ -83,6 +83,8 @@ export interface Role {
 export interface PlayerCosmetics {
   equippedNameColor: string | null;
   equippedFrame: string | null;
+  equippedTitle: string | null;
+  equippedRoleSkin: string | null;
   unlockedItems: string[];
 }
 
@@ -249,6 +251,13 @@ export interface ModLog {
   expiresAt?: number;
 }
 
+// ── Spectator Queue Settings ──────────────────────────────────────────
+export interface SpectatorQueueSettings {
+  enabled: boolean;
+  allowSpectatorsToQueue: boolean;
+  autoPromoteOnNextRound: boolean;
+}
+
 // ── Internal Server Types ─────────────────────────────────────────────
 export interface Player {
   id: string;
@@ -268,6 +277,8 @@ export interface Player {
   joinedAt: number;
   profileId: string | null;
   isSpectator: boolean;
+  isQueuedNextRound: boolean;
+  queuePosition: number | null;
   lastWill: string | null;
   isModerator: boolean;
   moderatorLevel: ModeratorLevel | null;
@@ -293,6 +304,52 @@ export interface ChatMessage {
   isMod?: boolean;
 }
 
+// ── Dynamic Events ────────────────────────────────────────────────────
+export interface DynamicEventAllowed {
+  blackoutNight: boolean;
+  silentDay: boolean;
+  doubleVote: boolean;
+  noRevealDay: boolean;
+  bloodMoon: boolean;
+  anonymousVoting: boolean;
+  sheriffFog: boolean;
+  doctorPressure: boolean;
+  extendedFinalWords: boolean;
+}
+
+export interface DynamicEventSettings {
+  enabled: boolean;
+  frequency: 'low' | 'medium' | 'high';
+  allowed: DynamicEventAllowed;
+}
+
+export interface ActiveEvent {
+  key: string;
+  label: string;
+  description: string;
+  icon: string;
+  phase: string;
+  day: number;
+  expiresAtPhaseEnd: boolean;
+}
+
+export interface EventLogEntry {
+  day: number;
+  phase: string;
+  eventKey: string;
+  eventLabel: string;
+}
+
+export const DEFAULT_DYNAMIC_EVENTS: DynamicEventSettings = {
+  enabled: false,
+  frequency: 'low',
+  allowed: {
+    blackoutNight: true, silentDay: true, doubleVote: true, noRevealDay: true,
+    bloodMoon: true, anonymousVoting: true, sheriffFog: true, doctorPressure: true,
+    extendedFinalWords: true,
+  },
+};
+
 export interface GameSettings {
   nightDuration: number;
   dayDuration: number;
@@ -306,6 +363,8 @@ export interface GameSettings {
   password: string;
   startWithNight: boolean;
   rotatingSpeech: boolean;
+  dynamicEvents: DynamicEventSettings;
+  spectatorQueue: SpectatorQueueSettings;
   roles: {
     mafia: number;
     don: number;
@@ -333,6 +392,8 @@ export interface Room {
   hostId: string;
   phase: Phase;
   players: Map<string, Player>;
+  /** Players waiting to join as active players in the next round */
+  nextRoundQueue: Player[];
   day: number;
   timer: number;
   maxTimer: number;
@@ -354,12 +415,20 @@ export interface Room {
   newlyConvertedCultists: string[];
   deadChat: ChatMessage[];
   spectateQueue: string[];
+  spectatorChat: ChatMessage[];
   startedAt: number;
   mafiaKillTarget: string | null;
   nominations: Map<string, string>;
   tribunalCandidates: string[];
   deathSpeakerId: string | null;
+  finalWordsReason: 'night_kill' | 'vote_elimination' | null;
+  pendingWinner: Team | null;
   speechStartSeat: number;
+  clanId: string | null;
+  clanRoom: boolean;
+  activeEvent: ActiveEvent | null;
+  eventsLog: EventLogEntry[];
+  lastDoctorTarget: string | null;
 }
 
 // ── Public Types (sent to clients) ────────────────────────────────────
@@ -382,6 +451,8 @@ export interface PlayerPublic {
   isModerator: boolean;
   moderatorLevel: ModeratorLevel | null;
   isSpectator: boolean;
+  isQueuedNextRound: boolean;
+  queuePosition: number | null;
   deathType: 'night' | 'vote' | null;
 }
 
@@ -393,6 +464,8 @@ export interface RoomPublic {
   timer: number;
   maxTimer: number;
   players: PlayerPublic[];
+  /** Spectators who are queued for next round (ordered by position) */
+  nextRoundQueue: PlayerPublic[];
   chat: ChatMessage[];
   mafiaChat: ChatMessage[];
   killedLastNight: Array<{ id: string; name: string; lastWill?: string | null }>;
@@ -405,6 +478,7 @@ export interface RoomPublic {
   spectatorCount: number;
   isPaused: boolean;
   deadChat: ChatMessage[];
+  spectatorChat: ChatMessage[];
   /** Mafia-team-only: each alive Mafia member's current kill vote. null when viewer is not Mafia. */
   mafiaVotes: Record<string, { voterName: string; targetName: string }> | null;
   /** nominatorId → nomineeId for current day's speech nominations */
@@ -412,6 +486,10 @@ export interface RoomPublic {
   /** deduped list of nominated player IDs eligible for tribunal vote */
   tribunalCandidates: string[];
   deathSpeakerId: string | null;
+  finalWordsReason: string | null;
+  clanId: string | null;
+  clanRoom: boolean;
+  activeEvent: ActiveEvent | null;
 }
 
 export interface RoomListItem {
@@ -464,6 +542,17 @@ export interface LobbyMessage {
   createdAt: number;
 }
 
+// ── LFG (Looking for Game) ────────────────────────────────────────────
+export interface LfgEntry {
+  profileId: string;
+  username: string;
+  avatar: string;
+  avatarUrl?: string | null;
+  level: number;
+  note: string;
+  createdAt: number;
+}
+
 // ── Vote Breakdown ────────────────────────────────────────────────────
 export interface VoteBreakdownEntry {
   voterId: string;
@@ -495,13 +584,15 @@ export interface ClanPublic {
 }
 
 // ── Clan Member ───────────────────────────────────────────────────────
+export type ClanRole = 'owner' | 'admin' | 'moderator' | 'member';
+
 export interface ClanMember {
   playerId: string;
   username: string;
   avatar: string;
   avatarUrl?: string | null;
   publicId?: number | null;
-  role: 'owner' | 'officer' | 'member';
+  role: ClanRole;
   joinedAt: number;
 }
 
@@ -610,9 +701,11 @@ export interface ServerToClientEvents {
   'voice:force-unmute':  () => void;
   // XP / levels / cosmetics
   'xp:gained':           (data: XPGain) => void;
-  // Spectate queue
+  // Spectate queue (legacy)
   'queue:position':      (data: { position: number; roomCode: string }) => void;
   'queue:promoted':      (data: { roomCode: string }) => void;
+  // Next-round queue
+  'queue:updated':       (data: { nextRoundQueue: PlayerPublic[] }) => void;
   // Friends
   'friend:request_received': (req: FriendRequest) => void;
   // Push notifications
@@ -624,6 +717,8 @@ export interface ServerToClientEvents {
   // Lobby chat
   'lobby:message':       (msg: LobbyMessage) => void;
   'lobby:msg_deleted':   (data: { msgId: string }) => void;
+  // LFG
+  'lfg:update':          (list: LfgEntry[]) => void;
   // Maintenance mode
   'maintenance:status':  (data: { enabled: boolean }) => void;
   // Economy
@@ -648,6 +743,7 @@ export interface ClientToServerEvents {
   'game:action':        (data: { targetId: string }, cb: Cb<null>) => void;
   'game:vote':          (data: { targetId: string | null }, cb: Cb<null>) => void;
   'game:skip':          (cb: Cb<null>) => void;
+  'game:speech_pass':   (cb: Cb<null>) => void;
   'game:nominate':      (data: { nomineeId: string | null }, cb: Cb<null>) => void;
   'game:day_skip_vote': (cb: Cb<null>) => void;
   'game:restart':       (cb: Cb<null>) => void;
@@ -702,6 +798,9 @@ export interface ClientToServerEvents {
   'voice:offer':         (data: { to: string; sdp: object }, cb: Cb<null>) => void;
   'voice:answer':        (data: { to: string; sdp: object }, cb: Cb<null>) => void;
   'voice:ice-candidate': (data: { to: string; candidate: object }) => void;
+  // Next-round queue
+  'queue:join':          (cb: Cb<{ position: number }>) => void;
+  'queue:leave':         (cb: Cb<null>) => void;
   // Rematch
   'game:rematch':        (cb: Cb<null>) => void;
   // Friends
@@ -730,6 +829,9 @@ export interface ClientToServerEvents {
   'lobby:send':            (data: { text: string }, cb: Cb<null>) => void;
   'lobby:history':         (data: Record<string, never>, cb: Cb<LobbyMessage[]>) => void;
   'lobby:delete_msg':      (data: { msgId: string }, cb: Cb<null>) => void;
+  // LFG
+  'lfg:toggle':            (data: { note?: string }, cb: Cb<{ active: boolean }>) => void;
+  'lfg:list':              (data: Record<string, never>, cb: Cb<LfgEntry[]>) => void;
   // Direct messages
   'dm:start':              (data: { profileId: string }, cb: Cb<any>) => void;
   'dm:send':               (data: { conversationId: string; text: string }, cb: Cb<any>) => void;

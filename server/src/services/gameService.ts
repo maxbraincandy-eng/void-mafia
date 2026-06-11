@@ -3,6 +3,7 @@ import {
 } from '../types/index.js';
 import { buildRoleDeck, buildAutoRoleDeck, validateRoleDistribution, getTeam, isSuspiciousToSheriff, getRole } from './roleService.js';
 import { getAlivePlayers } from './roomService.js';
+import { tryTriggerEvent, setRoomEvent, clearRoomEvent } from './dynamicEventService.js';
 
 // ── Start Game ────────────────────────────────────────────────────────
 export function startGame(room: Room): void {
@@ -59,32 +60,42 @@ const MORNING_DURATION = 30;
 export function setPhase(room: Room, phase: Phase): void {
   room.phase = phase;
 
+  // Clear old event unless it's a silentDay persisting through speech
+  const keepSilentDay = phase === 'speech' && room.activeEvent?.key === 'silent_day';
+  if (!keepSilentDay) clearRoomEvent(room);
+
   for (const p of room.players.values()) {
     p.hasActedThisPhase = false;
     if (phase === 'voting') p.voteTarget = null;
   }
 
   switch (phase) {
-    case 'night':
+    case 'night': {
       room.nightActions = new Map();
       room.killedLastNight = [];
       room.savedLastNight = false;
       room.newlyConvertedCultists = [];
       room.mafiaKillTarget = null;
+      const nightEvent = tryTriggerEvent(room, 'night');
+      if (nightEvent) setRoomEvent(room, nightEvent);
       room.timer = room.settings.nightDuration;
       room.maxTimer = room.settings.nightDuration;
       break;
+    }
     case 'morning':
       room.timer = MORNING_DURATION;
       room.maxTimer = MORNING_DURATION;
       break;
-    case 'day':
+    case 'day': {
       room.nominations = new Map();
       room.tribunalCandidates = [];
+      const dayEvent = tryTriggerEvent(room, 'day');
+      if (dayEvent) setRoomEvent(room, dayEvent);
       room.timer = room.settings.dayDuration;
       room.maxTimer = room.settings.dayDuration;
       room.daySkipVotes = [];
       break;
+    }
     case 'speech': {
       room.nominations = new Map();
       room.tribunalCandidates = [];
@@ -114,16 +125,23 @@ export function setPhase(room: Room, phase: Phase): void {
       room.maxTimer = room.settings.speechDuration;
       break;
     }
-    case 'voting':
+    case 'voting': {
       room.tribunalCandidates = [...new Set(room.nominations.values())];
       room.votes = new Map();
+      const voteEvent = tryTriggerEvent(room, 'voting');
+      if (voteEvent) setRoomEvent(room, voteEvent);
       room.timer = room.settings.voteDuration;
       room.maxTimer = room.settings.voteDuration;
       break;
-    case 'death_speech':
-      room.timer = 30;
-      room.maxTimer = 30;
+    }
+    case 'final_words': {
+      const fwEvent = tryTriggerEvent(room, 'final_words');
+      if (fwEvent) setRoomEvent(room, fwEvent);
+      const duration = room.activeEvent?.key === 'extended_final_words' ? 45 : 30;
+      room.timer = duration;
+      room.maxTimer = duration;
       break;
+    }
     case 'role_reveal':
       room.timer = room.settings.roleRevealDuration;
       room.maxTimer = room.settings.roleRevealDuration;
@@ -161,14 +179,30 @@ export function advancePhase(room: Room): Phase {
       setPhase(room, 'day');
       return 'day';
 
-    case 'night':
+    case 'night': {
       resolveNight(room);
+      // If anyone died, give them 30 seconds for final words before officially dying.
+      // Undo the first death so the player stays alive during the final_words phase;
+      // their death is finalized when final_words ends.
+      if (room.killedLastNight.length > 0) {
+        const primary = room.killedLastNight[0]!;
+        const dyingPlayer = room.players.get(primary.id);
+        if (dyingPlayer) {
+          dyingPlayer.isAlive = true;
+          dyingPlayer.deathType = null;
+        }
+        room.deathSpeakerId = primary.id;
+        room.finalWordsReason = 'night_kill';
+        setPhase(room, 'final_words');
+        return 'final_words';
+      }
       if (checkWin(room)) {
         setPhase(room, 'game_over');
         return 'game_over';
       }
       setPhase(room, 'morning');
       return 'morning';
+    }
 
     case 'day':
       setPhase(room, 'speech');
@@ -192,24 +226,55 @@ export function advancePhase(room: Room): Phase {
     }
 
     case 'voting': {
-      const eliminatedId = resolveVotes(room);
+      // resolveVotes sets room.deathSpeakerId + room.finalWordsReason as a side effect.
+      // announceVoteResult in socket.ts calls it first; this call is safe when called again.
+      if (!room.deathSpeakerId) resolveVotes(room);
+      if (room.deathSpeakerId) {
+        setPhase(room, 'final_words');
+        return 'final_words';
+      }
+      // Tie or no elimination — skip straight to night (win check happened in resolveVotes)
       if (checkWin(room)) {
         setPhase(room, 'game_over');
         return 'game_over';
-      }
-      if (eliminatedId) {
-        room.deathSpeakerId = eliminatedId;
-        setPhase(room, 'death_speech');
-        return 'death_speech';
       }
       setPhase(room, 'night');
       return 'night';
     }
 
-    case 'death_speech':
-      room.deathSpeakerId = null;
+    case 'final_words': {
+      // Finalize the deferred death
+      const dyingId = room.deathSpeakerId;
+      const reason  = room.finalWordsReason;
+      room.deathSpeakerId  = null;
+      room.finalWordsReason = null;
+
+      if (dyingId) {
+        const dying = room.players.get(dyingId);
+        if (dying) {
+          dying.isAlive   = false;
+          dying.deathType = reason === 'night_kill' ? 'night' : 'vote';
+        }
+      }
+
+      // Apply any Jester win that was deferred until after final words
+      if (room.pendingWinner) {
+        room.winner        = room.pendingWinner;
+        room.pendingWinner = null;
+      }
+
+      if (checkWin(room)) {
+        setPhase(room, 'game_over');
+        return 'game_over';
+      }
+
+      if (reason === 'night_kill') {
+        setPhase(room, 'morning');
+        return 'morning';
+      }
       setPhase(room, 'night');
       return 'night';
+    }
 
     default:
       return room.phase;
@@ -383,6 +448,11 @@ export function submitNightAction(room: Room, actor: Player, targetId: string): 
     throw new Error('Self-protection is disabled in this room.');
   }
 
+  // Doctor Pressure: cannot protect same target as last night
+  if (actor.role === 'doctor' && room.activeEvent?.key === 'doctor_pressure' && room.lastDoctorTarget && room.lastDoctorTarget === targetId) {
+    throw new Error('Doctor Pressure — you cannot protect the same player two nights in a row.');
+  }
+
   // Mafia cannot kill fellow mafia
   if ((actor.role === 'mafia' || actor.role === 'don') && target.team === 'mafia') {
     throw new Error('You cannot target a fellow mafia member.');
@@ -412,6 +482,11 @@ export function submitNightAction(room: Room, actor: Player, targetId: string): 
     submittedAt: Date.now(),
   });
   actor.hasActedThisPhase = true;
+
+  // Track doctor's target for doctorPressure event next night
+  if (actor.role === 'doctor') {
+    room.lastDoctorTarget = targetId;
+  }
 }
 
 export function getInvestigationResult(room: Room, actor: Player): { targetId: string; targetName: string; result: 'suspicious' | 'not_suspicious' } | null {
@@ -419,10 +494,20 @@ export function getInvestigationResult(room: Room, actor: Player): { targetId: s
   if (!action) return null;
   const target = room.players.get(action.targetId);
   if (!target) return null;
+
+  // Blackout Night: no investigation result returned
+  if (room.activeEvent?.key === 'blackout_night') return null;
+
+  // Sheriff Fog: 40% chance of incorrect result
+  let correct = isSuspiciousToSheriff(target.role!);
+  if (room.activeEvent?.key === 'sheriff_fog' && Math.random() < 0.4) {
+    correct = !correct;
+  }
+
   return {
     targetId: target.id,
     targetName: target.name,
-    result: isSuspiciousToSheriff(target.role!) ? 'suspicious' : 'not_suspicious',
+    result: correct ? 'suspicious' : 'not_suspicious',
   };
 }
 
@@ -484,12 +569,13 @@ export function submitVote(room: Room, voter: Player, targetId: string | null): 
 
 export function resolveVotes(room: Room): string | null {
   const counts = new Map<string, number>();
+  const eventMultiplier = room.activeEvent?.key === 'double_vote' ? 2 : 1;
 
   for (const [voterId, targetId] of room.votes.entries()) {
     if (!targetId) continue;
     if (room.tribunalCandidates.length > 0 && !room.tribunalCandidates.includes(targetId)) continue;
     const voter = room.players.get(voterId);
-    const weight = voter?.role === 'mayor' ? 2 : 1;
+    const weight = (voter?.role === 'mayor' ? 2 : 1) * eventMultiplier;
     counts.set(targetId, (counts.get(targetId) ?? 0) + weight);
   }
 
@@ -502,7 +588,9 @@ export function resolveVotes(room: Room): string | null {
     if (room.settings.tieVoteRule === 'no_elimination') return null;
     const tied = sorted.filter(([, c]) => c === topCount).map(([id]) => id);
     const winnerId = tied[Math.floor(Math.random() * tied.length)]!;
-    eliminatePlayer(room, winnerId, true);
+    // Queue for final_words; death is finalized by advancePhase 'final_words'
+    room.deathSpeakerId   = winnerId;
+    room.finalWordsReason = 'vote_elimination';
     return winnerId;
   }
 
@@ -510,21 +598,17 @@ export function resolveVotes(room: Room): string | null {
   if (!target || !target.isAlive) return null;
 
   if (target.role === 'jester') {
-    target.isAlive = false;
-    target.deathType = 'vote';
-    room.winner = 'neutral';
+    // Jester win is pending — applied after final_words so the player can speak first
+    room.pendingWinner    = 'neutral';
+    room.deathSpeakerId   = topId;
+    room.finalWordsReason = 'vote_elimination';
     return topId;
   }
 
-  eliminatePlayer(room, topId, true);
+  // Queue for final_words; death is finalized by advancePhase 'final_words'
+  room.deathSpeakerId   = topId;
+  room.finalWordsReason = 'vote_elimination';
   return topId;
-}
-
-function eliminatePlayer(room: Room, playerId: string, byVote: boolean): void {
-  const player = room.players.get(playerId);
-  if (!player) return;
-  player.isAlive = false;
-  player.deathType = byVote ? 'vote' : 'night';
 }
 
 // ── Win Condition ─────────────────────────────────────────────────────

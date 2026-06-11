@@ -18,6 +18,8 @@
     @apply bg-void text-white font-sans antialiased;
     background-color: #03000d;
     overflow-x: hidden;
+    /* Prevent pull-to-refresh on mobile browsers */
+    overscroll-behavior-y: none;
   }
 
   ::-webkit-scrollbar {
@@ -108,6 +110,17 @@
   .perspective-1000 { perspective: 1000px; }
   .preserve-3d      { transform-style: preserve-3d; }
   .backface-hidden  { backface-visibility: hidden; }
+
+  /* Safe-area spacing for iPhone notch / home bar */
+  .pb-safe  { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .pt-safe  { padding-top:    env(safe-area-inset-top,    0px); }
+  .pl-safe  { padding-left:   env(safe-area-inset-left,   0px); }
+  .pr-safe  { padding-right:  env(safe-area-inset-right,  0px); }
+  .mb-safe  { margin-bottom:  env(safe-area-inset-bottom, 0px); }
+
+  /* Allow scrolling inside a container while blocking pull-to-refresh on outer */
+  .overscroll-contain { overscroll-behavior: contain; }
+  .overscroll-none    { overscroll-behavior: none; }
 }
 
 /* ── Powered-by cyberpunk badge ───────────────────────────── */

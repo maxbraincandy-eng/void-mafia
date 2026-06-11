@@ -7,41 +7,39 @@ export type NavTab = 'rooms' | 'clans' | 'leaderboard' | 'profile' | 'mod' | 'ec
 interface Props {
   active: NavTab;
   isMod: boolean;
-  isOwner: boolean;
   onChange: (tab: NavTab) => void;
   onMessagesClick: () => void;
 }
 
-export function BottomNav({ active, isMod, isOwner, onChange, onMessagesClick }: Props) {
+export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
   const t = useT();
   const { unreadDmCount, dmPanelOpen } = useSocialStore();
 
-  // Order: ოთახები · კლანები · ტოპი · პროფილი · (mod) · (economy) — MSG always last
-  const TABS: { id: NavTab; label: string; icon: string; modOnly?: boolean; ownerOnly?: boolean }[] = [
+  const TABS: { id: NavTab; label: string; icon: string; modOnly?: boolean }[] = [
     { id: 'rooms',       label: t.nav.rooms,       icon: '⬡' },
     { id: 'clans',       label: t.nav.clans,       icon: '⚔' },
     { id: 'leaderboard', label: t.nav.leaderboard, icon: '◈' },
     { id: 'profile',     label: t.nav.profile,     icon: '◉' },
     { id: 'mod',         label: t.nav.mod,         icon: '⚡', modOnly: true },
-    { id: 'economy',     label: 'Economy',          icon: '🪙', ownerOnly: true },
   ];
 
   const visible = TABS.filter(tab => {
-    if (tab.ownerOnly) return isOwner;
-    if (tab.modOnly)   return isMod;
+    if (tab.modOnly) return isMod;
     return true;
   });
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-void/95 border-t border-white/5 backdrop-blur-xl">
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-50 bg-void/95 border-t border-white/5 backdrop-blur-xl"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
       <div className="flex items-center justify-around max-w-lg mx-auto relative">
         {visible.map(tab => {
           const isActive = active === tab.id;
-          const isModeTab    = tab.id === 'mod';
-          const isEconomyTab = tab.id === 'economy';
-          const activeColor = isModeTab ? 'text-neon-green' : isEconomyTab ? 'text-amber-400' : 'text-neon-cyan';
-          const glowClass   = isModeTab ? 'text-glow-green' : isEconomyTab ? '' : 'text-glow-cyan';
-          const barClass    = isModeTab ? 'bg-neon-green' : isEconomyTab ? 'bg-amber-400' : 'bg-neon-cyan';
+          const isModeTab = tab.id === 'mod';
+          const activeColor = isModeTab ? 'text-neon-green' : 'text-neon-cyan';
+          const glowClass   = isModeTab ? 'text-glow-green' : 'text-glow-cyan';
+          const barClass    = isModeTab ? 'bg-neon-green' : 'bg-neon-cyan';
           return (
             <button
               key={tab.id}
@@ -56,7 +54,7 @@ export function BottomNav({ active, isMod, isOwner, onChange, onMessagesClick }:
               </span>
               <span className={clsx(
                 'text-[9px] font-mono tracking-wider uppercase',
-                isActive && (isModeTab || isEconomyTab) && 'font-bold',
+                isActive && isModeTab && 'font-bold',
               )}>
                 {tab.label}
               </span>

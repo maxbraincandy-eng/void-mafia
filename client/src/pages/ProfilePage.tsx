@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
 import { ModBadge } from '@/components/ui/ModBadge';
@@ -6,8 +6,14 @@ import { PoweredBy } from '@/components/ui/PoweredBy';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { FriendsPanel } from '@/components/ui/FriendsPanel';
 import { GiftGallery } from '@/components/ui/GiftGallery';
+import { ShareCardModal } from '@/components/ui/ShareCardModal';
+import type { ProfileCardData } from '@/components/ui/ProfileCard';
 import { emitWithAck, socket } from '@/lib/socket';
-import type { AchievementEarned, GameHistoryEntry, PlayerRoleStats, ClanMembership, Res } from '@/types/index';
+import type { AchievementEarned, GameHistoryEntry, PlayerRoleStats, ClanMembership, Res, PlayerCosmetics } from '@/types/index';
+import {
+  FRAMES, TITLES, ROLE_SKINS, RARITY_COLOR, RARITY_LABEL,
+  getFrameById, getTitleById, getRoleSkinById,
+} from '@/constants/cosmetics';
 
 const LEVEL_THRESHOLDS = [0, 100, 250, 500, 900, 1400, 2100, 3000, 4100, 5400];
 function xpForLevel(level: number): number { return LEVEL_THRESHOLDS[level - 1] ?? 0; }
@@ -120,6 +126,9 @@ export function ProfilePage() {
   const [coins, setCoins]           = useState<number | null>(null);
   const [dailyClaiming, setDailyClaiming] = useState(false);
   const [dailyMsg, setDailyMsg]     = useState<string | null>(null);
+  const [showShare, setShowShare]   = useState(false);
+  const [cosmeticsTab, setCosmeticsTab] = useState<'frames' | 'titles' | 'skins'>('frames');
+  const [equipLoading, setEquipLoading] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -234,6 +243,24 @@ export function ProfilePage() {
     if (!result.ok) setUploadError(result.error ?? 'Remove failed.');
     setUploadLoading(false);
   };
+
+  const handleEquip = useCallback(async (type: 'frame' | 'title' | 'role_skin', itemId: string | null) => {
+    if (equipLoading) return;
+    setEquipLoading(true);
+    try {
+      const res = await emitWithAck<{ type: string; itemId: string | null }, Res<PlayerCosmetics>>(
+        'cosmetics:equip', { type, itemId },
+      );
+      if (res.ok) {
+        useAuthStore.setState(s => s.profile
+          ? { profile: { ...s.profile!, cosmetics: res.data } }
+          : s,
+        );
+      }
+    } finally {
+      setEquipLoading(false);
+    }
+  }, [equipLoading]);
 
   if (!profile) return null;
 
@@ -383,7 +410,234 @@ export function ProfilePage() {
               </div>
             </div>
           )}
+
+          {/* Share Profile button */}
+          <button
+            onClick={() => setShowShare(true)}
+            className="mt-3 w-full py-2.5 rounded-xl font-display font-bold text-sm tracking-widest uppercase transition-all border border-neon-cyan/30 bg-neon-cyan/6 text-neon-cyan/80 hover:bg-neon-cyan/12 hover:text-neon-cyan"
+          >
+            ↗ Share Profile
+          </button>
         </motion.div>
+
+        {/* ── Cosmetics / Wardrobe ───────────────────────────────────── */}
+        {(() => {
+          const cosmetics = profile.cosmetics;
+          const unlockedItems = cosmetics?.unlockedItems ?? [];
+          const equippedFrame = cosmetics?.equippedFrame ?? null;
+          const equippedTitle = cosmetics?.equippedTitle ?? null;
+          const equippedSkin  = cosmetics?.equippedRoleSkin ?? null;
+
+          const frameDef = getFrameById(equippedFrame);
+          const titleDef = getTitleById(equippedTitle);
+          const skinDef  = getRoleSkinById(equippedSkin);
+
+          const unlockedFrames = FRAMES.filter(f => unlockedItems.includes(f.id));
+          const unlockedTitles = TITLES.filter(t => unlockedItems.includes(t.id));
+          const unlockedSkins  = ROLE_SKINS.filter(s => unlockedItems.includes(s.id));
+
+          return (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.04 }}
+              className="glass-panel border border-neon-purple/20 rounded-2xl p-4 mb-3">
+              <SectionHeader icon="✨" title="Identity" />
+
+              {/* Equipped overview */}
+              <div className="flex gap-2 mb-3">
+                {/* Frame preview */}
+                <div className="flex-1 rounded-xl border border-white/8 bg-white/3 p-2 flex flex-col items-center gap-1.5">
+                  <div
+                    className="w-10 h-10 rounded-full p-[2.5px]"
+                    style={frameDef
+                      ? { background: `linear-gradient(135deg, ${frameDef.colors[0]}, ${frameDef.colors[1]})`, boxShadow: `0 0 8px ${frameDef.glow}` }
+                      : { background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }
+                    }
+                  >
+                    <div className="w-full h-full rounded-full bg-gradient-to-br from-neon-purple/30 to-neon-cyan/20 flex items-center justify-center text-sm font-bold text-neon-cyan">
+                      {(profile.username[0] ?? '?').toUpperCase()}
+                    </div>
+                  </div>
+                  <p className="text-[9px] font-mono text-white/30 uppercase tracking-wider text-center">Frame</p>
+                  <p className="text-[10px] font-mono text-white/60 text-center truncate w-full">
+                    {frameDef ? frameDef.name : 'None'}
+                  </p>
+                </div>
+
+                {/* Title preview */}
+                <div className="flex-1 rounded-xl border border-white/8 bg-white/3 p-2 flex flex-col items-center justify-center gap-1.5">
+                  <div
+                    className="px-2 py-1 rounded-lg text-[11px] font-display font-bold tracking-wider text-center truncate max-w-full"
+                    style={titleDef
+                      ? { color: titleDef.color, background: `${titleDef.color}15`, border: `1px solid ${titleDef.color}40` }
+                      : { color: 'rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }
+                    }
+                  >
+                    {titleDef ? titleDef.name : '—'}
+                  </div>
+                  <p className="text-[9px] font-mono text-white/30 uppercase tracking-wider">Title</p>
+                </div>
+
+                {/* Skin preview */}
+                <div className="flex-1 rounded-xl border border-white/8 bg-white/3 p-2 flex flex-col items-center justify-center gap-1.5">
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-lg"
+                    style={skinDef
+                      ? { background: skinDef.bg, border: `2px solid ${skinDef.c1}`, boxShadow: `0 0 8px ${skinDef.glow}40` }
+                      : { background: '#03000d', border: '2px solid rgba(155,0,255,0.3)' }
+                    }
+                  >
+                    🃏
+                  </div>
+                  <p className="text-[9px] font-mono text-white/30 uppercase tracking-wider">Card</p>
+                  <p className="text-[10px] font-mono text-white/60 text-center truncate w-full">
+                    {skinDef ? skinDef.name : 'Classic'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Wardrobe tabs */}
+              <div className="flex gap-1 mb-3 p-1 rounded-xl bg-white/4 border border-white/6">
+                {(['frames', 'titles', 'skins'] as const).map(t => (
+                  <button key={t} onClick={() => setCosmeticsTab(t)}
+                    className={`flex-1 py-1.5 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all ${
+                      cosmeticsTab === t ? 'bg-neon-purple/20 text-neon-purple border border-neon-purple/30' : 'text-white/30 hover:text-white/50'
+                    }`}>
+                    {t === 'frames' ? `Frames (${unlockedFrames.length})` : t === 'titles' ? `Titles (${unlockedTitles.length})` : `Skins (${unlockedSkins.length})`}
+                  </button>
+                ))}
+              </div>
+
+              {/* Frames grid */}
+              {cosmeticsTab === 'frames' && (
+                <div className="space-y-1.5">
+                  {unlockedFrames.length === 0 && (
+                    <p className="text-white/20 font-mono text-xs text-center py-3">No frames unlocked yet</p>
+                  )}
+                  {unlockedFrames.map(f => {
+                    const isEquipped = equippedFrame === f.id;
+                    return (
+                      <div key={f.id}
+                        className="flex items-center gap-3 rounded-xl p-2.5 border transition-all"
+                        style={{
+                          background: isEquipped ? `${f.colors[0]}10` : 'rgba(255,255,255,0.03)',
+                          borderColor: isEquipped ? `${f.colors[0]}50` : 'rgba(255,255,255,0.08)',
+                        }}
+                      >
+                        <div className="w-9 h-9 rounded-full p-[2px] flex-shrink-0"
+                          style={{ background: `linear-gradient(135deg, ${f.colors[0]}, ${f.colors[1]})`, boxShadow: `0 0 8px ${f.glow}` }}>
+                          <div className="w-full h-full rounded-full bg-[#03000d] flex items-center justify-center text-xs font-bold text-neon-cyan">
+                            {(profile.username[0] ?? '?').toUpperCase()}
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-mono text-xs text-white/80 font-bold">{f.name}</p>
+                          <p className="font-mono text-[9px]" style={{ color: RARITY_COLOR[f.rarity] }}>
+                            {RARITY_LABEL[f.rarity]}
+                          </p>
+                        </div>
+                        <button
+                          disabled={equipLoading}
+                          onClick={() => handleEquip('frame', isEquipped ? null : f.id)}
+                          className="flex-shrink-0 px-3 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all disabled:opacity-40"
+                          style={isEquipped
+                            ? { background: `${f.colors[0]}20`, color: f.colors[0], border: `1px solid ${f.colors[0]}50` }
+                            : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.12)' }
+                          }
+                        >
+                          {isEquipped ? 'Equipped' : 'Equip'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Titles grid */}
+              {cosmeticsTab === 'titles' && (
+                <div className="space-y-1.5">
+                  {unlockedTitles.length === 0 && (
+                    <p className="text-white/20 font-mono text-xs text-center py-3">No titles unlocked yet</p>
+                  )}
+                  {unlockedTitles.map(t => {
+                    const isEquipped = equippedTitle === t.id;
+                    return (
+                      <div key={t.id}
+                        className="flex items-center gap-3 rounded-xl p-2.5 border transition-all"
+                        style={{
+                          background: isEquipped ? `${t.color}10` : 'rgba(255,255,255,0.03)',
+                          borderColor: isEquipped ? `${t.color}50` : 'rgba(255,255,255,0.08)',
+                        }}
+                      >
+                        <div className="flex-shrink-0 px-2 py-1 rounded-lg font-display font-bold text-[11px]"
+                          style={{ color: t.color, background: `${t.color}15`, border: `1px solid ${t.color}40` }}>
+                          {t.name}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-mono text-[9px]" style={{ color: RARITY_COLOR[t.rarity] }}>
+                            {RARITY_LABEL[t.rarity]}
+                          </p>
+                        </div>
+                        <button
+                          disabled={equipLoading}
+                          onClick={() => handleEquip('title', isEquipped ? null : t.id)}
+                          className="flex-shrink-0 px-3 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all disabled:opacity-40"
+                          style={isEquipped
+                            ? { background: `${t.color}20`, color: t.color, border: `1px solid ${t.color}50` }
+                            : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.12)' }
+                          }
+                        >
+                          {isEquipped ? 'Equipped' : 'Equip'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Role skins grid */}
+              {cosmeticsTab === 'skins' && (
+                <div className="space-y-1.5">
+                  {unlockedSkins.length === 0 && (
+                    <p className="text-white/20 font-mono text-xs text-center py-3">No skins unlocked yet</p>
+                  )}
+                  {unlockedSkins.map(s => {
+                    const isEquipped = equippedSkin === s.id;
+                    return (
+                      <div key={s.id}
+                        className="flex items-center gap-3 rounded-xl p-2.5 border transition-all"
+                        style={{
+                          background: isEquipped ? `${s.c1}10` : 'rgba(255,255,255,0.03)',
+                          borderColor: isEquipped ? `${s.c1}50` : 'rgba(255,255,255,0.08)',
+                        }}
+                      >
+                        <div className="w-9 h-10 rounded-xl flex-shrink-0 flex items-center justify-center text-lg"
+                          style={{ background: s.bg, border: `2px solid ${s.c1}`, boxShadow: `0 0 10px ${s.glow}40` }}>
+                          🃏
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-mono text-xs text-white/80 font-bold">{s.name}</p>
+                          <p className="font-mono text-[9px]" style={{ color: RARITY_COLOR[s.rarity] }}>
+                            {RARITY_LABEL[s.rarity]}
+                          </p>
+                        </div>
+                        <button
+                          disabled={equipLoading}
+                          onClick={() => handleEquip('role_skin', isEquipped ? null : s.id)}
+                          className="flex-shrink-0 px-3 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all disabled:opacity-40"
+                          style={isEquipped
+                            ? { background: `${s.c1}20`, color: s.c1, border: `1px solid ${s.c1}50` }
+                            : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.12)' }
+                          }
+                        >
+                          {isEquipped ? 'Equipped' : 'Equip'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </motion.div>
+          );
+        })()}
 
         {/* ── Info section ───────────────────────────────────────────── */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
@@ -453,8 +707,8 @@ export function ProfilePage() {
         {/* ── Gift Gallery ────────────────────────────────────────────── */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.085 }}
           className="glass-panel border border-white/8 rounded-2xl p-4 mb-3">
-          <SectionHeader icon="🎁" title="Gifts Received" />
-          {profile && <GiftGallery profileId={profile.id} />}
+          <SectionHeader icon="🎁" title="Gifts" />
+          {profile && <GiftGallery profileId={profile.id} viewerId={profile.id} />}
         </motion.div>
 
         {/* ── Games by team ──────────────────────────────────────────── */}
@@ -673,6 +927,16 @@ export function ProfilePage() {
       </div>
 
       <RoleInfoModal open={showRoleGuide} onClose={() => setShowRoleGuide(false)} />
+
+      <ShareCardModal
+        open={showShare}
+        data={showShare ? {
+          profile,
+          clan: clan ?? null,
+          achievements,
+        } satisfies ProfileCardData : null}
+        onClose={() => setShowShare(false)}
+      />
     </div>
   );
 }

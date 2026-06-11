@@ -8,7 +8,7 @@ export type Phase =
   | 'day'
   | 'speech'
   | 'voting'
-  | 'death_speech'
+  | 'final_words'
   | 'game_over';
 
 export type RoleKey =
@@ -34,7 +34,7 @@ export type RoleKey =
 
 export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
-export type ChatChannel = 'room' | 'mafia' | 'dead';
+export type ChatChannel = 'room' | 'mafia' | 'dead' | 'spectator';
 export type ModeratorLevel = 'moderator' | 'senior_moderator' | 'admin' | 'owner';
 export type WarnCategory =
   | 'offensive_language'
@@ -81,6 +81,8 @@ export interface PlayerStats {
 export interface PlayerCosmetics {
   equippedNameColor: string | null;
   equippedFrame: string | null;
+  equippedTitle: string | null;
+  equippedRoleSkin: string | null;
   unlockedItems: string[];
 }
 
@@ -155,6 +157,8 @@ export interface PlayerPublic {
   isConnected: boolean;
   isReady: boolean;
   isSpectator: boolean;
+  isQueuedNextRound: boolean;
+  queuePosition: number | null;
   role: RoleKey | null;
   team: Team | null;
   voteTarget: string | null;
@@ -165,6 +169,51 @@ export interface PlayerPublic {
   moderatorLevel: ModeratorLevel | null;
   deathType: 'night' | 'vote' | null;
 }
+
+export interface DynamicEventAllowed {
+  blackoutNight: boolean;
+  silentDay: boolean;
+  doubleVote: boolean;
+  noRevealDay: boolean;
+  bloodMoon: boolean;
+  anonymousVoting: boolean;
+  sheriffFog: boolean;
+  doctorPressure: boolean;
+  extendedFinalWords: boolean;
+}
+
+export interface DynamicEventSettings {
+  enabled: boolean;
+  frequency: 'low' | 'medium' | 'high';
+  allowed: DynamicEventAllowed;
+}
+
+export interface ActiveEvent {
+  key: string;
+  label: string;
+  description: string;
+  icon: string;
+  phase: string;
+  day: number;
+  expiresAtPhaseEnd: boolean;
+}
+
+export const DEFAULT_DYNAMIC_EVENTS: DynamicEventSettings = {
+  enabled: false,
+  frequency: 'low',
+  allowed: {
+    blackoutNight: true, silentDay: true, doubleVote: true, noRevealDay: true,
+    bloodMoon: true, anonymousVoting: true, sheriffFog: true, doctorPressure: true,
+    extendedFinalWords: true,
+  },
+};
+
+export interface SpectatorQueueSettings {
+  enabled: boolean;
+  allowSpectatorsToQueue: boolean;
+  autoPromoteOnNextRound: boolean;
+}
+
 
 export interface GameSettings {
   nightDuration: number;
@@ -179,6 +228,8 @@ export interface GameSettings {
   password: string;
   startWithNight: boolean;
   rotatingSpeech: boolean;
+  dynamicEvents?: DynamicEventSettings;
+  spectatorQueue?: SpectatorQueueSettings;
   roles: {
     mafia: number;
     don: number;
@@ -220,9 +271,11 @@ export interface RoomPublic {
   timer: number;
   maxTimer: number;
   players: PlayerPublic[];
+  nextRoundQueue: PlayerPublic[];
   chat: ChatMessage[];
   mafiaChat: ChatMessage[];
   deadChat: ChatMessage[];
+  spectatorChat: ChatMessage[];
   killedLastNight: Array<{ id: string; name: string }>;
   savedLastNight: boolean;
   winner: Team | null;
@@ -239,6 +292,10 @@ export interface RoomPublic {
   /** deduped list of nominated player IDs eligible for tribunal vote */
   tribunalCandidates: string[];
   deathSpeakerId: string | null;
+  finalWordsReason: string | null;
+  clanId: string | null;
+  clanRoom: boolean;
+  activeEvent: ActiveEvent | null;
 }
 
 export interface RoomListItem {
@@ -336,14 +393,29 @@ export interface ClanPublic {
   memberCount: number;
 }
 
+export type ClanRole = 'owner' | 'admin' | 'moderator' | 'member';
+
 export interface ClanMember {
   playerId: string;
   username: string;
   avatar: string;
   avatarUrl?: string | null;
   publicId?: number | null;
-  role: 'owner' | 'officer' | 'member';
+  role: ClanRole;
   joinedAt: number;
+}
+
+export interface ClanModLog {
+  id: string;
+  clanId: string;
+  modId: string;
+  modName: string;
+  targetId: string;
+  targetName: string;
+  action: string;
+  reason: string;
+  roomId: string | null;
+  createdAt: number;
 }
 
 // ── Vote Breakdown ────────────────────────────────────────────────────
@@ -385,7 +457,7 @@ export interface ClanMembership {
   id: string;
   name: string;
   tag: string;
-  memberRole: 'owner' | 'officer' | 'member';
+  memberRole: ClanRole;
   joinedAt: number;
   wins: number;
   losses: number;
@@ -463,6 +535,16 @@ export interface LobbyMessage {
   createdAt: number;
 }
 
+export interface LfgEntry {
+  profileId: string;
+  username: string;
+  avatar: string;
+  avatarUrl?: string | null;
+  level: number;
+  note: string;
+  createdAt: number;
+}
+
 export interface DmConversation {
   id: string;
   otherUserId: string;
@@ -499,9 +581,68 @@ export interface GiftCatalogItem {
   stars: number;
   price: number;
   active: boolean;
+  category: string;
+  limitedEdition: boolean;
+  seasonalTag: string | null;
+  displayOrder: number;
   createdBy: string;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface GiftTimelineEntry {
+  id: string;
+  senderId: string;
+  senderPublicId: number | null;
+  senderName: string;
+  senderAvatar: string;
+  senderAvatarUrl: string | null;
+  recipientId: string;
+  receiverPublicId: number | null;
+  receiverName: string;
+  receiverAvatar: string;
+  receiverAvatarUrl: string | null;
+  giftId: string;
+  giftName: string;
+  giftIcon: string;
+  giftImageUrl: string;
+  giftRarity: GiftRarity;
+  giftStars: number;
+  coinCost: number;
+  message: string;
+  createdAt: number;
+}
+
+export interface GiftStats {
+  totalReceived: number;
+  totalSent: number;
+  totalSpent: number;
+  uniqueGiftTypesReceived: number;
+  uniqueGiftTypesSent: number;
+  legendaryReceivedCount: number;
+  mostReceivedGiftName: string | null;
+  mostSentGiftName: string | null;
+}
+
+export interface PinnedGiftEntry {
+  giftId: string;
+  giftName: string;
+  giftIcon: string;
+  giftImageUrl: string;
+  giftRarity: GiftRarity;
+  giftStars: number;
+  pinnedAt: number;
+}
+
+export interface GiftReceivedNotification {
+  giftId: string;
+  giftName: string;
+  giftIcon: string;
+  giftRarity: GiftRarity;
+  senderName: string;
+  senderAvatar: string;
+  senderAvatarUrl: string | null;
+  message: string;
 }
 
 export interface PlayerGift {

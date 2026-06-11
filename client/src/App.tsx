@@ -14,11 +14,20 @@ import { ClansPage } from '@/pages/ClansPage';
 import { LeaderboardPage } from '@/pages/LeaderboardPage';
 import { ModDashboardPage } from '@/pages/ModDashboardPage';
 import { EconomyAdminPage } from '@/pages/EconomyAdminPage';
+import { PublicProfilePage } from '@/pages/PublicProfilePage';
 import { BottomNav, NavTab } from '@/components/layout/BottomNav';
+import { MorePanel } from '@/components/ui/MorePanel';
 import { PlayerProfileModal } from '@/components/ui/PlayerProfileModal';
 import { DmPanel } from '@/components/social/DmPanel';
+import { GiftNotificationToast } from '@/components/ui/GiftNotificationToast';
 import { attachGlobalClickSounds, onSettingsChange } from '@/lib/audioEngine';
 import { useSettingsStore } from '@/store/settingsStore';
+import { socket } from '@/lib/socket';
+import type { GiftReceivedNotification } from '@/types/index';
+
+// Detect /u/:publicId deep link on initial load
+const _initialPathMatch = window.location.pathname.match(/^\/u\/(\d+)$/);
+const INITIAL_PUBLIC_ID: number | null = _initialPathMatch ? parseInt(_initialPathMatch[1]!, 10) : null;
 
 interface Toast {
   id: string;
@@ -130,20 +139,48 @@ function MainApp() {
       <AnimatePresence mode="wait">
         {page === 'rooms'                   && <RoomsPage key="rooms" />}
         {page === 'clans'                   && <ClansPage key="clans" />}
-        {page === 'leaderboard'             && <LeaderboardPage key="leaderboard" />}
+        {page === 'leaderboard'             && <LeaderboardPage key="leaderboard" onBack={() => setPage('rooms')} />}
         {page === 'profile'                 && <ProfilePage key="profile" />}
         {page === 'mod' && isMod            && <ModDashboardPage key="mod" />}
         {page === 'economy' && isOwner      && <EconomyAdminPage key="economy" />}
       </AnimatePresence>
-      <BottomNav active={page} isMod={isMod} isOwner={isOwner} onChange={setPage} onMessagesClick={openDmList} />
+      <BottomNav active={page} isMod={isMod} onChange={setPage} onMessagesClick={openDmList} />
+      <MorePanel isOwner={isOwner} onEconomyClick={() => setPage('economy')} />
     </div>
   );
 }
 
-function Screen() {
+function ReconnectingOverlay() {
+  const isReconnecting = useGameStore(s => s.isReconnecting);
+  const isConnected = useGameStore(s => s.isConnected);
+  const room = useGameStore(s => s.room);
+
+  if (!room || !isReconnecting || isConnected) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[400] flex items-center justify-center pointer-events-none"
+      style={{ background: 'rgba(3,0,13,0.72)', backdropFilter: 'blur(4px)' }}
+    >
+      <div className="flex flex-col items-center gap-3 px-6 py-6 rounded-2xl border border-neon-cyan/15 bg-void/80">
+        <div className="w-8 h-8 border-2 border-neon-cyan/40 border-t-neon-cyan rounded-full animate-spin" />
+        <p className="font-mono text-sm text-neon-cyan/80 tracking-widest uppercase">Reconnecting…</p>
+        <p className="font-mono text-[10px] text-white/25">Your session is being restored</p>
+      </div>
+    </motion.div>
+  );
+}
+
+function Screen({ publicProfileId, onClearPublicProfile }: { publicProfileId: number | null; onClearPublicProfile: () => void }) {
   const isAuthed = useAuthStore(s => s.isAuthed);
   const room = useGameStore(s => s.room);
 
+  if (publicProfileId) {
+    return <PublicProfilePage publicId={publicProfileId} onEnterApp={onClearPublicProfile} />;
+  }
   if (!isAuthed) return <LoginPage />;
   if (room) {
     if (room.phase === 'lobby') return <LobbyPage />;
@@ -250,21 +287,31 @@ function ModNoticeOverlay() {
 export default function App() {
   const connect = useGameStore(s => s.connect);
   const { profilePopupId, closeProfile } = useSocialStore();
+  const [giftNotif, setGiftNotif] = useState<GiftReceivedNotification | null>(null);
+  const [publicProfileId, setPublicProfileId] = useState<number | null>(INITIAL_PUBLIC_ID);
 
   useEffect(() => {
     connect();
     attachGlobalClickSounds();
-    // Subscribe settings changes → audio engine
     const unsub = useSettingsStore.subscribe(onSettingsChange);
     return unsub;
   }, [connect]);
 
+  useEffect(() => {
+    const handler = (data: GiftReceivedNotification) => setGiftNotif(data);
+    socket.on('gifts:received' as any, handler);
+    return () => { socket.off('gifts:received' as any, handler); };
+  }, []);
+
   return (
     <>
       <AnimatePresence mode="wait">
-        <Screen />
+        <Screen publicProfileId={publicProfileId} onClearPublicProfile={() => setPublicProfileId(null)} />
       </AnimatePresence>
       <ToastLayer />
+      <AnimatePresence>
+        <ReconnectingOverlay />
+      </AnimatePresence>
       <AnimatePresence>
         <ModNoticeOverlay />
       </AnimatePresence>
@@ -272,6 +319,7 @@ export default function App() {
       <PlayerProfileModal playerId={profilePopupId} onClose={closeProfile} />
       <DmPanel />
       <DmToastNotification />
+      <GiftNotificationToast notification={giftNotif} onDismiss={() => setGiftNotif(null)} />
     </>
   );
 }

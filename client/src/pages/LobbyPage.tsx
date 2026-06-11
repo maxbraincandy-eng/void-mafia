@@ -12,6 +12,7 @@ import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { RolePickerPanel } from '@/components/lobby/RolePickerPanel';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
+import { RoomMoreMenu } from '@/components/ui/RoomMoreMenu';
 import { ModDashboardPage } from '@/pages/ModDashboardPage';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
 
@@ -40,6 +41,7 @@ export function LobbyPage() {
   const isMod = useAuthStore(s => s.profile?.isModerator ?? false);
 
   const handleLeave = () => { voice.leaveVoice(); leaveRoom(); };
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showRoleGuide, setShowRoleGuide] = useState(false);
   const [showModPanel, setShowModPanel] = useState(false);
@@ -132,8 +134,8 @@ export function LobbyPage() {
                 )} />
                 <span className="text-[11px] font-mono text-white/35">
                   {allReady && canStart
-                    ? 'All players ready'
-                    : `${playerCount} / ${minPlayers} joined`}
+                    ? t.lobby.allReady
+                    : t.lobby.joinedOf.replace('{n}', String(playerCount)).replace('{m}', String(minPlayers))}
                 </span>
               </div>
               <span className="text-white/10 select-none">·</span>
@@ -141,12 +143,23 @@ export function LobbyPage() {
                 onClick={() => setShowRoleGuide(true)}
                 className="text-[11px] font-mono text-white/22 hover:text-white/50 transition-colors"
               >
-                Role Guide ↗
+                {t.lobby.roleGuideLink}
               </button>
             </div>
           </div>
 
           <div className="flex items-center gap-2 self-start mt-0.5 flex-shrink-0">
+          {/* More menu button */}
+          <button
+            onClick={() => setShowMoreMenu(true)}
+            className="p-2 rounded-xl transition-all hover:bg-white/5 active:scale-95"
+            style={{ border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }}
+            title="More options"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="5" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="19" r="1" fill="currentColor" />
+            </svg>
+          </button>
           {/* Mod button */}
           {isMod && (
             <button
@@ -428,7 +441,7 @@ export function LobbyPage() {
 
               {amSpectator && (
                 <div className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/[0.07] text-white/28 text-sm font-mono">
-                  Watching as spectator
+                  {t.lobby.watchingSpectator}
                 </div>
               )}
 
@@ -527,19 +540,19 @@ export function LobbyPage() {
                   <div className="pt-1 space-y-3">
                     <div className={`${SURFACE} p-4`} style={SURFACE_BG}>
                       <label className="block text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2.5">
-                        Room Password
+                        {t.lobby.passwordSection}
                       </label>
                       <input
                         type="text"
                         maxLength={64}
-                        placeholder="Leave blank for open room"
+                        placeholder={t.lobby.passwordOpen}
                         value={room.settings.password ?? ''}
                         onChange={e => updateSettings({ password: e.target.value })}
                         className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-3 py-2 text-sm font-mono text-white/65 placeholder-white/15 focus:outline-none focus:border-neon-cyan/28 transition-colors"
                       />
                       {room.settings.password && (
                         <p className="text-[10px] font-mono text-white/28 mt-2">
-                          Players will need this password to join.
+                          {t.lobby.passwordHint}
                         </p>
                       )}
                     </div>
@@ -549,6 +562,7 @@ export function LobbyPage() {
                       onUpdate={updateSettings}
                       isLoading={isLoading}
                     />
+
                   </div>
                 </motion.div>
               )}
@@ -571,6 +585,7 @@ export function LobbyPage() {
               onLeave={voice.leaveVoice}
               onToggleMute={voice.toggleMute}
               onToggleCamera={voice.toggleCamera}
+              onReset={voice.resetConnection}
             />
             {voice.channel && voice.peers.length > 0 && (
               <div className="px-1">
@@ -605,6 +620,48 @@ export function LobbyPage() {
       </div>
 
       <RoleInfoModal open={showRoleGuide} onClose={() => setShowRoleGuide(false)} />
+
+      <RoomMoreMenu
+        open={showMoreMenu}
+        onClose={() => setShowMoreMenu(false)}
+        phase="lobby"
+        roomCode={room.code}
+        players={room.players}
+        amHost={amHost}
+        isMod={isMod}
+        isSpectator={amSpectator}
+        activeRoleCounts={room.activeRoleCounts}
+        clanId={room.clanId}
+        clanRoom={room.clanRoom}
+        viewerClanId={useAuthStore.getState().myClanId}
+        viewerClanRole={useAuthStore.getState().myClanRole}
+        voice={{
+          channel: voice.channel,
+          status: voice.status,
+          isMuted: voice.isMuted,
+          cameraOn: voice.cameraOn,
+          listenOnly: amSpectator,
+          peerCount: voice.peers.length,
+          forceMuted: voice.forceMuted,
+          error: voice.error,
+          defaultChannel: 'room',
+          onJoin: (ch, withCamera) => {
+            if (amSpectator) { voice.joinVoiceListenOnly(ch ?? 'room'); return; }
+            voice.joinVoice(ch ?? 'room', withCamera);
+          },
+          onLeave: () => voice.leaveVoice(),
+          onToggleMute: voice.toggleMute,
+          onToggleCamera: voice.toggleCamera,
+          onReset: voice.channel ? () => {
+            const hadCamera = voice.cameraOn;
+            voice.leaveVoice();
+            setTimeout(() => voice.joinVoice('room', hadCamera), 800);
+          } : undefined,
+        }}
+        onLeaveRoom={handleLeave}
+        onShowRoleGuide={() => setShowRoleGuide(true)}
+        onKickPlayer={amHost ? kickPlayer : undefined}
+      />
 
       {/* Mod panel overlay */}
       <AnimatePresence>

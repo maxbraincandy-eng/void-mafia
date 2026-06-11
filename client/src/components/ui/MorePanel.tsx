@@ -63,7 +63,12 @@ function MenuRow({ item }: { item: MenuItem }) {
   );
 }
 
-export function MorePanel() {
+interface MorePanelProps {
+  isOwner?: boolean;
+  onEconomyClick?: () => void;
+}
+
+export function MorePanel({ isOwner = false, onEconomyClick }: MorePanelProps) {
   const { morePanelOpen, closeMoreMenu } = useSocialStore();
   const [showSettings, setShowSettings] = useState(false);
 
@@ -103,6 +108,12 @@ export function MorePanel() {
       description: 'Rewards & battle pass',
       comingSoon: true,
     },
+    ...(isOwner && onEconomyClick ? [{
+      icon: <span className="text-base">🪙</span>,
+      label: 'Economy Admin',
+      description: 'Gifts, coins & transactions',
+      onClick: () => { closeMoreMenu(); setTimeout(onEconomyClick, 250); },
+    }] : []),
     {
       icon: (
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"

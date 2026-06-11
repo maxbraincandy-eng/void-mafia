@@ -20,7 +20,7 @@ function levelPct(level: number, xp: number) {
   return max > min ? Math.min(100, Math.round(((xp - min) / (max - min)) * 100)) : 100;
 }
 
-export function LeaderboardPage() {
+export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
   const getLeaderboard = useGameStore(s => s.getLeaderboard);
   const openProfile = useSocialStore(s => s.openProfile);
   const [players, setPlayers] = useState<PlayerProfilePublic[]>([]);
@@ -50,25 +50,30 @@ export function LeaderboardPage() {
       <div className="absolute top-0 right-0 w-64 h-64 bg-neon-pink/8 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-48 h-48 bg-neon-purple/8 rounded-full blur-[80px] pointer-events-none" />
 
-      <div className="relative z-10 max-w-lg mx-auto px-4 pt-8">
+      <div className="relative z-10 max-w-lg mx-auto px-4" style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top, 1.5rem))' }}>
         {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="font-display text-3xl font-bold gradient-text tracking-wide">VOID MAFIA</h1>
-            <PoweredBy className="block mt-0.5" />
+        <div className="mb-5 flex items-center gap-3">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:bg-white/8 active:scale-95 text-white/50 hover:text-white/80"
+              style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+              aria-label="Back"
+            >
+              ←
+            </button>
+          )}
+          <div className="flex-1 min-w-0">
+            <h2 className="font-display text-2xl font-bold text-neon-pink tracking-widest uppercase leading-none">ტოპი</h2>
+            <p className="text-white/25 font-mono text-[10px] tracking-widest mt-0.5">ALL PLAYERS · SORTED BY LEVEL</p>
           </div>
           <button
             onClick={load}
             disabled={loading}
-            className="text-white/40 hover:text-white/70 transition-colors font-mono text-xs disabled:opacity-30"
+            className="text-white/30 hover:text-white/60 transition-colors font-mono text-xs disabled:opacity-30 flex-shrink-0"
           >
-            ↻ refresh
+            ↻
           </button>
-        </div>
-
-        <div className="mb-5">
-          <h2 className="font-display text-xl font-bold text-neon-pink tracking-widest uppercase">Leaderboard</h2>
-          <p className="text-white/30 font-mono text-xs mt-0.5">All players · sorted by level</p>
         </div>
 
         {loading && (

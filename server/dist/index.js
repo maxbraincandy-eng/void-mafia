@@ -12,9 +12,12 @@ import { attachSocketHandlers, setDbReady } from './socket.js';
 import { getAllRooms, toRoomListItem, deleteRoom } from './services/roomService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
 import { timerService } from './services/timerService.js';
-import { getPlayer, toPublicProfile } from './services/playerService.js';
+import { getPlayer, getPlayerByPublicId, toPublicProfile } from './services/playerService.js';
+import { getClanMembershipByPlayer } from './services/clanService.js';
+import { getPlayerAchievements } from './services/achievementService.js';
 import { sql, initializeDatabase } from './db.js';
 import { configurePassport, createAuthRouter } from './auth.js';
+import { initPushService, getVapidPublicKey } from './pushService.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
@@ -134,6 +137,69 @@ app.get('/api/player/:id', async (req, res) => {
     }
     res.json({ ok: true, data: toPublicProfile(profile) });
 });
+// ── Public Profile Card — no auth required ────────────────────────────
+app.get('/api/u/:publicId', async (req, res) => {
+    const publicId = parseInt(req.params.publicId ?? '', 10);
+    if (!publicId || isNaN(publicId)) {
+        res.status(400).json({ ok: false, error: 'Invalid ID' });
+        return;
+    }
+    try {
+        const profile = await getPlayerByPublicId(publicId);
+        if (!profile) {
+            res.status(404).json({ ok: false, error: 'Player not found' });
+            return;
+        }
+        const [clan, achievements] = await Promise.all([
+            getClanMembershipByPlayer(profile.id),
+            getPlayerAchievements(profile.id),
+        ]);
+        res.json({ ok: true, data: {
+                profile: toPublicProfile(profile),
+                clan: clan ?? null,
+                achievements: achievements.slice(0, 5),
+            } });
+    }
+    catch (e) {
+        res.status(500).json({ ok: false, error: 'Internal error' });
+    }
+});
+// ── Push Notifications ───────────────────────────────────────────────
+app.get('/api/push/vapid-key', (_req, res) => {
+    res.json({ publicKey: getVapidPublicKey() });
+});
+app.post('/api/push/subscribe', async (req, res) => {
+    const userId = req.session?.profileId ?? req.session?.userId;
+    if (!userId) {
+        res.status(401).json({ ok: false, error: 'Not authenticated' });
+        return;
+    }
+    const { endpoint, keys } = req.body ?? {};
+    if (!endpoint || !keys?.p256dh || !keys?.auth) {
+        res.status(400).json({ ok: false, error: 'Invalid subscription' });
+        return;
+    }
+    try {
+        await sql `
+      INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
+      VALUES (${userId}, ${endpoint}, ${keys.p256dh}, ${keys.auth})
+      ON CONFLICT (endpoint) DO UPDATE SET user_id = EXCLUDED.user_id
+    `;
+        res.json({ ok: true });
+    }
+    catch (e) {
+        res.status(500).json({ ok: false, error: e.message });
+    }
+});
+app.delete('/api/push/subscribe', async (req, res) => {
+    const { endpoint } = req.body ?? {};
+    if (!endpoint) {
+        res.status(400).json({ ok: false });
+        return;
+    }
+    await sql `DELETE FROM push_subscriptions WHERE endpoint = ${endpoint}`;
+    res.json({ ok: true });
+});
 // ── Serve built client in production ─────────────────────────────────
 if (IS_PROD) {
     const clientDist = path.resolve(__dirname, '../../client/dist');
@@ -198,6 +264,7 @@ async function tryInitDb(attempt = 1) {
         dbReady = true;
         setDbReady(true);
         console.log('[Startup] Database ready.');
+        initPushService().catch(e => console.warn('[Push] init failed:', e.message));
     }
     catch (err) {
         console.error(`[Startup] DB init attempt ${attempt} failed: ${err.message}`);

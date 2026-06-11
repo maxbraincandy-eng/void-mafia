@@ -5,10 +5,13 @@ import { socket } from '@/lib/socket';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { ReportModal } from '@/components/ui/ReportModal';
 import { SendGiftModal } from '@/components/ui/SendGiftModal';
+import { ShareCardModal } from '@/components/ui/ShareCardModal';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { useGameStore } from '@/store/gameStore';
-import type { Res, PublicProfileFull, FriendshipStatus, PlayerRoleStats, ModeratorLevel, WarnCategory } from '@/types/index';
+import type { Res, PublicProfileFull, FriendshipStatus, PlayerRoleStats, ModeratorLevel, WarnCategory, ClanRole } from '@/types/index';
+import { getFrameById, getTitleById } from '@/constants/cosmetics';
+import type { ProfileCardData } from '@/components/ui/ProfileCard';
 
 const MOD_RANK: Record<ModeratorLevel, number> = { moderator: 0, senior_moderator: 1, admin: 2, owner: 3 };
 function modRank(lvl: ModeratorLevel | null | undefined) { return lvl ? (MOD_RANK[lvl] ?? -1) : -1; }
@@ -101,6 +104,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
   const [actionLoading, setActionLoading] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showSendGift, setShowSendGift] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   // Mod action panel: null | 'warn' | 'kick' | 'ban'
   const [modPanel, setModPanel] = useState<null | 'warn' | 'kick' | 'ban'>(null);
   const [modReason, setModReason] = useState('');
@@ -112,9 +116,21 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
   const myProfileId = myProfile?.id;
   const myRank = modRank(myProfile?.moderatorLevel);
   const isMod = myRank >= 0;
+  const myClanId = useAuthStore(s => s.myClanId);
+  const myClanRole = useAuthStore(s => s.myClanRole);
 
   const { openDmWith } = useSocialStore();
   const addToast = useGameStore(s => s.addToast);
+  const room = useGameStore(s => s.room);
+
+  // Clan moderation state
+  const [clanModPanel, setClanModPanel] = useState<null | 'warn' | 'kick'>(null);
+  const [clanModReason, setClanModReason] = useState('');
+  const [clanModLoading, setClanModLoading] = useState(false);
+
+  const isClanRoom = !!(room?.clanRoom && room?.clanId);
+  const hasClanModPower = isClanRoom && room?.clanId === myClanId &&
+    (myClanRole === 'owner' || myClanRole === 'admin' || myClanRole === 'moderator');
 
   useEffect(() => {
     if (!playerId) { setData(null); return; }
@@ -200,7 +216,25 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
     onClose();
   };
 
-  const room = useGameStore(s => s.room);
+  const doClanWarn = useCallback(() => {
+    if (!playerId || !clanModReason.trim()) { addToast('Reason required', 'error'); return; }
+    setClanModLoading(true);
+    socket.emit('clanRoom:warn' as any, { targetPlayerId: playerId, reason: clanModReason }, (res: Res<null>) => {
+      setClanModLoading(false);
+      if (res.ok) { addToast('Clan warning sent', 'success'); setClanModPanel(null); setClanModReason(''); }
+      else addToast(res.error, 'error');
+    });
+  }, [playerId, clanModReason, addToast]);
+
+  const doClanKick = useCallback(() => {
+    if (!playerId || !clanModReason.trim()) { addToast('Reason required', 'error'); return; }
+    setClanModLoading(true);
+    socket.emit('clanRoom:kick' as any, { targetPlayerId: playerId, reason: clanModReason }, (res: Res<null>) => {
+      setClanModLoading(false);
+      if (res.ok) { addToast('Player removed from clan room', 'success'); setClanModPanel(null); setClanModReason(''); onClose(); }
+      else addToast(res.error, 'error');
+    });
+  }, [playerId, clanModReason, addToast, onClose]);
 
   return (
     <>
@@ -239,6 +273,8 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
 
             {!loading && data && (() => {
               const { profile, achievements, clan, friendshipStatus, isOnline, roleStats } = data;
+              const frameDef = getFrameById(profile.cosmetics?.equippedFrame ?? null);
+              const titleDef = getTitleById(profile.cosmetics?.equippedTitle ?? null);
               const level = profile.level ?? 1;
               const xp = profile.xp ?? 0;
               const xpMin = xpForLevel(level);
@@ -261,17 +297,32 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       <div className="flex items-start gap-3">
                         {/* Avatar */}
                         <div className="relative flex-shrink-0">
-                          <div
-                            className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center text-2xl font-bold"
-                            style={{
-                              background: 'linear-gradient(135deg,rgba(255,0,128,0.6),rgba(138,43,226,0.6))',
-                              border: `2px solid ${col}60`,
-                            }}
-                          >
-                            {profile.avatarUrl
-                              ? <img src={profile.avatarUrl} alt={profile.username} className="w-full h-full object-cover" />
-                              : profile.avatar}
-                          </div>
+                          {frameDef ? (
+                            <div className="w-16 h-16 rounded-full p-[2.5px]"
+                              style={{
+                                background: `linear-gradient(135deg, ${frameDef.colors[0]}, ${frameDef.colors[1]})`,
+                                boxShadow: `0 0 10px ${frameDef.glow}`,
+                              }}>
+                              <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center text-2xl font-bold"
+                                style={{ background: 'linear-gradient(135deg,rgba(255,0,128,0.6),rgba(138,43,226,0.6))' }}>
+                                {profile.avatarUrl
+                                  ? <img src={profile.avatarUrl} alt={profile.username} className="w-full h-full object-cover" />
+                                  : profile.avatar}
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center text-2xl font-bold"
+                              style={{
+                                background: 'linear-gradient(135deg,rgba(255,0,128,0.6),rgba(138,43,226,0.6))',
+                                border: `2px solid ${col}60`,
+                              }}
+                            >
+                              {profile.avatarUrl
+                                ? <img src={profile.avatarUrl} alt={profile.username} className="w-full h-full object-cover" />
+                                : profile.avatar}
+                            </div>
+                          )}
                           {isOnline && (
                             <span className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-neon-green rounded-full border-2 border-void" />
                           )}
@@ -293,6 +344,14 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                               <ModBadge level={profile.moderatorLevel} />
                             )}
                           </div>
+                          {titleDef && (
+                            <div className="mb-1">
+                              <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded"
+                                style={{ color: titleDef.color, background: `${titleDef.color}15`, border: `1px solid ${titleDef.color}40` }}>
+                                {titleDef.name}
+                              </span>
+                            </div>
+                          )}
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {profile.publicId != null && (
                               <span
@@ -418,6 +477,16 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       >
                         🎁 Send Gift
                       </button>
+
+                      {/* ── Share Profile button ─────────────────── */}
+                      {profile.publicId != null && (
+                        <button
+                          onClick={() => setShowShare(true)}
+                          className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-colors border border-neon-cyan/25 bg-neon-cyan/6 text-neon-cyan/75 hover:bg-neon-cyan/12 hover:text-neon-cyan"
+                        >
+                          ↗ Share Profile
+                        </button>
+                      )}
 
                       {/* ── Friend action ───────────────────────── */}
                       {friendshipStatus === 'none' && (
@@ -566,6 +635,80 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         );
                       })()}
 
+                      {/* ── Clan Mod Actions ────────────────────── */}
+                      {hasClanModPower && playerId !== myProfileId && (
+                        <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-cyan-400/70 text-[9px] font-mono uppercase tracking-widest font-bold">🛡 Clan Moderation</span>
+                            <span className="text-cyan-400/40 text-[9px] font-mono capitalize">{myClanRole}</span>
+                          </div>
+                          {!clanModPanel ? (
+                            <div className="flex flex-wrap gap-1">
+                              <button
+                                onClick={() => { setClanModPanel('warn'); setClanModReason(''); }}
+                                className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-yellow-400/30 text-yellow-400 hover:bg-yellow-400/10 transition-all"
+                              >
+                                ⚠ Clan Warn
+                              </button>
+                              {(myClanRole === 'owner' || myClanRole === 'admin') && (
+                                <button
+                                  onClick={() => { setClanModPanel('kick'); setClanModReason(''); }}
+                                  className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-orange-400/30 text-orange-400 hover:bg-orange-400/10 transition-all"
+                                >
+                                  ⬆ Clan Kick
+                                </button>
+                              )}
+                              {myClanRole === 'moderator' && (
+                                <button
+                                  onClick={() => { setClanModPanel('kick'); setClanModReason(''); }}
+                                  className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-orange-400/30 text-orange-400 hover:bg-orange-400/10 transition-all"
+                                >
+                                  ⬆ Clan Kick
+                                </button>
+                              )}
+                            </div>
+                          ) : clanModPanel === 'warn' ? (
+                            <div className="space-y-2">
+                              <input
+                                type="text"
+                                value={clanModReason}
+                                onChange={e => setClanModReason(e.target.value)}
+                                placeholder="Reason for clan warning…"
+                                maxLength={300}
+                                className="w-full bg-void-50/80 border border-yellow-400/20 rounded-lg px-2 py-1.5 text-xs text-white font-mono placeholder-white/25 focus:outline-none focus:border-yellow-400/40"
+                              />
+                              <p className="text-white/30 text-[10px] font-mono">Warning will show clan name and your role.</p>
+                              <div className="flex gap-1">
+                                <button onClick={() => setClanModPanel(null)} className="flex-1 py-1.5 text-[10px] font-mono border border-white/10 text-white/40 rounded-lg hover:text-white/60">Cancel</button>
+                                <button onClick={doClanWarn} disabled={clanModLoading || !clanModReason.trim()}
+                                  className="flex-1 py-1.5 text-[10px] font-mono font-bold border border-yellow-400/30 bg-yellow-400/10 text-yellow-400 rounded-lg hover:bg-yellow-400/20 disabled:opacity-40">
+                                  {clanModLoading ? '…' : 'Send Warning'}
+                                </button>
+                              </div>
+                            </div>
+                          ) : clanModPanel === 'kick' ? (
+                            <div className="space-y-2">
+                              <input
+                                type="text"
+                                value={clanModReason}
+                                onChange={e => setClanModReason(e.target.value)}
+                                placeholder="Reason for clan kick…"
+                                maxLength={300}
+                                className="w-full bg-void-50/80 border border-orange-400/20 rounded-lg px-2 py-1.5 text-xs text-white font-mono placeholder-white/25 focus:outline-none focus:border-orange-400/40"
+                              />
+                              <p className="text-white/30 text-[10px] font-mono">Player will be removed from this clan room only.</p>
+                              <div className="flex gap-1">
+                                <button onClick={() => setClanModPanel(null)} className="flex-1 py-1.5 text-[10px] font-mono border border-white/10 text-white/40 rounded-lg hover:text-white/60">Cancel</button>
+                                <button onClick={doClanKick} disabled={clanModLoading || !clanModReason.trim()}
+                                  className="flex-1 py-1.5 text-[10px] font-mono font-bold border border-orange-400/30 bg-orange-400/10 text-orange-400 rounded-lg hover:bg-orange-400/20 disabled:opacity-40">
+                                  {clanModLoading ? '…' : 'Kick from Clan Room'}
+                                </button>
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+
                       {/* ── Report + Close ──────────────────────── */}
                       <div className="flex gap-2 pb-1">
                         <button
@@ -606,11 +749,21 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
         <SendGiftModal
           recipientId={playerId}
           recipientName={data.profile.username}
+          recipientAvatar={data.profile.avatar}
+          recipientAvatarUrl={data.profile.avatarUrl}
           onClose={() => setShowSendGift(false)}
           onSuccess={() => addToast('Gift sent!', 'success')}
         />
       )}
     </AnimatePresence>
+
+    {showShare && data && (
+      <ShareCardModal
+        open={showShare}
+        data={{ profile: data.profile, clan: data.clan, achievements: data.achievements } satisfies ProfileCardData}
+        onClose={() => setShowShare(false)}
+      />
+    )}
     </>
   );
 }

@@ -4,6 +4,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { useAuthStore } from '@/store/authStore';
 import { socket } from '@/lib/socket';
 import { useT } from '@/store/langStore';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import type { Res } from '@/types/index';
 
 interface Props {
@@ -259,6 +260,7 @@ export function SettingsPanel({ open, onClose }: Props) {
   const s = useSettingsStore();
   const { profile } = useAuthStore();
   const hasEmail = !!profile;
+  const push = usePushNotifications();
 
   return (
     <AnimatePresence>
@@ -374,6 +376,23 @@ export function SettingsPanel({ open, onClose }: Props) {
 
               {/* ── Notifications ─────────────────────────────────────── */}
               <SectionHeader label="🔔 Notifications" />
+              {push.isSupported && (
+                <SettingRow
+                  label="Push Notifications"
+                  sub={
+                    push.permission === 'denied'
+                      ? 'Blocked in browser settings'
+                      : push.isSubscribed
+                        ? 'DMs & game alerts when app is closed'
+                        : 'Enable to get DMs & game alerts'
+                  }
+                >
+                  <Toggle
+                    value={push.isSubscribed}
+                    onChange={v => (v ? push.subscribe() : push.unsubscribe())}
+                  />
+                </SettingRow>
+              )}
               <SettingRow label="Game Invites">
                 <Toggle value={s.notifyGameInvites} onChange={v => s.update({ notifyGameInvites: v })} />
               </SettingRow>

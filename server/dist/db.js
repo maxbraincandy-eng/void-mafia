@@ -375,6 +375,22 @@ export async function initializeDatabase() {
       PRIMARY KEY (player_id, date_key)
     )
   `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id    TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      endpoint   TEXT NOT NULL UNIQUE,
+      p256dh     TEXT NOT NULL,
+      auth       TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `;
     // Seed default gift catalog items (ON CONFLICT DO NOTHING — safe to re-run)
     const _seedNow = Date.now();
     const _defaultGifts = [
@@ -411,6 +427,44 @@ export async function initializeDatabase() {
     await sql `ALTER TABLE bans ADD COLUMN IF NOT EXISTS target_public_id INTEGER`;
     await sql `ALTER TABLE bans ADD COLUMN IF NOT EXISTS issuer_public_id INTEGER`;
     await sql `ALTER TABLE mod_logs ADD COLUMN IF NOT EXISTS metadata TEXT`;
+    // ── Gift System V2 (additive) ─────────────────────────────────────────
+    await sql `ALTER TABLE gift_catalog ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'symbols'`;
+    await sql `ALTER TABLE gift_catalog ADD COLUMN IF NOT EXISTS limited_edition INTEGER NOT NULL DEFAULT 0`;
+    await sql `ALTER TABLE gift_catalog ADD COLUMN IF NOT EXISTS seasonal_tag TEXT`;
+    await sql `ALTER TABLE gift_catalog ADD COLUMN IF NOT EXISTS display_order INTEGER NOT NULL DEFAULT 0`;
+    await sql `
+    CREATE TABLE IF NOT EXISTS pinned_gifts (
+      player_id TEXT NOT NULL,
+      gift_id   TEXT NOT NULL,
+      pinned_at BIGINT NOT NULL,
+      PRIMARY KEY (player_id, gift_id)
+    )
+  `;
+    await sql `ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS gift_rarity TEXT NOT NULL DEFAULT 'common'`;
+    await sql `ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS gift_stars INTEGER NOT NULL DEFAULT 1`;
+    await sql `ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS gift_category TEXT NOT NULL DEFAULT 'symbols'`;
+    await sql `CREATE INDEX IF NOT EXISTS idx_player_gifts_sender ON player_gifts(sender_id, created_at)`;
+    await sql `CREATE INDEX IF NOT EXISTS idx_player_gifts_recipient ON player_gifts(recipient_id, created_at)`;
+    // ── Clan Roles V2 (additive) ──────────────────────────────────────────
+    await sql `ALTER TABLE clan_members ADD COLUMN IF NOT EXISTS role_assigned_at BIGINT`;
+    await sql `ALTER TABLE clan_members ADD COLUMN IF NOT EXISTS role_assigned_by TEXT`;
+    // Migrate existing 'officer' roles to 'admin'
+    await sql `UPDATE clan_members SET role = 'admin' WHERE role = 'officer'`;
+    await sql `
+    CREATE TABLE IF NOT EXISTS clan_mod_logs (
+      id           TEXT PRIMARY KEY,
+      clan_id      TEXT NOT NULL,
+      mod_id       TEXT NOT NULL,
+      mod_name     TEXT NOT NULL,
+      target_id    TEXT NOT NULL,
+      target_name  TEXT NOT NULL,
+      action       TEXT NOT NULL,
+      reason       TEXT NOT NULL DEFAULT '',
+      room_id      TEXT,
+      created_at   BIGINT NOT NULL
+    )
+  `;
+    await sql `CREATE INDEX IF NOT EXISTS idx_clan_mod_logs_clan ON clan_mod_logs(clan_id, created_at)`;
     // Verify connection
     const [{ cnt }] = await sql `SELECT COUNT(*) as cnt FROM players`;
     console.log(`[Database] connected successfully`);
