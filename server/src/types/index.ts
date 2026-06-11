@@ -429,6 +429,7 @@ export interface Room {
   activeEvent: ActiveEvent | null;
   eventsLog: EventLogEntry[];
   lastDoctorTarget: string | null;
+  gameTimeline: TimelineEvent[];
 }
 
 // ── Public Types (sent to clients) ────────────────────────────────────
@@ -513,9 +514,27 @@ export interface InvestigationResult {
   result: 'suspicious' | 'not_suspicious';
 }
 
+export type TimelineEventType = 'night_kill' | 'vote_eliminate' | 'night_survived' | 'vote_no_elim';
+
+export interface TimelineEvent {
+  type: TimelineEventType;
+  day: number;
+  // For kills/eliminations
+  victimName?: string;
+  victimRole?: RoleKey;
+  victimTeam?: Team;
+  // For night kills: by which role type (revealed at game end)
+  killerRole?: RoleKey;
+  // For vote_eliminate: vote breakdown
+  voteBreakdown?: Array<{ voterName: string; targetName: string }>;
+  // For night_survived: doctor saved
+  doctorSaved?: boolean;
+}
+
 export interface GameOverResult {
   winner: Team;
   allRoles: Record<string, { name: string; role: RoleKey; team: Team }>;
+  timeline: TimelineEvent[];
 }
 
 // ── Voice channel type (kept in sync with client/src/hooks/useVoiceChat) ──
@@ -839,6 +858,7 @@ export interface ClientToServerEvents {
   'dm:messages':           (data: { conversationId: string }, cb: Cb<any[]>) => void;
   'dm:mark_read':          (data: { conversationId: string }, cb: Cb<null>) => void;
   'dm:unread_count':       (data: Record<string, never>, cb: Cb<number>) => void;
+  'dm:delete':             (data: { conversationId: string }, cb: Cb<null>) => void;
   // Avatar
   'player:update_avatar':  (data: { imageData: string }, cb: (res: any) => void) => void;
   'player:remove_avatar':  (cb: (res: any) => void) => void;

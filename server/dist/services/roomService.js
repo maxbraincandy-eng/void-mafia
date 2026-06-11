@@ -130,6 +130,7 @@ export function createRoom(hostSocketId, hostName, profileId, settings, clanId) 
         activeEvent: null,
         eventsLog: [],
         lastDoctorTarget: null,
+        gameTimeline: [],
     };
     rooms.set(id, room);
     return room;
@@ -554,6 +555,7 @@ export function rematchRoom(room) {
     room.activeEvent = null;
     room.eventsLog = [];
     room.lastDoctorTarget = null;
+    room.gameTimeline = [];
     // Promote queued spectators to active lobby
     promoteQueuedPlayers(room);
     for (const p of room.players.values()) {

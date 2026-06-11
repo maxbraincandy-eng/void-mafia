@@ -326,9 +326,27 @@ export interface InvestigationResult {
   result: 'suspicious' | 'not_suspicious';
 }
 
+export type TimelineEventType = 'night_kill' | 'vote_eliminate' | 'night_survived' | 'vote_no_elim';
+
+export interface TimelineEvent {
+  type: TimelineEventType;
+  day: number;
+  // For kills/eliminations
+  victimName?: string;
+  victimRole?: RoleKey;
+  victimTeam?: Team;
+  // For night kills: by which role type (revealed at game end)
+  killerRole?: RoleKey;
+  // For vote_eliminate: vote breakdown
+  voteBreakdown?: Array<{ voterName: string; targetName: string }>;
+  // For night_survived: doctor saved
+  doctorSaved?: boolean;
+}
+
 export interface GameOverResult {
   winner: Team;
   allRoles: Record<string, { name: string; role: RoleKey; team: Team }>;
+  timeline: TimelineEvent[];
 }
 
 export interface Report {

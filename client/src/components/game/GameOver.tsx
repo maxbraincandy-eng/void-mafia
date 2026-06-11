@@ -7,7 +7,7 @@ import { useT } from '@/store/langStore';
 import { ConfettiEffect } from './ConfettiEffect';
 import { XPToast } from '@/components/ui/XPToast';
 
-type Phase = 'mafia_cinematic' | 'role_reveal' | 'highlights';
+type Phase = 'mafia_cinematic' | 'role_reveal' | 'highlights' | 'timeline';
 
 const TEAM_CONFETTI: Record<Team, string[]> = {
   town:    ['#00f5ff', '#00e5ff', '#ffffff', '#60a5fa', '#00ccff'],
@@ -547,6 +547,24 @@ export function GameOver({ result }: Props) {
                 })}
               </motion.div>
 
+              {/* Timeline button */}
+              {(result.timeline ?? []).length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.48 }}
+                  className="mb-4"
+                >
+                  <button
+                    onClick={() => setPhase('timeline')}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/10 bg-white/4 hover:bg-white/8 hover:border-white/20 transition-colors font-mono text-xs text-white/50 hover:text-white/70 uppercase tracking-widest"
+                  >
+                    <span>📜</span>
+                    <span>View Game Timeline</span>
+                  </button>
+                </motion.div>
+              )}
+
               {/* Actions */}
               <motion.div
                 initial={{ opacity: 0 }}
@@ -574,6 +592,220 @@ export function GameOver({ result }: Props) {
                 <Button variant="ghost" fullWidth loading={isLoading} onClick={() => leaveRoom()}>
                   {t.game.gameOver.leaveRoom}
                 </Button>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+        {/* ── Phase 4: Timeline ─────────────────────────────────────── */}
+        {phase === 'timeline' && (
+          <motion.div
+            key="timeline"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4 }}
+            className="absolute inset-0 flex flex-col items-start justify-start overflow-y-auto p-4"
+          >
+            <div className="w-full max-w-lg mx-auto py-6">
+              {/* Header */}
+              <div className="flex items-center gap-3 mb-6">
+                <button
+                  onClick={() => setPhase('highlights')}
+                  className="flex items-center gap-1.5 text-white/30 hover:text-white/60 font-mono text-xs transition-colors"
+                >
+                  ← Back
+                </button>
+                <div className="flex-1" />
+                <h1 className="font-display text-xl font-bold text-white/70 tracking-widest uppercase">
+                  Game Timeline
+                </h1>
+                <div className="flex-1" />
+              </div>
+
+              {/* Timeline events grouped by day */}
+              {(() => {
+                const timeline = result.timeline ?? [];
+                if (timeline.length === 0) {
+                  return (
+                    <p className="text-center text-white/25 font-mono text-sm py-8">
+                      No timeline data available.
+                    </p>
+                  );
+                }
+
+                // Group events by day
+                const byDay = new Map<number, typeof timeline>();
+                for (const ev of timeline) {
+                  if (!byDay.has(ev.day)) byDay.set(ev.day, []);
+                  byDay.get(ev.day)!.push(ev);
+                }
+                const sortedDays = [...byDay.keys()].sort((a, b) => a - b);
+
+                return (
+                  <div className="space-y-6">
+                    {sortedDays.map((day, di) => (
+                      <motion.div
+                        key={day}
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: di * 0.06 }}
+                      >
+                        {/* Day header */}
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-[10px] font-display font-bold tracking-widest uppercase text-white/30">
+                            Day {day}
+                          </span>
+                          <div className="flex-1 h-px bg-white/8" />
+                        </div>
+
+                        <div className="space-y-2">
+                          {byDay.get(day)!.map((ev, ei) => {
+                            if (ev.type === 'night_kill') {
+                              const roleColor = ev.victimRole ? ROLE_COLORS[ev.victimRole] : 'text-white/50';
+                              const roleIcon = ev.victimRole ? ROLE_ICONS[ev.victimRole] : '?';
+                              const killerIcon = ev.killerRole ? ROLE_ICONS[ev.killerRole] : '🔪';
+                              return (
+                                <motion.div
+                                  key={ei}
+                                  initial={{ opacity: 0, x: -8 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: di * 0.06 + ei * 0.04 }}
+                                  className="glass-panel border border-neon-pink/15 bg-neon-pink/4 rounded-xl px-4 py-3"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-xl shrink-0">💀</span>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-sm font-semibold text-white">{ev.victimName ?? '?'}</span>
+                                        {ev.victimRole && (
+                                          <span className={`text-[10px] font-mono ${roleColor}`}>
+                                            {roleIcon} {roleLabel(ev.victimRole)}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-[10px] font-mono text-white/35 mt-0.5">
+                                        Killed at night
+                                        {ev.killerRole && (
+                                          <span> by {killerIcon} {roleLabel(ev.killerRole)}</span>
+                                        )}
+                                      </p>
+                                    </div>
+                                    {ev.victimTeam && (
+                                      <span className={`text-[9px] font-mono shrink-0 ${TEAM_CONFIG[ev.victimTeam]?.color ?? 'text-white/30'}`}>
+                                        {TEAM_CONFIG[ev.victimTeam]?.label}
+                                      </span>
+                                    )}
+                                  </div>
+                                </motion.div>
+                              );
+                            }
+
+                            if (ev.type === 'night_survived') {
+                              return (
+                                <motion.div
+                                  key={ei}
+                                  initial={{ opacity: 0, x: -8 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: di * 0.06 + ei * 0.04 }}
+                                  className="glass-panel border border-white/8 rounded-xl px-4 py-3"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-xl shrink-0">🌙</span>
+                                    <p className="text-sm font-mono text-white/45">
+                                      {ev.doctorSaved
+                                        ? 'Someone was saved by the doctor'
+                                        : 'Night passed peacefully'}
+                                    </p>
+                                  </div>
+                                </motion.div>
+                              );
+                            }
+
+                            if (ev.type === 'vote_eliminate') {
+                              const roleColor = ev.victimRole ? ROLE_COLORS[ev.victimRole] : 'text-white/50';
+                              const roleIcon = ev.victimRole ? ROLE_ICONS[ev.victimRole] : '?';
+                              return (
+                                <motion.div
+                                  key={ei}
+                                  initial={{ opacity: 0, x: -8 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: di * 0.06 + ei * 0.04 }}
+                                  className="glass-panel border border-yellow-500/15 bg-yellow-500/4 rounded-xl px-4 py-3"
+                                >
+                                  <div className="flex items-center gap-3 mb-2">
+                                    <span className="text-xl shrink-0">⚖️</span>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-sm font-semibold text-white">{ev.victimName ?? '?'}</span>
+                                        {ev.victimRole && (
+                                          <span className={`text-[10px] font-mono ${roleColor}`}>
+                                            {roleIcon} {roleLabel(ev.victimRole)}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-[10px] font-mono text-white/35 mt-0.5">
+                                        Eliminated by vote
+                                      </p>
+                                    </div>
+                                    {ev.victimTeam && (
+                                      <span className={`text-[9px] font-mono shrink-0 ${TEAM_CONFIG[ev.victimTeam]?.color ?? 'text-white/30'}`}>
+                                        {TEAM_CONFIG[ev.victimTeam]?.label}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {ev.voteBreakdown && ev.voteBreakdown.length > 0 && (
+                                    <div className="pl-8 space-y-0.5">
+                                      {ev.voteBreakdown.map((v, vi) => (
+                                        <p key={vi} className="text-[9px] font-mono text-white/25">
+                                          {v.voterName} voted for {v.targetName}
+                                        </p>
+                                      ))}
+                                    </div>
+                                  )}
+                                </motion.div>
+                              );
+                            }
+
+                            if (ev.type === 'vote_no_elim') {
+                              return (
+                                <motion.div
+                                  key={ei}
+                                  initial={{ opacity: 0, x: -8 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: di * 0.06 + ei * 0.04 }}
+                                  className="glass-panel border border-white/8 rounded-xl px-4 py-3"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-xl shrink-0">⚖️</span>
+                                    <p className="text-sm font-mono text-white/45">
+                                      Vote ended in a tie — no elimination
+                                    </p>
+                                  </div>
+                                </motion.div>
+                              );
+                            }
+
+                            return null;
+                          })}
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* Back button at bottom */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+                className="mt-8"
+              >
+                <button
+                  onClick={() => setPhase('highlights')}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/10 bg-white/4 hover:bg-white/8 hover:border-white/20 transition-colors font-mono text-xs text-white/40 hover:text-white/60 uppercase tracking-widest"
+                >
+                  ← Back to Results
+                </button>
               </motion.div>
             </div>
           </motion.div>

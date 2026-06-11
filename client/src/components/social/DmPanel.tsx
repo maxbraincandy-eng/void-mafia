@@ -5,6 +5,76 @@ import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import type { DmConversation, DirectMessage, Res } from '@/types/index';
 
+// Swipeable row: swipe left to reveal delete button
+function SwipeableRow({
+  children,
+  onDelete,
+}: {
+  children: React.ReactNode;
+  onDelete: () => void;
+}) {
+  const [swipeX, setSwipeX] = useState(0);
+  const [confirming, setConfirming] = useState(false);
+  const startX = useRef(0);
+  const DELETE_THRESHOLD = 72;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    startX.current = e.touches[0].clientX;
+    setConfirming(false);
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    const delta = startX.current - e.touches[0].clientX;
+    setSwipeX(Math.max(0, Math.min(delta, DELETE_THRESHOLD)));
+  };
+  const onTouchEnd = () => {
+    if (swipeX >= DELETE_THRESHOLD) {
+      setConfirming(true);
+      setSwipeX(DELETE_THRESHOLD);
+    } else {
+      setSwipeX(0);
+    }
+  };
+  const cancel = () => { setSwipeX(0); setConfirming(false); };
+
+  return (
+    <div className="relative overflow-hidden border-b border-white/[0.04]">
+      {/* Delete button revealed behind */}
+      <div
+        className="absolute right-0 top-0 bottom-0 flex items-center justify-end pr-2"
+        style={{ width: DELETE_THRESHOLD }}
+      >
+        {confirming ? (
+          <div className="flex gap-1">
+            <button
+              onClick={cancel}
+              className="px-2 py-1 text-[10px] font-mono text-white/40 border border-white/10 rounded-lg"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onDelete}
+              className="px-2 py-1 text-[10px] font-mono text-neon-pink border border-neon-pink/30 bg-neon-pink/10 rounded-lg"
+            >
+              Delete
+            </button>
+          </div>
+        ) : (
+          <span className="text-neon-pink/70 text-base">🗑</span>
+        )}
+      </div>
+      {/* Sliding content */}
+      <div
+        style={{ transform: `translateX(-${swipeX}px)`, transition: swipeX === 0 ? 'transform 0.2s ease' : 'none' }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function formatTime(ts: number): string {
   const d = new Date(ts);
   const now = new Date();
@@ -28,6 +98,7 @@ export function DmPanel() {
   const myProfileId = useAuthStore(s => s.profile?.id);
 
   const [conversations, setConversations] = useState<DmConversation[]>([]);
+  const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [activeUsername, setActiveUsername] = useState('');
   const [activeAvatar, setActiveAvatar] = useState('');
@@ -73,6 +144,7 @@ export function DmPanel() {
     setActiveAvatar(avatar);
     setActiveAvatarUrl(avatarUrl ?? null);
     setActiveOtherProfileId(profileId ?? null);
+    setUnreadCounts(prev => { const m = new Map(prev); m.delete(convId); return m; });
     setMsgError(null);
     setLoadingMsgs(true);
     try {
@@ -140,6 +212,7 @@ export function DmPanel() {
       setMessages([]);
       setConvError(null);
       setMsgError(null);
+      setUnreadCounts(new Map());
     }
   }, [dmPanelOpen, activeDmUserId, loadConversations, refreshUnreadCount]);
 
@@ -159,10 +232,10 @@ export function DmPanel() {
               ? { ...c, unread: true, lastMessage: message.text, lastMessageAt: message.createdAt }
               : c);
           }
-          // New conversation not in list yet — reload
           loadConversations();
           return prev;
         });
+        setUnreadCounts(prev => new Map(prev).set(convId, (prev.get(convId) ?? 0) + 1));
       }
     };
     socket.on('dm:new_message', handler);
@@ -204,6 +277,15 @@ export function DmPanel() {
     setMessages([]);
     setMsgError(null);
     loadConversations();
+  };
+
+  const handleDeleteConversation = async (convId: string) => {
+    try {
+      await emitWithAck('dm:delete', { conversationId: convId });
+    } catch {}
+    setConversations(prev => prev.filter(c => c.id !== convId));
+    setUnreadCounts(prev => { const m = new Map(prev); m.delete(convId); return m; });
+    await refreshUnreadCount();
   };
 
   return (
@@ -305,51 +387,70 @@ export function DmPanel() {
                   </div>
                 ) : (
                   <div>
-                    {conversations.map(conv => (
-                      <div
-                        key={conv.id}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/[0.03] transition-colors border-b border-white/[0.04]"
-                      >
-                        {/* Avatar — tap to view profile */}
-                        <button
-                          className="relative shrink-0 group"
-                          onClick={() => openProfile(conv.otherUserId)}
-                          title={`View ${conv.otherUsername}'s profile`}
+                    {conversations.map(conv => {
+                      const count = unreadCounts.get(conv.id) ?? 0;
+                      const hasUnread = conv.unread || count > 0;
+                      return (
+                        <SwipeableRow
+                          key={conv.id}
+                          onDelete={() => handleDeleteConversation(conv.id)}
                         >
-                          <div
-                            className="w-10 h-10 rounded-full flex items-center justify-center text-lg overflow-hidden ring-0 group-hover:ring-2 ring-neon-purple/50 transition-all"
-                            style={{ background: 'linear-gradient(135deg, #ff0080, #8a2be2)' }}
-                          >
-                            {conv.otherAvatarUrl
-                              ? <img src={conv.otherAvatarUrl} alt={conv.otherUsername} className="w-full h-full object-cover rounded-full" />
-                              : conv.otherAvatar
-                            }
+                          <div className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/[0.03] transition-colors bg-transparent">
+                            {/* Avatar — tap to view profile */}
+                            <button
+                              className="relative shrink-0 group"
+                              onClick={() => openProfile(conv.otherUserId)}
+                              title={`View ${conv.otherUsername}'s profile`}
+                            >
+                              <div
+                                className="w-10 h-10 rounded-full flex items-center justify-center text-lg overflow-hidden ring-0 group-hover:ring-2 ring-neon-purple/50 transition-all"
+                                style={{ background: 'linear-gradient(135deg, #ff0080, #8a2be2)' }}
+                              >
+                                {conv.otherAvatarUrl
+                                  ? <img src={conv.otherAvatarUrl} alt={conv.otherUsername} className="w-full h-full object-cover rounded-full" />
+                                  : conv.otherAvatar
+                                }
+                              </div>
+                            </button>
+                            {/* Text area — tap to open chat */}
+                            <button
+                              className="flex-1 min-w-0 text-left"
+                              onClick={() => openConversation(conv.id, conv.otherUsername, conv.otherAvatar, conv.otherUserId, conv.otherAvatarUrl)}
+                            >
+                              <div className="flex items-center justify-between mb-0.5">
+                                <p className={`font-display font-semibold text-sm truncate ${hasUnread ? 'text-white' : 'text-white/55'}`}>
+                                  {conv.otherUsername}
+                                </p>
+                                <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                  {count > 0 ? (
+                                    <span
+                                      className="min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[10px] font-mono font-bold"
+                                      style={{
+                                        background: 'rgba(255,0,204,0.8)',
+                                        color: '#fff',
+                                        boxShadow: '0 0 6px rgba(255,0,204,0.5)',
+                                      }}
+                                    >
+                                      {count > 99 ? '99+' : count}
+                                    </span>
+                                  ) : conv.unread ? (
+                                    <span className="w-2 h-2 rounded-full bg-neon-pink" />
+                                  ) : null}
+                                  {conv.lastMessageAt && (
+                                    <span className="text-white/20 font-mono text-[9px]">
+                                      {formatTime(conv.lastMessageAt)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <p className={`font-mono text-[11px] truncate ${hasUnread ? 'text-white/50' : 'text-white/20'}`}>
+                                {conv.lastMessage ?? 'No messages yet'}
+                              </p>
+                            </button>
                           </div>
-                          {conv.unread && (
-                            <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-neon-pink rounded-full border-2 border-void" />
-                          )}
-                        </button>
-                        {/* Text area — tap to open chat */}
-                        <button
-                          className="flex-1 min-w-0 text-left"
-                          onClick={() => openConversation(conv.id, conv.otherUsername, conv.otherAvatar, conv.otherUserId, conv.otherAvatarUrl)}
-                        >
-                          <div className="flex items-center justify-between mb-0.5">
-                            <p className={`font-display font-semibold text-sm truncate ${conv.unread ? 'text-white' : 'text-white/55'}`}>
-                              {conv.otherUsername}
-                            </p>
-                            {conv.lastMessageAt && (
-                              <span className="text-white/20 font-mono text-[9px] shrink-0 ml-2">
-                                {formatTime(conv.lastMessageAt)}
-                              </span>
-                            )}
-                          </div>
-                          <p className={`font-mono text-[11px] truncate ${conv.unread ? 'text-white/50' : 'text-white/20'}`}>
-                            {conv.lastMessage ?? 'No messages yet'}
-                          </p>
-                        </button>
-                      </div>
-                    ))}
+                        </SwipeableRow>
+                      );
+                    })}
                   </div>
                 )}
               </div>

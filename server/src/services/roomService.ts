@@ -146,6 +146,7 @@ export function createRoom(
     activeEvent: null,
     eventsLog: [],
     lastDoctorTarget: null,
+    gameTimeline: [],
   };
 
   rooms.set(id, room);
@@ -594,6 +595,7 @@ export function rematchRoom(room: Room): void {
   room.activeEvent      = null;
   room.eventsLog        = [];
   room.lastDoctorTarget = null;
+  room.gameTimeline     = [];
 
   // Promote queued spectators to active lobby
   promoteQueuedPlayers(room);

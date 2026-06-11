@@ -320,6 +320,7 @@ export interface Room {
     activeEvent: ActiveEvent | null;
     eventsLog: EventLogEntry[];
     lastDoctorTarget: string | null;
+    gameTimeline: TimelineEvent[];
 }
 export interface PlayerPublic {
     id: string;
@@ -408,6 +409,20 @@ export interface InvestigationResult {
     targetName: string;
     result: 'suspicious' | 'not_suspicious';
 }
+export type TimelineEventType = 'night_kill' | 'vote_eliminate' | 'night_survived' | 'vote_no_elim';
+export interface TimelineEvent {
+    type: TimelineEventType;
+    day: number;
+    victimName?: string;
+    victimRole?: RoleKey;
+    victimTeam?: Team;
+    killerRole?: RoleKey;
+    voteBreakdown?: Array<{
+        voterName: string;
+        targetName: string;
+    }>;
+    doctorSaved?: boolean;
+}
 export interface GameOverResult {
     winner: Team;
     allRoles: Record<string, {
@@ -415,6 +430,7 @@ export interface GameOverResult {
         role: RoleKey;
         team: Team;
     }>;
+    timeline: TimelineEvent[];
 }
 export type VoiceChannel = 'room' | 'mafia' | 'yakuza';
 export interface AchievementEarned {
@@ -979,6 +995,9 @@ export interface ClientToServerEvents {
         conversationId: string;
     }, cb: Cb<null>) => void;
     'dm:unread_count': (data: Record<string, never>, cb: Cb<number>) => void;
+    'dm:delete': (data: {
+        conversationId: string;
+    }, cb: Cb<null>) => void;
     'player:update_avatar': (data: {
         imageData: string;
     }, cb: (res: any) => void) => void;

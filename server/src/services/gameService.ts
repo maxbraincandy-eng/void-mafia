@@ -675,6 +675,7 @@ export function buildGameOverResult(room: Room): GameOverResult {
   return {
     winner: room.winner ?? 'town',
     allRoles,
+    timeline: [...(room.gameTimeline ?? [])],
   };
 }
 

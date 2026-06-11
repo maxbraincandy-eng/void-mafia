@@ -62,7 +62,7 @@ import {
 import { sql } from './db.js';
 import bcrypt from 'bcryptjs';
 import {
-  getOrCreateConversation, listConversations, sendMessage, getMessages, markRead, getTotalUnread,
+  getOrCreateConversation, listConversations, sendMessage, getMessages, markRead, getTotalUnread, deleteConversationForUser,
 } from './services/dmService.js';
 import {
   getCoins, claimDailyReward, grantCoins, deductCoins, refundGift,
@@ -390,10 +390,36 @@ function announceNightResult(io: AppServer, room: Room): void {
         io.to(p.socketId).emit('voice:force-mute', { reason: 'You were eliminated.' });
       }
     }
-  } else if (room.savedLastNight) {
-    broadcastSystemMsg(io, room, 'Dawn breaks. Everyone survived the night.');
+    // Record kills in timeline
+    for (const killed of room.killedLastNight) {
+      const victim = room.players.get(killed.id);
+      const killerAction = [...room.nightActions.values()].find(a =>
+        a.targetId === killed.id && (
+          a.role === 'mafia' || a.role === 'don' || a.role === 'arsonist' ||
+          a.role === 'maniac' || a.role === 'vigilante' || a.role === 'yakuza' || a.role === 'shogun'
+        )
+      );
+      room.gameTimeline.push({
+        type: 'night_kill',
+        day: room.day,
+        victimName: killed.name,
+        victimRole: victim?.role ?? undefined,
+        victimTeam: victim?.team ?? undefined,
+        killerRole: killerAction?.role ?? undefined,
+      });
+    }
   } else {
-    broadcastSystemMsg(io, room, 'Dawn breaks. The night passed quietly.');
+    // Record peaceful night / save in timeline
+    room.gameTimeline.push({
+      type: 'night_survived',
+      day: room.day,
+      doctorSaved: room.savedLastNight,
+    });
+    if (room.savedLastNight) {
+      broadcastSystemMsg(io, room, 'Dawn breaks. Everyone survived the night.');
+    } else {
+      broadcastSystemMsg(io, room, 'Dawn breaks. The night passed quietly.');
+    }
   }
 }
 
@@ -480,9 +506,26 @@ function announceVoteResult(io: AppServer, room: Room): void {
       if (target.socketId) {
         io.to(target.socketId).emit('voice:force-mute', { reason: 'You were eliminated.' });
       }
+      // Record vote elimination in timeline
+      const voteBreakdown = [...room.votes.entries()]
+        .filter(([, tid]) => tid === eliminated)
+        .map(([vid]) => {
+          const voter = room.players.get(vid);
+          return { voterName: voter?.name ?? '?', targetName: target.name };
+        });
+      room.gameTimeline.push({
+        type: 'vote_eliminate',
+        day: room.day,
+        victimName: target.name,
+        victimRole: target.role ?? undefined,
+        victimTeam: target.team ?? undefined,
+        voteBreakdown,
+      });
     }
   } else {
     broadcastSystemMsg(io, room, 'The vote ended in a tie. No one was eliminated.');
+    // Record tie vote in timeline
+    room.gameTimeline.push({ type: 'vote_no_elim', day: room.day });
   }
 }
 
@@ -1194,6 +1237,7 @@ export function attachSocketHandlers(io: AppServer): void {
         room.isPaused = false;
         room.nominations = new Map();
         room.tribunalCandidates = [];
+        room.gameTimeline = [];
 
         for (const p of room.players.values()) {
           p.role = null;
@@ -1235,6 +1279,7 @@ export function attachSocketHandlers(io: AppServer): void {
         room.daySkipVotes = [];
         room.speechOrder = [];
         room.currentSpeakerIdx = 0;
+        room.gameTimeline = [];
 
         for (const p of room.players.values()) {
           p.role = null;
@@ -1583,6 +1628,7 @@ export function attachSocketHandlers(io: AppServer): void {
         room.speechOrder = [];
         room.currentSpeakerIdx = 0;
         room.isPaused = false;
+        room.gameTimeline = [];
 
         for (const p of room.players.values()) {
           p.role = null;
@@ -2280,6 +2326,15 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!profileId) { cb(ok(0)); return; }
         const count = await getTotalUnread(profileId);
         cb(ok(count));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('dm:delete', async ({ conversationId }: { conversationId: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        await deleteConversationForUser(conversationId, profileId);
+        cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });
 
