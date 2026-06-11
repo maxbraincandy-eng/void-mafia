@@ -11,8 +11,9 @@ import type { ProfileCardData } from '@/components/ui/ProfileCard';
 import { emitWithAck, socket } from '@/lib/socket';
 import type { AchievementEarned, GameHistoryEntry, PlayerRoleStats, ClanMembership, Res, PlayerCosmetics } from '@/types/index';
 import {
-  FRAMES, TITLES, ROLE_SKINS, RARITY_COLOR, RARITY_LABEL,
-  getFrameById, getTitleById, getRoleSkinById,
+  FRAMES, TITLES, ROLE_SKINS, WALLPAPERS, BORDERS, NAME_COLORS,
+  RARITY_COLOR, RARITY_LABEL,
+  getFrameById, getTitleById, getRoleSkinById, getWallpaperById, getBorderById,
 } from '@/constants/cosmetics';
 
 const LEVEL_THRESHOLDS = [0, 100, 250, 500, 900, 1400, 2100, 3000, 4100, 5400];
@@ -127,7 +128,7 @@ export function ProfilePage() {
   const [dailyClaiming, setDailyClaiming] = useState(false);
   const [dailyMsg, setDailyMsg]     = useState<string | null>(null);
   const [showShare, setShowShare]   = useState(false);
-  const [cosmeticsTab, setCosmeticsTab] = useState<'frames' | 'titles' | 'skins'>('frames');
+  const [cosmeticsTab, setCosmeticsTab] = useState<'frames' | 'titles' | 'skins' | 'wallpapers' | 'borders' | 'colors'>('frames');
   const [equipLoading, setEquipLoading] = useState(false);
 
   useEffect(() => {
@@ -244,7 +245,7 @@ export function ProfilePage() {
     setUploadLoading(false);
   };
 
-  const handleEquip = useCallback(async (type: 'frame' | 'title' | 'role_skin', itemId: string | null) => {
+  const handleEquip = useCallback(async (type: 'frame' | 'title' | 'role_skin' | 'wallpaper' | 'border' | 'name_color', itemId: string | null) => {
     if (equipLoading) return;
     setEquipLoading(true);
     try {
@@ -427,6 +428,9 @@ export function ProfilePage() {
           const equippedFrame = cosmetics?.equippedFrame ?? null;
           const equippedTitle = cosmetics?.equippedTitle ?? null;
           const equippedSkin  = cosmetics?.equippedRoleSkin ?? null;
+          const equippedWallpaper = cosmetics?.equippedWallpaper ?? null;
+          const equippedBorder = cosmetics?.equippedBorder ?? null;
+          const equippedNameColor = cosmetics?.equippedNameColor ?? null;
 
           const frameDef = getFrameById(equippedFrame);
           const titleDef = getTitleById(equippedTitle);
@@ -435,6 +439,9 @@ export function ProfilePage() {
           const unlockedFrames = FRAMES.filter(f => unlockedItems.includes(f.id));
           const unlockedTitles = TITLES.filter(t => unlockedItems.includes(t.id));
           const unlockedSkins  = ROLE_SKINS.filter(s => unlockedItems.includes(s.id));
+          const unlockedWallpapers = WALLPAPERS.filter(w => unlockedItems.includes(w.id));
+          const unlockedBorders    = BORDERS.filter(b => unlockedItems.includes(b.id));
+          const unlockedNameColors = NAME_COLORS.filter(n => unlockedItems.includes(n.id));
 
           return (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.04 }}
@@ -492,16 +499,39 @@ export function ProfilePage() {
                     {skinDef ? skinDef.name : 'Classic'}
                   </p>
                 </div>
+
+                {/* Wallpaper preview */}
+                <div className="flex-1 rounded-xl border border-white/8 bg-white/3 p-2 flex flex-col items-center justify-center gap-1.5">
+                  {equippedWallpaper ? (() => {
+                    const wp = getWallpaperById(equippedWallpaper);
+                    return wp ? (
+                      <div className="w-8 h-8 rounded-lg border border-white/10" style={{ background: wp.gradient }} />
+                    ) : null;
+                  })() : (
+                    <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/8" />
+                  )}
+                  <p className="text-[9px] font-mono text-white/30 uppercase tracking-wider">Wall</p>
+                  <p className="text-[10px] font-mono text-white/60 text-center truncate w-full">
+                    {getWallpaperById(equippedWallpaper)?.name ?? 'None'}
+                  </p>
+                </div>
               </div>
 
               {/* Wardrobe tabs */}
-              <div className="flex gap-1 mb-3 p-1 rounded-xl bg-white/4 border border-white/6">
-                {(['frames', 'titles', 'skins'] as const).map(t => (
-                  <button key={t} onClick={() => setCosmeticsTab(t)}
-                    className={`flex-1 py-1.5 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all ${
-                      cosmeticsTab === t ? 'bg-neon-purple/20 text-neon-purple border border-neon-purple/30' : 'text-white/30 hover:text-white/50'
+              <div className="flex gap-1 mb-3 overflow-x-auto no-scrollbar">
+                {[
+                  { id: 'frames',     label: `Frames (${unlockedFrames.length})` },
+                  { id: 'titles',     label: `Titles (${unlockedTitles.length})` },
+                  { id: 'skins',      label: `Skins (${unlockedSkins.length})` },
+                  { id: 'wallpapers', label: `Wallpapers (${unlockedWallpapers.length})` },
+                  { id: 'borders',    label: `Borders (${unlockedBorders.length})` },
+                  { id: 'colors',     label: `Colors (${unlockedNameColors.length})` },
+                ].map(t => (
+                  <button key={t.id} onClick={() => setCosmeticsTab(t.id as any)}
+                    className={`shrink-0 px-2.5 py-1.5 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all ${
+                      cosmeticsTab === t.id ? 'bg-neon-purple/20 text-neon-purple border border-neon-purple/30' : 'text-white/30 hover:text-white/50'
                     }`}>
-                    {t === 'frames' ? `Frames (${unlockedFrames.length})` : t === 'titles' ? `Titles (${unlockedTitles.length})` : `Skins (${unlockedSkins.length})`}
+                    {t.label}
                   </button>
                 ))}
               </div>
@@ -629,6 +659,108 @@ export function ProfilePage() {
                           }
                         >
                           {isEquipped ? 'Equipped' : 'Equip'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Wallpapers grid */}
+              {cosmeticsTab === 'wallpapers' && (
+                <div className="space-y-1.5">
+                  {unlockedWallpapers.length === 0 && (
+                    <p className="text-white/20 font-mono text-xs text-center py-3">No wallpapers unlocked yet</p>
+                  )}
+                  {unlockedWallpapers.map(w => {
+                    const isEquipped = equippedWallpaper === w.id;
+                    return (
+                      <div key={w.id}
+                        className="flex items-center gap-3 rounded-xl p-2.5 border transition-all"
+                        style={isEquipped ? { borderColor: `${w.accent}40`, background: `${w.accent}08` } : { borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+                        <div className="w-10 h-10 rounded-lg shrink-0 border border-white/10" style={{ background: w.gradient }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-mono font-bold text-white/80 truncate">{w.name}</p>
+                          <p className="text-[9px] font-mono uppercase tracking-wider" style={{ color: RARITY_COLOR[w.rarity] }}>{RARITY_LABEL[w.rarity]}</p>
+                        </div>
+                        <button
+                          onClick={() => handleEquip('wallpaper', isEquipped ? null : w.id)}
+                          className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[10px] font-bold transition-all"
+                          style={isEquipped
+                            ? { background: `${w.accent}20`, color: w.accent, border: `1px solid ${w.accent}40` }
+                            : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
+                        >
+                          {isEquipped ? 'Unequip' : 'Equip'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Borders grid */}
+              {cosmeticsTab === 'borders' && (
+                <div className="space-y-1.5">
+                  {unlockedBorders.length === 0 && (
+                    <p className="text-white/20 font-mono text-xs text-center py-3">No borders unlocked yet</p>
+                  )}
+                  {unlockedBorders.map(b => {
+                    const isEquipped = equippedBorder === b.id;
+                    return (
+                      <div key={b.id}
+                        className="flex items-center gap-3 rounded-xl p-2.5 border transition-all"
+                        style={isEquipped ? { borderColor: `${b.colors[0]}40`, background: `${b.colors[0]}08` } : { borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+                        <div className={`w-10 h-10 rounded-full p-[2.5px] shrink-0 ${b.animationClass}`}
+                          style={{ background: `linear-gradient(135deg, ${b.colors[0]}, ${b.colors[1]})` }}>
+                          <div className="w-full h-full rounded-full bg-void flex items-center justify-center text-sm">👤</div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-mono font-bold text-white/80 truncate">{b.name}</p>
+                          <p className="text-[9px] font-mono uppercase tracking-wider" style={{ color: RARITY_COLOR[b.rarity] }}>{RARITY_LABEL[b.rarity]}</p>
+                        </div>
+                        <button
+                          onClick={() => handleEquip('border', isEquipped ? null : b.id)}
+                          className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[10px] font-bold transition-all"
+                          style={isEquipped
+                            ? { background: `${b.colors[0]}20`, color: b.colors[0], border: `1px solid ${b.colors[0]}40` }
+                            : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
+                        >
+                          {isEquipped ? 'Unequip' : 'Equip'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Name Colors grid */}
+              {cosmeticsTab === 'colors' && (
+                <div className="space-y-1.5">
+                  {unlockedNameColors.length === 0 && (
+                    <p className="text-white/20 font-mono text-xs text-center py-3">No name colors unlocked yet</p>
+                  )}
+                  {unlockedNameColors.map(nc => {
+                    const isEquipped = equippedNameColor === nc.id;
+                    return (
+                      <div key={nc.id}
+                        className="flex items-center gap-3 rounded-xl p-2.5 border transition-all"
+                        style={isEquipped ? { borderColor: `${nc.color}40`, background: `${nc.color}08` } : { borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+                        <div className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center font-mono font-bold text-sm border border-white/10"
+                          style={{ color: nc.color, background: `${nc.color}12` }}>
+                          Aa
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-mono font-bold truncate" style={{ color: nc.color }}>{nc.name}</p>
+                          <p className="text-[9px] font-mono uppercase tracking-wider" style={{ color: RARITY_COLOR[nc.rarity] }}>{RARITY_LABEL[nc.rarity]}</p>
+                        </div>
+                        <button
+                          onClick={() => handleEquip('name_color', isEquipped ? null : nc.id)}
+                          className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[10px] font-bold transition-all"
+                          style={isEquipped
+                            ? { background: `${nc.color}20`, color: nc.color, border: `1px solid ${nc.color}40` }
+                            : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
+                        >
+                          {isEquipped ? 'Unequip' : 'Equip'}
                         </button>
                       </div>
                     );
