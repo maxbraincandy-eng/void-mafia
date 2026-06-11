@@ -455,11 +455,14 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       {/* ── DM button ──────────────────────────── */}
                       <button
                         onClick={handleDm}
-                        className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-colors"
+                        className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-all hover:scale-[1.01] active:scale-[0.98]"
                         style={{
-                          background: 'rgba(155,0,255,0.15)',
+                          background: 'rgba(155,0,255,0.12)',
                           border: '1px solid rgba(155,0,255,0.35)',
                           color: 'rgba(200,100,255,0.9)',
+                          backdropFilter: 'blur(12px)',
+                          WebkitBackdropFilter: 'blur(12px)',
+                          boxShadow: 'inset 0 1px 0 rgba(200,100,255,0.12)',
                         }}
                       >
                         ✉ Send Message
@@ -468,11 +471,14 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       {/* ── Send Gift button ─────────────────────── */}
                       <button
                         onClick={() => setShowSendGift(true)}
-                        className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-colors"
+                        className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-all hover:scale-[1.01] active:scale-[0.98]"
                         style={{
-                          background: 'rgba(255,180,0,0.10)',
-                          border: '1px solid rgba(255,180,0,0.30)',
+                          background: 'rgba(255,180,0,0.08)',
+                          border: '1px solid rgba(255,180,0,0.28)',
                           color: 'rgba(255,200,60,0.9)',
+                          backdropFilter: 'blur(12px)',
+                          WebkitBackdropFilter: 'blur(12px)',
+                          boxShadow: 'inset 0 1px 0 rgba(255,200,60,0.10)',
                         }}
                       >
                         🎁 Send Gift
@@ -482,7 +488,15 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       {profile.publicId != null && (
                         <button
                           onClick={() => setShowShare(true)}
-                          className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-colors border border-neon-cyan/25 bg-neon-cyan/6 text-neon-cyan/75 hover:bg-neon-cyan/12 hover:text-neon-cyan"
+                          className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-all hover:scale-[1.01] active:scale-[0.98]"
+                          style={{
+                            background: 'rgba(0,229,255,0.07)',
+                            border: '1px solid rgba(0,229,255,0.25)',
+                            color: 'rgba(0,229,255,0.75)',
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                            boxShadow: 'inset 0 1px 0 rgba(0,229,255,0.10)',
+                          }}
                         >
                           ↗ Share Profile
                         </button>
@@ -493,13 +507,22 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         <button
                           onClick={handleAddFriend}
                           disabled={actionLoading || !profile.friendCode}
-                          className="w-full py-2 rounded-xl border border-neon-cyan/30 bg-neon-cyan/10 text-neon-cyan font-mono text-xs hover:bg-neon-cyan/20 transition-colors disabled:opacity-40"
+                          className="w-full py-2 rounded-xl font-mono text-xs transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-40 disabled:scale-100"
+                          style={{
+                            background: 'rgba(0,229,255,0.07)',
+                            border: '1px solid rgba(0,229,255,0.28)',
+                            color: 'rgba(0,229,255,0.85)',
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                          }}
                         >
                           + Add Friend
                         </button>
                       )}
                       {friendshipStatus === 'pending_sent' && (
-                        <button disabled className="w-full py-2 rounded-xl border border-white/10 text-white/30 font-mono text-xs opacity-50 cursor-not-allowed">
+                        <button disabled className="w-full py-2 rounded-xl border border-white/10 text-white/30 font-mono text-xs opacity-50 cursor-not-allowed"
+                          style={{ backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
+                        >
                           Request Sent
                         </button>
                       )}
@@ -507,7 +530,14 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         <button
                           onClick={handleAcceptFriend}
                           disabled={actionLoading}
-                          className="w-full py-2 rounded-xl border border-neon-green/30 bg-neon-green/10 text-neon-green font-mono text-xs hover:bg-neon-green/20 transition-colors disabled:opacity-40"
+                          className="w-full py-2 rounded-xl font-mono text-xs transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-40"
+                          style={{
+                            background: 'rgba(0,255,136,0.08)',
+                            border: '1px solid rgba(0,255,136,0.30)',
+                            color: 'rgba(0,255,136,0.9)',
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                          }}
                         >
                           ✓ Accept Friend Request
                         </button>
@@ -516,7 +546,14 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         <button
                           onClick={handleRemoveFriend}
                           disabled={actionLoading}
-                          className="w-full py-2 rounded-xl border border-neon-red/20 text-neon-red/60 font-mono text-xs hover:bg-neon-red/10 transition-colors disabled:opacity-40"
+                          className="w-full py-2 rounded-xl font-mono text-xs transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-40"
+                          style={{
+                            background: 'rgba(255,30,60,0.06)',
+                            border: '1px solid rgba(255,30,60,0.20)',
+                            color: 'rgba(255,80,80,0.65)',
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                          }}
                         >
                           Remove Friend
                         </button>
@@ -713,13 +750,29 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       <div className="flex gap-2 pb-1">
                         <button
                           onClick={() => setShowReport(true)}
-                          className="flex-1 py-2 rounded-xl border border-white/5 text-white/20 hover:text-neon-red/50 hover:border-neon-red/20 font-mono text-[10px] transition-colors"
+                          className="flex-1 py-2 rounded-xl font-mono text-[10px] transition-all hover:scale-[1.01] active:scale-[0.98]"
+                          style={{
+                            background: 'rgba(255,30,60,0.05)',
+                            border: '1px solid rgba(255,30,60,0.15)',
+                            color: 'rgba(255,255,255,0.22)',
+                            backdropFilter: 'blur(8px)',
+                            WebkitBackdropFilter: 'blur(8px)',
+                          }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,60,80,0.6)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,30,60,0.3)'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.22)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,30,60,0.15)'; }}
                         >
                           Report
                         </button>
                         <button
                           onClick={onClose}
-                          className="flex-1 py-2 rounded-xl border border-white/10 text-white/35 hover:text-white/60 font-mono text-xs transition-colors"
+                          className="flex-1 py-2 rounded-xl font-mono text-xs transition-all hover:scale-[1.01] active:scale-[0.98]"
+                          style={{
+                            background: 'rgba(255,255,255,0.04)',
+                            border: '1px solid rgba(255,255,255,0.10)',
+                            color: 'rgba(255,255,255,0.35)',
+                            backdropFilter: 'blur(8px)',
+                            WebkitBackdropFilter: 'blur(8px)',
+                          }}
                         >
                           Close
                         </button>

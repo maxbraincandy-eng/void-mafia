@@ -24,7 +24,7 @@ function ChatIcon({ size = 20 }: { size?: number }) {
 }
 
 export function DmPanel() {
-  const { dmPanelOpen, activeDmUserId, closeDm, setUnreadDmCount } = useSocialStore();
+  const { dmPanelOpen, activeDmUserId, closeDm, setUnreadDmCount, openProfile } = useSocialStore();
   const myProfileId = useAuthStore(s => s.profile?.id);
 
   const [conversations, setConversations] = useState<DmConversation[]>([]);
@@ -32,6 +32,7 @@ export function DmPanel() {
   const [activeUsername, setActiveUsername] = useState('');
   const [activeAvatar, setActiveAvatar] = useState('');
   const [activeAvatarUrl, setActiveAvatarUrl] = useState<string | null>(null);
+  const [activeOtherProfileId, setActiveOtherProfileId] = useState<string | null>(null);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [loadingConvs, setLoadingConvs] = useState(false);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
@@ -66,11 +67,12 @@ export function DmPanel() {
     }
   }, []);
 
-  const openConversation = useCallback(async (convId: string, username: string, avatar: string, avatarUrl?: string | null) => {
+  const openConversation = useCallback(async (convId: string, username: string, avatar: string, profileId?: string | null, avatarUrl?: string | null) => {
     setActiveConvId(convId);
     setActiveUsername(username);
     setActiveAvatar(avatar);
     setActiveAvatarUrl(avatarUrl ?? null);
+    setActiveOtherProfileId(profileId ?? null);
     setMsgError(null);
     setLoadingMsgs(true);
     try {
@@ -107,6 +109,7 @@ export function DmPanel() {
           setActiveUsername(res.data.otherUsername);
           setActiveAvatar(res.data.otherAvatar);
           setActiveAvatarUrl((res.data as any).otherAvatarUrl ?? null);
+          setActiveOtherProfileId(activeDmUserId);
           setMessages(res.data.messages ?? []);
           setMsgError(null);
           try {
@@ -233,15 +236,17 @@ export function DmPanel() {
                 </button>
               ) : null}
               {activeConvId && (activeAvatar || activeAvatarUrl) ? (
-                <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 overflow-hidden"
+                <button
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 overflow-hidden hover:ring-2 ring-neon-purple/60 transition-all"
                   style={{ background: 'linear-gradient(135deg, #ff0080, #8a2be2)' }}
+                  onClick={() => activeOtherProfileId && openProfile(activeOtherProfileId)}
+                  title={`View ${activeUsername}'s profile`}
                 >
                   {activeAvatarUrl
                     ? <img src={activeAvatarUrl} alt={activeUsername} className="w-full h-full object-cover rounded-full" />
                     : activeAvatar
                   }
-                </div>
+                </button>
               ) : (
                 !activeConvId && (
                   <span className="text-neon-purple/60">
@@ -250,9 +255,18 @@ export function DmPanel() {
                 )
               )}
               <div className="flex-1 min-w-0">
-                <h3 className="font-display font-bold text-sm text-white tracking-wide truncate">
-                  {activeConvId ? activeUsername : 'MESSAGES'}
-                </h3>
+                {activeConvId && activeOtherProfileId ? (
+                  <button
+                    className="font-display font-bold text-sm text-white tracking-wide truncate hover:text-neon-purple/90 transition-colors text-left"
+                    onClick={() => openProfile(activeOtherProfileId)}
+                  >
+                    {activeUsername}
+                  </button>
+                ) : (
+                  <h3 className="font-display font-bold text-sm text-white tracking-wide truncate">
+                    {activeConvId ? activeUsername : 'MESSAGES'}
+                  </h3>
+                )}
               </div>
               <button
                 onClick={closeDm}
@@ -292,14 +306,18 @@ export function DmPanel() {
                 ) : (
                   <div>
                     {conversations.map(conv => (
-                      <button
+                      <div
                         key={conv.id}
-                        onClick={() => openConversation(conv.id, conv.otherUsername, conv.otherAvatar, conv.otherAvatarUrl)}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/[0.03] transition-colors text-left border-b border-white/[0.04]"
+                        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/[0.03] transition-colors border-b border-white/[0.04]"
                       >
-                        <div className="relative shrink-0">
+                        {/* Avatar — tap to view profile */}
+                        <button
+                          className="relative shrink-0 group"
+                          onClick={() => openProfile(conv.otherUserId)}
+                          title={`View ${conv.otherUsername}'s profile`}
+                        >
                           <div
-                            className="w-10 h-10 rounded-full flex items-center justify-center text-lg overflow-hidden"
+                            className="w-10 h-10 rounded-full flex items-center justify-center text-lg overflow-hidden ring-0 group-hover:ring-2 ring-neon-purple/50 transition-all"
                             style={{ background: 'linear-gradient(135deg, #ff0080, #8a2be2)' }}
                           >
                             {conv.otherAvatarUrl
@@ -310,8 +328,12 @@ export function DmPanel() {
                           {conv.unread && (
                             <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-neon-pink rounded-full border-2 border-void" />
                           )}
-                        </div>
-                        <div className="flex-1 min-w-0">
+                        </button>
+                        {/* Text area — tap to open chat */}
+                        <button
+                          className="flex-1 min-w-0 text-left"
+                          onClick={() => openConversation(conv.id, conv.otherUsername, conv.otherAvatar, conv.otherUserId, conv.otherAvatarUrl)}
+                        >
                           <div className="flex items-center justify-between mb-0.5">
                             <p className={`font-display font-semibold text-sm truncate ${conv.unread ? 'text-white' : 'text-white/55'}`}>
                               {conv.otherUsername}
@@ -325,8 +347,8 @@ export function DmPanel() {
                           <p className={`font-mono text-[11px] truncate ${conv.unread ? 'text-white/50' : 'text-white/20'}`}>
                             {conv.lastMessage ?? 'No messages yet'}
                           </p>
-                        </div>
-                      </button>
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -343,7 +365,7 @@ export function DmPanel() {
                     <div className="text-center py-10">
                       <p className="text-white/25 font-mono text-xs mb-3">{msgError}</p>
                       <button
-                        onClick={() => openConversation(activeConvId, activeUsername, activeAvatar, activeAvatarUrl)}
+                        onClick={() => openConversation(activeConvId, activeUsername, activeAvatar, activeOtherProfileId, activeAvatarUrl)}
                         className="px-4 py-2 rounded-xl border border-neon-purple/30 text-neon-purple/70 font-mono text-xs hover:bg-neon-purple/10 transition-colors"
                       >
                         Retry
