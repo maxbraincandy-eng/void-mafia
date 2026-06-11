@@ -2,6 +2,7 @@ import { Router } from 'express';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as FacebookStrategy } from 'passport-facebook';
+import AppleStrategy from 'passport-apple';
 import { v4 as uuidv4 } from 'uuid';
 import { sql } from './db.js';
 import { getOrCreatePlayer } from './services/playerService.js';
@@ -98,6 +99,37 @@ export function configurePassport() {
                 const displayName = profile.displayName || 'Player';
                 const avatarUrl = profile.photos?.[0]?.value ?? null;
                 done(null, { provider: 'facebook', providerUserId: profile.id, email, displayName, avatarUrl });
+            }
+            catch (e) {
+                done(e);
+            }
+        }));
+    }
+    const APPLE_CLIENT_ID = process.env.APPLE_CLIENT_ID ?? '';
+    const APPLE_TEAM_ID = process.env.APPLE_TEAM_ID ?? '';
+    const APPLE_KEY_ID = process.env.APPLE_KEY_ID ?? '';
+    // Private key from .p8 file — newlines stored as literal \n in Railway env var
+    const APPLE_PRIVATE_KEY = (process.env.APPLE_PRIVATE_KEY ?? '').replace(/\\n/g, '\n');
+    const appleCallbackURL = `${SERVER_PUBLIC_URL}/api/auth/apple/callback`;
+    if (APPLE_CLIENT_ID && APPLE_TEAM_ID && APPLE_KEY_ID && APPLE_PRIVATE_KEY) {
+        passport.use(new AppleStrategy({
+            clientID: APPLE_CLIENT_ID,
+            teamID: APPLE_TEAM_ID,
+            keyID: APPLE_KEY_ID,
+            privateKeyString: APPLE_PRIVATE_KEY,
+            callbackURL: appleCallbackURL,
+            scope: ['name', 'email'],
+            passReqToCallback: false,
+        }, async (_accessToken, _refreshToken, idToken, _profile, done) => {
+            try {
+                // Apple only provides name/email on the very first login via idToken
+                const sub = idToken.sub;
+                const email = idToken.email ?? null;
+                // Name is in profile on first auth only (Apple quirk)
+                const firstName = _profile?.name?.firstName ?? '';
+                const lastName = _profile?.name?.lastName ?? '';
+                const displayName = [firstName, lastName].filter(Boolean).join(' ').trim() || email?.split('@')[0] || 'Player';
+                done(null, { provider: 'apple', providerUserId: sub, email, displayName, avatarUrl: null });
             }
             catch (e) {
                 done(e);
@@ -203,6 +235,42 @@ export function createAuthRouter() {
         }
         catch (e) {
             console.error('[Auth] Facebook callback error', e);
+            res.redirect(`${process.env.CLIENT_URL ?? ''}/?oauth_error=1`);
+        }
+    });
+    // ── Apple ──────────────────────────────────────────────────────
+    // Apple sends the callback as a POST (form submission), not GET
+    router.get('/apple', (req, res, next) => {
+        if (req.query.link === '1' && req.session.uid) {
+            req.session.linkUid = req.session.uid;
+        }
+        passport.authenticate('apple', { session: false })(req, res, next);
+    });
+    router.post('/apple/callback', passport.authenticate('apple', {
+        session: false,
+        failureRedirect: `${process.env.CLIENT_URL ?? ''}/?oauth_error=1`,
+    }), async (req, res) => {
+        const CLIENT_URL = process.env.CLIENT_URL ?? '';
+        try {
+            const profile = req.user;
+            const linkUid = req.session.linkUid;
+            if (linkUid) {
+                req.session.linkUid = undefined;
+                const result = await linkProviderToUser(linkUid, profile.provider, profile.providerUserId, profile.email, profile.displayName, profile.avatarUrl);
+                if (!result.ok) {
+                    return res.redirect(`${CLIENT_URL}/?oauth_error=${encodeURIComponent(result.error ?? 'Link failed')}`);
+                }
+                return res.redirect(`${CLIENT_URL}/?oauth_linked=apple`);
+            }
+            const uid = await findOrCreateOAuthUser(profile.provider, profile.providerUserId, profile.email, profile.displayName, profile.avatarUrl);
+            const rows = await sql `SELECT username FROM players WHERE id = ${uid} LIMIT 1`;
+            req.session.uid = uid;
+            req.session.username = rows[0]?.username ?? 'Player';
+            await new Promise((resolve, reject) => req.session.save(err => (err ? reject(err) : resolve())));
+            res.redirect(`${CLIENT_URL}/?oauth_success=1`);
+        }
+        catch (e) {
+            console.error('[Auth] Apple callback error', e);
             res.redirect(`${process.env.CLIENT_URL ?? ''}/?oauth_error=1`);
         }
     });
