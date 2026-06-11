@@ -403,6 +403,17 @@ export function GamePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.currentSpeakerId]);
 
+  // During speech phase mute all remote audio except the active speaker
+  useEffect(() => {
+    if (phase === 'speech' && room?.currentSpeakerId) {
+      const speaker = room.players.find(p => p.id === room.currentSpeakerId);
+      voice.setSpeakerOnly(speaker?.socketId ?? null);
+    } else {
+      voice.setSpeakerOnly(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, room?.currentSpeakerId]);
+
   // Nomination notification
   const prevNominationsRef = useRef<Record<string, string>>({});
   useEffect(() => {

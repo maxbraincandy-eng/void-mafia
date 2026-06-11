@@ -369,6 +369,11 @@ export function useVoiceChat() {
     }
   }, []);
 
+  /** Mute all remote audio except speakerSocketId. Pass null to unmute all. */
+  const setSpeakerOnly = useCallback((speakerSocketId: string | null) => {
+    _session?.setSpeakerOnly(speakerSocketId);
+  }, []);
+
   return {
     ...state,
     joinVoice,
@@ -378,5 +383,6 @@ export function useVoiceChat() {
     toggleCamera,
     getLocalStream,
     resetConnection,
+    setSpeakerOnly,
   };
 }
