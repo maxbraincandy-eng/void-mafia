@@ -142,10 +142,12 @@ async function rowToProfile(row: any): Promise<PlayerProfile> {
       equippedFrame: parsed.equippedFrame ?? null,
       equippedTitle: parsed.equippedTitle ?? null,
       equippedRoleSkin: parsed.equippedRoleSkin ?? null,
+      equippedWallpaper: parsed.equippedWallpaper ?? null,
+      equippedBorder: parsed.equippedBorder ?? null,
       unlockedItems: parsed.unlockedItems ?? [],
     };
   } catch {
-    cosmetics = { equippedNameColor: null, equippedFrame: null, equippedTitle: null, equippedRoleSkin: null, unlockedItems: [] };
+    cosmetics = { equippedNameColor: null, equippedFrame: null, equippedTitle: null, equippedRoleSkin: null, equippedWallpaper: null, equippedBorder: null, unlockedItems: [] };
   }
 
   return {
@@ -518,16 +520,18 @@ export async function getCosmetics(profileId: string): Promise<PlayerCosmetics> 
       equippedFrame: parsed.equippedFrame ?? null,
       equippedTitle: parsed.equippedTitle ?? null,
       equippedRoleSkin: parsed.equippedRoleSkin ?? null,
+      equippedWallpaper: parsed.equippedWallpaper ?? null,
+      equippedBorder: parsed.equippedBorder ?? null,
       unlockedItems: parsed.unlockedItems ?? [],
     };
   } catch {
-    return { equippedNameColor: null, equippedFrame: null, equippedTitle: null, equippedRoleSkin: null, unlockedItems: [] };
+    return { equippedNameColor: null, equippedFrame: null, equippedTitle: null, equippedRoleSkin: null, equippedWallpaper: null, equippedBorder: null, unlockedItems: [] };
   }
 }
 
 export async function equipCosmetic(
   profileId: string,
-  type: 'name_color' | 'frame' | 'title' | 'role_skin',
+  type: 'name_color' | 'frame' | 'title' | 'role_skin' | 'wallpaper' | 'border',
   itemId: string | null,
 ): Promise<PlayerCosmetics> {
   const cosmetics = await getCosmetics(profileId);
@@ -536,6 +540,8 @@ export async function equipCosmetic(
   else if (type === 'frame') cosmetics.equippedFrame = itemId;
   else if (type === 'title') cosmetics.equippedTitle = itemId;
   else if (type === 'role_skin') cosmetics.equippedRoleSkin = itemId;
+  else if (type === 'wallpaper') cosmetics.equippedWallpaper = itemId;
+  else if (type === 'border') cosmetics.equippedBorder = itemId;
   await sql`UPDATE players SET cosmetics = ${JSON.stringify(cosmetics)} WHERE id = ${profileId}`;
   return cosmetics;
 }

@@ -85,6 +85,8 @@ export interface PlayerCosmetics {
   equippedFrame: string | null;
   equippedTitle: string | null;
   equippedRoleSkin: string | null;
+  equippedWallpaper: string | null;
+  equippedBorder: string | null;
   unlockedItems: string[];
 }
 
@@ -559,6 +561,7 @@ export interface LobbyMessage {
   level: number;
   text: string;
   createdAt: number;
+  nameColor?: string | null;
 }
 
 // ── LFG (Looking for Game) ────────────────────────────────────────────
@@ -836,7 +839,7 @@ export interface ClientToServerEvents {
   // Challenges
   'challenge:today':       (cb: Cb<DailyChallenge>) => void;
   // Cosmetics
-  'cosmetics:equip':       (data: { type: 'name_color' | 'frame'; itemId: string | null }, cb: Cb<PlayerCosmetics>) => void;
+  'cosmetics:equip':       (data: { type: 'name_color' | 'frame' | 'wallpaper' | 'border'; itemId: string | null }, cb: Cb<PlayerCosmetics>) => void;
   'cosmetics:get':         (data: { profileId: string }, cb: Cb<PlayerCosmetics>) => void;
   // Public profile popup
   'player:public_profile': (data: { profileId: string }, cb: Cb<any>) => void;

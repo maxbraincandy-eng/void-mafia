@@ -83,6 +83,8 @@ export interface PlayerCosmetics {
   equippedFrame: string | null;
   equippedTitle: string | null;
   equippedRoleSkin: string | null;
+  equippedWallpaper: string | null;
+  equippedBorder: string | null;
   unlockedItems: string[];
 }
 
@@ -551,6 +553,7 @@ export interface LobbyMessage {
   level: number;
   text: string;
   createdAt: number;
+  nameColor?: string | null;
 }
 
 export interface LfgEntry {

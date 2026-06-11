@@ -133,11 +133,13 @@ async function rowToProfile(row) {
             equippedFrame: parsed.equippedFrame ?? null,
             equippedTitle: parsed.equippedTitle ?? null,
             equippedRoleSkin: parsed.equippedRoleSkin ?? null,
+            equippedWallpaper: parsed.equippedWallpaper ?? null,
+            equippedBorder: parsed.equippedBorder ?? null,
             unlockedItems: parsed.unlockedItems ?? [],
         };
     }
     catch {
-        cosmetics = { equippedNameColor: null, equippedFrame: null, equippedTitle: null, equippedRoleSkin: null, unlockedItems: [] };
+        cosmetics = { equippedNameColor: null, equippedFrame: null, equippedTitle: null, equippedRoleSkin: null, equippedWallpaper: null, equippedBorder: null, unlockedItems: [] };
     }
     return {
         id: row.id,
@@ -493,11 +495,13 @@ export async function getCosmetics(profileId) {
             equippedFrame: parsed.equippedFrame ?? null,
             equippedTitle: parsed.equippedTitle ?? null,
             equippedRoleSkin: parsed.equippedRoleSkin ?? null,
+            equippedWallpaper: parsed.equippedWallpaper ?? null,
+            equippedBorder: parsed.equippedBorder ?? null,
             unlockedItems: parsed.unlockedItems ?? [],
         };
     }
     catch {
-        return { equippedNameColor: null, equippedFrame: null, equippedTitle: null, equippedRoleSkin: null, unlockedItems: [] };
+        return { equippedNameColor: null, equippedFrame: null, equippedTitle: null, equippedRoleSkin: null, equippedWallpaper: null, equippedBorder: null, unlockedItems: [] };
     }
 }
 export async function equipCosmetic(profileId, type, itemId) {
@@ -512,6 +516,10 @@ export async function equipCosmetic(profileId, type, itemId) {
         cosmetics.equippedTitle = itemId;
     else if (type === 'role_skin')
         cosmetics.equippedRoleSkin = itemId;
+    else if (type === 'wallpaper')
+        cosmetics.equippedWallpaper = itemId;
+    else if (type === 'border')
+        cosmetics.equippedBorder = itemId;
     await sql `UPDATE players SET cosmetics = ${JSON.stringify(cosmetics)} WHERE id = ${profileId}`;
     return cosmetics;
 }

@@ -21,6 +21,8 @@ export interface PlayerCosmetics {
     equippedFrame: string | null;
     equippedTitle: string | null;
     equippedRoleSkin: string | null;
+    equippedWallpaper: string | null;
+    equippedBorder: string | null;
     unlockedItems: string[];
 }
 export interface XPGain {
@@ -449,6 +451,7 @@ export interface LobbyMessage {
     level: number;
     text: string;
     createdAt: number;
+    nameColor?: string | null;
 }
 export interface LfgEntry {
     profileId: string;
@@ -954,7 +957,7 @@ export interface ClientToServerEvents {
     }>) => void;
     'challenge:today': (cb: Cb<DailyChallenge>) => void;
     'cosmetics:equip': (data: {
-        type: 'name_color' | 'frame';
+        type: 'name_color' | 'frame' | 'wallpaper' | 'border';
         itemId: string | null;
     }, cb: Cb<PlayerCosmetics>) => void;
     'cosmetics:get': (data: {

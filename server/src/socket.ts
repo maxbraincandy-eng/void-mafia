@@ -2365,6 +2365,7 @@ export function attachSocketHandlers(io: AppServer): void {
           level: profile.level ?? 1,
           text: trimmed,
           createdAt: Date.now(),
+          nameColor: profile.cosmetics?.equippedNameColor ?? null,
         };
         lobbyChatHistory.push(msg);
         if (lobbyChatHistory.length > LOBBY_CHAT_MAX) lobbyChatHistory.shift();

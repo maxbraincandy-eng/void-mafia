@@ -147,7 +147,10 @@ export function LobbyChatPanel() {
                     <AvatarBubble avatar={msg.avatar} avatarUrl={msg.avatarUrl} size={30} />
                     <div className={`max-w-[72%] flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
                       <div className={`flex items-center gap-1.5 ${isMe ? 'flex-row-reverse' : ''}`}>
-                        <span className="text-[10px] font-mono text-white/40">{msg.username}</span>
+                        <span
+                          className="text-[10px] font-mono font-semibold"
+                          style={{ color: msg.nameColor ?? 'rgba(255,255,255,0.4)' }}
+                        >{msg.username}</span>
                         <span className="text-[9px] font-mono text-neon-cyan/30">Lv{msg.level}</span>
                         <span className="text-[9px] font-mono text-white/18">{fmt(msg.createdAt)}</span>
                         {isMod && (

@@ -53,6 +53,10 @@ export default {
         'fade-in':      'fadeIn 0.4s ease forwards',
         'slide-up':     'slideUp 0.4s ease forwards',
         'flip-card':    'flipCard 0.8s ease forwards',
+        'border-flame':  'borderFlame 2s ease-in-out infinite',
+        'border-glitch': 'borderGlitch 1.5s ease-in-out infinite',
+        'border-pulse':  'borderPulse 2s ease-in-out infinite',
+        'border-void':   'borderVoid 3s ease-in-out infinite',
       },
       keyframes: {
         gridScroll: {
@@ -88,6 +92,24 @@ export default {
         flipCard: {
           '0%':   { transform: 'rotateY(90deg)', opacity: '0' },
           '100%': { transform: 'rotateY(0deg)',  opacity: '1' },
+        },
+        borderFlame: {
+          '0%, 100%': { boxShadow: '0 0 8px #ff6b00, 0 0 20px #ff2d5580' },
+          '50%':      { boxShadow: '0 0 16px #ff2d55, 0 0 40px #ff6b0080' },
+        },
+        borderGlitch: {
+          '0%, 100%': { boxShadow: '0 0 10px #00e5ff, 0 0 20px #00e5ff60', filter: 'hue-rotate(0deg)' },
+          '25%':      { boxShadow: '0 0 10px #ff00cc, 0 0 20px #ff00cc60', filter: 'hue-rotate(90deg)' },
+          '50%':      { boxShadow: '0 0 14px #00e5ff, 0 0 28px #00e5ff80', filter: 'hue-rotate(180deg)' },
+          '75%':      { boxShadow: '0 0 10px #ff00cc, 0 0 20px #ff00cc60', filter: 'hue-rotate(270deg)' },
+        },
+        borderPulse: {
+          '0%, 100%': { boxShadow: '0 0 6px #9b00ff, 0 0 12px #9b00ff60' },
+          '50%':      { boxShadow: '0 0 18px #9b00ff, 0 0 36px #9b00ffaa' },
+        },
+        borderVoid: {
+          '0%, 100%': { boxShadow: '0 0 8px #00ff88, 0 0 16px #00ff8860' },
+          '50%':      { boxShadow: '0 0 16px #00e5ff, 0 0 32px #00e5ff80' },
         },
       },
     },

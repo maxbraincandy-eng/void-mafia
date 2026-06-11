@@ -10,7 +10,7 @@ import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { useGameStore } from '@/store/gameStore';
 import type { Res, PublicProfileFull, FriendshipStatus, PlayerRoleStats, ModeratorLevel, WarnCategory, ClanRole } from '@/types/index';
-import { getFrameById, getTitleById } from '@/constants/cosmetics';
+import { getFrameById, getTitleById, getWallpaperById, getBorderById } from '@/constants/cosmetics';
 import type { ProfileCardData } from '@/components/ui/ProfileCard';
 
 const MOD_RANK: Record<ModeratorLevel, number> = { moderator: 0, senior_moderator: 1, admin: 2, owner: 3 };
@@ -275,6 +275,8 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
               const { profile, achievements, clan, friendshipStatus, isOnline, roleStats } = data;
               const frameDef = getFrameById(profile.cosmetics?.equippedFrame ?? null);
               const titleDef = getTitleById(profile.cosmetics?.equippedTitle ?? null);
+              const wallpaperDef = getWallpaperById(profile.cosmetics?.equippedWallpaper ?? null);
+              const borderDef = getBorderById(profile.cosmetics?.equippedBorder ?? null);
               const level = profile.level ?? 1;
               const xp = profile.xp ?? 0;
               const xpMin = xpForLevel(level);
@@ -292,16 +294,21 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                     {/* ── Hero band ─────────────────────────────── */}
                     <div
                       className="px-5 pt-5 pb-4 relative"
-                      style={{ background: `linear-gradient(160deg, ${col}10 0%, rgba(6,3,20,0) 60%)` }}
+                      style={{
+                        background: wallpaperDef
+                          ? wallpaperDef.gradient
+                          : `linear-gradient(160deg, ${col}10 0%, rgba(6,3,20,0) 60%)`,
+                      }}
                     >
                       <div className="flex items-start gap-3">
                         {/* Avatar */}
                         <div className="relative flex-shrink-0">
-                          {frameDef ? (
-                            <div className="w-16 h-16 rounded-full p-[2.5px]"
+                          {(frameDef || borderDef) ? (
+                            <div
+                              className={`w-16 h-16 rounded-full p-[2.5px] ${borderDef ? borderDef.animationClass : ''}`}
                               style={{
-                                background: `linear-gradient(135deg, ${frameDef.colors[0]}, ${frameDef.colors[1]})`,
-                                boxShadow: `0 0 10px ${frameDef.glow}`,
+                                background: `linear-gradient(135deg, ${(borderDef ?? frameDef)!.colors[0]}, ${(borderDef ?? frameDef)!.colors[1]})`,
+                                boxShadow: `0 0 10px ${(borderDef ?? frameDef)!.glow}`,
                               }}>
                               <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center text-2xl font-bold"
                                 style={{ background: 'linear-gradient(135deg,rgba(255,0,128,0.6),rgba(138,43,226,0.6))' }}>
