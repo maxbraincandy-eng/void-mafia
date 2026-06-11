@@ -362,6 +362,16 @@ export interface AchievementEarned {
     icon: string;
     rarity: string;
 }
+export interface LobbyMessage {
+    id: string;
+    profileId: string;
+    username: string;
+    avatar: string;
+    avatarUrl?: string | null;
+    level: number;
+    text: string;
+    createdAt: number;
+}
 export interface VoteBreakdownEntry {
     voterId: string;
     voterName: string;
@@ -577,6 +587,10 @@ export interface ServerToClientEvents {
     'dm:new_message': (data: {
         conversationId: string;
         message: any;
+    }) => void;
+    'lobby:message': (msg: LobbyMessage) => void;
+    'lobby:msg_deleted': (data: {
+        msgId: string;
     }) => void;
     'maintenance:status': (data: {
         enabled: boolean;
@@ -856,6 +870,13 @@ export interface ClientToServerEvents {
         profileId: string;
     }, cb: Cb<any>) => void;
     'clan:my_membership': (cb: Cb<any>) => void;
+    'lobby:send': (data: {
+        text: string;
+    }, cb: Cb<null>) => void;
+    'lobby:history': (data: Record<string, never>, cb: Cb<LobbyMessage[]>) => void;
+    'lobby:delete_msg': (data: {
+        msgId: string;
+    }, cb: Cb<null>) => void;
     'dm:start': (data: {
         profileId: string;
     }, cb: Cb<any>) => void;

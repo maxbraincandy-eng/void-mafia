@@ -4,6 +4,7 @@ import {
   ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData,
   RoomPublic, ChatMessage, ok, err, Room, Player, Phase, GameSettings,
   ReportReason, NightSummary, LiveRoomInfo, LiveRoomPlayer,
+  LobbyMessage,
 } from './types/index.js';
 import {
   createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, removePlayer,
@@ -125,6 +126,10 @@ function cancelAutoStart(roomId: string): void {
 
 // ── Spectate queues (roomId → socketIds waiting) ──────────────────────
 const spectateQueues = new Map<string, string[]>();
+
+// ── Lobby chat (in-memory, last 80 messages) ─────────────────────────
+const LOBBY_CHAT_MAX = 80;
+const lobbyChatHistory: LobbyMessage[] = [];
 
 // ── Role-specific death messages ──────────────────────────────────────
 const NIGHT_DEATH: Partial<Record<string, string>> = {
@@ -2275,6 +2280,54 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!profileId) { cb(ok(0)); return; }
         const count = await getTotalUnread(profileId);
         cb(ok(count));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Economy — Coins & Gifts ─────────────────────────────────────
+
+    // ── Lobby Chat ───────────────────────────────────────────────────
+
+    socket.on('lobby:history', async (data: any, cb: any) => {
+      const fn = typeof cb === 'function' ? cb : data;
+      fn(ok([...lobbyChatHistory]));
+    });
+
+    socket.on('lobby:send', async ({ text }: { text: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const trimmed = text?.trim();
+        if (!trimmed || trimmed.length > 200) { cb(err('Invalid message.')); return; }
+        if (!rateOk(socket.id, 3)) { cb(err('Slow down.')); return; }
+        const profile = await getPlayer(profileId);
+        if (!profile) { cb(err('Profile not found.')); return; }
+        const msg: LobbyMessage = {
+          id: `lm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          profileId,
+          username: profile.username,
+          avatar: profile.avatar,
+          avatarUrl: profile.avatarUrl ?? null,
+          level: profile.level ?? 1,
+          text: trimmed,
+          createdAt: Date.now(),
+        };
+        lobbyChatHistory.push(msg);
+        if (lobbyChatHistory.length > LOBBY_CHAT_MAX) lobbyChatHistory.shift();
+        io.emit('lobby:message', msg);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('lobby:delete_msg', async ({ msgId }: { msgId: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const profile = await getPlayer(profileId);
+        if (!profile?.isModerator) { cb(err('Not authorized.')); return; }
+        const idx = lobbyChatHistory.findIndex(m => m.id === msgId);
+        if (idx !== -1) lobbyChatHistory.splice(idx, 1);
+        io.emit('lobby:msg_deleted', { msgId });
+        cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });
 

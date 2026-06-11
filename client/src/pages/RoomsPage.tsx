@@ -8,9 +8,9 @@ import { MorePanel } from '@/components/ui/MorePanel';
 import { useT } from '@/store/langStore';
 import { useAmbientDrone } from '@/hooks/useAudio';
 import { Button } from '@/components/ui/Button';
-import { LeaderboardModal } from '@/components/ui/LeaderboardModal';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { DailyChallengeCard } from '@/components/ui/DailyChallengeCard';
+import { LobbyChatPanel } from '@/components/social/LobbyChatPanel';
 
 const SURFACE = 'rounded-2xl border border-white/[0.06]';
 const SURFACE_BG = { background: 'rgba(10, 6, 28, 0.92)' } as const;
@@ -25,7 +25,6 @@ export function RoomsPage() {
   };
 
   const [mode, setMode] = useState<'browse' | 'create' | 'join'>('browse');
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [rooms, setRooms] = useState<RoomListItem[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [preset, setPreset] = useState<Preset>('classic');
@@ -41,7 +40,12 @@ export function RoomsPage() {
     isLoading: s.isLoading,
   }));
   const username = useAuthStore(s => s.username) ?? '';
-  const { onlineCount, openMoreMenu } = useSocialStore(s => ({ onlineCount: s.onlineCount, openMoreMenu: s.openMoreMenu }));
+  const { onlineCount, openMoreMenu, openLobbyChat, lobbyChatUnread } = useSocialStore(s => ({
+    onlineCount: s.onlineCount,
+    openMoreMenu: s.openMoreMenu,
+    openLobbyChat: s.openLobbyChat,
+    lobbyChatUnread: s.lobbyChatUnread,
+  }));
   const t = useT();
   // Music now handled at MainApp level
 
@@ -105,9 +109,8 @@ export function RoomsPage() {
         style={{ background: 'radial-gradient(ellipse 90% 35% at 50% -5%, rgba(100,0,240,0.08) 0%, transparent 55%)' }}
       />
 
-      <LeaderboardModal open={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
-
       <MorePanel />
+      <LobbyChatPanel />
 
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-7">
 
@@ -147,11 +150,16 @@ export function RoomsPage() {
           <div className="flex items-center gap-2 flex-shrink-0">
             <LanguageSwitcher />
             <button
-              onClick={() => setShowLeaderboard(true)}
-              className="px-3 py-1.5 rounded-xl border border-white/[0.07] text-white/25 hover:text-white/55 hover:border-white/14 font-mono text-sm transition-all"
-              title={t.game.header.leaderboard}
+              onClick={openLobbyChat}
+              className="relative px-3 py-1.5 rounded-xl border border-white/[0.07] text-white/25 hover:text-white/55 hover:border-white/14 font-mono text-sm transition-all"
+              title="Lobby Chat"
             >
-              ◈
+              ⌥
+              {lobbyChatUnread > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] rounded-full bg-neon-cyan/70 text-[8px] font-mono flex items-center justify-center text-black font-bold px-0.5">
+                  {lobbyChatUnread > 9 ? '9+' : lobbyChatUnread}
+                </span>
+              )}
             </button>
           </div>
         </div>
