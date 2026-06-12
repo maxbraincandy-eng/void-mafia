@@ -411,6 +411,7 @@ export interface ClanPublic {
   losses: number;
   createdAt: number;
   memberCount: number;
+  imageUrl?: string;
 }
 
 export type ClanRole = 'owner' | 'admin' | 'moderator' | 'member';

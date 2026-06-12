@@ -4,6 +4,7 @@ import { generateId } from '../utils/helpers.js';
 export interface Clan {
   id: string; name: string; tag: string; ownerId: string;
   description: string; wins: number; losses: number; createdAt: number; memberCount: number;
+  imageUrl: string;
 }
 
 export type ClanRole = 'owner' | 'admin' | 'moderator' | 'member';
@@ -20,7 +21,17 @@ async function rowToClan(row: any): Promise<Clan> {
     ownerId: row.owner_id, description: row.description,
     wins: Number(row.wins), losses: Number(row.losses), createdAt: Number(row.created_at),
     memberCount: Number(mc?.c ?? 0),
+    imageUrl: row.image_url ?? '',
   };
+}
+
+export async function setClanImage(clanId: string, requesterId: string, imageData: string): Promise<void> {
+  const [row] = await sql`SELECT owner_id FROM clans WHERE id = ${clanId}` as any[];
+  if (!row) throw new Error('Clan not found.');
+  if (row.owner_id !== requesterId) throw new Error('Only the clan owner can change the clan image.');
+  if (!imageData.startsWith('data:image/')) throw new Error('Invalid image format.');
+  if (imageData.length > 270_000) throw new Error('Image too large. Max ~200KB.');
+  await sql`UPDATE clans SET image_url = ${imageData} WHERE id = ${clanId}`;
 }
 
 export async function createClan(ownerId: string, name: string, tag: string, description: string): Promise<Clan> {

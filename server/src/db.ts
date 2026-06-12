@@ -475,6 +475,8 @@ export async function initializeDatabase(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_player_gifts_sender ON player_gifts(sender_id, created_at)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_player_gifts_recipient ON player_gifts(recipient_id, created_at)`;
 
+  await sql`ALTER TABLE clans ADD COLUMN IF NOT EXISTS image_url TEXT NOT NULL DEFAULT ''`;
+
   // ── Clan Roles V2 (additive) ──────────────────────────────────────────
   await sql`ALTER TABLE clan_members ADD COLUMN IF NOT EXISTS role_assigned_at BIGINT`;
   await sql`ALTER TABLE clan_members ADD COLUMN IF NOT EXISTS role_assigned_by TEXT`;

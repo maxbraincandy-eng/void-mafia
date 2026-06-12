@@ -488,6 +488,7 @@ export interface ClanPublic {
     losses: number;
     createdAt: number;
     memberCount: number;
+    imageUrl: string;
 }
 export type ClanRole = 'owner' | 'admin' | 'moderator' | 'member';
 export interface ClanMember {
@@ -795,6 +796,10 @@ export interface ClientToServerEvents {
         clanId: string;
     }, cb: Cb<null>) => void;
     'clan:leave': (cb: Cb<null>) => void;
+    'clan:update_image': (data: {
+        clanId: string;
+        imageData: string;
+    }, cb: Cb<null>) => void;
     'clan:mine': (cb: Cb<ClanPublic | null>) => void;
     'chat:send': (data: {
         text: string;

@@ -603,6 +603,7 @@ export interface ClanPublic {
   losses: number;
   createdAt: number;
   memberCount: number;
+  imageUrl: string;
 }
 
 // ── Clan Member ───────────────────────────────────────────────────────
@@ -781,6 +782,7 @@ export interface ClientToServerEvents {
   'clan:create':        (data: { name: string; tag: string; description: string }, cb: Cb<ClanPublic>) => void;
   'clan:join':          (data: { clanId: string }, cb: Cb<null>) => void;
   'clan:leave':         (cb: Cb<null>) => void;
+  'clan:update_image':  (data: { clanId: string; imageData: string }, cb: Cb<null>) => void;
   'clan:mine':          (cb: Cb<ClanPublic | null>) => void;
   'chat:send':          (data: { text: string; channel: ChatChannel }, cb: Cb<null>) => void;
   'mod:kick_from_room': (data: { targetProfileId: string; roomId: string; reason: string }, cb: Cb<null>) => void;

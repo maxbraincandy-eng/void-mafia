@@ -8,6 +8,7 @@ export interface Clan {
     losses: number;
     createdAt: number;
     memberCount: number;
+    imageUrl: string;
 }
 export type ClanRole = 'owner' | 'admin' | 'moderator' | 'member';
 export interface ClanMember {
@@ -17,6 +18,7 @@ export interface ClanMember {
     role: ClanRole;
     joinedAt: number;
 }
+export declare function setClanImage(clanId: string, requesterId: string, imageData: string): Promise<void>;
 export declare function createClan(ownerId: string, name: string, tag: string, description: string): Promise<Clan>;
 export declare function getClan(id: string): Promise<Clan | null>;
 export declare function getClanByPlayer(playerId: string): Promise<Clan | null>;

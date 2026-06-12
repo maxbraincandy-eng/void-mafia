@@ -41,7 +41,8 @@ import {
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
 import { recordGame, getPlayerHistory, getPlayerRoleStats } from './services/gameHistoryService.js';
 import {
-  createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan,
+  createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers,
+  joinClan, leaveClan, setClanImage,
 } from './services/clanService.js';
 import {
   canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer,
@@ -2026,6 +2027,15 @@ export function attachSocketHandlers(io: AppServer): void {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('Not authenticated.');
         await leaveClan(profileId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('clan:update_image', async ({ clanId, imageData }: { clanId: string; imageData: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        await setClanImage(clanId, profileId, imageData);
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });
