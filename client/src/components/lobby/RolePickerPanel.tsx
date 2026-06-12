@@ -452,6 +452,86 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
         </div>
       </div>
 
+      {/* ── Tribunal Settings ─────────────────────────────────────────── */}
+      <div className="rounded-2xl border border-white/8 bg-void-50/60 p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h4 className="text-xs font-display font-bold text-white/50 uppercase tracking-widest">
+              ⚖️ Tribunal Settings
+            </h4>
+            <p className="text-[10px] font-mono text-white/30 mt-0.5">
+              ტრიბუნალის პარამეტრები
+            </p>
+          </div>
+        </div>
+
+        {/* Trial Defense toggle */}
+        <button
+          type="button"
+          onClick={() => {
+            setSaved(false);
+            setLocal(s => ({
+              ...s,
+              trialDefense: {
+                enabled: !(s.trialDefense?.enabled ?? false),
+                secondsPerCandidate: s.trialDefense?.secondsPerCandidate ?? 30,
+              },
+            }));
+          }}
+          disabled={isLoading}
+          className="w-full flex items-center gap-3 text-left"
+        >
+          <div className={clsx(
+            'w-9 h-5 rounded-full flex items-center transition-colors relative flex-shrink-0',
+            (local.trialDefense?.enabled) ? 'bg-neon-cyan/60' : 'bg-white/10',
+          )}>
+            <div className={clsx(
+              'absolute w-3.5 h-3.5 rounded-full bg-white transition-transform shadow-sm',
+              (local.trialDefense?.enabled) ? 'translate-x-4' : 'translate-x-1',
+            )} />
+          </div>
+          <div>
+            <span className="text-xs font-mono text-white/60">🛡 Enable Trial Defense Time</span>
+            <span className="block text-[10px] font-mono text-white/28 mt-0.5">
+              დაცვის დროის ჩართვა — each candidate speaks before voting
+            </span>
+          </div>
+        </button>
+
+        {/* Defense duration selector */}
+        {(local.trialDefense?.enabled) && (
+          <div>
+            <label className="text-[11px] font-mono text-white/40 block mb-1.5">
+              Defense Time per Candidate · დაცვის დრო
+            </label>
+            <div className="flex gap-2">
+              {[15, 30, 45, 60].map(secs => (
+                <button
+                  key={secs}
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => {
+                    setSaved(false);
+                    setLocal(s => ({
+                      ...s,
+                      trialDefense: { enabled: true, secondsPerCandidate: secs },
+                    }));
+                  }}
+                  className={clsx(
+                    'flex-1 py-1.5 rounded-lg text-[10px] font-mono border transition-all',
+                    (local.trialDefense?.secondsPerCandidate ?? 30) === secs
+                      ? 'border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan'
+                      : 'border-white/8 text-white/30 hover:text-white/60',
+                  )}
+                >
+                  {secs}s
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* ── Dynamic Events ────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-white/[0.12] p-4 space-y-3" style={{ background: 'rgba(10,5,32,0.8)' }}>
         <div className="flex items-center justify-between gap-3">

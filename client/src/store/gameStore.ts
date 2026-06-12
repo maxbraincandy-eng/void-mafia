@@ -69,8 +69,9 @@ interface GameStore {
   sendChat: (text: string, channel: ChatChannel) => Promise<void>;
   skipPhase: () => Promise<void>;
   speechPass: () => Promise<void>;
-  issueFoul: () => Promise<void>;
   daySkipVote: () => Promise<void>;
+  issueFoul: () => Promise<void>;
+  skipDefense: () => Promise<void>;
   restartGame: () => Promise<void>;
   dismissNightResult: () => void;
   dismissInvestigation: () => void;
@@ -509,12 +510,16 @@ export const useGameStore = create<GameStore>((set, get) => {
       await emit('game:speech_pass');
     }),
 
+    daySkipVote: withLoading(async () => {
+      await emit('game:day_skip_vote');
+    }),
+
     issueFoul: withLoading(async () => {
       await emit('game:foul');
     }),
 
-    daySkipVote: withLoading(async () => {
-      await emit('game:day_skip_vote');
+    skipDefense: withLoading(async () => {
+      await emit('game:skip-defense');
     }),
 
     restartGame: withLoading(async () => {

@@ -7,6 +7,7 @@ export type Phase =
   | 'morning'
   | 'day'
   | 'speech'
+  | 'trial_defense'
   | 'voting'
   | 'final_words'
   | 'game_over';
@@ -231,6 +232,7 @@ export interface GameSettings {
   password: string;
   startWithNight: boolean;
   rotatingSpeech: boolean;
+  trialDefense?: { enabled: boolean; secondsPerCandidate: number };
   dynamicEvents?: DynamicEventSettings;
   spectatorQueue?: SpectatorQueueSettings;
   roles: {
@@ -297,6 +299,7 @@ export interface RoomPublic {
   deathSpeakerId: string | null;
   finalWordsReason: string | null;
   activeFoul: { playerId: string; endsAt: number } | null;
+  trialDefenseState: { candidateIds: string[]; currentCandidateIdx: number } | null;
   clanId: string | null;
   clanRoom: boolean;
   activeEvent: ActiveEvent | null;

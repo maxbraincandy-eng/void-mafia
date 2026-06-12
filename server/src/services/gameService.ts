@@ -53,6 +53,8 @@ export function startGame(room: Room): void {
   room.mafiaChat = [];
   room.dousedPlayers = new Set();
   room.newlyConvertedCultists = [];
+  room.activeFoul = null;
+  room.trialDefenseState = null;
 }
 
 const MORNING_DURATION = 30;
@@ -124,6 +126,13 @@ export function setPhase(room: Room, phase: Phase): void {
       room.currentSpeakerIdx = 0;
       room.timer = room.settings.speechDuration;
       room.maxTimer = room.settings.speechDuration;
+      break;
+    }
+    case 'trial_defense': {
+      // Timer per candidate is set when trialDefenseState is initialized
+      const spc = room.settings.trialDefense?.secondsPerCandidate ?? 30;
+      room.timer = spc;
+      room.maxTimer = spc;
       break;
     }
     case 'voting': {
@@ -206,9 +215,11 @@ export function advancePhase(room: Room): Phase {
         setPhase(room, 'final_words');
         return 'final_words';
       }
-      // No kill — skip morning, increment day and go directly to day discussion
+      if (checkWin(room)) {
+        setPhase(room, 'game_over');
+        return 'game_over';
+      }
       room.day++;
-      console.log('[GameEngine] phase transition: night -> day (no kill, day now', room.day, ')');
       setPhase(room, 'day');
       return 'day';
     }
@@ -227,11 +238,47 @@ export function advancePhase(room: Room): Phase {
       }
       // All speakers done — go to tribunal if anyone was nominated, else skip to night
       if (room.nominations.size > 0) {
+        const candidates = [...new Set(room.nominations.values())].filter(id => {
+          const p = room.players.get(id);
+          return p?.isAlive && !p.isSpectator;
+        });
+        if (candidates.length > 0 && room.settings.trialDefense?.enabled) {
+          room.trialDefenseState = { candidateIds: candidates, currentCandidateIdx: 0 };
+          setPhase(room, 'trial_defense');
+          return 'trial_defense';
+        }
         setPhase(room, 'voting');
         return 'voting';
       }
       setPhase(room, 'night');
       return 'night';
+    }
+
+    case 'trial_defense': {
+      if (!room.trialDefenseState) {
+        setPhase(room, 'voting');
+        return 'voting';
+      }
+      const nextIdx = room.trialDefenseState.currentCandidateIdx + 1;
+      // Skip over dead/spectator candidates
+      const { candidateIds } = room.trialDefenseState;
+      let validIdx = nextIdx;
+      while (validIdx < candidateIds.length) {
+        const p = room.players.get(candidateIds[validIdx]!);
+        if (p?.isAlive && !p.isSpectator) break;
+        validIdx++;
+      }
+      if (validIdx < candidateIds.length) {
+        room.trialDefenseState.currentCandidateIdx = validIdx;
+        const spc = room.settings.trialDefense?.secondsPerCandidate ?? 30;
+        room.timer = spc;
+        room.maxTimer = spc;
+        return 'trial_defense';
+      }
+      // All candidates done — move to voting
+      room.trialDefenseState = null;
+      setPhase(room, 'voting');
+      return 'voting';
     }
 
     case 'voting': {
@@ -297,14 +344,11 @@ export function advancePhase(room: Room): Phase {
         return 'game_over';
       }
 
-      if (reason === 'night_kill') {
-        // Skip morning — increment day and start Day discussion immediately
+      if (reason === 'night_kill' || reason === 'foul_death') {
         room.day++;
-        console.log('[GameEngine] phase transition: final_words -> day (night kill resolved, day now', room.day, ')');
         setPhase(room, 'day');
         return 'day';
       }
-      console.log('[GameEngine] phase transition: final_words -> night (vote/foul elimination)');
       setPhase(room, 'night');
       return 'night';
     }

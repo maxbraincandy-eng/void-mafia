@@ -5,6 +5,7 @@ export type Phase =
   | 'morning'
   | 'day'
   | 'speech'
+  | 'trial_defense'
   | 'voting'
   | 'final_words'
   | 'game_over';
@@ -366,6 +367,7 @@ export interface GameSettings {
   password: string;
   startWithNight: boolean;
   rotatingSpeech: boolean;
+  trialDefense: { enabled: boolean; secondsPerCandidate: number };
   dynamicEvents: DynamicEventSettings;
   spectatorQueue: SpectatorQueueSettings;
   roles: {
@@ -425,8 +427,9 @@ export interface Room {
   tribunalCandidates: string[];
   deathSpeakerId: string | null;
   finalWordsReason: 'night_kill' | 'vote_elimination' | 'foul_death' | null;
-  activeFoul: { playerId: string; endsAt: number } | null;
   pendingWinner: Team | null;
+  activeFoul: { playerId: string; endsAt: number } | null;
+  trialDefenseState: { candidateIds: string[]; currentCandidateIdx: number } | null;
   speechStartSeat: number;
   clanId: string | null;
   clanRoom: boolean;
@@ -494,6 +497,7 @@ export interface RoomPublic {
   deathSpeakerId: string | null;
   finalWordsReason: string | null;
   activeFoul: { playerId: string; endsAt: number } | null;
+  trialDefenseState: { candidateIds: string[]; currentCandidateIdx: number } | null;
   clanId: string | null;
   clanRoom: boolean;
   activeEvent: ActiveEvent | null;
@@ -771,9 +775,10 @@ export interface ClientToServerEvents {
   'game:vote':          (data: { targetId: string | null }, cb: Cb<null>) => void;
   'game:skip':          (cb: Cb<null>) => void;
   'game:speech_pass':   (cb: Cb<null>) => void;
-  'game:foul':          (cb: Cb<null>) => void;
   'game:nominate':      (data: { nomineeId: string | null }, cb: Cb<null>) => void;
   'game:day_skip_vote': (cb: Cb<null>) => void;
+  'game:foul':          (cb: Cb<null>) => void;
+  'game:skip-defense':  (cb: Cb<null>) => void;
   'game:restart':       (cb: Cb<null>) => void;
   'game:set_will':      (data: { text: string }, cb: Cb<null>) => void;
   'game:pause':         (cb: Cb<{ isPaused: boolean }>) => void;

@@ -104,7 +104,16 @@ export function canTransmitVoice(room: Room, playerId: string, channel: VoiceCha
     }
     if (room.phase === 'speech') {
       const speakerId = room.speechOrder[room.currentSpeakerIdx] ?? null;
-      if (playerId !== speakerId) return 'Only the current speaker may transmit.';
+      const foulActive = room.activeFoul && Date.now() < room.activeFoul.endsAt;
+      if (playerId === speakerId) return null;
+      if (foulActive && room.activeFoul!.playerId === playerId) return null;
+      return 'Only the current speaker may transmit.';
+    }
+    if (room.phase === 'trial_defense') {
+      const tds = room.trialDefenseState;
+      const candidateId = tds ? tds.candidateIds[tds.currentCandidateIdx] : null;
+      if (playerId !== candidateId) return 'Only the defense candidate may speak.';
+      return null;
     }
     return null;
   }

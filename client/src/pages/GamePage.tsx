@@ -44,27 +44,29 @@ import { ModDashboardPage } from '@/pages/ModDashboardPage';
 type RightTab = 'events' | 'chat' | 'spectator';
 
 const PHASE_COLORS: Record<Phase, string> = {
-  lobby:        'text-white',
-  role_reveal:  'text-neon-purple',
-  night:        'text-neon-cyan',
-  morning:      'text-neon-cyan',
-  day:          'text-neon-cyan',
-  speech:       'text-neon-cyan',
-  voting:       'text-neon-red',
-  final_words:  'text-neon-red',
-  game_over:    'text-white',
+  lobby:         'text-white',
+  role_reveal:   'text-neon-purple',
+  night:         'text-neon-cyan',
+  morning:       'text-neon-cyan',
+  day:           'text-neon-cyan',
+  speech:        'text-neon-cyan',
+  trial_defense: 'text-neon-red',
+  voting:        'text-neon-red',
+  final_words:   'text-neon-red',
+  game_over:     'text-white',
 };
 
 const PHASE_STRIP: Record<Phase, string> = {
-  lobby:        'rgba(255,255,255,0.05)',
-  role_reveal:  '#9b00ff',
-  night:        '#3b00cc',
-  morning:      '#00c4cc',
-  day:          '#00c4cc',
-  speech:       '#00e5ff',
-  voting:       '#ff2d55',
-  final_words:  '#cc1133',
-  game_over:    'rgba(255,255,255,0.1)',
+  lobby:         'rgba(255,255,255,0.05)',
+  role_reveal:   '#9b00ff',
+  night:         '#3b00cc',
+  morning:       '#00c4cc',
+  day:           '#00c4cc',
+  speech:        '#00e5ff',
+  trial_defense: '#cc2244',
+  voting:        '#ff2d55',
+  final_words:   '#cc1133',
+  game_over:     'rgba(255,255,255,0.1)',
 };
 
 const PHASE_GLOW: Partial<Record<Phase, string>> = {
@@ -95,9 +97,9 @@ export function GamePage() {
   const [showPlayersPanel, setShowPlayersPanel] = useState(false);
   const [showModPanel, setShowModPanel] = useState(false);
   const isMod = useAuthStore(s => s.profile?.isModerator ?? false);
+  const myRoleSkin = useAuthStore(s => s.profile?.cosmetics?.equippedRoleSkin ?? null);
   const myClanId = useAuthStore(s => s.myClanId);
   const myClanRole = useAuthStore(s => s.myClanRole);
-  const myRoleSkin = useAuthStore(s => s.profile?.cosmetics?.equippedRoleSkin ?? null);
   const { openProfile } = useSocialStore();
   const [rightTab, setRightTab] = useState<RightTab>('events');
   const [unreadChat, setUnreadChat] = useState(0);
@@ -123,7 +125,7 @@ export function GamePage() {
     nightResult, investigationResult, spyReport, gameOverResult,
     voteEliminationResult, cultConversionNotice, nightSummary, newAchievements,
     voteBreakdown,
-    skipPhase, speechPass, issueFoul, daySkipVote, leaveRoom, terminateGame,
+    skipPhase, speechPass, daySkipVote, issueFoul, skipDefense, leaveRoom, terminateGame,
     dismissNightResult, dismissInvestigation, dismissSpyReport, dismissGameOver,
     dismissVoteElimination, dismissCultConversion, dismissNightSummary, dismissNewAchievements,
     dismissVoteBreakdown,
@@ -147,8 +149,9 @@ export function GamePage() {
     voteBreakdown: s.voteBreakdown,
     skipPhase: s.skipPhase,
     speechPass: s.speechPass,
-    issueFoul: s.issueFoul,
     daySkipVote: s.daySkipVote,
+    issueFoul: s.issueFoul,
+    skipDefense: s.skipDefense,
     leaveRoom: s.leaveRoom,
     terminateGame: s.terminateGame,
     dismissNightResult: s.dismissNightResult,
@@ -402,17 +405,6 @@ export function GamePage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.currentSpeakerId]);
-
-  // During speech phase mute all remote audio except the active speaker
-  useEffect(() => {
-    if (phase === 'speech' && room?.currentSpeakerId) {
-      const speaker = room.players.find(p => p.id === room.currentSpeakerId);
-      voice.setSpeakerOnly(speaker?.socketId ?? null);
-    } else {
-      voice.setSpeakerOnly(null);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, room?.currentSpeakerId]);
 
   // Nomination notification
   const prevNominationsRef = useRef<Record<string, string>>({});
@@ -718,6 +710,8 @@ export function GamePage() {
           const isMyTurn = room.currentSpeakerId === myPlayer?.id && myPlayer?.isAlive && !amSpectator;
           const myNomination = isMyTurn ? room.nominations?.[myPlayer.id] : null;
           const nominatedPlayer = myNomination ? room.players.find(p => p.id === myNomination) : null;
+          const myFoulCount = myPlayer?.foulCount ?? 0;
+          const foulActive = room.activeFoul !== null && Date.now() < (room.activeFoul?.endsAt ?? 0);
           return (
             <div className="space-y-4">
               <div className="py-4">
@@ -745,8 +739,8 @@ export function GamePage() {
                 )}
               </div>
 
-              {/* Nomination panel — only for current speaker on Day 2+ */}
-              {isMyTurn && room.day >= 2 && (
+              {/* Nomination panel — only for current speaker */}
+              {isMyTurn && (
                 <div className="p-3 rounded-xl border border-neon-red/20 bg-neon-red/5 space-y-2">
                   <p className="text-[10px] font-mono text-neon-red/50 uppercase tracking-widest">
                     ⚖️ {t.game.speech.nominateLabel}
@@ -804,26 +798,100 @@ export function GamePage() {
                 </div>
               )}
 
-              {/* Foul button — sidebar, alive non-speakers */}
-              {!amSpectator && amAlive && room.currentSpeakerId !== myPlayer?.id && (() => {
-                const speaker = room.players.find(p => p.id === room.currentSpeakerId);
-                const foulCount = speaker?.foulCount ?? 0;
-                const foulActive = room.activeFoul?.playerId === speaker?.id && Date.now() < (room.activeFoul?.endsAt ?? 0);
-                return (
+              {/* Speech actions: foul (non-speakers) + skip my time (speaker) */}
+              {!amSpectator && amAlive && (
+                <div className="flex gap-2 flex-wrap">
+                  {isMyTurn && (
+                    <button
+                      onClick={() => speechPass()}
+                      disabled={isLoading}
+                      className="flex-1 px-4 py-2 border border-white/15 text-white/40 text-xs font-mono rounded-xl hover:border-neon-cyan/40 hover:text-neon-cyan transition-all disabled:opacity-40"
+                    >
+                      ⏭ {t.game.speech.skipMyTime}
+                    </button>
+                  )}
+                  {!isMyTurn && (
+                    <button
+                      onClick={() => issueFoul()}
+                      disabled={isLoading || foulActive}
+                      className="flex-1 px-4 py-2 rounded-xl text-xs font-mono font-semibold transition-all disabled:opacity-40"
+                      style={{
+                        background: myFoulCount >= 3 ? 'rgba(255,45,85,0.12)' : 'rgba(255,165,0,0.07)',
+                        border: `1px solid ${myFoulCount >= 3 ? 'rgba(255,45,85,0.4)' : 'rgba(255,165,0,0.25)'}`,
+                        color: myFoulCount >= 3 ? 'rgba(255,45,85,0.85)' : 'rgba(255,165,0,0.75)',
+                      }}
+                    >
+                      ⚠️ {t.game.speech.foul} · {myFoulCount}/3
+                      {myFoulCount >= 3 && <span className="block text-[9px] opacity-70">{t.game.speech.nextFoulEliminate}</span>}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {phase === 'trial_defense' && (() => {
+          const tds = room.trialDefenseState;
+          const currentCandidateId = tds ? tds.candidateIds[tds.currentCandidateIdx] : null;
+          const candidate = room.players.find(p => p.id === currentCandidateId);
+          const isMyDefense = currentCandidateId === myPlayer?.id && amAlive && !amSpectator;
+          const candidateNum = tds ? tds.currentCandidateIdx + 1 : 1;
+          const totalCandidates = tds ? tds.candidateIds.length : 1;
+          const spc = room.settings.trialDefense?.secondsPerCandidate ?? 30;
+          return (
+            <div className="space-y-4">
+              <div className="py-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-1.5 h-1.5 rounded-full bg-neon-red/70" style={{ boxShadow: '0 0 6px rgba(255,45,85,0.8)' }} />
+                  <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-neon-red/70">
+                    {t.game.trialDefense.phaseLabel}
+                  </span>
+                  <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(255,45,85,0.25), transparent)' }} />
+                  <span className="text-[9px] font-mono text-white/25">{candidateNum}/{totalCandidates}</span>
+                </div>
+                {candidate ? (
+                  <div className="pl-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <p className="text-white font-semibold text-base">{candidate.name}</p>
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-mono uppercase tracking-widest bg-neon-red/15 border border-neon-red/30 text-neon-red/80">
+                        {t.game.trialDefense.onTrial}
+                      </span>
+                    </div>
+                    <p className="text-white/35 text-xs font-mono">
+                      {isMyDefense
+                        ? t.game.trialDefense.youHaveSeconds.replace('{seconds}', String(spc))
+                        : t.game.trialDefense.onlyCandidate}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-white/40 text-sm font-mono pl-4">{t.game.speech.loading}</p>
+                )}
+              </div>
+
+              <p className="text-white/25 text-xs font-mono">{t.game.trialDefense.votingAfter}</p>
+
+              {/* Action buttons */}
+              <div className="flex gap-2">
+                {isMyDefense && (
                   <button
-                    onClick={() => issueFoul()}
-                    disabled={isLoading || foulActive}
-                    className="w-full py-2 rounded-xl text-xs font-mono font-semibold transition-all active:scale-95 disabled:opacity-40"
-                    style={{
-                      background: foulCount >= 3 ? 'rgba(255,45,85,0.12)' : 'rgba(255,165,0,0.07)',
-                      border: `1px solid ${foulCount >= 3 ? 'rgba(255,45,85,0.4)' : 'rgba(255,165,0,0.25)'}`,
-                      color: foulCount >= 3 ? 'rgba(255,45,85,0.85)' : 'rgba(255,165,0,0.75)',
-                    }}
+                    onClick={() => skipDefense()}
+                    disabled={isLoading}
+                    className="flex-1 px-4 py-2 border border-white/15 text-white/40 text-xs font-mono rounded-xl hover:border-neon-red/40 hover:text-neon-red/70 transition-all disabled:opacity-40"
                   >
-                    ⚠️ ფოლი · {foulCount}/3
+                    ⏭ {t.game.trialDefense.skipDefense}
                   </button>
-                );
-              })()}
+                )}
+                {amHost && (
+                  <button
+                    onClick={() => skipPhase()}
+                    disabled={isLoading}
+                    className="px-4 py-2 border border-neon-red/20 text-neon-red/50 text-xs font-mono rounded-xl hover:border-neon-red/50 hover:text-neon-red/80 transition-all disabled:opacity-40"
+                  >
+                    {t.game.trialDefense.startVoting}
+                  </button>
+                )}
+              </div>
             </div>
           );
         })()}
@@ -874,7 +942,7 @@ export function GamePage() {
         {(phase === 'day' || phase === 'speech') && (
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[180px] rounded-full blur-[90px]" style={{ background: 'rgba(0,180,200,0.06)' }} />
         )}
-        {phase === 'voting' && (
+        {(phase === 'voting' || phase === 'trial_defense') && (
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[180px] rounded-full blur-[90px]" style={{ background: 'rgba(220,0,50,0.06)' }} />
         )}
       </div>
@@ -1480,6 +1548,56 @@ export function GamePage() {
                 )}
                 {phase === 'night' && isMafiaPlayer && VoicePanel}
               </div>
+            ) : (phase === 'trial_defense') ? (
+              /* Trial Defense: candidate speaks before voting */
+              <div className="flex-1 flex flex-col items-center justify-center p-4 gap-5 pb-20">
+                {(() => {
+                  const tds = room.trialDefenseState;
+                  const currentCandidateId = tds ? tds.candidateIds[tds.currentCandidateIdx] : null;
+                  const candidate = room.players.find(p => p.id === currentCandidateId);
+                  const isMyDefense = currentCandidateId === myPlayer?.id && amAlive && !amSpectator;
+                  const candidateNum = tds ? tds.currentCandidateIdx + 1 : 1;
+                  const totalCandidates = tds ? tds.candidateIds.length : 1;
+                  const spc = room.settings.trialDefense?.secondsPerCandidate ?? 30;
+                  return (
+                    <>
+                      <div className="text-center space-y-2">
+                        <p className="text-[10px] font-mono tracking-[0.3em] uppercase text-neon-red/60">
+                          {t.game.trialDefense.phaseLabel} · {candidateNum}/{totalCandidates}
+                        </p>
+                        <h2 className="text-2xl font-display font-bold text-white">
+                          {candidate?.name ?? '—'}
+                        </h2>
+                        <span className="inline-block px-3 py-0.5 rounded-full border border-neon-red/50 bg-neon-red/10 text-neon-red text-[11px] font-mono tracking-widest uppercase">
+                          {t.game.trialDefense.onTrial}
+                        </span>
+                        <p className="text-sm font-mono text-white/40">
+                          {isMyDefense
+                            ? t.game.trialDefense.youHaveSeconds.replace('{seconds}', String(spc))
+                            : t.game.trialDefense.listenMsg}
+                        </p>
+                      </div>
+                      <div
+                        className="w-24 h-24 rounded-full border-2 border-neon-red/40 flex items-center justify-center"
+                        style={{ boxShadow: '0 0 30px rgba(255,45,85,0.2)' }}
+                      >
+                        <span className="text-3xl font-mono font-bold text-neon-red">{room.timer}</span>
+                      </div>
+                      <p className="text-[10px] font-mono text-white/25 text-center">{t.game.trialDefense.votingAfter}</p>
+                      {isMyDefense && (
+                        <Button size="sm" variant="ghost" loading={isLoading} onClick={() => { skipDefense(); navigator.vibrate?.(50); }}>
+                          ⏭ {t.game.trialDefense.skipDefense}
+                        </Button>
+                      )}
+                      {amHost && (
+                        <Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>
+                          {t.game.trialDefense.startVoting}
+                        </Button>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
             ) : (phase === 'voting') ? (
               /* Voting: full-screen vote panel — prominent like night phase */
               <div className="flex-1 overflow-y-auto p-3 pb-20">
@@ -1562,7 +1680,6 @@ export function GamePage() {
                     const myNom = isMyTurn ? room.nominations?.[myPlayer!.id] : undefined;
                     const nominatedPlayer = myNom ? room.players.find(p => p.id === myNom) : null;
                     if (!isMyTurn) return null;
-                    if (room.day < 2) return null;
                     return (
                       <div className="rounded-2xl border border-neon-red/30 bg-neon-red/8 p-4 space-y-3">
                         <p className="text-[11px] font-mono text-neon-red/70 uppercase tracking-widest text-center">
@@ -1603,7 +1720,7 @@ export function GamePage() {
                 {/* Day skip vote — glass style */}
                 {phase === 'day' && !amSpectator && amAlive && (() => {
                   const alreadyVoted = room.daySkipVoteCount ?? 0;
-                  const skipNeeded = 3;
+                  const skipNeeded = Math.min(3, room.players.filter(p => p.isAlive && !p.isSpectator).length);
                   return (
                     <div className="flex-shrink-0 flex justify-center px-4 pb-4" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem))' }}>
                       <button
@@ -1618,7 +1735,9 @@ export function GamePage() {
                           boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
                         }}
                       >
-                        ⏭ Skip  ·  {alreadyVoted} / {skipNeeded}
+                        {t.game.day.skipDiscussion
+                          .replace('{voted}', String(alreadyVoted))
+                          .replace('{needed}', String(skipNeeded))}
                       </button>
                     </div>
                   );
@@ -1642,31 +1761,31 @@ export function GamePage() {
                         boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
                       }}
                     >
-                      ⏭ Skip
+                      ⏭ {t.game.speech.skipMyTime}
                     </button>
                   </div>
                 )}
 
-                {/* Foul button — alive non-speakers during speech */}
+                {/* Foul button — alive non-speaker players during speech */}
                 {phase === 'speech' && !amSpectator && amAlive && room.currentSpeakerId !== myPlayer?.id && (() => {
-                  const speaker = room.players.find(p => p.id === room.currentSpeakerId);
-                  const foulCount = speaker?.foulCount ?? 0;
-                  const foulActive = room.activeFoul?.playerId === speaker?.id && Date.now() < (room.activeFoul?.endsAt ?? 0);
+                  const myFoulCountMobile = myPlayer?.foulCount ?? 0;
+                  const foulActiveMobile = room.activeFoul !== null && Date.now() < (room.activeFoul?.endsAt ?? 0);
                   return (
                     <div className="flex-shrink-0 flex justify-center px-4 pb-4" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem))' }}>
                       <button
                         onClick={() => { issueFoul(); navigator.vibrate?.(80); }}
-                        disabled={isLoading || foulActive}
+                        disabled={isLoading || foulActiveMobile}
                         className="px-6 py-3 rounded-2xl text-sm font-mono font-semibold transition-all active:scale-95 disabled:opacity-40"
                         style={{
-                          background: foulCount >= 3 ? 'rgba(255,45,85,0.15)' : 'rgba(255,165,0,0.08)',
-                          border: `1px solid ${foulCount >= 3 ? 'rgba(255,45,85,0.5)' : 'rgba(255,165,0,0.3)'}`,
+                          background: myFoulCountMobile >= 3 ? 'rgba(255,45,85,0.15)' : 'rgba(255,165,0,0.08)',
+                          border: `1px solid ${myFoulCountMobile >= 3 ? 'rgba(255,45,85,0.5)' : 'rgba(255,165,0,0.3)'}`,
                           backdropFilter: 'blur(12px)',
-                          color: foulCount >= 3 ? 'rgba(255,45,85,0.9)' : 'rgba(255,165,0,0.8)',
+                          color: myFoulCountMobile >= 3 ? 'rgba(255,45,85,0.9)' : 'rgba(255,165,0,0.8)',
                           boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
                         }}
                       >
-                        ⚠️ ფოლი · {foulCount}/3
+                        ⚠️ {t.game.speech.foul} · {myFoulCountMobile}/3
+                        {myFoulCountMobile >= 3 && <span className="block text-[10px] opacity-70 mt-0.5">{t.game.speech.nextFoulEliminate}</span>}
                       </button>
                     </div>
                   );
