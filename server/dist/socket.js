@@ -169,24 +169,34 @@ function startPhaseTimer(io, room) {
         io.to(room.id).emit('room:timer', remaining);
     }, async () => {
         room.timer = 0;
+        const prevPhase = room.phase;
         const wasNight = room.phase === 'night';
         const wasSpeech = room.phase === 'speech';
+        const wasFinalWords = room.phase === 'final_words';
+        console.log('[GameEngine] timer expired, prev phase:', prevPhase, 'room day:', room.day);
         if (room.phase === 'voting')
             announceVoteResult(io, room);
         advancePhase(room);
         const nextPhase = room.phase;
+        console.log('[GameEngine] phase transition (timer):', prevPhase, '->', nextPhase);
         if (wasNight) {
+            console.log('[GameEngine] night resolved, announcing night result');
             announceNightResult(io, room);
             notifySpies(io, room);
             notifyTrackers(io, room);
             notifyCultConversions(io, room);
             notifyRoleblocked(io, room);
         }
+        if (wasFinalWords)
+            console.log('[GameEngine] final words finished, death finalized, next phase:', nextPhase);
         if (wasSpeech && nextPhase !== 'speech')
             announceSpeechEnd(io, room, nextPhase);
         if (nextPhase === 'night') {
+            console.log('[GameEngine] night started');
             io.to(room.id).emit('game:notification', { title: 'Night Falls', body: 'Perform your night action.' });
         }
+        if (nextPhase === 'day')
+            console.log('[GameEngine] day discussion started, day:', room.day);
         if (nextPhase === 'game_over')
             await emitGameOver(io, room);
         broadcastRoom(io, room);
@@ -1080,12 +1090,14 @@ export function attachSocketHandlers(io) {
                     throw new Error('Cannot skip this phase.');
                 timerService.stop(room.id);
                 room.timer = 0;
+                const prevPhaseSkip = room.phase;
                 const wasNightSkip = room.phase === 'night';
                 const wasSpeechSkip = room.phase === 'speech';
                 if (room.phase === 'voting')
                     announceVoteResult(io, room);
                 advancePhase(room);
                 const nextPhase = room.phase;
+                console.log('[GameEngine] phase transition (host skip):', prevPhaseSkip, '->', nextPhase);
                 if (wasNightSkip) {
                     announceNightResult(io, room);
                     notifySpies(io, room);

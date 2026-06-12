@@ -176,14 +176,18 @@ export function advancePhase(room: Room): Phase {
       return 'night';
 
     case 'morning':
+      // morning phase is no longer entered by the engine; this branch is a safety fallback only
+      console.warn('[GameEngine] WARNING: morning phase was triggered (should not happen after engine fix)');
       room.day++;
       setPhase(room, 'day');
       return 'day';
 
     case 'night': {
+      console.log('[GameEngine] phase transition: night -> resolving night actions');
       resolveNight(room);
       // Check win immediately (before final_words) — if kills end the game, go straight to game_over.
       if (checkWin(room)) {
+        console.log('[GameEngine] phase transition: night -> game_over (win condition met)');
         setPhase(room, 'game_over');
         return 'game_over';
       }
@@ -198,11 +202,15 @@ export function advancePhase(room: Room): Phase {
         }
         room.deathSpeakerId = primary.id;
         room.finalWordsReason = 'night_kill';
+        console.log('[GameEngine] phase transition: night -> final_words (night kill, speaker:', primary.id, ')');
         setPhase(room, 'final_words');
         return 'final_words';
       }
-      setPhase(room, 'morning');
-      return 'morning';
+      // No kill — skip morning, increment day and go directly to day discussion
+      room.day++;
+      console.log('[GameEngine] phase transition: night -> day (no kill, day now', room.day, ')');
+      setPhase(room, 'day');
+      return 'day';
     }
 
     case 'day':
@@ -267,6 +275,8 @@ export function advancePhase(room: Room): Phase {
       room.deathSpeakerId  = null;
       room.finalWordsReason = null;
 
+      console.log('[GameEngine] phase transition: final_words finished, reason:', reason, 'player:', dyingId);
+
       if (dyingId) {
         const dying = room.players.get(dyingId);
         if (dying) {
@@ -282,14 +292,19 @@ export function advancePhase(room: Room): Phase {
       }
 
       if (checkWin(room)) {
+        console.log('[GameEngine] phase transition: final_words -> game_over (win condition met)');
         setPhase(room, 'game_over');
         return 'game_over';
       }
 
       if (reason === 'night_kill') {
-        setPhase(room, 'morning');
-        return 'morning';
+        // Skip morning — increment day and start Day discussion immediately
+        room.day++;
+        console.log('[GameEngine] phase transition: final_words -> day (night kill resolved, day now', room.day, ')');
+        setPhase(room, 'day');
+        return 'day';
       }
+      console.log('[GameEngine] phase transition: final_words -> night (vote/foul elimination)');
       setPhase(room, 'night');
       return 'night';
     }
