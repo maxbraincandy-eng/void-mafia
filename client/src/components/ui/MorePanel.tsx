@@ -222,7 +222,7 @@ export function MorePanel({ isOwner = false, onEconomyClick, onShopClick }: More
               style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
             >
               <p className="font-mono text-[9px] text-white/15 text-center tracking-widest uppercase">
-                v0.1 · Void Mafia
+                v0.2 · Void Mafia
               </p>
             </div>
           </motion.div>
