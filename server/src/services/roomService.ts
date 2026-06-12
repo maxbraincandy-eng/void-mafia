@@ -86,6 +86,7 @@ export function createRoom(
     isModerator: false,
     moderatorLevel: null,
     deathType: null,
+    foulCount: 0,
   };
 
   const mergedSettings: GameSettings = {
@@ -139,6 +140,7 @@ export function createRoom(
     tribunalCandidates: [],
     deathSpeakerId: null,
     finalWordsReason: null,
+    activeFoul: null,
     pendingWinner: null,
     speechStartSeat: 0,
     clanId: clanId ?? null,
@@ -225,6 +227,7 @@ export function addPlayer(room: Room, socketId: string, name: string, profileId:
     isModerator: false,
     moderatorLevel: null,
     deathType: null,
+    foulCount: 0,
   };
 
   room.players.set(player.id, player);
@@ -284,6 +287,7 @@ export function addSpectatorPlayer(room: Room, socketId: string, name: string, p
     isModerator: false,
     moderatorLevel: null,
     deathType: null,
+    foulCount: 0,
   };
 
   room.players.set(player.id, player);
@@ -454,6 +458,7 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     isQueuedNextRound: p.isQueuedNextRound,
     queuePosition: p.queuePosition,
     deathType: p.deathType,
+    foulCount: p.foulCount ?? 0,
   });
 
   const players: PlayerPublic[] = [...room.players.values()]
@@ -491,6 +496,7 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     tribunalCandidates: room.tribunalCandidates,
     deathSpeakerId: room.deathSpeakerId ?? null,
     finalWordsReason: room.finalWordsReason ?? null,
+    activeFoul: room.activeFoul ?? null,
     clanId: room.clanId,
     clanRoom: room.clanRoom,
     activeEvent: room.activeEvent,
@@ -591,6 +597,7 @@ export function rematchRoom(room: Room): void {
   room.tribunalCandidates = [];
   room.deathSpeakerId   = null;
   room.finalWordsReason = null;
+  room.activeFoul       = null;
   room.pendingWinner    = null;
   room.activeEvent      = null;
   room.eventsLog        = [];
@@ -612,5 +619,6 @@ export function rematchRoom(room: Room): void {
     p.isReady = false;
     p.lastWill = null;
     p.deathType = null;
+    p.foulCount = 0;
   }
 }

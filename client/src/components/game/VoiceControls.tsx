@@ -25,6 +25,7 @@ interface VoiceControlsProps {
   onToggleMute: () => void;
   onToggleCamera: () => void;
   onReset?: () => void;
+  hideCamera?: boolean;
 
   defaultChannel?: VoiceChannel;
   channelLabel?: string;
@@ -47,6 +48,7 @@ export function VoiceControls({
   onReset,
   defaultChannel = 'room',
   channelLabel,
+  hideCamera = false,
 }: VoiceControlsProps) {
   const t = useT();
   const v = t.game.voice;
@@ -270,6 +272,7 @@ export function VoiceControls({
             </button>
 
             {/* Camera toggle */}
+            {!hideCamera && (
             <button
               onClick={onToggleCamera}
               className={clsx(
@@ -282,6 +285,7 @@ export function VoiceControls({
             >
               {cameraOn ? v.camOn : v.camOff}
             </button>
+            )}
 
             {/* Leave */}
             <button

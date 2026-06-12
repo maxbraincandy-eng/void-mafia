@@ -169,7 +169,8 @@ export interface PlayerPublic {
   profileId: string | null;
   isModerator: boolean;
   moderatorLevel: ModeratorLevel | null;
-  deathType: 'night' | 'vote' | null;
+  deathType: 'night' | 'vote' | 'foul' | null;
+  foulCount: number;
 }
 
 export interface DynamicEventAllowed {
@@ -295,6 +296,7 @@ export interface RoomPublic {
   tribunalCandidates: string[];
   deathSpeakerId: string | null;
   finalWordsReason: string | null;
+  activeFoul: { playerId: string; endsAt: number } | null;
   clanId: string | null;
   clanRoom: boolean;
   activeEvent: ActiveEvent | null;

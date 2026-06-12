@@ -123,7 +123,7 @@ export function GamePage() {
     nightResult, investigationResult, spyReport, gameOverResult,
     voteEliminationResult, cultConversionNotice, nightSummary, newAchievements,
     voteBreakdown,
-    skipPhase, speechPass, daySkipVote, leaveRoom, terminateGame,
+    skipPhase, speechPass, issueFoul, daySkipVote, leaveRoom, terminateGame,
     dismissNightResult, dismissInvestigation, dismissSpyReport, dismissGameOver,
     dismissVoteElimination, dismissCultConversion, dismissNightSummary, dismissNewAchievements,
     dismissVoteBreakdown,
@@ -147,6 +147,7 @@ export function GamePage() {
     voteBreakdown: s.voteBreakdown,
     skipPhase: s.skipPhase,
     speechPass: s.speechPass,
+    issueFoul: s.issueFoul,
     daySkipVote: s.daySkipVote,
     leaveRoom: s.leaveRoom,
     terminateGame: s.terminateGame,
@@ -744,8 +745,8 @@ export function GamePage() {
                 )}
               </div>
 
-              {/* Nomination panel — only for current speaker */}
-              {isMyTurn && (
+              {/* Nomination panel — only for current speaker on Day 2+ */}
+              {isMyTurn && room.day >= 2 && (
                 <div className="p-3 rounded-xl border border-neon-red/20 bg-neon-red/5 space-y-2">
                   <p className="text-[10px] font-mono text-neon-red/50 uppercase tracking-widest">
                     ⚖️ {t.game.speech.nominateLabel}
@@ -802,6 +803,27 @@ export function GamePage() {
                   })}
                 </div>
               )}
+
+              {/* Foul button — sidebar, alive non-speakers */}
+              {!amSpectator && amAlive && room.currentSpeakerId !== myPlayer?.id && (() => {
+                const speaker = room.players.find(p => p.id === room.currentSpeakerId);
+                const foulCount = speaker?.foulCount ?? 0;
+                const foulActive = room.activeFoul?.playerId === speaker?.id && Date.now() < (room.activeFoul?.endsAt ?? 0);
+                return (
+                  <button
+                    onClick={() => issueFoul()}
+                    disabled={isLoading || foulActive}
+                    className="w-full py-2 rounded-xl text-xs font-mono font-semibold transition-all active:scale-95 disabled:opacity-40"
+                    style={{
+                      background: foulCount >= 3 ? 'rgba(255,45,85,0.12)' : 'rgba(255,165,0,0.07)',
+                      border: `1px solid ${foulCount >= 3 ? 'rgba(255,45,85,0.4)' : 'rgba(255,165,0,0.25)'}`,
+                      color: foulCount >= 3 ? 'rgba(255,45,85,0.85)' : 'rgba(255,165,0,0.75)',
+                    }}
+                  >
+                    ⚠️ ფოლი · {foulCount}/3
+                  </button>
+                );
+              })()}
             </div>
           );
         })()}
@@ -1540,6 +1562,7 @@ export function GamePage() {
                     const myNom = isMyTurn ? room.nominations?.[myPlayer!.id] : undefined;
                     const nominatedPlayer = myNom ? room.players.find(p => p.id === myNom) : null;
                     if (!isMyTurn) return null;
+                    if (room.day < 2) return null;
                     return (
                       <div className="rounded-2xl border border-neon-red/30 bg-neon-red/8 p-4 space-y-3">
                         <p className="text-[11px] font-mono text-neon-red/70 uppercase tracking-widest text-center">
@@ -1623,6 +1646,31 @@ export function GamePage() {
                     </button>
                   </div>
                 )}
+
+                {/* Foul button — alive non-speakers during speech */}
+                {phase === 'speech' && !amSpectator && amAlive && room.currentSpeakerId !== myPlayer?.id && (() => {
+                  const speaker = room.players.find(p => p.id === room.currentSpeakerId);
+                  const foulCount = speaker?.foulCount ?? 0;
+                  const foulActive = room.activeFoul?.playerId === speaker?.id && Date.now() < (room.activeFoul?.endsAt ?? 0);
+                  return (
+                    <div className="flex-shrink-0 flex justify-center px-4 pb-4" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem))' }}>
+                      <button
+                        onClick={() => { issueFoul(); navigator.vibrate?.(80); }}
+                        disabled={isLoading || foulActive}
+                        className="px-6 py-3 rounded-2xl text-sm font-mono font-semibold transition-all active:scale-95 disabled:opacity-40"
+                        style={{
+                          background: foulCount >= 3 ? 'rgba(255,45,85,0.15)' : 'rgba(255,165,0,0.08)',
+                          border: `1px solid ${foulCount >= 3 ? 'rgba(255,45,85,0.5)' : 'rgba(255,165,0,0.3)'}`,
+                          backdropFilter: 'blur(12px)',
+                          color: foulCount >= 3 ? 'rgba(255,45,85,0.9)' : 'rgba(255,165,0,0.8)',
+                          boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
+                        }}
+                      >
+                        ⚠️ ფოლი · {foulCount}/3
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>

@@ -83,6 +83,15 @@ export function canTransmitVoice(room, playerId, channel) {
     if (channel === 'room') {
         if (room.phase === 'night')
             return 'Public voice is disabled during night.';
+        if (room.phase === 'role_reveal')
+            return 'Voice is disabled during role reveal.';
+        if (room.phase === 'voting')
+            return 'Voice is disabled during voting.';
+        if (room.phase === 'final_words') {
+            if (playerId !== room.deathSpeakerId)
+                return 'Only the eliminated player may speak during final words.';
+            return null;
+        }
         if (room.phase === 'speech') {
             const speakerId = room.speechOrder[room.currentSpeakerIdx] ?? null;
             if (playerId !== speakerId)

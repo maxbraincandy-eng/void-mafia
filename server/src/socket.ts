@@ -1162,7 +1162,7 @@ export function attachSocketHandlers(io: AppServer): void {
 
         room.daySkipVotes.push(player.id);
         const alivePlayers = [...room.players.values()].filter(p => p.isAlive && !p.isSpectator);
-        const skipNeeded = Math.min(3, Math.floor(alivePlayers.length / 2) + 1);
+        const skipNeeded = Math.min(3, alivePlayers.length);
 
         if (room.daySkipVotes.length >= skipNeeded) {
           timerService.stop(room.id);
@@ -1174,6 +1174,92 @@ export function attachSocketHandlers(io: AppServer): void {
         } else {
           broadcastRoom(io, room);
         }
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Speech Pass (current speaker skips own time) ────────────────────
+    socket.on('game:speech_pass', async (cb) => {
+      try {
+        const room = getRoomFromSocket(socket);
+        const player = getPlayerOrError(socket, room);
+        if (room.phase !== 'speech') throw new Error('Not in speech phase.');
+        const currentSpeakerId = room.speechOrder[room.currentSpeakerIdx];
+        if (player.id !== currentSpeakerId) throw new Error('Only the current speaker can skip their own turn.');
+
+        timerService.stop(room.id);
+        room.timer = 0;
+        const nextPhase = advancePhase(room) as Phase;
+        if (nextPhase !== 'speech') announceSpeechEnd(io, room, nextPhase);
+        if (nextPhase === 'game_over') await emitGameOver(io, room);
+        broadcastRoom(io, room);
+        enforceVoicePhaseRules(io, room);
+        if (nextPhase !== 'game_over') startPhaseTimer(io, room);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Foul (alive non-speaker presses foul during speech) ─────────────
+    socket.on('game:foul', async (cb) => {
+      try {
+        const room = getRoomFromSocket(socket);
+        const player = getPlayerOrError(socket, room);
+        if (room.phase !== 'speech') throw new Error('Fouls can only be issued during speech phase.');
+        if (!player.isAlive || player.isSpectator) throw new Error('Only alive players can issue fouls.');
+        const currentSpeakerId = room.speechOrder[room.currentSpeakerIdx];
+        if (player.id === currentSpeakerId) throw new Error('The current speaker cannot foul themselves.');
+
+        // Rate-limit: only one active foul at a time, 6-second cooldown
+        if (room.activeFoul && Date.now() < room.activeFoul.endsAt) {
+          throw new Error('A foul is already active. Wait for it to expire.');
+        }
+
+        const speaker = room.players.get(currentSpeakerId ?? '');
+        if (!speaker) throw new Error('No active speaker found.');
+
+        speaker.foulCount = (speaker.foulCount ?? 0) + 1;
+        room.activeFoul = { playerId: speaker.id, endsAt: Date.now() + 6000 };
+
+        broadcastSystemMsg(io, room, `⚠️ Foul! ${speaker.name} has received foul ${speaker.foulCount}/3.`);
+
+        // 4th foul (count >= 4) triggers foul_death
+        if (speaker.foulCount >= 4) {
+          // Temporarily keep alive for final_words
+          room.deathSpeakerId  = speaker.id;
+          room.finalWordsReason = 'foul_death';
+          room.activeFoul = null;
+
+          // Check win as if the death happened now
+          speaker.isAlive = false;
+          const gameEnds = checkWin(room);
+          speaker.isAlive = true;
+
+          timerService.stop(room.id);
+          room.timer = 0;
+
+          if (gameEnds) {
+            speaker.isAlive = false;
+            speaker.deathType = 'foul';
+            room.deathSpeakerId  = null;
+            room.finalWordsReason = null;
+            setPhase(room, 'game_over');
+            await emitGameOver(io, room);
+          } else {
+            setPhase(room, 'final_words');
+            startPhaseTimer(io, room);
+          }
+          broadcastRoom(io, room);
+          enforceVoicePhaseRules(io, room);
+          cb(ok(null));
+          return;
+        }
+
+        // Expire the foul after 6 seconds
+        setTimeout(() => {
+          if (room.activeFoul?.playerId === speaker.id) room.activeFoul = null;
+        }, 6000);
+
+        broadcastRoom(io, room);
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });
@@ -2803,20 +2889,39 @@ function enforceVoicePhaseRules(io: AppServer, room: Room): void {
   }
 
   if (phase === 'voting') {
-    // All players silent during voting — no voice chat allowed
+    // All players silent during voting
     for (const member of voiceGetMembers(roomId, 'room')) {
       io.to(member.socketId).emit('voice:force-mute', { reason: 'Silent during voting.' });
     }
     return;
   }
 
-  // day, lobby, role_reveal, game_over — lift force mutes for alive players only
+  if (phase === 'role_reveal') {
+    // All players silent during role reveal
+    for (const member of voiceGetMembers(roomId, 'room')) {
+      io.to(member.socketId).emit('voice:force-mute', { reason: 'Silent during role reveal.' });
+    }
+    return;
+  }
+
+  if (phase === 'final_words') {
+    // Only the dying player may speak
+    for (const member of voiceGetMembers(roomId, 'room')) {
+      if (member.playerId === room.deathSpeakerId) {
+        io.to(member.socketId).emit('voice:force-unmute');
+      } else {
+        io.to(member.socketId).emit('voice:force-mute', { reason: 'Listen to final words.' });
+      }
+    }
+    return;
+  }
+
+  // day, morning, lobby, game_over — lift force mutes for alive players only
   for (const member of voiceGetMembers(roomId, 'room')) {
     const player = room.players.get(member.playerId);
     if (player?.isAlive && !player?.isSpectator) {
       io.to(member.socketId).emit('voice:force-unmute');
     } else {
-      // Dead players and spectators remain listen-only
       io.to(member.socketId).emit('voice:force-mute', { reason: 'Listen only.' });
     }
   }

@@ -35,6 +35,7 @@ export function startGame(room) {
         player.isAlive = true;
         player.hasActedThisPhase = false;
         player.voteTarget = null;
+        player.foulCount = 0;
     });
     room.day = 1;
     room.winner = null;
@@ -169,9 +170,13 @@ export function advancePhase(room) {
             return 'day';
         case 'night': {
             resolveNight(room);
-            // If anyone died, give them 30 seconds for final words before officially dying.
-            // Undo the first death so the player stays alive during the final_words phase;
-            // their death is finalized when final_words ends.
+            // Check win immediately (before final_words) — if kills end the game, go straight to game_over.
+            if (checkWin(room)) {
+                setPhase(room, 'game_over');
+                return 'game_over';
+            }
+            // If anyone died AND game isn't over, give them 30s for final words.
+            // Temporarily revive the first victim so they can speak; death is finalized in final_words.
             if (room.killedLastNight.length > 0) {
                 const primary = room.killedLastNight[0];
                 const dyingPlayer = room.players.get(primary.id);
@@ -183,10 +188,6 @@ export function advancePhase(room) {
                 room.finalWordsReason = 'night_kill';
                 setPhase(room, 'final_words');
                 return 'final_words';
-            }
-            if (checkWin(room)) {
-                setPhase(room, 'game_over');
-                return 'game_over';
             }
             setPhase(room, 'morning');
             return 'morning';
@@ -216,10 +217,29 @@ export function advancePhase(room) {
             if (!room.deathSpeakerId)
                 resolveVotes(room);
             if (room.deathSpeakerId) {
+                // Simulate the elimination to check win BEFORE starting final_words.
+                // If the kill ends the game, go straight to game_over (no final speech).
+                const testPlayer = room.players.get(room.deathSpeakerId);
+                if (testPlayer)
+                    testPlayer.isAlive = false;
+                const gameEnds = checkWin(room);
+                if (testPlayer)
+                    testPlayer.isAlive = true; // restore for final_words phase
+                if (gameEnds) {
+                    // Finalize death and go directly to game_over
+                    if (testPlayer) {
+                        testPlayer.isAlive = false;
+                        testPlayer.deathType = 'vote';
+                    }
+                    room.deathSpeakerId = null;
+                    room.finalWordsReason = null;
+                    setPhase(room, 'game_over');
+                    return 'game_over';
+                }
                 setPhase(room, 'final_words');
                 return 'final_words';
             }
-            // Tie or no elimination — skip straight to night (win check happened in resolveVotes)
+            // Tie or no elimination
             if (checkWin(room)) {
                 setPhase(room, 'game_over');
                 return 'game_over';
@@ -237,7 +257,7 @@ export function advancePhase(room) {
                 const dying = room.players.get(dyingId);
                 if (dying) {
                     dying.isAlive = false;
-                    dying.deathType = reason === 'night_kill' ? 'night' : 'vote';
+                    dying.deathType = reason === 'night_kill' ? 'night' : reason === 'foul_death' ? 'foul' : 'vote';
                 }
             }
             // Apply any Jester win that was deferred until after final words
@@ -496,6 +516,8 @@ export function submitNomination(room, actor, nomineeId) {
         throw new Error('Eliminated players cannot nominate.');
     if (actor.isSpectator)
         throw new Error('Spectators cannot nominate.');
+    if (room.day < 2)
+        throw new Error('Nominations are not allowed on Day 1.');
     const currentSpeakerId = room.speechOrder[room.currentSpeakerIdx];
     if (actor.id !== currentSpeakerId)
         throw new Error('Only the current speaker may nominate.');
