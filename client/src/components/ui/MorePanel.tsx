@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocialStore } from '@/store/socialStore';
 import { SettingsPanel } from '@/pages/SettingsPanel';
+import { CoinHistoryModal } from '@/components/ui/CoinHistoryModal';
 
 interface MenuItem {
   icon: React.ReactNode;
@@ -72,6 +73,7 @@ interface MorePanelProps {
 export function MorePanel({ isOwner = false, onEconomyClick, onShopClick }: MorePanelProps) {
   const { morePanelOpen, closeMoreMenu } = useSocialStore();
   const [showSettings, setShowSettings] = useState(false);
+  const [showCoinHistory, setShowCoinHistory] = useState(false);
 
   const items: MenuItem[] = [
     {
@@ -108,6 +110,12 @@ export function MorePanel({ isOwner = false, onEconomyClick, onShopClick }: More
       label: 'Season Pass',
       description: 'Rewards & battle pass',
       comingSoon: true,
+    },
+    {
+      icon: <span className="text-base">🪙</span>,
+      label: 'Coin History',
+      description: 'Transactions, gifts & balance',
+      onClick: () => { closeMoreMenu(); setTimeout(() => setShowCoinHistory(true), 250); },
     },
     {
       icon: <span className="text-base">🛒</span>,
@@ -214,6 +222,7 @@ export function MorePanel({ isOwner = false, onEconomyClick, onShopClick }: More
       )}
     </AnimatePresence>
     <SettingsPanel open={showSettings} onClose={() => setShowSettings(false)} />
+    <CoinHistoryModal open={showCoinHistory} onClose={() => setShowCoinHistory(false)} />
     </>
   );
 }

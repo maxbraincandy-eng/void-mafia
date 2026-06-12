@@ -7,6 +7,7 @@ import { ReportModal } from '@/components/ui/ReportModal';
 import { SendGiftModal } from '@/components/ui/SendGiftModal';
 import { ShareCardModal } from '@/components/ui/ShareCardModal';
 import { GiftGallery } from '@/components/ui/GiftGallery';
+import { CoinHistoryModal } from '@/components/ui/CoinHistoryModal';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { useGameStore } from '@/store/gameStore';
@@ -106,6 +107,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
   const [showReport, setShowReport] = useState(false);
   const [showSendGift, setShowSendGift] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showCoinHistory, setShowCoinHistory] = useState(false);
   // Mod action panel: null | 'warn' | 'kick' | 'ban'
   const [modPanel, setModPanel] = useState<null | 'warn' | 'kick' | 'ban'>(null);
   const [modReason, setModReason] = useState('');
@@ -495,6 +497,24 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         </>
                       )}
 
+                      {/* ── Self-only actions ───────────────────── */}
+                      {isSelf && (
+                        <button
+                          onClick={() => setShowCoinHistory(true)}
+                          className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-all hover:scale-[1.01] active:scale-[0.98]"
+                          style={{
+                            background: 'rgba(255,180,0,0.07)',
+                            border: '1px solid rgba(255,180,0,0.25)',
+                            color: 'rgba(255,200,60,0.8)',
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                            boxShadow: 'inset 0 1px 0 rgba(255,180,0,0.08)',
+                          }}
+                        >
+                          🪙 Coin History
+                        </button>
+                      )}
+
                       {/* ── Share Profile button ─────────────────── */}
                       {profile.publicId != null && (
                         <button
@@ -840,6 +860,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
         onClose={() => setShowShare(false)}
       />
     )}
+    <CoinHistoryModal open={showCoinHistory} onClose={() => setShowCoinHistory(false)} />
     </>
   );
 }
