@@ -192,7 +192,7 @@ export function ClansPage() {
             className="mb-4 rounded-2xl border border-neon-purple/25 bg-neon-purple/6 px-4 py-3 flex items-center gap-3"
           >
             {/* Clan logo with upload button for owner */}
-            <div className="relative flex-shrink-0 group" onClick={e => e.stopPropagation()}>
+            <div className="relative flex-shrink-0">
               <div
                 className="w-11 h-11 rounded-xl overflow-hidden flex items-center justify-center font-display font-bold text-neon-purple text-sm cursor-pointer"
                 style={{ background: 'rgba(155,0,255,0.2)', border: '1px solid rgba(155,0,255,0.35)' }}
@@ -204,15 +204,14 @@ export function ClansPage() {
               </div>
               {myClanRole === 'owner' && (
                 <button
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={e => { e.stopPropagation(); fileInputRef.current?.click(); }}
                   disabled={imageUploading}
-                  className="absolute inset-0 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ background: 'rgba(0,0,0,0.65)' }}
-                  title="Change clan image"
+                  className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center transition-all active:scale-90"
+                  style={{ background: 'rgba(138,43,226,0.95)', border: '1.5px solid rgba(255,255,255,0.2)', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}
                 >
                   {imageUploading
-                    ? <div className="w-3 h-3 border border-white/60 border-t-white rounded-full animate-spin" />
-                    : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/80"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    ? <div className="w-2 h-2 border border-white/60 border-t-white rounded-full animate-spin" />
+                    : <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
                   }
                 </button>
               )}
@@ -306,7 +305,7 @@ export function ClansPage() {
               {/* Clan header */}
               <div className="px-5 pt-5 pb-4 border-b border-white/6">
                 <div className="flex items-center gap-3">
-                  <div className="relative group flex-shrink-0">
+                  <div className="relative flex-shrink-0">
                     <div
                       className="w-12 h-12 rounded-2xl overflow-hidden flex items-center justify-center font-display font-bold text-sm"
                       style={{ background: 'rgba(155,0,255,0.2)', border: '1px solid rgba(155,0,255,0.35)', color: 'rgba(180,80,255,1)' }}
@@ -319,13 +318,12 @@ export function ClansPage() {
                       <button
                         onClick={e => { e.stopPropagation(); fileInputRef.current?.click(); }}
                         disabled={imageUploading}
-                        className="absolute inset-0 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        style={{ background: 'rgba(0,0,0,0.65)' }}
-                        title="Change clan image"
+                        className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center transition-all active:scale-90"
+                        style={{ background: 'rgba(138,43,226,0.95)', border: '1.5px solid rgba(255,255,255,0.2)', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
                       >
                         {imageUploading
-                          ? <div className="w-3.5 h-3.5 border border-white/60 border-t-white rounded-full animate-spin" />
-                          : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/80"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                          ? <div className="w-2.5 h-2.5 border border-white/60 border-t-white rounded-full animate-spin" />
+                          : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
                         }
                       </button>
                     )}
