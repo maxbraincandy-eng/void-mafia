@@ -1361,6 +1361,34 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    // ── Skip Defense (current defense candidate skips own turn) ─────────
+    socket.on('game:skip-defense', async (cb) => {
+      try {
+        const room = getRoomFromSocket(socket);
+        const player = getPlayerOrError(socket, room);
+        if (room.phase !== 'trial_defense') throw new Error('Not in trial defense phase.');
+        if (!player.isAlive || player.isSpectator) throw new Error('Only alive players can skip defense.');
+        const tds = room.trialDefenseState;
+        if (!tds) throw new Error('No trial defense in progress.');
+        const currentCandidateId = tds.candidateIds[tds.currentCandidateIdx];
+        const isHost = player.isHost;
+        if (player.id !== currentCandidateId && !isHost) {
+          throw new Error('Only the current defense candidate (or host) can skip.');
+        }
+
+        timerService.stop(room.id);
+        room.timer = 0;
+
+        const nextPhase = advancePhase(room);
+        announceActiveEvent(io, room);
+        if (nextPhase === 'game_over') await emitGameOver(io, room);
+        broadcastRoom(io, room);
+        enforceVoicePhaseRules(io, room);
+        if (nextPhase !== 'game_over') startPhaseTimer(io, room);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     // ── Issue Foul (presser interrupts current speaker for 6 seconds) ───
     socket.on('game:foul', async (cb) => {
       try {
@@ -3208,6 +3236,22 @@ function enforceVoicePhaseRules(io: AppServer, room: Room): void {
         io.to(member.socketId).emit('voice:force-unmute');
       } else {
         io.to(member.socketId).emit('voice:force-mute', { reason: 'Only the current speaker may transmit.' });
+      }
+    }
+    return;
+  }
+
+  if (phase === 'trial_defense') {
+    const tds = room.trialDefenseState;
+    const candidateId = tds ? tds.candidateIds[tds.currentCandidateIdx] : null;
+    for (const member of voiceGetMembers(roomId, 'room')) {
+      const player = room.players.get(member.playerId);
+      if (!player?.isAlive || player?.isSpectator) {
+        io.to(member.socketId).emit('voice:force-mute', { reason: 'Listen only.' });
+      } else if (member.playerId === candidateId) {
+        io.to(member.socketId).emit('voice:force-unmute');
+      } else {
+        io.to(member.socketId).emit('voice:force-mute', { reason: 'Only the defense candidate may speak.' });
       }
     }
     return;

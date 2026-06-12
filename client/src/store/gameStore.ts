@@ -71,6 +71,7 @@ interface GameStore {
   speechPass: () => Promise<void>;
   daySkipVote: () => Promise<void>;
   issueFoul: () => Promise<void>;
+  skipDefense: () => Promise<void>;
   restartGame: () => Promise<void>;
   dismissNightResult: () => void;
   dismissInvestigation: () => void;
@@ -515,6 +516,10 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     issueFoul: withLoading(async () => {
       await emit('game:foul');
+    }),
+
+    skipDefense: withLoading(async () => {
+      await emit('game:skip-defense');
     }),
 
     restartGame: withLoading(async () => {

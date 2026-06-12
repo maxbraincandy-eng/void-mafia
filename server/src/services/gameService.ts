@@ -54,6 +54,7 @@ export function startGame(room: Room): void {
   room.dousedPlayers = new Set();
   room.newlyConvertedCultists = [];
   room.activeFoul = null;
+  room.trialDefenseState = null;
 }
 
 const MORNING_DURATION = 30;
@@ -125,6 +126,13 @@ export function setPhase(room: Room, phase: Phase): void {
       room.currentSpeakerIdx = 0;
       room.timer = room.settings.speechDuration;
       room.maxTimer = room.settings.speechDuration;
+      break;
+    }
+    case 'trial_defense': {
+      // Timer per candidate is set when trialDefenseState is initialized
+      const spc = room.settings.trialDefense?.secondsPerCandidate ?? 30;
+      room.timer = spc;
+      room.maxTimer = spc;
       break;
     }
     case 'voting': {
@@ -221,11 +229,47 @@ export function advancePhase(room: Room): Phase {
       }
       // All speakers done — go to tribunal if anyone was nominated, else skip to night
       if (room.nominations.size > 0) {
+        const candidates = [...new Set(room.nominations.values())].filter(id => {
+          const p = room.players.get(id);
+          return p?.isAlive && !p.isSpectator;
+        });
+        if (candidates.length > 0 && room.settings.trialDefense?.enabled) {
+          room.trialDefenseState = { candidateIds: candidates, currentCandidateIdx: 0 };
+          setPhase(room, 'trial_defense');
+          return 'trial_defense';
+        }
         setPhase(room, 'voting');
         return 'voting';
       }
       setPhase(room, 'night');
       return 'night';
+    }
+
+    case 'trial_defense': {
+      if (!room.trialDefenseState) {
+        setPhase(room, 'voting');
+        return 'voting';
+      }
+      const nextIdx = room.trialDefenseState.currentCandidateIdx + 1;
+      // Skip over dead/spectator candidates
+      const { candidateIds } = room.trialDefenseState;
+      let validIdx = nextIdx;
+      while (validIdx < candidateIds.length) {
+        const p = room.players.get(candidateIds[validIdx]!);
+        if (p?.isAlive && !p.isSpectator) break;
+        validIdx++;
+      }
+      if (validIdx < candidateIds.length) {
+        room.trialDefenseState.currentCandidateIdx = validIdx;
+        const spc = room.settings.trialDefense?.secondsPerCandidate ?? 30;
+        room.timer = spc;
+        room.maxTimer = spc;
+        return 'trial_defense';
+      }
+      // All candidates done — move to voting
+      room.trialDefenseState = null;
+      setPhase(room, 'voting');
+      return 'voting';
     }
 
     case 'voting': {

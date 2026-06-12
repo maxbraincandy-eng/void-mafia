@@ -28,6 +28,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   password: '',
   startWithNight: false,
   rotatingSpeech: false,
+  trialDefense: { enabled: false, secondsPerCandidate: 30 },
   dynamicEvents: DEFAULT_DYNAMIC_EVENTS,
   spectatorQueue: DEFAULT_SPECTATOR_QUEUE,
   roles: {
@@ -104,6 +105,9 @@ export function createRoom(
           allowed: { ...DEFAULT_SETTINGS.dynamicEvents.allowed, ...(settings.dynamicEvents.allowed ?? {}) },
         }
       : DEFAULT_SETTINGS.dynamicEvents,
+    trialDefense: settings?.trialDefense
+      ? { ...DEFAULT_SETTINGS.trialDefense, ...settings.trialDefense }
+      : DEFAULT_SETTINGS.trialDefense,
   };
 
   const room: Room = {
@@ -142,6 +146,7 @@ export function createRoom(
     finalWordsReason: null,
     pendingWinner: null,
     activeFoul: null,
+    trialDefenseState: null,
     speechStartSeat: 0,
     clanId: clanId ?? null,
     clanRoom: !!clanId,
@@ -496,6 +501,7 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     deathSpeakerId: room.deathSpeakerId ?? null,
     finalWordsReason: room.finalWordsReason ?? null,
     activeFoul: room.activeFoul ?? null,
+    trialDefenseState: room.trialDefenseState ?? null,
     clanId: room.clanId,
     clanRoom: room.clanRoom,
     activeEvent: room.activeEvent,
@@ -598,6 +604,7 @@ export function rematchRoom(room: Room): void {
   room.finalWordsReason = null;
   room.pendingWinner    = null;
   room.activeFoul       = null;
+  room.trialDefenseState = null;
   room.activeEvent      = null;
   room.eventsLog        = [];
   room.lastDoctorTarget = null;
