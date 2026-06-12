@@ -360,8 +360,7 @@ export function GamePage() {
 
   // During voting phase, grid taps select vote target; elsewhere open social profile
   const handlePlayerSelect = (p: PlayerPublic) => {
-    if (p.id === myPlayer?.id) return;
-    if (phase === 'voting' && amAlive && !amSpectator && p.isAlive) {
+    if (phase === 'voting' && amAlive && !amSpectator && p.isAlive && p.id !== myPlayer?.id) {
       if (pendingVoteId === p.id) {
         SFX.voteConfirm();
         submitVote(p.id);

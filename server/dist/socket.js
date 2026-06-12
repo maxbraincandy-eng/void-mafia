@@ -2924,6 +2924,7 @@ export function attachSocketHandlers(io) {
                         giftId: giftEntry.giftId,
                         giftName: giftEntry.giftName,
                         giftIcon: giftEntry.giftIcon,
+                        giftImageUrl: giftEntry.giftImageUrl,
                         giftRarity: giftEntry.giftRarity,
                         senderName: giftEntry.senderUsername,
                         senderAvatar: giftEntry.senderAvatar,

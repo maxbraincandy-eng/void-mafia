@@ -6,6 +6,7 @@ import { ModBadge } from '@/components/ui/ModBadge';
 import { ReportModal } from '@/components/ui/ReportModal';
 import { SendGiftModal } from '@/components/ui/SendGiftModal';
 import { ShareCardModal } from '@/components/ui/ShareCardModal';
+import { GiftGallery } from '@/components/ui/GiftGallery';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { useGameStore } from '@/store/gameStore';
@@ -132,15 +133,16 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
   const hasClanModPower = isClanRoom && room?.clanId === myClanId &&
     (myClanRole === 'owner' || myClanRole === 'admin' || myClanRole === 'moderator');
 
+  const isSelf = !!playerId && playerId === myProfileId;
+
   useEffect(() => {
     if (!playerId) { setData(null); return; }
-    if (playerId === myProfileId) { onClose(); return; }
     setLoading(true);
     setData(null);
     emitWithAck<{ profileId: string }, Res<PublicProfileFull>>('player:public_profile', { profileId: playerId })
       .then(res => { if (res.ok) setData(res.data); })
       .finally(() => setLoading(false));
-  }, [playerId, myProfileId]);
+  }, [playerId]);
 
   const openModPanel = useCallback((panel: 'warn' | 'kick' | 'ban') => {
     setModPanel(panel);
@@ -452,31 +454,33 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         </div>
                       )}
 
-                      {/* ── DM button ──────────────────────────── */}
-                      <button
-                        onClick={handleDm}
-                        className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-colors"
-                        style={{
-                          background: 'rgba(155,0,255,0.15)',
-                          border: '1px solid rgba(155,0,255,0.35)',
-                          color: 'rgba(200,100,255,0.9)',
-                        }}
-                      >
-                        ✉ Send Message
-                      </button>
-
-                      {/* ── Send Gift button ─────────────────────── */}
-                      <button
-                        onClick={() => setShowSendGift(true)}
-                        className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-colors"
-                        style={{
-                          background: 'rgba(255,180,0,0.10)',
-                          border: '1px solid rgba(255,180,0,0.30)',
-                          color: 'rgba(255,200,60,0.9)',
-                        }}
-                      >
-                        🎁 Send Gift
-                      </button>
+                      {/* ── DM + Gift buttons (hidden for self) ── */}
+                      {!isSelf && (
+                        <>
+                          <button
+                            onClick={handleDm}
+                            className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-colors"
+                            style={{
+                              background: 'rgba(155,0,255,0.15)',
+                              border: '1px solid rgba(155,0,255,0.35)',
+                              color: 'rgba(200,100,255,0.9)',
+                            }}
+                          >
+                            ✉ Send Message
+                          </button>
+                          <button
+                            onClick={() => setShowSendGift(true)}
+                            className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-colors"
+                            style={{
+                              background: 'rgba(255,180,0,0.10)',
+                              border: '1px solid rgba(255,180,0,0.30)',
+                              color: 'rgba(255,200,60,0.9)',
+                            }}
+                          >
+                            🎁 Send Gift
+                          </button>
+                        </>
+                      )}
 
                       {/* ── Share Profile button ─────────────────── */}
                       {profile.publicId != null && (
@@ -488,8 +492,8 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         </button>
                       )}
 
-                      {/* ── Friend action ───────────────────────── */}
-                      {friendshipStatus === 'none' && (
+                      {/* ── Friend action (hidden for self) ─────── */}
+                      {!isSelf && friendshipStatus === 'none' && (
                         <button
                           onClick={handleAddFriend}
                           disabled={actionLoading || !profile.friendCode}
@@ -498,12 +502,12 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                           + Add Friend
                         </button>
                       )}
-                      {friendshipStatus === 'pending_sent' && (
+                      {!isSelf && friendshipStatus === 'pending_sent' && (
                         <button disabled className="w-full py-2 rounded-xl border border-white/10 text-white/30 font-mono text-xs opacity-50 cursor-not-allowed">
                           Request Sent
                         </button>
                       )}
-                      {friendshipStatus === 'pending_received' && (
+                      {!isSelf && friendshipStatus === 'pending_received' && (
                         <button
                           onClick={handleAcceptFriend}
                           disabled={actionLoading}
@@ -512,7 +516,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                           ✓ Accept Friend Request
                         </button>
                       )}
-                      {friendshipStatus === 'accepted' && (
+                      {!isSelf && friendshipStatus === 'accepted' && (
                         <button
                           onClick={handleRemoveFriend}
                           disabled={actionLoading}
@@ -523,7 +527,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       )}
 
                       {/* ── Mod Actions ────────────────────────── */}
-                      {isMod && (() => {
+                      {isMod && !isSelf && (() => {
                         const targetRank = modRank(profile.moderatorLevel);
                         const canAct = targetRank < myRank;
                         return (
@@ -709,14 +713,26 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         </div>
                       )}
 
+                      {/* ── Gift Gallery ─────────────────────────── */}
+                      {data && (
+                        <div className="rounded-xl border border-white/8 bg-white/3 px-3 py-2.5">
+                          <p className="font-mono text-[9px] text-white/30 uppercase tracking-wider mb-2">
+                            🎁 Gifts
+                          </p>
+                          <GiftGallery profileId={data.profile.id} viewerId={myProfileId ?? ''} />
+                        </div>
+                      )}
+
                       {/* ── Report + Close ──────────────────────── */}
                       <div className="flex gap-2 pb-1">
-                        <button
-                          onClick={() => setShowReport(true)}
-                          className="flex-1 py-2 rounded-xl border border-white/5 text-white/20 hover:text-neon-red/50 hover:border-neon-red/20 font-mono text-[10px] transition-colors"
-                        >
-                          Report
-                        </button>
+                        {!isSelf && (
+                          <button
+                            onClick={() => setShowReport(true)}
+                            className="flex-1 py-2 rounded-xl border border-white/5 text-white/20 hover:text-neon-red/50 hover:border-neon-red/20 font-mono text-[10px] transition-colors"
+                          >
+                            Report
+                          </button>
+                        )}
                         <button
                           onClick={onClose}
                           className="flex-1 py-2 rounded-xl border border-white/10 text-white/35 hover:text-white/60 font-mono text-xs transition-colors"

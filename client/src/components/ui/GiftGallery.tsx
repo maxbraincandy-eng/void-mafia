@@ -101,7 +101,9 @@ function GiftDetailModal({
         <button onClick={onClose} className="absolute top-3 right-3 text-white/30 hover:text-white/60 text-sm">✕</button>
 
         <div className="text-center mb-4">
-          <div className="text-5xl mb-2">{gift.giftIcon}</div>
+          {gift.giftImageUrl
+            ? <img src={gift.giftImageUrl} alt={gift.giftName} className="w-16 h-16 rounded-xl object-cover mx-auto mb-2" />
+            : <div className="text-5xl mb-2">{gift.giftIcon}</div>}
           <h3 className="font-display font-bold text-white text-base">{gift.giftName}</h3>
           <Stars n={gift.giftStars} />
           <span className={`font-mono text-[10px] uppercase tracking-widest mt-1 inline-block ${RARITY_TEXT[gift.giftRarity] ?? ''}`}>
@@ -176,7 +178,9 @@ function PinnedGiftsStrip({ pinned, canManage, onUnpin }: {
               boxShadow: `0 0 12px ${RARITY_GLOW[g.giftRarity] ?? RARITY_GLOW.common}`,
             }}
           >
-            <span className="text-2xl">{g.giftIcon}</span>
+            {(g as any).giftImageUrl
+              ? <img src={g.giftImageUrl} alt={g.giftName} className="w-8 h-8 rounded-lg object-cover" />
+              : <span className="text-2xl">{g.giftIcon}</span>}
             <span className="font-mono text-[8px] text-white/50 truncate max-w-full text-center">{g.giftName}</span>
             <Stars n={g.giftStars} />
             {canManage && (
@@ -254,7 +258,9 @@ function TimelineRow({ entry, viewerId }: { entry: GiftTimelineEntry; viewerId: 
           </span>
         </div>
         <div className="flex items-center gap-1.5 mt-0.5">
-          <span className="text-sm">{entry.giftIcon}</span>
+          {entry.giftImageUrl
+            ? <img src={entry.giftImageUrl} alt={entry.giftName} className="w-5 h-5 rounded object-cover flex-shrink-0" />
+            : <span className="text-sm">{entry.giftIcon}</span>}
           <span className={`font-mono text-[10px] ${RARITY_TEXT[entry.giftRarity] ?? 'text-white/50'}`}>{entry.giftName}</span>
           {entry.message && (
             <span className="font-mono text-[9px] text-white/25 italic truncate max-w-[80px]">"{entry.message}"</span>
@@ -443,7 +449,9 @@ export function GiftGallery({ profileId, viewerId }: Props) {
                         {pinnedIds.has(g.giftId) && (
                           <span className="absolute top-1 left-1 text-[8px] text-amber-400/70">📌</span>
                         )}
-                        <span className="text-2xl">{g.giftIcon}</span>
+                        {g.giftImageUrl
+                          ? <img src={g.giftImageUrl} alt={g.giftName} className="w-9 h-9 rounded-lg object-cover" />
+                          : <span className="text-2xl">{g.giftIcon}</span>}
                         <span className="font-mono text-[9px] text-white/60 truncate max-w-full">{g.giftName}</span>
                         <Stars n={g.giftStars} />
                         {count > 1 && (
@@ -480,7 +488,9 @@ export function GiftGallery({ profileId, viewerId }: Props) {
                           border: `1px solid ${RARITY_BORDER[g.giftRarity] ?? RARITY_BORDER.common}`,
                         }}
                       >
-                        <span className="text-2xl">{g.giftIcon}</span>
+                        {g.giftImageUrl
+                          ? <img src={g.giftImageUrl} alt={g.giftName} className="w-9 h-9 rounded-lg object-cover" />
+                          : <span className="text-2xl">{g.giftIcon}</span>}
                         <span className="font-mono text-[9px] text-white/60 truncate max-w-full">{g.giftName}</span>
                         <Stars n={g.giftStars} />
                         <span className="font-mono text-[8px] text-amber-400/60">{totalSpent} 🪙</span>

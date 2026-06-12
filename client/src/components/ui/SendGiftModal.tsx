@@ -147,7 +147,9 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
 
           {!loading && success && (
             <div className="text-center py-8">
-              <div className="text-5xl mb-2">{selected?.icon}</div>
+              {selected?.imageUrl
+                ? <img src={selected.imageUrl} alt={selected.name} className="w-16 h-16 rounded-xl object-cover mx-auto mb-2" />
+                : <div className="text-5xl mb-2">{selected?.icon}</div>}
               <p className="font-display font-bold text-neon-green text-base">Gift Sent!</p>
               <p className="font-mono text-xs text-white/40 mt-1">
                 {selected?.name} → {recipientName}
@@ -228,7 +230,9 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
                       boxShadow: `0 0 20px ${RARITY_GLOW[selected.rarity]}`,
                     }}
                   >
-                    <span className="text-3xl flex-shrink-0">{selected.icon}</span>
+                    {selected.imageUrl
+                      ? <img src={selected.imageUrl} alt={selected.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                      : <span className="text-3xl flex-shrink-0">{selected.icon}</span>}
                     <div className="flex-1 min-w-0">
                       <p className="font-display font-bold text-white text-sm">{selected.name}</p>
                       <p className="font-mono text-[10px] text-white/40 truncate">{selected.description}</p>
@@ -274,7 +278,9 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
                         border: `1px solid ${isSelected ? 'rgba(0,229,255,0.7)' : RARITY_BORDER[g.rarity]}`,
                       }}
                     >
-                      <span className="text-xl">{g.icon}</span>
+                      {g.imageUrl
+                        ? <img src={g.imageUrl} alt={g.name} className="w-8 h-8 rounded-md object-cover" />
+                        : <span className="text-xl">{g.icon}</span>}
                       <span className="font-mono text-[8px] text-white/60 truncate max-w-full">{g.name}</span>
                       <Stars n={g.stars} />
                       <span className={`font-mono text-[8px] font-bold ${RARITY_LABEL[g.rarity]}`}>

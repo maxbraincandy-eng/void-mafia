@@ -40,6 +40,7 @@ function GiftForm({ initial, onSave, onCancel }: GiftFormProps) {
   const [name, setName]         = useState(initial?.name ?? '');
   const [description, setDesc]  = useState(initial?.description ?? '');
   const [icon, setIcon]         = useState(initial?.icon ?? '🎁');
+  const [imageUrl, setImageUrl] = useState(initial?.imageUrl ?? '');
   const [rarity, setRarity]     = useState<string>(initial?.rarity ?? 'common');
   const [stars, setStars]       = useState(initial?.stars ?? 1);
   const [price, setPrice]       = useState(String(initial?.price ?? 100));
@@ -47,11 +48,21 @@ function GiftForm({ initial, onSave, onCancel }: GiftFormProps) {
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState<string | null>(null);
 
+  const handleImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setError('Only image files are supported.'); return; }
+    if (file.size > 300_000) { setError('Image must be under 300KB.'); return; }
+    const reader = new FileReader();
+    reader.onload = ev => setImageUrl(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
   const handleSave = async () => {
     setError(null);
     setSaving(true);
     try {
-      await onSave({ name, description, icon, rarity, stars, price: parseInt(price, 10) || 0, active });
+      await onSave({ name, description, icon, imageUrl, rarity, stars, price: parseInt(price, 10) || 0, active });
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -71,6 +82,28 @@ function GiftForm({ initial, onSave, onCancel }: GiftFormProps) {
           <label className="font-mono text-[9px] text-white/30 uppercase tracking-widest block mb-1">Icon (emoji)</label>
           <input value={icon} onChange={e => setIcon(e.target.value)} maxLength={4}
             className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white font-mono text-lg text-center focus:outline-none focus:border-neon-cyan/40" />
+        </div>
+      </div>
+
+      {/* PNG image upload */}
+      <div>
+        <label className="font-mono text-[9px] text-white/30 uppercase tracking-widest block mb-1">
+          Custom Image (PNG/JPG — overrides emoji icon)
+        </label>
+        <div className="flex items-center gap-3">
+          {imageUrl && (
+            <div className="relative w-12 h-12 rounded-lg border border-white/10 overflow-hidden flex-shrink-0">
+              <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+              <button
+                onClick={() => setImageUrl('')}
+                className="absolute top-0 right-0 w-4 h-4 bg-black/70 text-white/60 text-[8px] flex items-center justify-center hover:text-white"
+              >✕</button>
+            </div>
+          )}
+          <label className="flex-1 cursor-pointer px-3 py-2 rounded-lg border border-dashed border-white/15 bg-white/3 text-white/30 font-mono text-[10px] text-center hover:border-neon-cyan/30 hover:text-neon-cyan/60 transition-colors">
+            {imageUrl ? 'Replace image' : '+ Upload image'}
+            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleImageFile} className="hidden" />
+          </label>
         </div>
       </div>
 
@@ -282,7 +315,9 @@ export function EconomyAdminPage() {
             {catalog.map(g => (
               <div key={g.id} className="rounded-xl border border-white/6 p-3 flex items-center gap-3"
                 style={{ background: 'rgba(255,255,255,0.02)' }}>
-                <span className="text-2xl">{g.icon}</span>
+                {g.imageUrl
+                  ? <img src={g.imageUrl} alt={g.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                  : <span className="text-2xl flex-shrink-0">{g.icon}</span>}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs text-white/80 font-bold">{g.name}</span>
