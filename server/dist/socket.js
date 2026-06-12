@@ -36,6 +36,42 @@ function rateOk(socketId, limit = 15) {
     r.count++;
     return true;
 }
+// ── Chat spam / flood protection ──────────────────────────────────────
+const chatCooldowns = new Map(); // key → lastMessageAt
+const chatWindows = new Map(); // key → recent timestamps
+const lastChatMsg = new Map(); // key → last message text
+const CHAT_COOLDOWN_MS = 1200;
+const CHAT_FLOOD_WINDOW_MS = 4000;
+const CHAT_FLOOD_LIMIT = 5;
+function chatRateOk(key, text) {
+    const now = Date.now();
+    const last = chatCooldowns.get(key);
+    if (last && now - last < CHAT_COOLDOWN_MS)
+        return { ok: false, error: 'ძალიან სწრაფად აგზავნი შეტყობინებებს.' };
+    if (lastChatMsg.get(key) === text.trim())
+        return { ok: false, error: 'არ გაიმეორო ერთი და იგივე შეტყობინება.' };
+    const window = (chatWindows.get(key) ?? []).filter(t => now - t < CHAT_FLOOD_WINDOW_MS);
+    if (window.length >= CHAT_FLOOD_LIMIT)
+        return { ok: false, error: 'ზედმეტი შეტყობინება. ცოტა გაჩერდი.' };
+    window.push(now);
+    chatCooldowns.set(key, now);
+    chatWindows.set(key, window);
+    lastChatMsg.set(key, text.trim());
+    return { ok: true };
+}
+// ── Session concurrency (one active socket per profile) ───────────────
+const activeSessions = new Map(); // profileId → socketId
+function enforceSessionUniqueness(io, profileId, newSocketId) {
+    const existing = activeSessions.get(profileId);
+    if (existing && existing !== newSocketId) {
+        const oldSock = io.sockets.sockets.get(existing);
+        if (oldSock?.connected) {
+            oldSock.emit('session:replaced', { reason: 'სხვა მოწყობილობიდან შესვლა დაფიქსირდა. ეს სესია დაიხურა.' });
+            setTimeout(() => oldSock.disconnect(true), 300);
+        }
+    }
+    activeSessions.set(profileId, newSocketId);
+}
 // ── Report rate limiting ──────────────────────────────────────────────
 // key: reporterId+targetId+reason → lastReportAt (ms)
 const reportCooldowns = new Map();
@@ -493,13 +529,25 @@ export function attachSocketHandlers(io) {
         socket.data.playerId = null;
         socket.data.roomId = null;
         socket.data.profileId = null;
-        // Rate-limit every incoming event
+        // Rate-limit + payload size check on every incoming event
         socket.use(([event, ...args], next) => {
+            // 4. Payload size limit — reject anything over 16 KB
+            const payload = args[0];
+            if (payload !== null && payload !== undefined && typeof payload === 'object') {
+                try {
+                    if (JSON.stringify(payload).length > 16384) {
+                        const ack = typeof args[args.length - 1] === 'function' ? args[args.length - 1] : null;
+                        if (ack)
+                            ack(err('Payload too large.'));
+                        return;
+                    }
+                }
+                catch { /* non-serialisable — let Zod reject it */ }
+            }
             const authEvents = new Set(['player:auth', 'player:register', 'player:login_email']);
             const limit = authEvents.has(event) ? 3 : 20;
             if (!rateOk(socket.id, limit)) {
                 socket.emit('error', { message: 'Too many requests. Slow down.' });
-                // Call ack callback if present so client doesn't hang waiting for a response
                 const ack = typeof args[args.length - 1] === 'function' ? args[args.length - 1] : null;
                 if (ack)
                     ack(err('Too many requests. Slow down.'));
@@ -523,6 +571,7 @@ export function attachSocketHandlers(io) {
                     return;
                 }
                 socket.data.profileId = parsed.uid;
+                enforceSessionUniqueness(io, parsed.uid, socket.id);
                 markOnline(parsed.uid);
                 broadcastOnlineCount(io);
                 await grantStarterCosmetics(parsed.uid);
@@ -544,6 +593,7 @@ export function attachSocketHandlers(io) {
                 }).parse(data);
                 const profile = await registerWithEmail(email, password, username);
                 socket.data.profileId = profile.id;
+                enforceSessionUniqueness(io, profile.id, socket.id);
                 markOnline(profile.id);
                 broadcastOnlineCount(io);
                 socket.emit('player:profile', toPublicProfile(profile));
@@ -567,6 +617,7 @@ export function attachSocketHandlers(io) {
                     return;
                 }
                 socket.data.profileId = profile.id;
+                enforceSessionUniqueness(io, profile.id, socket.id);
                 markOnline(profile.id);
                 broadcastOnlineCount(io);
                 socket.emit('player:profile', toPublicProfile(profile));
@@ -1598,6 +1649,10 @@ export function attachSocketHandlers(io) {
                 const validationError = validateChat(room, player, parsed.channel);
                 if (validationError)
                     throw new Error(validationError);
+                const chatKey = socket.data.profileId ?? socket.id;
+                const chatCheck = chatRateOk(chatKey, parsed.text);
+                if (!chatCheck.ok)
+                    throw new Error(chatCheck.error);
                 const profile = profileId ? await getPlayer(profileId) : null;
                 const msg = createPlayerMessage(player, parsed.text, parsed.channel, profile?.isModerator ?? false);
                 addMessage(room, msg);
@@ -3287,6 +3342,16 @@ export function attachSocketHandlers(io) {
             if (profileId) {
                 markOffline(profileId);
                 broadcastOnlineCount(io);
+                if (activeSessions.get(profileId) === socket.id)
+                    activeSessions.delete(profileId);
+                chatCooldowns.delete(profileId);
+                chatWindows.delete(profileId);
+                lastChatMsg.delete(profileId);
+            }
+            else {
+                chatCooldowns.delete(socket.id);
+                chatWindows.delete(socket.id);
+                lastChatMsg.delete(socket.id);
             }
             if (roomId && playerId)
                 handlePlayerLeave(io, socket, roomId, playerId);

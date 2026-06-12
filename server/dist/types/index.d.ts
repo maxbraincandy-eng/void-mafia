@@ -722,6 +722,9 @@ export interface ServerToClientEvents {
         senderAvatar: string;
         message: string;
     }) => void;
+    'session:replaced': (data: {
+        reason: string;
+    }) => void;
 }
 export interface ClientToServerEvents {
     'player:auth': (data: {

@@ -192,8 +192,18 @@ export const useGameStore = create<GameStore>((set, get) => {
   });
 
   socket.on('connect_error', () => {
-    // After repeated failures, show connection error
     set({ isConnected: false });
+  });
+
+  // 5. Session replaced — another device logged into this account
+  (socket as any).on('session:replaced', ({ reason }: { reason: string }) => {
+    clearSession();
+    set({
+      room: null, myPlayerId: null, myRole: null,
+      nightResult: null, investigationResult: null, gameOverResult: null,
+      isConnected: false,
+    });
+    get().addToast(reason, 'error');
   });
 
   // Lightweight timer tick — avoids broadcasting full room state every second

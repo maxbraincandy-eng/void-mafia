@@ -755,6 +755,8 @@ export interface ServerToClientEvents {
   // Economy
   'coins:updated':       (data: { coins: number }) => void;
   'gift:received':       (data: { gift: any; senderName: string; senderAvatar: string; message: string }) => void;
+  // Session security
+  'session:replaced':    (data: { reason: string }) => void;
 }
 
 export interface ClientToServerEvents {
