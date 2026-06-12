@@ -1,4 +1,4 @@
-export type Phase = 'lobby' | 'role_reveal' | 'night' | 'morning' | 'day' | 'speech' | 'voting' | 'final_words' | 'game_over';
+export type Phase = 'lobby' | 'role_reveal' | 'night' | 'morning' | 'day' | 'speech' | 'trial_defense' | 'voting' | 'final_words' | 'game_over';
 export type RoleKey = 'mafia' | 'citizen' | 'sheriff' | 'doctor' | 'don' | 'maniac' | 'jester' | 'bodyguard' | 'spy' | 'escort' | 'vigilante' | 'cult_leader' | 'cultist' | 'veteran' | 'tracker' | 'arsonist' | 'mayor' | 'yakuza' | 'shogun';
 export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
@@ -254,6 +254,10 @@ export interface GameSettings {
     password: string;
     startWithNight: boolean;
     rotatingSpeech: boolean;
+    trialDefense: {
+        enabled: boolean;
+        secondsPerCandidate: number;
+    };
     dynamicEvents: DynamicEventSettings;
     spectatorQueue: SpectatorQueueSettings;
     roles: {
@@ -316,11 +320,15 @@ export interface Room {
     tribunalCandidates: string[];
     deathSpeakerId: string | null;
     finalWordsReason: 'night_kill' | 'vote_elimination' | 'foul_death' | null;
+    pendingWinner: Team | null;
     activeFoul: {
         playerId: string;
         endsAt: number;
     } | null;
-    pendingWinner: Team | null;
+    trialDefenseState: {
+        candidateIds: string[];
+        currentCandidateIdx: number;
+    } | null;
     speechStartSeat: number;
     clanId: string | null;
     clanRoom: boolean;
@@ -394,6 +402,10 @@ export interface RoomPublic {
     activeFoul: {
         playerId: string;
         endsAt: number;
+    } | null;
+    trialDefenseState: {
+        candidateIds: string[];
+        currentCandidateIdx: number;
     } | null;
     clanId: string | null;
     clanRoom: boolean;
@@ -768,11 +780,12 @@ export interface ClientToServerEvents {
     }, cb: Cb<null>) => void;
     'game:skip': (cb: Cb<null>) => void;
     'game:speech_pass': (cb: Cb<null>) => void;
-    'game:foul': (cb: Cb<null>) => void;
     'game:nominate': (data: {
         nomineeId: string | null;
     }, cb: Cb<null>) => void;
     'game:day_skip_vote': (cb: Cb<null>) => void;
+    'game:foul': (cb: Cb<null>) => void;
+    'game:skip-defense': (cb: Cb<null>) => void;
     'game:restart': (cb: Cb<null>) => void;
     'game:set_will': (data: {
         text: string;
