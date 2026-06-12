@@ -37,18 +37,16 @@ interface GiftFormProps {
 }
 
 function GiftForm({ initial, onSave, onCancel }: GiftFormProps) {
-  const [name, setName]                   = useState(initial?.name ?? '');
-  const [description, setDesc]            = useState(initial?.description ?? '');
-  const [icon, setIcon]                   = useState(initial?.icon ?? '🎁');
-  const [imageUrl, setImageUrl]           = useState(initial?.imageUrl ?? '');
-  const [rarity, setRarity]               = useState<string>(initial?.rarity ?? 'common');
-  const [stars, setStars]                 = useState(initial?.stars ?? 1);
-  const [price, setPrice]                 = useState(String(initial?.price ?? 100));
-  const [active, setActive]               = useState(initial?.active ?? true);
-  const [seasonalTag, setSeasonalTag]     = useState<string>(initial?.seasonalTag ?? '');
-  const [limitedEdition, setLimitedEd]   = useState(initial?.limitedEdition ?? false);
-  const [saving, setSaving]               = useState(false);
-  const [error, setError]                 = useState<string | null>(null);
+  const [name, setName]         = useState(initial?.name ?? '');
+  const [description, setDesc]  = useState(initial?.description ?? '');
+  const [icon, setIcon]         = useState(initial?.icon ?? '🎁');
+  const [imageUrl, setImageUrl] = useState(initial?.imageUrl ?? '');
+  const [rarity, setRarity]     = useState<string>(initial?.rarity ?? 'common');
+  const [stars, setStars]       = useState(initial?.stars ?? 1);
+  const [price, setPrice]       = useState(String(initial?.price ?? 100));
+  const [active, setActive]     = useState(initial?.active ?? true);
+  const [saving, setSaving]     = useState(false);
+  const [error, setError]       = useState<string | null>(null);
 
   const handleImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -64,7 +62,7 @@ function GiftForm({ initial, onSave, onCancel }: GiftFormProps) {
     setError(null);
     setSaving(true);
     try {
-      await onSave({ name, description, icon, imageUrl, rarity, stars, price: parseInt(price, 10) || 0, active, seasonalTag: seasonalTag || null, limitedEdition });
+      await onSave({ name, description, icon, imageUrl, rarity, stars, price: parseInt(price, 10) || 0, active });
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -90,14 +88,16 @@ function GiftForm({ initial, onSave, onCancel }: GiftFormProps) {
       {/* PNG image upload */}
       <div>
         <label className="font-mono text-[9px] text-white/30 uppercase tracking-widest block mb-1">
-          Custom Image (PNG/JPG — overrides emoji)
+          Custom Image (PNG/JPG — overrides emoji icon)
         </label>
         <div className="flex items-center gap-3">
           {imageUrl && (
             <div className="relative w-12 h-12 rounded-lg border border-white/10 overflow-hidden flex-shrink-0">
               <img src={imageUrl} alt="" className="w-full h-full object-cover" />
-              <button onClick={() => setImageUrl('')}
-                className="absolute top-0 right-0 w-4 h-4 bg-black/70 text-white/60 text-[8px] flex items-center justify-center hover:text-white">✕</button>
+              <button
+                onClick={() => setImageUrl('')}
+                className="absolute top-0 right-0 w-4 h-4 bg-black/70 text-white/60 text-[8px] flex items-center justify-center hover:text-white"
+              >✕</button>
             </div>
           )}
           <label className="flex-1 cursor-pointer px-3 py-2 rounded-lg border border-dashed border-white/15 bg-white/3 text-white/30 font-mono text-[10px] text-center hover:border-neon-cyan/30 hover:text-neon-cyan/60 transition-colors">
@@ -143,34 +143,6 @@ function GiftForm({ initial, onSave, onCancel }: GiftFormProps) {
               <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${active ? 'translate-x-5' : 'translate-x-0.5'}`} />
             </div>
             <span className="font-mono text-[9px] text-white/40 uppercase tracking-widest">Active</span>
-          </label>
-        </div>
-      </div>
-
-      {/* Seasonal + Limited Edition */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="font-mono text-[9px] text-white/30 uppercase tracking-widest block mb-1">
-            Seasonal Tag
-          </label>
-          <input
-            value={seasonalTag}
-            onChange={e => setSeasonalTag(e.target.value)}
-            placeholder="e.g. christmas"
-            maxLength={30}
-            className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white font-mono text-xs focus:outline-none focus:border-amber-400/40 placeholder-white/20"
-          />
-          <p className="font-mono text-[8px] text-white/20 mt-0.5">christmas·halloween·valentines·spring·summer</p>
-        </div>
-        <div className="flex flex-col justify-center gap-2">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <div
-              onClick={() => setLimitedEd(v => !v)}
-              className={`w-10 h-5 rounded-full transition-colors relative ${limitedEdition ? 'bg-neon-red/40' : 'bg-white/10'}`}
-            >
-              <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${limitedEdition ? 'translate-x-5' : 'translate-x-0.5'}`} />
-            </div>
-            <span className="font-mono text-[9px] text-white/40 uppercase tracking-widest">Limited Edition</span>
           </label>
         </div>
       </div>
@@ -290,8 +262,7 @@ export function EconomyAdminPage() {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -16 }}
-      className="min-h-screen bg-void px-4 pb-8"
-      style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top, 1.5rem))' }}
+      className="min-h-screen bg-void px-4 pt-6 pb-8"
     >
       {/* Header */}
       <div className="mb-5">
@@ -353,8 +324,6 @@ export function EconomyAdminPage() {
                     <Stars n={g.stars} />
                     <span className={`font-mono text-[9px] uppercase ${RARITY_COLOR[g.rarity]}`}>{g.rarity}</span>
                     {!g.active && <span className="font-mono text-[9px] text-white/25 bg-white/5 px-1.5 rounded">inactive</span>}
-                    {g.limitedEdition && <span className="font-mono text-[8px] text-neon-red/70 border border-neon-red/15 px-1 rounded">LTD</span>}
-                    {g.seasonalTag && <span className="font-mono text-[8px] text-amber-400/70 border border-amber-400/15 px-1 rounded">✨ {g.seasonalTag}</span>}
                   </div>
                   <p className="font-mono text-[10px] text-amber-400">{g.price} 🪙</p>
                 </div>
