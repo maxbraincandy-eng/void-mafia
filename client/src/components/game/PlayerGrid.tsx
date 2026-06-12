@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { PlayerPublic, Phase, RoleKey } from '@/types/index';
@@ -80,13 +80,35 @@ function initialsOf(name: string): string {
     .join('') || '?';
 }
 
+/** Reactively tracks whether a stream has a live (non-ended, non-muted) video track. */
+function useHasLiveVideo(stream: MediaStream | null): boolean {
+  const [has, setHas] = useState(() =>
+    !!stream && stream.getVideoTracks().some(t => t.readyState !== 'ended' && !t.muted)
+  );
+  useEffect(() => {
+    if (!stream) { setHas(false); return; }
+    const check = () =>
+      setHas(stream.getVideoTracks().some(t => t.readyState !== 'ended' && !t.muted));
+    check();
+    stream.addEventListener('addtrack', check);
+    stream.addEventListener('removetrack', check);
+    const tracks = stream.getVideoTracks();
+    tracks.forEach(t => { t.addEventListener('ended', check); t.addEventListener('mute', check); t.addEventListener('unmute', check); });
+    return () => {
+      stream.removeEventListener('addtrack', check);
+      stream.removeEventListener('removetrack', check);
+      tracks.forEach(t => { t.removeEventListener('ended', check); t.removeEventListener('mute', check); t.removeEventListener('unmute', check); });
+    };
+  }, [stream]);
+  return has;
+}
+
 /** Live <video> element bound to the local MediaStream. */
 function LocalVideo({ stream }: { stream: MediaStream }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
-    if (ref.current && ref.current.srcObject !== stream) {
-      ref.current.srcObject = stream;
-    }
+    if (ref.current) ref.current.srcObject = stream;
+    return () => { if (ref.current) ref.current.srcObject = null; };
   }, [stream]);
   return (
     <video
@@ -95,7 +117,7 @@ function LocalVideo({ stream }: { stream: MediaStream }) {
       muted
       playsInline
       className="absolute inset-0 w-full h-full object-cover"
-      style={{ transform: 'scaleX(-1)' }} // mirror own camera
+      style={{ transform: 'scaleX(-1)' }}
     />
   );
 }
@@ -103,15 +125,12 @@ function LocalVideo({ stream }: { stream: MediaStream }) {
 /** Live <video> element bound to a remote peer's MediaStream. */
 function RemoteVideo({ stream }: { stream: MediaStream }) {
   const ref = useRef<HTMLVideoElement>(null);
+  const hasLive = useHasLiveVideo(stream);
   useEffect(() => {
-    if (ref.current && ref.current.srcObject !== stream) {
-      ref.current.srcObject = stream;
-    }
-  }, [stream]);
-
-  const hasVideo = stream.getVideoTracks().some(t => t.readyState !== 'ended');
-  if (!hasVideo) return null;
-
+    if (!ref.current) return;
+    ref.current.srcObject = hasLive ? stream : null;
+  }, [stream, hasLive]);
+  if (!hasLive) return null;
   return (
     <video
       ref={ref}
@@ -136,7 +155,7 @@ function SpeakerHero({ player, isMe, isAlly, speakerIndex, totalSpeakers, voice 
     : (voice?.speakingSocketIds.has(player.socketId) ?? false);
   const showLocalVideo = isMe && voice?.inVoice && voice.cameraOn && !!voice.localStream;
   const remoteStream = !isMe ? (voice?.remoteStreams?.[player.socketId] ?? null) : null;
-  const hasRemoteVideo = !!remoteStream && remoteStream.getVideoTracks().some(t => t.readyState !== 'ended');
+  const hasRemoteVideo = useHasLiveVideo(remoteStream);
 
   return (
     <motion.div
@@ -380,7 +399,7 @@ function PlayerCard({
   const isVoiceSpeaking = isMe ? (voice?.isLocalSpeaking && !voice?.isMuted) : peerSpeaking;
   const showLocalVideo = isMe && voice?.inVoice && voice.cameraOn && !!voice.localStream;
   const remoteStream = !isMe ? (voice?.remoteStreams?.[player.socketId] ?? null) : null;
-  const hasRemoteVideo = !!remoteStream && remoteStream.getVideoTracks().some(t => t.readyState !== 'ended');
+  const hasRemoteVideo = useHasLiveVideo(remoteStream);
   // The local player can control their own mic/cam once they're in voice
   const showLocalControls = isMe && !dead;
   const initials = initialsOf(player.name);
