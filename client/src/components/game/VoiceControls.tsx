@@ -19,10 +19,12 @@ interface VoiceControlsProps {
   error: string | null;
   muteLocked?: boolean;
   listenOnly?: boolean;
+  ptt?: boolean;
 
   onJoin: (channel: VoiceChannel, withCamera: boolean) => void;
   onLeave: () => void;
   onToggleMute: () => void;
+  onSetMuted?: (on: boolean) => void;
   onToggleCamera: () => void;
   onReset?: () => void;
   hideCamera?: boolean;
@@ -41,9 +43,11 @@ export function VoiceControls({
   error,
   muteLocked = false,
   listenOnly = false,
+  ptt = false,
   onJoin,
   onLeave,
   onToggleMute,
+  onSetMuted,
   onToggleCamera,
   onReset,
   defaultChannel = 'room',
@@ -252,57 +256,85 @@ export function VoiceControls({
       {/* ── In-voice controls (active speakers) ── */}
       {isInVoice && !listenOnly && (
         <div className="space-y-2">
-          <div className="flex gap-2">
-            {/* Mute / Unmute */}
-            <button
-              onClick={muteLocked ? undefined : onToggleMute}
-              disabled={muteLocked}
-              title={muteLocked ? v.lockedTitle : undefined}
-              className={clsx(
-                'flex-1 py-3 rounded-xl font-display font-bold tracking-widest text-sm uppercase',
-                'border transition-all duration-200',
-                muteLocked
-                  ? 'border-white/10 text-white/25 bg-white/5 cursor-not-allowed'
-                  : isMuted
-                    ? 'border-neon-red/50 text-neon-red bg-neon-red/15 hover:bg-neon-red/25 active:scale-95'
-                    : 'border-neon-green/40 text-neon-green bg-neon-green/10 hover:bg-neon-green/20 active:scale-95',
+          {/* PTT mode: big hold-to-talk button */}
+          {ptt && onSetMuted ? (
+            <div className="space-y-2">
+              <button
+                onPointerDown={e => { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); onSetMuted(false); navigator.vibrate?.(30); }}
+                onPointerUp={() => { onSetMuted(true); navigator.vibrate?.(15); }}
+                onPointerLeave={() => { onSetMuted(true); }}
+                onPointerCancel={() => { onSetMuted(true); }}
+                className={clsx(
+                  'w-full py-5 rounded-xl font-display font-bold tracking-widest text-base uppercase select-none',
+                  'border transition-all duration-100',
+                  !isMuted
+                    ? 'border-neon-green/60 text-neon-green bg-neon-green/15 shadow-[0_0_16px_rgba(0,255,136,0.2)] scale-[0.97]'
+                    : 'border-neon-red/40 text-neon-red/80 bg-neon-red/8 active:scale-95',
+                )}
+                style={{ touchAction: 'none', userSelect: 'none' }}
+              >
+                {!isMuted ? '🎙 საუბრობ...' : '🔴 დააჭირე და ილაპარაკე'}
+              </button>
+              <div className="flex justify-end">
+                <button
+                  onClick={onLeave}
+                  className="px-3 py-1.5 rounded-lg border border-white/10 text-white/30 hover:text-neon-red hover:border-neon-red/30 font-mono text-xs transition-all active:scale-95"
+                >
+                  ✕ {v.leave}
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Normal mute-toggle mode */
+            <div className="flex gap-2">
+              <button
+                onClick={muteLocked ? undefined : onToggleMute}
+                disabled={muteLocked}
+                title={muteLocked ? v.lockedTitle : undefined}
+                className={clsx(
+                  'flex-1 py-3 rounded-xl font-display font-bold tracking-widest text-sm uppercase',
+                  'border transition-all duration-200',
+                  muteLocked
+                    ? 'border-white/10 text-white/25 bg-white/5 cursor-not-allowed'
+                    : isMuted
+                      ? 'border-neon-red/50 text-neon-red bg-neon-red/15 hover:bg-neon-red/25 active:scale-95'
+                      : 'border-neon-green/40 text-neon-green bg-neon-green/10 hover:bg-neon-green/20 active:scale-95',
+                )}
+              >
+                {muteLocked ? v.micLocked : isMuted ? v.muted : v.micOn}
+              </button>
+
+              {!hideCamera && (
+                <button
+                  onClick={onToggleCamera}
+                  className={clsx(
+                    'flex-1 py-3 rounded-xl font-display font-bold tracking-widest text-sm uppercase',
+                    'border transition-all duration-200 active:scale-95',
+                    cameraOn
+                      ? 'border-neon-cyan/40 text-neon-cyan bg-neon-cyan/10 hover:bg-neon-cyan/20'
+                      : 'border-white/15 text-white/40 bg-white/5 hover:bg-white/10 hover:text-white/70',
+                  )}
+                >
+                  {cameraOn ? v.camOn : v.camOff}
+                </button>
               )}
-            >
-              {muteLocked ? v.micLocked : isMuted ? v.muted : v.micOn}
-            </button>
 
-            {/* Camera toggle */}
-            {!hideCamera && (
-            <button
-              onClick={onToggleCamera}
-              className={clsx(
-                'flex-1 py-3 rounded-xl font-display font-bold tracking-widest text-sm uppercase',
-                'border transition-all duration-200 active:scale-95',
-                cameraOn
-                  ? 'border-neon-cyan/40 text-neon-cyan bg-neon-cyan/10 hover:bg-neon-cyan/20'
-                  : 'border-white/15 text-white/40 bg-white/5 hover:bg-white/10 hover:text-white/70',
-              )}
-            >
-              {cameraOn ? v.camOn : v.camOff}
-            </button>
-            )}
+              <button
+                onClick={onLeave}
+                className="px-4 py-3 rounded-xl border border-white/10 text-white/40 hover:text-neon-red hover:border-neon-red/30 font-mono transition-all active:scale-95"
+                title={v.leave}
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
-            {/* Leave */}
-            <button
-              onClick={onLeave}
-              className="px-4 py-3 rounded-xl border border-white/10 text-white/40 hover:text-neon-red hover:border-neon-red/30 font-mono transition-all active:scale-95"
-              title={v.leave}
-            >
-              ✕
-            </button>
-          </div>
-
-          {muteLocked && (
+          {!ptt && muteLocked && (
             <p className="text-[10px] text-neon-red/50 font-mono text-center">
               {v.micLockedHint}
             </p>
           )}
-          {!muteLocked && !cameraOn && (
+          {!ptt && !muteLocked && !cameraOn && (
             <p className="text-[10px] text-white/20 font-mono text-center">
               {v.camHint}
             </p>

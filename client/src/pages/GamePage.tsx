@@ -214,11 +214,11 @@ export function GamePage() {
 
     if (cur === 'night' && isMafiaPlayer) {
       if (voice.channel === 'room') {
-        // Leave room and join mafia channel.
+        // Leave room and join mafia channel (PTT — start muted).
         voice.leaveVoice();
-        setTimeout(() => voice.joinVoice('mafia', false, true).catch(() => {}), 400);
+        setTimeout(() => voice.joinVoice('mafia', false, true, true).catch(() => {}), 400);
       } else if (!voice.channel) {
-        voice.joinVoice('mafia', false, true).catch(() => {});
+        voice.joinVoice('mafia', false, true, true).catch(() => {});
       }
     } else if (cur === 'night' && isYakuzaPlayer) {
       if (voice.channel === 'room') {
@@ -605,11 +605,14 @@ export function GamePage() {
                     error={voice.error}
                     defaultChannel="mafia"
                     channelLabel="◉ Mafia Radio"
-                    onJoin={(ch, wc) => voice.joinVoice(ch, wc)}
+                    ptt={true}
+                    onJoin={(ch, wc) => voice.joinVoice(ch, wc, false, true)}
                     onLeave={voice.leaveVoice}
                     onToggleMute={voice.toggleMute}
+                    onSetMuted={voice.setMuted}
                     onToggleCamera={voice.toggleCamera}
                     onReset={voice.resetConnection}
+                    hideCamera={true}
                   />
                 </div>
               </div>
