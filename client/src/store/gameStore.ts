@@ -70,6 +70,7 @@ interface GameStore {
   skipPhase: () => Promise<void>;
   speechPass: () => Promise<void>;
   daySkipVote: () => Promise<void>;
+  issueFoul: () => Promise<void>;
   restartGame: () => Promise<void>;
   dismissNightResult: () => void;
   dismissInvestigation: () => void;
@@ -510,6 +511,10 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     daySkipVote: withLoading(async () => {
       await emit('game:day_skip_vote');
+    }),
+
+    issueFoul: withLoading(async () => {
+      await emit('game:foul');
     }),
 
     restartGame: withLoading(async () => {

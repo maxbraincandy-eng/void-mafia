@@ -98,7 +98,10 @@ export function canTransmitVoice(room: Room, playerId: string, channel: VoiceCha
     if (room.phase === 'night') return 'Public voice is disabled during night.';
     if (room.phase === 'speech') {
       const speakerId = room.speechOrder[room.currentSpeakerIdx] ?? null;
-      if (playerId !== speakerId) return 'Only the current speaker may transmit.';
+      const foulActive = room.activeFoul && Date.now() < room.activeFoul.endsAt;
+      if (playerId === speakerId) return null;
+      if (foulActive && room.activeFoul!.playerId === playerId) return null;
+      return 'Only the current speaker may transmit.';
     }
     return null;
   }

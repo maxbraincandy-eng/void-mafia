@@ -225,6 +225,9 @@ export const TRANSLATIONS = {
         loading: 'Loading…',
         nominateLabel: 'Nominate for Tribunal (optional)',
         withdrawNomination: 'Withdraw',
+        skipMyTime: 'Skip My Time',
+        foul: 'Foul',
+        nextFoulEliminate: 'Next foul will eliminate you',
       },
       voting: {
         title: 'Town Vote',
@@ -682,6 +685,9 @@ export const TRANSLATIONS = {
         loading: 'იტვირთება…',
         nominateLabel: 'ტრიბუნალზე დანიშვნა (სურვილისამებრ)',
         withdrawNomination: 'გაუქმება',
+        skipMyTime: 'ჩემი დროის გამოტოვება',
+        foul: 'ფოლი',
+        nextFoulEliminate: 'შემდეგი ფოლი გაგიყვანს თამაშიდან',
       },
       voting: {
         title: 'ქალაქის კენჭისყრა',

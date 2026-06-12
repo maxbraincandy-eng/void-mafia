@@ -42,6 +42,7 @@ export function startGame(room: Room): void {
     player.isAlive = true;
     player.hasActedThisPhase = false;
     player.voteTarget = null;
+    player.foulCount = 0;
   });
 
   room.day = 1;
@@ -52,6 +53,7 @@ export function startGame(room: Room): void {
   room.mafiaChat = [];
   room.dousedPlayers = new Set();
   room.newlyConvertedCultists = [];
+  room.activeFoul = null;
 }
 
 const MORNING_DURATION = 30;
@@ -200,8 +202,9 @@ export function advancePhase(room: Room): Phase {
         setPhase(room, 'game_over');
         return 'game_over';
       }
-      setPhase(room, 'morning');
-      return 'morning';
+      room.day++;
+      setPhase(room, 'day');
+      return 'day';
     }
 
     case 'day':
@@ -253,7 +256,7 @@ export function advancePhase(room: Room): Phase {
         const dying = room.players.get(dyingId);
         if (dying) {
           dying.isAlive   = false;
-          dying.deathType = reason === 'night_kill' ? 'night' : 'vote';
+          dying.deathType = reason === 'night_kill' ? 'night' : reason === 'foul_death' ? 'foul' : 'vote';
         }
       }
 
@@ -268,9 +271,10 @@ export function advancePhase(room: Room): Phase {
         return 'game_over';
       }
 
-      if (reason === 'night_kill') {
-        setPhase(room, 'morning');
-        return 'morning';
+      if (reason === 'night_kill' || reason === 'foul_death') {
+        room.day++;
+        setPhase(room, 'day');
+        return 'day';
       }
       setPhase(room, 'night');
       return 'night';

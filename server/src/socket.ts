@@ -257,6 +257,7 @@ function broadcastQueueUpdated(io: AppServer, room: Room): void {
     isQueuedNextRound: true,
     queuePosition: p.queuePosition,
     deathType: null as any,
+    foulCount: 0,
   }));
   io.to(room.id).emit('queue:updated', { nextRoundQueue });
   // Also to queued players
@@ -1356,6 +1357,91 @@ export function attachSocketHandlers(io: AppServer): void {
         } else {
           broadcastRoom(io, room);
         }
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Issue Foul (presser interrupts current speaker for 6 seconds) ───
+    socket.on('game:foul', async (cb) => {
+      try {
+        const room = getRoomFromSocket(socket);
+        const presser = getPlayerOrError(socket, room);
+        if (room.phase !== 'speech') throw new Error('Fouls can only be issued during speech phase.');
+        if (!presser.isAlive || presser.isSpectator) throw new Error('Only alive players can issue fouls.');
+        const currentSpeakerId = room.speechOrder[room.currentSpeakerIdx];
+        if (presser.id === currentSpeakerId) throw new Error('The current speaker cannot foul themselves.');
+
+        // Only one active foul at a time
+        if (room.activeFoul && Date.now() < room.activeFoul.endsAt) {
+          throw new Error('A foul is already active. Wait for it to expire.');
+        }
+
+        const speaker = room.players.get(currentSpeakerId ?? '');
+        if (!speaker) throw new Error('No active speaker found.');
+
+        // Track fouls on the PRESSER (the player who pressed the foul button)
+        presser.foulCount = (presser.foulCount ?? 0) + 1;
+
+        if (presser.foulCount >= 4) {
+          // 4th foul: presser is eliminated — deferred death with final_words
+          room.activeFoul = null;
+          room.deathSpeakerId  = presser.id;
+          room.finalWordsReason = 'foul_death';
+
+          // Pre-check win as if presser died now
+          presser.isAlive = false;
+          const gameEnds = checkWin(room);
+          presser.isAlive = true;
+
+          timerService.stop(room.id);
+          room.timer = 0;
+
+          if (gameEnds) {
+            presser.isAlive = false;
+            presser.deathType = 'foul';
+            room.deathSpeakerId  = null;
+            room.finalWordsReason = null;
+            setPhase(room, 'game_over');
+            await emitGameOver(io, room);
+          } else {
+            setPhase(room, 'final_words');
+            startPhaseTimer(io, room);
+          }
+
+          broadcastSystemMsg(io, room, `⚠️ ${presser.name}: ფოლი #4 — გარიცხულია!`);
+          broadcastRoom(io, room);
+          enforceVoicePhaseRules(io, room);
+          cb(ok(null));
+          return;
+        }
+
+        // Activate the foul window: presser gets 6 seconds to speak
+        const foulEndsAt = Date.now() + 6000;
+        room.activeFoul = { playerId: presser.id, endsAt: foulEndsAt };
+
+        broadcastSystemMsg(io, room, `⚠️ ${presser.name}: ფოლი #${presser.foulCount}/3`);
+
+        // Give presser voice access for 6 seconds
+        const presserMember = voiceGetMembers(room.id, 'room').find(m => m.playerId === presser.id);
+        if (presserMember) {
+          io.to(presserMember.socketId).emit('voice:force-unmute');
+        }
+
+        // Expire the foul after 6 seconds and re-mute presser
+        setTimeout(() => {
+          if (room.activeFoul?.playerId === presser.id && room.activeFoul.endsAt === foulEndsAt) {
+            room.activeFoul = null;
+            if (room.phase === 'speech') {
+              const member = voiceGetMembers(room.id, 'room').find(m => m.playerId === presser.id);
+              if (member) {
+                io.to(member.socketId).emit('voice:force-mute', { reason: 'Foul window expired.' });
+              }
+              broadcastRoom(io, room);
+            }
+          }
+        }, 6000);
+
+        broadcastRoom(io, room);
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });
@@ -3111,11 +3197,14 @@ function enforceVoicePhaseRules(io: AppServer, room: Room): void {
 
   if (phase === 'speech') {
     const speakerId = room.speechOrder[room.currentSpeakerIdx] ?? null;
+    const foulPlayerId = (room.activeFoul && Date.now() < room.activeFoul.endsAt)
+      ? room.activeFoul.playerId
+      : null;
     for (const member of voiceGetMembers(roomId, 'room')) {
       const player = room.players.get(member.playerId);
       if (!player?.isAlive || player?.isSpectator) {
         io.to(member.socketId).emit('voice:force-mute', { reason: 'Listen only.' });
-      } else if (member.playerId === speakerId) {
+      } else if (member.playerId === speakerId || member.playerId === foulPlayerId) {
         io.to(member.socketId).emit('voice:force-unmute');
       } else {
         io.to(member.socketId).emit('voice:force-mute', { reason: 'Only the current speaker may transmit.' });

@@ -123,7 +123,7 @@ export function GamePage() {
     nightResult, investigationResult, spyReport, gameOverResult,
     voteEliminationResult, cultConversionNotice, nightSummary, newAchievements,
     voteBreakdown,
-    skipPhase, speechPass, daySkipVote, leaveRoom, terminateGame,
+    skipPhase, speechPass, daySkipVote, issueFoul, leaveRoom, terminateGame,
     dismissNightResult, dismissInvestigation, dismissSpyReport, dismissGameOver,
     dismissVoteElimination, dismissCultConversion, dismissNightSummary, dismissNewAchievements,
     dismissVoteBreakdown,
@@ -148,6 +148,7 @@ export function GamePage() {
     skipPhase: s.skipPhase,
     speechPass: s.speechPass,
     daySkipVote: s.daySkipVote,
+    issueFoul: s.issueFoul,
     leaveRoom: s.leaveRoom,
     terminateGame: s.terminateGame,
     dismissNightResult: s.dismissNightResult,
@@ -706,6 +707,8 @@ export function GamePage() {
           const isMyTurn = room.currentSpeakerId === myPlayer?.id && myPlayer?.isAlive && !amSpectator;
           const myNomination = isMyTurn ? room.nominations?.[myPlayer.id] : null;
           const nominatedPlayer = myNomination ? room.players.find(p => p.id === myNomination) : null;
+          const myFoulCount = myPlayer?.foulCount ?? 0;
+          const foulActive = room.activeFoul !== null && Date.now() < (room.activeFoul?.endsAt ?? 0);
           return (
             <div className="space-y-4">
               <div className="py-4">
@@ -789,6 +792,36 @@ export function GamePage() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {/* Speech actions: foul (non-speakers) + skip my time (speaker) */}
+              {!amSpectator && amAlive && (
+                <div className="flex gap-2 flex-wrap">
+                  {isMyTurn && (
+                    <button
+                      onClick={() => speechPass()}
+                      disabled={isLoading}
+                      className="flex-1 px-4 py-2 border border-white/15 text-white/40 text-xs font-mono rounded-xl hover:border-neon-cyan/40 hover:text-neon-cyan transition-all disabled:opacity-40"
+                    >
+                      ⏭ {t.game.speech.skipMyTime}
+                    </button>
+                  )}
+                  {!isMyTurn && (
+                    <button
+                      onClick={() => issueFoul()}
+                      disabled={isLoading || foulActive}
+                      className="flex-1 px-4 py-2 rounded-xl text-xs font-mono font-semibold transition-all disabled:opacity-40"
+                      style={{
+                        background: myFoulCount >= 3 ? 'rgba(255,45,85,0.12)' : 'rgba(255,165,0,0.07)',
+                        border: `1px solid ${myFoulCount >= 3 ? 'rgba(255,45,85,0.4)' : 'rgba(255,165,0,0.25)'}`,
+                        color: myFoulCount >= 3 ? 'rgba(255,45,85,0.85)' : 'rgba(255,165,0,0.75)',
+                      }}
+                    >
+                      ⚠️ {t.game.speech.foul} · {myFoulCount}/3
+                      {myFoulCount >= 3 && <span className="block text-[9px] opacity-70">{t.game.speech.nextFoulEliminate}</span>}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -1569,7 +1602,7 @@ export function GamePage() {
                 {/* Day skip vote — glass style */}
                 {phase === 'day' && !amSpectator && amAlive && (() => {
                   const alreadyVoted = room.daySkipVoteCount ?? 0;
-                  const skipNeeded = 3;
+                  const skipNeeded = Math.min(3, room.players.filter(p => p.isAlive && !p.isSpectator).length);
                   return (
                     <div className="flex-shrink-0 flex justify-center px-4 pb-4" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem))' }}>
                       <button
@@ -1584,7 +1617,9 @@ export function GamePage() {
                           boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
                         }}
                       >
-                        ⏭ Skip  ·  {alreadyVoted} / {skipNeeded}
+                        {t.game.day.skipDiscussion
+                          .replace('{voted}', String(alreadyVoted))
+                          .replace('{needed}', String(skipNeeded))}
                       </button>
                     </div>
                   );
@@ -1608,10 +1643,35 @@ export function GamePage() {
                         boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
                       }}
                     >
-                      ⏭ Skip
+                      ⏭ {t.game.speech.skipMyTime}
                     </button>
                   </div>
                 )}
+
+                {/* Foul button — alive non-speaker players during speech */}
+                {phase === 'speech' && !amSpectator && amAlive && room.currentSpeakerId !== myPlayer?.id && (() => {
+                  const myFoulCountMobile = myPlayer?.foulCount ?? 0;
+                  const foulActiveMobile = room.activeFoul !== null && Date.now() < (room.activeFoul?.endsAt ?? 0);
+                  return (
+                    <div className="flex-shrink-0 flex justify-center px-4 pb-4" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem))' }}>
+                      <button
+                        onClick={() => { issueFoul(); navigator.vibrate?.(80); }}
+                        disabled={isLoading || foulActiveMobile}
+                        className="px-6 py-3 rounded-2xl text-sm font-mono font-semibold transition-all active:scale-95 disabled:opacity-40"
+                        style={{
+                          background: myFoulCountMobile >= 3 ? 'rgba(255,45,85,0.15)' : 'rgba(255,165,0,0.08)',
+                          border: `1px solid ${myFoulCountMobile >= 3 ? 'rgba(255,45,85,0.5)' : 'rgba(255,165,0,0.3)'}`,
+                          backdropFilter: 'blur(12px)',
+                          color: myFoulCountMobile >= 3 ? 'rgba(255,45,85,0.9)' : 'rgba(255,165,0,0.8)',
+                          boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
+                        }}
+                      >
+                        ⚠️ {t.game.speech.foul} · {myFoulCountMobile}/3
+                        {myFoulCountMobile >= 3 && <span className="block text-[10px] opacity-70 mt-0.5">{t.game.speech.nextFoulEliminate}</span>}
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
