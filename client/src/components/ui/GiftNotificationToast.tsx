@@ -45,7 +45,9 @@ export function GiftNotificationToast({ notification, onDismiss }: Props) {
                   boxShadow: `0 0 30px ${style.glow}`,
                 }}
               >
-                <span className="text-3xl flex-shrink-0">{notification.giftIcon}</span>
+                {notification.giftImageUrl
+                  ? <img src={notification.giftImageUrl} alt={notification.giftName} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                  : <span className="text-3xl flex-shrink-0">{notification.giftIcon}</span>}
                 <div className="min-w-0">
                   <p className={`font-mono text-[9px] uppercase tracking-[0.15em] ${style.label}`}>
                     Gift received · {notification.giftRarity}

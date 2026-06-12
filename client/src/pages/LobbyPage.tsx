@@ -291,12 +291,12 @@ export function LobbyPage() {
                       initial={{ opacity: 0, x: -6 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.06 + i * 0.03 }}
-                      onClick={() => !isMe && player.profileId && openProfile(player.profileId)}
+                      onClick={() => player.profileId && openProfile(player.profileId)}
                       className={clsx(
-                        'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors',
+                        'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors cursor-pointer',
                         isMe
-                          ? 'bg-white/[0.03]'
-                          : 'hover:bg-white/[0.025] cursor-pointer',
+                          ? 'bg-white/[0.03] hover:bg-white/[0.05]'
+                          : 'hover:bg-white/[0.025]',
                       )}
                     >
                       <Avatar name={player.name} isHost={player.isHost} size="sm" src={player.avatarUrl ?? undefined} />

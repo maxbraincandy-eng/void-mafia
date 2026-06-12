@@ -659,6 +659,7 @@ export interface GiftReceivedNotification {
   giftId: string;
   giftName: string;
   giftIcon: string;
+  giftImageUrl?: string;
   giftRarity: GiftRarity;
   senderName: string;
   senderAvatar: string;

@@ -2423,17 +2423,19 @@ export function attachSocketHandlers(io: AppServer): void {
         // Notify recipient in real-time if connected
         const recipientSock = findSocketByProfile(io as any, recipientId);
         if (recipientSock) {
-          const giftInfo = await getGiftCatalog(true);
-          const catalogItem = giftInfo.find(g => g.id === giftId);
-          if (catalogItem) {
-            recipientSock.emit('gift:received', {
-              gift: catalogItem,
-              senderName: giftEntry.senderUsername,
-              senderAvatar: giftEntry.senderAvatar,
-              message: giftEntry.message,
-            });
-          }
+          recipientSock.emit('gifts:received' as any, {
+            giftId: giftEntry.giftId,
+            giftName: giftEntry.giftName,
+            giftIcon: giftEntry.giftIcon,
+            giftImageUrl: giftEntry.giftImageUrl,
+            giftRarity: giftEntry.giftRarity,
+            senderName: giftEntry.senderUsername,
+            senderAvatar: giftEntry.senderAvatar,
+            senderAvatarUrl: giftEntry.senderAvatarUrl,
+            message: giftEntry.message,
+          });
         }
+        socket.emit('gifts:sent' as any, { giftId: giftEntry.giftId });
         cb(ok({ newBalance: newSenderBalance }));
       } catch (e: any) { cb(err(e.message)); }
     });
