@@ -872,6 +872,7 @@ export interface ClientToServerEvents {
   'coins:send_gift':        (data: { recipientId: string; giftId: string; message: string }, cb: Cb<{ newBalance: number }>) => void;
   'coins:transactions':     (data: { profileId?: string }, cb: Cb<any[]>) => void;
   'gifts:catalog':          (cb: Cb<any[]>) => void;
+  'gifts:leaderboard':      (cb: Cb<any>) => void;
   'gifts:player_gifts':     (data: { profileId: string }, cb: Cb<any[]>) => void;
   'gifts:detail':           (data: { giftId: string; recipientId: string }, cb: Cb<any>) => void;
   // Economy — owner only

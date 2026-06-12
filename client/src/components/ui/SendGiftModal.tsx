@@ -63,6 +63,7 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
   const [filterCat, setFilterCat]       = useState<string>('all');
   const [filterRarity, setFilterRarity] = useState<string>('all');
   const [affordableOnly, setAffordable] = useState(false);
+  const [seasonalOnly, setSeasonalOnly] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -78,14 +79,17 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
     return () => { socket.off('coins:updated' as any, onCoinsUpdated); };
   }, []);
 
+  const hasSeasonalGifts = useMemo(() => catalog.some(g => g.isCurrentSeason), [catalog]);
+
   const filtered = useMemo(() => {
     return catalog.filter(g => {
       if (filterCat !== 'all' && g.category !== filterCat) return false;
       if (filterRarity !== 'all' && g.rarity !== filterRarity) return false;
       if (affordableOnly && balance < g.price) return false;
+      if (seasonalOnly && !g.isCurrentSeason) return false;
       return true;
     });
-  }, [catalog, filterCat, filterRarity, affordableOnly, balance]);
+  }, [catalog, filterCat, filterRarity, affordableOnly, seasonalOnly, balance]);
 
   const handleSend = async () => {
     if (!selected || sending) return;
@@ -143,6 +147,29 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
         </div>
 
         <div className="px-5 py-3">
+          {/* Seasonal banner */}
+          {!loading && !success && hasSeasonalGifts && (
+            <button
+              onClick={() => setSeasonalOnly(v => !v)}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl mb-3 text-left transition-all"
+              style={{
+                background: seasonalOnly ? 'rgba(255,180,0,0.12)' : 'rgba(255,180,0,0.06)',
+                border: `1px solid ${seasonalOnly ? 'rgba(255,180,0,0.35)' : 'rgba(255,180,0,0.15)'}`,
+              }}
+            >
+              <span className="text-base">✨</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-mono text-[9px] uppercase tracking-widest text-amber-400/80">
+                  Seasonal gifts available
+                </p>
+                <p className="font-mono text-[8px] text-white/30">Tap to {seasonalOnly ? 'show all' : 'show only seasonal'}</p>
+              </div>
+              <span className={`font-mono text-[8px] uppercase tracking-widest px-1.5 py-0.5 rounded-full ${seasonalOnly ? 'text-amber-400 bg-amber-400/15 border border-amber-400/30' : 'text-white/25 border border-white/10'}`}>
+                {seasonalOnly ? 'on' : 'off'}
+              </span>
+            </button>
+          )}
+
           {loading && <p className="text-white/30 font-mono text-xs text-center py-8">Loading catalog...</p>}
 
           {!loading && success && (
@@ -244,6 +271,9 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
                         {selected.limitedEdition && (
                           <span className="font-mono text-[8px] text-neon-red/70 border border-neon-red/20 px-1 rounded">LIMITED</span>
                         )}
+                        {selected.isCurrentSeason && (
+                          <span className="font-mono text-[8px] text-amber-400/70 border border-amber-400/20 px-1 rounded">✨ SEASONAL</span>
+                        )}
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
@@ -288,6 +318,9 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
                       </span>
                       {g.limitedEdition && (
                         <span className="absolute top-0.5 right-0.5 font-mono text-[6px] text-neon-red/80 bg-neon-red/10 px-0.5 rounded">LTD</span>
+                      )}
+                      {g.isCurrentSeason && !g.limitedEdition && (
+                        <span className="absolute top-0.5 right-0.5 text-[8px]">✨</span>
                       )}
                     </button>
                   );

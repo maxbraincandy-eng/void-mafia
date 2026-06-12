@@ -69,6 +69,7 @@ import {
   getTransactions, getAllTransactions,
   getGiftCatalog, createGift, updateGift,
   sendGift, getPlayerGifts, getGiftDetail,
+  getGiftLeaderboard,
 } from './services/coinService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -1211,6 +1212,13 @@ export function attachSocketHandlers(io: AppServer): void {
     socket.on('leaderboard:get', async (cb) => {
       try { cb(ok(await getLeaderboard())); }
       catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('gifts:leaderboard', async (cb: any) => {
+      try {
+        const data = await getGiftLeaderboard();
+        cb(ok(data));
+      } catch (e: any) { cb(err(e.message)); }
     });
 
     // ── Terminate Game (host-only, resets to lobby) ─────────────────

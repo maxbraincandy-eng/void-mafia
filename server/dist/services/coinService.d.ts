@@ -120,7 +120,9 @@ export declare function deductCoins(ownerId: string, targetId: string, amount: n
 export declare function refundGift(txId: string, ownerId: string): Promise<void>;
 export declare function getTransactions(playerId: string, limit?: number): Promise<CoinTransaction[]>;
 export declare function getAllTransactions(limit?: number): Promise<CoinTransaction[]>;
-export declare function getGiftCatalog(includeInactive?: boolean): Promise<GiftCatalogItem[]>;
+export declare function getGiftCatalog(includeInactive?: boolean): Promise<(GiftCatalogItem & {
+    isCurrentSeason: boolean;
+})[]>;
 export declare function createGift(createdBy: string, data: {
     name: string;
     description?: string;
@@ -129,6 +131,8 @@ export declare function createGift(createdBy: string, data: {
     rarity: string;
     stars: number;
     price: number;
+    seasonalTag?: string | null;
+    limitedEdition?: boolean;
 }): Promise<GiftCatalogItem>;
 export declare function updateGift(giftId: string, data: Partial<{
     name: string;
@@ -139,6 +143,8 @@ export declare function updateGift(giftId: string, data: Partial<{
     stars: number;
     price: number;
     active: boolean;
+    seasonalTag: string | null;
+    limitedEdition: boolean;
 }>): Promise<GiftCatalogItem>;
 export declare function sendGift(senderId: string, recipientId: string, giftId: string, message: string): Promise<{
     newSenderBalance: number;
@@ -152,4 +158,26 @@ export declare function getGiftStats(playerId: string): Promise<GiftStats>;
 export declare function getPinnedGifts(playerId: string): Promise<PinnedGiftEntry[]>;
 export declare function pinGift(playerId: string, giftId: string): Promise<void>;
 export declare function unpinGift(playerId: string, giftId: string): Promise<void>;
+export declare function currentSeasonTag(): string | null;
+export declare function creditPurchasedCoins(profileId: string, amount: number, description: string): Promise<{
+    newBalance: number;
+}>;
+export declare function getGiftLeaderboard(): Promise<{
+    topGifters: Array<{
+        profileId: string;
+        username: string;
+        avatar: string;
+        avatarUrl: string | null;
+        totalSpent: number;
+        giftCount: number;
+    }>;
+    topRecipients: Array<{
+        profileId: string;
+        username: string;
+        avatar: string;
+        avatarUrl: string | null;
+        totalReceived: number;
+        giftCount: number;
+    }>;
+}>;
 //# sourceMappingURL=coinService.d.ts.map

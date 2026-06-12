@@ -1027,6 +1027,7 @@ export interface ClientToServerEvents {
         profileId?: string;
     }, cb: Cb<any[]>) => void;
     'gifts:catalog': (cb: Cb<any[]>) => void;
+    'gifts:leaderboard': (cb: Cb<any>) => void;
     'gifts:player_gifts': (data: {
         profileId: string;
     }, cb: Cb<any[]>) => void;

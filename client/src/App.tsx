@@ -19,7 +19,8 @@ import { BottomNav, NavTab } from '@/components/layout/BottomNav';
 import { MorePanel } from '@/components/ui/MorePanel';
 import { PlayerProfileModal } from '@/components/ui/PlayerProfileModal';
 import { DmPanel } from '@/components/social/DmPanel';
-import { GiftNotificationToast } from '@/components/ui/GiftNotificationToast';
+import { GiftReceivedAnimation } from '@/components/ui/GiftReceivedAnimation';
+import { CoinShopModal } from '@/components/ui/CoinShopModal';
 import { attachGlobalClickSounds, onSettingsChange } from '@/lib/audioEngine';
 import { useSettingsStore } from '@/store/settingsStore';
 import { socket } from '@/lib/socket';
@@ -127,7 +128,7 @@ function DmToastNotification() {
   );
 }
 
-function MainApp() {
+function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const [page, setPage] = useState<NavTab>('rooms');
   const profile = useAuthStore(s => s.profile);
   const isMod   = profile?.isModerator ?? false;
@@ -145,7 +146,7 @@ function MainApp() {
         {page === 'economy' && isOwner      && <EconomyAdminPage key="economy" />}
       </AnimatePresence>
       <BottomNav active={page} isMod={isMod} onChange={setPage} onMessagesClick={openDmList} />
-      <MorePanel isOwner={isOwner} onEconomyClick={() => setPage('economy')} />
+      <MorePanel isOwner={isOwner} onEconomyClick={() => setPage('economy')} onShopClick={onOpenShop} />
     </div>
   );
 }
@@ -174,7 +175,7 @@ function ReconnectingOverlay() {
   );
 }
 
-function Screen({ publicProfileId, onClearPublicProfile }: { publicProfileId: number | null; onClearPublicProfile: () => void }) {
+function Screen({ publicProfileId, onClearPublicProfile, onOpenShop }: { publicProfileId: number | null; onClearPublicProfile: () => void; onOpenShop: () => void }) {
   const isAuthed = useAuthStore(s => s.isAuthed);
   const room = useGameStore(s => s.room);
 
@@ -186,7 +187,7 @@ function Screen({ publicProfileId, onClearPublicProfile }: { publicProfileId: nu
     if (room.phase === 'lobby') return <LobbyPage />;
     return <GamePage />;
   }
-  return <MainApp />;
+  return <MainApp onOpenShop={onOpenShop} />;
 }
 
 function ModNoticeOverlay() {
@@ -287,7 +288,9 @@ function ModNoticeOverlay() {
 export default function App() {
   const connect = useGameStore(s => s.connect);
   const { profilePopupId, closeProfile } = useSocialStore();
+  const profile = useAuthStore(s => s.profile);
   const [giftNotif, setGiftNotif] = useState<GiftReceivedNotification | null>(null);
+  const [shopOpen, setShopOpen] = useState(false);
   const [publicProfileId, setPublicProfileId] = useState<number | null>(INITIAL_PUBLIC_ID);
 
   useEffect(() => {
@@ -306,7 +309,7 @@ export default function App() {
   return (
     <>
       <AnimatePresence mode="wait">
-        <Screen publicProfileId={publicProfileId} onClearPublicProfile={() => setPublicProfileId(null)} />
+        <Screen publicProfileId={publicProfileId} onClearPublicProfile={() => setPublicProfileId(null)} onOpenShop={() => setShopOpen(true)} />
       </AnimatePresence>
       <ToastLayer />
       <AnimatePresence>
@@ -319,7 +322,8 @@ export default function App() {
       <PlayerProfileModal playerId={profilePopupId} onClose={closeProfile} />
       <DmPanel />
       <DmToastNotification />
-      <GiftNotificationToast notification={giftNotif} onDismiss={() => setGiftNotif(null)} />
+      <GiftReceivedAnimation notification={giftNotif} onDismiss={() => setGiftNotif(null)} />
+      <CoinShopModal open={shopOpen} onClose={() => setShopOpen(false)} profileId={profile?.id ?? ''} />
     </>
   );
 }

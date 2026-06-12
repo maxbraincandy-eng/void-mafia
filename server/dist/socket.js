@@ -16,7 +16,7 @@ import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as 
 import { sql } from './db.js';
 import bcrypt from 'bcryptjs';
 import { getOrCreateConversation, listConversations, sendMessage, getMessages, markRead, getTotalUnread, deleteConversationForUser, } from './services/dmService.js';
-import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, } from './services/coinService.js';
+import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, getGiftLeaderboard, } from './services/coinService.js';
 // ── TURN / ICE server config ──────────────────────────────────────────
 // Centralised in server/src/lib/iceConfig.ts.  Reads Railway env vars:
 // TURN_URL, TURN_USERNAME, TURN_CREDENTIAL, FORCE_TURN_RELAY, STUN_URL.
@@ -1183,6 +1183,15 @@ export function attachSocketHandlers(io) {
         socket.on('leaderboard:get', async (cb) => {
             try {
                 cb(ok(await getLeaderboard()));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:leaderboard', async (cb) => {
+            try {
+                const data = await getGiftLeaderboard();
+                cb(ok(data));
             }
             catch (e) {
                 cb(err(e.message));

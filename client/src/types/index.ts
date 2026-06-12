@@ -605,6 +605,7 @@ export interface GiftCatalogItem {
   category: string;
   limitedEdition: boolean;
   seasonalTag: string | null;
+  isCurrentSeason?: boolean;
   displayOrder: number;
   createdBy: string;
   createdAt: number;

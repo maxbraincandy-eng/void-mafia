@@ -66,9 +66,10 @@ function MenuRow({ item }: { item: MenuItem }) {
 interface MorePanelProps {
   isOwner?: boolean;
   onEconomyClick?: () => void;
+  onShopClick?: () => void;
 }
 
-export function MorePanel({ isOwner = false, onEconomyClick }: MorePanelProps) {
+export function MorePanel({ isOwner = false, onEconomyClick, onShopClick }: MorePanelProps) {
   const { morePanelOpen, closeMoreMenu } = useSocialStore();
   const [showSettings, setShowSettings] = useState(false);
 
@@ -107,6 +108,12 @@ export function MorePanel({ isOwner = false, onEconomyClick }: MorePanelProps) {
       label: 'Season Pass',
       description: 'Rewards & battle pass',
       comingSoon: true,
+    },
+    {
+      icon: <span className="text-base">🛒</span>,
+      label: 'Coin Shop',
+      description: 'Buy coins to send gifts',
+      onClick: () => { closeMoreMenu(); setTimeout(() => onShopClick?.(), 250); },
     },
     ...(isOwner && onEconomyClick ? [{
       icon: <span className="text-base">🪙</span>,

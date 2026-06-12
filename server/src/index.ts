@@ -8,6 +8,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import passport from 'passport';
+import Stripe from 'stripe';
 import {
   ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData,
 } from './types/index.js';
@@ -21,6 +22,19 @@ import { getPlayerAchievements } from './services/achievementService.js';
 import { sql, initializeDatabase } from './db.js';
 import { configurePassport, createAuthRouter } from './auth.js';
 import { initPushService, getVapidPublicKey, sendPushToUser as _sendPush } from './pushService.js';
+import { creditPurchasedCoins } from './services/coinService.js';
+
+// ── Stripe setup ──────────────────────────────────────────────────────
+const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY ?? '';
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET ?? '';
+const stripe = STRIPE_SECRET ? new Stripe(STRIPE_SECRET) : null;
+
+export const COIN_PACKAGES = [
+  { id: 'coins_500',   coins: 500,   price: 499,   label: '500 Coins',    bonus: '' },
+  { id: 'coins_1500',  coins: 1500,  price: 999,   label: '1,500 Coins',  bonus: '+200 bonus' },
+  { id: 'coins_4000',  coins: 4000,  price: 1999,  label: '4,000 Coins',  bonus: '+500 bonus' },
+  { id: 'coins_10000', coins: 10000, price: 3999,  label: '10,000 Coins', bonus: '+2,000 bonus' },
+] as const;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
@@ -50,10 +64,19 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, InterServerEve
 });
 
 // ── Middleware ────────────────────────────────────────────────────────
-app.use(cors({
-  origin: IS_PROD ? false : CLIENT_URL,
-  credentials: true,
-}));
+app.use((req, res, next) => {
+  // Allow same-origin requests in prod; in dev allow the Vite dev server
+  if (IS_PROD) {
+    res.setHeader('Access-Control-Allow-Origin', 'https://voidmafia.one');
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', CLIENT_URL);
+  }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,stripe-signature');
+  if (req.method === 'OPTIONS') { res.sendStatus(200); return; }
+  next();
+});
 app.use(cookieParser());
 app.use(session({
   secret: process.env.AUTH_SESSION_SECRET ?? 'void-mafia-dev-secret',
@@ -195,6 +218,73 @@ app.delete('/api/push/subscribe', async (req, res) => {
   if (!endpoint) { res.status(400).json({ ok: false }); return; }
   await sql`DELETE FROM push_subscriptions WHERE endpoint = ${endpoint}`;
   res.json({ ok: true });
+});
+
+// ── Stripe: coin packages list ────────────────────────────────────────
+app.get('/api/shop/packages', (_req, res) => {
+  res.json({ ok: true, data: COIN_PACKAGES, stripeEnabled: !!stripe });
+});
+
+// ── Stripe: create checkout session ──────────────────────────────────
+app.post('/api/shop/checkout', express.json(), async (req, res) => {
+  if (!stripe) { res.status(503).json({ ok: false, error: 'Payments not configured.' }); return; }
+  const { packageId, profileId } = req.body ?? {};
+  const pkg = COIN_PACKAGES.find(p => p.id === packageId);
+  if (!pkg) { res.status(400).json({ ok: false, error: 'Invalid package.' }); return; }
+  if (!profileId || typeof profileId !== 'string') { res.status(400).json({ ok: false, error: 'Not authenticated.' }); return; }
+  try {
+    const origin = IS_PROD ? 'https://voidmafia.one' : `http://localhost:5173`;
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      line_items: [{
+        price_data: {
+          currency: 'usd',
+          unit_amount: pkg.price,
+          product_data: {
+            name: `${pkg.label}${pkg.bonus ? ` (${pkg.bonus})` : ''}`,
+            description: `Void Mafia in-game coins`,
+            images: [],
+          },
+        },
+        quantity: 1,
+      }],
+      metadata: { profileId, packageId: pkg.id, coins: String(pkg.coins) },
+      success_url: `${origin}/shop/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/shop`,
+    });
+    res.json({ ok: true, url: session.url });
+  } catch (e: any) {
+    console.error('[shop/checkout]', e.message);
+    res.status(500).json({ ok: false, error: 'Failed to create checkout session.' });
+  }
+});
+
+// ── Stripe: webhook ───────────────────────────────────────────────────
+app.post('/api/shop/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  if (!stripe) { res.status(503).end(); return; }
+  const sig = req.headers['stripe-signature'] as string;
+  if (!STRIPE_WEBHOOK_SECRET || !sig) { res.status(400).end(); return; }
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+  } catch (e: any) {
+    console.error('[webhook] signature verification failed:', e.message);
+    res.status(400).end(); return;
+  }
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const { profileId, coins } = session.metadata ?? {};
+    if (profileId && coins) {
+      try {
+        await creditPurchasedCoins(profileId, parseInt(coins, 10), `Coin purchase (${session.id})`);
+        console.log(`[shop] granted ${coins} coins to ${profileId}`);
+      } catch (e: any) {
+        console.error('[shop] grant coins failed:', e.message);
+      }
+    }
+  }
+  res.json({ received: true });
 });
 
 // ── Serve built client in production ─────────────────────────────────

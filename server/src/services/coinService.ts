@@ -245,16 +245,20 @@ function rowToTx(r: any): CoinTransaction {
 
 // ── Gift Catalog ───────────────────────────────────────────────────────────
 
-export async function getGiftCatalog(includeInactive = false): Promise<GiftCatalogItem[]> {
+export async function getGiftCatalog(includeInactive = false): Promise<(GiftCatalogItem & { isCurrentSeason: boolean })[]> {
   const rows = includeInactive
     ? await sql`SELECT * FROM gift_catalog ORDER BY stars ASC, price ASC` as any[]
     : await sql`SELECT * FROM gift_catalog WHERE active = 1 ORDER BY stars ASC, price ASC` as any[];
-  return rows.map(rowToGift);
+  const season = currentSeasonTag();
+  return rows.map((r: any) => ({
+    ...rowToGift(r),
+    isCurrentSeason: r.seasonal_tag !== null && r.seasonal_tag === season,
+  }));
 }
 
 export async function createGift(
   createdBy: string,
-  data: { name: string; description?: string; icon: string; imageUrl?: string; rarity: string; stars: number; price: number },
+  data: { name: string; description?: string; icon: string; imageUrl?: string; rarity: string; stars: number; price: number; seasonalTag?: string | null; limitedEdition?: boolean },
 ): Promise<GiftCatalogItem> {
   if (!data.name?.trim()) throw new Error('Gift name required.');
   if (!Number.isInteger(data.price) || data.price < 0) throw new Error('Price must be a non-negative integer.');
@@ -264,10 +268,13 @@ export async function createGift(
 
   const id = 'gift_' + generateId().replace(/-/g, '').slice(0, 10);
   const now = Date.now();
+  const seasonalTag = data.seasonalTag ?? null;
+  const limitedEdition = data.limitedEdition ? 1 : 0;
   await sql`
-    INSERT INTO gift_catalog (id, name, description, icon, image_url, rarity, stars, price, active, created_by, created_at, updated_at)
+    INSERT INTO gift_catalog (id, name, description, icon, image_url, rarity, stars, price, active, seasonal_tag, limited_edition, created_by, created_at, updated_at)
     VALUES (${id}, ${data.name.trim()}, ${data.description ?? ''}, ${data.icon || '🎁'},
-            ${data.imageUrl ?? ''}, ${data.rarity}, ${data.stars}, ${data.price}, 1, ${createdBy}, ${now}, ${now})
+            ${data.imageUrl ?? ''}, ${data.rarity}, ${data.stars}, ${data.price}, 1,
+            ${seasonalTag}, ${limitedEdition}, ${createdBy}, ${now}, ${now})
   `;
   const [row] = await sql`SELECT * FROM gift_catalog WHERE id = ${id}` as any[];
   return rowToGift(row);
@@ -275,24 +282,27 @@ export async function createGift(
 
 export async function updateGift(
   giftId: string,
-  data: Partial<{ name: string; description: string; icon: string; imageUrl: string; rarity: string; stars: number; price: number; active: boolean }>,
+  data: Partial<{ name: string; description: string; icon: string; imageUrl: string; rarity: string; stars: number; price: number; active: boolean; seasonalTag: string | null; limitedEdition: boolean }>,
 ): Promise<GiftCatalogItem> {
   const [ex] = await sql`SELECT * FROM gift_catalog WHERE id = ${giftId}` as any[];
   if (!ex) throw new Error('Gift not found.');
 
-  const name        = data.name        !== undefined ? data.name.trim()       : ex.name;
-  const description = data.description !== undefined ? data.description       : ex.description;
-  const icon        = data.icon        !== undefined ? data.icon              : ex.icon;
-  const imageUrl    = data.imageUrl    !== undefined ? data.imageUrl          : ex.image_url;
-  const rarity      = data.rarity      !== undefined ? data.rarity           : ex.rarity;
-  const stars       = data.stars       !== undefined ? data.stars            : Number(ex.stars);
-  const price       = data.price       !== undefined ? data.price            : Number(ex.price);
-  const active      = data.active      !== undefined ? (data.active ? 1 : 0) : Number(ex.active);
+  const name          = data.name           !== undefined ? data.name.trim()              : ex.name;
+  const description   = data.description    !== undefined ? data.description              : ex.description;
+  const icon          = data.icon           !== undefined ? data.icon                     : ex.icon;
+  const imageUrl      = data.imageUrl       !== undefined ? data.imageUrl                 : ex.image_url;
+  const rarity        = data.rarity         !== undefined ? data.rarity                  : ex.rarity;
+  const stars         = data.stars          !== undefined ? data.stars                   : Number(ex.stars);
+  const price         = data.price          !== undefined ? data.price                   : Number(ex.price);
+  const active        = data.active         !== undefined ? (data.active ? 1 : 0)        : Number(ex.active);
+  const seasonalTag   = data.seasonalTag    !== undefined ? (data.seasonalTag ?? null)   : (ex.seasonal_tag ?? null);
+  const limitedEdition = data.limitedEdition !== undefined ? (data.limitedEdition ? 1 : 0) : Number(ex.limited_edition ?? 0);
 
   await sql`
     UPDATE gift_catalog
     SET name = ${name}, description = ${description}, icon = ${icon}, image_url = ${imageUrl},
-        rarity = ${rarity}, stars = ${stars}, price = ${price}, active = ${active}, updated_at = ${Date.now()}
+        rarity = ${rarity}, stars = ${stars}, price = ${price}, active = ${active},
+        seasonal_tag = ${seasonalTag}, limited_edition = ${limitedEdition}, updated_at = ${Date.now()}
     WHERE id = ${giftId}
   `;
   const [row] = await sql`SELECT * FROM gift_catalog WHERE id = ${giftId}` as any[];
@@ -666,4 +676,80 @@ export async function pinGift(playerId: string, giftId: string): Promise<void> {
 
 export async function unpinGift(playerId: string, giftId: string): Promise<void> {
   await sql`DELETE FROM pinned_gifts WHERE player_id = ${playerId} AND gift_id = ${giftId}`;
+}
+
+export function currentSeasonTag(): string | null {
+  const now = new Date();
+  const month = now.getMonth() + 1; // 1-12
+  const day = now.getDate();
+  if (month === 12 || (month === 1 && day <= 7)) return 'christmas';
+  if (month === 10 && day >= 25 || month === 11 && day <= 3) return 'halloween';
+  if (month === 2 && day <= 14) return 'valentines';
+  if (month === 3 && day >= 17 && day <= 20) return 'spring';
+  if (month === 6 || month === 7) return 'summer';
+  return null;
+}
+
+export async function creditPurchasedCoins(
+  profileId: string,
+  amount: number,
+  description: string,
+): Promise<{ newBalance: number }> {
+  if (!Number.isInteger(amount) || amount <= 0) throw new Error('Amount must be a positive integer.');
+  const { balanceAfter } = await recordTransaction(profileId, 'grant', amount, description);
+  return { newBalance: balanceAfter };
+}
+
+export async function getGiftLeaderboard(): Promise<{
+  topGifters: Array<{ profileId: string; username: string; avatar: string; avatarUrl: string | null; totalSpent: number; giftCount: number }>;
+  topRecipients: Array<{ profileId: string; username: string; avatar: string; avatarUrl: string | null; totalReceived: number; giftCount: number }>;
+}> {
+  // Top 10 gifters by coins spent
+  const giftersRows = await sql`
+    SELECT pg.sender_id AS profile_id,
+           pg.sender_name AS username,
+           COALESCE(p.avatar, '🎭') AS avatar,
+           p.avatar_url,
+           SUM(pg.coin_cost)::int AS total_spent,
+           COUNT(*)::int AS gift_count
+    FROM player_gifts pg
+    LEFT JOIN players p ON p.id = pg.sender_id
+    WHERE pg.sender_id IS NOT NULL
+    GROUP BY pg.sender_id, pg.sender_name, p.avatar, p.avatar_url
+    ORDER BY total_spent DESC
+    LIMIT 10
+  `;
+  // Top 10 recipients by coins received
+  const recipientsRows = await sql`
+    SELECT pg.recipient_id AS profile_id,
+           pg.receiver_name AS username,
+           COALESCE(p.avatar, '🎭') AS avatar,
+           p.avatar_url,
+           SUM(pg.coin_cost)::int AS total_received,
+           COUNT(*)::int AS gift_count
+    FROM player_gifts pg
+    LEFT JOIN players p ON p.id = pg.recipient_id
+    WHERE pg.recipient_id IS NOT NULL
+    GROUP BY pg.recipient_id, pg.receiver_name, p.avatar, p.avatar_url
+    ORDER BY total_received DESC
+    LIMIT 10
+  `;
+  return {
+    topGifters: giftersRows.map((r: any) => ({
+      profileId: r.profile_id,
+      username: r.username,
+      avatar: r.avatar,
+      avatarUrl: r.avatar_url ?? null,
+      totalSpent: r.total_spent,
+      giftCount: r.gift_count,
+    })),
+    topRecipients: recipientsRows.map((r: any) => ({
+      profileId: r.profile_id,
+      username: r.username,
+      avatar: r.avatar,
+      avatarUrl: r.avatar_url ?? null,
+      totalReceived: r.total_received,
+      giftCount: r.gift_count,
+    })),
+  };
 }
