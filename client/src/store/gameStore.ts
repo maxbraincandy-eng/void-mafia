@@ -96,7 +96,58 @@ interface GameStore {
 
 let toastCounter = 0;
 
+const SESSION_KEY = 'void-mafia-room-session';
+
+function saveSession(room: RoomPublic, playerId: string): void {
+  try {
+    const player = room.players.find(p => p.id === playerId)
+      ?? room.nextRoundQueue?.find(p => p.id === playerId);
+    if (!player) return;
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+      code: room.code,
+      playerId,
+      playerName: player.name,
+      isSpectator: player.isSpectator ?? false,
+    }));
+  } catch { /* ignore */ }
+}
+
+function clearSession(): void {
+  try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+}
+
 export const useGameStore = create<GameStore>((set, get) => {
+  // ── Session restore after browser refresh ─────────────────────
+  // Transport reconnects are handled by the socket 'connect' event below.
+  // Page refreshes lose in-memory state, so we wait for auth to complete
+  // (vm:auth-ready fires from authStore after player:auth succeeds) then
+  // restore from sessionStorage.
+  window.addEventListener('vm:auth-ready', () => {
+    if (get().room) return; // already in room (transport reconnect already handled)
+    let saved: { code: string; playerId: string; playerName: string; isSpectator: boolean } | null = null;
+    try { saved = JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? 'null'); } catch { /* ignore */ }
+    if (!saved) return;
+    set({ isReconnecting: true });
+    emitWithAck<unknown, Res<RoomPublic>>('room:join', {
+      code: saved.code,
+      name: saved.playerName,
+      isSpectator: saved.isSpectator,
+    }).then(res => {
+      if (res.ok) {
+        const room = res.data;
+        const myPlayer = room.players.find(p => p.id === saved!.playerId)
+          ?? room.players.find(p => p.name === saved!.playerName)
+          ?? room.nextRoundQueue?.find(p => p.id === saved!.playerId);
+        set({ room, myPlayerId: myPlayer?.id ?? saved!.playerId, isReconnecting: false });
+        get().addToast('Reconnected ✓', 'success');
+      } else {
+        clearSession();
+        set({ isReconnecting: false });
+        get().addToast('Room closed while you were away', 'info');
+      }
+    }).catch(() => { set({ isReconnecting: false }); });
+  });
+
   // ── Socket event bindings ────────────────────────────────────────
   socket.on('connect', () => {
     const { room, myPlayerId } = get();
@@ -335,11 +386,13 @@ export const useGameStore = create<GameStore>((set, get) => {
   });
 
   (socket as any).on('clanRoom:kicked', ({ clanName, reason }: any) => {
+    clearSession();
     set({ room: null, myPlayerId: null, myRole: null, nightResult: null, investigationResult: null, gameOverResult: null });
     get().addToast(`You were removed from the ${clanName} room. ${reason ? `Reason: ${reason}` : ''}`, 'error');
   });
 
   (socket as any).on('room:closed', ({ reason }: { reason: string }) => {
+    clearSession();
     set({
       room: null,
       myPlayerId: null,
@@ -421,7 +474,9 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     createRoom: withLoading(async (name: string, settings?: Partial<GameSettings>, clanRoom = false) => {
       const room = await emit<RoomPublic>('room:create', { name, settings, clanRoom });
-      set({ room, myPlayerId: room.players.find(p => p.isHost)?.id ?? null });
+      const playerId = room.players.find(p => p.isHost)?.id ?? null;
+      set({ room, myPlayerId: playerId });
+      if (playerId) saveSession(room, playerId);
     }),
 
     joinRoom: async (code: string, name: string, isSpectator = false, password = '', joinMode?: 'player' | 'spectator' | 'next_round') => {
@@ -430,7 +485,9 @@ export const useGameStore = create<GameStore>((set, get) => {
         const room = await emit<RoomPublic>('room:join', { code, name, isSpectator, password, ...(joinMode ? { joinMode } : {}) });
         const myPlayer = room.players.find(p => p.name === name)
           ?? room.nextRoundQueue?.find(p => p.name === name);
-        set({ room, myPlayerId: myPlayer?.id ?? null, isLoading: false, error: null });
+        const playerId = myPlayer?.id ?? null;
+        set({ room, myPlayerId: playerId, isLoading: false, error: null });
+        if (playerId) saveSession(room, playerId);
       } catch (e: any) {
         const msg = e?.message ?? 'An error occurred.';
         set({ error: msg, isLoading: false });
@@ -441,6 +498,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     leaveRoom: withLoading(async () => {
+      clearSession();
       await emit('room:leave');
       set({
         room: null,
