@@ -293,6 +293,7 @@ export function GiftGallery({ profileId, viewerId }: Props) {
   const [pinned, setPinned]     = useState<PinnedGiftEntry[]>([]);
   const [selected, setSelected] = useState<PlayerGift | null>(null);
   const [loading, setLoading]   = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [statsLoaded, setStatsLoaded]     = useState(false);
   const [timelineLoaded, setTimelineLoaded] = useState(false);
   const [sentLoaded, setSentLoaded]       = useState(false);
@@ -301,13 +302,17 @@ export function GiftGallery({ profileId, viewerId }: Props) {
 
   const loadReceived = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [recRes, pinnedRes] = await Promise.all([
         emitWithAck<any, Res<PlayerGift[]>>('gifts:player_gifts', { profileId }),
         emitWithAck<any, Res<PinnedGiftEntry[]>>('gifts:getPinned', { profileId }),
       ]);
       if (recRes.ok) setReceived(recRes.data);
+      else setLoadError(!recRes.ok ? (recRes.error ?? 'Failed to load gifts.') : 'Failed to load gifts.');
       if (pinnedRes.ok) setPinned(pinnedRes.data);
+    } catch {
+      setLoadError('Could not connect — please try again.');
     } finally { setLoading(false); }
   }, [profileId]);
 
@@ -426,10 +431,18 @@ export function GiftGallery({ profileId, viewerId }: Props) {
           {tab === 'received' && (
             <>
               {loading && <p className="text-white/20 font-mono text-xs text-center py-4">Loading...</p>}
-              {!loading && uniqueReceived.length === 0 && (
+              {!loading && loadError && (
+                <div className="text-center py-4">
+                  <p className="text-red-400/60 font-mono text-[10px] mb-2">{loadError}</p>
+                  <button onClick={loadReceived} className="font-mono text-[9px] text-neon-cyan/60 hover:text-neon-cyan transition-colors">
+                    Retry
+                  </button>
+                </div>
+              )}
+              {!loading && !loadError && uniqueReceived.length === 0 && (
                 <p className="text-white/15 font-mono text-xs text-center py-6">No gifts received yet</p>
               )}
-              {!loading && uniqueReceived.length > 0 && (
+              {!loading && !loadError && uniqueReceived.length > 0 && (
                 <div className="grid grid-cols-3 gap-2">
                   {uniqueReceived.map(g => {
                     const count = received.filter(x => x.giftId === g.giftId).length;

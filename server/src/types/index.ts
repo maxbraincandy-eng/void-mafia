@@ -874,6 +874,12 @@ export interface ClientToServerEvents {
   'gifts:catalog':          (cb: Cb<any[]>) => void;
   'gifts:leaderboard':      (cb: Cb<any>) => void;
   'gifts:player_gifts':     (data: { profileId: string }, cb: Cb<any[]>) => void;
+  'gifts:getSent':          (data: { profileId: string }, cb: Cb<any[]>) => void;
+  'gifts:getTimeline':      (data: { profileId: string }, cb: Cb<any[]>) => void;
+  'gifts:getStats':         (data: { profileId: string }, cb: Cb<any>) => void;
+  'gifts:getPinned':        (data: { profileId: string }, cb: Cb<any[]>) => void;
+  'gifts:pin':              (data: { giftId: string }, cb: Cb<{}>) => void;
+  'gifts:unpin':            (data: { giftId: string }, cb: Cb<{}>) => void;
   'gifts:detail':           (data: { giftId: string; recipientId: string }, cb: Cb<any>) => void;
   // Economy — owner only
   'owner:coins_grant':      (data: { targetProfileId: string; amount: number; description: string }, cb: Cb<{ newBalance: number }>) => void;

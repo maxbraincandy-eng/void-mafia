@@ -16,7 +16,7 @@ import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as 
 import { sql } from './db.js';
 import bcrypt from 'bcryptjs';
 import { getOrCreateConversation, listConversations, sendMessage, getMessages, markRead, getTotalUnread, deleteConversationForUser, } from './services/dmService.js';
-import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, getGiftLeaderboard, } from './services/coinService.js';
+import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, getGiftsSent, getGiftTimeline, getGiftStats, getPinnedGifts, pinGift, unpinGift, getGiftLeaderboard, } from './services/coinService.js';
 // ── TURN / ICE server config ──────────────────────────────────────────
 // Centralised in server/src/lib/iceConfig.ts.  Reads Railway env vars:
 // TURN_URL, TURN_USERNAME, TURN_CREDENTIAL, FORCE_TURN_RELAY, STUN_URL.
@@ -2693,6 +2693,78 @@ export function attachSocketHandlers(io) {
                     throw new Error('profileId required.');
                 const gifts = await getPlayerGifts(targetId);
                 cb(ok(gifts));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:getSent', async ({ profileId: targetId }, cb) => {
+            try {
+                if (!targetId)
+                    throw new Error('profileId required.');
+                const gifts = await getGiftsSent(targetId);
+                cb(ok(gifts));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:getTimeline', async ({ profileId: targetId }, cb) => {
+            try {
+                if (!targetId)
+                    throw new Error('profileId required.');
+                const entries = await getGiftTimeline(targetId);
+                cb(ok(entries));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:getStats', async ({ profileId: targetId }, cb) => {
+            try {
+                if (!targetId)
+                    throw new Error('profileId required.');
+                const stats = await getGiftStats(targetId);
+                cb(ok(stats));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:getPinned', async ({ profileId: targetId }, cb) => {
+            try {
+                if (!targetId)
+                    throw new Error('profileId required.');
+                const pinned = await getPinnedGifts(targetId);
+                cb(ok(pinned));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:pin', async ({ giftId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                if (!giftId)
+                    throw new Error('giftId required.');
+                await pinGift(profileId, giftId);
+                cb(ok({}));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('gifts:unpin', async ({ giftId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                if (!giftId)
+                    throw new Error('giftId required.');
+                await unpinGift(profileId, giftId);
+                cb(ok({}));
             }
             catch (e) {
                 cb(err(e.message));

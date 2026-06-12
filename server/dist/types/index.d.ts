@@ -1031,6 +1031,24 @@ export interface ClientToServerEvents {
     'gifts:player_gifts': (data: {
         profileId: string;
     }, cb: Cb<any[]>) => void;
+    'gifts:getSent': (data: {
+        profileId: string;
+    }, cb: Cb<any[]>) => void;
+    'gifts:getTimeline': (data: {
+        profileId: string;
+    }, cb: Cb<any[]>) => void;
+    'gifts:getStats': (data: {
+        profileId: string;
+    }, cb: Cb<any>) => void;
+    'gifts:getPinned': (data: {
+        profileId: string;
+    }, cb: Cb<any[]>) => void;
+    'gifts:pin': (data: {
+        giftId: string;
+    }, cb: Cb<{}>) => void;
+    'gifts:unpin': (data: {
+        giftId: string;
+    }, cb: Cb<{}>) => void;
     'gifts:detail': (data: {
         giftId: string;
         recipientId: string;

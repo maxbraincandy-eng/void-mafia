@@ -456,6 +456,7 @@ export async function initializeDatabase(): Promise<void> {
   await sql`ALTER TABLE mod_logs ADD COLUMN IF NOT EXISTS metadata TEXT`;
 
   // ── Gift System V2 (additive) ─────────────────────────────────────────
+  await sql`ALTER TABLE gift_catalog ADD COLUMN IF NOT EXISTS image_url TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE gift_catalog ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'symbols'`;
   await sql`ALTER TABLE gift_catalog ADD COLUMN IF NOT EXISTS limited_edition INTEGER NOT NULL DEFAULT 0`;
   await sql`ALTER TABLE gift_catalog ADD COLUMN IF NOT EXISTS seasonal_tag TEXT`;
