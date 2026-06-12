@@ -627,7 +627,7 @@ export function GamePage() {
 
         {phase === 'day' && (() => {
           const activePlayers = room.players.filter(p => p.isAlive && !p.isSpectator);
-          const skipNeeded = Math.floor(activePlayers.length / 2) + 1;
+          const skipNeeded = Math.min(3, activePlayers.length);
           const alreadyVoted = room.daySkipVoteCount ?? 0;
           return (
             <div className="space-y-4">
@@ -1662,7 +1662,9 @@ export function GamePage() {
               </div>
             ) : (
               /* Grid view: day, speech, morning, role_reveal */
-              <div className="flex-1 overflow-hidden">
+              <div className="flex-1 overflow-hidden flex flex-col">
+                {/* Players grid — fills available space, buttons below stay visible */}
+                <div className="flex-1 overflow-hidden min-h-0">
                 <PlayerGrid
                   players={gridPlayers}
                   phase={phase}
@@ -1716,6 +1718,7 @@ export function GamePage() {
                     );
                   })()}
                 />
+                </div>{/* end players flex-1 wrapper */}
 
                 {/* Day skip vote — glass style */}
                 {phase === 'day' && !amSpectator && amAlive && (() => {
