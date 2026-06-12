@@ -215,7 +215,14 @@ export function advancePhase(room) {
             setPhase(room, 'speech');
             return 'speech';
         case 'speech': {
-            const nextIdx = room.currentSpeakerIdx + 1;
+            let nextIdx = room.currentSpeakerIdx + 1;
+            // Skip slots belonging to players who died mid-round (e.g. foul elimination)
+            while (nextIdx < room.speechOrder.length) {
+                const sp = room.players.get(room.speechOrder[nextIdx]);
+                if (sp?.isAlive && !sp.isSpectator)
+                    break;
+                nextIdx++;
+            }
             if (nextIdx < room.speechOrder.length) {
                 room.currentSpeakerIdx = nextIdx;
                 room.timer = room.settings.speechDuration;

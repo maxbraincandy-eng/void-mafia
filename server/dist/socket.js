@@ -1393,29 +1393,16 @@ export function attachSocketHandlers(io) {
                 // Track fouls on the PRESSER (the player who pressed the foul button)
                 presser.foulCount = (presser.foulCount ?? 0) + 1;
                 if (presser.foulCount >= 4) {
-                    // 4th foul: presser is eliminated — deferred death with final_words
-                    room.activeFoul = null;
-                    room.deathSpeakerId = presser.id;
-                    room.finalWordsReason = 'foul_death';
-                    // Pre-check win as if presser died now
+                    // 4th foul: immediate silent elimination — no final_words, game resumes in current phase
                     presser.isAlive = false;
-                    const gameEnds = checkWin(room);
-                    presser.isAlive = true;
-                    timerService.stop(room.id);
-                    room.timer = 0;
-                    if (gameEnds) {
-                        presser.isAlive = false;
-                        presser.deathType = 'foul';
-                        room.deathSpeakerId = null;
-                        room.finalWordsReason = null;
+                    presser.deathType = 'foul';
+                    room.activeFoul = null;
+                    broadcastSystemMsg(io, room, `⚠️ ${presser.name}: ფოლი #4 — გარიცხულია!`);
+                    if (checkWin(room)) {
+                        timerService.stop(room.id);
                         setPhase(room, 'game_over');
                         await emitGameOver(io, room);
                     }
-                    else {
-                        setPhase(room, 'final_words');
-                        startPhaseTimer(io, room);
-                    }
-                    broadcastSystemMsg(io, room, `⚠️ ${presser.name}: ფოლი #4 — გარიცხულია!`);
                     broadcastRoom(io, room);
                     enforceVoicePhaseRules(io, room);
                     cb(ok(null));
