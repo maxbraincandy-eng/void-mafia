@@ -340,10 +340,11 @@ export function useVoiceChat() {
     const s = _session;
     if (!s) return;
     if (_state.cameraOn) {
+      // Immediately flip state so local UI stops showing camera before async removal
+      _patch({ cameraOn: false });
       await s.removeCamera((peerId, offer) => {
         (socket as any).emit('voice:offer', { to: peerId, sdp: offer }, () => {});
       });
-      _patch({ cameraOn: false });
     } else {
       try {
         await s.addCamera((peerId, offer) => {

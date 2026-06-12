@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { PlayerPublic, Phase, RoleKey } from '@/types/index';
@@ -80,13 +80,66 @@ function initialsOf(name: string): string {
     .join('') || '?';
 }
 
+/**
+ * Reactive hook: returns true only while the stream has at least one live video track.
+ * Subscribes to track-ended / mute / addtrack / removetrack events so the component
+ * re-renders the moment the camera turns off — preventing frozen last frames.
+ */
+function useHasLiveVideo(stream: MediaStream | null): boolean {
+  const [hasLive, setHasLive] = useState<boolean>(
+    () => !!stream && stream.getVideoTracks().some(t => t.readyState === 'live'),
+  );
+
+  useEffect(() => {
+    if (!stream) { setHasLive(false); return; }
+
+    const check = () =>
+      setHasLive(stream.getVideoTracks().some(t => t.readyState === 'live'));
+
+    check();
+
+    const trackCleanups: Array<() => void> = [];
+
+    const bindTrack = (track: MediaStreamTrack) => {
+      if (track.kind !== 'video') return;
+      track.addEventListener('ended',   check);
+      track.addEventListener('mute',    check);
+      track.addEventListener('unmute',  check);
+      trackCleanups.push(() => {
+        track.removeEventListener('ended',   check);
+        track.removeEventListener('mute',    check);
+        track.removeEventListener('unmute',  check);
+      });
+    };
+
+    stream.getVideoTracks().forEach(bindTrack);
+
+    const onAddTrack    = (e: MediaStreamTrackEvent) => { bindTrack(e.track); check(); };
+    const onRemoveTrack = () => check();
+    stream.addEventListener('addtrack',    onAddTrack);
+    stream.addEventListener('removetrack', onRemoveTrack);
+
+    return () => {
+      trackCleanups.forEach(fn => fn());
+      stream.removeEventListener('addtrack',    onAddTrack);
+      stream.removeEventListener('removetrack', onRemoveTrack);
+    };
+  }, [stream]);
+
+  return hasLive;
+}
+
 /** Live <video> element bound to the local MediaStream. */
 function LocalVideo({ stream }: { stream: MediaStream }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
-    if (ref.current && ref.current.srcObject !== stream) {
-      ref.current.srcObject = stream;
-    }
+    const el = ref.current;
+    if (!el) return;
+    if (el.srcObject !== stream) el.srcObject = stream;
+    return () => {
+      // Clear srcObject on unmount so the browser releases the frozen frame immediately
+      el.srcObject = null;
+    };
   }, [stream]);
   return (
     <video
@@ -95,22 +148,30 @@ function LocalVideo({ stream }: { stream: MediaStream }) {
       muted
       playsInline
       className="absolute inset-0 w-full h-full object-cover"
-      style={{ transform: 'scaleX(-1)' }} // mirror own camera
+      style={{ transform: 'scaleX(-1)' }}
     />
   );
 }
 
-/** Live <video> element bound to a remote peer's MediaStream. */
+/** Live <video> element bound to a remote peer's MediaStream.
+ *  Reacts to track-ended events — returns null and clears srcObject when camera turns off.
+ */
 function RemoteVideo({ stream }: { stream: MediaStream }) {
-  const ref = useRef<HTMLVideoElement>(null);
-  useEffect(() => {
-    if (ref.current && ref.current.srcObject !== stream) {
-      ref.current.srcObject = stream;
-    }
-  }, [stream]);
+  const ref      = useRef<HTMLVideoElement>(null);
+  const hasLive  = useHasLiveVideo(stream);
 
-  const hasVideo = stream.getVideoTracks().some(t => t.readyState !== 'ended');
-  if (!hasVideo) return null;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (hasLive) {
+      if (el.srcObject !== stream) el.srcObject = stream;
+    } else {
+      // Remove source so the browser discards the frozen last frame
+      el.srcObject = null;
+    }
+  }, [stream, hasLive]);
+
+  if (!hasLive) return null;
 
   return (
     <video
@@ -136,7 +197,7 @@ function SpeakerHero({ player, isMe, isAlly, speakerIndex, totalSpeakers, voice 
     : (voice?.speakingSocketIds.has(player.socketId) ?? false);
   const showLocalVideo = isMe && voice?.inVoice && voice.cameraOn && !!voice.localStream;
   const remoteStream = !isMe ? (voice?.remoteStreams?.[player.socketId] ?? null) : null;
-  const hasRemoteVideo = !!remoteStream && remoteStream.getVideoTracks().some(t => t.readyState !== 'ended');
+  const hasRemoteVideo = useHasLiveVideo(remoteStream);
 
   return (
     <motion.div
@@ -380,8 +441,7 @@ function PlayerCard({
   const isVoiceSpeaking = isMe ? (voice?.isLocalSpeaking && !voice?.isMuted) : peerSpeaking;
   const showLocalVideo = isMe && voice?.inVoice && voice.cameraOn && !!voice.localStream;
   const remoteStream = !isMe ? (voice?.remoteStreams?.[player.socketId] ?? null) : null;
-  const hasRemoteVideo = !!remoteStream && remoteStream.getVideoTracks().some(t => t.readyState !== 'ended');
-  // The local player can control their own mic/cam once they're in voice
+  const hasRemoteVideo = useHasLiveVideo(remoteStream);
   const showLocalControls = isMe && !dead;
   const initials = initialsOf(player.name);
 
