@@ -1662,9 +1662,7 @@ export function GamePage() {
               </div>
             ) : (
               /* Grid view: day, speech, morning, role_reveal */
-              <div className="flex-1 overflow-hidden flex flex-col">
-                {/* Players grid — fills available space, buttons below stay visible */}
-                <div className="flex-1 overflow-hidden min-h-0">
+              <div className="flex-1 overflow-hidden">
                 <PlayerGrid
                   players={gridPlayers}
                   phase={phase}
@@ -1718,84 +1716,88 @@ export function GamePage() {
                     );
                   })()}
                 />
-                </div>{/* end players flex-1 wrapper */}
-
-                {/* Day skip vote — glass style */}
-                {phase === 'day' && !amSpectator && amAlive && (() => {
-                  const alreadyVoted = room.daySkipVoteCount ?? 0;
-                  const skipNeeded = Math.min(3, room.players.filter(p => p.isAlive && !p.isSpectator).length);
-                  return (
-                    <div className="flex-shrink-0 flex justify-center px-4 pb-4" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem))' }}>
-                      <button
-                        onClick={() => { daySkipVote(); navigator.vibrate?.(50); }}
-                        disabled={isLoading}
-                        className="px-6 py-3 rounded-2xl text-sm font-mono font-semibold transition-all active:scale-95 disabled:opacity-40"
-                        style={{
-                          background: 'rgba(255,255,255,0.05)',
-                          border: '1px solid rgba(255,255,255,0.15)',
-                          backdropFilter: 'blur(12px)',
-                          color: alreadyVoted > 0 ? 'rgba(0,229,255,0.9)' : 'rgba(255,255,255,0.5)',
-                          boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
-                        }}
-                      >
-                        {t.game.day.skipDiscussion
-                          .replace('{voted}', String(alreadyVoted))
-                          .replace('{needed}', String(skipNeeded))}
-                      </button>
-                    </div>
-                  );
-                })()}
-
-                {/* Speech pass — current speaker skips own turn */}
-                {phase === 'speech' && !amSpectator && (amHost || (room.currentSpeakerId === myPlayer?.id && amAlive)) && (
-                  <div className="flex-shrink-0 flex justify-center px-4 pb-4" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem))' }}>
-                    <button
-                      onClick={() => {
-                        if (amHost) { skipPhase(); } else { speechPass(); }
-                        navigator.vibrate?.(50);
-                      }}
-                      disabled={isLoading}
-                      className="px-6 py-3 rounded-2xl text-sm font-mono font-semibold transition-all active:scale-95 disabled:opacity-40"
-                      style={{
-                        background: 'rgba(255,255,255,0.05)',
-                        border: '1px solid rgba(255,255,255,0.15)',
-                        backdropFilter: 'blur(12px)',
-                        color: 'rgba(255,255,255,0.5)',
-                        boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
-                      }}
-                    >
-                      ⏭ {t.game.speech.skipMyTime}
-                    </button>
-                  </div>
-                )}
-
-                {/* Foul button — alive non-speaker players during speech */}
-                {phase === 'speech' && !amSpectator && amAlive && room.currentSpeakerId !== myPlayer?.id && (() => {
-                  const myFoulCountMobile = myPlayer?.foulCount ?? 0;
-                  const foulActiveMobile = room.activeFoul !== null && Date.now() < (room.activeFoul?.endsAt ?? 0);
-                  return (
-                    <div className="flex-shrink-0 flex justify-center px-4 pb-4" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem))' }}>
-                      <button
-                        onClick={() => { issueFoul(); navigator.vibrate?.(80); }}
-                        disabled={isLoading || foulActiveMobile}
-                        className="px-6 py-3 rounded-2xl text-sm font-mono font-semibold transition-all active:scale-95 disabled:opacity-40"
-                        style={{
-                          background: myFoulCountMobile >= 3 ? 'rgba(255,45,85,0.15)' : 'rgba(255,165,0,0.08)',
-                          border: `1px solid ${myFoulCountMobile >= 3 ? 'rgba(255,45,85,0.5)' : 'rgba(255,165,0,0.3)'}`,
-                          backdropFilter: 'blur(12px)',
-                          color: myFoulCountMobile >= 3 ? 'rgba(255,45,85,0.9)' : 'rgba(255,165,0,0.8)',
-                          boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
-                        }}
-                      >
-                        ⚠️ {t.game.speech.foul} · {myFoulCountMobile}/3
-                        {myFoulCountMobile >= 3 && <span className="block text-[10px] opacity-70 mt-0.5">{t.game.speech.nextFoulEliminate}</span>}
-                      </button>
-                    </div>
-                  );
-                })()}
               </div>
             )}
           </div>
+
+          {/* ── Mobile action overlay — fixed above chat bubble ─────────
+               Rendered outside all scroll/overflow containers so it can
+               never be clipped.  Shows the correct action button for each
+               game phase.                                                  */}
+          {!amSpectator && (() => {
+            const isCurrentSpeaker = room.currentSpeakerId === myPlayer?.id;
+            const myFoulCount = myPlayer?.foulCount ?? 0;
+            const foulActive = room.activeFoul !== null && Date.now() < (room.activeFoul?.endsAt ?? 0);
+            const alreadyVoted = room.daySkipVoteCount ?? 0;
+            const skipNeeded = Math.min(3, room.players.filter(p => p.isAlive && !p.isSpectator).length);
+
+            const showDaySkip   = phase === 'day'    && amAlive;
+            const showSkipTime  = phase === 'speech' && (amHost || (isCurrentSpeaker && amAlive));
+            const showFoul      = phase === 'speech' && amAlive && !isCurrentSpeaker;
+
+            if (!showDaySkip && !showSkipTime && !showFoul) return null;
+
+            return (
+              <div
+                className="md:hidden fixed left-0 right-0 z-30 flex justify-center gap-2 px-4"
+                style={{ bottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}
+              >
+                {showDaySkip && (
+                  <button
+                    onClick={() => { daySkipVote(); navigator.vibrate?.(50); }}
+                    disabled={isLoading}
+                    className="px-5 py-2.5 rounded-2xl text-sm font-mono font-semibold transition-all active:scale-95 disabled:opacity-40"
+                    style={{
+                      background: 'rgba(4,2,16,0.82)',
+                      backdropFilter: 'blur(18px)',
+                      border: alreadyVoted > 0 ? '1px solid rgba(0,229,255,0.55)' : '1px solid rgba(255,255,255,0.2)',
+                      color: alreadyVoted > 0 ? 'rgba(0,229,255,0.95)' : 'rgba(255,255,255,0.6)',
+                      boxShadow: '0 4px 28px rgba(0,0,0,0.6)',
+                    }}
+                  >
+                    {t.game.day.skipDiscussion
+                      .replace('{voted}', String(alreadyVoted))
+                      .replace('{needed}', String(skipNeeded))}
+                  </button>
+                )}
+                {showSkipTime && (
+                  <button
+                    onClick={() => { if (amHost && !isCurrentSpeaker) { skipPhase(); } else { speechPass(); } navigator.vibrate?.(50); }}
+                    disabled={isLoading}
+                    className="px-5 py-2.5 rounded-2xl text-sm font-mono font-semibold transition-all active:scale-95 disabled:opacity-40"
+                    style={{
+                      background: 'rgba(4,2,16,0.82)',
+                      backdropFilter: 'blur(18px)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      color: 'rgba(255,255,255,0.6)',
+                      boxShadow: '0 4px 28px rgba(0,0,0,0.6)',
+                    }}
+                  >
+                    ⏭ {t.game.speech.skipMyTime}
+                  </button>
+                )}
+                {showFoul && (
+                  <button
+                    onClick={() => { issueFoul(); navigator.vibrate?.(80); }}
+                    disabled={isLoading || foulActive}
+                    className="px-5 py-2.5 rounded-2xl text-sm font-mono font-semibold transition-all active:scale-95 disabled:opacity-40"
+                    style={{
+                      background: myFoulCount >= 3 ? 'rgba(255,45,85,0.18)' : 'rgba(4,2,16,0.82)',
+                      backdropFilter: 'blur(18px)',
+                      border: `1px solid ${myFoulCount >= 3 ? 'rgba(255,45,85,0.65)' : 'rgba(255,165,0,0.45)'}`,
+                      color: myFoulCount >= 3 ? 'rgba(255,100,120,0.95)' : 'rgba(255,165,0,0.9)',
+                      boxShadow: '0 4px 28px rgba(0,0,0,0.6)',
+                    }}
+                  >
+                    ⚠️ {t.game.speech.foul} · {myFoulCount}/3
+                    {myFoulCount >= 3 && (
+                      <span className="block text-[10px] opacity-75 mt-0.5">{t.game.speech.nextFoulEliminate}</span>
+                    )}
+                  </button>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Floating chat bubble */}
           <button
