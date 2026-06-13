@@ -683,6 +683,11 @@ export interface ServerToClientEvents {
     }) => void;
     'voice:force-unmute': () => void;
     'xp:gained': (data: XPGain) => void;
+    'prediction:result': (data: {
+        correct: boolean;
+        xpGained: number;
+        winningTeam: string;
+    }) => void;
     'queue:position': (data: {
         position: number;
         roomCode: string;
@@ -987,7 +992,11 @@ export interface ClientToServerEvents {
         username: string;
         newLevel: string | null;
     }>) => void;
-    'challenge:today': (cb: Cb<DailyChallenge>) => void;
+    'challenge:today': (cb: Cb<DailyChallenge[]>) => void;
+    'prediction:submit': (data: {
+        roomId: string;
+        predicted: string;
+    }, cb: Cb<null>) => void;
     'cosmetics:equip': (data: {
         type: 'name_color' | 'frame' | 'wallpaper' | 'border';
         itemId: string | null;

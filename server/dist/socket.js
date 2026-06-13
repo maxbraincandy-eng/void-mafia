@@ -7,7 +7,7 @@ import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
 import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, grantStarterCosmetics, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
 import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, } from './services/friendService.js';
-import { checkAndAwardChallenge, getTodayChallenge, getDailyChallengeForPlayer, } from './services/challengeService.js';
+import { checkAndAwardChallenges, getDailyQuestsForPlayer, } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
 import { recordGame, getPlayerHistory, getPlayerRoleStats } from './services/gameHistoryService.js';
 import { createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan, setClanMemberRole, addClanModLog, getClanModLogs, } from './services/clanService.js';
@@ -323,10 +323,10 @@ async function emitGameOver(io, room) {
                 const roundsAlive = Math.min(room.day, 10);
                 let xpAmount = won ? 150 : 50;
                 xpAmount += Math.min(roundsAlive * 5, 50);
-                // Check daily challenge
-                const challengeCompleted = await checkAndAwardChallenge(p.profileId, won, p.role, room.day, p.team);
-                const todayChallenge = getTodayChallenge();
-                const challengeBonus = challengeCompleted ? todayChallenge.xpReward : 0;
+                // Check daily quests (3 simultaneous)
+                const { totalBonus, anyCompleted } = await checkAndAwardChallenges(p.profileId, won, p.role, room.day, p.team);
+                const challengeCompleted = anyCompleted;
+                const challengeBonus = totalBonus;
                 xpAmount += challengeBonus;
                 const xpResult = await addXP(p.profileId, xpAmount);
                 if (p.socketId) {
@@ -352,6 +352,34 @@ async function emitGameOver(io, room) {
             }
             catch { /* non-fatal */ }
         }
+    }
+    // Resolve spectator predictions
+    if (room.winner) {
+        try {
+            const preds = await sql `
+        SELECT id, player_id, predicted FROM spectator_predictions
+        WHERE room_id = ${room.id} AND correct IS NULL
+      `;
+            for (const pred of preds) {
+                const correct = pred.predicted === room.winner ? 1 : 0;
+                const xpEarned = correct ? 50 : 0;
+                await sql `
+          UPDATE spectator_predictions SET correct = ${correct}, xp_earned = ${xpEarned}
+          WHERE id = ${pred.id}
+        `;
+                if (correct && pred.player_id) {
+                    try {
+                        await addXP(pred.player_id, xpEarned);
+                    }
+                    catch { /* non-fatal */ }
+                }
+                const spectator = [...room.players.values()].find(p => p.profileId === pred.player_id);
+                if (spectator?.socketId) {
+                    io.to(spectator.socketId).emit('prediction:result', { correct: correct === 1, xpGained: xpEarned, winningTeam: room.winner });
+                }
+            }
+        }
+        catch { /* non-fatal */ }
     }
 }
 async function notifyMods(io, type, message, targetName) {
@@ -2884,13 +2912,41 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
-        // ── Daily Challenge ──────────────────────────────────────────────
+        // ── Daily Quests ─────────────────────────────────────────────────
         socket.on('challenge:today', async (cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId)
                     throw new Error('Not authenticated.');
-                cb(ok(await getDailyChallengeForPlayer(profileId)));
+                cb(ok(await getDailyQuestsForPlayer(profileId)));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Spectator Predictions ────────────────────────────────────────
+        socket.on('prediction:submit', async (data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const parsed = z.object({ roomId: z.string(), predicted: z.enum(['mafia', 'town', 'neutral', 'cult', 'yakuza']) }).safeParse(data);
+                if (!parsed.success)
+                    throw new Error('Invalid prediction.');
+                const room = getRoom(parsed.data.roomId);
+                if (!room)
+                    throw new Error('Room not found.');
+                const player = [...room.players.values()].find(p => p.profileId === profileId);
+                if (!player?.isSpectator)
+                    throw new Error('Only spectators can predict.');
+                if (room.phase === 'lobby' || room.phase === 'game_over')
+                    throw new Error('Game not active.');
+                await sql `
+          INSERT INTO spectator_predictions (id, room_id, player_id, predicted, created_at)
+          VALUES (${crypto.randomUUID()}, ${parsed.data.roomId}, ${profileId}, ${parsed.data.predicted}, ${Date.now()})
+          ON CONFLICT (room_id, player_id) DO UPDATE SET predicted = ${parsed.data.predicted}, created_at = ${Date.now()}
+        `;
+                cb(ok(null));
             }
             catch (e) {
                 cb(err(e.message));
@@ -3137,6 +3193,37 @@ export function attachSocketHandlers(io) {
                 if (!detail)
                     throw new Error('Gift not found.');
                 cb(ok(detail));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Gift Leaderboard ─────────────────────────────────────────────
+        socket.on('gifts:leaderboard', async (cb) => {
+            try {
+                const topGifters = await sql `
+          SELECT p.id AS "profileId", p.username, p.avatar,
+                 p.avatar_url AS "avatarUrl",
+                 COUNT(pg.id)::int AS "giftCount",
+                 COALESCE(SUM(pg.coin_cost), 0)::int AS "totalSpent"
+          FROM player_gifts pg
+          JOIN players p ON p.id = pg.sender_id
+          GROUP BY p.id, p.username, p.avatar, p.avatar_url
+          ORDER BY "totalSpent" DESC, "giftCount" DESC
+          LIMIT 10
+        `;
+                const topRecipients = await sql `
+          SELECT p.id AS "profileId", p.username, p.avatar,
+                 p.avatar_url AS "avatarUrl",
+                 COUNT(pg.id)::int AS "giftCount",
+                 COALESCE(SUM(pg.coin_cost), 0)::int AS "totalReceived"
+          FROM player_gifts pg
+          JOIN players p ON p.id = pg.recipient_id
+          GROUP BY p.id, p.username, p.avatar, p.avatar_url
+          ORDER BY "totalReceived" DESC, "giftCount" DESC
+          LIMIT 10
+        `;
+                cb(ok({ topGifters, topRecipients }));
             }
             catch (e) {
                 cb(err(e.message));
