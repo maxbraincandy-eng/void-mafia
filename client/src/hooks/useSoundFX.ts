@@ -64,7 +64,7 @@ export function useGameSounds(): void {
 
   useEffect(() => {
     const len = room?.chat.length ?? 0;
-    if (len > prevChatLenRef.current && prevChatLenRef.current > 0) SFX.ping();
+    if (len > prevChatLenRef.current && prevChatLenRef.current > 0 && room?.phase !== 'role_reveal') SFX.ping();
     prevChatLenRef.current = len;
   }, [room?.chat.length]);
 
