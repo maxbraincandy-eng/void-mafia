@@ -2331,6 +2331,35 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    // ── Mod: Voice tools per player ──────────────────────────────────
+    socket.on('mod:voice_clear_forced_mute', async ({ targetProfileId }: { targetProfileId: string }, cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'kick')) throw new Error('Insufficient permissions.');
+        const target = await getPlayer(targetProfileId);
+        if (!target) throw new Error('Player not found.');
+        const targetSock = findSocketByProfile(io as any, targetProfileId);
+        if (targetSock) targetSock.emit('voice:force-unmute');
+        await addModLog('kick', modProfileId!, mod.username, targetProfileId, target.username, null, 'Voice: cleared forced mute');
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mod:voice_force_reconnect', async ({ targetProfileId }: { targetProfileId: string }, cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'kick')) throw new Error('Insufficient permissions.');
+        const target = await getPlayer(targetProfileId);
+        if (!target) throw new Error('Player not found.');
+        const targetSock = findSocketByProfile(io as any, targetProfileId);
+        if (targetSock) targetSock.emit('voice:force-leave', { channel: 'room', reason: 'Force reconnect by moderator' });
+        await addModLog('kick', modProfileId!, mod.username, targetProfileId, target.username, null, 'Voice: force reconnect');
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     // ── Mod: Assign Report ────────────────────────────────────────────
     socket.on('mod:assign_report', async ({ reportId, modId }: { reportId: string; modId: string }, cb: any) => {
       try {
