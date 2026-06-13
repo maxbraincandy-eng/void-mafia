@@ -108,8 +108,20 @@ function cancelAutoStart(roomId) {
 // ── Spectate queues (roomId → socketIds waiting) ──────────────────────
 const spectateQueues = new Map();
 // ── Host disconnect grace period (roomId → reconnect data) ────────────
-const HOST_GRACE_MS = 20000;
+const HOST_GRACE_MS = 30000; // extended to 30s to cover slower reconnects
 const hostGraceTimers = new Map();
+// ── Lobby disconnect grace period (playerId → cleanup timer) ──────────
+// Non-host players who disconnect in the lobby get 60s to reconnect before
+// their slot is freed. This is the same pattern used during active games.
+const LOBBY_GRACE_MS = 60000;
+const lobbyGraceTimers = new Map();
+function clearLobbyGrace(playerId) {
+    const entry = lobbyGraceTimers.get(playerId);
+    if (entry) {
+        clearTimeout(entry.timer);
+        lobbyGraceTimers.delete(playerId);
+    }
+}
 // ── Role-specific death messages ──────────────────────────────────────
 const NIGHT_DEATH = {
     sheriff: 'The badge falls silent. The town lost its protector.',
@@ -987,12 +999,20 @@ export function attachSocketHandlers(io) {
                 socket.join(room.id);
                 socket.data.playerId = player.id;
                 socket.data.roomId = room.id;
+                // Cancel lobby disconnect grace (player reconnected in time)
+                clearLobbyGrace(player.id);
                 // Cancel host grace period if this is the host reconnecting
                 const grace = hostGraceTimers.get(room.id);
                 if (grace && player.isHost && (profileId === grace.profileId || (!profileId && player.name === grace.hostName))) {
                     clearTimeout(grace.timer);
                     hostGraceTimers.delete(room.id);
                     broadcastSystemMsg(io, room, `${player.name} (host) reconnected.`);
+                }
+                else if (isRejoin) {
+                    // Silent reconnect — avoid "X joined" spam on refresh
+                    broadcastRoom(io, room);
+                    cb(ok(toPublicRoom(room, player.id)));
+                    return;
                 }
                 else {
                     broadcastSystemMsg(io, room, `${player.name} joined the room.`);
@@ -3476,7 +3496,9 @@ function startHostGrace(io, room, hostName, profileId) {
 }
 function closeRoom(io, room, reason) {
     timerService.stop(room.id);
+    // Cancel all pending lobby grace timers for this room's players
     for (const p of room.players.values()) {
+        clearLobbyGrace(p.id);
         if (p.socketId) {
             io.to(p.socketId).emit('room:closed', { reason });
         }
@@ -3508,21 +3530,22 @@ function handlePlayerLeave(io, socket, roomId, playerId, explicit = false) {
     socket.data.playerId = null;
     socket.data.roomId = null;
     if (room.phase === 'lobby') {
-        removePlayer(room, playerId);
-        if (room.players.size === 0) {
-            timerService.stop(roomId);
-            const grace = hostGraceTimers.get(roomId);
-            if (grace) {
-                clearTimeout(grace.timer);
-                hostGraceTimers.delete(roomId);
+        if (explicit) {
+            // ── Explicit leave (room:leave event) — remove immediately ──────
+            clearLobbyGrace(playerId);
+            removePlayer(room, playerId);
+            if (room.players.size === 0) {
+                timerService.stop(roomId);
+                const grace = hostGraceTimers.get(roomId);
+                if (grace) {
+                    clearTimeout(grace.timer);
+                    hostGraceTimers.delete(roomId);
+                }
+                deleteRoom(roomId);
+                spectateQueues.delete(roomId);
+                return;
             }
-            deleteRoom(roomId);
-            spectateQueues.delete(roomId);
-            return;
-        }
-        if (wasHost) {
-            if (explicit) {
-                // Explicit leave → close immediately
+            if (wasHost) {
                 const grace = hostGraceTimers.get(roomId);
                 if (grace) {
                     clearTimeout(grace.timer);
@@ -3530,17 +3553,58 @@ function handlePlayerLeave(io, socket, roomId, playerId, explicit = false) {
                 }
                 closeRoom(io, room, `${player.name} (host) left. The room has been closed.`);
                 spectateQueues.delete(roomId);
+                return;
             }
-            else {
-                // Disconnect → grace period
+            broadcastSystemMsg(io, room, `${player.name} left the room.`);
+            broadcastRoom(io, room);
+            promoteFromQueue(io, room);
+        }
+        else {
+            // ── Disconnect (browser refresh / network drop) — grace period ──
+            // Keep the player slot so they can seamlessly rejoin.
+            // addPlayer() in roomService recognises them by profileId/name.
+            clearLobbyGrace(playerId); // cancel any previous timer
+            player.isConnected = false;
+            player.socketId = '';
+            if (wasHost) {
+                // Existing host-grace logic closes the room if host doesn't return
                 startHostGrace(io, room, player.name, profileId);
                 spectateQueues.delete(roomId);
             }
-            return;
+            else {
+                broadcastSystemMsg(io, room, `${player.name} disconnected.`);
+                broadcastRoom(io, room);
+            }
+            // After LOBBY_GRACE_MS, if still offline, finalize the removal
+            const timer = setTimeout(() => {
+                lobbyGraceTimers.delete(playerId);
+                const currentRoom = getRoom(roomId);
+                if (!currentRoom)
+                    return;
+                const stillPlayer = currentRoom.players.get(playerId);
+                if (stillPlayer && !stillPlayer.isConnected) {
+                    const wasStillHost = stillPlayer.isHost;
+                    removePlayer(currentRoom, playerId);
+                    if (currentRoom.players.size === 0) {
+                        timerService.stop(roomId);
+                        const hg = hostGraceTimers.get(roomId);
+                        if (hg) {
+                            clearTimeout(hg.timer);
+                            hostGraceTimers.delete(roomId);
+                        }
+                        deleteRoom(roomId);
+                        spectateQueues.delete(roomId);
+                        return;
+                    }
+                    if (!wasStillHost) {
+                        broadcastSystemMsg(io, currentRoom, `${stillPlayer.name} left the room.`);
+                        broadcastRoom(io, currentRoom);
+                        promoteFromQueue(io, currentRoom);
+                    }
+                }
+            }, LOBBY_GRACE_MS);
+            lobbyGraceTimers.set(playerId, { timer, roomId, playerName: player.name });
         }
-        broadcastSystemMsg(io, room, `${player.name} left the room.`);
-        broadcastRoom(io, room);
-        promoteFromQueue(io, room);
     }
     else {
         if (wasHost) {
