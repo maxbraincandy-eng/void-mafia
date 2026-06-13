@@ -831,8 +831,10 @@ export interface ClientToServerEvents {
   'mod:freeze_account':     (data: { targetProfileId: string; reason: string }, cb: Cb<null>) => void;
   'mod:unfreeze_account':   (data: { targetProfileId: string }, cb: Cb<null>) => void;
   'mod:rename_player':      (data: { targetProfileId: string; newName: string; reason: string }, cb: Cb<null>) => void;
-  'mod:voice_mute_room':    (data: { roomId: string; reason: string }, cb: Cb<null>) => void;
-  'mod:assign_report':      (data: { reportId: string; modId: string }, cb: Cb<null>) => void;
+  'mod:voice_mute_room':          (data: { roomId: string; reason: string }, cb: Cb<null>) => void;
+  'mod:voice_clear_forced_mute':  (data: { targetProfileId: string }, cb: Cb<null>) => void;
+  'mod:voice_force_reconnect':    (data: { targetProfileId: string }, cb: Cb<null>) => void;
+  'mod:assign_report':            (data: { reportId: string; modId: string }, cb: Cb<null>) => void;
   // Voice signaling (replaces webrtc:*)
   'voice:join':          (data: { channel: VoiceChannel }, cb: Cb<{ peers: Array<{ socketId: string; name: string }> }>) => void;
   'voice:leave':         () => void;

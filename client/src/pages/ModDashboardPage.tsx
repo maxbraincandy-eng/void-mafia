@@ -188,11 +188,12 @@ export function ModDashboardPage() {
   }, [tab, loadRooms]);
 
   // ── Actions ───────────────────────────────────────────────────────
-  const openAction = (type: ActionType, targetId: string, targetName: string, roomId?: string) => {
+  const openAction = (type: ActionType, targetId: string, targetName: string, roomId?: string, duration?: number) => {
     setAction({ type, targetId, targetName, roomId });
     setActionReason('');
     setActionNewName('');
     setActionCategory('other');
+    if (duration !== undefined) setActionDuration(duration);
   };
   const closeAction = () => setAction(null);
 
@@ -325,8 +326,11 @@ export function ModDashboardPage() {
   // ── Filtered data ─────────────────────────────────────────────────
   const filteredReports = reports.filter(r => reportFilter === 'all' || r.status === reportFilter);
   const filteredPlayers = players.filter(p => {
-    const q = playerSearch.trim().toLowerCase().replace(/^#/, '');
-    if (q && !p.username.toLowerCase().includes(q) && !p.id.toLowerCase().includes(q) && !(p.publicId != null && String(p.publicId).includes(q))) return false;
+    const q = playerSearch.trim().toLowerCase().replace(/^#/, '').replace(/^vm-/i, '');
+    if (q) {
+      const fcNorm = (p.friendCode ?? '').toLowerCase().replace(/^vm-/i, '');
+      if (!p.username.toLowerCase().includes(q) && !p.id.toLowerCase().includes(q) && !(p.publicId != null && String(p.publicId).includes(q)) && !fcNorm.includes(q)) return false;
+    }
     if (playerFilterMod && !p.isModerator) return false;
     return true;
   });
@@ -616,7 +620,7 @@ export function ModDashboardPage() {
             {!playerDetail ? (
               <>
                 <input type="text" value={playerSearch} onChange={e => setPlayerSearch(e.target.value)}
-                  placeholder="Search by name, #ID…"
+                  placeholder="Search by name, #ID, friend code…"
                   className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono placeholder-white/25 focus:outline-none focus:border-neon-green/40" />
                 {/* Filter chips */}
                 <div className="flex gap-1 flex-wrap">
@@ -648,6 +652,7 @@ export function ModDashboardPage() {
                           G:{p.stats.gamesPlayed} W:{p.stats.wins}
                           {p.publicId != null && <span className="ml-2 text-neon-cyan/50">#{p.publicId}</span>}
                           <span className="ml-2">Lv{p.level}</span>
+                          {p.friendCode && <span className="ml-2 text-neon-pink/50">{p.friendCode}</span>}
                         </p>
                       </div>
                       <div className="flex gap-1 flex-wrap justify-end">
@@ -803,6 +808,7 @@ export function ModDashboardPage() {
                   {(action.type === 'ban' || action.type === 'mute') && (
                     <select value={actionDuration} onChange={e => setActionDuration(Number(e.target.value))}
                       className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none mb-3">
+                      <option value={300}>5 minutes</option>
                       <option value={900}>15 minutes</option>
                       <option value={3600}>1 hour</option>
                       <option value={21600}>6 hours</option>
@@ -863,12 +869,28 @@ function PlayerDetailPanel({
   rank: number;
   onClose: () => void;
   onSubmitNote: () => void;
-  onAction: (type: ActionType, targetId: string, targetName: string) => void;
+  onAction: (type: ActionType, targetId: string, targetName: string, roomId?: string, duration?: number) => void;
 }) {
   const p = detail.profile;
   const can = (minRank: number) => rank >= minRank;
   const addToast = useGameStore(s => s.addToast);
   const [mlPending, setMlPending] = useState<string | null | 'revoke' | false>(false);
+  const [voiceToolBusy, setVoiceToolBusy] = useState<string | null>(null);
+
+  const copyFriendCode = () => {
+    if (!p.friendCode) return;
+    navigator.clipboard.writeText(p.friendCode).then(() => addToast('Friend code copied', 'success'));
+  };
+
+  const doVoiceTool = (tool: 'clear_forced_mute' | 'force_reconnect') => {
+    setVoiceToolBusy(tool);
+    const event = tool === 'clear_forced_mute' ? 'mod:voice_clear_forced_mute' : 'mod:voice_force_reconnect';
+    socket.emit(event as any, { targetProfileId: p.id }, (res: Res<null>) => {
+      setVoiceToolBusy(null);
+      if (res.ok) addToast(tool === 'clear_forced_mute' ? 'Forced mute cleared' : 'Force reconnect sent', 'success');
+      else addToast(res.error, 'error');
+    });
+  };
 
   const applyModLevel = (level: ModeratorLevel | null) => {
     socket.emit('mod:set_mod_level' as any, { targetProfileId: p.id, level }, (res: Res<any>) => {
@@ -886,9 +908,19 @@ function PlayerDetailPanel({
     <div className="space-y-3">
       <div className="flex items-center gap-3 mb-2">
         <button onClick={onClose} className="text-white/30 hover:text-white transition-all">← Back</button>
-        <span className="font-mono text-neon-cyan font-bold">{p.username}</span>
-        {p.isModerator && <ModBadge level={p.moderatorLevel} size="sm" />}
-        {detail.accountFrozen && <span className="text-[10px] font-mono text-orange-400 border border-orange-400/30 rounded px-1">FROZEN</span>}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-neon-cyan font-bold truncate">{p.username}</span>
+            {p.isModerator && <ModBadge level={p.moderatorLevel} size="sm" />}
+            {detail.accountFrozen && <span className="text-[10px] font-mono text-orange-400 border border-orange-400/30 rounded px-1">FROZEN</span>}
+          </div>
+          {p.friendCode && (
+            <button onClick={copyFriendCode} className="flex items-center gap-1 text-neon-pink/60 hover:text-neon-pink font-mono text-[10px] transition-all group">
+              <span>{p.friendCode}</span>
+              <span className="opacity-0 group-hover:opacity-60 text-[9px]">⧉</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Quick stats */}
@@ -900,6 +932,12 @@ function PlayerDetailPanel({
         </div>
         <p className="text-white/20 font-mono text-[10px] truncate">{p.id}</p>
         {p.publicId != null && <p className="text-white/30 font-mono text-xs">#{p.publicId} · Lv{p.level}</p>}
+        {p.friendCode && (
+          <button onClick={copyFriendCode} className="mt-1 flex items-center gap-1.5 text-neon-pink/70 hover:text-neon-pink font-mono text-xs transition-all group">
+            <span className="font-bold">{p.friendCode}</span>
+            <span className="text-[9px] opacity-0 group-hover:opacity-60">⧉ copy</span>
+          </button>
+        )}
       </div>
 
       {/* Active ban/mute */}
@@ -972,6 +1010,38 @@ function PlayerDetailPanel({
             )}
           </>
         )}
+      </div>
+
+      {/* Quick mute presets */}
+      <div className="glass-panel border border-neon-pink/10 rounded-xl p-3">
+        <p className="text-white/30 font-mono text-[10px] uppercase tracking-widest mb-2">Quick Mute</p>
+        <div className="flex gap-1.5">
+          {[{ label: '5 min', duration: 300 }, { label: '15 min', duration: 900 }, { label: '1 hr', duration: 3600 }].map(({ label, duration }) => (
+            <button key={duration} onClick={() => onAction('mute', p.id, p.username, undefined, duration)}
+              className="flex-1 py-1.5 text-[10px] font-mono rounded-lg border border-neon-pink/25 text-neon-pink/70 hover:bg-neon-pink/10 hover:text-neon-pink transition-all">
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Voice Tools */}
+      <div className="glass-panel border border-neon-blue/10 rounded-xl p-3">
+        <p className="text-white/30 font-mono text-[10px] uppercase tracking-widest mb-2">Voice Tools</p>
+        <div className="flex gap-1.5">
+          <button
+            onClick={() => doVoiceTool('clear_forced_mute')}
+            disabled={voiceToolBusy !== null}
+            className="flex-1 py-1.5 text-[10px] font-mono rounded-lg border border-neon-green/25 text-neon-green/70 hover:bg-neon-green/10 hover:text-neon-green transition-all disabled:opacity-40">
+            {voiceToolBusy === 'clear_forced_mute' ? '…' : '🔊 Clear Mute'}
+          </button>
+          <button
+            onClick={() => doVoiceTool('force_reconnect')}
+            disabled={voiceToolBusy !== null}
+            className="flex-1 py-1.5 text-[10px] font-mono rounded-lg border border-neon-blue/25 text-neon-blue/70 hover:bg-neon-blue/10 hover:text-neon-blue transition-all disabled:opacity-40">
+            {voiceToolBusy === 'force_reconnect' ? '…' : '↺ Reconnect'}
+          </button>
+        </div>
       </div>
 
       {/* Mod Level (owner only) */}

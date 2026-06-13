@@ -940,6 +940,12 @@ export interface ClientToServerEvents {
         roomId: string;
         reason: string;
     }, cb: Cb<null>) => void;
+    'mod:voice_clear_forced_mute': (data: {
+        targetProfileId: string;
+    }, cb: Cb<null>) => void;
+    'mod:voice_force_reconnect': (data: {
+        targetProfileId: string;
+    }, cb: Cb<null>) => void;
     'mod:assign_report': (data: {
         reportId: string;
         modId: string;
