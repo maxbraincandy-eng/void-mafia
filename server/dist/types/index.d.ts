@@ -682,6 +682,7 @@ export interface ServerToClientEvents {
         reason: string;
     }) => void;
     'voice:force-unmute': () => void;
+    'voice:reset': () => void;
     'xp:gained': (data: XPGain) => void;
     'prediction:result': (data: {
         correct: boolean;

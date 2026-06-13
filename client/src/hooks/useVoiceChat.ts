@@ -20,21 +20,28 @@ export type VoiceChannel = 'room' | 'mafia' | 'yakuza';
 export interface VoiceState {
   channel: VoiceChannel | null;
   status: ConnectionState;
+  /** Computed: !userMicEnabled || forceMuted */
   isMuted: boolean;
+  /** User's own mic preference (true = they want their mic on) */
+  userMicEnabled: boolean;
   cameraOn: boolean;
   isLocalSpeaking: boolean;
   peers: PeerState[];
   remoteStreams: Record<string, MediaStream>;
   error: string | null;
+  /** Server/phase forced the mic off — independent from userMicEnabled */
   forceMuted: boolean;
   forceMutedReason: string | null;
   listenOnly: boolean;
+  /** Auto-recovery is in progress */
+  isRefreshing: boolean;
 }
 
 const INITIAL: VoiceState = {
   channel:          null,
   status:           'disconnected',
   isMuted:          false,
+  userMicEnabled:   true,
   cameraOn:         false,
   isLocalSpeaking:  false,
   peers:            [],
@@ -43,6 +50,7 @@ const INITIAL: VoiceState = {
   forceMuted:       false,
   forceMutedReason: null,
   listenOnly:       false,
+  isRefreshing:     false,
 };
 
 // ── Module-level singleton ─────────────────────────────────────────────
@@ -64,13 +72,201 @@ function _reset() {
   for (const sub of _subscribers) sub({ ..._state });
 }
 
+// ── Auto-refresh debounce ──────────────────────────────────────────────
+let _refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleVoiceRefresh(reason: string, delayMs = 2000) {
+  if (_refreshTimer) clearTimeout(_refreshTimer);
+  log('scheduling voice refresh:', reason, 'in', delayMs, 'ms');
+  _refreshTimer = setTimeout(() => {
+    _refreshTimer = null;
+    if (!_state.channel) return; // not in a channel — nothing to refresh
+    const channel = _state.channel;
+    const withCamera = _state.cameraOn;
+    log('auto-refreshing voice connection, reason:', reason);
+    _patch({ isRefreshing: true, error: null });
+
+    // Tear down existing session silently
+    if (_session) {
+      (socket as any).emit('voice:leave');
+      _session.destroy();
+      _session = null;
+    }
+
+    // Rejoin — pass silent=true so errors don't block the UI
+    _moduleJoinVoice(channel, withCamera, true).finally(() => {
+      _patch({ isRefreshing: false });
+    });
+  }, delayMs);
+}
+
+// ── Module-level join (can be called outside hook context) ─────────────
+
+async function _moduleJoinVoice(
+  channel: VoiceChannel,
+  withCamera = false,
+  silent = false,
+  startMuted = false,
+): Promise<void> {
+  if (_session) return;
+
+  const session = new WebRTCSession();
+  _session = session;
+
+  session.subscribe(event => {
+    if (event.type === 'state') {
+      _patch({ status: event.state, error: silent ? null : _state.error });
+    } else if (event.type === 'peer-added') {
+      _patch({ peers: session.getPeers() });
+    } else if (event.type === 'peer-removed') {
+      _patch({ peers: session.getPeers(), remoteStreams: session.getRemoteStreams() });
+    } else if (event.type === 'speaking') {
+      if (event.socketId === 'local') {
+        _patch({ isLocalSpeaking: event.isSpeaking });
+      } else {
+        _patch({ peers: session.getPeers() });
+      }
+    } else if (event.type === 'stream-update') {
+      _patch({ remoteStreams: session.getRemoteStreams() });
+    } else if (event.type === 'error') {
+      if (!silent) _patch({ error: event.message, status: 'failed' });
+      // On ICE failure, schedule a refresh (with backoff so we don't spam)
+      if (event.message.toLowerCase().includes('failed')) {
+        scheduleVoiceRefresh('ice-failure', 4000);
+      }
+    }
+  });
+
+  try {
+    await session.requestMedia(true, withCamera, silent);
+  } catch {
+    session.destroy();
+    _session = null;
+    if (!silent) _patch({ status: 'failed' });
+    else _reset();
+    return;
+  }
+
+  (socket as any).emit('voice:join', { channel }, async (res: any) => {
+    if (!res.ok) {
+      const msg = res.error ?? 'Failed to join voice channel.';
+      log('voice:join rejected:', msg);
+      session.destroy();
+      _session = null;
+      _patch({ status: 'failed', error: msg });
+      return;
+    }
+
+    const transmitAllowed: boolean = res.data.transmitAllowed ?? true;
+
+    if (res.data.iceServers) {
+      session.setIceConfig({
+        iceServers: res.data.iceServers,
+        iceTransportPolicy: res.data.iceTransportPolicy ?? 'all',
+        iceCandidatePoolSize: 10,
+      });
+    }
+
+    // forceMuted is set if server says transmit not allowed
+    const serverForceMuted = !transmitAllowed;
+    const effectiveMuted = !_state.userMicEnabled || serverForceMuted || startMuted;
+
+    _patch({
+      channel,
+      cameraOn: withCamera,
+      listenOnly: false,
+      forceMuted: serverForceMuted,
+      forceMutedReason: transmitAllowed ? null : 'Only the current speaker may transmit.',
+      isMuted: effectiveMuted,
+    });
+
+    if (effectiveMuted) session.setMuted(true);
+
+    const existingPeers: Array<{ socketId: string; name: string }> = res.data.peers;
+    log('joined voice, existing peers:', existingPeers.length);
+
+    for (const { socketId: peerId, name } of existingPeers) {
+      session.createPeerConnection(peerId, name, (candidate) => {
+        (socket as any).emit('voice:ice-candidate', { to: peerId, candidate });
+      });
+      try {
+        const offer = await session.createOffer(peerId);
+        (socket as any).emit('voice:offer', { to: peerId, sdp: offer }, () => {});
+        log('offer sent to', peerId);
+      } catch (e: any) {
+        log('offer creation failed for', peerId, ':', e.message);
+      }
+    }
+
+    _patch({ peers: session.getPeers() });
+  });
+}
+
+async function _moduleJoinListenOnly(channel: VoiceChannel): Promise<void> {
+  if (_session) return;
+
+  const session = new WebRTCSession();
+  _session = session;
+
+  session.subscribe(event => {
+    if (event.type === 'state') {
+      _patch({ status: event.state });
+    } else if (event.type === 'peer-added') {
+      _patch({ peers: session.getPeers() });
+    } else if (event.type === 'peer-removed') {
+      _patch({ peers: session.getPeers(), remoteStreams: session.getRemoteStreams() });
+    } else if (event.type === 'speaking') {
+      _patch({ peers: session.getPeers() });
+    } else if (event.type === 'stream-update') {
+      _patch({ remoteStreams: session.getRemoteStreams() });
+    } else if (event.type === 'error') {
+      _patch({ error: event.message, status: 'failed' });
+    }
+  });
+
+  session.setListenOnlyMode();
+
+  (socket as any).emit('voice:join', { channel }, async (res: any) => {
+    if (!res.ok) {
+      session.destroy();
+      _session = null;
+      _patch({ status: 'failed', error: res.error ?? 'Failed to join voice.' });
+      return;
+    }
+
+    if (res.data.iceServers) {
+      session.setIceConfig({
+        iceServers: res.data.iceServers,
+        iceTransportPolicy: res.data.iceTransportPolicy ?? 'all',
+        iceCandidatePoolSize: 10,
+      });
+    }
+
+    _patch({ channel, listenOnly: true, forceMuted: true, forceMutedReason: 'Listen only', isMuted: true });
+    const existingPeers: Array<{ socketId: string; name: string }> = res.data.peers;
+
+    for (const { socketId: peerId, name } of existingPeers) {
+      session.createPeerConnection(peerId, name, (candidate) => {
+        (socket as any).emit('voice:ice-candidate', { to: peerId, candidate });
+      });
+      try {
+        const offer = await session.createOffer(peerId);
+        (socket as any).emit('voice:offer', { to: peerId, sdp: offer }, () => {});
+      } catch (e: any) {
+        log('listen-only offer failed for', peerId, ':', e.message);
+      }
+    }
+
+    _patch({ peers: session.getPeers() });
+  });
+}
+
 // ── Socket handlers (registered once at module load) ───────────────────
 
 function onPeerJoined({ socketId, name }: { socketId: string; name: string; channel: VoiceChannel }) {
   const s = _session;
   if (!s) return;
   log('peer-joined', socketId, name);
-  // Clean up any existing PC for this socketId before creating a new one
   s.removePeer(socketId);
   s.createPeerConnection(socketId, name, (candidate) => {
     (socket as any).emit('voice:ice-candidate', { to: socketId, candidate });
@@ -112,12 +308,29 @@ async function onIceCandidate({ from, candidate }: { from: string; candidate: RT
 
 function onForceMute({ reason }: { reason: string }) {
   _session?.setMuted(true);
-  _patch({ isMuted: true, forceMuted: true, forceMutedReason: reason });
+  // Preserve userMicEnabled — only server is forcing mute
+  _patch({ forceMuted: true, forceMutedReason: reason, isMuted: true });
 }
 
 function onForceUnmute() {
-  _session?.setMuted(false);
-  _patch({ isMuted: false, forceMuted: false, forceMutedReason: null });
+  // Restore user's own mic preference, don't just blindly unmute
+  const actualMuted = !_state.userMicEnabled;
+  _session?.setMuted(actualMuted);
+  _patch({ forceMuted: false, forceMutedReason: null, isMuted: actualMuted });
+}
+
+function onVoiceReset() {
+  log('voice:reset received — resetting voice state after game over');
+  // Clear all force mutes and restore user preference
+  const actualMuted = !_state.userMicEnabled;
+  _session?.setMuted(actualMuted);
+  _patch({
+    forceMuted: false,
+    forceMutedReason: null,
+    isMuted: actualMuted,
+    listenOnly: false,
+    error: null,
+  });
 }
 
 function onForceLeave() {
@@ -146,184 +359,71 @@ function onSocketDisconnect() {
 (socket as any).on('voice:ice-candidate',  onIceCandidate);
 (socket as any).on('voice:force-mute',     onForceMute);
 (socket as any).on('voice:force-unmute',   onForceUnmute);
+(socket as any).on('voice:reset',          onVoiceReset);
 (socket as any).on('voice:force-leave',    onForceLeave);
 socket.on('disconnect',                    onSocketDisconnect);
+
+// ── Visibility / background recovery ──────────────────────────────────
+// When the app returns from background, check if the WebRTC session is
+// healthy. If ICE is dead, schedule a full reconnect.
+
+if (typeof window !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (!_session || !_state.channel) return;
+    log('visibility returned — checking voice health');
+    const health = _session.checkHealth();
+    if (!health.ok) {
+      log('voice unhealthy after background return:', health.reason);
+      scheduleVoiceRefresh('visibility-return', 1500);
+    }
+  });
+
+  // Handle bfcache restore on mobile Safari (fires after visibilitychange)
+  window.addEventListener('pageshow', (ev) => {
+    if (!ev.persisted) return;
+    if (!_session || !_state.channel) return;
+    log('pageshow (bfcache restore) — scheduling voice refresh');
+    scheduleVoiceRefresh('pageshow-bfcache', 1000);
+  });
+}
 
 // ── Hook ───────────────────────────────────────────────────────────────
 
 export function useVoiceChat() {
-  // Each component gets its own copy of state but they all stay in sync
-  // via the _subscribers set.
   const [state, setLocalState] = useState<VoiceState>({ ..._state });
 
   useEffect(() => {
-    // Sync this component whenever module-level state changes
     _subscribers.add(setLocalState);
-    // Immediately sync in case state changed while this component was unmounted
     setLocalState({ ..._state });
     return () => { _subscribers.delete(setLocalState); };
-    // NO cleanup of the voice session here — it persists across page transitions
   }, []);
 
   // ── Actions ─────────────────────────────────────────────────────────
 
   /**
    * Join a voice channel with microphone.
-   * Pass silent=true for auto-join attempts — errors won't show in the UI
-   * so the "Join Voice" button remains as the user-visible fallback.
+   * Pass silent=true for auto-join attempts — errors won't show in the UI.
    */
-  const joinVoice = useCallback(async (channel: VoiceChannel, withCamera = false, silent = false, startMuted = false) => {
-    if (_session) return; // already in a session
-
-    const session = new WebRTCSession();
-    _session = session;
-
-    session.subscribe(event => {
-      if (event.type === 'state') {
-        _patch({ status: event.state, error: silent ? null : _state.error });
-      } else if (event.type === 'peer-added') {
-        _patch({ peers: session.getPeers() });
-      } else if (event.type === 'peer-removed') {
-        _patch({ peers: session.getPeers(), remoteStreams: session.getRemoteStreams() });
-      } else if (event.type === 'speaking') {
-        if (event.socketId === 'local') {
-          _patch({ isLocalSpeaking: event.isSpeaking });
-        } else {
-          _patch({ peers: session.getPeers() });
-        }
-      } else if (event.type === 'stream-update') {
-        _patch({ remoteStreams: session.getRemoteStreams() });
-      } else if (event.type === 'error') {
-        if (!silent) _patch({ error: event.message, status: 'failed' });
-      }
-    });
-
-    try {
-      await session.requestMedia(true, withCamera, silent);
-    } catch {
-      session.destroy();
-      _session = null;
-      if (!silent) _patch({ status: 'failed' });
-      else _reset();
-      return;
-    }
-
-    (socket as any).emit('voice:join', { channel }, async (res: any) => {
-      if (!res.ok) {
-        const msg = res.error ?? 'Failed to join voice channel.';
-        log('voice:join rejected:', msg);
-        session.destroy();
-        _session = null;
-        _patch({ status: 'failed', error: msg });
-        return;
-      }
-
-      const transmitAllowed: boolean = res.data.transmitAllowed ?? true;
-
-      // Apply server-provided ICE config (includes TURN credentials from Railway env)
-      if (res.data.iceServers) {
-        session.setIceConfig({
-          iceServers: res.data.iceServers,
-          iceTransportPolicy: res.data.iceTransportPolicy ?? 'all',
-          iceCandidatePoolSize: 10,
-        });
-      }
-
-      _patch({
-        channel,
-        cameraOn: withCamera,
-        listenOnly: false,
-        forceMuted: !transmitAllowed,
-        forceMutedReason: transmitAllowed ? null : 'Only the current speaker may transmit.',
-      });
-      if (!transmitAllowed || startMuted) session.setMuted(true);
-      if (startMuted && transmitAllowed) _patch({ isMuted: true });
-
-      const existingPeers: Array<{ socketId: string; name: string }> = res.data.peers;
-      log('joined voice, existing peers:', existingPeers.length);
-
-      for (const { socketId: peerId, name } of existingPeers) {
-        session.createPeerConnection(peerId, name, (candidate) => {
-          (socket as any).emit('voice:ice-candidate', { to: peerId, candidate });
-        });
-        try {
-          const offer = await session.createOffer(peerId);
-          (socket as any).emit('voice:offer', { to: peerId, sdp: offer }, () => {});
-          log('offer sent to', peerId);
-        } catch (e: any) {
-          log('offer creation failed for', peerId, ':', e.message);
-        }
-      }
-
-      _patch({ peers: session.getPeers() });
-    });
+  const joinVoice = useCallback(async (
+    channel: VoiceChannel,
+    withCamera = false,
+    silent = false,
+    startMuted = false,
+  ) => {
+    return _moduleJoinVoice(channel, withCamera, silent, startMuted);
   }, []);
 
   /**
-   * Join a voice channel as a listen-only participant (no mic permission needed).
-   * Safe to call from useEffect — does not trigger a browser permission prompt.
-   * Used for spectators and auto-listen on game start.
+   * Join a voice channel as a listen-only participant (no mic needed).
+   * Used for spectators and dead players.
    */
   const joinVoiceListenOnly = useCallback(async (channel: VoiceChannel) => {
-    if (_session) return;
-
-    const session = new WebRTCSession();
-    _session = session;
-
-    session.subscribe(event => {
-      if (event.type === 'state') {
-        _patch({ status: event.state });
-      } else if (event.type === 'peer-added') {
-        _patch({ peers: session.getPeers() });
-      } else if (event.type === 'peer-removed') {
-        _patch({ peers: session.getPeers(), remoteStreams: session.getRemoteStreams() });
-      } else if (event.type === 'speaking') {
-        _patch({ peers: session.getPeers() });
-      } else if (event.type === 'stream-update') {
-        _patch({ remoteStreams: session.getRemoteStreams() });
-      } else if (event.type === 'error') {
-        _patch({ error: event.message, status: 'failed' });
-      }
-    });
-
-    session.setListenOnlyMode();
-
-    (socket as any).emit('voice:join', { channel }, async (res: any) => {
-      if (!res.ok) {
-        session.destroy();
-        _session = null;
-        _patch({ status: 'failed', error: res.error ?? 'Failed to join voice.' });
-        return;
-      }
-
-      if (res.data.iceServers) {
-        session.setIceConfig({
-          iceServers: res.data.iceServers,
-          iceTransportPolicy: res.data.iceTransportPolicy ?? 'all',
-          iceCandidatePoolSize: 10,
-        });
-      }
-
-      _patch({ channel, listenOnly: true, forceMuted: true, forceMutedReason: 'Listen only' });
-      const existingPeers: Array<{ socketId: string; name: string }> = res.data.peers;
-
-      for (const { socketId: peerId, name } of existingPeers) {
-        session.createPeerConnection(peerId, name, (candidate) => {
-          (socket as any).emit('voice:ice-candidate', { to: peerId, candidate });
-        });
-        try {
-          const offer = await session.createOffer(peerId);
-          (socket as any).emit('voice:offer', { to: peerId, sdp: offer }, () => {});
-        } catch (e: any) {
-          log('listen-only offer failed for', peerId, ':', e.message);
-        }
-      }
-
-      _patch({ peers: session.getPeers() });
-    });
+    return _moduleJoinListenOnly(channel);
   }, []);
 
   const leaveVoice = useCallback(() => {
+    if (_refreshTimer) { clearTimeout(_refreshTimer); _refreshTimer = null; }
     (socket as any).emit('voice:leave');
     _session?.destroy();
     _reset();
@@ -332,15 +432,17 @@ export function useVoiceChat() {
 
   const toggleMute = useCallback(() => {
     if (!_session || _state.forceMuted) return;
-    const nextMuted = !_state.isMuted;
+    const nextEnabled = !_state.userMicEnabled;
+    const nextMuted = !nextEnabled; // forceMuted already confirmed false above
     _session.setMuted(nextMuted);
-    _patch({ isMuted: nextMuted });
+    _patch({ userMicEnabled: nextEnabled, isMuted: nextMuted });
   }, []);
 
   const setMuted = useCallback((on: boolean) => {
     if (!_session || _state.forceMuted) return;
+    const nextEnabled = !on;
     _session.setMuted(on);
-    _patch({ isMuted: on });
+    _patch({ userMicEnabled: nextEnabled, isMuted: on });
   }, []);
 
   const toggleCamera = useCallback(async () => {
@@ -365,9 +467,8 @@ export function useVoiceChat() {
 
   const getLocalStream = useCallback(() => _session?.getLocalStream() ?? null, []);
 
-  // Tear down current session cleanly so the user can rejoin from scratch.
-  // Useful after a 'failed' state or after refresh when stale peers remain.
   const resetConnection = useCallback(() => {
+    if (_refreshTimer) { clearTimeout(_refreshTimer); _refreshTimer = null; }
     if (_session) {
       (socket as any).emit('voice:leave');
       _session.destroy();
@@ -376,7 +477,6 @@ export function useVoiceChat() {
     }
   }, []);
 
-  /** Mute all remote audio except speakerSocketId. Pass null to unmute all. */
   const setSpeakerOnly = useCallback((speakerSocketId: string | null) => {
     _session?.setSpeakerOnly(speakerSocketId);
   }, []);

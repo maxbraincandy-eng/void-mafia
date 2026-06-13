@@ -121,29 +121,57 @@ export function LobbyPage() {
           animate={{ opacity: 1, y: 0 }}
           className="flex items-start justify-between mb-6 gap-4"
         >
-          <div>
-            <h1 className="font-display text-2xl font-bold gradient-text tracking-wide mb-2 leading-none">
-              VOID MAFIA
-            </h1>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <span className={clsx(
-                  'w-1.5 h-1.5 rounded-full shrink-0 transition-colors',
-                  allReady && canStart ? 'bg-neon-green animate-pulse' : 'bg-white/[0.18]',
-                )} />
-                <span className="text-[11px] font-mono text-white/35">
-                  {allReady && canStart
-                    ? t.lobby.allReady
-                    : t.lobby.joinedOf.replace('{n}', String(playerCount)).replace('{m}', String(minPlayers))}
-                </span>
+          <div className="flex items-start gap-2.5">
+            {/* Leave room — top-left shortcut */}
+            <button
+              onClick={() => amHost ? setShowLeaveConfirm(true) : handleLeave()}
+              disabled={isLoading}
+              title={playerCount > 1 ? 'Leave room' : 'Close room'}
+              className="mt-0.5 p-1.5 rounded-xl transition-all active:scale-90 disabled:opacity-30 shrink-0"
+              style={{ border: '1px solid rgba(255,60,60,0.18)', color: 'rgba(255,80,80,0.45)', background: 'rgba(255,40,40,0.04)' }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,60,60,0.45)';
+                (e.currentTarget as HTMLElement).style.color = 'rgba(255,80,80,0.85)';
+                (e.currentTarget as HTMLElement).style.background = 'rgba(255,40,40,0.10)';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,60,60,0.18)';
+                (e.currentTarget as HTMLElement).style.color = 'rgba(255,80,80,0.45)';
+                (e.currentTarget as HTMLElement).style.background = 'rgba(255,40,40,0.04)';
+              }}
+            >
+              {/* door-exit icon */}
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+            </button>
+
+            <div>
+              <h1 className="font-display text-2xl font-bold gradient-text tracking-wide mb-2 leading-none">
+                VOID MAFIA
+              </h1>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span className={clsx(
+                    'w-1.5 h-1.5 rounded-full shrink-0 transition-colors',
+                    allReady && canStart ? 'bg-neon-green animate-pulse' : 'bg-white/[0.18]',
+                  )} />
+                  <span className="text-[11px] font-mono text-white/35">
+                    {allReady && canStart
+                      ? t.lobby.allReady
+                      : t.lobby.joinedOf.replace('{n}', String(playerCount)).replace('{m}', String(minPlayers))}
+                  </span>
+                </div>
+                <span className="text-white/10 select-none">·</span>
+                <button
+                  onClick={() => setShowRoleGuide(true)}
+                  className="text-[11px] font-mono text-white/22 hover:text-white/50 transition-colors"
+                >
+                  {t.lobby.roleGuideLink}
+                </button>
               </div>
-              <span className="text-white/10 select-none">·</span>
-              <button
-                onClick={() => setShowRoleGuide(true)}
-                className="text-[11px] font-mono text-white/22 hover:text-white/50 transition-colors"
-              >
-                {t.lobby.roleGuideLink}
-              </button>
             </div>
           </div>
 
@@ -572,6 +600,7 @@ export function LobbyPage() {
               channel={voice.channel}
               status={voice.status}
               isMuted={voice.isMuted}
+              forceMuted={voice.forceMuted}
               cameraOn={voice.cameraOn}
               isLocalSpeaking={voice.isLocalSpeaking}
               peerCount={voice.peers.length}
@@ -579,6 +608,8 @@ export function LobbyPage() {
               listenOnly={voice.listenOnly || amSpectator}
               defaultChannel="room"
               hideCamera
+              hideLeave
+              isRefreshing={voice.isRefreshing}
               onJoin={amSpectator
                 ? () => voice.joinVoiceListenOnly('room')
                 : (ch, wc) => voice.joinVoice(ch, wc)}

@@ -455,6 +455,7 @@ export function GamePage() {
         channel={voice.channel}
         status={voice.status}
         isMuted={voice.isMuted}
+        forceMuted={voice.forceMuted}
         cameraOn={voice.cameraOn}
         isLocalSpeaking={voice.isLocalSpeaking}
         peerCount={voice.peers.length}
@@ -463,6 +464,7 @@ export function GamePage() {
         listenOnly={voice.listenOnly || (!amAlive && !(phase === 'final_words' && room.deathSpeakerId === myPlayer?.id)) || amSpectator}
         defaultChannel={voiceChannel}
         channelLabel={voiceChannelLabel}
+        isRefreshing={voice.isRefreshing}
         onJoin={amSpectator
           ? () => voice.joinVoiceListenOnly('room')
           : (ch, withCam) => voice.joinVoice(ch, withCam)}
@@ -597,6 +599,7 @@ export function GamePage() {
                     channel={voice.channel}
                     status={voice.status}
                     isMuted={voice.isMuted}
+                    forceMuted={voice.forceMuted}
                     cameraOn={voice.cameraOn}
                     isLocalSpeaking={voice.isLocalSpeaking}
                     peerCount={voice.peers.length}
@@ -604,6 +607,7 @@ export function GamePage() {
                     defaultChannel="mafia"
                     channelLabel="◉ Mafia Radio"
                     ptt={true}
+                    isRefreshing={voice.isRefreshing}
                     onJoin={(ch, wc) => voice.joinVoice(ch, wc, false, true)}
                     onLeave={voice.leaveVoice}
                     onToggleMute={voice.toggleMute}

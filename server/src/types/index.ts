@@ -730,6 +730,7 @@ export interface ServerToClientEvents {
   'voice:force-leave':   (data: { channel: VoiceChannel; reason: string }) => void;
   'voice:force-mute':    (data: { reason: string }) => void;
   'voice:force-unmute':  () => void;
+  'voice:reset':         () => void;
   // XP / levels / cosmetics
   'xp:gained':           (data: XPGain) => void;
   // Spectator prediction result

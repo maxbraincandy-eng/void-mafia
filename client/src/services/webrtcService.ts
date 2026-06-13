@@ -145,6 +145,25 @@ export class WebRTCSession {
     return Object.fromEntries(this.remoteStreams.entries());
   }
 
+  /**
+   * Returns whether the session appears healthy.
+   * Used by the visibility-change recovery logic to decide if a full refresh is needed.
+   */
+  checkHealth(): { ok: boolean; reason?: string } {
+    if (!this.localStream) return { ok: false, reason: 'no-local-stream' };
+
+    for (const [peerId, pc] of this.pcs.entries()) {
+      const ice = pc.iceConnectionState;
+      const conn = pc.connectionState;
+      if (ice === 'failed' || ice === 'disconnected' || conn === 'failed' || conn === 'disconnected') {
+        return { ok: false, reason: `peer-${peerId}-${ice}/${conn}` };
+      }
+    }
+
+    // No peers yet — session is healthy (still connecting or just joined)
+    return { ok: true };
+  }
+
   // ── Media ───────────────────────────────────────────────────────────
 
   /** Skip getUserMedia entirely — receive audio/video without a local mic/camera. */
