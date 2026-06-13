@@ -1,7 +1,17 @@
+import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import { RoomPublic, PlayerPublic } from '@/types/index';
 import { useT } from '@/store/langStore';
+import { emitWithAck } from '@/lib/socket';
+
+const TEAM_OPTIONS: { value: string; label: string; ka: string; color: string }[] = [
+  { value: 'mafia',   label: 'Mafia',   ka: 'მაფია',   color: '#ff1e3c' },
+  { value: 'town',    label: 'Town',    ka: 'ქალაქი',  color: '#00ff88' },
+  { value: 'neutral', label: 'Neutral', ka: 'ნეიტრ.',  color: '#facc15' },
+  { value: 'cult',    label: 'Cult',    ka: 'კულტი',   color: '#9b00ff' },
+  { value: 'yakuza',  label: 'Yakuza',  ka: 'იაკუზა',  color: '#00e5ff' },
+];
 
 interface Props {
   room: RoomPublic;
@@ -10,12 +20,25 @@ interface Props {
 
 export function SpectatorTheater({ room, myPlayer }: Props) {
   const t = useT();
+  const [predicted, setPredicted] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const activePlayers = room.players.filter(p => !p.isSpectator);
   const alivePlayers = activePlayers.filter(p => p.isAlive);
   const deadPlayers = activePlayers.filter(p => !p.isAlive);
   const spectators = room.players.filter(p => p.isSpectator);
   const isGameActive = room.phase !== 'lobby' && room.phase !== 'game_over';
+
+  const submitPrediction = useCallback(async (team: string) => {
+    if (submitting || predicted) return;
+    setSubmitting(true);
+    try {
+      const res = await emitWithAck<any, any>('prediction:submit', { roomId: room.id, predicted: team });
+      if (res.ok) setPredicted(team);
+    } catch { /* ignore */ } finally {
+      setSubmitting(false);
+    }
+  }, [submitting, predicted, room.id]);
 
   return (
     <div className="space-y-3">
@@ -33,6 +56,41 @@ export function SpectatorTheater({ room, myPlayer }: Props) {
           <span className="text-[10px] font-mono text-neon-purple/60 uppercase tracking-widest">LIVE</span>
         </div>
       </div>
+
+      {/* Prediction panel — only when game is active */}
+      {isGameActive && myPlayer?.isSpectator && (
+        <div
+          className="rounded-xl border p-3"
+          style={{
+            background: predicted ? 'rgba(0,229,255,0.04)' : 'rgba(155,0,255,0.05)',
+            border: predicted ? '1px solid rgba(0,229,255,0.2)' : '1px solid rgba(155,0,255,0.2)',
+          }}
+        >
+          <p className="text-[10px] font-display font-bold tracking-[0.2em] uppercase mb-2"
+            style={{ color: predicted ? 'rgba(0,229,255,0.7)' : 'rgba(155,0,255,0.7)' }}>
+            {predicted ? `✅ პროგნოზი: ${TEAM_OPTIONS.find(o => o.value === predicted)?.ka ?? predicted}` : '🔮 ვინ მოიგებს?'}
+          </p>
+          {!predicted ? (
+            <div className="flex flex-wrap gap-1.5">
+              {TEAM_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  disabled={submitting}
+                  onClick={() => submitPrediction(opt.value)}
+                  className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold transition-all active:scale-95 disabled:opacity-40"
+                  style={{ background: `${opt.color}15`, border: `1px solid ${opt.color}40`, color: opt.color }}
+                >
+                  {opt.ka}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[10px] font-mono text-white/30">
+              შედეგი გაირკვევა თამაშის ბოლოს · სწორი პროგნოზი = +50 XP
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Role distribution (game active only) */}
       {isGameActive && Object.keys(room.activeRoleCounts ?? {}).length > 0 && (

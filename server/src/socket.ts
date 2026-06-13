@@ -35,7 +35,7 @@ import {
   removeFriend, getFriends, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline,
 } from './services/friendService.js';
 import {
-  checkAndAwardChallenge, getTodayChallenge, getDailyChallengeForPlayer,
+  checkAndAwardChallenges, getDailyQuestsForPlayer,
 } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
 import { recordGame, getPlayerHistory, getPlayerRoleStats } from './services/gameHistoryService.js';
@@ -351,10 +351,10 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
         let xpAmount = won ? 150 : 50;
         xpAmount += Math.min(roundsAlive * 5, 50);
 
-        // Check daily challenge
-        const challengeCompleted = await checkAndAwardChallenge(p.profileId, won, p.role, room.day, p.team);
-        const todayChallenge = getTodayChallenge();
-        const challengeBonus = challengeCompleted ? todayChallenge.xpReward : 0;
+        // Check daily quests (3 simultaneous)
+        const { totalBonus, anyCompleted } = await checkAndAwardChallenges(p.profileId, won, p.role, room.day, p.team);
+        const challengeCompleted = anyCompleted;
+        const challengeBonus = totalBonus;
         xpAmount += challengeBonus;
 
         const xpResult = await addXP(p.profileId, xpAmount);
@@ -381,6 +381,31 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
         }
       } catch { /* non-fatal */ }
     }
+  }
+
+  // Resolve spectator predictions
+  if (room.winner) {
+    try {
+      const preds = await sql`
+        SELECT id, player_id, predicted FROM spectator_predictions
+        WHERE room_id = ${room.id} AND correct IS NULL
+      ` as any[];
+      for (const pred of preds) {
+        const correct = pred.predicted === room.winner ? 1 : 0;
+        const xpEarned = correct ? 50 : 0;
+        await sql`
+          UPDATE spectator_predictions SET correct = ${correct}, xp_earned = ${xpEarned}
+          WHERE id = ${pred.id}
+        `;
+        if (correct && pred.player_id) {
+          try { await addXP(pred.player_id, xpEarned); } catch { /* non-fatal */ }
+        }
+        const spectator = [...room.players.values()].find(p => p.profileId === pred.player_id);
+        if (spectator?.socketId) {
+          io.to(spectator.socketId).emit('prediction:result', { correct: correct === 1, xpGained: xpEarned, winningTeam: room.winner! });
+        }
+      }
+    } catch { /* non-fatal */ }
   }
 }
 
@@ -2646,12 +2671,33 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
-    // ── Daily Challenge ──────────────────────────────────────────────
+    // ── Daily Quests ─────────────────────────────────────────────────
     socket.on('challenge:today', async (cb) => {
       try {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('Not authenticated.');
-        cb(ok(await getDailyChallengeForPlayer(profileId)));
+        cb(ok(await getDailyQuestsForPlayer(profileId)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Spectator Predictions ────────────────────────────────────────
+    socket.on('prediction:submit', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const parsed = z.object({ roomId: z.string(), predicted: z.enum(['mafia', 'town', 'neutral', 'cult', 'yakuza']) }).safeParse(data);
+        if (!parsed.success) throw new Error('Invalid prediction.');
+        const room = getRoom(parsed.data.roomId);
+        if (!room) throw new Error('Room not found.');
+        const player = [...room.players.values()].find(p => p.profileId === profileId);
+        if (!player?.isSpectator) throw new Error('Only spectators can predict.');
+        if (room.phase === 'lobby' || room.phase === 'game_over') throw new Error('Game not active.');
+        await sql`
+          INSERT INTO spectator_predictions (id, room_id, player_id, predicted, created_at)
+          VALUES (${crypto.randomUUID()}, ${parsed.data.roomId}, ${profileId}, ${parsed.data.predicted}, ${Date.now()})
+          ON CONFLICT (room_id, player_id) DO UPDATE SET predicted = ${parsed.data.predicted}, created_at = ${Date.now()}
+        `;
+        cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });
 

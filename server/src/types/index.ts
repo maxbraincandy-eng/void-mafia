@@ -682,6 +682,8 @@ export interface ServerToClientEvents {
   'voice:force-unmute':  () => void;
   // XP / levels / cosmetics
   'xp:gained':           (data: XPGain) => void;
+  // Spectator prediction result
+  'prediction:result':   (data: { correct: boolean; xpGained: number; winningTeam: string }) => void;
   // Spectate queue (legacy)
   'queue:position':      (data: { position: number; roomCode: string }) => void;
   'queue:promoted':      (data: { roomCode: string }) => void;
@@ -792,7 +794,9 @@ export interface ClientToServerEvents {
   // Mod grant by code (owner only)
   'mod:set_level_by_code': (data: { friendCode: string; level: string | null }, cb: Cb<{ username: string; newLevel: string | null }>) => void;
   // Challenges
-  'challenge:today':       (cb: Cb<DailyChallenge>) => void;
+  'challenge:today':       (cb: Cb<DailyChallenge[]>) => void;
+  // Spectator predictions
+  'prediction:submit':     (data: { roomId: string; predicted: string }, cb: Cb<null>) => void;
   // Cosmetics
   'cosmetics:equip':       (data: { type: 'name_color' | 'frame'; itemId: string | null }, cb: Cb<PlayerCosmetics>) => void;
   'cosmetics:get':         (data: { profileId: string }, cb: Cb<PlayerCosmetics>) => void;
