@@ -608,6 +608,7 @@ export function LobbyPage() {
               listenOnly={voice.listenOnly || amSpectator}
               defaultChannel="room"
               hideCamera
+              hideLeave
               isRefreshing={voice.isRefreshing}
               onJoin={amSpectator
                 ? () => voice.joinVoiceListenOnly('room')

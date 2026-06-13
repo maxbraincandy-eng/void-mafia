@@ -28,6 +28,7 @@ interface VoiceControlsProps {
   onJoin: (channel: VoiceChannel, withCamera: boolean) => void;
   onLeave: () => void;
   onToggleMute: () => void;
+  hideLeave?: boolean;
   onSetMuted?: (on: boolean) => void;
   onToggleCamera: () => void;
   onReset?: () => void;
@@ -59,6 +60,7 @@ export function VoiceControls({
   defaultChannel = 'room',
   channelLabel,
   hideCamera = false,
+  hideLeave = false,
 }: VoiceControlsProps) {
   const t = useT();
   const v = t.game.voice;
@@ -212,12 +214,14 @@ export function VoiceControls({
           <p className="text-xs font-mono text-white/40">
             👁 {v.listenOnly} · {peerCount} speaker{peerCount !== 1 ? 's' : ''}
           </p>
-          <button
-            onClick={onLeave}
-            className="px-3 py-1.5 rounded-lg border border-white/10 text-white/30 hover:text-neon-red hover:border-neon-red/30 font-mono text-xs transition-all"
-          >
-            ✕
-          </button>
+          {!hideLeave && (
+            <button
+              onClick={onLeave}
+              className="px-3 py-1.5 rounded-lg border border-white/10 text-white/30 hover:text-neon-red hover:border-neon-red/30 font-mono text-xs transition-all"
+            >
+              ✕
+            </button>
+          )}
         </div>
       )}
 
@@ -243,14 +247,16 @@ export function VoiceControls({
               >
                 {!isMuted ? '🎙 საუბრობ...' : '🔴 დააჭირე და ილაპარაკე'}
               </button>
-              <div className="flex justify-end">
-                <button
-                  onClick={onLeave}
-                  className="px-3 py-1.5 rounded-lg border border-white/10 text-white/30 hover:text-neon-red hover:border-neon-red/30 font-mono text-xs transition-all active:scale-95"
-                >
-                  ✕ {v.leave}
-                </button>
-              </div>
+              {!hideLeave && (
+                <div className="flex justify-end">
+                  <button
+                    onClick={onLeave}
+                    className="px-3 py-1.5 rounded-lg border border-white/10 text-white/30 hover:text-neon-red hover:border-neon-red/30 font-mono text-xs transition-all active:scale-95"
+                  >
+                    ✕ {v.leave}
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             /* Normal mute-toggle mode */
@@ -293,13 +299,15 @@ export function VoiceControls({
                 </button>
               )}
 
-              <button
-                onClick={onLeave}
-                className="px-4 py-3 rounded-xl border border-white/10 text-white/40 hover:text-neon-red hover:border-neon-red/30 font-mono transition-all active:scale-95"
-                title={v.leave}
-              >
-                ✕
-              </button>
+              {!hideLeave && (
+                <button
+                  onClick={onLeave}
+                  className="px-4 py-3 rounded-xl border border-white/10 text-white/40 hover:text-neon-red hover:border-neon-red/30 font-mono transition-all active:scale-95"
+                  title={v.leave}
+                >
+                  ✕
+                </button>
+              )}
             </div>
           )}
 
