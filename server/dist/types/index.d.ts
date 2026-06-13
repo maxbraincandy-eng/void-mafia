@@ -580,6 +580,16 @@ export interface DashboardStats {
     openReports: number;
     recentBans: number;
 }
+export interface BannedPlayerEntry {
+    banId: string;
+    profileId: string;
+    username: string;
+    friendCode: string;
+    publicId: number | null;
+    reason: string;
+    expiresAt: number;
+    issuedByName: string;
+}
 type Cb<T> = (res: Res<T>) => void;
 export interface ServerToClientEvents {
     'room:update': (room: RoomPublic) => void;
@@ -880,6 +890,7 @@ export interface ClientToServerEvents {
     'mod:get_reports': (cb: Cb<Report[]>) => void;
     'mod:get_rooms': (cb: Cb<RoomListItem[]>) => void;
     'mod:get_players': (cb: Cb<PlayerProfilePublic[]>) => void;
+    'mod:get_banned_players': (cb: Cb<BannedPlayerEntry[]>) => void;
     'mod:get_logs': (cb: Cb<ModLog[]>) => void;
     'mod:resolve_report': (data: {
         reportId: string;

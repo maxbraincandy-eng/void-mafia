@@ -551,6 +551,17 @@ export interface DashboardStats {
   recentBans: number;
 }
 
+export interface BannedPlayerEntry {
+  banId: string;
+  profileId: string;
+  username: string;
+  friendCode: string;
+  publicId: number | null;
+  reason: string;
+  expiresAt: number;
+  issuedByName: string;
+}
+
 export interface LobbyMessage {
   id: string;
   profileId: string;

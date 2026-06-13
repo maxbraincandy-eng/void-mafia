@@ -11,7 +11,7 @@ import { checkAndAwardChallenges, getDailyQuestsForPlayer, } from './services/ch
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
 import { recordGame, getPlayerHistory, getPlayerRoleStats } from './services/gameHistoryService.js';
 import { createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan, setClanMemberRole, addClanModLog, getClanModLogs, } from './services/clanService.js';
-import { canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer, warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, logKick, addModNote, freezeAccount, unfreezeAccount, renamePlayer, getPlayerDetail, assignReport, getDashboardDbStats, addModLog, } from './services/moderationService.js';
+import { canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer, warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, getBannedPlayers, logKick, addModNote, freezeAccount, unfreezeAccount, renamePlayer, getPlayerDetail, assignReport, getDashboardDbStats, addModLog, } from './services/moderationService.js';
 import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as voiceLeave, getMembers as voiceGetMembers, getSharedChannel as voiceGetSharedChannel, removeFromChannel as voiceRemoveFromChannel, } from './services/voiceService.js';
 import { sql } from './db.js';
 import bcrypt from 'bcryptjs';
@@ -2043,6 +2043,18 @@ export function attachSocketHandlers(io) {
                 if (!mod || !canDo(mod, 'view_reports'))
                     throw new Error('Insufficient permissions.');
                 cb(ok(await getModPlayers()));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('mod:get_banned_players', async (cb) => {
+            try {
+                const modProfileId = socket.data.profileId;
+                const mod = modProfileId ? await getPlayer(modProfileId) : null;
+                if (!mod || !canDo(mod, 'view_reports'))
+                    throw new Error('Insufficient permissions.');
+                cb(ok(await getBannedPlayers()));
             }
             catch (e) {
                 cb(err(e.message));

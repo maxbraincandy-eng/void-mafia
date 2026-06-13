@@ -4,6 +4,7 @@ import { socket } from '@/lib/socket';
 import {
   Report, ModLog, PlayerProfilePublic, Phase,
   ModPlayerDetail, LiveRoomInfo, DashboardStats, ModNote, ModeratorLevel, WarnCategory,
+  BannedPlayerEntry,
 } from '@/types/index';
 import type { Res } from '@/types/index';
 
@@ -109,6 +110,11 @@ export function ModDashboardPage() {
   const [playerFilterBanned, setPlayerFilterBanned] = useState(false);
   const [playerFilterMod, setPlayerFilterMod] = useState(false);
 
+  // Banned players list
+  const [bannedPlayers, setBannedPlayers] = useState<BannedPlayerEntry[]>([]);
+  const [bannedLoading, setBannedLoading] = useState(false);
+  const [showBanned, setShowBanned] = useState(false);
+
   // Action modal
   const [action, setAction] = useState<ActionState | null>(null);
   const [actionReason, setActionReason] = useState('');
@@ -159,6 +165,24 @@ export function ModDashboardPage() {
     });
   }, [addToast]);
 
+  const loadBannedPlayers = useCallback(() => {
+    setBannedLoading(true);
+    socket.emit('mod:get_banned_players' as any, (res: Res<BannedPlayerEntry[]>) => {
+      setBannedLoading(false);
+      if (res.ok) setBannedPlayers(res.data);
+      else addToast(res.error, 'error');
+    });
+  }, [addToast]);
+
+  const doUnban = (entry: BannedPlayerEntry) => {
+    socket.emit('mod:unban' as any, { targetProfileId: entry.profileId }, (res: Res<null>) => {
+      if (res.ok) {
+        addToast(`${entry.username} unbanned`, 'success');
+        loadBannedPlayers();
+      } else addToast(res.error, 'error');
+    });
+  };
+
   const loadLogs = useCallback(() => {
     setLoading(true);
     socket.emit('mod:get_logs' as any, (res: Res<ModLog[]>) => {
@@ -171,6 +195,7 @@ export function ModDashboardPage() {
   const switchTab = (t: Tab) => {
     setTab(t);
     setPlayerDetail(null);
+    setShowBanned(false);
     if (t === 'dashboard') loadDashboard();
     else if (t === 'rooms') loadRooms();
     else if (t === 'reports') loadReports();
@@ -617,6 +642,66 @@ export function ModDashboardPage() {
         {/* ── Players ───────────────────────────────────────────── */}
         {tab === 'players' && !loading && (
           <div className="space-y-3">
+            {/* Mode toggle: All players ↔ Banned */}
+            <div className="flex rounded-xl overflow-hidden border border-white/8">
+              <button onClick={() => { setShowBanned(false); }}
+                className={`flex-1 py-2 font-mono text-xs transition-all ${!showBanned ? 'bg-neon-green/12 text-neon-green' : 'text-white/30 hover:text-white/60'}`}>
+                All Players
+              </button>
+              <button onClick={() => { setShowBanned(true); loadBannedPlayers(); }}
+                className={`flex-1 py-2 font-mono text-xs transition-all border-l border-white/8 ${showBanned ? 'bg-neon-red/12 text-neon-red' : 'text-white/30 hover:text-white/60'}`}>
+                🚫 Banned
+              </button>
+            </div>
+
+            {/* ── Banned players list ── */}
+            {showBanned && (
+              <>
+                <div className="flex items-center justify-between">
+                  <p className="text-white/20 font-mono text-xs">{bannedPlayers.length} active ban{bannedPlayers.length !== 1 ? 's' : ''}</p>
+                  <button onClick={loadBannedPlayers} className="text-neon-green/50 font-mono text-xs hover:text-neon-green">↻</button>
+                </div>
+                {bannedLoading && <div className="text-center py-6"><div className="w-5 h-5 border-2 border-neon-red border-t-transparent rounded-full animate-spin mx-auto" /></div>}
+                {!bannedLoading && bannedPlayers.length === 0 && <p className="text-white/25 font-mono text-sm text-center py-8">No active bans</p>}
+                {!bannedLoading && bannedPlayers.length > 0 && (
+                  <div className="rounded-xl border border-neon-red/15 overflow-hidden divide-y divide-white/5">
+                    {bannedPlayers.map(b => (
+                      <div key={b.banId} className="px-3 py-3">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm text-neon-red/90 font-bold truncate">{b.username}</span>
+                              {b.friendCode && <span className="font-mono text-[10px] text-neon-pink/50">{b.friendCode}</span>}
+                              {b.publicId != null && <span className="font-mono text-[10px] text-white/25">#{b.publicId}</span>}
+                            </div>
+                            <p className="font-mono text-[10px] text-white/40 mt-0.5 line-clamp-1">"{b.reason}"</p>
+                            <p className="font-mono text-[10px] text-white/20 mt-0.5">
+                              by {b.issuedByName} · until {new Date(b.expiresAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div className="flex flex-col gap-1 flex-shrink-0">
+                            <button
+                              onClick={() => setConfirm({ title: `Unban ${b.username}?`, msg: `Remove the active ban on ${b.username}?`, onConfirm: () => { setConfirm(null); doUnban(b); } })}
+                              className="px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border border-neon-green/30 text-neon-green bg-neon-green/8 hover:bg-neon-green/18 transition-all whitespace-nowrap">
+                              ✓ Unban
+                            </button>
+                            <button
+                              onClick={() => openPlayerDetail(b.profileId)}
+                              className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-white/10 text-white/30 hover:text-white/60 transition-all whitespace-nowrap">
+                              Detail
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── All players list ── */}
+            {!showBanned && (
+              <>
             <input type="text" value={playerSearch} onChange={e => setPlayerSearch(e.target.value)}
               placeholder="Search by name, #ID, friend code…"
               className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono placeholder-white/25 focus:outline-none focus:border-neon-green/40" />
@@ -668,6 +753,8 @@ export function ModDashboardPage() {
                   </div>
                 ))}
               </div>
+            )}
+              </>
             )}
           </div>
         )}

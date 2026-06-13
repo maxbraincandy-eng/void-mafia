@@ -45,7 +45,7 @@ import {
 } from './services/clanService.js';
 import {
   canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer,
-  warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, logKick,
+  warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, getBannedPlayers, logKick,
   addModNote, freezeAccount, unfreezeAccount, renamePlayer,
   getPlayerDetail, assignReport, getDashboardDbStats, addModLog,
 } from './services/moderationService.js';
@@ -2027,6 +2027,15 @@ export function attachSocketHandlers(io: AppServer): void {
         const mod = modProfileId ? await getPlayer(modProfileId) : null;
         if (!mod || !canDo(mod, 'view_reports')) throw new Error('Insufficient permissions.');
         cb(ok(await getModPlayers()));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mod:get_banned_players', async (cb) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || !canDo(mod, 'view_reports')) throw new Error('Insufficient permissions.');
+        cb(ok(await getBannedPlayers()));
       } catch (e: any) { cb(err(e.message)); }
     });
 

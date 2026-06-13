@@ -1,7 +1,7 @@
 import {
   Report, ReportReason, ModLog, ModActionType,
   BanRecord, MuteRecord, Warning, WarnCategory, PlayerProfile, ModeratorLevel,
-  ModNote, ModPlayerDetail,
+  ModNote, ModPlayerDetail, BannedPlayerEntry,
 } from '../types/index.js';
 import { generateId } from '../utils/helpers.js';
 import { sql } from '../db.js';
@@ -150,6 +150,28 @@ export async function getLogs(): Promise<ModLog[]> {
 
 export async function getModPlayers() {
   return getPlayersFast();
+}
+
+export async function getBannedPlayers(): Promise<BannedPlayerEntry[]> {
+  const now = Date.now();
+  const rows = await sql`
+    SELECT b.id as ban_id, b.player_id, b.reason, b.expires_at, b.banned_by_name,
+           p.username, p.friend_code, p.public_id
+    FROM bans b
+    JOIN players p ON p.id = b.player_id
+    WHERE b.active = 1 AND b.expires_at > ${now}
+    ORDER BY b.issued_at DESC
+  ` as any[];
+  return rows.map(r => ({
+    banId: String(r.ban_id),
+    profileId: String(r.player_id),
+    username: String(r.username),
+    friendCode: r.friend_code ?? '',
+    publicId: r.public_id ?? null,
+    reason: String(r.reason),
+    expiresAt: Number(r.expires_at),
+    issuedByName: String(r.banned_by_name),
+  }));
 }
 
 export async function logKick(

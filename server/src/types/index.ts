@@ -693,6 +693,17 @@ export interface DashboardStats {
   recentBans: number;
 }
 
+export interface BannedPlayerEntry {
+  banId: string;
+  profileId: string;
+  username: string;
+  friendCode: string;
+  publicId: number | null;
+  reason: string;
+  expiresAt: number;
+  issuedByName: string;
+}
+
 // ── Socket Event Maps ─────────────────────────────────────────────────
 type Cb<T> = (res: Res<T>) => void;
 
@@ -813,7 +824,8 @@ export interface ClientToServerEvents {
   'mod:unmute':         (data: { targetProfileId: string }, cb: Cb<null>) => void;
   'mod:get_reports':    (cb: Cb<Report[]>) => void;
   'mod:get_rooms':      (cb: Cb<RoomListItem[]>) => void;
-  'mod:get_players':    (cb: Cb<PlayerProfilePublic[]>) => void;
+  'mod:get_players':         (cb: Cb<PlayerProfilePublic[]>) => void;
+  'mod:get_banned_players':  (cb: Cb<BannedPlayerEntry[]>) => void;
   'mod:get_logs':       (cb: Cb<ModLog[]>) => void;
   'mod:resolve_report':  (data: { reportId: string; status: 'resolved' | 'rejected'; notes: string }, cb: Cb<null>) => void;
   'mod:terminate_game':  (data: { roomId: string; reason: string }, cb: Cb<null>) => void;
