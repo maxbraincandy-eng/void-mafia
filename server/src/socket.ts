@@ -2895,6 +2895,35 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    // ── Gift Leaderboard ─────────────────────────────────────────────
+    socket.on('gifts:leaderboard' as any, async (cb: any) => {
+      try {
+        const topGifters = await sql`
+          SELECT p.id AS "profileId", p.username, p.avatar,
+                 p.avatar_url AS "avatarUrl",
+                 COUNT(pg.id)::int AS "giftCount",
+                 COALESCE(SUM(pg.coin_cost), 0)::int AS "totalSpent"
+          FROM player_gifts pg
+          JOIN players p ON p.id = pg.sender_id
+          GROUP BY p.id, p.username, p.avatar, p.avatar_url
+          ORDER BY "totalSpent" DESC, "giftCount" DESC
+          LIMIT 10
+        ` as any[];
+        const topRecipients = await sql`
+          SELECT p.id AS "profileId", p.username, p.avatar,
+                 p.avatar_url AS "avatarUrl",
+                 COUNT(pg.id)::int AS "giftCount",
+                 COALESCE(SUM(pg.coin_cost), 0)::int AS "totalReceived"
+          FROM player_gifts pg
+          JOIN players p ON p.id = pg.recipient_id
+          GROUP BY p.id, p.username, p.avatar, p.avatar_url
+          ORDER BY "totalReceived" DESC, "giftCount" DESC
+          LIMIT 10
+        ` as any[];
+        cb(ok({ topGifters, topRecipients }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     socket.on('gifts:getSent' as any, async ({ profileId: targetId }: any, cb: any) => {
       try {
         if (!targetId) throw new Error('profileId required.');
