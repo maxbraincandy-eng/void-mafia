@@ -617,75 +617,57 @@ export function ModDashboardPage() {
         {/* ── Players ───────────────────────────────────────────── */}
         {tab === 'players' && !loading && (
           <div className="space-y-3">
-            {!playerDetail ? (
-              <>
-                <input type="text" value={playerSearch} onChange={e => setPlayerSearch(e.target.value)}
-                  placeholder="Search by name, #ID, friend code…"
-                  className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono placeholder-white/25 focus:outline-none focus:border-neon-green/40" />
-                {/* Filter chips */}
-                <div className="flex gap-1 flex-wrap">
-                  {[
-                    { key: 'mod', label: 'Mods', active: playerFilterMod, set: setPlayerFilterMod },
-                  ].map(f => (
-                    <button key={f.key} onClick={() => f.set(!f.active)}
-                      className={`px-2 py-1 text-[10px] font-mono uppercase rounded-lg border transition-all ${
-                        f.active ? 'border-neon-green/40 bg-neon-green/10 text-neon-green' : 'border-white/10 text-white/30 hover:text-white/60'
-                      }`}>
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-white/20 font-mono text-xs">{filteredPlayers.length} players</p>
-                  <button onClick={loadPlayers} className="text-neon-green/50 font-mono text-xs hover:text-neon-green transition-all">↻ Refresh</button>
-                </div>
-                {filteredPlayers.length === 0 && <p className="text-white/25 font-mono text-sm text-center py-8">No players found</p>}
+            <input type="text" value={playerSearch} onChange={e => setPlayerSearch(e.target.value)}
+              placeholder="Search by name, #ID, friend code…"
+              className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono placeholder-white/25 focus:outline-none focus:border-neon-green/40" />
+            <div className="flex items-center gap-2">
+              <button onClick={() => setPlayerFilterMod(!playerFilterMod)}
+                className={`px-2 py-1 text-[10px] font-mono uppercase rounded-lg border transition-all ${
+                  playerFilterMod ? 'border-neon-green/40 bg-neon-green/10 text-neon-green' : 'border-white/10 text-white/30 hover:text-white/60'
+                }`}>
+                Mods
+              </button>
+              <p className="text-white/20 font-mono text-xs ml-auto">{filteredPlayers.length} players</p>
+              <button onClick={loadPlayers} className="text-neon-green/50 font-mono text-xs hover:text-neon-green transition-all">↻</button>
+            </div>
+            {filteredPlayers.length === 0 && <p className="text-white/25 font-mono text-sm text-center py-8">No players found</p>}
+            {filteredPlayers.length > 0 && (
+              <div className="rounded-xl border border-white/5 overflow-hidden divide-y divide-white/5">
                 {filteredPlayers.map(p => (
-                  <div key={p.id} className="glass-panel border border-white/5 rounded-xl p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openPlayerDetail(p.id)}>
-                        <div className="flex items-center gap-2">
-                          <span className={`font-mono text-sm font-bold truncate ${p.isModerator ? 'text-neon-green' : 'text-white'}`}>{p.username}</span>
-                          {p.isModerator && <ModBadge level={p.moderatorLevel} size="sm" />}
-                        </div>
-                        <p className="text-white/25 text-xs font-mono">
-                          G:{p.stats.gamesPlayed} W:{p.stats.wins}
-                          {p.publicId != null && <span className="ml-2 text-neon-cyan/50">#{p.publicId}</span>}
-                          <span className="ml-2">Lv{p.level}</span>
-                          {p.friendCode && <span className="ml-2 text-neon-pink/50">{p.friendCode}</span>}
-                        </p>
+                  <div key={p.id}
+                    className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-white/5 active:bg-white/8 transition-colors cursor-pointer"
+                    onClick={() => openPlayerDetail(p.id)}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`font-mono text-sm truncate ${p.isModerator ? 'text-neon-green' : 'text-white/85'}`}>{p.username}</span>
+                        {p.isModerator && <ModBadge level={p.moderatorLevel} size="sm" />}
                       </div>
-                      <div className="flex gap-1 flex-wrap justify-end">
-                        <button onClick={() => openAction('warn', p.id, p.username)}
-                          className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-yellow-400/30 text-yellow-400 hover:bg-yellow-400/10 transition-all">
-                          warn
-                        </button>
-                        <button onClick={() => openAction('kick', p.id, p.username)}
-                          className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-orange-400/30 text-orange-400 hover:bg-orange-400/10 transition-all">
-                          kick
-                        </button>
-                        {can(1) && (
-                          <button onClick={() => openAction('ban', p.id, p.username)}
-                            className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-neon-red/30 text-neon-red hover:bg-neon-red/10 transition-all">
-                            ban
-                          </button>
-                        )}
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {p.friendCode && <span className="font-mono text-[10px] text-neon-pink/50">{p.friendCode}</span>}
+                        {p.publicId != null && <span className="font-mono text-[10px] text-neon-cyan/40">#{p.publicId}</span>}
+                        <span className="font-mono text-[10px] text-white/20">Lv{p.level ?? 1} · G{p.stats.gamesPlayed}</span>
                       </div>
                     </div>
+                    <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                      <button onClick={() => openAction('warn', p.id, p.username)}
+                        className="w-7 h-7 flex items-center justify-center text-[10px] font-mono rounded-lg border border-yellow-400/20 text-yellow-400/60 hover:bg-yellow-400/10 hover:text-yellow-400 transition-all">
+                        W
+                      </button>
+                      <button onClick={() => openAction('kick', p.id, p.username)}
+                        className="w-7 h-7 flex items-center justify-center text-[10px] font-mono rounded-lg border border-orange-400/20 text-orange-400/60 hover:bg-orange-400/10 hover:text-orange-400 transition-all">
+                        K
+                      </button>
+                      {can(1) && (
+                        <button onClick={() => openAction('ban', p.id, p.username)}
+                          className="w-7 h-7 flex items-center justify-center text-[10px] font-mono rounded-lg border border-neon-red/20 text-neon-red/60 hover:bg-neon-red/10 hover:text-neon-red transition-all">
+                          B
+                        </button>
+                      )}
+                    </div>
+                    <span className="text-white/15 text-sm flex-shrink-0">›</span>
                   </div>
                 ))}
-              </>
-            ) : (
-              <PlayerDetailPanel
-                detail={playerDetail}
-                loading={detailLoading}
-                newNote={newNote}
-                setNewNote={setNewNote}
-                rank={rank}
-                onClose={() => setPlayerDetail(null)}
-                onSubmitNote={() => submitNote(playerDetail.profile.id)}
-                onAction={openAction}
-              />
+              </div>
             )}
           </div>
         )}
@@ -753,6 +735,56 @@ export function ModDashboardPage() {
           </div>
         )}
       </div>
+
+      {/* ── Player Detail Overlay ────────────────────────────────── */}
+      <AnimatePresence>
+        {tab === 'players' && playerDetail && (
+          <>
+            <motion.div
+              key="backdrop"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm"
+              onClick={() => setPlayerDetail(null)}
+            />
+            <motion.div
+              key="panel"
+              initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 240, mass: 0.8 }}
+              className="fixed top-0 right-0 bottom-0 z-[201] w-[92vw] max-w-sm overflow-y-auto overscroll-contain"
+              style={{ background: 'rgba(8,8,14,0.98)', borderLeft: '1px solid rgba(255,255,255,0.07)' }}
+            >
+              {/* Close strip */}
+              <div className="sticky top-0 z-10 flex items-center justify-between px-4 pt-4 pb-2"
+                style={{ background: 'rgba(8,8,14,0.95)', backdropFilter: 'blur(12px)' }}>
+                <span className="text-white/20 font-mono text-[10px] uppercase tracking-widest">Player Detail</span>
+                <button onClick={() => setPlayerDetail(null)}
+                  className="w-8 h-8 flex items-center justify-center rounded-xl border border-white/10 text-white/40 hover:text-white hover:border-white/30 transition-all text-base">
+                  ✕
+                </button>
+              </div>
+              <div className="px-4 pb-8">
+                {detailLoading ? (
+                  <div className="text-center py-12">
+                    <div className="w-6 h-6 border-2 border-neon-green border-t-transparent rounded-full animate-spin mx-auto" />
+                  </div>
+                ) : (
+                  <PlayerDetailPanel
+                    detail={playerDetail}
+                    loading={detailLoading}
+                    newNote={newNote}
+                    setNewNote={setNewNote}
+                    rank={rank}
+                    onClose={() => setPlayerDetail(null)}
+                    onSubmitNote={() => submitNote(playerDetail.profile.id)}
+                    onAction={openAction}
+                  />
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* ── Action Modal ─────────────────────────────────────────── */}
       <AnimatePresence>
@@ -906,21 +938,20 @@ function PlayerDetailPanel({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3 mb-2">
-        <button onClick={onClose} className="text-white/30 hover:text-white transition-all">← Back</button>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-neon-cyan font-bold truncate">{p.username}</span>
-            {p.isModerator && <ModBadge level={p.moderatorLevel} size="sm" />}
-            {detail.accountFrozen && <span className="text-[10px] font-mono text-orange-400 border border-orange-400/30 rounded px-1">FROZEN</span>}
-          </div>
-          {p.friendCode && (
-            <button onClick={copyFriendCode} className="flex items-center gap-1 text-neon-pink/60 hover:text-neon-pink font-mono text-[10px] transition-all group">
-              <span>{p.friendCode}</span>
-              <span className="opacity-0 group-hover:opacity-60 text-[9px]">⧉</span>
-            </button>
-          )}
+      {/* Header — rendered inside overlay, no back button needed */}
+      <div className="mb-4">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-mono text-neon-cyan font-bold text-lg">{p.username}</span>
+          {p.isModerator && <ModBadge level={p.moderatorLevel} size="sm" />}
+          {detail.accountFrozen && <span className="text-[10px] font-mono text-orange-400 border border-orange-400/30 rounded px-1.5 py-0.5">FROZEN</span>}
         </div>
+        {p.friendCode && (
+          <button onClick={copyFriendCode}
+            className="mt-1 flex items-center gap-1.5 text-neon-pink/60 hover:text-neon-pink font-mono text-xs transition-all group">
+            <span>{p.friendCode}</span>
+            <span className="text-[9px] opacity-0 group-hover:opacity-70 transition-opacity">⧉ copy</span>
+          </button>
+        )}
       </div>
 
       {/* Quick stats */}
@@ -932,12 +963,6 @@ function PlayerDetailPanel({
         </div>
         <p className="text-white/20 font-mono text-[10px] truncate">{p.id}</p>
         {p.publicId != null && <p className="text-white/30 font-mono text-xs">#{p.publicId} · Lv{p.level}</p>}
-        {p.friendCode && (
-          <button onClick={copyFriendCode} className="mt-1 flex items-center gap-1.5 text-neon-pink/70 hover:text-neon-pink font-mono text-xs transition-all group">
-            <span className="font-bold">{p.friendCode}</span>
-            <span className="text-[9px] opacity-0 group-hover:opacity-60">⧉ copy</span>
-          </button>
-        )}
       </div>
 
       {/* Active ban/mute */}
