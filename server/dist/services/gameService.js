@@ -35,6 +35,7 @@ export function startGame(room) {
         player.isAlive = true;
         player.hasActedThisPhase = false;
         player.voteTarget = null;
+        player.foulCount = 0;
     });
     room.day = 1;
     room.winner = null;
@@ -44,6 +45,7 @@ export function startGame(room) {
     room.mafiaChat = [];
     room.dousedPlayers = new Set();
     room.newlyConvertedCultists = [];
+    room.activeFoul = null;
 }
 const MORNING_DURATION = 30;
 // ── Set Phase ─────────────────────────────────────────────────────────
@@ -188,8 +190,9 @@ export function advancePhase(room) {
                 setPhase(room, 'game_over');
                 return 'game_over';
             }
-            setPhase(room, 'morning');
-            return 'morning';
+            room.day++;
+            setPhase(room, 'day');
+            return 'day';
         }
         case 'day':
             setPhase(room, 'speech');
@@ -237,7 +240,7 @@ export function advancePhase(room) {
                 const dying = room.players.get(dyingId);
                 if (dying) {
                     dying.isAlive = false;
-                    dying.deathType = reason === 'night_kill' ? 'night' : 'vote';
+                    dying.deathType = reason === 'night_kill' ? 'night' : reason === 'foul_death' ? 'foul' : 'vote';
                 }
             }
             // Apply any Jester win that was deferred until after final words
@@ -249,9 +252,10 @@ export function advancePhase(room) {
                 setPhase(room, 'game_over');
                 return 'game_over';
             }
-            if (reason === 'night_kill') {
-                setPhase(room, 'morning');
-                return 'morning';
+            if (reason === 'night_kill' || reason === 'foul_death') {
+                room.day++;
+                setPhase(room, 'day');
+                return 'day';
             }
             setPhase(room, 'night');
             return 'night';

@@ -187,7 +187,8 @@ export interface Player {
     lastWill: string | null;
     isModerator: boolean;
     moderatorLevel: ModeratorLevel | null;
-    deathType: 'night' | 'vote' | null;
+    deathType: 'night' | 'vote' | 'foul' | null;
+    foulCount: number;
 }
 export interface NightAction {
     actorId: string;
@@ -312,8 +313,12 @@ export interface Room {
     nominations: Map<string, string>;
     tribunalCandidates: string[];
     deathSpeakerId: string | null;
-    finalWordsReason: 'night_kill' | 'vote_elimination' | null;
+    finalWordsReason: 'night_kill' | 'vote_elimination' | 'foul_death' | null;
     pendingWinner: Team | null;
+    activeFoul: {
+        playerId: string;
+        endsAt: number;
+    } | null;
     speechStartSeat: number;
     clanId: string | null;
     clanRoom: boolean;
@@ -342,7 +347,8 @@ export interface PlayerPublic {
     isSpectator: boolean;
     isQueuedNextRound: boolean;
     queuePosition: number | null;
-    deathType: 'night' | 'vote' | null;
+    deathType: 'night' | 'vote' | 'foul' | null;
+    foulCount: number;
 }
 export interface RoomPublic {
     id: string;
@@ -382,6 +388,10 @@ export interface RoomPublic {
     tribunalCandidates: string[];
     deathSpeakerId: string | null;
     finalWordsReason: string | null;
+    activeFoul: {
+        playerId: string;
+        endsAt: number;
+    } | null;
     clanId: string | null;
     clanRoom: boolean;
     activeEvent: ActiveEvent | null;
@@ -718,6 +728,7 @@ export interface ClientToServerEvents {
         nomineeId: string | null;
     }, cb: Cb<null>) => void;
     'game:day_skip_vote': (cb: Cb<null>) => void;
+    'game:foul': (cb: Cb<null>) => void;
     'game:restart': (cb: Cb<null>) => void;
     'game:set_will': (data: {
         text: string;

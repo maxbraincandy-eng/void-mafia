@@ -466,11 +466,35 @@ export function findSocketByProfile(io, profileId) {
     return null;
 }
 // ── XP & Level System ─────────────────────────────────────────────────
-export const LEVEL_THRESHOLDS = [0, 100, 250, 500, 900, 1400, 2100, 3000, 4100, 5400];
+export const MAX_LEVEL = 100;
+// Levels 1–10: original (preserved — no XP reset for existing users)
+// Levels 11–100: formula threshold(n) = 5400 + 1200k + 45k² where k = n - 10
+export const LEVEL_THRESHOLDS = [
+    // 1–10
+    0, 100, 250, 500, 900, 1400, 2100, 3000, 4100, 5400,
+    // 11–20
+    6645, 7980, 9405, 10920, 12525, 14220, 16005, 17880, 19845, 21900,
+    // 21–30
+    24045, 26280, 28605, 31020, 33525, 36120, 38805, 41580, 44445, 47400,
+    // 31–40
+    50445, 53580, 56805, 60120, 63525, 67020, 70605, 74280, 78045, 81900,
+    // 41–50
+    85845, 89880, 94005, 98220, 102525, 106920, 111405, 115980, 120645, 125400,
+    // 51–60
+    130245, 135180, 140205, 145320, 150525, 155820, 161205, 166680, 172245, 177900,
+    // 61–70
+    183645, 189480, 195405, 201420, 207525, 213720, 220005, 226380, 232845, 239400,
+    // 71–80
+    246045, 252780, 259605, 266520, 273525, 280620, 287805, 295080, 302445, 309900,
+    // 81–90
+    317445, 325080, 332805, 340620, 348525, 356520, 364605, 372780, 381045, 389400,
+    // 91–100
+    397845, 406380, 415005, 423720, 432525, 441420, 450405, 459480, 468645, 477900,
+];
 export function getLevel(xp) {
     for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
         if (xp >= LEVEL_THRESHOLDS[i])
-            return i + 1;
+            return Math.min(i + 1, MAX_LEVEL);
     }
     return 1;
 }
@@ -544,6 +568,17 @@ async function checkLevelCosmetics(profileId, level) {
         7: ['name_rainbow', 'title_the_betrayer', 'skin_cyber_sheriff'],
         8: ['frame_gold', 'title_clan_boss', 'skin_cult', 'frame_blood_moon'],
         10: ['frame_legendary', 'title_godfather', 'skin_shogun'],
+        15: ['title_night_walker'],
+        20: ['title_mask_bearer'],
+        25: ['title_signal_hunter'],
+        30: ['title_shadow_player'],
+        40: ['title_tribunal_voice'],
+        50: ['title_void_veteran'],
+        60: ['title_black_box_analyst'],
+        70: ['title_blood_moon_survivor'],
+        80: ['title_master_of_lies'],
+        90: ['title_silent_judge'],
+        100: ['title_void_master'],
     };
     const items = unlocks[level];
     if (!items)

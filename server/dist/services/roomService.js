@@ -72,6 +72,7 @@ export function createRoom(hostSocketId, hostName, profileId, settings, clanId) 
         isModerator: false,
         moderatorLevel: null,
         deathType: null,
+        foulCount: 0,
     };
     const mergedSettings = {
         ...DEFAULT_SETTINGS,
@@ -124,6 +125,7 @@ export function createRoom(hostSocketId, hostName, profileId, settings, clanId) 
         deathSpeakerId: null,
         finalWordsReason: null,
         pendingWinner: null,
+        activeFoul: null,
         speechStartSeat: 0,
         clanId: clanId ?? null,
         clanRoom: !!clanId,
@@ -203,6 +205,7 @@ export function addPlayer(room, socketId, name, profileId) {
         isModerator: false,
         moderatorLevel: null,
         deathType: null,
+        foulCount: 0,
     };
     room.players.set(player.id, player);
     return player;
@@ -259,6 +262,7 @@ export function addSpectatorPlayer(room, socketId, name, profileId) {
         isModerator: false,
         moderatorLevel: null,
         deathType: null,
+        foulCount: 0,
     };
     room.players.set(player.id, player);
     return player;
@@ -419,6 +423,7 @@ export function toPublicRoom(room, viewerPlayerId) {
         isQueuedNextRound: p.isQueuedNextRound,
         queuePosition: p.queuePosition,
         deathType: p.deathType,
+        foulCount: p.foulCount ?? 0,
     });
     const players = [...room.players.values()]
         .sort((a, b) => a.seat - b.seat)
@@ -451,6 +456,7 @@ export function toPublicRoom(room, viewerPlayerId) {
         tribunalCandidates: room.tribunalCandidates,
         deathSpeakerId: room.deathSpeakerId ?? null,
         finalWordsReason: room.finalWordsReason ?? null,
+        activeFoul: room.activeFoul ?? null,
         clanId: room.clanId,
         clanRoom: room.clanRoom,
         activeEvent: room.activeEvent,
@@ -551,6 +557,7 @@ export function rematchRoom(room) {
     room.deathSpeakerId = null;
     room.finalWordsReason = null;
     room.pendingWinner = null;
+    room.activeFoul = null;
     room.activeEvent = null;
     room.eventsLog = [];
     room.lastDoctorTarget = null;
@@ -567,6 +574,7 @@ export function rematchRoom(room) {
         p.isReady = false;
         p.lastWill = null;
         p.deathType = null;
+        p.foulCount = 0;
     }
 }
 //# sourceMappingURL=roomService.js.map
