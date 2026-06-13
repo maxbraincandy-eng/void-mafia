@@ -84,10 +84,13 @@ export const useSocialStore = create<SocialStore>((set, get) => {
   });
 
   socket.on('lobby:message', (msg: LobbyMessage) => {
-    set(s => ({
-      lobbyMessages: [...s.lobbyMessages.slice(-99), msg],
-      lobbyChatUnread: s.lobbyChatOpen ? 0 : s.lobbyChatUnread + 1,
-    }));
+    set(s => {
+      if (s.lobbyMessages.some(m => m.id === msg.id)) return {};
+      return {
+        lobbyMessages: [...s.lobbyMessages.slice(-99), msg],
+        lobbyChatUnread: s.lobbyChatOpen ? 0 : s.lobbyChatUnread + 1,
+      };
+    });
   });
 
   socket.on('lobby:msg_deleted', ({ msgId }: { msgId: string }) => {

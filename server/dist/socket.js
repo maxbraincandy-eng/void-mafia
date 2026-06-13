@@ -3250,7 +3250,7 @@ export function attachSocketHandlers(io) {
                 if (_lobbyChat.length > MAX_LOBBY_CHAT)
                     _lobbyChat.shift();
                 io.emit('lobby:message', msg);
-                cb(ok(null));
+                cb(ok(msg));
             }
             catch (e) {
                 cb(err(e.message));

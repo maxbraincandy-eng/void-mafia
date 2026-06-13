@@ -1033,7 +1033,7 @@ export interface ClientToServerEvents {
     'clan:my_membership': (cb: Cb<any>) => void;
     'lobby:send': (data: {
         text: string;
-    }, cb: Cb<null>) => void;
+    }, cb: Cb<LobbyMessage>) => void;
     'lobby:history': (data: Record<string, never>, cb: Cb<LobbyMessage[]>) => void;
     'lobby:delete_msg': (data: {
         msgId: string;

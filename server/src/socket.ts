@@ -3026,7 +3026,7 @@ export function attachSocketHandlers(io: AppServer): void {
         _lobbyChat.push(msg);
         if (_lobbyChat.length > MAX_LOBBY_CHAT) _lobbyChat.shift();
         io.emit('lobby:message', msg);
-        cb(ok(null));
+        cb(ok(msg));
       } catch (e: any) { cb(err(e.message)); }
     });
 

@@ -78,10 +78,14 @@ export function LobbyChatPanel() {
     setSending(true);
     setSendError('');
     try {
-      const res = await emitWithAck<{ text: string }, Res<null>>('lobby:send', { text: trimmed });
-      if (res.ok) {
+      const res = await emitWithAck<{ text: string }, Res<LobbyMessage>>('lobby:send', { text: trimmed });
+      if (res.ok && res.data) {
         setText('');
-      } else {
+        useSocialStore.setState(s => {
+          if (s.lobbyMessages.some(m => m.id === res.data!.id)) return {};
+          return { lobbyMessages: [...s.lobbyMessages.slice(-99), res.data!] };
+        });
+      } else if (!res.ok) {
         setSendError(res.error ?? 'Failed to send');
       }
     } catch {

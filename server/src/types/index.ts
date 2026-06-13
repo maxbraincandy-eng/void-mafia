@@ -883,7 +883,7 @@ export interface ClientToServerEvents {
   // Clan membership with member role/join date
   'clan:my_membership':    (cb: Cb<any>) => void;
   // Lobby chat
-  'lobby:send':            (data: { text: string }, cb: Cb<null>) => void;
+  'lobby:send':            (data: { text: string }, cb: Cb<LobbyMessage>) => void;
   'lobby:history':         (data: Record<string, never>, cb: Cb<LobbyMessage[]>) => void;
   'lobby:delete_msg':      (data: { msgId: string }, cb: Cb<null>) => void;
   // LFG
