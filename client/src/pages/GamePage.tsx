@@ -44,27 +44,29 @@ import { ModDashboardPage } from '@/pages/ModDashboardPage';
 type RightTab = 'events' | 'chat' | 'spectator';
 
 const PHASE_COLORS: Record<Phase, string> = {
-  lobby:        'text-white',
-  role_reveal:  'text-neon-purple',
-  night:        'text-neon-cyan',
-  morning:      'text-neon-cyan',
-  day:          'text-neon-cyan',
-  speech:       'text-neon-cyan',
-  voting:       'text-neon-red',
-  final_words:  'text-neon-red',
-  game_over:    'text-white',
+  lobby:         'text-white',
+  role_reveal:   'text-neon-purple',
+  night:         'text-neon-cyan',
+  morning:       'text-neon-cyan',
+  day:           'text-neon-cyan',
+  speech:        'text-neon-cyan',
+  trial_defense: 'text-neon-red',
+  voting:        'text-neon-red',
+  final_words:   'text-neon-red',
+  game_over:     'text-white',
 };
 
 const PHASE_STRIP: Record<Phase, string> = {
-  lobby:        'rgba(255,255,255,0.05)',
-  role_reveal:  '#9b00ff',
-  night:        '#3b00cc',
-  morning:      '#00c4cc',
-  day:          '#00c4cc',
-  speech:       '#00e5ff',
-  voting:       '#ff2d55',
-  final_words:  '#cc1133',
-  game_over:    'rgba(255,255,255,0.1)',
+  lobby:         'rgba(255,255,255,0.05)',
+  role_reveal:   '#9b00ff',
+  night:         '#3b00cc',
+  morning:       '#00c4cc',
+  day:           '#00c4cc',
+  speech:        '#00e5ff',
+  trial_defense: '#cc2244',
+  voting:        '#ff2d55',
+  final_words:   '#cc1133',
+  game_over:     'rgba(255,255,255,0.1)',
 };
 
 const PHASE_GLOW: Partial<Record<Phase, string>> = {
@@ -123,7 +125,7 @@ export function GamePage() {
     nightResult, investigationResult, spyReport, gameOverResult,
     voteEliminationResult, cultConversionNotice, nightSummary, newAchievements,
     voteBreakdown,
-    skipPhase, speechPass, daySkipVote, issueFoul, leaveRoom, terminateGame,
+    skipPhase, speechPass, daySkipVote, issueFoul, skipDefense, leaveRoom, terminateGame,
     dismissNightResult, dismissInvestigation, dismissSpyReport, dismissGameOver,
     dismissVoteElimination, dismissCultConversion, dismissNightSummary, dismissNewAchievements,
     dismissVoteBreakdown,
@@ -149,6 +151,7 @@ export function GamePage() {
     speechPass: s.speechPass,
     daySkipVote: s.daySkipVote,
     issueFoul: s.issueFoul,
+    skipDefense: s.skipDefense,
     leaveRoom: s.leaveRoom,
     terminateGame: s.terminateGame,
     dismissNightResult: s.dismissNightResult,
@@ -211,11 +214,11 @@ export function GamePage() {
 
     if (cur === 'night' && isMafiaPlayer) {
       if (voice.channel === 'room') {
-        // Leave room and join mafia channel.
+        // Leave room and join mafia channel (PTT — start muted).
         voice.leaveVoice();
-        setTimeout(() => voice.joinVoice('mafia', false, true).catch(() => {}), 400);
+        setTimeout(() => voice.joinVoice('mafia', false, true, true).catch(() => {}), 400);
       } else if (!voice.channel) {
-        voice.joinVoice('mafia', false, true).catch(() => {});
+        voice.joinVoice('mafia', false, true, true).catch(() => {});
       }
     } else if (cur === 'night' && isYakuzaPlayer) {
       if (voice.channel === 'room') {
@@ -602,11 +605,14 @@ export function GamePage() {
                     error={voice.error}
                     defaultChannel="mafia"
                     channelLabel="◉ Mafia Radio"
-                    onJoin={(ch, wc) => voice.joinVoice(ch, wc)}
+                    ptt={true}
+                    onJoin={(ch, wc) => voice.joinVoice(ch, wc, false, true)}
                     onLeave={voice.leaveVoice}
                     onToggleMute={voice.toggleMute}
+                    onSetMuted={voice.setMuted}
                     onToggleCamera={voice.toggleCamera}
                     onReset={voice.resetConnection}
+                    hideCamera={true}
                   />
                 </div>
               </div>
@@ -624,7 +630,7 @@ export function GamePage() {
 
         {phase === 'day' && (() => {
           const activePlayers = room.players.filter(p => p.isAlive && !p.isSpectator);
-          const skipNeeded = Math.floor(activePlayers.length / 2) + 1;
+          const skipNeeded = Math.min(3, activePlayers.length);
           const alreadyVoted = room.daySkipVoteCount ?? 0;
           return (
             <div className="space-y-4">
@@ -828,6 +834,71 @@ export function GamePage() {
           );
         })()}
 
+        {phase === 'trial_defense' && (() => {
+          const tds = room.trialDefenseState;
+          const currentCandidateId = tds ? tds.candidateIds[tds.currentCandidateIdx] : null;
+          const candidate = room.players.find(p => p.id === currentCandidateId);
+          const isMyDefense = currentCandidateId === myPlayer?.id && amAlive && !amSpectator;
+          const candidateNum = tds ? tds.currentCandidateIdx + 1 : 1;
+          const totalCandidates = tds ? tds.candidateIds.length : 1;
+          const spc = room.settings.trialDefense?.secondsPerCandidate ?? 30;
+          return (
+            <div className="space-y-4">
+              <div className="py-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-1.5 h-1.5 rounded-full bg-neon-red/70" style={{ boxShadow: '0 0 6px rgba(255,45,85,0.8)' }} />
+                  <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-neon-red/70">
+                    {t.game.trialDefense.phaseLabel}
+                  </span>
+                  <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(255,45,85,0.25), transparent)' }} />
+                  <span className="text-[9px] font-mono text-white/25">{candidateNum}/{totalCandidates}</span>
+                </div>
+                {candidate ? (
+                  <div className="pl-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <p className="text-white font-semibold text-base">{candidate.name}</p>
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-mono uppercase tracking-widest bg-neon-red/15 border border-neon-red/30 text-neon-red/80">
+                        {t.game.trialDefense.onTrial}
+                      </span>
+                    </div>
+                    <p className="text-white/35 text-xs font-mono">
+                      {isMyDefense
+                        ? t.game.trialDefense.youHaveSeconds.replace('{seconds}', String(spc))
+                        : t.game.trialDefense.onlyCandidate}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-white/40 text-sm font-mono pl-4">{t.game.speech.loading}</p>
+                )}
+              </div>
+
+              <p className="text-white/25 text-xs font-mono">{t.game.trialDefense.votingAfter}</p>
+
+              {/* Action buttons */}
+              <div className="flex gap-2">
+                {isMyDefense && (
+                  <button
+                    onClick={() => skipDefense()}
+                    disabled={isLoading}
+                    className="flex-1 px-4 py-2 border border-white/15 text-white/40 text-xs font-mono rounded-xl hover:border-neon-red/40 hover:text-neon-red/70 transition-all disabled:opacity-40"
+                  >
+                    ⏭ {t.game.trialDefense.skipDefense}
+                  </button>
+                )}
+                {amHost && (
+                  <button
+                    onClick={() => skipPhase()}
+                    disabled={isLoading}
+                    className="px-4 py-2 border border-neon-red/20 text-neon-red/50 text-xs font-mono rounded-xl hover:border-neon-red/50 hover:text-neon-red/80 transition-all disabled:opacity-40"
+                  >
+                    {t.game.trialDefense.startVoting}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {phase === 'voting' && (
           <div className="space-y-4">
             <div className="py-4">
@@ -874,7 +945,7 @@ export function GamePage() {
         {(phase === 'day' || phase === 'speech') && (
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[180px] rounded-full blur-[90px]" style={{ background: 'rgba(0,180,200,0.06)' }} />
         )}
-        {phase === 'voting' && (
+        {(phase === 'voting' || phase === 'trial_defense') && (
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[180px] rounded-full blur-[90px]" style={{ background: 'rgba(220,0,50,0.06)' }} />
         )}
       </div>
@@ -1307,6 +1378,55 @@ export function GamePage() {
           </div>
         </header>
 
+        {/* ── Mobile phase action bar (flex-shrink-0 direct child of root flex-col) ── */}
+        {!amSpectator && (() => {
+          const isCurrentSpeaker = room.currentSpeakerId === myPlayer?.id;
+          const showDaySkip  = phase === 'day'    && amAlive;
+          const showSkipTime = phase === 'speech' && (amHost || (isCurrentSpeaker && amAlive));
+          const showFoul     = phase === 'speech' && amAlive && !isCurrentSpeaker;
+          if (!showDaySkip && !showSkipTime && !showFoul) return null;
+          const skipNeeded = Math.min(3, room.players.filter(p => p.isAlive && !p.isSpectator).length);
+          const alreadyVoted = room.daySkipVoteCount ?? 0;
+          const foulActive = room.activeFoul !== null && Date.now() < (room.activeFoul?.endsAt ?? 0);
+          const myFoulCount = myPlayer?.foulCount ?? 0;
+          return (
+            <div className="md:hidden flex-shrink-0 flex justify-center gap-2 px-4 py-2"
+                 style={{ background: 'rgba(4,2,16,0.75)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              {showDaySkip && (
+                <button
+                  onClick={() => { daySkipVote(); navigator.vibrate?.(50); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white/80 border border-white/15"
+                  style={{ background: 'rgba(255,255,255,0.08)' }}
+                >
+                  <span>⏭</span>
+                  <span>განხილვის გამოტოვება · {alreadyVoted}/{skipNeeded}</span>
+                </button>
+              )}
+              {showSkipTime && (
+                <button
+                  onClick={() => { if (amHost && !isCurrentSpeaker) skipPhase(); else speechPass(); navigator.vibrate?.(50); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white/80 border border-white/15"
+                  style={{ background: 'rgba(255,255,255,0.08)' }}
+                >
+                  <span>⏭</span>
+                  <span>ჩემი დროის გამოტოვება</span>
+                </button>
+              )}
+              {showFoul && (
+                <button
+                  onClick={() => { issueFoul(); navigator.vibrate?.(80); }}
+                  disabled={foulActive}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/15 disabled:opacity-40"
+                  style={{ background: foulActive ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.25)', color: '#fca5a5' }}
+                >
+                  <span>🚫</span>
+                  <span>ფოლი · {myFoulCount}/3</span>
+                </button>
+              )}
+            </div>
+          );
+        })()}
+
         {/* ── DESKTOP layout (md+) ──────────────────────────────────── */}
         <div className="hidden md:flex flex-1 overflow-hidden max-w-7xl w-full mx-auto">
           {/* Players + Voice sidebar */}
@@ -1480,6 +1600,56 @@ export function GamePage() {
                 )}
                 {phase === 'night' && isMafiaPlayer && VoicePanel}
               </div>
+            ) : (phase === 'trial_defense') ? (
+              /* Trial Defense: candidate speaks before voting */
+              <div className="flex-1 flex flex-col items-center justify-center p-4 gap-5 pb-20">
+                {(() => {
+                  const tds = room.trialDefenseState;
+                  const currentCandidateId = tds ? tds.candidateIds[tds.currentCandidateIdx] : null;
+                  const candidate = room.players.find(p => p.id === currentCandidateId);
+                  const isMyDefense = currentCandidateId === myPlayer?.id && amAlive && !amSpectator;
+                  const candidateNum = tds ? tds.currentCandidateIdx + 1 : 1;
+                  const totalCandidates = tds ? tds.candidateIds.length : 1;
+                  const spc = room.settings.trialDefense?.secondsPerCandidate ?? 30;
+                  return (
+                    <>
+                      <div className="text-center space-y-2">
+                        <p className="text-[10px] font-mono tracking-[0.3em] uppercase text-neon-red/60">
+                          {t.game.trialDefense.phaseLabel} · {candidateNum}/{totalCandidates}
+                        </p>
+                        <h2 className="text-2xl font-display font-bold text-white">
+                          {candidate?.name ?? '—'}
+                        </h2>
+                        <span className="inline-block px-3 py-0.5 rounded-full border border-neon-red/50 bg-neon-red/10 text-neon-red text-[11px] font-mono tracking-widest uppercase">
+                          {t.game.trialDefense.onTrial}
+                        </span>
+                        <p className="text-sm font-mono text-white/40">
+                          {isMyDefense
+                            ? t.game.trialDefense.youHaveSeconds.replace('{seconds}', String(spc))
+                            : t.game.trialDefense.listenMsg}
+                        </p>
+                      </div>
+                      <div
+                        className="w-24 h-24 rounded-full border-2 border-neon-red/40 flex items-center justify-center"
+                        style={{ boxShadow: '0 0 30px rgba(255,45,85,0.2)' }}
+                      >
+                        <span className="text-3xl font-mono font-bold text-neon-red">{room.timer}</span>
+                      </div>
+                      <p className="text-[10px] font-mono text-white/25 text-center">{t.game.trialDefense.votingAfter}</p>
+                      {isMyDefense && (
+                        <Button size="sm" variant="ghost" loading={isLoading} onClick={() => { skipDefense(); navigator.vibrate?.(50); }}>
+                          ⏭ {t.game.trialDefense.skipDefense}
+                        </Button>
+                      )}
+                      {amHost && (
+                        <Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>
+                          {t.game.trialDefense.startVoting}
+                        </Button>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
             ) : (phase === 'voting') ? (
               /* Voting: full-screen vote panel — prominent like night phase */
               <div className="flex-1 overflow-y-auto p-3 pb-20">
@@ -1598,80 +1768,6 @@ export function GamePage() {
                     );
                   })()}
                 />
-
-                {/* Day skip vote — glass style */}
-                {phase === 'day' && !amSpectator && amAlive && (() => {
-                  const alreadyVoted = room.daySkipVoteCount ?? 0;
-                  const skipNeeded = Math.min(3, room.players.filter(p => p.isAlive && !p.isSpectator).length);
-                  return (
-                    <div className="flex-shrink-0 flex justify-center px-4 pb-4" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem))' }}>
-                      <button
-                        onClick={() => { daySkipVote(); navigator.vibrate?.(50); }}
-                        disabled={isLoading}
-                        className="px-6 py-3 rounded-2xl text-sm font-mono font-semibold transition-all active:scale-95 disabled:opacity-40"
-                        style={{
-                          background: 'rgba(255,255,255,0.05)',
-                          border: '1px solid rgba(255,255,255,0.15)',
-                          backdropFilter: 'blur(12px)',
-                          color: alreadyVoted > 0 ? 'rgba(0,229,255,0.9)' : 'rgba(255,255,255,0.5)',
-                          boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
-                        }}
-                      >
-                        {t.game.day.skipDiscussion
-                          .replace('{voted}', String(alreadyVoted))
-                          .replace('{needed}', String(skipNeeded))}
-                      </button>
-                    </div>
-                  );
-                })()}
-
-                {/* Speech pass — current speaker skips own turn */}
-                {phase === 'speech' && !amSpectator && (amHost || (room.currentSpeakerId === myPlayer?.id && amAlive)) && (
-                  <div className="flex-shrink-0 flex justify-center px-4 pb-4" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem))' }}>
-                    <button
-                      onClick={() => {
-                        if (amHost) { skipPhase(); } else { speechPass(); }
-                        navigator.vibrate?.(50);
-                      }}
-                      disabled={isLoading}
-                      className="px-6 py-3 rounded-2xl text-sm font-mono font-semibold transition-all active:scale-95 disabled:opacity-40"
-                      style={{
-                        background: 'rgba(255,255,255,0.05)',
-                        border: '1px solid rgba(255,255,255,0.15)',
-                        backdropFilter: 'blur(12px)',
-                        color: 'rgba(255,255,255,0.5)',
-                        boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
-                      }}
-                    >
-                      ⏭ {t.game.speech.skipMyTime}
-                    </button>
-                  </div>
-                )}
-
-                {/* Foul button — alive non-speaker players during speech */}
-                {phase === 'speech' && !amSpectator && amAlive && room.currentSpeakerId !== myPlayer?.id && (() => {
-                  const myFoulCountMobile = myPlayer?.foulCount ?? 0;
-                  const foulActiveMobile = room.activeFoul !== null && Date.now() < (room.activeFoul?.endsAt ?? 0);
-                  return (
-                    <div className="flex-shrink-0 flex justify-center px-4 pb-4" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem))' }}>
-                      <button
-                        onClick={() => { issueFoul(); navigator.vibrate?.(80); }}
-                        disabled={isLoading || foulActiveMobile}
-                        className="px-6 py-3 rounded-2xl text-sm font-mono font-semibold transition-all active:scale-95 disabled:opacity-40"
-                        style={{
-                          background: myFoulCountMobile >= 3 ? 'rgba(255,45,85,0.15)' : 'rgba(255,165,0,0.08)',
-                          border: `1px solid ${myFoulCountMobile >= 3 ? 'rgba(255,45,85,0.5)' : 'rgba(255,165,0,0.3)'}`,
-                          backdropFilter: 'blur(12px)',
-                          color: myFoulCountMobile >= 3 ? 'rgba(255,45,85,0.9)' : 'rgba(255,165,0,0.8)',
-                          boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
-                        }}
-                      >
-                        ⚠️ {t.game.speech.foul} · {myFoulCountMobile}/3
-                        {myFoulCountMobile >= 3 && <span className="block text-[10px] opacity-70 mt-0.5">{t.game.speech.nextFoulEliminate}</span>}
-                      </button>
-                    </div>
-                  );
-                })()}
               </div>
             )}
           </div>

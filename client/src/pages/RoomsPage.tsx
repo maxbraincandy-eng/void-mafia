@@ -4,11 +4,13 @@ import { RoomListItem } from '@/types/index';
 import { useGameStore } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
 import { useSocialStore } from '@/store/socialStore';
+import { MorePanel } from '@/components/ui/MorePanel';
 import { useT } from '@/store/langStore';
 import { useAmbientDrone } from '@/hooks/useAudio';
 import { Button } from '@/components/ui/Button';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { DailyChallengeCard } from '@/components/ui/DailyChallengeCard';
+import { LobbyChatPanel } from '@/components/social/LobbyChatPanel';
 
 const SURFACE = 'rounded-2xl border border-white/[0.06]';
 const SURFACE_BG = { background: 'rgba(10, 6, 28, 0.92)' } as const;
@@ -27,24 +29,23 @@ export function RoomsPage() {
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [preset, setPreset] = useState<Preset>('classic');
   const [isPrivate, setIsPrivate] = useState(false);
-  const [isClanRoom, setIsClanRoom] = useState(false);
   const [code, setCode] = useState('');
   const [joinAsSpectator, setJoinAsSpectator] = useState(false);
   const [joinPassword, setJoinPassword] = useState('');
   const [spectatorModal, setSpectatorModal] = useState<RoomListItem | null>(null);
-  const [activeJoinModal, setActiveJoinModal] = useState<RoomListItem | null>(null);
-  const [activeJoinCode, setActiveJoinCode] = useState<string | null>(null);
 
-  const { createRoom, joinRoom, isLoading, error, clearError } = useGameStore(s => ({
+  const { createRoom, joinRoom, isLoading } = useGameStore(s => ({
     createRoom: s.createRoom,
     joinRoom: s.joinRoom,
     isLoading: s.isLoading,
-    error: s.error,
-    clearError: s.clearError,
   }));
   const username = useAuthStore(s => s.username) ?? '';
-  const myClanId = useAuthStore(s => s.myClanId);
-  const { onlineCount, openMoreMenu } = useSocialStore(s => ({ onlineCount: s.onlineCount, openMoreMenu: s.openMoreMenu }));
+  const { onlineCount, openMoreMenu, openLobbyChat, lobbyChatUnread } = useSocialStore(s => ({
+    onlineCount: s.onlineCount,
+    openMoreMenu: s.openMoreMenu,
+    openLobbyChat: s.openLobbyChat,
+    lobbyChatUnread: s.lobbyChatUnread,
+  }));
   const t = useT();
   // Music now handled at MainApp level
 
@@ -68,33 +69,18 @@ export function RoomsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createRoom(username, { ...PRESET_SETTINGS[preset], isPrivate }, isClanRoom && !!myClanId);
+    await createRoom(username, { ...PRESET_SETTINGS[preset], isPrivate });
   };
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (code.length < 6) return;
-    clearError();
     await joinRoom(code.toUpperCase(), username, joinAsSpectator, joinPassword);
-    // If the game is running, server returns this special error — show mode selection modal
-    const currentError = useGameStore.getState().error;
-    if (currentError === 'GAME_ALREADY_STARTED_CHOOSE_MODE') {
-      clearError();
-      setActiveJoinCode(code.toUpperCase());
-    }
   };
 
-  const handleQuickJoin = async (room: RoomListItem, isSpectator: boolean, joinMode?: 'player' | 'spectator' | 'next_round') => {
+  const handleQuickJoin = async (room: RoomListItem, isSpectator: boolean) => {
     setSpectatorModal(null);
-    await joinRoom(room.code, username, isSpectator, '', joinMode);
-  };
-
-  const handleActiveJoin = async (mode: 'spectator' | 'next_round') => {
-    const roomCode = activeJoinModal?.code ?? activeJoinCode;
-    if (!roomCode) return;
-    setActiveJoinModal(null);
-    setActiveJoinCode(null);
-    await joinRoom(roomCode, username, false, joinPassword, mode);
+    await joinRoom(room.code, username, isSpectator);
   };
 
   const phaseLabel: Record<string, string> = t.rooms.phase;
@@ -123,61 +109,8 @@ export function RoomsPage() {
         style={{ background: 'radial-gradient(ellipse 90% 35% at 50% -5%, rgba(100,0,240,0.08) 0%, transparent 55%)' }}
       />
 
-      {/* ── Active-game join modal ─────────────────────────────── */}
-      <AnimatePresence>
-        {(activeJoinModal || activeJoinCode) && (
-          <motion.div
-            key="active-join-modal"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center px-4"
-            style={{ background: 'rgba(0,0,0,0.7)' }}
-            onClick={() => { setActiveJoinModal(null); setActiveJoinCode(null); }}
-          >
-            <motion.div
-              initial={{ scale: 0.92, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.92, opacity: 0 }}
-              className="w-full max-w-sm rounded-2xl border border-white/[0.08] p-6"
-              style={{ background: 'rgba(10,6,28,0.97)' }}
-              onClick={e => e.stopPropagation()}
-            >
-              <h3 className="font-display font-bold text-white/80 tracking-widest uppercase text-sm mb-1">
-                {t.rooms.gameInProgress}
-              </h3>
-              <p className="text-xs font-mono text-white/35 mb-5">
-                {activeJoinModal ? `${activeJoinModal.hostName}'s room · ${activeJoinModal.playerCount} ${t.rooms.players}` : `Room ${activeJoinCode}`}
-              </p>
-
-              <div className="space-y-3 mb-5">
-                <button
-                  onClick={() => handleActiveJoin('spectator')}
-                  className="w-full py-3.5 px-4 rounded-xl border border-neon-cyan/20 bg-neon-cyan/[0.04] hover:bg-neon-cyan/[0.08] text-left transition-all"
-                >
-                  <p className="text-sm font-mono font-bold text-neon-cyan/80">{t.rooms.watchAsSpectator}</p>
-                  <p className="text-[11px] font-mono text-white/30 mt-0.5">{t.rooms.watchSpectatorHint}</p>
-                </button>
-
-                <button
-                  onClick={() => handleActiveJoin('next_round')}
-                  className="w-full py-3.5 px-4 rounded-xl border border-neon-purple/20 bg-neon-purple/[0.04] hover:bg-neon-purple/[0.08] text-left transition-all"
-                >
-                  <p className="text-sm font-mono font-bold text-white/70">{t.rooms.joinNextRound}</p>
-                  <p className="text-[11px] font-mono text-white/30 mt-0.5">{t.rooms.joinNextRoundHint}</p>
-                </button>
-              </div>
-
-              <button
-                onClick={() => { setActiveJoinModal(null); setActiveJoinCode(null); }}
-                className="w-full py-2.5 rounded-xl font-mono text-xs text-white/30 hover:text-white/55 transition-colors border border-white/[0.05] hover:border-white/10"
-              >
-                {t.common.cancel}
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <MorePanel />
+      <LobbyChatPanel />
 
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-7">
 
@@ -216,6 +149,18 @@ export function RoomsPage() {
           {/* Right controls */}
           <div className="flex items-center gap-2 flex-shrink-0">
             <LanguageSwitcher />
+            <button
+              onClick={openLobbyChat}
+              className="relative px-3 py-1.5 rounded-xl border border-white/[0.07] text-white/25 hover:text-white/55 hover:border-white/14 font-mono text-sm transition-all"
+              title="Lobby Chat"
+            >
+              ⌥
+              {lobbyChatUnread > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] rounded-full bg-neon-cyan/70 text-[8px] font-mono flex items-center justify-center text-black font-bold px-0.5">
+                  {lobbyChatUnread > 9 ? '9+' : lobbyChatUnread}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
@@ -304,14 +249,25 @@ export function RoomsPage() {
                     </div>
 
                     <div className="shrink-0">
-                      <Button
-                        size="sm"
-                        variant={isLobby ? 'neon-cyan' : 'ghost'}
-                        loading={isLoading}
-                        onClick={() => setSpectatorModal(room)}
-                      >
-                        {isLobby ? t.rooms.joinCode : t.rooms.watch ?? 'Watch'}
-                      </Button>
+                      {isLobby ? (
+                        <Button
+                          size="sm"
+                          variant="neon-cyan"
+                          loading={isLoading}
+                          onClick={() => setSpectatorModal(room)}
+                        >
+                          {t.rooms.joinCode}
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          loading={isLoading}
+                          onClick={() => handleQuickJoin(room, true)}
+                        >
+                          Watch
+                        </Button>
+                      )}
                     </div>
                   </motion.div>
                 );
@@ -329,11 +285,11 @@ export function RoomsPage() {
               </h3>
 
               {/* Public / Private toggle */}
-              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2">{t.rooms.visibility}</p>
+              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2">Visibility</p>
               <div className="grid grid-cols-2 gap-2 mb-5">
                 {[
-                  { val: false, label: t.rooms.publicRoom, desc: t.rooms.visibleBrowser },
-                  { val: true,  label: t.rooms.privateRoom, desc: t.rooms.shareCode },
+                  { val: false, label: t.rooms.publicRoom, desc: 'Visible in browser' },
+                  { val: true,  label: t.rooms.privateRoom, desc: 'Share code to invite' },
                 ].map(opt => (
                   <button
                     key={String(opt.val)}
@@ -351,7 +307,7 @@ export function RoomsPage() {
               </div>
 
               {/* Preset selector */}
-              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2 mt-1">{t.rooms.gamePace}</p>
+              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2 mt-1">Game Pace</p>
               <div className="grid grid-cols-3 gap-2 mb-5">
                 {(['quick', 'classic', 'hardcore'] as Preset[]).map(id => (
                   <button
@@ -368,27 +324,6 @@ export function RoomsPage() {
                   </button>
                 ))}
               </div>
-
-              {/* Clan Room toggle (only visible if user is in a clan) */}
-              {myClanId && (
-                <div className="mb-4">
-                  <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2">Clan Room</p>
-                  <button
-                    type="button"
-                    onClick={() => setIsClanRoom(v => !v)}
-                    className={`w-full py-3 px-3 rounded-xl border text-left transition-all ${
-                      isClanRoom
-                        ? 'border-purple-500/40 bg-purple-500/10 text-purple-300'
-                        : 'border-white/[0.06] text-white/28 hover:border-white/12 hover:text-white/45'
-                    }`}
-                  >
-                    <p className="text-xs font-mono font-bold">🛡 {isClanRoom ? 'Clan Room enabled' : 'Create as Clan Room'}</p>
-                    <p className="text-[10px] font-mono opacity-60 mt-0.5">
-                      {isClanRoom ? 'Clan moderators will have powers in this room' : 'Tags room with your clan for clan moderation'}
-                    </p>
-                  </button>
-                </div>
-              )}
 
               <form onSubmit={handleCreate}>
                 <Button fullWidth variant="primary" loading={isLoading}>
@@ -425,13 +360,13 @@ export function RoomsPage() {
 
                 <div>
                   <label className="block text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2">
-                    {t.rooms.passwordLabel}
+                    Password
                   </label>
                   <input
                     type="password"
                     value={joinPassword}
                     onChange={e => setJoinPassword(e.target.value)}
-                    placeholder={t.rooms.passwordPh}
+                    placeholder="Leave blank if none"
                     maxLength={64}
                     className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-2.5 text-white/60 placeholder-white/15 font-mono text-sm focus:outline-none focus:border-white/20 transition-colors"
                   />
@@ -450,7 +385,7 @@ export function RoomsPage() {
                       joinAsSpectator ? 'translate-x-4' : 'translate-x-0.5'
                     }`} />
                   </button>
-                  <span className="text-xs font-mono text-white/40">{t.rooms.watchToggle}</span>
+                  <span className="text-xs font-mono text-white/40">Watch as spectator</span>
                 </label>
 
                 <Button fullWidth variant="neon-cyan" loading={isLoading} disabled={code.length < 6}>
@@ -462,7 +397,7 @@ export function RoomsPage() {
         )}
       </div>
 
-      {/* Join / Spectator modal */}
+      {/* Spectator modal */}
       <AnimatePresence>
         {spectatorModal && (
           <motion.div
@@ -481,61 +416,27 @@ export function RoomsPage() {
               style={SURFACE_BG}
               onClick={e => e.stopPropagation()}
             >
-              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-0.5">
-                {spectatorModal.phase === 'lobby' ? t.rooms.joinRoom : t.rooms.watch ?? 'Watch'}
-              </p>
-              <p className="font-mono font-bold text-neon-cyan/75 tracking-[0.25em] text-xl mb-1">
+              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-0.5">Join</p>
+              <p className="font-mono font-bold text-neon-cyan/75 tracking-[0.25em] text-xl mb-5">
                 {spectatorModal.code}
               </p>
-              <p className="text-[10px] font-mono text-white/25 mb-4">
-                {spectatorModal.playerCount} {t.rooms.players} · {phaseLabel[spectatorModal.phase] ?? spectatorModal.phase}
-              </p>
               <div className="flex flex-col gap-2">
-                {spectatorModal.phase === 'lobby' ? (
-                  <>
-                    <Button
-                      fullWidth
-                      variant="neon-cyan"
-                      loading={isLoading}
-                      onClick={() => handleQuickJoin(spectatorModal, false)}
-                    >
-                      {t.rooms.joinAsPlayer ?? 'Join as Player'}
-                    </Button>
-                    <Button
-                      fullWidth
-                      variant="ghost"
-                      loading={isLoading}
-                      onClick={() => handleQuickJoin(spectatorModal, true)}
-                    >
-                      {t.rooms.watchOnly ?? 'Watch Only'}
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      fullWidth
-                      variant="neon-purple"
-                      loading={isLoading}
-                      onClick={() => handleQuickJoin(spectatorModal, true, 'next_round')}
-                    >
-                      {t.rooms.joinQueue ?? 'Join Next Round Queue'}
-                    </Button>
-                    <Button
-                      fullWidth
-                      variant="ghost"
-                      loading={isLoading}
-                      onClick={() => handleQuickJoin(spectatorModal, true, 'spectator')}
-                    >
-                      {t.rooms.watchOnly ?? 'Watch Only'}
-                    </Button>
-                  </>
-                )}
-                <button
-                  className="text-xs font-mono text-white/25 hover:text-white/45 transition-colors py-1"
-                  onClick={() => setSpectatorModal(null)}
+                <Button
+                  fullWidth
+                  variant="neon-cyan"
+                  loading={isLoading}
+                  onClick={() => handleQuickJoin(spectatorModal, false)}
                 >
-                  {t.common.cancel ?? 'Cancel'}
-                </button>
+                  Join as Player
+                </Button>
+                <Button
+                  fullWidth
+                  variant="ghost"
+                  loading={isLoading}
+                  onClick={() => handleQuickJoin(spectatorModal, true)}
+                >
+                  Watch as Spectator
+                </Button>
               </div>
             </motion.div>
           </motion.div>

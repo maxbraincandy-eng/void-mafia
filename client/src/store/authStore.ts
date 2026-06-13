@@ -53,6 +53,8 @@ export const useAuthStore = create<AuthStore>((set, get) => {
         if (res?.ok) {
           set({ profile: res.data, isAuthed: true, isLoading: false, localAvatar: res.data?.avatarUrl ?? null });
           fetchClanMembership();
+          // Signal gameStore to attempt session restore after page refresh
+          window.dispatchEvent(new Event('vm:auth-ready'));
         }
       });
     }

@@ -54,6 +54,7 @@ export function startGame(room: Room): void {
   room.dousedPlayers = new Set();
   room.newlyConvertedCultists = [];
   room.activeFoul = null;
+  room.trialDefenseState = null;
 }
 
 const MORNING_DURATION = 30;
@@ -127,6 +128,13 @@ export function setPhase(room: Room, phase: Phase): void {
       room.maxTimer = room.settings.speechDuration;
       break;
     }
+    case 'trial_defense': {
+      // Timer per candidate is set when trialDefenseState is initialized
+      const spc = room.settings.trialDefense?.secondsPerCandidate ?? 30;
+      room.timer = spc;
+      room.maxTimer = spc;
+      break;
+    }
     case 'voting': {
       room.tribunalCandidates = [...new Set(room.nominations.values())];
       room.votes = new Map();
@@ -177,15 +185,23 @@ export function advancePhase(room: Room): Phase {
       return 'night';
 
     case 'morning':
+      // morning phase is no longer entered by the engine; this branch is a safety fallback only
+      console.warn('[GameEngine] WARNING: morning phase was triggered (should not happen after engine fix)');
       room.day++;
       setPhase(room, 'day');
       return 'day';
 
     case 'night': {
+      console.log('[GameEngine] phase transition: night -> resolving night actions');
       resolveNight(room);
-      // If anyone died, give them 30 seconds for final words before officially dying.
-      // Undo the first death so the player stays alive during the final_words phase;
-      // their death is finalized when final_words ends.
+      // Check win immediately (before final_words) — if kills end the game, go straight to game_over.
+      if (checkWin(room)) {
+        console.log('[GameEngine] phase transition: night -> game_over (win condition met)');
+        setPhase(room, 'game_over');
+        return 'game_over';
+      }
+      // If anyone died AND game isn't over, give them 30s for final words.
+      // Temporarily revive the first victim so they can speak; death is finalized in final_words.
       if (room.killedLastNight.length > 0) {
         const primary = room.killedLastNight[0]!;
         const dyingPlayer = room.players.get(primary.id);
@@ -195,6 +211,7 @@ export function advancePhase(room: Room): Phase {
         }
         room.deathSpeakerId = primary.id;
         room.finalWordsReason = 'night_kill';
+        console.log('[GameEngine] phase transition: night -> final_words (night kill, speaker:', primary.id, ')');
         setPhase(room, 'final_words');
         return 'final_words';
       }
@@ -212,7 +229,13 @@ export function advancePhase(room: Room): Phase {
       return 'speech';
 
     case 'speech': {
-      const nextIdx = room.currentSpeakerIdx + 1;
+      let nextIdx = room.currentSpeakerIdx + 1;
+      // Skip slots belonging to players who died mid-round (e.g. foul elimination)
+      while (nextIdx < room.speechOrder.length) {
+        const sp = room.players.get(room.speechOrder[nextIdx]!);
+        if (sp?.isAlive && !sp.isSpectator) break;
+        nextIdx++;
+      }
       if (nextIdx < room.speechOrder.length) {
         room.currentSpeakerIdx = nextIdx;
         room.timer = room.settings.speechDuration;
@@ -221,6 +244,15 @@ export function advancePhase(room: Room): Phase {
       }
       // All speakers done — go to tribunal if anyone was nominated, else skip to night
       if (room.nominations.size > 0) {
+        const candidates = [...new Set(room.nominations.values())].filter(id => {
+          const p = room.players.get(id);
+          return p?.isAlive && !p.isSpectator;
+        });
+        if (candidates.length > 0 && room.settings.trialDefense?.enabled) {
+          room.trialDefenseState = { candidateIds: candidates, currentCandidateIdx: 0 };
+          setPhase(room, 'trial_defense');
+          return 'trial_defense';
+        }
         setPhase(room, 'voting');
         return 'voting';
       }
@@ -228,15 +260,59 @@ export function advancePhase(room: Room): Phase {
       return 'night';
     }
 
+    case 'trial_defense': {
+      if (!room.trialDefenseState) {
+        setPhase(room, 'voting');
+        return 'voting';
+      }
+      const nextIdx = room.trialDefenseState.currentCandidateIdx + 1;
+      // Skip over dead/spectator candidates
+      const { candidateIds } = room.trialDefenseState;
+      let validIdx = nextIdx;
+      while (validIdx < candidateIds.length) {
+        const p = room.players.get(candidateIds[validIdx]!);
+        if (p?.isAlive && !p.isSpectator) break;
+        validIdx++;
+      }
+      if (validIdx < candidateIds.length) {
+        room.trialDefenseState.currentCandidateIdx = validIdx;
+        const spc = room.settings.trialDefense?.secondsPerCandidate ?? 30;
+        room.timer = spc;
+        room.maxTimer = spc;
+        return 'trial_defense';
+      }
+      // All candidates done — move to voting
+      room.trialDefenseState = null;
+      setPhase(room, 'voting');
+      return 'voting';
+    }
+
     case 'voting': {
       // resolveVotes sets room.deathSpeakerId + room.finalWordsReason as a side effect.
       // announceVoteResult in socket.ts calls it first; this call is safe when called again.
       if (!room.deathSpeakerId) resolveVotes(room);
       if (room.deathSpeakerId) {
+        // Simulate the elimination to check win BEFORE starting final_words.
+        // If the kill ends the game, go straight to game_over (no final speech).
+        const testPlayer = room.players.get(room.deathSpeakerId);
+        if (testPlayer) testPlayer.isAlive = false;
+        const gameEnds = checkWin(room);
+        if (testPlayer) testPlayer.isAlive = true; // restore for final_words phase
+        if (gameEnds) {
+          // Finalize death and go directly to game_over
+          if (testPlayer) {
+            testPlayer.isAlive = false;
+            testPlayer.deathType = 'vote';
+          }
+          room.deathSpeakerId  = null;
+          room.finalWordsReason = null;
+          setPhase(room, 'game_over');
+          return 'game_over';
+        }
         setPhase(room, 'final_words');
         return 'final_words';
       }
-      // Tie or no elimination — skip straight to night (win check happened in resolveVotes)
+      // Tie or no elimination
       if (checkWin(room)) {
         setPhase(room, 'game_over');
         return 'game_over';
@@ -251,6 +327,8 @@ export function advancePhase(room: Room): Phase {
       const reason  = room.finalWordsReason;
       room.deathSpeakerId  = null;
       room.finalWordsReason = null;
+
+      console.log('[GameEngine] phase transition: final_words finished, reason:', reason, 'player:', dyingId);
 
       if (dyingId) {
         const dying = room.players.get(dyingId);
@@ -267,6 +345,7 @@ export function advancePhase(room: Room): Phase {
       }
 
       if (checkWin(room)) {
+        console.log('[GameEngine] phase transition: final_words -> game_over (win condition met)');
         setPhase(room, 'game_over');
         return 'game_over';
       }
@@ -535,6 +614,7 @@ export function submitNomination(room: Room, actor: Player, nomineeId: string | 
   if (room.phase !== 'speech') throw new Error('Nominations are only allowed during speech phase.');
   if (!actor.isAlive) throw new Error('Eliminated players cannot nominate.');
   if (actor.isSpectator) throw new Error('Spectators cannot nominate.');
+  if (room.day < 2) throw new Error('Nominations are not allowed on Day 1.');
 
   const currentSpeakerId = room.speechOrder[room.currentSpeakerIdx];
   if (actor.id !== currentSpeakerId) throw new Error('Only the current speaker may nominate.');
@@ -679,6 +759,7 @@ export function buildGameOverResult(room: Room): GameOverResult {
   return {
     winner: room.winner ?? 'town',
     allRoles,
+    timeline: [...(room.gameTimeline ?? [])],
   };
 }
 

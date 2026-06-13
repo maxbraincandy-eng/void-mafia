@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocialStore } from '@/store/socialStore';
+import { useAuthStore } from '@/store/authStore';
 import { SettingsPanel } from '@/pages/SettingsPanel';
+import { CoinHistoryModal } from '@/components/ui/CoinHistoryModal';
+import { HowToPlayModal } from '@/components/ui/HowToPlayModal';
+import { AchievementsModal } from '@/components/ui/AchievementsModal';
+import { SeasonPassModal } from '@/components/ui/SeasonPassModal';
 
 interface MenuItem {
   icon: React.ReactNode;
@@ -66,11 +71,17 @@ function MenuRow({ item }: { item: MenuItem }) {
 interface MorePanelProps {
   isOwner?: boolean;
   onEconomyClick?: () => void;
+  onShopClick?: () => void;
 }
 
-export function MorePanel({ isOwner = false, onEconomyClick }: MorePanelProps) {
+export function MorePanel({ isOwner = false, onEconomyClick, onShopClick }: MorePanelProps) {
   const { morePanelOpen, closeMoreMenu } = useSocialStore();
+  const profileId = useAuthStore(s => s.profile?.id ?? null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showCoinHistory, setShowCoinHistory] = useState(false);
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
+  const [showAchievements, setShowAchievements] = useState(false);
+  const [showSeasonPass, setShowSeasonPass] = useState(false);
 
   const items: MenuItem[] = [
     {
@@ -84,7 +95,7 @@ export function MorePanel({ isOwner = false, onEconomyClick }: MorePanelProps) {
       ),
       label: 'How to Play',
       description: 'Rules, roles & game guide',
-      comingSoon: true,
+      onClick: () => { closeMoreMenu(); setTimeout(() => setShowHowToPlay(true), 250); },
     },
     {
       icon: (
@@ -95,7 +106,7 @@ export function MorePanel({ isOwner = false, onEconomyClick }: MorePanelProps) {
       ),
       label: 'Achievements',
       description: 'Track your milestones',
-      comingSoon: true,
+      onClick: () => { closeMoreMenu(); setTimeout(() => setShowAchievements(true), 250); },
     },
     {
       icon: (
@@ -106,7 +117,19 @@ export function MorePanel({ isOwner = false, onEconomyClick }: MorePanelProps) {
       ),
       label: 'Season Pass',
       description: 'Rewards & battle pass',
-      comingSoon: true,
+      onClick: () => { closeMoreMenu(); setTimeout(() => setShowSeasonPass(true), 250); },
+    },
+    {
+      icon: <span className="text-base">🪙</span>,
+      label: 'Coin History',
+      description: 'Transactions, gifts & balance',
+      onClick: () => { closeMoreMenu(); setTimeout(() => setShowCoinHistory(true), 250); },
+    },
+    {
+      icon: <span className="text-base">🛒</span>,
+      label: 'Coin Shop',
+      description: 'Buy coins to send gifts',
+      onClick: () => { closeMoreMenu(); setTimeout(() => onShopClick?.(), 250); },
     },
     ...(isOwner && onEconomyClick ? [{
       icon: <span className="text-base">🪙</span>,
@@ -199,7 +222,7 @@ export function MorePanel({ isOwner = false, onEconomyClick }: MorePanelProps) {
               style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
             >
               <p className="font-mono text-[9px] text-white/15 text-center tracking-widest uppercase">
-                v0.1 · Void Mafia
+                v0.2 · Void Mafia
               </p>
             </div>
           </motion.div>
@@ -207,6 +230,10 @@ export function MorePanel({ isOwner = false, onEconomyClick }: MorePanelProps) {
       )}
     </AnimatePresence>
     <SettingsPanel open={showSettings} onClose={() => setShowSettings(false)} />
+    <CoinHistoryModal open={showCoinHistory} onClose={() => setShowCoinHistory(false)} />
+    <HowToPlayModal open={showHowToPlay} onClose={() => setShowHowToPlay(false)} />
+    <AchievementsModal open={showAchievements} onClose={() => setShowAchievements(false)} profileId={profileId} />
+    <SeasonPassModal open={showSeasonPass} onClose={() => setShowSeasonPass(false)} />
     </>
   );
 }

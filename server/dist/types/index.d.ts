@@ -1,4 +1,4 @@
-export type Phase = 'lobby' | 'role_reveal' | 'night' | 'morning' | 'day' | 'speech' | 'voting' | 'final_words' | 'game_over';
+export type Phase = 'lobby' | 'role_reveal' | 'night' | 'morning' | 'day' | 'speech' | 'trial_defense' | 'voting' | 'final_words' | 'game_over';
 export type RoleKey = 'mafia' | 'citizen' | 'sheriff' | 'doctor' | 'don' | 'maniac' | 'jester' | 'bodyguard' | 'spy' | 'escort' | 'vigilante' | 'cult_leader' | 'cultist' | 'veteran' | 'tracker' | 'arsonist' | 'mayor' | 'yakuza' | 'shogun';
 export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
@@ -21,6 +21,8 @@ export interface PlayerCosmetics {
     equippedFrame: string | null;
     equippedTitle: string | null;
     equippedRoleSkin: string | null;
+    equippedWallpaper: string | null;
+    equippedBorder: string | null;
     unlockedItems: string[];
 }
 export interface XPGain {
@@ -187,7 +189,8 @@ export interface Player {
     lastWill: string | null;
     isModerator: boolean;
     moderatorLevel: ModeratorLevel | null;
-    deathType: 'night' | 'vote' | null;
+    deathType: 'night' | 'vote' | 'foul' | null;
+    foulCount: number;
 }
 export interface NightAction {
     actorId: string;
@@ -251,6 +254,10 @@ export interface GameSettings {
     password: string;
     startWithNight: boolean;
     rotatingSpeech: boolean;
+    trialDefense: {
+        enabled: boolean;
+        secondsPerCandidate: number;
+    };
     dynamicEvents: DynamicEventSettings;
     spectatorQueue: SpectatorQueueSettings;
     roles: {
@@ -312,14 +319,23 @@ export interface Room {
     nominations: Map<string, string>;
     tribunalCandidates: string[];
     deathSpeakerId: string | null;
-    finalWordsReason: 'night_kill' | 'vote_elimination' | null;
+    finalWordsReason: 'night_kill' | 'vote_elimination' | 'foul_death' | null;
     pendingWinner: Team | null;
+    activeFoul: {
+        playerId: string;
+        endsAt: number;
+    } | null;
+    trialDefenseState: {
+        candidateIds: string[];
+        currentCandidateIdx: number;
+    } | null;
     speechStartSeat: number;
     clanId: string | null;
     clanRoom: boolean;
     activeEvent: ActiveEvent | null;
     eventsLog: EventLogEntry[];
     lastDoctorTarget: string | null;
+    gameTimeline: TimelineEvent[];
 }
 export interface PlayerPublic {
     id: string;
@@ -342,7 +358,8 @@ export interface PlayerPublic {
     isSpectator: boolean;
     isQueuedNextRound: boolean;
     queuePosition: number | null;
-    deathType: 'night' | 'vote' | null;
+    deathType: 'night' | 'vote' | 'foul' | null;
+    foulCount: number;
 }
 export interface RoomPublic {
     id: string;
@@ -382,6 +399,14 @@ export interface RoomPublic {
     tribunalCandidates: string[];
     deathSpeakerId: string | null;
     finalWordsReason: string | null;
+    activeFoul: {
+        playerId: string;
+        endsAt: number;
+    } | null;
+    trialDefenseState: {
+        candidateIds: string[];
+        currentCandidateIdx: number;
+    } | null;
     clanId: string | null;
     clanRoom: boolean;
     activeEvent: ActiveEvent | null;
@@ -408,6 +433,20 @@ export interface InvestigationResult {
     targetName: string;
     result: 'suspicious' | 'not_suspicious';
 }
+export type TimelineEventType = 'night_kill' | 'vote_eliminate' | 'night_survived' | 'vote_no_elim';
+export interface TimelineEvent {
+    type: TimelineEventType;
+    day: number;
+    victimName?: string;
+    victimRole?: RoleKey;
+    victimTeam?: Team;
+    killerRole?: RoleKey;
+    voteBreakdown?: Array<{
+        voterName: string;
+        targetName: string;
+    }>;
+    doctorSaved?: boolean;
+}
 export interface GameOverResult {
     winner: Team;
     allRoles: Record<string, {
@@ -415,6 +454,7 @@ export interface GameOverResult {
         role: RoleKey;
         team: Team;
     }>;
+    timeline: TimelineEvent[];
 }
 export type VoiceChannel = 'room' | 'mafia' | 'yakuza';
 export interface AchievementEarned {
@@ -423,6 +463,26 @@ export interface AchievementEarned {
     description: string;
     icon: string;
     rarity: string;
+}
+export interface LobbyMessage {
+    id: string;
+    profileId: string;
+    username: string;
+    avatar: string;
+    avatarUrl?: string | null;
+    level: number;
+    text: string;
+    createdAt: number;
+    nameColor?: string | null;
+}
+export interface LfgEntry {
+    profileId: string;
+    username: string;
+    avatar: string;
+    avatarUrl?: string | null;
+    level: number;
+    note: string;
+    createdAt: number;
 }
 export interface VoteBreakdownEntry {
     voterId: string;
@@ -450,6 +510,7 @@ export interface ClanPublic {
     losses: number;
     createdAt: number;
     memberCount: number;
+    imageUrl: string;
 }
 export type ClanRole = 'owner' | 'admin' | 'moderator' | 'member';
 export interface ClanMember {
@@ -622,6 +683,11 @@ export interface ServerToClientEvents {
     }) => void;
     'voice:force-unmute': () => void;
     'xp:gained': (data: XPGain) => void;
+    'prediction:result': (data: {
+        correct: boolean;
+        xpGained: number;
+        winningTeam: string;
+    }) => void;
     'queue:position': (data: {
         position: number;
         roomCode: string;
@@ -644,6 +710,11 @@ export interface ServerToClientEvents {
         conversationId: string;
         message: any;
     }) => void;
+    'lobby:message': (msg: LobbyMessage) => void;
+    'lobby:msg_deleted': (data: {
+        msgId: string;
+    }) => void;
+    'lfg:update': (list: LfgEntry[]) => void;
     'maintenance:status': (data: {
         enabled: boolean;
     }) => void;
@@ -655,6 +726,9 @@ export interface ServerToClientEvents {
         senderName: string;
         senderAvatar: string;
         message: string;
+    }) => void;
+    'session:replaced': (data: {
+        reason: string;
     }) => void;
 }
 export interface ClientToServerEvents {
@@ -718,6 +792,8 @@ export interface ClientToServerEvents {
         nomineeId: string | null;
     }, cb: Cb<null>) => void;
     'game:day_skip_vote': (cb: Cb<null>) => void;
+    'game:foul': (cb: Cb<null>) => void;
+    'game:skip-defense': (cb: Cb<null>) => void;
     'game:restart': (cb: Cb<null>) => void;
     'game:set_will': (data: {
         text: string;
@@ -752,6 +828,10 @@ export interface ClientToServerEvents {
         clanId: string;
     }, cb: Cb<null>) => void;
     'clan:leave': (cb: Cb<null>) => void;
+    'clan:update_image': (data: {
+        clanId: string;
+        imageData: string;
+    }, cb: Cb<null>) => void;
     'clan:mine': (cb: Cb<ClanPublic | null>) => void;
     'chat:send': (data: {
         text: string;
@@ -912,9 +992,13 @@ export interface ClientToServerEvents {
         username: string;
         newLevel: string | null;
     }>) => void;
-    'challenge:today': (cb: Cb<DailyChallenge>) => void;
+    'challenge:today': (cb: Cb<DailyChallenge[]>) => void;
+    'prediction:submit': (data: {
+        roomId: string;
+        predicted: string;
+    }, cb: Cb<null>) => void;
     'cosmetics:equip': (data: {
-        type: 'name_color' | 'frame';
+        type: 'name_color' | 'frame' | 'wallpaper' | 'border';
         itemId: string | null;
     }, cb: Cb<PlayerCosmetics>) => void;
     'cosmetics:get': (data: {
@@ -927,6 +1011,19 @@ export interface ClientToServerEvents {
         profileId: string;
     }, cb: Cb<any>) => void;
     'clan:my_membership': (cb: Cb<any>) => void;
+    'lobby:send': (data: {
+        text: string;
+    }, cb: Cb<null>) => void;
+    'lobby:history': (data: Record<string, never>, cb: Cb<LobbyMessage[]>) => void;
+    'lobby:delete_msg': (data: {
+        msgId: string;
+    }, cb: Cb<null>) => void;
+    'lfg:toggle': (data: {
+        note?: string;
+    }, cb: Cb<{
+        active: boolean;
+    }>) => void;
+    'lfg:list': (data: Record<string, never>, cb: Cb<LfgEntry[]>) => void;
     'dm:start': (data: {
         profileId: string;
     }, cb: Cb<any>) => void;
@@ -942,6 +1039,9 @@ export interface ClientToServerEvents {
         conversationId: string;
     }, cb: Cb<null>) => void;
     'dm:unread_count': (data: Record<string, never>, cb: Cb<number>) => void;
+    'dm:delete': (data: {
+        conversationId: string;
+    }, cb: Cb<null>) => void;
     'player:update_avatar': (data: {
         imageData: string;
     }, cb: (res: any) => void) => void;
@@ -968,9 +1068,28 @@ export interface ClientToServerEvents {
         profileId?: string;
     }, cb: Cb<any[]>) => void;
     'gifts:catalog': (cb: Cb<any[]>) => void;
+    'gifts:leaderboard': (cb: Cb<any>) => void;
     'gifts:player_gifts': (data: {
         profileId: string;
     }, cb: Cb<any[]>) => void;
+    'gifts:getSent': (data: {
+        profileId: string;
+    }, cb: Cb<any[]>) => void;
+    'gifts:getTimeline': (data: {
+        profileId: string;
+    }, cb: Cb<any[]>) => void;
+    'gifts:getStats': (data: {
+        profileId: string;
+    }, cb: Cb<any>) => void;
+    'gifts:getPinned': (data: {
+        profileId: string;
+    }, cb: Cb<any[]>) => void;
+    'gifts:pin': (data: {
+        giftId: string;
+    }, cb: Cb<{}>) => void;
+    'gifts:unpin': (data: {
+        giftId: string;
+    }, cb: Cb<{}>) => void;
     'gifts:detail': (data: {
         giftId: string;
         recipientId: string;

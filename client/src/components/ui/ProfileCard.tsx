@@ -1,6 +1,7 @@
 import { useRef, forwardRef } from 'react';
 import clsx from 'clsx';
 import type { PlayerProfilePublic, ClanMembership, AchievementEarned } from '@/types/index';
+import { MAX_LEVEL, xpForLevel, xpForNextLevel } from '@/lib/level';
 
 export type CardTemplate =
   | 'classic_void'
@@ -112,11 +113,9 @@ interface Props {
   compact?: boolean;
 }
 
-const LEVEL_THRESHOLDS = [0, 100, 250, 500, 900, 1400, 2100, 3000, 4100, 5400];
-function xpForLevel(level: number) { return LEVEL_THRESHOLDS[level - 1] ?? 0; }
-function xpForNextLevel(level: number) { return LEVEL_THRESHOLDS[level] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1]!; }
 function xpPercent(profile: PlayerProfilePublic) {
   const lv = profile.level ?? 1;
+  if (lv >= MAX_LEVEL) return 100;
   const xp = profile.xp ?? 0;
   const lo = xpForLevel(lv), hi = xpForNextLevel(lv);
   return hi > lo ? Math.min(100, Math.round(((xp - lo) / (hi - lo)) * 100)) : 100;
@@ -243,7 +242,7 @@ export const ProfileCard = forwardRef<HTMLDivElement, Props>(({ data, template, 
                   color: s.accent, fontSize: '10px', fontWeight: 700,
                   fontFamily: 'monospace', letterSpacing: '0.1em',
                 }}>
-                  LV {level}
+                  {level >= MAX_LEVEL ? 'LV 100 MAX' : `LV ${level}`}
                 </span>
                 <div style={{
                   flex: 1, height: '3px', borderRadius: '2px',
@@ -257,7 +256,7 @@ export const ProfileCard = forwardRef<HTMLDivElement, Props>(({ data, template, 
                   }} />
                 </div>
                 <span style={{ color: s.labelColor, fontSize: '9px', fontFamily: 'monospace' }}>
-                  {xpPct}%
+                  {level >= MAX_LEVEL ? 'MAX' : `${xpPct}%`}
                 </span>
               </div>
             </div>

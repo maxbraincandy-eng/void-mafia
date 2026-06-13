@@ -172,7 +172,7 @@ export function useVoiceChat() {
    * Pass silent=true for auto-join attempts — errors won't show in the UI
    * so the "Join Voice" button remains as the user-visible fallback.
    */
-  const joinVoice = useCallback(async (channel: VoiceChannel, withCamera = false, silent = false) => {
+  const joinVoice = useCallback(async (channel: VoiceChannel, withCamera = false, silent = false, startMuted = false) => {
     if (_session) return; // already in a session
 
     const session = new WebRTCSession();
@@ -236,7 +236,8 @@ export function useVoiceChat() {
         forceMuted: !transmitAllowed,
         forceMutedReason: transmitAllowed ? null : 'Only the current speaker may transmit.',
       });
-      if (!transmitAllowed) session.setMuted(true);
+      if (!transmitAllowed || startMuted) session.setMuted(true);
+      if (startMuted && transmitAllowed) _patch({ isMuted: true });
 
       const existingPeers: Array<{ socketId: string; name: string }> = res.data.peers;
       log('joined voice, existing peers:', existingPeers.length);
@@ -336,14 +337,20 @@ export function useVoiceChat() {
     _patch({ isMuted: nextMuted });
   }, []);
 
+  const setMuted = useCallback((on: boolean) => {
+    if (!_session || _state.forceMuted) return;
+    _session.setMuted(on);
+    _patch({ isMuted: on });
+  }, []);
+
   const toggleCamera = useCallback(async () => {
     const s = _session;
     if (!s) return;
     if (_state.cameraOn) {
+      _patch({ cameraOn: false });
       await s.removeCamera((peerId, offer) => {
         (socket as any).emit('voice:offer', { to: peerId, sdp: offer }, () => {});
       });
-      _patch({ cameraOn: false });
     } else {
       try {
         await s.addCamera((peerId, offer) => {
@@ -369,14 +376,21 @@ export function useVoiceChat() {
     }
   }, []);
 
+  /** Mute all remote audio except speakerSocketId. Pass null to unmute all. */
+  const setSpeakerOnly = useCallback((speakerSocketId: string | null) => {
+    _session?.setSpeakerOnly(speakerSocketId);
+  }, []);
+
   return {
     ...state,
     joinVoice,
     joinVoiceListenOnly,
     leaveVoice,
     toggleMute,
+    setMuted,
     toggleCamera,
     getLocalStream,
     resetConnection,
+    setSpeakerOnly,
   };
 }

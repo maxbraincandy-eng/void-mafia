@@ -553,6 +553,17 @@ export class WebRTCSession {
     log('muted:', muted);
   }
 
+  /**
+   * Mute all remote audio except the given socketId.
+   * Pass null to unmute everyone (normal phase).
+   */
+  setSpeakerOnly(speakerSocketId: string | null): void {
+    for (const [sid, audio] of this.audioEls.entries()) {
+      audio.muted = speakerSocketId !== null && sid !== speakerSocketId;
+    }
+    log('setSpeakerOnly:', speakerSocketId);
+  }
+
   /** Enable/disable the existing video track. */
   setCameraEnabled(enabled: boolean): void {
     this.localStream?.getVideoTracks().forEach((t) => {

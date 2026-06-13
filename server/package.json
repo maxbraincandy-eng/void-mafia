@@ -18,10 +18,12 @@
     "express": "^4.19.2",
     "express-session": "^1.19.0",
     "passport": "^0.7.0",
+    "passport-apple": "^2.0.2",
     "passport-facebook": "^3.0.0",
     "passport-google-oauth20": "^2.0.0",
     "postgres": "^3.4.9",
     "socket.io": "^4.8.1",
+    "stripe": "^22.2.0",
     "uuid": "^10.0.0",
     "web-push": "^3.6.7",
     "zod": "^3.23.8"

@@ -11,14 +11,12 @@ import type { ProfileCardData } from '@/components/ui/ProfileCard';
 import { emitWithAck, socket } from '@/lib/socket';
 import type { AchievementEarned, GameHistoryEntry, PlayerRoleStats, ClanMembership, Res, PlayerCosmetics } from '@/types/index';
 import {
-  FRAMES, TITLES, ROLE_SKINS, RARITY_COLOR, RARITY_LABEL,
-  getFrameById, getTitleById, getRoleSkinById,
+  FRAMES, TITLES, ROLE_SKINS, WALLPAPERS, BORDERS, NAME_COLORS,
+  RARITY_COLOR, RARITY_LABEL,
+  getFrameById, getTitleById, getRoleSkinById, getWallpaperById, getBorderById,
 } from '@/constants/cosmetics';
 
-const LEVEL_THRESHOLDS = [0, 100, 250, 500, 900, 1400, 2100, 3000, 4100, 5400];
-function xpForLevel(level: number): number { return LEVEL_THRESHOLDS[level - 1] ?? 0; }
-function xpForNextLevel(level: number): number { return LEVEL_THRESHOLDS[level] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1]!; }
-function levelColor(level: number) { return level >= 8 ? '#facc15' : level >= 5 ? '#00e5ff' : '#9b00ff'; }
+import { MAX_LEVEL, xpForLevel, xpForNextLevel, levelColor } from '@/lib/level';
 
 const RARITY_GLOW: Record<string, string> = {
   common:    'rgba(255,255,255,0.12)',
@@ -126,9 +124,9 @@ export function ProfilePage() {
   const [coins, setCoins]           = useState<number | null>(null);
   const [dailyClaiming, setDailyClaiming] = useState(false);
   const [dailyMsg, setDailyMsg]     = useState<string | null>(null);
-  const [cosmeticsTab, setCosmeticsTab] = useState<'frames' | 'titles' | 'skins'>('frames');
-  const [equipLoading, setEquipLoading] = useState(false);
   const [showShare, setShowShare]   = useState(false);
+  const [cosmeticsTab, setCosmeticsTab] = useState<'frames' | 'titles' | 'skins' | 'wallpapers' | 'borders' | 'colors'>('frames');
+  const [equipLoading, setEquipLoading] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -195,7 +193,7 @@ export function ProfilePage() {
     }
   };
 
-  const handleLinkOAuth = async (provider: 'google' | 'facebook') => {
+  const handleLinkOAuth = async (provider: 'google' | 'facebook' | 'apple') => {
     if (!uid) return;
     try {
       await fetch('/api/auth/init-link', {
@@ -244,7 +242,7 @@ export function ProfilePage() {
     setUploadLoading(false);
   };
 
-  const handleEquip = useCallback(async (type: 'frame' | 'title' | 'role_skin', itemId: string | null) => {
+  const handleEquip = useCallback(async (type: 'frame' | 'title' | 'role_skin' | 'wallpaper' | 'border' | 'name_color', itemId: string | null) => {
     if (equipLoading) return;
     setEquipLoading(true);
     try {
@@ -376,9 +374,13 @@ export function ProfilePage() {
               <div className="h-full rounded-full transition-all duration-1000"
                 style={{ width: `${xpPct}%`, background: `linear-gradient(90deg, ${col}80, ${col})` }} />
             </div>
-            {level < 10 && (
+            {level < MAX_LEVEL ? (
               <p className="text-[9px] font-mono text-white/20 mt-1 text-right">
                 {xpMax - xp} XP to Level {level + 1}
+              </p>
+            ) : (
+              <p className="text-[9px] font-mono text-yellow-400/40 mt-1 text-right uppercase tracking-widest">
+                მაქსიმალური დონე
               </p>
             )}
           </div>
@@ -427,6 +429,9 @@ export function ProfilePage() {
           const equippedFrame = cosmetics?.equippedFrame ?? null;
           const equippedTitle = cosmetics?.equippedTitle ?? null;
           const equippedSkin  = cosmetics?.equippedRoleSkin ?? null;
+          const equippedWallpaper = cosmetics?.equippedWallpaper ?? null;
+          const equippedBorder = cosmetics?.equippedBorder ?? null;
+          const equippedNameColor = cosmetics?.equippedNameColor ?? null;
 
           const frameDef = getFrameById(equippedFrame);
           const titleDef = getTitleById(equippedTitle);
@@ -435,6 +440,9 @@ export function ProfilePage() {
           const unlockedFrames = FRAMES.filter(f => unlockedItems.includes(f.id));
           const unlockedTitles = TITLES.filter(t => unlockedItems.includes(t.id));
           const unlockedSkins  = ROLE_SKINS.filter(s => unlockedItems.includes(s.id));
+          const unlockedWallpapers = WALLPAPERS.filter(w => unlockedItems.includes(w.id));
+          const unlockedBorders    = BORDERS.filter(b => unlockedItems.includes(b.id));
+          const unlockedNameColors = NAME_COLORS.filter(n => unlockedItems.includes(n.id));
 
           return (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.04 }}
@@ -492,16 +500,39 @@ export function ProfilePage() {
                     {skinDef ? skinDef.name : 'Classic'}
                   </p>
                 </div>
+
+                {/* Wallpaper preview */}
+                <div className="flex-1 rounded-xl border border-white/8 bg-white/3 p-2 flex flex-col items-center justify-center gap-1.5">
+                  {equippedWallpaper ? (() => {
+                    const wp = getWallpaperById(equippedWallpaper);
+                    return wp ? (
+                      <div className="w-8 h-8 rounded-lg border border-white/10" style={{ background: wp.gradient }} />
+                    ) : null;
+                  })() : (
+                    <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/8" />
+                  )}
+                  <p className="text-[9px] font-mono text-white/30 uppercase tracking-wider">Wall</p>
+                  <p className="text-[10px] font-mono text-white/60 text-center truncate w-full">
+                    {getWallpaperById(equippedWallpaper)?.name ?? 'None'}
+                  </p>
+                </div>
               </div>
 
               {/* Wardrobe tabs */}
-              <div className="flex gap-1 mb-3 p-1 rounded-xl bg-white/4 border border-white/6">
-                {(['frames', 'titles', 'skins'] as const).map(t => (
-                  <button key={t} onClick={() => setCosmeticsTab(t)}
-                    className={`flex-1 py-1.5 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all ${
-                      cosmeticsTab === t ? 'bg-neon-purple/20 text-neon-purple border border-neon-purple/30' : 'text-white/30 hover:text-white/50'
+              <div className="flex gap-1 mb-3 overflow-x-auto no-scrollbar">
+                {[
+                  { id: 'frames',     label: `Frames (${unlockedFrames.length})` },
+                  { id: 'titles',     label: `Titles (${unlockedTitles.length})` },
+                  { id: 'skins',      label: `Skins (${unlockedSkins.length})` },
+                  { id: 'wallpapers', label: `Wallpapers (${unlockedWallpapers.length})` },
+                  { id: 'borders',    label: `Borders (${unlockedBorders.length})` },
+                  { id: 'colors',     label: `Colors (${unlockedNameColors.length})` },
+                ].map(t => (
+                  <button key={t.id} onClick={() => setCosmeticsTab(t.id as any)}
+                    className={`shrink-0 px-2.5 py-1.5 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all ${
+                      cosmeticsTab === t.id ? 'bg-neon-purple/20 text-neon-purple border border-neon-purple/30' : 'text-white/30 hover:text-white/50'
                     }`}>
-                    {t === 'frames' ? `Frames (${unlockedFrames.length})` : t === 'titles' ? `Titles (${unlockedTitles.length})` : `Skins (${unlockedSkins.length})`}
+                    {t.label}
                   </button>
                 ))}
               </div>
@@ -629,6 +660,108 @@ export function ProfilePage() {
                           }
                         >
                           {isEquipped ? 'Equipped' : 'Equip'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Wallpapers grid */}
+              {cosmeticsTab === 'wallpapers' && (
+                <div className="space-y-1.5">
+                  {unlockedWallpapers.length === 0 && (
+                    <p className="text-white/20 font-mono text-xs text-center py-3">No wallpapers unlocked yet</p>
+                  )}
+                  {unlockedWallpapers.map(w => {
+                    const isEquipped = equippedWallpaper === w.id;
+                    return (
+                      <div key={w.id}
+                        className="flex items-center gap-3 rounded-xl p-2.5 border transition-all"
+                        style={isEquipped ? { borderColor: `${w.accent}40`, background: `${w.accent}08` } : { borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+                        <div className="w-10 h-10 rounded-lg shrink-0 border border-white/10" style={{ background: w.gradient }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-mono font-bold text-white/80 truncate">{w.name}</p>
+                          <p className="text-[9px] font-mono uppercase tracking-wider" style={{ color: RARITY_COLOR[w.rarity] }}>{RARITY_LABEL[w.rarity]}</p>
+                        </div>
+                        <button
+                          onClick={() => handleEquip('wallpaper', isEquipped ? null : w.id)}
+                          className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[10px] font-bold transition-all"
+                          style={isEquipped
+                            ? { background: `${w.accent}20`, color: w.accent, border: `1px solid ${w.accent}40` }
+                            : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
+                        >
+                          {isEquipped ? 'Unequip' : 'Equip'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Borders grid */}
+              {cosmeticsTab === 'borders' && (
+                <div className="space-y-1.5">
+                  {unlockedBorders.length === 0 && (
+                    <p className="text-white/20 font-mono text-xs text-center py-3">No borders unlocked yet</p>
+                  )}
+                  {unlockedBorders.map(b => {
+                    const isEquipped = equippedBorder === b.id;
+                    return (
+                      <div key={b.id}
+                        className="flex items-center gap-3 rounded-xl p-2.5 border transition-all"
+                        style={isEquipped ? { borderColor: `${b.colors[0]}40`, background: `${b.colors[0]}08` } : { borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+                        <div className={`w-10 h-10 rounded-full p-[2.5px] shrink-0 ${b.animationClass}`}
+                          style={{ background: `linear-gradient(135deg, ${b.colors[0]}, ${b.colors[1]})` }}>
+                          <div className="w-full h-full rounded-full bg-void flex items-center justify-center text-sm">👤</div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-mono font-bold text-white/80 truncate">{b.name}</p>
+                          <p className="text-[9px] font-mono uppercase tracking-wider" style={{ color: RARITY_COLOR[b.rarity] }}>{RARITY_LABEL[b.rarity]}</p>
+                        </div>
+                        <button
+                          onClick={() => handleEquip('border', isEquipped ? null : b.id)}
+                          className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[10px] font-bold transition-all"
+                          style={isEquipped
+                            ? { background: `${b.colors[0]}20`, color: b.colors[0], border: `1px solid ${b.colors[0]}40` }
+                            : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
+                        >
+                          {isEquipped ? 'Unequip' : 'Equip'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Name Colors grid */}
+              {cosmeticsTab === 'colors' && (
+                <div className="space-y-1.5">
+                  {unlockedNameColors.length === 0 && (
+                    <p className="text-white/20 font-mono text-xs text-center py-3">No name colors unlocked yet</p>
+                  )}
+                  {unlockedNameColors.map(nc => {
+                    const isEquipped = equippedNameColor === nc.id;
+                    return (
+                      <div key={nc.id}
+                        className="flex items-center gap-3 rounded-xl p-2.5 border transition-all"
+                        style={isEquipped ? { borderColor: `${nc.color}40`, background: `${nc.color}08` } : { borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+                        <div className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center font-mono font-bold text-sm border border-white/10"
+                          style={{ color: nc.color, background: `${nc.color}12` }}>
+                          Aa
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-mono font-bold truncate" style={{ color: nc.color }}>{nc.name}</p>
+                          <p className="text-[9px] font-mono uppercase tracking-wider" style={{ color: RARITY_COLOR[nc.rarity] }}>{RARITY_LABEL[nc.rarity]}</p>
+                        </div>
+                        <button
+                          onClick={() => handleEquip('name_color', isEquipped ? null : nc.id)}
+                          className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[10px] font-bold transition-all"
+                          style={isEquipped
+                            ? { background: `${nc.color}20`, color: nc.color, border: `1px solid ${nc.color}40` }
+                            : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
+                        >
+                          {isEquipped ? 'Unequip' : 'Equip'}
                         </button>
                       </div>
                     );
@@ -893,7 +1026,7 @@ export function ProfilePage() {
           {(() => {
             const linked = linkedProviders.find(p => p.provider === 'facebook');
             return (
-              <div className="flex items-center justify-between py-2">
+              <div className="flex items-center justify-between py-2 border-b border-white/5">
                 <div className="flex items-center gap-3">
                   <svg viewBox="0 0 24 24" className="w-5 h-5 flex-shrink-0 fill-current text-[#1877F2]" xmlns="http://www.w3.org/2000/svg">
                     <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
@@ -907,6 +1040,29 @@ export function ProfilePage() {
                   <button onClick={() => handleUnlink('facebook')} className="text-[9px] font-mono text-neon-red/50 hover:text-neon-red/80 transition-colors uppercase tracking-wider">Disconnect</button>
                 ) : (
                   <button onClick={() => handleLinkOAuth('facebook')} className="text-[9px] font-mono text-neon-cyan/50 hover:text-neon-cyan/80 transition-colors uppercase tracking-wider">Connect</button>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Apple */}
+          {(() => {
+            const linked = linkedProviders.find(p => p.provider === 'apple');
+            return (
+              <div className="flex items-center justify-between py-2">
+                <div className="flex items-center gap-3">
+                  <svg viewBox="0 0 24 24" className="w-5 h-5 flex-shrink-0 fill-current text-white/80" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11"/>
+                  </svg>
+                  <div>
+                    <p className="text-white/60 font-mono text-xs">Apple</p>
+                    {linked && <p className="text-white/25 font-mono text-[9px]">{linked.email ?? linked.displayName ?? 'Connected'}</p>}
+                  </div>
+                </div>
+                {linked ? (
+                  <button onClick={() => handleUnlink('apple')} className="text-[9px] font-mono text-neon-red/50 hover:text-neon-red/80 transition-colors uppercase tracking-wider">Disconnect</button>
+                ) : (
+                  <button onClick={() => handleLinkOAuth('apple')} className="text-[9px] font-mono text-neon-cyan/50 hover:text-neon-cyan/80 transition-colors uppercase tracking-wider">Connect</button>
                 )}
               </div>
             );

@@ -22,6 +22,7 @@ export const DEFAULT_SETTINGS = {
     password: '',
     startWithNight: false,
     rotatingSpeech: false,
+    trialDefense: { enabled: false, secondsPerCandidate: 30 },
     dynamicEvents: DEFAULT_DYNAMIC_EVENTS,
     spectatorQueue: DEFAULT_SPECTATOR_QUEUE,
     roles: {
@@ -72,6 +73,7 @@ export function createRoom(hostSocketId, hostName, profileId, settings, clanId) 
         isModerator: false,
         moderatorLevel: null,
         deathType: null,
+        foulCount: 0,
     };
     const mergedSettings = {
         ...DEFAULT_SETTINGS,
@@ -88,6 +90,9 @@ export function createRoom(hostSocketId, hostName, profileId, settings, clanId) 
                 allowed: { ...DEFAULT_SETTINGS.dynamicEvents.allowed, ...(settings.dynamicEvents.allowed ?? {}) },
             }
             : DEFAULT_SETTINGS.dynamicEvents,
+        trialDefense: settings?.trialDefense
+            ? { ...DEFAULT_SETTINGS.trialDefense, ...settings.trialDefense }
+            : DEFAULT_SETTINGS.trialDefense,
     };
     const room = {
         id,
@@ -124,12 +129,15 @@ export function createRoom(hostSocketId, hostName, profileId, settings, clanId) 
         deathSpeakerId: null,
         finalWordsReason: null,
         pendingWinner: null,
+        activeFoul: null,
+        trialDefenseState: null,
         speechStartSeat: 0,
         clanId: clanId ?? null,
         clanRoom: !!clanId,
         activeEvent: null,
         eventsLog: [],
         lastDoctorTarget: null,
+        gameTimeline: [],
     };
     rooms.set(id, room);
     return room;
@@ -203,6 +211,7 @@ export function addPlayer(room, socketId, name, profileId) {
         isModerator: false,
         moderatorLevel: null,
         deathType: null,
+        foulCount: 0,
     };
     room.players.set(player.id, player);
     return player;
@@ -259,6 +268,7 @@ export function addSpectatorPlayer(room, socketId, name, profileId) {
         isModerator: false,
         moderatorLevel: null,
         deathType: null,
+        foulCount: 0,
     };
     room.players.set(player.id, player);
     return player;
@@ -419,6 +429,7 @@ export function toPublicRoom(room, viewerPlayerId) {
         isQueuedNextRound: p.isQueuedNextRound,
         queuePosition: p.queuePosition,
         deathType: p.deathType,
+        foulCount: p.foulCount ?? 0,
     });
     const players = [...room.players.values()]
         .sort((a, b) => a.seat - b.seat)
@@ -451,6 +462,8 @@ export function toPublicRoom(room, viewerPlayerId) {
         tribunalCandidates: room.tribunalCandidates,
         deathSpeakerId: room.deathSpeakerId ?? null,
         finalWordsReason: room.finalWordsReason ?? null,
+        activeFoul: room.activeFoul ?? null,
+        trialDefenseState: room.trialDefenseState ?? null,
         clanId: room.clanId,
         clanRoom: room.clanRoom,
         activeEvent: room.activeEvent,
@@ -550,10 +563,14 @@ export function rematchRoom(room) {
     room.tribunalCandidates = [];
     room.deathSpeakerId = null;
     room.finalWordsReason = null;
+    room.activeFoul = null;
     room.pendingWinner = null;
+    room.activeFoul = null;
+    room.trialDefenseState = null;
     room.activeEvent = null;
     room.eventsLog = [];
     room.lastDoctorTarget = null;
+    room.gameTimeline = [];
     // Promote queued spectators to active lobby
     promoteQueuedPlayers(room);
     for (const p of room.players.values()) {
@@ -567,6 +584,7 @@ export function rematchRoom(room) {
         p.isReady = false;
         p.lastWill = null;
         p.deathType = null;
+        p.foulCount = 0;
     }
 }
 //# sourceMappingURL=roomService.js.map

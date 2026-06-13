@@ -1,5 +1,8 @@
+[phases.install]
+cmds = ["npm ci --omit=dev"]
+
 [phases.build]
-cmds = ["npm run build -w server", "npm run build -w client"]
+cmds = ["echo 'using pre-built dist'"]
 
 [start]
-cmd = "node server/dist/index.js"
+cmd = "NODE_ENV=production node server/dist/index.js"

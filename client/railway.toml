@@ -1,5 +1,5 @@
 [build]
-buildCommand = "npm install --include=dev && npm run build"
+buildCommand = "echo 'using pre-built dist'"
 
 [deploy]
 startCommand = "npx --yes serve dist -l $PORT -s"

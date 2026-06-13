@@ -145,3 +145,11 @@ export async function getTotalUnread(userId: string): Promise<number> {
   ` as any[];
   return Number(row?.c ?? 0);
 }
+
+export async function deleteConversationForUser(conversationId: string, userId: string): Promise<void> {
+  const [conv] = await sql`SELECT * FROM conversations WHERE id = ${conversationId}` as any[];
+  if (!conv) return;
+  if (conv.participant1 !== userId && conv.participant2 !== userId) return;
+  await sql`DELETE FROM direct_messages WHERE conversation_id = ${conversationId}`;
+  await sql`DELETE FROM conversations WHERE id = ${conversationId}`;
+}

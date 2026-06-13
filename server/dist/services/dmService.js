@@ -112,4 +112,13 @@ export async function getTotalUnread(userId) {
   `;
     return Number(row?.c ?? 0);
 }
+export async function deleteConversationForUser(conversationId, userId) {
+    const [conv] = await sql `SELECT * FROM conversations WHERE id = ${conversationId}`;
+    if (!conv)
+        return;
+    if (conv.participant1 !== userId && conv.participant2 !== userId)
+        return;
+    await sql `DELETE FROM direct_messages WHERE conversation_id = ${conversationId}`;
+    await sql `DELETE FROM conversations WHERE id = ${conversationId}`;
+}
 //# sourceMappingURL=dmService.js.map

@@ -35,7 +35,7 @@ import {
   removeFriend, getFriends, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline,
 } from './services/friendService.js';
 import {
-  checkAndAwardChallenge, getTodayChallenge, getDailyChallengeForPlayer,
+  checkAndAwardChallenges, getDailyQuestsForPlayer,
 } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
 import { recordGame, getPlayerHistory, getPlayerRoleStats } from './services/gameHistoryService.js';
@@ -90,6 +90,43 @@ function rateOk(socketId: string, limit = 15): boolean {
   if (!r || now > r.resetAt) { rateLimits.set(socketId, { count: 1, resetAt: now + 1000 }); return true; }
   if (r.count >= limit) return false;
   r.count++; return true;
+}
+
+// ── Chat spam / flood protection ──────────────────────────────────────
+const chatCooldowns = new Map<string, number>();   // key → lastMessageAt
+const chatWindows   = new Map<string, number[]>(); // key → recent timestamps
+const lastChatMsg   = new Map<string, string>();   // key → last message text
+const CHAT_COOLDOWN_MS = 1200;
+const CHAT_FLOOD_WINDOW_MS = 4000;
+const CHAT_FLOOD_LIMIT = 5;
+
+function chatRateOk(key: string, text: string): { ok: boolean; error?: string } {
+  const now = Date.now();
+  const last = chatCooldowns.get(key);
+  if (last && now - last < CHAT_COOLDOWN_MS) return { ok: false, error: 'ძალიან სწრაფად აგზავნი შეტყობინებებს.' };
+  if (lastChatMsg.get(key) === text.trim()) return { ok: false, error: 'არ გაიმეორო ერთი და იგივე შეტყობინება.' };
+  const window = (chatWindows.get(key) ?? []).filter(t => now - t < CHAT_FLOOD_WINDOW_MS);
+  if (window.length >= CHAT_FLOOD_LIMIT) return { ok: false, error: 'ზედმეტი შეტყობინება. ცოტა გაჩერდი.' };
+  window.push(now);
+  chatCooldowns.set(key, now);
+  chatWindows.set(key, window);
+  lastChatMsg.set(key, text.trim());
+  return { ok: true };
+}
+
+// ── Session concurrency (one active socket per profile) ───────────────
+const activeSessions = new Map<string, string>(); // profileId → socketId
+
+function enforceSessionUniqueness(io: AppServer, profileId: string, newSocketId: string): void {
+  const existing = activeSessions.get(profileId);
+  if (existing && existing !== newSocketId) {
+    const oldSock = io.sockets.sockets.get(existing);
+    if (oldSock?.connected) {
+      oldSock.emit('session:replaced', { reason: 'სხვა მოწყობილობიდან შესვლა დაფიქსირდა. ეს სესია დაიხურა.' });
+      setTimeout(() => oldSock.disconnect(true), 300);
+    }
+  }
+  activeSessions.set(profileId, newSocketId);
 }
 
 // ── Report rate limiting ──────────────────────────────────────────────
@@ -351,10 +388,10 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
         let xpAmount = won ? 150 : 50;
         xpAmount += Math.min(roundsAlive * 5, 50);
 
-        // Check daily challenge
-        const challengeCompleted = await checkAndAwardChallenge(p.profileId, won, p.role, room.day, p.team);
-        const todayChallenge = getTodayChallenge();
-        const challengeBonus = challengeCompleted ? todayChallenge.xpReward : 0;
+        // Check daily quests (3 simultaneous)
+        const { totalBonus, anyCompleted } = await checkAndAwardChallenges(p.profileId, won, p.role, room.day, p.team);
+        const challengeCompleted = anyCompleted;
+        const challengeBonus = totalBonus;
         xpAmount += challengeBonus;
 
         const xpResult = await addXP(p.profileId, xpAmount);
@@ -381,6 +418,31 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
         }
       } catch { /* non-fatal */ }
     }
+  }
+
+  // Resolve spectator predictions
+  if (room.winner) {
+    try {
+      const preds = await sql`
+        SELECT id, player_id, predicted FROM spectator_predictions
+        WHERE room_id = ${room.id} AND correct IS NULL
+      ` as any[];
+      for (const pred of preds) {
+        const correct = pred.predicted === room.winner ? 1 : 0;
+        const xpEarned = correct ? 50 : 0;
+        await sql`
+          UPDATE spectator_predictions SET correct = ${correct}, xp_earned = ${xpEarned}
+          WHERE id = ${pred.id}
+        `;
+        if (correct && pred.player_id) {
+          try { await addXP(pred.player_id, xpEarned); } catch { /* non-fatal */ }
+        }
+        const spectator = [...room.players.values()].find(p => p.profileId === pred.player_id);
+        if (spectator?.socketId) {
+          io.to(spectator.socketId).emit('prediction:result', { correct: correct === 1, xpGained: xpEarned, winningTeam: room.winner! });
+        }
+      }
+    } catch { /* non-fatal */ }
   }
 }
 
@@ -570,13 +632,24 @@ export function attachSocketHandlers(io: AppServer): void {
     socket.data.roomId = null;
     socket.data.profileId = null;
 
-    // Rate-limit every incoming event
+    // Rate-limit + payload size check on every incoming event
     socket.use(([event, ...args], next) => {
+      // 4. Payload size limit — reject anything over 16 KB
+      const payload = args[0];
+      if (payload !== null && payload !== undefined && typeof payload === 'object') {
+        try {
+          if (JSON.stringify(payload).length > 16384) {
+            const ack = typeof args[args.length - 1] === 'function' ? args[args.length - 1] as Function : null;
+            if (ack) ack(err('Payload too large.'));
+            return;
+          }
+        } catch { /* non-serialisable — let Zod reject it */ }
+      }
+
       const authEvents = new Set(['player:auth', 'player:register', 'player:login_email']);
       const limit = authEvents.has(event) ? 3 : 20;
       if (!rateOk(socket.id, limit)) {
         socket.emit('error', { message: 'Too many requests. Slow down.' });
-        // Call ack callback if present so client doesn't hang waiting for a response
         const ack = typeof args[args.length - 1] === 'function' ? args[args.length - 1] as Function : null;
         if (ack) ack(err('Too many requests. Slow down.'));
         return;
@@ -599,6 +672,7 @@ export function attachSocketHandlers(io: AppServer): void {
         }
 
         socket.data.profileId = parsed.uid;
+        enforceSessionUniqueness(io, parsed.uid, socket.id);
         markOnline(parsed.uid);
         broadcastOnlineCount(io);
         await grantStarterCosmetics(parsed.uid);
@@ -621,6 +695,7 @@ export function attachSocketHandlers(io: AppServer): void {
 
         const profile = await registerWithEmail(email, password, username);
         socket.data.profileId = profile.id;
+        enforceSessionUniqueness(io, profile.id, socket.id);
         markOnline(profile.id);
         broadcastOnlineCount(io);
         socket.emit('player:profile', toPublicProfile(profile));
@@ -645,6 +720,7 @@ export function attachSocketHandlers(io: AppServer): void {
           return;
         }
         socket.data.profileId = profile.id;
+        enforceSessionUniqueness(io, profile.id, socket.id);
         markOnline(profile.id);
         broadcastOnlineCount(io);
         socket.emit('player:profile', toPublicProfile(profile));
@@ -1361,6 +1437,34 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    // ── Skip Defense (current defense candidate skips own turn) ─────────
+    socket.on('game:skip-defense', async (cb) => {
+      try {
+        const room = getRoomFromSocket(socket);
+        const player = getPlayerOrError(socket, room);
+        if (room.phase !== 'trial_defense') throw new Error('Not in trial defense phase.');
+        if (!player.isAlive || player.isSpectator) throw new Error('Only alive players can skip defense.');
+        const tds = room.trialDefenseState;
+        if (!tds) throw new Error('No trial defense in progress.');
+        const currentCandidateId = tds.candidateIds[tds.currentCandidateIdx];
+        const isHost = player.isHost;
+        if (player.id !== currentCandidateId && !isHost) {
+          throw new Error('Only the current defense candidate (or host) can skip.');
+        }
+
+        timerService.stop(room.id);
+        room.timer = 0;
+
+        const nextPhase = advancePhase(room);
+        announceActiveEvent(io, room);
+        if (nextPhase === 'game_over') await emitGameOver(io, room);
+        broadcastRoom(io, room);
+        enforceVoicePhaseRules(io, room);
+        if (nextPhase !== 'game_over') startPhaseTimer(io, room);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     // ── Issue Foul (presser interrupts current speaker for 6 seconds) ───
     socket.on('game:foul', async (cb) => {
       try {
@@ -1383,32 +1487,19 @@ export function attachSocketHandlers(io: AppServer): void {
         presser.foulCount = (presser.foulCount ?? 0) + 1;
 
         if (presser.foulCount >= 4) {
-          // 4th foul: presser is eliminated — deferred death with final_words
-          room.activeFoul = null;
-          room.deathSpeakerId  = presser.id;
-          room.finalWordsReason = 'foul_death';
-
-          // Pre-check win as if presser died now
+          // 4th foul: immediate silent elimination — no final_words, game resumes in current phase
           presser.isAlive = false;
-          const gameEnds = checkWin(room);
-          presser.isAlive = true;
-
-          timerService.stop(room.id);
-          room.timer = 0;
-
-          if (gameEnds) {
-            presser.isAlive = false;
-            presser.deathType = 'foul';
-            room.deathSpeakerId  = null;
-            room.finalWordsReason = null;
-            setPhase(room, 'game_over');
-            await emitGameOver(io, room);
-          } else {
-            setPhase(room, 'final_words');
-            startPhaseTimer(io, room);
-          }
+          presser.deathType = 'foul';
+          room.activeFoul = null;
 
           broadcastSystemMsg(io, room, `⚠️ ${presser.name}: ფოლი #4 — გარიცხულია!`);
+
+          if (checkWin(room)) {
+            timerService.stop(room.id);
+            setPhase(room, 'game_over');
+            await emitGameOver(io, room);
+          }
+
           broadcastRoom(io, room);
           enforceVoicePhaseRules(io, room);
           cb(ok(null));
@@ -1600,6 +1691,10 @@ export function attachSocketHandlers(io: AppServer): void {
 
         const validationError = validateChat(room, player, parsed.channel);
         if (validationError) throw new Error(validationError);
+
+        const chatKey = socket.data.profileId ?? socket.id;
+        const chatCheck = chatRateOk(chatKey, parsed.text);
+        if (!chatCheck.ok) throw new Error(chatCheck.error);
 
         const profile = profileId ? await getPlayer(profileId) : null;
         const msg = createPlayerMessage(player, parsed.text, parsed.channel, profile?.isModerator ?? false);
@@ -2646,12 +2741,33 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
-    // ── Daily Challenge ──────────────────────────────────────────────
+    // ── Daily Quests ─────────────────────────────────────────────────
     socket.on('challenge:today', async (cb) => {
       try {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('Not authenticated.');
-        cb(ok(await getDailyChallengeForPlayer(profileId)));
+        cb(ok(await getDailyQuestsForPlayer(profileId)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Spectator Predictions ────────────────────────────────────────
+    socket.on('prediction:submit', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const parsed = z.object({ roomId: z.string(), predicted: z.enum(['mafia', 'town', 'neutral', 'cult', 'yakuza']) }).safeParse(data);
+        if (!parsed.success) throw new Error('Invalid prediction.');
+        const room = getRoom(parsed.data.roomId);
+        if (!room) throw new Error('Room not found.');
+        const player = [...room.players.values()].find(p => p.profileId === profileId);
+        if (!player?.isSpectator) throw new Error('Only spectators can predict.');
+        if (room.phase === 'lobby' || room.phase === 'game_over') throw new Error('Game not active.');
+        await sql`
+          INSERT INTO spectator_predictions (id, room_id, player_id, predicted, created_at)
+          VALUES (${crypto.randomUUID()}, ${parsed.data.roomId}, ${profileId}, ${parsed.data.predicted}, ${Date.now()})
+          ON CONFLICT (room_id, player_id) DO UPDATE SET predicted = ${parsed.data.predicted}, created_at = ${Date.now()}
+        `;
+        cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });
 
@@ -2849,6 +2965,35 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    // ── Gift Leaderboard ─────────────────────────────────────────────
+    socket.on('gifts:leaderboard' as any, async (cb: any) => {
+      try {
+        const topGifters = await sql`
+          SELECT p.id AS "profileId", p.username, p.avatar,
+                 p.avatar_url AS "avatarUrl",
+                 COUNT(pg.id)::int AS "giftCount",
+                 COALESCE(SUM(pg.coin_cost), 0)::int AS "totalSpent"
+          FROM player_gifts pg
+          JOIN players p ON p.id = pg.sender_id
+          GROUP BY p.id, p.username, p.avatar, p.avatar_url
+          ORDER BY "totalSpent" DESC, "giftCount" DESC
+          LIMIT 10
+        ` as any[];
+        const topRecipients = await sql`
+          SELECT p.id AS "profileId", p.username, p.avatar,
+                 p.avatar_url AS "avatarUrl",
+                 COUNT(pg.id)::int AS "giftCount",
+                 COALESCE(SUM(pg.coin_cost), 0)::int AS "totalReceived"
+          FROM player_gifts pg
+          JOIN players p ON p.id = pg.recipient_id
+          GROUP BY p.id, p.username, p.avatar, p.avatar_url
+          ORDER BY "totalReceived" DESC, "giftCount" DESC
+          LIMIT 10
+        ` as any[];
+        cb(ok({ topGifters, topRecipients }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     socket.on('gifts:getSent' as any, async ({ profileId: targetId }: any, cb: any) => {
       try {
         if (!targetId) throw new Error('profileId required.');
@@ -2997,6 +3142,14 @@ export function attachSocketHandlers(io: AppServer): void {
       if (profileId) {
         markOffline(profileId);
         broadcastOnlineCount(io);
+        if (activeSessions.get(profileId) === socket.id) activeSessions.delete(profileId);
+        chatCooldowns.delete(profileId);
+        chatWindows.delete(profileId);
+        lastChatMsg.delete(profileId);
+      } else {
+        chatCooldowns.delete(socket.id);
+        chatWindows.delete(socket.id);
+        lastChatMsg.delete(socket.id);
       }
       if (roomId && playerId) handlePlayerLeave(io, socket, roomId, playerId);
       handleVoiceLeave(io, socket.id);
@@ -3208,6 +3361,22 @@ function enforceVoicePhaseRules(io: AppServer, room: Room): void {
         io.to(member.socketId).emit('voice:force-unmute');
       } else {
         io.to(member.socketId).emit('voice:force-mute', { reason: 'Only the current speaker may transmit.' });
+      }
+    }
+    return;
+  }
+
+  if (phase === 'trial_defense') {
+    const tds = room.trialDefenseState;
+    const candidateId = tds ? tds.candidateIds[tds.currentCandidateIdx] : null;
+    for (const member of voiceGetMembers(roomId, 'room')) {
+      const player = room.players.get(member.playerId);
+      if (!player?.isAlive || player?.isSpectator) {
+        io.to(member.socketId).emit('voice:force-mute', { reason: 'Listen only.' });
+      } else if (member.playerId === candidateId) {
+        io.to(member.socketId).emit('voice:force-unmute');
+      } else {
+        io.to(member.socketId).emit('voice:force-mute', { reason: 'Only the defense candidate may speak.' });
       }
     }
     return;

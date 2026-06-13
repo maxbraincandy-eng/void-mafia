@@ -7,12 +7,14 @@ import { ReportModal } from '@/components/ui/ReportModal';
 import { SendGiftModal } from '@/components/ui/SendGiftModal';
 import { ShareCardModal } from '@/components/ui/ShareCardModal';
 import { GiftGallery } from '@/components/ui/GiftGallery';
+import { CoinHistoryModal } from '@/components/ui/CoinHistoryModal';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { useGameStore } from '@/store/gameStore';
 import type { Res, PublicProfileFull, FriendshipStatus, PlayerRoleStats, ModeratorLevel, WarnCategory, ClanRole } from '@/types/index';
-import { getFrameById, getTitleById } from '@/constants/cosmetics';
+import { getFrameById, getTitleById, getWallpaperById, getBorderById } from '@/constants/cosmetics';
 import type { ProfileCardData } from '@/components/ui/ProfileCard';
+import { MAX_LEVEL, xpForLevel, xpForNextLevel, levelColor } from '@/lib/level';
 
 const MOD_RANK: Record<ModeratorLevel, number> = { moderator: 0, senior_moderator: 1, admin: 2, owner: 3 };
 function modRank(lvl: ModeratorLevel | null | undefined) { return lvl ? (MOD_RANK[lvl] ?? -1) : -1; }
@@ -41,11 +43,6 @@ interface Props {
   playerId: string | null;
   onClose: () => void;
 }
-
-const LEVEL_THRESHOLDS = [0, 100, 250, 500, 900, 1400, 2100, 3000, 4100, 5400];
-function xpForLevel(level: number) { return LEVEL_THRESHOLDS[level - 1] ?? 0; }
-function xpForNextLevel(level: number) { return LEVEL_THRESHOLDS[level] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1]!; }
-function levelColor(level: number) { return level >= 8 ? '#facc15' : level >= 5 ? '#00e5ff' : '#9b00ff'; }
 
 function formatDate(ts: number | null | undefined) {
   if (!ts) return '—';
@@ -106,6 +103,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
   const [showReport, setShowReport] = useState(false);
   const [showSendGift, setShowSendGift] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showCoinHistory, setShowCoinHistory] = useState(false);
   // Mod action panel: null | 'warn' | 'kick' | 'ban'
   const [modPanel, setModPanel] = useState<null | 'warn' | 'kick' | 'ban'>(null);
   const [modReason, setModReason] = useState('');
@@ -277,6 +275,8 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
               const { profile, achievements, clan, friendshipStatus, isOnline, roleStats } = data;
               const frameDef = getFrameById(profile.cosmetics?.equippedFrame ?? null);
               const titleDef = getTitleById(profile.cosmetics?.equippedTitle ?? null);
+              const wallpaperDef = getWallpaperById(profile.cosmetics?.equippedWallpaper ?? null);
+              const borderDef = getBorderById(profile.cosmetics?.equippedBorder ?? null);
               const level = profile.level ?? 1;
               const xp = profile.xp ?? 0;
               const xpMin = xpForLevel(level);
@@ -294,16 +294,21 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                     {/* ── Hero band ─────────────────────────────── */}
                     <div
                       className="px-5 pt-5 pb-4 relative"
-                      style={{ background: `linear-gradient(160deg, ${col}10 0%, rgba(6,3,20,0) 60%)` }}
+                      style={{
+                        background: wallpaperDef
+                          ? wallpaperDef.gradient
+                          : `linear-gradient(160deg, ${col}10 0%, rgba(6,3,20,0) 60%)`,
+                      }}
                     >
                       <div className="flex items-start gap-3">
                         {/* Avatar */}
                         <div className="relative flex-shrink-0">
-                          {frameDef ? (
-                            <div className="w-16 h-16 rounded-full p-[2.5px]"
+                          {(frameDef || borderDef) ? (
+                            <div
+                              className={`w-16 h-16 rounded-full p-[2.5px] ${borderDef ? borderDef.animationClass : ''}`}
                               style={{
-                                background: `linear-gradient(135deg, ${frameDef.colors[0]}, ${frameDef.colors[1]})`,
-                                boxShadow: `0 0 10px ${frameDef.glow}`,
+                                background: `linear-gradient(135deg, ${(borderDef ?? frameDef)!.colors[0]}, ${(borderDef ?? frameDef)!.colors[1]})`,
+                                boxShadow: `0 0 10px ${(borderDef ?? frameDef)!.glow}`,
                               }}>
                               <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center text-2xl font-bold"
                                 style={{ background: 'linear-gradient(135deg,rgba(255,0,128,0.6),rgba(138,43,226,0.6))' }}>
@@ -374,7 +379,10 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       {/* XP bar */}
                       <div className="mt-4">
                         <div className="flex justify-between items-center mb-1">
-                          <span className="font-mono text-[9px]" style={{ color: `${col}80` }}>XP {xp - xpMin} / {xpMax - xpMin}</span>
+                          {level >= MAX_LEVEL
+                            ? <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: '#facc1590' }}>მაქსიმალური დონე</span>
+                            : <span className="font-mono text-[9px]" style={{ color: `${col}80` }}>XP {xp - xpMin} / {xpMax - xpMin}</span>
+                          }
                           <span className="font-mono text-[9px]" style={{ color: `${col}80` }}>{xpPct}%</span>
                         </div>
                         <div className="h-1.5 rounded-full bg-white/6 overflow-hidden">
@@ -459,22 +467,28 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         <>
                           <button
                             onClick={handleDm}
-                            className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-colors"
+                            className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-all hover:scale-[1.01] active:scale-[0.98]"
                             style={{
-                              background: 'rgba(155,0,255,0.15)',
+                              background: 'rgba(155,0,255,0.12)',
                               border: '1px solid rgba(155,0,255,0.35)',
                               color: 'rgba(200,100,255,0.9)',
+                              backdropFilter: 'blur(12px)',
+                              WebkitBackdropFilter: 'blur(12px)',
+                              boxShadow: 'inset 0 1px 0 rgba(200,100,255,0.12)',
                             }}
                           >
                             ✉ Send Message
                           </button>
                           <button
                             onClick={() => setShowSendGift(true)}
-                            className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-colors"
+                            className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-all hover:scale-[1.01] active:scale-[0.98]"
                             style={{
-                              background: 'rgba(255,180,0,0.10)',
-                              border: '1px solid rgba(255,180,0,0.30)',
+                              background: 'rgba(255,180,0,0.08)',
+                              border: '1px solid rgba(255,180,0,0.28)',
                               color: 'rgba(255,200,60,0.9)',
+                              backdropFilter: 'blur(12px)',
+                              WebkitBackdropFilter: 'blur(12px)',
+                              boxShadow: 'inset 0 1px 0 rgba(255,200,60,0.10)',
                             }}
                           >
                             🎁 Send Gift
@@ -482,11 +496,37 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         </>
                       )}
 
+                      {/* ── Self-only actions ───────────────────── */}
+                      {isSelf && (
+                        <button
+                          onClick={() => setShowCoinHistory(true)}
+                          className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-all hover:scale-[1.01] active:scale-[0.98]"
+                          style={{
+                            background: 'rgba(255,180,0,0.07)',
+                            border: '1px solid rgba(255,180,0,0.25)',
+                            color: 'rgba(255,200,60,0.8)',
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                            boxShadow: 'inset 0 1px 0 rgba(255,180,0,0.08)',
+                          }}
+                        >
+                          🪙 Coin History
+                        </button>
+                      )}
+
                       {/* ── Share Profile button ─────────────────── */}
                       {profile.publicId != null && (
                         <button
                           onClick={() => setShowShare(true)}
-                          className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-colors border border-neon-cyan/25 bg-neon-cyan/6 text-neon-cyan/75 hover:bg-neon-cyan/12 hover:text-neon-cyan"
+                          className="w-full py-2.5 rounded-xl font-mono text-sm font-bold transition-all hover:scale-[1.01] active:scale-[0.98]"
+                          style={{
+                            background: 'rgba(0,229,255,0.07)',
+                            border: '1px solid rgba(0,229,255,0.25)',
+                            color: 'rgba(0,229,255,0.75)',
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                            boxShadow: 'inset 0 1px 0 rgba(0,229,255,0.10)',
+                          }}
                         >
                           ↗ Share Profile
                         </button>
@@ -497,13 +537,22 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         <button
                           onClick={handleAddFriend}
                           disabled={actionLoading || !profile.friendCode}
-                          className="w-full py-2 rounded-xl border border-neon-cyan/30 bg-neon-cyan/10 text-neon-cyan font-mono text-xs hover:bg-neon-cyan/20 transition-colors disabled:opacity-40"
+                          className="w-full py-2 rounded-xl font-mono text-xs transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-40 disabled:scale-100"
+                          style={{
+                            background: 'rgba(0,229,255,0.07)',
+                            border: '1px solid rgba(0,229,255,0.28)',
+                            color: 'rgba(0,229,255,0.85)',
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                          }}
                         >
                           + Add Friend
                         </button>
                       )}
                       {!isSelf && friendshipStatus === 'pending_sent' && (
-                        <button disabled className="w-full py-2 rounded-xl border border-white/10 text-white/30 font-mono text-xs opacity-50 cursor-not-allowed">
+                        <button disabled className="w-full py-2 rounded-xl border border-white/10 text-white/30 font-mono text-xs opacity-50 cursor-not-allowed"
+                          style={{ backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
+                        >
                           Request Sent
                         </button>
                       )}
@@ -511,7 +560,14 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         <button
                           onClick={handleAcceptFriend}
                           disabled={actionLoading}
-                          className="w-full py-2 rounded-xl border border-neon-green/30 bg-neon-green/10 text-neon-green font-mono text-xs hover:bg-neon-green/20 transition-colors disabled:opacity-40"
+                          className="w-full py-2 rounded-xl font-mono text-xs transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-40"
+                          style={{
+                            background: 'rgba(0,255,136,0.08)',
+                            border: '1px solid rgba(0,255,136,0.30)',
+                            color: 'rgba(0,255,136,0.9)',
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                          }}
                         >
                           ✓ Accept Friend Request
                         </button>
@@ -520,7 +576,14 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         <button
                           onClick={handleRemoveFriend}
                           disabled={actionLoading}
-                          className="w-full py-2 rounded-xl border border-neon-red/20 text-neon-red/60 font-mono text-xs hover:bg-neon-red/10 transition-colors disabled:opacity-40"
+                          className="w-full py-2 rounded-xl font-mono text-xs transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-40"
+                          style={{
+                            background: 'rgba(255,30,60,0.06)',
+                            border: '1px solid rgba(255,30,60,0.20)',
+                            color: 'rgba(255,80,80,0.65)',
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                          }}
                         >
                           Remove Friend
                         </button>
@@ -726,16 +789,32 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       {/* ── Report + Close ──────────────────────── */}
                       <div className="flex gap-2 pb-1">
                         {!isSelf && (
-                          <button
-                            onClick={() => setShowReport(true)}
-                            className="flex-1 py-2 rounded-xl border border-white/5 text-white/20 hover:text-neon-red/50 hover:border-neon-red/20 font-mono text-[10px] transition-colors"
-                          >
-                            Report
-                          </button>
+                        <button
+                          onClick={() => setShowReport(true)}
+                          className="flex-1 py-2 rounded-xl font-mono text-[10px] transition-all hover:scale-[1.01] active:scale-[0.98]"
+                          style={{
+                            background: 'rgba(255,30,60,0.05)',
+                            border: '1px solid rgba(255,30,60,0.15)',
+                            color: 'rgba(255,255,255,0.22)',
+                            backdropFilter: 'blur(8px)',
+                            WebkitBackdropFilter: 'blur(8px)',
+                          }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,60,80,0.6)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,30,60,0.3)'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.22)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,30,60,0.15)'; }}
+                        >
+                          Report
+                        </button>
                         )}
                         <button
                           onClick={onClose}
-                          className="flex-1 py-2 rounded-xl border border-white/10 text-white/35 hover:text-white/60 font-mono text-xs transition-colors"
+                          className="flex-1 py-2 rounded-xl font-mono text-xs transition-all hover:scale-[1.01] active:scale-[0.98]"
+                          style={{
+                            background: 'rgba(255,255,255,0.04)',
+                            border: '1px solid rgba(255,255,255,0.10)',
+                            color: 'rgba(255,255,255,0.35)',
+                            backdropFilter: 'blur(8px)',
+                            WebkitBackdropFilter: 'blur(8px)',
+                          }}
                         >
                           Close
                         </button>
@@ -780,6 +859,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
         onClose={() => setShowShare(false)}
       />
     )}
+    <CoinHistoryModal open={showCoinHistory} onClose={() => setShowCoinHistory(false)} />
     </>
   );
 }

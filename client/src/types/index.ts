@@ -7,6 +7,7 @@ export type Phase =
   | 'morning'
   | 'day'
   | 'speech'
+  | 'trial_defense'
   | 'voting'
   | 'final_words'
   | 'game_over';
@@ -83,6 +84,8 @@ export interface PlayerCosmetics {
   equippedFrame: string | null;
   equippedTitle: string | null;
   equippedRoleSkin: string | null;
+  equippedWallpaper: string | null;
+  equippedBorder: string | null;
   unlockedItems: string[];
 }
 
@@ -229,6 +232,7 @@ export interface GameSettings {
   password: string;
   startWithNight: boolean;
   rotatingSpeech: boolean;
+  trialDefense?: { enabled: boolean; secondsPerCandidate: number };
   dynamicEvents?: DynamicEventSettings;
   spectatorQueue?: SpectatorQueueSettings;
   roles: {
@@ -295,6 +299,7 @@ export interface RoomPublic {
   deathSpeakerId: string | null;
   finalWordsReason: string | null;
   activeFoul: { playerId: string; endsAt: number } | null;
+  trialDefenseState: { candidateIds: string[]; currentCandidateIdx: number } | null;
   clanId: string | null;
   clanRoom: boolean;
   activeEvent: ActiveEvent | null;
@@ -328,9 +333,27 @@ export interface InvestigationResult {
   result: 'suspicious' | 'not_suspicious';
 }
 
+export type TimelineEventType = 'night_kill' | 'vote_eliminate' | 'night_survived' | 'vote_no_elim';
+
+export interface TimelineEvent {
+  type: TimelineEventType;
+  day: number;
+  // For kills/eliminations
+  victimName?: string;
+  victimRole?: RoleKey;
+  victimTeam?: Team;
+  // For night kills: by which role type (revealed at game end)
+  killerRole?: RoleKey;
+  // For vote_eliminate: vote breakdown
+  voteBreakdown?: Array<{ voterName: string; targetName: string }>;
+  // For night_survived: doctor saved
+  doctorSaved?: boolean;
+}
+
 export interface GameOverResult {
   winner: Team;
   allRoles: Record<string, { name: string; role: RoleKey; team: Team }>;
+  timeline: TimelineEvent[];
 }
 
 export interface Report {
@@ -393,6 +416,7 @@ export interface ClanPublic {
   losses: number;
   createdAt: number;
   memberCount: number;
+  imageUrl?: string;
 }
 
 export type ClanRole = 'owner' | 'admin' | 'moderator' | 'member';
@@ -526,6 +550,28 @@ export interface DashboardStats {
   recentBans: number;
 }
 
+export interface LobbyMessage {
+  id: string;
+  profileId: string;
+  username: string;
+  avatar: string;
+  avatarUrl?: string | null;
+  level: number;
+  text: string;
+  createdAt: number;
+  nameColor?: string | null;
+}
+
+export interface LfgEntry {
+  profileId: string;
+  username: string;
+  avatar: string;
+  avatarUrl?: string | null;
+  level: number;
+  note: string;
+  createdAt: number;
+}
+
 export interface DmConversation {
   id: string;
   otherUserId: string;
@@ -565,6 +611,7 @@ export interface GiftCatalogItem {
   category: string;
   limitedEdition: boolean;
   seasonalTag: string | null;
+  isCurrentSeason?: boolean;
   displayOrder: number;
   createdBy: string;
   createdAt: number;

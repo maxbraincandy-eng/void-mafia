@@ -5,6 +5,7 @@ export type Phase =
   | 'morning'
   | 'day'
   | 'speech'
+  | 'trial_defense'
   | 'voting'
   | 'final_words'
   | 'game_over';
@@ -85,6 +86,8 @@ export interface PlayerCosmetics {
   equippedFrame: string | null;
   equippedTitle: string | null;
   equippedRoleSkin: string | null;
+  equippedWallpaper: string | null;
+  equippedBorder: string | null;
   unlockedItems: string[];
 }
 
@@ -364,6 +367,7 @@ export interface GameSettings {
   password: string;
   startWithNight: boolean;
   rotatingSpeech: boolean;
+  trialDefense: { enabled: boolean; secondsPerCandidate: number };
   dynamicEvents: DynamicEventSettings;
   spectatorQueue: SpectatorQueueSettings;
   roles: {
@@ -425,12 +429,14 @@ export interface Room {
   finalWordsReason: 'night_kill' | 'vote_elimination' | 'foul_death' | null;
   pendingWinner: Team | null;
   activeFoul: { playerId: string; endsAt: number } | null;
+  trialDefenseState: { candidateIds: string[]; currentCandidateIdx: number } | null;
   speechStartSeat: number;
   clanId: string | null;
   clanRoom: boolean;
   activeEvent: ActiveEvent | null;
   eventsLog: EventLogEntry[];
   lastDoctorTarget: string | null;
+  gameTimeline: TimelineEvent[];
 }
 
 // ── Public Types (sent to clients) ────────────────────────────────────
@@ -491,6 +497,7 @@ export interface RoomPublic {
   deathSpeakerId: string | null;
   finalWordsReason: string | null;
   activeFoul: { playerId: string; endsAt: number } | null;
+  trialDefenseState: { candidateIds: string[]; currentCandidateIdx: number } | null;
   clanId: string | null;
   clanRoom: boolean;
   activeEvent: ActiveEvent | null;
@@ -517,9 +524,27 @@ export interface InvestigationResult {
   result: 'suspicious' | 'not_suspicious';
 }
 
+export type TimelineEventType = 'night_kill' | 'vote_eliminate' | 'night_survived' | 'vote_no_elim';
+
+export interface TimelineEvent {
+  type: TimelineEventType;
+  day: number;
+  // For kills/eliminations
+  victimName?: string;
+  victimRole?: RoleKey;
+  victimTeam?: Team;
+  // For night kills: by which role type (revealed at game end)
+  killerRole?: RoleKey;
+  // For vote_eliminate: vote breakdown
+  voteBreakdown?: Array<{ voterName: string; targetName: string }>;
+  // For night_survived: doctor saved
+  doctorSaved?: boolean;
+}
+
 export interface GameOverResult {
   winner: Team;
   allRoles: Record<string, { name: string; role: RoleKey; team: Team }>;
+  timeline: TimelineEvent[];
 }
 
 // ── Voice channel type (kept in sync with client/src/hooks/useVoiceChat) ──
@@ -532,6 +557,30 @@ export interface AchievementEarned {
   description: string;
   icon: string;
   rarity: string;
+}
+
+// ── Lobby Chat ────────────────────────────────────────────────────────
+export interface LobbyMessage {
+  id: string;
+  profileId: string;
+  username: string;
+  avatar: string;
+  avatarUrl?: string | null;
+  level: number;
+  text: string;
+  createdAt: number;
+  nameColor?: string | null;
+}
+
+// ── LFG (Looking for Game) ────────────────────────────────────────────
+export interface LfgEntry {
+  profileId: string;
+  username: string;
+  avatar: string;
+  avatarUrl?: string | null;
+  level: number;
+  note: string;
+  createdAt: number;
 }
 
 // ── Vote Breakdown ────────────────────────────────────────────────────
@@ -562,6 +611,7 @@ export interface ClanPublic {
   losses: number;
   createdAt: number;
   memberCount: number;
+  imageUrl: string;
 }
 
 // ── Clan Member ───────────────────────────────────────────────────────
@@ -682,6 +732,8 @@ export interface ServerToClientEvents {
   'voice:force-unmute':  () => void;
   // XP / levels / cosmetics
   'xp:gained':           (data: XPGain) => void;
+  // Spectator prediction result
+  'prediction:result':   (data: { correct: boolean; xpGained: number; winningTeam: string }) => void;
   // Spectate queue (legacy)
   'queue:position':      (data: { position: number; roomCode: string }) => void;
   'queue:promoted':      (data: { roomCode: string }) => void;
@@ -695,11 +747,18 @@ export interface ServerToClientEvents {
   'online:count':        (data: { count: number }) => void;
   // Direct messages
   'dm:new_message':      (data: { conversationId: string; message: any }) => void;
+  // Lobby chat
+  'lobby:message':       (msg: LobbyMessage) => void;
+  'lobby:msg_deleted':   (data: { msgId: string }) => void;
+  // LFG
+  'lfg:update':          (list: LfgEntry[]) => void;
   // Maintenance mode
   'maintenance:status':  (data: { enabled: boolean }) => void;
   // Economy
   'coins:updated':       (data: { coins: number }) => void;
   'gift:received':       (data: { gift: any; senderName: string; senderAvatar: string; message: string }) => void;
+  // Session security
+  'session:replaced':    (data: { reason: string }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -723,6 +782,7 @@ export interface ClientToServerEvents {
   'game:nominate':      (data: { nomineeId: string | null }, cb: Cb<null>) => void;
   'game:day_skip_vote': (cb: Cb<null>) => void;
   'game:foul':          (cb: Cb<null>) => void;
+  'game:skip-defense':  (cb: Cb<null>) => void;
   'game:restart':       (cb: Cb<null>) => void;
   'game:set_will':      (data: { text: string }, cb: Cb<null>) => void;
   'game:pause':         (cb: Cb<{ isPaused: boolean }>) => void;
@@ -736,6 +796,7 @@ export interface ClientToServerEvents {
   'clan:create':        (data: { name: string; tag: string; description: string }, cb: Cb<ClanPublic>) => void;
   'clan:join':          (data: { clanId: string }, cb: Cb<null>) => void;
   'clan:leave':         (cb: Cb<null>) => void;
+  'clan:update_image':  (data: { clanId: string; imageData: string }, cb: Cb<null>) => void;
   'clan:mine':          (cb: Cb<ClanPublic | null>) => void;
   'chat:send':          (data: { text: string; channel: ChatChannel }, cb: Cb<null>) => void;
   'mod:kick_from_room': (data: { targetProfileId: string; roomId: string; reason: string }, cb: Cb<null>) => void;
@@ -792,9 +853,11 @@ export interface ClientToServerEvents {
   // Mod grant by code (owner only)
   'mod:set_level_by_code': (data: { friendCode: string; level: string | null }, cb: Cb<{ username: string; newLevel: string | null }>) => void;
   // Challenges
-  'challenge:today':       (cb: Cb<DailyChallenge>) => void;
+  'challenge:today':       (cb: Cb<DailyChallenge[]>) => void;
+  // Spectator predictions
+  'prediction:submit':     (data: { roomId: string; predicted: string }, cb: Cb<null>) => void;
   // Cosmetics
-  'cosmetics:equip':       (data: { type: 'name_color' | 'frame'; itemId: string | null }, cb: Cb<PlayerCosmetics>) => void;
+  'cosmetics:equip':       (data: { type: 'name_color' | 'frame' | 'wallpaper' | 'border'; itemId: string | null }, cb: Cb<PlayerCosmetics>) => void;
   'cosmetics:get':         (data: { profileId: string }, cb: Cb<PlayerCosmetics>) => void;
   // Public profile popup
   'player:public_profile': (data: { profileId: string }, cb: Cb<any>) => void;
@@ -802,6 +865,13 @@ export interface ClientToServerEvents {
   'player:role_stats':     (data: { profileId: string }, cb: Cb<any>) => void;
   // Clan membership with member role/join date
   'clan:my_membership':    (cb: Cb<any>) => void;
+  // Lobby chat
+  'lobby:send':            (data: { text: string }, cb: Cb<null>) => void;
+  'lobby:history':         (data: Record<string, never>, cb: Cb<LobbyMessage[]>) => void;
+  'lobby:delete_msg':      (data: { msgId: string }, cb: Cb<null>) => void;
+  // LFG
+  'lfg:toggle':            (data: { note?: string }, cb: Cb<{ active: boolean }>) => void;
+  'lfg:list':              (data: Record<string, never>, cb: Cb<LfgEntry[]>) => void;
   // Direct messages
   'dm:start':              (data: { profileId: string }, cb: Cb<any>) => void;
   'dm:send':               (data: { conversationId: string; text: string }, cb: Cb<any>) => void;
@@ -809,6 +879,7 @@ export interface ClientToServerEvents {
   'dm:messages':           (data: { conversationId: string }, cb: Cb<any[]>) => void;
   'dm:mark_read':          (data: { conversationId: string }, cb: Cb<null>) => void;
   'dm:unread_count':       (data: Record<string, never>, cb: Cb<number>) => void;
+  'dm:delete':             (data: { conversationId: string }, cb: Cb<null>) => void;
   // Avatar
   'player:update_avatar':  (data: { imageData: string }, cb: (res: any) => void) => void;
   'player:remove_avatar':  (cb: (res: any) => void) => void;
@@ -819,7 +890,14 @@ export interface ClientToServerEvents {
   'coins:send_gift':        (data: { recipientId: string; giftId: string; message: string }, cb: Cb<{ newBalance: number }>) => void;
   'coins:transactions':     (data: { profileId?: string }, cb: Cb<any[]>) => void;
   'gifts:catalog':          (cb: Cb<any[]>) => void;
+  'gifts:leaderboard':      (cb: Cb<any>) => void;
   'gifts:player_gifts':     (data: { profileId: string }, cb: Cb<any[]>) => void;
+  'gifts:getSent':          (data: { profileId: string }, cb: Cb<any[]>) => void;
+  'gifts:getTimeline':      (data: { profileId: string }, cb: Cb<any[]>) => void;
+  'gifts:getStats':         (data: { profileId: string }, cb: Cb<any>) => void;
+  'gifts:getPinned':        (data: { profileId: string }, cb: Cb<any[]>) => void;
+  'gifts:pin':              (data: { giftId: string }, cb: Cb<{}>) => void;
+  'gifts:unpin':            (data: { giftId: string }, cb: Cb<{}>) => void;
   'gifts:detail':           (data: { giftId: string; recipientId: string }, cb: Cb<any>) => void;
   // Economy — owner only
   'owner:coins_grant':      (data: { targetProfileId: string; amount: number; description: string }, cb: Cb<{ newBalance: number }>) => void;

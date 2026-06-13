@@ -1,13 +1,13 @@
 import { z } from 'zod';
 import { ok, err, } from './types/index.js';
 import { createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, addSpectatorPlayer, removePlayer, getPlayerBySocket, toPublicRoom, getHostPlayer, toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom, setPlayerAvatarUrl, enqueueForNextRound, dequeueFromNextRound, promoteQueuedPlayers, } from './services/roomService.js';
-import { startGame, setPhase, advancePhase, submitNightAction, submitVote, submitNomination, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult, getTrackResult, resolveVotes, } from './services/gameService.js';
+import { startGame, setPhase, advancePhase, submitNightAction, submitVote, submitNomination, checkWin, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult, getTrackResult, resolveVotes, } from './services/gameService.js';
 import { createPlayerMessage, createSystemMessage, addMessage, validateChat, } from './services/chatService.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
 import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, grantStarterCosmetics, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
 import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, } from './services/friendService.js';
-import { checkAndAwardChallenge, getTodayChallenge, getDailyChallengeForPlayer, } from './services/challengeService.js';
+import { checkAndAwardChallenges, getDailyQuestsForPlayer, } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
 import { recordGame, getPlayerHistory, getPlayerRoleStats } from './services/gameHistoryService.js';
 import { createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan, setClanMemberRole, addClanModLog, getClanModLogs, } from './services/clanService.js';
@@ -35,6 +35,42 @@ function rateOk(socketId, limit = 15) {
         return false;
     r.count++;
     return true;
+}
+// ── Chat spam / flood protection ──────────────────────────────────────
+const chatCooldowns = new Map(); // key → lastMessageAt
+const chatWindows = new Map(); // key → recent timestamps
+const lastChatMsg = new Map(); // key → last message text
+const CHAT_COOLDOWN_MS = 1200;
+const CHAT_FLOOD_WINDOW_MS = 4000;
+const CHAT_FLOOD_LIMIT = 5;
+function chatRateOk(key, text) {
+    const now = Date.now();
+    const last = chatCooldowns.get(key);
+    if (last && now - last < CHAT_COOLDOWN_MS)
+        return { ok: false, error: 'ძალიან სწრაფად აგზავნი შეტყობინებებს.' };
+    if (lastChatMsg.get(key) === text.trim())
+        return { ok: false, error: 'არ გაიმეორო ერთი და იგივე შეტყობინება.' };
+    const window = (chatWindows.get(key) ?? []).filter(t => now - t < CHAT_FLOOD_WINDOW_MS);
+    if (window.length >= CHAT_FLOOD_LIMIT)
+        return { ok: false, error: 'ზედმეტი შეტყობინება. ცოტა გაჩერდი.' };
+    window.push(now);
+    chatCooldowns.set(key, now);
+    chatWindows.set(key, window);
+    lastChatMsg.set(key, text.trim());
+    return { ok: true };
+}
+// ── Session concurrency (one active socket per profile) ───────────────
+const activeSessions = new Map(); // profileId → socketId
+function enforceSessionUniqueness(io, profileId, newSocketId) {
+    const existing = activeSessions.get(profileId);
+    if (existing && existing !== newSocketId) {
+        const oldSock = io.sockets.sockets.get(existing);
+        if (oldSock?.connected) {
+            oldSock.emit('session:replaced', { reason: 'სხვა მოწყობილობიდან შესვლა დაფიქსირდა. ეს სესია დაიხურა.' });
+            setTimeout(() => oldSock.disconnect(true), 300);
+        }
+    }
+    activeSessions.set(profileId, newSocketId);
 }
 // ── Report rate limiting ──────────────────────────────────────────────
 // key: reporterId+targetId+reason → lastReportAt (ms)
@@ -189,6 +225,7 @@ function broadcastQueueUpdated(io, room) {
         isQueuedNextRound: true,
         queuePosition: p.queuePosition,
         deathType: null,
+        foulCount: 0,
     }));
     io.to(room.id).emit('queue:updated', { nextRoundQueue });
     // Also to queued players
@@ -286,10 +323,10 @@ async function emitGameOver(io, room) {
                 const roundsAlive = Math.min(room.day, 10);
                 let xpAmount = won ? 150 : 50;
                 xpAmount += Math.min(roundsAlive * 5, 50);
-                // Check daily challenge
-                const challengeCompleted = await checkAndAwardChallenge(p.profileId, won, p.role, room.day, p.team);
-                const todayChallenge = getTodayChallenge();
-                const challengeBonus = challengeCompleted ? todayChallenge.xpReward : 0;
+                // Check daily quests (3 simultaneous)
+                const { totalBonus, anyCompleted } = await checkAndAwardChallenges(p.profileId, won, p.role, room.day, p.team);
+                const challengeCompleted = anyCompleted;
+                const challengeBonus = totalBonus;
                 xpAmount += challengeBonus;
                 const xpResult = await addXP(p.profileId, xpAmount);
                 if (p.socketId) {
@@ -315,6 +352,34 @@ async function emitGameOver(io, room) {
             }
             catch { /* non-fatal */ }
         }
+    }
+    // Resolve spectator predictions
+    if (room.winner) {
+        try {
+            const preds = await sql `
+        SELECT id, player_id, predicted FROM spectator_predictions
+        WHERE room_id = ${room.id} AND correct IS NULL
+      `;
+            for (const pred of preds) {
+                const correct = pred.predicted === room.winner ? 1 : 0;
+                const xpEarned = correct ? 50 : 0;
+                await sql `
+          UPDATE spectator_predictions SET correct = ${correct}, xp_earned = ${xpEarned}
+          WHERE id = ${pred.id}
+        `;
+                if (correct && pred.player_id) {
+                    try {
+                        await addXP(pred.player_id, xpEarned);
+                    }
+                    catch { /* non-fatal */ }
+                }
+                const spectator = [...room.players.values()].find(p => p.profileId === pred.player_id);
+                if (spectator?.socketId) {
+                    io.to(spectator.socketId).emit('prediction:result', { correct: correct === 1, xpGained: xpEarned, winningTeam: room.winner });
+                }
+            }
+        }
+        catch { /* non-fatal */ }
     }
 }
 async function notifyMods(io, type, message, targetName) {
@@ -492,13 +557,25 @@ export function attachSocketHandlers(io) {
         socket.data.playerId = null;
         socket.data.roomId = null;
         socket.data.profileId = null;
-        // Rate-limit every incoming event
+        // Rate-limit + payload size check on every incoming event
         socket.use(([event, ...args], next) => {
+            // 4. Payload size limit — reject anything over 16 KB
+            const payload = args[0];
+            if (payload !== null && payload !== undefined && typeof payload === 'object') {
+                try {
+                    if (JSON.stringify(payload).length > 16384) {
+                        const ack = typeof args[args.length - 1] === 'function' ? args[args.length - 1] : null;
+                        if (ack)
+                            ack(err('Payload too large.'));
+                        return;
+                    }
+                }
+                catch { /* non-serialisable — let Zod reject it */ }
+            }
             const authEvents = new Set(['player:auth', 'player:register', 'player:login_email']);
             const limit = authEvents.has(event) ? 3 : 20;
             if (!rateOk(socket.id, limit)) {
                 socket.emit('error', { message: 'Too many requests. Slow down.' });
-                // Call ack callback if present so client doesn't hang waiting for a response
                 const ack = typeof args[args.length - 1] === 'function' ? args[args.length - 1] : null;
                 if (ack)
                     ack(err('Too many requests. Slow down.'));
@@ -522,6 +599,7 @@ export function attachSocketHandlers(io) {
                     return;
                 }
                 socket.data.profileId = parsed.uid;
+                enforceSessionUniqueness(io, parsed.uid, socket.id);
                 markOnline(parsed.uid);
                 broadcastOnlineCount(io);
                 await grantStarterCosmetics(parsed.uid);
@@ -543,6 +621,7 @@ export function attachSocketHandlers(io) {
                 }).parse(data);
                 const profile = await registerWithEmail(email, password, username);
                 socket.data.profileId = profile.id;
+                enforceSessionUniqueness(io, profile.id, socket.id);
                 markOnline(profile.id);
                 broadcastOnlineCount(io);
                 socket.emit('player:profile', toPublicProfile(profile));
@@ -566,6 +645,7 @@ export function attachSocketHandlers(io) {
                     return;
                 }
                 socket.data.profileId = profile.id;
+                enforceSessionUniqueness(io, profile.id, socket.id);
                 markOnline(profile.id);
                 broadcastOnlineCount(io);
                 socket.emit('player:profile', toPublicProfile(profile));
@@ -1337,6 +1417,105 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
+        // ── Skip Defense (current defense candidate skips own turn) ─────────
+        socket.on('game:skip-defense', async (cb) => {
+            try {
+                const room = getRoomFromSocket(socket);
+                const player = getPlayerOrError(socket, room);
+                if (room.phase !== 'trial_defense')
+                    throw new Error('Not in trial defense phase.');
+                if (!player.isAlive || player.isSpectator)
+                    throw new Error('Only alive players can skip defense.');
+                const tds = room.trialDefenseState;
+                if (!tds)
+                    throw new Error('No trial defense in progress.');
+                const currentCandidateId = tds.candidateIds[tds.currentCandidateIdx];
+                const isHost = player.isHost;
+                if (player.id !== currentCandidateId && !isHost) {
+                    throw new Error('Only the current defense candidate (or host) can skip.');
+                }
+                timerService.stop(room.id);
+                room.timer = 0;
+                const nextPhase = advancePhase(room);
+                announceActiveEvent(io, room);
+                if (nextPhase === 'game_over')
+                    await emitGameOver(io, room);
+                broadcastRoom(io, room);
+                enforceVoicePhaseRules(io, room);
+                if (nextPhase !== 'game_over')
+                    startPhaseTimer(io, room);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Issue Foul (presser interrupts current speaker for 6 seconds) ───
+        socket.on('game:foul', async (cb) => {
+            try {
+                const room = getRoomFromSocket(socket);
+                const presser = getPlayerOrError(socket, room);
+                if (room.phase !== 'speech')
+                    throw new Error('Fouls can only be issued during speech phase.');
+                if (!presser.isAlive || presser.isSpectator)
+                    throw new Error('Only alive players can issue fouls.');
+                const currentSpeakerId = room.speechOrder[room.currentSpeakerIdx];
+                if (presser.id === currentSpeakerId)
+                    throw new Error('The current speaker cannot foul themselves.');
+                // Only one active foul at a time
+                if (room.activeFoul && Date.now() < room.activeFoul.endsAt) {
+                    throw new Error('A foul is already active. Wait for it to expire.');
+                }
+                const speaker = room.players.get(currentSpeakerId ?? '');
+                if (!speaker)
+                    throw new Error('No active speaker found.');
+                // Track fouls on the PRESSER (the player who pressed the foul button)
+                presser.foulCount = (presser.foulCount ?? 0) + 1;
+                if (presser.foulCount >= 4) {
+                    // 4th foul: immediate silent elimination — no final_words, game resumes in current phase
+                    presser.isAlive = false;
+                    presser.deathType = 'foul';
+                    room.activeFoul = null;
+                    broadcastSystemMsg(io, room, `⚠️ ${presser.name}: ფოლი #4 — გარიცხულია!`);
+                    if (checkWin(room)) {
+                        timerService.stop(room.id);
+                        setPhase(room, 'game_over');
+                        await emitGameOver(io, room);
+                    }
+                    broadcastRoom(io, room);
+                    enforceVoicePhaseRules(io, room);
+                    cb(ok(null));
+                    return;
+                }
+                // Activate the foul window: presser gets 6 seconds to speak
+                const foulEndsAt = Date.now() + 6000;
+                room.activeFoul = { playerId: presser.id, endsAt: foulEndsAt };
+                broadcastSystemMsg(io, room, `⚠️ ${presser.name}: ფოლი #${presser.foulCount}/3`);
+                // Give presser voice access for 6 seconds
+                const presserMember = voiceGetMembers(room.id, 'room').find(m => m.playerId === presser.id);
+                if (presserMember) {
+                    io.to(presserMember.socketId).emit('voice:force-unmute');
+                }
+                // Expire the foul after 6 seconds and re-mute presser
+                setTimeout(() => {
+                    if (room.activeFoul?.playerId === presser.id && room.activeFoul.endsAt === foulEndsAt) {
+                        room.activeFoul = null;
+                        if (room.phase === 'speech') {
+                            const member = voiceGetMembers(room.id, 'room').find(m => m.playerId === presser.id);
+                            if (member) {
+                                io.to(member.socketId).emit('voice:force-mute', { reason: 'Foul window expired.' });
+                            }
+                            broadcastRoom(io, room);
+                        }
+                    }
+                }, 6000);
+                broadcastRoom(io, room);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
         // ── Set Last Will ────────────────────────────────────────────────────
         socket.on('game:set_will', ({ text }, cb) => {
             try {
@@ -1498,6 +1677,10 @@ export function attachSocketHandlers(io) {
                 const validationError = validateChat(room, player, parsed.channel);
                 if (validationError)
                     throw new Error(validationError);
+                const chatKey = socket.data.profileId ?? socket.id;
+                const chatCheck = chatRateOk(chatKey, parsed.text);
+                if (!chatCheck.ok)
+                    throw new Error(chatCheck.error);
                 const profile = profileId ? await getPlayer(profileId) : null;
                 const msg = createPlayerMessage(player, parsed.text, parsed.channel, profile?.isModerator ?? false);
                 addMessage(room, msg);
@@ -2729,13 +2912,41 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
-        // ── Daily Challenge ──────────────────────────────────────────────
+        // ── Daily Quests ─────────────────────────────────────────────────
         socket.on('challenge:today', async (cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId)
                     throw new Error('Not authenticated.');
-                cb(ok(await getDailyChallengeForPlayer(profileId)));
+                cb(ok(await getDailyQuestsForPlayer(profileId)));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Spectator Predictions ────────────────────────────────────────
+        socket.on('prediction:submit', async (data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const parsed = z.object({ roomId: z.string(), predicted: z.enum(['mafia', 'town', 'neutral', 'cult', 'yakuza']) }).safeParse(data);
+                if (!parsed.success)
+                    throw new Error('Invalid prediction.');
+                const room = getRoom(parsed.data.roomId);
+                if (!room)
+                    throw new Error('Room not found.');
+                const player = [...room.players.values()].find(p => p.profileId === profileId);
+                if (!player?.isSpectator)
+                    throw new Error('Only spectators can predict.');
+                if (room.phase === 'lobby' || room.phase === 'game_over')
+                    throw new Error('Game not active.');
+                await sql `
+          INSERT INTO spectator_predictions (id, room_id, player_id, predicted, created_at)
+          VALUES (${crypto.randomUUID()}, ${parsed.data.roomId}, ${profileId}, ${parsed.data.predicted}, ${Date.now()})
+          ON CONFLICT (room_id, player_id) DO UPDATE SET predicted = ${parsed.data.predicted}, created_at = ${Date.now()}
+        `;
+                cb(ok(null));
             }
             catch (e) {
                 cb(err(e.message));
@@ -2987,6 +3198,37 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
+        // ── Gift Leaderboard ─────────────────────────────────────────────
+        socket.on('gifts:leaderboard', async (cb) => {
+            try {
+                const topGifters = await sql `
+          SELECT p.id AS "profileId", p.username, p.avatar,
+                 p.avatar_url AS "avatarUrl",
+                 COUNT(pg.id)::int AS "giftCount",
+                 COALESCE(SUM(pg.coin_cost), 0)::int AS "totalSpent"
+          FROM player_gifts pg
+          JOIN players p ON p.id = pg.sender_id
+          GROUP BY p.id, p.username, p.avatar, p.avatar_url
+          ORDER BY "totalSpent" DESC, "giftCount" DESC
+          LIMIT 10
+        `;
+                const topRecipients = await sql `
+          SELECT p.id AS "profileId", p.username, p.avatar,
+                 p.avatar_url AS "avatarUrl",
+                 COUNT(pg.id)::int AS "giftCount",
+                 COALESCE(SUM(pg.coin_cost), 0)::int AS "totalReceived"
+          FROM player_gifts pg
+          JOIN players p ON p.id = pg.recipient_id
+          GROUP BY p.id, p.username, p.avatar, p.avatar_url
+          ORDER BY "totalReceived" DESC, "giftCount" DESC
+          LIMIT 10
+        `;
+                cb(ok({ topGifters, topRecipients }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
         socket.on('gifts:getSent', async ({ profileId: targetId }, cb) => {
             try {
                 if (!targetId)
@@ -3187,6 +3429,16 @@ export function attachSocketHandlers(io) {
             if (profileId) {
                 markOffline(profileId);
                 broadcastOnlineCount(io);
+                if (activeSessions.get(profileId) === socket.id)
+                    activeSessions.delete(profileId);
+                chatCooldowns.delete(profileId);
+                chatWindows.delete(profileId);
+                lastChatMsg.delete(profileId);
+            }
+            else {
+                chatCooldowns.delete(socket.id);
+                chatWindows.delete(socket.id);
+                lastChatMsg.delete(socket.id);
             }
             if (roomId && playerId)
                 handlePlayerLeave(io, socket, roomId, playerId);
@@ -3387,16 +3639,36 @@ function enforceVoicePhaseRules(io, room) {
     }
     if (phase === 'speech') {
         const speakerId = room.speechOrder[room.currentSpeakerIdx] ?? null;
+        const foulPlayerId = (room.activeFoul && Date.now() < room.activeFoul.endsAt)
+            ? room.activeFoul.playerId
+            : null;
         for (const member of voiceGetMembers(roomId, 'room')) {
             const player = room.players.get(member.playerId);
             if (!player?.isAlive || player?.isSpectator) {
                 io.to(member.socketId).emit('voice:force-mute', { reason: 'Listen only.' });
             }
-            else if (member.playerId === speakerId) {
+            else if (member.playerId === speakerId || member.playerId === foulPlayerId) {
                 io.to(member.socketId).emit('voice:force-unmute');
             }
             else {
                 io.to(member.socketId).emit('voice:force-mute', { reason: 'Only the current speaker may transmit.' });
+            }
+        }
+        return;
+    }
+    if (phase === 'trial_defense') {
+        const tds = room.trialDefenseState;
+        const candidateId = tds ? tds.candidateIds[tds.currentCandidateIdx] : null;
+        for (const member of voiceGetMembers(roomId, 'room')) {
+            const player = room.players.get(member.playerId);
+            if (!player?.isAlive || player?.isSpectator) {
+                io.to(member.socketId).emit('voice:force-mute', { reason: 'Listen only.' });
+            }
+            else if (member.playerId === candidateId) {
+                io.to(member.socketId).emit('voice:force-unmute');
+            }
+            else {
+                io.to(member.socketId).emit('voice:force-mute', { reason: 'Only the defense candidate may speak.' });
             }
         }
         return;

@@ -579,6 +579,7 @@ export function LobbyPage() {
               error={voice.error}
               listenOnly={voice.listenOnly || amSpectator}
               defaultChannel="room"
+              hideCamera
               onJoin={amSpectator
                 ? () => voice.joinVoiceListenOnly('room')
                 : (ch, wc) => voice.joinVoice(ch, wc)}

@@ -3,29 +3,48 @@ import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
 import { useSocialStore } from '@/store/socialStore';
-import { PoweredBy } from '@/components/ui/PoweredBy';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { PlayerProfilePublic } from '@/types/index';
+import { emitWithAck } from '@/lib/socket';
+import type { Res } from '@/types/index';
+import { MAX_LEVEL, xpForLevel, xpForNextLevel } from '@/lib/level';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 const MEDAL_BORDER = ['border-yellow-400/25', 'border-gray-400/15', 'border-amber-700/20'];
 const MEDAL_BG = ['bg-yellow-400/4', 'bg-white/3', 'bg-amber-900/5'];
 const MEDAL_TEXT = ['text-yellow-400', 'text-gray-300', 'text-amber-500'];
 
-const LEVEL_THRESHOLDS = [0, 100, 250, 500, 900, 1400, 2100, 3000, 4100, 5400];
-function xpForLevel(level: number) { return LEVEL_THRESHOLDS[level - 1] ?? 0; }
-function xpForNextLevel(level: number) { return LEVEL_THRESHOLDS[level] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1]!; }
 function levelPct(level: number, xp: number) {
+  if (level >= MAX_LEVEL) return 100;
   const min = xpForLevel(level), max = xpForNextLevel(level);
   return max > min ? Math.min(100, Math.round(((xp - min) / (max - min)) * 100)) : 100;
 }
+function levelColor(level: number) {
+  return level >= 80 ? 'text-yellow-400' : level >= 60 ? 'text-orange-400' : level >= 40 ? 'text-neon-cyan' : level >= 20 ? 'text-purple-400' : 'text-neon-purple/80';
+}
+
+interface GiftLeaderEntry {
+  profileId: string;
+  username: string;
+  avatar: string;
+  avatarUrl: string | null;
+  totalSpent?: number;
+  totalReceived?: number;
+  giftCount: number;
+}
+
+type Tab = 'rankings' | 'gifts';
 
 export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
   const getLeaderboard = useGameStore(s => s.getLeaderboard);
   const openProfile = useSocialStore(s => s.openProfile);
+  const [tab, setTab] = useState<Tab>('rankings');
   const [players, setPlayers] = useState<PlayerProfilePublic[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [giftData, setGiftData] = useState<{ topGifters: GiftLeaderEntry[]; topRecipients: GiftLeaderEntry[] } | null>(null);
+  const [giftLoading, setGiftLoading] = useState(false);
+  const [giftError, setGiftError] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -40,10 +59,24 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
     }
   };
 
+  const loadGifts = async () => {
+    setGiftLoading(true);
+    setGiftError(null);
+    try {
+      const res = await emitWithAck<null, Res<any>>('gifts:leaderboard');
+      if (res.ok) setGiftData(res.data);
+      else setGiftError(res.error ?? 'Failed to load gift rankings.');
+    } catch (e: any) {
+      setGiftError(e.message ?? 'Failed to load gift rankings.');
+    } finally {
+      setGiftLoading(false);
+    }
+  };
+
   useEffect(() => { load(); }, []);
+  useEffect(() => { if (tab === 'gifts' && !giftData) loadGifts(); }, [tab]);
 
   const top3 = players.slice(0, 3);
-  const rest = players.slice(3);
 
   return (
     <div className="min-h-screen bg-neon-grid-animated scanlines pb-20 relative overflow-hidden">
@@ -52,7 +85,7 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
 
       <div className="relative z-10 max-w-lg mx-auto px-4" style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top, 1.5rem))' }}>
         {/* Header */}
-        <div className="mb-5 flex items-center gap-3">
+        <div className="mb-4 flex items-center gap-3">
           {onBack && (
             <button
               onClick={onBack}
@@ -65,18 +98,92 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
           )}
           <div className="flex-1 min-w-0">
             <h2 className="font-display text-2xl font-bold text-neon-pink tracking-widest uppercase leading-none">ტოპი</h2>
-            <p className="text-white/25 font-mono text-[10px] tracking-widest mt-0.5">ALL PLAYERS · SORTED BY LEVEL</p>
+            <p className="text-white/25 font-mono text-[10px] tracking-widest mt-0.5">
+              {tab === 'rankings' ? 'ALL PLAYERS · SORTED BY LEVEL' : 'TOP GIFTERS & RECIPIENTS'}
+            </p>
           </div>
           <button
-            onClick={load}
-            disabled={loading}
+            onClick={tab === 'rankings' ? load : loadGifts}
+            disabled={tab === 'rankings' ? loading : giftLoading}
             className="text-white/30 hover:text-white/60 transition-colors font-mono text-xs disabled:opacity-30 flex-shrink-0"
           >
             ↻
           </button>
         </div>
 
-        {loading && (
+        {/* Tabs */}
+        <div className="flex gap-1 mb-5 p-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          {([['rankings', '🏆 Rankings'], ['gifts', '🎁 Gifts']] as const).map(([t, label]) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={clsx(
+                'flex-1 py-2 rounded-lg font-mono text-xs uppercase tracking-widest transition-all',
+                tab === t
+                  ? t === 'gifts'
+                    ? 'bg-amber-400/10 text-amber-400 border border-amber-400/20'
+                    : 'bg-neon-pink/10 text-neon-pink border border-neon-pink/20'
+                  : 'text-white/30 hover:text-white/50',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Gift leaderboard tab ─────────────────────────────────────────── */}
+        {tab === 'gifts' && (
+          <>
+            {giftLoading && (
+              <div className="flex items-center justify-center py-20">
+                <div className="text-center space-y-3">
+                  <div className="text-4xl animate-pulse">🎁</div>
+                  <p className="text-white/30 font-mono text-sm">Loading gift rankings…</p>
+                </div>
+              </div>
+            )}
+            {!giftLoading && giftError && (
+              <div className="glass-panel border border-neon-red/20 rounded-2xl p-6 text-center">
+                <p className="text-neon-red/70 font-mono text-sm">{giftError}</p>
+                <button onClick={loadGifts} className="mt-3 text-xs text-white/40 hover:text-white/60 font-mono underline">
+                  Try again
+                </button>
+              </div>
+            )}
+            {!giftLoading && giftData && (
+              <div className="space-y-6">
+                <GiftLeaderSection
+                  title="Top Gifters"
+                  subtitle="MOST COINS SPENT ON GIFTS"
+                  emoji="💝"
+                  entries={giftData.topGifters}
+                  valueKey="totalSpent"
+                  valueSuffix=" coins"
+                  onProfile={openProfile}
+                />
+                <GiftLeaderSection
+                  title="Top Recipients"
+                  subtitle="MOST GIFTS RECEIVED"
+                  emoji="🎁"
+                  entries={giftData.topRecipients}
+                  valueKey="totalReceived"
+                  valueSuffix=" coins"
+                  onProfile={openProfile}
+                />
+              </div>
+            )}
+            {!giftLoading && !giftError && giftData && giftData.topGifters.length === 0 && giftData.topRecipients.length === 0 && (
+              <div className="glass-panel border border-amber-400/10 rounded-2xl p-10 text-center">
+                <div className="text-5xl mb-4 opacity-30">🎁</div>
+                <p className="text-white/30 font-mono text-sm">No gifts sent yet.</p>
+                <p className="text-white/15 font-mono text-xs mt-1">Send someone a gift to appear here!</p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── Rankings tab ─────────────────────────────────────────────────── */}
+        {tab === 'rankings' && loading && (
           <div className="flex items-center justify-center py-20">
             <div className="text-center space-y-3">
               <div className="text-4xl animate-pulse">◈</div>
@@ -85,7 +192,7 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
           </div>
         )}
 
-        {!loading && error && (
+        {tab === 'rankings' && !loading && error && (
           <div className="glass-panel border border-neon-red/20 rounded-2xl p-6 text-center">
             <p className="text-neon-red/70 font-mono text-sm">{error}</p>
             <button onClick={load} className="mt-3 text-xs text-white/40 hover:text-white/60 font-mono underline">
@@ -94,7 +201,7 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
           </div>
         )}
 
-        {!loading && !error && players.length === 0 && (
+        {tab === 'rankings' && !loading && !error && players.length === 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -107,7 +214,7 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
         )}
 
         {/* Podium */}
-        {!loading && !error && top3.length === 3 && (
+        {tab === 'rankings' && !loading && !error && top3.length === 3 && (
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -121,7 +228,7 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
         )}
 
         {/* Full ranked list */}
-        {!loading && !error && players.length > 0 && (
+        {tab === 'rankings' && !loading && !error && players.length > 0 && (
           <div className="space-y-2">
             {players.map((player, i) => (
               <motion.div
@@ -189,13 +296,8 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
 
                 {/* Level */}
                 <div className="text-right shrink-0">
-                  <p className={clsx(
-                    'font-display font-bold text-base',
-                    (player.level ?? 1) >= 8 ? 'text-yellow-400'
-                      : (player.level ?? 1) >= 5 ? 'text-neon-cyan'
-                      : 'text-neon-purple/80',
-                  )}>
-                    Lv.{player.level ?? 1}
+                  <p className={clsx('font-display font-bold text-base', levelColor(player.level ?? 1))}>
+                    {(player.level ?? 1) >= MAX_LEVEL ? 'Lv.100 MAX' : `Lv.${player.level ?? 1}`}
                   </p>
                   <p className="text-white/25 font-mono text-[10px]">{player.stats.gamesPlayed}g · {player.stats.winRate}%</p>
                 </div>
@@ -203,6 +305,70 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function GiftLeaderSection({
+  title, subtitle, emoji, entries, valueKey, valueSuffix, onProfile,
+}: {
+  title: string;
+  subtitle: string;
+  emoji: string;
+  entries: GiftLeaderEntry[];
+  valueKey: 'totalSpent' | 'totalReceived';
+  valueSuffix: string;
+  onProfile: (id: string) => void;
+}) {
+  if (entries.length === 0) return null;
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-lg">{emoji}</span>
+        <div>
+          <p className="font-display font-bold text-sm text-white/80">{title}</p>
+          <p className="font-mono text-[9px] text-white/25 uppercase tracking-widest">{subtitle}</p>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {entries.map((entry, i) => (
+          <motion.div
+            key={entry.profileId}
+            initial={{ opacity: 0, x: -12 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: i * 0.04 }}
+            onClick={() => onProfile(entry.profileId)}
+            className="flex items-center gap-3 p-3 rounded-2xl border cursor-pointer active:scale-[0.98] transition-colors"
+            style={{
+              background: i === 0 ? 'rgba(255,180,0,0.04)' : 'rgba(255,255,255,0.02)',
+              border: i === 0 ? '1px solid rgba(255,180,0,0.15)' : '1px solid rgba(255,255,255,0.05)',
+            }}
+          >
+            <div className="w-7 text-center shrink-0">
+              {i < 3
+                ? <span className="text-lg">{['🥇','🥈','🥉'][i]}</span>
+                : <span className="text-white/20 font-mono text-xs font-bold">#{i + 1}</span>
+              }
+            </div>
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center text-base font-bold text-white shrink-0 overflow-hidden"
+              style={{ background: 'linear-gradient(135deg, #ff0080, #8a2be2)' }}
+            >
+              {entry.avatarUrl
+                ? <img src={entry.avatarUrl} alt={entry.username} className="w-full h-full object-cover rounded-full" />
+                : entry.avatar
+              }
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-display font-semibold text-sm text-white/70 truncate">{entry.username}</p>
+              <p className="font-mono text-[10px] text-white/25">{entry.giftCount} gifts</p>
+            </div>
+            <p className={clsx('font-display font-bold text-sm shrink-0', i === 0 ? 'text-amber-400' : 'text-white/40')}>
+              {((entry[valueKey] ?? 0) as number).toLocaleString()}{valueSuffix}
+            </p>
+          </motion.div>
+        ))}
       </div>
     </div>
   );

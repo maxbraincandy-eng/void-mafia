@@ -26,4 +26,5 @@ export declare function sendMessage(conversationId: string, senderId: string, te
 export declare function getMessages(conversationId: string, limit?: number): Promise<DirectMessage[]>;
 export declare function markRead(conversationId: string, userId: string): Promise<void>;
 export declare function getTotalUnread(userId: string): Promise<number>;
+export declare function deleteConversationForUser(conversationId: string, userId: string): Promise<void>;
 //# sourceMappingURL=dmService.d.ts.map

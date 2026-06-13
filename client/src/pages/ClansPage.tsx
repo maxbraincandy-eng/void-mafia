@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
 import { useSocialStore } from '@/store/socialStore';
@@ -44,6 +44,9 @@ export function ClansPage() {
   const [showModLogs, setShowModLogs]   = useState(false);
   const [roleTarget, setRoleTarget]     = useState<string | null>(null);
   const [roleLoading, setRoleLoading]   = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageError, setImageError]     = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -99,6 +102,37 @@ export function ClansPage() {
     if (selected) await loadClanDetail(selected);
   }
 
+  async function handleImageFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !myClan) return;
+    setImageError('');
+    setImageUploading(true);
+    try {
+      const reader = new FileReader();
+      const imageData = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      if (imageData.length > 270_000) {
+        setImageError('Image too large. Please use an image under ~200KB.');
+        return;
+      }
+      const res = await emitWithAck<{ clanId: string; imageData: string }, Res<null>>(
+        'clan:update_image', { clanId: myClan.id, imageData },
+      );
+      if (!res.ok) { setImageError(res.error); return; }
+      setMyClan(prev => prev ? { ...prev, imageUrl: imageData } : prev);
+      setSelected(prev => prev && prev.id === myClan.id ? { ...prev, imageUrl: imageData } : prev);
+      setClans(prev => prev.map(c => c.id === myClan.id ? { ...c, imageUrl: imageData } : c));
+    } catch {
+      setImageError('Upload failed. Please try again.');
+    } finally {
+      setImageUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
   async function loadModLogs() {
     if (!myClan) return;
     setShowModLogs(true);
@@ -141,20 +175,51 @@ export function ClansPage() {
           )}
         </div>
 
+        {/* Hidden file input for clan image upload */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          className="hidden"
+          onChange={handleImageFileChange}
+        />
+
         {/* My clan banner */}
         {myClan && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-4 rounded-2xl border border-neon-purple/25 bg-neon-purple/6 px-4 py-3 flex items-center gap-3 cursor-pointer"
-            onClick={() => loadClanDetail(myClan)}
+            className="mb-4 rounded-2xl border border-neon-purple/25 bg-neon-purple/6 px-4 py-3 flex items-center gap-3"
           >
-            <div className="w-9 h-9 rounded-xl bg-neon-purple/20 border border-neon-purple/30 flex items-center justify-center font-display font-bold text-neon-purple text-sm">
-              {myClan.tag}
+            {/* Clan logo with upload button for owner */}
+            <div className="relative flex-shrink-0">
+              <div
+                className="w-11 h-11 rounded-xl overflow-hidden flex items-center justify-center font-display font-bold text-neon-purple text-sm cursor-pointer"
+                style={{ background: 'rgba(155,0,255,0.2)', border: '1px solid rgba(155,0,255,0.35)' }}
+                onClick={() => loadClanDetail(myClan)}
+              >
+                {myClan.imageUrl
+                  ? <img src={myClan.imageUrl} alt={myClan.name} className="w-full h-full object-cover" />
+                  : myClan.tag}
+              </div>
+              {myClanRole === 'owner' && (
+                <button
+                  onClick={e => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                  disabled={imageUploading}
+                  className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center transition-all active:scale-90"
+                  style={{ background: 'rgba(138,43,226,0.95)', border: '1.5px solid rgba(255,255,255,0.2)', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}
+                >
+                  {imageUploading
+                    ? <div className="w-2 h-2 border border-white/60 border-t-white rounded-full animate-spin" />
+                    : <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                  }
+                </button>
+              )}
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 cursor-pointer" onClick={() => loadClanDetail(myClan)}>
               <p className="font-display font-bold text-white text-sm">{myClan.name}</p>
               <p className="font-mono text-[10px] text-white/40">{myClan.memberCount} members · <WinRate wins={myClan.wins} losses={myClan.losses} /> win rate</p>
+              {imageError && <p className="font-mono text-[9px] text-red-400/70 mt-0.5">{imageError}</p>}
             </div>
             <span className="font-mono text-[9px] text-neon-purple/60 uppercase tracking-wider">your clan</span>
           </motion.div>
@@ -197,10 +262,12 @@ export function ClansPage() {
               >
                 <span className="font-mono text-[10px] text-white/20 w-4 text-right flex-shrink-0">{idx + 1}</span>
                 <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center font-display font-bold text-xs flex-shrink-0"
+                  className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center font-display font-bold text-xs flex-shrink-0"
                   style={{ background: 'rgba(155,0,255,0.15)', border: '1px solid rgba(155,0,255,0.25)', color: 'rgba(180,80,255,0.9)' }}
                 >
-                  {clan.tag}
+                  {clan.imageUrl
+                    ? <img src={clan.imageUrl} alt={clan.name} className="w-full h-full object-cover" />
+                    : clan.tag}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-display font-semibold text-white text-sm truncate">{clan.name}</p>
@@ -238,11 +305,28 @@ export function ClansPage() {
               {/* Clan header */}
               <div className="px-5 pt-5 pb-4 border-b border-white/6">
                 <div className="flex items-center gap-3">
-                  <div
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center font-display font-bold text-sm"
-                    style={{ background: 'rgba(155,0,255,0.2)', border: '1px solid rgba(155,0,255,0.35)', color: 'rgba(180,80,255,1)' }}
-                  >
-                    {selected.tag}
+                  <div className="relative flex-shrink-0">
+                    <div
+                      className="w-12 h-12 rounded-2xl overflow-hidden flex items-center justify-center font-display font-bold text-sm"
+                      style={{ background: 'rgba(155,0,255,0.2)', border: '1px solid rgba(155,0,255,0.35)', color: 'rgba(180,80,255,1)' }}
+                    >
+                      {selected.imageUrl
+                        ? <img src={selected.imageUrl} alt={selected.name} className="w-full h-full object-cover" />
+                        : selected.tag}
+                    </div>
+                    {amInSelected && myClanRole === 'owner' && (
+                      <button
+                        onClick={e => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                        disabled={imageUploading}
+                        className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center transition-all active:scale-90"
+                        style={{ background: 'rgba(138,43,226,0.95)', border: '1.5px solid rgba(255,255,255,0.2)', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
+                      >
+                        {imageUploading
+                          ? <div className="w-2.5 h-2.5 border border-white/60 border-t-white rounded-full animate-spin" />
+                          : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        }
+                      </button>
+                    )}
                   </div>
                   <div className="flex-1">
                     <h3 className="font-display font-bold text-white text-lg">{selected.name}</h3>
