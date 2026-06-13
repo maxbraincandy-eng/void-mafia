@@ -170,71 +170,11 @@ export function VoiceControls({
         )}
       </AnimatePresence>
 
-      {/* ── Pre-join state ── */}
-      {!isInVoice && (
-        <div className="space-y-3">
-          {!listenOnly && (
-            /* Camera opt-in toggle — only for speaking participants */
-            <label className="flex items-center gap-3 cursor-pointer select-none group">
-              <div
-                onClick={() => setWantCamera(vv => !vv)}
-                className={clsx(
-                  'w-10 h-6 rounded-full flex items-center px-0.5 transition-all flex-shrink-0',
-                  wantCamera ? 'bg-neon-cyan/40 border border-neon-cyan/50' : 'bg-white/10 border border-white/10',
-                )}
-              >
-                <motion.div
-                  animate={{ x: wantCamera ? 16 : 0 }}
-                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                  className={clsx(
-                    'w-5 h-5 rounded-full transition-colors',
-                    wantCamera ? 'bg-neon-cyan' : 'bg-white/40',
-                  )}
-                />
-              </div>
-              <div>
-                <p className="text-xs font-mono text-white/60 group-hover:text-white/80 transition-colors">
-                  {v.includeCamera}
-                </p>
-                <p className="text-[10px] font-mono text-white/25">
-                  {wantCamera ? v.cameraBrowserAsk : v.micOnly}
-                </p>
-              </div>
-            </label>
-          )}
-
-          {/* Join button */}
-          <button
-            onClick={() => onJoin(defaultChannel, listenOnly ? false : wantCamera)}
-            disabled={isConnecting}
-            className={clsx(
-              'w-full py-3 rounded-xl font-display font-bold tracking-widest text-sm uppercase',
-              'border transition-all duration-200 active:scale-95',
-              isConnecting
-                ? 'border-white/10 text-white/30 cursor-wait bg-white/5'
-                : 'border-neon-green/40 text-neon-green bg-neon-green/10 hover:bg-neon-green/20 hover:border-neon-green/60',
-            )}
-          >
-            {isConnecting ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="inline-block animate-spin">◌</span>
-                {STATUS_LABEL[status]}
-              </span>
-            ) : listenOnly ? (
-              '👁 Listen'
-            ) : (
-              <>
-                {wantCamera ? '📷 ' : '🎙 '}
-                {defaultChannel === 'mafia' ? v.joinMafia : defaultChannel === 'yakuza' ? '⚔️ Join Yakuza Voice' : v.join}
-              </>
-            )}
-          </button>
-
-          {!listenOnly && (
-            <p className="text-[10px] text-white/20 font-mono text-center">
-              {v.joinHint.replace('{cam}', wantCamera ? v.andCamera : '')}
-            </p>
-          )}
+      {/* ── Pre-join: show connecting spinner while auto-joining, nothing otherwise ── */}
+      {!isInVoice && isConnecting && (
+        <div className="flex items-center gap-2 py-1">
+          <span className="inline-block animate-spin text-white/30">◌</span>
+          <span className="text-[11px] font-mono text-white/30">{STATUS_LABEL[status]}</span>
         </div>
       )}
 

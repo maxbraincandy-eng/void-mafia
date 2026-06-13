@@ -394,3 +394,17 @@ export function useVoiceChat() {
     setSpeakerOnly,
   };
 }
+
+/**
+ * Register a callback to be fired on the next user gesture (touchstart/click).
+ * Use this to trigger mic permission on iOS Safari, which requires a user gesture
+ * before getUserMedia() is allowed. No-ops if already in a voice session.
+ */
+export function registerVoiceGestureRetry(joinFn: () => void) {
+  if (_session) return;
+  const handler = () => {
+    if (!_session) joinFn();
+  };
+  document.addEventListener('touchstart', handler, { once: true, passive: true });
+  document.addEventListener('click', handler, { once: true });
+}

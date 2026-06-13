@@ -21,7 +21,7 @@ import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { RoomMoreMenu } from '@/components/ui/RoomMoreMenu';
 import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
-import { useVoiceChat, VoiceChannel } from '@/hooks/useVoiceChat';
+import { useVoiceChat, VoiceChannel, registerVoiceGestureRetry } from '@/hooks/useVoiceChat';
 import { useGameSounds, SFX } from '@/hooks/useSoundFX';
 import { useSettingsStore } from '@/store/settingsStore';
 import { PhaseTransition } from '@/components/game/PhaseTransition';
@@ -246,12 +246,10 @@ export function GamePage() {
     if (!room?.id || autoJoined.current || voice.channel) return;
     autoJoined.current = true;
     if (amSpectator) {
-      // Spectators auto-join as listen-only — no mic permission needed
       voice.joinVoiceListenOnly('room');
     } else {
-      // Attempt silent auto-join; fails gracefully on iOS Safari where
-      // navigator.permissions.query is unsupported or mic isn't pre-granted.
       voice.joinVoice(voiceChannel, false, true).catch(() => {});
+      registerVoiceGestureRetry(() => voice.joinVoice(voiceChannel, false, false));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id]);
