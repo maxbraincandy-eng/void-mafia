@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
 import { ok, err, } from './types/index.js';
 import { createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, addSpectatorPlayer, removePlayer, getPlayerBySocket, toPublicRoom, getHostPlayer, toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom, setPlayerAvatarUrl, enqueueForNextRound, dequeueFromNextRound, promoteQueuedPlayers, } from './services/roomService.js';
 import { startGame, setPhase, advancePhase, submitNightAction, submitVote, submitNomination, checkWin, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult, getTrackResult, resolveVotes, } from './services/gameService.js';
@@ -3057,7 +3058,7 @@ export function attachSocketHandlers(io) {
                     throw new Error('Game not active.');
                 await sql `
           INSERT INTO spectator_predictions (id, room_id, player_id, predicted, created_at)
-          VALUES (${crypto.randomUUID()}, ${parsed.data.roomId}, ${profileId}, ${parsed.data.predicted}, ${Date.now()})
+          VALUES (${randomUUID()}, ${parsed.data.roomId}, ${profileId}, ${parsed.data.predicted}, ${Date.now()})
           ON CONFLICT (room_id, player_id) DO UPDATE SET predicted = ${parsed.data.predicted}, created_at = ${Date.now()}
         `;
                 cb(ok(null));
@@ -3236,7 +3237,7 @@ export function attachSocketHandlers(io) {
                 if (!player)
                     throw new Error('Player not found.');
                 const msg = {
-                    id: crypto.randomUUID(),
+                    id: randomUUID(),
                     profileId,
                     username: player.username,
                     avatar: player.avatar,

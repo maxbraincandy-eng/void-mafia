@@ -1,5 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
 import {
   ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData,
   RoomPublic, ChatMessage, ok, err, Room, Player, Phase, GameSettings,
@@ -2874,7 +2875,7 @@ export function attachSocketHandlers(io: AppServer): void {
         if (room.phase === 'lobby' || room.phase === 'game_over') throw new Error('Game not active.');
         await sql`
           INSERT INTO spectator_predictions (id, room_id, player_id, predicted, created_at)
-          VALUES (${crypto.randomUUID()}, ${parsed.data.roomId}, ${profileId}, ${parsed.data.predicted}, ${Date.now()})
+          VALUES (${randomUUID()}, ${parsed.data.roomId}, ${profileId}, ${parsed.data.predicted}, ${Date.now()})
           ON CONFLICT (room_id, player_id) DO UPDATE SET predicted = ${parsed.data.predicted}, created_at = ${Date.now()}
         `;
         cb(ok(null));
@@ -3013,7 +3014,7 @@ export function attachSocketHandlers(io: AppServer): void {
         if (mute) throw new Error('You are muted.');
         if (!player) throw new Error('Player not found.');
         const msg: LobbyMsg = {
-          id: crypto.randomUUID(),
+          id: randomUUID(),
           profileId,
           username: player.username,
           avatar: player.avatar,
