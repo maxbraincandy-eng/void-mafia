@@ -14,7 +14,7 @@ import { RolePickerPanel } from '@/components/lobby/RolePickerPanel';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { RoomMoreMenu } from '@/components/ui/RoomMoreMenu';
 import { ModDashboardPage } from '@/pages/ModDashboardPage';
-import { useVoiceChat } from '@/hooks/useVoiceChat';
+import { useVoiceChat, registerVoiceGestureRetry } from '@/hooks/useVoiceChat';
 
 const SURFACE = 'rounded-2xl border border-white/[0.06]';
 const SURFACE_BG = { background: 'rgba(10, 6, 28, 0.92)' } as const;
@@ -60,13 +60,12 @@ export function LobbyPage() {
     if (!room?.id || autoJoined.current || voice.channel) return;
     autoJoined.current = true;
     if (amSpectator) {
-      // Spectators auto-join as listen-only — no mic permission needed
       voice.joinVoiceListenOnly('room');
     } else {
-      // Attempt silent auto-join; fails gracefully on iOS Safari where
-      // navigator.permissions.query is unsupported or mic isn't pre-granted.
-      // READY button acts as user-gesture fallback.
+      // Try immediately (works on Android / pre-granted). If it fails silently
+      // (iOS Safari, no pre-granted permission), wait for the first tap.
       voice.joinVoice('room', false, true).catch(() => {});
+      registerVoiceGestureRetry(() => voice.joinVoice('room', false, false));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id, amSpectator]);

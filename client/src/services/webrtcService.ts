@@ -81,6 +81,7 @@ export class WebRTCSession {
   private peers = new Map<string, PeerState>();
   private state: ConnectionState = 'disconnected';
   private listeners = new Set<Listener>();
+  private _visibilityHandler: (() => void) | null = null;
 
   /**
    * ICE candidates arriving before setRemoteDescription() are queued here
@@ -692,12 +693,14 @@ export class WebRTCSession {
     this.remoteStreams.clear();
     this.iceCandidateQueues.clear();
 
+    if (this._visibilityHandler) {
+      document.removeEventListener('visibilitychange', this._visibilityHandler);
+      this._visibilityHandler = null;
+    }
+
     for (const audio of this.audioEls.values()) {
       audio.srcObject = null;
-
-      try {
-        audio.remove();
-      } catch {}
+      try { audio.remove(); } catch {}
     }
 
     this.audioEls.clear();
@@ -765,6 +768,11 @@ export class WebRTCSession {
 
       document.body.appendChild(audio);
       this.audioEls.set(peerId, audio);
+
+      // Resume if the OS pauses the element in background (iOS Safari behaviour)
+      audio.addEventListener('pause', () => {
+        if (!audio!.ended) audio!.play().catch(() => {});
+      });
     }
 
     audio.srcObject = stream;
@@ -779,14 +787,23 @@ export class WebRTCSession {
           audio!.play().catch((err) => {
             log('remote audio retry failed for', peerId, err?.message ?? err);
           });
-
-          document.removeEventListener('click', retry);
-          document.removeEventListener('touchstart', retry);
         };
 
         document.addEventListener('click', retry, { once: true });
         document.addEventListener('touchstart', retry, { once: true });
       });
+    }
+
+    // Register a single shared visibility handler the first time we attach audio
+    if (!this._visibilityHandler) {
+      this._visibilityHandler = () => {
+        if (document.visibilityState === 'visible') {
+          for (const el of this.audioEls.values()) {
+            if (el.paused && !el.ended) el.play().catch(() => {});
+          }
+        }
+      };
+      document.addEventListener('visibilitychange', this._visibilityHandler);
     }
 
     this.startRemoteSpeakingDetection(peerId, stream);
