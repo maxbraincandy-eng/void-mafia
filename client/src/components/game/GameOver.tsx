@@ -6,6 +6,7 @@ import { useGameStore } from '@/store/gameStore';
 import { useT } from '@/store/langStore';
 import { ConfettiEffect } from './ConfettiEffect';
 import { XPToast } from '@/components/ui/XPToast';
+import { LevelMilestoneOverlay } from '@/components/ui/LevelMilestoneOverlay';
 
 type Phase = 'mafia_cinematic' | 'role_reveal' | 'highlights' | 'timeline';
 
@@ -813,6 +814,7 @@ export function GameOver({ result }: Props) {
       </AnimatePresence>
 
       <XPToast gain={xpGain} onDismiss={dismissXPGain} />
+      <LevelMilestoneOverlay gain={xpGain} onDismiss={dismissXPGain} />
     </motion.div>
   );
 }

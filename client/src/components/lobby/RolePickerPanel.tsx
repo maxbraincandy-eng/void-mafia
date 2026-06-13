@@ -450,6 +450,27 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
             ))}
           </div>
         </div>
+
+        <div>
+          <label className="text-[11px] font-mono text-white/40 block mb-1.5">Min players to start</label>
+          <div className="flex gap-2">
+            {[4, 5, 6, 7, 8, 10, 12].map(n => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => { setSaved(false); setLocal(s => ({ ...s, minPlayers: n })); }}
+                className={clsx(
+                  'flex-1 py-1.5 rounded-lg text-[10px] font-mono border transition-all',
+                  local.minPlayers === n
+                    ? 'border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan'
+                    : 'border-white/8 text-white/30 hover:text-white/60',
+                )}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* ── Tribunal Settings ─────────────────────────────────────────── */}

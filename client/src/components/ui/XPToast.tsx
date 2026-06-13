@@ -1,6 +1,9 @@
+import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { XPGain } from '@/types/index';
 import { MAX_LEVEL, xpForLevel, xpForNextLevel, LEVEL_TITLES } from '@/lib/level';
+
+const MILESTONE_LEVELS = new Set([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
 
 interface Props {
   gain: XPGain | null;
@@ -8,7 +11,16 @@ interface Props {
 }
 
 export function XPToast({ gain, onDismiss }: Props) {
-  if (!gain) return null;
+  // Milestone levels get the full-screen overlay; suppress toast for those
+  const isMilestone = gain?.leveledUp && LEVEL_TITLES[gain.newLevel] && MILESTONE_LEVELS.has(gain.newLevel);
+
+  useEffect(() => {
+    if (!gain || isMilestone) return;
+    const t = setTimeout(onDismiss, 5000);
+    return () => clearTimeout(t);
+  }, [gain, isMilestone, onDismiss]);
+
+  if (!gain || isMilestone) return null;
 
   const isMaxLevel = gain.newLevel >= MAX_LEVEL;
   const levelMin = xpForLevel(gain.newLevel);
