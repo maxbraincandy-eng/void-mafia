@@ -21,6 +21,7 @@ import { PlayerProfileModal } from '@/components/ui/PlayerProfileModal';
 import { DmPanel } from '@/components/social/DmPanel';
 import { GiftReceivedAnimation } from '@/components/ui/GiftReceivedAnimation';
 import { CoinShopModal } from '@/components/ui/CoinShopModal';
+import { ModAlertPanel } from '@/components/ui/ModAlertPanel';
 import { attachGlobalClickSounds, onSettingsChange } from '@/lib/audioEngine';
 import { useSettingsStore } from '@/store/settingsStore';
 import { socket } from '@/lib/socket';
@@ -374,6 +375,7 @@ export default function App() {
       <PlayerProfileModal playerId={profilePopupId} onClose={closeProfile} />
       <DmPanel />
       <DmToastNotification />
+      <ModAlertPanel />
       <GiftReceivedAnimation notification={giftNotif} onDismiss={() => setGiftNotif(null)} />
       <CoinShopModal open={shopOpen} onClose={() => setShopOpen(false)} profileId={profile?.id ?? ''} />
     </>

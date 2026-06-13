@@ -2,6 +2,14 @@ import { create } from 'zustand';
 import { socket } from '@/lib/socket';
 import type { LobbyMessage } from '@/types/index';
 
+export interface ModAlert {
+  id: string;
+  type: string;
+  message: string;
+  targetName?: string;
+  createdAt: number;
+}
+
 export interface DmToast {
   senderUserId: string;
   senderUsername: string;
@@ -40,6 +48,10 @@ interface SocialStore {
   lobbyChatUnread: number;
   clearLobbyChatUnread: () => void;
   lobbyMessages: LobbyMessage[];
+
+  // Mod alerts
+  modAlerts: ModAlert[];
+  dismissModAlert: (id: string) => void;
 }
 
 export const useSocialStore = create<SocialStore>((set, get) => {
@@ -82,6 +94,20 @@ export const useSocialStore = create<SocialStore>((set, get) => {
     set(s => ({ lobbyMessages: s.lobbyMessages.filter(m => m.id !== msgId) }));
   });
 
+  socket.on('mod:notification', (data: { type: string; message: string; targetName?: string }) => {
+    const alert: ModAlert = {
+      id: crypto.randomUUID(),
+      type: data.type,
+      message: data.message,
+      targetName: data.targetName,
+      createdAt: Date.now(),
+    };
+    set(s => ({ modAlerts: [...s.modAlerts.slice(-9), alert] }));
+    setTimeout(() => {
+      set(s => ({ modAlerts: s.modAlerts.filter(a => a.id !== alert.id) }));
+    }, 9000);
+  });
+
   return {
     profilePopupId: null,
     openProfile: (profileId) => set({ profilePopupId: profileId }),
@@ -112,5 +138,8 @@ export const useSocialStore = create<SocialStore>((set, get) => {
     lobbyChatUnread: 0,
     clearLobbyChatUnread: () => set({ lobbyChatUnread: 0 }),
     lobbyMessages: [],
+
+    modAlerts: [],
+    dismissModAlert: (id) => set(s => ({ modAlerts: s.modAlerts.filter(a => a.id !== id) })),
   };
 });
