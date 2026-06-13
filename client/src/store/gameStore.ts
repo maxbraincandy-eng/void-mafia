@@ -522,7 +522,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     joinRoom: async (code: string, name: string, isSpectator = false, password = '', joinMode?: 'player' | 'spectator' | 'next_round') => {
       set({ isLoading: true, error: null });
       try {
-        const room = await emit<RoomPublic>('room:join', { code, name, isSpectator, password, ...(joinMode ? { joinMode } : {}) });
+        // When joining as spectator without an explicit joinMode, tell the server
+        // "spectator" so it doesn't reject in-progress games with GAME_ALREADY_STARTED_CHOOSE_MODE
+        const effectiveJoinMode = joinMode ?? (isSpectator ? 'spectator' : undefined);
+        const room = await emit<RoomPublic>('room:join', { code, name, isSpectator, password, ...(effectiveJoinMode ? { joinMode: effectiveJoinMode } : {}) });
         const myPlayer = room.players.find(p => p.name === name)
           ?? room.nextRoundQueue?.find(p => p.name === name);
         const playerId = myPlayer?.id ?? null;

@@ -70,7 +70,7 @@ export function useGameSounds(): void {
 
   useEffect(() => {
     const count = room?.players.length ?? 0;
-    if (count > prevPlayersRef.current && prevPlayersRef.current > 0) SFX.join();
+    if (count > prevPlayersRef.current && prevPlayersRef.current > 0 && room?.phase !== 'role_reveal') SFX.join();
     prevPlayersRef.current = count;
   }, [room?.players.length]);
 }
