@@ -232,6 +232,7 @@ export interface GameSettings {
   password: string;
   startWithNight: boolean;
   rotatingSpeech: boolean;
+  hostSkipPrivilege?: boolean;
   trialDefense?: { enabled: boolean; secondsPerCandidate: number };
   dynamicEvents?: DynamicEventSettings;
   spectatorQueue?: SpectatorQueueSettings;

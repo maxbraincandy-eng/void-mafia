@@ -1420,6 +1420,15 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!host.isHost) throw new Error('Only the host can skip phases.');
         if (room.phase === 'lobby' || room.phase === 'game_over') throw new Error('Cannot skip this phase.');
 
+        // During speech phase: host can only skip another player's turn if hostSkipPrivilege is enabled.
+        if (room.phase === 'speech') {
+          const currentSpeakerId = room.speechOrder[room.currentSpeakerIdx ?? 0] ?? null;
+          const isOwnTurn = host.id === currentSpeakerId;
+          if (!isOwnTurn && !room.settings.hostSkipPrivilege) {
+            throw new Error('Host skip privilege is not enabled for this room.');
+          }
+        }
+
         timerService.stop(room.id);
         room.timer = 0;
 

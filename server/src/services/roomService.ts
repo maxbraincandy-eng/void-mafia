@@ -28,6 +28,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   password: '',
   startWithNight: false,
   rotatingSpeech: false,
+  hostSkipPrivilege: false,
   trialDefense: { enabled: false, secondsPerCandidate: 30 },
   dynamicEvents: DEFAULT_DYNAMIC_EVENTS,
   spectatorQueue: DEFAULT_SPECTATOR_QUEUE,

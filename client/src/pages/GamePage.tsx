@@ -1356,7 +1356,8 @@ export function GamePage() {
                 </span>
               )}
 
-              {amHost && phase !== 'role_reveal' && phase !== 'game_over' && phase !== 'lobby' && (
+              {amHost && phase !== 'role_reveal' && phase !== 'game_over' && phase !== 'lobby' &&
+               (phase !== 'speech' || room.settings.hostSkipPrivilege) && (
                 <Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>
                   <span className="hidden sm:inline">{t.game.header.skip} </span>⏭
                 </Button>
@@ -1383,8 +1384,9 @@ export function GamePage() {
         {/* ── Mobile phase action bar (flex-shrink-0 direct child of root flex-col) ── */}
         {!amSpectator && (() => {
           const isCurrentSpeaker = room.currentSpeakerId === myPlayer?.id;
+          const canHostSkipSpeaker = amHost && !isCurrentSpeaker && (room.settings.hostSkipPrivilege ?? false);
           const showDaySkip  = phase === 'day'    && amAlive;
-          const showSkipTime = phase === 'speech' && (amHost || (isCurrentSpeaker && amAlive));
+          const showSkipTime = phase === 'speech' && ((isCurrentSpeaker && amAlive) || canHostSkipSpeaker);
           const showFoul     = phase === 'speech' && amAlive && !isCurrentSpeaker;
           if (!showDaySkip && !showSkipTime && !showFoul) return null;
           const skipNeeded = Math.min(3, room.players.filter(p => p.isAlive && !p.isSpectator).length);
