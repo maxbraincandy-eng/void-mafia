@@ -106,8 +106,13 @@ async function resizeImage(file: File): Promise<string> {
 interface LinkedProvider { provider: string; email: string | null; displayName: string | null; }
 
 export function ProfilePage() {
-  const { profile, logout, localAvatar, uploadAvatar, removeAvatar, uid } = useAuthStore();
+  const { profile, logout, localAvatar, uploadAvatar, removeAvatar, uid, changeName } = useAuthStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [nameError, setNameError] = useState('');
+  const [nameSaving, setNameSaving] = useState(false);
   const [showRoleGuide, setShowRoleGuide] = useState(false);
   const [achievements, setAchievements] = useState<AchievementEarned[]>([]);
   const [history, setHistory]           = useState<GameHistoryEntry[]>([]);
@@ -127,6 +132,26 @@ export function ProfilePage() {
   const [showShare, setShowShare]   = useState(false);
   const [cosmeticsTab, setCosmeticsTab] = useState<'frames' | 'titles' | 'skins' | 'wallpapers' | 'borders' | 'colors'>('frames');
   const [equipLoading, setEquipLoading] = useState(false);
+
+  const startEditName = () => {
+    setNewName(profile?.username ?? '');
+    setNameError('');
+    setEditingName(true);
+    setTimeout(() => nameInputRef.current?.focus(), 50);
+  };
+
+  const cancelEditName = () => { setEditingName(false); setNameError(''); };
+
+  const saveName = async () => {
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === profile?.username) { cancelEditName(); return; }
+    if (trimmed.length < 2 || trimmed.length > 24) { setNameError('2–24 characters'); return; }
+    setNameSaving(true);
+    const res = await changeName(trimmed);
+    setNameSaving(false);
+    if (res.ok) { setEditingName(false); setNameError(''); }
+    else setNameError(res.error ?? 'Failed');
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -325,12 +350,39 @@ export function ProfilePage() {
 
             {/* Name + meta */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className={`font-display font-bold text-xl ${profile.isModerator ? 'text-neon-green' : 'text-white'}`}>
-                  {profile.username}
-                </h2>
-                {profile.isModerator && profile.moderatorBadgeVisible && <ModBadge level={profile.moderatorLevel} />}
-              </div>
+              {editingName ? (
+                <div className="flex items-center gap-2 mb-1">
+                  <input
+                    ref={nameInputRef}
+                    value={newName}
+                    onChange={e => setNewName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') cancelEditName(); }}
+                    maxLength={24}
+                    className="flex-1 min-w-0 bg-white/8 border border-neon-cyan/30 rounded-xl px-3 py-1.5 text-white font-display font-bold text-xl focus:outline-none focus:border-neon-cyan/60"
+                    style={{ fontSize: 20 }}
+                  />
+                  <button onClick={saveName} disabled={nameSaving}
+                    className="px-3 py-1.5 text-xs font-mono rounded-xl border border-neon-green/40 text-neon-green bg-neon-green/10 hover:bg-neon-green/20 disabled:opacity-40 transition-all whitespace-nowrap">
+                    {nameSaving ? '…' : '✓ Save'}
+                  </button>
+                  <button onClick={cancelEditName}
+                    className="px-2 py-1.5 text-xs font-mono rounded-xl border border-white/15 text-white/40 hover:text-white/70 transition-all">
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className={`font-display font-bold text-xl ${profile.isModerator ? 'text-neon-green' : 'text-white'}`}>
+                    {profile.username}
+                  </h2>
+                  {profile.isModerator && profile.moderatorBadgeVisible && <ModBadge level={profile.moderatorLevel} />}
+                  <button onClick={startEditName} title="Change username"
+                    className="text-white/25 hover:text-neon-cyan/70 transition-colors text-sm">
+                    ✎
+                  </button>
+                </div>
+              )}
+              {nameError && <p className="text-[10px] font-mono text-neon-red/80 mt-0.5">{nameError}</p>}
               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 {profile.publicId != null && (
                   <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded"

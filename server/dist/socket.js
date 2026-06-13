@@ -115,6 +115,8 @@ const hostGraceTimers = new Map();
 // their slot is freed. This is the same pattern used during active games.
 const LOBBY_GRACE_MS = 60000;
 const lobbyGraceTimers = new Map();
+const _lobbyChat = [];
+const MAX_LOBBY_CHAT = 200;
 function clearLobbyGrace(playerId) {
     const entry = lobbyGraceTimers.get(playerId);
     if (entry) {
@@ -3198,6 +3200,75 @@ export function attachSocketHandlers(io) {
                 }
                 const count = await getTotalUnread(profileId);
                 cb(ok(count));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Lobby Chat ────────────────────────────────────────────────────
+        socket.on('lobby:history', async (_data, cb) => {
+            try {
+                if (!socket.data.profileId)
+                    throw new Error('Not authenticated.');
+                cb(ok(_lobbyChat.slice(-50)));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('lobby:send', async ({ text }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const trimmed = (text ?? '').trim().slice(0, 200);
+                if (!trimmed)
+                    throw new Error('Empty message.');
+                const [ban, mute, player] = await Promise.all([
+                    getActiveBan(profileId),
+                    getActiveMute(profileId),
+                    getPlayer(profileId),
+                ]);
+                if (ban)
+                    throw new Error('You are banned.');
+                if (mute)
+                    throw new Error('You are muted.');
+                if (!player)
+                    throw new Error('Player not found.');
+                const msg = {
+                    id: crypto.randomUUID(),
+                    profileId,
+                    username: player.username,
+                    avatar: player.avatar,
+                    avatarUrl: player.avatarUrl ?? null,
+                    text: trimmed,
+                    level: player.level,
+                    nameColor: player.cosmetics?.equippedNameColor ?? null,
+                    createdAt: Date.now(),
+                };
+                _lobbyChat.push(msg);
+                if (_lobbyChat.length > MAX_LOBBY_CHAT)
+                    _lobbyChat.shift();
+                io.emit('lobby:message', msg);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('lobby:delete_msg', async ({ msgId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const player = await getPlayer(profileId);
+                if (!player?.isModerator)
+                    throw new Error('Moderator only.');
+                const idx = _lobbyChat.findIndex(m => m.id === msgId);
+                if (idx !== -1)
+                    _lobbyChat.splice(idx, 1);
+                io.emit('lobby:msg_deleted', { msgId });
+                cb(ok(null));
             }
             catch (e) {
                 cb(err(e.message));
