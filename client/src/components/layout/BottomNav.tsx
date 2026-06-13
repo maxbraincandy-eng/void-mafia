@@ -30,66 +30,86 @@ export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 bg-void/95 border-t border-white/5 backdrop-blur-xl"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      className="fixed bottom-0 left-0 right-0 z-50 backdrop-blur-2xl"
+      style={{
+        background: 'rgba(3,0,13,0.96)',
+        borderTop: '1px solid rgba(255,255,255,0.06)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        boxShadow: '0 -4px 32px rgba(0,0,0,0.6)',
+      }}
     >
-      <div className="flex items-center justify-around max-w-lg mx-auto relative">
+      <div className="flex items-stretch justify-around max-w-lg mx-auto relative">
         {visible.map(tab => {
           const isActive = active === tab.id;
           const isModeTab = tab.id === 'mod';
-          const activeColor = isModeTab ? 'text-neon-green' : 'text-neon-cyan';
-          const glowClass   = isModeTab ? 'text-glow-green' : 'text-glow-cyan';
-          const barClass    = isModeTab ? 'bg-neon-green' : 'bg-neon-cyan';
+          const activeColor = isModeTab ? '#00ff88' : '#00e5ff';
+          const inactiveColor = 'rgba(255,255,255,0.28)';
           return (
             <button
               key={tab.id}
               onClick={() => onChange(tab.id)}
-              className={clsx(
-                'flex flex-col items-center justify-center py-3 px-4 flex-1 transition-all duration-200',
-                isActive ? activeColor : 'text-white/25 hover:text-white/50',
-              )}
+              className="flex flex-col items-center justify-center flex-1 transition-all duration-150 active:scale-90"
+              style={{
+                minHeight: '56px',
+                paddingTop: '10px',
+                paddingBottom: '8px',
+                color: isActive ? activeColor : inactiveColor,
+              }}
             >
-              <span className={clsx('text-xl leading-none mb-1 transition-all', isActive && glowClass)}>
+              {/* Active pill indicator */}
+              <span
+                className="absolute top-0 w-8 h-0.5 rounded-full transition-all duration-200"
+                style={{
+                  background: isActive ? activeColor : 'transparent',
+                  boxShadow: isActive ? `0 0 10px ${activeColor}` : 'none',
+                }}
+              />
+              <span
+                className="text-xl leading-none mb-1.5 transition-all duration-150"
+                style={{ filter: isActive ? `drop-shadow(0 0 6px ${activeColor})` : 'none' }}
+              >
                 {tab.icon}
               </span>
-              <span className={clsx(
-                'text-[9px] font-mono tracking-wider uppercase',
-                isActive && isModeTab && 'font-bold',
-              )}>
+              <span className="text-[8px] font-mono tracking-widest uppercase leading-none">
                 {tab.label}
               </span>
-              {isActive && (
-                <span className={clsx('absolute bottom-0 w-8 h-0.5 rounded-full', barClass)} />
-              )}
             </button>
           );
         })}
 
-        {/* Messages — last position */}
+        {/* Messages */}
         <button
           onClick={onMessagesClick}
-          className={clsx(
-            'relative flex flex-col items-center justify-center py-3 px-4 flex-1 transition-all duration-200',
-            dmPanelOpen ? 'text-neon-pink' : 'text-white/25 hover:text-white/50',
-          )}
+          className="relative flex flex-col items-center justify-center flex-1 transition-all duration-150 active:scale-90"
+          style={{
+            minHeight: '56px',
+            paddingTop: '10px',
+            paddingBottom: '8px',
+            color: dmPanelOpen ? '#ff00cc' : 'rgba(255,255,255,0.28)',
+          }}
         >
-          <span className={clsx(
-            'leading-none mb-1 transition-all flex items-center justify-center',
-            dmPanelOpen && 'text-glow-pink',
-          )}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          <span
+            className="absolute top-0 w-8 h-0.5 rounded-full transition-all"
+            style={{
+              background: dmPanelOpen ? '#ff00cc' : 'transparent',
+              boxShadow: dmPanelOpen ? '0 0 10px #ff00cc' : 'none',
+            }}
+          />
+          <span
+            className="leading-none mb-1.5 flex items-center justify-center"
+            style={{ filter: dmPanelOpen ? 'drop-shadow(0 0 6px #ff00cc)' : 'none' }}
+          >
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
           </span>
-          <span className="text-[9px] font-mono tracking-wider uppercase">MSG</span>
+          <span className="text-[8px] font-mono tracking-widest uppercase leading-none">MSG</span>
           {unreadDmCount > 0 && (
-            <span className="absolute top-2 right-[18%] bg-neon-pink text-void text-[8px] font-bold rounded-full min-w-[14px] h-3.5 flex items-center justify-center px-0.5 leading-none">
+            <span className="absolute top-1.5 right-[14%] bg-neon-pink text-void text-[8px] font-bold rounded-full min-w-[15px] h-3.5 flex items-center justify-center px-0.5 leading-none"
+              style={{ boxShadow: '0 0 8px rgba(255,0,204,0.6)' }}>
               {unreadDmCount > 9 ? '9+' : unreadDmCount}
             </span>
-          )}
-          {dmPanelOpen && (
-            <span className="absolute bottom-0 w-8 h-0.5 rounded-full bg-neon-pink" />
           )}
         </button>
       </div>

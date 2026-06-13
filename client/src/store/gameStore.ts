@@ -97,36 +97,58 @@ interface GameStore {
 let toastCounter = 0;
 
 const SESSION_KEY = 'void-mafia-room-session';
+// Session expires after 4 hours so stale lobby sessions don't auto-rejoin
+const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
 
 function saveSession(room: RoomPublic, playerId: string): void {
   try {
     const player = room.players.find(p => p.id === playerId)
       ?? room.nextRoundQueue?.find(p => p.id === playerId);
     if (!player) return;
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+    localStorage.setItem(SESSION_KEY, JSON.stringify({
       code: room.code,
       playerId,
       playerName: player.name,
       isSpectator: player.isSpectator ?? false,
+      savedAt: Date.now(),
     }));
   } catch { /* ignore */ }
 }
 
 function clearSession(): void {
-  try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+  try { localStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+}
+
+/** Exported so App.tsx can detect a pending session on initial paint */
+export function hasPendingSession(): boolean {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return false;
+    const s = JSON.parse(raw) as { savedAt?: number };
+    if (s.savedAt && Date.now() - s.savedAt > SESSION_TTL_MS) {
+      localStorage.removeItem(SESSION_KEY);
+      return false;
+    }
+    return true;
+  } catch { return false; }
 }
 
 export const useGameStore = create<GameStore>((set, get) => {
   // ── Session restore after browser refresh ─────────────────────
   // Transport reconnects are handled by the socket 'connect' event below.
-  // Page refreshes lose in-memory state, so we wait for auth to complete
+  // Full page refreshes lose in-memory state; we wait for auth to complete
   // (vm:auth-ready fires from authStore after player:auth succeeds) then
-  // restore from sessionStorage.
+  // restore from localStorage.
   window.addEventListener('vm:auth-ready', () => {
     if (get().room) return; // already in room (transport reconnect already handled)
-    let saved: { code: string; playerId: string; playerName: string; isSpectator: boolean } | null = null;
-    try { saved = JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? 'null'); } catch { /* ignore */ }
+    let saved: { code: string; playerId: string; playerName: string; isSpectator: boolean; savedAt?: number } | null = null;
+    try { saved = JSON.parse(localStorage.getItem(SESSION_KEY) ?? 'null'); } catch { /* ignore */ }
     if (!saved) return;
+    // Discard expired sessions
+    if (saved.savedAt && Date.now() - saved.savedAt > SESSION_TTL_MS) {
+      clearSession();
+      return;
+    }
     set({ isReconnecting: true });
     emitWithAck<unknown, Res<RoomPublic>>('room:join', {
       code: saved.code,
@@ -139,11 +161,11 @@ export const useGameStore = create<GameStore>((set, get) => {
           ?? room.players.find(p => p.name === saved!.playerName)
           ?? room.nextRoundQueue?.find(p => p.id === saved!.playerId);
         set({ room, myPlayerId: myPlayer?.id ?? saved!.playerId, isReconnecting: false });
-        get().addToast('Reconnected ✓', 'success');
+        get().addToast('დაბრუნდი ✓', 'success');
       } else {
         clearSession();
         set({ isReconnecting: false });
-        get().addToast('Room closed while you were away', 'info');
+        // Silent — no toast for expired room; just land on rooms page
       }
     }).catch(() => { set({ isReconnecting: false }); });
   });

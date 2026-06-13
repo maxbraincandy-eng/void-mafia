@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useGameStore } from '@/store/gameStore';
+import { useGameStore, hasPendingSession } from '@/store/gameStore';
 import clsx from 'clsx';
 import { useAuthStore } from '@/store/authStore';
 import { useSocialStore } from '@/store/socialStore';
@@ -175,13 +175,65 @@ function ReconnectingOverlay() {
   );
 }
 
+function ResumingSplash() {
+  return (
+    <div
+      className="fixed inset-0 z-[500] flex flex-col items-center justify-center gap-5"
+      style={{ background: '#03000d' }}
+    >
+      {/* Ambient glow */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: 'radial-gradient(ellipse 70% 45% at 50% 50%, rgba(0,229,255,0.07) 0%, transparent 65%)' }}
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.85 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        className="relative flex flex-col items-center gap-4"
+      >
+        <div
+          className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl"
+          style={{
+            background: 'rgba(0,229,255,0.08)',
+            border: '1px solid rgba(0,229,255,0.2)',
+            boxShadow: '0 0 40px rgba(0,229,255,0.12)',
+          }}
+        >
+          ⬡
+        </div>
+        <p
+          className="font-display text-xl font-bold tracking-[0.2em] uppercase"
+          style={{ color: 'rgba(0,229,255,0.85)', textShadow: '0 0 20px rgba(0,229,255,0.4)' }}
+        >
+          VOID MAFIA
+        </p>
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-neon-cyan/60 animate-ping" />
+          <p className="font-mono text-xs tracking-[0.22em] uppercase text-white/35">
+            თამაშს უბრუნდები…
+          </p>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 function Screen({ publicProfileId, onClearPublicProfile, onOpenShop }: { publicProfileId: number | null; onClearPublicProfile: () => void; onOpenShop: () => void }) {
   const isAuthed = useAuthStore(s => s.isAuthed);
+  const isReconnecting = useGameStore(s => s.isReconnecting);
   const room = useGameStore(s => s.room);
 
   if (publicProfileId) {
     return <PublicProfilePage publicId={publicProfileId} onEnterApp={onClearPublicProfile} />;
   }
+
+  // Show a full-screen splash if we know there's a saved session and haven't restored it yet.
+  // This prevents flashing the login/rooms page during the reconnect handshake.
+  if (!room && isReconnecting && hasPendingSession()) {
+    return <ResumingSplash />;
+  }
+
   if (!isAuthed) return <LoginPage />;
   if (room) {
     if (room.phase === 'lobby') return <LobbyPage />;
