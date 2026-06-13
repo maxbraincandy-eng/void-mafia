@@ -37,33 +37,36 @@ export function LobbyChatPanel() {
 
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [sendError, setSendError] = useState('');
+  const loadedRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const loadHistory = useCallback(async () => {
-    if (loaded) return;
+    if (loadedRef.current) return;
+    loadedRef.current = true;
     try {
-      // Pass {} so emitWithAck sends (data, cb) — server handles both conventions
       const res = await emitWithAck<Record<string, never>, Res<LobbyMessage[]>>('lobby:history', {});
-      if (res.ok && res.data) {
+      if (res.ok && Array.isArray(res.data) && res.data.length > 0) {
         useSocialStore.setState(s => {
           const existing = new Set(s.lobbyMessages.map(m => m.id));
-          const fresh = (res.data as LobbyMessage[]).filter(m => !existing.has(m.id));
+          const fresh = res.data.filter(m => !existing.has(m.id));
           return { lobbyMessages: [...fresh, ...s.lobbyMessages].slice(-100) };
         });
       }
-    } catch {}
-    setLoaded(true);
-  }, [loaded]);
+    } catch {
+      loadedRef.current = false; // allow retry on error
+    }
+  }, []);
 
   useEffect(() => {
     if (lobbyChatOpen) {
       clearLobbyChatUnread();
       loadHistory();
+      setSendError('');
       setTimeout(() => inputRef.current?.focus(), 300);
     }
-  }, [lobbyChatOpen]);
+  }, [lobbyChatOpen, clearLobbyChatUnread, loadHistory]);
 
   useEffect(() => {
     if (lobbyChatOpen) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -73,10 +76,17 @@ export function LobbyChatPanel() {
     const trimmed = text.trim();
     if (!trimmed || sending) return;
     setSending(true);
-    setText('');
+    setSendError('');
     try {
-      await emitWithAck('lobby:send', { text: trimmed });
-    } catch {}
+      const res = await emitWithAck<{ text: string }, Res<null>>('lobby:send', { text: trimmed });
+      if (res.ok) {
+        setText('');
+      } else {
+        setSendError(res.error ?? 'Failed to send');
+      }
+    } catch {
+      setSendError('Connection error — try again');
+    }
     setSending(false);
   };
 
@@ -86,8 +96,11 @@ export function LobbyChatPanel() {
     } catch {}
   };
 
-  const handleKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
   const fmt = (ts: number) =>
@@ -179,12 +192,15 @@ export function LobbyChatPanel() {
 
             {/* Input */}
             <div className="px-4 pt-3 pb-4 border-t border-white/[0.06] shrink-0">
+              {sendError && (
+                <p className="text-neon-red/70 font-mono text-[10px] mb-1.5 px-1">{sendError}</p>
+              )}
               <div className="flex items-center gap-2">
                 <input
                   ref={inputRef}
                   type="text"
                   value={text}
-                  onChange={e => setText(e.target.value)}
+                  onChange={e => { setText(e.target.value); if (sendError) setSendError(''); }}
                   onKeyDown={handleKey}
                   maxLength={200}
                   placeholder="Message everyone…"
@@ -196,7 +212,7 @@ export function LobbyChatPanel() {
                   disabled={!text.trim() || sending}
                   className="w-10 h-10 rounded-xl flex items-center justify-center bg-neon-cyan/[0.12] text-neon-cyan/70 hover:bg-neon-cyan/[0.2] hover:text-neon-cyan disabled:opacity-30 disabled:cursor-not-allowed transition-all shrink-0"
                 >
-                  ↑
+                  {sending ? <span className="text-xs opacity-50">…</span> : '↑'}
                 </button>
               </div>
             </div>
