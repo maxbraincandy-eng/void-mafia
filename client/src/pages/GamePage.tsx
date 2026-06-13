@@ -742,8 +742,8 @@ export function GamePage() {
                 )}
               </div>
 
-              {/* Nomination panel — only for current speaker */}
-              {isMyTurn && (
+              {/* Nomination panel — only for current speaker, hidden on Day 1 */}
+              {isMyTurn && room.day > 1 && (
                 <div className="p-3 rounded-xl border border-neon-red/20 bg-neon-red/5 space-y-2">
                   <p className="text-[10px] font-mono text-neon-red/50 uppercase tracking-widest">
                     ⚖️ {t.game.speech.nominateLabel}
@@ -1731,7 +1731,7 @@ export function GamePage() {
                     const isMyTurn = room.currentSpeakerId === myPlayer?.id && amAlive;
                     const myNom = isMyTurn ? room.nominations?.[myPlayer!.id] : undefined;
                     const nominatedPlayer = myNom ? room.players.find(p => p.id === myNom) : null;
-                    if (!isMyTurn) return null;
+                    if (!isMyTurn || room.day <= 1) return null;
                     return (
                       <div className="rounded-2xl border border-neon-red/30 bg-neon-red/8 p-4 space-y-3">
                         <p className="text-[11px] font-mono text-neon-red/70 uppercase tracking-widest text-center">

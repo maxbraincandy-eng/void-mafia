@@ -61,10 +61,63 @@ export function onSettingsChange() {
   if (!musicEnabled && _musicRunning) stopMenuMusic();
 }
 
+// ── Background audio keepalive ────────────────────────────────────────
+// Prevents AudioContext from suspending when the browser tab is backgrounded.
+// Three-layer approach: silent looping buffer + statechange auto-resume + MediaSession.
+
+let _keepaliveInit = false;
+
+function attachKeepAlive(ctx: AudioContext) {
+  if (_keepaliveInit) return;
+  _keepaliveInit = true;
+
+  // Silent 2-second looping buffer keeps the audio graph "active"
+  // (tiny noise floor so the buffer isn't optimized away by the engine)
+  const frames = Math.ceil(ctx.sampleRate * 2);
+  const buf = ctx.createBuffer(1, frames, ctx.sampleRate);
+  const ch = buf.getChannelData(0);
+  for (let i = 0; i < frames; i++) ch[i] = (Math.random() * 2 - 1) * 0.00005;
+
+  const silentGain = ctx.createGain();
+  silentGain.gain.value = 0.00001; // ~-100 dB, inaudible
+  silentGain.connect(ctx.destination);
+
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+  src.connect(silentGain);
+  src.start();
+
+  // Auto-resume if the context is suspended (e.g. mid-session OS interruption)
+  ctx.addEventListener('statechange', () => {
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  });
+
+  // Resume when tab returns to foreground
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+  });
+
+  // Register as a media session so the OS treats this page as an audio player
+  // and won't silently discard its audio context in the background
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: 'Void Mafia',
+      artist: 'In-game audio',
+    });
+    navigator.mediaSession.setActionHandler('play', () => ctx.resume().catch(() => {}));
+    // Acknowledge pause without actually pausing — keeps session alive
+    navigator.mediaSession.setActionHandler('pause', () => {});
+  }
+}
+
 /** Must be called once after first user gesture */
 function resume(): Promise<void> {
   const ctx = boot();
-  return ctx.state === 'suspended' ? ctx.resume() : Promise.resolve();
+  const p = ctx.state === 'suspended' ? ctx.resume() : Promise.resolve();
+  return p.then(() => attachKeepAlive(ctx));
 }
 
 

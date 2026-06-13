@@ -64,13 +64,13 @@ export function useGameSounds(): void {
 
   useEffect(() => {
     const len = room?.chat.length ?? 0;
-    if (len > prevChatLenRef.current && prevChatLenRef.current > 0) SFX.ping();
+    if (len > prevChatLenRef.current && prevChatLenRef.current > 0 && room?.phase !== 'role_reveal') SFX.ping();
     prevChatLenRef.current = len;
   }, [room?.chat.length]);
 
   useEffect(() => {
     const count = room?.players.length ?? 0;
-    if (count > prevPlayersRef.current && prevPlayersRef.current > 0) SFX.join();
+    if (count > prevPlayersRef.current && prevPlayersRef.current > 0 && room?.phase !== 'role_reveal') SFX.join();
     prevPlayersRef.current = count;
   }, [room?.players.length]);
 }
