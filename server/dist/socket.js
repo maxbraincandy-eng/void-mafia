@@ -275,6 +275,28 @@ function startPhaseTimer(io, room) {
             announceSpeechEnd(io, room, nextPhase);
         if (nextPhase === 'night') {
             io.to(room.id).emit('game:notification', { title: 'Night Falls', body: 'Perform your night action.' });
+            // Push offline players
+            for (const p of room.players.values()) {
+                if (!p.socketId && p.profileId && p.isAlive && !p.isSpectator) {
+                    sendPushToUser(p.profileId, { title: '🌙 Night Falls', body: 'Return to the game — night action awaits.' }).catch(() => { });
+                }
+            }
+        }
+        if (nextPhase === 'voting') {
+            // Push offline players
+            for (const p of room.players.values()) {
+                if (!p.socketId && p.profileId && p.isAlive && !p.isSpectator) {
+                    sendPushToUser(p.profileId, { title: '⚖️ Voting Has Begun', body: 'Cast your vote now!' }).catch(() => { });
+                }
+            }
+        }
+        // Notify the next speaker if they're offline
+        if (nextPhase === 'speech' && room.speechOrder) {
+            const speakerId = room.speechOrder[room.currentSpeakerIdx ?? 0];
+            const speaker = speakerId ? room.players.get(speakerId) : null;
+            if (speaker && !speaker.socketId && speaker.profileId) {
+                sendPushToUser(speaker.profileId, { title: '🎙️ Your Turn to Speak', body: 'Come back — it is your turn!' }).catch(() => { });
+            }
         }
         announceActiveEvent(io, room);
         if (nextPhase === 'game_over')
@@ -327,6 +349,13 @@ async function emitGameOver(io, room) {
     for (const p of room.players.values()) {
         if (p.socketId)
             io.to(p.socketId).emit('game:over', result);
+        else if (p.profileId && !p.isSpectator) {
+            const won = room.winner && p.team === room.winner;
+            sendPushToUser(p.profileId, {
+                title: won ? '🏆 You Won!' : '💀 Game Over',
+                body: room.winner ? `${room.winner.charAt(0).toUpperCase() + room.winner.slice(1)} wins the game!` : 'The game has ended.',
+            }).catch(() => { });
+        }
         if (p.profileId && room.winner) {
             const won = p.team === room.winner;
             await addGameResult(p.profileId, won);
@@ -446,10 +475,11 @@ function announceNightResult(io, room) {
         for (const killed of room.killedLastNight) {
             const p = room.players.get(killed.id);
             broadcastSystemMsg(io, room, nightDeathMsg(killed.name, p?.role ?? null, killed.lastWill));
-            // The primary kill (killedLastNight[0]) gets final_words — enforceVoicePhaseRules will
-            // unmute them. Force-mute only secondary kills that die immediately.
             if (p?.socketId && killed.id !== room.deathSpeakerId) {
                 io.to(p.socketId).emit('voice:force-mute', { reason: 'You were eliminated.' });
+            }
+            if (!p?.socketId && p?.profileId) {
+                sendPushToUser(p.profileId, { title: '💀 You Were Eliminated', body: 'Come back to watch the rest of the game.' }).catch(() => { });
             }
         }
     }
