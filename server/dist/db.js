@@ -244,6 +244,18 @@ export async function initializeDatabase() {
       PRIMARY KEY (player_id, challenge_id, date_key)
     )
   `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS spectator_predictions (
+      id           TEXT PRIMARY KEY,
+      room_id      TEXT NOT NULL,
+      player_id    TEXT NOT NULL,
+      predicted    TEXT NOT NULL,
+      created_at   BIGINT NOT NULL,
+      correct      INTEGER,
+      xp_earned    INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(room_id, player_id)
+    )
+  `;
     // Social features — conversations & direct messages
     await sql `
     CREATE TABLE IF NOT EXISTS conversations (

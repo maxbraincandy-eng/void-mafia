@@ -21,7 +21,8 @@ export declare function clearMute(uid: string): Promise<void>;
 export declare function getWarnings(uid: string): Promise<Warning[]>;
 export declare function addWarning(uid: string, warning: Warning): Promise<void>;
 export declare function findSocketByProfile(io: import('socket.io').Server, profileId: string): import('socket.io').Socket | null;
-export declare const LEVEL_THRESHOLDS: number[];
+export declare const MAX_LEVEL = 100;
+export declare const LEVEL_THRESHOLDS: readonly number[];
 export declare function getLevel(xp: number): number;
 export declare function addXP(profileId: string, amount: number): Promise<{
     newXP: number;

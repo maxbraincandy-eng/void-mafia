@@ -16,10 +16,7 @@ import {
   getFrameById, getTitleById, getRoleSkinById, getWallpaperById, getBorderById,
 } from '@/constants/cosmetics';
 
-const LEVEL_THRESHOLDS = [0, 100, 250, 500, 900, 1400, 2100, 3000, 4100, 5400];
-function xpForLevel(level: number): number { return LEVEL_THRESHOLDS[level - 1] ?? 0; }
-function xpForNextLevel(level: number): number { return LEVEL_THRESHOLDS[level] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1]!; }
-function levelColor(level: number) { return level >= 8 ? '#facc15' : level >= 5 ? '#00e5ff' : '#9b00ff'; }
+import { MAX_LEVEL, xpForLevel, xpForNextLevel, levelColor } from '@/lib/level';
 
 const RARITY_GLOW: Record<string, string> = {
   common:    'rgba(255,255,255,0.12)',
@@ -377,9 +374,13 @@ export function ProfilePage() {
               <div className="h-full rounded-full transition-all duration-1000"
                 style={{ width: `${xpPct}%`, background: `linear-gradient(90deg, ${col}80, ${col})` }} />
             </div>
-            {level < 10 && (
+            {level < MAX_LEVEL ? (
               <p className="text-[9px] font-mono text-white/20 mt-1 text-right">
                 {xpMax - xp} XP to Level {level + 1}
+              </p>
+            ) : (
+              <p className="text-[9px] font-mono text-yellow-400/40 mt-1 text-right uppercase tracking-widest">
+                მაქსიმალური დონე
               </p>
             )}
           </div>

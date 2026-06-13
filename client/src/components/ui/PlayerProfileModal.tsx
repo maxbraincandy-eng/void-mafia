@@ -14,6 +14,7 @@ import { useGameStore } from '@/store/gameStore';
 import type { Res, PublicProfileFull, FriendshipStatus, PlayerRoleStats, ModeratorLevel, WarnCategory, ClanRole } from '@/types/index';
 import { getFrameById, getTitleById, getWallpaperById, getBorderById } from '@/constants/cosmetics';
 import type { ProfileCardData } from '@/components/ui/ProfileCard';
+import { MAX_LEVEL, xpForLevel, xpForNextLevel, levelColor } from '@/lib/level';
 
 const MOD_RANK: Record<ModeratorLevel, number> = { moderator: 0, senior_moderator: 1, admin: 2, owner: 3 };
 function modRank(lvl: ModeratorLevel | null | undefined) { return lvl ? (MOD_RANK[lvl] ?? -1) : -1; }
@@ -42,11 +43,6 @@ interface Props {
   playerId: string | null;
   onClose: () => void;
 }
-
-const LEVEL_THRESHOLDS = [0, 100, 250, 500, 900, 1400, 2100, 3000, 4100, 5400];
-function xpForLevel(level: number) { return LEVEL_THRESHOLDS[level - 1] ?? 0; }
-function xpForNextLevel(level: number) { return LEVEL_THRESHOLDS[level] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1]!; }
-function levelColor(level: number) { return level >= 8 ? '#facc15' : level >= 5 ? '#00e5ff' : '#9b00ff'; }
 
 function formatDate(ts: number | null | undefined) {
   if (!ts) return '—';
@@ -383,7 +379,10 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       {/* XP bar */}
                       <div className="mt-4">
                         <div className="flex justify-between items-center mb-1">
-                          <span className="font-mono text-[9px]" style={{ color: `${col}80` }}>XP {xp - xpMin} / {xpMax - xpMin}</span>
+                          {level >= MAX_LEVEL
+                            ? <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: '#facc1590' }}>მაქსიმალური დონე</span>
+                            : <span className="font-mono text-[9px]" style={{ color: `${col}80` }}>XP {xp - xpMin} / {xpMax - xpMin}</span>
+                          }
                           <span className="font-mono text-[9px]" style={{ color: `${col}80` }}>{xpPct}%</span>
                         </div>
                         <div className="h-1.5 rounded-full bg-white/6 overflow-hidden">

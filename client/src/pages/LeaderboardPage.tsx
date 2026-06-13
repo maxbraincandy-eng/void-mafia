@@ -7,18 +7,20 @@ import { ModBadge } from '@/components/ui/ModBadge';
 import { PlayerProfilePublic } from '@/types/index';
 import { emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
+import { MAX_LEVEL, xpForLevel, xpForNextLevel } from '@/lib/level';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 const MEDAL_BORDER = ['border-yellow-400/25', 'border-gray-400/15', 'border-amber-700/20'];
 const MEDAL_BG = ['bg-yellow-400/4', 'bg-white/3', 'bg-amber-900/5'];
 const MEDAL_TEXT = ['text-yellow-400', 'text-gray-300', 'text-amber-500'];
 
-const LEVEL_THRESHOLDS = [0, 100, 250, 500, 900, 1400, 2100, 3000, 4100, 5400];
-function xpForLevel(level: number) { return LEVEL_THRESHOLDS[level - 1] ?? 0; }
-function xpForNextLevel(level: number) { return LEVEL_THRESHOLDS[level] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1]!; }
 function levelPct(level: number, xp: number) {
+  if (level >= MAX_LEVEL) return 100;
   const min = xpForLevel(level), max = xpForNextLevel(level);
   return max > min ? Math.min(100, Math.round(((xp - min) / (max - min)) * 100)) : 100;
+}
+function levelColor(level: number) {
+  return level >= 80 ? 'text-yellow-400' : level >= 60 ? 'text-orange-400' : level >= 40 ? 'text-neon-cyan' : level >= 20 ? 'text-purple-400' : 'text-neon-purple/80';
 }
 
 interface GiftLeaderEntry {
@@ -294,13 +296,8 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
 
                 {/* Level */}
                 <div className="text-right shrink-0">
-                  <p className={clsx(
-                    'font-display font-bold text-base',
-                    (player.level ?? 1) >= 8 ? 'text-yellow-400'
-                      : (player.level ?? 1) >= 5 ? 'text-neon-cyan'
-                      : 'text-neon-purple/80',
-                  )}>
-                    Lv.{player.level ?? 1}
+                  <p className={clsx('font-display font-bold text-base', levelColor(player.level ?? 1))}>
+                    {(player.level ?? 1) >= MAX_LEVEL ? 'Lv.100 MAX' : `Lv.${player.level ?? 1}`}
                   </p>
                   <p className="text-white/25 font-mono text-[10px]">{player.stats.gamesPlayed}g · {player.stats.winRate}%</p>
                 </div>

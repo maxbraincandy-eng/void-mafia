@@ -1,14 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { XPGain } from '@/types/index';
-
-const LEVEL_THRESHOLDS = [0, 100, 250, 500, 900, 1400, 2100, 3000, 4100, 5400];
-
-function xpForLevel(level: number): number {
-  return LEVEL_THRESHOLDS[level - 1] ?? 0;
-}
-function xpForNextLevel(level: number): number {
-  return LEVEL_THRESHOLDS[level] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1];
-}
+import { MAX_LEVEL, xpForLevel, xpForNextLevel, LEVEL_TITLES } from '@/lib/level';
 
 interface Props {
   gain: XPGain | null;
@@ -18,9 +10,10 @@ interface Props {
 export function XPToast({ gain, onDismiss }: Props) {
   if (!gain) return null;
 
+  const isMaxLevel = gain.newLevel >= MAX_LEVEL;
   const levelMin = xpForLevel(gain.newLevel);
   const levelMax = xpForNextLevel(gain.newLevel);
-  const progress = levelMax > levelMin
+  const progress = isMaxLevel ? 1 : levelMax > levelMin
     ? Math.min(1, (gain.newXP - levelMin) / (levelMax - levelMin))
     : 1;
 
@@ -44,15 +37,22 @@ export function XPToast({ gain, onDismiss }: Props) {
         >
           <div className="p-4">
             {gain.leveledUp && (
-              <motion.p
+              <motion.div
                 initial={{ scale: 0.5, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.1, type: 'spring', stiffness: 400 }}
-                className="text-center font-display text-lg font-bold tracking-widest uppercase mb-2"
-                style={{ color: '#ffd700', textShadow: '0 0 20px rgba(255,215,0,0.6)' }}
+                className="text-center mb-2"
               >
-                🎉 LEVEL UP! → {gain.newLevel}
-              </motion.p>
+                <p className="font-display text-lg font-bold tracking-widest uppercase"
+                  style={{ color: '#ffd700', textShadow: '0 0 20px rgba(255,215,0,0.6)' }}>
+                  {gain.newLevel >= MAX_LEVEL ? '👑 VOID MASTER!' : `🎉 LEVEL UP! → ${gain.newLevel}`}
+                </p>
+                {LEVEL_TITLES[gain.newLevel] && (
+                  <p className="font-mono text-[10px] mt-0.5" style={{ color: 'rgba(255,215,0,0.6)' }}>
+                    {LEVEL_TITLES[gain.newLevel]!.ka}
+                  </p>
+                )}
+              </motion.div>
             )}
 
             <div className="flex items-center gap-3 mb-3">

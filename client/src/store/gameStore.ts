@@ -319,6 +319,14 @@ export const useGameStore = create<GameStore>((set, get) => {
     set({ xpGain: data });
   });
 
+  (socket as any).on('prediction:result', ({ correct, xpGained, winningTeam }: { correct: boolean; xpGained: number; winningTeam: string }) => {
+    if (correct) {
+      get().addToast(`🎯 პროგნოზი სწორი! +${xpGained} XP`, 'success');
+    } else {
+      get().addToast(`❌ პროგნოზი არ გამართლდა (${winningTeam} won)`, 'info');
+    }
+  });
+
   (socket as any).on('queue:position', ({ position }: { position: number }) => {
     set({ queuePosition: position });
     get().addToast(`You're #${position} in the spectate queue`, 'info');
