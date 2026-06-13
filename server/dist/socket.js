@@ -341,8 +341,9 @@ async function emitGameOver(io, room) {
         await recordGame(room);
     }
     catch { /* non-fatal */ }
-    // Release all voice mutes so players can freely talk after the game
+    // Release all voice mutes and reset voice state so players can freely talk after the game
     io.to(room.id).emit('voice:force-unmute');
+    io.to(room.id).emit('voice:reset');
     // Send game:notification push event
     io.to(room.id).emit('game:notification', {
         title: 'Game Over',

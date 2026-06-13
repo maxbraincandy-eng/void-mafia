@@ -13,6 +13,8 @@ interface VoiceControlsProps {
   channel: VoiceChannel | null;
   status: ConnectionState;
   isMuted: boolean;
+  /** True = mic is muted because of a phase/server rule, not user choice */
+  forceMuted?: boolean;
   cameraOn: boolean;
   isLocalSpeaking: boolean;
   peerCount: number;
@@ -20,6 +22,8 @@ interface VoiceControlsProps {
   muteLocked?: boolean;
   listenOnly?: boolean;
   ptt?: boolean;
+  /** Auto-recovery in progress */
+  isRefreshing?: boolean;
 
   onJoin: (channel: VoiceChannel, withCamera: boolean) => void;
   onLeave: () => void;
@@ -37,6 +41,7 @@ export function VoiceControls({
   channel,
   status,
   isMuted,
+  forceMuted = false,
   cameraOn,
   isLocalSpeaking,
   peerCount,
@@ -44,6 +49,7 @@ export function VoiceControls({
   muteLocked = false,
   listenOnly = false,
   ptt = false,
+  isRefreshing = false,
   onJoin,
   onLeave,
   onToggleMute,
@@ -84,6 +90,15 @@ export function VoiceControls({
     : '🎙 Room Voice'
   );
 
+  // Status label override for refreshing / phase-muted
+  const statusText = isRefreshing
+    ? v.reconnecting
+    : isInVoice && status === 'connected'
+      ? v.connectedLabel.replace('{label}', label).replace('{n}', String(peerCount + 1))
+      : STATUS_LABEL[status];
+
+  const statusColor = isRefreshing ? 'text-yellow-400' : STATUS_COLOR[status];
+
   return (
     <div className="rounded-2xl border border-white/10 bg-void-50/60 p-4 space-y-3">
 
@@ -91,10 +106,8 @@ export function VoiceControls({
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs font-display uppercase tracking-widest text-white/40">{v.title}</p>
-          <p className={clsx('text-xs font-mono mt-0.5 transition-colors', STATUS_COLOR[status])}>
-            {isInVoice && status === 'connected'
-              ? v.connectedLabel.replace('{label}', label).replace('{n}', String(peerCount + 1))
-              : STATUS_LABEL[status]}
+          <p className={clsx('text-xs font-mono mt-0.5 transition-colors', statusColor)}>
+            {statusText}
           </p>
         </div>
 
@@ -111,9 +124,24 @@ export function VoiceControls({
         )}
       </div>
 
+      {/* Refreshing indicator */}
+      <AnimatePresence>
+        {isRefreshing && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="flex items-center gap-2 py-1"
+          >
+            <span className="inline-block animate-spin text-yellow-400/60">◌</span>
+            <span className="text-[11px] font-mono text-white/40">{v.reconnecting}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Error message / permission guide */}
       <AnimatePresence>
-        {error && (
+        {error && !isRefreshing && (
           <motion.div
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
@@ -170,8 +198,8 @@ export function VoiceControls({
         )}
       </AnimatePresence>
 
-      {/* ── Pre-join: show connecting spinner while auto-joining, nothing otherwise ── */}
-      {!isInVoice && isConnecting && (
+      {/* ── Pre-join: show connecting spinner while auto-joining ── */}
+      {!isInVoice && isConnecting && !isRefreshing && (
         <div className="flex items-center gap-2 py-1">
           <span className="inline-block animate-spin text-white/30">◌</span>
           <span className="text-[11px] font-mono text-white/30">{STATUS_LABEL[status]}</span>
@@ -182,7 +210,7 @@ export function VoiceControls({
       {isInVoice && listenOnly && (
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs font-mono text-white/40">
-            👁 Listening • {peerCount} speaker{peerCount !== 1 ? 's' : ''}
+            👁 {v.listenOnly} · {peerCount} speaker{peerCount !== 1 ? 's' : ''}
           </p>
           <button
             onClick={onLeave}
@@ -230,18 +258,24 @@ export function VoiceControls({
               <button
                 onClick={muteLocked ? undefined : onToggleMute}
                 disabled={muteLocked}
-                title={muteLocked ? v.lockedTitle : undefined}
+                title={muteLocked ? v.lockedTitle : forceMuted ? v.phaseMuted : undefined}
                 className={clsx(
                   'flex-1 py-3 rounded-xl font-display font-bold tracking-widest text-sm uppercase',
                   'border transition-all duration-200',
-                  muteLocked
+                  muteLocked || forceMuted
                     ? 'border-white/10 text-white/25 bg-white/5 cursor-not-allowed'
                     : isMuted
                       ? 'border-neon-red/50 text-neon-red bg-neon-red/15 hover:bg-neon-red/25 active:scale-95'
                       : 'border-neon-green/40 text-neon-green bg-neon-green/10 hover:bg-neon-green/20 active:scale-95',
                 )}
               >
-                {muteLocked ? v.micLocked : isMuted ? v.muted : v.micOn}
+                {muteLocked
+                  ? v.micLocked
+                  : forceMuted
+                    ? v.phaseMuted
+                    : isMuted
+                      ? v.muted
+                      : v.micOn}
               </button>
 
               {!hideCamera && (
@@ -274,7 +308,12 @@ export function VoiceControls({
               {v.micLockedHint}
             </p>
           )}
-          {!ptt && !muteLocked && !cameraOn && (
+          {!ptt && !muteLocked && forceMuted && (
+            <p className="text-[10px] text-yellow-400/60 font-mono text-center">
+              {v.tapToRestore}
+            </p>
+          )}
+          {!ptt && !muteLocked && !forceMuted && !cameraOn && (
             <p className="text-[10px] text-white/20 font-mono text-center">
               {v.camHint}
             </p>

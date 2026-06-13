@@ -572,6 +572,7 @@ export function LobbyPage() {
               channel={voice.channel}
               status={voice.status}
               isMuted={voice.isMuted}
+              forceMuted={voice.forceMuted}
               cameraOn={voice.cameraOn}
               isLocalSpeaking={voice.isLocalSpeaking}
               peerCount={voice.peers.length}
@@ -579,6 +580,7 @@ export function LobbyPage() {
               listenOnly={voice.listenOnly || amSpectator}
               defaultChannel="room"
               hideCamera
+              isRefreshing={voice.isRefreshing}
               onJoin={amSpectator
                 ? () => voice.joinVoiceListenOnly('room')
                 : (ch, wc) => voice.joinVoice(ch, wc)}
