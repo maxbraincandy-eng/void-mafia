@@ -358,8 +358,8 @@ export function ProfilePage() {
                     onChange={e => setNewName(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') cancelEditName(); }}
                     maxLength={24}
-                    className="flex-1 min-w-0 border border-neon-cyan/30 rounded-xl px-3 py-1.5 font-display font-bold text-xl focus:outline-none focus:border-neon-cyan/60"
-                    style={{ fontSize: 20, background: 'rgba(0,229,255,0.06)', color: 'rgba(255,255,255,0.92)', caretColor: 'rgba(0,229,255,0.9)' }}
+                    placeholder="New username…"
+                    className="flex-1 min-w-0 bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-white placeholder-white/20 font-mono text-sm focus:outline-none focus:border-neon-cyan/50 transition-all"
                   />
                   <button onClick={saveName} disabled={nameSaving}
                     className="px-3 py-1.5 text-xs font-mono rounded-xl border border-neon-green/40 text-neon-green bg-neon-green/10 hover:bg-neon-green/20 disabled:opacity-40 transition-all whitespace-nowrap">
