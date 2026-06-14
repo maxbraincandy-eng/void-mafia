@@ -9,7 +9,7 @@ import { GiftGallery } from '@/components/ui/GiftGallery';
 import { ShareCardModal } from '@/components/ui/ShareCardModal';
 import type { ProfileCardData } from '@/components/ui/ProfileCard';
 import { emitWithAck, socket } from '@/lib/socket';
-import type { AchievementEarned, GameHistoryEntry, PlayerRoleStats, ClanMembership, Res, PlayerCosmetics, PlayerRating } from '@/types/index';
+import type { AchievementEarned, GameHistoryEntry, PlayerRoleStats, ClanMembership, Res, PlayerCosmetics, PlayerRating, SeasonResult } from '@/types/index';
 import { RatingBadge } from '@/components/ui/RatingBadge';
 import {
   FRAMES, TITLES, ROLE_SKINS, WALLPAPERS, BORDERS, NAME_COLORS,
@@ -137,6 +137,7 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
   const [buyingItem, setBuyingItem] = useState<string | null>(null);
   const [buyMsg, setBuyMsg] = useState<string | null>(null);
   const [rating, setRating] = useState<PlayerRating | null>(null);
+  const [seasonHistory, setSeasonHistory] = useState<SeasonResult[] | null>(null);
 
   const startEditName = () => {
     setNewName(profile?.username ?? '');
@@ -219,6 +220,14 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
     };
     socket.on('rated:elo_update' as any, onEloUpdate);
     return () => { socket.off('rated:elo_update' as any, onEloUpdate); };
+  }, [profile]);
+
+  // Season history
+  useEffect(() => {
+    if (!profile) return;
+    emitWithAck<null, Res<SeasonResult[]>>('season:my_history' as any).then(res => {
+      if (res.ok) setSeasonHistory(res.data);
+    }).catch(() => {});
   }, [profile]);
 
   const claimDaily = async () => {
@@ -998,6 +1007,43 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                 </div>
               </div>
             </>
+          )}
+        </motion.div>
+
+        {/* ── Season History ──────────────────────────────────────────── */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.068 }}
+          className="glass-panel rounded-2xl p-4 mb-3"
+          style={{ border: '1px solid rgba(0,229,255,0.15)', background: 'rgba(0,229,255,0.03)' }}>
+          <SectionHeader icon="🌀" title="Season History" />
+          {seasonHistory === null ? (
+            <p className="text-white/20 font-mono text-xs text-center py-2">Loading…</p>
+          ) : seasonHistory.length === 0 ? (
+            <div className="text-center py-2">
+              <p className="font-mono text-xs text-white/25">Play ranked games to earn season rewards</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {seasonHistory.map(sr => (
+                <div key={sr.seasonId} className="rounded-xl p-3 border border-white/6 bg-white/3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="font-display font-bold text-xs text-white/80 truncate pr-2">{sr.seasonName}</p>
+                    <span className="font-mono text-[10px] text-white/30 shrink-0">#{sr.finalRank}</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <RatingBadge tier={sr.finalTier as any} size="sm" showElo={false} />
+                    <span className="font-mono text-[10px] text-white/40">{sr.finalElo} ELO</span>
+                    {sr.rewardTitle && (
+                      <span className="font-mono text-[10px] text-neon-purple/70 border border-neon-purple/20 rounded-lg px-1.5 py-0.5">
+                        {sr.rewardTitle}
+                      </span>
+                    )}
+                    {sr.rewardCoins > 0 && (
+                      <span className="font-mono text-[10px] text-amber-400/70">+{sr.rewardCoins} 🪙</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </motion.div>
 

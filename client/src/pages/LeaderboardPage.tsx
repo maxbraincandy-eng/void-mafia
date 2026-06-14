@@ -64,6 +64,9 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
   const [rankedData, setRankedData] = useState<RankedEntry[]>([]);
   const [rankedLoading, setRankedLoading] = useState(false);
   const [rankedError, setRankedError] = useState<string | null>(null);
+  const [seasonData, setSeasonData] = useState<{ season: Season; entries: SeasonLeaderboardEntry[] } | null>(null);
+  const [seasonLoading, setSeasonLoading] = useState(false);
+  const [seasonError, setSeasonError] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -106,9 +109,27 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
     }
   };
 
+  const loadSeason = async () => {
+    setSeasonLoading(true);
+    setSeasonError(null);
+    try {
+      const sRes = await emitWithAck<null, Res<Season | null>>('season:current' as any);
+      if (!sRes.ok || !sRes.data) { setSeasonError('No active season.'); return; }
+      const season = sRes.data;
+      const lRes = await emitWithAck<{ seasonId: string }, Res<SeasonLeaderboardEntry[]>>('season:leaderboard' as any, { seasonId: season.id });
+      if (lRes.ok) setSeasonData({ season, entries: lRes.data });
+      else setSeasonError(lRes.error ?? 'Failed to load season leaderboard.');
+    } catch (e: any) {
+      setSeasonError(e.message ?? 'Failed to load season.');
+    } finally {
+      setSeasonLoading(false);
+    }
+  };
+
   useEffect(() => { load(); }, []);
   useEffect(() => { if (tab === 'gifts' && !giftData) loadGifts(); }, [tab]);
   useEffect(() => { if (tab === 'ranked' && rankedData.length === 0) loadRanked(); }, [tab]);
+  useEffect(() => { if (tab === 'season' && !seasonData) loadSeason(); }, [tab]);
 
   const top3 = players.slice(0, 3);
 
@@ -133,12 +154,12 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
           <div className="flex-1 min-w-0">
             <h2 className="font-display text-2xl font-bold text-neon-pink tracking-widest uppercase leading-none">ტოპი</h2>
             <p className="text-white/25 font-mono text-[10px] tracking-widest mt-0.5">
-              {tab === 'rankings' ? 'ALL PLAYERS · SORTED BY LEVEL' : tab === 'ranked' ? 'ELO RATING · RANKED MATCHES' : 'TOP GIFTERS & RECIPIENTS'}
+              {tab === 'rankings' ? 'ALL PLAYERS · SORTED BY LEVEL' : tab === 'ranked' ? 'ELO RATING · RANKED MATCHES' : tab === 'season' ? 'CURRENT SEASON · TOP 50' : 'TOP GIFTERS & RECIPIENTS'}
             </p>
           </div>
           <button
-            onClick={tab === 'rankings' ? load : tab === 'ranked' ? loadRanked : loadGifts}
-            disabled={tab === 'rankings' ? loading : tab === 'ranked' ? rankedLoading : giftLoading}
+            onClick={tab === 'rankings' ? load : tab === 'ranked' ? loadRanked : tab === 'season' ? loadSeason : loadGifts}
+            disabled={tab === 'rankings' ? loading : tab === 'ranked' ? rankedLoading : tab === 'season' ? seasonLoading : giftLoading}
             className="text-white/30 hover:text-white/60 transition-colors font-mono text-xs disabled:opacity-30 flex-shrink-0"
           >
             ↻
@@ -147,18 +168,20 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-5 p-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-          {([['rankings', '🏆 Levels'], ['ranked', '⚔️ Ranked'], ['gifts', '🎁 Gifts']] as const).map(([t, label]) => (
+          {([['rankings', '🏆 Levels'], ['ranked', '⚔️ Ranked'], ['season', '🌀 Season'], ['gifts', '🎁 Gifts']] as const).map(([t, label]) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={clsx(
-                'flex-1 py-2 rounded-lg font-mono text-xs uppercase tracking-widest transition-all',
+                'flex-1 py-2 rounded-lg font-mono text-[10px] uppercase tracking-widest transition-all',
                 tab === t
                   ? t === 'gifts'
                     ? 'bg-amber-400/10 text-amber-400 border border-amber-400/20'
                     : t === 'ranked'
                       ? 'bg-neon-purple/10 text-neon-purple border border-neon-purple/20'
-                      : 'bg-neon-pink/10 text-neon-pink border border-neon-pink/20'
+                      : t === 'season'
+                        ? 'bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/20'
+                        : 'bg-neon-pink/10 text-neon-pink border border-neon-pink/20'
                   : 'text-white/30 hover:text-white/50',
               )}
             >
@@ -258,6 +281,123 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
                     </motion.div>
                   );
                 })}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── Season tab ───────────────────────────────────────────────────── */}
+        {tab === 'season' && (
+          <>
+            {seasonLoading && (
+              <div className="flex items-center justify-center py-20">
+                <div className="text-center space-y-3">
+                  <div className="text-4xl animate-pulse">🌀</div>
+                  <p className="text-white/30 font-mono text-sm">Loading season…</p>
+                </div>
+              </div>
+            )}
+            {!seasonLoading && seasonError && (
+              <div className="glass-panel border border-neon-red/20 rounded-2xl p-6 text-center">
+                <p className="text-neon-red/70 font-mono text-sm">{seasonError}</p>
+                <button onClick={loadSeason} className="mt-3 text-xs text-white/40 hover:text-white/60 font-mono underline">
+                  Try again
+                </button>
+              </div>
+            )}
+            {!seasonLoading && !seasonError && seasonData && (
+              <div className="space-y-4">
+                {/* Season header */}
+                <div className="rounded-2xl p-4" style={{ background: 'linear-gradient(135deg, rgba(0,229,255,0.07), rgba(155,0,255,0.07))', border: '1px solid rgba(0,229,255,0.15)' }}>
+                  <p className="font-display font-bold text-base text-neon-cyan tracking-wide">{seasonData.season.name.toUpperCase()}</p>
+                  <p className="font-mono text-[10px] text-white/30 mt-0.5">
+                    Ends {new Date(seasonData.season.endAt).toLocaleDateString()}
+                    {' · '}{Math.max(0, Math.ceil((seasonData.season.endAt - Date.now()) / (1000 * 60 * 60 * 24)))} days remaining
+                  </p>
+                  {/* Reward preview */}
+                  <div className="mt-3 grid grid-cols-2 gap-1.5 text-[10px] font-mono">
+                    {[
+                      { label: 'Top 1', reward: '👑 5000 coins + Void Champion', color: 'text-yellow-400' },
+                      { label: 'Top 2-3', reward: '⚡ 2000 coins + Shadow Elite', color: 'text-gray-300' },
+                      { label: 'Top 4-10', reward: '🗡️ 1000 coins + Ranked Veteran', color: 'text-amber-500' },
+                      { label: 'Top 11-50', reward: '🪙 500 coins', color: 'text-white/50' },
+                    ].map(r => (
+                      <div key={r.label} className="rounded-xl px-2 py-1.5 border border-white/6 bg-white/3">
+                        <span className={`font-bold ${r.color}`}>{r.label} </span>
+                        <span className="text-white/40">{r.reward}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Season leaderboard */}
+                {seasonData.entries.length === 0 ? (
+                  <div className="glass-panel border border-neon-cyan/10 rounded-2xl p-10 text-center">
+                    <div className="text-5xl mb-4 opacity-30">🌀</div>
+                    <p className="text-white/30 font-mono text-sm">No ranked players yet.</p>
+                    <p className="text-white/15 font-mono text-xs mt-1">Complete 5 placement games to appear here!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {seasonData.entries.map((entry, i) => {
+                      const isTop3 = i < 3;
+                      const top3Borders = ['border-yellow-400/25', 'border-gray-400/15', 'border-amber-700/20'];
+                      const top3Bgs = ['bg-yellow-400/4', 'bg-white/3', 'bg-amber-900/5'];
+                      return (
+                        <motion.div
+                          key={entry.playerId}
+                          initial={{ opacity: 0, x: -16 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.05 + i * 0.03 }}
+                          onClick={() => openProfile(entry.playerId)}
+                          className={clsx(
+                            'flex items-center gap-3 p-3 rounded-2xl border transition-colors cursor-pointer active:scale-[0.98]',
+                            isTop3 ? `${top3Borders[i]} ${top3Bgs[i]} hover:bg-white/5` : 'border-white/5 bg-white/2 hover:bg-white/4',
+                          )}
+                        >
+                          {/* Rank */}
+                          <div className="w-8 text-center shrink-0">
+                            {isTop3 ? (
+                              <span className="text-xl">{MEDALS[i]}</span>
+                            ) : (
+                              <span className="text-white/20 font-mono text-sm font-bold">#{entry.rank}</span>
+                            )}
+                          </div>
+
+                          {/* Avatar */}
+                          <div
+                            className="w-9 h-9 rounded-full flex items-center justify-center text-base font-bold text-white shrink-0 overflow-hidden"
+                            style={i === 0
+                              ? { background: 'linear-gradient(135deg,#facc15,#d97706)', boxShadow: '0 0 14px rgba(250,204,21,0.4)' }
+                              : { background: 'linear-gradient(135deg, #9b00ff, #00f5ff)' }
+                            }
+                          >
+                            {entry.avatarUrl
+                              ? <img src={entry.avatarUrl} alt={entry.username || ''} className="w-full h-full object-cover rounded-full" />
+                              : (entry.username[0] ?? '?').toUpperCase()
+                            }
+                          </div>
+
+                          {/* Name + badge */}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-display font-semibold text-sm truncate text-white/70">
+                              {entry.username}
+                            </p>
+                            <div className="mt-0.5">
+                              <RatingBadge tier={entry.tier as RankTier} size="sm" showElo={false} />
+                            </div>
+                          </div>
+
+                          {/* ELO */}
+                          <div className="text-right shrink-0">
+                            <p className="font-display font-bold text-base text-neon-cyan">{entry.elo}</p>
+                            <p className="text-white/25 font-mono text-[10px]">ELO</p>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </>
