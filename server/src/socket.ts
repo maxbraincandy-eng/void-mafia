@@ -45,6 +45,9 @@ import {
   setClanMemberRole, addClanModLog, getClanModLogs,
 } from './services/clanService.js';
 import {
+  challengeClan, acceptWar, declineWar, recordWarGame, getActiveWar, getWarHistory,
+} from './services/clanWarService.js';
+import {
   canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer,
   warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, getBannedPlayers, logKick,
   addModNote, freezeAccount, unfreezeAccount, renamePlayer,
@@ -499,6 +502,58 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
         }
       }
     } catch { /* non-fatal */ }
+  }
+
+  // ── Clan War game recording ───────────────────────────────────────────
+  // If this room belongs to a clan and there's a winner, try to record the result
+  // in any active war between the hosting clan and the opponent clan.
+  if (room.clanId && room.winner) {
+    try {
+      // Collect profile IDs of players on the winning team
+      const winningProfileIds = [...room.players.values()]
+        .filter(p => !p.isSpectator && p.team === room.winner && p.profileId)
+        .map(p => p.profileId as string);
+
+      // Find which clans those winners belong to (including the room's own clan)
+      const winnerClanIds = new Set<string>();
+      for (const pid of winningProfileIds) {
+        const membership = await getClanMembershipByPlayer(pid).catch(() => null);
+        if (membership) winnerClanIds.add(membership.id);
+      }
+
+      // Only count the win if ALL winners are from one distinct clan
+      if (winnerClanIds.size === 1) {
+        const winnerClanId = [...winnerClanIds][0];
+
+        // Find the other clan: gather all loser profile IDs
+        const loserProfileIds = [...room.players.values()]
+          .filter(p => !p.isSpectator && p.team !== room.winner && p.profileId)
+          .map(p => p.profileId as string);
+
+        const loserClanIds = new Set<string>();
+        for (const pid of loserProfileIds) {
+          const membership = await getClanMembershipByPlayer(pid).catch(() => null);
+          if (membership) loserClanIds.add(membership.id);
+        }
+
+        if (loserClanIds.size === 1) {
+          const loserClanId = [...loserClanIds][0];
+          const updatedWar = await recordWarGame(room.id, winnerClanId, loserClanId).catch(() => null);
+          if (updatedWar) {
+            // Notify members of both clans
+            const eventName = updatedWar.status === 'completed' ? 'clan:war_ended' : 'clan:war_started';
+            for (const [, sock] of io.sockets.sockets) {
+              const sid = (sock.data as SocketData).profileId;
+              if (!sid) continue;
+              const m = await getClanMembershipByPlayer(sid).catch(() => null);
+              if (m && (m.id === updatedWar.challengerClanId || m.id === updatedWar.defenderClanId)) {
+                sock.emit(eventName as any, { war: updatedWar });
+              }
+            }
+          }
+        }
+      }
+    } catch { /* non-fatal — war recording never breaks game flow */ }
   }
 
   // Resolve spectator predictions
@@ -2561,6 +2616,92 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!validRoles.includes(membership.memberRole)) throw new Error('Only clan owner/admin can view mod logs.');
         const logs = await getClanModLogs(clanId);
         cb(ok(logs));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Clan Wars ─────────────────────────────────────────────────────
+
+    socket.on('clan:war_challenge', async ({ defenderClanId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+
+        const membership = await getClanMembershipByPlayer(profileId);
+        if (!membership) throw new Error('You are not in a clan.');
+        if (membership.memberRole !== 'owner' && membership.memberRole !== 'admin') {
+          throw new Error('Only clan owner or admin can issue war challenges.');
+        }
+
+        const war = await challengeClan(membership.id, defenderClanId);
+
+        // Notify all members of the defender clan
+        for (const [, sock] of io.sockets.sockets) {
+          const sid = (sock.data as SocketData).profileId;
+          if (!sid) continue;
+          const m = await getClanMembershipByPlayer(sid).catch(() => null);
+          if (m && m.id === defenderClanId) {
+            sock.emit('clan:war_challenged', { war });
+          }
+        }
+
+        cb(ok(war));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('clan:war_accept', async ({ warId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+
+        const membership = await getClanMembershipByPlayer(profileId);
+        if (!membership) throw new Error('You are not in a clan.');
+        if (membership.memberRole !== 'owner' && membership.memberRole !== 'admin') {
+          throw new Error('Only clan owner or admin can accept war challenges.');
+        }
+
+        const war = await acceptWar(warId, membership.id);
+
+        // Notify all members of both clans
+        for (const [, sock] of io.sockets.sockets) {
+          const sid = (sock.data as SocketData).profileId;
+          if (!sid) continue;
+          const m = await getClanMembershipByPlayer(sid).catch(() => null);
+          if (m && (m.id === war.challengerClanId || m.id === war.defenderClanId)) {
+            sock.emit('clan:war_started', { war });
+          }
+        }
+
+        cb(ok(war));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('clan:war_decline', async ({ warId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+
+        const membership = await getClanMembershipByPlayer(profileId);
+        if (!membership) throw new Error('You are not in a clan.');
+        if (membership.memberRole !== 'owner' && membership.memberRole !== 'admin') {
+          throw new Error('Only clan owner or admin can decline war challenges.');
+        }
+
+        const war = await declineWar(warId, membership.id);
+        cb(ok(war));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('clan:war_status', async ({ clanId }, cb) => {
+      try {
+        const war = await getActiveWar(clanId);
+        cb(ok(war));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('clan:war_history', async ({ clanId }, cb) => {
+      try {
+        const history = await getWarHistory(clanId, 10);
+        cb(ok(history));
       } catch (e: any) { cb(err(e.message)); }
     });
 

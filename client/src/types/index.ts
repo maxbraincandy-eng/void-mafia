@@ -621,6 +621,24 @@ export interface DirectMessage {
   readAt: number | null;
 }
 
+// ── Clan Wars ─────────────────────────────────────────────────────────────
+export type ClanWarStatus = 'pending' | 'active' | 'completed' | 'cancelled';
+
+export interface ClanWar {
+  id: string;
+  challengerClanId: string;
+  challengerClanName: string;
+  defenderClanId: string;
+  defenderClanName: string;
+  status: ClanWarStatus;
+  challengerWins: number;
+  defenderWins: number;
+  startedAt: number | null;
+  endsAt: number | null;
+  createdAt: number;
+  winnerClanId: string | null;
+}
+
 // ── Economy ───────────────────────────────────────────────────────────────
 
 export type GiftRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';

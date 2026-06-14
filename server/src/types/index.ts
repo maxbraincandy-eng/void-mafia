@@ -779,6 +779,10 @@ export interface ServerToClientEvents {
   'session:replaced':    (data: { reason: string }) => void;
   // Ranked ELO
   'rated:elo_update':    (data: { eloChange: number; newElo: number; tier: string }) => void;
+  // Clan Wars notifications
+  'clan:war_challenged': (data: { war: any }) => void;
+  'clan:war_started':    (data: { war: any }) => void;
+  'clan:war_ended':      (data: { war: any }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -937,6 +941,12 @@ export interface ClientToServerEvents {
   'owner:gift_update':      (data: { giftId: string; name?: string; description?: string; icon?: string; rarity?: string; stars?: number; price?: number; active?: boolean }, cb: Cb<any>) => void;
   'owner:gift_catalog_all': (cb: Cb<any[]>) => void;
   'owner:all_transactions': (cb: Cb<any[]>) => void;
+  // Clan Wars
+  'clan:war_challenge':  (data: { defenderClanId: string }, cb: Cb<any>) => void;
+  'clan:war_accept':     (data: { warId: string }, cb: Cb<any>) => void;
+  'clan:war_decline':    (data: { warId: string }, cb: Cb<any>) => void;
+  'clan:war_status':     (data: { clanId: string }, cb: Cb<any>) => void;
+  'clan:war_history':    (data: { clanId: string }, cb: Cb<any[]>) => void;
 }
 
 export interface InterServerEvents {}

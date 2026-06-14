@@ -554,6 +554,35 @@ export async function initializeDatabase(): Promise<void> {
     )
   `;
 
+  // ── Clan Wars ─────────────────────────────────────────────────────────
+  await sql`
+    CREATE TABLE IF NOT EXISTS clan_wars (
+      id                 TEXT PRIMARY KEY,
+      challenger_clan_id TEXT NOT NULL REFERENCES clans(id),
+      defender_clan_id   TEXT NOT NULL REFERENCES clans(id),
+      status             TEXT NOT NULL DEFAULT 'pending',
+      challenger_wins    INT  NOT NULL DEFAULT 0,
+      defender_wins      INT  NOT NULL DEFAULT 0,
+      started_at         BIGINT,
+      ends_at            BIGINT,
+      created_at         BIGINT NOT NULL,
+      winner_clan_id     TEXT REFERENCES clans(id)
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS clan_war_games (
+      id              TEXT PRIMARY KEY,
+      war_id          TEXT NOT NULL REFERENCES clan_wars(id),
+      game_id         TEXT NOT NULL,
+      winning_clan_id TEXT REFERENCES clans(id),
+      played_at       BIGINT NOT NULL
+    )
+  `;
+
+  await sql`CREATE INDEX IF NOT EXISTS idx_clan_wars_challenger ON clan_wars(challenger_clan_id, status)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_clan_wars_defender ON clan_wars(defender_clan_id, status)`;
+
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];
   console.log(`[Database] connected successfully`);

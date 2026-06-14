@@ -751,6 +751,15 @@ export interface ServerToClientEvents {
         newElo: number;
         tier: string;
     }) => void;
+    'clan:war_challenged': (data: {
+        war: any;
+    }) => void;
+    'clan:war_started': (data: {
+        war: any;
+    }) => void;
+    'clan:war_ended': (data: {
+        war: any;
+    }) => void;
 }
 export interface ClientToServerEvents {
     'player:auth': (data: {
@@ -1179,6 +1188,21 @@ export interface ClientToServerEvents {
     }, cb: Cb<any>) => void;
     'owner:gift_catalog_all': (cb: Cb<any[]>) => void;
     'owner:all_transactions': (cb: Cb<any[]>) => void;
+    'clan:war_challenge': (data: {
+        defenderClanId: string;
+    }, cb: Cb<any>) => void;
+    'clan:war_accept': (data: {
+        warId: string;
+    }, cb: Cb<any>) => void;
+    'clan:war_decline': (data: {
+        warId: string;
+    }, cb: Cb<any>) => void;
+    'clan:war_status': (data: {
+        clanId: string;
+    }, cb: Cb<any>) => void;
+    'clan:war_history': (data: {
+        clanId: string;
+    }, cb: Cb<any[]>) => void;
 }
 export interface InterServerEvents {
 }

@@ -4,11 +4,129 @@ import { useAuthStore } from '@/store/authStore';
 import { useSocialStore } from '@/store/socialStore';
 import { useT } from '@/store/langStore';
 import { emitWithAck } from '@/lib/socket';
-import { ClanPublic, ClanMember, ClanModLog, ClanRole } from '@/types/index';
+import { ClanPublic, ClanMember, ClanModLog, ClanRole, ClanWar } from '@/types/index';
 import { PoweredBy } from '@/components/ui/PoweredBy';
 import { ClanRoleBadge } from '@/components/ui/ClanRoleBadge';
+import { socket } from '@/lib/socket';
 
 type Res<T> = { ok: true; data: T } | { ok: false; error: string };
+
+// ── Clan War helpers ─────────────────────────────────────────────────────
+
+function formatCountdown(endsAt: number | null): string {
+  if (!endsAt) return '';
+  const diff = endsAt - Date.now();
+  if (diff <= 0) return 'Ended';
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff % 86400000) / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  if (d > 0) return `${d}d ${h}h left`;
+  if (h > 0) return `${h}h ${m}m left`;
+  return `${m}m left`;
+}
+
+function WarCard({ war, myClanId, onAccept, onDecline }: {
+  war: ClanWar;
+  myClanId: string | null;
+  onAccept?: (warId: string) => void;
+  onDecline?: (warId: string) => void;
+}) {
+  const isChallenger = war.challengerClanId === myClanId;
+  const myWins       = isChallenger ? war.challengerWins : war.defenderWins;
+  const theirWins    = isChallenger ? war.defenderWins : war.challengerWins;
+  const myName       = isChallenger ? war.challengerClanName : war.defenderClanName;
+  const theirName    = isChallenger ? war.defenderClanName : war.challengerClanName;
+  const won = war.status === 'completed' && war.winnerClanId === myClanId;
+  const lost = war.status === 'completed' && war.winnerClanId !== null && war.winnerClanId !== myClanId;
+
+  const borderColor = war.status === 'active'
+    ? 'rgba(0,255,136,0.25)'
+    : war.status === 'pending'
+      ? 'rgba(255,200,0,0.25)'
+      : won ? 'rgba(0,255,136,0.25)' : 'rgba(255,68,68,0.20)';
+
+  const bgColor = war.status === 'active'
+    ? 'rgba(0,255,136,0.04)'
+    : war.status === 'pending'
+      ? 'rgba(255,200,0,0.04)'
+      : won ? 'rgba(0,255,136,0.04)' : 'rgba(255,68,68,0.04)';
+
+  return (
+    <div
+      className="rounded-2xl border px-4 py-3 space-y-2"
+      style={{ borderColor, background: bgColor }}
+    >
+      {/* Status badge */}
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border"
+          style={
+            war.status === 'active' ? { color: '#00ff88', borderColor: 'rgba(0,255,136,0.3)', background: 'rgba(0,255,136,0.08)' }
+            : war.status === 'pending' ? { color: '#ffc800', borderColor: 'rgba(255,200,0,0.3)', background: 'rgba(255,200,0,0.08)' }
+            : won ? { color: '#00ff88', borderColor: 'rgba(0,255,136,0.3)', background: 'rgba(0,255,136,0.08)' }
+            : { color: '#ff4444', borderColor: 'rgba(255,68,68,0.3)', background: 'rgba(255,68,68,0.08)' }
+          }
+        >
+          {war.status === 'active' ? 'Active War'
+            : war.status === 'pending' ? (isChallenger ? 'Challenge Sent' : 'Incoming Challenge')
+            : won ? 'Victory' : war.status === 'cancelled' ? 'Cancelled' : 'Defeated'}
+        </span>
+        {war.status === 'active' && war.endsAt && (
+          <span className="font-mono text-[9px] text-white/35">{formatCountdown(war.endsAt)}</span>
+        )}
+        {war.status === 'completed' && (
+          <span className="font-mono text-[9px] text-white/30">
+            {new Date(war.createdAt).toLocaleDateString()}
+          </span>
+        )}
+      </div>
+
+      {/* Score */}
+      <div className="flex items-center justify-center gap-4 py-1">
+        <div className="text-center min-w-0 flex-1">
+          <p className="font-display font-bold text-white text-sm truncate">{myName}</p>
+          <p className="font-mono text-[9px] text-white/35">you</p>
+        </div>
+        <div className="text-center flex-shrink-0">
+          <p className="font-display font-bold text-2xl tracking-wider" style={{ color: '#00ff88' }}>
+            {myWins}
+            <span className="text-white/20 mx-1">–</span>
+            {theirWins}
+          </p>
+          {war.status === 'active' && (
+            <p className="font-mono text-[8px] text-white/25">first to 10 wins</p>
+          )}
+        </div>
+        <div className="text-center min-w-0 flex-1">
+          <p className="font-display font-bold text-white text-sm truncate">{theirName}</p>
+          <p className="font-mono text-[9px] text-white/35">enemy</p>
+        </div>
+      </div>
+
+      {/* Pending actions (incoming challenge) */}
+      {war.status === 'pending' && !isChallenger && onAccept && onDecline && (
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={() => onAccept(war.id)}
+            className="flex-1 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
+            style={{ background: 'rgba(0,255,136,0.15)', border: '1px solid rgba(0,255,136,0.35)', color: '#00ff88' }}
+          >
+            Accept
+          </button>
+          <button
+            onClick={() => onDecline(war.id)}
+            className="flex-1 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
+            style={{ background: 'rgba(255,68,68,0.1)', border: '1px solid rgba(255,68,68,0.3)', color: '#ff4444' }}
+          >
+            Decline
+          </button>
+        </div>
+      )}
+      {war.status === 'pending' && isChallenger && (
+        <p className="font-mono text-[9px] text-white/30 text-center pt-1">Waiting for response…</p>
+      )}
+    </div>
+  );
+}
 
 const RARITY_TAG: Record<string, string> = {
   owner:     'bg-yellow-400/15 text-yellow-300 border-yellow-400/30',
@@ -48,6 +166,16 @@ export function ClansPage() {
   const [imageError, setImageError]     = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Wars state ───────────────────────────────────────────────────
+  const [showWars, setShowWars]         = useState(false);
+  const [activeWar, setActiveWar]       = useState<ClanWar | null>(null);
+  const [warHistory, setWarHistory]     = useState<ClanWar[]>([]);
+  const [warsLoading, setWarsLoading]   = useState(false);
+  const [warError, setWarError]         = useState('');
+  const [showChallengeModal, setShowChallengeModal] = useState(false);
+  const [challengeInput, setChallengeInput] = useState('');
+  const [challengeLoading, setChallengeLoading] = useState(false);
+
   const loadAll = useCallback(async () => {
     setLoading(true);
     const [listRes, mineRes] = await Promise.all([
@@ -60,6 +188,87 @@ export function ClansPage() {
   }, [profile]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  // ── Wars loading ─────────────────────────────────────────────────
+  const loadWars = useCallback(async (clanId: string) => {
+    setWarsLoading(true);
+    const [statusRes, historyRes] = await Promise.all([
+      emitWithAck<{ clanId: string }, Res<ClanWar | null>>('clan:war_status', { clanId }),
+      emitWithAck<{ clanId: string }, Res<ClanWar[]>>('clan:war_history', { clanId }),
+    ]);
+    if (statusRes.ok) setActiveWar(statusRes.data);
+    if (historyRes.ok) setWarHistory(historyRes.data);
+    setWarsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (myClan) loadWars(myClan.id);
+  }, [myClan, loadWars]);
+
+  // ── War socket listeners ─────────────────────────────────────────
+  useEffect(() => {
+    function onWarChallenged(data: { war: ClanWar }) {
+      if (myClan && (data.war.defenderClanId === myClan.id || data.war.challengerClanId === myClan.id)) {
+        setActiveWar(data.war);
+      }
+    }
+    function onWarStarted(data: { war: ClanWar }) {
+      if (myClan && (data.war.defenderClanId === myClan.id || data.war.challengerClanId === myClan.id)) {
+        setActiveWar(data.war);
+      }
+    }
+    function onWarEnded(data: { war: ClanWar }) {
+      if (myClan && (data.war.defenderClanId === myClan.id || data.war.challengerClanId === myClan.id)) {
+        setActiveWar(null);
+        setWarHistory(prev => [data.war, ...prev.filter(w => w.id !== data.war.id)].slice(0, 10));
+      }
+    }
+    socket.on('clan:war_challenged' as any, onWarChallenged);
+    socket.on('clan:war_started' as any, onWarStarted);
+    socket.on('clan:war_ended' as any, onWarEnded);
+    return () => {
+      socket.off('clan:war_challenged' as any, onWarChallenged);
+      socket.off('clan:war_started' as any, onWarStarted);
+      socket.off('clan:war_ended' as any, onWarEnded);
+    };
+  }, [myClan]);
+
+  async function handleWarAccept(warId: string) {
+    setWarError('');
+    const res = await emitWithAck<{ warId: string }, Res<ClanWar>>('clan:war_accept', { warId });
+    if (!res.ok) { setWarError(res.error); return; }
+    setActiveWar(res.data);
+  }
+
+  async function handleWarDecline(warId: string) {
+    setWarError('');
+    const res = await emitWithAck<{ warId: string }, Res<ClanWar>>('clan:war_decline', { warId });
+    if (!res.ok) { setWarError(res.error); return; }
+    setActiveWar(null);
+    if (myClan) loadWars(myClan.id);
+  }
+
+  async function handleChallenge() {
+    if (!challengeInput.trim()) return;
+    setChallengeLoading(true);
+    setWarError('');
+    // challengeInput can be a clan ID or name — server handles by clan ID,
+    // so find clan by name first if needed
+    let defenderClanId = challengeInput.trim();
+    // Check if input looks like a name (not a UUID-like string) — look it up
+    const matchingClan = clans.find(c =>
+      c.name.toLowerCase() === defenderClanId.toLowerCase() ||
+      c.tag.toLowerCase() === defenderClanId.toLowerCase()
+    );
+    if (matchingClan) defenderClanId = matchingClan.id;
+
+    const res = await emitWithAck<{ defenderClanId: string }, Res<ClanWar>>('clan:war_challenge', { defenderClanId });
+    setChallengeLoading(false);
+    if (!res.ok) { setWarError(res.error); return; }
+    setActiveWar(res.data);
+    setShowChallengeModal(false);
+    setChallengeInput('');
+  }
 
   async function loadClanDetail(clan: ClanPublic) {
     setSelected(clan);
@@ -143,6 +352,7 @@ export function ClansPage() {
   const amInSelected = myClan?.id === selected?.id;
   const amInAnyClan  = !!myClan;
   const canManageRoles = myClanRole === 'owner' || myClanRole === 'admin';
+  const canManageWars = myClanRole === 'owner' || myClanRole === 'admin';
 
   return (
     <div className="min-h-screen bg-neon-grid-animated scanlines pb-20 relative overflow-hidden">
@@ -282,6 +492,146 @@ export function ClansPage() {
           </div>
         )}
       </div>
+
+      {/* ── Wars Section (visible when user is in a clan) ── */}
+      {myClan && (
+        <div className="relative z-10 max-w-lg mx-auto px-4 mt-6">
+          <div className="flex items-center justify-between mb-3">
+            <button
+              onClick={() => setShowWars(v => !v)}
+              className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.25em] text-white/30 hover:text-white/60 transition-colors"
+            >
+              <span style={{ color: showWars ? '#00ff88' : undefined }}>⚔</span>
+              Clan Wars
+              <span className="text-[8px]">{showWars ? '▲' : '▼'}</span>
+              {activeWar && (
+                <span className="ml-1 px-1.5 py-0.5 rounded-full text-[8px] font-mono"
+                  style={{
+                    background: activeWar.status === 'active' ? 'rgba(0,255,136,0.15)' : 'rgba(255,200,0,0.15)',
+                    color: activeWar.status === 'active' ? '#00ff88' : '#ffc800',
+                    border: `1px solid ${activeWar.status === 'active' ? 'rgba(0,255,136,0.3)' : 'rgba(255,200,0,0.3)'}`,
+                  }}
+                >
+                  {activeWar.status === 'active' ? 'LIVE' : 'PENDING'}
+                </span>
+              )}
+            </button>
+            {canManageWars && !activeWar && showWars && (
+              <button
+                onClick={() => setShowChallengeModal(true)}
+                className="font-mono text-[9px] uppercase tracking-wider px-3 py-1.5 rounded-xl transition-all active:scale-95"
+                style={{ background: 'rgba(0,255,136,0.1)', border: '1px solid rgba(0,255,136,0.3)', color: '#00ff88' }}
+              >
+                + Challenge
+              </button>
+            )}
+          </div>
+
+          <AnimatePresence>
+            {showWars && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                {warError && (
+                  <div className="mb-3 px-4 py-2 rounded-xl bg-neon-red/10 border border-neon-red/25 font-mono text-xs text-neon-red/80">
+                    {warError}
+                  </div>
+                )}
+
+                {warsLoading ? (
+                  <div className="flex justify-center py-6">
+                    <div className="w-5 h-5 border-2 border-neon-green/30 border-t-neon-green rounded-full animate-spin" />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {/* Active / pending war */}
+                    {activeWar ? (
+                      <WarCard
+                        war={activeWar}
+                        myClanId={myClan.id}
+                        onAccept={canManageWars ? handleWarAccept : undefined}
+                        onDecline={canManageWars ? handleWarDecline : undefined}
+                      />
+                    ) : (
+                      <div className="text-center py-4 font-mono text-xs text-white/20">
+                        No active war. {canManageWars ? 'Challenge a clan to start one.' : ''}
+                      </div>
+                    )}
+
+                    {/* History */}
+                    {warHistory.length > 0 && (
+                      <div>
+                        <p className="font-mono text-[9px] uppercase tracking-wider text-white/25 mb-2">
+                          War History — last {warHistory.length}
+                        </p>
+                        <div className="space-y-2">
+                          {warHistory.map(w => (
+                            <WarCard key={w.id} war={w} myClanId={myClan.id} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {/* Challenge Modal */}
+      <AnimatePresence>
+        {showChallengeModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
+            onClick={() => { setShowChallengeModal(false); setWarError(''); }}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-sm rounded-3xl border border-neon-green/25 bg-black/95 backdrop-blur-2xl p-6"
+              style={{ boxShadow: '0 0 60px rgba(0,255,136,0.1)' }}
+            >
+              <h3 className="font-display font-bold text-white text-xl mb-1">Challenge a Clan</h3>
+              <p className="font-mono text-[11px] text-white/35 mb-4">
+                Enter the clan name or tag to challenge them to a 7-day war. First to 10 wins takes the victory.
+              </p>
+              {warError && <p className="mb-3 text-xs text-neon-red/80 font-mono">{warError}</p>}
+              <input
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 font-mono text-sm text-white outline-none focus:border-neon-green/40 transition-colors mb-4"
+                placeholder="Clan name or tag..."
+                value={challengeInput}
+                onChange={e => setChallengeInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleChallenge(); }}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setShowChallengeModal(false); setWarError(''); setChallengeInput(''); }}
+                  className="flex-1 py-2.5 rounded-xl font-mono text-xs uppercase tracking-wider text-white/40 border border-white/10 transition-all active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleChallenge}
+                  disabled={!challengeInput.trim() || challengeLoading}
+                  className="flex-1 py-2.5 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-[0.98] disabled:opacity-40"
+                  style={{ background: 'rgba(0,255,136,0.15)', border: '1px solid rgba(0,255,136,0.35)', color: '#00ff88' }}
+                >
+                  {challengeLoading ? 'Sending…' : 'Challenge'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Clan detail panel */}
       <AnimatePresence>
