@@ -7,6 +7,7 @@ import { CoinHistoryModal } from '@/components/ui/CoinHistoryModal';
 import { HowToPlayModal } from '@/components/ui/HowToPlayModal';
 import { AchievementsModal } from '@/components/ui/AchievementsModal';
 import { SeasonPassModal } from '@/components/ui/SeasonPassModal';
+import { ReferralModal } from '@/components/ui/ReferralModal';
 
 interface MenuItem {
   icon: React.ReactNode;
@@ -83,6 +84,7 @@ export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onRepl
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [showAchievements, setShowAchievements] = useState(false);
   const [showSeasonPass, setShowSeasonPass] = useState(false);
+  const [showReferral, setShowReferral] = useState(false);
 
   const items: MenuItem[] = [
     {
@@ -138,6 +140,12 @@ export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onRepl
       description: 'Gifts, coins & transactions',
       onClick: () => { closeMoreMenu(); setTimeout(onEconomyClick, 250); },
     }] : []),
+    {
+      icon: <span className="text-base">🔗</span>,
+      label: 'Invite Friends',
+      description: 'Share your referral link, earn 250 coins',
+      onClick: () => { closeMoreMenu(); setTimeout(() => setShowReferral(true), 250); },
+    },
     {
       icon: <span className="text-base">📺</span>,
       label: 'Game Replays',
@@ -241,6 +249,7 @@ export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onRepl
     <HowToPlayModal open={showHowToPlay} onClose={() => setShowHowToPlay(false)} />
     <AchievementsModal open={showAchievements} onClose={() => setShowAchievements(false)} profileId={profileId} />
     <SeasonPassModal open={showSeasonPass} onClose={() => setShowSeasonPass(false)} />
+    <ReferralModal open={showReferral} onClose={() => setShowReferral(false)} />
     </>
   );
 }
