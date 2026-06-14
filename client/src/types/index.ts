@@ -799,6 +799,36 @@ export interface GameReplaySummary {
   createdAt: number;
 }
 
+// ── Season ────────────────────────────────────────────────────────────
+export interface Season {
+  id: string;
+  number: number;
+  name: string;
+  startAt: number;
+  endAt: number;
+  status: 'active' | 'completed';
+}
+
+export interface SeasonLeaderboardEntry {
+  rank: number;
+  playerId: string;
+  username: string;
+  avatarUrl: string | null;
+  elo: number;
+  tier: string;
+}
+
+export interface SeasonResult {
+  seasonId: string;
+  seasonName: string;
+  seasonNumber: number;
+  finalRank: number;
+  finalElo: number;
+  finalTier: string;
+  rewardTitle: string | null;
+  rewardCoins: number;
+}
+
 export interface GameReplayFull extends GameReplaySummary {
   events: ReplayEvent[];
   playerRoles: Record<string, { username: string; role: string; team: string; alive: boolean }>;

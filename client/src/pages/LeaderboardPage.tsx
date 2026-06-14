@@ -5,7 +5,7 @@ import { useGameStore } from '@/store/gameStore';
 import { useSocialStore } from '@/store/socialStore';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { RatingBadge } from '@/components/ui/RatingBadge';
-import { PlayerProfilePublic } from '@/types/index';
+import { PlayerProfilePublic, Season, SeasonLeaderboardEntry } from '@/types/index';
 import type { RankTier } from '@/types/index';
 import { emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
@@ -49,7 +49,7 @@ interface RankedEntry {
   tier: RankTier;
 }
 
-type Tab = 'rankings' | 'ranked' | 'gifts';
+type Tab = 'rankings' | 'ranked' | 'gifts' | 'season';
 
 export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
   const getLeaderboard = useGameStore(s => s.getLeaderboard);

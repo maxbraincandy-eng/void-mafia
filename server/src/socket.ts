@@ -80,6 +80,7 @@ import {
 } from './services/coinService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
+import { getActiveSeason, getSeasonLeaderboard, getMySeasonHistory } from './services/seasonService.js';
 import {
   startReplay, recordEvent, finishReplay, listReplays, getReplay, getMyReplays,
 } from './services/replayService.js';
@@ -3575,6 +3576,29 @@ export function attachSocketHandlers(io: AppServer): void {
       try {
         const data = await getRankedLeaderboard(50);
         cb(ok(data));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Season ──────────────────────────────────────────────────────
+    socket.on('season:current', async (cb: any) => {
+      try {
+        const season = await getActiveSeason();
+        cb(ok(season));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('season:leaderboard', async (data: any, cb: any) => {
+      try {
+        const entries = await getSeasonLeaderboard(data?.seasonId ?? '');
+        cb(ok(entries));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('season:my_history', async (cb: any) => {
+      try {
+        if (!socket.data.profileId) { cb(err('Not authenticated')); return; }
+        const history = await getMySeasonHistory(socket.data.profileId);
+        cb(ok(history));
       } catch (e: any) { cb(err(e.message)); }
     });
 

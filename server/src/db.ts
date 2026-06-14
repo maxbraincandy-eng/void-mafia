@@ -612,6 +612,50 @@ export async function initializeDatabase(): Promise<void> {
     )
   `;
 
+  // ── Season System ─────────────────────────────────────────────────────
+  await sql`
+    CREATE TABLE IF NOT EXISTS seasons (
+      id         TEXT PRIMARY KEY,
+      number     INT NOT NULL UNIQUE,
+      name       TEXT NOT NULL,
+      start_at   BIGINT NOT NULL,
+      end_at     BIGINT NOT NULL,
+      status     TEXT NOT NULL DEFAULT 'active',
+      created_at BIGINT NOT NULL
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS season_results (
+      id           TEXT PRIMARY KEY,
+      season_id    TEXT NOT NULL REFERENCES seasons(id),
+      player_id    TEXT NOT NULL REFERENCES players(id),
+      final_rank   INT NOT NULL,
+      final_elo    INT NOT NULL,
+      final_tier   TEXT NOT NULL,
+      reward_title TEXT,
+      reward_coins INT NOT NULL DEFAULT 0,
+      created_at   BIGINT NOT NULL,
+      UNIQUE(season_id, player_id)
+    )
+  `;
+
+  // Seed Season 1 if no seasons exist
+  const _now = Date.now();
+  await sql`
+    INSERT INTO seasons (id, number, name, start_at, end_at, status, created_at)
+    VALUES (
+      'season_1',
+      1,
+      'Season 1: Shadow Protocol',
+      ${_now},
+      ${_now + 90 * 24 * 60 * 60 * 1000},
+      'active',
+      ${_now}
+    )
+    ON CONFLICT (number) DO NOTHING
+  `;
+
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];
   console.log(`[Database] connected successfully`);

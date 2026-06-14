@@ -964,6 +964,10 @@ export interface ClientToServerEvents {
   'replay:list': (data: { limit?: number; offset?: number }, cb: Cb<GameReplaySummary[]>) => void;
   'replay:get':  (data: { replayId: string }, cb: Cb<GameReplayFull>) => void;
   'replay:my':   (cb: Cb<GameReplaySummary[]>) => void;
+  // Season
+  'season:current':     (cb: Cb<Season | null>) => void;
+  'season:leaderboard': (data: { seasonId: string }, cb: Cb<SeasonLeaderboardEntry[]>) => void;
+  'season:my_history':  (cb: Cb<SeasonResult[]>) => void;
   // Spectator Theater
   'spec:chat':              (data: { roomId: string; text: string }, cb: Cb<null>) => void;
   'spec:vote_suspect':      (data: { roomId: string; suspectedPlayerId: string }, cb: Cb<null>) => void;
@@ -999,6 +1003,36 @@ export interface GameReplaySummary {
 export interface GameReplayFull extends GameReplaySummary {
   events: ReplayEvent[];
   playerRoles: Record<string, { username: string; role: string; team: string; alive: boolean }>;
+}
+
+// ── Season ────────────────────────────────────────────────────────────
+export interface Season {
+  id: string;
+  number: number;
+  name: string;
+  startAt: number;
+  endAt: number;
+  status: 'active' | 'completed';
+}
+
+export interface SeasonLeaderboardEntry {
+  rank: number;
+  playerId: string;
+  username: string;
+  avatarUrl: string | null;
+  elo: number;
+  tier: string;
+}
+
+export interface SeasonResult {
+  seasonId: string;
+  seasonName: string;
+  seasonNumber: number;
+  finalRank: number;
+  finalElo: number;
+  finalTier: string;
+  rewardTitle: string | null;
+  rewardCoins: number;
 }
 
 // ── Result Envelope ───────────────────────────────────────────────────

@@ -1228,6 +1228,11 @@ export interface ClientToServerEvents {
         replayId: string;
     }, cb: Cb<GameReplayFull>) => void;
     'replay:my': (cb: Cb<GameReplaySummary[]>) => void;
+    'season:current': (cb: Cb<Season | null>) => void;
+    'season:leaderboard': (data: {
+        seasonId: string;
+    }, cb: Cb<SeasonLeaderboardEntry[]>) => void;
+    'season:my_history': (cb: Cb<SeasonResult[]>) => void;
     'spec:chat': (data: {
         roomId: string;
         text: string;
@@ -1270,6 +1275,32 @@ export interface GameReplayFull extends GameReplaySummary {
         team: string;
         alive: boolean;
     }>;
+}
+export interface Season {
+    id: string;
+    number: number;
+    name: string;
+    startAt: number;
+    endAt: number;
+    status: 'active' | 'completed';
+}
+export interface SeasonLeaderboardEntry {
+    rank: number;
+    playerId: string;
+    username: string;
+    avatarUrl: string | null;
+    elo: number;
+    tier: string;
+}
+export interface SeasonResult {
+    seasonId: string;
+    seasonName: string;
+    seasonNumber: number;
+    finalRank: number;
+    finalElo: number;
+    finalTier: string;
+    rewardTitle: string | null;
+    rewardCoins: number;
 }
 export type Res<T> = {
     ok: true;

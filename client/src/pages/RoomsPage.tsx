@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RoomListItem } from '@/types/index';
+import { RoomListItem, Season } from '@/types/index';
 import { useGameStore } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
 import { useSocialStore } from '@/store/socialStore';
@@ -12,6 +12,59 @@ import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { DailyChallengeCard } from '@/components/ui/DailyChallengeCard';
 import { NewsCard } from '@/components/ui/NewsCard';
 import { LobbyChatPanel } from '@/components/social/LobbyChatPanel';
+import { emitWithAck } from '@/lib/socket';
+import type { Res } from '@/types/index';
+
+function SeasonBanner() {
+  const [season, setSeason] = useState<Season | null>(null);
+
+  useEffect(() => {
+    emitWithAck<null, Res<Season | null>>('season:current' as any).then(res => {
+      if (res.ok && res.data) setSeason(res.data);
+    }).catch(() => {});
+  }, []);
+
+  if (!season) return null;
+
+  const now = Date.now();
+  const total = season.endAt - season.startAt;
+  const elapsed = Math.max(0, Math.min(total, now - season.startAt));
+  const pct = total > 0 ? Math.round((elapsed / total) * 100) : 0;
+  const daysLeft = Math.max(0, Math.ceil((season.endAt - now) / (1000 * 60 * 60 * 24)));
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mb-3 rounded-2xl overflow-hidden"
+      style={{
+        border: '1px solid rgba(155,0,255,0.25)',
+        background: 'linear-gradient(135deg, rgba(155,0,255,0.08) 0%, rgba(0,229,255,0.05) 100%)',
+      }}
+    >
+      <div className="px-3.5 py-2.5">
+        <div className="flex items-center justify-between mb-1.5">
+          <p className="font-display font-bold text-xs text-white/80 uppercase tracking-widest truncate pr-2">
+            {season.name.toUpperCase()}
+          </p>
+          <span className="flex-shrink-0 font-mono text-[10px] text-neon-cyan/70 bg-neon-cyan/8 border border-neon-cyan/15 rounded-lg px-2 py-0.5 whitespace-nowrap">
+            {daysLeft}d left
+          </span>
+        </div>
+        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
+          <div
+            className="h-full rounded-full transition-all duration-700"
+            style={{
+              width: `${pct}%`,
+              background: 'linear-gradient(90deg, rgba(155,0,255,0.9), rgba(0,229,255,0.9))',
+              boxShadow: '0 0 6px rgba(155,0,255,0.5)',
+            }}
+          />
+        </div>
+      </div>
+    </motion.div>
+  );
+}
 
 const SURFACE = 'rounded-2xl border border-white/[0.06]';
 const SURFACE_BG = { background: 'rgba(10, 6, 28, 0.92)' } as const;
@@ -164,6 +217,9 @@ export function RoomsPage() {
             </button>
           </div>
         </div>
+
+        {/* Season Banner */}
+        <SeasonBanner />
 
         {/* Daily challenge */}
         <DailyChallengeCard />

@@ -22,6 +22,7 @@ import { getOrCreateConversation, listConversations, sendMessage, getMessages, m
 import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, getGiftsSent, getGiftTimeline, getGiftStats, getPinnedGifts, pinGift, unpinGift, purchaseCosmeticItem, } from './services/coinService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
+import { getActiveSeason, getSeasonLeaderboard, getMySeasonHistory } from './services/seasonService.js';
 import { startReplay, recordEvent, finishReplay, listReplays, getReplay, getMyReplays, } from './services/replayService.js';
 // ── TURN / ICE server config ──────────────────────────────────────────
 // Centralised in server/src/lib/iceConfig.ts.  Reads Railway env vars:
@@ -3892,6 +3893,38 @@ export function attachSocketHandlers(io) {
             try {
                 const data = await getRankedLeaderboard(50);
                 cb(ok(data));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Season ──────────────────────────────────────────────────────
+        socket.on('season:current', async (cb) => {
+            try {
+                const season = await getActiveSeason();
+                cb(ok(season));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('season:leaderboard', async (data, cb) => {
+            try {
+                const entries = await getSeasonLeaderboard(data?.seasonId ?? '');
+                cb(ok(entries));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('season:my_history', async (cb) => {
+            try {
+                if (!socket.data.profileId) {
+                    cb(err('Not authenticated'));
+                    return;
+                }
+                const history = await getMySeasonHistory(socket.data.profileId);
+                cb(ok(history));
             }
             catch (e) {
                 cb(err(e.message));
