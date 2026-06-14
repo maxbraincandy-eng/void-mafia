@@ -3628,6 +3628,60 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    // ── Spectator Theater: Spec Chat ──────────────────────────────────────
+    socket.on('spec:chat', async (data: { roomId: string; text: string }, cb: any) => {
+      try {
+        if (!rateOk(socket.id, 10)) { cb(err('Rate limit.')); return; }
+        const room = getRoom(data.roomId);
+        if (!room) { cb(err('Room not found.')); return; }
+        const player = getPlayerBySocket(room, socket.id);
+        if (!player?.isSpectator) { cb(err('Only spectators can use spec chat.')); return; }
+        const text = (data.text ?? '').trim().slice(0, 200);
+        if (!text) { cb(err('Message is empty.')); return; }
+        const msg = {
+          id: randomUUID(),
+          senderId: player.profileId ?? player.id,
+          senderName: player.name,
+          text,
+          t: Date.now(),
+        };
+        io.to(`spec:${data.roomId}`).emit('spec:message', msg);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message ?? 'Error')); }
+    });
+
+    // ── Spectator Theater: Cast Suspicion Vote ─────────────────────────────
+    socket.on('spec:vote_suspect', async (data: { roomId: string; suspectedPlayerId: string }, cb: any) => {
+      try {
+        const room = getRoom(data.roomId);
+        if (!room) { cb(err('Room not found.')); return; }
+        const player = getPlayerBySocket(room, socket.id);
+        if (!player?.isSpectator) { cb(err('Only spectators can vote.')); return; }
+        if (room.phase === 'lobby' || room.phase === 'game_over') { cb(err('No active game.')); return; }
+        const suspect = room.players.get(data.suspectedPlayerId);
+        if (!suspect || suspect.isSpectator) { cb(err('Invalid suspect.')); return; }
+        const voterId = player.profileId ?? player.id;
+        const gameId = room.startedAt ? `${room.id}_${room.startedAt}` : room.id;
+        await sql`
+          INSERT INTO spectator_suspicion_votes (id, game_id, voter_id, suspected_player_id, created_at)
+          VALUES (${randomUUID()}, ${gameId}, ${voterId}, ${data.suspectedPlayerId}, ${Date.now()})
+          ON CONFLICT (game_id, voter_id) DO UPDATE SET suspected_player_id = EXCLUDED.suspected_player_id, created_at = EXCLUDED.created_at
+        `;
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message ?? 'Error')); }
+    });
+
+    // ── Spectator Theater: Get Suspicion Results ───────────────────────────
+    socket.on('spec:suspicion_results', async (data: { gameId: string }, cb: any) => {
+      try {
+        const votes = await sql`
+          SELECT voter_id, suspected_player_id FROM spectator_suspicion_votes
+          WHERE game_id = ${data.gameId}
+        `;
+        cb(ok(votes));
+      } catch (e: any) { cb(err(e.message ?? 'Error')); }
+    });
+
     // ── Disconnect ──────────────────────────────────────────────────
     socket.on('disconnect', () => {
       rateLimits.delete(socket.id);
