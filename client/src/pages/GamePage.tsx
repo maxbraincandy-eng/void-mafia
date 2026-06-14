@@ -1333,8 +1333,8 @@ export function GamePage() {
                 {t.game.ranks}
               </button>
 
-              {/* Pause button (host only, during active phases) */}
-              {amHost && phase !== 'role_reveal' && phase !== 'game_over' && phase !== 'lobby' && (
+              {/* Pause button (host only, when hostSkipPrivilege enabled) */}
+              {amHost && room.settings.hostSkipPrivilege && phase !== 'role_reveal' && phase !== 'game_over' && phase !== 'lobby' && (
                 <button
                   onClick={() => pauseTimer()}
                   disabled={isLoading}
@@ -1357,8 +1357,7 @@ export function GamePage() {
                 </span>
               )}
 
-              {amHost && phase !== 'role_reveal' && phase !== 'game_over' && phase !== 'lobby' &&
-               (phase !== 'speech' || room.settings.hostSkipPrivilege) && (
+              {amHost && room.settings.hostSkipPrivilege && phase !== 'role_reveal' && phase !== 'game_over' && phase !== 'lobby' && (
                 <Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>
                   <span className="hidden sm:inline">{t.game.header.skip} </span>⏭
                 </Button>
