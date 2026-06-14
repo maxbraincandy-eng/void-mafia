@@ -1185,6 +1185,7 @@ export function attachSocketHandlers(io: AppServer): void {
               player.moderatorLevel = playerProfile.moderatorLevel;
             }
             socket.join(room.id);
+            socket.join(`spec:${room.id}`);
             socket.data.playerId = player.id;
             socket.data.roomId = room.id;
             broadcastSystemMsg(io, room, `${player.name} joined as spectator.`);
@@ -1236,6 +1237,7 @@ export function attachSocketHandlers(io: AppServer): void {
         }
 
         socket.join(room.id);
+        if (player.isSpectator) socket.join(`spec:${room.id}`);
         socket.data.playerId = player.id;
         socket.data.roomId = room.id;
 
