@@ -215,24 +215,27 @@ export function GamePage() {
 
     if (cur === 'night' && isMafiaPlayer) {
       if (voice.channel === 'room') {
-        // Leave room and join mafia channel (PTT — start muted).
+        // Leave room and join mafia channel (PTT — start muted). Preserve camera state.
+        const hadCamera = voice.cameraOn;
         voice.leaveVoice();
-        setTimeout(() => voice.joinVoice('mafia', false, true, true).catch(() => {}), 400);
+        setTimeout(() => voice.joinVoice('mafia', hadCamera, true, true).catch(() => {}), 400);
       } else if (!voice.channel) {
         voice.joinVoice('mafia', false, true, true).catch(() => {});
       }
     } else if (cur === 'night' && isYakuzaPlayer) {
       if (voice.channel === 'room') {
+        const hadCamera = voice.cameraOn;
         voice.leaveVoice();
-        setTimeout(() => voice.joinVoice('yakuza', false, true).catch(() => {}), 400);
+        setTimeout(() => voice.joinVoice('yakuza', hadCamera, true).catch(() => {}), 400);
       } else if (!voice.channel) {
         voice.joinVoice('yakuza', false, true).catch(() => {});
       }
     } else if (prev === 'night' && cur !== 'night') {
       if ((isMafiaPlayer && voice.channel === 'mafia') || (isYakuzaPlayer && voice.channel === 'yakuza')) {
-        // Leave faction channel and switch back to room.
+        // Leave faction channel and switch back to room. Preserve camera state.
+        const hadCamera = voice.cameraOn;
         voice.leaveVoice();
-        setTimeout(() => voice.joinVoice('room', false, true).catch(() => {}), 400);
+        setTimeout(() => voice.joinVoice('room', hadCamera, true).catch(() => {}), 400);
       } else if (!voice.channel) {
         // Session was already destroyed (force-leave arrived first, or network drop).
         voice.joinVoice('room', false, true).catch(() => {});
