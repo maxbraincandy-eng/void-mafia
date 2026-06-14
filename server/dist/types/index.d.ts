@@ -210,6 +210,8 @@ export interface ChatMessage {
     isSystem: boolean;
     seat?: number;
     isMod?: boolean;
+    type?: 'text' | 'voice';
+    audioDuration?: number;
 }
 export interface DynamicEventAllowed {
     blackoutNight: boolean;
@@ -1099,6 +1101,11 @@ export interface ClientToServerEvents {
     'dm:delete': (data: {
         conversationId: string;
     }, cb: Cb<null>) => void;
+    'dm:voice': (data: {
+        conversationId: string;
+        audioData: string;
+        duration: number;
+    }, cb: Cb<any>) => void;
     'player:update_avatar': (data: {
         imageData: string;
     }, cb: (res: any) => void) => void;

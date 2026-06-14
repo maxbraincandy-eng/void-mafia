@@ -18,7 +18,7 @@ import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as 
 import { sql } from './db.js';
 import bcrypt from 'bcryptjs';
 import { sendPushToUser } from './pushService.js';
-import { getOrCreateConversation, listConversations, sendMessage, getMessages, markRead, getTotalUnread, } from './services/dmService.js';
+import { getOrCreateConversation, listConversations, sendMessage, sendVoiceDm, getMessages, markRead, getTotalUnread, } from './services/dmService.js';
 import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, getGiftsSent, getGiftTimeline, getGiftStats, getPinnedGifts, pinGift, unpinGift, purchaseCosmeticItem, } from './services/coinService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
@@ -1695,15 +1695,19 @@ export function attachSocketHandlers(io) {
                     io.to(presserMember.socketId).emit('voice:force-unmute');
                 }
                 // Expire the foul after 6 seconds and re-mute presser
+                const foulRoomId = room.id;
                 setTimeout(() => {
-                    if (room.activeFoul?.playerId === presser.id && room.activeFoul.endsAt === foulEndsAt) {
-                        room.activeFoul = null;
-                        if (room.phase === 'speech') {
-                            const member = voiceGetMembers(room.id, 'room').find(m => m.playerId === presser.id);
+                    const liveRoom = getRoom(foulRoomId);
+                    if (!liveRoom)
+                        return;
+                    if (liveRoom.activeFoul?.playerId === presser.id && liveRoom.activeFoul.endsAt === foulEndsAt) {
+                        liveRoom.activeFoul = null;
+                        if (liveRoom.phase === 'speech') {
+                            const member = voiceGetMembers(liveRoom.id, 'room').find(m => m.playerId === presser.id);
                             if (member) {
                                 io.to(member.socketId).emit('voice:force-mute', { reason: 'Foul window expired.' });
                             }
-                            broadcastRoom(io, room);
+                            broadcastRoom(io, liveRoom);
                         }
                     }
                 }, 6000);
@@ -3392,6 +3396,44 @@ export function attachSocketHandlers(io) {
                     sendPushToUser(receiverId, {
                         title: `💬 ${senderProfile?.username ?? 'Someone'}`,
                         body: text.trim().slice(0, 100),
+                    }).catch(() => { });
+                }
+                cb(ok(msg));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('dm:voice', async (data, cb) => {
+            try {
+                const senderId = socket.data.profileId;
+                if (!senderId)
+                    throw new Error('Not authenticated.');
+                if (!data.audioData?.startsWith('data:audio'))
+                    throw new Error('Invalid audio data.');
+                if (data.audioData.length > 2500000)
+                    throw new Error('Voice message too large.');
+                const [conv] = await sql `SELECT * FROM conversations WHERE id = ${data.conversationId}`;
+                if (!conv)
+                    throw new Error('Conversation not found.');
+                if (conv.participant1 !== senderId && conv.participant2 !== senderId)
+                    throw new Error('Not a participant.');
+                const receiverId = conv.participant1 === senderId ? conv.participant2 : conv.participant1;
+                const msg = await sendVoiceDm(data.conversationId, senderId, data.audioData, data.duration, receiverId);
+                const recipientSocket = findSocketByProfile(io, receiverId);
+                const senderProfile = await getPlayer(senderId);
+                if (recipientSocket) {
+                    recipientSocket.emit('dm:new_message', {
+                        conversationId: data.conversationId,
+                        message: msg,
+                        senderUsername: senderProfile?.username ?? 'Unknown',
+                        senderAvatar: senderProfile?.avatar ?? '?',
+                    });
+                }
+                else {
+                    sendPushToUser(receiverId, {
+                        title: `🎙 ${senderProfile?.username ?? 'Someone'}`,
+                        body: 'Sent you a voice message',
                     }).catch(() => { });
                 }
                 cb(ok(msg));

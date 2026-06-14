@@ -82,6 +82,24 @@ export async function sendMessage(conversationId, senderId, text, receiverId) {
     }
     return { id, conversationId, senderId, text, createdAt: now, readAt: null };
 }
+export async function sendVoiceDm(conversationId, senderId, audioData, audioDuration, receiverId) {
+    const id = generateId();
+    const now = Date.now();
+    await sql `
+    INSERT INTO direct_messages (id, conversation_id, sender_id, text, type, audio_duration, created_at)
+    VALUES (${id}, ${conversationId}, ${senderId}, ${audioData}, 'voice', ${audioDuration}, ${now})
+  `;
+    const [conv] = await sql `SELECT * FROM conversations WHERE id = ${conversationId}`;
+    const isParticipant1 = conv.participant1 === senderId;
+    const preview = '🎙 Voice message';
+    if (isParticipant1) {
+        await sql `UPDATE conversations SET last_message = ${preview}, last_message_at = ${now}, unread_by2 = 1 WHERE id = ${conversationId}`;
+    }
+    else {
+        await sql `UPDATE conversations SET last_message = ${preview}, last_message_at = ${now}, unread_by1 = 1 WHERE id = ${conversationId}`;
+    }
+    return { id, conversationId, senderId, text: audioData, type: 'voice', audioDuration, createdAt: now, readAt: null };
+}
 export async function getMessages(conversationId, limit = 50) {
     const rows = await sql `
     SELECT * FROM direct_messages WHERE conversation_id = ${conversationId}
@@ -89,7 +107,10 @@ export async function getMessages(conversationId, limit = 50) {
   `;
     return rows.reverse().map((r) => ({
         id: r.id, conversationId: r.conversation_id, senderId: r.sender_id,
-        text: r.text, createdAt: Number(r.created_at),
+        text: r.text,
+        type: (r.type === 'voice' ? 'voice' : 'text'),
+        audioDuration: r.audio_duration ? Number(r.audio_duration) : undefined,
+        createdAt: Number(r.created_at),
         readAt: r.read_at ? Number(r.read_at) : null,
     }));
 }

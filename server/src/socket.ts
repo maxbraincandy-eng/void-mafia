@@ -1939,52 +1939,6 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
-    // ── Voice Message ────────────────────────────────────────────────
-    socket.on('chat:voice', async (data: { audioData: string; duration: number; channel: ChatChannel }, cb: any) => {
-      try {
-        const room = getRoomFromSocket(socket);
-        const player = getPlayerOrError(socket, room);
-        const profileId = socket.data.profileId;
-
-        if (profileId) {
-          const mute = await getActiveMute(profileId);
-          if (mute) throw new Error('You are muted.');
-        }
-
-        const validationError = validateChat(room, player, data.channel);
-        if (validationError) throw new Error(validationError);
-
-        if (!data.audioData || typeof data.audioData !== 'string') throw new Error('Invalid audio data.');
-        if (data.audioData.length > 2_500_000) throw new Error('Voice message too large (max ~30s).');
-        const duration = Math.max(0, Math.min(Number(data.duration) || 0, 60));
-
-        const profile = profileId ? await getPlayer(profileId) : null;
-        const msg = createPlayerMessage(player, data.audioData, data.channel, profile?.isModerator ?? false, {
-          type: 'voice',
-          audioDuration: duration,
-        });
-        addMessage(room, msg);
-
-        if (data.channel === 'mafia') {
-          for (const p of room.players.values()) {
-            if (p.team === 'mafia' && p.socketId) io.to(p.socketId).emit('chat:new', msg);
-          }
-        } else if (data.channel === 'dead') {
-          for (const p of room.players.values()) {
-            if (!p.isAlive && !p.isSpectator && p.socketId) io.to(p.socketId).emit('chat:new', msg);
-          }
-        } else if (data.channel === 'spectator') {
-          for (const p of room.players.values()) {
-            if (p.isSpectator && p.socketId) io.to(p.socketId).emit('chat:new', msg);
-          }
-        } else {
-          io.to(room.id).emit('chat:new', msg);
-        }
-
-        cb(ok(null));
-      } catch (e: any) { cb(err(e.message)); }
-    });
-
     // ── Mod: Kick from room ──────────────────────────────────────────
     socket.on('mod:kick_from_room', async ({ targetProfileId, roomId, reason }, cb) => {
       try {

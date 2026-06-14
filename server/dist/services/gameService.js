@@ -553,6 +553,8 @@ export function getInvestigationResult(room, actor) {
     // Blackout Night: no investigation result returned
     if (room.activeEvent?.key === 'blackout_night')
         return null;
+    if (!target.role)
+        return null;
     // Sheriff Fog: 40% chance of incorrect result
     let correct = isSuspiciousToSheriff(target.role);
     if (room.activeEvent?.key === 'sheriff_fog' && Math.random() < 0.4) {

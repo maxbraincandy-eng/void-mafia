@@ -924,6 +924,7 @@ export interface ClientToServerEvents {
   'dm:mark_read':          (data: { conversationId: string }, cb: Cb<null>) => void;
   'dm:unread_count':       (data: Record<string, never>, cb: Cb<number>) => void;
   'dm:delete':             (data: { conversationId: string }, cb: Cb<null>) => void;
+  'dm:voice':              (data: { conversationId: string; audioData: string; duration: number }, cb: Cb<any>) => void;
   // Avatar
   'player:update_avatar':  (data: { imageData: string }, cb: (res: any) => void) => void;
   'player:remove_avatar':  (cb: (res: any) => void) => void;

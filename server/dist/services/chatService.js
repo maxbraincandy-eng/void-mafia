@@ -1,15 +1,17 @@
 import { generateMsgId } from '../utils/helpers.js';
-export function createPlayerMessage(sender, text, channel, isMod = false) {
+export function createPlayerMessage(sender, text, channel, isMod = false, extra) {
     return {
         id: generateMsgId(),
         senderId: sender.id,
         senderName: sender.name,
-        text: text.trim().slice(0, 400),
+        text: text.trim().slice(0, extra?.type === 'voice' ? 2000000 : 400),
         timestamp: Date.now(),
         channel,
         isSystem: false,
         seat: sender.seat,
         isMod,
+        type: extra?.type ?? 'text',
+        audioDuration: extra?.audioDuration,
     };
 }
 export function createSystemMessage(text, channel = 'room') {

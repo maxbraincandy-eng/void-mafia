@@ -5,7 +5,7 @@ import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import type { DmConversation, DirectMessage, Res } from '@/types/index';
 
-const MAX_VOICE_SECONDS = 60;
+const MAX_VOICE_SECONDS = 30;
 
 function formatDuration(s: number) {
   const sec = Math.floor(s);
@@ -250,22 +250,27 @@ export function DmPanel() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Keep a ref so voice recorder callback always has the latest conversationId
+  const activeConvIdRef = useRef<string | null>(null);
+  useEffect(() => { activeConvIdRef.current = activeConvId; }, [activeConvId]);
+
   const handleVoiceComplete = useCallback(async (dataUrl: string, duration: number) => {
-    if (!activeConvId || sending) return;
+    const convId = activeConvIdRef.current;
+    if (!convId) return;
     setSending(true);
     try {
       const res = await emitWithAck<{ conversationId: string; audioData: string; duration: number }, Res<DirectMessage>>(
-        'dm:voice', { conversationId: activeConvId, audioData: dataUrl, duration }
+        'dm:voice', { conversationId: convId, audioData: dataUrl, duration }
       );
       if (res.ok) {
         setMessages(prev => [...prev, res.data]);
         setConversations(prev => prev.map(c =>
-          c.id === activeConvId ? { ...c, lastMessage: '🎙 Voice message', lastMessageAt: res.data.createdAt } : c
+          c.id === convId ? { ...c, lastMessage: '🎙 Voice message', lastMessageAt: res.data.createdAt } : c
         ));
       }
     } catch {}
     finally { setSending(false); }
-  }, [activeConvId, sending]);
+  }, []); // stable — reads convId from ref at call time
 
   const { recording, seconds, start: startRecording, stop: stopRecording } = useVoiceRecorder(handleVoiceComplete);
 

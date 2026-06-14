@@ -17,12 +17,15 @@ export interface DirectMessage {
     conversationId: string;
     senderId: string;
     text: string;
+    type?: 'text' | 'voice';
+    audioDuration?: number;
     createdAt: number;
     readAt: number | null;
 }
 export declare function getOrCreateConversation(userId1: string, userId2: string): Promise<Conversation>;
 export declare function listConversations(userId: string): Promise<any[]>;
 export declare function sendMessage(conversationId: string, senderId: string, text: string, receiverId: string): Promise<DirectMessage>;
+export declare function sendVoiceDm(conversationId: string, senderId: string, audioData: string, audioDuration: number, receiverId: string): Promise<DirectMessage>;
 export declare function getMessages(conversationId: string, limit?: number): Promise<DirectMessage[]>;
 export declare function markRead(conversationId: string, userId: string): Promise<void>;
 export declare function getTotalUnread(userId: string): Promise<number>;
