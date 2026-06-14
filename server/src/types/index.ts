@@ -370,6 +370,7 @@ export interface GameSettings {
   password: string;
   startWithNight: boolean;
   rotatingSpeech: boolean;
+  mafiaCanSelfKill: boolean;
   /** When true, host can skip any player's individual speech minute. Default: false. */
   hostSkipPrivilege: boolean;
   trialDefense: { enabled: boolean; secondsPerCandidate: number };

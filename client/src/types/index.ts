@@ -247,6 +247,7 @@ export interface GameSettings {
   password: string;
   startWithNight: boolean;
   rotatingSpeech: boolean;
+  mafiaCanSelfKill?: boolean;
   hostSkipPrivilege?: boolean;
   trialDefense?: { enabled: boolean; secondsPerCandidate: number };
   dynamicEvents?: DynamicEventSettings;

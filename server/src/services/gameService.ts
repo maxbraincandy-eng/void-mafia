@@ -536,9 +536,13 @@ export function submitNightAction(room: Room, actor: Player, targetId: string): 
     throw new Error('Doctor Pressure — you cannot protect the same player two nights in a row.');
   }
 
-  // Mafia cannot kill fellow mafia
+  // Mafia cannot kill fellow mafia (self-kill allowed if setting enabled)
   if ((actor.role === 'mafia' || actor.role === 'don') && target.team === 'mafia') {
-    throw new Error('You cannot target a fellow mafia member.');
+    if (isSelfTarget && room.settings.mafiaCanSelfKill) {
+      // allowed — fall through
+    } else {
+      throw new Error('You cannot target a fellow mafia member.');
+    }
   }
 
   // Vigilante cannot target themselves
