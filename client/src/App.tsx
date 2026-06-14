@@ -162,7 +162,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
         {page === 'economy' && isOwner      && <EconomyAdminPage key="economy" />}
       </AnimatePresence>
       <BottomNav active={page} isMod={isMod} onChange={tab => { if (tab !== 'replays') setInitialReplayId(undefined); setPage(tab); }} onMessagesClick={openDmList} />
-      <MorePanel isOwner={isOwner} onEconomyClick={() => setPage('economy')} onShopClick={onOpenShop} />
+      <MorePanel isOwner={isOwner} onEconomyClick={() => setPage('economy')} onShopClick={onOpenShop} onReplaysClick={() => { setInitialReplayId(undefined); setPage('replays'); }} />
     </div>
   );
 }

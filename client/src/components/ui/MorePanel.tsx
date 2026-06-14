@@ -72,9 +72,10 @@ interface MorePanelProps {
   isOwner?: boolean;
   onEconomyClick?: () => void;
   onShopClick?: () => void;
+  onReplaysClick?: () => void;
 }
 
-export function MorePanel({ isOwner = false, onEconomyClick, onShopClick }: MorePanelProps) {
+export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onReplaysClick }: MorePanelProps) {
   const { morePanelOpen, closeMoreMenu } = useSocialStore();
   const profileId = useAuthStore(s => s.profile?.id ?? null);
   const [showSettings, setShowSettings] = useState(false);
@@ -137,6 +138,12 @@ export function MorePanel({ isOwner = false, onEconomyClick, onShopClick }: More
       description: 'Gifts, coins & transactions',
       onClick: () => { closeMoreMenu(); setTimeout(onEconomyClick, 250); },
     }] : []),
+    {
+      icon: <span className="text-base">📺</span>,
+      label: 'Game Replays',
+      description: 'Review past game timelines',
+      onClick: () => { closeMoreMenu(); setTimeout(() => onReplaysClick?.(), 250); },
+    },
     {
       icon: (
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"

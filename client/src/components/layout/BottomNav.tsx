@@ -18,7 +18,6 @@ export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
   const TABS: { id: NavTab; label: string; icon: string; modOnly?: boolean }[] = [
     { id: 'rooms',       label: t.nav.rooms,       icon: '⬡' },
     { id: 'clans',       label: t.nav.clans,       icon: '⚔' },
-    { id: 'replays',     label: 'Replays',         icon: '📺' },
     { id: 'leaderboard', label: t.nav.leaderboard, icon: '◈' },
     { id: 'profile',     label: t.nav.profile,     icon: '◉' },
     { id: 'mod',         label: t.nav.mod,         icon: '⚡', modOnly: true },
