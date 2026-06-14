@@ -67,6 +67,7 @@ interface GameStore {
   submitVote: (targetId: string | null) => Promise<void>;
   nominate: (nomineeId: string | null) => Promise<void>;
   sendChat: (text: string, channel: ChatChannel) => Promise<void>;
+  sendVoiceMessage: (audioData: string, duration: number, channel: ChatChannel) => Promise<void>;
   skipPhase: () => Promise<void>;
   speechPass: () => Promise<void>;
   daySkipVote: () => Promise<void>;
@@ -604,6 +605,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     sendChat: withLoading(async (text: string, channel: ChatChannel) => {
       await emit('chat:send', { text, channel });
     }),
+
+    sendVoiceMessage: async (audioData: string, duration: number, channel: ChatChannel) => {
+      await emit('chat:voice', { audioData, duration, channel });
+    },
 
     skipPhase: withLoading(async () => {
       await emit('game:skip');

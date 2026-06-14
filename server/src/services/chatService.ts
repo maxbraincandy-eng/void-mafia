@@ -6,17 +6,20 @@ export function createPlayerMessage(
   text: string,
   channel: ChatChannel,
   isMod = false,
+  extra?: { type?: 'text' | 'voice'; audioDuration?: number },
 ): ChatMessage {
   return {
     id: generateMsgId(),
     senderId: sender.id,
     senderName: sender.name,
-    text: text.trim().slice(0, 400),
+    text: text.trim().slice(0, extra?.type === 'voice' ? 2_000_000 : 400),
     timestamp: Date.now(),
     channel,
     isSystem: false,
     seat: sender.seat,
     isMod,
+    type: extra?.type ?? 'text',
+    audioDuration: extra?.audioDuration,
   };
 }
 

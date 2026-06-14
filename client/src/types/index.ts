@@ -284,6 +284,8 @@ export interface ChatMessage {
   isSystem: boolean;
   seat?: number;
   isMod?: boolean;
+  type?: 'text' | 'voice';
+  audioDuration?: number;
 }
 
 export interface RoomPublic {
