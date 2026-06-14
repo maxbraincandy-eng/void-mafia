@@ -375,6 +375,7 @@ export interface GameSettings {
   trialDefense: { enabled: boolean; secondsPerCandidate: number };
   dynamicEvents: DynamicEventSettings;
   spectatorQueue: SpectatorQueueSettings;
+  ranked?: boolean;
   roles: {
     mafia: number;
     don: number;
@@ -776,6 +777,8 @@ export interface ServerToClientEvents {
   'gift:received':       (data: { gift: any; senderName: string; senderAvatar: string; message: string }) => void;
   // Session security
   'session:replaced':    (data: { reason: string }) => void;
+  // Ranked ELO
+  'rated:elo_update':    (data: { eloChange: number; newElo: number; tier: string }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -920,6 +923,9 @@ export interface ClientToServerEvents {
   'gifts:pin':              (data: { giftId: string }, cb: Cb<{}>) => void;
   'gifts:unpin':            (data: { giftId: string }, cb: Cb<{}>) => void;
   'gifts:detail':           (data: { giftId: string; recipientId: string }, cb: Cb<any>) => void;
+  // Ranked ELO
+  'rating:get_my':          (cb: Cb<{ elo: number; peakElo: number; tier: string; rankedWins: number; rankedLosses: number; isPlaced: boolean; placementGames: number } | null>) => void;
+  'rating:leaderboard':     (cb: Cb<any[]>) => void;
   // Push notifications
   'push:subscribe':         (data: { endpoint: string; p256dh: string; auth: string }, cb: Cb<null>) => void;
   'push:unsubscribe':       (data: { endpoint: string }, cb: Cb<null>) => void;

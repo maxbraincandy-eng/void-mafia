@@ -75,6 +75,7 @@ import {
   getPinnedGifts, pinGift, unpinGift,
 } from './services/coinService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
+import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -475,6 +476,29 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
         }
       } catch { /* non-fatal */ }
     }
+  }
+
+  // Ranked ELO update
+  if (room.settings.ranked && room.winner) {
+    try {
+      const winnerPlayers = [...room.players.values()].filter(p => !p.isSpectator && p.team === room.winner && p.profileId);
+      const loserPlayers  = [...room.players.values()].filter(p => !p.isSpectator && p.team !== room.winner && p.profileId);
+      const winnerIds = winnerPlayers.map(p => p.profileId as string);
+      const loserIds  = loserPlayers.map(p => p.profileId as string);
+      const roleMap: Record<string, string> = {};
+      for (const p of room.players.values()) {
+        if (p.profileId && p.role) roleMap[p.profileId] = p.role;
+      }
+      const eloResults = await updateRatingsAfterGame(winnerIds, loserIds, room.id, room.winner, roleMap);
+      for (const [profileId, res] of eloResults) {
+        const ratingRow = await getPlayerRating(profileId);
+        const tier = ratingRow ? getRankTier(ratingRow.elo, ratingRow.isPlaced) : 'unranked';
+        const playerSock = findSocketByProfile(io as any, profileId);
+        if (playerSock) {
+          (playerSock as any).emit('rated:elo_update', { eloChange: res.change, newElo: res.after, tier });
+        }
+      }
+    } catch { /* non-fatal */ }
   }
 
   // Resolve spectator predictions
@@ -3311,6 +3335,31 @@ export function attachSocketHandlers(io: AppServer): void {
         if (requester?.moderatorLevel !== 'owner') throw new Error('Owner only.');
         const txs = await getAllTransactions(500);
         cb(ok(txs));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Ranked ELO ──────────────────────────────────────────────────
+    socket.on('rating:get_my', async (cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const rating = await getPlayerRating(profileId);
+        cb(ok(rating ? {
+          elo: rating.elo,
+          peakElo: rating.peakElo,
+          tier: rating.tier,
+          rankedWins: rating.rankedWins,
+          rankedLosses: rating.rankedLosses,
+          isPlaced: rating.isPlaced,
+          placementGames: rating.placementGames,
+        } : null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('rating:leaderboard', async (cb: any) => {
+      try {
+        const data = await getRankedLeaderboard(50);
+        cb(ok(data));
       } catch (e: any) { cb(err(e.message)); }
     });
 

@@ -222,6 +222,18 @@ export interface SpectatorQueueSettings {
 }
 
 
+export type RankTier = 'unranked' | 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' | 'master';
+
+export interface PlayerRating {
+  elo: number;
+  peakElo: number;
+  tier: RankTier;
+  rankedWins: number;
+  rankedLosses: number;
+  isPlaced: boolean;
+  placementGames: number;
+}
+
 export interface GameSettings {
   nightDuration: number;
   dayDuration: number;
@@ -239,6 +251,7 @@ export interface GameSettings {
   trialDefense?: { enabled: boolean; secondsPerCandidate: number };
   dynamicEvents?: DynamicEventSettings;
   spectatorQueue?: SpectatorQueueSettings;
+  ranked?: boolean;
   roles: {
     mafia: number;
     don: number;

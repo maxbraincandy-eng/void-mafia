@@ -39,6 +39,7 @@ export function LobbyPage() {
 
   const { openProfile, openDmList, unreadDmCount } = useSocialStore();
   const isMod = useAuthStore(s => s.profile?.isModerator ?? false);
+  const myLevel = useAuthStore(s => s.profile?.level ?? 1);
 
   const handleLeave = () => { voice.leaveVoice(); leaveRoom(); };
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -254,9 +255,19 @@ export function LobbyPage() {
                 {shared ? '✓' : 'Share'}
               </button>
             </div>
-            {room.settings.isPrivate && (
-              <p className="text-[10px] text-white/22 font-mono mt-1">Private room</p>
-            )}
+            <div className="flex items-center gap-2 mt-1">
+              {room.settings.isPrivate && (
+                <p className="text-[10px] text-white/22 font-mono">Private room</p>
+              )}
+              {room.settings.ranked && (
+                <span
+                  className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md"
+                  style={{ color: '#9b00ff', background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.25)' }}
+                >
+                  ⚔️ Ranked
+                </span>
+              )}
+            </div>
           </div>
         </motion.div>
 
@@ -613,6 +624,46 @@ export function LobbyPage() {
                           )} style={{ width: '18px', height: '18px' }} />
                         </div>
                       </button>
+                    </div>
+
+                    {/* ── Ranked Mode ─────────────────────────────── */}
+                    <div className={`${SURFACE} p-4`} style={SURFACE_BG}>
+                      <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-3">
+                        Ranked Mode
+                      </p>
+                      {myLevel < 5 ? (
+                        <div className="py-1">
+                          <p className="text-[13px] font-mono text-white/40">⚔️ Ranked</p>
+                          <p className="text-[10px] font-mono text-white/25 mt-0.5">
+                            Reach Level 5 to enable ranked matches ({5 - myLevel} level{5 - myLevel !== 1 ? 's' : ''} away)
+                          </p>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => updateSettings({ ranked: !room.settings.ranked })}
+                          className="w-full flex items-center justify-between gap-3 py-1"
+                        >
+                          <div className="text-left">
+                            <p className="text-[13px] font-mono text-white/70">⚔️ Ranked Match</p>
+                            <p className="text-[10px] font-mono text-white/30 mt-0.5">
+                              {room.settings.ranked
+                                ? 'ELO rating will be updated for all players'
+                                : 'Enable to affect ELO ratings'}
+                            </p>
+                          </div>
+                          <div className={clsx(
+                            'relative w-10 h-5.5 rounded-full flex-shrink-0 transition-colors duration-200',
+                            room.settings.ranked ? 'bg-neon-purple/70' : 'bg-white/10',
+                          )}
+                            style={{ height: '22px', minWidth: '40px' }}
+                          >
+                            <span className={clsx(
+                              'absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all duration-200',
+                              room.settings.ranked ? 'left-5' : 'left-0.5',
+                            )} style={{ width: '18px', height: '18px' }} />
+                          </div>
+                        </button>
+                      )}
                     </div>
 
                     <RolePickerPanel

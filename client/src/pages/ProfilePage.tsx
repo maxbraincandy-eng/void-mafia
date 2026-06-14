@@ -9,7 +9,8 @@ import { GiftGallery } from '@/components/ui/GiftGallery';
 import { ShareCardModal } from '@/components/ui/ShareCardModal';
 import type { ProfileCardData } from '@/components/ui/ProfileCard';
 import { emitWithAck, socket } from '@/lib/socket';
-import type { AchievementEarned, GameHistoryEntry, PlayerRoleStats, ClanMembership, Res, PlayerCosmetics } from '@/types/index';
+import type { AchievementEarned, GameHistoryEntry, PlayerRoleStats, ClanMembership, Res, PlayerCosmetics, PlayerRating } from '@/types/index';
+import { RatingBadge } from '@/components/ui/RatingBadge';
 import {
   FRAMES, TITLES, ROLE_SKINS, WALLPAPERS, BORDERS, NAME_COLORS,
   RARITY_COLOR, RARITY_LABEL,
@@ -132,6 +133,7 @@ export function ProfilePage() {
   const [showShare, setShowShare]   = useState(false);
   const [cosmeticsTab, setCosmeticsTab] = useState<'frames' | 'titles' | 'skins' | 'wallpapers' | 'borders' | 'colors'>('frames');
   const [equipLoading, setEquipLoading] = useState(false);
+  const [rating, setRating] = useState<PlayerRating | null>(null);
 
   const startEditName = () => {
     setNewName(profile?.username ?? '');
@@ -201,6 +203,19 @@ export function ProfilePage() {
     const onCoinsUpdated = ({ coins: c }: { coins: number }) => setCoins(c);
     socket.on('coins:updated' as any, onCoinsUpdated);
     return () => { socket.off('coins:updated' as any, onCoinsUpdated); };
+  }, [profile]);
+
+  // Ranked rating
+  useEffect(() => {
+    if (!profile) return;
+    emitWithAck<null, Res<PlayerRating | null>>('rating:get_my' as any).then(res => {
+      if (res.ok) setRating(res.data);
+    }).catch(() => {});
+    const onEloUpdate = (data: { eloChange: number; newElo: number; tier: string }) => {
+      setRating(prev => prev ? { ...prev, elo: data.newElo, tier: data.tier as any } : null);
+    };
+    socket.on('rated:elo_update' as any, onEloUpdate);
+    return () => { socket.off('rated:elo_update' as any, onEloUpdate); };
   }, [profile]);
 
   const claimDaily = async () => {
@@ -837,6 +852,64 @@ export function ProfilePage() {
           <StatRow label="First game"   value={formatDate(roleStats?.firstGameAt ?? undefined)} />
           <StatRow label="Last played"  value={formatDate(roleStats?.lastGameAt ?? undefined)} />
           <StatRow label="Survived"     value={totalGames > 0 ? `${survived} / ${totalGames} (${survivalRate}%)` : '—'} />
+        </motion.div>
+
+        {/* ── Ranked Rating ───────────────────────────────────────────── */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.065 }}
+          className="glass-panel rounded-2xl p-4 mb-3"
+          style={{ border: '1px solid rgba(155,0,255,0.2)', background: 'rgba(155,0,255,0.04)' }}>
+          <SectionHeader icon="⚔️" title="Ranked" />
+          {rating === null ? (
+            <div className="text-center py-2">
+              <p className="font-mono text-xs text-white/25">No ranked games yet</p>
+              <p className="font-mono text-[10px] text-white/15 mt-0.5">Play ranked matches to earn a rating</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <RatingBadge tier={rating.tier} elo={rating.elo} size="md" />
+                {rating.peakElo > rating.elo && (
+                  <span className="font-mono text-[10px] text-white/30">
+                    Peak: <span className="text-white/50">{rating.peakElo}</span>
+                  </span>
+                )}
+              </div>
+              {!rating.isPlaced ? (
+                <div className="mb-3 px-3 py-2 rounded-xl bg-white/4 border border-white/8">
+                  <p className="font-mono text-xs text-white/50 text-center">
+                    Placement: {rating.placementGames}/5 games played
+                  </p>
+                  <div className="mt-1.5 h-1.5 rounded-full bg-white/8 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-neon-purple to-neon-pink transition-all"
+                      style={{ width: `${Math.round((rating.placementGames / 5) * 100)}%` }}
+                    />
+                  </div>
+                  <p className="font-mono text-[10px] text-white/25 text-center mt-1">
+                    {5 - rating.placementGames} more to get ranked
+                  </p>
+                </div>
+              ) : null}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-center p-2 rounded-xl bg-white/3 border border-white/6">
+                  <p className="font-mono text-base font-bold text-neon-green">{rating.rankedWins}</p>
+                  <p className="font-mono text-[9px] text-white/30 uppercase tracking-wider">Wins</p>
+                </div>
+                <div className="text-center p-2 rounded-xl bg-white/3 border border-white/6">
+                  <p className="font-mono text-base font-bold text-neon-red/80">{rating.rankedLosses}</p>
+                  <p className="font-mono text-[9px] text-white/30 uppercase tracking-wider">Losses</p>
+                </div>
+                <div className="text-center p-2 rounded-xl bg-white/3 border border-white/6">
+                  <p className="font-mono text-base font-bold text-white/60">
+                    {rating.rankedWins + rating.rankedLosses > 0
+                      ? Math.round((rating.rankedWins / (rating.rankedWins + rating.rankedLosses)) * 100)
+                      : 0}%
+                  </p>
+                  <p className="font-mono text-[9px] text-white/30 uppercase tracking-wider">Win Rate</p>
+                </div>
+              </div>
+            </>
+          )}
         </motion.div>
 
         {/* ── Clan section ───────────────────────────────────────────── */}

@@ -20,6 +20,7 @@ import { sendPushToUser } from './pushService.js';
 import { getOrCreateConversation, listConversations, sendMessage, getMessages, markRead, getTotalUnread, } from './services/dmService.js';
 import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, getGiftsSent, getGiftTimeline, getGiftStats, getPinnedGifts, pinGift, unpinGift, } from './services/coinService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
+import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
 // ── TURN / ICE server config ──────────────────────────────────────────
 // Centralised in server/src/lib/iceConfig.ts.  Reads Railway env vars:
 // TURN_URL, TURN_USERNAME, TURN_CREDENTIAL, FORCE_TURN_RELAY, STUN_URL.
@@ -401,6 +402,30 @@ async function emitGameOver(io, room) {
             }
             catch { /* non-fatal */ }
         }
+    }
+    // Ranked ELO update
+    if (room.settings.ranked && room.winner) {
+        try {
+            const winnerPlayers = [...room.players.values()].filter(p => !p.isSpectator && p.team === room.winner && p.profileId);
+            const loserPlayers = [...room.players.values()].filter(p => !p.isSpectator && p.team !== room.winner && p.profileId);
+            const winnerIds = winnerPlayers.map(p => p.profileId);
+            const loserIds = loserPlayers.map(p => p.profileId);
+            const roleMap = {};
+            for (const p of room.players.values()) {
+                if (p.profileId && p.role)
+                    roleMap[p.profileId] = p.role;
+            }
+            const eloResults = await updateRatingsAfterGame(winnerIds, loserIds, room.id, room.winner, roleMap);
+            for (const [profileId, res] of eloResults) {
+                const ratingRow = await getPlayerRating(profileId);
+                const tier = ratingRow ? getRankTier(ratingRow.elo, ratingRow.isPlaced) : 'unranked';
+                const playerSock = findSocketByProfile(io, profileId);
+                if (playerSock) {
+                    playerSock.emit('rated:elo_update', { eloChange: res.change, newElo: res.after, tier });
+                }
+            }
+        }
+        catch { /* non-fatal */ }
     }
     // Resolve spectator predictions
     if (room.winner) {
@@ -3619,6 +3644,36 @@ export function attachSocketHandlers(io) {
                     throw new Error('Owner only.');
                 const txs = await getAllTransactions(500);
                 cb(ok(txs));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Ranked ELO ──────────────────────────────────────────────────
+        socket.on('rating:get_my', async (cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const rating = await getPlayerRating(profileId);
+                cb(ok(rating ? {
+                    elo: rating.elo,
+                    peakElo: rating.peakElo,
+                    tier: rating.tier,
+                    rankedWins: rating.rankedWins,
+                    rankedLosses: rating.rankedLosses,
+                    isPlaced: rating.isPlaced,
+                    placementGames: rating.placementGames,
+                } : null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('rating:leaderboard', async (cb) => {
+            try {
+                const data = await getRankedLeaderboard(50);
+                cb(ok(data));
             }
             catch (e) {
                 cb(err(e.message));

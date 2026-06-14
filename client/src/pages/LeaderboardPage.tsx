@@ -4,7 +4,9 @@ import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
 import { useSocialStore } from '@/store/socialStore';
 import { ModBadge } from '@/components/ui/ModBadge';
+import { RatingBadge } from '@/components/ui/RatingBadge';
 import { PlayerProfilePublic } from '@/types/index';
+import type { RankTier } from '@/types/index';
 import { emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
 import { MAX_LEVEL, xpForLevel, xpForNextLevel } from '@/lib/level';
@@ -33,7 +35,21 @@ interface GiftLeaderEntry {
   giftCount: number;
 }
 
-type Tab = 'rankings' | 'gifts';
+interface RankedEntry {
+  playerId: string;
+  username: string;
+  avatar: string;
+  avatarUrl: string | null;
+  publicId: number | null;
+  elo: number;
+  peakElo: number;
+  rankedWins: number;
+  rankedLosses: number;
+  isPlaced: boolean;
+  tier: RankTier;
+}
+
+type Tab = 'rankings' | 'ranked' | 'gifts';
 
 export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
   const getLeaderboard = useGameStore(s => s.getLeaderboard);
@@ -45,6 +61,9 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
   const [giftData, setGiftData] = useState<{ topGifters: GiftLeaderEntry[]; topRecipients: GiftLeaderEntry[] } | null>(null);
   const [giftLoading, setGiftLoading] = useState(false);
   const [giftError, setGiftError] = useState<string | null>(null);
+  const [rankedData, setRankedData] = useState<RankedEntry[]>([]);
+  const [rankedLoading, setRankedLoading] = useState(false);
+  const [rankedError, setRankedError] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -73,8 +92,23 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
     }
   };
 
+  const loadRanked = async () => {
+    setRankedLoading(true);
+    setRankedError(null);
+    try {
+      const res = await emitWithAck<null, Res<any[]>>('rating:leaderboard' as any);
+      if (res.ok) setRankedData(res.data);
+      else setRankedError(res.error ?? 'Failed to load ranked leaderboard.');
+    } catch (e: any) {
+      setRankedError(e.message ?? 'Failed to load ranked leaderboard.');
+    } finally {
+      setRankedLoading(false);
+    }
+  };
+
   useEffect(() => { load(); }, []);
   useEffect(() => { if (tab === 'gifts' && !giftData) loadGifts(); }, [tab]);
+  useEffect(() => { if (tab === 'ranked' && rankedData.length === 0) loadRanked(); }, [tab]);
 
   const top3 = players.slice(0, 3);
 
@@ -99,12 +133,12 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
           <div className="flex-1 min-w-0">
             <h2 className="font-display text-2xl font-bold text-neon-pink tracking-widest uppercase leading-none">ტოპი</h2>
             <p className="text-white/25 font-mono text-[10px] tracking-widest mt-0.5">
-              {tab === 'rankings' ? 'ALL PLAYERS · SORTED BY LEVEL' : 'TOP GIFTERS & RECIPIENTS'}
+              {tab === 'rankings' ? 'ALL PLAYERS · SORTED BY LEVEL' : tab === 'ranked' ? 'ELO RATING · RANKED MATCHES' : 'TOP GIFTERS & RECIPIENTS'}
             </p>
           </div>
           <button
-            onClick={tab === 'rankings' ? load : loadGifts}
-            disabled={tab === 'rankings' ? loading : giftLoading}
+            onClick={tab === 'rankings' ? load : tab === 'ranked' ? loadRanked : loadGifts}
+            disabled={tab === 'rankings' ? loading : tab === 'ranked' ? rankedLoading : giftLoading}
             className="text-white/30 hover:text-white/60 transition-colors font-mono text-xs disabled:opacity-30 flex-shrink-0"
           >
             ↻
@@ -113,7 +147,7 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-5 p-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-          {([['rankings', '🏆 Rankings'], ['gifts', '🎁 Gifts']] as const).map(([t, label]) => (
+          {([['rankings', '🏆 Levels'], ['ranked', '⚔️ Ranked'], ['gifts', '🎁 Gifts']] as const).map(([t, label]) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -122,7 +156,9 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
                 tab === t
                   ? t === 'gifts'
                     ? 'bg-amber-400/10 text-amber-400 border border-amber-400/20'
-                    : 'bg-neon-pink/10 text-neon-pink border border-neon-pink/20'
+                    : t === 'ranked'
+                      ? 'bg-neon-purple/10 text-neon-purple border border-neon-purple/20'
+                      : 'bg-neon-pink/10 text-neon-pink border border-neon-pink/20'
                   : 'text-white/30 hover:text-white/50',
               )}
             >
@@ -130,6 +166,102 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
             </button>
           ))}
         </div>
+
+        {/* ── Ranked ELO tab ─────────────────────────────────────────────── */}
+        {tab === 'ranked' && (
+          <>
+            {rankedLoading && (
+              <div className="flex items-center justify-center py-20">
+                <div className="text-center space-y-3">
+                  <div className="text-4xl animate-pulse">⚔️</div>
+                  <p className="text-white/30 font-mono text-sm">Loading ranked…</p>
+                </div>
+              </div>
+            )}
+            {!rankedLoading && rankedError && (
+              <div className="glass-panel border border-neon-red/20 rounded-2xl p-6 text-center">
+                <p className="text-neon-red/70 font-mono text-sm">{rankedError}</p>
+                <button onClick={loadRanked} className="mt-3 text-xs text-white/40 hover:text-white/60 font-mono underline">
+                  Try again
+                </button>
+              </div>
+            )}
+            {!rankedLoading && !rankedError && rankedData.length === 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="glass-panel border border-neon-purple/20 rounded-2xl p-10 text-center"
+              >
+                <div className="text-5xl mb-4 opacity-30">⚔️</div>
+                <p className="text-white/30 font-mono text-sm">No ranked players yet.</p>
+                <p className="text-white/15 font-mono text-xs mt-1">Complete 5 placement games to appear here!</p>
+              </motion.div>
+            )}
+            {!rankedLoading && !rankedError && rankedData.length > 0 && (
+              <div className="space-y-2">
+                {rankedData.map((entry, i) => {
+                  const isTop3 = i < 3;
+                  const top3Borders = ['border-yellow-400/25', 'border-gray-400/15', 'border-amber-700/20'];
+                  const top3Bgs    = ['bg-yellow-400/4', 'bg-white/3', 'bg-amber-900/5'];
+                  return (
+                    <motion.div
+                      key={entry.playerId}
+                      initial={{ opacity: 0, x: -16 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.05 + i * 0.03 }}
+                      onClick={() => openProfile(entry.playerId)}
+                      className={clsx(
+                        'flex items-center gap-3 p-3 rounded-2xl border transition-colors cursor-pointer active:scale-[0.98]',
+                        isTop3 ? `${top3Borders[i]} ${top3Bgs[i]} hover:bg-white/5` : 'border-white/5 bg-white/2 hover:bg-white/4',
+                      )}
+                    >
+                      {/* Rank # */}
+                      <div className="w-8 text-center shrink-0">
+                        {isTop3 ? (
+                          <span className="text-xl">{MEDALS[i]}</span>
+                        ) : (
+                          <span className="text-white/20 font-mono text-sm font-bold">#{i + 1}</span>
+                        )}
+                      </div>
+
+                      {/* Avatar */}
+                      <div
+                        className="w-9 h-9 rounded-full flex items-center justify-center text-base font-bold text-white shrink-0 overflow-hidden"
+                        style={i === 0
+                          ? { background: 'linear-gradient(135deg,#facc15,#d97706)', boxShadow: '0 0 14px rgba(250,204,21,0.4)' }
+                          : { background: 'linear-gradient(135deg, #9b00ff, #00f5ff)' }
+                        }
+                      >
+                        {entry.avatarUrl
+                          ? <img src={entry.avatarUrl} alt={entry.username || ''} className="w-full h-full object-cover rounded-full" />
+                          : entry.avatar
+                        }
+                      </div>
+
+                      {/* Name + badge */}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-display font-semibold text-sm truncate text-white/70">
+                          {entry.username}
+                        </p>
+                        <div className="mt-0.5">
+                          <RatingBadge tier={entry.tier} size="sm" showElo={false} />
+                        </div>
+                      </div>
+
+                      {/* ELO + W/L */}
+                      <div className="text-right shrink-0">
+                        <p className="font-display font-bold text-base text-neon-purple">{entry.elo}</p>
+                        <p className="text-white/25 font-mono text-[10px]">
+                          {entry.rankedWins}W {entry.rankedLosses}L
+                        </p>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
 
         {/* ── Gift leaderboard tab ─────────────────────────────────────────── */}
         {tab === 'gifts' && (

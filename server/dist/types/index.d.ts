@@ -264,6 +264,7 @@ export interface GameSettings {
     };
     dynamicEvents: DynamicEventSettings;
     spectatorQueue: SpectatorQueueSettings;
+    ranked?: boolean;
     roles: {
         mafia: number;
         don: number;
@@ -745,6 +746,11 @@ export interface ServerToClientEvents {
     'session:replaced': (data: {
         reason: string;
     }) => void;
+    'rated:elo_update': (data: {
+        eloChange: number;
+        newElo: number;
+        tier: string;
+    }) => void;
 }
 export interface ClientToServerEvents {
     'player:auth': (data: {
@@ -1118,6 +1124,16 @@ export interface ClientToServerEvents {
         giftId: string;
         recipientId: string;
     }, cb: Cb<any>) => void;
+    'rating:get_my': (cb: Cb<{
+        elo: number;
+        peakElo: number;
+        tier: string;
+        rankedWins: number;
+        rankedLosses: number;
+        isPlaced: boolean;
+        placementGames: number;
+    } | null>) => void;
+    'rating:leaderboard': (cb: Cb<any[]>) => void;
     'push:subscribe': (data: {
         endpoint: string;
         p256dh: string;

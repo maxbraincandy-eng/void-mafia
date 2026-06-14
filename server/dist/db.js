@@ -490,6 +490,35 @@ export async function initializeDatabase() {
       UNIQUE(referred_id)
     )
   `;
+    // ── Ranked ELO system ─────────────────────────────────────────────────
+    await sql `
+    CREATE TABLE IF NOT EXISTS player_ratings (
+      player_id        TEXT PRIMARY KEY REFERENCES players(id),
+      elo              INTEGER NOT NULL DEFAULT 1000,
+      peak_elo         INTEGER NOT NULL DEFAULT 1000,
+      ranked_wins      INTEGER NOT NULL DEFAULT 0,
+      ranked_losses    INTEGER NOT NULL DEFAULT 0,
+      placement_games  INTEGER NOT NULL DEFAULT 0,
+      is_placed        BOOLEAN NOT NULL DEFAULT FALSE,
+      season           INTEGER NOT NULL DEFAULT 1,
+      updated_at       BIGINT NOT NULL DEFAULT 0
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS ranked_game_results (
+      id          TEXT PRIMARY KEY,
+      player_id   TEXT NOT NULL REFERENCES players(id),
+      room_id     TEXT NOT NULL,
+      elo_before  INTEGER NOT NULL,
+      elo_after   INTEGER NOT NULL,
+      elo_change  INTEGER NOT NULL,
+      won         BOOLEAN NOT NULL,
+      team        TEXT NOT NULL,
+      role        TEXT NOT NULL,
+      season      INTEGER NOT NULL DEFAULT 1,
+      created_at  BIGINT NOT NULL
+    )
+  `;
     // Verify connection
     const [{ cnt }] = await sql `SELECT COUNT(*) as cnt FROM players`;
     console.log(`[Database] connected successfully`);
