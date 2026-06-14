@@ -72,13 +72,22 @@ function ToastLayer() {
   );
 }
 
+const TOAST_MS = 5000;
+
 function DmToastNotification() {
   const { dmToast, clearDmToast, openDmWith } = useSocialStore();
+  const [progress, setProgress] = useState(100);
 
   useEffect(() => {
-    if (!dmToast) return;
-    const id = setTimeout(clearDmToast, 4500);
-    return () => clearTimeout(id);
+    if (!dmToast) { setProgress(100); return; }
+    setProgress(100);
+    const start = Date.now();
+    const tick = setInterval(() => {
+      const pct = Math.max(0, 100 - ((Date.now() - start) / TOAST_MS) * 100);
+      setProgress(pct);
+    }, 50);
+    const id = setTimeout(() => { clearDmToast(); clearInterval(tick); }, TOAST_MS);
+    return () => { clearTimeout(id); clearInterval(tick); };
   }, [dmToast, clearDmToast]);
 
   return (
@@ -86,50 +95,65 @@ function DmToastNotification() {
       {dmToast && (
         <motion.div
           key="dm-toast"
-          initial={{ opacity: 0, x: 80 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: 80 }}
-          transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-          className="fixed bottom-24 right-3 z-[90] cursor-pointer"
-          style={{ maxWidth: '280px' }}
-          onClick={() => {
-            openDmWith((dmToast as DmToastData).senderUserId);
-            clearDmToast();
-          }}
+          initial={{ opacity: 0, y: -20, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -16, scale: 0.96 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+          className="fixed top-4 left-3 right-3 z-[200] cursor-pointer"
+          style={{ maxWidth: '360px', margin: '0 auto' }}
+          onClick={() => { openDmWith((dmToast as DmToastData).senderUserId); clearDmToast(); }}
         >
           <div
-            className="rounded-2xl backdrop-blur-2xl px-3 py-2.5 flex items-center gap-3"
+            className="rounded-2xl overflow-hidden backdrop-blur-2xl"
             style={{
-              background: 'rgba(8,4,20,0.97)',
-              border: '1px solid rgba(138,43,226,0.45)',
-              boxShadow: '0 0 28px rgba(138,43,226,0.18), 0 4px 24px rgba(0,0,0,0.5)',
+              background: 'rgba(8,4,22,0.97)',
+              border: '1px solid rgba(168,85,247,0.4)',
+              boxShadow: '0 0 32px rgba(168,85,247,0.15), 0 8px 32px rgba(0,0,0,0.6)',
             }}
           >
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-lg flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, #ff0080, #8a2be2)' }}
-            >
-              {(dmToast as DmToastData).senderAvatar}
+            <div className="flex items-center gap-3 px-3 py-3">
+              {/* Avatar */}
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0"
+                style={{ background: 'linear-gradient(135deg, #ff0080, #8a2be2)' }}
+              >
+                {(dmToast as DmToastData).senderAvatar}
+              </div>
+              {/* Text */}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="text-[9px] font-mono uppercase tracking-widest" style={{ color: 'rgba(192,132,252,0.55)' }}>
+                    💬 New message
+                  </span>
+                </div>
+                <p className="font-display text-sm font-bold text-white/90 truncate leading-tight">
+                  {(dmToast as DmToastData).senderUsername}
+                </p>
+                <p className="font-mono text-[11px] truncate mt-0.5 leading-snug" style={{ color: 'rgba(255,255,255,0.40)' }}>
+                  {(dmToast as DmToastData).preview}
+                </p>
+              </div>
+              {/* Close */}
+              <button
+                onClick={e => { e.stopPropagation(); clearDmToast(); }}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-white/20 hover:text-white/60 hover:bg-white/8 transition-all flex-shrink-0"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="font-mono text-[9px] uppercase tracking-[0.15em]"
-                 style={{ color: 'rgba(192,132,252,0.6)' }}>
-                New message
-              </p>
-              <p className="font-display text-xs font-bold text-white truncate">
-                {(dmToast as DmToastData).senderUsername}
-              </p>
-              <p className="font-mono text-[10px] truncate mt-0.5 leading-snug"
-                 style={{ color: 'rgba(255,255,255,0.38)' }}>
-                {(dmToast as DmToastData).preview}
-              </p>
+            {/* Progress bar */}
+            <div className="h-0.5 w-full" style={{ background: 'rgba(255,255,255,0.04)' }}>
+              <motion.div
+                className="h-full"
+                style={{
+                  width: `${progress}%`,
+                  background: 'linear-gradient(90deg, #a855f7, #ec4899)',
+                  transition: 'width 50ms linear',
+                }}
+              />
             </div>
-            <button
-              onClick={e => { e.stopPropagation(); clearDmToast(); }}
-              className="text-white/20 hover:text-white/50 text-sm flex-shrink-0 transition-colors ml-1"
-            >
-              ✕
-            </button>
           </div>
         </motion.div>
       )}

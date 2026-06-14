@@ -66,14 +66,17 @@ export const useSocialStore = create<SocialStore>((set, get) => {
     senderAvatar?: string;
   }) => {
     if (!get().dmPanelOpen) {
+      const rawText = payload.message.text ?? '';
+      const isVoice = rawText.startsWith('data:audio');
+      const preview = isVoice ? '🎙 Voice message'
+        : rawText.length > 80 ? rawText.slice(0, 77) + '…'
+        : rawText;
       const toast: DmToast | null = payload.senderUsername
         ? {
             senderUserId: payload.message.senderId,
             senderUsername: payload.senderUsername,
             senderAvatar: payload.senderAvatar ?? '?',
-            preview: payload.message.text.length > 80
-              ? payload.message.text.slice(0, 77) + '…'
-              : payload.message.text,
+            preview,
           }
         : null;
       set(s => ({
@@ -118,8 +121,8 @@ export const useSocialStore = create<SocialStore>((set, get) => {
 
     dmPanelOpen: false,
     activeDmUserId: null,
-    openDmWith: (userId) => set({ dmPanelOpen: true, activeDmUserId: userId, profilePopupId: null }),
-    openDmList: () => set({ dmPanelOpen: true, activeDmUserId: null }),
+    openDmWith: (userId) => set({ dmPanelOpen: true, activeDmUserId: userId, profilePopupId: null, unreadDmCount: 0, dmToast: null }),
+    openDmList: () => set({ dmPanelOpen: true, activeDmUserId: null, unreadDmCount: 0, dmToast: null }),
     closeDm: () => set({ dmPanelOpen: false, activeDmUserId: null }),
 
     onlineCount: 0,
