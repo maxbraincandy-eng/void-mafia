@@ -21,8 +21,9 @@ function useVoiceRecorder(onSend: (dataUrl: string, duration: number) => void) {
   const chunksRef  = useRef<Blob[]>([]);
   const startRef   = useRef<number>(0);
   const timerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Sync assignment during render so onstop always calls the freshest callback
   const onSendRef  = useRef(onSend);
-  useEffect(() => { onSendRef.current = onSend; }, [onSend]);
+  onSendRef.current = onSend;
 
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
@@ -287,30 +288,34 @@ export function DmPanel() {
   const [msgError, setMsgError] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Ref keeps latest conversationId accessible to stable voice callback
-  const activeConvIdRef = useRef<string | null>(null);
-  useEffect(() => { activeConvIdRef.current = activeConvId; }, [activeConvId]);
-
-  const handleVoiceSend = useCallback(async (dataUrl: string, duration: number) => {
-    const convId = activeConvIdRef.current;
-    if (!convId) return;
+  // Non-memoized: closes over the current activeConvId on every render.
+  // The hook stores this in a ref (onSendRef.current = onSend, sync) so
+  // mr.onstop always calls the freshest version.
+  const handleVoiceSend = async (dataUrl: string, duration: number) => {
+    if (!activeConvId) return;
     setSending(true);
+    setVoiceError(null);
     try {
       const res = await emitWithAck<{ conversationId: string; audioData: string; duration: number }, Res<DirectMessage>>(
-        'dm:voice', { conversationId: convId, audioData: dataUrl, duration }
+        'dm:voice', { conversationId: activeConvId, audioData: dataUrl, duration }
       );
       if (res.ok) {
         setMessages(prev => [...prev, res.data]);
         setConversations(prev => prev.map(c =>
-          c.id === convId ? { ...c, lastMessage: '🎙 Voice message', lastMessageAt: res.data.createdAt } : c
+          c.id === activeConvId ? { ...c, lastMessage: '🎙 Voice message', lastMessageAt: res.data.createdAt } : c
         ));
+      } else {
+        setVoiceError(res.error ?? 'Failed to send');
       }
-    } catch {}
+    } catch (e: any) {
+      setVoiceError(e?.message ?? 'Send failed');
+    }
     finally { setSending(false); }
-  }, []);
+  };
 
   const { recording, seconds, start: startRecording, send: sendRecording, cancel: cancelRecording } = useVoiceRecorder(handleVoiceSend);
 
@@ -715,6 +720,20 @@ export function DmPanel() {
                   className="px-3 pt-2 border-t border-white/5 flex-shrink-0"
                   style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
                 >
+                  {/* Voice send error */}
+                  <AnimatePresence>
+                    {voiceError && (
+                      <motion.p
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="text-[11px] font-mono text-red-400/80 px-1 mb-1"
+                      >
+                        ⚠ {voiceError}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+
                   <AnimatePresence mode="wait">
                     {recording ? (
                       /* ── Recording bar: tap Send or Cancel ── */
