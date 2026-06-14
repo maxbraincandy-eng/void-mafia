@@ -480,6 +480,23 @@ export const TRANSLATIONS = {
       report: 'Report',
       remove: 'Remove',
     },
+    morePanel: {
+      sections: {
+        discover: 'Discover',
+        rewards: 'Rewards',
+        economy: 'Economy',
+        account: 'Account',
+      },
+      howToPlay: { label: 'How to Play', desc: 'Rules, roles & game guide.' },
+      gameReplays: { label: 'Game Replays', desc: 'Review past game timelines' },
+      seasonLeaderboard: { label: 'Season Pass', desc: 'Ranked rewards & battle pass' },
+      achievements: { label: 'Achievements', desc: 'Track your milestones' },
+      coinShop: { label: 'Coin Shop', desc: 'Buy coins, send gifts' },
+      coinHistory: { label: 'Coin History', desc: 'Transactions, gifts & balance' },
+      inviteFriends: { label: 'Invite Friends', desc: 'Share your referral code, earn 250 coins' },
+      settings: { label: 'Settings', desc: 'Audio, notifications & more..' },
+      economyAdmin: { label: 'Economy Admin', desc: 'Gifts, coins & transactions' },
+    },
   },
 
   ka: {
@@ -960,6 +977,23 @@ export const TRANSLATIONS = {
       close: 'დახურვა',
       report: 'შეტყობინება',
       remove: 'გაგდება',
+    },
+    morePanel: {
+      sections: {
+        discover: 'აღმოაჩინე',
+        rewards: 'ჯილდოები',
+        economy: 'ეკონომიკა',
+        account: 'ექაუნთი',
+      },
+      howToPlay: { label: 'როგორ ვითამაშო?', desc: 'წესები, როლები და თამაშის წიგნი.' },
+      gameReplays: { label: 'თამაშის ისტორია', desc: 'წარსული თამაშის ისტორია' },
+      seasonLeaderboard: { label: 'სეზონის ლიდერბორდი', desc: 'რანკი, ბრძოლა' },
+      achievements: { label: 'მიღწევები', desc: 'შენი ეტაპები' },
+      coinShop: { label: 'ქოინების მაღაზია', desc: 'იყიდე ქოინი, გააგზავნე გიფთები' },
+      coinHistory: { label: 'ქოინების ისტორია', desc: 'ტრანსაქციები, გიფთები, ბალანსი' },
+      inviteFriends: { label: 'მეგობრების მოწვევა', desc: 'გააზიარე შენი რეფერალ კოდი და მიიღე 250 ქოინი' },
+      settings: { label: 'სეთინგები', desc: 'აუდიო, შეტყობინება, სხვა..' },
+      economyAdmin: { label: 'ადმინის ეკონომიკა', desc: 'საჩუქრები, ქოინები, ტრანზაქციები' },
     },
   },
 } as const;

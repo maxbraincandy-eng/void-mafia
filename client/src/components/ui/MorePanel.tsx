@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
+import { useT } from '@/store/langStore';
 import { SettingsPanel } from '@/pages/SettingsPanel';
 import { CoinHistoryModal } from '@/components/ui/CoinHistoryModal';
 import { HowToPlayModal } from '@/components/ui/HowToPlayModal';
@@ -117,6 +118,8 @@ export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onRepl
   const { morePanelOpen, closeMoreMenu } = useSocialStore();
   const profile = useAuthStore(s => s.profile);
   const profileId = profile?.id ?? null;
+  const t = useT();
+  const mp = t.morePanel;
 
   const [showSettings, setShowSettings] = useState(false);
   const [showCoinHistory, setShowCoinHistory] = useState(false);
@@ -129,20 +132,20 @@ export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onRepl
 
   const sections: Section[] = [
     {
-      title: 'Discover',
+      title: mp.sections.discover,
       items: [
         {
           icon: '❓',
-          label: 'How to Play',
-          description: 'Rules, roles & game guide',
+          label: mp.howToPlay.label,
+          description: mp.howToPlay.desc,
           iconBg: 'linear-gradient(135deg, rgba(0,229,255,0.25), rgba(0,229,255,0.08))',
           iconGlow: 'rgba(0,229,255,0.18)',
           onClick: open(() => setShowHowToPlay(true)),
         },
         {
           icon: '📺',
-          label: 'Game Replays',
-          description: 'Review past game timelines',
+          label: mp.gameReplays.label,
+          description: mp.gameReplays.desc,
           iconBg: 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(59,130,246,0.12))',
           iconGlow: 'rgba(99,102,241,0.2)',
           badge: { text: 'NEW', color: '#818cf8' },
@@ -151,20 +154,20 @@ export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onRepl
       ],
     },
     {
-      title: 'Rewards',
+      title: mp.sections.rewards,
       items: [
         {
           icon: '🏆',
-          label: 'Season Pass',
-          description: 'Ranked rewards & battle pass',
+          label: mp.seasonLeaderboard.label,
+          description: mp.seasonLeaderboard.desc,
           iconBg: 'linear-gradient(135deg, rgba(236,72,153,0.3), rgba(168,85,247,0.12))',
           iconGlow: 'rgba(236,72,153,0.2)',
           onClick: open(() => setShowSeasonPass(true)),
         },
         {
           icon: '⭐',
-          label: 'Achievements',
-          description: 'Track your milestones',
+          label: mp.achievements.label,
+          description: mp.achievements.desc,
           iconBg: 'linear-gradient(135deg, rgba(250,204,21,0.25), rgba(251,146,60,0.12))',
           iconGlow: 'rgba(250,204,21,0.18)',
           onClick: open(() => setShowAchievements(true)),
@@ -172,28 +175,28 @@ export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onRepl
       ],
     },
     {
-      title: 'Economy',
+      title: mp.sections.economy,
       items: [
         {
           icon: '🛍️',
-          label: 'Coin Shop',
-          description: 'Buy coins to send gifts',
+          label: mp.coinShop.label,
+          description: mp.coinShop.desc,
           iconBg: 'linear-gradient(135deg, rgba(34,197,94,0.25), rgba(16,185,129,0.1))',
           iconGlow: 'rgba(34,197,94,0.18)',
           onClick: open(() => onShopClick?.()),
         },
         {
           icon: '🪙',
-          label: 'Coin History',
-          description: 'Transactions, gifts & balance',
+          label: mp.coinHistory.label,
+          description: mp.coinHistory.desc,
           iconBg: 'linear-gradient(135deg, rgba(251,191,36,0.25), rgba(245,158,11,0.1))',
           iconGlow: 'rgba(251,191,36,0.18)',
           onClick: open(() => setShowCoinHistory(true)),
         },
         {
           icon: '🔗',
-          label: 'Invite Friends',
-          description: 'Share your referral link, earn 250 coins',
+          label: mp.inviteFriends.label,
+          description: mp.inviteFriends.desc,
           iconBg: 'linear-gradient(135deg, rgba(168,85,247,0.3), rgba(236,72,153,0.1))',
           iconGlow: 'rgba(168,85,247,0.2)',
           badge: { text: 'HOT', color: '#f472b6' },
@@ -202,20 +205,20 @@ export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onRepl
       ],
     },
     {
-      title: 'Account',
+      title: mp.sections.account,
       items: [
         {
           icon: '⚙️',
-          label: 'Settings',
-          description: 'Audio, notifications & more',
+          label: mp.settings.label,
+          description: mp.settings.desc,
           iconBg: 'linear-gradient(135deg, rgba(100,116,139,0.3), rgba(71,85,105,0.12))',
           iconGlow: 'rgba(100,116,139,0.18)',
           onClick: open(() => setShowSettings(true)),
         },
         ...(isOwner && onEconomyClick ? [{
           icon: '👑',
-          label: 'Economy Admin',
-          description: 'Gifts, coins & transactions',
+          label: mp.economyAdmin.label,
+          description: mp.economyAdmin.desc,
           iconBg: 'linear-gradient(135deg, rgba(239,68,68,0.28), rgba(220,38,38,0.1))',
           iconGlow: 'rgba(239,68,68,0.2)',
           onClick: open(onEconomyClick),
