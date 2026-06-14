@@ -61,6 +61,7 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, InterServerEve
   pingTimeout: 20_000,
   pingInterval: 10_000,
   upgradeTimeout: 10_000,
+  maxHttpBufferSize: 5 * 1024 * 1024, // 5MB — needed for voice message audio data
 });
 
 // ── Middleware ────────────────────────────────────────────────────────

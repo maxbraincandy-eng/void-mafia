@@ -12,40 +12,56 @@ function formatDuration(s: number) {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 }
 
-function useVoiceRecorder(onComplete: (dataUrl: string, duration: number) => void) {
-  const mediaRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const startRef = useRef<number>(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+// ── Voice Recorder Hook ──────────────────────────────────────────────
+// Uses tap-to-start + explicit Send/Cancel instead of hold-to-record
+// (hold events are unreliable on mobile — pointerLeave fires mid-touch)
+
+function useVoiceRecorder(onSend: (dataUrl: string, duration: number) => void) {
+  const mediaRef   = useRef<MediaRecorder | null>(null);
+  const chunksRef  = useRef<Blob[]>([]);
+  const startRef   = useRef<number>(0);
+  const timerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+  const onSendRef  = useRef(onSend);
+  useEffect(() => { onSendRef.current = onSend; }, [onSend]);
+
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
 
-  const stop = useCallback(() => {
+  const stopMedia = useCallback((doSend: boolean) => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-    if (mediaRef.current && mediaRef.current.state !== 'inactive') {
-      mediaRef.current.stop();
-    }
+    const mr = mediaRef.current;
+    mediaRef.current = null;
     setRecording(false);
     setSeconds(0);
+    if (!mr || mr.state === 'inactive') return;
+
+    const dur = (Date.now() - startRef.current) / 1000;
+
+    mr.onstop = () => {
+      mr.stream.getTracks().forEach(t => t.stop());
+      if (!doSend || dur < 0.5) return; // too short or cancelled
+      const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' });
+      const reader = new FileReader();
+      reader.onload = () => onSendRef.current(reader.result as string, dur);
+      reader.readAsDataURL(blob);
+    };
+    mr.stop();
   }, []);
 
+  const send   = useCallback(() => stopMedia(true),  [stopMedia]);
+  const cancel = useCallback(() => stopMedia(false), [stopMedia]);
+
   const start = useCallback(async () => {
+    if (mediaRef.current) return; // already recording
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm',
-      });
+      const MIME_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+      const mimeType = MIME_TYPES.find(t => MediaRecorder.isTypeSupported(t));
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       chunksRef.current = [];
       mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      mr.onstop = () => {
-        const dur = (Date.now() - startRef.current) / 1000;
-        const blob = new Blob(chunksRef.current, { type: mr.mimeType });
-        stream.getTracks().forEach(t => t.stop());
-        const reader = new FileReader();
-        reader.onload = () => onComplete(reader.result as string, dur);
-        reader.readAsDataURL(blob);
-      };
-      mr.start(100);
+      mr.onstop = null;
+      mr.start(200);
       mediaRef.current = mr;
       startRef.current = Date.now();
       setRecording(true);
@@ -53,40 +69,66 @@ function useVoiceRecorder(onComplete: (dataUrl: string, duration: number) => voi
       timerRef.current = setInterval(() => {
         const s = (Date.now() - startRef.current) / 1000;
         setSeconds(s);
-        if (s >= MAX_VOICE_SECONDS) stop();
+        if (s >= MAX_VOICE_SECONDS) stopMedia(true);
       }, 200);
-    } catch { /* mic denied */ }
-  }, [onComplete, stop]);
+    } catch { /* mic denied or not available */ }
+  }, [stopMedia]);
 
-  useEffect(() => () => { stop(); }, [stop]);
+  useEffect(() => () => { stopMedia(false); }, [stopMedia]);
 
-  return { recording, seconds, start, stop };
+  return { recording, seconds, start, send, cancel };
 }
+
+// ── Voice Message Bubble ─────────────────────────────────────────────
 
 function VoiceMessageBubble({ msg, isMe }: { msg: DirectMessage; isMe: boolean }) {
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [loading, setLoading] = useState(false);
+  const audioRef   = useRef<HTMLAudioElement | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
 
-  const toggle = useCallback(() => {
-    if (!audioRef.current) {
-      audioRef.current = new Audio(msg.text);
-      audioRef.current.ontimeupdate = () => {
-        const a = audioRef.current!;
-        setProgress(a.duration ? a.currentTime / a.duration : 0);
-      };
-      audioRef.current.onended = () => { setPlaying(false); setProgress(0); };
-    }
+  useEffect(() => () => {
+    audioRef.current?.pause();
+    if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+  }, []);
+
+  const toggle = useCallback(async () => {
     if (playing) {
-      audioRef.current.pause();
+      audioRef.current?.pause();
       setPlaying(false);
-    } else {
-      audioRef.current.play().catch(() => {});
+      return;
+    }
+    if (!audioRef.current) {
+      setLoading(true);
+      let src = msg.text;
+      // Convert data URL → blob URL: better seek support and memory on mobile
+      if (src.startsWith('data:')) {
+        try {
+          const resp = await fetch(src);
+          const blob = await resp.blob();
+          src = URL.createObjectURL(blob);
+          blobUrlRef.current = src;
+        } catch { /* keep original data URL */ }
+      }
+      const audio = new Audio();
+      audio.preload = 'auto';
+      audio.src = src;
+      audio.ontimeupdate = () => {
+        if (audio.duration) setProgress(audio.currentTime / audio.duration);
+      };
+      audio.onended = () => { setPlaying(false); setProgress(0); };
+      audio.onerror = () => { setPlaying(false); setLoading(false); };
+      audioRef.current = audio;
+      setLoading(false);
+    }
+    try {
+      await audioRef.current.play();
       setPlaying(true);
+    } catch {
+      setPlaying(false);
     }
   }, [playing, msg.text]);
-
-  useEffect(() => () => { audioRef.current?.pause(); }, []);
 
   const dur = msg.audioDuration ?? 0;
 
@@ -103,7 +145,8 @@ function VoiceMessageBubble({ msg, isMe }: { msg: DirectMessage; isMe: boolean }
     >
       <button
         onClick={toggle}
-        className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all active:scale-90"
+        disabled={loading}
+        className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all active:scale-90 disabled:opacity-40"
         style={playing ? {
           background: 'rgba(192,132,252,0.25)',
           color: '#c084fc',
@@ -112,7 +155,9 @@ function VoiceMessageBubble({ msg, isMe }: { msg: DirectMessage; isMe: boolean }
           color: 'rgba(255,255,255,0.6)',
         }}
       >
-        {playing ? (
+        {loading ? (
+          <div className="w-3 h-3 border-2 border-white/30 border-t-white/70 rounded-full animate-spin" />
+        ) : playing ? (
           <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
         ) : (
           <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
@@ -124,13 +169,8 @@ function VoiceMessageBubble({ msg, isMe }: { msg: DirectMessage; isMe: boolean }
             const h = 20 + Math.sin(i * 1.3) * 50 + Math.cos(i * 2.1) * 30;
             const filled = i / 18 <= progress;
             return (
-              <div
-                key={i}
-                className="flex-1 rounded-full transition-colors duration-75"
-                style={{
-                  height: `${Math.max(15, h)}%`,
-                  background: filled ? '#a855f7' : 'rgba(255,255,255,0.12)',
-                }}
+              <div key={i} className="flex-1 rounded-full transition-colors duration-75"
+                style={{ height: `${Math.max(15, h)}%`, background: filled ? '#a855f7' : 'rgba(255,255,255,0.12)' }}
               />
             );
           })}
@@ -250,11 +290,11 @@ export function DmPanel() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Keep a ref so voice recorder callback always has the latest conversationId
+  // Ref keeps latest conversationId accessible to stable voice callback
   const activeConvIdRef = useRef<string | null>(null);
   useEffect(() => { activeConvIdRef.current = activeConvId; }, [activeConvId]);
 
-  const handleVoiceComplete = useCallback(async (dataUrl: string, duration: number) => {
+  const handleVoiceSend = useCallback(async (dataUrl: string, duration: number) => {
     const convId = activeConvIdRef.current;
     if (!convId) return;
     setSending(true);
@@ -270,9 +310,9 @@ export function DmPanel() {
       }
     } catch {}
     finally { setSending(false); }
-  }, []); // stable — reads convId from ref at call time
+  }, []);
 
-  const { recording, seconds, start: startRecording, stop: stopRecording } = useVoiceRecorder(handleVoiceComplete);
+  const { recording, seconds, start: startRecording, send: sendRecording, cancel: cancelRecording } = useVoiceRecorder(handleVoiceSend);
 
   const refreshUnreadCount = useCallback(async () => {
     try {
@@ -672,106 +712,124 @@ export function DmPanel() {
 
                 {/* Input bar */}
                 <div
-                  className="flex flex-col gap-1.5 px-3 pt-2 border-t border-white/5 flex-shrink-0"
+                  className="px-3 pt-2 border-t border-white/5 flex-shrink-0"
                   style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
                 >
-                  {/* Recording indicator */}
-                  <AnimatePresence>
-                    {recording && (
+                  <AnimatePresence mode="wait">
+                    {recording ? (
+                      /* ── Recording bar: tap Send or Cancel ── */
                       <motion.div
-                        initial={{ opacity: 0, y: 4 }}
+                        key="recording"
+                        initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 4 }}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
-                        style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)' }}
+                        exit={{ opacity: 0, y: 6 }}
+                        className="flex items-center gap-2"
                       >
-                        <motion.div
-                          animate={{ opacity: [1, 0.3, 1] }}
-                          transition={{ repeat: Infinity, duration: 1 }}
-                          className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"
+                        {/* Cancel */}
+                        <button
+                          onClick={cancelRecording}
+                          className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white/50 hover:text-white/80 transition-colors"
+                          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+
+                        {/* Waveform / timer */}
+                        <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl"
+                          style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                          <motion.div
+                            animate={{ opacity: [1, 0.2, 1] }}
+                            transition={{ repeat: Infinity, duration: 0.9 }}
+                            className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"
+                          />
+                          <div className="flex items-end gap-px flex-1 h-5">
+                            {Array.from({ length: 24 }).map((_, i) => (
+                              <motion.div
+                                key={i}
+                                className="flex-1 rounded-full bg-red-400/60"
+                                animate={{ scaleY: [0.3, 1, 0.3] }}
+                                transition={{ repeat: Infinity, duration: 0.5 + (i % 3) * 0.2, delay: i * 0.04 }}
+                                style={{ transformOrigin: 'bottom' }}
+                              />
+                            ))}
+                          </div>
+                          <span className="text-xs font-mono text-red-400 flex-shrink-0 tabular-nums">{formatDuration(seconds)}</span>
+                        </div>
+
+                        {/* Send */}
+                        <motion.button
+                          whileTap={{ scale: 0.9 }}
+                          onClick={sendRecording}
+                          className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all"
+                          style={{ background: 'rgba(138,43,226,0.25)', border: '1px solid rgba(138,43,226,0.5)', color: '#c084fc' }}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                          </svg>
+                        </motion.button>
+                      </motion.div>
+                    ) : (
+                      /* ── Normal text input bar ── */
+                      <motion.div
+                        key="text"
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 6 }}
+                        className="flex gap-2"
+                      >
+                        <input
+                          ref={inputRef}
+                          value={text}
+                          onChange={e => setText(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+                          }}
+                          placeholder="Message…"
+                          maxLength={500}
+                          className="flex-1 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none transition-all"
+                          style={{
+                            background: 'rgba(12, 5, 28, 0.95)',
+                            border: '1px solid rgba(138,43,226,0.25)',
+                            color: '#ffffff',
+                            WebkitTextFillColor: '#ffffff',
+                            caretColor: '#c084fc',
+                            colorScheme: 'dark',
+                          }}
+                          onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'rgba(138,43,226,0.55)'; }}
+                          onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'rgba(138,43,226,0.25)'; }}
                         />
-                        <span className="text-xs font-mono text-red-400 flex-1">Recording... {formatDuration(seconds)}</span>
-                        <span className="text-[10px] font-mono" style={{ color: 'rgba(255,255,255,0.3)' }}>{formatDuration(MAX_VOICE_SECONDS - seconds)} left</span>
+
+                        {/* Mic button — tap to start recording (shown when no text) */}
+                        {!text.trim() && (
+                          <button
+                            onClick={startRecording}
+                            className="w-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all active:scale-90"
+                            style={{ background: 'rgba(138,43,226,0.15)', border: '1px solid rgba(138,43,226,0.3)', color: '#c084fc' }}
+                            title="Record voice message"
+                          >
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                              <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+                            </svg>
+                          </button>
+                        )}
+
+                        {/* Send button */}
+                        <button
+                          onClick={handleSend}
+                          disabled={!text.trim() || sending}
+                          className="px-3 py-2.5 rounded-xl font-mono text-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
+                          style={{ background: 'rgba(138,43,226,0.2)', border: '1px solid rgba(138,43,226,0.35)', color: '#c084fc', minWidth: '2.5rem' }}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                          </svg>
+                        </button>
                       </motion.div>
                     )}
                   </AnimatePresence>
-
-                  <div className="flex gap-2">
-                    <input
-                      ref={inputRef}
-                      value={text}
-                      onChange={e => setText(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
-                      }}
-                      placeholder={recording ? 'Recording…' : 'Message…'}
-                      maxLength={500}
-                      disabled={recording}
-                      className="flex-1 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none transition-all disabled:opacity-50"
-                      style={{
-                        background: 'rgba(12, 5, 28, 0.95)',
-                        border: '1px solid rgba(138,43,226,0.25)',
-                        color: '#ffffff',
-                        WebkitTextFillColor: '#ffffff',
-                        caretColor: '#c084fc',
-                        colorScheme: 'dark',
-                      }}
-                      onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'rgba(138,43,226,0.55)'; }}
-                      onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'rgba(138,43,226,0.25)'; }}
-                    />
-
-                    {/* Mic button (hold to record) — shown when text is empty */}
-                    {!text.trim() && (
-                      <motion.button
-                        whileTap={{ scale: 0.92 }}
-                        onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); startRecording(); }}
-                        onPointerUp={stopRecording}
-                        onPointerLeave={stopRecording}
-                        onPointerCancel={stopRecording}
-                        className="w-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-150"
-                        style={recording ? {
-                          background: 'rgba(239,68,68,0.2)',
-                          border: '1px solid rgba(239,68,68,0.4)',
-                          color: '#f87171',
-                          touchAction: 'none',
-                          userSelect: 'none',
-                        } : {
-                          background: 'rgba(138,43,226,0.15)',
-                          border: '1px solid rgba(138,43,226,0.3)',
-                          color: '#c084fc',
-                          touchAction: 'none',
-                          userSelect: 'none',
-                        }}
-                        title="Hold to record voice message"
-                      >
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill={recording ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                          <line x1="12" y1="19" x2="12" y2="23"/>
-                          <line x1="8" y1="23" x2="16" y2="23"/>
-                        </svg>
-                      </motion.button>
-                    )}
-
-                    {/* Send button */}
-                    <button
-                      onClick={handleSend}
-                      disabled={!text.trim() || sending || recording}
-                      className="px-3 py-2.5 rounded-xl font-mono text-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
-                      style={{
-                        background: 'rgba(138,43,226,0.2)',
-                        border: '1px solid rgba(138,43,226,0.35)',
-                        color: '#c084fc',
-                        minWidth: '2.5rem',
-                      }}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="22" y1="2" x2="11" y2="13" />
-                        <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                      </svg>
-                    </button>
-                  </div>
                 </div>
               </>
             )}

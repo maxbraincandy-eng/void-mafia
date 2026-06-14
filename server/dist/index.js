@@ -51,6 +51,7 @@ const io = new Server(httpServer, {
     pingTimeout: 20000,
     pingInterval: 10000,
     upgradeTimeout: 10000,
+    maxHttpBufferSize: 5 * 1024 * 1024, // 5MB — needed for voice message audio data
 });
 // ── Middleware ────────────────────────────────────────────────────────
 app.use((req, res, next) => {
