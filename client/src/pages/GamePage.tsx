@@ -35,6 +35,7 @@ import { VoteRevealScreen } from '@/components/game/VoteRevealScreen';
 import { TutorialOverlay } from '@/components/ui/TutorialOverlay';
 import { InGamePlayersPanel } from '@/components/game/InGamePlayersPanel';
 import { SpectatorTheater } from '@/components/game/SpectatorTheater';
+import { SpectatorTheaterPanel } from '@/components/game/SpectatorTheaterPanel';
 import { DynamicEventBanner } from '@/components/game/DynamicEventBanner';
 import { useT } from '@/store/langStore';
 import { useSocialStore } from '@/store/socialStore';
@@ -1561,7 +1562,10 @@ export function GamePage() {
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto">
               {rightTab === 'spectator' ? (
-                <SpectatorTheater room={room} myPlayer={myPlayer} />
+                <div className="space-y-3">
+                  <SpectatorTheater room={room} myPlayer={myPlayer} />
+                  <SpectatorTheaterPanel room={room} myPlayer={myPlayer} />
+                </div>
               ) : rightTab === 'chat' ? (
                 <ChatPanel compact />
               ) : (
@@ -1835,7 +1839,12 @@ export function GamePage() {
                   </button>
                 </div>
                 <div className="flex-1 min-h-0 p-3 overflow-y-auto space-y-4">
-                  {amSpectator && <SpectatorTheater room={room} myPlayer={myPlayer} />}
+                  {amSpectator && (
+                    <div className="space-y-3">
+                      <SpectatorTheater room={room} myPlayer={myPlayer} />
+                      <SpectatorTheaterPanel room={room} myPlayer={myPlayer} />
+                    </div>
+                  )}
                   <ChatPanel />
                 </div>
               </motion.div>
