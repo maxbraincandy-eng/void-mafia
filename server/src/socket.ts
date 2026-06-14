@@ -74,6 +74,7 @@ import {
   getGiftsSent, getGiftTimeline, getGiftStats,
   getPinnedGifts, pinGift, unpinGift,
 } from './services/coinService.js';
+import { applyReferral, getReferralCount } from './services/referralService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -265,6 +266,7 @@ const ChatSchema = z.object({
 const AuthSchema = z.object({
   uid: z.string().min(1).max(64),
   username: z.string().min(1).max(24),
+  referralCode: z.string().max(8).optional(),
 });
 
 const ReportSchema = z.object({
@@ -732,6 +734,9 @@ export function attachSocketHandlers(io: AppServer): void {
         markOnline(parsed.uid);
         broadcastOnlineCount(io);
         await grantStarterCosmetics(parsed.uid);
+        if (parsed.referralCode) {
+          applyReferral(parsed.uid, parsed.referralCode).catch(() => {});
+        }
         const freshProfile = await getOrCreatePlayer(parsed.uid, parsed.username);
         socket.emit('player:profile', toPublicProfile(freshProfile));
         cb(ok(toPublicProfile(freshProfile)));
@@ -3041,6 +3046,16 @@ export function attachSocketHandlers(io: AppServer): void {
         if (idx !== -1) _lobbyChat.splice(idx, 1);
         io.emit('lobby:msg_deleted', { msgId });
         cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Referral count ───────────────────────────────────────────────
+    socket.on('profile:referral_count', async (cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const count = await getReferralCount(profileId);
+        cb(ok(count));
       } catch (e: any) { cb(err(e.message)); }
     });
 

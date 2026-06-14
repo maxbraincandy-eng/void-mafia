@@ -1,11 +1,24 @@
 import { sql } from '../db.js';
 import { generateId } from '../utils/helpers.js';
+import { getAllRooms } from './roomService.js';
 // ── Online status tracking (in-memory, ephemeral) ─────────────────────
 const onlineProfiles = new Set();
 export function markOnline(profileId) { onlineProfiles.add(profileId); }
 export function markOffline(profileId) { onlineProfiles.delete(profileId); }
 export function isOnline(profileId) { return onlineProfiles.has(profileId); }
 export function getOnlineCount() { return onlineProfiles.size; }
+export function getPlayerStatus(profileId) {
+    if (!onlineProfiles.has(profileId))
+        return 'offline';
+    const rooms = getAllRooms();
+    for (const room of rooms) {
+        for (const [, player] of room.players) {
+            if (player.profileId === profileId && player.isConnected)
+                return 'in_game';
+        }
+    }
+    return 'online';
+}
 // ── Friend requests ───────────────────────────────────────────────────
 export async function sendFriendRequest(fromId, toId) {
     if (fromId === toId)
@@ -59,6 +72,7 @@ export async function getFriends(playerId) {
         avatarUrl: r.avatar_url ?? null,
         publicId: r.public_id != null ? Number(r.public_id) : null,
         level: Number(r.level ?? 1), isOnline: onlineProfiles.has(r.id), status: 'accepted',
+        playerStatus: getPlayerStatus(r.id),
     }));
 }
 export async function getPendingRequests(playerId) {

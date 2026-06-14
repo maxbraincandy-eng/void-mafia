@@ -1,6 +1,7 @@
 import { sql } from '../db.js';
 import { generateId } from '../utils/helpers.js';
-import type { Friend, FriendRequest } from '../types/index.js';
+import type { Friend, FriendRequest, PlayerStatus } from '../types/index.js';
+import { getAllRooms } from './roomService.js';
 
 // ── Online status tracking (in-memory, ephemeral) ─────────────────────
 const onlineProfiles = new Set<string>();
@@ -9,6 +10,17 @@ export function markOnline(profileId: string): void { onlineProfiles.add(profile
 export function markOffline(profileId: string): void { onlineProfiles.delete(profileId); }
 export function isOnline(profileId: string): boolean { return onlineProfiles.has(profileId); }
 export function getOnlineCount(): number { return onlineProfiles.size; }
+
+export function getPlayerStatus(profileId: string): PlayerStatus {
+  if (!onlineProfiles.has(profileId)) return 'offline';
+  const rooms = getAllRooms();
+  for (const room of rooms) {
+    for (const [, player] of room.players) {
+      if (player.profileId === profileId && player.isConnected) return 'in_game';
+    }
+  }
+  return 'online';
+}
 
 // ── Friend requests ───────────────────────────────────────────────────
 export async function sendFriendRequest(fromId: string, toId: string): Promise<void> {
@@ -63,6 +75,7 @@ export async function getFriends(playerId: string): Promise<Friend[]> {
     avatarUrl: r.avatar_url ?? null,
     publicId: r.public_id != null ? Number(r.public_id) : null,
     level: Number(r.level ?? 1), isOnline: onlineProfiles.has(r.id), status: 'accepted' as const,
+    playerStatus: getPlayerStatus(r.id),
   }));
 }
 

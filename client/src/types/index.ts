@@ -100,6 +100,8 @@ export interface XPGain {
 }
 
 // ── Friend ────────────────────────────────────────────────────────────
+export type PlayerStatus = 'online' | 'in_game' | 'offline';
+
 export interface Friend {
   profileId: string;
   username: string;
@@ -109,6 +111,7 @@ export interface Friend {
   level: number;
   isOnline: boolean;
   status: 'accepted';
+  playerStatus?: PlayerStatus;
 }
 
 export interface FriendRequest {

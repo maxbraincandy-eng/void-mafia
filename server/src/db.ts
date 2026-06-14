@@ -511,6 +511,18 @@ export async function initializeDatabase(): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS idx_clan_mod_logs_clan ON clan_mod_logs(clan_id, created_at)`;
 
+  // ── Referral system ───────────────────────────────────────────────────
+  await sql`
+    CREATE TABLE IF NOT EXISTS referrals (
+      id TEXT PRIMARY KEY,
+      referrer_id TEXT NOT NULL REFERENCES players(id),
+      referred_id TEXT NOT NULL,
+      coins_granted BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at BIGINT NOT NULL,
+      UNIQUE(referred_id)
+    )
+  `;
+
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];
   console.log(`[Database] connected successfully`);

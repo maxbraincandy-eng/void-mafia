@@ -1,8 +1,9 @@
-import type { Friend, FriendRequest } from '../types/index.js';
+import type { Friend, FriendRequest, PlayerStatus } from '../types/index.js';
 export declare function markOnline(profileId: string): void;
 export declare function markOffline(profileId: string): void;
 export declare function isOnline(profileId: string): boolean;
 export declare function getOnlineCount(): number;
+export declare function getPlayerStatus(profileId: string): PlayerStatus;
 export declare function sendFriendRequest(fromId: string, toId: string): Promise<void>;
 export declare function acceptFriend(requestFrom: string, accepterId: string): Promise<void>;
 export declare function declineFriend(requestFrom: string, declinerId: string): Promise<void>;

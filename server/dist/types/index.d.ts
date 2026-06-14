@@ -33,6 +33,7 @@ export interface XPGain {
     challengeCompleted: boolean;
     challengeBonus: number;
 }
+export type PlayerStatus = 'online' | 'in_game' | 'offline';
 export interface Friend {
     profileId: string;
     username: string;
@@ -42,6 +43,7 @@ export interface Friend {
     level: number;
     isOnline: boolean;
     status: 'accepted';
+    playerStatus: PlayerStatus;
 }
 export interface FriendRequest {
     id: string;
@@ -748,7 +750,9 @@ export interface ClientToServerEvents {
     'player:auth': (data: {
         uid: string;
         username: string;
+        referralCode?: string;
     }, cb: Cb<PlayerProfilePublic>) => void;
+    'profile:referral_count': (cb: Cb<number>) => void;
     'player:register': (data: {
         email: string;
         password: string;

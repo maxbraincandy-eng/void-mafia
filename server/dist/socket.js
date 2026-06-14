@@ -19,6 +19,7 @@ import bcrypt from 'bcryptjs';
 import { sendPushToUser } from './pushService.js';
 import { getOrCreateConversation, listConversations, sendMessage, getMessages, markRead, getTotalUnread, } from './services/dmService.js';
 import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, getGiftsSent, getGiftTimeline, getGiftStats, getPinnedGifts, pinGift, unpinGift, } from './services/coinService.js';
+import { applyReferral, getReferralCount } from './services/referralService.js';
 // ── TURN / ICE server config ──────────────────────────────────────────
 // Centralised in server/src/lib/iceConfig.ts.  Reads Railway env vars:
 // TURN_URL, TURN_USERNAME, TURN_CREDENTIAL, FORCE_TURN_RELAY, STUN_URL.
@@ -192,6 +193,7 @@ const ChatSchema = z.object({
 const AuthSchema = z.object({
     uid: z.string().min(1).max(64),
     username: z.string().min(1).max(24),
+    referralCode: z.string().max(8).optional(),
 });
 const ReportSchema = z.object({
     targetProfileId: z.string().min(1),
@@ -651,6 +653,9 @@ export function attachSocketHandlers(io) {
                 markOnline(parsed.uid);
                 broadcastOnlineCount(io);
                 await grantStarterCosmetics(parsed.uid);
+                if (parsed.referralCode) {
+                    applyReferral(parsed.uid, parsed.referralCode).catch(() => { });
+                }
                 const freshProfile = await getOrCreatePlayer(parsed.uid, parsed.username);
                 socket.emit('player:profile', toPublicProfile(freshProfile));
                 cb(ok(toPublicProfile(freshProfile)));
@@ -3270,6 +3275,19 @@ export function attachSocketHandlers(io) {
                     _lobbyChat.splice(idx, 1);
                 io.emit('lobby:msg_deleted', { msgId });
                 cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Referral count ───────────────────────────────────────────────
+        socket.on('profile:referral_count', async (cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const count = await getReferralCount(profileId);
+                cb(ok(count));
             }
             catch (e) {
                 cb(err(e.message));

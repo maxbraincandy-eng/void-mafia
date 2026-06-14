@@ -32,6 +32,12 @@ import type { GiftReceivedNotification } from '@/types/index';
 const _initialPathMatch = window.location.pathname.match(/^\/u\/(\d+)$/);
 const INITIAL_PUBLIC_ID: number | null = _initialPathMatch ? parseInt(_initialPathMatch[1]!, 10) : null;
 
+// Detect referral code from URL
+const _refMatch = new URLSearchParams(window.location.search).get('ref');
+if (_refMatch && !localStorage.getItem('vm_pending_ref')) {
+  localStorage.setItem('vm_pending_ref', _refMatch);
+}
+
 interface Toast {
   id: string;
   text: string;

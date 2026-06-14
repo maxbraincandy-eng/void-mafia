@@ -102,6 +102,8 @@ export interface XPGain {
 }
 
 // ── Friend ────────────────────────────────────────────────────────────
+export type PlayerStatus = 'online' | 'in_game' | 'offline';
+
 export interface Friend {
   profileId: string;
   username: string;
@@ -111,6 +113,7 @@ export interface Friend {
   level: number;
   isOnline: boolean;
   status: 'accepted';
+  playerStatus: PlayerStatus;
 }
 
 export interface FriendRequest {
@@ -776,7 +779,8 @@ export interface ServerToClientEvents {
 }
 
 export interface ClientToServerEvents {
-  'player:auth':        (data: { uid: string; username: string }, cb: Cb<PlayerProfilePublic>) => void;
+  'player:auth':        (data: { uid: string; username: string; referralCode?: string }, cb: Cb<PlayerProfilePublic>) => void;
+  'profile:referral_count': (cb: Cb<number>) => void;
   'player:register':    (data: { email: string; password: string; username: string }, cb: Cb<{ uid: string; profile: PlayerProfilePublic }>) => void;
   'player:login_email': (data: { email: string; password: string }, cb: Cb<{ uid: string; profile: PlayerProfilePublic }>) => void;
   'player:stats':       (data: { profileId: string }, cb: Cb<PlayerProfilePublic>) => void;
