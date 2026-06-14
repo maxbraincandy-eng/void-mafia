@@ -947,6 +947,10 @@ export interface ClientToServerEvents {
   'clan:war_decline':    (data: { warId: string }, cb: Cb<any>) => void;
   'clan:war_status':     (data: { clanId: string }, cb: Cb<any>) => void;
   'clan:war_history':    (data: { clanId: string }, cb: Cb<any[]>) => void;
+  // Replays
+  'replay:list': (data: { limit?: number; offset?: number }, cb: Cb<GameReplaySummary[]>) => void;
+  'replay:get':  (data: { replayId: string }, cb: Cb<GameReplayFull>) => void;
+  'replay:my':   (cb: Cb<GameReplaySummary[]>) => void;
 }
 
 export interface InterServerEvents {}
@@ -955,6 +959,29 @@ export interface SocketData {
   playerId: string | null;
   roomId: string | null;
   profileId: string | null;
+}
+
+// ── Replay Types ──────────────────────────────────────────────────────
+export interface ReplayEvent {
+  t: number;           // ms since game start
+  type: string;        // 'phase_change' | 'death' | 'vote' | 'kill' | 'save' | 'investigate' | 'chat' | 'game_start' | 'game_end'
+  data: Record<string, any>;
+}
+
+export interface GameReplaySummary {
+  id: string;
+  roomName: string;
+  playerCount: number;
+  durationMs: number;
+  startedAt: number;
+  endedAt: number;
+  winner: string;
+  createdAt: number;
+}
+
+export interface GameReplayFull extends GameReplaySummary {
+  events: ReplayEvent[];
+  playerRoles: Record<string, { username: string; role: string; team: string; alive: boolean }>;
 }
 
 // ── Result Envelope ───────────────────────────────────────────────────

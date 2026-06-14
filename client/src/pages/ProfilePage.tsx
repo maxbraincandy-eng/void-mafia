@@ -106,7 +106,7 @@ async function resizeImage(file: File): Promise<string> {
 
 interface LinkedProvider { provider: string; email: string | null; displayName: string | null; }
 
-export function ProfilePage() {
+export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) => void } = {}) {
   const { profile, logout, localAvatar, uploadAvatar, removeAvatar, uid, changeName } = useAuthStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -1097,9 +1097,22 @@ export function ProfilePage() {
                       </div>
                       <p className="font-mono text-[10px] text-white/30">Room #{g.roomCode} · Day {g.dayReached} · {g.playerCount}p</p>
                     </div>
-                    <div className="text-right flex-shrink-0">
+                    <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
                       <p className={`font-display font-bold text-sm ${g.won ? 'text-neon-green' : 'text-neon-red/70'}`}>{g.won ? 'WIN' : 'LOSS'}</p>
                       <p className="font-mono text-[9px] text-white/20">{new Date(g.endedAt).toLocaleDateString()}</p>
+                      {onViewReplay && (
+                        <button
+                          onClick={() => onViewReplay(g.id)}
+                          className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-lg transition-all"
+                          style={{
+                            background: 'rgba(0,229,255,0.08)',
+                            color: 'rgba(0,229,255,0.6)',
+                            border: '1px solid rgba(0,229,255,0.2)',
+                          }}
+                        >
+                          📺 Replay
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

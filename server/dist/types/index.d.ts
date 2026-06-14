@@ -1203,6 +1203,14 @@ export interface ClientToServerEvents {
     'clan:war_history': (data: {
         clanId: string;
     }, cb: Cb<any[]>) => void;
+    'replay:list': (data: {
+        limit?: number;
+        offset?: number;
+    }, cb: Cb<GameReplaySummary[]>) => void;
+    'replay:get': (data: {
+        replayId: string;
+    }, cb: Cb<GameReplayFull>) => void;
+    'replay:my': (cb: Cb<GameReplaySummary[]>) => void;
 }
 export interface InterServerEvents {
 }
@@ -1210,6 +1218,30 @@ export interface SocketData {
     playerId: string | null;
     roomId: string | null;
     profileId: string | null;
+}
+export interface ReplayEvent {
+    t: number;
+    type: string;
+    data: Record<string, any>;
+}
+export interface GameReplaySummary {
+    id: string;
+    roomName: string;
+    playerCount: number;
+    durationMs: number;
+    startedAt: number;
+    endedAt: number;
+    winner: string;
+    createdAt: number;
+}
+export interface GameReplayFull extends GameReplaySummary {
+    events: ReplayEvent[];
+    playerRoles: Record<string, {
+        username: string;
+        role: string;
+        team: string;
+        alive: boolean;
+    }>;
 }
 export type Res<T> = {
     ok: true;

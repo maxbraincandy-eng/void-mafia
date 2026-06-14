@@ -22,6 +22,7 @@ import { getOrCreateConversation, listConversations, sendMessage, getMessages, m
 import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, getGiftsSent, getGiftTimeline, getGiftStats, getPinnedGifts, pinGift, unpinGift, } from './services/coinService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
+import { startReplay, recordEvent, finishReplay, listReplays, getReplay, getMyReplays, } from './services/replayService.js';
 // ── TURN / ICE server config ──────────────────────────────────────────
 // Centralised in server/src/lib/iceConfig.ts.  Reads Railway env vars:
 // TURN_URL, TURN_USERNAME, TURN_CREDENTIAL, FORCE_TURN_RELAY, STUN_URL.
@@ -271,6 +272,10 @@ function startPhaseTimer(io, room) {
             announceVoteResult(io, room);
         advancePhase(room);
         const nextPhase = room.phase;
+        // ── Replay: record phase change ──────────────────────────────────
+        if (nextPhase !== 'game_over') {
+            recordEvent(room.id, { t: Date.now() - room.startedAt, type: 'phase_change', data: { phase: nextPhase, round: room.day } });
+        }
         if (wasNight) {
             announceNightResult(io, room);
             notifySpies(io, room);
@@ -506,6 +511,24 @@ async function emitGameOver(io, room) {
         }
         catch { /* non-fatal */ }
     }
+    // ── Replay: save to DB ──────────────────────────────────────────────
+    try {
+        const endedAt = Date.now();
+        recordEvent(room.id, { t: endedAt - room.startedAt, type: 'game_end', data: { winner: room.winner ?? 'draw' } });
+        const playerRoles = {};
+        for (const p of room.players.values()) {
+            if (!p.isSpectator && p.profileId) {
+                playerRoles[p.profileId] = {
+                    username: p.name,
+                    role: p.role ?? 'unknown',
+                    team: p.team ?? 'unknown',
+                    alive: p.isAlive,
+                };
+            }
+        }
+        await finishReplay(room.id, { winner: room.winner ?? 'draw', endedAt, playerRoles });
+    }
+    catch { /* non-fatal */ }
 }
 async function notifyMods(io, type, message, targetName) {
     const socketsWithProfile = [];
@@ -565,6 +588,12 @@ function announceNightResult(io, room) {
             if (!p?.socketId && p?.profileId) {
                 sendPushToUser(p.profileId, { title: '💀 You Were Eliminated', body: 'Come back to watch the rest of the game.' }).catch(() => { });
             }
+            // ── Replay: record death ─────────────────────────────────────────
+            recordEvent(room.id, {
+                t: Date.now() - room.startedAt,
+                type: 'death',
+                data: { playerId: killed.id, username: killed.name, role: p?.role ?? null, team: p?.team ?? null, cause: 'night_kill', round: room.day },
+            });
         }
     }
     else if (room.savedLastNight) {
@@ -659,6 +688,12 @@ function announceVoteResult(io, room) {
             if (target.socketId) {
                 io.to(target.socketId).emit('voice:force-mute', { reason: 'You were eliminated.' });
             }
+            // ── Replay: record vote death ──────────────────────────────────
+            recordEvent(room.id, {
+                t: Date.now() - room.startedAt,
+                type: 'death',
+                data: { playerId: eliminated, username: target.name, role: target.role ?? null, team: target.team ?? null, cause: 'vote', round: room.day },
+            });
         }
     }
     else {
@@ -1173,6 +1208,9 @@ export function attachSocketHandlers(io) {
                                 startGame(room);
                                 room.startedAt = Date.now();
                                 setPhase(room, 'role_reveal');
+                                // ── Replay: start recording ────────────────────────────
+                                startReplay(room.id, room.code, room.startedAt);
+                                recordEvent(room.id, { t: 0, type: 'game_start', data: { playerCount: still.length } });
                                 for (const p of room.players.values()) {
                                     if (p.socketId && p.role) {
                                         io.to(p.socketId).emit('game:role', { role: getRole(p.role) });
@@ -1291,6 +1329,10 @@ export function attachSocketHandlers(io) {
                 startGame(room);
                 room.startedAt = Date.now();
                 setPhase(room, 'role_reveal');
+                // ── Replay: start recording ──────────────────────────────────
+                startReplay(room.id, room.code, room.startedAt);
+                const activePlayers = [...room.players.values()].filter(p => !p.isSpectator);
+                recordEvent(room.id, { t: 0, type: 'game_start', data: { playerCount: activePlayers.length } });
                 for (const player of room.players.values()) {
                     if (player.socketId && player.role) {
                         io.to(player.socketId).emit('game:role', { role: getRole(player.role) });
@@ -3818,6 +3860,44 @@ export function attachSocketHandlers(io) {
             try {
                 const data = await getRankedLeaderboard(50);
                 cb(ok(data));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Replays ─────────────────────────────────────────────────────
+        socket.on('replay:list', async (data, cb) => {
+            try {
+                const { limit = 20, offset = 0 } = data ?? {};
+                const replays = await listReplays(limit, offset);
+                cb(ok(replays));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('replay:get', async (data, cb) => {
+            try {
+                const replay = await getReplay(data.replayId);
+                if (!replay) {
+                    cb(err('Not found'));
+                    return;
+                }
+                cb(ok(replay));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('replay:my', async (cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(err('Not authenticated'));
+                    return;
+                }
+                const replays = await getMyReplays(profileId);
+                cb(ok(replays));
             }
             catch (e) {
                 cb(err(e.message));

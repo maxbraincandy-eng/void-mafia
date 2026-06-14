@@ -14,6 +14,7 @@ import { ClansPage } from '@/pages/ClansPage';
 import { LeaderboardPage } from '@/pages/LeaderboardPage';
 import { ModDashboardPage } from '@/pages/ModDashboardPage';
 import { EconomyAdminPage } from '@/pages/EconomyAdminPage';
+import { ReplaysPage } from '@/pages/ReplaysPage';
 import { PublicProfilePage } from '@/pages/PublicProfilePage';
 import { BottomNav, NavTab } from '@/components/layout/BottomNav';
 import { MorePanel } from '@/components/ui/MorePanel';
@@ -138,22 +139,29 @@ function DmToastNotification() {
 
 function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const [page, setPage] = useState<NavTab>('rooms');
+  const [initialReplayId, setInitialReplayId] = useState<string | undefined>(undefined);
   const profile = useAuthStore(s => s.profile);
   const isMod   = profile?.isModerator ?? false;
   const isOwner = profile?.moderatorLevel === 'owner';
   const { openDmList } = useSocialStore();
+
+  function navigateToReplay(gameId: string) {
+    setInitialReplayId(gameId);
+    setPage('replays');
+  }
 
   return (
     <div className="pb-20 min-h-screen">
       <AnimatePresence mode="wait">
         {page === 'rooms'                   && <RoomsPage key="rooms" />}
         {page === 'clans'                   && <ClansPage key="clans" />}
+        {page === 'replays'                 && <ReplaysPage key={`replays-${initialReplayId ?? ''}`} initialReplayId={initialReplayId} />}
         {page === 'leaderboard'             && <LeaderboardPage key="leaderboard" onBack={() => setPage('rooms')} />}
-        {page === 'profile'                 && <ProfilePage key="profile" />}
+        {page === 'profile'                 && <ProfilePage key="profile" onViewReplay={navigateToReplay} />}
         {page === 'mod' && isMod            && <ModDashboardPage key="mod" />}
         {page === 'economy' && isOwner      && <EconomyAdminPage key="economy" />}
       </AnimatePresence>
-      <BottomNav active={page} isMod={isMod} onChange={setPage} onMessagesClick={openDmList} />
+      <BottomNav active={page} isMod={isMod} onChange={tab => { if (tab !== 'replays') setInitialReplayId(undefined); setPage(tab); }} onMessagesClick={openDmList} />
       <MorePanel isOwner={isOwner} onEconomyClick={() => setPage('economy')} onShopClick={onOpenShop} />
     </div>
   );

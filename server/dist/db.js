@@ -545,6 +545,22 @@ export async function initializeDatabase() {
   `;
     await sql `CREATE INDEX IF NOT EXISTS idx_clan_wars_challenger ON clan_wars(challenger_clan_id, status)`;
     await sql `CREATE INDEX IF NOT EXISTS idx_clan_wars_defender ON clan_wars(defender_clan_id, status)`;
+    // ── Game Replays ──────────────────────────────────────────────────────
+    await sql `
+    CREATE TABLE IF NOT EXISTS game_replays (
+      id           TEXT PRIMARY KEY,
+      room_name    TEXT NOT NULL,
+      player_count INT NOT NULL DEFAULT 0,
+      duration_ms  BIGINT NOT NULL DEFAULT 0,
+      started_at   BIGINT NOT NULL,
+      ended_at     BIGINT NOT NULL,
+      winner       TEXT NOT NULL,
+      events       JSONB NOT NULL DEFAULT '[]',
+      player_roles JSONB NOT NULL DEFAULT '{}',
+      created_at   BIGINT NOT NULL
+    )
+  `;
+    await sql `CREATE INDEX IF NOT EXISTS idx_game_replays_created ON game_replays(created_at DESC)`;
     // Verify connection
     const [{ cnt }] = await sql `SELECT COUNT(*) as cnt FROM players`;
     console.log(`[Database] connected successfully`);

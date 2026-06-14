@@ -769,3 +769,28 @@ export interface CoinTransaction {
   grantedBy: string | null;
   createdAt: number;
 }
+
+// ── Replays ───────────────────────────────────────────────────────────
+export type ReplayWinner = 'mafia' | 'town' | 'draw';
+
+export interface ReplayEvent {
+  t: number;
+  type: string;
+  data: Record<string, any>;
+}
+
+export interface GameReplaySummary {
+  id: string;
+  roomName: string;
+  playerCount: number;
+  durationMs: number;
+  startedAt: number;
+  endedAt: number;
+  winner: ReplayWinner;
+  createdAt: number;
+}
+
+export interface GameReplayFull extends GameReplaySummary {
+  events: ReplayEvent[];
+  playerRoles: Record<string, { username: string; role: string; team: string; alive: boolean }>;
+}
