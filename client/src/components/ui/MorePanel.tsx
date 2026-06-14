@@ -10,62 +10,99 @@ import { SeasonPassModal } from '@/components/ui/SeasonPassModal';
 import { ReferralModal } from '@/components/ui/ReferralModal';
 
 interface MenuItem {
-  icon: React.ReactNode;
+  icon: string;
   label: string;
   description: string;
+  iconBg: string;
+  iconGlow: string;
+  badge?: { text: string; color: string };
   comingSoon?: boolean;
   onClick?: () => void;
 }
 
-function MenuRow({ item }: { item: MenuItem }) {
+interface Section {
+  title: string;
+  items: MenuItem[];
+}
+
+function SectionLabel({ title }: { title: string }) {
   return (
-    <button
-      onClick={item.onClick}
+    <div className="flex items-center gap-2 px-1 pt-4 pb-1">
+      <p className="text-[9px] font-mono font-bold uppercase tracking-[0.22em] text-white/20">
+        {title}
+      </p>
+      <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.04)' }} />
+    </div>
+  );
+}
+
+function MenuRow({ item, index }: { item: MenuItem; index: number }) {
+  return (
+    <motion.button
+      initial={{ opacity: 0, x: -12 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: 0.05 + index * 0.04, duration: 0.22, ease: 'easeOut' }}
+      onClick={item.comingSoon ? undefined : item.onClick}
       disabled={item.comingSoon}
-      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all group disabled:cursor-default"
-      style={{
-        background: item.comingSoon ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.03)',
+      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all duration-150 group disabled:cursor-default active:scale-[0.98]"
+      style={{ background: 'transparent' }}
+      onMouseEnter={e => {
+        if (!item.comingSoon)
+          (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)';
       }}
-      onMouseEnter={e => { if (!item.comingSoon) (e.currentTarget as HTMLElement).style.background = 'rgba(138,43,226,0.08)'; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = item.comingSoon ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.03)'; }}
+      onMouseLeave={e => {
+        (e.currentTarget as HTMLElement).style.background = 'transparent';
+      }}
     >
+      {/* Icon */}
       <div
-        className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+        className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 text-lg transition-transform duration-150 group-active:scale-95"
         style={{
-          background: item.comingSoon
-            ? 'rgba(255,255,255,0.04)'
-            : 'linear-gradient(135deg, rgba(138,43,226,0.25), rgba(0,255,255,0.1))',
-          border: item.comingSoon ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(138,43,226,0.3)',
+          background: item.comingSoon ? 'rgba(255,255,255,0.04)' : item.iconBg,
+          boxShadow: item.comingSoon ? 'none' : `0 0 14px ${item.iconGlow}`,
         }}
       >
-        <span className={item.comingSoon ? 'opacity-30' : 'opacity-80'}>
-          {item.icon}
-        </span>
+        <span className={item.comingSoon ? 'opacity-25 grayscale' : ''}>{item.icon}</span>
       </div>
+
+      {/* Text */}
       <div className="flex-1 text-left min-w-0">
-        <p className={`text-sm font-display font-bold tracking-wide ${item.comingSoon ? 'text-white/25' : 'text-white/80'}`}>
-          {item.label}
-        </p>
-        <p className={`text-[10px] font-mono mt-0.5 ${item.comingSoon ? 'text-white/15' : 'text-white/35'}`}>
+        <div className="flex items-center gap-1.5">
+          <p className={`text-sm font-display font-bold tracking-wide leading-none ${item.comingSoon ? 'text-white/20' : 'text-white/85'}`}>
+            {item.label}
+          </p>
+          {item.badge && !item.comingSoon && (
+            <span
+              className="text-[8px] font-mono font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full leading-none"
+              style={{ background: item.badge.color + '22', color: item.badge.color, border: `1px solid ${item.badge.color}44` }}
+            >
+              {item.badge.text}
+            </span>
+          )}
+        </div>
+        <p className={`text-[10px] font-mono mt-1 leading-tight ${item.comingSoon ? 'text-white/12' : 'text-white/30'}`}>
           {item.description}
         </p>
       </div>
-      {item.comingSoon && (
+
+      {/* Right side */}
+      {item.comingSoon ? (
         <span
-          className="text-[8px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded-md flex-shrink-0"
-          style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.08)' }}
+          className="text-[8px] font-mono uppercase tracking-widest px-2 py-1 rounded-lg flex-shrink-0"
+          style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.06)' }}
         >
           soon
         </span>
-      )}
-      {!item.comingSoon && (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-          className="text-neon-purple/30 group-hover:text-neon-purple/60 transition-colors flex-shrink-0">
+      ) : (
+        <svg
+          width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          className="text-white/15 group-hover:text-white/40 transition-colors flex-shrink-0"
+        >
           <polyline points="9 18 15 12 9 6" />
         </svg>
       )}
-    </button>
+    </motion.button>
   );
 }
 
@@ -78,7 +115,9 @@ interface MorePanelProps {
 
 export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onReplaysClick }: MorePanelProps) {
   const { morePanelOpen, closeMoreMenu } = useSocialStore();
-  const profileId = useAuthStore(s => s.profile?.id ?? null);
+  const profile = useAuthStore(s => s.profile);
+  const profileId = profile?.id ?? null;
+
   const [showSettings, setShowSettings] = useState(false);
   const [showCoinHistory, setShowCoinHistory] = useState(false);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
@@ -86,170 +125,209 @@ export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onRepl
   const [showSeasonPass, setShowSeasonPass] = useState(false);
   const [showReferral, setShowReferral] = useState(false);
 
-  const items: MenuItem[] = [
+  const open = (fn: () => void) => () => { closeMoreMenu(); setTimeout(fn, 220); };
+
+  const sections: Section[] = [
     {
-      icon: (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-neon-cyan">
-          <circle cx="12" cy="12" r="10" />
-          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-          <line x1="12" y1="17" x2="12.01" y2="17" />
-        </svg>
-      ),
-      label: 'How to Play',
-      description: 'Rules, roles & game guide',
-      onClick: () => { closeMoreMenu(); setTimeout(() => setShowHowToPlay(true), 250); },
+      title: 'Discover',
+      items: [
+        {
+          icon: '❓',
+          label: 'How to Play',
+          description: 'Rules, roles & game guide',
+          iconBg: 'linear-gradient(135deg, rgba(0,229,255,0.25), rgba(0,229,255,0.08))',
+          iconGlow: 'rgba(0,229,255,0.18)',
+          onClick: open(() => setShowHowToPlay(true)),
+        },
+        {
+          icon: '📺',
+          label: 'Game Replays',
+          description: 'Review past game timelines',
+          iconBg: 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(59,130,246,0.12))',
+          iconGlow: 'rgba(99,102,241,0.2)',
+          badge: { text: 'NEW', color: '#818cf8' },
+          onClick: open(() => onReplaysClick?.()),
+        },
+      ],
     },
     {
-      icon: (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-neon-purple">
-          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-        </svg>
-      ),
-      label: 'Achievements',
-      description: 'Track your milestones',
-      onClick: () => { closeMoreMenu(); setTimeout(() => setShowAchievements(true), 250); },
+      title: 'Rewards',
+      items: [
+        {
+          icon: '🏆',
+          label: 'Season Pass',
+          description: 'Ranked rewards & battle pass',
+          iconBg: 'linear-gradient(135deg, rgba(236,72,153,0.3), rgba(168,85,247,0.12))',
+          iconGlow: 'rgba(236,72,153,0.2)',
+          onClick: open(() => setShowSeasonPass(true)),
+        },
+        {
+          icon: '⭐',
+          label: 'Achievements',
+          description: 'Track your milestones',
+          iconBg: 'linear-gradient(135deg, rgba(250,204,21,0.25), rgba(251,146,60,0.12))',
+          iconGlow: 'rgba(250,204,21,0.18)',
+          onClick: open(() => setShowAchievements(true)),
+        },
+      ],
     },
     {
-      icon: (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-neon-pink">
-          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-        </svg>
-      ),
-      label: 'Season Pass',
-      description: 'Rewards & battle pass',
-      onClick: () => { closeMoreMenu(); setTimeout(() => setShowSeasonPass(true), 250); },
+      title: 'Economy',
+      items: [
+        {
+          icon: '🛍️',
+          label: 'Coin Shop',
+          description: 'Buy coins to send gifts',
+          iconBg: 'linear-gradient(135deg, rgba(34,197,94,0.25), rgba(16,185,129,0.1))',
+          iconGlow: 'rgba(34,197,94,0.18)',
+          onClick: open(() => onShopClick?.()),
+        },
+        {
+          icon: '🪙',
+          label: 'Coin History',
+          description: 'Transactions, gifts & balance',
+          iconBg: 'linear-gradient(135deg, rgba(251,191,36,0.25), rgba(245,158,11,0.1))',
+          iconGlow: 'rgba(251,191,36,0.18)',
+          onClick: open(() => setShowCoinHistory(true)),
+        },
+        {
+          icon: '🔗',
+          label: 'Invite Friends',
+          description: 'Share your referral link, earn 250 coins',
+          iconBg: 'linear-gradient(135deg, rgba(168,85,247,0.3), rgba(236,72,153,0.1))',
+          iconGlow: 'rgba(168,85,247,0.2)',
+          badge: { text: 'HOT', color: '#f472b6' },
+          onClick: open(() => setShowReferral(true)),
+        },
+      ],
     },
     {
-      icon: <span className="text-base">🪙</span>,
-      label: 'Coin History',
-      description: 'Transactions, gifts & balance',
-      onClick: () => { closeMoreMenu(); setTimeout(() => setShowCoinHistory(true), 250); },
-    },
-    {
-      icon: <span className="text-base">🛒</span>,
-      label: 'Coin Shop',
-      description: 'Buy coins to send gifts',
-      onClick: () => { closeMoreMenu(); setTimeout(() => onShopClick?.(), 250); },
-    },
-    ...(isOwner && onEconomyClick ? [{
-      icon: <span className="text-base">🪙</span>,
-      label: 'Economy Admin',
-      description: 'Gifts, coins & transactions',
-      onClick: () => { closeMoreMenu(); setTimeout(onEconomyClick, 250); },
-    }] : []),
-    {
-      icon: <span className="text-base">🔗</span>,
-      label: 'Invite Friends',
-      description: 'Share your referral link, earn 250 coins',
-      onClick: () => { closeMoreMenu(); setTimeout(() => setShowReferral(true), 250); },
-    },
-    {
-      icon: <span className="text-base">📺</span>,
-      label: 'Game Replays',
-      description: 'Review past game timelines',
-      onClick: () => { closeMoreMenu(); setTimeout(() => onReplaysClick?.(), 250); },
-    },
-    {
-      icon: (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-400">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M19.07 4.93a10 10 0 0 1 1.414 14.142M4.93 4.93A10 10 0 0 0 3.516 19.07" />
-          <path d="M15.54 8.46a5 5 0 0 1 0 7.07M8.46 8.46a5 5 0 0 0 0 7.07" />
-        </svg>
-      ),
-      label: 'Settings',
-      description: 'Audio, notifications & more',
-      onClick: () => { closeMoreMenu(); setTimeout(() => setShowSettings(true), 250); },
+      title: 'Account',
+      items: [
+        {
+          icon: '⚙️',
+          label: 'Settings',
+          description: 'Audio, notifications & more',
+          iconBg: 'linear-gradient(135deg, rgba(100,116,139,0.3), rgba(71,85,105,0.12))',
+          iconGlow: 'rgba(100,116,139,0.18)',
+          onClick: open(() => setShowSettings(true)),
+        },
+        ...(isOwner && onEconomyClick ? [{
+          icon: '👑',
+          label: 'Economy Admin',
+          description: 'Gifts, coins & transactions',
+          iconBg: 'linear-gradient(135deg, rgba(239,68,68,0.28), rgba(220,38,38,0.1))',
+          iconGlow: 'rgba(239,68,68,0.2)',
+          onClick: open(onEconomyClick),
+        }] : []),
+      ],
     },
   ];
 
+  let globalIndex = 0;
+
   return (
     <>
-    <AnimatePresence>
-      {morePanelOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            key="more-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[70]"
-            style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-            onClick={closeMoreMenu}
-          />
+      <AnimatePresence>
+        {morePanelOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              key="more-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="fixed inset-0 z-[70]"
+              style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(6px)' }}
+              onClick={closeMoreMenu}
+            />
 
-          {/* Panel */}
-          <motion.div
-            key="more-panel"
-            initial={{ x: '-100%', opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: '-100%', opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-            className="fixed top-0 left-0 bottom-0 z-[80] flex flex-col"
-            style={{
-              width: 'min(300px, 85vw)',
-              background: 'rgba(6, 3, 18, 0.98)',
-              borderRight: '1px solid rgba(138,43,226,0.2)',
-              boxShadow: '8px 0 40px rgba(0,0,0,0.6), 2px 0 16px rgba(138,43,226,0.08)',
-            }}
-          >
-            {/* Header */}
-            <div
-              className="flex items-center justify-between px-4 pt-12 pb-4"
-              style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+            {/* Panel */}
+            <motion.div
+              key="more-panel"
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', stiffness: 340, damping: 34 }}
+              className="fixed top-0 left-0 bottom-0 z-[80] flex flex-col"
+              style={{
+                width: 'min(310px, 88vw)',
+                background: 'linear-gradient(180deg, rgba(8,4,22,0.99) 0%, rgba(5,2,15,0.99) 100%)',
+                borderRight: '1px solid rgba(138,43,226,0.15)',
+                boxShadow: '12px 0 48px rgba(0,0,0,0.7), 1px 0 0 rgba(138,43,226,0.08)',
+              }}
             >
-              <div>
-                <p className="font-mono text-[9px] uppercase tracking-[0.25em] text-neon-purple/50 mb-0.5">
-                  Menu
-                </p>
-                <h2 className="font-display font-bold text-white/80 text-base tracking-wide">
-                  VOID MAFIA
-                </h2>
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 pt-14 pb-4"
+                style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <div>
+                  <p className="font-mono text-[8px] uppercase tracking-[0.3em] text-neon-purple/40 mb-1">
+                    Menu
+                  </p>
+                  <h2 className="font-display font-black text-white/90 text-lg tracking-widest">
+                    VOID MAFIA
+                  </h2>
+                  {profile?.username && (
+                    <p className="text-[10px] font-mono text-white/25 mt-0.5 truncate max-w-[160px]">
+                      {profile.username}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={closeMoreMenu}
+                  className="w-9 h-9 rounded-2xl flex items-center justify-center text-white/30 hover:text-white/60 transition-all active:scale-95"
+                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.07)' }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
               </div>
-              <button
-                onClick={closeMoreMenu}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-white/30 hover:text-white/60 transition-colors"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </div>
 
-            {/* Items */}
-            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5">
-              {items.map(item => (
-                <MenuRow key={item.label} item={item} />
-              ))}
-            </div>
+              {/* Sections */}
+              <div className="flex-1 overflow-y-auto px-3 pb-4">
+                {sections.map(section => (
+                  <div key={section.title}>
+                    <SectionLabel title={section.title} />
+                    {section.items.map(item => {
+                      const idx = globalIndex++;
+                      return <MenuRow key={item.label} item={item} index={idx} />;
+                    })}
+                  </div>
+                ))}
+              </div>
 
-            {/* Footer */}
-            <div
-              className="px-4 py-4"
-              style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
-            >
-              <p className="font-mono text-[9px] text-white/15 text-center tracking-widest uppercase">
-                v0.2 · Void Mafia
-              </p>
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-    <SettingsPanel open={showSettings} onClose={() => setShowSettings(false)} />
-    <CoinHistoryModal open={showCoinHistory} onClose={() => setShowCoinHistory(false)} />
-    <HowToPlayModal open={showHowToPlay} onClose={() => setShowHowToPlay(false)} />
-    <AchievementsModal open={showAchievements} onClose={() => setShowAchievements(false)} profileId={profileId} />
-    <SeasonPassModal open={showSeasonPass} onClose={() => setShowSeasonPass(false)} />
-    <ReferralModal open={showReferral} onClose={() => setShowReferral(false)} />
+              {/* Footer */}
+              <div className="px-4 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                <div className="flex items-center justify-between">
+                  <span
+                    className="text-[8px] font-mono font-bold uppercase tracking-[0.2em] px-2 py-1 rounded-lg"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(138,43,226,0.15), rgba(0,229,255,0.06))',
+                      border: '1px solid rgba(138,43,226,0.2)',
+                      color: 'rgba(138,43,226,0.7)',
+                    }}
+                  >
+                    V1.0
+                  </span>
+                  <p className="font-mono text-[8px] text-white/12 tracking-widest uppercase">
+                    Void Mafia
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <SettingsPanel open={showSettings} onClose={() => setShowSettings(false)} />
+      <CoinHistoryModal open={showCoinHistory} onClose={() => setShowCoinHistory(false)} />
+      <HowToPlayModal open={showHowToPlay} onClose={() => setShowHowToPlay(false)} />
+      <AchievementsModal open={showAchievements} onClose={() => setShowAchievements(false)} profileId={profileId} />
+      <SeasonPassModal open={showSeasonPass} onClose={() => setShowSeasonPass(false)} />
+      <ReferralModal open={showReferral} onClose={() => setShowReferral(false)} />
     </>
   );
 }
