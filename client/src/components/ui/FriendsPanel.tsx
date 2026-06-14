@@ -60,8 +60,8 @@ export function FriendsPanel() {
     setFriends(f => f.filter(x => x.profileId !== profileId));
   };
 
-  const online = friends.filter(f => f.isOnline);
-  const offline = friends.filter(f => !f.isOnline);
+  const online = friends.filter(f => f.isOnline || f.playerStatus === 'online' || f.playerStatus === 'in_game');
+  const offline = friends.filter(f => !f.isOnline && f.playerStatus !== 'online' && f.playerStatus !== 'in_game');
 
   return (
     <div className="space-y-4">
@@ -134,7 +134,7 @@ export function FriendsPanel() {
         )}
       </AnimatePresence>
 
-      {/* Online friends */}
+      {/* Online / In Game friends */}
       {online.length > 0 && (
         <div>
           <p className="text-[9px] font-display uppercase tracking-[0.25em] text-neon-green/50 mb-2">
@@ -190,14 +190,32 @@ function FriendRow({ friend, onRemove }: { friend: Friend; onRemove: (id: string
           }
         </div>
         <div
-          className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-void ${
-            friend.isOnline ? 'bg-neon-green' : 'bg-white/20'
-          }`}
+          className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-void"
+          style={{
+            background: friend.playerStatus === 'in_game'
+              ? '#00f5ff'
+              : (friend.playerStatus === 'online' || friend.isOnline)
+                ? '#00ff88'
+                : 'rgba(255,255,255,0.2)',
+            boxShadow: friend.playerStatus === 'in_game'
+              ? '0 0 4px rgba(0,245,255,0.7)'
+              : friend.playerStatus === 'online' || friend.isOnline
+                ? '0 0 4px rgba(0,255,136,0.5)'
+                : 'none',
+          }}
         />
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm text-white font-semibold truncate leading-tight">{friend.username}</p>
-        <p className={`text-[9px] font-mono ${lvlColor(friend.level)}`}>Lv.{friend.level}</p>
+        <p className={`text-[9px] font-mono ${lvlColor(friend.level)}`}>
+          {friend.playerStatus === 'in_game' ? (
+            <span style={{ color: '#00f5ff' }}>In Game</span>
+          ) : friend.playerStatus === 'online' || friend.isOnline ? (
+            <span style={{ color: '#00ff88' }}>Online</span>
+          ) : (
+            <span className={lvlColor(friend.level)}>Lv.{friend.level}</span>
+          )}
+        </p>
       </div>
       <button
         onClick={e => { e.stopPropagation(); openDmWith(friend.profileId); }}

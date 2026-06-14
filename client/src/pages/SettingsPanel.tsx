@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useAuthStore } from '@/store/authStore';
-import { socket } from '@/lib/socket';
+import { socket, emitWithAck } from '@/lib/socket';
 import { useT } from '@/store/langStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import type { Res } from '@/types/index';
@@ -99,6 +99,75 @@ function SelectChip<T extends string>({ options, value, onChange }: {
           {o.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+// ── Referral section ─────────────────────────────────────────────────
+
+function ReferralSection() {
+  const { profile } = useAuthStore();
+  const [copied, setCopied] = useState(false);
+  const [referralCount, setReferralCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    emitWithAck<void, Res<number>>('profile:referral_count' as any)
+      .then(res => { if (res.ok) setReferralCount(res.data); })
+      .catch(() => {});
+  }, []);
+
+  if (!profile?.friendCode) return null;
+
+  const referralLink = `https://voidmafia.one/?ref=${profile.friendCode}`;
+
+  const handleCopy = () => {
+    navigator.clipboard?.writeText(referralLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div className="mb-1.5 p-3 rounded-xl bg-white/[0.025] border border-neon-purple/20">
+      <div className="flex items-center justify-between mb-1.5">
+        <div>
+          <p className="text-sm text-white/80 font-mono leading-tight">Referral Link</p>
+          <p className="text-[10px] text-white/30 font-mono mt-0.5 leading-tight">
+            Invite friends and earn 250 coins each!
+          </p>
+        </div>
+        {referralCount !== null && (
+          <span
+            className="text-[10px] font-mono px-2 py-1 rounded-lg"
+            style={{ background: 'rgba(155,0,255,0.15)', border: '1px solid rgba(155,0,255,0.3)', color: '#c084fc' }}
+          >
+            {referralCount} invited
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <p
+          className="flex-1 text-[10px] font-mono text-white/40 truncate px-2 py-1.5 rounded-lg"
+          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+        >
+          {referralLink}
+        </p>
+        <button
+          onClick={handleCopy}
+          className="px-3 py-1.5 rounded-lg font-mono text-[10px] transition-all flex-shrink-0"
+          style={copied ? {
+            background: 'rgba(0,255,136,0.15)',
+            border: '1px solid rgba(0,255,136,0.4)',
+            color: '#00ff88',
+          } : {
+            background: 'rgba(155,0,255,0.15)',
+            border: '1px solid rgba(155,0,255,0.35)',
+            color: '#c084fc',
+          }}
+        >
+          {copied ? 'Copied!' : 'Copy Link'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -414,6 +483,7 @@ export function SettingsPanel({ open, onClose }: Props) {
 
               {/* ── Account ───────────────────────────────────────────── */}
               <SectionHeader label="👤 Account" />
+              <ReferralSection />
               <ChangeNameSection />
               {hasEmail && <ChangePasswordSection />}
 

@@ -49,8 +49,10 @@ export const useAuthStore = create<AuthStore>((set, get) => {
   socket.on('connect', () => {
     const { uid, username } = get();
     if (uid && username) {
-      socket.emit('player:auth', { uid, username }, (res: any) => {
+      const referralCode = localStorage.getItem('vm_pending_ref') ?? undefined;
+      socket.emit('player:auth', { uid, username, referralCode }, (res: any) => {
         if (res?.ok) {
+          if (referralCode) localStorage.removeItem('vm_pending_ref');
           set({ profile: res.data, isAuthed: true, isLoading: false, localAvatar: res.data?.avatarUrl ?? null });
           fetchClanMembership();
           // Signal gameStore to attempt session restore after page refresh
@@ -110,12 +112,14 @@ export const useAuthStore = create<AuthStore>((set, get) => {
         }
         localStorage.setItem(NAME_KEY, username);
 
+        const referralCode = localStorage.getItem('vm_pending_ref') ?? undefined;
         const res = await new Promise<Res<PlayerProfilePublic>>((resolve) => {
-          socket.emit('player:auth', { uid, username }, resolve);
+          socket.emit('player:auth', { uid, username, referralCode }, resolve);
         });
 
         if (!res.ok) throw new Error(res.error);
 
+        if (referralCode) localStorage.removeItem('vm_pending_ref');
         set({
           uid,
           username,
