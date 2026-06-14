@@ -10,6 +10,7 @@ import { useAmbientDrone } from '@/hooks/useAudio';
 import { Button } from '@/components/ui/Button';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { DailyChallengeCard } from '@/components/ui/DailyChallengeCard';
+import { NewsCard } from '@/components/ui/NewsCard';
 import { LobbyChatPanel } from '@/components/social/LobbyChatPanel';
 
 const SURFACE = 'rounded-2xl border border-white/[0.06]';
@@ -166,6 +167,9 @@ export function RoomsPage() {
 
         {/* Daily challenge */}
         <DailyChallengeCard />
+
+        {/* News */}
+        <NewsCard />
 
         {/* ── Mode tabs — underline style ─────────────────────── */}
         <div className="flex border-b border-white/[0.06] mb-5">
