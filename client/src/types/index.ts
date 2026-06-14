@@ -448,6 +448,15 @@ export interface ClanMember {
   joinedAt: number;
 }
 
+// ── Spectator Theater ─────────────────────────────────────────────────
+export interface SpecMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  t: number;
+}
+
 export interface ClanModLog {
   id: string;
   clanId: string;

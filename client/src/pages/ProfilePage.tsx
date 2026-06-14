@@ -13,8 +13,9 @@ import type { AchievementEarned, GameHistoryEntry, PlayerRoleStats, ClanMembersh
 import { RatingBadge } from '@/components/ui/RatingBadge';
 import {
   FRAMES, TITLES, ROLE_SKINS, WALLPAPERS, BORDERS, NAME_COLORS,
+  PROFILE_BACKGROUNDS,
   RARITY_COLOR, RARITY_LABEL,
-  getFrameById, getTitleById, getRoleSkinById, getWallpaperById, getBorderById,
+  getFrameById, getTitleById, getRoleSkinById, getWallpaperById, getBorderById, getBackgroundById,
 } from '@/constants/cosmetics';
 
 import { MAX_LEVEL, xpForLevel, xpForNextLevel, levelColor } from '@/lib/level';
@@ -133,6 +134,8 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
   const [showShare, setShowShare]   = useState(false);
   const [cosmeticsTab, setCosmeticsTab] = useState<'frames' | 'titles' | 'skins' | 'wallpapers' | 'borders' | 'colors'>('frames');
   const [equipLoading, setEquipLoading] = useState(false);
+  const [buyingItem, setBuyingItem] = useState<string | null>(null);
+  const [buyMsg, setBuyMsg] = useState<string | null>(null);
   const [rating, setRating] = useState<PlayerRating | null>(null);
 
   const startEditName = () => {
@@ -300,6 +303,30 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
     }
   }, [equipLoading]);
 
+  const handleBuyBackground = useCallback(async (itemId: string) => {
+    if (buyingItem) return;
+    setBuyingItem(itemId);
+    setBuyMsg(null);
+    try {
+      const res = await emitWithAck<{ itemId: string }, Res<{ cosmetics: PlayerCosmetics; newBalance: number }>>(
+        'cosmetics:buy_item' as any, { itemId },
+      );
+      if (res.ok) {
+        useAuthStore.setState(s => s.profile
+          ? { profile: { ...s.profile!, cosmetics: res.data.cosmetics } }
+          : s,
+        );
+        setCoins(res.data.newBalance);
+        setBuyMsg('Purchased!');
+      } else {
+        setBuyMsg((res as any).error ?? 'Purchase failed.');
+      }
+    } finally {
+      setBuyingItem(null);
+      setTimeout(() => setBuyMsg(null), 3000);
+    }
+  }, [buyingItem]);
+
   if (!profile) return null;
 
   const { stats } = profile;
@@ -315,8 +342,16 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
   const survived     = roleStats?.totalSurvived ?? 0;
   const survivalRate = totalGames > 0 ? Math.round((survived / totalGames) * 100) : 0;
 
+  // Resolve equipped profile background (bg_* takes priority over wp_* for full-bleed)
+  const equippedBgId = profile.cosmetics?.equippedWallpaper ?? null;
+  const bgDef = getBackgroundById(equippedBgId);
+  const bgStyle = bgDef ? { background: bgDef.css } : undefined;
+
   return (
-    <div className="min-h-screen bg-neon-grid-animated scanlines pb-20 relative overflow-hidden">
+    <div className="min-h-screen scanlines pb-20 relative overflow-hidden" style={bgStyle ?? { background: 'linear-gradient(135deg, #03000d 0%, #0a0520 100%)' }}>
+      {/* Full-bleed overlay to keep text readable */}
+      <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(3,0,13,0.6) 50%, rgba(3,0,13,0.92) 100%)' }} />
+      {!bgDef && <div className="absolute inset-0 bg-neon-grid-animated pointer-events-none" />}
       <div className="absolute top-0 left-0 w-64 h-64 bg-neon-purple/10 rounded-full blur-[100px] pointer-events-none" />
 
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-8">
@@ -735,35 +770,89 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                 </div>
               )}
 
-              {/* Wallpapers grid */}
+              {/* Wallpapers / Backgrounds grid */}
               {cosmeticsTab === 'wallpapers' && (
                 <div className="space-y-1.5">
-                  {unlockedWallpapers.length === 0 && (
-                    <p className="text-white/20 font-mono text-xs text-center py-3">No wallpapers unlocked yet</p>
+                  {/* Profile Backgrounds (purchasable) */}
+                  <p className="text-[9px] font-mono text-white/25 uppercase tracking-widest mb-1">Profile Backgrounds</p>
+                  {buyMsg && (
+                    <p className="text-center font-mono text-xs text-neon-green/70 py-1">{buyMsg}</p>
                   )}
-                  {unlockedWallpapers.map(w => {
-                    const isEquipped = equippedWallpaper === w.id;
+                  {PROFILE_BACKGROUNDS.map(bg => {
+                    const isOwned = unlockedItems.includes(bg.id);
+                    const isEquipped = equippedWallpaper === bg.id;
+                    const isBuying = buyingItem === bg.id;
                     return (
-                      <div key={w.id}
+                      <div key={bg.id}
                         className="flex items-center gap-3 rounded-xl p-2.5 border transition-all"
-                        style={isEquipped ? { borderColor: `${w.accent}40`, background: `${w.accent}08` } : { borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
-                        <div className="w-10 h-10 rounded-lg shrink-0 border border-white/10" style={{ background: w.gradient }} />
+                        style={isEquipped
+                          ? { borderColor: `${bg.accent}60`, background: `${bg.accent}10`, boxShadow: `0 0 12px ${bg.accent}30` }
+                          : { borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+                        <div className="w-10 h-10 rounded-lg shrink-0 border border-white/10" style={{ background: bg.css }} />
                         <div className="flex-1 min-w-0">
-                          <p className="text-[11px] font-mono font-bold text-white/80 truncate">{w.name}</p>
-                          <p className="text-[9px] font-mono uppercase tracking-wider" style={{ color: RARITY_COLOR[w.rarity] }}>{RARITY_LABEL[w.rarity]}</p>
+                          <p className="text-[11px] font-mono font-bold text-white/80 truncate">{bg.name}</p>
+                          <p className="text-[9px] font-mono uppercase tracking-wider" style={{ color: RARITY_COLOR[bg.rarity] }}>{RARITY_LABEL[bg.rarity]}</p>
+                          {!isOwned && bg.price > 0 && (
+                            <p className="text-[9px] font-mono text-amber-400/70">{bg.price} coins</p>
+                          )}
+                          {isOwned && !isEquipped && (
+                            <p className="text-[9px] font-mono text-white/25">Owned</p>
+                          )}
                         </div>
-                        <button
-                          onClick={() => handleEquip('wallpaper', isEquipped ? null : w.id)}
-                          className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[10px] font-bold transition-all"
-                          style={isEquipped
-                            ? { background: `${w.accent}20`, color: w.accent, border: `1px solid ${w.accent}40` }
-                            : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
-                        >
-                          {isEquipped ? 'Unequip' : 'Equip'}
-                        </button>
+                        {isOwned ? (
+                          <button
+                            disabled={equipLoading}
+                            onClick={() => handleEquip('wallpaper', isEquipped ? null : bg.id)}
+                            className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[10px] font-bold transition-all disabled:opacity-40"
+                            style={isEquipped
+                              ? { background: `${bg.accent}20`, color: bg.accent, border: `1px solid ${bg.accent}50` }
+                              : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
+                          >
+                            {isEquipped ? 'Unequip' : 'Equip'}
+                          </button>
+                        ) : (
+                          <button
+                            disabled={isBuying || !!buyingItem}
+                            onClick={() => handleBuyBackground(bg.id)}
+                            className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[10px] font-bold transition-all disabled:opacity-40"
+                            style={{ background: 'rgba(255,180,0,0.1)', color: 'rgba(255,180,0,0.8)', border: '1px solid rgba(255,180,0,0.25)' }}
+                          >
+                            {isBuying ? '...' : 'Buy'}
+                          </button>
+                        )}
                       </div>
                     );
                   })}
+
+                  {/* Legacy level-unlock wallpapers */}
+                  {unlockedWallpapers.length > 0 && (
+                    <>
+                      <p className="text-[9px] font-mono text-white/25 uppercase tracking-widest mt-3 mb-1">Level Wallpapers</p>
+                      {unlockedWallpapers.map(w => {
+                        const isEquipped = equippedWallpaper === w.id;
+                        return (
+                          <div key={w.id}
+                            className="flex items-center gap-3 rounded-xl p-2.5 border transition-all"
+                            style={isEquipped ? { borderColor: `${w.accent}40`, background: `${w.accent}08` } : { borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+                            <div className="w-10 h-10 rounded-lg shrink-0 border border-white/10" style={{ background: w.gradient }} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[11px] font-mono font-bold text-white/80 truncate">{w.name}</p>
+                              <p className="text-[9px] font-mono uppercase tracking-wider" style={{ color: RARITY_COLOR[w.rarity] }}>{RARITY_LABEL[w.rarity]}</p>
+                            </div>
+                            <button
+                              onClick={() => handleEquip('wallpaper', isEquipped ? null : w.id)}
+                              className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[10px] font-bold transition-all"
+                              style={isEquipped
+                                ? { background: `${w.accent}20`, color: w.accent, border: `1px solid ${w.accent}40` }
+                                : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
+                            >
+                              {isEquipped ? 'Unequip' : 'Equip'}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
                 </div>
               )}
 

@@ -600,6 +600,18 @@ export async function initializeDatabase(): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS idx_game_replays_created ON game_replays(created_at DESC)`;
 
+  // ── Spectator Theater ─────────────────────────────────────────────────
+  await sql`
+    CREATE TABLE IF NOT EXISTS spectator_suspicion_votes (
+      id                  TEXT PRIMARY KEY,
+      game_id             TEXT NOT NULL,
+      voter_id            TEXT NOT NULL,
+      suspected_player_id TEXT NOT NULL,
+      created_at          BIGINT NOT NULL,
+      UNIQUE(game_id, voter_id)
+    )
+  `;
+
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];
   console.log(`[Database] connected successfully`);

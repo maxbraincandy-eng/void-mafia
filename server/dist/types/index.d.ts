@@ -593,6 +593,13 @@ export interface BannedPlayerEntry {
     expiresAt: number;
     issuedByName: string;
 }
+export interface SpecMessage {
+    id: string;
+    senderId: string;
+    senderName: string;
+    text: string;
+    t: number;
+}
 type Cb<T> = (res: Res<T>) => void;
 export interface ServerToClientEvents {
     'room:update': (room: RoomPublic) => void;
@@ -759,6 +766,10 @@ export interface ServerToClientEvents {
     }) => void;
     'clan:war_ended': (data: {
         war: any;
+    }) => void;
+    'spec:message': (msg: SpecMessage) => void;
+    'spec:game_over': (data: {
+        roleReveals: Record<string, string>;
     }) => void;
 }
 export interface ClientToServerEvents {
@@ -1043,6 +1054,12 @@ export interface ClientToServerEvents {
     'cosmetics:get': (data: {
         profileId: string;
     }, cb: Cb<PlayerCosmetics>) => void;
+    'cosmetics:buy_item': (data: {
+        itemId: string;
+    }, cb: Cb<{
+        cosmetics: PlayerCosmetics;
+        newBalance: number;
+    }>) => void;
     'player:public_profile': (data: {
         profileId: string;
     }, cb: Cb<any>) => void;
@@ -1211,6 +1228,17 @@ export interface ClientToServerEvents {
         replayId: string;
     }, cb: Cb<GameReplayFull>) => void;
     'replay:my': (cb: Cb<GameReplaySummary[]>) => void;
+    'spec:chat': (data: {
+        roomId: string;
+        text: string;
+    }, cb: Cb<null>) => void;
+    'spec:vote_suspect': (data: {
+        roomId: string;
+        suspectedPlayerId: string;
+    }, cb: Cb<null>) => void;
+    'spec:suspicion_results': (data: {
+        gameId: string;
+    }, cb: Cb<any[]>) => void;
 }
 export interface InterServerEvents {
 }

@@ -708,6 +708,15 @@ export interface BannedPlayerEntry {
   issuedByName: string;
 }
 
+// ── Spectator Theater ─────────────────────────────────────────────────
+export interface SpecMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  t: number;
+}
+
 // ── Socket Event Maps ─────────────────────────────────────────────────
 type Cb<T> = (res: Res<T>) => void;
 
@@ -783,6 +792,9 @@ export interface ServerToClientEvents {
   'clan:war_challenged': (data: { war: any }) => void;
   'clan:war_started':    (data: { war: any }) => void;
   'clan:war_ended':      (data: { war: any }) => void;
+  // Spectator Theater
+  'spec:message':        (msg: SpecMessage) => void;
+  'spec:game_over':      (data: { roleReveals: Record<string, string> }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -887,6 +899,7 @@ export interface ClientToServerEvents {
   // Cosmetics
   'cosmetics:equip':       (data: { type: 'name_color' | 'frame' | 'wallpaper' | 'border'; itemId: string | null }, cb: Cb<PlayerCosmetics>) => void;
   'cosmetics:get':         (data: { profileId: string }, cb: Cb<PlayerCosmetics>) => void;
+  'cosmetics:buy_item':    (data: { itemId: string }, cb: Cb<{ cosmetics: PlayerCosmetics; newBalance: number }>) => void;
   // Public profile popup
   'player:public_profile': (data: { profileId: string }, cb: Cb<any>) => void;
   // Role stats breakdown
@@ -951,6 +964,10 @@ export interface ClientToServerEvents {
   'replay:list': (data: { limit?: number; offset?: number }, cb: Cb<GameReplaySummary[]>) => void;
   'replay:get':  (data: { replayId: string }, cb: Cb<GameReplayFull>) => void;
   'replay:my':   (cb: Cb<GameReplaySummary[]>) => void;
+  // Spectator Theater
+  'spec:chat':              (data: { roomId: string; text: string }, cb: Cb<null>) => void;
+  'spec:vote_suspect':      (data: { roomId: string; suspectedPlayerId: string }, cb: Cb<null>) => void;
+  'spec:suspicion_results': (data: { gameId: string }, cb: Cb<any[]>) => void;
 }
 
 export interface InterServerEvents {}

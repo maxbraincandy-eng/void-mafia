@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { PROFILE_BACKGROUNDS, RARITY_COLOR, RARITY_LABEL } from '@/constants/cosmetics';
+import { emitWithAck } from '@/lib/socket';
+import { useAuthStore } from '@/store/authStore';
+import type { PlayerCosmetics, Res } from '@/types/index';
 
 interface CoinPackage {
   id: string;
@@ -20,13 +24,21 @@ interface Props {
   open: boolean;
   onClose: () => void;
   profileId: string;
+  coins?: number | null;
+  onCoinsChange?: (newBalance: number) => void;
 }
 
-export function CoinShopModal({ open, onClose, profileId }: Props) {
+export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCoinsChange }: Props) {
+  const [shopTab, setShopTab] = useState<'coins' | 'backgrounds'>('coins');
   const [packages, setPackages] = useState<CoinPackage[]>([]);
   const [loading, setLoading] = useState(false);
   const [buying, setBuying] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Backgrounds tab state
+  const [buyingBg, setBuyingBg] = useState<string | null>(null);
+  const [bgMsg, setBgMsg] = useState<string | null>(null);
+  const profile = useAuthStore(s => s.profile);
+  const unlockedItems = profile?.cosmetics?.unlockedItems ?? [];
 
   useEffect(() => {
     if (!open) return;
@@ -61,6 +73,30 @@ export function CoinShopModal({ open, onClose, profileId }: Props) {
     }
   };
 
+  const handleBuyBackground = async (itemId: string) => {
+    if (buyingBg) return;
+    setBuyingBg(itemId);
+    setBgMsg(null);
+    try {
+      const res = await emitWithAck<{ itemId: string }, Res<{ cosmetics: PlayerCosmetics; newBalance: number }>>(
+        'cosmetics:buy_item' as any, { itemId },
+      );
+      if (res.ok) {
+        useAuthStore.setState(s => s.profile
+          ? { profile: { ...s.profile!, cosmetics: res.data.cosmetics } }
+          : s,
+        );
+        onCoinsChange?.(res.data.newBalance);
+        setBgMsg('Purchased! Equip it from your Profile > Wallpapers tab.');
+      } else {
+        setBgMsg((res as any).error ?? 'Purchase failed.');
+      }
+    } finally {
+      setBuyingBg(null);
+      setTimeout(() => setBgMsg(null), 5000);
+    }
+  };
+
   return (
     <AnimatePresence>
       {open && (
@@ -90,29 +126,50 @@ export function CoinShopModal({ open, onClose, profileId }: Props) {
           >
             <div className="overflow-y-auto max-h-[88vh] pb-8">
               {/* Header */}
-              <div className="sticky top-0 z-10 flex items-center justify-between px-5 pt-5 pb-4"
+              <div className="sticky top-0 z-10 px-5 pt-5 pb-0"
                 style={{ background: 'rgba(6,3,18,0.96)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                <div>
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-xl">🪙</span>
-                    <h2 className="font-display text-lg font-bold text-amber-400 tracking-widest uppercase">
-                      Coin Shop
-                    </h2>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-xl">🪙</span>
+                      <h2 className="font-display text-lg font-bold text-amber-400 tracking-widest uppercase">
+                        Coin Shop
+                      </h2>
+                    </div>
+                    {propCoins != null && (
+                      <p className="font-mono text-[10px] text-amber-400/50 tracking-widest">
+                        Balance: {propCoins.toLocaleString()} coins
+                      </p>
+                    )}
                   </div>
-                  <p className="font-mono text-[10px] text-white/25 tracking-widest">
-                    Buy coins to send gifts
-                  </p>
+                  <button
+                    onClick={onClose}
+                    className="w-8 h-8 rounded-xl flex items-center justify-center text-white/30 hover:text-white/60 transition-colors"
+                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}
+                  >
+                    ✕
+                  </button>
                 </div>
-                <button
-                  onClick={onClose}
-                  className="w-8 h-8 rounded-xl flex items-center justify-center text-white/30 hover:text-white/60 transition-colors"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}
-                >
-                  ✕
-                </button>
+                {/* Tabs */}
+                <div className="flex gap-1 pb-3">
+                  {[
+                    { id: 'coins', label: 'Buy Coins' },
+                    { id: 'backgrounds', label: 'Backgrounds' },
+                  ].map(t => (
+                    <button key={t.id}
+                      onClick={() => setShopTab(t.id as any)}
+                      className={`px-3 py-1.5 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all ${shopTab === t.id ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30' : 'text-white/30 hover:text-white/50'}`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="px-4 pt-4 space-y-3">
+                {/* ── Buy Coins tab ── */}
+                {shopTab === 'coins' && (
+                <>
                 {/* Trust indicators */}
                 <div className="flex items-center justify-center gap-4 pb-1">
                   {['🔒 Secure', '⚡ Instant', '💳 Stripe'].map(t => (
@@ -203,6 +260,64 @@ export function CoinShopModal({ open, onClose, profileId }: Props) {
                   Coins are non-refundable and cannot be exchanged for real money.
                   Purchases are processed securely via Stripe.
                 </p>
+                </>
+                )}
+
+                {/* ── Backgrounds tab ── */}
+                {shopTab === 'backgrounds' && (
+                <div className="space-y-2">
+                  <p className="font-mono text-[10px] text-white/30 tracking-widest text-center pb-1">
+                    Full-bleed backgrounds for your profile page
+                  </p>
+                  {bgMsg && (
+                    <p className="text-center font-mono text-xs text-neon-green/70 py-1">{bgMsg}</p>
+                  )}
+                  {PROFILE_BACKGROUNDS.map(bg => {
+                    const isOwned = unlockedItems.includes(bg.id);
+                    const isBuying = buyingBg === bg.id;
+                    return (
+                      <div key={bg.id}
+                        className="flex items-center gap-3 rounded-xl p-3 border transition-all"
+                        style={isOwned
+                          ? { borderColor: `${bg.accent}30`, background: `${bg.accent}06` }
+                          : { borderColor: 'rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)' }}
+                      >
+                        <div className="w-12 h-12 rounded-xl shrink-0 border border-white/10" style={{ background: bg.css }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-display font-bold text-sm text-white/90 truncate">{bg.name}</p>
+                          <p className="font-mono text-[9px] uppercase tracking-wider" style={{ color: RARITY_COLOR[bg.rarity] }}>
+                            {RARITY_LABEL[bg.rarity]}
+                          </p>
+                          {isOwned ? (
+                            <p className="font-mono text-[9px] text-neon-green/60">Owned</p>
+                          ) : (
+                            <p className="font-mono text-[10px] text-amber-400/70 font-bold">
+                              {bg.price === 0 ? 'Free' : `${bg.price} coins`}
+                            </p>
+                          )}
+                        </div>
+                        {isOwned ? (
+                          <div className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[10px] text-neon-green/60 border border-neon-green/20">
+                            Owned
+                          </div>
+                        ) : (
+                          <button
+                            disabled={isBuying || !!buyingBg || bg.price === 0}
+                            onClick={() => bg.price > 0 && handleBuyBackground(bg.id)}
+                            className="shrink-0 px-2.5 py-1.5 rounded-lg font-mono text-[10px] font-bold transition-all disabled:opacity-40"
+                            style={{ background: 'rgba(255,180,0,0.1)', color: 'rgba(255,180,0,0.85)', border: '1px solid rgba(255,180,0,0.25)' }}
+                          >
+                            {isBuying ? '...' : bg.price === 0 ? 'Free' : 'Buy'}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <p className="text-center font-mono text-[9px] text-white/15 leading-relaxed pt-2 px-2">
+                    Profile backgrounds are permanent unlocks. Equip from Profile &gt; Wallpapers tab.
+                  </p>
+                </div>
+                )}
               </div>
             </div>
           </motion.div>

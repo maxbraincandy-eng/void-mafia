@@ -76,6 +76,7 @@ import {
   sendGift, getPlayerGifts, getGiftDetail,
   getGiftsSent, getGiftTimeline, getGiftStats,
   getPinnedGifts, pinGift, unpinGift,
+  purchaseCosmeticItem,
 } from './services/coinService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
@@ -430,6 +431,13 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
   // Release all voice mutes and reset voice state so players can freely talk after the game
   io.to(room.id).emit('voice:force-unmute');
   io.to(room.id).emit('voice:reset');
+
+  // Emit spec:game_over with role reveals to spectators (safe — game is over)
+  const roleReveals: Record<string, string> = {};
+  for (const [pid, info] of Object.entries(result.allRoles)) {
+    roleReveals[pid] = info.role;
+  }
+  io.to(`spec:${room.id}`).emit('spec:game_over', { roleReveals });
 
   // Send game:notification push event
   io.to(room.id).emit('game:notification', {
@@ -1151,6 +1159,7 @@ export function attachSocketHandlers(io: AppServer): void {
               player.moderatorLevel = playerProfile.moderatorLevel;
             }
             socket.join(room.id);
+            socket.join(`spec:${room.id}`);
             socket.data.playerId = player.id;
             socket.data.roomId = room.id;
 
@@ -3110,6 +3119,24 @@ export function attachSocketHandlers(io: AppServer): void {
     socket.on('cosmetics:get', async ({ profileId }, cb) => {
       try {
         cb(ok(await getCosmetics(profileId)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // Buy a purchasable cosmetic item with coins, then unlock it
+    socket.on('cosmetics:buy_item', async ({ itemId }: { itemId: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        // Check not already owned
+        const cosmetics = await getCosmetics(profileId);
+        if (cosmetics.unlockedItems.includes(itemId)) throw new Error('Item already owned.');
+        // Deduct coins
+        const { newBalance } = await purchaseCosmeticItem(profileId, itemId);
+        // Unlock the item
+        cosmetics.unlockedItems.push(itemId);
+        await sql`UPDATE players SET cosmetics = ${JSON.stringify(cosmetics)} WHERE id = ${profileId}`;
+        socket.emit('coins:updated', { coins: newBalance });
+        cb(ok({ cosmetics, newBalance }));
       } catch (e: any) { cb(err(e.message)); }
     });
 

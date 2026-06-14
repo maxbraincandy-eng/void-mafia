@@ -203,6 +203,34 @@ export async function deductCoins(
   return { newBalance: balanceAfter };
 }
 
+// ── Cosmetic Item Purchases ──────────────────────────────────────────
+
+// Background items and their prices (keep in sync with client/src/constants/cosmetics.ts)
+const PURCHASABLE_COSMETICS: Record<string, { name: string; price: number }> = {
+  bg_neon_city: { name: 'Neon City', price: 500 },
+  bg_blood:     { name: 'Blood Moon', price: 500 },
+  bg_ocean:     { name: 'Deep Ocean', price: 500 },
+  bg_matrix:    { name: 'Matrix', price: 1000 },
+  bg_aurora:    { name: 'Aurora', price: 1000 },
+  bg_gold:      { name: 'Gold Rush', price: 2000 },
+  bg_crimson:   { name: 'Crimson King', price: 2000 },
+};
+
+export async function purchaseCosmeticItem(
+  playerId: string,
+  itemId: string,
+): Promise<{ newBalance: number }> {
+  const item = PURCHASABLE_COSMETICS[itemId];
+  if (!item) throw new Error('Item not available for purchase.');
+  const balance = await getCoins(playerId);
+  if (balance < item.price) throw new Error(`Not enough coins. Need ${item.price}, have ${balance}.`);
+  const { balanceAfter } = await recordTransaction(
+    playerId, 'deduct', -item.price,
+    `Purchased cosmetic: ${item.name}`,
+  );
+  return { newBalance: balanceAfter };
+}
+
 export async function refundGift(txId: string, ownerId: string): Promise<void> {
   const [tx] = await sql`SELECT * FROM coin_transactions WHERE id = ${txId}` as any[];
   if (!tx) throw new Error('Transaction not found.');

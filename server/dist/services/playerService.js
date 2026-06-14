@@ -549,7 +549,7 @@ export async function equipCosmetic(profileId, type, itemId) {
 }
 // Grant starter items to a new player (call after first login)
 export async function grantStarterCosmetics(profileId) {
-    const STARTER = ['title_void_citizen', 'skin_classic', 'frame_bronze'];
+    const STARTER = ['title_void_citizen', 'skin_classic', 'frame_bronze', 'bg_void'];
     const cosmetics = await getCosmetics(profileId);
     let changed = false;
     for (const item of STARTER) {

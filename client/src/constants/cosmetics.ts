@@ -119,6 +119,32 @@ export const WALLPAPERS: WallpaperDef[] = [
   { id: 'wp_yakuza',  name: 'Yakuza Neon',    rarity: 'legendary', gradient: 'linear-gradient(160deg, #0a0002 0%, #001a10 40%, #00060f 100%)',                    accent: '#ff2d55' },
 ];
 
+// ── Profile Backgrounds (purchasable from coin shop) ────────────────
+export interface BackgroundDef {
+  id: string;
+  name: string;
+  rarity: CosmeticRarity;
+  css: string;    // full-bleed CSS background
+  accent: string; // accent color for UI
+  price: number;  // 0 = free
+}
+
+export const PROFILE_BACKGROUNDS: BackgroundDef[] = [
+  { id: 'bg_void',      name: 'Void',         rarity: 'common',    price: 0,    accent: '#9b00ff', css: 'linear-gradient(135deg, #03000d 0%, #0a0520 100%)' },
+  { id: 'bg_neon_city', name: 'Neon City',    rarity: 'rare',      price: 500,  accent: '#00e5ff', css: 'linear-gradient(135deg, #0a0520 0%, #1a0533 50%, #0d1a3a 100%)' },
+  { id: 'bg_blood',     name: 'Blood Moon',   rarity: 'rare',      price: 500,  accent: '#ff2d55', css: 'linear-gradient(135deg, #1a0000 0%, #2d0505 50%, #0a0000 100%)' },
+  { id: 'bg_ocean',     name: 'Deep Ocean',   rarity: 'rare',      price: 500,  accent: '#00e5ff', css: 'linear-gradient(135deg, #000d1a 0%, #001433 50%, #000a0d 100%)' },
+  { id: 'bg_matrix',    name: 'Matrix',       rarity: 'epic',      price: 1000, accent: '#00ff88', css: 'linear-gradient(135deg, #000a00 0%, #001400 50%, #000500 100%)' },
+  { id: 'bg_aurora',    name: 'Aurora',       rarity: 'epic',      price: 1000, accent: '#cc00ff', css: 'linear-gradient(135deg, #000d0a 0%, #001a14 30%, #0d001a 70%, #000d0a 100%)' },
+  { id: 'bg_gold',      name: 'Gold Rush',    rarity: 'legendary', price: 2000, accent: '#facc15', css: 'linear-gradient(135deg, #0d0800 0%, #1a1000 50%, #0d0800 100%)' },
+  { id: 'bg_crimson',   name: 'Crimson King', rarity: 'legendary', price: 2000, accent: '#ff2d55', css: 'linear-gradient(135deg, #1a0010 0%, #2d0020 50%, #0d0010 100%)' },
+];
+
+export function getBackgroundById(id: string | null): BackgroundDef | null {
+  if (!id) return null;
+  return PROFILE_BACKGROUNDS.find(b => b.id === id) ?? null;
+}
+
 export const BORDERS: BorderDef[] = [
   { id: 'border_flame',  name: 'Flame',   rarity: 'uncommon',  colors: ['#ff6b00', '#ff2d55'], glow: '#ff6b0080', animationClass: 'animate-border-flame'  },
   { id: 'border_glitch', name: 'Glitch',  rarity: 'rare',      colors: ['#00e5ff', '#ff00cc'], glow: '#00e5ff80', animationClass: 'animate-border-glitch' },
@@ -154,7 +180,7 @@ export function getNameColorById(id: string | null): string | null {
 }
 
 // Items unlocked at start (no level required)
-export const STARTER_ITEMS = ['frame_bronze', 'title_void_citizen', 'skin_classic'];
+export const STARTER_ITEMS = ['frame_bronze', 'title_void_citizen', 'skin_classic', 'bg_void'];
 
 // Map legacy frame ids to new definitions
 export const LEVEL_UNLOCK_MAP: Record<number, string[]> = {

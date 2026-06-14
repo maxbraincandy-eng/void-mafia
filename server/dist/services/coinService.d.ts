@@ -117,6 +117,9 @@ export declare function grantCoins(ownerId: string, targetId: string, amount: nu
 export declare function deductCoins(ownerId: string, targetId: string, amount: number, description: string): Promise<{
     newBalance: number;
 }>;
+export declare function purchaseCosmeticItem(playerId: string, itemId: string): Promise<{
+    newBalance: number;
+}>;
 export declare function refundGift(txId: string, ownerId: string): Promise<void>;
 export declare function getTransactions(playerId: string, limit?: number): Promise<CoinTransaction[]>;
 export declare function getAllTransactions(limit?: number): Promise<CoinTransaction[]>;
