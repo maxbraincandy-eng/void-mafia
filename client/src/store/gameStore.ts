@@ -329,8 +329,8 @@ export const useGameStore = create<GameStore>((set, get) => {
     set({ newAchievements: achievements });
   });
 
-  (socket as any).on('game:vote_breakdown', ({ breakdown }: { breakdown: VoteBreakdownEntry[] }) => {
-    set({ voteBreakdown: breakdown });
+  (socket as any).on('game:vote_breakdown', (entries: VoteBreakdownEntry[]) => {
+    set({ voteBreakdown: Array.isArray(entries) ? entries : null });
   });
 
   (socket as any).on('lobby:autostart', ({ secondsLeft }: { secondsLeft: number }) => {
@@ -526,7 +526,9 @@ export const useGameStore = create<GameStore>((set, get) => {
         // "spectator" so it doesn't reject in-progress games with GAME_ALREADY_STARTED_CHOOSE_MODE
         const effectiveJoinMode = joinMode ?? (isSpectator ? 'spectator' : undefined);
         const room = await emit<RoomPublic>('room:join', { code, name, isSpectator, password, ...(effectiveJoinMode ? { joinMode: effectiveJoinMode } : {}) });
-        const myPlayer = room.players.find(p => p.name === name)
+        const myPlayer = room.players.find(p => p.socketId === socket.id)
+          ?? room.nextRoundQueue?.find(p => p.socketId === socket.id)
+          ?? room.players.find(p => p.name === name)
           ?? room.nextRoundQueue?.find(p => p.name === name);
         const playerId = myPlayer?.id ?? null;
         set({ room, myPlayerId: playerId, isLoading: false, error: null });

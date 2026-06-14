@@ -591,6 +591,7 @@ export function rematchRoom(room: Room): void {
   room.chat = [];
   room.mafiaChat = [];
   room.deadChat = [];
+  room.spectatorChat = [];
   room.killedLastNight = [];
   room.savedLastNight = false;
   room.winner = null;
@@ -607,7 +608,6 @@ export function rematchRoom(room: Room): void {
   room.finalWordsReason = null;
   room.activeFoul       = null;
   room.pendingWinner    = null;
-  room.activeFoul       = null;
   room.trialDefenseState = null;
   room.activeEvent      = null;
   room.eventsLog        = [];

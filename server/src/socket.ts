@@ -1733,15 +1733,18 @@ export function attachSocketHandlers(io: AppServer): void {
         }
 
         // Expire the foul after 6 seconds and re-mute presser
+        const foulRoomId = room.id;
         setTimeout(() => {
-          if (room.activeFoul?.playerId === presser.id && room.activeFoul.endsAt === foulEndsAt) {
-            room.activeFoul = null;
-            if (room.phase === 'speech') {
-              const member = voiceGetMembers(room.id, 'room').find(m => m.playerId === presser.id);
+          const liveRoom = getRoom(foulRoomId);
+          if (!liveRoom) return;
+          if (liveRoom.activeFoul?.playerId === presser.id && liveRoom.activeFoul.endsAt === foulEndsAt) {
+            liveRoom.activeFoul = null;
+            if (liveRoom.phase === 'speech') {
+              const member = voiceGetMembers(liveRoom.id, 'room').find(m => m.playerId === presser.id);
               if (member) {
                 io.to(member.socketId).emit('voice:force-mute', { reason: 'Foul window expired.' });
               }
-              broadcastRoom(io, room);
+              broadcastRoom(io, liveRoom);
             }
           }
         }, 6000);

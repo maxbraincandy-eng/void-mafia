@@ -111,10 +111,12 @@ export function NightPanel() {
   }
 
   // ── Determine valid targets ───────────────────────────────────────
+  const isMafiaRole = role === 'mafia' || role === 'don';
+  const canSelfKill = isMafiaRole && (room.settings.mafiaCanSelfKill ?? false);
   const targetablePlayers = room.players.filter(p => {
     if (!p.isAlive) return false;
     if (p.id === myPlayer.id) return false;
-    if ((role === 'mafia' || role === 'don') && p.team === 'mafia') return false;
+    if (isMafiaRole && p.team === 'mafia') return false;
     if (role === 'cult_leader' && p.team === 'cult') return false;
     if (role === 'yakuza' && p.team === 'yakuza') return false;
     return true;
@@ -125,8 +127,8 @@ export function NightPanel() {
     ? room.players.find(p => p.role === 'shogun')
     : null;
 
-  // Doctor/Bodyguard can protect themselves
-  const targets = (role === 'doctor' || role === 'bodyguard')
+  // Doctor/Bodyguard can protect themselves; Mafia can self-kill if setting is on
+  const targets = (role === 'doctor' || role === 'bodyguard' || canSelfKill)
     ? [myPlayer, ...targetablePlayers]
     : targetablePlayers;
 
