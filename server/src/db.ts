@@ -297,6 +297,8 @@ export async function initializeDatabase(): Promise<void> {
   await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS avatar_url TEXT`;
   await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS avatar_updated_at BIGINT`;
   await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS public_id INTEGER`;
+  await sql`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'text'`;
+  await sql`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS audio_duration REAL`;
 
   // Backfill public_id for rows that don't have one yet (earliest player = #1).
   await sql`

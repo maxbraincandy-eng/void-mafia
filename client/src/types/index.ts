@@ -629,6 +629,8 @@ export interface DirectMessage {
   conversationId: string;
   senderId: string;
   text: string;
+  type?: 'text' | 'voice';
+  audioDuration?: number;
   createdAt: number;
   readAt: number | null;
 }

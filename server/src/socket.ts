@@ -67,7 +67,7 @@ import { sql } from './db.js';
 import bcrypt from 'bcryptjs';
 import { sendPushToUser } from './pushService.js';
 import {
-  getOrCreateConversation, listConversations, sendMessage, getMessages, markRead, getTotalUnread,
+  getOrCreateConversation, listConversations, sendMessage, sendVoiceDm, getMessages, markRead, getTotalUnread,
 } from './services/dmService.js';
 import {
   getCoins, claimDailyReward, grantCoins, deductCoins, refundGift,
@@ -3238,6 +3238,36 @@ export function attachSocketHandlers(io: AppServer): void {
           sendPushToUser(receiverId, {
             title: `💬 ${senderProfile?.username ?? 'Someone'}`,
             body: text.trim().slice(0, 100),
+          }).catch(() => {});
+        }
+        cb(ok(msg));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('dm:voice', async (data: { conversationId: string; audioData: string; duration: number }, cb: any) => {
+      try {
+        const senderId = socket.data.profileId;
+        if (!senderId) throw new Error('Not authenticated.');
+        if (!data.audioData?.startsWith('data:audio')) throw new Error('Invalid audio data.');
+        if (data.audioData.length > 2_500_000) throw new Error('Voice message too large.');
+        const [conv] = await sql`SELECT * FROM conversations WHERE id = ${data.conversationId}` as any[];
+        if (!conv) throw new Error('Conversation not found.');
+        if (conv.participant1 !== senderId && conv.participant2 !== senderId) throw new Error('Not a participant.');
+        const receiverId = conv.participant1 === senderId ? conv.participant2 : conv.participant1;
+        const msg = await sendVoiceDm(data.conversationId, senderId, data.audioData, data.duration, receiverId);
+        const recipientSocket = findSocketByProfile(io, receiverId);
+        const senderProfile = await getPlayer(senderId);
+        if (recipientSocket) {
+          recipientSocket.emit('dm:new_message', {
+            conversationId: data.conversationId,
+            message: msg,
+            senderUsername: senderProfile?.username ?? 'Unknown',
+            senderAvatar: senderProfile?.avatar ?? '?',
+          });
+        } else {
+          sendPushToUser(receiverId, {
+            title: `🎙 ${senderProfile?.username ?? 'Someone'}`,
+            body: 'Sent you a voice message',
           }).catch(() => {});
         }
         cb(ok(msg));

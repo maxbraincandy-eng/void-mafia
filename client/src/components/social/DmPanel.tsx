@@ -5,6 +5,142 @@ import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import type { DmConversation, DirectMessage, Res } from '@/types/index';
 
+const MAX_VOICE_SECONDS = 60;
+
+function formatDuration(s: number) {
+  const sec = Math.floor(s);
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+}
+
+function useVoiceRecorder(onComplete: (dataUrl: string, duration: number) => void) {
+  const mediaRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const startRef = useRef<number>(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+
+  const stop = useCallback(() => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (mediaRef.current && mediaRef.current.state !== 'inactive') {
+      mediaRef.current.stop();
+    }
+    setRecording(false);
+    setSeconds(0);
+  }, []);
+
+  const start = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm',
+      });
+      chunksRef.current = [];
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      mr.onstop = () => {
+        const dur = (Date.now() - startRef.current) / 1000;
+        const blob = new Blob(chunksRef.current, { type: mr.mimeType });
+        stream.getTracks().forEach(t => t.stop());
+        const reader = new FileReader();
+        reader.onload = () => onComplete(reader.result as string, dur);
+        reader.readAsDataURL(blob);
+      };
+      mr.start(100);
+      mediaRef.current = mr;
+      startRef.current = Date.now();
+      setRecording(true);
+      setSeconds(0);
+      timerRef.current = setInterval(() => {
+        const s = (Date.now() - startRef.current) / 1000;
+        setSeconds(s);
+        if (s >= MAX_VOICE_SECONDS) stop();
+      }, 200);
+    } catch { /* mic denied */ }
+  }, [onComplete, stop]);
+
+  useEffect(() => () => { stop(); }, [stop]);
+
+  return { recording, seconds, start, stop };
+}
+
+function VoiceMessageBubble({ msg, isMe }: { msg: DirectMessage; isMe: boolean }) {
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const toggle = useCallback(() => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio(msg.text);
+      audioRef.current.ontimeupdate = () => {
+        const a = audioRef.current!;
+        setProgress(a.duration ? a.currentTime / a.duration : 0);
+      };
+      audioRef.current.onended = () => { setPlaying(false); setProgress(0); };
+    }
+    if (playing) {
+      audioRef.current.pause();
+      setPlaying(false);
+    } else {
+      audioRef.current.play().catch(() => {});
+      setPlaying(true);
+    }
+  }, [playing, msg.text]);
+
+  useEffect(() => () => { audioRef.current?.pause(); }, []);
+
+  const dur = msg.audioDuration ?? 0;
+
+  return (
+    <div
+      className="flex items-center gap-2.5 px-3 py-2.5 rounded-2xl border min-w-[160px] max-w-[220px]"
+      style={isMe ? {
+        background: 'rgba(138,43,226,0.15)',
+        border: '1px solid rgba(138,43,226,0.3)',
+      } : {
+        background: 'rgba(255,255,255,0.06)',
+        border: '1px solid rgba(255,255,255,0.1)',
+      }}
+    >
+      <button
+        onClick={toggle}
+        className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all active:scale-90"
+        style={playing ? {
+          background: 'rgba(192,132,252,0.25)',
+          color: '#c084fc',
+        } : {
+          background: 'rgba(255,255,255,0.08)',
+          color: 'rgba(255,255,255,0.6)',
+        }}
+      >
+        {playing ? (
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        ) : (
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+        )}
+      </button>
+      <div className="flex-1 space-y-1">
+        <div className="flex items-center gap-0.5 h-5">
+          {Array.from({ length: 18 }).map((_, i) => {
+            const h = 20 + Math.sin(i * 1.3) * 50 + Math.cos(i * 2.1) * 30;
+            const filled = i / 18 <= progress;
+            return (
+              <div
+                key={i}
+                className="flex-1 rounded-full transition-colors duration-75"
+                style={{
+                  height: `${Math.max(15, h)}%`,
+                  background: filled ? '#a855f7' : 'rgba(255,255,255,0.12)',
+                }}
+              />
+            );
+          })}
+        </div>
+        <p className="text-[9px] font-mono" style={{ color: 'rgba(255,255,255,0.3)' }}>{formatDuration(dur)}</p>
+      </div>
+    </div>
+  );
+}
+
 // Swipeable row: swipe left to reveal delete button
 function SwipeableRow({
   children,
@@ -113,6 +249,25 @@ export function DmPanel() {
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleVoiceComplete = useCallback(async (dataUrl: string, duration: number) => {
+    if (!activeConvId || sending) return;
+    setSending(true);
+    try {
+      const res = await emitWithAck<{ conversationId: string; audioData: string; duration: number }, Res<DirectMessage>>(
+        'dm:voice', { conversationId: activeConvId, audioData: dataUrl, duration }
+      );
+      if (res.ok) {
+        setMessages(prev => [...prev, res.data]);
+        setConversations(prev => prev.map(c =>
+          c.id === activeConvId ? { ...c, lastMessage: '🎙 Voice message', lastMessageAt: res.data.createdAt } : c
+        ));
+      }
+    } catch {}
+    finally { setSending(false); }
+  }, [activeConvId, sending]);
+
+  const { recording, seconds, start: startRecording, stop: stopRecording } = useVoiceRecorder(handleVoiceComplete);
 
   const refreshUnreadCount = useCallback(async () => {
     try {
@@ -480,29 +635,29 @@ export function DmPanel() {
                     messages.map(msg => {
                       const isMe = msg.senderId === myProfileId;
                       return (
-                        <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                          <div
-                            className={`max-w-[78%] px-3 py-2 rounded-2xl text-sm font-mono break-words ${
-                              isMe
-                                ? 'rounded-br-sm'
-                                : 'rounded-bl-sm'
-                            }`}
-                            style={isMe ? {
-                              background: 'rgba(138,43,226,0.2)',
-                              border: '1px solid rgba(138,43,226,0.3)',
-                              color: '#ffffff',
-                            } : {
-                              background: 'rgba(255,255,255,0.07)',
-                              border: '1px solid rgba(255,255,255,0.08)',
-                              color: 'rgba(255,255,255,0.82)',
-                            }}
-                          >
-                            <p>{msg.text}</p>
-                            <p className={`text-[9px] mt-1 ${isMe ? 'text-right' : ''}`}
-                               style={{ color: 'rgba(255,255,255,0.22)' }}>
-                              {formatTime(msg.createdAt)}
-                            </p>
-                          </div>
+                        <div key={msg.id} className={`flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
+                          {msg.type === 'voice' ? (
+                            <VoiceMessageBubble msg={msg} isMe={isMe} />
+                          ) : (
+                            <div
+                              className={`max-w-[78%] px-3 py-2 rounded-2xl text-sm font-mono break-words ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'}`}
+                              style={isMe ? {
+                                background: 'rgba(138,43,226,0.2)',
+                                border: '1px solid rgba(138,43,226,0.3)',
+                                color: '#ffffff',
+                              } : {
+                                background: 'rgba(255,255,255,0.07)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                color: 'rgba(255,255,255,0.82)',
+                              }}
+                            >
+                              <p>{msg.text}</p>
+                            </div>
+                          )}
+                          <p className={`text-[9px] font-mono px-1 ${isMe ? 'text-right' : ''}`}
+                             style={{ color: 'rgba(255,255,255,0.22)' }}>
+                            {formatTime(msg.createdAt)}
+                          </p>
                         </div>
                       );
                     })
@@ -510,53 +665,108 @@ export function DmPanel() {
                   <div ref={bottomRef} />
                 </div>
 
-                {/* Input bar — uses inline styles to override iOS Safari defaults */}
+                {/* Input bar */}
                 <div
-                  className="flex gap-2 px-3 pt-2 border-t border-white/5 flex-shrink-0"
+                  className="flex flex-col gap-1.5 px-3 pt-2 border-t border-white/5 flex-shrink-0"
                   style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
                 >
-                  <input
-                    ref={inputRef}
-                    value={text}
-                    onChange={e => setText(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
-                    }}
-                    placeholder="Message…"
-                    maxLength={500}
-                    className="flex-1 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none transition-all"
-                    style={{
-                      background: 'rgba(12, 5, 28, 0.95)',
-                      border: '1px solid rgba(138,43,226,0.25)',
-                      color: '#ffffff',
-                      WebkitTextFillColor: '#ffffff',
-                      caretColor: '#c084fc',
-                      colorScheme: 'dark',
-                    }}
-                    onFocus={e => {
-                      (e.target as HTMLInputElement).style.borderColor = 'rgba(138,43,226,0.55)';
-                    }}
-                    onBlur={e => {
-                      (e.target as HTMLInputElement).style.borderColor = 'rgba(138,43,226,0.25)';
-                    }}
-                  />
-                  <button
-                    onClick={handleSend}
-                    disabled={!text.trim() || sending}
-                    className="px-3 py-2.5 rounded-xl font-mono text-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
-                    style={{
-                      background: 'rgba(138,43,226,0.2)',
-                      border: '1px solid rgba(138,43,226,0.35)',
-                      color: '#c084fc',
-                      minWidth: '2.5rem',
-                    }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="22" y1="2" x2="11" y2="13" />
-                      <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                    </svg>
-                  </button>
+                  {/* Recording indicator */}
+                  <AnimatePresence>
+                    {recording && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 4 }}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
+                        style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)' }}
+                      >
+                        <motion.div
+                          animate={{ opacity: [1, 0.3, 1] }}
+                          transition={{ repeat: Infinity, duration: 1 }}
+                          className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"
+                        />
+                        <span className="text-xs font-mono text-red-400 flex-1">Recording... {formatDuration(seconds)}</span>
+                        <span className="text-[10px] font-mono" style={{ color: 'rgba(255,255,255,0.3)' }}>{formatDuration(MAX_VOICE_SECONDS - seconds)} left</span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <div className="flex gap-2">
+                    <input
+                      ref={inputRef}
+                      value={text}
+                      onChange={e => setText(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+                      }}
+                      placeholder={recording ? 'Recording…' : 'Message…'}
+                      maxLength={500}
+                      disabled={recording}
+                      className="flex-1 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none transition-all disabled:opacity-50"
+                      style={{
+                        background: 'rgba(12, 5, 28, 0.95)',
+                        border: '1px solid rgba(138,43,226,0.25)',
+                        color: '#ffffff',
+                        WebkitTextFillColor: '#ffffff',
+                        caretColor: '#c084fc',
+                        colorScheme: 'dark',
+                      }}
+                      onFocus={e => { (e.target as HTMLInputElement).style.borderColor = 'rgba(138,43,226,0.55)'; }}
+                      onBlur={e => { (e.target as HTMLInputElement).style.borderColor = 'rgba(138,43,226,0.25)'; }}
+                    />
+
+                    {/* Mic button (hold to record) — shown when text is empty */}
+                    {!text.trim() && (
+                      <motion.button
+                        whileTap={{ scale: 0.92 }}
+                        onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); startRecording(); }}
+                        onPointerUp={stopRecording}
+                        onPointerLeave={stopRecording}
+                        onPointerCancel={stopRecording}
+                        className="w-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-150"
+                        style={recording ? {
+                          background: 'rgba(239,68,68,0.2)',
+                          border: '1px solid rgba(239,68,68,0.4)',
+                          color: '#f87171',
+                          touchAction: 'none',
+                          userSelect: 'none',
+                        } : {
+                          background: 'rgba(138,43,226,0.15)',
+                          border: '1px solid rgba(138,43,226,0.3)',
+                          color: '#c084fc',
+                          touchAction: 'none',
+                          userSelect: 'none',
+                        }}
+                        title="Hold to record voice message"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill={recording ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                          <line x1="12" y1="19" x2="12" y2="23"/>
+                          <line x1="8" y1="23" x2="16" y2="23"/>
+                        </svg>
+                      </motion.button>
+                    )}
+
+                    {/* Send button */}
+                    <button
+                      onClick={handleSend}
+                      disabled={!text.trim() || sending || recording}
+                      className="px-3 py-2.5 rounded-xl font-mono text-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
+                      style={{
+                        background: 'rgba(138,43,226,0.2)',
+                        border: '1px solid rgba(138,43,226,0.35)',
+                        color: '#c084fc',
+                        minWidth: '2.5rem',
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13" />
+                        <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </>
             )}
