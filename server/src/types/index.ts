@@ -916,6 +916,9 @@ export interface ClientToServerEvents {
   'gifts:pin':              (data: { giftId: string }, cb: Cb<{}>) => void;
   'gifts:unpin':            (data: { giftId: string }, cb: Cb<{}>) => void;
   'gifts:detail':           (data: { giftId: string; recipientId: string }, cb: Cb<any>) => void;
+  // Push notifications
+  'push:subscribe':         (data: { endpoint: string; p256dh: string; auth: string }, cb: Cb<null>) => void;
+  'push:unsubscribe':       (data: { endpoint: string }, cb: Cb<null>) => void;
   // Economy — owner only
   'owner:coins_grant':      (data: { targetProfileId: string; amount: number; description: string }, cb: Cb<{ newBalance: number }>) => void;
   'owner:coins_deduct':     (data: { targetProfileId: string; amount: number; description: string }, cb: Cb<{ newBalance: number }>) => void;

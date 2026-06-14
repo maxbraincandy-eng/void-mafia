@@ -251,7 +251,7 @@ app.post('/api/shop/checkout', express.json(), async (req, res) => {
       }],
       metadata: { profileId, packageId: pkg.id, coins: String(pkg.coins) },
       success_url: `${origin}/shop/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/shop`,
+      cancel_url: `${origin}/`,
     });
     res.json({ ok: true, url: session.url });
   } catch (e: any) {

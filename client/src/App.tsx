@@ -21,6 +21,7 @@ import { PlayerProfileModal } from '@/components/ui/PlayerProfileModal';
 import { DmPanel } from '@/components/social/DmPanel';
 import { GiftReceivedAnimation } from '@/components/ui/GiftReceivedAnimation';
 import { CoinShopModal } from '@/components/ui/CoinShopModal';
+import { ShopSuccessModal } from '@/components/ui/ShopSuccessModal';
 import { ModAlertPanel } from '@/components/ui/ModAlertPanel';
 import { attachGlobalClickSounds, onSettingsChange } from '@/lib/audioEngine';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -345,11 +346,15 @@ export default function App() {
   const [giftNotif, setGiftNotif] = useState<GiftReceivedNotification | null>(null);
   const [shopOpen, setShopOpen] = useState(false);
   const [publicProfileId, setPublicProfileId] = useState<number | null>(INITIAL_PUBLIC_ID);
+  const [shopSuccess, setShopSuccess] = useState(() => window.location.pathname === '/shop/success');
 
   useEffect(() => {
     connect();
     attachGlobalClickSounds();
     const unsub = useSettingsStore.subscribe(onSettingsChange);
+    if (window.location.pathname === '/shop/success') {
+      window.history.replaceState({}, '', '/');
+    }
     return unsub;
   }, [connect]);
 
@@ -378,6 +383,7 @@ export default function App() {
       <ModAlertPanel />
       <GiftReceivedAnimation notification={giftNotif} onDismiss={() => setGiftNotif(null)} />
       <CoinShopModal open={shopOpen} onClose={() => setShopOpen(false)} profileId={profile?.id ?? ''} />
+      <ShopSuccessModal open={shopSuccess} onClose={() => setShopSuccess(false)} />
     </>
   );
 }

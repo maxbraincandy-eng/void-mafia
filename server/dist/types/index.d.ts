@@ -1114,6 +1114,14 @@ export interface ClientToServerEvents {
         giftId: string;
         recipientId: string;
     }, cb: Cb<any>) => void;
+    'push:subscribe': (data: {
+        endpoint: string;
+        p256dh: string;
+        auth: string;
+    }, cb: Cb<null>) => void;
+    'push:unsubscribe': (data: {
+        endpoint: string;
+    }, cb: Cb<null>) => void;
     'owner:coins_grant': (data: {
         targetProfileId: string;
         amount: number;

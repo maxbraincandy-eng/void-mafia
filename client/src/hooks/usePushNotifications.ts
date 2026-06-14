@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { emitWithAck } from '@/lib/socket';
 
 const SW_PATH = '/sw.js';
 
@@ -51,11 +52,11 @@ export function usePushNotifications() {
         applicationServerKey: urlBase64ToUint8Array(vapidKey) as BufferSource,
       });
 
-      await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(sub.toJSON()),
+      const subJson = sub.toJSON() as any;
+      await emitWithAck('push:subscribe', {
+        endpoint: subJson.endpoint,
+        p256dh: subJson.keys.p256dh,
+        auth: subJson.keys.auth,
       });
 
       setIsSubscribed(true);
@@ -73,12 +74,7 @@ export function usePushNotifications() {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
       if (sub) {
-        await fetch('/api/push/subscribe', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ endpoint: sub.endpoint }),
-        });
+        await emitWithAck('push:unsubscribe', { endpoint: sub.endpoint });
         await sub.unsubscribe();
       }
       setIsSubscribed(false);

@@ -3299,6 +3299,30 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    // ── Push Notifications ───────────────────────────────────────────
+    socket.on('push:subscribe', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const { endpoint, p256dh, auth } = data as any;
+        if (!endpoint || !p256dh || !auth) throw new Error('Invalid subscription data.');
+        await sql`
+          INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
+          VALUES (${profileId}, ${endpoint}, ${p256dh}, ${auth})
+          ON CONFLICT (endpoint) DO UPDATE SET user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth
+        `;
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('push:unsubscribe', async (data, cb) => {
+      try {
+        const { endpoint } = data as any;
+        if (endpoint) await sql`DELETE FROM push_subscriptions WHERE endpoint = ${endpoint}`;
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     // ── Disconnect ──────────────────────────────────────────────────
     socket.on('disconnect', () => {
       rateLimits.delete(socket.id);
