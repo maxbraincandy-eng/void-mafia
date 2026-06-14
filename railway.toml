@@ -1,5 +1,5 @@
 [build]
-buildCommand = "echo 'using pre-built dist'"
+buildCommand = "npm run build -w server && npm run build -w client"
 
 [deploy]
 startCommand = "NODE_ENV=production node server/dist/index.js"
