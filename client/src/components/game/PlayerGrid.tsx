@@ -64,6 +64,10 @@ interface Props {
   voice?: TileVoice;
   /** IDs of faction teammates the viewer can identify (mafia, yakuza, cult) */
   allyIds?: Set<string>;
+  /** IDs of players currently nominated for tribunal */
+  nominatedIds?: Set<string>;
+  /** IDs of players currently on trial defense */
+  trialCandidateIds?: Set<string>;
   onSelect?: (p: PlayerPublic) => void;
   belowHero?: React.ReactNode;
 }
@@ -432,6 +436,8 @@ function PlayerCard({
   fillHeight,
   voice,
   isAlly,
+  isNominated,
+  isOnTrial,
   onClick,
 }: {
   player: PlayerPublic;
@@ -445,9 +451,12 @@ function PlayerCard({
   fillHeight?: boolean;
   voice?: TileVoice;
   isAlly?: boolean;
+  isNominated?: boolean;
+  isOnTrial?: boolean;
   onClick: () => void;
 }) {
   const dead = !player.isAlive && !player.isSpectator;
+  const isDisconnected = !dead && player.isConnected === false;
   const isVoting = phase === 'voting';
   const majorityVotes = totalAlive ? Math.ceil(totalAlive / 2) : 1;
   const voteBarPct = isVoting && voteCount > 0 ? Math.min(100, (voteCount / majorityVotes) * 100) : 0;
@@ -482,13 +491,51 @@ function PlayerCard({
               ? 'border-neon-green/70 shadow-[0_0_16px_rgba(0,255,136,0.35)]'
               : isSpeaker
                 ? 'border-neon-cyan/70 shadow-[0_0_18px_rgba(0,229,255,0.25)]'
-                : isMe
-                  ? 'border-neon-purple/50'
-                  : isAlly
-                    ? 'border-neon-red/50 shadow-[0_0_12px_rgba(255,45,85,0.18)]'
-                    : 'border-neon-green/25 hover:border-neon-green/50',
+                : isOnTrial
+                  ? 'border-yellow-400/70 shadow-[0_0_18px_rgba(250,204,21,0.28)]'
+                  : isNominated
+                    ? 'border-fuchsia-500/70 shadow-[0_0_16px_rgba(217,70,239,0.3)]'
+                    : isDisconnected
+                      ? 'border-white/10 opacity-60'
+                      : isMe
+                        ? 'border-neon-purple/50'
+                        : isAlly
+                          ? 'border-neon-red/50 shadow-[0_0_12px_rgba(255,45,85,0.18)]'
+                          : 'border-neon-green/25 hover:border-neon-green/50',
       )}
     >
+      {/* ── Speaking pulse overlay ── */}
+      {isVoiceSpeaking && (
+        <motion.div
+          className="absolute inset-0 rounded-2xl pointer-events-none z-20"
+          animate={{ opacity: [0, 0.6, 0] }}
+          transition={{ repeat: Infinity, duration: 0.95, ease: 'easeInOut' }}
+          style={{ boxShadow: 'inset 0 0 0 2px rgba(0,255,136,0.7)' }}
+        />
+      )}
+
+      {/* ── Nominated top accent ── */}
+      {isNominated && !dead && (
+        <div className="absolute top-0 left-0 right-0 h-[2px] z-20 pointer-events-none"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(217,70,239,0.9), transparent)' }} />
+      )}
+
+      {/* ── On trial top accent ── */}
+      {isOnTrial && !dead && (
+        <div className="absolute top-0 left-0 right-0 h-[2px] z-20 pointer-events-none"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(250,204,21,0.9), transparent)' }} />
+      )}
+
+      {/* ── Disconnected badge ── */}
+      {isDisconnected && (
+        <div className="absolute top-1 left-0 right-0 flex justify-center z-20 pointer-events-none">
+          <span className="text-[7px] font-mono tracking-widest uppercase animate-pulse px-1.5 py-0.5 rounded"
+            style={{ color: 'rgba(255,255,255,0.3)', background: 'rgba(0,0,0,0.5)' }}>
+            offline
+          </span>
+        </div>
+      )}
+
       {/* ── Main area: local video, remote video, or avatar/initials ── */}
       <div className="absolute inset-0">
         {showLocalVideo ? (
@@ -728,6 +775,8 @@ export function PlayerGrid({
   fillHeight,
   voice,
   allyIds,
+  nominatedIds,
+  trialCandidateIds,
   onSelect,
   belowHero,
 }: Props) {
@@ -775,6 +824,8 @@ export function PlayerGrid({
                   fillHeight={false}
                   voice={voice}
                   isAlly={allyIds?.has(player.id) ?? false}
+                  isNominated={nominatedIds?.has(player.id) ?? false}
+                  isOnTrial={trialCandidateIds?.has(player.id) ?? false}
                   onClick={() => onSelect?.(player)}
                 />
               ))}
@@ -811,6 +862,8 @@ export function PlayerGrid({
               fillHeight={fillHeight}
               voice={voice}
               isAlly={allyIds?.has(player.id) ?? false}
+              isNominated={nominatedIds?.has(player.id) ?? false}
+              isOnTrial={trialCandidateIds?.has(player.id) ?? false}
               onClick={() => onSelect?.(player)}
             />
           </motion.div>

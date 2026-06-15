@@ -272,6 +272,13 @@ export function GamePage() {
     if (showChat) setUnreadChat(0);
   }, [showChat]);
 
+  // Disable body scroll during active gameplay
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   // Elimination cinematic: detect when players go from alive → dead
   useEffect(() => {
     if (!room) return;
@@ -1213,8 +1220,8 @@ export function GamePage() {
               boxShadow: `0 0 12px ${PHASE_STRIP[phase]}60`,
             }}
           />
-          <div className="px-3 py-2 md:px-4 md:py-3">
-          <div className="max-w-7xl mx-auto flex items-center gap-2 md:gap-4">
+          <div className="px-2 py-1 md:px-4 md:py-3">
+          <div className="max-w-7xl mx-auto flex items-center gap-1.5 md:gap-4">
             {/* More menu button — far-left first control */}
             <button
               onClick={() => setShowMoreMenu(true)}
@@ -1228,7 +1235,7 @@ export function GamePage() {
             <div className="min-w-0">
               <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest hidden sm:block">{t.game.header.phase}</p>
               <h1
-                className={clsx('font-display text-lg md:text-xl font-bold tracking-widest uppercase truncate transition-all duration-700', PHASE_COLORS[phase])}
+                className={clsx('font-display text-sm md:text-xl font-bold tracking-widest uppercase truncate transition-all duration-700', PHASE_COLORS[phase])}
                 style={{ textShadow: PHASE_GLOW[phase] }}
               >
                 {t.game.phaseLabels[phase as keyof typeof t.game.phaseLabels]}
@@ -1397,37 +1404,37 @@ export function GamePage() {
           const foulActive = room.activeFoul !== null && Date.now() < (room.activeFoul?.endsAt ?? 0);
           const myFoulCount = myPlayer?.foulCount ?? 0;
           return (
-            <div className="md:hidden flex-shrink-0 flex justify-center gap-2 px-4 py-2"
-                 style={{ background: 'rgba(4,2,16,0.75)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="md:hidden flex-shrink-0 flex justify-center gap-2 px-3 py-1.5"
+                 style={{ background: 'rgba(4,2,16,0.85)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               {showDaySkip && (
                 <button
                   onClick={() => { daySkipVote(); navigator.vibrate?.(50); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white/80 border border-white/15"
-                  style={{ background: 'rgba(255,255,255,0.08)' }}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium text-white/75 border border-white/15 active:scale-95 transition-all"
+                  style={{ background: 'rgba(255,255,255,0.07)' }}
                 >
                   <span>⏭</span>
-                  <span>განხილვის გამოტოვება · {alreadyVoted}/{skipNeeded}</span>
+                  <span>{t.game.day.skipDiscussion.replace('{voted}', String(alreadyVoted)).replace('{needed}', String(skipNeeded))}</span>
                 </button>
               )}
               {showSkipTime && (
                 <button
                   onClick={() => { if (amHost && !isCurrentSpeaker) skipPhase(); else speechPass(); navigator.vibrate?.(50); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white/80 border border-white/15"
-                  style={{ background: 'rgba(255,255,255,0.08)' }}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium text-white/75 border border-white/15 active:scale-95 transition-all"
+                  style={{ background: 'rgba(255,255,255,0.07)' }}
                 >
                   <span>⏭</span>
-                  <span>ჩემი დროის გამოტოვება</span>
+                  <span>{t.game.speech.skipMyTime}</span>
                 </button>
               )}
               {showFoul && (
                 <button
                   onClick={() => { issueFoul(); navigator.vibrate?.(80); }}
                   disabled={foulActive}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/15 disabled:opacity-40"
-                  style={{ background: foulActive ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.25)', color: '#fca5a5' }}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium border border-white/15 disabled:opacity-40 active:scale-95 transition-all"
+                  style={{ background: foulActive ? 'rgba(239,68,68,0.12)' : 'rgba(239,68,68,0.2)', color: '#fca5a5' }}
                 >
                   <span>🚫</span>
-                  <span>ფოლი · {myFoulCount}/3</span>
+                  <span>{t.game.speech.foul} · {myFoulCount}/3</span>
                 </button>
               )}
             </div>
@@ -1736,6 +1743,8 @@ export function GamePage() {
                   fillHeight
                   voice={tileVoice}
                   allyIds={allyIds}
+                  nominatedIds={new Set(Object.values(room.nominations ?? {}))}
+                  trialCandidateIds={new Set(room.trialDefenseState?.candidateIds ?? [])}
                   onSelect={handlePlayerSelect}
                   belowHero={phase === 'speech' && !amSpectator && (() => {
                     const isMyTurn = room.currentSpeakerId === myPlayer?.id && amAlive;
@@ -1785,15 +1794,18 @@ export function GamePage() {
           {/* Floating chat bubble */}
           <button
             onClick={() => { setShowChat(true); setUnreadChat(0); }}
-            className="fixed bottom-6 right-4 z-40 w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-90"
-            style={amSpectator ? {
-              background: 'rgba(155,0,255,0.15)',
-              border: '1.5px solid rgba(155,0,255,0.5)',
-              boxShadow: '0 0 20px rgba(155,0,255,0.15), 0 4px 16px rgba(0,0,0,0.5)',
-            } : {
-              background: 'rgba(0,229,255,0.15)',
-              border: '1.5px solid rgba(0,229,255,0.4)',
-              boxShadow: '0 0 20px rgba(0,229,255,0.15), 0 4px 16px rgba(0,0,0,0.5)',
+            className="fixed right-4 z-40 w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-90"
+            style={{
+              bottom: 'max(1.5rem, calc(env(safe-area-inset-bottom) + 0.75rem))',
+              ...(amSpectator ? {
+                background: 'rgba(155,0,255,0.15)',
+                border: '1.5px solid rgba(155,0,255,0.5)',
+                boxShadow: '0 0 20px rgba(155,0,255,0.15), 0 4px 16px rgba(0,0,0,0.5)',
+              } : {
+                background: 'rgba(0,229,255,0.15)',
+                border: '1.5px solid rgba(0,229,255,0.4)',
+                boxShadow: '0 0 20px rgba(0,229,255,0.15), 0 4px 16px rgba(0,0,0,0.5)',
+              }),
             }}
             aria-label={amSpectator ? 'Open spectator theater' : 'Open chat'}
           >
