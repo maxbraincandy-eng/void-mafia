@@ -72,6 +72,9 @@ function _reset() {
   for (const sub of _subscribers) sub({ ..._state });
 }
 
+// ── Reconnect state ────────────────────────────────────────────────────
+let _reconnectOnResume: { channel: VoiceChannel; withCamera: boolean } | null = null;
+
 // ── Auto-refresh debounce ──────────────────────────────────────────────
 let _refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -343,12 +346,31 @@ function onForceLeave() {
 }
 
 function onSocketDisconnect() {
-  // Socket lost — tear down the voice session so the server state is consistent
-  if (_session) {
+  if (_session && _state.channel) {
+    // Save voice state so we can auto-rejoin when socket comes back
+    _reconnectOnResume = { channel: _state.channel, withCamera: _state.cameraOn };
     _session.destroy();
     _reset();
-    log('socket disconnected — voice session reset');
+    log('socket disconnected — voice state saved for auto-reconnect');
+  } else if (_session) {
+    _session.destroy();
+    _reset();
   }
+}
+
+function onSocketConnect() {
+  if (!_reconnectOnResume) return;
+  const { channel, withCamera } = _reconnectOnResume;
+  _reconnectOnResume = null;
+  // Give room:join a moment to complete before rejoining voice
+  setTimeout(() => {
+    if (_session || _state.channel) return; // already back in voice somehow
+    log('socket reconnected — auto-rejoining voice channel:', channel);
+    _patch({ isRefreshing: true });
+    _moduleJoinVoice(channel, withCamera, true).finally(() => {
+      _patch({ isRefreshing: false });
+    });
+  }, 2000);
 }
 
 // Register once
@@ -362,6 +384,7 @@ function onSocketDisconnect() {
 (socket as any).on('voice:reset',          onVoiceReset);
 (socket as any).on('voice:force-leave',    onForceLeave);
 socket.on('disconnect',                    onSocketDisconnect);
+socket.on('connect',                       onSocketConnect);
 
 // ── Visibility / background recovery ──────────────────────────────────
 // When the app returns from background, check if the WebRTC session is

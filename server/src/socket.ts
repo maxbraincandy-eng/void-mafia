@@ -1420,11 +1420,14 @@ export function attachSocketHandlers(io: AppServer): void {
               title: 'Game Started!',
               body: `Your role: ${player.role}`,
             });
-          } else if (player.profileId && player.role) {
-            // Player is disconnected — send push so they know the game started
+          }
+          // Push to everyone with a profile (catches background/lock-screen players)
+          if (player.profileId && player.role) {
             sendPushToUser(player.profileId, {
               title: '🎮 Game Started!',
-              body: `Your role: ${player.role}. Get back in!`,
+              body: player.socketId
+                ? `Your role: ${player.role}. The game is on!`
+                : `Your role: ${player.role}. Get back in!`,
             }).catch(() => {});
           }
         }
