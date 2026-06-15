@@ -1458,7 +1458,7 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Vote ────────────────────────────────────────────────────────
-        socket.on('game:vote', ({ targetId }, cb) => {
+        socket.on('game:vote', async ({ targetId }, cb) => {
             try {
                 const room = getRoomFromSocket(socket);
                 const voter = getPlayerOrError(socket, room);
@@ -1470,6 +1470,25 @@ export function attachSocketHandlers(io) {
                 const target = targetId ? room.players.get(targetId) : null;
                 if (target) {
                     broadcastSystemMsg(io, room, `🗳 ${voter.name} → ${target.name}`);
+                }
+                // Auto-advance when every eligible player has voted (no need to wait for timer)
+                const eligible = [...room.players.values()].filter(p => p.isAlive && !p.isSpectator && !p.isQueuedNextRound);
+                const allVoted = eligible.length > 0 && eligible.every(p => room.votes.has(p.id));
+                if (allVoted) {
+                    timerService.stop(room.id);
+                    room.timer = 0;
+                    announceVoteResult(io, room);
+                    advancePhase(room);
+                    const nextPhase = room.phase;
+                    announceActiveEvent(io, room);
+                    if (nextPhase === 'game_over')
+                        await emitGameOver(io, room);
+                    broadcastRoom(io, room);
+                    enforceVoicePhaseRules(io, room);
+                    if (nextPhase !== 'game_over')
+                        startPhaseTimer(io, room);
+                    cb(ok(null));
+                    return;
                 }
                 broadcastRoom(io, room);
                 cb(ok(null));

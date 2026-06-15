@@ -82,6 +82,8 @@ export class WebRTCSession {
   private state: ConnectionState = 'disconnected';
   private listeners = new Set<Listener>();
   private _visibilityHandler: (() => void) | null = null;
+  // Tracks video senders per peer so re-enable can use replaceTrack() without renegotiation
+  private videoSenders = new Map<string, RTCRtpSender>();
 
   /**
    * ICE candidates arriving before setRemoteDescription() are queued here
@@ -556,6 +558,7 @@ export class WebRTCSession {
     this.remoteSpeakingCooldowns.delete(socketId);
     this.remoteStreams.delete(socketId);
     this.iceCandidateQueues.delete(socketId);
+    this.videoSenders.delete(socketId);
 
     this.emit({
       type: 'peer-removed',
@@ -602,6 +605,10 @@ export class WebRTCSession {
   /**
    * Request camera permission and add the video track to the local stream
    * and all existing peer connections.
+   *
+   * Re-enable path: if a video sender already exists for a peer (preserved from
+   * a previous removeCamera call), we use replaceTrack(newTrack) — no SDP
+   * renegotiation needed, so there's no PC state race condition on quick toggles.
    */
   async addCamera(
     onRenegotiate?: (
@@ -611,14 +618,10 @@ export class WebRTCSession {
   ): Promise<void> {
     if (!this.localStream) throw new Error('Not in voice.');
 
-    // Clean up any stale ended video tracks so renegotiation runs fresh
+    // Clean up any stale ended video tracks
     for (const track of this.localStream.getVideoTracks()) {
       if (track.readyState === 'ended') {
         this.localStream.removeTrack(track);
-        for (const pc of this.pcs.values()) {
-          const sender = pc.getSenders().find(s => s.track === track);
-          if (sender) pc.removeTrack(sender);
-        }
         log('removed stale ended camera track');
       }
     }
@@ -655,58 +658,68 @@ export class WebRTCSession {
     log('camera track added to local stream');
 
     for (const [peerId, pc] of this.pcs.entries()) {
-      pc.addTrack(videoTrack, this.localStream);
-      log('camera track added to peer connection', peerId);
+      const existingSender = this.videoSenders.get(peerId);
 
-      if (onRenegotiate) {
+      if (existingSender) {
+        // Re-enable: swap new track into existing sender — no renegotiation needed.
+        // The remote peer already has the transceiver; it just starts receiving frames again.
         try {
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-
-          onRenegotiate(peerId, offer);
-          log('renegotiation offer sent to', peerId);
+          await existingSender.replaceTrack(videoTrack);
+          log('camera re-enabled for peer', peerId, '(replaceTrack, no renegotiation)');
         } catch (e: any) {
-          log('renegotiation offer failed for', peerId, ':', e.message);
+          log('replaceTrack re-enable failed for', peerId, ':', e.message);
+        }
+      } else {
+        // First time enabling camera for this peer: add track and renegotiate.
+        const sender = pc.addTrack(videoTrack, this.localStream);
+        this.videoSenders.set(peerId, sender);
+        log('camera track added to peer connection', peerId);
+
+        if (onRenegotiate) {
+          try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            onRenegotiate(peerId, offer);
+            log('renegotiation offer sent to', peerId);
+          } catch (e: any) {
+            log('renegotiation offer failed for', peerId, ':', e.message);
+          }
         }
       }
     }
   }
 
-  /** Stop and remove the camera track from local stream and peer connections. */
-  async removeCamera(
-    onRenegotiate?: (
-      peerId: string,
-      offer: RTCSessionDescriptionInit,
-    ) => void,
-  ): Promise<void> {
+  /**
+   * Stop the camera track and null out the video senders.
+   * Uses replaceTrack(null) instead of removeTrack so the sender stays alive —
+   * this avoids needing SDP renegotiation and prevents the PC state race
+   * condition that breaks quick camera off→on cycles.
+   */
+  async removeCamera(): Promise<void> {
     if (!this.localStream) return;
 
     const tracks = this.localStream.getVideoTracks();
 
     for (const track of tracks) {
-      track.stop();
-      this.localStream.removeTrack(track);
-
-      for (const pc of this.pcs.values()) {
-        const sender = pc.getSenders().find((s) => s.track === track);
-        if (sender) pc.removeTrack(sender);
-      }
-    }
-
-    log('camera track removed');
-
-    if (onRenegotiate) {
       for (const [peerId, pc] of this.pcs.entries()) {
-        try {
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-
-          onRenegotiate(peerId, offer);
-        } catch (e: any) {
-          log('renegotiation (remove camera) failed for', peerId, ':', e.message);
+        const sender = pc.getSenders().find((s) => s.track === track);
+        if (sender) {
+          this.videoSenders.set(peerId, sender);
+          try {
+            await sender.replaceTrack(null);
+            log('camera sender preserved (nulled) for peer', peerId);
+          } catch (e: any) {
+            log('replaceTrack(null) failed for', peerId, ':', e.message);
+          }
         }
       }
+
+      track.stop();
+      this.localStream.removeTrack(track);
     }
+
+    log('camera stopped — senders preserved for re-enable');
   }
 
   // ── Cleanup ─────────────────────────────────────────────────────────
@@ -725,6 +738,7 @@ export class WebRTCSession {
     this.remoteSpeakingCooldowns.clear();
     this.remoteStreams.clear();
     this.iceCandidateQueues.clear();
+    this.videoSenders.clear();
 
     if (this._visibilityHandler) {
       document.removeEventListener('visibilitychange', this._visibilityHandler);
