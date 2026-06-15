@@ -173,110 +173,161 @@ function sfxPlay(tones: Tone[], masterVol = 0.5) {
 // ── SFX library ───────────────────────────────────────────────────────
 
 export const SFX = {
+  // Crisp capacitor-discharge click — digital, instant
   click() {
     sfxPlay([
-      { freq: 1000, type: 'sine', dur: 0.08, vol: 0.35, attack: 0.004 },
-      { freq: 650,  type: 'sine', dur: 0.07, vol: 0.20, at: 0.05, attack: 0.003 },
-    ], 0.9);
+      { freq: 1400, type: 'sine', dur: 0.045, vol: 0.45, attack: 0.002, release: 0.035 },
+      { freq: 700,  type: 'sine', dur: 0.06,  vol: 0.18, at: 0.01, attack: 0.002 },
+    ], 0.85);
   },
 
+  // Glass-bowl bell — clean fundamental with decaying overtone
   ping() {
     sfxPlay([
-      { freq: 880,  type: 'sine', dur: 0.35, vol: 0.30 },
-      { freq: 1320, type: 'sine', dur: 0.20, vol: 0.18, at: 0.05 },
-    ], 0.8);
+      { freq: 880,  type: 'sine', dur: 0.55, vol: 0.38, attack: 0.006, release: 0.50 },
+      { freq: 1760, type: 'sine', dur: 0.30, vol: 0.18, attack: 0.005, release: 0.28 },
+      { freq: 2640, type: 'sine', dur: 0.18, vol: 0.08, attack: 0.003, release: 0.17 },
+    ], 0.75);
   },
 
+  // Welcoming ascending major triad arpeggio
   join() {
     sfxPlay([
-      { freq: 440, type: 'sine', dur: 0.18, vol: 0.35 },
-      { freq: 554, type: 'sine', dur: 0.18, vol: 0.35, at: 0.12 },
-      { freq: 659, type: 'sine', dur: 0.28, vol: 0.35, at: 0.24 },
-    ], 0.8);
+      { freq: 523.2, type: 'sine', dur: 0.18, vol: 0.32, attack: 0.008 },
+      { freq: 659.3, type: 'sine', dur: 0.18, vol: 0.32, at: 0.10, attack: 0.008 },
+      { freq: 784,   type: 'sine', dur: 0.30, vol: 0.36, at: 0.20, attack: 0.008 },
+      { freq: 1046,  type: 'sine', dur: 0.22, vol: 0.20, at: 0.28, attack: 0.008 },
+    ], 0.75);
   },
 
+  // Cinematic power-up — rising sweep then bright chord crash
   gameStart() {
     sfxPlay([
-      { freq: 220, type: 'sawtooth', dur: 0.15, vol: 0.35 },
-      { freq: 277, type: 'sawtooth', dur: 0.15, vol: 0.35, at: 0.10 },
-      { freq: 330, type: 'sawtooth', dur: 0.15, vol: 0.35, at: 0.20 },
-      { freq: 440, type: 'sawtooth', dur: 0.30, vol: 0.40, at: 0.30 },
-      { freq: 440, type: 'sine',     dur: 0.50, vol: 0.20, at: 0.30, detune: 7 },
+      { freq: 220,   type: 'sawtooth', dur: 0.50, vol: 0.28, freqEnd: 440,  attack: 0.02 },
+      { freq: 330,   type: 'sawtooth', dur: 0.40, vol: 0.22, freqEnd: 660,  attack: 0.02, at: 0.08 },
+      { freq: 440,   type: 'sawtooth', dur: 0.70, vol: 0.40, attack: 0.015, at: 0.45 },
+      { freq: 554,   type: 'sawtooth', dur: 0.70, vol: 0.32, attack: 0.015, at: 0.45 },
+      { freq: 659,   type: 'sine',     dur: 0.85, vol: 0.28, attack: 0.012, at: 0.45 },
+      { freq: 880,   type: 'sine',     dur: 0.60, vol: 0.18, attack: 0.010, at: 0.50 },
     ], 0.8);
   },
 
+  // Lights-out descent — ominous minor sink into silence
   nightStart() {
     sfxPlay([
-      { freq: 220, type: 'sine',     dur: 1.2, vol: 0.45 },
-      { freq: 330, type: 'triangle', dur: 0.6, vol: 0.28, freqEnd: 220 },
-      { freq: 247, type: 'sine',     dur: 0.4, vol: 0.18, at: 0.3, freqEnd: 165 },
-      { freq: 440, type: 'sawtooth', dur: 0.5, vol: 0.14, freqEnd: 220 },
-    ], 0.7);
+      { freq: 880, type: 'sine',     dur: 0.35, vol: 0.32, freqEnd: 440, attack: 0.01 },
+      { freq: 440, type: 'triangle', dur: 0.65, vol: 0.38, freqEnd: 293.7, at: 0.25, attack: 0.01 },
+      { freq: 293.7, type: 'sine',   dur: 0.90, vol: 0.42, freqEnd: 220, at: 0.70, attack: 0.02 },
+      { freq: 220, type: 'sine',     dur: 1.20, vol: 0.35, at: 1.30, attack: 0.05 },
+      { freq: 261.6, type: 'sine',   dur: 0.80, vol: 0.18, at: 1.40, attack: 0.08 },
+    ], 0.75);
   },
 
+  // Dawn surge — bright rising sequence, energetic
   dayStart() {
     sfxPlay([
-      { freq: 330, type: 'sine', dur: 0.20, vol: 0.40, freqEnd: 440 },
-      { freq: 440, type: 'sine', dur: 0.20, vol: 0.40, at: 0.18, freqEnd: 554 },
-      { freq: 554, type: 'sine', dur: 0.25, vol: 0.40, at: 0.36, freqEnd: 659 },
-      { freq: 659, type: 'sine', dur: 0.40, vol: 0.45, at: 0.54 },
-    ], 0.8);
+      { freq: 440,  type: 'sine', dur: 0.18, vol: 0.32, freqEnd: 523.2, attack: 0.008 },
+      { freq: 523.2, type: 'sine', dur: 0.18, vol: 0.36, freqEnd: 659.3, at: 0.15, attack: 0.008 },
+      { freq: 659.3, type: 'sine', dur: 0.20, vol: 0.40, freqEnd: 784, at: 0.30, attack: 0.008 },
+      { freq: 784,  type: 'sine', dur: 0.18, vol: 0.44, freqEnd: 880, at: 0.46, attack: 0.008 },
+      { freq: 880,  type: 'sine', dur: 0.55, vol: 0.42, at: 0.60, attack: 0.010 },
+      { freq: 1320, type: 'sine', dur: 0.35, vol: 0.18, at: 0.65, attack: 0.008 },
+    ], 0.78);
   },
 
+  // Tense minor stab — accusatory chord drop
   voteStart() {
     sfxPlay([
-      { freq: 440, type: 'sawtooth', dur: 0.5, vol: 0.35 },
-      { freq: 466, type: 'sawtooth', dur: 0.5, vol: 0.28, detune: -12 },
-      { freq: 392, type: 'square',   dur: 0.3, vol: 0.20, at: 0.1 },
-      { freq: 523, type: 'sine',     dur: 0.4, vol: 0.25, at: 0.2 },
-    ], 0.7);
+      { freq: 220,  type: 'sawtooth', dur: 0.55, vol: 0.40, attack: 0.006 },
+      { freq: 261.6, type: 'sawtooth', dur: 0.50, vol: 0.30, attack: 0.006 },
+      { freq: 329.6, type: 'sawtooth', dur: 0.45, vol: 0.24, attack: 0.006 },
+      { freq: 440,  type: 'sine',     dur: 0.30, vol: 0.18, at: 0.18, attack: 0.010 },
+    ], 0.72);
   },
 
+  // Double-ping confirmation — ascending minor third
   voteConfirm() {
     sfxPlay([
-      { freq: 660, type: 'sine', dur: 0.10, vol: 0.40, attack: 0.005 },
-      { freq: 880, type: 'sine', dur: 0.14, vol: 0.30, at: 0.08, attack: 0.005 },
-    ], 0.85);
+      { freq: 784, type: 'sine', dur: 0.14, vol: 0.42, attack: 0.005, release: 0.12 },
+      { freq: 988, type: 'sine', dur: 0.22, vol: 0.36, at: 0.10, attack: 0.005, release: 0.18 },
+    ], 0.88);
   },
 
+  // Urgent double beep — sharp and cutting
   timerWarning() {
     sfxPlay([
-      { freq: 880, type: 'square', dur: 0.08, vol: 0.40 },
-      { freq: 660, type: 'square', dur: 0.08, vol: 0.30, at: 0.12 },
-    ], 0.7);
+      { freq: 1046, type: 'square', dur: 0.07, vol: 0.38, attack: 0.003 },
+      { freq: 1046, type: 'square', dur: 0.07, vol: 0.32, at: 0.12, attack: 0.003 },
+    ], 0.72);
   },
 
+  // Minimal metronomic tick
   tick(urgent: boolean) {
     sfxPlay([
-      { freq: urgent ? 880 : 660, type: 'sine', dur: 0.12, vol: 0.20, attack: 0.004 },
+      { freq: urgent ? 1046 : 784, type: 'sine', dur: 0.06, vol: urgent ? 0.28 : 0.16, attack: 0.003, release: 0.05 },
     ], 0.8);
   },
 
+  // Dramatic player fall — impact + pitch drop + shimmer tail
   eliminate() {
     sfxPlay([
-      { freq: 330, type: 'sawtooth', dur: 0.8, vol: 0.42, freqEnd: 165 },
-      { freq: 440, type: 'sine',     dur: 0.5, vol: 0.32, freqEnd: 220 },
-      { freq: 220, type: 'square',   dur: 0.3, vol: 0.22, at: 0.1 },
-      { freq: 196, type: 'sine',     dur: 1.0, vol: 0.35 },
-    ], 0.7);
+      { freq: 440,   type: 'sawtooth', dur: 0.12, vol: 0.48, attack: 0.004, freqEnd: 220 },
+      { freq: 329.6, type: 'sine',     dur: 1.10, vol: 0.40, at: 0.08, freqEnd: 220, attack: 0.01 },
+      { freq: 261.6, type: 'triangle', dur: 0.80, vol: 0.30, at: 0.20, freqEnd: 220 },
+      { freq: 220,   type: 'sine',     dur: 1.40, vol: 0.35, at: 0.55, attack: 0.04 },
+      { freq: 277,   type: 'sine',     dur: 0.70, vol: 0.16, at: 0.60 },
+    ], 0.72);
   },
 
+  // Quick whoosh + landing — holographic card materialise
   cardFlip() {
     sfxPlay([
-      { freq: 1600, type: 'sine',     dur: 0.08, vol: 0.30, freqEnd: 800 },
-      { freq: 800,  type: 'triangle', dur: 0.18, vol: 0.25, at: 0.06, freqEnd: 500 },
-      { freq: 500,  type: 'sine',     dur: 0.40, vol: 0.20, at: 0.20 },
+      { freq: 2000, type: 'sine', dur: 0.07, vol: 0.28, freqEnd: 1000, attack: 0.003 },
+      { freq: 1200, type: 'triangle', dur: 0.10, vol: 0.22, at: 0.05, freqEnd: 700 },
+      { freq: 880,  type: 'sine',     dur: 0.30, vol: 0.30, at: 0.13, attack: 0.008 },
+      { freq: 660,  type: 'sine',     dur: 0.25, vol: 0.18, at: 0.18, attack: 0.005 },
     ], 0.85);
   },
 
+  // Cinematic chord bloom — sustained harmonic shimmer
   gameOver() {
     sfxPlay([
-      { freq: 220, type: 'sine',     dur: 2.0, vol: 0.42 },
-      { freq: 277, type: 'sine',     dur: 1.8, vol: 0.35, at: 0.1 },
-      { freq: 330, type: 'triangle', dur: 1.5, vol: 0.28, at: 0.2 },
-      { freq: 415, type: 'sine',     dur: 1.2, vol: 0.22, at: 0.3 },
-      { freq: 247, type: 'sawtooth', dur: 1.0, vol: 0.18, at: 0.5, freqEnd: 196 },
-    ], 0.7);
+      { freq: 220,   type: 'sine',     dur: 2.40, vol: 0.42, attack: 0.04 },
+      { freq: 261.6, type: 'sine',     dur: 2.20, vol: 0.34, at: 0.08,  attack: 0.04 },
+      { freq: 329.6, type: 'triangle', dur: 2.00, vol: 0.28, at: 0.16,  attack: 0.04 },
+      { freq: 415,   type: 'sine',     dur: 1.80, vol: 0.22, at: 0.24,  attack: 0.04 },
+      { freq: 440,   type: 'sine',     dur: 1.60, vol: 0.16, at: 0.35,  attack: 0.05 },
+      { freq: 554,   type: 'sine',     dur: 1.20, vol: 0.12, at: 0.50,  attack: 0.06 },
+    ], 0.72);
+  },
+
+  // Rising ominous pulse — someone's being targeted
+  nomination() {
+    sfxPlay([
+      { freq: 293.7, type: 'sawtooth', dur: 0.18, vol: 0.38, attack: 0.005, freqEnd: 329.6 },
+      { freq: 329.6, type: 'sawtooth', dur: 0.18, vol: 0.38, at: 0.15, attack: 0.005, freqEnd: 369.9 },
+      { freq: 369.9, type: 'sawtooth', dur: 0.35, vol: 0.42, at: 0.30, attack: 0.008 },
+      { freq: 277,   type: 'sine',     dur: 0.50, vol: 0.20, at: 0.30, attack: 0.02 },
+    ], 0.75);
+  },
+
+  // Low buzz denial — wrong/blocked
+  error() {
+    sfxPlay([
+      { freq: 240, type: 'square', dur: 0.10, vol: 0.42, attack: 0.004 },
+      { freq: 220, type: 'square', dur: 0.10, vol: 0.38, at: 0.09, attack: 0.003 },
+      { freq: 200, type: 'square', dur: 0.18, vol: 0.32, at: 0.17, attack: 0.003 },
+    ], 0.70);
+  },
+
+  // Scene wipe + chord arrival — phase boundary sweep
+  phaseTransition() {
+    sfxPlay([
+      { freq: 440,  type: 'sine', dur: 0.30, vol: 0.28, freqEnd: 880, attack: 0.01 },
+      { freq: 880,  type: 'sine', dur: 0.50, vol: 0.36, at: 0.25, attack: 0.01 },
+      { freq: 1100, type: 'sine', dur: 0.40, vol: 0.22, at: 0.28, attack: 0.01 },
+      { freq: 659,  type: 'sine', dur: 0.45, vol: 0.28, at: 0.30, attack: 0.02 },
+    ], 0.78);
   },
 };
 

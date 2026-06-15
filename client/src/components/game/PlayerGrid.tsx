@@ -7,7 +7,7 @@ import { ModBadge } from '@/components/ui/ModBadge';
 const ROLE_ICONS: Partial<Record<RoleKey, string>> = {
   citizen: '◈', sheriff: '✦', doctor: '+', bodyguard: '⬡',
   vigilante: '⚖', escort: '✿', spy: '◉', tracker: '◯',
-  veteran: '★',
+  veteran: '★', mayor: '♔',
   mafia: '◆', don: '♛', arsonist: '△',
   maniac: '∞', jester: '✧',
   cult_leader: '⛤', cultist: '◎',
@@ -98,6 +98,33 @@ function RoleChip({ role, team }: { role: RoleKey; team: string | null }) {
         </span>
       )}
       {label}
+    </div>
+  );
+}
+
+function OwnRoleChip({ role, team }: { role: RoleKey; team: string | null }) {
+  const c = TEAM_ROLE_COLOR[team ?? ''] ?? TEAM_ROLE_COLOR.town;
+  const icon = ROLE_ICONS[role];
+  const label = role.replace(/_/g, ' ').toUpperCase();
+  const imgSrc = ROLE_CARD_IMAGES[role];
+  return (
+    <div
+      className="flex items-center gap-1.5 px-2 py-0.5 rounded-full font-mono font-bold text-[8px] tracking-widest uppercase"
+      style={{
+        background: `linear-gradient(135deg, ${c.bg}, rgba(0,0,0,0.55))`,
+        border: `1px solid ${c.border}`,
+        color: c.text,
+        textShadow: `0 0 8px ${c.text}80`,
+        boxShadow: `0 0 10px ${c.border}50, inset 0 1px 0 rgba(255,255,255,0.06)`,
+        backdropFilter: 'blur(8px)',
+      }}
+    >
+      {imgSrc
+        ? <img src={imgSrc} alt="" aria-hidden className="w-4 h-[18px] object-cover rounded-sm flex-shrink-0" />
+        : icon
+          ? <span className="text-[10px] flex-shrink-0" style={{ color: c.text, textShadow: `0 0 6px ${c.text}` }}>{icon}</span>
+          : null}
+      <span>{label}</span>
     </div>
   );
 }
@@ -481,14 +508,14 @@ function PlayerCard({
                     : 'linear-gradient(150deg, rgba(0,20,35,0.5) 0%, rgba(2,5,14,0.95) 65%)',
             }}
           >
-            {/* Role card art as tile background (subtle) */}
-            {tileRole && !dead && ROLE_CARD_IMAGES[tileRole] && (
+            {/* Role card art — own tile only */}
+            {isMe && !dead && player.role && ROLE_CARD_IMAGES[player.role] && (
               <img
-                src={ROLE_CARD_IMAGES[tileRole]}
+                src={ROLE_CARD_IMAGES[player.role]!}
                 alt=""
                 aria-hidden
                 className="absolute inset-0 w-full h-full object-cover"
-                style={{ opacity: 0.18, filter: 'saturate(0.7)' }}
+                style={{ opacity: 0.28, filter: 'saturate(0.8)' }}
                 draggable={false}
               />
             )}
@@ -592,63 +619,67 @@ function PlayerCard({
           {voice?.inVoice ? (
             /* In voice: mic + camera toggles */
             <div
-              className="flex items-center justify-center gap-2 px-2 py-1.5"
+              className="flex items-center justify-center gap-1.5 px-2 py-1"
               style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.85) 0%, transparent 100%)' }}
             >
               <button
                 onClick={e => { e.stopPropagation(); if (!voice.micLocked) voice.onToggleMute(); }}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold active:scale-90 transition-all"
+                className="w-8 h-7 rounded-lg flex items-center justify-center text-base active:scale-90 transition-all"
                 style={voice.micLocked
                   ? { background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.3)' }
                   : voice.isMuted
                     ? { background: 'rgba(255,45,85,0.2)', border: '1px solid rgba(255,45,85,0.55)', color: '#ff6677' }
                     : { background: 'rgba(0,255,136,0.15)', border: '1px solid rgba(0,255,136,0.45)', color: '#00ff88' }}
+                title={voice.micLocked ? 'Mic locked' : voice.isMuted ? 'Unmute' : 'Mute'}
               >
-                <span>{voice.micLocked ? '🔒' : voice.isMuted ? '🔇' : '🎙'}</span>
-                <span className="hidden xs:inline">{voice.isMuted ? 'muted' : 'mic'}</span>
+                {voice.micLocked ? '🔒' : voice.isMuted ? '🔇' : '🎙'}
               </button>
               <button
                 onClick={e => { e.stopPropagation(); voice.onToggleCamera(); }}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold active:scale-90 transition-all"
+                className="w-8 h-7 rounded-lg flex items-center justify-center text-base active:scale-90 transition-all"
                 style={voice.cameraOn
                   ? { background: 'rgba(0,229,255,0.15)', border: '1px solid rgba(0,229,255,0.45)', color: '#00e5ff' }
                   : { background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.55)' }}
+                title={voice.cameraOn ? 'Camera off' : 'Camera on'}
               >
-                <span>{voice.cameraOn ? '📹' : '📷'}</span>
-                <span className="hidden xs:inline">{voice.cameraOn ? 'cam on' : 'camera'}</span>
+                {voice.cameraOn ? '📹' : '📷'}
               </button>
             </div>
           ) : (
             /* Not in voice: join options */
             <div
-              className="flex items-center justify-center gap-1.5 px-2 py-1.5"
+              className="flex items-center justify-center gap-1.5 px-2 py-1"
               style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.85) 0%, transparent 100%)' }}
             >
               <button
                 onClick={e => { e.stopPropagation(); voice?.onJoin(); }}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold active:scale-90 transition-all"
+                className="w-8 h-7 rounded-lg flex items-center justify-center text-base active:scale-90 transition-all"
                 style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.4)', color: '#00e5ff' }}
                 title="Join voice"
               >
-                <span>🎙</span>
-                <span>Join</span>
+                🎙
               </button>
               <button
                 onClick={e => { e.stopPropagation(); voice?.onJoin(true); }}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold active:scale-90 transition-all"
+                className="w-8 h-7 rounded-lg flex items-center justify-center text-base active:scale-90 transition-all"
                 style={{ background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.35)', color: 'rgba(205,150,255,0.9)' }}
                 title="Join with camera"
               >
-                <span>📷</span>
-                <span>+cam</span>
+                📷
               </button>
             </div>
           )}
         </div>
       )}
 
-      {/* ── Role chip — bottom-right (own card always; ally cards if role is visible) ── */}
-      {tileRole && (
+      {/* Own role — bottom center, prominent */}
+      {isMe && !dead && player.role && (
+        <div className="absolute bottom-8 left-0 right-0 flex justify-center z-10 pointer-events-none px-2">
+          <OwnRoleChip role={player.role as RoleKey} team={player.team} />
+        </div>
+      )}
+      {/* Ally/spectator role chip — bottom right */}
+      {!isMe && tileRole && (
         <div className="absolute bottom-7 right-1.5 z-10">
           <RoleChip role={tileRole} team={player.team} />
         </div>
@@ -756,7 +787,7 @@ export function PlayerGrid({
 
   return (
     <div
-      className={clsx('grid grid-cols-2 gap-2 p-1', fillHeight && 'h-full')}
+      className={clsx('grid grid-cols-2 gap-1.5 p-1', fillHeight && 'h-full')}
       style={fillHeight ? { gridTemplateRows: `repeat(${numRows}, 1fr)` } : undefined}
     >
       <AnimatePresence>

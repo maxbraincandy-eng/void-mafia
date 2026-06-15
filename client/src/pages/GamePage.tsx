@@ -1201,7 +1201,7 @@ export function GamePage() {
       <PhaseAtmosphere phase={phase} />
 
       {/* ── Main layout ─────────────────────────────────────────────── */}
-      <div className="relative z-10 h-screen flex flex-col">
+      <div className="relative z-10 h-[100dvh] flex flex-col">
 
         {/* Top bar */}
         <header className="flex-shrink-0 glass-panel border-b border-white/6">
@@ -1249,7 +1249,7 @@ export function GamePage() {
             )}
 
             {/* Alive count pill */}
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-neon-green/20 bg-neon-green/5">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-neon-green/20 bg-neon-green/5">
               <div className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
               <span className="text-xs font-mono text-neon-green/80 font-bold">{alivePlayers}</span>
               <span className="text-[10px] font-mono text-white/30">{t.game.alive}</span>
