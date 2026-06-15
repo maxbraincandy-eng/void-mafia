@@ -151,15 +151,37 @@ function useHasLiveVideo(stream: MediaStream | null): boolean {
     if (!stream) { setHas(false); return; }
     const check = () =>
       setHas(stream.getVideoTracks().some(t => t.readyState !== 'ended' && !t.muted));
+
+    // Track which tracks we've attached listeners to for proper cleanup
+    const listenedTracks = new Set<MediaStreamTrack>();
+
+    const attachTrack = (t: MediaStreamTrack) => {
+      if (t.kind !== 'video' || listenedTracks.has(t)) return;
+      listenedTracks.add(t);
+      t.addEventListener('ended', check);
+      t.addEventListener('mute', check);
+      t.addEventListener('unmute', check);
+    };
+
+    // When a new track is added dynamically (camera renegotiation), register
+    // unmute/mute/ended listeners on it — the track arrives muted until ICE
+    // delivers the first media packet, so we must listen for unmute.
+    const onAddTrack = (ev: MediaStreamTrackEvent) => { attachTrack(ev.track); check(); };
+    const onRemoveTrack = () => check();
+
     check();
-    stream.addEventListener('addtrack', check);
-    stream.addEventListener('removetrack', check);
-    const tracks = stream.getVideoTracks();
-    tracks.forEach(t => { t.addEventListener('ended', check); t.addEventListener('mute', check); t.addEventListener('unmute', check); });
+    stream.getVideoTracks().forEach(attachTrack);
+    stream.addEventListener('addtrack', onAddTrack);
+    stream.addEventListener('removetrack', onRemoveTrack);
+
     return () => {
-      stream.removeEventListener('addtrack', check);
-      stream.removeEventListener('removetrack', check);
-      tracks.forEach(t => { t.removeEventListener('ended', check); t.removeEventListener('mute', check); t.removeEventListener('unmute', check); });
+      stream.removeEventListener('addtrack', onAddTrack);
+      stream.removeEventListener('removetrack', onRemoveTrack);
+      listenedTracks.forEach(t => {
+        t.removeEventListener('ended', check);
+        t.removeEventListener('mute', check);
+        t.removeEventListener('unmute', check);
+      });
     };
   }, [stream]);
   return has;
