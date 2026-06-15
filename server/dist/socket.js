@@ -3065,10 +3065,15 @@ export function attachSocketHandlers(io) {
         // ── Voice: Relay Offer ──────────────────────────────────────────
         socket.on('voice:offer', ({ to, sdp }, cb) => {
             const channel = voiceGetSharedChannel(socket.id, to);
-            if (!channel)
-                return cb(err('Not in the same voice channel.'));
+            if (!channel) {
+                // Log but still relay — peers may have a valid existing PC while voice
+                // state is transiently out of sync (phase transitions, reconnects).
+                // Blocking here silently kills camera renegotiation.
+                console.warn(`[voice:offer] No shared channel ${socket.id}→${to}, relaying anyway`);
+            }
             io.to(to).emit('voice:offer', { from: socket.id, sdp });
-            cb(ok(null));
+            if (typeof cb === 'function')
+                cb(ok(null));
         });
         // ── Voice: Relay Answer ─────────────────────────────────────────
         socket.on('voice:answer', ({ to, sdp }, cb) => {
