@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { useT } from '@/store/langStore';
+import { useSettingsStore } from '@/store/settingsStore';
+import { onSettingsChange } from '@/lib/audioEngine';
 import { SettingsPanel } from '@/pages/SettingsPanel';
 import { CoinHistoryModal } from '@/components/ui/CoinHistoryModal';
 import { HowToPlayModal } from '@/components/ui/HowToPlayModal';
@@ -114,12 +116,39 @@ interface MorePanelProps {
   onReplaysClick?: () => void;
 }
 
+function AudioToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      onClick={() => onChange(!value)}
+      className="relative w-10 h-[22px] rounded-full transition-all duration-300 flex-shrink-0"
+      style={{
+        background: value
+          ? 'linear-gradient(90deg, #9b00ff, #00e5ff)'
+          : 'rgba(255,255,255,0.08)',
+        border: value ? '1px solid rgba(155,0,255,0.4)' : '1px solid rgba(255,255,255,0.1)',
+        boxShadow: value ? '0 0 8px rgba(155,0,255,0.25)' : 'none',
+      }}
+    >
+      <span
+        className="absolute top-[2px] rounded-full bg-white shadow transition-all duration-300"
+        style={{ width: '18px', height: '18px', left: value ? 'calc(100% - 20px)' : '2px' }}
+      />
+    </button>
+  );
+}
+
 export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onReplaysClick }: MorePanelProps) {
   const { morePanelOpen, closeMoreMenu } = useSocialStore();
   const profile = useAuthStore(s => s.profile);
   const profileId = profile?.id ?? null;
   const t = useT();
   const mp = t.morePanel;
+  const sfxEnabled = useSettingsStore(s => s.sfxEnabled);
+  const musicEnabled = useSettingsStore(s => s.musicEnabled);
+  const updateSettings = useSettingsStore(s => s.update);
+
+  const toggleSfx = (v: boolean) => { updateSettings({ sfxEnabled: v }); onSettingsChange(); };
+  const toggleMusic = (v: boolean) => { updateSettings({ musicEnabled: v }); onSettingsChange(); };
 
   const [showSettings, setShowSettings] = useState(false);
   const [showCoinHistory, setShowCoinHistory] = useState(false);
@@ -291,6 +320,29 @@ export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onRepl
 
               {/* Sections */}
               <div className="flex-1 overflow-y-auto px-3 pb-4">
+
+                {/* Audio quick toggles */}
+                <div
+                  className="mt-3 mb-1 rounded-2xl px-3 py-2"
+                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+                >
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base leading-none">🔊</span>
+                      <p className="text-xs font-mono text-white/70">ხმის ეფექტები</p>
+                    </div>
+                    <AudioToggle value={sfxEnabled} onChange={toggleSfx} />
+                  </div>
+                  <div className="h-px mx-0" style={{ background: 'rgba(255,255,255,0.05)' }} />
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base leading-none">🎵</span>
+                      <p className="text-xs font-mono text-white/70">ბექგრაუნდ მუსიკა</p>
+                    </div>
+                    <AudioToggle value={musicEnabled} onChange={toggleMusic} />
+                  </div>
+                </div>
+
                 {sections.map(section => (
                   <div key={section.title}>
                     <SectionLabel title={section.title} />
