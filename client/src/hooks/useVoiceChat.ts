@@ -480,8 +480,9 @@ export function useVoiceChat() {
           (socket as any).emit('voice:offer', { to: peerId, sdp: offer }, () => {});
         });
         _patch({ cameraOn: true, error: null });
-      } catch {
-        // error already emitted via subscriber
+      } catch (e: any) {
+        // Session subscriber may suppress errors when joined silently — always show camera errors
+        _patch({ cameraOn: false, error: e instanceof Error ? e.message : 'Could not enable camera.' });
       }
     }
   }, []);

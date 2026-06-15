@@ -263,7 +263,11 @@ export class WebRTCSession {
     if (this.localStream) {
       for (const track of this.localStream.getTracks()) {
         if (track.readyState !== 'ended') {
-          pc.addTrack(track, this.localStream);
+          const sender = pc.addTrack(track, this.localStream);
+          // Track video senders immediately so replaceTrack works for future toggles
+          if (track.kind === 'video') {
+            this.videoSenders.set(peerId, sender);
+          }
           log('  added', track.kind, 'track');
         }
       }
@@ -667,7 +671,21 @@ export class WebRTCSession {
           await existingSender.replaceTrack(videoTrack);
           log('camera re-enabled for peer', peerId, '(replaceTrack, no renegotiation)');
         } catch (e: any) {
-          log('replaceTrack re-enable failed for', peerId, ':', e.message);
+          log('replaceTrack re-enable failed for', peerId, ':', e.message, '— falling back to addTrack');
+          // Fallback: sender is from a closed/replaced PC; treat as first-time enable
+          this.videoSenders.delete(peerId);
+          try {
+            const sender = pc.addTrack(videoTrack, this.localStream!);
+            this.videoSenders.set(peerId, sender);
+            if (onRenegotiate) {
+              const offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              onRenegotiate(peerId, offer);
+              log('renegotiation offer sent to', peerId, '(fallback)');
+            }
+          } catch (e2: any) {
+            log('addTrack fallback also failed for', peerId, ':', e2.message);
+          }
         }
       } else {
         // First time enabling camera for this peer: add track and renegotiate.
@@ -779,6 +797,9 @@ export class WebRTCSession {
   }
 
   private closePeer(socketId: string): void {
+    // Clear stale sender so addCamera() doesn't try replaceTrack on a closed PC
+    this.videoSenders.delete(socketId);
+
     const pc = this.pcs.get(socketId);
 
     if (pc) {
