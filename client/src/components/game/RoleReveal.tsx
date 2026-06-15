@@ -82,6 +82,19 @@ const ROLE_CARD_IMAGES: Partial<Record<string, string>> = {
   sheriff:     '/roles/sheriff.png',
   doctor:      '/roles/doctor.png',
   cult_leader: '/roles/cult_leader.png',
+  mafia:       '/roles/mafia.svg',
+  don:         '/roles/don.svg',
+  maniac:      '/roles/maniac.svg',
+  jester:      '/roles/jester.svg',
+  bodyguard:   '/roles/bodyguard.svg',
+  spy:         '/roles/spy.svg',
+  escort:      '/roles/escort.svg',
+  vigilante:   '/roles/vigilante.svg',
+  veteran:     '/roles/veteran.svg',
+  tracker:     '/roles/tracker.svg',
+  arsonist:    '/roles/arsonist.svg',
+  mayor:       '/roles/mayor.svg',
+  cultist:     '/roles/cultist.svg',
 };
 
 // Left border color, right border color per role
