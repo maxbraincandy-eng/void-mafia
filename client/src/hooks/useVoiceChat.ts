@@ -517,6 +517,20 @@ export function useVoiceChat() {
 }
 
 /**
+ * Destroy the voice session from outside React (e.g. from the game store on room:closed).
+ * Stops ghost audio when the room is deleted while voice is still running.
+ */
+export function leaveVoiceModule(): void {
+  if (_refreshTimer) { clearTimeout(_refreshTimer); _refreshTimer = null; }
+  if (_session) {
+    (socket as any).emit('voice:leave');
+    _session.destroy();
+    _reset();
+    log('voice session destroyed (room closed)');
+  }
+}
+
+/**
  * Register a callback to be fired on the next user gesture (touchstart/click).
  * Use this to trigger mic permission on iOS Safari, which requires a user gesture
  * before getUserMedia() is allowed. No-ops if already in a voice session.

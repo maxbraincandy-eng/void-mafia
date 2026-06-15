@@ -1830,6 +1830,9 @@ export function attachSocketHandlers(io) {
                 room.nextRoundQueue = [];
                 broadcastSystemMsg(io, room, 'The host terminated the game. Returning to lobby.');
                 broadcastRoom(io, room);
+                // Clear all phase-based force mutes so lobby voice works normally
+                io.to(room.id).emit('voice:reset');
+                enforceVoicePhaseRules(io, room);
                 cb(ok(null));
             }
             catch (e) {
@@ -1878,6 +1881,9 @@ export function attachSocketHandlers(io) {
                 }
                 broadcastSystemMsg(io, room, 'The host has restarted the room. Prepare for a new game.');
                 broadcastRoom(io, room);
+                // Clear all phase-based force mutes so lobby voice works normally
+                io.to(room.id).emit('voice:reset');
+                enforceVoicePhaseRules(io, room);
                 cb(ok(null));
             }
             catch (e) {
@@ -2288,6 +2294,8 @@ export function attachSocketHandlers(io) {
                 }
                 broadcastSystemMsg(io, room, `A moderator terminated the game. Reason: ${reason || 'Rule violation'}`);
                 broadcastRoom(io, room);
+                io.to(room.id).emit('voice:reset');
+                enforceVoicePhaseRules(io, room);
                 await logKick(modProfileId, mod.username, roomId, room.code, roomId, `Terminated game: ${reason || 'Rule violation'}`);
                 await notifyMods(io, 'mod_kick', `${mod.username} terminated game in room ${room.code}`, room.code);
                 cb(ok(null));
@@ -3122,6 +3130,9 @@ export function attachSocketHandlers(io) {
                 rematchRoom(room);
                 broadcastSystemMsg(io, room, 'The host started a rematch. Prepare for a new game!');
                 broadcastRoom(io, room);
+                // Clear all phase-based force mutes so lobby voice works normally
+                io.to(room.id).emit('voice:reset');
+                enforceVoicePhaseRules(io, room);
                 cb(ok(null));
             }
             catch (e) {

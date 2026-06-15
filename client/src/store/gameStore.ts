@@ -7,6 +7,7 @@ import {
 } from '@/types/index';
 import { socket, connectSocket, disconnectSocket, emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
+import { leaveVoiceModule } from '@/hooks/useVoiceChat';
 
 interface Toast {
   id: string;
@@ -433,6 +434,7 @@ export const useGameStore = create<GameStore>((set, get) => {
   });
 
   (socket as any).on('room:closed', ({ reason }: { reason: string }) => {
+    leaveVoiceModule();
     clearSession();
     set({
       room: null,
