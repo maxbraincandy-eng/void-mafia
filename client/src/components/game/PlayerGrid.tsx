@@ -5,12 +5,19 @@ import { PlayerPublic, Phase, RoleKey } from '@/types/index';
 import { ModBadge } from '@/components/ui/ModBadge';
 
 const ROLE_ICONS: Partial<Record<RoleKey, string>> = {
-  citizen: '🏙', sheriff: '🔍', doctor: '💉', bodyguard: '🛡',
-  vigilante: '⚖️', escort: '💃', spy: '🕵️', tracker: '👁',
-  veteran: '🎖️',
-  mafia: '🔫', don: '♛', arsonist: '🔥',
-  maniac: '🌀', jester: '🃏',
-  cult_leader: '🕯️', cultist: '🔮',
+  citizen: '◈', sheriff: '✦', doctor: '+', bodyguard: '⬡',
+  vigilante: '⚖', escort: '✿', spy: '◉', tracker: '◯',
+  veteran: '★',
+  mafia: '◆', don: '♛', arsonist: '△',
+  maniac: '∞', jester: '✧',
+  cult_leader: '⛤', cultist: '◎',
+};
+
+const ROLE_CARD_IMAGES: Partial<Record<RoleKey, string>> = {
+  citizen:     '/roles/citizen.png',
+  sheriff:     '/roles/sheriff.png',
+  doctor:      '/roles/doctor.png',
+  cult_leader: '/roles/cult_leader.png',
 };
 
 /** Voice state for the local player's tile (camera/mic). */
@@ -62,10 +69,21 @@ function RoleChip({ role, team }: { role: RoleKey; team: string | null }) {
   const label = role.replace(/_/g, ' ').toUpperCase();
   return (
     <div
-      className="flex items-center gap-1 px-2 py-1 rounded-xl font-mono font-bold text-[10px] tracking-widest uppercase"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text, textShadow: `0 0 8px ${c.text}60` }}
+      className="flex items-center gap-1 px-2 py-1 rounded-lg font-mono font-bold text-[9px] tracking-widest uppercase"
+      style={{
+        background: `${c.bg}`,
+        border: `1px solid ${c.border}`,
+        color: c.text,
+        textShadow: `0 0 10px ${c.text}80`,
+        boxShadow: `0 0 8px ${c.border}40`,
+        backdropFilter: 'blur(4px)',
+      }}
     >
-      {icon && <span className="text-[11px] leading-none">{icon}</span>}
+      {icon && (
+        <span className="text-[10px] leading-none font-bold" style={{ color: c.text, textShadow: `0 0 8px ${c.text}` }}>
+          {icon}
+        </span>
+      )}
       {label}
     </div>
   );
@@ -442,37 +460,64 @@ function PlayerCard({
             className="absolute inset-0 flex items-center justify-center"
             style={{
               background: dead
-                ? 'rgba(0,0,0,0.6)'
+                ? 'linear-gradient(160deg, rgba(4,2,8,0.95) 0%, rgba(2,1,5,0.98) 100%)'
                 : isAlly && !dead
-                  ? 'linear-gradient(150deg, rgba(60,0,12,0.65) 0%, rgba(8,2,12,0.92) 70%)'
+                  ? 'linear-gradient(150deg, rgba(80,0,15,0.7) 0%, rgba(8,2,12,0.95) 65%)'
                   : isMe
-                    ? 'linear-gradient(150deg, rgba(40,0,70,0.55) 0%, rgba(5,2,20,0.9) 70%)'
-                    : 'linear-gradient(150deg, rgba(0,30,40,0.4) 0%, rgba(2,5,12,0.92) 70%)',
+                    ? 'linear-gradient(150deg, rgba(55,0,90,0.65) 0%, rgba(5,2,20,0.95) 65%)'
+                    : 'linear-gradient(150deg, rgba(0,20,35,0.5) 0%, rgba(2,5,14,0.95) 65%)',
             }}
           >
+            {/* Role card art as tile background (subtle) */}
+            {tileRole && !dead && ROLE_CARD_IMAGES[tileRole] && (
+              <img
+                src={ROLE_CARD_IMAGES[tileRole]}
+                alt=""
+                aria-hidden
+                className="absolute inset-0 w-full h-full object-cover"
+                style={{ opacity: 0.18, filter: 'saturate(0.7)' }}
+                draggable={false}
+              />
+            )}
+
             {dead ? (
-              <span className="text-4xl opacity-40">💀</span>
+              /* Eliminated overlay */
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 z-10">
+                <div className="relative flex items-center justify-center">
+                  <div className="absolute w-8 h-[1.5px] rotate-45" style={{ background: 'rgba(255,255,255,0.15)' }} />
+                  <div className="absolute w-8 h-[1.5px] -rotate-45" style={{ background: 'rgba(255,255,255,0.15)' }} />
+                </div>
+                <span className="text-[7px] font-mono uppercase tracking-[0.25em] mt-4" style={{ color: 'rgba(255,255,255,0.15)' }}>
+                  eliminated
+                </span>
+              </div>
             ) : player.avatarUrl ? (
               <div
-                className="rounded-full overflow-hidden"
+                className="relative z-10 rounded-full overflow-hidden"
                 style={{
                   width: 'clamp(44px, 28%, 72px)',
                   aspectRatio: '1',
-                  border: '2px solid rgba(0,229,255,0.25)',
+                  border: isMe ? '2px solid rgba(155,0,255,0.45)' : isAlly ? '2px solid rgba(255,45,85,0.45)' : '2px solid rgba(0,229,255,0.22)',
+                  boxShadow: isMe ? '0 0 12px rgba(155,0,255,0.3)' : isAlly ? '0 0 12px rgba(255,45,85,0.25)' : 'none',
                 }}
               >
                 <img src={player.avatarUrl} alt={player.name} className="w-full h-full object-cover" />
               </div>
             ) : (
               <div
-                className="rounded-full flex items-center justify-center font-display font-bold"
+                className="relative z-10 rounded-full flex items-center justify-center font-display font-bold"
                 style={{
                   width: 'clamp(44px, 28%, 72px)',
                   aspectRatio: '1',
                   fontSize: 'clamp(18px, 9vw, 30px)',
-                  background: 'linear-gradient(135deg, rgba(155,0,255,0.35) 0%, rgba(0,229,255,0.22) 100%)',
-                  border: '2px solid rgba(0,229,255,0.25)',
-                  color: '#00e5ff',
+                  background: isMe
+                    ? 'linear-gradient(135deg, rgba(155,0,255,0.45) 0%, rgba(100,0,200,0.3) 100%)'
+                    : isAlly
+                      ? 'linear-gradient(135deg, rgba(255,45,85,0.35) 0%, rgba(180,0,50,0.2) 100%)'
+                      : 'linear-gradient(135deg, rgba(0,80,120,0.4) 0%, rgba(0,229,255,0.15) 100%)',
+                  border: isMe ? '2px solid rgba(155,0,255,0.5)' : isAlly ? '2px solid rgba(255,45,85,0.45)' : '2px solid rgba(0,229,255,0.22)',
+                  color: isMe ? '#c084fc' : isAlly ? '#ff6677' : '#00e5ff',
+                  boxShadow: isMe ? '0 0 14px rgba(155,0,255,0.3)' : isAlly ? '0 0 14px rgba(255,45,85,0.25)' : 'none',
                 }}
               >
                 {player.avatar || initials}

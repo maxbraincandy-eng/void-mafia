@@ -58,23 +58,30 @@ const ROLE_TAGLINE: Record<string, string> = {
 };
 
 const ROLE_ICONS: Record<string, string> = {
-  mafia:       '🔫',
-  citizen:     '🏙',
-  sheriff:     '🔍',
-  doctor:      '💉',
+  mafia:       '◆',
+  citizen:     '◈',
+  sheriff:     '✦',
+  doctor:      '+',
   don:         '♛',
-  maniac:      '🌀',
-  jester:      '🃏',
-  bodyguard:   '🛡',
-  spy:         '🕵️',
-  escort:      '💃',
-  vigilante:   '⚖️',
-  cult_leader: '🕯️',
-  cultist:     '🔮',
-  veteran:     '🎖️',
-  tracker:     '👁',
-  arsonist:    '🔥',
-  mayor:       '👑',
+  maniac:      '∞',
+  jester:      '✧',
+  bodyguard:   '⬡',
+  spy:         '◉',
+  escort:      '✿',
+  vigilante:   '⚖',
+  cult_leader: '⛤',
+  cultist:     '◎',
+  veteran:     '★',
+  tracker:     '◯',
+  arsonist:    '△',
+  mayor:       '♔',
+};
+
+const ROLE_CARD_IMAGES: Partial<Record<string, string>> = {
+  citizen:     '/roles/citizen.png',
+  sheriff:     '/roles/sheriff.png',
+  doctor:      '/roles/doctor.png',
+  cult_leader: '/roles/cult_leader.png',
 };
 
 // Left border color, right border color per role
@@ -121,6 +128,7 @@ export function RoleReveal({ role, teammates, skin }: Props) {
   const c1 = skinDef?.c1 ?? defaultC1;
   const c2 = skinDef?.c2 ?? defaultC2;
   const cardBg = skinDef?.bg ?? '#03000d';
+  const cardImage = !skinDef ? ROLE_CARD_IMAGES[role.key] ?? null : null;
 
   const borderGradient = `linear-gradient(180deg, ${c1}, ${c2})`;
 
@@ -189,125 +197,125 @@ export function RoleReveal({ role, teammates, skin }: Props) {
               inset: 0,
             }}
           >
-            {/* gradient border wrapper */}
-            <div
-              className="absolute inset-0 rounded-2xl p-[2px]"
-              style={{ background: borderGradient }}
-            >
+            {cardImage ? (
+              /* ── Custom card art (citizen, sheriff, doctor, cult_leader) ── */
               <div
-                className="relative w-full h-full rounded-2xl overflow-hidden flex flex-col"
-                style={{ background: cardBg }}
+                className="absolute inset-0 rounded-2xl p-[2px]"
+                style={{
+                  background: borderGradient,
+                  boxShadow: `0 0 40px ${c1}55, 0 0 80px ${c2}22`,
+                }}
               >
-                {/* subtle bg glow */}
+                <div className="relative w-full h-full rounded-2xl overflow-hidden">
+                  <img
+                    src={cardImage}
+                    alt={role.name}
+                    className="absolute inset-0 w-full h-full object-cover"
+                    draggable={false}
+                  />
+                  {/* subtle vignette for polish */}
+                  <div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.08) 0%, transparent 30%, transparent 60%, rgba(0,0,0,0.18) 100%)' }}
+                  />
+                </div>
+              </div>
+            ) : (
+              /* ── Text-based card (roles without custom art) ── */
+              <div
+                className="absolute inset-0 rounded-2xl p-[2px]"
+                style={{ background: borderGradient, boxShadow: `0 0 32px ${c1}44` }}
+              >
                 <div
-                  className="absolute inset-0 pointer-events-none"
-                  style={{ background: `radial-gradient(ellipse at 50% 60%, ${c1}18 0%, transparent 65%)` }}
-                />
+                  className="relative w-full h-full rounded-2xl overflow-hidden flex flex-col"
+                  style={{ background: cardBg }}
+                >
+                  {/* bg glow */}
+                  <div className="absolute inset-0 pointer-events-none"
+                    style={{ background: `radial-gradient(ellipse at 50% 50%, ${c1}18 0%, transparent 68%)` }} />
 
-                {/* Header */}
-                <div className="relative z-10 pt-3 pb-1 flex items-center justify-center gap-2">
-                  <div className="w-4 h-px" style={{ background: `linear-gradient(90deg, transparent, ${c2})` }} />
-                  <span
-                    className="text-[9px] font-display tracking-[0.3em] uppercase"
-                    style={{ color: c2, opacity: 0.8 }}
-                  >
-                    {skinDef ? skinDef.name.toUpperCase() : 'VOID MAFIA'}
-                  </span>
-                  <div className="w-4 h-px" style={{ background: `linear-gradient(90deg, ${c2}, transparent)` }} />
-                </div>
-
-                {/* Icon circle */}
-                <div className="relative z-10 flex justify-center mt-2">
-                  <div
-                    className="w-20 h-20 rounded-full flex items-center justify-center text-4xl"
-                    style={{
-                      background: `radial-gradient(circle, ${c1}18, transparent 70%)`,
-                      border: `1.5px solid`,
-                      borderColor: c2,
-                      boxShadow: `0 0 20px ${c2}40, inset 0 0 16px ${c1}18`,
-                    }}
-                  >
-                    {icon}
+                  {/* Header */}
+                  <div className="relative z-10 pt-3 pb-1 flex items-center justify-center gap-2">
+                    <div className="w-4 h-px" style={{ background: `linear-gradient(90deg, transparent, ${c2})` }} />
+                    <span className="text-[9px] font-display tracking-[0.3em] uppercase" style={{ color: c2, opacity: 0.8 }}>
+                      {skinDef ? skinDef.name.toUpperCase() : 'VOID MAFIA'}
+                    </span>
+                    <div className="w-4 h-px" style={{ background: `linear-gradient(90deg, ${c2}, transparent)` }} />
                   </div>
-                </div>
 
-                {/* Separator */}
-                <div className="relative z-10 flex items-center justify-center gap-3 mt-3 px-6">
-                  <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, transparent, ${c1}60)` }} />
-                  <span style={{ color: c1, fontSize: '8px' }}>★</span>
-                  <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${c2}60, transparent)` }} />
-                </div>
-
-                {/* Role name */}
-                <div className="relative z-10 text-center px-4 mt-2">
-                  <h2
-                    className="font-display font-black tracking-widest uppercase leading-none"
-                    style={{
-                      fontSize: role.name.length > 10 ? '1.6rem' : '2rem',
-                      background: `linear-gradient(90deg, ${c1}, #aa44ff, ${c2})`,
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      backgroundClip: 'text',
-                      filter: `drop-shadow(0 0 8px ${c1}80)`,
-                    }}
-                  >
-                    {role.name}
-                  </h2>
-
-                  {/* Georgian subtitle */}
-                  <div
-                    className="flex items-center justify-center gap-2 mt-1"
-                    style={{ opacity: 0.9 }}
-                  >
-                    <div className="w-6 h-px" style={{ background: `linear-gradient(90deg, transparent, ${c1}80)` }} />
-                    <p
-                      className="text-sm font-medium tracking-wide"
+                  {/* Icon circle */}
+                  <div className="relative z-10 flex justify-center mt-6">
+                    <div
+                      className="w-24 h-24 rounded-full flex items-center justify-center"
                       style={{
-                        background: `linear-gradient(90deg, ${c1}cc, ${c2}cc)`,
+                        background: `radial-gradient(circle, ${c1}22, transparent 70%)`,
+                        border: `1.5px solid ${c2}`,
+                        boxShadow: `0 0 28px ${c2}50, inset 0 0 20px ${c1}18`,
+                        fontSize: '2.4rem',
+                        color: c2,
+                        textShadow: `0 0 16px ${c2}`,
+                      }}
+                    >
+                      {icon}
+                    </div>
+                  </div>
+
+                  {/* Separator */}
+                  <div className="relative z-10 flex items-center justify-center gap-3 mt-4 px-6">
+                    <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, transparent, ${c1}60)` }} />
+                    <span style={{ color: c1, fontSize: '8px' }}>★</span>
+                    <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${c2}60, transparent)` }} />
+                  </div>
+
+                  {/* Role name */}
+                  <div className="relative z-10 text-center px-4 mt-3">
+                    <h2
+                      className="font-display font-black tracking-widest uppercase leading-none"
+                      style={{
+                        fontSize: role.name.length > 10 ? '1.6rem' : '2.2rem',
+                        background: `linear-gradient(90deg, ${c1}, #aa44ff, ${c2})`,
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent',
                         backgroundClip: 'text',
+                        filter: `drop-shadow(0 0 10px ${c1}80)`,
                       }}
                     >
+                      {role.name}
+                    </h2>
+                    <p className="text-sm font-medium tracking-wide mt-1"
+                      style={{
+                        background: `linear-gradient(90deg, ${c1}cc, ${c2}cc)`,
+                        WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+                      }}>
                       {geoName}
                     </p>
-                    <div className="w-6 h-px" style={{ background: `linear-gradient(90deg, ${c2}80, transparent)` }} />
                   </div>
-                </div>
 
-                {/* Ability box */}
-                <div
-                  className="relative z-10 mx-3 mt-auto mb-3 rounded-xl p-3 flex items-center gap-3"
-                  style={{
-                    background: 'rgba(0,0,0,0.5)',
-                    border: `1px solid ${c2}30`,
-                  }}
-                >
+                  {/* Ability box */}
                   <div
-                    className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-base"
-                    style={{
-                      background: `${c1}18`,
-                      border: `1px solid ${c1}40`,
-                    }}
+                    className="relative z-10 mx-3 mt-auto mb-3 rounded-xl p-3 flex items-center gap-3"
+                    style={{ background: 'rgba(0,0,0,0.5)', border: `1px solid ${c2}30` }}
                   >
-                    {icon}
+                    <div
+                      className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-lg font-bold"
+                      style={{ background: `${c1}18`, border: `1px solid ${c1}40`, color: c2 }}
+                    >
+                      {icon}
+                    </div>
+                    <p className="text-[11px] leading-snug font-medium" style={{ color: c2, opacity: 0.9 }}>
+                      {role.ability}
+                    </p>
                   </div>
-                  <p
-                    className="text-[11px] leading-snug font-medium"
-                    style={{ color: c2, opacity: 0.9 }}
-                  >
-                    {role.ability}
-                  </p>
-                </div>
 
-                {/* Corner dots */}
-                <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-1.5 z-10 pb-1">
-                  {[c1, '#ffffff40', '#ffffff40', c2].map((col, i) => (
-                    <div key={i} className="w-1 h-1 rounded-full" style={{ background: col }} />
-                  ))}
+                  {/* Corner dots */}
+                  <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-1.5 z-10 pb-1">
+                    {[c1, '#ffffff40', '#ffffff40', c2].map((col, i) => (
+                      <div key={i} className="w-1 h-1 rounded-full" style={{ background: col }} />
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </motion.div>
       </div>
@@ -331,7 +339,7 @@ export function RoleReveal({ role, teammates, skin }: Props) {
           <div className="space-y-2">
             {teammates!.map(tm => (
               <div key={tm.name} className="flex items-center gap-2">
-                <span className="text-base">{ROLE_ICONS[tm.roleKey] ?? '🔫'}</span>
+                <span className="text-base font-bold" style={{ color: '#ff4488' }}>{ROLE_ICONS[tm.roleKey] ?? '◆'}</span>
                 <span className="text-sm text-white font-semibold flex-1 truncate">{tm.name}</span>
                 <span className="text-[10px] text-neon-pink/50 font-mono">{tm.roleName}</span>
               </div>
