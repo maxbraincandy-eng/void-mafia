@@ -13,7 +13,12 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Deploy to Railway
-        run: railway up --detach --service void-mafia
+      - name: Deploy server service
+        run: railway up --detach --service "@void-mafia/server"
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deploy client service
+        run: railway up --detach --service "@void-mafia/client"
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
