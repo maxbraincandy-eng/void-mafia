@@ -260,8 +260,10 @@ export class WebRTCSession {
 
     if (this.localStream) {
       for (const track of this.localStream.getTracks()) {
-        pc.addTrack(track, this.localStream);
-        log('  added', track.kind, 'track');
+        if (track.readyState !== 'ended') {
+          pc.addTrack(track, this.localStream);
+          log('  added', track.kind, 'track');
+        }
       }
     } else if (this.listenOnly) {
       // No local stream — add recvonly audio transceiver so the SDP offer
@@ -594,7 +596,7 @@ export class WebRTCSession {
   }
 
   hasCameraTrack(): boolean {
-    return (this.localStream?.getVideoTracks().length ?? 0) > 0;
+    return (this.localStream?.getVideoTracks().some(t => t.readyState !== 'ended') ?? false);
   }
 
   /**
@@ -608,6 +610,18 @@ export class WebRTCSession {
     ) => void,
   ): Promise<void> {
     if (!this.localStream) throw new Error('Not in voice.');
+
+    // Clean up any stale ended video tracks so renegotiation runs fresh
+    for (const track of this.localStream.getVideoTracks()) {
+      if (track.readyState === 'ended') {
+        this.localStream.removeTrack(track);
+        for (const pc of this.pcs.values()) {
+          const sender = pc.getSenders().find(s => s.track === track);
+          if (sender) pc.removeTrack(sender);
+        }
+        log('removed stale ended camera track');
+      }
+    }
 
     if (this.hasCameraTrack()) {
       this.setCameraEnabled(true);

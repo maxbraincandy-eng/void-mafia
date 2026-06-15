@@ -4048,7 +4048,15 @@ function enforceVoicePhaseRules(io: AppServer, room: Room): void {
     return;
   }
 
-  // day, lobby, role_reveal, game_over — lift force mutes for alive players only
+  // role_reveal — mute everyone while roles are being shown
+  if (phase === 'role_reveal') {
+    for (const member of voiceGetMembers(roomId, 'room')) {
+      io.to(member.socketId).emit('voice:force-mute', { reason: 'Voice disabled during role reveal.' });
+    }
+    return;
+  }
+
+  // day, lobby, game_over — lift force mutes for alive players only
   for (const member of voiceGetMembers(roomId, 'room')) {
     const player = room.players.get(member.playerId);
     if (player?.isAlive && !player?.isSpectator) {
