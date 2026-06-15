@@ -672,9 +672,9 @@ function PlayerCard({
         </div>
       )}
 
-      {/* Own role — bottom center, prominent */}
+      {/* Own role — above voice controls, centered */}
       {isMe && !dead && player.role && (
-        <div className="absolute bottom-8 left-0 right-0 flex justify-center z-10 pointer-events-none px-2">
+        <div className="absolute bottom-12 left-0 right-0 flex justify-center z-20 pointer-events-none px-2">
           <OwnRoleChip role={player.role as RoleKey} team={player.team} />
         </div>
       )}
