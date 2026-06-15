@@ -18,7 +18,7 @@ const ROLE_CARD_IMAGES: Partial<Record<RoleKey, string>> = {
   sheriff:     '/roles/sheriff.png',
   doctor:      '/roles/doctor.png',
   cult_leader: '/roles/cult_leader.png',
-  mafia:       '/roles/mafia.svg',
+  mafia:       '/roles/mafia.png',
   don:         '/roles/don.svg',
   maniac:      '/roles/maniac.svg',
   jester:      '/roles/jester.svg',
