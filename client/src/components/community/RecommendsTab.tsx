@@ -8,6 +8,13 @@ import { Spinner, EmptyState, SectionHeader, PillButton, ModalShell, TextInput, 
 
 const CATEGORIES: RecommendCategory[] = ['movie', 'series', 'book', 'music', 'philosophy'];
 
+function resolveImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  if (yt) return `https://img.youtube.com/vi/${yt[1]}/hqdefault.jpg`;
+  return url;
+}
+
 const CATEGORY_EMOJI: Record<RecommendCategory, string> = {
   movie: '🎬',
   series: '📺',
@@ -15,6 +22,29 @@ const CATEGORY_EMOJI: Record<RecommendCategory, string> = {
   music: '🎵',
   philosophy: '🧠',
 };
+
+function DetailImage({ imageUrl, emoji }: { imageUrl?: string | null; emoji: string }) {
+  const [failed, setFailed] = useState(false);
+  const src = resolveImageUrl(imageUrl);
+  if (src && !failed) {
+    return (
+      <img
+        src={src}
+        alt=""
+        className="w-full rounded-xl mb-4 object-cover max-h-56"
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <div
+      className="w-full rounded-xl mb-4 flex items-center justify-center text-5xl py-10"
+      style={{ background: 'linear-gradient(135deg, rgba(155,0,255,0.25), rgba(0,245,255,0.18))' }}
+    >
+      {emoji}
+    </div>
+  );
+}
 
 function RecommendCard({ rec, label, canManage, onOpen, onDelete }: {
   rec: MaxRecommendation;
@@ -25,6 +55,8 @@ function RecommendCard({ rec, label, canManage, onOpen, onDelete }: {
 }) {
   const t = useT();
   const [confirming, setConfirming] = useState(false);
+  const [imgFailed, setImgFailed] = useState(false);
+  const resolvedImg = resolveImageUrl(rec.imageUrl);
 
   return (
     <motion.div
@@ -35,8 +67,8 @@ function RecommendCard({ rec, label, canManage, onOpen, onDelete }: {
       style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)' }}
     >
       <div className="w-full aspect-square relative">
-        {rec.imageUrl ? (
-          <img src={rec.imageUrl} alt={rec.title} className="w-full h-full object-cover" />
+        {resolvedImg && !imgFailed ? (
+          <img src={resolvedImg} alt={rec.title} className="w-full h-full object-cover" onError={() => setImgFailed(true)} />
         ) : (
           <div
             className="w-full h-full flex items-center justify-center text-4xl"
@@ -199,16 +231,7 @@ export function RecommendsTab(): JSX.Element {
       <AnimatePresence>
         {detail && (
           <ModalShell accent="purple" onClose={() => setDetail(null)}>
-            {detail.imageUrl ? (
-              <img src={detail.imageUrl} alt={detail.title} className="w-full rounded-xl mb-4 object-cover max-h-56" />
-            ) : (
-              <div
-                className="w-full rounded-xl mb-4 flex items-center justify-center text-5xl py-10"
-                style={{ background: 'linear-gradient(135deg, rgba(155,0,255,0.25), rgba(0,245,255,0.18))' }}
-              >
-                {CATEGORY_EMOJI[detail.category]}
-              </div>
-            )}
+            <DetailImage imageUrl={detail.imageUrl} emoji={CATEGORY_EMOJI[detail.category]} />
             <span
               className="inline-block font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full mb-2"
               style={{ background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.3)', color: 'rgba(180,80,255,0.9)' }}
