@@ -1794,10 +1794,17 @@ export function GamePage() {
           {/* Floating chat bubble */}
           <button
             onClick={() => { setShowChat(true); setUnreadChat(0); }}
-            className="fixed right-4 z-40 w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-90"
+            className={clsx(
+              'fixed right-4 z-40 w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-90',
+              unreadChat > 0 && 'animate-pulse',
+            )}
             style={{
               bottom: 'max(1.5rem, calc(env(safe-area-inset-bottom) + 0.75rem))',
-              ...(amSpectator ? {
+              ...(unreadChat > 0 ? {
+                background: 'rgba(255,45,85,0.18)',
+                border: '1.5px solid rgba(255,45,85,0.6)',
+                boxShadow: '0 0 22px rgba(255,45,85,0.35), 0 4px 16px rgba(0,0,0,0.5)',
+              } : amSpectator ? {
                 background: 'rgba(155,0,255,0.15)',
                 border: '1.5px solid rgba(155,0,255,0.5)',
                 boxShadow: '0 0 20px rgba(155,0,255,0.15), 0 4px 16px rgba(0,0,0,0.5)',
@@ -1810,9 +1817,9 @@ export function GamePage() {
             aria-label={amSpectator ? 'Open spectator theater' : 'Open chat'}
           >
             {amSpectator ? (
-              <span className="text-2xl" style={{ filter: 'drop-shadow(0 0 6px rgba(155,0,255,0.9))' }}>👁</span>
+              <span className="text-2xl" style={{ filter: unreadChat > 0 ? 'drop-shadow(0 0 6px rgba(255,45,85,0.9))' : 'drop-shadow(0 0 6px rgba(155,0,255,0.9))' }}>👁</span>
             ) : (
-              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="rgba(0,229,255,0.9)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke={unreadChat > 0 ? 'rgba(255,45,85,0.95)' : 'rgba(0,229,255,0.9)'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
             )}

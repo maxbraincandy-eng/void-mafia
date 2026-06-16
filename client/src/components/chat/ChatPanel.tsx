@@ -83,15 +83,24 @@ export function ChatPanel({ compact = false }: Props) {
 
   const [text, setText] = useState('');
   const [channel, setChannel] = useState<ChatChannel>(() =>
-    myPlayer?.isSpectator ? 'spectator' : 'room',
+    myPlayer?.isSpectator && room?.phase !== 'lobby' ? 'spectator' : 'room',
   );
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLInputElement>(null);
 
   const amSpectator = myPlayer?.isSpectator ?? false;
+  const isLobby     = room?.phase === 'lobby';
   const isNight     = room?.phase === 'night';
   const isMafia     = myPlayer?.team === 'mafia';
-  const canChat     = amAlive && !isNight && !amSpectator;
+
+  // Mirrors server-side validateChat in chatService.ts
+  const isMySpeakingTurn = room?.phase === 'speech' ? room.currentSpeakerId === myPlayer?.id
+    : room?.phase === 'final_words' ? room.deathSpeakerId === myPlayer?.id
+    : false;
+  const roomChatOpenThisPhase = room?.phase === 'day' || room?.phase === 'game_over'
+    || ((room?.phase === 'speech' || room?.phase === 'final_words') && isMySpeakingTurn);
+
+  const canChat     = isLobby ? true : (amAlive && !amSpectator && roomChatOpenThisPhase);
   const canMafiaChat  = isMafia && isNight && !amSpectator;
   const canDeadChat   = !amAlive && !amSpectator;
 
@@ -101,8 +110,9 @@ export function ChatPanel({ compact = false }: Props) {
     : canChat;
 
   useEffect(() => {
-    if (amSpectator && channel !== 'spectator') setChannel('spectator');
-  }, [amSpectator, channel]);
+    if (isLobby && channel !== 'room') setChannel('room');
+    else if (!isLobby && amSpectator && channel !== 'spectator') setChannel('spectator');
+  }, [amSpectator, isLobby, channel]);
 
   const messages = channel === 'mafia' ? (room?.mafiaChat ?? [])
     : channel === 'dead'      ? (room?.deadChat ?? [])
@@ -124,9 +134,11 @@ export function ChatPanel({ compact = false }: Props) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  const availableChannels: ChatChannel[] = amSpectator
-    ? ['spectator']
-    : (['room', ...(isMafia ? ['mafia'] : []), ...(!amAlive ? ['dead'] : [])] as ChatChannel[]);
+  const availableChannels: ChatChannel[] = isLobby
+    ? ['room']
+    : amSpectator
+      ? ['spectator']
+      : (['room', ...(isMafia ? ['mafia'] : []), ...(!amAlive ? ['dead'] : [])] as ChatChannel[]);
 
   const channelAccent = channel === 'mafia' ? 'neon-pink' : channel === 'spectator' ? 'neon-purple' : 'neon-cyan';
 
@@ -167,10 +179,10 @@ export function ChatPanel({ compact = false }: Props) {
       </div>
 
       {/* Spectator reaction bar */}
-      {amSpectator && channel === 'spectator' && (
+      {amSpectator && (channel === 'spectator' || isLobby) && (
         <div className="flex gap-1.5 mb-2 flex-wrap flex-shrink-0">
           {SPECTATOR_REACTIONS.map(emoji => (
-            <button key={emoji} onClick={() => sendChat(emoji, 'spectator')}
+            <button key={emoji} onClick={() => sendChat(emoji, channel)}
               className="text-base px-2 py-1 rounded-lg border border-white/10 hover:border-neon-purple/40 hover:bg-neon-purple/10 transition-all active:scale-90">
               {emoji}
             </button>

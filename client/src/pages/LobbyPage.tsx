@@ -15,6 +15,7 @@ import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { RoomMoreMenu } from '@/components/ui/RoomMoreMenu';
 import { ModDashboardPage } from '@/pages/ModDashboardPage';
 import { useVoiceChat, registerVoiceGestureRetry } from '@/hooks/useVoiceChat';
+import { useGameSounds } from '@/hooks/useSoundFX';
 
 const SURFACE = 'rounded-2xl border border-white/[0.06]';
 const SURFACE_BG = { background: 'rgba(10, 6, 28, 0.92)' } as const;
@@ -51,11 +52,28 @@ export function LobbyPage() {
   const [confirmTransferId, setConfirmTransferId] = useState<string | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showSpectators, setShowSpectators] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [unreadChat, setUnreadChat] = useState(0);
   const t = useT();
   const voice = useVoiceChat();
+  useGameSounds();
   const autoJoined = useRef(false);
 
   const amSpectator = myPlayer?.isSpectator ?? false;
+
+  // Track unread lobby chat messages (mobile floating bubble badge)
+  const chatLen = room?.chat.length ?? 0;
+  const prevChatLen = useRef(chatLen);
+  useEffect(() => {
+    if (!showChat && chatLen > prevChatLen.current) {
+      setUnreadChat(u => u + chatLen - prevChatLen.current);
+    }
+    prevChatLen.current = chatLen;
+  }, [chatLen, showChat]);
+
+  useEffect(() => {
+    if (showChat) setUnreadChat(0);
+  }, [showChat]);
 
   useEffect(() => {
     if (!room?.id || autoJoined.current || voice.channel) return;
@@ -714,12 +732,12 @@ export function LobbyPage() {
             )}
           </div>
 
-          {/* ── Chat column ─────────────────────────────────────── */}
+          {/* ── Chat column (desktop) ───────────────────────────── */}
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className={`lg:col-span-1 ${SURFACE} p-0 min-h-[360px] flex flex-col overflow-hidden`}
+            className={`hidden lg:flex lg:col-span-1 ${SURFACE} p-0 min-h-[360px] flex-col overflow-hidden`}
             style={SURFACE_BG}
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04] flex-shrink-0">
@@ -732,6 +750,64 @@ export function LobbyPage() {
           </motion.div>
         </div>
       </div>
+
+      {/* ── Mobile floating chat bubble ─────────────────────────── */}
+      <button
+        onClick={() => { setShowChat(true); setUnreadChat(0); }}
+        className={clsx(
+          'lg:hidden fixed right-4 z-40 w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-90',
+          unreadChat > 0 && 'animate-pulse',
+        )}
+        style={{
+          bottom: 'max(1.5rem, calc(env(safe-area-inset-bottom) + 0.75rem))',
+          background: unreadChat > 0 ? 'rgba(255,45,85,0.18)' : 'rgba(0,229,255,0.15)',
+          border: unreadChat > 0 ? '1.5px solid rgba(255,45,85,0.6)' : '1.5px solid rgba(0,229,255,0.4)',
+          boxShadow: unreadChat > 0
+            ? '0 0 22px rgba(255,45,85,0.35), 0 4px 16px rgba(0,0,0,0.5)'
+            : '0 0 20px rgba(0,229,255,0.15), 0 4px 16px rgba(0,0,0,0.5)',
+        }}
+        aria-label="Open chat"
+      >
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke={unreadChat > 0 ? 'rgba(255,45,85,0.95)' : 'rgba(0,229,255,0.9)'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+        {unreadChat > 0 && (
+          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-neon-red text-white text-[9px] flex items-center justify-center font-bold">
+            {unreadChat > 9 ? '9+' : unreadChat}
+          </span>
+        )}
+      </button>
+
+      {/* Mobile chat overlay panel */}
+      <AnimatePresence>
+        {showChat && (
+          <motion.div
+            key="lobby-chat-overlay"
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 40 }}
+            transition={{ duration: 0.25 }}
+            className="lg:hidden fixed inset-0 z-50 flex flex-col"
+            style={{ background: 'rgba(4,2,16,0.97)' }}
+          >
+            <div
+              className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0"
+              style={{ borderColor: 'rgba(255,255,255,0.08)', paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
+            >
+              <span className="text-sm font-display uppercase tracking-widest text-white/60">Chat</span>
+              <button
+                onClick={() => setShowChat(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/8 transition-all"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 p-3">
+              <ChatPanel />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <RoleInfoModal open={showRoleGuide} onClose={() => setShowRoleGuide(false)} />
 
