@@ -5,6 +5,7 @@ import {
 } from '../types/index.js';
 import { nameToAvatar } from '../utils/helpers.js';
 import { sql } from '../db.js';
+import { isOnline } from './friendService.js';
 
 // ── Moderator config from env ─────────────────────────────────────────
 const parseIds     = (s: string) => s.split(',').map(n => n.trim()).filter(Boolean);
@@ -326,6 +327,7 @@ export async function getLeaderboard(): Promise<PlayerProfilePublic[]> {
     level:                 Number(r.level ?? 1),
     cosmetics:             (() => { try { return JSON.parse(r.cosmetics ?? '{}'); } catch { return { equippedNameColor: null, equippedFrame: null, unlockedItems: [] }; } })(),
     friendCode:            r.friend_code ?? '',
+    isOnline:              isOnline(r.id),
   }));
 
   _leaderboardCache = result;
@@ -368,6 +370,7 @@ export async function getPlayersFast(): Promise<PlayerProfilePublic[]> {
     level:                 Number(r.level ?? 1),
     cosmetics:             (() => { try { return JSON.parse(r.cosmetics ?? '{}'); } catch { return { equippedNameColor: null, equippedFrame: null, unlockedItems: [] }; } })(),
     friendCode:            r.friend_code ?? '',
+    isOnline:              isOnline(r.id),
   }));
 }
 
@@ -389,6 +392,7 @@ export function toPublicProfile(p: PlayerProfile): PlayerProfilePublic {
     level:                 p.level,
     cosmetics:             p.cosmetics,
     friendCode:            p.friendCode,
+    isOnline:              isOnline(p.id),
   };
 }
 

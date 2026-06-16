@@ -150,6 +150,7 @@ export interface PlayerProfilePublic {
   level?: number;
   cosmetics?: PlayerCosmetics;
   friendCode?: string;
+  isOnline?: boolean;
 }
 
 export interface PlayerPublic {

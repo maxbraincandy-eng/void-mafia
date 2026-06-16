@@ -196,6 +196,7 @@ export function ModDashboardPage() {
     setTab(t);
     setPlayerDetail(null);
     setShowBanned(false);
+    setPlayerFilterOnline(false);
     if (t === 'dashboard') loadDashboard();
     else if (t === 'rooms') loadRooms();
     else if (t === 'reports') loadReports();
@@ -357,6 +358,7 @@ export function ModDashboardPage() {
       if (!p.username.toLowerCase().includes(q) && !p.id.toLowerCase().includes(q) && !(p.publicId != null && String(p.publicId).includes(q)) && !fcNorm.includes(q)) return false;
     }
     if (playerFilterMod && !p.isModerator) return false;
+    if (playerFilterOnline && !p.isOnline) return false;
     return true;
   });
   const filteredLogs = logs.filter(l => !logFilter || l.actionType.includes(logFilter) || l.targetName.toLowerCase().includes(logFilter.toLowerCase()) || l.moderatorName.toLowerCase().includes(logFilter.toLowerCase()));
@@ -408,12 +410,13 @@ export function ModDashboardPage() {
             {stats ? (
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: 'Online', value: stats.onlinePlayers, color: 'text-neon-green' },
+                  { label: 'Online', value: stats.onlinePlayers, color: 'text-neon-green', onClick: () => { switchTab('players'); setPlayerFilterOnline(true); } },
                   { label: 'Active Rooms', value: stats.activeRooms, color: 'text-neon-cyan' },
                   { label: 'Open Reports', value: stats.openReports, color: stats.openReports > 0 ? 'text-neon-red' : 'text-white/40' },
                   { label: 'Bans (24h)', value: stats.recentBans, color: 'text-neon-pink' },
                 ].map(s => (
-                  <div key={s.label} className="glass-panel border border-white/5 rounded-xl p-4 text-center">
+                  <div key={s.label} onClick={s.onClick}
+                    className={`glass-panel border border-white/5 rounded-xl p-4 text-center ${s.onClick ? 'cursor-pointer hover:border-white/15 active:bg-white/5 transition-all' : ''}`}>
                     <p className={`font-display text-3xl font-bold ${s.color}`}>{s.value}</p>
                     <p className="text-white/30 font-mono text-xs mt-1">{s.label}</p>
                   </div>
@@ -706,6 +709,12 @@ export function ModDashboardPage() {
               placeholder="Search by name, #ID, friend code…"
               className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono placeholder-white/25 focus:outline-none focus:border-neon-green/40" />
             <div className="flex items-center gap-2">
+              <button onClick={() => setPlayerFilterOnline(!playerFilterOnline)}
+                className={`px-2 py-1 text-[10px] font-mono uppercase rounded-lg border transition-all ${
+                  playerFilterOnline ? 'border-neon-green/40 bg-neon-green/10 text-neon-green' : 'border-white/10 text-white/30 hover:text-white/60'
+                }`}>
+                Online
+              </button>
               <button onClick={() => setPlayerFilterMod(!playerFilterMod)}
                 className={`px-2 py-1 text-[10px] font-mono uppercase rounded-lg border transition-all ${
                   playerFilterMod ? 'border-neon-green/40 bg-neon-green/10 text-neon-green' : 'border-white/10 text-white/30 hover:text-white/60'
@@ -724,6 +733,7 @@ export function ModDashboardPage() {
                     onClick={() => openPlayerDetail(p.id)}>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${p.isOnline ? 'bg-neon-green' : 'bg-white/15'}`} title={p.isOnline ? 'Online' : 'Offline'} />
                         <span className={`font-mono text-sm truncate ${p.isModerator ? 'text-neon-green' : 'text-white/85'}`}>{p.username}</span>
                         {p.isModerator && <ModBadge level={p.moderatorLevel} size="sm" />}
                       </div>

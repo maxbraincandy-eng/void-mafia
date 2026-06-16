@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import { createHash } from 'crypto';
 import { nameToAvatar } from '../utils/helpers.js';
 import { sql } from '../db.js';
+import { isOnline } from './friendService.js';
 // ── Moderator config from env ─────────────────────────────────────────
 const parseIds = (s) => s.split(',').map(n => n.trim()).filter(Boolean);
 const parseName = (s) => s.split(',').map(n => n.trim().toLowerCase()).filter(Boolean);
@@ -312,6 +313,7 @@ export async function getLeaderboard() {
             return { equippedNameColor: null, equippedFrame: null, unlockedItems: [] };
         } })(),
         friendCode: r.friend_code ?? '',
+        isOnline: isOnline(r.id),
     }));
     _leaderboardCache = result;
     _leaderboardCachedAt = Date.now();
@@ -356,6 +358,7 @@ export async function getPlayersFast() {
             return { equippedNameColor: null, equippedFrame: null, unlockedItems: [] };
         } })(),
         friendCode: r.friend_code ?? '',
+        isOnline: isOnline(r.id),
     }));
 }
 export function toPublicProfile(p) {
@@ -376,6 +379,7 @@ export function toPublicProfile(p) {
         level: p.level,
         cosmetics: p.cosmetics,
         friendCode: p.friendCode,
+        isOnline: isOnline(p.id),
     };
 }
 export async function addGameResult(uid, won) {
