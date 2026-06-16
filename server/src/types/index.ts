@@ -405,6 +405,8 @@ export interface GameSettings {
 export interface Room {
   id: string;
   code: string;
+  /** Optional custom room title set by the host at creation. Empty string when unset. */
+  name: string;
   hostId: string;
   phase: Phase;
   players: Map<string, Player>;
@@ -479,6 +481,7 @@ export interface PlayerPublic {
 export interface RoomPublic {
   id: string;
   code: string;
+  name: string;
   phase: Phase;
   day: number;
   timer: number;
@@ -517,6 +520,7 @@ export interface RoomPublic {
 export interface RoomListItem {
   id: string;
   code: string;
+  name: string;
   playerCount: number;
   phase: Phase;
   createdAt: number;
@@ -810,7 +814,7 @@ export interface ClientToServerEvents {
   'player:login_email': (data: { email: string; password: string }, cb: Cb<{ uid: string; profile: PlayerProfilePublic }>) => void;
   'player:stats':       (data: { profileId: string }, cb: Cb<PlayerProfilePublic>) => void;
   'player:report':      (data: { targetProfileId: string; roomId: string | null; reason: ReportReason; details: string }, cb: Cb<null>) => void;
-  'room:create':        (data: { name: string; settings?: Record<string, unknown> }, cb: Cb<RoomPublic>) => void;
+  'room:create':        (data: { name: string; roomName?: string; settings?: Record<string, unknown> }, cb: Cb<RoomPublic>) => void;
   'room:join':          (data: { code: string; name: string }, cb: Cb<RoomPublic>) => void;
   'room:leave':         (cb: Cb<null>) => void;
   'room:ready':         (cb: Cb<null>) => void;

@@ -251,6 +251,9 @@ export function LobbyPage() {
 
           {/* Room code */}
           <div className="text-right shrink-0">
+            {room.name && (
+              <p className="text-xs font-display font-bold text-white/55 truncate max-w-[180px] mb-1">{room.name}</p>
+            )}
             <p className="text-[9px] font-mono text-white/18 uppercase tracking-[0.18em] mb-1">Room</p>
             <div className="flex items-center justify-end gap-2">
               <span className="font-mono text-xl font-bold text-neon-cyan/80 tracking-[0.22em]">

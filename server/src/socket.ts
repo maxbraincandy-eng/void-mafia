@@ -255,6 +255,7 @@ function voteDeathMsg(name: string, role: string | null, lastWill: string | null
 // ── Validation Schemas ────────────────────────────────────────────────
 const CreateRoomSchema = z.object({
   name: z.string().min(1).max(24),
+  roomName: z.string().max(30).optional().default(''),
   settings: z.record(z.unknown()).optional(),
   clanRoom: z.boolean().optional().default(false),
 });
@@ -1089,7 +1090,7 @@ export function attachSocketHandlers(io: AppServer): void {
           if (clanMembership) clanId = clanMembership.id;
         }
 
-        const room = createRoom(socket.id, username, profileId, parsed.settings as Partial<GameSettings>, clanId);
+        const room = createRoom(socket.id, username, profileId, parsed.settings as Partial<GameSettings>, clanId, parsed.roomName);
 
         const hostInRoom = [...room.players.values()][0];
         if (hostInRoom && playerProfile?.avatarUrl) hostInRoom.avatarUrl = playerProfile.avatarUrl;

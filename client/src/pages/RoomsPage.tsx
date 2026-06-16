@@ -83,6 +83,7 @@ export function RoomsPage() {
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [preset, setPreset] = useState<Preset>('classic');
   const [isPrivate, setIsPrivate] = useState(false);
+  const [roomName, setRoomName] = useState('');
   const [code, setCode] = useState('');
   const [joinAsSpectator, setJoinAsSpectator] = useState(false);
   const [joinPassword, setJoinPassword] = useState('');
@@ -125,7 +126,7 @@ export function RoomsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createRoom(username, { ...PRESET_SETTINGS[preset], isPrivate });
+    await createRoom(username, { ...PRESET_SETTINGS[preset], isPrivate }, false, roomName);
   };
 
   const handleJoin = async (e: React.FormEvent) => {
@@ -301,7 +302,9 @@ export function RoomsPage() {
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <span className="font-medium text-sm text-white/70 truncate">{room.hostName}</span>
+                        <span className="font-medium text-sm text-white/70 truncate">
+                          {room.name || room.hostName}
+                        </span>
                         <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono tracking-wider uppercase flex-shrink-0 ${
                           isLobby
                             ? 'bg-neon-cyan/[0.08] text-neon-cyan/60 border border-neon-cyan/[0.12]'
@@ -311,6 +314,12 @@ export function RoomsPage() {
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 text-[11px] font-mono">
+                        {room.name && (
+                          <>
+                            <span className="text-white/30 truncate">{room.hostName}</span>
+                            <span className="text-white/12">·</span>
+                          </>
+                        )}
                         <span className="text-neon-cyan/50 font-bold tracking-widest">{room.code}</span>
                         <span className="text-white/12">·</span>
                         <span className="text-white/30">{room.playerCount} {t.rooms.players}</span>
@@ -343,6 +352,19 @@ export function RoomsPage() {
               <h3 className="font-display font-bold text-white/70 tracking-widest uppercase text-sm mb-5">
                 {t.rooms.createRoom}
               </h3>
+
+              {/* Room name */}
+              <label className="block text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2">
+                {t.rooms.roomNameLabel}
+              </label>
+              <input
+                type="text"
+                value={roomName}
+                onChange={e => setRoomName(e.target.value.slice(0, 30))}
+                placeholder={t.rooms.roomNamePlaceholder}
+                maxLength={30}
+                className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-2.5 mb-5 text-white/70 placeholder-white/15 font-mono text-sm focus:outline-none focus:border-white/20 transition-colors"
+              />
 
               {/* Public / Private toggle */}
               <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2">Visibility</p>

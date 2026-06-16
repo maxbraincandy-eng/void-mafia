@@ -293,6 +293,7 @@ export interface ChatMessage {
 export interface RoomPublic {
   id: string;
   code: string;
+  name: string;
   phase: Phase;
   day: number;
   timer: number;
@@ -330,6 +331,7 @@ export interface RoomPublic {
 export interface RoomListItem {
   id: string;
   code: string;
+  name: string;
   playerCount: number;
   phase: Phase;
   createdAt: number;

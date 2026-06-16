@@ -1265,6 +1265,9 @@ export function GamePage() {
             <div className="ml-auto flex items-center gap-1.5 md:gap-3">
               {/* Room code */}
               <div className="hidden sm:block text-right">
+                {room.name && (
+                  <p className="text-[10px] font-display font-bold text-white/50 truncate max-w-[140px]">{room.name}</p>
+                )}
                 <p className="text-[10px] text-white/30 font-mono">{t.game.header.room}</p>
                 <p className="font-mono text-xs md:text-sm text-neon-cyan/70 font-bold tracking-widest">{room.code}</p>
               </div>

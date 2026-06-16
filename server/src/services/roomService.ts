@@ -61,6 +61,7 @@ export function createRoom(
   profileId: string | null,
   settings?: Partial<GameSettings>,
   clanId?: string | null,
+  roomName?: string,
 ): Room {
   const id = generateId();
   const code = generateRoomCode();
@@ -115,6 +116,7 @@ export function createRoom(
   const room: Room = {
     id,
     code,
+    name: roomName?.trim().slice(0, 30) ?? '',
     hostId: hostPlayer.id,
     phase: 'lobby',
     players: new Map([[hostPlayer.id, hostPlayer]]),
@@ -480,6 +482,7 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
   return {
     id: room.id,
     code: room.code,
+    name: room.name,
     phase: room.phase,
     day: room.day,
     timer: room.timer,
@@ -530,6 +533,7 @@ export function toRoomListItem(room: Room): RoomListItem {
   return {
     id: room.id,
     code: room.code,
+    name: room.name,
     playerCount: room.players.size,
     phase: room.phase,
     createdAt: room.createdAt,
