@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import { useT } from '@/store/langStore';
 import { useSocialStore } from '@/store/socialStore';
 
-export type NavTab = 'rooms' | 'clans' | 'leaderboard' | 'profile' | 'mod' | 'economy' | 'replays';
+export type NavTab = 'rooms' | 'community' | 'clans' | 'leaderboard' | 'profile' | 'mod' | 'economy' | 'replays';
 
 interface Props {
   active: NavTab;
@@ -17,6 +17,7 @@ export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
 
   const TABS: { id: NavTab; label: string; icon: string; modOnly?: boolean }[] = [
     { id: 'rooms',       label: t.nav.rooms,       icon: '⬡' },
+    { id: 'community',   label: t.nav.community,   icon: '✦' },
     { id: 'clans',       label: t.nav.clans,       icon: '⚔' },
     { id: 'leaderboard', label: t.nav.leaderboard, icon: '◈' },
     { id: 'profile',     label: t.nav.profile,     icon: '◉' },
@@ -42,7 +43,8 @@ export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
         {visible.map(tab => {
           const isActive = active === tab.id;
           const isModeTab = tab.id === 'mod';
-          const activeColor = isModeTab ? '#00ff88' : '#00e5ff';
+          const isCommunityTab = tab.id === 'community';
+          const activeColor = isModeTab ? '#00ff88' : isCommunityTab ? '#9b00ff' : '#00e5ff';
           const inactiveColor = 'rgba(255,255,255,0.28)';
           return (
             <button

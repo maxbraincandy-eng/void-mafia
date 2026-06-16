@@ -843,3 +843,138 @@ export interface GameReplayFull extends GameReplaySummary {
   events: ReplayEvent[];
   playerRoles: Record<string, { username: string; role: string; team: string; alive: boolean }>;
 }
+
+// ── Community Hub ───────────────────────────────────────────────────────
+// Completely separate from Mafia game rooms/state.
+
+export type CommunityLoungeKind = 'max_lounge' | 'void_radio' | 'lounge';
+export type CommunityLoungeRole = 'host' | 'speaker' | 'listener';
+
+export interface CommunityLounge {
+  id: string;
+  name: string;
+  description: string;
+  ownerId: string | null;
+  kind: CommunityLoungeKind;
+  isLive: boolean;
+  lastTopic: string;
+  createdAt: number;
+  listenerCount: number;
+  speakerCount: number;
+}
+
+export interface CommunityLoungeMember {
+  socketId: string;
+  playerId: string;
+  username: string;
+  avatar: string;
+  avatarUrl: string | null;
+  role: CommunityLoungeRole;
+  handRaised: boolean;
+  joinedAt: number;
+}
+
+export interface VoidNewsPost {
+  id: string;
+  title: string;
+  content: string;
+  pinned: boolean;
+  authorId: string | null;
+  authorName: string;
+  createdAt: number;
+}
+
+export type RecommendCategory = 'movie' | 'series' | 'book' | 'music' | 'philosophy';
+
+export interface MaxRecommendation {
+  id: string;
+  category: RecommendCategory;
+  title: string;
+  review: string;
+  imageUrl: string | null;
+  createdAt: number;
+}
+
+export interface DailyThought {
+  id: string;
+  content: string;
+  pinned: boolean;
+  createdAt: number;
+}
+
+export interface CommunityPost {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorAvatar: string;
+  authorAvatarUrl: string | null;
+  content: string;
+  imageUrl: string | null;
+  likesCount: number;
+  commentsCount: number;
+  likedByMe: boolean;
+  createdAt: number;
+}
+
+export interface CommunityComment {
+  id: string;
+  postId: string;
+  authorId: string;
+  authorName: string;
+  authorAvatar: string;
+  content: string;
+  createdAt: number;
+}
+
+export type CommunityEventCategory = 'movie_night' | 'philosophy_night' | 'void_radio' | 'live_discussion' | 'other';
+
+export interface CommunityEvent {
+  id: string;
+  title: string;
+  description: string;
+  category: CommunityEventCategory;
+  eventAt: number;
+  createdBy: string;
+  createdByName: string;
+  participantCount: number;
+  joinedByMe: boolean;
+  createdAt: number;
+}
+
+export interface CommunityNotification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  link: string | null;
+  read: boolean;
+  createdAt: number;
+}
+
+export interface CommunityProfile {
+  id: string;
+  username: string;
+  avatar: string;
+  avatarUrl: string | null;
+  publicId: number | null;
+  level: number;
+  clanTag: string | null;
+  clanName: string | null;
+  followersCount: number;
+  followingCount: number;
+  postsCount: number;
+  joinedAt: number;
+  isFollowedByMe: boolean;
+}
+
+export interface CommunityReport {
+  id: string;
+  postId: string;
+  postContent: string | null;
+  postAuthorId: string | null;
+  reporterId: string;
+  reporterName: string;
+  reason: string;
+  status: string;
+  createdAt: number;
+}

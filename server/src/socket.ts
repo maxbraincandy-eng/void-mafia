@@ -84,6 +84,26 @@ import { getActiveSeason, getSeasonLeaderboard, getMySeasonHistory } from './ser
 import {
   startReplay, recordEvent, finishReplay, listReplays, getReplay, getMyReplays,
 } from './services/replayService.js';
+import {
+  listNews, createNews, deleteNews,
+  listRecommends, createRecommend, deleteRecommend,
+  listThoughts, createThought, deleteThought,
+  listFeed, createPost, deletePost, toggleLike, getComments, addComment, reportPost,
+  listCommunityReports, resolveCommunityReport,
+  follow, unfollow, getCommunityProfile,
+  listEvents, createEvent, joinEvent, leaveEvent,
+  createNotification, notifyFollowers, notifyAllPlayers,
+  listNotifications, getUnreadNotificationCount, markNotificationsRead,
+  listLoungeRows, getLoungeRow, rowToLounge, createLounge, setLoungeLive,
+  communityBanPlayer, communityUnbanPlayer, getActiveCommunityBan,
+} from './services/communityService.js';
+import {
+  join as loungeJoin, leave as loungeLeave, getMembers as loungeGetMembers,
+  getMemberByPlayerId as loungeGetMemberByPlayerId,
+  setRole as loungeSetRole, setHandRaised as loungeSetHandRaised,
+  removeMember as loungeRemoveMember, getCounts as loungeGetCounts,
+} from './services/loungeVoiceService.js';
+import type { CommunityLoungeMember, CommunityLoungeRole } from './types/index.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -339,6 +359,40 @@ function broadcastQueueUpdated(io: AppServer, room: Room): void {
 
 function broadcastOnlineCount(io: AppServer): void {
   io.emit('online:count', { count: getOnlineCount() });
+}
+
+// ── Community Hub helpers (separate from Mafia game logic) ─────────────
+async function requireOwnerLevel(profileId: string | null): Promise<void> {
+  if (!profileId) throw new Error('Not authenticated.');
+  const requester = await getPlayer(profileId);
+  if (!requester || requester.moderatorLevel !== 'owner') throw new Error('Owner only.');
+}
+
+async function requireNotCommunityBanned(profileId: string): Promise<void> {
+  const ban = await getActiveCommunityBan(profileId);
+  if (ban) throw new Error(`You are banned from the Community Hub: ${ban.reason}`);
+}
+
+async function broadcastLoungeState(io: AppServer, loungeId: string): Promise<void> {
+  const row = await getLoungeRow(loungeId);
+  if (!row) return;
+  const { listenerCount, speakerCount } = loungeGetCounts(loungeId);
+  io.emit('community:lounge_update', rowToLounge(row, listenerCount, speakerCount));
+}
+
+function handleLoungeLeave(io: AppServer, socket: AppSocket): void {
+  const loungeId = socket.data.loungeId;
+  if (!loungeId) return;
+  socket.data.loungeId = null;
+  socket.leave(`lounge:${loungeId}`);
+  const removed = loungeLeave(socket.id);
+  for (const { loungeId: lid, remaining } of removed) {
+    for (const peer of remaining) {
+      io.to(peer.socketId).emit('lounge:peer-left', { socketId: socket.id });
+    }
+    const { listenerCount, speakerCount } = loungeGetCounts(lid);
+    getLoungeRow(lid).then(row => { if (row) io.emit('community:lounge_update', rowToLounge(row, listenerCount, speakerCount)); });
+  }
 }
 
 function startPhaseTimer(io: AppServer, room: Room): void {
@@ -815,6 +869,7 @@ export function attachSocketHandlers(io: AppServer): void {
     socket.data.playerId = null;
     socket.data.roomId = null;
     socket.data.profileId = null;
+    socket.data.loungeId = null;
 
     // Rate-limit + payload size check on every incoming event
     socket.use(([event, ...args], next) => {
@@ -3780,6 +3835,458 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message ?? 'Error')); }
     });
 
+    // ════════════════════════════════════════════════════════════════
+    // Community Hub — completely separate from Mafia game rooms/state.
+    // ════════════════════════════════════════════════════════════════
+
+    // ── Void News ─────────────────────────────────────────────────
+    socket.on('community:news_list', async (cb) => {
+      try { cb(ok(await listNews())); } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:news_create', async ({ title, content, pinned }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        await requireOwnerLevel(profileId);
+        const post = await createNews(profileId!, title, content, !!pinned);
+        await notifyAllPlayers('void_news', 'Void News', post.title, null);
+        cb(ok(post));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:news_delete', async ({ id }, cb) => {
+      try {
+        await requireOwnerLevel(socket.data.profileId);
+        await deleteNews(id);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Max Recommends ───────────────────────────────────────────
+    socket.on('community:recommend_list', async (cb) => {
+      try { cb(ok(await listRecommends())); } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:recommend_create', async ({ category, title, review, imageUrl }, cb) => {
+      try {
+        await requireOwnerLevel(socket.data.profileId);
+        cb(ok(await createRecommend(category, title, review, imageUrl ?? null)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:recommend_delete', async ({ id }, cb) => {
+      try {
+        await requireOwnerLevel(socket.data.profileId);
+        await deleteRecommend(id);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Daily Thoughts ───────────────────────────────────────────
+    socket.on('community:thought_list', async (cb) => {
+      try { cb(ok(await listThoughts())); } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:thought_create', async ({ content, pinned }, cb) => {
+      try {
+        await requireOwnerLevel(socket.data.profileId);
+        cb(ok(await createThought(content, !!pinned)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:thought_delete', async ({ id }, cb) => {
+      try {
+        await requireOwnerLevel(socket.data.profileId);
+        await deleteThought(id);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Community Feed ───────────────────────────────────────────
+    socket.on('community:feed_list', async ({ before }, cb) => {
+      try { cb(ok(await listFeed(socket.data.profileId, before))); } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:post_create', async ({ content, imageUrl }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        await requireNotCommunityBanned(profileId);
+        const post = await createPost(profileId, content, imageUrl ?? null);
+        io.emit('community:post_new', post);
+        cb(ok(post));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:post_delete', async ({ id }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const requester = await getPlayer(profileId);
+        const isMod = !!requester && canDo(requester, 'kick');
+        await deletePost(id, profileId, isMod);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:post_like', async ({ postId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        cb(ok(await toggleLike(postId, profileId)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:post_comment', async ({ postId, content }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        await requireNotCommunityBanned(profileId);
+        cb(ok(await addComment(postId, profileId, content)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:post_comments', async ({ postId }, cb) => {
+      try { cb(ok(await getComments(postId))); } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:post_report', async ({ postId, reason }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        await reportPost(postId, profileId, reason);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Follow System ─────────────────────────────────────────────
+    socket.on('community:follow', async ({ targetId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        await follow(profileId, targetId);
+        const follower = await getPlayer(profileId);
+        const notif = await createNotification(
+          targetId, 'new_follower', 'New follower',
+          `${follower?.username ?? 'Someone'} started following you.`, null,
+        );
+        const targetSock = findSocketByProfile(io as any, targetId);
+        if (targetSock) targetSock.emit('community:notification', notif);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:unfollow', async ({ targetId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        await unfollow(profileId, targetId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:profile', async ({ profileId: targetId }, cb) => {
+      try { cb(ok(await getCommunityProfile(targetId, socket.data.profileId))); } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Community Events ──────────────────────────────────────────
+    socket.on('community:event_list', async (cb) => {
+      try { cb(ok(await listEvents(socket.data.profileId))); } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:event_create', async ({ title, description, category, eventAt }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        cb(ok(await createEvent(profileId, title, description, category, eventAt)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:event_join', async ({ eventId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        await joinEvent(eventId, profileId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:event_leave', async ({ eventId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        await leaveEvent(eventId, profileId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Notifications ─────────────────────────────────────────────
+    socket.on('community:notifications', async (cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        cb(ok(await listNotifications(profileId)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:notifications_unread', async (cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        cb(ok(await getUnreadNotificationCount(profileId)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:notifications_mark_read', async (cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        await markNotificationsRead(profileId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Community Lounges ─────────────────────────────────────────
+    socket.on('community:lounge_list', async (cb) => {
+      try {
+        const rows = await listLoungeRows();
+        const lounges = rows.map((row: any) => {
+          const { listenerCount, speakerCount } = loungeGetCounts(row.id);
+          return rowToLounge(row, listenerCount, speakerCount);
+        });
+        cb(ok(lounges));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:lounge_create', async ({ name, description }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        await requireNotCommunityBanned(profileId);
+        cb(ok(await createLounge(profileId, name, description)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:lounge_set_live', async ({ loungeId, isLive, lastTopic }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const row = await getLoungeRow(loungeId);
+        if (!row) throw new Error('Lounge not found.');
+        const requester = await getPlayer(profileId);
+        const isOwnerLevel = requester?.moderatorLevel === 'owner';
+        const isLoungeOwner = row.owner_id === profileId;
+        if (!isOwnerLevel && !isLoungeOwner) throw new Error('Not authorized.');
+        await setLoungeLive(loungeId, isLive, lastTopic ?? null);
+        await broadcastLoungeState(io, loungeId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Community Moderation (separate from Mafia mod tools) ───────
+    socket.on('community:report_list', async (cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const requester = await getPlayer(profileId);
+        if (!requester || !canDo(requester, 'view_reports')) throw new Error('Insufficient permissions.');
+        cb(ok(await listCommunityReports()));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:report_resolve', async ({ reportId, status }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const requester = await getPlayer(profileId);
+        if (!requester || !canDo(requester, 'resolve_reports')) throw new Error('Insufficient permissions.');
+        await resolveCommunityReport(reportId, status);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:ban', async ({ targetProfileId, reason, duration }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const requester = await getPlayer(profileId);
+        if (!requester || !canDo(requester, 'ban_short')) throw new Error('Insufficient permissions.');
+        const ban = await communityBanPlayer(targetProfileId, profileId, reason, duration);
+        const targetSock = findSocketByProfile(io as any, targetProfileId);
+        if (targetSock) targetSock.emit('community:notification', {
+          id: ban.id, type: 'community_ban', title: 'Community Hub access restricted',
+          body: reason, link: null, read: false, createdAt: ban.issuedAt,
+        });
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:unban', async ({ targetProfileId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const requester = await getPlayer(profileId);
+        if (!requester || !canDo(requester, 'ban_short')) throw new Error('Insufficient permissions.');
+        await communityUnbanPlayer(targetProfileId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ════════════════════════════════════════════════════════════════
+    // Lounge Voice — independent P2P mesh signaling for Community
+    // lounges. Mirrors voice:* above but with zero Room/Phase coupling.
+    // ════════════════════════════════════════════════════════════════
+
+    socket.on('lounge:join', async ({ loungeId, asSpeaker }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        await requireNotCommunityBanned(profileId);
+        const row = await getLoungeRow(loungeId);
+        if (!row) throw new Error('Lounge not found.');
+
+        const player = await getPlayer(profileId);
+        if (!player) throw new Error('Player not found.');
+
+        if (socket.data.loungeId && socket.data.loungeId !== loungeId) {
+          handleLoungeLeave(io, socket);
+        }
+
+        const isOwnerLevel = player.moderatorLevel === 'owner';
+        const isLoungeOwner = row.owner_id === profileId;
+        let role: CommunityLoungeRole = 'listener';
+        if (isOwnerLevel || isLoungeOwner) role = 'host';
+        else if (asSpeaker) role = 'speaker';
+
+        const member: CommunityLoungeMember = {
+          socketId: socket.id, playerId: profileId,
+          username: player.username, avatar: player.avatar,
+          avatarUrl: player.avatarUrl ?? null,
+          role, handRaised: false, joinedAt: Date.now(),
+        };
+
+        const existing = loungeJoin(loungeId, member);
+        socket.data.loungeId = loungeId;
+        socket.join(`lounge:${loungeId}`);
+
+        for (const peer of existing) {
+          io.to(peer.socketId).emit('lounge:peer-joined', { socketId: socket.id, name: member.username, role });
+        }
+
+        const iceConfig = buildIceConfig();
+        cb(ok({
+          peers: existing.map(p => ({ socketId: p.socketId, name: p.username, role: p.role })),
+          role,
+          iceServers: iceConfig.iceServers,
+        }));
+
+        await broadcastLoungeState(io, loungeId);
+        io.to(`lounge:${loungeId}`).emit('lounge:member_update', { loungeId, members: loungeGetMembers(loungeId) });
+      } catch (e: any) { cb(err(e.message ?? 'Failed to join lounge.')); }
+    });
+
+    socket.on('lounge:leave', () => {
+      const loungeId = socket.data.loungeId;
+      handleLoungeLeave(io, socket);
+      if (loungeId) io.to(`lounge:${loungeId}`).emit('lounge:member_update', { loungeId, members: loungeGetMembers(loungeId) });
+    });
+
+    socket.on('lounge:offer', ({ to, sdp }, cb) => {
+      io.to(to).emit('lounge:offer', { from: socket.id, sdp });
+      cb(ok(null));
+    });
+
+    socket.on('lounge:answer', ({ to, sdp }, cb) => {
+      io.to(to).emit('lounge:answer', { from: socket.id, sdp });
+      cb(ok(null));
+    });
+
+    socket.on('lounge:ice-candidate', ({ to, candidate }) => {
+      io.to(to).emit('lounge:ice-candidate', { from: socket.id, candidate });
+    });
+
+    socket.on('lounge:raise_hand', (cb) => {
+      try {
+        const loungeId = socket.data.loungeId;
+        if (!loungeId) throw new Error('Not in a lounge.');
+        const member = loungeSetHandRaised(loungeId, socket.id, true);
+        if (!member) throw new Error('Not in this lounge.');
+        io.to(`lounge:${loungeId}`).emit('lounge:member_update', { loungeId, members: loungeGetMembers(loungeId) });
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('lounge:lower_hand', (cb) => {
+      try {
+        const loungeId = socket.data.loungeId;
+        if (!loungeId) throw new Error('Not in a lounge.');
+        const member = loungeSetHandRaised(loungeId, socket.id, false);
+        if (!member) throw new Error('Not in this lounge.');
+        io.to(`lounge:${loungeId}`).emit('lounge:member_update', { loungeId, members: loungeGetMembers(loungeId) });
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('lounge:promote', async ({ targetPlayerId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        const loungeId = socket.data.loungeId;
+        if (!profileId || !loungeId) throw new Error('Not in a lounge.');
+        const self = loungeGetMemberByPlayerId(loungeId, profileId);
+        if (!self || self.role !== 'host') throw new Error('Only the host can promote.');
+        const target = loungeGetMemberByPlayerId(loungeId, targetPlayerId);
+        if (!target) throw new Error('Member not found.');
+        loungeSetRole(loungeId, target.socketId, 'speaker');
+        io.to(target.socketId).emit('lounge:promoted');
+        io.to(`lounge:${loungeId}`).emit('lounge:member_update', { loungeId, members: loungeGetMembers(loungeId) });
+        await broadcastLoungeState(io, loungeId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('lounge:demote', async ({ targetPlayerId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        const loungeId = socket.data.loungeId;
+        if (!profileId || !loungeId) throw new Error('Not in a lounge.');
+        const self = loungeGetMemberByPlayerId(loungeId, profileId);
+        if (!self || self.role !== 'host') throw new Error('Only the host can demote.');
+        const target = loungeGetMemberByPlayerId(loungeId, targetPlayerId);
+        if (!target) throw new Error('Member not found.');
+        loungeSetRole(loungeId, target.socketId, 'listener');
+        io.to(target.socketId).emit('lounge:demoted');
+        io.to(`lounge:${loungeId}`).emit('lounge:member_update', { loungeId, members: loungeGetMembers(loungeId) });
+        await broadcastLoungeState(io, loungeId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('lounge:kick', async ({ targetPlayerId, reason }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        const loungeId = socket.data.loungeId;
+        if (!profileId || !loungeId) throw new Error('Not in a lounge.');
+        const self = loungeGetMemberByPlayerId(loungeId, profileId);
+        if (!self || self.role !== 'host') throw new Error('Only the host can kick.');
+        const target = loungeGetMemberByPlayerId(loungeId, targetPlayerId);
+        if (!target) throw new Error('Member not found.');
+        loungeRemoveMember(loungeId, target.socketId);
+        io.to(target.socketId).emit('lounge:kicked', { reason: reason || 'Removed by host.' });
+        const targetSocket = io.sockets.sockets.get(target.socketId);
+        if (targetSocket) {
+          targetSocket.leave(`lounge:${loungeId}`);
+          targetSocket.data.loungeId = null;
+        }
+        io.to(`lounge:${loungeId}`).emit('lounge:member_update', { loungeId, members: loungeGetMembers(loungeId) });
+        await broadcastLoungeState(io, loungeId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('lounge:members', (data, cb) => {
+      try { cb(ok(loungeGetMembers(data.loungeId))); } catch (e: any) { cb(err(e.message)); }
+    });
+
     // ── Disconnect ──────────────────────────────────────────────────
     socket.on('disconnect', () => {
       rateLimits.delete(socket.id);
@@ -3798,6 +4305,7 @@ export function attachSocketHandlers(io: AppServer): void {
       }
       if (roomId && playerId) handlePlayerLeave(io, socket, roomId, playerId);
       handleVoiceLeave(io, socket.id);
+      handleLoungeLeave(io, socket);
       // Remove from any spectate queues
       for (const [qRoomId, queue] of spectateQueues) {
         const idx = queue.indexOf(socket.id);

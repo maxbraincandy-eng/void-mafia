@@ -9,6 +9,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { LobbyPage } from '@/pages/LobbyPage';
 import { GamePage } from '@/pages/GamePage';
 import { RoomsPage } from '@/pages/RoomsPage';
+import { CommunityPage } from '@/pages/CommunityPage';
 import { ProfilePage } from '@/pages/ProfilePage';
 import { ClansPage } from '@/pages/ClansPage';
 import { LeaderboardPage } from '@/pages/LeaderboardPage';
@@ -178,6 +179,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
     <div className="pb-20 min-h-screen">
       <AnimatePresence mode="wait">
         {page === 'rooms'                   && <RoomsPage key="rooms" />}
+        {page === 'community'               && <CommunityPage key="community" />}
         {page === 'clans'                   && <ClansPage key="clans" />}
         {page === 'replays'                 && <ReplaysPage key={`replays-${initialReplayId ?? ''}`} initialReplayId={initialReplayId} />}
         {page === 'leaderboard'             && <LeaderboardPage key="leaderboard" onBack={() => setPage('rooms')} />}

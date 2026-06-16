@@ -805,6 +805,21 @@ export interface ServerToClientEvents {
   // Spectator Theater
   'spec:message':        (msg: SpecMessage) => void;
   'spec:game_over':      (data: { roleReveals: Record<string, string> }) => void;
+  // Community Hub (separate from Mafia game events)
+  'community:notification': (n: CommunityNotification) => void;
+  'community:lounge_update': (lounge: CommunityLounge) => void;
+  'community:post_new':      (post: CommunityPost) => void;
+  // Lounge voice signaling (separate from room voice:* events)
+  'lounge:peer-joined':   (data: { socketId: string; name: string; role: CommunityLoungeRole }) => void;
+  'lounge:peer-left':     (data: { socketId: string }) => void;
+  'lounge:offer':         (data: { from: string; sdp: object }) => void;
+  'lounge:answer':        (data: { from: string; sdp: object }) => void;
+  'lounge:ice-candidate': (data: { from: string; candidate: object }) => void;
+  'lounge:member_update': (data: { loungeId: string; members: CommunityLoungeMember[] }) => void;
+  'lounge:promoted':      () => void;
+  'lounge:demoted':       () => void;
+  'lounge:kicked':        (data: { reason: string }) => void;
+  'lounge:force-leave':   (data: { reason: string }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -983,6 +998,53 @@ export interface ClientToServerEvents {
   'spec:chat':              (data: { roomId: string; text: string }, cb: Cb<null>) => void;
   'spec:vote_suspect':      (data: { roomId: string; suspectedPlayerId: string }, cb: Cb<null>) => void;
   'spec:suspicion_results': (data: { gameId: string }, cb: Cb<any[]>) => void;
+
+  // ── Community Hub (completely separate from Mafia game rooms) ─────────
+  'community:news_list':        (cb: Cb<VoidNewsPost[]>) => void;
+  'community:news_create':      (data: { title: string; content: string; pinned?: boolean }, cb: Cb<VoidNewsPost>) => void;
+  'community:news_delete':      (data: { id: string }, cb: Cb<null>) => void;
+  'community:recommend_list':   (cb: Cb<MaxRecommendation[]>) => void;
+  'community:recommend_create': (data: { category: RecommendCategory; title: string; review: string; imageUrl?: string }, cb: Cb<MaxRecommendation>) => void;
+  'community:recommend_delete': (data: { id: string }, cb: Cb<null>) => void;
+  'community:thought_list':     (cb: Cb<DailyThought[]>) => void;
+  'community:thought_create':   (data: { content: string; pinned?: boolean }, cb: Cb<DailyThought>) => void;
+  'community:thought_delete':   (data: { id: string }, cb: Cb<null>) => void;
+  'community:feed_list':        (data: { before?: number }, cb: Cb<CommunityPost[]>) => void;
+  'community:post_create':      (data: { content: string; imageUrl?: string }, cb: Cb<CommunityPost>) => void;
+  'community:post_delete':      (data: { id: string }, cb: Cb<null>) => void;
+  'community:post_like':        (data: { postId: string }, cb: Cb<{ likesCount: number; likedByMe: boolean }>) => void;
+  'community:post_comment':     (data: { postId: string; content: string }, cb: Cb<CommunityComment>) => void;
+  'community:post_comments':    (data: { postId: string }, cb: Cb<CommunityComment[]>) => void;
+  'community:post_report':      (data: { postId: string; reason: string }, cb: Cb<null>) => void;
+  'community:follow':           (data: { targetId: string }, cb: Cb<null>) => void;
+  'community:unfollow':         (data: { targetId: string }, cb: Cb<null>) => void;
+  'community:profile':          (data: { profileId: string }, cb: Cb<CommunityProfile>) => void;
+  'community:event_list':       (cb: Cb<CommunityEvent[]>) => void;
+  'community:event_create':     (data: { title: string; description: string; category: CommunityEventCategory; eventAt: number }, cb: Cb<CommunityEvent>) => void;
+  'community:event_join':       (data: { eventId: string }, cb: Cb<null>) => void;
+  'community:event_leave':      (data: { eventId: string }, cb: Cb<null>) => void;
+  'community:notifications':            (cb: Cb<CommunityNotification[]>) => void;
+  'community:notifications_unread':     (cb: Cb<number>) => void;
+  'community:notifications_mark_read':  (cb: Cb<null>) => void;
+  'community:lounge_list':      (cb: Cb<CommunityLounge[]>) => void;
+  'community:lounge_create':    (data: { name: string; description: string }, cb: Cb<CommunityLounge>) => void;
+  'community:lounge_set_live':  (data: { loungeId: string; isLive: boolean; lastTopic?: string }, cb: Cb<null>) => void;
+  'community:report_list':      (cb: Cb<any[]>) => void;
+  'community:report_resolve':   (data: { reportId: string; status: string }, cb: Cb<null>) => void;
+  'community:ban':               (data: { targetProfileId: string; reason: string; duration: number }, cb: Cb<null>) => void;
+  'community:unban':             (data: { targetProfileId: string }, cb: Cb<null>) => void;
+  // Lounge voice signaling
+  'lounge:join':           (data: { loungeId: string; asSpeaker: boolean }, cb: Cb<{ peers: Array<{ socketId: string; name: string; role: CommunityLoungeRole }>; role: CommunityLoungeRole; iceServers?: any }>) => void;
+  'lounge:leave':          () => void;
+  'lounge:offer':          (data: { to: string; sdp: object }, cb: Cb<null>) => void;
+  'lounge:answer':         (data: { to: string; sdp: object }, cb: Cb<null>) => void;
+  'lounge:ice-candidate':  (data: { to: string; candidate: object }) => void;
+  'lounge:raise_hand':     (cb: Cb<null>) => void;
+  'lounge:lower_hand':     (cb: Cb<null>) => void;
+  'lounge:promote':        (data: { targetPlayerId: string }, cb: Cb<null>) => void;
+  'lounge:demote':         (data: { targetPlayerId: string }, cb: Cb<null>) => void;
+  'lounge:kick':           (data: { targetPlayerId: string; reason: string }, cb: Cb<null>) => void;
+  'lounge:members':        (data: { loungeId: string }, cb: Cb<CommunityLoungeMember[]>) => void;
 }
 
 export interface InterServerEvents {}
@@ -991,6 +1053,7 @@ export interface SocketData {
   playerId: string | null;
   roomId: string | null;
   profileId: string | null;
+  loungeId: string | null;
 }
 
 // ── Replay Types ──────────────────────────────────────────────────────
@@ -1050,3 +1113,127 @@ export interface SeasonResult {
 export type Res<T> = { ok: true; data: T } | { ok: false; error: string };
 export function ok<T>(data: T): Res<T> { return { ok: true, data }; }
 export function err(message: string): Res<never> { return { ok: false, error: message }; }
+
+// ── Community Hub ───────────────────────────────────────────────────────
+// Completely separate from Mafia game rooms/state. Nothing here should ever
+// reference Room/Phase/GameSettings — see VOID MAFIA Community Hub spec.
+
+export type CommunityLoungeKind = 'max_lounge' | 'void_radio' | 'lounge';
+export type CommunityLoungeRole = 'host' | 'speaker' | 'listener';
+
+export interface CommunityLounge {
+  id: string;
+  name: string;
+  description: string;
+  ownerId: string | null;
+  kind: CommunityLoungeKind;
+  isLive: boolean;
+  lastTopic: string;
+  createdAt: number;
+  listenerCount: number;
+  speakerCount: number;
+}
+
+export interface CommunityLoungeMember {
+  socketId: string;
+  playerId: string;
+  username: string;
+  avatar: string;
+  avatarUrl: string | null;
+  role: CommunityLoungeRole;
+  handRaised: boolean;
+  joinedAt: number;
+}
+
+export interface VoidNewsPost {
+  id: string;
+  title: string;
+  content: string;
+  pinned: boolean;
+  authorId: string | null;
+  authorName: string;
+  createdAt: number;
+}
+
+export type RecommendCategory = 'movie' | 'series' | 'book' | 'music' | 'philosophy';
+
+export interface MaxRecommendation {
+  id: string;
+  category: RecommendCategory;
+  title: string;
+  review: string;
+  imageUrl: string | null;
+  createdAt: number;
+}
+
+export interface DailyThought {
+  id: string;
+  content: string;
+  pinned: boolean;
+  createdAt: number;
+}
+
+export interface CommunityPost {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorAvatar: string;
+  authorAvatarUrl: string | null;
+  content: string;
+  imageUrl: string | null;
+  likesCount: number;
+  commentsCount: number;
+  likedByMe: boolean;
+  createdAt: number;
+}
+
+export interface CommunityComment {
+  id: string;
+  postId: string;
+  authorId: string;
+  authorName: string;
+  authorAvatar: string;
+  content: string;
+  createdAt: number;
+}
+
+export type CommunityEventCategory = 'movie_night' | 'philosophy_night' | 'void_radio' | 'live_discussion' | 'other';
+
+export interface CommunityEvent {
+  id: string;
+  title: string;
+  description: string;
+  category: CommunityEventCategory;
+  eventAt: number;
+  createdBy: string;
+  createdByName: string;
+  participantCount: number;
+  joinedByMe: boolean;
+  createdAt: number;
+}
+
+export interface CommunityNotification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  link: string | null;
+  read: boolean;
+  createdAt: number;
+}
+
+export interface CommunityProfile {
+  id: string;
+  username: string;
+  avatar: string;
+  avatarUrl: string | null;
+  publicId: number | null;
+  level: number;
+  clanTag: string | null;
+  clanName: string | null;
+  followersCount: number;
+  followingCount: number;
+  postsCount: number;
+  joinedAt: number;
+  isFollowedByMe: boolean;
+}
