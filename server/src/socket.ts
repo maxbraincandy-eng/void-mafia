@@ -96,6 +96,14 @@ import {
   listNotifications, getUnreadNotificationCount, markNotificationsRead,
   listLoungeRows, getLoungeRow, rowToLounge, createLounge, setLoungeLive,
   communityBanPlayer, communityUnbanPlayer, getActiveCommunityBan,
+  updateCommunityProfile, getCommunityProfileV2, getPlayerBadges,
+  assignBadge, revokeBadge, setShowcaseAchievement, clearShowcaseSlot,
+  getPrivacySettings, setPrivacySettings,
+  createPostV2, listFeedV2, votePoll, togglePostSave, getSavedPosts,
+  pinPost, featurePost, hidePost, logCommunityModAction, getCommunityModLogs,
+  listPeopleDirectory, getFollowersList, getFollowingList,
+  searchCommunity, upsertOnlineSeen, getOnlineMembers, computeTrending, recalcReputation,
+  extractHashtags,
 } from './services/communityService.js';
 import {
   join as loungeJoin, leave as loungeLeave, getMembers as loungeGetMembers,
@@ -874,7 +882,7 @@ export function attachSocketHandlers(io: AppServer): void {
     // Rate-limit + payload size check on every incoming event
     socket.use(([event, ...args], next) => {
       // Avatar upload is exempt — it has its own 270KB check in the handler
-      const largePayloadEvents = new Set(['player:update_avatar']);
+      const largePayloadEvents = new Set(['player:update_avatar', 'community:post_create_v2', 'community:profile_update']);
       // 4. Payload size limit — reject anything over 16 KB
       const payload = args[0];
       if (!largePayloadEvents.has(event) && payload !== null && payload !== undefined && typeof payload === 'object') {
@@ -3988,7 +3996,12 @@ export function attachSocketHandlers(io: AppServer): void {
     });
 
     socket.on('community:profile', async ({ profileId: targetId }, cb) => {
-      try { cb(ok(await getCommunityProfile(targetId, socket.data.profileId))); } catch (e: any) { cb(err(e.message)); }
+      try {
+        const viewerId = socket.data.profileId ?? '';
+        const profile = await getCommunityProfileV2(targetId, viewerId);
+        if (!profile) { cb(err('Player not found.')); return; }
+        cb(ok(profile as any));
+      } catch (e: any) { cb(err(e.message)); }
     });
 
     // ── Community Events ──────────────────────────────────────────
@@ -4131,6 +4144,216 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!requester || !canDo(requester, 'ban_short')) throw new Error('Insufficient permissions.');
         await communityUnbanPlayer(targetProfileId);
         cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Community V2 Extensions ─────────────────────────────────────────────
+
+    socket.on('community:profile_update', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        await updateCommunityProfile(profileId, data);
+        const profile = await getCommunityProfileV2(profileId, profileId);
+        cb(ok(profile!));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:feed_v2', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const posts = await listFeedV2(profileId, { category: data.category ?? 'all', before: data.before, hashtag: data.hashtag });
+        cb(ok(posts));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:post_create_v2', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        if (!data.content?.trim() && data.postType === 'text') { cb(err('Content required.')); return; }
+        const post = await createPostV2(profileId, data);
+        io.emit('community:post_new', post as any);
+        cb(ok(post));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:post_pin', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const profile = await getPlayer(profileId);
+        if (!profile?.isModerator && profile?.moderatorLevel !== 'owner') { cb(err('Unauthorized.')); return; }
+        await pinPost(data.postId, data.pin, profileId);
+        io.emit('community:post_pinned', data.postId);
+        cb(ok(undefined));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:post_feature', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const profile = await getPlayer(profileId);
+        if (!profile?.isModerator && profile?.moderatorLevel !== 'owner') { cb(err('Unauthorized.')); return; }
+        await featurePost(data.postId, data.feature, profileId);
+        cb(ok(undefined));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:post_hide', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const profile = await getPlayer(profileId);
+        if (!profile?.isModerator && profile?.moderatorLevel !== 'owner') { cb(err('Unauthorized.')); return; }
+        await hidePost(data.postId, profileId);
+        io.emit('community:post_hidden', data.postId);
+        cb(ok(undefined));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:post_save', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const saved = await togglePostSave(data.postId, profileId);
+        cb(ok({ saved }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:post_saves', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const posts = await getSavedPosts(profileId, data.before);
+        cb(ok(posts));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:poll_vote', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const results = await votePoll(data.postId, profileId, data.optionId);
+        cb(ok(results));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:showcase_set', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        await setShowcaseAchievement(profileId, data.slot, data.achievementKey);
+        cb(ok(undefined));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:showcase_clear', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        await clearShowcaseSlot(profileId, data.slot);
+        cb(ok(undefined));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:people_list', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const people = await listPeopleDirectory(profileId, data.before);
+        cb(ok(people));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:followers_list', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const list = await getFollowersList(data.profileId, profileId);
+        cb(ok(list));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:following_list', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const list = await getFollowingList(data.profileId, profileId);
+        cb(ok(list));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:search', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        if (!data.query?.trim()) { cb(ok({ posts: [], people: [], hashtags: [], lounges: [] })); return; }
+        const results = await searchCommunity(data.query, profileId);
+        cb(ok(results));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:online_members', async (cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        await upsertOnlineSeen(profileId);
+        const members = await getOnlineMembers();
+        cb(ok(members));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:badge_assign', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const profile = await getPlayer(profileId);
+        if (profile?.moderatorLevel !== 'owner' && !profile?.isModerator) { cb(err('Unauthorized.')); return; }
+        await assignBadge(data.targetId, data.badge, profileId);
+        cb(ok(undefined));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:badge_revoke', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const profile = await getPlayer(profileId);
+        if (profile?.moderatorLevel !== 'owner' && !profile?.isModerator) { cb(err('Unauthorized.')); return; }
+        await revokeBadge(data.targetId, data.badge);
+        cb(ok(undefined));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:privacy_get', async (cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const settings = await getPrivacySettings(profileId);
+        cb(ok(settings));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:privacy_set', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        await setPrivacySettings(profileId, data);
+        cb(ok(undefined));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:mod_logs', async (cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const profile = await getPlayer(profileId);
+        if (!profile?.isModerator && profile?.moderatorLevel !== 'owner') { cb(err('Unauthorized.')); return; }
+        const logs = await getCommunityModLogs(100);
+        cb(ok(logs));
       } catch (e: any) { cb(err(e.message)); }
     });
 

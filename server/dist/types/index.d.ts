@@ -784,6 +784,9 @@ export interface ServerToClientEvents {
     'community:notification': (n: CommunityNotification) => void;
     'community:lounge_update': (lounge: CommunityLounge) => void;
     'community:post_new': (post: CommunityPost) => void;
+    'community:post_updated': (post: CommunityPostV2) => void;
+    'community:post_pinned': (postId: string) => void;
+    'community:post_hidden': (postId: string) => void;
     'lounge:peer-joined': (data: {
         socketId: string;
         name: string;
@@ -1397,6 +1400,106 @@ export interface ClientToServerEvents {
     'community:unban': (data: {
         targetProfileId: string;
     }, cb: Cb<null>) => void;
+    'community:profile_update': (data: {
+        bio?: string;
+        coverUrl?: string;
+        favoriteRole?: string;
+    }, cb: (r: Res<CommunityProfileV2>) => void) => void;
+    'community:feed_v2': (data: {
+        category: FeedCategory;
+        before?: number;
+        hashtag?: string;
+    }, cb: (r: Res<CommunityPostV2[]>) => void) => void;
+    'community:post_create_v2': (data: {
+        postType: PostType;
+        content: string;
+        imageUrl?: string | null;
+        gifUrl?: string | null;
+        videoUrl?: string | null;
+        recTitle?: string | null;
+        recCategory?: string | null;
+        poll?: {
+            question: string;
+            options: string[];
+            endsAt?: number | null;
+        } | null;
+        visibility?: 'public' | 'friends_only';
+    }, cb: (r: Res<CommunityPostV2>) => void) => void;
+    'community:post_pin': (data: {
+        postId: string;
+        pin: boolean;
+    }, cb: (r: Res<void>) => void) => void;
+    'community:post_feature': (data: {
+        postId: string;
+        feature: boolean;
+    }, cb: (r: Res<void>) => void) => void;
+    'community:post_hide': (data: {
+        postId: string;
+    }, cb: (r: Res<void>) => void) => void;
+    'community:post_save': (data: {
+        postId: string;
+    }, cb: (r: Res<{
+        saved: boolean;
+    }>) => void) => void;
+    'community:post_saves': (data: {
+        before?: number;
+    }, cb: (r: Res<CommunityPostV2[]>) => void) => void;
+    'community:poll_vote': (data: {
+        postId: string;
+        optionId: string;
+    }, cb: (r: Res<PollResult[]>) => void) => void;
+    'community:showcase_set': (data: {
+        slot: number;
+        achievementKey: string;
+    }, cb: (r: Res<void>) => void) => void;
+    'community:showcase_clear': (data: {
+        slot: number;
+    }, cb: (r: Res<void>) => void) => void;
+    'community:people_list': (data: {
+        before?: number;
+    }, cb: (r: Res<CommunityProfileV2[]>) => void) => void;
+    'community:followers_list': (data: {
+        profileId: string;
+    }, cb: (r: Res<CommunityProfileV2[]>) => void) => void;
+    'community:following_list': (data: {
+        profileId: string;
+    }, cb: (r: Res<CommunityProfileV2[]>) => void) => void;
+    'community:search': (data: {
+        query: string;
+    }, cb: (r: Res<CommunitySearchResult>) => void) => void;
+    'community:online_members': (cb: (r: Res<Array<{
+        playerId: string;
+        username: string;
+        avatar: string;
+        avatarUrl: string | null;
+    }>>) => void) => void;
+    'community:badge_assign': (data: {
+        targetId: string;
+        badge: CommunityBadge;
+    }, cb: (r: Res<void>) => void) => void;
+    'community:badge_revoke': (data: {
+        targetId: string;
+        badge: CommunityBadge;
+    }, cb: (r: Res<void>) => void) => void;
+    'community:privacy_get': (cb: (r: Res<{
+        hideFollowersList: boolean;
+        allowFriendRequests: boolean;
+        defaultPostVisibility: string;
+    }>) => void) => void;
+    'community:privacy_set': (data: {
+        hideFollowersList?: boolean;
+        allowFriendRequests?: boolean;
+        defaultPostVisibility?: string;
+    }, cb: (r: Res<void>) => void) => void;
+    'community:mod_logs': (cb: (r: Res<Array<{
+        id: string;
+        action: string;
+        modId: string;
+        targetId: string | null;
+        postId: string | null;
+        note: string;
+        createdAt: number;
+    }>>) => void) => void;
     'lounge:join': (data: {
         loungeId: string;
         asSpeaker: boolean;
@@ -1611,6 +1714,70 @@ export interface CommunityProfile {
     postsCount: number;
     joinedAt: number;
     isFollowedByMe: boolean;
+}
+export type CommunityBadge = 'verified' | 'owner' | 'moderator' | 'creator' | 'speaker' | 'philosopher' | 'veteran' | 'top_detective' | 'mafia_master';
+export type PostType = 'text' | 'image' | 'gif' | 'video' | 'poll' | 'movie_rec' | 'series_rec' | 'book_rec' | 'music_rec' | 'philosophy';
+export type FeedCategory = 'all' | 'following' | 'friends' | 'void_news' | 'mr_max' | 'clans' | 'trending';
+export interface PollOption {
+    id: string;
+    text: string;
+}
+export interface PollResult {
+    option: PollOption;
+    count: number;
+    percent: number;
+}
+export interface CommunityPostV2 extends CommunityPost {
+    authorLevel: number;
+    postType: PostType;
+    gifUrl: string | null;
+    videoUrl: string | null;
+    isPinned: boolean;
+    isFeatured: boolean;
+    recTitle: string | null;
+    recCategory: string | null;
+    hashtags: string[];
+    visibility: 'public' | 'friends_only';
+    savesCount: number;
+    savedByMe: boolean;
+    hidden: boolean;
+    poll: {
+        question: string;
+        options: PollOption[];
+        endsAt: number | null;
+        results?: PollResult[];
+        myVote: string | null;
+    } | null;
+    authorBadges: CommunityBadge[];
+    authorBio: string;
+    authorCoverUrl: string | null;
+}
+export interface CommunityProfileV2 extends CommunityProfile {
+    bio: string;
+    coverUrl: string | null;
+    favoriteRole: string | null;
+    badges: CommunityBadge[];
+    reputation: number;
+    friendsCount: number;
+    friendshipStatus: 'none' | 'pending_sent' | 'pending_received' | 'friends';
+    showcaseAchievements: Array<{
+        slot: number;
+        achievementKey: string;
+    }>;
+    privacySettings: {
+        hideFollowersList: boolean;
+        allowFriendRequests: boolean;
+        defaultPostVisibility: 'public' | 'friends_only';
+    };
+}
+export interface CommunitySearchResult {
+    posts: CommunityPostV2[];
+    people: CommunityProfileV2[];
+    hashtags: Array<{
+        hashtag: string;
+        count: number;
+    }>;
+    lounges: CommunityLounge[];
 }
 export {};
 //# sourceMappingURL=index.d.ts.map

@@ -1,4 +1,4 @@
-import { CommunityLounge, VoidNewsPost, MaxRecommendation, RecommendCategory, DailyThought, CommunityPost, CommunityComment, CommunityEvent, CommunityEventCategory, CommunityNotification, CommunityProfile } from '../types/index.js';
+import { CommunityLounge, VoidNewsPost, MaxRecommendation, RecommendCategory, DailyThought, CommunityPost, CommunityComment, CommunityEvent, CommunityEventCategory, CommunityNotification, CommunityProfile, CommunityPostV2, CommunityProfileV2, CommunityBadge, CommunitySearchResult, PollResult, PostType, FeedCategory } from '../types/index.js';
 export declare function listNews(): Promise<VoidNewsPost[]>;
 export declare function createNews(authorId: string, title: string, content: string, pinned: boolean): Promise<VoidNewsPost>;
 export declare function deleteNews(id: string): Promise<void>;
@@ -50,4 +50,76 @@ export interface CommunityBanRecord {
 export declare function communityBanPlayer(targetId: string, bannedBy: string, reason: string, durationSeconds: number): Promise<CommunityBanRecord>;
 export declare function communityUnbanPlayer(targetId: string): Promise<void>;
 export declare function getActiveCommunityBan(targetId: string): Promise<CommunityBanRecord | null>;
+export declare function extractHashtags(text: string): string[];
+export declare function getPlayerBadges(playerId: string): Promise<CommunityBadge[]>;
+export declare function getPrivacySettings(playerId: string): Promise<{
+    hideFollowersList: boolean;
+    allowFriendRequests: boolean;
+    defaultPostVisibility: 'public' | 'friends_only';
+}>;
+export declare function setPrivacySettings(playerId: string, settings: {
+    hideFollowersList?: boolean;
+    allowFriendRequests?: boolean;
+    defaultPostVisibility?: string;
+}): Promise<void>;
+export declare function getCommunityProfileV2(targetId: string, viewerId: string): Promise<CommunityProfileV2 | null>;
+export declare function updateCommunityProfile(playerId: string, data: {
+    bio?: string;
+    coverUrl?: string;
+    favoriteRole?: string;
+}): Promise<void>;
+export declare function assignBadge(playerId: string, badge: CommunityBadge, grantedBy: string): Promise<void>;
+export declare function revokeBadge(playerId: string, badge: CommunityBadge): Promise<void>;
+export declare function setShowcaseAchievement(playerId: string, slot: number, achievementKey: string): Promise<void>;
+export declare function clearShowcaseSlot(playerId: string, slot: number): Promise<void>;
+export declare function logCommunityModAction(modId: string, action: string, targetId: string | null, postId: string | null, note: string): Promise<void>;
+export declare function getCommunityModLogs(limit?: number): Promise<Array<{
+    id: string;
+    action: string;
+    modId: string;
+    targetId: string | null;
+    postId: string | null;
+    note: string;
+    createdAt: number;
+}>>;
+export declare function createPostV2(authorId: string, data: {
+    postType: PostType;
+    content: string;
+    imageUrl?: string | null;
+    gifUrl?: string | null;
+    videoUrl?: string | null;
+    recTitle?: string | null;
+    recCategory?: string | null;
+    poll?: {
+        question: string;
+        options: string[];
+        endsAt?: number | null;
+    } | null;
+    visibility?: 'public' | 'friends_only';
+}): Promise<CommunityPostV2>;
+export declare function listFeedV2(viewerId: string, options: {
+    category: FeedCategory;
+    before?: number;
+    hashtag?: string;
+    limit?: number;
+}): Promise<CommunityPostV2[]>;
+export declare function votePoll(postId: string, playerId: string, optionId: string): Promise<PollResult[]>;
+export declare function togglePostSave(postId: string, playerId: string): Promise<boolean>;
+export declare function getSavedPosts(playerId: string, before?: number): Promise<CommunityPostV2[]>;
+export declare function pinPost(postId: string, pin: boolean, modId: string): Promise<void>;
+export declare function featurePost(postId: string, feature: boolean, modId: string): Promise<void>;
+export declare function hidePost(postId: string, modId: string): Promise<void>;
+export declare function listPeopleDirectory(viewerId: string, before?: number): Promise<CommunityProfileV2[]>;
+export declare function getFollowersList(playerId: string, viewerId: string): Promise<CommunityProfileV2[]>;
+export declare function getFollowingList(playerId: string, viewerId: string): Promise<CommunityProfileV2[]>;
+export declare function searchCommunity(query: string, viewerId: string): Promise<CommunitySearchResult>;
+export declare function upsertOnlineSeen(playerId: string): Promise<void>;
+export declare function getOnlineMembers(): Promise<Array<{
+    playerId: string;
+    username: string;
+    avatar: string;
+    avatarUrl: string | null;
+}>>;
+export declare function computeTrending(): Promise<void>;
+export declare function recalcReputation(playerId: string): Promise<void>;
 //# sourceMappingURL=communityService.d.ts.map

@@ -440,4 +440,469 @@ export async function getActiveCommunityBan(targetId) {
         return null;
     return { id: row.id, reason: row.reason, issuedAt: Number(row.issued_at), expiresAt: Number(row.expires_at) };
 }
+// ── Community Social V2 Extensions ──────────────────────────────────────
+// Helper: extract hashtags from text
+export function extractHashtags(text) {
+    const matches = text.match(/#([a-zA-Z0-9_]{1,50})/g) ?? [];
+    return [...new Set(matches.map(h => h.slice(1).toLowerCase()))];
+}
+// Helper: get player badges
+export async function getPlayerBadges(playerId) {
+    const rows = await sql `SELECT badge FROM community_badges WHERE player_id = ${playerId}`;
+    return rows.map(r => r.badge);
+}
+// Get friendship status between two players
+async function getFriendshipStatus(viewerId, targetId) {
+    if (viewerId === targetId)
+        return 'none';
+    const row = await sql `
+    SELECT status, from_id FROM friendships
+    WHERE (from_id = ${viewerId} AND to_id = ${targetId})
+       OR (from_id = ${targetId} AND to_id = ${viewerId})
+    LIMIT 1
+  `;
+    if (!row.length)
+        return 'none';
+    const r = row[0];
+    if (r.status === 'accepted')
+        return 'friends';
+    if (r.status === 'pending')
+        return r.from_id === viewerId ? 'pending_sent' : 'pending_received';
+    return 'none';
+}
+// Privacy settings
+export async function getPrivacySettings(playerId) {
+    const rows = await sql `SELECT hide_followers_list, allow_friend_requests, default_post_visibility FROM community_privacy_settings WHERE player_id = ${playerId}`;
+    if (!rows.length)
+        return { hideFollowersList: false, allowFriendRequests: true, defaultPostVisibility: 'public' };
+    const r = rows[0];
+    return { hideFollowersList: Boolean(r.hide_followers_list), allowFriendRequests: Boolean(r.allow_friend_requests), defaultPostVisibility: r.default_post_visibility ?? 'public' };
+}
+export async function setPrivacySettings(playerId, settings) {
+    const current = await getPrivacySettings(playerId);
+    const hideFollowersList = settings.hideFollowersList ?? current.hideFollowersList;
+    const allowFriendRequests = settings.allowFriendRequests ?? current.allowFriendRequests;
+    const defaultPostVisibility = settings.defaultPostVisibility ?? current.defaultPostVisibility;
+    await sql `INSERT INTO community_privacy_settings (player_id, hide_followers_list, allow_friend_requests, default_post_visibility) VALUES (${playerId}, ${hideFollowersList}, ${allowFriendRequests}, ${defaultPostVisibility}) ON CONFLICT (player_id) DO UPDATE SET hide_followers_list = EXCLUDED.hide_followers_list, allow_friend_requests = EXCLUDED.allow_friend_requests, default_post_visibility = EXCLUDED.default_post_visibility`;
+}
+// Extended profile V2
+export async function getCommunityProfileV2(targetId, viewerId) {
+    let base;
+    try {
+        base = await getCommunityProfile(targetId, viewerId);
+    }
+    catch {
+        return null;
+    }
+    if (!base)
+        return null;
+    const playerRow = await sql `SELECT community_bio, community_cover_url, community_favorite_role, community_reputation FROM players WHERE id = ${targetId}`;
+    if (!playerRow.length)
+        return null;
+    const pRow = playerRow[0];
+    const [badges, showcase, privacy, friendshipStatus, friendsCount] = await Promise.all([
+        getPlayerBadges(targetId),
+        sql `SELECT slot, achievement_key FROM community_achievement_showcase WHERE player_id = ${targetId} ORDER BY slot ASC`,
+        getPrivacySettings(targetId),
+        getFriendshipStatus(viewerId, targetId),
+        sql `SELECT COUNT(*) AS count FROM friendships WHERE (from_id = ${targetId} OR to_id = ${targetId}) AND status = 'accepted'`,
+    ]);
+    return {
+        ...base,
+        bio: pRow.community_bio ?? '',
+        coverUrl: pRow.community_cover_url ?? null,
+        favoriteRole: pRow.community_favorite_role ?? null,
+        badges,
+        reputation: Number(pRow.community_reputation ?? 0),
+        friendsCount: Number(friendsCount[0]?.count ?? 0),
+        friendshipStatus,
+        showcaseAchievements: showcase.map(s => ({ slot: s.slot, achievementKey: s.achievement_key })),
+        privacySettings: privacy,
+    };
+}
+// Update community profile fields
+export async function updateCommunityProfile(playerId, data) {
+    const { bio, coverUrl, favoriteRole } = data;
+    if (bio !== undefined) {
+        await sql `UPDATE players SET community_bio = ${bio.slice(0, 500)} WHERE id = ${playerId}`;
+    }
+    if (coverUrl !== undefined) {
+        await sql `UPDATE players SET community_cover_url = ${coverUrl || null} WHERE id = ${playerId}`;
+    }
+    if (favoriteRole !== undefined) {
+        await sql `UPDATE players SET community_favorite_role = ${favoriteRole || null} WHERE id = ${playerId}`;
+    }
+}
+// Badge management
+export async function assignBadge(playerId, badge, grantedBy) {
+    const now = Date.now();
+    await sql `INSERT INTO community_badges (player_id, badge, granted_by, granted_at) VALUES (${playerId}, ${badge}, ${grantedBy}, ${now}) ON CONFLICT (player_id, badge) DO NOTHING`;
+}
+export async function revokeBadge(playerId, badge) {
+    await sql `DELETE FROM community_badges WHERE player_id = ${playerId} AND badge = ${badge}`;
+}
+// Achievement showcase
+export async function setShowcaseAchievement(playerId, slot, achievementKey) {
+    const now = Date.now();
+    await sql `INSERT INTO community_achievement_showcase (player_id, achievement_key, slot, updated_at) VALUES (${playerId}, ${achievementKey}, ${slot}, ${now}) ON CONFLICT (player_id, slot) DO UPDATE SET achievement_key = EXCLUDED.achievement_key, updated_at = EXCLUDED.updated_at`;
+}
+export async function clearShowcaseSlot(playerId, slot) {
+    await sql `DELETE FROM community_achievement_showcase WHERE player_id = ${playerId} AND slot = ${slot}`;
+}
+// Mod action log
+export async function logCommunityModAction(modId, action, targetId, postId, note) {
+    const id = `cml_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    await sql `INSERT INTO community_mod_logs (id, action, mod_id, target_id, post_id, note, created_at) VALUES (${id}, ${action}, ${modId}, ${targetId}, ${postId}, ${note}, ${Date.now()})`;
+}
+export async function getCommunityModLogs(limit = 100) {
+    const rows = await sql `SELECT id, action, mod_id, target_id, post_id, note, created_at FROM community_mod_logs ORDER BY created_at DESC LIMIT ${limit}`;
+    return rows.map(r => ({ id: r.id, action: r.action, modId: r.mod_id, targetId: r.target_id ?? null, postId: r.post_id ?? null, note: r.note, createdAt: Number(r.created_at) }));
+}
+// Helper: build a CommunityPostV2 from a DB row
+async function buildPostV2(row, viewerId) {
+    const savedRow = viewerId ? await sql `SELECT player_id FROM community_post_saves WHERE post_id = ${row.id} AND player_id = ${viewerId} LIMIT 1` : [];
+    const likedRow = viewerId ? await sql `SELECT player_id FROM community_post_likes WHERE post_id = ${row.id} AND player_id = ${viewerId} LIMIT 1` : [];
+    const authorBadges = await getPlayerBadges(row.author_id);
+    let hashtags = [];
+    try {
+        hashtags = JSON.parse(row.hashtags ?? '[]');
+    }
+    catch {
+        hashtags = [];
+    }
+    let poll = null;
+    if (row.post_type === 'poll') {
+        const pollRows = await sql `SELECT question, options, ends_at FROM community_polls WHERE post_id = ${row.id} LIMIT 1`;
+        if (pollRows.length) {
+            const pr = pollRows[0];
+            let options = [];
+            try {
+                options = JSON.parse(pr.options ?? '[]');
+            }
+            catch {
+                options = [];
+            }
+            const voteRows = await sql `SELECT option_id, COUNT(*) AS count FROM community_poll_votes WHERE post_id = ${row.id} GROUP BY option_id`;
+            const totalVotes = voteRows.reduce((s, r) => s + Number(r.count), 0);
+            const results = options.map(opt => {
+                const vr = voteRows.find(v => v.option_id === opt.id);
+                const count = Number(vr?.count ?? 0);
+                return { option: opt, count, percent: totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0 };
+            });
+            let myVote = null;
+            if (viewerId) {
+                const mv = await sql `SELECT option_id FROM community_poll_votes WHERE post_id = ${row.id} AND player_id = ${viewerId} LIMIT 1`;
+                myVote = mv[0]?.option_id ?? null;
+            }
+            poll = { question: pr.question, options, endsAt: pr.ends_at ?? null, results, myVote };
+        }
+    }
+    return {
+        id: row.id,
+        authorId: row.author_id,
+        authorName: row.author_name ?? '',
+        authorAvatar: row.author_avatar ?? '',
+        authorAvatarUrl: row.author_avatar_url ?? null,
+        authorLevel: Number(row.author_level ?? 1),
+        content: row.content ?? '',
+        imageUrl: row.image_url ?? null,
+        likesCount: Number(row.likes_count ?? 0),
+        commentsCount: Number(row.comments_count ?? 0),
+        likedByMe: likedRow.length > 0,
+        createdAt: Number(row.created_at),
+        postType: (row.post_type ?? 'text'),
+        gifUrl: row.gif_url ?? null,
+        videoUrl: row.video_url ?? null,
+        isPinned: Boolean(row.is_pinned),
+        isFeatured: Boolean(row.is_featured),
+        recTitle: row.rec_title ?? null,
+        recCategory: row.rec_category ?? null,
+        hashtags,
+        visibility: (row.visibility ?? 'public'),
+        savesCount: Number(row.saves_count ?? 0),
+        savedByMe: savedRow.length > 0,
+        hidden: Boolean(row.hidden),
+        poll,
+        authorBadges,
+        authorBio: row.author_bio ?? '',
+        authorCoverUrl: row.author_cover_url ?? null,
+    };
+}
+// Create post V2
+export async function createPostV2(authorId, data) {
+    const id = `post_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const now = Date.now();
+    const hashtags = extractHashtags(data.content);
+    const hashtagsJson = JSON.stringify(hashtags);
+    const visibility = data.visibility ?? 'public';
+    await sql `
+    INSERT INTO community_posts (id, author_id, content, image_url, post_type, gif_url, video_url, rec_title, rec_category, hashtags, visibility, likes_count, comments_count, saves_count, is_pinned, is_featured, hidden, created_at)
+    VALUES (${id}, ${authorId}, ${data.content}, ${data.imageUrl ?? null}, ${data.postType}, ${data.gifUrl ?? null}, ${data.videoUrl ?? null}, ${data.recTitle ?? null}, ${data.recCategory ?? null}, ${hashtagsJson}, ${visibility}, 0, 0, 0, false, false, false, ${now})
+  `;
+    if (data.postType === 'poll' && data.poll) {
+        const options = data.poll.options.map((text, i) => ({ id: `opt_${i}`, text: text.slice(0, 100) }));
+        await sql `INSERT INTO community_polls (post_id, question, options, ends_at) VALUES (${id}, ${data.poll.question.slice(0, 300)}, ${JSON.stringify(options)}, ${data.poll.endsAt ?? null})`;
+    }
+    if (hashtags.length > 0) {
+        for (const tag of hashtags) {
+            await sql `INSERT INTO community_post_hashtags (post_id, hashtag) VALUES (${id}, ${tag}) ON CONFLICT DO NOTHING`;
+        }
+    }
+    const rows = await sql `
+    SELECT p.*, pl.username AS author_name, pl.avatar AS author_avatar, pl.avatar_url AS author_avatar_url, pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url
+    FROM community_posts p JOIN players pl ON pl.id = p.author_id
+    WHERE p.id = ${id} LIMIT 1
+  `;
+    return buildPostV2(rows[0], authorId);
+}
+// List feed V2
+export async function listFeedV2(viewerId, options) {
+    const limit = options.limit ?? 20;
+    const before = options.before ?? Date.now() + 1;
+    const { category, hashtag } = options;
+    let rows;
+    if (hashtag) {
+        rows = await sql `
+      SELECT p.*, pl.username AS author_name, pl.avatar AS author_avatar, pl.avatar_url AS author_avatar_url, pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url
+      FROM community_posts p
+      JOIN players pl ON pl.id = p.author_id
+      JOIN community_post_hashtags ht ON ht.post_id = p.id AND ht.hashtag = ${hashtag.toLowerCase()}
+      WHERE p.hidden = false AND p.created_at < ${before}
+      ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ${limit}
+    `;
+    }
+    else if (category === 'following') {
+        rows = await sql `
+      SELECT p.*, pl.username AS author_name, pl.avatar AS author_avatar, pl.avatar_url AS author_avatar_url, pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url
+      FROM community_posts p
+      JOIN players pl ON pl.id = p.author_id
+      JOIN follows f ON f.following_id = p.author_id AND f.follower_id = ${viewerId}
+      WHERE p.hidden = false AND p.visibility = 'public' AND p.created_at < ${before}
+      ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ${limit}
+    `;
+    }
+    else if (category === 'friends') {
+        rows = await sql `
+      SELECT p.*, pl.username AS author_name, pl.avatar AS author_avatar, pl.avatar_url AS author_avatar_url, pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url
+      FROM community_posts p
+      JOIN players pl ON pl.id = p.author_id
+      WHERE p.hidden = false AND p.created_at < ${before}
+        AND (p.author_id IN (
+          SELECT to_id FROM friendships WHERE from_id = ${viewerId} AND status = 'accepted'
+          UNION SELECT from_id FROM friendships WHERE to_id = ${viewerId} AND status = 'accepted'
+        ))
+      ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ${limit}
+    `;
+    }
+    else if (category === 'void_news') {
+        rows = await sql `
+      SELECT p.*, pl.username AS author_name, pl.avatar AS author_avatar, pl.avatar_url AS author_avatar_url, pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url
+      FROM community_posts p
+      JOIN players pl ON pl.id = p.author_id
+      WHERE p.hidden = false AND p.created_at < ${before} AND pl.moderator_level = 'owner'
+      ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ${limit}
+    `;
+    }
+    else if (category === 'mr_max') {
+        rows = await sql `
+      SELECT p.*, pl.username AS author_name, pl.avatar AS author_avatar, pl.avatar_url AS author_avatar_url, pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url
+      FROM community_posts p
+      JOIN players pl ON pl.id = p.author_id
+      JOIN community_badges b ON b.player_id = p.author_id AND b.badge = 'owner'
+      WHERE p.hidden = false AND p.created_at < ${before}
+      ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ${limit}
+    `;
+    }
+    else if (category === 'clans') {
+        rows = await sql `
+      SELECT p.*, pl.username AS author_name, pl.avatar AS author_avatar, pl.avatar_url AS author_avatar_url, pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url
+      FROM community_posts p
+      JOIN players pl ON pl.id = p.author_id
+      WHERE p.hidden = false AND p.created_at < ${before}
+        AND p.author_id IN (
+          SELECT cm.player_id FROM clan_members cm
+          WHERE cm.clan_id = (SELECT clan_id FROM clan_members WHERE player_id = ${viewerId} LIMIT 1)
+        )
+      ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ${limit}
+    `;
+    }
+    else if (category === 'trending') {
+        rows = await sql `
+      SELECT p.*, pl.username AS author_name, pl.avatar AS author_avatar, pl.avatar_url AS author_avatar_url, pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url
+      FROM community_posts p
+      JOIN players pl ON pl.id = p.author_id
+      JOIN community_trending_posts tr ON tr.post_id = p.id
+      WHERE p.hidden = false AND p.created_at < ${before}
+      ORDER BY tr.score DESC LIMIT ${limit}
+    `;
+    }
+    else {
+        rows = await sql `
+      SELECT p.*, pl.username AS author_name, pl.avatar AS author_avatar, pl.avatar_url AS author_avatar_url, pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url
+      FROM community_posts p
+      JOIN players pl ON pl.id = p.author_id
+      WHERE p.hidden = false AND p.created_at < ${before}
+        AND (
+          p.visibility = 'public'
+          OR (p.visibility = 'friends_only' AND p.author_id IN (
+            SELECT to_id FROM friendships WHERE from_id = ${viewerId} AND status = 'accepted'
+            UNION SELECT from_id FROM friendships WHERE to_id = ${viewerId} AND status = 'accepted'
+          ))
+        )
+      ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ${limit}
+    `;
+    }
+    return Promise.all(rows.map(r => buildPostV2(r, viewerId)));
+}
+// Vote on poll
+export async function votePoll(postId, playerId, optionId) {
+    const existing = await sql `SELECT option_id FROM community_poll_votes WHERE post_id = ${postId} AND player_id = ${playerId} LIMIT 1`;
+    if (existing.length)
+        throw new Error('Already voted.');
+    await sql `INSERT INTO community_poll_votes (post_id, player_id, option_id, voted_at) VALUES (${postId}, ${playerId}, ${optionId}, ${Date.now()})`;
+    const pollRow = await sql `SELECT options FROM community_polls WHERE post_id = ${postId} LIMIT 1`;
+    let options = [];
+    try {
+        options = JSON.parse(pollRow[0]?.options ?? '[]');
+    }
+    catch { }
+    const voteRows = await sql `SELECT option_id, COUNT(*) AS count FROM community_poll_votes WHERE post_id = ${postId} GROUP BY option_id`;
+    const totalVotes = voteRows.reduce((s, r) => s + Number(r.count), 0);
+    return options.map(opt => {
+        const vr = voteRows.find(v => v.option_id === opt.id);
+        const count = Number(vr?.count ?? 0);
+        return { option: opt, count, percent: totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0 };
+    });
+}
+// Toggle post save
+export async function togglePostSave(postId, playerId) {
+    const existing = await sql `SELECT player_id FROM community_post_saves WHERE post_id = ${postId} AND player_id = ${playerId} LIMIT 1`;
+    if (existing.length) {
+        await sql `DELETE FROM community_post_saves WHERE post_id = ${postId} AND player_id = ${playerId}`;
+        await sql `UPDATE community_posts SET saves_count = GREATEST(0, saves_count - 1) WHERE id = ${postId}`;
+        return false;
+    }
+    else {
+        await sql `INSERT INTO community_post_saves (post_id, player_id, saved_at) VALUES (${postId}, ${playerId}, ${Date.now()}) ON CONFLICT DO NOTHING`;
+        await sql `UPDATE community_posts SET saves_count = saves_count + 1 WHERE id = ${postId}`;
+        return true;
+    }
+}
+// Get saved posts
+export async function getSavedPosts(playerId, before) {
+    const beforeVal = before ?? Date.now() + 1;
+    const rows = await sql `
+    SELECT p.*, pl.username AS author_name, pl.avatar AS author_avatar, pl.avatar_url AS author_avatar_url, pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url
+    FROM community_post_saves s
+    JOIN community_posts p ON p.id = s.post_id
+    JOIN players pl ON pl.id = p.author_id
+    WHERE s.player_id = ${playerId} AND p.hidden = false AND s.saved_at < ${beforeVal}
+    ORDER BY s.saved_at DESC LIMIT 20
+  `;
+    return Promise.all(rows.map(r => buildPostV2(r, playerId)));
+}
+// Pin/unpin post (mod/admin)
+export async function pinPost(postId, pin, modId) {
+    await sql `UPDATE community_posts SET is_pinned = ${pin} WHERE id = ${postId}`;
+    await logCommunityModAction(modId, pin ? 'pin' : 'unpin', null, postId, '');
+}
+// Feature/unfeature post
+export async function featurePost(postId, feature, modId) {
+    await sql `UPDATE community_posts SET is_featured = ${feature} WHERE id = ${postId}`;
+    await logCommunityModAction(modId, feature ? 'feature' : 'unfeature', null, postId, '');
+}
+// Hide post (soft delete)
+export async function hidePost(postId, modId) {
+    await sql `UPDATE community_posts SET hidden = true WHERE id = ${postId}`;
+    await logCommunityModAction(modId, 'hide', null, postId, '');
+}
+// People directory
+export async function listPeopleDirectory(viewerId, before) {
+    const beforeRep = before ?? 9999999;
+    const rows = await sql `
+    SELECT id FROM players
+    WHERE community_reputation <= ${beforeRep}
+    ORDER BY community_reputation DESC, joined_at ASC
+    LIMIT 30
+  `;
+    const profiles = await Promise.all(rows.map(r => getCommunityProfileV2(r.id, viewerId)));
+    return profiles.filter(Boolean);
+}
+// Followers / following lists
+export async function getFollowersList(playerId, viewerId) {
+    const rows = await sql `SELECT follower_id FROM follows WHERE following_id = ${playerId} ORDER BY created_at DESC LIMIT 50`;
+    const profiles = await Promise.all(rows.map(r => getCommunityProfileV2(r.follower_id, viewerId)));
+    return profiles.filter(Boolean);
+}
+export async function getFollowingList(playerId, viewerId) {
+    const rows = await sql `SELECT following_id FROM follows WHERE follower_id = ${playerId} ORDER BY created_at DESC LIMIT 50`;
+    const profiles = await Promise.all(rows.map(r => getCommunityProfileV2(r.following_id, viewerId)));
+    return profiles.filter(Boolean);
+}
+// Search
+export async function searchCommunity(query, viewerId) {
+    const q = `%${query.slice(0, 100)}%`;
+    const [postRows, peopleRows, hashtagRows, loungeRows] = await Promise.all([
+        sql `SELECT p.*, pl.username AS author_name, pl.avatar AS author_avatar, pl.avatar_url AS author_avatar_url, pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url FROM community_posts p JOIN players pl ON pl.id = p.author_id WHERE p.hidden = false AND p.content ILIKE ${q} ORDER BY p.created_at DESC LIMIT 20`,
+        sql `SELECT id FROM players WHERE username ILIKE ${q} LIMIT 20`,
+        sql `SELECT hashtag, COUNT(*) AS count FROM community_post_hashtags WHERE hashtag ILIKE ${q} GROUP BY hashtag ORDER BY count DESC LIMIT 20`,
+        sql `SELECT * FROM community_lounges WHERE name ILIKE ${q} LIMIT 10`,
+    ]);
+    const [posts, people] = await Promise.all([
+        Promise.all(postRows.map(r => buildPostV2(r, viewerId))),
+        Promise.all(peopleRows.map(r => getCommunityProfileV2(r.id, viewerId))),
+    ]);
+    return {
+        posts,
+        people: people.filter(Boolean),
+        hashtags: hashtagRows.map(r => ({ hashtag: r.hashtag, count: Number(r.count) })),
+        lounges: loungeRows,
+    };
+}
+// Online members
+export async function upsertOnlineSeen(playerId) {
+    await sql `INSERT INTO community_online_log (player_id, last_seen) VALUES (${playerId}, ${Date.now()}) ON CONFLICT (player_id) DO UPDATE SET last_seen = EXCLUDED.last_seen`;
+}
+export async function getOnlineMembers() {
+    const threshold = Date.now() - 5 * 60 * 1000;
+    const rows = await sql `
+    SELECT ol.player_id, pl.username, pl.avatar, pl.avatar_url
+    FROM community_online_log ol
+    JOIN players pl ON pl.id = ol.player_id
+    WHERE ol.last_seen > ${threshold}
+    ORDER BY ol.last_seen DESC
+    LIMIT 100
+  `;
+    return rows.map(r => ({ playerId: r.player_id, username: r.username, avatar: r.avatar, avatarUrl: r.avatar_url ?? null }));
+}
+// Trending computation
+export async function computeTrending() {
+    const now = Date.now();
+    const cutoff = now - 7 * 24 * 60 * 60 * 1000;
+    const rows = await sql `
+    SELECT id, likes_count, comments_count, created_at FROM community_posts
+    WHERE hidden = false AND created_at > ${cutoff}
+    ORDER BY (likes_count + comments_count * 2) DESC LIMIT 100
+  `;
+    for (const r of rows) {
+        const ageHours = Math.max(0.1, (now - Number(r.created_at)) / 3600000);
+        const score = (Number(r.likes_count) + Number(r.comments_count) * 2) / Math.pow(ageHours + 2, 1.5);
+        await sql `INSERT INTO community_trending_posts (post_id, score, updated_at) VALUES (${r.id}, ${score}, ${now}) ON CONFLICT (post_id) DO UPDATE SET score = EXCLUDED.score, updated_at = EXCLUDED.updated_at`;
+    }
+    const tagRows = await sql `
+    SELECT ht.hashtag, COUNT(*) AS count FROM community_post_hashtags ht
+    JOIN community_posts p ON p.id = ht.post_id
+    WHERE p.hidden = false AND p.created_at > ${cutoff}
+    GROUP BY ht.hashtag ORDER BY count DESC LIMIT 50
+  `;
+    for (const r of tagRows) {
+        await sql `INSERT INTO community_trending_hashtags (hashtag, count, updated_at) VALUES (${r.hashtag}, ${Number(r.count)}, ${now}) ON CONFLICT (hashtag) DO UPDATE SET count = EXCLUDED.count, updated_at = EXCLUDED.updated_at`;
+    }
+}
+// Recalculate player reputation
+export async function recalcReputation(playerId) {
+    const result = await sql `SELECT COALESCE(SUM(likes_count), 0) AS total FROM community_posts WHERE author_id = ${playerId} AND hidden = false`;
+    const rep = Number(result[0]?.total ?? 0);
+    await sql `UPDATE players SET community_reputation = ${rep} WHERE id = ${playerId}`;
+}
 //# sourceMappingURL=communityService.js.map

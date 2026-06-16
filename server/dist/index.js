@@ -19,6 +19,7 @@ import { sql, initializeDatabase } from './db.js';
 import { configurePassport, createAuthRouter } from './auth.js';
 import { initPushService, getVapidPublicKey } from './pushService.js';
 import { creditPurchasedCoins } from './services/coinService.js';
+import { computeTrending } from './services/communityService.js';
 // ── Stripe setup ──────────────────────────────────────────────────────
 const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY ?? '';
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET ?? '';
@@ -375,6 +376,7 @@ async function tryInitDb(attempt = 1) {
         setDbReady(true);
         console.log('[Startup] Database ready.');
         initPushService().catch(e => console.warn('[Push] init failed:', e.message));
+        setInterval(() => { computeTrending().catch(e => console.error('[Trending] compute failed:', e)); }, 10 * 60 * 1000);
     }
     catch (err) {
         console.error(`[Startup] DB init attempt ${attempt} failed: ${err.message}`);

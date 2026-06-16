@@ -755,6 +755,115 @@ export async function initializeDatabase() {
     )
   `;
     await sql `CREATE INDEX IF NOT EXISTS idx_community_notifications_player ON community_notifications(player_id, read, created_at DESC)`;
+    // ── Community Social V2 schema (additive) ────────────────────────────
+    await sql `ALTER TABLE players ADD COLUMN IF NOT EXISTS community_bio TEXT NOT NULL DEFAULT ''`;
+    await sql `ALTER TABLE players ADD COLUMN IF NOT EXISTS community_cover_url TEXT`;
+    await sql `ALTER TABLE players ADD COLUMN IF NOT EXISTS community_favorite_role TEXT`;
+    await sql `ALTER TABLE players ADD COLUMN IF NOT EXISTS community_reputation INTEGER NOT NULL DEFAULT 0`;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_badges (
+      player_id  TEXT NOT NULL,
+      badge      TEXT NOT NULL,
+      granted_by TEXT NOT NULL,
+      granted_at BIGINT NOT NULL,
+      PRIMARY KEY (player_id, badge)
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_achievement_showcase (
+      player_id       TEXT NOT NULL,
+      achievement_key TEXT NOT NULL,
+      slot            INTEGER NOT NULL CHECK (slot BETWEEN 1 AND 3),
+      updated_at      BIGINT NOT NULL,
+      PRIMARY KEY (player_id, slot)
+    )
+  `;
+    await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS post_type TEXT NOT NULL DEFAULT 'text'`;
+    await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS gif_url TEXT`;
+    await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS video_url TEXT`;
+    await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN NOT NULL DEFAULT false`;
+    await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS is_featured BOOLEAN NOT NULL DEFAULT false`;
+    await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS rec_title TEXT`;
+    await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS rec_category TEXT`;
+    await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS hashtags TEXT NOT NULL DEFAULT '[]'`;
+    await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'public'`;
+    await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS saves_count INTEGER NOT NULL DEFAULT 0`;
+    await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT false`;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_polls (
+      post_id   TEXT PRIMARY KEY,
+      question  TEXT NOT NULL,
+      options   TEXT NOT NULL,
+      ends_at   BIGINT
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_poll_votes (
+      post_id   TEXT NOT NULL,
+      player_id TEXT NOT NULL,
+      option_id TEXT NOT NULL,
+      voted_at  BIGINT NOT NULL,
+      PRIMARY KEY (post_id, player_id)
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_post_saves (
+      post_id   TEXT NOT NULL,
+      player_id TEXT NOT NULL,
+      saved_at  BIGINT NOT NULL,
+      PRIMARY KEY (post_id, player_id)
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_post_hashtags (
+      post_id TEXT NOT NULL,
+      hashtag TEXT NOT NULL,
+      PRIMARY KEY (post_id, hashtag)
+    )
+  `;
+    await sql `CREATE INDEX IF NOT EXISTS idx_community_post_hashtags_tag ON community_post_hashtags(hashtag, post_id)`;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_trending_posts (
+      post_id    TEXT PRIMARY KEY,
+      score      REAL NOT NULL,
+      updated_at BIGINT NOT NULL
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_trending_hashtags (
+      hashtag    TEXT PRIMARY KEY,
+      count      INTEGER NOT NULL,
+      updated_at BIGINT NOT NULL
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_privacy_settings (
+      player_id             TEXT PRIMARY KEY,
+      hide_followers_list   BOOLEAN NOT NULL DEFAULT false,
+      allow_friend_requests BOOLEAN NOT NULL DEFAULT true,
+      default_post_visibility TEXT NOT NULL DEFAULT 'public'
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_mod_logs (
+      id         TEXT PRIMARY KEY,
+      action     TEXT NOT NULL,
+      mod_id     TEXT NOT NULL,
+      target_id  TEXT,
+      post_id    TEXT,
+      note       TEXT NOT NULL DEFAULT '',
+      created_at BIGINT NOT NULL
+    )
+  `;
+    await sql `CREATE INDEX IF NOT EXISTS idx_community_mod_logs_created ON community_mod_logs(created_at DESC)`;
+    await sql `CREATE INDEX IF NOT EXISTS idx_friendships_from_status ON friendships(from_id, status)`;
+    await sql `CREATE INDEX IF NOT EXISTS idx_friendships_to_status ON friendships(to_id, status)`;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_online_log (
+      player_id TEXT PRIMARY KEY,
+      last_seen BIGINT NOT NULL
+    )
+  `;
     // Seed permanent community spaces — "Conversations with Mr. Max" and "Void Radio".
     // These rows are never deleted; kind discriminates them from player-created lounges.
     await sql `
