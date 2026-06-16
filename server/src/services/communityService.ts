@@ -4,6 +4,8 @@ import {
   CommunityLounge, VoidNewsPost, MaxRecommendation, RecommendCategory, DailyThought,
   CommunityPost, CommunityComment, CommunityEvent, CommunityEventCategory,
   CommunityNotification, CommunityProfile,
+  CommunityPostV2, CommunityProfileV2, CommunityBadge, CommunitySearchResult,
+  PollOption, PollResult, PostType, FeedCategory,
 } from '../types/index.js';
 import { getClanMembershipByPlayer } from './clanService.js';
 
