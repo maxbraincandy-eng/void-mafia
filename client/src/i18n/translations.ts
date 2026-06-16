@@ -510,6 +510,7 @@ export const TRANSLATIONS = {
         thoughts: 'Daily Thoughts',
         feed: 'Feed',
         events: 'Events',
+        other: 'Other',
       },
       lounges: {
         title: '🎤 Community Voice Lounges',
@@ -1177,6 +1178,7 @@ export const TRANSLATIONS = {
         thoughts: 'დღის ფიქრი',
         feed: 'ფიდი',
         events: 'ივენთები',
+        other: 'სხვა',
       },
       lounges: {
         title: '🎤 კომუნითის ხმოვანი ლაუნჯები',

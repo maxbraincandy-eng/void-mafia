@@ -5,15 +5,13 @@ import { useAuthStore } from '@/store/authStore';
 import { useCommunityStore } from '@/store/communityStore';
 import { LoungesTab } from '@/components/community/LoungesTab';
 import { NewsTab } from '@/components/community/NewsTab';
-import { RecommendsTab } from '@/components/community/RecommendsTab';
-import { ThoughtsTab } from '@/components/community/ThoughtsTab';
 import { FeedTab } from '@/components/community/FeedTab';
-import { EventsTab } from '@/components/community/EventsTab';
+import { OtherTab } from '@/components/community/OtherTab';
 import { NotificationPanel } from '@/components/community/NotificationPanel';
 import { ModerationPanel } from '@/components/community/ModerationPanel';
 import { ProfileModal } from '@/components/community/ProfileModal';
 
-type CommunityTab = 'lounges' | 'news' | 'recommends' | 'thoughts' | 'feed' | 'events';
+type CommunityTab = 'lounges' | 'feed' | 'news' | 'other';
 
 export function CommunityPage() {
   const t = useT();
@@ -31,12 +29,10 @@ export function CommunityPage() {
   }, [profile, fetchUnreadCount]);
 
   const TABS: { id: CommunityTab; label: string; icon: string }[] = [
-    { id: 'lounges',    label: t.community.tabs.lounges,    icon: '🎤' },
-    { id: 'news',       label: t.community.tabs.news,       icon: '📰' },
-    { id: 'recommends', label: t.community.tabs.recommends, icon: '🎬' },
-    { id: 'thoughts',   label: t.community.tabs.thoughts,   icon: '🧠' },
-    { id: 'feed',       label: t.community.tabs.feed,       icon: '🌌' },
-    { id: 'events',     label: t.community.tabs.events,     icon: '🗓' },
+    { id: 'lounges', label: t.community.tabs.lounges, icon: '🎤' },
+    { id: 'feed',    label: t.community.tabs.feed,    icon: '🌌' },
+    { id: 'news',    label: t.community.tabs.news,    icon: '📰' },
+    { id: 'other',   label: t.community.tabs.other,   icon: '🗂' },
   ];
 
   return (
@@ -119,12 +115,10 @@ export function CommunityPage() {
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.15 }}
           >
-            {tab === 'lounges'    && <LoungesTab onOpenProfile={setViewProfileId} />}
-            {tab === 'news'       && <NewsTab />}
-            {tab === 'recommends' && <RecommendsTab />}
-            {tab === 'thoughts'   && <ThoughtsTab />}
-            {tab === 'feed'       && <FeedTab onOpenProfile={setViewProfileId} />}
-            {tab === 'events'     && <EventsTab />}
+            {tab === 'lounges' && <LoungesTab onOpenProfile={setViewProfileId} />}
+            {tab === 'feed'    && <FeedTab onOpenProfile={setViewProfileId} />}
+            {tab === 'news'    && <NewsTab />}
+            {tab === 'other'   && <OtherTab />}
           </motion.div>
         </AnimatePresence>
       </div>
