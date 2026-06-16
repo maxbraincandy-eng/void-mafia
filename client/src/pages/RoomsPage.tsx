@@ -86,12 +86,14 @@ export function RoomsPage() {
   const [code, setCode] = useState('');
   const [joinAsSpectator, setJoinAsSpectator] = useState(false);
   const [joinPassword, setJoinPassword] = useState('');
-  const [spectatorModal, setSpectatorModal] = useState<RoomListItem | null>(null);
+  const [joinChoice, setJoinChoice] = useState<{ code: string; isLobby: boolean; password?: string } | null>(null);
 
-  const { createRoom, joinRoom, isLoading } = useGameStore(s => ({
+  const { createRoom, joinRoom, isLoading, joinError, clearJoinError } = useGameStore(s => ({
     createRoom: s.createRoom,
     joinRoom: s.joinRoom,
     isLoading: s.isLoading,
+    joinError: s.error,
+    clearJoinError: s.clearError,
   }));
   const username = useAuthStore(s => s.username) ?? '';
   const { onlineCount, openMoreMenu, openLobbyChat, lobbyChatUnread } = useSocialStore(s => ({
@@ -132,9 +134,18 @@ export function RoomsPage() {
     await joinRoom(code.toUpperCase(), username, joinAsSpectator, joinPassword);
   };
 
-  const handleQuickJoin = async (room: RoomListItem, isSpectator: boolean) => {
-    setSpectatorModal(null);
-    await joinRoom(room.code, username, isSpectator);
+  // Server rejects a non-spectator join to a room whose game already started, asking
+  // the client to let the player pick a mode — surface that as the same choice modal.
+  useEffect(() => {
+    if (joinError === 'GAME_ALREADY_STARTED_CHOOSE_MODE') {
+      setJoinChoice({ code: code.toUpperCase(), isLobby: false, password: joinPassword });
+      clearJoinError();
+    }
+  }, [joinError]);
+
+  const handleJoinWithMode = async (choice: { code: string; password?: string }, joinMode: 'player' | 'spectator' | 'next_round') => {
+    setJoinChoice(null);
+    await joinRoom(choice.code, username, joinMode === 'spectator', choice.password ?? '', joinMode);
   };
 
   const phaseLabel: Record<string, string> = t.rooms.phase;
@@ -309,25 +320,14 @@ export function RoomsPage() {
                     </div>
 
                     <div className="shrink-0">
-                      {isLobby ? (
-                        <Button
-                          size="sm"
-                          variant="neon-cyan"
-                          loading={isLoading}
-                          onClick={() => setSpectatorModal(room)}
-                        >
-                          {t.rooms.joinCode}
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          loading={isLoading}
-                          onClick={() => handleQuickJoin(room, true)}
-                        >
-                          Watch
-                        </Button>
-                      )}
+                      <Button
+                        size="sm"
+                        variant={isLobby ? 'neon-cyan' : 'ghost'}
+                        loading={isLoading}
+                        onClick={() => setJoinChoice({ code: room.code, isLobby })}
+                      >
+                        {isLobby ? t.rooms.joinCode : t.rooms.watch}
+                      </Button>
                     </div>
                   </motion.div>
                 );
@@ -457,15 +457,15 @@ export function RoomsPage() {
         )}
       </div>
 
-      {/* Spectator modal */}
+      {/* Join mode choice modal */}
       <AnimatePresence>
-        {spectatorModal && (
+        {joinChoice && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-6"
-            onClick={() => setSpectatorModal(null)}
+            onClick={() => setJoinChoice(null)}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -476,27 +476,35 @@ export function RoomsPage() {
               style={SURFACE_BG}
               onClick={e => e.stopPropagation()}
             >
-              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-0.5">Join</p>
+              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-0.5">
+                {joinChoice.isLobby ? t.rooms.join : t.rooms.gameInProgress}
+              </p>
               <p className="font-mono font-bold text-neon-cyan/75 tracking-[0.25em] text-xl mb-5">
-                {spectatorModal.code}
+                {joinChoice.code}
               </p>
               <div className="flex flex-col gap-2">
                 <Button
                   fullWidth
                   variant="neon-cyan"
                   loading={isLoading}
-                  onClick={() => handleQuickJoin(spectatorModal, false)}
+                  onClick={() => handleJoinWithMode(joinChoice, joinChoice.isLobby ? 'player' : 'next_round')}
                 >
-                  Join as Player
+                  {joinChoice.isLobby ? t.rooms.joinAsPlayer : t.rooms.joinNextRound}
                 </Button>
+                {!joinChoice.isLobby && (
+                  <p className="text-[10px] font-mono text-white/30 -mt-0.5 mb-1">{t.rooms.joinNextRoundHint}</p>
+                )}
                 <Button
                   fullWidth
                   variant="ghost"
                   loading={isLoading}
-                  onClick={() => handleQuickJoin(spectatorModal, true)}
+                  onClick={() => handleJoinWithMode(joinChoice, 'spectator')}
                 >
-                  Watch as Spectator
+                  {t.rooms.watchAsSpectator}
                 </Button>
+                {!joinChoice.isLobby && (
+                  <p className="text-[10px] font-mono text-white/25 -mt-0.5">{t.rooms.watchSpectatorHint}</p>
+                )}
               </div>
             </motion.div>
           </motion.div>
