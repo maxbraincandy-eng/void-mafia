@@ -33,7 +33,7 @@ import {
 } from './services/playerService.js';
 import {
   markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend,
-  removeFriend, getFriends, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline,
+  removeFriend, getFriends, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount,
 } from './services/friendService.js';
 import {
   checkAndAwardChallenges, getDailyQuestsForPlayer,
@@ -2299,6 +2299,7 @@ export function attachSocketHandlers(io: AppServer): void {
         const rooms = getAllRooms();
         cb(ok({
           onlinePlayers: getOnlineCount(),
+          spectatingPlayers: getSpectatingCount(),
           activeRooms: rooms.length,
           openReports,
           recentBans,

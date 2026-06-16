@@ -106,6 +106,7 @@ export function ModDashboardPage() {
 
   // Player filters
   const [playerFilterOnline, setPlayerFilterOnline] = useState(false);
+  const [playerFilterSpectating, setPlayerFilterSpectating] = useState(false);
   const [playerFilterInRoom, setPlayerFilterInRoom] = useState(false);
   const [playerFilterBanned, setPlayerFilterBanned] = useState(false);
   const [playerFilterMod, setPlayerFilterMod] = useState(false);
@@ -197,6 +198,7 @@ export function ModDashboardPage() {
     setPlayerDetail(null);
     setShowBanned(false);
     setPlayerFilterOnline(false);
+    setPlayerFilterSpectating(false);
     if (t === 'dashboard') loadDashboard();
     else if (t === 'rooms') loadRooms();
     else if (t === 'reports') loadReports();
@@ -359,6 +361,7 @@ export function ModDashboardPage() {
     }
     if (playerFilterMod && !p.isModerator) return false;
     if (playerFilterOnline && !p.isOnline) return false;
+    if (playerFilterSpectating && p.playerStatus !== 'spectating') return false;
     return true;
   });
   const filteredLogs = logs.filter(l => !logFilter || l.actionType.includes(logFilter) || l.targetName.toLowerCase().includes(logFilter.toLowerCase()) || l.moderatorName.toLowerCase().includes(logFilter.toLowerCase()));
@@ -411,6 +414,7 @@ export function ModDashboardPage() {
               <div className="grid grid-cols-2 gap-3">
                 {[
                   { label: 'Online', value: stats.onlinePlayers, color: 'text-neon-green', onClick: () => { switchTab('players'); setPlayerFilterOnline(true); } },
+                  { label: 'Spectating', value: stats.spectatingPlayers, color: 'text-yellow-400', onClick: () => { switchTab('players'); setPlayerFilterSpectating(true); } },
                   { label: 'Active Rooms', value: stats.activeRooms, color: 'text-neon-cyan' },
                   { label: 'Open Reports', value: stats.openReports, color: stats.openReports > 0 ? 'text-neon-red' : 'text-white/40' },
                   { label: 'Bans (24h)', value: stats.recentBans, color: 'text-neon-pink' },
@@ -715,6 +719,12 @@ export function ModDashboardPage() {
                 }`}>
                 Online
               </button>
+              <button onClick={() => setPlayerFilterSpectating(!playerFilterSpectating)}
+                className={`px-2 py-1 text-[10px] font-mono uppercase rounded-lg border transition-all ${
+                  playerFilterSpectating ? 'border-yellow-400/40 bg-yellow-400/10 text-yellow-400' : 'border-white/10 text-white/30 hover:text-white/60'
+                }`}>
+                Spectating
+              </button>
               <button onClick={() => setPlayerFilterMod(!playerFilterMod)}
                 className={`px-2 py-1 text-[10px] font-mono uppercase rounded-lg border transition-all ${
                   playerFilterMod ? 'border-neon-green/40 bg-neon-green/10 text-neon-green' : 'border-white/10 text-white/30 hover:text-white/60'
@@ -733,7 +743,15 @@ export function ModDashboardPage() {
                     onClick={() => openPlayerDetail(p.id)}>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${p.isOnline ? 'bg-neon-green' : 'bg-white/15'}`} title={p.isOnline ? 'Online' : 'Offline'} />
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                          p.playerStatus === 'spectating' ? 'bg-yellow-400' :
+                          p.playerStatus === 'in_game' ? 'bg-neon-cyan' :
+                          p.isOnline ? 'bg-neon-green' : 'bg-white/15'
+                        }`} title={
+                          p.playerStatus === 'spectating' ? 'Spectating' :
+                          p.playerStatus === 'in_game' ? 'In Game' :
+                          p.isOnline ? 'Online' : 'Offline'
+                        } />
                         <span className={`font-mono text-sm truncate ${p.isModerator ? 'text-neon-green' : 'text-white/85'}`}>{p.username}</span>
                         {p.isModerator && <ModBadge level={p.moderatorLevel} size="sm" />}
                       </div>

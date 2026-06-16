@@ -102,7 +102,7 @@ export interface XPGain {
 }
 
 // ── Friend ────────────────────────────────────────────────────────────
-export type PlayerStatus = 'online' | 'in_game' | 'offline';
+export type PlayerStatus = 'online' | 'in_game' | 'spectating' | 'offline';
 
 export interface Friend {
   profileId: string;
@@ -225,6 +225,7 @@ export interface PlayerProfilePublic {
   cosmetics: PlayerCosmetics;
   friendCode: string;
   isOnline: boolean;
+  playerStatus: PlayerStatus;
 }
 
 // ── Report ────────────────────────────────────────────────────────────
@@ -696,6 +697,7 @@ export interface LiveRoomInfo {
 
 export interface DashboardStats {
   onlinePlayers: number;
+  spectatingPlayers: number;
   activeRooms: number;
   openReports: number;
   recentBans: number;

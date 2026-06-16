@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import { createHash } from 'crypto';
 import { nameToAvatar } from '../utils/helpers.js';
 import { sql } from '../db.js';
-import { isOnline } from './friendService.js';
+import { isOnline, getPlayerStatus, getActiveStatusMap } from './friendService.js';
 // ── Moderator config from env ─────────────────────────────────────────
 const parseIds = (s) => s.split(',').map(n => n.trim()).filter(Boolean);
 const parseName = (s) => s.split(',').map(n => n.trim().toLowerCase()).filter(Boolean);
@@ -285,6 +285,7 @@ export async function getLeaderboard() {
     ORDER BY level DESC, xp DESC, games_played DESC
     LIMIT 20
   `;
+    const statusMap = getActiveStatusMap();
     const result = rows.map((r) => ({
         id: r.id,
         username: r.username,
@@ -314,6 +315,7 @@ export async function getLeaderboard() {
         } })(),
         friendCode: r.friend_code ?? '',
         isOnline: isOnline(r.id),
+        playerStatus: isOnline(r.id) ? (statusMap.get(r.id) ?? 'online') : 'offline',
     }));
     _leaderboardCache = result;
     _leaderboardCachedAt = Date.now();
@@ -330,6 +332,7 @@ export async function getPlayersFast() {
     ORDER BY last_seen_at DESC
     LIMIT 1000
   `;
+    const statusMap = getActiveStatusMap();
     return rows.map((r) => ({
         id: r.id,
         username: r.username,
@@ -359,6 +362,7 @@ export async function getPlayersFast() {
         } })(),
         friendCode: r.friend_code ?? '',
         isOnline: isOnline(r.id),
+        playerStatus: isOnline(r.id) ? (statusMap.get(r.id) ?? 'online') : 'offline',
     }));
 }
 export function toPublicProfile(p) {
@@ -380,6 +384,7 @@ export function toPublicProfile(p) {
         cosmetics: p.cosmetics,
         friendCode: p.friendCode,
         isOnline: isOnline(p.id),
+        playerStatus: getPlayerStatus(p.id),
     };
 }
 export async function addGameResult(uid, won) {

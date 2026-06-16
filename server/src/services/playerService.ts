@@ -5,7 +5,7 @@ import {
 } from '../types/index.js';
 import { nameToAvatar } from '../utils/helpers.js';
 import { sql } from '../db.js';
-import { isOnline } from './friendService.js';
+import { isOnline, getPlayerStatus, getActiveStatusMap } from './friendService.js';
 
 // ── Moderator config from env ─────────────────────────────────────────
 const parseIds     = (s: string) => s.split(',').map(n => n.trim()).filter(Boolean);
@@ -304,6 +304,7 @@ export async function getLeaderboard(): Promise<PlayerProfilePublic[]> {
     LIMIT 20
   ` as any[];
 
+  const statusMap = getActiveStatusMap();
   const result: PlayerProfilePublic[] = rows.map((r: any) => ({
     id:                    r.id,
     username:              r.username,
@@ -328,6 +329,7 @@ export async function getLeaderboard(): Promise<PlayerProfilePublic[]> {
     cosmetics:             (() => { try { return JSON.parse(r.cosmetics ?? '{}'); } catch { return { equippedNameColor: null, equippedFrame: null, unlockedItems: [] }; } })(),
     friendCode:            r.friend_code ?? '',
     isOnline:              isOnline(r.id),
+    playerStatus:          isOnline(r.id) ? (statusMap.get(r.id) ?? 'online') : 'offline',
   }));
 
   _leaderboardCache = result;
@@ -347,6 +349,7 @@ export async function getPlayersFast(): Promise<PlayerProfilePublic[]> {
     LIMIT 1000
   ` as any[];
 
+  const statusMap = getActiveStatusMap();
   return rows.map((r: any) => ({
     id:                    r.id,
     username:              r.username,
@@ -371,6 +374,7 @@ export async function getPlayersFast(): Promise<PlayerProfilePublic[]> {
     cosmetics:             (() => { try { return JSON.parse(r.cosmetics ?? '{}'); } catch { return { equippedNameColor: null, equippedFrame: null, unlockedItems: [] }; } })(),
     friendCode:            r.friend_code ?? '',
     isOnline:              isOnline(r.id),
+    playerStatus:          isOnline(r.id) ? (statusMap.get(r.id) ?? 'online') : 'offline',
   }));
 }
 
@@ -393,6 +397,7 @@ export function toPublicProfile(p: PlayerProfile): PlayerProfilePublic {
     cosmetics:             p.cosmetics,
     friendCode:            p.friendCode,
     isOnline:              isOnline(p.id),
+    playerStatus:          getPlayerStatus(p.id),
   };
 }
 

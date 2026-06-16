@@ -13,11 +13,41 @@ export function getPlayerStatus(profileId) {
     const rooms = getAllRooms();
     for (const room of rooms) {
         for (const [, player] of room.players) {
-            if (player.profileId === profileId && player.isConnected)
-                return 'in_game';
+            if (player.profileId === profileId && player.isConnected) {
+                return player.isSpectator ? 'spectating' : 'in_game';
+            }
         }
     }
     return 'online';
+}
+// Single pass over all rooms — avoids O(profiles × rooms × players) when
+// resolving status for a large player list (e.g. the mod dashboard).
+export function getActiveStatusMap() {
+    const map = new Map();
+    for (const room of getAllRooms()) {
+        for (const [, player] of room.players) {
+            if (!player.isConnected || !player.profileId)
+                continue;
+            if (player.isSpectator) {
+                if (!map.has(player.profileId))
+                    map.set(player.profileId, 'spectating');
+            }
+            else {
+                map.set(player.profileId, 'in_game');
+            }
+        }
+    }
+    return map;
+}
+export function getSpectatingCount() {
+    let count = 0;
+    for (const room of getAllRooms()) {
+        for (const [, player] of room.players) {
+            if (player.isSpectator && player.isConnected)
+                count++;
+        }
+    }
+    return count;
 }
 // ── Friend requests ───────────────────────────────────────────────────
 export async function sendFriendRequest(fromId, toId) {
