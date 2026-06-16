@@ -56,6 +56,9 @@ export function validateChat(room, player, channel) {
             return 'Spectator chat is only for spectators.';
         return null;
     }
+    // Pre-game lobby: everyone (players and spectators alike) shares the room chat.
+    if (phase === 'lobby' && channel === 'room')
+        return null;
     // Spectators cannot use any other channel
     if (player.isSpectator)
         return 'Spectators can only use the spectator chat.';
@@ -74,8 +77,23 @@ export function validateChat(room, player, channel) {
     // Room channel
     if (!player.isAlive)
         return 'Eliminated players cannot speak in room chat.';
-    if (phase === 'night')
-        return 'No talking during the night.';
-    return null;
+    switch (phase) {
+        case 'day':
+        case 'game_over':
+            return null;
+        case 'speech': {
+            const speakerId = room.speechOrder[room.currentSpeakerIdx] ?? null;
+            if (player.id !== speakerId)
+                return 'Wait for your turn to speak.';
+            return null;
+        }
+        case 'final_words':
+            if (player.id !== room.deathSpeakerId)
+                return 'Only the eliminated player can speak now.';
+            return null;
+        default:
+            // night, morning, role_reveal, trial_defense, voting: chat stays closed
+            return 'Chat is closed during this phase.';
+    }
 }
 //# sourceMappingURL=chatService.js.map

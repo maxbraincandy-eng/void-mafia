@@ -615,6 +615,158 @@ export async function initializeDatabase() {
     )
     ON CONFLICT (number) DO NOTHING
   `;
+    // ── Community Hub (additive, fully separate from Mafia game tables) ────
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_lounges (
+      id          TEXT PRIMARY KEY,
+      name        TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      owner_id    TEXT,
+      kind        TEXT NOT NULL DEFAULT 'lounge',
+      is_live     BOOLEAN NOT NULL DEFAULT false,
+      last_topic  TEXT NOT NULL DEFAULT '',
+      created_at  BIGINT NOT NULL
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_lounge_members (
+      lounge_id TEXT NOT NULL,
+      player_id TEXT NOT NULL,
+      role      TEXT NOT NULL DEFAULT 'listener',
+      joined_at BIGINT NOT NULL,
+      PRIMARY KEY (lounge_id, player_id)
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS void_news (
+      id         TEXT PRIMARY KEY,
+      title      TEXT NOT NULL,
+      content    TEXT NOT NULL,
+      pinned     BOOLEAN NOT NULL DEFAULT false,
+      author_id  TEXT,
+      created_at BIGINT NOT NULL
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS max_recommends (
+      id         TEXT PRIMARY KEY,
+      category   TEXT NOT NULL,
+      title      TEXT NOT NULL,
+      review     TEXT NOT NULL DEFAULT '',
+      image_url  TEXT,
+      created_at BIGINT NOT NULL
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS daily_thoughts (
+      id         TEXT PRIMARY KEY,
+      content    TEXT NOT NULL,
+      pinned     BOOLEAN NOT NULL DEFAULT false,
+      created_at BIGINT NOT NULL
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_posts (
+      id             TEXT PRIMARY KEY,
+      author_id      TEXT NOT NULL,
+      content        TEXT NOT NULL,
+      image_url      TEXT,
+      likes_count    INT NOT NULL DEFAULT 0,
+      comments_count INT NOT NULL DEFAULT 0,
+      created_at     BIGINT NOT NULL
+    )
+  `;
+    await sql `CREATE INDEX IF NOT EXISTS idx_community_posts_created ON community_posts(created_at DESC)`;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_post_likes (
+      post_id    TEXT NOT NULL,
+      player_id  TEXT NOT NULL,
+      created_at BIGINT NOT NULL,
+      PRIMARY KEY (post_id, player_id)
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_post_comments (
+      id         TEXT PRIMARY KEY,
+      post_id    TEXT NOT NULL,
+      author_id  TEXT NOT NULL,
+      content    TEXT NOT NULL,
+      created_at BIGINT NOT NULL
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_reports (
+      id           TEXT PRIMARY KEY,
+      post_id      TEXT,
+      reporter_id  TEXT NOT NULL,
+      reason       TEXT NOT NULL,
+      status       TEXT NOT NULL DEFAULT 'pending',
+      created_at   BIGINT NOT NULL
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_bans (
+      id          TEXT PRIMARY KEY,
+      player_id   TEXT NOT NULL,
+      banned_by   TEXT NOT NULL,
+      reason      TEXT NOT NULL DEFAULT '',
+      issued_at   BIGINT NOT NULL,
+      expires_at  BIGINT NOT NULL,
+      active      INTEGER NOT NULL DEFAULT 1
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS follows (
+      follower_id  TEXT NOT NULL,
+      following_id TEXT NOT NULL,
+      created_at   BIGINT NOT NULL,
+      PRIMARY KEY (follower_id, following_id)
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_events (
+      id          TEXT PRIMARY KEY,
+      title       TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      category    TEXT NOT NULL DEFAULT 'discussion',
+      event_at    BIGINT NOT NULL,
+      created_by  TEXT NOT NULL,
+      created_at  BIGINT NOT NULL
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_event_participants (
+      event_id  TEXT NOT NULL,
+      player_id TEXT NOT NULL,
+      joined_at BIGINT NOT NULL,
+      PRIMARY KEY (event_id, player_id)
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_notifications (
+      id         TEXT PRIMARY KEY,
+      player_id  TEXT NOT NULL,
+      type       TEXT NOT NULL,
+      title      TEXT NOT NULL,
+      body       TEXT NOT NULL DEFAULT '',
+      link       TEXT,
+      read       BOOLEAN NOT NULL DEFAULT false,
+      created_at BIGINT NOT NULL
+    )
+  `;
+    await sql `CREATE INDEX IF NOT EXISTS idx_community_notifications_player ON community_notifications(player_id, read, created_at DESC)`;
+    // Seed permanent community spaces — "Conversations with Mr. Max" and "Void Radio".
+    // These rows are never deleted; kind discriminates them from player-created lounges.
+    await sql `
+    INSERT INTO community_lounges (id, name, description, owner_id, kind, is_live, last_topic, created_at)
+    VALUES ('mr-max-lounge', 'Conversations with Mr. Max', 'Live community voice space hosted by Mr. Max.', NULL, 'max_lounge', false, '', ${Date.now()})
+    ON CONFLICT (id) DO NOTHING
+  `;
+    await sql `
+    INSERT INTO community_lounges (id, name, description, owner_id, kind, is_live, last_topic, created_at)
+    VALUES ('void-radio', 'Void Radio', 'A permanent, always-online room for community discussion.', NULL, 'void_radio', true, '', ${Date.now()})
+    ON CONFLICT (id) DO NOTHING
+  `;
     // Verify connection
     const [{ cnt }] = await sql `SELECT COUNT(*) as cnt FROM players`;
     console.log(`[Database] connected successfully`);

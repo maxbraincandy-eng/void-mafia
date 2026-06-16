@@ -48,7 +48,7 @@ export const DEFAULT_SETTINGS = {
     },
 };
 // ── CRUD ──────────────────────────────────────────────────────────────
-export function createRoom(hostSocketId, hostName, profileId, settings, clanId) {
+export function createRoom(hostSocketId, hostName, profileId, settings, clanId, roomName) {
     const id = generateId();
     const code = generateRoomCode();
     const hostPlayer = {
@@ -99,6 +99,7 @@ export function createRoom(hostSocketId, hostName, profileId, settings, clanId) 
     const room = {
         id,
         code,
+        name: roomName?.trim().slice(0, 30) ?? '',
         hostId: hostPlayer.id,
         phase: 'lobby',
         players: new Map([[hostPlayer.id, hostPlayer]]),
@@ -441,6 +442,7 @@ export function toPublicRoom(room, viewerPlayerId) {
     return {
         id: room.id,
         code: room.code,
+        name: room.name,
         phase: room.phase,
         day: room.day,
         timer: room.timer,
@@ -491,6 +493,7 @@ export function toRoomListItem(room) {
     return {
         id: room.id,
         code: room.code,
+        name: room.name,
         playerCount: room.players.size,
         phase: room.phase,
         createdAt: room.createdAt,

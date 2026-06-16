@@ -1,7 +1,7 @@
 import { Room, Player, GameSettings, RoomPublic, RoomListItem, SpectatorQueueSettings } from '../types/index.js';
 export declare const DEFAULT_SPECTATOR_QUEUE: SpectatorQueueSettings;
 export declare const DEFAULT_SETTINGS: GameSettings;
-export declare function createRoom(hostSocketId: string, hostName: string, profileId: string | null, settings?: Partial<GameSettings>, clanId?: string | null): Room;
+export declare function createRoom(hostSocketId: string, hostName: string, profileId: string | null, settings?: Partial<GameSettings>, clanId?: string | null, roomName?: string): Room;
 export declare function getRoom(id: string): Room | undefined;
 export declare function getRoomByCode(code: string): Room | undefined;
 export declare function deleteRoom(id: string): void;
