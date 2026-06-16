@@ -873,9 +873,11 @@ export function attachSocketHandlers(io: AppServer): void {
 
     // Rate-limit + payload size check on every incoming event
     socket.use(([event, ...args], next) => {
+      // Avatar upload is exempt — it has its own 270KB check in the handler
+      const largePayloadEvents = new Set(['player:update_avatar']);
       // 4. Payload size limit — reject anything over 16 KB
       const payload = args[0];
-      if (payload !== null && payload !== undefined && typeof payload === 'object') {
+      if (!largePayloadEvents.has(event) && payload !== null && payload !== undefined && typeof payload === 'object') {
         try {
           if (JSON.stringify(payload).length > 16384) {
             const ack = typeof args[args.length - 1] === 'function' ? args[args.length - 1] as Function : null;
