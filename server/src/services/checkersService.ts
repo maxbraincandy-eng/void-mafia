@@ -133,13 +133,13 @@ function anyCapture(board: CheckersBoard, color: PieceColor): boolean {
   return false;
 }
 
-function hasLegalMove(board: CheckersBoard, color: PieceColor, forcedCapture: boolean): boolean {
+function hasLegalMove(board: CheckersBoard, color: PieceColor): boolean {
   for (let r = 0; r < 8; r++) {
     for (let c = 0; c < 8; c++) {
       const p = board[r][c];
       if (!p || p.color !== color) continue;
       if (getCaptures(board, r, c).length > 0) return true;
-      if (!forcedCapture && getSimples(board, r, c).length > 0) return true;
+      if (getSimples(board, r, c).length > 0) return true;
     }
   }
   return false;
@@ -212,7 +212,7 @@ export function applyMove(
   let winnerColor: PieceColor | null = null;
   if (!nextContinue) {
     const opp: PieceColor = color === 'red' ? 'black' : 'red';
-    if (!hasLegalMove(nb, opp, settings.forcedCapture)) winnerColor = color;
+    if (!hasLegalMove(nb, opp)) winnerColor = color;
   }
 
   return { ok: true, board: nb, captured, promoted, mustContinueFrom: nextContinue, winnerColor };
