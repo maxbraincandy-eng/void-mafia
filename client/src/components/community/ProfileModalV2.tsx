@@ -142,7 +142,7 @@ export function ProfileModalV2({ profileId, onClose }: { profileId: string; onCl
                 accent="purple"
                 className="flex-1 justify-center"
               >
-                ✉ {t.community.profile.message ?? 'Message'}
+                {t.community.profile.message ?? 'Message'}
               </PillButton>
             </div>
           )}

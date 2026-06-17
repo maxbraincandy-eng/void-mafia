@@ -58,7 +58,7 @@ function useVoiceRecorder(onSend: (dataUrl: string, duration: number) => void) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const MIME_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
       const mimeType = MIME_TYPES.find(t => MediaRecorder.isTypeSupported(t));
-      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const mr = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: 32000 });
       chunksRef.current = [];
       mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       mr.onstop = null;
