@@ -24,15 +24,29 @@ export function getAIProvider(): AIProvider | null {
     return null;
   }
 
-  const providerName = (process.env.AI_PROVIDER ?? 'openai').toLowerCase();
+  const providerName = (process.env.AI_PROVIDER ?? 'openrouter').toLowerCase();
 
-  if (providerName === 'openai') {
+  if (providerName === 'openrouter') {
+    if (!process.env.OPENROUTER_API_KEY) {
+      console.warn('[Hermes] OPENROUTER_API_KEY not set — Hermes disabled');
+      _cachedProvider = null;
+      return null;
+    }
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { OpenRouterProvider } = require('./openrouterProvider.js') as { OpenRouterProvider: new () => AIProvider };
+      _cachedProvider = new OpenRouterProvider();
+      console.log('[Hermes] OpenRouter provider ready');
+    } catch (e: any) {
+      console.error('[Hermes] Failed to load OpenRouter provider:', e.message);
+      _cachedProvider = null;
+    }
+  } else if (providerName === 'openai') {
     if (!process.env.OPENAI_API_KEY) {
       console.warn('[Hermes] OPENAI_API_KEY not set — Hermes disabled');
       _cachedProvider = null;
       return null;
     }
-    // Lazy-require to avoid crashing when the package is absent in some envs
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { OpenAIProvider } = require('./openaiProvider.js') as { OpenAIProvider: new () => AIProvider };

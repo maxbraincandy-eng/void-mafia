@@ -98,7 +98,12 @@ export function createHermesRouter(): Router {
       });
     } catch (e: any) {
       console.error('[Hermes] chat error:', e.message);
-      res.status(500).json({ ok: false, error: 'Hermes encountered an error. Please try again.' });
+      // Provider throws bilingual messages; fall back to generic if not
+      const msg: string = e.message ?? '';
+      const clientError = msg.includes('ჰერმესი')
+        ? msg
+        : 'ჰერმესი დროებით გათიშულია. Please try again.';
+      res.status(500).json({ ok: false, error: clientError });
     }
   });
 
