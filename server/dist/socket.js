@@ -4840,7 +4840,9 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
-        socket.on('community:people_list', async (data, cb) => {
+        socket.on('community:people_list', async (dataOrCb, maybeCb) => {
+            const cb = typeof dataOrCb === 'function' ? dataOrCb : maybeCb;
+            const data = typeof dataOrCb === 'function' ? {} : (dataOrCb ?? {});
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId) {

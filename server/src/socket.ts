@@ -4300,11 +4300,13 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
-    socket.on('community:people_list', async (data, cb) => {
+    socket.on('community:people_list', async (dataOrCb, maybeCb) => {
+      const cb   = typeof dataOrCb === 'function' ? dataOrCb : maybeCb;
+      const data = typeof dataOrCb === 'function' ? {} : (dataOrCb ?? {});
       try {
         const profileId = socket.data.profileId;
         if (!profileId) { cb(err('Not authenticated.')); return; }
-        const people = await listPeopleDirectory(profileId, data.before);
+        const people = await listPeopleDirectory(profileId, (data as any).before);
         cb(ok(people));
       } catch (e: any) { cb(err(e.message)); }
     });
