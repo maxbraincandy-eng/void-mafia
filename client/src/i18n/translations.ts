@@ -191,6 +191,7 @@ export const TRANSLATIONS = {
         chatPlaceholder: 'Say something…',
         noMessages: 'No messages yet.',
         king: 'King',
+        captureRequired: 'Capture Required',
       },
       joker: {
         title: 'Joker',
@@ -1028,6 +1029,7 @@ export const TRANSLATIONS = {
         chatPlaceholder: 'დაწერე რამე…',
         noMessages: 'შეტყობინებები ჯერ არ არის.',
         king: 'დამა',
+        captureRequired: 'ჭერა სავალდებულოა',
       },
       joker: {
         title: 'ჯოკერი',
