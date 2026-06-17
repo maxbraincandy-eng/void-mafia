@@ -111,7 +111,7 @@ export declare function getSavedPosts(playerId: string, before?: number): Promis
 export declare function pinPost(postId: string, pin: boolean, modId: string): Promise<void>;
 export declare function featurePost(postId: string, feature: boolean, modId: string): Promise<void>;
 export declare function hidePost(postId: string, modId: string): Promise<void>;
-export declare function listPeopleDirectory(viewerId: string, before?: number): Promise<CommunityProfileV2[]>;
+export declare function listPeopleDirectory(viewerId: string): Promise<CommunityProfileV2[]>;
 export declare function getFollowersList(playerId: string, viewerId: string): Promise<CommunityProfileV2[]>;
 export declare function getFollowingList(playerId: string, viewerId: string): Promise<CommunityProfileV2[]>;
 export declare function searchCommunity(query: string, viewerId: string): Promise<CommunitySearchResult>;

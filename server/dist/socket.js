@@ -4849,7 +4849,7 @@ export function attachSocketHandlers(io) {
                     cb(err('Not authenticated.'));
                     return;
                 }
-                const people = await listPeopleDirectory(profileId, data.before);
+                const people = await listPeopleDirectory(profileId);
                 cb(ok(people));
             }
             catch (e) {

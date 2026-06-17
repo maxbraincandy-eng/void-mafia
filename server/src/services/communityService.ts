@@ -912,18 +912,68 @@ export async function hidePost(postId: string, modId: string): Promise<void> {
 }
 
 // People directory
-export async function listPeopleDirectory(viewerId: string, before?: number): Promise<CommunityProfileV2[]> {
-  const rows = await sql<{ id: string; follower_count: string }[]>`
-    SELECT p.id, COUNT(f.follower_id) AS follower_count
+export async function listPeopleDirectory(viewerId: string): Promise<CommunityProfileV2[]> {
+  // Single batched query instead of N+1 getCommunityProfileV2 calls
+  const rows = await sql<{
+    id: string; username: string; avatar: string; avatar_url: string | null;
+    public_id: number | null; level: number; community_reputation: number;
+    followers_count: string; following_count: string; posts_count: string;
+    is_followed: boolean; community_bio: string; community_cover_url: string | null;
+    community_favorite_role: string | null; joined_at: number;
+  }[]>`
+    SELECT
+      p.id, p.username, p.avatar, p.avatar_url, p.public_id, p.level,
+      COALESCE(p.community_reputation, 0) AS community_reputation,
+      p.community_bio, p.community_cover_url, p.community_favorite_role, p.joined_at,
+      COUNT(DISTINCT f.follower_id) AS followers_count,
+      (SELECT COUNT(*) FROM follows fw WHERE fw.follower_id = p.id) AS following_count,
+      (SELECT COUNT(*) FROM community_posts cp WHERE cp.author_id = p.id) AS posts_count,
+      EXISTS(SELECT 1 FROM follows fv WHERE fv.following_id = p.id AND fv.follower_id = ${viewerId}) AS is_followed
     FROM players p
     LEFT JOIN follows f ON f.following_id = p.id
     GROUP BY p.id
-    HAVING COUNT(f.follower_id) > 0
-    ORDER BY COUNT(f.follower_id) DESC, p.joined_at ASC
+    HAVING COUNT(DISTINCT f.follower_id) > 0
+    ORDER BY COUNT(DISTINCT f.follower_id) DESC
     LIMIT 50
   `;
-  const profiles = await Promise.all(rows.map(r => getCommunityProfileV2(r.id, viewerId)));
-  return profiles.filter(Boolean) as CommunityProfileV2[];
+
+  if (rows.length === 0) return [];
+
+  // Batch-fetch badges for all players in one query
+  const playerIds = rows.map(r => r.id);
+  const badgeRows = await sql<{ player_id: string; badge: string }[]>`
+    SELECT player_id, badge FROM community_badges WHERE player_id = ANY(${sql(playerIds)})
+  `;
+  const badgeMap = new Map<string, CommunityBadge[]>();
+  for (const b of badgeRows) {
+    if (!badgeMap.has(b.player_id)) badgeMap.set(b.player_id, []);
+    badgeMap.get(b.player_id)!.push(b.badge as CommunityBadge);
+  }
+
+  return rows.map(r => ({
+    id: r.id,
+    username: r.username,
+    avatar: r.avatar,
+    avatarUrl: r.avatar_url ?? null,
+    publicId: r.public_id != null ? Number(r.public_id) : null,
+    level: Number(r.level),
+    clanTag: null,
+    clanName: null,
+    followersCount: Number(r.followers_count),
+    followingCount: Number(r.following_count),
+    postsCount: Number(r.posts_count),
+    joinedAt: Number(r.joined_at),
+    isFollowedByMe: Boolean(r.is_followed),
+    bio: r.community_bio ?? '',
+    coverUrl: r.community_cover_url ?? null,
+    favoriteRole: r.community_favorite_role ?? null,
+    badges: badgeMap.get(r.id) ?? [],
+    reputation: Number(r.community_reputation),
+    friendsCount: 0,
+    friendshipStatus: 'none' as const,
+    showcaseAchievements: [],
+    privacySettings: { hideFollowersList: false, allowFriendRequests: true, defaultPostVisibility: 'public' as const },
+  }));
 }
 
 // Followers / following lists

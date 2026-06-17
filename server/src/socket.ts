@@ -4306,7 +4306,7 @@ export function attachSocketHandlers(io: AppServer): void {
       try {
         const profileId = socket.data.profileId;
         if (!profileId) { cb(err('Not authenticated.')); return; }
-        const people = await listPeopleDirectory(profileId, (data as any).before);
+        const people = await listPeopleDirectory(profileId);
         cb(ok(people));
       } catch (e: any) { cb(err(e.message)); }
     });
