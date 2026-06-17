@@ -843,12 +843,14 @@ export async function hidePost(postId, modId) {
 }
 // People directory
 export async function listPeopleDirectory(viewerId, before) {
-    const beforeRep = before ?? 9999999;
     const rows = await sql `
-    SELECT id FROM players
-    WHERE community_reputation <= ${beforeRep}
-    ORDER BY community_reputation DESC, joined_at ASC
-    LIMIT 30
+    SELECT p.id, COUNT(f.follower_id) AS follower_count
+    FROM players p
+    LEFT JOIN follows f ON f.following_id = p.id
+    GROUP BY p.id
+    HAVING COUNT(f.follower_id) > 0
+    ORDER BY COUNT(f.follower_id) DESC, p.joined_at ASC
+    LIMIT 50
   `;
     const profiles = await Promise.all(rows.map(r => getCommunityProfileV2(r.id, viewerId)));
     return profiles.filter(Boolean);
