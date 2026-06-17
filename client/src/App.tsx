@@ -431,9 +431,9 @@ export default function App() {
       <GiftReceivedAnimation notification={giftNotif} onDismiss={() => setGiftNotif(null)} />
       <CoinShopModal open={shopOpen} onClose={() => setShopOpen(false)} profileId={profile?.id ?? ''} />
       <ShopSuccessModal open={shopSuccess} onClose={() => setShopSuccess(false)} />
-      {/* Hermes AI assistant — available across all authenticated views */}
-      <HermesToggle />
-      <HermesPanel />
+      {/* Hermes AI assistant — temporarily hidden until provider is stable */}
+      {/* <HermesToggle /> */}
+      {/* <HermesPanel /> */}
     </>
   );
 }
