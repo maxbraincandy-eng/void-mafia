@@ -2,21 +2,25 @@ import { ok, err, } from './types/index.js';
 import { createMatch, getMatch, getMatchByCode, getMatchForSocket, getOpenMatches, applyMove, finishMatch, } from './services/checkersService.js';
 import { addXP } from './services/playerService.js';
 const CHECKERS_ROOM = (id) => `ck:${id}`;
-// ── Public state shape sent to clients ─────────────────────────────────
-function toPublic(match, viewerSocketId) {
-    let myColor = null;
-    if (match.red.socketId === viewerSocketId)
-        myColor = 'red';
-    else if (match.black?.socketId === viewerSocketId)
-        myColor = 'black';
-    else if (match.spectatorSocketIds.includes(viewerSocketId))
-        myColor = 'spectator';
+// ── Public state sent to all clients in the room ───────────────────────
+// myColor is NOT computed here — the client determines it from its own socket.id
+// vs the redSocketId / blackSocketId fields.
+function toPublic(match) {
     return {
         id: match.id,
         code: match.code,
         status: match.status,
-        red: { name: match.red.name, profileId: match.red.profileId },
-        black: match.black ? { name: match.black.name, profileId: match.black.profileId } : null,
+        // Include socket IDs so each client can self-identify their color.
+        red: {
+            name: match.red.name,
+            profileId: match.red.profileId,
+            socketId: match.red.socketId,
+        },
+        black: match.black ? {
+            name: match.black.name,
+            profileId: match.black.profileId,
+            socketId: match.black.socketId,
+        } : null,
         currentTurn: match.currentTurn,
         board: match.board,
         capturedByRed: match.capturedByRed,
@@ -26,7 +30,6 @@ function toPublic(match, viewerSocketId) {
         chat: match.chat.slice(-80),
         spectatorCount: match.spectatorSocketIds.length,
         mustContinueFrom: match.mustContinueFrom,
-        myColor,
     };
 }
 function toListItem(match) {
@@ -41,17 +44,10 @@ function toListItem(match) {
         createdAt: match.createdAt,
     };
 }
-// Broadcast full state to everyone in the socket room
+// Single broadcast to the room — everyone gets the same state.
+// Each client self-identifies via its own socket.id.
 function broadcastState(io, match) {
-    const room = CHECKERS_ROOM(match.id);
-    // Broadcast individual states (myColor differs per socket)
-    const sockets = [match.red, match.black]
-        .filter(Boolean)
-        .map(p => p.socketId)
-        .concat(match.spectatorSocketIds);
-    for (const sid of sockets) {
-        io.to(sid).emit('checkers:state', toPublic(match, sid));
-    }
+    io.to(CHECKERS_ROOM(match.id)).emit('checkers:state', toPublic(match));
 }
 // ── Handler Registration ───────────────────────────────────────────────
 export function registerCheckersHandlers(io, socket) {
@@ -75,7 +71,7 @@ export function registerCheckersHandlers(io, socket) {
             }
             const match = createMatch({ socketId: socket.id, name, profileId: socket.data.profileId ?? null }, { forcedCapture: true, allowSpectators: true });
             socket.join(CHECKERS_ROOM(match.id));
-            cb(ok(toPublic(match, socket.id)));
+            cb(ok(toPublic(match)));
         }
         catch (e) {
             cb(err(e.message));
@@ -90,32 +86,31 @@ export function registerCheckersHandlers(io, socket) {
                 return cb(err('Match not found.'));
             if (match.status === 'finished')
                 return cb(err('This match has ended.'));
-            // Already in this match?
+            // Already in this match as red or black — just re-join the room.
             if (match.red.socketId === socket.id || match.black?.socketId === socket.id) {
                 socket.join(CHECKERS_ROOM(match.id));
-                return cb(ok(toPublic(match, socket.id)));
+                return cb(ok(toPublic(match)));
             }
-            // Existing match check
+            // Check if already in a different active match.
             const existing = getMatchForSocket(socket.id);
             if (existing && existing.id !== match.id && existing.status !== 'finished') {
                 return cb(err('You are already in another checkers match.'));
             }
             if (match.status === 'waiting' && !match.black) {
-                // Join as black player
+                // Join as the black player.
                 match.black = { socketId: socket.id, name, profileId: socket.data.profileId ?? null };
                 match.status = 'active';
                 match.updatedAt = Date.now();
                 socket.join(CHECKERS_ROOM(match.id));
                 broadcastState(io, match);
-                // Notify list subscribers
                 io.emit('checkers:list_update', getOpenMatches().map(toListItem));
-                cb(ok(toPublic(match, socket.id)));
+                cb(ok(toPublic(match)));
             }
             else if (match.settings.allowSpectators && !match.spectatorSocketIds.includes(socket.id)) {
-                // Join as spectator
+                // Join as spectator.
                 match.spectatorSocketIds.push(socket.id);
                 socket.join(CHECKERS_ROOM(match.id));
-                cb(ok(toPublic(match, socket.id)));
+                cb(ok(toPublic(match)));
             }
             else {
                 cb(err('Cannot join this match.'));
@@ -133,7 +128,6 @@ export function registerCheckersHandlers(io, socket) {
                 return cb(err('Match not found.'));
             if (match.status !== 'active')
                 return cb(err('Match is not active.'));
-            // Determine caller's color
             let myColor = null;
             if (match.red.socketId === socket.id)
                 myColor = 'red';
@@ -146,7 +140,6 @@ export function registerCheckersHandlers(io, socket) {
             const result = applyMove(match, data.from.row, data.from.col, data.to.row, data.to.col);
             if (!result.ok)
                 return cb(err(result.error));
-            // Apply to match state
             match.board = result.board;
             match.mustContinueFrom = result.mustContinueFrom;
             if (result.captured) {
@@ -157,7 +150,6 @@ export function registerCheckersHandlers(io, socket) {
             }
             if (result.winnerColor) {
                 finishMatch(match, result.winnerColor);
-                // Award XP
                 const winner = result.winnerColor === 'red' ? match.red : match.black;
                 const loser = result.winnerColor === 'red' ? match.black : match.red;
                 if (winner?.profileId)
@@ -166,7 +158,6 @@ export function registerCheckersHandlers(io, socket) {
                     addXP(loser.profileId, 5).catch(() => { });
             }
             else if (!result.mustContinueFrom) {
-                // Turn ends only when multi-jump chain is complete
                 match.currentTurn = myColor === 'red' ? 'black' : 'red';
             }
             match.updatedAt = Date.now();
@@ -219,22 +210,23 @@ export function registerCheckersHandlers(io, socket) {
             const isBlack = old.black?.socketId === socket.id;
             if (!isRed && !isBlack)
                 return cb(err('You are not a player.'));
-            // Swap colors for rematch
-            const newRedParticipant = isRed ? old.black : old.red;
-            const newBlackParticipant = isRed ? old.red : old.black;
-            const nm = createMatch({ ...newRedParticipant }, old.settings);
-            nm.black = { ...newBlackParticipant };
+            // Swap colors for rematch.
+            const newRed = isRed ? old.black : old.red;
+            const newBlack = isRed ? old.red : old.black;
+            const nm = createMatch({ ...newRed }, old.settings);
+            nm.black = { ...newBlack };
             nm.status = 'active';
-            // Move both sockets to new room
-            const redSocket = io.sockets.sockets.get(newRedParticipant.socketId);
-            const blackSocket = io.sockets.sockets.get(newBlackParticipant.socketId);
-            if (redSocket) {
-                redSocket.join(CHECKERS_ROOM(nm.id));
-                redSocket.leave(CHECKERS_ROOM(old.id));
+            nm.updatedAt = Date.now();
+            // Move both sockets to the new room.
+            const redSock = io.sockets.sockets.get(newRed.socketId);
+            const blackSock = io.sockets.sockets.get(newBlack.socketId);
+            if (redSock) {
+                redSock.join(CHECKERS_ROOM(nm.id));
+                redSock.leave(CHECKERS_ROOM(old.id));
             }
-            if (blackSocket) {
-                blackSocket.join(CHECKERS_ROOM(nm.id));
-                blackSocket.leave(CHECKERS_ROOM(old.id));
+            if (blackSock) {
+                blackSock.join(CHECKERS_ROOM(nm.id));
+                blackSock.leave(CHECKERS_ROOM(old.id));
             }
             broadcastState(io, nm);
             cb(ok({ newMatchId: nm.id, newCode: nm.code }));
@@ -271,13 +263,11 @@ export function registerCheckersHandlers(io, socket) {
             const text = String(data.text ?? '').trim().slice(0, 300);
             if (!text)
                 return cb(err('Empty message.'));
-            let senderName = 'Player';
+            let senderName = 'Spectator';
             if (match.red.socketId === socket.id)
                 senderName = match.red.name;
             else if (match.black?.socketId === socket.id)
                 senderName = match.black.name;
-            else
-                senderName = 'Spectator';
             const msg = {
                 senderId: socket.data.profileId ?? socket.id,
                 senderName,
@@ -303,14 +293,14 @@ export function handleCheckersDisconnect(io, socketId) {
     handleCheckersLeave(io, socketId, match);
 }
 function handleCheckersLeave(io, socketId, match) {
-    // Remove from spectators
+    // Remove from spectators silently.
     const specIdx = match.spectatorSocketIds.indexOf(socketId);
     if (specIdx !== -1) {
         match.spectatorSocketIds.splice(specIdx, 1);
         broadcastState(io, match);
         return;
     }
-    // Player leaving — if game is active, opponent wins
+    // Player leaving while game is active — opponent wins.
     if (match.status === 'active') {
         let winnerColor = null;
         if (match.red.socketId === socketId)
@@ -323,8 +313,8 @@ function handleCheckersLeave(io, socketId, match) {
         }
     }
     else if (match.status === 'waiting' && match.red.socketId === socketId) {
-        // Creator left before anyone joined — delete match
-        const rk = `ck:${match.id}`;
+        // Creator left before anyone joined — remove the match.
+        const rk = CHECKERS_ROOM(match.id);
         io.in(rk).socketsLeave(rk);
         finishMatch(match, null);
         io.emit('checkers:list_update', getOpenMatches().map(m => ({
