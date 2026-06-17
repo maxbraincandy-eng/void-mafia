@@ -39,6 +39,7 @@ export interface CheckersMatch {
         row: number;
         col: number;
     } | null;
+    inactiveHalfMoves: number;
 }
 export interface MoveOption {
     to: {
@@ -63,11 +64,15 @@ export type MoveResult = {
         col: number;
     } | null;
     winnerColor: PieceColor | null;
+    draw: boolean;
+    newInactiveHalfMoves: number;
 } | {
     ok: false;
     error: string;
 };
 export declare function initBoard(): CheckersBoard;
+export declare function getCaptures(board: CheckersBoard, r: number, c: number): MoveOption[];
+export declare function anyCapture(board: CheckersBoard, color: PieceColor): boolean;
 export declare function getValidMovesForPiece(board: CheckersBoard, r: number, c: number, forcedCapture: boolean, mustContinueFrom: {
     row: number;
     col: number;

@@ -164,6 +164,7 @@ export function registerCheckersHandlers(io: AppServer, socket: AppSocket): void
 
       match.board = result.board;
       match.mustContinueFrom = result.mustContinueFrom;
+      match.inactiveHalfMoves = result.newInactiveHalfMoves;
       if (result.captured) {
         if (myColor === 'red') match.capturedByRed++;
         else match.capturedByBlack++;
@@ -175,6 +176,8 @@ export function registerCheckersHandlers(io: AppServer, socket: AppSocket): void
         const loser  = result.winnerColor === 'red' ? match.black : match.red;
         if (winner?.profileId) addXP(winner.profileId, 20).catch(() => {});
         if (loser?.profileId)  addXP(loser.profileId, 5).catch(() => {});
+      } else if (result.draw) {
+        finishMatch(match, null);
       } else if (!result.mustContinueFrom) {
         match.currentTurn = myColor === 'red' ? 'black' : 'red';
       }

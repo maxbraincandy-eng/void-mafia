@@ -142,6 +142,7 @@ export function registerCheckersHandlers(io, socket) {
                 return cb(err(result.error));
             match.board = result.board;
             match.mustContinueFrom = result.mustContinueFrom;
+            match.inactiveHalfMoves = result.newInactiveHalfMoves;
             if (result.captured) {
                 if (myColor === 'red')
                     match.capturedByRed++;
@@ -156,6 +157,9 @@ export function registerCheckersHandlers(io, socket) {
                     addXP(winner.profileId, 20).catch(() => { });
                 if (loser?.profileId)
                     addXP(loser.profileId, 5).catch(() => { });
+            }
+            else if (result.draw) {
+                finishMatch(match, null);
             }
             else if (!result.mustContinueFrom) {
                 match.currentTurn = myColor === 'red' ? 'black' : 'red';

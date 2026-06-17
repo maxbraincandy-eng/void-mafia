@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@/store/langStore';
 import { useCheckersStore } from '@/store/checkersStore';
 import { CheckersBoard } from './CheckersBoard';
+import { anyCapture } from '@/lib/checkersLogic';
+import type { PieceColor } from '@/types/checkers';
 
 export function CheckersGame() {
   const t = useT();
@@ -27,6 +29,9 @@ export function CheckersGame() {
 
   const myCaptures = myColor === 'red' ? match.capturedByRed : myColor === 'black' ? match.capturedByBlack : 0;
   const theirCaptures = myColor === 'red' ? match.capturedByBlack : myColor === 'black' ? match.capturedByRed : 0;
+
+  const captureRequired = !isFinished && isMyTurn && match.settings.forcedCapture
+    && anyCapture(match.board, myColor as PieceColor);
 
   const turnLabel = isFinished
     ? match.winnerColor
@@ -113,6 +118,11 @@ export function CheckersGame() {
             <p className="font-mono text-[10px] uppercase tracking-widest" style={{ color: turnColor }}>
               {turnLabel}
             </p>
+            {captureRequired && (
+              <p className="font-mono text-[9px] uppercase tracking-wider mt-0.5" style={{ color: '#ff6622' }}>
+                {t.games.checkers.captureRequired}
+              </p>
+            )}
           </div>
           <PlayerBadge
             name={rightPlayer?.name ?? '?'}

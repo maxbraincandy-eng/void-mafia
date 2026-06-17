@@ -1,11 +1,25 @@
+/**
+ * Russian Checkers (Шашки) engine.
+ *
+ * Rules implemented:
+ * - Men move forward only; capture in all 4 directions (including backward).
+ * - Flying kings: move/capture any number of squares diagonally.
+ * - King capture: slide until one opponent piece, land any empty square beyond.
+ * - Mandatory capture (forced). Violating returns an error, not a game end.
+ * - Multi-capture: after a capture, if the same piece can capture again the turn
+ *   continues from that piece.
+ * - King promotion mid-sequence ends the capture sequence (Russian rule).
+ * - Draw: 60 half-moves without any capture.
+ * - Win: opponent has no pieces OR no legal moves (checked after full turn).
+ */
 import { generateId } from '../utils/helpers.js';
 // ── Match Store ────────────────────────────────────────────────────────
 const matches = new Map();
-// Cleanup finished matches after 10 minutes
+const DRAW_HALF_MOVE_THRESHOLD = 60;
 function scheduleCleanup(id) {
     setTimeout(() => { matches.delete(id); }, 10 * 60 * 1000);
 }
-// ── Board Logic ────────────────────────────────────────────────────────
+// ── Board Setup ────────────────────────────────────────────────────────
 export function initBoard() {
     const board = Array.from({ length: 8 }, () => Array(8).fill(null));
     for (let r = 0; r < 8; r++) {
@@ -23,20 +37,14 @@ export function initBoard() {
 function inBounds(r, c) {
     return r >= 0 && r < 8 && c >= 0 && c < 8;
 }
-function getDirs(piece) {
-    const dirs = [];
-    if (piece.king || piece.color === 'black')
-        dirs.push([1, -1], [1, 1]);
-    if (piece.king || piece.color === 'red')
-        dirs.push([-1, -1], [-1, 1]);
-    return dirs;
-}
-function getCaptures(board, r, c) {
+const ALL_DIRS = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+// Men capture in all 4 directions (including backward) — Russian rules
+function getManCaptures(board, r, c) {
     const piece = board[r][c];
-    if (!piece)
+    if (!piece || piece.king)
         return [];
     const moves = [];
-    for (const [dr, dc] of getDirs(piece)) {
+    for (const [dr, dc] of ALL_DIRS) {
         const mr = r + dr, mc = c + dc;
         const tr = r + 2 * dr, tc = c + 2 * dc;
         if (!inBounds(mr, mc) || !inBounds(tr, tc))
@@ -50,12 +58,46 @@ function getCaptures(board, r, c) {
     }
     return moves;
 }
-function getSimples(board, r, c) {
+// Flying king: slide past empty squares, jump ONE opponent, land any empty square beyond
+function getKingCaptures(board, r, c) {
+    const piece = board[r][c];
+    if (!piece || !piece.king)
+        return [];
+    const moves = [];
+    for (const [dr, dc] of ALL_DIRS) {
+        let cr = r + dr, cc = c + dc;
+        // Slide over empty squares toward the first piece in this direction
+        while (inBounds(cr, cc) && board[cr][cc] === null) {
+            cr += dr;
+            cc += dc;
+        }
+        // If that piece is an opponent, collect all empty landing squares beyond it
+        if (inBounds(cr, cc) && board[cr][cc].color !== piece.color) {
+            const captureR = cr, captureC = cc;
+            let lr = cr + dr, lc = cc + dc;
+            while (inBounds(lr, lc) && board[lr][lc] === null) {
+                moves.push({ to: { row: lr, col: lc }, capture: { row: captureR, col: captureC } });
+                lr += dr;
+                lc += dc;
+            }
+        }
+    }
+    return moves;
+}
+export function getCaptures(board, r, c) {
     const piece = board[r][c];
     if (!piece)
         return [];
+    return piece.king ? getKingCaptures(board, r, c) : getManCaptures(board, r, c);
+}
+// Men move forward only
+function getManSimples(board, r, c) {
+    const piece = board[r][c];
+    if (!piece || piece.king)
+        return [];
+    const dr = piece.color === 'black' ? 1 : -1;
     const moves = [];
-    for (const [dr, dc] of getDirs(piece)) {
+    for (const dc of [1, -1]) {
         const tr = r + dr, tc = c + dc;
         if (!inBounds(tr, tc))
             continue;
@@ -65,7 +107,29 @@ function getSimples(board, r, c) {
     }
     return moves;
 }
-function anyCapture(board, color) {
+// Flying king simple moves: any number of squares in all 4 directions
+function getKingSimples(board, r, c) {
+    const piece = board[r][c];
+    if (!piece || !piece.king)
+        return [];
+    const moves = [];
+    for (const [dr, dc] of ALL_DIRS) {
+        let tr = r + dr, tc = c + dc;
+        while (inBounds(tr, tc) && board[tr][tc] === null) {
+            moves.push({ to: { row: tr, col: tc }, capture: null });
+            tr += dr;
+            tc += dc;
+        }
+    }
+    return moves;
+}
+function getSimples(board, r, c) {
+    const piece = board[r][c];
+    if (!piece)
+        return [];
+    return piece.king ? getKingSimples(board, r, c) : getManSimples(board, r, c);
+}
+export function anyCapture(board, color) {
     for (let r = 0; r < 8; r++) {
         for (let c = 0; c < 8; c++) {
             const p = board[r][c];
@@ -105,7 +169,7 @@ export function getValidMovesForPiece(board, r, c, forcedCapture, mustContinueFr
 }
 // ── Move Application ──────────────────────────────────────────────────
 export function applyMove(match, fromRow, fromCol, toRow, toCol) {
-    const { board, currentTurn: color, settings, mustContinueFrom } = match;
+    const { board, currentTurn: color, settings, mustContinueFrom, inactiveHalfMoves } = match;
     const piece = board[fromRow][fromCol];
     if (!piece)
         return { ok: false, error: 'No piece at source.' };
@@ -113,8 +177,15 @@ export function applyMove(match, fromRow, fromCol, toRow, toCol) {
         return { ok: false, error: 'Not your piece.' };
     const valid = getValidMovesForPiece(board, fromRow, fromCol, settings.forcedCapture, mustContinueFrom);
     const move = valid.find(m => m.to.row === toRow && m.to.col === toCol);
-    if (!move)
+    if (!move) {
+        if (mustContinueFrom && (fromRow !== mustContinueFrom.row || fromCol !== mustContinueFrom.col)) {
+            return { ok: false, error: 'Must continue multi-capture.' };
+        }
+        if (settings.forcedCapture && !mustContinueFrom && anyCapture(board, color)) {
+            return { ok: false, error: 'Capture required.' };
+        }
         return { ok: false, error: 'Illegal move.' };
+    }
     // Deep-copy board
     const nb = board.map(row => row.map(cell => (cell ? { ...cell } : null)));
     nb[toRow][toCol] = { ...piece };
@@ -136,19 +207,26 @@ export function applyMove(match, fromRow, fromCol, toRow, toCol) {
             promoted = true;
         }
     }
-    // Multi-jump: allow another capture from the same piece (unless just promoted)
+    // Multi-capture: continue if same piece can capture again.
+    // Promotion ends the sequence (Russian rule).
     let nextContinue = null;
     if (captured && !promoted && getCaptures(nb, toRow, toCol).length > 0) {
         nextContinue = { row: toRow, col: toCol };
     }
-    // Check for winner after multi-jump completes
+    // Win / draw detection — only evaluated when a full turn completes
+    const newInactiveHalfMoves = captured ? 0 : inactiveHalfMoves + 1;
     let winnerColor = null;
+    let draw = false;
     if (!nextContinue) {
         const opp = color === 'red' ? 'black' : 'red';
-        if (!hasLegalMove(nb, opp))
+        if (!hasLegalMove(nb, opp)) {
             winnerColor = color;
+        }
+        else if (newInactiveHalfMoves >= DRAW_HALF_MOVE_THRESHOLD) {
+            draw = true;
+        }
     }
-    return { ok: true, board: nb, captured, promoted, mustContinueFrom: nextContinue, winnerColor };
+    return { ok: true, board: nb, captured, promoted, mustContinueFrom: nextContinue, winnerColor, draw, newInactiveHalfMoves };
 }
 // ── CRUD ───────────────────────────────────────────────────────────────
 export function createMatch(red, settings) {
@@ -174,6 +252,7 @@ export function createMatch(red, settings) {
         chat: [],
         spectatorSocketIds: [],
         mustContinueFrom: null,
+        inactiveHalfMoves: 0,
     };
     matches.set(match.id, match);
     return match;

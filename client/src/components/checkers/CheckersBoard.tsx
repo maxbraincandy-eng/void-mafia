@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { CheckersBoard as Board, PieceColor, MoveOption } from '@/types/checkers';
-import { getValidMovesForPiece } from '@/lib/checkersLogic';
+import { getValidMovesForPiece, getCaptures } from '@/lib/checkersLogic';
 
 interface Props {
   board: Board;
@@ -31,6 +31,21 @@ export function CheckersBoard({
   function toData(dr: number, dc: number): [number, number] {
     return flip ? [7 - dr, 7 - dc] : [dr, dc];
   }
+
+  // Pieces that must capture this turn (shown with orange ring when none selected)
+  const mandatoryCaptureCells = useMemo(() => {
+    if (!isMyTurn || !forcedCapture || mustContinueFrom) return new Set<string>();
+    const s = new Set<string>();
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const p = board[r][c];
+        if (p?.color === (myColor as PieceColor) && getCaptures(board, r, c).length > 0) {
+          s.add(`${r},${c}`);
+        }
+      }
+    }
+    return s;
+  }, [board, isMyTurn, forcedCapture, mustContinueFrom, myColor]);
 
   // Valid moves are in data space; convert destinations to display space for hit-testing.
   const validMoves: MoveOption[] = useMemo(() => {
@@ -92,6 +107,7 @@ export function CheckersBoard({
           const isSelected = selectedCell?.row === dataRow && selectedCell?.col === dataCol;
           const isValidTarget = validDestSet.has(`${displayRow},${displayCol}`);
           const isMustContinue = mustContinueFrom?.row === dataRow && mustContinueFrom?.col === dataCol;
+          const isMandatoryCapture = !selectedCell && mandatoryCaptureCells.has(`${dataRow},${dataCol}`);
 
           const cellBg = isDark
             ? isSelected
@@ -131,9 +147,11 @@ export function CheckersBoard({
                   background: pc.fill,
                   boxShadow: isSelected || isMustContinue
                     ? `0 0 0 3px #00f5ff, 0 0 16px ${pc.glow}`
-                    : isValidTarget
-                      ? `0 0 0 2px rgba(0,245,255,0.5), 0 0 10px ${pc.glow}`
-                      : `0 2px 6px rgba(0,0,0,0.5), 0 0 10px ${pc.glow}`,
+                    : isMandatoryCapture
+                      ? `0 0 0 2px #ff6622, 0 0 14px rgba(255,102,34,0.65), 0 0 8px ${pc.glow}`
+                      : isValidTarget
+                        ? `0 0 0 2px rgba(0,245,255,0.5), 0 0 10px ${pc.glow}`
+                        : `0 2px 6px rgba(0,0,0,0.5), 0 0 10px ${pc.glow}`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0, transition: 'box-shadow 0.15s',
                 }}>
