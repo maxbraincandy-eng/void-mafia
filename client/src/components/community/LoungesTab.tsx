@@ -156,6 +156,7 @@ export function LoungesTab({ onOpenProfile }: { onOpenProfile: (playerId: string
     );
   }
 
+  const isMod = !!profile?.moderatorLevel;
   const specialLounges = lounges.filter(l => l.kind !== 'lounge');
   const playerLounges = lounges.filter(l => l.kind === 'lounge');
 
@@ -193,7 +194,7 @@ export function LoungesTab({ onOpenProfile }: { onOpenProfile: (playerId: string
                   key={lounge.id}
                   lounge={lounge}
                   onEnter={() => setActiveLoungeId(lounge.id)}
-                  onDelete={lounge.ownerId === profile?.id ? async () => {
+                  onDelete={(isMod || lounge.ownerId === profile?.id) ? async () => {
                     await deleteLounge(lounge.id);
                   } : undefined}
                 />

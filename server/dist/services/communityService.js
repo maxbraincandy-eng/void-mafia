@@ -416,13 +416,13 @@ export async function createLounge(ownerId, name, description) {
     const row = await getLoungeRow(id);
     return rowToLounge(row, 0, 0);
 }
-export async function deleteLounge(loungeId, requesterId) {
+export async function deleteLounge(loungeId, requesterId, isModerator = false) {
     const row = await getLoungeRow(loungeId);
     if (!row)
         throw new Error('Lounge not found.');
     if (row.kind !== 'lounge')
         throw new Error('Cannot delete special lounges.');
-    if (row.owner_id !== requesterId)
+    if (!isModerator && row.owner_id !== requesterId)
         throw new Error('Only the lounge owner can delete it.');
     await sql `DELETE FROM community_lounges WHERE id = ${loungeId}`;
 }

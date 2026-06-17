@@ -41,7 +41,7 @@ export declare function listLoungeRows(): Promise<any[]>;
 export declare function getLoungeRow(id: string): Promise<any | null>;
 export { rowToLounge };
 export declare function createLounge(ownerId: string, name: string, description: string): Promise<CommunityLounge>;
-export declare function deleteLounge(loungeId: string, requesterId: string): Promise<void>;
+export declare function deleteLounge(loungeId: string, requesterId: string, isModerator?: boolean): Promise<void>;
 export declare function setLoungeLive(loungeId: string, isLive: boolean, lastTopic: string | null): Promise<CommunityLounge>;
 export interface CommunityBanRecord {
     id: string;

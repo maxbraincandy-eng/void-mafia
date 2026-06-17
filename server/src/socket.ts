@@ -4109,13 +4109,15 @@ export function attachSocketHandlers(io: AppServer): void {
       try {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('Not authenticated.');
+        const requester = await getPlayer(profileId);
+        const isMod = !!requester?.moderatorLevel;
         // Force-remove all members from in-memory state
         const members = loungeGetMembers(loungeId);
         for (const m of members) {
           loungeRemoveMember(loungeId, m.socketId);
           io.to(m.socketId).emit('lounge:kicked' as any);
         }
-        await deleteLounge(loungeId, profileId);
+        await deleteLounge(loungeId, profileId, isMod);
         io.emit('community:lounge_removed' as any, { loungeId });
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
