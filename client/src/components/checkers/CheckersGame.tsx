@@ -23,27 +23,28 @@ export function CheckersGame() {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [match?.chat]);
 
-  if (!match) return null;
-
-  const myColor = match.myColor;
-  const isPlayer = myColor === 'red' || myColor === 'black';
-  const isMyTurn = isPlayer && match.currentTurn === myColor;
-  const isFinished = match.status === 'finished';
-
-  const myCaptures = myColor === 'red' ? match.capturedByRed : myColor === 'black' ? match.capturedByBlack : 0;
-  const theirCaptures = myColor === 'red' ? match.capturedByBlack : myColor === 'black' ? match.capturedByRed : 0;
-
-  const captureRequired = !isFinished && isMyTurn && match.settings.forcedCapture
-    && anyCapture(match.board, myColor as PieceColor);
-
   // ── Voice ──────────────────────────────────────────────────────────
+  // Must be called before any conditional return to satisfy Rules of Hooks
   const { isTalking, speakingSocketIds, leave: leaveVoice } = useCheckersVoice();
+  const isFinished = match?.status === 'finished';
 
   // Clean up voice on match end or unmount
   useEffect(() => {
     if (isFinished) leaveVoice();
   }, [isFinished, leaveVoice]);
   useEffect(() => () => leaveVoice(), [leaveVoice]);
+
+  if (!match) return null;
+
+  const myColor = match.myColor;
+  const isPlayer = myColor === 'red' || myColor === 'black';
+  const isMyTurn = isPlayer && match.currentTurn === myColor;
+
+  const myCaptures = myColor === 'red' ? match.capturedByRed : myColor === 'black' ? match.capturedByBlack : 0;
+  const theirCaptures = myColor === 'red' ? match.capturedByBlack : myColor === 'black' ? match.capturedByRed : 0;
+
+  const captureRequired = !isFinished && isMyTurn && match.settings.forcedCapture
+    && anyCapture(match.board, myColor as PieceColor);
 
   const turnLabel = isFinished
     ? match.winnerColor
