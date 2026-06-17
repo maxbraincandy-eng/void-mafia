@@ -73,7 +73,9 @@ export function PeopleTab({ onOpenProfile }: { onOpenProfile: (playerId: string)
   useEffect(() => {
     (async () => {
       setLoading(true);
-      await Promise.all([fetchPeopleList(), fetchOnlineMembers()]);
+      try {
+        await Promise.allSettled([fetchPeopleList(), fetchOnlineMembers()]);
+      } catch {}
       setLoading(false);
     })();
   }, [fetchPeopleList, fetchOnlineMembers]);

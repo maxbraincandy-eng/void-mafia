@@ -391,8 +391,10 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
     },
     setActiveHashtag: (tag) => set({ activeHashtag: tag, feedV2Posts: [], feedV2HasMore: true }),
     fetchOnlineMembers: async () => {
-      const data = unwrap(await emitWithAck<undefined, Res<{ members: Array<{ playerId: string; username: string; avatar: string; avatarUrl: string | null }>; count: number }>>('community:online_members'));
-      set({ onlineMembers: data.members, onlineMemberCount: data.count });
+      try {
+        const data = unwrap(await emitWithAck<undefined, Res<{ members: Array<{ playerId: string; username: string; avatar: string; avatarUrl: string | null }>; count: number }>>('community:online_members'));
+        set({ onlineMembers: data.members, onlineMemberCount: data.count });
+      } catch {}
     },
     search: async (query) => {
       if (!query.trim()) { set({ searchResults: null, searchLoading: false }); return; }
@@ -411,8 +413,10 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
       return unwrap(await emitWithAck<any, Res<CommunityProfileV2[]>>('community:following_list', { profileId }));
     },
     fetchPeopleList: async () => {
-      const list = unwrap(await emitWithAck<undefined, Res<CommunityProfileV2[]>>('community:people_list'));
-      set({ peopleList: list });
+      try {
+        const list = unwrap(await emitWithAck<any, Res<CommunityProfileV2[]>>('community:people_list', {}));
+        set({ peopleList: list });
+      } catch { set({ peopleList: [] }); }
     },
     updateMyProfile: async (data) => {
       const profile = unwrap(await emitWithAck<any, Res<CommunityProfileV2>>('community:update_profile', data));
