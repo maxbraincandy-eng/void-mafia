@@ -75,7 +75,7 @@ function anyCapture(board, color) {
     }
     return false;
 }
-function hasLegalMove(board, color, forcedCapture) {
+function hasLegalMove(board, color) {
     for (let r = 0; r < 8; r++) {
         for (let c = 0; c < 8; c++) {
             const p = board[r][c];
@@ -83,7 +83,7 @@ function hasLegalMove(board, color, forcedCapture) {
                 continue;
             if (getCaptures(board, r, c).length > 0)
                 return true;
-            if (!forcedCapture && getSimples(board, r, c).length > 0)
+            if (getSimples(board, r, c).length > 0)
                 return true;
         }
     }
@@ -145,7 +145,7 @@ export function applyMove(match, fromRow, fromCol, toRow, toCol) {
     let winnerColor = null;
     if (!nextContinue) {
         const opp = color === 'red' ? 'black' : 'red';
-        if (!hasLegalMove(nb, opp, settings.forcedCapture))
+        if (!hasLegalMove(nb, opp))
             winnerColor = color;
     }
     return { ok: true, board: nb, captured, promoted, mustContinueFrom: nextContinue, winnerColor };
