@@ -5,6 +5,7 @@ import { createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, addSpectator
 import { startGame, setPhase, advancePhase, submitNightAction, submitVote, submitNomination, checkWin, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult, getTrackResult, resolveVotes, } from './services/gameService.js';
 import { createPlayerMessage, createSystemMessage, addMessage, validateChat, } from './services/chatService.js';
 import { registerCheckersHandlers, handleCheckersDisconnect } from './checkers.js';
+import { registerJokerHandlers, handleJokerDisconnect } from './joker.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
 import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, grantStarterCosmetics, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
@@ -5129,6 +5130,8 @@ export function attachSocketHandlers(io) {
         });
         // ── Checkers mini-game ──────────────────────────────────────────
         registerCheckersHandlers(io, socket);
+        // ── Joker card game ─────────────────────────────────────────────
+        registerJokerHandlers(io, socket);
         // ── Disconnect ──────────────────────────────────────────────────
         socket.on('disconnect', () => {
             rateLimits.delete(socket.id);
@@ -5152,6 +5155,7 @@ export function attachSocketHandlers(io) {
             handleVoiceLeave(io, socket.id);
             handleLoungeLeave(io, socket);
             handleCheckersDisconnect(io, socket.id);
+            handleJokerDisconnect(io, socket.id);
             // Remove from any spectate queues
             for (const [qRoomId, queue] of spectateQueues) {
                 const idx = queue.indexOf(socket.id);

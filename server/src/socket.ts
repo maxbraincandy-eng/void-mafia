@@ -21,6 +21,7 @@ import {
   createPlayerMessage, createSystemMessage, addMessage, validateChat,
 } from './services/chatService.js';
 import { registerCheckersHandlers, handleCheckersDisconnect } from './checkers.js';
+import { registerJokerHandlers, handleJokerDisconnect } from './joker.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
 import {
@@ -4516,6 +4517,9 @@ export function attachSocketHandlers(io: AppServer): void {
     // ── Checkers mini-game ──────────────────────────────────────────
     registerCheckersHandlers(io, socket);
 
+    // ── Joker card game ─────────────────────────────────────────────
+    registerJokerHandlers(io, socket);
+
     // ── Disconnect ──────────────────────────────────────────────────
     socket.on('disconnect', () => {
       rateLimits.delete(socket.id);
@@ -4536,6 +4540,7 @@ export function attachSocketHandlers(io: AppServer): void {
       handleVoiceLeave(io, socket.id);
       handleLoungeLeave(io, socket);
       handleCheckersDisconnect(io, socket.id);
+      handleJokerDisconnect(io, socket.id);
       // Remove from any spectate queues
       for (const [qRoomId, queue] of spectateQueues) {
         const idx = queue.indexOf(socket.id);
