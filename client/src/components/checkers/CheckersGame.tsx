@@ -3,7 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@/store/langStore';
 import { useCheckersStore } from '@/store/checkersStore';
 import { CheckersBoard } from './CheckersBoard';
+import { CheckersPTTButton } from './CheckersPTTButton';
+import { useCheckersVoice } from '@/hooks/useCheckersVoice';
 import { anyCapture } from '@/lib/checkersLogic';
+import { socket } from '@/lib/socket';
 import type { PieceColor } from '@/types/checkers';
 
 export function CheckersGame() {
@@ -33,6 +36,15 @@ export function CheckersGame() {
   const captureRequired = !isFinished && isMyTurn && match.settings.forcedCapture
     && anyCapture(match.board, myColor as PieceColor);
 
+  // ── Voice ──────────────────────────────────────────────────────────
+  const { isTalking, speakingSocketIds, leave: leaveVoice } = useCheckersVoice();
+
+  // Clean up voice on match end or unmount
+  useEffect(() => {
+    if (isFinished) leaveVoice();
+  }, [isFinished, leaveVoice]);
+  useEffect(() => () => leaveVoice(), [leaveVoice]);
+
   const turnLabel = isFinished
     ? match.winnerColor
       ? `${match.winnerColor === 'red' ? match.red.name : (match.black?.name ?? '?')} ${t.games.checkers.wins}`
@@ -58,6 +70,15 @@ export function CheckersGame() {
   const rightColor  = myColor === 'black' ? 'red'   : 'black';
   const leftCap     = myColor === 'black' ? myCaptures   : (isPlayer ? myCaptures   : match.capturedByRed);
   const rightCap    = myColor === 'black' ? theirCaptures : (isPlayer ? theirCaptures : match.capturedByBlack);
+
+  // Speaking indicators (after leftPlayer/rightPlayer are available)
+  const mySocketId    = socket.id ?? '';
+  const leftSpeaking  = leftPlayer
+    ? (leftPlayer.socketId  === mySocketId ? isTalking : speakingSocketIds.includes(leftPlayer.socketId))
+    : false;
+  const rightSpeaking = rightPlayer
+    ? (rightPlayer.socketId === mySocketId ? isTalking : speakingSocketIds.includes(rightPlayer.socketId))
+    : false;
 
   return (
     <motion.div
@@ -113,6 +134,7 @@ export function CheckersGame() {
             active={match.currentTurn === leftColor && match.status === 'active'}
             captures={leftCap}
             isMe={isPlayer}
+            isSpeaking={leftSpeaking}
           />
           <div className="text-center flex-shrink-0">
             <p className="font-mono text-[10px] uppercase tracking-widest" style={{ color: turnColor }}>
@@ -130,9 +152,17 @@ export function CheckersGame() {
             active={match.currentTurn === rightColor && match.status === 'active'}
             captures={rightCap}
             isMe={false}
+            isSpeaking={rightSpeaking}
             reversed
           />
         </div>
+
+        {/* PTT button — only for players in an active match */}
+        {isPlayer && match.status === 'active' && (
+          <div className="flex-shrink-0 flex justify-center pb-1">
+            <CheckersPTTButton matchId={match.id} />
+          </div>
+        )}
 
         {/* Board */}
         <div className="flex-1 flex items-center justify-center px-3 pb-2 min-h-0">
@@ -248,30 +278,45 @@ const BADGE_COLORS = {
 };
 
 function PlayerBadge({
-  name, color, active, captures, isMe, reversed,
+  name, color, active, captures, isMe, isSpeaking, reversed,
 }: {
   name: string;
   color: 'red' | 'black';
   active: boolean;
   captures: number;
   isMe: boolean;
+  isSpeaking?: boolean;
   reversed?: boolean;
 }) {
   const c = BADGE_COLORS[color];
   return (
     <div className={`flex items-center gap-2 min-w-0 ${reversed ? 'flex-row-reverse text-right' : ''}`}>
-      <div style={{
-        width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-        background: c.bg,
-        boxShadow: active
-          ? `0 0 0 2px #00f5ff, 0 0 10px rgba(0,245,255,0.5)`
-          : `0 0 0 1px ${c.ring}44, 0 2px 4px rgba(0,0,0,0.4)`,
-      }} />
+      <div style={{ position: 'relative', width: 28, height: 28, flexShrink: 0 }}>
+        <div style={{
+          width: 28, height: 28, borderRadius: '50%',
+          background: c.bg,
+          boxShadow: isSpeaking
+            ? `0 0 0 2px #00ff64, 0 0 12px rgba(0,255,100,0.6)`
+            : active
+              ? `0 0 0 2px #00f5ff, 0 0 10px rgba(0,245,255,0.5)`
+              : `0 0 0 1px ${c.ring}44, 0 2px 4px rgba(0,0,0,0.4)`,
+        }} />
+        {isSpeaking && (
+          <span style={{
+            position: 'absolute', bottom: -2, right: -2,
+            width: 8, height: 8, borderRadius: '50%',
+            background: '#00ff64',
+            boxShadow: '0 0 6px rgba(0,255,100,0.8)',
+          }} />
+        )}
+      </div>
       <div className="min-w-0">
         <p className="font-mono text-xs text-white truncate">
           {name}{isMe ? ' ✦' : ''}
         </p>
-        <p className="font-mono text-[9px] text-white/30">{captures} cap.</p>
+        <p className="font-mono text-[9px] text-white/30">
+          {isSpeaking ? '🎙' : ''}{captures} cap.
+        </p>
       </div>
     </div>
   );

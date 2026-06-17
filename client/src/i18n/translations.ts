@@ -192,6 +192,11 @@ export const TRANSLATIONS = {
         noMessages: 'No messages yet.',
         king: 'King',
         captureRequired: 'Capture Required',
+        holdToTalk: 'Hold to Talk',
+        live: 'LIVE',
+        speaking: 'Speaking',
+        voiceConnected: 'Voice Connected',
+        listeningOnly: 'Listening Only',
       },
       joker: {
         title: 'Joker',
@@ -1033,6 +1038,11 @@ export const TRANSLATIONS = {
         noMessages: 'შეტყობინებები ჯერ არ არის.',
         king: 'დამა',
         captureRequired: 'ჭერა სავალდებულოა',
+        holdToTalk: 'დააჭირე სასაუბროდ',
+        live: 'ლაივი',
+        speaking: 'საუბრობს',
+        voiceConnected: 'ხმა დაკავშირებულია',
+        listeningOnly: 'მხოლოდ უსმენ',
       },
       joker: {
         title: 'ჯოკერი',
