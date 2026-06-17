@@ -85,7 +85,7 @@ export function PeopleTab({ onOpenProfile }: { onOpenProfile: (playerId: string)
       <h2 className="font-display font-bold text-white text-lg">{t.community.people.title}</h2>
 
       {/* Online now */}
-      {onlineMembers.length > 0 && (
+      {(onlineMembers?.length ?? 0) > 0 && (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-white/30">{t.community.people.online}</span>
@@ -97,7 +97,7 @@ export function PeopleTab({ onOpenProfile }: { onOpenProfile: (playerId: string)
             </span>
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {onlineMembers.slice(0, 12).map(m => (
+            {(onlineMembers ?? []).slice(0, 12).map(m => (
               <button
                 key={m.playerId}
                 onClick={() => onOpenProfile(m.playerId)}
@@ -126,7 +126,7 @@ export function PeopleTab({ onOpenProfile }: { onOpenProfile: (playerId: string)
           <EmptyState text={t.community.people.empty} />
         ) : (
           <div className="space-y-2">
-            {peopleList.map(person => (
+            {(peopleList ?? []).map(person => (
               <PersonCard key={person.id} person={person} onOpenProfile={onOpenProfile} />
             ))}
           </div>

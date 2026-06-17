@@ -4345,7 +4345,7 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!profileId) { cb(err('Not authenticated.')); return; }
         await upsertOnlineSeen(profileId);
         const members = await getOnlineMembers();
-        cb(ok(members));
+        cb(ok({ members, count: members.length }) as any);
       } catch (e: any) { cb(err(e.message)); }
     });
 

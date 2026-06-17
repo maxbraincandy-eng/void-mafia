@@ -4911,7 +4911,7 @@ export function attachSocketHandlers(io) {
                 }
                 await upsertOnlineSeen(profileId);
                 const members = await getOnlineMembers();
-                cb(ok(members));
+                cb(ok({ members, count: members.length }));
             }
             catch (e) {
                 cb(err(e.message));
