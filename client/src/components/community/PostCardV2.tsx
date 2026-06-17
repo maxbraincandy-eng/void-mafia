@@ -123,12 +123,14 @@ function renderContent(content: string, hashtags: string[], onHashtag: (tag: str
 }
 
 export function PostCardV2({
-  post, onOpenProfile,
+  post: initialPost, onOpenProfile,
 }: {
   post: CommunityPostV2;
   onOpenProfile: (playerId: string) => void;
 }) {
   const t = useT();
+  // Subscribe directly so like/save/comment updates show instantly without relying on parent re-render
+  const post = useCommunityStore(s => s.feedV2Posts.find(p => p.id === initialPost.id) ?? initialPost);
   const profile = useAuthStore(s => s.profile);
   const { toggleLike, deletePost, toggleSave, setActiveHashtag } = useCommunityStore();
   const isMrMax = post.authorBadges?.includes('owner');
