@@ -29,13 +29,8 @@ export function ProfileModalV2({ profileId, onClose }: { profileId: string; onCl
     (async () => {
       setLoading(true);
       try {
-        const res = await emitWithAck<any, Res<CommunityProfileV2>>('community:profile_v2', { profileId });
+        const res = await emitWithAck<any, Res<CommunityProfileV2>>('community:profile', { profileId });
         if (!cancelled && res.ok) setProfile(res.data);
-        else if (!cancelled) {
-          // fallback to V1
-          const res1 = await emitWithAck<any, Res<any>>('community:profile', { profileId });
-          if (!cancelled && res1.ok) setProfile({ ...res1.data, badges: [], bio: '', coverUrl: null, favoriteRole: null, reputation: 0, friendsCount: 0, friendshipStatus: 'none', showcaseAchievements: [], privacySettings: { hideFollowersList: false, allowFriendRequests: true, defaultPostVisibility: 'public' } });
-        }
       } finally {
         if (!cancelled) setLoading(false);
       }
