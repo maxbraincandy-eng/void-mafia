@@ -4,6 +4,7 @@ import type {
   CommunityLounge, CommunityLoungeMember, VoidNewsPost, MaxRecommendation, RecommendCategory,
   DailyThought, CommunityPost, CommunityComment, CommunityEvent, CommunityEventCategory,
   CommunityNotification, CommunityProfile, CommunityReport, Res,
+  CommunityPostV2, CommunityProfileV2, CommunitySearchResult, FeedCategory, PollResult,
 } from '@/types/index';
 
 function unwrap<T>(res: Res<T>): T {
@@ -69,6 +70,31 @@ interface CommunityStore {
   resolveReport: (reportId: string, status: string) => Promise<void>;
   banPlayer: (targetProfileId: string, reason: string, duration: number) => Promise<void>;
   unbanPlayer: (targetProfileId: string) => Promise<void>;
+
+  feedCategory: FeedCategory;
+  feedV2Posts: CommunityPostV2[];
+  feedV2HasMore: boolean;
+  savedPosts: CommunityPostV2[];
+  onlineMembers: Array<{ playerId: string; username: string; avatar: string; avatarUrl: string | null }>;
+  onlineMemberCount: number;
+  searchResults: CommunitySearchResult | null;
+  searchLoading: boolean;
+  activeHashtag: string | null;
+  peopleList: CommunityProfileV2[];
+
+  setFeedCategory: (cat: FeedCategory) => void;
+  fetchFeedV2: (refresh?: boolean) => Promise<void>;
+  createPostV2: (data: any) => Promise<void>;
+  votePoll: (postId: string, optionId: string) => Promise<PollResult[]>;
+  toggleSave: (postId: string) => Promise<void>;
+  fetchSavedPosts: () => Promise<void>;
+  setActiveHashtag: (tag: string | null) => void;
+  fetchOnlineMembers: () => Promise<void>;
+  search: (query: string) => Promise<void>;
+  fetchFollowersList: (profileId: string) => Promise<CommunityProfileV2[]>;
+  fetchFollowingList: (profileId: string) => Promise<CommunityProfileV2[]>;
+  fetchPeopleList: () => Promise<void>;
+  updateMyProfile: (data: { bio?: string; coverUrl?: string; favoriteRole?: string }) => Promise<CommunityProfileV2>;
 }
 
 export const useCommunityStore = create<CommunityStore>((set, get) => {
@@ -100,6 +126,16 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
     if (get().currentLoungeId === loungeId) set({ loungeMembers: members });
   });
 
+  socket.on('community:post_updated', (post: CommunityPostV2) => {
+    set(s => ({ feedV2Posts: s.feedV2Posts.map(p => p.id === post.id ? post : p) }));
+  });
+  socket.on('community:post_pinned', (postId: string) => {
+    set(s => ({ feedV2Posts: s.feedV2Posts.map(p => p.id === postId ? { ...p, isPinned: true } : p) }));
+  });
+  socket.on('community:post_hidden', (postId: string) => {
+    set(s => ({ feedV2Posts: s.feedV2Posts.filter(p => p.id !== postId) }));
+  });
+
   return {
     lounges: [],
     news: [],
@@ -114,6 +150,17 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
 
     currentLoungeId: null,
     loungeMembers: [],
+
+    feedCategory: 'all',
+    feedV2Posts: [],
+    feedV2HasMore: true,
+    savedPosts: [],
+    onlineMembers: [],
+    onlineMemberCount: 0,
+    searchResults: null,
+    searchLoading: false,
+    activeHashtag: null,
+    peopleList: [],
 
     fetchLounges: async () => {
       const lounges = unwrap(await emitWithAck<undefined, Res<CommunityLounge[]>>('community:lounge_list'));
@@ -257,6 +304,67 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
     },
     unbanPlayer: async (targetProfileId) => {
       unwrap(await emitWithAck<any, Res<null>>('community:unban', { targetProfileId }));
+    },
+
+    setFeedCategory: (cat) => set({ feedCategory: cat, feedV2Posts: [], feedV2HasMore: true }),
+    fetchFeedV2: async (refresh = false) => {
+      const { feedV2Posts, feedCategory, activeHashtag } = get();
+      const before = refresh ? undefined : (feedV2Posts.length > 0 ? feedV2Posts[feedV2Posts.length - 1].createdAt : undefined);
+      const posts = unwrap(await emitWithAck<any, Res<CommunityPostV2[]>>('community:feed_v2', { before, category: feedCategory, hashtag: activeHashtag }));
+      set(s => ({
+        feedV2Posts: refresh ? posts : [...s.feedV2Posts, ...posts],
+        feedV2HasMore: posts.length >= 20,
+      }));
+    },
+    createPostV2: async (data) => {
+      const post = unwrap(await emitWithAck<any, Res<CommunityPostV2>>('community:post_create_v2', data));
+      set(s => ({ feedV2Posts: [post, ...s.feedV2Posts] }));
+    },
+    votePoll: async (postId, optionId) => {
+      const results = unwrap(await emitWithAck<any, Res<PollResult[]>>('community:poll_vote', { postId, optionId }));
+      set(s => ({
+        feedV2Posts: s.feedV2Posts.map(p => p.id === postId && p.poll ? { ...p, poll: { ...p.poll, results, myVote: optionId } } : p),
+      }));
+      return results;
+    },
+    toggleSave: async (postId) => {
+      const { savedByMe } = unwrap(await emitWithAck<any, Res<{ savedByMe: boolean; savesCount: number }>>('community:post_save', { postId }));
+      set(s => ({
+        feedV2Posts: s.feedV2Posts.map(p => p.id === postId ? { ...p, savedByMe: savedByMe } : p),
+      }));
+    },
+    fetchSavedPosts: async () => {
+      const posts = unwrap(await emitWithAck<undefined, Res<CommunityPostV2[]>>('community:saved_posts'));
+      set({ savedPosts: posts });
+    },
+    setActiveHashtag: (tag) => set({ activeHashtag: tag, feedV2Posts: [], feedV2HasMore: true }),
+    fetchOnlineMembers: async () => {
+      const data = unwrap(await emitWithAck<undefined, Res<{ members: Array<{ playerId: string; username: string; avatar: string; avatarUrl: string | null }>; count: number }>>('community:online_members'));
+      set({ onlineMembers: data.members, onlineMemberCount: data.count });
+    },
+    search: async (query) => {
+      if (!query.trim()) { set({ searchResults: null, searchLoading: false }); return; }
+      set({ searchLoading: true });
+      try {
+        const results = unwrap(await emitWithAck<any, Res<CommunitySearchResult>>('community:search', { query }));
+        set({ searchResults: results, searchLoading: false });
+      } catch {
+        set({ searchLoading: false });
+      }
+    },
+    fetchFollowersList: async (profileId) => {
+      return unwrap(await emitWithAck<any, Res<CommunityProfileV2[]>>('community:followers_list', { profileId }));
+    },
+    fetchFollowingList: async (profileId) => {
+      return unwrap(await emitWithAck<any, Res<CommunityProfileV2[]>>('community:following_list', { profileId }));
+    },
+    fetchPeopleList: async () => {
+      const list = unwrap(await emitWithAck<undefined, Res<CommunityProfileV2[]>>('community:people_list'));
+      set({ peopleList: list });
+    },
+    updateMyProfile: async (data) => {
+      const profile = unwrap(await emitWithAck<any, Res<CommunityProfileV2>>('community:update_profile', data));
+      return profile;
     },
   };
 });

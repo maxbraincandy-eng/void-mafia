@@ -5,21 +5,25 @@ import { useAuthStore } from '@/store/authStore';
 import { useCommunityStore } from '@/store/communityStore';
 import { LoungesTab } from '@/components/community/LoungesTab';
 import { NewsTab } from '@/components/community/NewsTab';
-import { FeedTab } from '@/components/community/FeedTab';
-import { OtherTab } from '@/components/community/OtherTab';
+import { FeedTabV2 } from '@/components/community/FeedTabV2';
+import { RecommendsTab } from '@/components/community/RecommendsTab';
+import { ThoughtsTab } from '@/components/community/ThoughtsTab';
+import { PeopleTab } from '@/components/community/PeopleTab';
 import { NotificationPanel } from '@/components/community/NotificationPanel';
 import { ModerationPanel } from '@/components/community/ModerationPanel';
-import { ProfileModal } from '@/components/community/ProfileModal';
+import { ProfileModalV2 } from '@/components/community/ProfileModalV2';
+import { CommunitySearchPanel } from '@/components/community/CommunitySearchPanel';
 
-type CommunityTab = 'lounges' | 'feed' | 'news' | 'other';
+type CommunityTab = 'feed' | 'voice' | 'news' | 'recommends' | 'thoughts' | 'people';
 
 export function CommunityPage() {
   const t = useT();
   const profile = useAuthStore(s => s.profile);
   const isMod = profile?.isModerator ?? false;
-  const [tab, setTab] = useState<CommunityTab>('lounges');
+  const [tab, setTab] = useState<CommunityTab>('feed');
   const [showNotifications, setShowNotifications] = useState(false);
   const [showModeration, setShowModeration] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [viewProfileId, setViewProfileId] = useState<string | null>(null);
   const unreadCount = useCommunityStore(s => s.unreadCount);
   const fetchUnreadCount = useCommunityStore(s => s.fetchUnreadCount);
@@ -29,15 +33,16 @@ export function CommunityPage() {
   }, [profile, fetchUnreadCount]);
 
   const TABS: { id: CommunityTab; label: string; icon: string }[] = [
-    { id: 'lounges', label: t.community.tabs.lounges, icon: '🎤' },
-    { id: 'feed',    label: t.community.tabs.feed,    icon: '🌌' },
-    { id: 'news',    label: t.community.tabs.news,    icon: '📰' },
-    { id: 'other',   label: t.community.tabs.other,   icon: '🗂' },
+    { id: 'feed',       label: t.community.tabs.feed,       icon: '🌌' },
+    { id: 'voice',      label: t.community.tabs.voice,      icon: '🎤' },
+    { id: 'news',       label: t.community.tabs.news,       icon: '📰' },
+    { id: 'recommends', label: t.community.tabs.recommends, icon: '🎬' },
+    { id: 'thoughts',   label: t.community.tabs.thoughts,   icon: '🧠' },
+    { id: 'people',     label: t.community.tabs.people,     icon: '👥' },
   ];
 
   return (
     <div className="min-h-screen pb-20 relative overflow-hidden" style={{ background: '#03000d' }}>
-      {/* Ambient purple/cyan glows — visually distinct from Mafia game-room red atmosphere */}
       <div className="absolute top-0 right-0 w-80 h-80 rounded-full blur-[120px] pointer-events-none" style={{ background: 'rgba(155,0,255,0.10)' }} />
       <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full blur-[100px] pointer-events-none" style={{ background: 'rgba(0,245,255,0.08)' }} />
 
@@ -59,6 +64,13 @@ export function CommunityPage() {
             <p className="font-mono text-[10px] text-white/35 mt-0.5">{t.community.tagline}</p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => setShowSearch(true)}
+              className="w-9 h-9 rounded-full flex items-center justify-center text-base transition-all active:scale-90"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}
+            >
+              🔍
+            </button>
             {isMod && (
               <button
                 onClick={() => setShowModeration(true)}
@@ -115,10 +127,12 @@ export function CommunityPage() {
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.15 }}
           >
-            {tab === 'lounges' && <LoungesTab onOpenProfile={setViewProfileId} />}
-            {tab === 'feed'    && <FeedTab onOpenProfile={setViewProfileId} />}
-            {tab === 'news'    && <NewsTab />}
-            {tab === 'other'   && <OtherTab />}
+            {tab === 'feed'       && <FeedTabV2 onOpenProfile={setViewProfileId} />}
+            {tab === 'voice'      && <LoungesTab onOpenProfile={setViewProfileId} />}
+            {tab === 'news'       && <NewsTab />}
+            {tab === 'recommends' && <RecommendsTab />}
+            {tab === 'thoughts'   && <ThoughtsTab />}
+            {tab === 'people'     && <PeopleTab onOpenProfile={setViewProfileId} />}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -130,7 +144,15 @@ export function CommunityPage() {
         {showModeration && <ModerationPanel onClose={() => setShowModeration(false)} />}
       </AnimatePresence>
       <AnimatePresence>
-        {viewProfileId && <ProfileModal profileId={viewProfileId} onClose={() => setViewProfileId(null)} />}
+        {showSearch && (
+          <CommunitySearchPanel
+            onClose={() => setShowSearch(false)}
+            onOpenProfile={id => { setViewProfileId(id); setShowSearch(false); }}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {viewProfileId && <ProfileModalV2 profileId={viewProfileId} onClose={() => setViewProfileId(null)} />}
       </AnimatePresence>
     </div>
   );

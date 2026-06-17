@@ -177,3 +177,46 @@ export function timeAgo(ms: number): string {
   if (diff < 2592000_000) return `${Math.floor(diff / 86400_000)}d`;
   return new Date(ms).toLocaleDateString();
 }
+
+const BADGE_STYLE: Record<string, { emoji: string; color: string }> = {
+  verified: { emoji: '✓', color: '#00b4ff' },
+  owner: { emoji: '👑', color: '#ffd700' },
+  moderator: { emoji: '🛡', color: '#9b00ff' },
+  creator: { emoji: '✨', color: '#ff6ec7' },
+  speaker: { emoji: '🎙', color: '#00f5ff' },
+  philosopher: { emoji: '🧠', color: '#c084fc' },
+  veteran: { emoji: '⚔', color: '#ff8c00' },
+  top_detective: { emoji: '🔍', color: '#00ff88' },
+  mafia_master: { emoji: '🎭', color: '#ff4444' },
+};
+
+export function BadgeIcon({ badge, size = 14 }: { badge: string; size?: number }) {
+  const style = BADGE_STYLE[badge];
+  if (!style) return null;
+  return (
+    <span
+      title={badge.replace(/_/g, ' ')}
+      className="inline-flex items-center justify-center rounded-full font-bold"
+      style={{ color: style.color, fontSize: size, width: size + 4, height: size + 4 }}
+    >
+      {style.emoji}
+    </span>
+  );
+}
+
+export function BadgeRow({ badges, max = 4 }: { badges: string[]; max?: number }) {
+  if (!badges.length) return null;
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      {badges.slice(0, max).map(b => <BadgeIcon key={b} badge={b} />)}
+    </span>
+  );
+}
+
+export function MrMaxGlow({ children }: { children: ReactNode }) {
+  return (
+    <span style={{ filter: 'drop-shadow(0 0 6px #ffd700) drop-shadow(0 0 12px rgba(155,0,255,0.6))' }}>
+      {children}
+    </span>
+  );
+}

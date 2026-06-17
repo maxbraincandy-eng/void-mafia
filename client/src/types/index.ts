@@ -978,3 +978,58 @@ export interface CommunityReport {
   status: string;
   createdAt: number;
 }
+
+export type CommunityBadge = 'verified' | 'owner' | 'moderator' | 'creator' | 'speaker' | 'philosopher' | 'veteran' | 'top_detective' | 'mafia_master';
+export type PostType = 'text' | 'image' | 'gif' | 'video' | 'poll' | 'movie_rec' | 'series_rec' | 'book_rec' | 'music_rec' | 'philosophy';
+export type FeedCategory = 'all' | 'following' | 'friends' | 'void_news' | 'mr_max' | 'clans' | 'trending';
+
+export interface PollOption { id: string; text: string; }
+export interface PollResult { option: PollOption; count: number; percent: number; }
+
+export interface CommunityPostV2 extends CommunityPost {
+  postType: PostType;
+  gifUrl: string | null;
+  videoUrl: string | null;
+  isPinned: boolean;
+  isFeatured: boolean;
+  recTitle: string | null;
+  recCategory: string | null;
+  hashtags: string[];
+  visibility: 'public' | 'friends_only';
+  savesCount: number;
+  savedByMe: boolean;
+  hidden: boolean;
+  poll: {
+    question: string;
+    options: PollOption[];
+    endsAt: number | null;
+    results?: PollResult[];
+    myVote: string | null;
+  } | null;
+  authorBadges: CommunityBadge[];
+  authorBio: string;
+  authorCoverUrl: string | null;
+}
+
+export interface CommunityProfileV2 extends CommunityProfile {
+  bio: string;
+  coverUrl: string | null;
+  favoriteRole: string | null;
+  badges: CommunityBadge[];
+  reputation: number;
+  friendsCount: number;
+  friendshipStatus: 'none' | 'pending_sent' | 'pending_received' | 'friends';
+  showcaseAchievements: Array<{ slot: number; achievementKey: string }>;
+  privacySettings: {
+    hideFollowersList: boolean;
+    allowFriendRequests: boolean;
+    defaultPostVisibility: 'public' | 'friends_only';
+  };
+}
+
+export interface CommunitySearchResult {
+  posts: CommunityPostV2[];
+  people: CommunityProfileV2[];
+  hashtags: Array<{ hashtag: string; count: number }>;
+  lounges: CommunityLounge[];
+}
