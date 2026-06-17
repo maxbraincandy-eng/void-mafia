@@ -16,13 +16,10 @@ export function FeedTabV2({ onOpenProfile }: { onOpenProfile: (playerId: string)
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const CATS: { id: FeedCategory; label: string }[] = [
-    { id: 'all', label: t.community.feedCategories.all },
+    { id: 'all',       label: t.community.feedCategories.all },
     { id: 'following', label: t.community.feedCategories.following },
-    { id: 'friends', label: t.community.feedCategories.friends },
-    { id: 'void_news', label: t.community.feedCategories.voidNews },
-    { id: 'mr_max', label: t.community.feedCategories.mrMax },
-    { id: 'clans', label: t.community.feedCategories.clans },
-    { id: 'trending', label: t.community.feedCategories.trending },
+    { id: 'friends',   label: t.community.feedCategories.friends },
+    { id: 'trending',  label: t.community.feedCategories.trending },
   ];
 
   useEffect(() => {
