@@ -4,10 +4,13 @@ import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
 import { useCheckersStore } from '@/store/checkersStore';
 import { useJokerStore } from '@/store/jokerStore';
+import { useLudoStore } from '@/store/ludoStore';
 import { CheckersGame } from '@/components/checkers/CheckersGame';
 import { JokerGame } from '@/components/joker/JokerGame';
+import { LudoGame } from '@/components/ludo/LudoGame';
 import type { CheckersMatchListItem } from '@/types/checkers';
 import type { JokerMatchListItem } from '@/types/joker';
+import type { LudoMatchListItem } from '@/types/ludo';
 
 export function GamesTab() {
   const t = useT();
@@ -33,7 +36,16 @@ export function GamesTab() {
   const [jkJoinCode, setJkJoinCode] = useState('');
   const [jkMode, setJkMode] = useState<'classic' | 'nines_only'>('classic');
 
-  useEffect(() => { ckFetch(); jkFetch(); }, [ckFetch, jkFetch]);
+  // ── Ludo ────────────────────────────────────────────────────────────
+  const {
+    match: ldMatch, matchList: ldList, isLoading: ldLoading, error: ldError,
+    fetchList: ldFetch, createMatch: ldCreate, joinMatch: ldJoin, clearError: ldClear,
+  } = useLudoStore();
+
+  const [ldShowJoin, setLdShowJoin] = useState(false);
+  const [ldJoinCode, setLdJoinCode] = useState('');
+
+  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); }, [ckFetch, jkFetch, ldFetch]);
 
   async function handleCkCreate() {
     await ckCreate(playerName);
@@ -55,6 +67,17 @@ export function GamesTab() {
     setJkShowJoin(false);
     await jkJoin(jkJoinCode.trim().toUpperCase(), playerName);
     setJkJoinCode('');
+  }
+
+  async function handleLdCreate() {
+    await ldCreate(playerName);
+  }
+
+  async function handleLdJoin() {
+    if (!ldJoinCode.trim()) return;
+    setLdShowJoin(false);
+    await ldJoin(ldJoinCode.trim().toUpperCase(), playerName);
+    setLdJoinCode('');
   }
 
   return (
@@ -207,6 +230,69 @@ export function GamesTab() {
         )}
       </div>
 
+      {/* ── Ludo error ───────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {ldError && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            onClick={ldClear}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer"
+            style={{ background: 'rgba(255,45,85,0.08)', borderColor: 'rgba(255,45,85,0.3)', color: '#ff2d55' }}>
+            <span className="font-mono text-xs flex-1">{ldError}</span>
+            <span className="text-xs opacity-60">✕</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Ludo card ─────────────────────────────────────────────────── */}
+      <div className="rounded-2xl overflow-hidden"
+        style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(34,197,94,0.2)' }}>
+        <div className="px-4 py-3 flex items-center gap-3 border-b"
+          style={{ borderColor: 'rgba(34,197,94,0.15)', background: 'rgba(34,197,94,0.04)' }}>
+          <span className="text-2xl">🎲</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-display font-bold text-white text-sm leading-tight">{t.games.ludo.title}</p>
+            <p className="font-mono text-[10px] text-white/35">{t.games.ludo.subtitle}</p>
+          </div>
+        </div>
+        <div className="px-4 py-3 flex flex-wrap gap-2">
+          {!ldShowJoin ? (
+            <>
+              <ActionButton onClick={handleLdCreate} accent="green" loading={ldLoading}>
+                {t.games.ludo.createMatch}
+              </ActionButton>
+              <ActionButton onClick={() => setLdShowJoin(true)} accent="cyan">
+                {t.games.ludo.joinMatch}
+              </ActionButton>
+            </>
+          ) : (
+            <div className="flex gap-2 w-full">
+              <input
+                value={ldJoinCode}
+                onChange={e => setLdJoinCode(e.target.value.toUpperCase())}
+                onKeyDown={e => { if (e.key === 'Enter') handleLdJoin(); }}
+                placeholder="LD-0000"
+                maxLength={7}
+                autoFocus
+                className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest"
+              />
+              <button onClick={handleLdJoin} disabled={!ldJoinCode.trim() || ldLoading}
+                className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
+                style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e' }}>
+                {ldLoading ? '…' : t.games.ludo.joinMatch}
+              </button>
+              <button onClick={() => { setLdShowJoin(false); setLdJoinCode(''); }}
+                className="px-3 py-2 rounded-xl font-mono text-xs text-white/40 border border-white/10 hover:text-white/70 transition-colors">✕</button>
+            </div>
+          )}
+        </div>
+        {ldList.length > 0 && (
+          <div className="px-4 pb-3 space-y-1">
+            <p className="font-mono text-[9px] uppercase tracking-widest text-white/25">{t.games.ludo.openMatches}</p>
+            {ldList.map(m => <LudoRow key={m.id} match={m} onJoin={code => ldJoin(code, playerName)} />)}
+          </div>
+        )}
+      </div>
+
       {/* Checkers game overlay */}
       <AnimatePresence>
         {ckMatch && <CheckersGame />}
@@ -216,6 +302,11 @@ export function GamesTab() {
       <AnimatePresence>
         {jkMatch && <JokerGame />}
       </AnimatePresence>
+
+      {/* Ludo game overlay */}
+      <AnimatePresence>
+        {ldMatch && <LudoGame />}
+      </AnimatePresence>
     </div>
   );
 }
@@ -223,13 +314,14 @@ export function GamesTab() {
 function ActionButton({ children, onClick, accent = 'purple', loading }: {
   children: React.ReactNode;
   onClick: () => void;
-  accent?: 'purple' | 'cyan' | 'gold';
+  accent?: 'purple' | 'cyan' | 'gold' | 'green';
   loading?: boolean;
 }) {
   const colors = {
     purple: { bg: 'rgba(155,0,255,0.12)', border: 'rgba(155,0,255,0.35)', color: '#c084fc' },
     cyan:   { bg: 'rgba(0,245,255,0.08)', border: 'rgba(0,245,255,0.25)', color: '#00f5ff' },
     gold:   { bg: 'rgba(255,165,0,0.12)', border: 'rgba(255,165,0,0.35)',  color: '#fbbf24' },
+    green:  { bg: 'rgba(34,197,94,0.12)', border: 'rgba(34,197,94,0.35)',  color: '#22c55e' },
   };
   const c = colors[accent];
   return (
@@ -264,6 +356,35 @@ function CheckersRow({ match, onJoin }: { match: CheckersMatchListItem; onJoin: 
           className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
           style={{ background: 'rgba(155,0,255,0.08)', border: '1px solid rgba(155,0,255,0.2)', color: '#c084fc' }}>
           {t.games.checkers.spectate}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function LudoRow({ match, onJoin }: { match: LudoMatchListItem; onJoin: (code: string) => void }) {
+  const t = useT();
+  return (
+    <div className="flex items-center gap-3 px-2 py-2 rounded-xl"
+      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="flex-1 min-w-0">
+        <p className="font-mono text-xs text-white">
+          {match.redName} vs {match.blueName ?? <span className="text-white/30">{t.games.ludo.waiting}</span>}
+        </p>
+        <span className="font-mono text-[9px] text-white/25 tracking-widest">{match.code}</span>
+      </div>
+      {match.status === 'waiting' && (
+        <button onClick={() => onJoin(match.code)}
+          className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+          style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: '#22c55e' }}>
+          {t.games.ludo.join}
+        </button>
+      )}
+      {match.status === 'active' && (
+        <button onClick={() => onJoin(match.code)}
+          className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+          style={{ background: 'rgba(155,0,255,0.08)', border: '1px solid rgba(155,0,255,0.2)', color: '#c084fc' }}>
+          {t.games.ludo.spectate}
         </button>
       )}
     </div>
