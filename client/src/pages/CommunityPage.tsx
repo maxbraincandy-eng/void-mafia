@@ -15,7 +15,7 @@ import { ModerationPanel } from '@/components/community/ModerationPanel';
 import { ProfileModalV2 } from '@/components/community/ProfileModalV2';
 import { CommunitySearchPanel } from '@/components/community/CommunitySearchPanel';
 
-type CommunityTab = 'feed' | 'voice' | 'news' | 'recommends' | 'thoughts' | 'people' | 'games';
+type CommunityTab = 'feed' | 'voice' | 'people' | 'games' | 'news';
 
 export function CommunityPage() {
   const t = useT();
@@ -34,13 +34,11 @@ export function CommunityPage() {
   }, [profile, fetchUnreadCount]);
 
   const TABS: { id: CommunityTab; label: string; icon: string }[] = [
-    { id: 'feed',       label: t.community.tabs.feed,       icon: '🌌' },
-    { id: 'voice',      label: t.community.tabs.voice,      icon: '🎤' },
-    { id: 'news',       label: t.community.tabs.news,       icon: '📰' },
-    { id: 'recommends', label: t.community.tabs.recommends, icon: '🎬' },
-    { id: 'thoughts',   label: t.community.tabs.thoughts,   icon: '🧠' },
-    { id: 'people',     label: t.community.tabs.people,     icon: '👥' },
-    { id: 'games',      label: t.community.tabs.games,      icon: '♟' },
+    { id: 'feed',   label: t.community.tabs.feed,   icon: '🌌' },
+    { id: 'voice',  label: t.community.tabs.voice,  icon: '🎤' },
+    { id: 'people', label: t.community.tabs.people, icon: '👥' },
+    { id: 'games',  label: t.community.tabs.games,  icon: '♟' },
+    { id: 'news',   label: t.community.tabs.news,   icon: '📰' },
   ];
 
   return (
@@ -129,13 +127,11 @@ export function CommunityPage() {
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.15 }}
           >
-            {tab === 'feed'       && <FeedTabV2 onOpenProfile={setViewProfileId} />}
-            {tab === 'voice'      && <LoungesTab onOpenProfile={setViewProfileId} />}
-            {tab === 'news'       && <NewsTab />}
-            {tab === 'recommends' && <RecommendsTab />}
-            {tab === 'thoughts'   && <ThoughtsTab />}
-            {tab === 'people'     && <PeopleTab onOpenProfile={setViewProfileId} />}
-            {tab === 'games'      && <GamesTab />}
+            {tab === 'feed'   && <FeedTabV2 onOpenProfile={setViewProfileId} />}
+            {tab === 'voice'  && <LoungesTab onOpenProfile={setViewProfileId} />}
+            {tab === 'people' && <PeopleTab onOpenProfile={setViewProfileId} />}
+            {tab === 'games'  && <GamesTab />}
+            {tab === 'news'   && <NewsTab />}
           </motion.div>
         </AnimatePresence>
       </div>
