@@ -13,6 +13,8 @@ import {
   type CheckersMatch, type PieceColor, type CheckersChatMsg,
 } from './services/checkersService.js';
 import { addXP } from './services/playerService.js';
+import { buildIceConfig } from './lib/iceConfig.js';
+import { voiceJoin, voiceLeave, voiceGetMatchId } from './services/checkersVoiceService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -286,16 +288,109 @@ export function registerCheckersHandlers(io: AppServer, socket: AppSocket): void
       cb(ok(null));
     } catch (e: any) { cb(err(e.message)); }
   });
+
+  // ── Voice: join ───────────────────────────────────────────────────
+  socket.on('checkers:voice-join' as any, (data: { matchId: string }, cb: (res: any) => void) => {
+    try {
+      const match = getMatch(data?.matchId);
+      if (!match) return cb(err('Match not found.'));
+      if (match.status === 'finished') return cb(err('Match has ended.'));
+
+      const isRed       = match.red.socketId === socket.id;
+      const isBlack     = match.black?.socketId === socket.id;
+      const isSpectator = match.spectatorSocketIds.includes(socket.id);
+      if (!isRed && !isBlack && !isSpectator) return cb(err('Not in this match.'));
+
+      const name = isRed ? match.red.name
+        : isBlack ? match.black!.name
+        : 'Spectator';
+
+      const existingPeers = voiceJoin(match.id, socket.id, name);
+      socket.to(CHECKERS_ROOM(match.id)).emit('checkers:voice-peer-joined' as any, {
+        socketId: socket.id,
+        name,
+      });
+
+      const iceConfig = buildIceConfig();
+      cb(ok({
+        peers: existingPeers,
+        iceServers: iceConfig.iceServers,
+        iceTransportPolicy: iceConfig.iceTransportPolicy,
+        canSpeak: isRed || isBlack,
+      }));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  // ── Voice: leave ──────────────────────────────────────────────────
+  socket.on('checkers:voice-leave' as any, (_data: any, cb?: (res: any) => void) => {
+    const matchId = voiceLeave(socket.id);
+    if (matchId) {
+      socket.to(CHECKERS_ROOM(matchId)).emit('checkers:voice-peer-left' as any, { socketId: socket.id });
+    }
+    cb?.(ok(null));
+  });
+
+  // ── Voice: WebRTC signalling relay ────────────────────────────────
+  socket.on('checkers:voice-offer' as any, (data: { to: string; sdp: any }) => {
+    io.to(data.to).emit('checkers:voice-offer' as any, { from: socket.id, sdp: data.sdp });
+  });
+
+  socket.on('checkers:voice-answer' as any, (data: { to: string; sdp: any }) => {
+    io.to(data.to).emit('checkers:voice-answer' as any, { from: socket.id, sdp: data.sdp });
+  });
+
+  socket.on('checkers:voice-ice' as any, (data: { to: string; candidate: any }) => {
+    io.to(data.to).emit('checkers:voice-ice' as any, { from: socket.id, candidate: data.candidate });
+  });
+
+  // ── Voice: Push-to-Talk state ─────────────────────────────────────
+  socket.on('checkers:ptt-start' as any, (data: { matchId: string }) => {
+    const match = getMatch(data?.matchId);
+    if (!match) return;
+    const isPlayer = match.red.socketId === socket.id || match.black?.socketId === socket.id;
+    if (!isPlayer) return;
+    socket.to(CHECKERS_ROOM(data.matchId)).emit('checkers:ptt-state' as any, {
+      socketId: socket.id,
+      speaking: true,
+    });
+  });
+
+  socket.on('checkers:ptt-stop' as any, (data: { matchId: string }) => {
+    const match = getMatch(data?.matchId);
+    if (!match) return;
+    const isPlayer = match.red.socketId === socket.id || match.black?.socketId === socket.id;
+    if (!isPlayer) return;
+    socket.to(CHECKERS_ROOM(data.matchId)).emit('checkers:ptt-state' as any, {
+      socketId: socket.id,
+      speaking: false,
+    });
+  });
 }
 
 // ── Disconnect cleanup ─────────────────────────────────────────────────
 export function handleCheckersDisconnect(io: AppServer, socketId: string): void {
+  // Voice cleanup for disconnected socket (even if not in a match)
+  const voiceMatchId = voiceGetMatchId(socketId);
+  if (voiceMatchId) {
+    voiceLeave(socketId);
+    io.to(CHECKERS_ROOM(voiceMatchId)).emit('checkers:voice-peer-left' as any, { socketId });
+    io.to(CHECKERS_ROOM(voiceMatchId)).emit('checkers:ptt-state' as any, { socketId, speaking: false });
+  }
+
   const match = getMatchForSocket(socketId);
   if (!match) return;
   handleCheckersLeave(io, socketId, match);
 }
 
 function handleCheckersLeave(io: AppServer, socketId: string, match: CheckersMatch): void {
+  // Voice cleanup: remove from voice room and notify remaining members
+  const voiceMatchId = voiceGetMatchId(socketId);
+  if (voiceMatchId) {
+    voiceLeave(socketId);
+    io.to(CHECKERS_ROOM(voiceMatchId)).emit('checkers:voice-peer-left' as any, { socketId });
+    io.to(CHECKERS_ROOM(voiceMatchId)).emit('checkers:ptt-state' as any, { socketId, speaking: false });
+  }
+
   // Remove from spectators silently.
   const specIdx = match.spectatorSocketIds.indexOf(socketId);
   if (specIdx !== -1) {
