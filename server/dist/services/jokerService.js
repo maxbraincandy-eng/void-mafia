@@ -31,7 +31,7 @@ function uniqueMatchCode() {
 }
 // ─── Utility exports ─────────────────────────────────────────────────────────
 /**
- * Build and shuffle a 36-card deck (ranks 6–A per suit).
+ * Build and shuffle a 38-card deck (ranks 6–A per suit + 2 jokers).
  */
 export function createDeck() {
     const deck = [];
@@ -40,6 +40,8 @@ export function createDeck() {
             deck.push({ suit, rank });
         }
     }
+    deck.push({ suit: 'J', rank: 0 });
+    deck.push({ suit: 'J', rank: 0 });
     return shuffle(deck);
 }
 /**
@@ -118,6 +120,11 @@ export function dealRound(match) {
  * Follow-suit: if trick is non-empty and player has the led suit, they must play it.
  */
 export function validateCardPlay(hand, card, trick) {
+    // Joker can always be played
+    if (card.suit === 'J') {
+        const inHand = hand.some(c => c.suit === 'J' && c.rank === 0);
+        return inHand ? null : 'Card is not in your hand.';
+    }
     // Card must be in hand
     const inHand = hand.some(c => c.suit === card.suit && c.rank === card.rank);
     if (!inHand) {
@@ -139,11 +146,19 @@ export function validateCardPlay(hand, card, trick) {
 }
 /**
  * Resolve the current trick.
- * Highest-ranked card of the led suit wins (no trump).
+ * Joker beats everything. If a jokerTarget is set, that player wins the trick.
+ * Otherwise highest-ranked card of the led suit wins (no trump).
  */
-export function resolveTrick(trick) {
+export function resolveTrick(trick, players) {
     if (trick.length === 0) {
         throw new Error('Cannot resolve an empty trick.');
+    }
+    // First joker in the trick wins (or gives the trick to jokerTarget)
+    const jokerPlay = trick.find(p => p.card.suit === 'J');
+    if (jokerPlay) {
+        const targetId = jokerPlay.jokerTarget ?? jokerPlay.playerId;
+        const targetPlayer = players.find(p => p.id === targetId);
+        return { winnerId: targetId, winnerSeat: targetPlayer?.seatIndex ?? jokerPlay.seatIndex };
     }
     const ledSuit = trick[0].card.suit;
     let winner = trick[0];
@@ -240,6 +255,7 @@ export function createMatch(creator, settings) {
     const declarations = {};
     const hands = {};
     const pulkaExacts = {};
+    const botPlayerIds = [];
     scores[creator.id] = 0;
     tricksTaken[creator.id] = 0;
     declarations[creator.id] = null;
@@ -267,6 +283,7 @@ export function createMatch(creator, settings) {
         scores,
         roundHistory: [],
         pulkaExacts,
+        botPlayerIds,
         chat: [],
         createdAt: now,
         updatedAt: now,

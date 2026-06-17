@@ -32,7 +32,7 @@ interface JokerStore {
   joinMatch: (code: string, name: string) => Promise<void>;
   startMatch: () => Promise<void>;
   declare: (tricks: number) => Promise<void>;
-  playCard: (card: Card) => Promise<void>;
+  playCard: (card: Card, jokerTarget?: string) => Promise<void>;
   resign: () => Promise<void>;
   rematch: () => Promise<void>;
   leaveMatch: () => Promise<void>;
@@ -93,12 +93,12 @@ export const useJokerStore = create<JokerStore>((set, get) => ({
     } catch (e: any) { set({ error: e.message }); }
   },
 
-  playCard: async (card) => {
+  playCard: async (card, jokerTarget) => {
     const { match } = get();
     if (!match) return;
     set({ selectedCard: null, error: null });
     try {
-      const res = await emitWithAck<any, any>('joker:play-card', { matchId: match.id, card });
+      const res = await emitWithAck<any, any>('joker:play-card', { matchId: match.id, card, jokerTarget });
       if (!res.ok) set({ error: res.error });
     } catch (e: any) { set({ error: e.message }); }
   },
@@ -125,10 +125,14 @@ export const useJokerStore = create<JokerStore>((set, get) => ({
   leaveMatch: async () => {
     const { match } = get();
     if (!match) return;
-    try {
-      await emitWithAck<any, any>('joker:leave', { matchId: match.id });
-    } catch { /* ignore */ }
+    const matchId = match.id;
+    // Clear immediately so UI responds instantly
     set({ match: null, myHand: [], selectedCard: null });
+    try {
+      await emitWithAck<any, any>('joker:leave', { matchId });
+    } catch { /* ignore */ }
+    // Ensure it stays cleared even if a state broadcast came in during the leave
+    set(s => (s.match?.id === matchId ? { match: null } : {}));
   },
 
   sendChat: async (text) => {

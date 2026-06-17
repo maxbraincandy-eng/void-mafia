@@ -1,5 +1,5 @@
-export type Suit = 'S' | 'H' | 'D' | 'C';
-export type Rank = 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
+export type Suit = 'S' | 'H' | 'D' | 'C' | 'J';
+export type Rank = 0 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
 export interface Card {
     suit: Suit;
     rank: Rank;
@@ -8,6 +8,7 @@ export interface PlayedCard {
     playerId: string;
     seatIndex: number;
     card: Card;
+    jokerTarget?: string;
 }
 export interface JokerPlayer {
     id: string;
@@ -15,6 +16,7 @@ export interface JokerPlayer {
     name: string;
     profileId: string | null;
     seatIndex: number;
+    isBot?: boolean;
 }
 export interface JokerSettings {
     mode: 'classic' | 'nines_only';
@@ -64,12 +66,13 @@ export interface JokerMatch {
     scores: Record<string, number>;
     roundHistory: JokerRoundResult[];
     pulkaExacts: Record<string, Record<number, number>>;
+    botPlayerIds: string[];
     chat: JokerChatMsg[];
     createdAt: number;
     updatedAt: number;
 }
 /**
- * Build and shuffle a 36-card deck (ranks 6–A per suit).
+ * Build and shuffle a 38-card deck (ranks 6–A per suit + 2 jokers).
  */
 export declare function createDeck(): Card[];
 /**
@@ -98,9 +101,10 @@ export declare function dealRound(match: JokerMatch): void;
 export declare function validateCardPlay(hand: Card[], card: Card, trick: PlayedCard[]): string | null;
 /**
  * Resolve the current trick.
- * Highest-ranked card of the led suit wins (no trump).
+ * Joker beats everything. If a jokerTarget is set, that player wins the trick.
+ * Otherwise highest-ranked card of the led suit wins (no trump).
  */
-export declare function resolveTrick(trick: PlayedCard[]): {
+export declare function resolveTrick(trick: PlayedCard[], players: JokerPlayer[]): {
     winnerId: string;
     winnerSeat: number;
 };

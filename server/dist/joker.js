@@ -2,8 +2,16 @@ import { ok, err, } from './types/index.js';
 import { createMatch, getMatch, getMatchByCode, getMatchForSocket, getOpenMatches, dealRound, validateCardPlay, resolveTrick, applyRoundScores, finishMatch, } from './services/jokerService.js';
 import { addXP } from './services/playerService.js';
 const JOKER_ROOM = (id) => `jk:${id}`;
+// Per-match turn timers (bot auto-play + 25s human timeout)
+const turnTimers = new Map();
+function clearTurnTimer(matchId) {
+    const t = turnTimers.get(matchId);
+    if (t !== undefined) {
+        clearTimeout(t);
+        turnTimers.delete(matchId);
+    }
+}
 // ── Public state sent to all clients in the room ───────────────────────
-// Hands are NOT included — each player gets their hand via joker:hand.
 function toPublic(match) {
     return {
         id: match.id,
@@ -12,13 +20,15 @@ function toPublic(match) {
         settings: match.settings,
         players: match.players.map(p => ({
             id: p.id,
-            socketId: p.socketId, // included so client can self-identify
+            socketId: p.socketId,
             name: p.name,
             profileId: p.profileId,
             seatIndex: p.seatIndex,
             cardCount: (match.hands[p.id] ?? []).length,
+            isBot: p.isBot ?? false,
         })),
         spectatorCount: match.spectatorSocketIds.length,
+        botPlayerIds: match.botPlayerIds,
         roundPlan: match.roundPlan,
         currentRoundIndex: match.currentRoundIndex,
         totalRounds: match.roundPlan.length,
@@ -46,22 +56,165 @@ function toListItem(match) {
         createdAt: match.createdAt,
     };
 }
-// Broadcast public state to the room, and each player's private hand individually.
+// Broadcast public state + each player's private hand
 function broadcastState(io, match) {
     io.to(JOKER_ROOM(match.id)).emit('joker:state', toPublic(match));
-    // Send each player their private hand
     for (const player of match.players) {
         const hand = match.hands[player.id] ?? [];
         io.to(player.socketId).emit('joker:hand', hand);
     }
+}
+// ── Extracted game logic (called by socket handlers AND bot engine) ────
+function executeDeclare(io, match, player, tricks) {
+    match.declarations[player.id] = tricks;
+    match.currentDeclarationSeat = (match.currentDeclarationSeat + 1) % 4;
+    const allDeclared = match.players.every(p => match.declarations[p.id] !== null);
+    if (allDeclared) {
+        match.status = 'playing';
+        const firstPlaySeat = (match.currentDealerSeat + 1) % 4;
+        match.currentPlaySeat = firstPlaySeat;
+        match.currentTrickLeaderSeat = firstPlaySeat;
+        match.currentTrick = [];
+    }
+    match.updatedAt = Date.now();
+    broadcastState(io, match);
+    scheduleBotAction(io, match);
+}
+function executePlayCard(io, match, player, card, jokerTarget) {
+    const hand = match.hands[player.id] ?? [];
+    const cardIndex = hand.findIndex(c => c.suit === card.suit && c.rank === card.rank);
+    if (cardIndex === -1)
+        return;
+    hand.splice(cardIndex, 1);
+    const played = { playerId: player.id, seatIndex: player.seatIndex, card };
+    if (card.suit === 'J' && jokerTarget)
+        played.jokerTarget = jokerTarget;
+    match.currentTrick.push(played);
+    match.currentPlaySeat = (match.currentPlaySeat + 1) % 4;
+    match.updatedAt = Date.now();
+    if (match.currentTrick.length === 4) {
+        const { winnerId, winnerSeat } = resolveTrick(match.currentTrick, match.players);
+        match.tricksTaken[winnerId] = (match.tricksTaken[winnerId] ?? 0) + 1;
+        broadcastState(io, match);
+        setTimeout(() => {
+            if (!getMatch(match.id))
+                return;
+            const anyCardsLeft = match.players.some(p => (match.hands[p.id] ?? []).length > 0);
+            if (anyCardsLeft) {
+                match.currentTrick = [];
+                match.currentTrickLeaderSeat = winnerSeat;
+                match.currentPlaySeat = winnerSeat;
+                match.updatedAt = Date.now();
+                broadcastState(io, match);
+                scheduleBotAction(io, match);
+            }
+            else {
+                // Round complete — apply scores then show round_end for 4s
+                applyRoundScores(match);
+                match.status = 'round_end';
+                broadcastState(io, match);
+                setTimeout(() => {
+                    if (!getMatch(match.id))
+                        return;
+                    const nextRoundIndex = match.currentRoundIndex + 1;
+                    if (nextRoundIndex < match.roundPlan.length) {
+                        match.currentRoundIndex = nextRoundIndex;
+                        match.currentDealerSeat = (match.currentDealerSeat + 1) % 4;
+                        for (const p of match.players) {
+                            match.declarations[p.id] = null;
+                            match.tricksTaken[p.id] = 0;
+                            match.hands[p.id] = [];
+                        }
+                        dealRound(match);
+                        match.status = 'declaration';
+                        match.currentDeclarationSeat = (match.currentDealerSeat + 1) % 4;
+                        match.currentTrick = [];
+                        match.currentTrickLeaderSeat = (match.currentDealerSeat + 1) % 4;
+                        match.currentPlaySeat = (match.currentDealerSeat + 1) % 4;
+                        match.updatedAt = Date.now();
+                        broadcastState(io, match);
+                        scheduleBotAction(io, match);
+                    }
+                    else {
+                        finishMatch(match);
+                        clearTurnTimer(match.id);
+                        broadcastState(io, match);
+                        const sortedPlayers = [...match.players].sort((a, b) => (match.scores[b.id] ?? 0) - (match.scores[a.id] ?? 0));
+                        const winnerPlayer = sortedPlayers[0];
+                        for (const p of match.players) {
+                            if (p.profileId) {
+                                const xp = p.id === winnerPlayer.id ? 30 : 5;
+                                addXP(p.profileId, xp).catch(() => { });
+                            }
+                        }
+                        io.emit('joker:list_update', getOpenMatches().map(toListItem));
+                    }
+                }, 4000);
+            }
+        }, 1500);
+    }
+    else {
+        broadcastState(io, match);
+        scheduleBotAction(io, match);
+    }
+}
+// ── Bot engine ─────────────────────────────────────────────────────────
+function scheduleBotAction(io, match) {
+    clearTurnTimer(match.id);
+    if (match.status !== 'declaration' && match.status !== 'playing')
+        return;
+    let currentPlayer;
+    if (match.status === 'declaration') {
+        currentPlayer = match.players.find(p => p.seatIndex === match.currentDeclarationSeat);
+    }
+    else {
+        currentPlayer = match.players.find(p => p.seatIndex === match.currentPlaySeat);
+    }
+    if (!currentPlayer)
+        return;
+    const isBot = currentPlayer.isBot === true;
+    const delay = isBot ? 1200 : 25000;
+    const timer = setTimeout(() => {
+        turnTimers.delete(match.id);
+        if (!getMatch(match.id))
+            return;
+        if (!isBot) {
+            // Human timed out — promote to bot
+            currentPlayer.isBot = true;
+            if (!match.botPlayerIds.includes(currentPlayer.id)) {
+                match.botPlayerIds.push(currentPlayer.id);
+            }
+            broadcastState(io, match);
+        }
+        if (match.status === 'declaration') {
+            const cardCount = match.roundPlan[match.currentRoundIndex];
+            const decl = Math.floor(Math.random() * (cardCount + 1));
+            executeDeclare(io, match, currentPlayer, decl);
+        }
+        else if (match.status === 'playing') {
+            const hand = match.hands[currentPlayer.id] ?? [];
+            const valid = hand.filter(c => validateCardPlay(hand, c, match.currentTrick) === null);
+            if (valid.length === 0)
+                return;
+            const card = valid[Math.floor(Math.random() * valid.length)];
+            let jokerTarget;
+            if (card.suit === 'J') {
+                const others = match.players.filter(p => p.id !== currentPlayer.id);
+                if (Math.random() > 0.5 && others.length > 0) {
+                    jokerTarget = others[Math.floor(Math.random() * others.length)].id;
+                }
+            }
+            executePlayCard(io, match, currentPlayer, card, jokerTarget);
+        }
+    }, delay);
+    turnTimers.set(match.id, timer);
 }
 // ── Handler Registration ───────────────────────────────────────────────
 export function registerJokerHandlers(io, socket) {
     // ── List open matches ──────────────────────────────────────────────
     socket.on('joker:list', (cb) => {
         try {
-            const open = getOpenMatches().map(toListItem);
-            cb(ok(open));
+            cb(ok(getOpenMatches().map(toListItem)));
         }
         catch (e) {
             cb(err(e.message));
@@ -113,23 +266,19 @@ export function registerJokerHandlers(io, socket) {
                 return cb(err('Match not found.'));
             if (match.status === 'finished')
                 return cb(err('This match has ended.'));
-            // Already in this match as a player — reconnect.
             const existingPlayer = match.players.find(p => p.socketId === socket.id);
             if (existingPlayer) {
                 socket.join(JOKER_ROOM(match.id));
-                // Re-send their hand privately
                 const hand = match.hands[existingPlayer.id] ?? [];
                 socket.emit('joker:hand', hand);
                 return cb(ok(toPublic(match)));
             }
-            // Check if already in a different active match.
             const existing = getMatchForSocket(socket.id);
             if (existing && existing.id !== match.id && existing.status !== 'finished') {
                 return cb(err('You are already in another Joker match.'));
             }
             if (match.players.length < 4 && match.status === 'waiting') {
-                // Add as a player at the next available seat.
-                const nextSeat = match.players.length; // seats 0-3 in join order
+                const nextSeat = match.players.length;
                 const playerId = socket.data.profileId ?? socket.id;
                 const newPlayer = {
                     id: playerId,
@@ -151,7 +300,6 @@ export function registerJokerHandlers(io, socket) {
                 cb(ok(toPublic(match)));
             }
             else if (match.settings.spectatorsAllowed && !match.spectatorSocketIds.includes(socket.id)) {
-                // Join as spectator.
                 match.spectatorSocketIds.push(socket.id);
                 socket.join(JOKER_ROOM(match.id));
                 cb(ok(toPublic(match)));
@@ -174,21 +322,17 @@ export function registerJokerHandlers(io, socket) {
                 return cb(err('Match is not in waiting state.'));
             if (match.players.length !== 4)
                 return cb(err('Need exactly 4 players to start.'));
-            // Only player[0] (seat 0, creator) can start.
             const caller = match.players.find(p => p.socketId === socket.id);
             if (!caller)
                 return cb(err('You are not a player in this match.'));
             if (caller.seatIndex !== 0)
                 return cb(err('Only the host (seat 0) can start the match.'));
-            // Deal the first round.
             dealRound(match);
             match.status = 'declaration';
             match.currentDeclarationSeat = (match.currentDealerSeat + 1) % 4;
-            // Reset trick state for the new round.
             match.currentTrick = [];
             match.currentTrickLeaderSeat = (match.currentDealerSeat + 1) % 4;
             match.currentPlaySeat = (match.currentDealerSeat + 1) % 4;
-            // Reset declarations and tricks taken.
             for (const player of match.players) {
                 match.declarations[player.id] = null;
                 match.tricksTaken[player.id] = 0;
@@ -196,6 +340,7 @@ export function registerJokerHandlers(io, socket) {
             match.updatedAt = Date.now();
             broadcastState(io, match);
             io.emit('joker:list_update', getOpenMatches().map(toListItem));
+            scheduleBotAction(io, match);
             cb(ok(null));
         }
         catch (e) {
@@ -221,19 +366,9 @@ export function registerJokerHandlers(io, socket) {
             if (!Number.isInteger(tricks) || tricks < 0 || tricks > cardCount) {
                 return cb(err(`Declaration must be between 0 and ${cardCount}.`));
             }
-            match.declarations[player.id] = tricks;
-            match.currentDeclarationSeat = (match.currentDeclarationSeat + 1) % 4;
-            // Check if all 4 players have declared.
-            const allDeclared = match.players.every(p => match.declarations[p.id] !== null);
-            if (allDeclared) {
-                match.status = 'playing';
-                const firstPlaySeat = (match.currentDealerSeat + 1) % 4;
-                match.currentPlaySeat = firstPlaySeat;
-                match.currentTrickLeaderSeat = firstPlaySeat;
-                match.currentTrick = [];
-            }
-            match.updatedAt = Date.now();
-            broadcastState(io, match);
+            // Human declared — clear bot timer if running
+            clearTurnTimer(match.id);
+            executeDeclare(io, match, player, tricks);
             cb(ok(null));
         }
         catch (e) {
@@ -258,93 +393,15 @@ export function registerJokerHandlers(io, socket) {
             const validationError = validateCardPlay(hand, data.card, match.currentTrick);
             if (validationError)
                 return cb(err(validationError));
-            // Remove card from hand.
-            const cardIndex = hand.findIndex(c => c.suit === data.card.suit && c.rank === data.card.rank);
-            if (cardIndex === -1)
-                return cb(err('Card not found in hand.'));
-            hand.splice(cardIndex, 1);
-            // Add to current trick.
-            match.currentTrick.push({
-                playerId: player.id,
-                seatIndex: player.seatIndex,
-                card: data.card,
-            });
-            // Advance to next player's seat.
-            match.currentPlaySeat = (match.currentPlaySeat + 1) % 4;
-            match.updatedAt = Date.now();
-            if (match.currentTrick.length === 4) {
-                // Trick is complete — resolve it.
-                const { winnerId, winnerSeat } = resolveTrick(match.currentTrick);
-                match.tricksTaken[winnerId] = (match.tricksTaken[winnerId] ?? 0) + 1;
-                // Broadcast state immediately so clients see the completed trick.
-                broadcastState(io, match);
-                cb(ok(null));
-                // After 1.5 seconds, start next trick or end round.
-                setTimeout(() => {
-                    if (!getMatch(match.id))
-                        return; // match was deleted
-                    const anyCardsLeft = match.players.some(p => (match.hands[p.id] ?? []).length > 0);
-                    if (anyCardsLeft) {
-                        // Start new trick — winner leads.
-                        match.currentTrick = [];
-                        match.currentTrickLeaderSeat = winnerSeat;
-                        match.currentPlaySeat = winnerSeat;
-                        match.updatedAt = Date.now();
-                        broadcastState(io, match);
-                    }
-                    else {
-                        // Round is complete — score first so round_end broadcast includes results.
-                        applyRoundScores(match);
-                        match.status = 'round_end';
-                        broadcastState(io, match);
-                        // 4-second pause so clients can display round results before advancing.
-                        setTimeout(() => {
-                            if (!getMatch(match.id))
-                                return;
-                            const nextRoundIndex = match.currentRoundIndex + 1;
-                            if (nextRoundIndex < match.roundPlan.length) {
-                                // Advance to next round.
-                                match.currentRoundIndex = nextRoundIndex;
-                                match.currentDealerSeat = (match.currentDealerSeat + 1) % 4;
-                                // Reset per-round state.
-                                for (const p of match.players) {
-                                    match.declarations[p.id] = null;
-                                    match.tricksTaken[p.id] = 0;
-                                    match.hands[p.id] = [];
-                                }
-                                dealRound(match);
-                                match.status = 'declaration';
-                                match.currentDeclarationSeat = (match.currentDealerSeat + 1) % 4;
-                                match.currentTrick = [];
-                                match.currentTrickLeaderSeat = (match.currentDealerSeat + 1) % 4;
-                                match.currentPlaySeat = (match.currentDealerSeat + 1) % 4;
-                                match.updatedAt = Date.now();
-                                broadcastState(io, match);
-                            }
-                            else {
-                                // Game over.
-                                finishMatch(match);
-                                broadcastState(io, match);
-                                // Award XP.
-                                const sortedPlayers = [...match.players].sort((a, b) => (match.scores[b.id] ?? 0) - (match.scores[a.id] ?? 0));
-                                const winnerPlayer = sortedPlayers[0];
-                                for (const p of match.players) {
-                                    if (p.profileId) {
-                                        const xp = p.id === winnerPlayer.id ? 30 : 5;
-                                        addXP(p.profileId, xp).catch(() => { });
-                                    }
-                                }
-                                io.emit('joker:list_update', getOpenMatches().map(toListItem));
-                            }
-                        }, 4000);
-                    }
-                }, 1500);
+            // Validate jokerTarget if provided
+            if (data.card.suit === 'J' && data.jokerTarget) {
+                const target = match.players.find(p => p.id === data.jokerTarget);
+                if (!target)
+                    return cb(err('Invalid joker target.'));
             }
-            else {
-                // Trick not complete yet — just broadcast updated state.
-                broadcastState(io, match);
-                cb(ok(null));
-            }
+            clearTurnTimer(match.id);
+            executePlayCard(io, match, player, data.card, data.jokerTarget);
+            cb(ok(null));
         }
         catch (e) {
             cb(err(e.message));
@@ -361,6 +418,7 @@ export function registerJokerHandlers(io, socket) {
                 return cb(err('You are not a player in this match.'));
             if (match.status === 'finished')
                 return cb(err('Match is already finished.'));
+            clearTurnTimer(match.id);
             finishMatch(match);
             broadcastState(io, match);
             io.emit('joker:list_update', getOpenMatches().map(toListItem));
@@ -381,13 +439,11 @@ export function registerJokerHandlers(io, socket) {
             const requester = old.players.find(p => p.socketId === socket.id);
             if (!requester)
                 return cb(err('You are not a player in this match.'));
-            // Create a new match with the same settings and creator at seat 0.
-            const creator = { ...old.players[0] };
+            const creator = { ...old.players[0], isBot: false };
             const nm = createMatch(creator, { ...old.settings });
-            // Add remaining players in order, re-using same seat assignments.
             for (let i = 1; i < old.players.length; i++) {
                 const op = old.players[i];
-                const np = { ...op };
+                const np = { ...op, isBot: false };
                 nm.players.push(np);
                 nm.scores[np.id] = 0;
                 nm.tricksTaken[np.id] = 0;
@@ -396,7 +452,6 @@ export function registerJokerHandlers(io, socket) {
                 nm.pulkaExacts[np.id] = {};
             }
             nm.updatedAt = Date.now();
-            // Move all player sockets to the new room.
             for (const op of old.players) {
                 const s = io.sockets.sockets.get(op.socketId);
                 if (s) {
@@ -440,12 +495,7 @@ export function registerJokerHandlers(io, socket) {
                 return cb(err('Empty message.'));
             const senderName = player ? player.name : 'Spectator';
             const senderId = socket.data.profileId ?? socket.id;
-            const msg = {
-                senderId,
-                senderName,
-                text,
-                ts: Date.now(),
-            };
+            const msg = { senderId, senderName, text, ts: Date.now() };
             match.chat.push(msg);
             if (match.chat.length > 200)
                 match.chat = match.chat.slice(-200);
@@ -462,10 +512,21 @@ export function handleJokerDisconnect(io, socketId) {
     const match = getMatchForSocket(socketId);
     if (!match)
         return;
-    handleJokerLeave(io, socketId, match);
+    const player = match.players.find(p => p.socketId === socketId);
+    // During an active game, replace with bot instead of ending
+    if (player && (match.status === 'declaration' || match.status === 'playing')) {
+        player.isBot = true;
+        if (!match.botPlayerIds.includes(player.id)) {
+            match.botPlayerIds.push(player.id);
+        }
+        broadcastState(io, match);
+        scheduleBotAction(io, match);
+    }
+    else {
+        handleJokerLeave(io, socketId, match);
+    }
 }
 function handleJokerLeave(io, socketId, match) {
-    // Remove from spectators silently.
     const specIdx = match.spectatorSocketIds.indexOf(socketId);
     if (specIdx !== -1) {
         match.spectatorSocketIds.splice(specIdx, 1);
@@ -475,14 +536,16 @@ function handleJokerLeave(io, socketId, match) {
     const player = match.players.find(p => p.socketId === socketId);
     if (!player)
         return;
-    // Player leaving during an active match — finish the game.
-    if (match.status === 'declaration' || match.status === 'playing') {
+    if (match.status === 'declaration' ||
+        match.status === 'playing' ||
+        match.status === 'round_end') {
+        clearTurnTimer(match.id);
         finishMatch(match);
         broadcastState(io, match);
         io.emit('joker:list_update', getOpenMatches().map(toListItem));
     }
     else if (match.status === 'waiting' && player.seatIndex === 0) {
-        // Creator left before game started — close the room.
+        clearTurnTimer(match.id);
         const rk = JOKER_ROOM(match.id);
         io.in(rk).socketsLeave(rk);
         finishMatch(match);

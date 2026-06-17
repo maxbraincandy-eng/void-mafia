@@ -2,8 +2,8 @@ import { generateId } from '../utils/helpers.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type Suit = 'S' | 'H' | 'D' | 'C';
-export type Rank = 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
+export type Suit = 'S' | 'H' | 'D' | 'C' | 'J';
+export type Rank = 0 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
 
 export interface Card {
   suit: Suit;
@@ -14,6 +14,7 @@ export interface PlayedCard {
   playerId: string;
   seatIndex: number;
   card: Card;
+  jokerTarget?: string; // player ID who wins the trick when joker is "given"
 }
 
 export interface JokerPlayer {
@@ -22,6 +23,7 @@ export interface JokerPlayer {
   name: string;
   profileId: string | null;
   seatIndex: number; // 0-3
+  isBot?: boolean;
 }
 
 export interface JokerSettings {
@@ -85,6 +87,8 @@ export interface JokerMatch {
   // Pulka tracking: playerId -> pulkaId -> count of exact rounds so far in that pulka
   pulkaExacts: Record<string, Record<number, number>>;
 
+  botPlayerIds: string[]; // players currently controlled by the bot engine
+
   chat: JokerChatMsg[];
   createdAt: number;
   updatedAt: number;
@@ -129,7 +133,7 @@ function uniqueMatchCode(): string {
 // ─── Utility exports ─────────────────────────────────────────────────────────
 
 /**
- * Build and shuffle a 36-card deck (ranks 6–A per suit).
+ * Build and shuffle a 38-card deck (ranks 6–A per suit + 2 jokers).
  */
 export function createDeck(): Card[] {
   const deck: Card[] = [];
@@ -138,6 +142,8 @@ export function createDeck(): Card[] {
       deck.push({ suit, rank });
     }
   }
+  deck.push({ suit: 'J', rank: 0 });
+  deck.push({ suit: 'J', rank: 0 });
   return shuffle(deck);
 }
 
@@ -231,6 +237,12 @@ export function validateCardPlay(
   card: Card,
   trick: PlayedCard[],
 ): string | null {
+  // Joker can always be played
+  if (card.suit === 'J') {
+    const inHand = hand.some(c => c.suit === 'J' && c.rank === 0);
+    return inHand ? null : 'Card is not in your hand.';
+  }
+
   // Card must be in hand
   const inHand = hand.some(c => c.suit === card.suit && c.rank === card.rank);
   if (!inHand) {
@@ -257,11 +269,23 @@ export function validateCardPlay(
 
 /**
  * Resolve the current trick.
- * Highest-ranked card of the led suit wins (no trump).
+ * Joker beats everything. If a jokerTarget is set, that player wins the trick.
+ * Otherwise highest-ranked card of the led suit wins (no trump).
  */
-export function resolveTrick(trick: PlayedCard[]): { winnerId: string; winnerSeat: number } {
+export function resolveTrick(
+  trick: PlayedCard[],
+  players: JokerPlayer[],
+): { winnerId: string; winnerSeat: number } {
   if (trick.length === 0) {
     throw new Error('Cannot resolve an empty trick.');
+  }
+
+  // First joker in the trick wins (or gives the trick to jokerTarget)
+  const jokerPlay = trick.find(p => p.card.suit === 'J');
+  if (jokerPlay) {
+    const targetId = jokerPlay.jokerTarget ?? jokerPlay.playerId;
+    const targetPlayer = players.find(p => p.id === targetId);
+    return { winnerId: targetId, winnerSeat: targetPlayer?.seatIndex ?? jokerPlay.seatIndex };
   }
 
   const ledSuit = trick[0].card.suit;
@@ -382,6 +406,7 @@ export function createMatch(creator: JokerPlayer, settings: JokerSettings): Joke
   const declarations: Record<string, number | null> = {};
   const hands: Record<string, Card[]> = {};
   const pulkaExacts: Record<string, Record<number, number>> = {};
+  const botPlayerIds: string[] = [];
 
   scores[creator.id] = 0;
   tricksTaken[creator.id] = 0;
@@ -417,6 +442,7 @@ export function createMatch(creator: JokerPlayer, settings: JokerSettings): Joke
     roundHistory: [],
 
     pulkaExacts,
+    botPlayerIds,
 
     chat: [],
     createdAt: now,

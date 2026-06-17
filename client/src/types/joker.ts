@@ -1,5 +1,5 @@
-export type Suit = 'S' | 'H' | 'D' | 'C';
-export type Rank = 6|7|8|9|10|11|12|13|14;
+export type Suit = 'S' | 'H' | 'D' | 'C' | 'J';
+export type Rank = 0 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
 
 export interface Card { suit: Suit; rank: Rank; }
 
@@ -7,6 +7,7 @@ export interface PlayedCard {
   playerId: string;
   seatIndex: number;
   card: Card;
+  jokerTarget?: string;
 }
 
 export interface JokerPlayerPublic {
@@ -16,6 +17,7 @@ export interface JokerPlayerPublic {
   profileId: string | null;
   seatIndex: number;
   cardCount: number;
+  isBot?: boolean;
 }
 
 export interface JokerSettings {
@@ -55,6 +57,7 @@ export interface JokerMatchPublic {
   settings: JokerSettings;
   players: JokerPlayerPublic[];
   spectatorCount: number;
+  botPlayerIds: string[];
   roundPlan: number[];
   currentRoundIndex: number;
   totalRounds: number;
@@ -69,7 +72,7 @@ export interface JokerMatchPublic {
   chat: JokerChatMsg[];
   winnerPlayerId: string | null;
   // Injected client-side:
-  myPlayerId: string | null;      // null if spectator
+  myPlayerId: string | null;
   mySeatIndex: number | null;
 }
 

@@ -2,10 +2,10 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@/store/langStore';
 import { useJokerStore } from '@/store/jokerStore';
-import { JokerCard, rankLabel } from './JokerCard';
+import { JokerCard } from './JokerCard';
 import type { Card, JokerPlayerPublic, Suit } from '@/types/joker';
 
-const SUIT_SYMBOL: Record<Suit, string> = { S: '♠', H: '♥', D: '♦', C: '♣' };
+const SUIT_SYMBOL: Record<Suit, string> = { S: '♠', H: '♥', D: '♦', C: '♣', J: '🃏' };
 
 export function JokerGame() {
   const t = useT();
@@ -17,6 +17,7 @@ export function JokerGame() {
 
   const [chatInput, setChatInput] = useState('');
   const [showScoreboard, setShowScoreboard] = useState(false);
+  const [jokerPendingCard, setJokerPendingCard] = useState<Card | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,17 +38,16 @@ export function JokerGame() {
   const isFinished = match.status === 'finished';
   const isCreator = isPlayer && mySeat === 0;
 
-  // Determine playable cards when it's our turn
+  // Playable cards — jokers are always playable when it's our turn
   const playableSet = useMemo(() => {
     if (!isMyPlayTurn || myHand.length === 0) return new Set<string>();
     const trick = match.currentTrick;
-    if (trick.length === 0) {
-      // Leading — any card
-      return new Set(myHand.map(c => cardKey(c)));
-    }
+    if (trick.length === 0) return new Set(myHand.map(c => cardKey(c)));
     const ledSuit = trick[0].card.suit;
-    const hasSuit = myHand.some(c => c.suit === ledSuit);
-    if (hasSuit) return new Set(myHand.filter(c => c.suit === ledSuit).map(c => cardKey(c)));
+    const hasSuit = myHand.some(c => c.suit === ledSuit && c.suit !== 'J');
+    if (hasSuit) {
+      return new Set(myHand.filter(c => c.suit === ledSuit || c.suit === 'J').map(c => cardKey(c)));
+    }
     return new Set(myHand.map(c => cardKey(c)));
   }, [isMyPlayTurn, myHand, match.currentTrick]);
 
@@ -63,7 +63,12 @@ export function JokerGame() {
     const key = cardKey(card);
     if (!playableSet.has(key)) return;
     if (selectedCard && cardKey(selectedCard) === key) {
-      await playCard(card);
+      if (card.suit === 'J') {
+        // Show joker target choice instead of playing immediately
+        setJokerPendingCard(card);
+      } else {
+        await playCard(card);
+      }
     } else {
       selectCard(card);
     }
@@ -241,6 +246,59 @@ export function JokerGame() {
             )}
           </div>
         )}
+
+        {/* ── Joker target choice modal ── */}
+        <AnimatePresence>
+          {jokerPendingCard && (
+            <motion.div
+              key="joker-choice"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-30 flex items-center justify-center"
+              style={{ background: 'rgba(2,0,8,0.88)', backdropFilter: 'blur(6px)' }}
+            >
+              <div
+                className="mx-4 w-full max-w-xs rounded-2xl overflow-hidden"
+                style={{ background: 'rgba(30,15,5,0.98)', border: '1px solid rgba(251,191,36,0.4)' }}
+              >
+                <div className="px-5 py-4 border-b text-center" style={{ borderColor: 'rgba(251,191,36,0.2)' }}>
+                  <div className="text-3xl mb-1">🃏</div>
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-yellow-400/60">
+                    {t.games.joker.jokerPlay}
+                  </p>
+                </div>
+                <div className="px-4 py-3 space-y-2">
+                  <button
+                    onClick={async () => { setJokerPendingCard(null); await playCard(jokerPendingCard); }}
+                    className="w-full py-2.5 rounded-xl font-display font-semibold text-sm uppercase tracking-wider transition-all active:scale-95"
+                    style={{ background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.4)', color: '#fbbf24' }}
+                  >
+                    {t.games.joker.jokerWinSelf}
+                  </button>
+                  {match.players.filter(p => p.id !== myId).map(p => (
+                    <button
+                      key={p.id}
+                      onClick={async () => { setJokerPendingCard(null); await playCard(jokerPendingCard, p.id); }}
+                      className="w-full py-2.5 rounded-xl font-display font-semibold text-sm transition-all active:scale-95"
+                      style={{ background: 'rgba(155,0,255,0.08)', border: '1px solid rgba(155,0,255,0.25)', color: '#c084fc' }}
+                    >
+                      {t.games.joker.jokerGiveTo} {p.name}{p.isBot ? ' 🤖' : ''}
+                    </button>
+                  ))}
+                </div>
+                <div className="px-4 pb-3">
+                  <button
+                    onClick={() => { setJokerPendingCard(null); selectCard(null); }}
+                    className="w-full py-2 rounded-lg font-mono text-xs text-white/30 border border-white/10 hover:text-white/60 transition-colors"
+                  >
+                    {t.games.joker.cancel}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── Round End overlay ── */}
         <AnimatePresence>
@@ -472,7 +530,7 @@ function PlayerBadge({ player, match, myId, position, compact }: {
         {isDealer && <span className="text-[10px]" title="Dealer">🎴</span>}
         <div className="min-w-0">
           <p className="font-mono text-[10px] text-white truncate max-w-[70px]">
-            {player.name}{isMe ? ' ✦' : ''}
+            {player.name}{isMe ? ' ✦' : ''}{player.isBot ? ' 🤖' : ''}
           </p>
           {!compact && (
             <p className="font-mono text-[9px] text-white/30">
@@ -511,10 +569,10 @@ function TrickArea({ match, seatedPlayers }: { match: any; seatedPlayers: JokerP
   };
 
   return (
-    <div className="relative" style={{ width: 160, height: 160 }}>
+    <div className="relative" style={{ width: 230, height: 230 }}>
       {/* Green felt center */}
       <div style={{
-        position: 'absolute', inset: 16, borderRadius: 12,
+        position: 'absolute', inset: 20, borderRadius: 14,
         background: 'radial-gradient(circle, rgba(0,60,20,0.6), rgba(0,30,10,0.4))',
         border: '1px solid rgba(0,200,50,0.12)',
       }} />
@@ -525,7 +583,7 @@ function TrickArea({ match, seatedPlayers }: { match: any; seatedPlayers: JokerP
         return (
           <div key={`${pc.playerId}-${cardKey(pc.card)}`}
             style={{ position: 'absolute', ...posStyle[pos] }}>
-            <JokerCard card={pc.card} size="sm" />
+            <JokerCard card={pc.card} size="md" />
           </div>
         );
       })}
