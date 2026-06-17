@@ -78,6 +78,9 @@ export function registerJokerHandlers(io, socket) {
             const settings = {
                 mode: 'classic',
                 khishtiPenalty: 200,
+                exactBidMultiplier: 50,
+                zeroBidExactScore: 50,
+                missPenaltyPerTrick: 50,
                 bonusEnabled: true,
                 spectatorsAllowed: true,
                 privateTable: false,
@@ -290,45 +293,50 @@ export function registerJokerHandlers(io, socket) {
                         broadcastState(io, match);
                     }
                     else {
-                        // Round is complete.
+                        // Round is complete — score first so round_end broadcast includes results.
+                        applyRoundScores(match);
                         match.status = 'round_end';
                         broadcastState(io, match);
-                        applyRoundScores(match);
-                        const nextRoundIndex = match.currentRoundIndex + 1;
-                        if (nextRoundIndex < match.roundPlan.length) {
-                            // Advance to next round.
-                            match.currentRoundIndex = nextRoundIndex;
-                            match.currentDealerSeat = (match.currentDealerSeat + 1) % 4;
-                            // Reset per-round state.
-                            for (const p of match.players) {
-                                match.declarations[p.id] = null;
-                                match.tricksTaken[p.id] = 0;
-                                match.hands[p.id] = [];
-                            }
-                            dealRound(match);
-                            match.status = 'declaration';
-                            match.currentDeclarationSeat = (match.currentDealerSeat + 1) % 4;
-                            match.currentTrick = [];
-                            match.currentTrickLeaderSeat = (match.currentDealerSeat + 1) % 4;
-                            match.currentPlaySeat = (match.currentDealerSeat + 1) % 4;
-                            match.updatedAt = Date.now();
-                            broadcastState(io, match);
-                        }
-                        else {
-                            // Game over.
-                            finishMatch(match);
-                            broadcastState(io, match);
-                            // Award XP.
-                            const sortedPlayers = [...match.players].sort((a, b) => (match.scores[b.id] ?? 0) - (match.scores[a.id] ?? 0));
-                            const winnerPlayer = sortedPlayers[0];
-                            for (const p of match.players) {
-                                if (p.profileId) {
-                                    const xp = p.id === winnerPlayer.id ? 30 : 5;
-                                    addXP(p.profileId, xp).catch(() => { });
+                        // 4-second pause so clients can display round results before advancing.
+                        setTimeout(() => {
+                            if (!getMatch(match.id))
+                                return;
+                            const nextRoundIndex = match.currentRoundIndex + 1;
+                            if (nextRoundIndex < match.roundPlan.length) {
+                                // Advance to next round.
+                                match.currentRoundIndex = nextRoundIndex;
+                                match.currentDealerSeat = (match.currentDealerSeat + 1) % 4;
+                                // Reset per-round state.
+                                for (const p of match.players) {
+                                    match.declarations[p.id] = null;
+                                    match.tricksTaken[p.id] = 0;
+                                    match.hands[p.id] = [];
                                 }
+                                dealRound(match);
+                                match.status = 'declaration';
+                                match.currentDeclarationSeat = (match.currentDealerSeat + 1) % 4;
+                                match.currentTrick = [];
+                                match.currentTrickLeaderSeat = (match.currentDealerSeat + 1) % 4;
+                                match.currentPlaySeat = (match.currentDealerSeat + 1) % 4;
+                                match.updatedAt = Date.now();
+                                broadcastState(io, match);
                             }
-                            io.emit('joker:list_update', getOpenMatches().map(toListItem));
-                        }
+                            else {
+                                // Game over.
+                                finishMatch(match);
+                                broadcastState(io, match);
+                                // Award XP.
+                                const sortedPlayers = [...match.players].sort((a, b) => (match.scores[b.id] ?? 0) - (match.scores[a.id] ?? 0));
+                                const winnerPlayer = sortedPlayers[0];
+                                for (const p of match.players) {
+                                    if (p.profileId) {
+                                        const xp = p.id === winnerPlayer.id ? 30 : 5;
+                                        addXP(p.profileId, xp).catch(() => { });
+                                    }
+                                }
+                                io.emit('joker:list_update', getOpenMatches().map(toListItem));
+                            }
+                        }, 4000);
                     }
                 }, 1500);
             }

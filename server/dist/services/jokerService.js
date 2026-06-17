@@ -3,7 +3,7 @@ import { generateId } from '../utils/helpers.js';
 const matchStore = new Map();
 // ─── Utility helpers ─────────────────────────────────────────────────────────
 const SUITS = ['S', 'H', 'D', 'C'];
-const RANKS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+const RANKS = [6, 7, 8, 9, 10, 11, 12, 13, 14];
 function shuffle(arr) {
     const a = arr.slice();
     for (let i = a.length - 1; i > 0; i--) {
@@ -31,7 +31,7 @@ function uniqueMatchCode() {
 }
 // ─── Utility exports ─────────────────────────────────────────────────────────
 /**
- * Build and shuffle a standard 52-card deck.
+ * Build and shuffle a 36-card deck (ranks 6–A per suit).
  */
 export function createDeck() {
     const deck = [];
@@ -158,19 +158,19 @@ export function resolveTrick(trick) {
 /**
  * Calculate score for one player for one round.
  *
- * if (declared > 0 && actual === 0):   -khishtiPenalty   (khishti)
- * elif (actual === declared):           declared === 0 ? +50 : declared * 50
- * else:                                 -(abs(actual - declared) * 50)
+ * Khishti:   declared ≥ 1 && actual === 0  →  -khishtiPenalty
+ * Exact bid: actual === declared            →  declared === 0 ? zeroBidExactScore : declared * exactBidMultiplier
+ * Miss:      actual !== declared            →  -(|actual - declared| * missPenaltyPerTrick)
  */
-export function calcRoundScore(declared, actual, khishtiPenalty) {
+export function calcRoundScore(declared, actual, settings) {
     if (declared > 0 && actual === 0) {
-        return { points: -khishtiPenalty, khishti: true };
+        return { points: -settings.khishtiPenalty, khishti: true };
     }
     if (actual === declared) {
-        const points = declared === 0 ? 50 : declared * 50;
+        const points = declared === 0 ? settings.zeroBidExactScore : declared * settings.exactBidMultiplier;
         return { points, khishti: false };
     }
-    const points = -(Math.abs(actual - declared) * 50);
+    const points = -(Math.abs(actual - declared) * settings.missPenaltyPerTrick);
     return { points, khishti: false };
 }
 // ─── Score application ────────────────────────────────────────────────────────
@@ -182,7 +182,7 @@ export function applyRoundScores(match) {
     const roundIndex = match.currentRoundIndex;
     const cardCount = match.roundPlan[roundIndex];
     const pulkaId = match.pulkaIds[roundIndex];
-    const { khishtiPenalty, pulkaBonusPoints } = match.settings;
+    const { pulkaBonusPoints, bonusEnabled } = match.settings;
     const declarations = {};
     const taken = {};
     const points = {};
@@ -193,15 +193,15 @@ export function applyRoundScores(match) {
         const actual = match.tricksTaken[player.id] ?? 0;
         declarations[player.id] = declared;
         taken[player.id] = actual;
-        const { points: pts, khishti } = calcRoundScore(declared, actual, khishtiPenalty);
+        const { points: pts, khishti } = calcRoundScore(declared, actual, match.settings);
         points[player.id] = pts;
         if (khishti) {
             khishtiPlayers.push(player.id);
         }
         // Update running score
         match.scores[player.id] = (match.scores[player.id] ?? 0) + pts;
-        // Pulka tracking: only for exact rounds (not khishti, score >= 0)
-        if (pulkaId !== null && !khishti && pts >= 0) {
+        // Pulka tracking: only if bonus is enabled and round was exact (not khishti)
+        if (bonusEnabled && pulkaId !== null && !khishti && pts >= 0) {
             if (!match.pulkaExacts[player.id]) {
                 match.pulkaExacts[player.id] = {};
             }

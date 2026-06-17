@@ -87,7 +87,7 @@ export function JokerGame() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex flex-col"
+      className="fixed inset-0 z-[100] flex flex-col"
       style={{ background: '#020008' }}
     >
       {/* Header */}
@@ -241,6 +241,22 @@ export function JokerGame() {
             )}
           </div>
         )}
+
+        {/* ── Round End overlay ── */}
+        <AnimatePresence>
+          {match.status === 'round_end' && (
+            <motion.div
+              key="round-end"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-20 flex items-center justify-center"
+              style={{ background: 'rgba(2,0,8,0.92)', backdropFilter: 'blur(6px)' }}
+            >
+              <RoundEndPanel match={match} myId={myId} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── Finished overlay ── */}
         <AnimatePresence>
@@ -572,6 +588,93 @@ function DeclarationProgress({ match }: { match: any }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function RoundEndPanel({ match, myId }: { match: any; myId: string | null }) {
+  const t = useT();
+  const lastResult = match.roundHistory[match.roundHistory.length - 1];
+  if (!lastResult) return null;
+
+  return (
+    <div
+      className="mx-4 w-full max-w-xs rounded-2xl overflow-hidden"
+      style={{ background: 'rgba(20,10,40,0.98)', border: '1px solid rgba(155,0,255,0.4)' }}
+    >
+      <div className="px-5 py-3 border-b" style={{ borderColor: 'rgba(155,0,255,0.2)' }}>
+        <p className="font-mono text-[10px] uppercase tracking-widest text-white/30 text-center">
+          {t.games.joker.roundResults}
+        </p>
+        <p className="font-display text-base font-bold text-center mt-0.5" style={{ color: '#c084fc' }}>
+          {t.games.joker.round} {lastResult.roundIndex + 1} · {lastResult.cardCount}🃏
+          {lastResult.pulkaId !== null ? ` · Pulka ${lastResult.pulkaId}` : ''}
+        </p>
+      </div>
+
+      {/* Results table */}
+      <div className="px-4 py-3">
+        {/* Header */}
+        <div className="flex items-center gap-1 mb-1.5 px-1">
+          <span className="font-mono text-[9px] text-white/25 flex-1">{t.games.joker.players}</span>
+          <span className="font-mono text-[9px] text-white/25 w-8 text-center">{t.games.joker.declared}</span>
+          <span className="font-mono text-[9px] text-white/25 w-8 text-center">{t.games.joker.taken}</span>
+          <span className="font-mono text-[9px] text-white/25 w-10 text-right">{t.games.joker.pts}</span>
+        </div>
+        <div className="space-y-1">
+          {match.players.map((p: any) => {
+            const decl = lastResult.declarations[p.id] ?? '?';
+            const took = lastResult.taken[p.id] ?? 0;
+            const pts = lastResult.points[p.id] ?? 0;
+            const khishti = lastResult.khishtiPlayers.includes(p.id);
+            const bonus = lastResult.pulkaBonusPlayers[p.id] ?? 0;
+            const isMe = p.id === myId;
+            return (
+              <div
+                key={p.id}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg"
+                style={{
+                  background: isMe ? 'rgba(0,245,255,0.05)' : 'rgba(255,255,255,0.02)',
+                  border: `1px solid ${isMe ? 'rgba(0,245,255,0.15)' : 'transparent'}`,
+                }}
+              >
+                <span className={`font-mono text-[10px] flex-1 truncate ${isMe ? 'text-white' : 'text-white/55'}`}>
+                  {p.name}{isMe ? ' ✦' : ''}
+                </span>
+                <span className="font-mono text-[10px] text-white/40 w-8 text-center">{decl}</span>
+                <span className="font-mono text-[10px] text-white/40 w-8 text-center">{took}</span>
+                <span className="font-mono text-[10px] font-bold w-10 text-right"
+                  style={{ color: pts >= 0 ? '#00f5ff' : '#f87171' }}>
+                  {pts >= 0 ? '+' : ''}{pts}
+                  {khishti ? ' ⚡' : ''}
+                  {bonus > 0 ? ` 🎉` : ''}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        {/* Running totals */}
+        <div className="mt-2 pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+          {[...match.players]
+            .sort((a: any, b: any) => (match.scores[b.id] ?? 0) - (match.scores[a.id] ?? 0))
+            .map((p: any, i: number) => (
+              <div key={p.id} className="flex items-center gap-2 py-0.5">
+                <span className="font-mono text-[9px] text-white/25 w-3">{i + 1}</span>
+                <span className={`font-mono text-[10px] flex-1 truncate ${p.id === myId ? 'text-white' : 'text-white/45'}`}>
+                  {p.name}
+                </span>
+                <span className="font-mono text-xs font-bold"
+                  style={{ color: (match.scores[p.id] ?? 0) >= 0 ? '#00f5ff' : '#f87171' }}>
+                  {match.scores[p.id] ?? 0}
+                </span>
+              </div>
+            ))}
+        </div>
+      </div>
+
+      <div className="px-4 pb-3 text-center">
+        <p className="font-mono text-[9px] text-white/25 animate-pulse">{t.games.joker.nextRoundSoon}</p>
+      </div>
     </div>
   );
 }

@@ -237,6 +237,9 @@ export const TRANSLATIONS = {
         spectating: 'Spectating',
         dealer: 'Dealer',
         mode: 'Mode',
+        roundResults: 'Round Results',
+        nextRoundSoon: 'Next round starting…',
+        pts: 'Pts',
       },
       ludo: {
         title: 'Ludo',
@@ -1123,6 +1126,9 @@ export const TRANSLATIONS = {
         spectating: 'ყურება',
         dealer: 'დამრიგებელი',
         mode: 'რეჟიმი',
+        roundResults: 'რაუნდის შედეგები',
+        nextRoundSoon: 'შემდეგი რაუნდი იწყება…',
+        pts: 'ქულ.',
       },
       ludo: {
         title: 'ლუდო',

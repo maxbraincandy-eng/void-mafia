@@ -3,7 +3,7 @@ import { generateId } from '../utils/helpers.js';
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type Suit = 'S' | 'H' | 'D' | 'C';
-export type Rank = 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
+export type Rank = 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
 
 export interface Card {
   suit: Suit;
@@ -26,11 +26,14 @@ export interface JokerPlayer {
 
 export interface JokerSettings {
   mode: 'classic' | 'nines_only';
-  khishtiPenalty: number;      // default 200
-  bonusEnabled: boolean;       // default true
-  spectatorsAllowed: boolean;  // default true
-  privateTable: boolean;       // default false
-  pulkaBonusPoints: number;    // default 400
+  khishtiPenalty: number;        // default 200
+  exactBidMultiplier: number;    // default 50 (bid * multiplier when exact)
+  zeroBidExactScore: number;     // default 50 (score for exact 0-bid)
+  missPenaltyPerTrick: number;   // default 50 (penalty per missed trick)
+  bonusEnabled: boolean;         // default true (pulka bonus on/off)
+  spectatorsAllowed: boolean;    // default true
+  privateTable: boolean;         // default false
+  pulkaBonusPoints: number;      // default 400
 }
 
 export interface JokerRoundResult {
@@ -94,7 +97,7 @@ const matchStore = new Map<string, JokerMatch>();
 // ─── Utility helpers ─────────────────────────────────────────────────────────
 
 const SUITS: Suit[] = ['S', 'H', 'D', 'C'];
-const RANKS: Rank[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+const RANKS: Rank[] = [6, 7, 8, 9, 10, 11, 12, 13, 14];
 
 function shuffle<T>(arr: T[]): T[] {
   const a = arr.slice();
@@ -126,7 +129,7 @@ function uniqueMatchCode(): string {
 // ─── Utility exports ─────────────────────────────────────────────────────────
 
 /**
- * Build and shuffle a standard 52-card deck.
+ * Build and shuffle a 36-card deck (ranks 6–A per suit).
  */
 export function createDeck(): Card[] {
   const deck: Card[] = [];
@@ -277,23 +280,23 @@ export function resolveTrick(trick: PlayedCard[]): { winnerId: string; winnerSea
 /**
  * Calculate score for one player for one round.
  *
- * if (declared > 0 && actual === 0):   -khishtiPenalty   (khishti)
- * elif (actual === declared):           declared === 0 ? +50 : declared * 50
- * else:                                 -(abs(actual - declared) * 50)
+ * Khishti:   declared ≥ 1 && actual === 0  →  -khishtiPenalty
+ * Exact bid: actual === declared            →  declared === 0 ? zeroBidExactScore : declared * exactBidMultiplier
+ * Miss:      actual !== declared            →  -(|actual - declared| * missPenaltyPerTrick)
  */
 export function calcRoundScore(
   declared: number,
   actual: number,
-  khishtiPenalty: number,
+  settings: Pick<JokerSettings, 'khishtiPenalty' | 'exactBidMultiplier' | 'zeroBidExactScore' | 'missPenaltyPerTrick'>,
 ): { points: number; khishti: boolean } {
   if (declared > 0 && actual === 0) {
-    return { points: -khishtiPenalty, khishti: true };
+    return { points: -settings.khishtiPenalty, khishti: true };
   }
   if (actual === declared) {
-    const points = declared === 0 ? 50 : declared * 50;
+    const points = declared === 0 ? settings.zeroBidExactScore : declared * settings.exactBidMultiplier;
     return { points, khishti: false };
   }
-  const points = -(Math.abs(actual - declared) * 50);
+  const points = -(Math.abs(actual - declared) * settings.missPenaltyPerTrick);
   return { points, khishti: false };
 }
 
@@ -307,7 +310,7 @@ export function applyRoundScores(match: JokerMatch): JokerRoundResult {
   const roundIndex = match.currentRoundIndex;
   const cardCount = match.roundPlan[roundIndex];
   const pulkaId = match.pulkaIds[roundIndex];
-  const { khishtiPenalty, pulkaBonusPoints } = match.settings;
+  const { pulkaBonusPoints, bonusEnabled } = match.settings;
 
   const declarations: Record<string, number> = {};
   const taken: Record<string, number> = {};
@@ -322,7 +325,7 @@ export function applyRoundScores(match: JokerMatch): JokerRoundResult {
     declarations[player.id] = declared;
     taken[player.id] = actual;
 
-    const { points: pts, khishti } = calcRoundScore(declared, actual, khishtiPenalty);
+    const { points: pts, khishti } = calcRoundScore(declared, actual, match.settings);
     points[player.id] = pts;
 
     if (khishti) {
@@ -332,8 +335,8 @@ export function applyRoundScores(match: JokerMatch): JokerRoundResult {
     // Update running score
     match.scores[player.id] = (match.scores[player.id] ?? 0) + pts;
 
-    // Pulka tracking: only for exact rounds (not khishti, score >= 0)
-    if (pulkaId !== null && !khishti && pts >= 0) {
+    // Pulka tracking: only if bonus is enabled and round was exact (not khishti)
+    if (bonusEnabled && pulkaId !== null && !khishti && pts >= 0) {
       if (!match.pulkaExacts[player.id]) {
         match.pulkaExacts[player.id] = {};
       }

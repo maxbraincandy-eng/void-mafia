@@ -1,5 +1,5 @@
 export type Suit = 'S' | 'H' | 'D' | 'C';
-export type Rank = 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
+export type Rank = 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
 export interface Card {
     suit: Suit;
     rank: Rank;
@@ -19,6 +19,9 @@ export interface JokerPlayer {
 export interface JokerSettings {
     mode: 'classic' | 'nines_only';
     khishtiPenalty: number;
+    exactBidMultiplier: number;
+    zeroBidExactScore: number;
+    missPenaltyPerTrick: number;
     bonusEnabled: boolean;
     spectatorsAllowed: boolean;
     privateTable: boolean;
@@ -66,7 +69,7 @@ export interface JokerMatch {
     updatedAt: number;
 }
 /**
- * Build and shuffle a standard 52-card deck.
+ * Build and shuffle a 36-card deck (ranks 6–A per suit).
  */
 export declare function createDeck(): Card[];
 /**
@@ -104,11 +107,11 @@ export declare function resolveTrick(trick: PlayedCard[]): {
 /**
  * Calculate score for one player for one round.
  *
- * if (declared > 0 && actual === 0):   -khishtiPenalty   (khishti)
- * elif (actual === declared):           declared === 0 ? +50 : declared * 50
- * else:                                 -(abs(actual - declared) * 50)
+ * Khishti:   declared ≥ 1 && actual === 0  →  -khishtiPenalty
+ * Exact bid: actual === declared            →  declared === 0 ? zeroBidExactScore : declared * exactBidMultiplier
+ * Miss:      actual !== declared            →  -(|actual - declared| * missPenaltyPerTrick)
  */
-export declare function calcRoundScore(declared: number, actual: number, khishtiPenalty: number): {
+export declare function calcRoundScore(declared: number, actual: number, settings: Pick<JokerSettings, 'khishtiPenalty' | 'exactBidMultiplier' | 'zeroBidExactScore' | 'missPenaltyPerTrick'>): {
     points: number;
     khishti: boolean;
 };
