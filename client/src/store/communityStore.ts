@@ -110,8 +110,12 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
 
   socket.on('community:post_new', (post: CommunityPost) => {
     set(s => {
-      if (s.feedPosts.some(p => p.id === post.id)) return {};
-      return { feedPosts: [post, ...s.feedPosts] };
+      const alreadyV1 = s.feedPosts.some(p => p.id === post.id);
+      const alreadyV2 = s.feedV2Posts.some(p => p.id === post.id);
+      return {
+        feedPosts: alreadyV1 ? s.feedPosts : [post, ...s.feedPosts],
+        feedV2Posts: alreadyV2 ? s.feedV2Posts : [post as any, ...s.feedV2Posts],
+      };
     });
   });
 
@@ -229,18 +233,49 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
     },
     deletePost: async (id) => {
       unwrap(await emitWithAck<any, Res<null>>('community:post_delete', { id }));
-      set(s => ({ feedPosts: s.feedPosts.filter(p => p.id !== id) }));
+      set(s => ({
+        feedPosts: s.feedPosts.filter(p => p.id !== id),
+        feedV2Posts: s.feedV2Posts.filter(p => p.id !== id),
+      }));
     },
     toggleLike: async (postId) => {
-      const { likesCount, likedByMe } = unwrap(await emitWithAck<any, Res<{ likesCount: number; likedByMe: boolean }>>('community:post_like', { postId }));
-      set(s => ({ feedPosts: s.feedPosts.map(p => p.id === postId ? { ...p, likesCount, likedByMe } : p) }));
+      // Optimistic update immediately so the heart flips without waiting for server
+      set(s => ({
+        feedPosts: s.feedPosts.map(p =>
+          p.id === postId ? { ...p, likedByMe: !p.likedByMe, likesCount: p.likedByMe ? Math.max(0, p.likesCount - 1) : p.likesCount + 1 } : p
+        ),
+        feedV2Posts: s.feedV2Posts.map(p =>
+          p.id === postId ? { ...p, likedByMe: !p.likedByMe, likesCount: p.likedByMe ? Math.max(0, p.likesCount - 1) : p.likesCount + 1 } : p
+        ),
+      }));
+      // Sync with server and correct counts
+      try {
+        const { likesCount, likedByMe } = unwrap(await emitWithAck<any, Res<{ likesCount: number; likedByMe: boolean }>>('community:post_like', { postId }));
+        set(s => ({
+          feedPosts: s.feedPosts.map(p => p.id === postId ? { ...p, likesCount, likedByMe } : p),
+          feedV2Posts: s.feedV2Posts.map(p => p.id === postId ? { ...p, likesCount, likedByMe } : p),
+        }));
+      } catch {
+        // revert optimistic
+        set(s => ({
+          feedPosts: s.feedPosts.map(p =>
+            p.id === postId ? { ...p, likedByMe: !p.likedByMe, likesCount: p.likedByMe ? Math.max(0, p.likesCount - 1) : p.likesCount + 1 } : p
+          ),
+          feedV2Posts: s.feedV2Posts.map(p =>
+            p.id === postId ? { ...p, likedByMe: !p.likedByMe, likesCount: p.likedByMe ? Math.max(0, p.likesCount - 1) : p.likesCount + 1 } : p
+          ),
+        }));
+      }
     },
     fetchComments: async (postId) => {
       return unwrap(await emitWithAck<any, Res<CommunityComment[]>>('community:post_comments', { postId }));
     },
     addComment: async (postId, content) => {
       const comment = unwrap(await emitWithAck<any, Res<CommunityComment>>('community:post_comment', { postId, content }));
-      set(s => ({ feedPosts: s.feedPosts.map(p => p.id === postId ? { ...p, commentsCount: p.commentsCount + 1 } : p) }));
+      set(s => ({
+        feedPosts: s.feedPosts.map(p => p.id === postId ? { ...p, commentsCount: p.commentsCount + 1 } : p),
+        feedV2Posts: s.feedV2Posts.map(p => p.id === postId ? { ...p, commentsCount: p.commentsCount + 1 } : p),
+      }));
       return comment;
     },
     reportPost: async (postId, reason) => {
