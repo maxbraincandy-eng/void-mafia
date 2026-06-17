@@ -1,13 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@/store/langStore';
-import { useAuthStore } from '@/store/authStore';
 import { useCheckersStore } from '@/store/checkersStore';
 import { CheckersBoard } from './CheckersBoard';
 
 export function CheckersGame() {
   const t = useT();
-  const profile = useAuthStore(s => s.profile);
   const {
     match, selectedCell, isLoading,
     makeMove, resign, rematch, leaveMatch, sendChat, selectCell,
@@ -26,10 +24,9 @@ export function CheckersGame() {
   const isPlayer = myColor === 'red' || myColor === 'black';
   const isMyTurn = isPlayer && match.currentTurn === myColor;
   const isFinished = match.status === 'finished';
-  const opponent = myColor === 'red' ? match.black : myColor === 'black' ? match.red : null;
-  const me = myColor === 'red' ? match.red : myColor === 'black' ? match.black : null;
 
-  const playerName = profile?.username ?? 'Player';
+  const myCaptures = myColor === 'red' ? match.capturedByRed : myColor === 'black' ? match.capturedByBlack : 0;
+  const theirCaptures = myColor === 'red' ? match.capturedByBlack : myColor === 'black' ? match.capturedByRed : 0;
 
   const turnLabel = isFinished
     ? match.winnerColor
@@ -39,11 +36,7 @@ export function CheckersGame() {
       ? t.games.checkers.yourTurn
       : t.games.checkers.opponentTurn;
 
-  const turnColor = isFinished
-    ? '#c084fc'
-    : isMyTurn
-      ? '#00f5ff'
-      : 'rgba(255,255,255,0.4)';
+  const turnColor = isFinished ? '#c084fc' : isMyTurn ? '#00f5ff' : 'rgba(255,255,255,0.4)';
 
   async function handleSendChat() {
     const txt = chatInput.trim();
@@ -52,11 +45,14 @@ export function CheckersGame() {
     await sendChat(txt);
   }
 
-  const capturedLabel = myColor === 'red'
-    ? `${match.capturedByRed} captured`
-    : myColor === 'black'
-      ? `${match.capturedByBlack} captured`
-      : `R:${match.capturedByRed} B:${match.capturedByBlack}`;
+  // From each player's perspective: "me" on the left, "opponent" on the right.
+  // Spectators see red on the left and black on the right.
+  const leftPlayer  = myColor === 'black' ? match.black : match.red;
+  const rightPlayer = myColor === 'black' ? match.red   : (match.black ?? null);
+  const leftColor   = myColor === 'black' ? 'black' : 'red';
+  const rightColor  = myColor === 'black' ? 'red'   : 'black';
+  const leftCap     = myColor === 'black' ? myCaptures   : (isPlayer ? myCaptures   : match.capturedByRed);
+  const rightCap    = myColor === 'black' ? theirCaptures : (isPlayer ? theirCaptures : match.capturedByBlack);
 
   return (
     <motion.div
@@ -88,7 +84,7 @@ export function CheckersGame() {
           {isPlayer && match.status === 'active' && (
             <button
               onClick={resign}
-              className="font-mono text-[10px] text-neon-red/70 hover:text-neon-red px-2 py-1 rounded border border-neon-red/20 hover:border-neon-red/40 transition-colors"
+              className="font-mono text-[10px] text-red-400/70 hover:text-red-400 px-2 py-1 rounded border border-red-500/20 hover:border-red-500/40 transition-colors"
             >
               {t.games.checkers.resign}
             </button>
@@ -103,15 +99,15 @@ export function CheckersGame() {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 overflow-hidden flex flex-col">
-        {/* Player info bar */}
+      <div className="flex-1 overflow-hidden flex flex-col relative">
+        {/* Player info bar — always shows "me" on left, opponent on right */}
         <div className="flex-shrink-0 flex items-center justify-between px-4 py-2 gap-2">
           <PlayerBadge
-            name={match.red.name}
-            color="red"
-            active={match.currentTurn === 'red' && match.status === 'active'}
-            captured={match.capturedByRed}
-            isMe={myColor === 'red'}
+            name={leftPlayer?.name ?? '?'}
+            color={leftColor}
+            active={match.currentTurn === leftColor && match.status === 'active'}
+            captures={leftCap}
+            isMe={isPlayer}
           />
           <div className="text-center flex-shrink-0">
             <p className="font-mono text-[10px] uppercase tracking-widest" style={{ color: turnColor }}>
@@ -119,11 +115,11 @@ export function CheckersGame() {
             </p>
           </div>
           <PlayerBadge
-            name={match.black?.name ?? '?'}
-            color="black"
-            active={match.currentTurn === 'black' && match.status === 'active'}
-            captured={match.capturedByBlack}
-            isMe={myColor === 'black'}
+            name={rightPlayer?.name ?? '?'}
+            color={rightColor}
+            active={match.currentTurn === rightColor && match.status === 'active'}
+            captures={rightCap}
+            isMe={false}
             reversed
           />
         </div>
@@ -148,7 +144,7 @@ export function CheckersGame() {
           </div>
         </div>
 
-        {/* Game over overlay on top of board */}
+        {/* Game over overlay */}
         <AnimatePresence>
           {isFinished && (
             <motion.div
@@ -201,11 +197,7 @@ export function CheckersGame() {
           className="flex-shrink-0 border-t"
           style={{ borderColor: 'rgba(155,0,255,0.15)', maxHeight: 160 }}
         >
-          <div
-            ref={chatRef}
-            className="overflow-y-auto px-3 py-2 space-y-1"
-            style={{ maxHeight: 110 }}
-          >
+          <div ref={chatRef} className="overflow-y-auto px-3 py-2 space-y-1" style={{ maxHeight: 110 }}>
             {match.chat.length === 0 && (
               <p className="font-mono text-[10px] text-white/20 text-center py-2">{t.games.checkers.noMessages}</p>
             )}
@@ -239,27 +231,37 @@ export function CheckersGame() {
   );
 }
 
+// Piece swatch colors match those in CheckersBoard.tsx
+const BADGE_COLORS = {
+  red:   { bg: 'radial-gradient(circle at 35% 35%, #e74c3c, #c0392b)', ring: '#e74c3c' },
+  black: { bg: 'radial-gradient(circle at 35% 35%, #f5d76e, #b8860b)',  ring: '#f5d76e' },
+};
+
 function PlayerBadge({
-  name, color, active, captured, isMe, reversed,
+  name, color, active, captures, isMe, reversed,
 }: {
-  name: string; color: 'red' | 'black'; active: boolean;
-  captured: number; isMe: boolean; reversed?: boolean;
+  name: string;
+  color: 'red' | 'black';
+  active: boolean;
+  captures: number;
+  isMe: boolean;
+  reversed?: boolean;
 }) {
-  const pieceColor = color === 'red' ? '#c0392b' : '#8e44ad';
+  const c = BADGE_COLORS[color];
   return (
     <div className={`flex items-center gap-2 min-w-0 ${reversed ? 'flex-row-reverse text-right' : ''}`}>
-      <div
-        style={{
-          width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-          background: `radial-gradient(circle at 35% 35%, ${color === 'red' ? '#e74c3c' : '#9b59b6'}, ${pieceColor})`,
-          boxShadow: active ? `0 0 0 2px #00f5ff, 0 0 10px rgba(0,245,255,0.5)` : '0 2px 4px rgba(0,0,0,0.4)',
-        }}
-      />
+      <div style={{
+        width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+        background: c.bg,
+        boxShadow: active
+          ? `0 0 0 2px #00f5ff, 0 0 10px rgba(0,245,255,0.5)`
+          : `0 0 0 1px ${c.ring}44, 0 2px 4px rgba(0,0,0,0.4)`,
+      }} />
       <div className="min-w-0">
         <p className="font-mono text-xs text-white truncate">
           {name}{isMe ? ' ✦' : ''}
         </p>
-        <p className="font-mono text-[9px] text-white/30">{captured} cap.</p>
+        <p className="font-mono text-[9px] text-white/30">{captures} cap.</p>
       </div>
     </div>
   );

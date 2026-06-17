@@ -14,8 +14,8 @@ interface Props {
 }
 
 const PIECE_COLORS = {
-  red:   { base: '#c0392b', king: '#e74c3c', glow: 'rgba(231,76,60,0.7)' },
-  black: { base: '#2c3e50', king: '#8e44ad', glow: 'rgba(142,68,173,0.7)' },
+  red:   { fill: 'radial-gradient(circle at 35% 35%, #e74c3c, #c0392b)', glow: 'rgba(231,76,60,0.7)' },
+  black: { fill: 'radial-gradient(circle at 35% 35%, #f5d76e, #b8860b)',  glow: 'rgba(245,215,110,0.7)' },
 };
 
 export function CheckersBoard({
@@ -24,39 +24,44 @@ export function CheckersBoard({
 }: Props) {
   const isMyTurn = myColor && myColor !== 'spectator' && currentTurn === myColor;
 
+  // Black player sees the board flipped so their pieces are always at the bottom.
+  const flip = myColor === 'black';
+
+  // Convert display coordinates to board data coordinates.
+  function toData(dr: number, dc: number): [number, number] {
+    return flip ? [7 - dr, 7 - dc] : [dr, dc];
+  }
+
+  // Valid moves are in data space; convert destinations to display space for hit-testing.
   const validMoves: MoveOption[] = useMemo(() => {
     if (!selectedCell) return [];
-    return getValidMovesForPiece(
-      board,
-      selectedCell.row,
-      selectedCell.col,
-      forcedCapture,
-      mustContinueFrom,
-    );
+    return getValidMovesForPiece(board, selectedCell.row, selectedCell.col, forcedCapture, mustContinueFrom);
   }, [board, selectedCell, forcedCapture, mustContinueFrom]);
 
-  const validMoveSet = useMemo(
-    () => new Set(validMoves.map(m => `${m.to.row},${m.to.col}`)),
-    [validMoves],
-  );
+  const validDestSet = useMemo(() => {
+    return new Set(validMoves.map(m => {
+      const [dr, dc] = flip ? [7 - m.to.row, 7 - m.to.col] : [m.to.row, m.to.col];
+      return `${dr},${dc}`;
+    }));
+  }, [validMoves, flip]);
 
-  function handleCellClick(row: number, col: number) {
-    if (myColor === 'spectator' || !isMyTurn) return;
+  function handleCellClick(displayRow: number, displayCol: number) {
+    if (!isMyTurn) return;
 
-    const key = `${row},${col}`;
+    const [dataRow, dataCol] = toData(displayRow, displayCol);
 
-    // Already a valid destination?
-    if (selectedCell && validMoveSet.has(key)) {
-      onMove(selectedCell, { row, col });
+    // Clicking a valid destination executes the move.
+    if (selectedCell && validDestSet.has(`${displayRow},${displayCol}`)) {
+      onMove(selectedCell, { row: dataRow, col: dataCol });
       return;
     }
 
-    const piece = board[row][col];
+    const piece = board[dataRow][dataCol];
     if (piece && piece.color === myColor) {
-      if (selectedCell?.row === row && selectedCell?.col === col) {
-        onSelectCell(null); // deselect
+      if (selectedCell?.row === dataRow && selectedCell?.col === dataCol) {
+        onSelectCell(null);
       } else {
-        onSelectCell({ row, col });
+        onSelectCell({ row: dataRow, col: dataCol });
       }
     } else {
       onSelectCell(null);
@@ -79,13 +84,14 @@ export function CheckersBoard({
         border: '1px solid rgba(155,0,255,0.25)',
       }}
     >
-      {Array.from({ length: 8 }, (_, row) =>
-        Array.from({ length: 8 }, (_, col) => {
-          const isDark = (row + col) % 2 === 1;
-          const piece = board[row][col];
-          const isSelected = selectedCell?.row === row && selectedCell?.col === col;
-          const isValidTarget = validMoveSet.has(`${row},${col}`);
-          const isMustContinue = mustContinueFrom?.row === row && mustContinueFrom?.col === col;
+      {Array.from({ length: 8 }, (_, displayRow) =>
+        Array.from({ length: 8 }, (_, displayCol) => {
+          const [dataRow, dataCol] = toData(displayRow, displayCol);
+          const isDark = (dataRow + dataCol) % 2 === 1;
+          const piece = board[dataRow][dataCol];
+          const isSelected = selectedCell?.row === dataRow && selectedCell?.col === dataCol;
+          const isValidTarget = validDestSet.has(`${displayRow},${displayCol}`);
+          const isMustContinue = mustContinueFrom?.row === dataRow && mustContinueFrom?.col === dataCol;
 
           const cellBg = isDark
             ? isSelected
@@ -99,8 +105,8 @@ export function CheckersBoard({
 
           return (
             <div
-              key={`${row},${col}`}
-              onClick={() => isDark && handleCellClick(row, col)}
+              key={`${displayRow},${displayCol}`}
+              onClick={() => isDark && handleCellClick(displayRow, displayCol)}
               style={{
                 background: cellBg,
                 display: 'flex',
@@ -111,41 +117,28 @@ export function CheckersBoard({
                 transition: 'background 0.15s',
               }}
             >
-              {/* Valid move dot */}
               {isDark && isValidTarget && !piece && (
-                <div
-                  style={{
-                    width: '28%',
-                    height: '28%',
-                    borderRadius: '50%',
-                    background: 'rgba(0,245,255,0.55)',
-                    boxShadow: '0 0 8px rgba(0,245,255,0.5)',
-                  }}
-                />
+                <div style={{
+                  width: '28%', height: '28%', borderRadius: '50%',
+                  background: 'rgba(0,245,255,0.55)',
+                  boxShadow: '0 0 8px rgba(0,245,255,0.5)',
+                }} />
               )}
 
-              {/* Piece */}
               {piece && pc && (
-                <div
-                  style={{
-                    width: '76%',
-                    height: '76%',
-                    borderRadius: '50%',
-                    background: `radial-gradient(circle at 35% 35%, ${pc.king}, ${pc.base})`,
-                    boxShadow: isSelected || isMustContinue
-                      ? `0 0 0 3px #00f5ff, 0 0 16px ${pc.glow}`
-                      : isValidTarget
-                        ? `0 0 0 2px rgba(0,245,255,0.5), 0 0 10px ${pc.glow}`
-                        : `0 2px 6px rgba(0,0,0,0.5), 0 0 10px ${pc.glow}`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    transition: 'box-shadow 0.15s',
-                  }}
-                >
+                <div style={{
+                  width: '76%', height: '76%', borderRadius: '50%',
+                  background: pc.fill,
+                  boxShadow: isSelected || isMustContinue
+                    ? `0 0 0 3px #00f5ff, 0 0 16px ${pc.glow}`
+                    : isValidTarget
+                      ? `0 0 0 2px rgba(0,245,255,0.5), 0 0 10px ${pc.glow}`
+                      : `0 2px 6px rgba(0,0,0,0.5), 0 0 10px ${pc.glow}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0, transition: 'box-shadow 0.15s',
+                }}>
                   {piece.king && (
-                    <span style={{ color: '#fff', fontSize: '55%', fontWeight: 'bold', lineHeight: 1 }}>♛</span>
+                    <span style={{ color: 'rgba(0,0,0,0.7)', fontSize: '55%', fontWeight: 'bold', lineHeight: 1 }}>♛</span>
                   )}
                 </div>
               )}

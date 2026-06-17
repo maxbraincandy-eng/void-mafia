@@ -15,12 +15,19 @@ export interface CheckersChatMsg {
   ts: number;
 }
 
+// Player info includes socketId so each client can self-identify its own color.
+export interface CheckersPlayerInfo {
+  name: string;
+  profileId: string | null;
+  socketId: string;
+}
+
 export interface CheckersMatchPublic {
   id: string;
   code: string;
   status: MatchStatus;
-  red: { name: string; profileId: string | null };
-  black: { name: string; profileId: string | null } | null;
+  red: CheckersPlayerInfo;
+  black: CheckersPlayerInfo | null;
   currentTurn: PieceColor;
   board: CheckersBoard;
   capturedByRed: number;
@@ -30,6 +37,7 @@ export interface CheckersMatchPublic {
   chat: CheckersChatMsg[];
   spectatorCount: number;
   mustContinueFrom: { row: number; col: number } | null;
+  // myColor is injected client-side (not from server) based on socket.id comparison.
   myColor: PieceColor | 'spectator' | null;
 }
 

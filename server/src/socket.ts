@@ -11,7 +11,6 @@ import {
   getPlayerBySocket, toPublicRoom, getAlivePlayers, getHostPlayer,
   toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom,
   setPlayerAvatarUrl, enqueueForNextRound, dequeueFromNextRound, promoteQueuedPlayers,
-  generateVoiceSessionId,
 } from './services/roomService.js';
 import {
   startGame, setPhase, advancePhase, submitNightAction, submitVote, submitNomination,
@@ -22,6 +21,7 @@ import {
   createPlayerMessage, createSystemMessage, addMessage, validateChat,
 } from './services/chatService.js';
 import { registerCheckersHandlers, handleCheckersDisconnect } from './checkers.js';
+import { registerJokerHandlers, handleJokerDisconnect } from './joker.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
 import {
@@ -679,16 +679,6 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
     }
     await finishReplay(room.id, { winner: room.winner ?? 'draw', endedAt, playerRoles });
   } catch { /* non-fatal */ }
-
-  // Auto-reset to lobby 7 seconds after game over so players can play again
-  // without the host having to manually restart every time.
-  const roomIdSnapshot = room.id;
-  setTimeout(() => {
-    const r = getRoom(roomIdSnapshot);
-    if (r && r.phase === 'game_over') {
-      resetRoomToLobby(io, r);
-    }
-  }, 7000);
 }
 
 async function notifyMods(io: AppServer, type: string, message: string, targetName?: string): Promise<void> {
@@ -1484,7 +1474,6 @@ export function attachSocketHandlers(io: AppServer): void {
 
         startGame(room);
         room.startedAt = Date.now();
-        room.voiceSessionId = generateVoiceSessionId();
         setPhase(room, 'role_reveal');
 
         // ── Replay: start recording ──────────────────────────────────
@@ -4528,6 +4517,9 @@ export function attachSocketHandlers(io: AppServer): void {
     // ── Checkers mini-game ──────────────────────────────────────────
     registerCheckersHandlers(io, socket);
 
+    // ── Joker card game ─────────────────────────────────────────────
+    registerJokerHandlers(io, socket);
+
     // ── Disconnect ──────────────────────────────────────────────────
     socket.on('disconnect', () => {
       rateLimits.delete(socket.id);
@@ -4548,6 +4540,7 @@ export function attachSocketHandlers(io: AppServer): void {
       handleVoiceLeave(io, socket.id);
       handleLoungeLeave(io, socket);
       handleCheckersDisconnect(io, socket.id);
+      handleJokerDisconnect(io, socket.id);
       // Remove from any spectate queues
       for (const [qRoomId, queue] of spectateQueues) {
         const idx = queue.indexOf(socket.id);
@@ -4583,67 +4576,6 @@ function startHostGrace(io: AppServer, room: Room, hostName: string, profileId: 
   hostGraceTimers.set(roomId, { timer, profileId, hostName });
 }
 
-function resetRoomToLobby(io: AppServer, room: Room): void {
-  timerService.stop(room.id);
-
-  // Full game-state wipe — room identity (id, code, players, settings) persists
-  room.phase = 'lobby';
-  room.winner = null;
-  room.day = 0;
-  room.timer = 0;
-  room.maxTimer = 0;
-  room.isPaused = false;
-  room.nightActions = new Map();
-  room.votes = new Map();
-  room.killedLastNight = [];
-  room.savedLastNight = false;
-  room.daySkipVotes = [];
-  room.speechOrder = [];
-  room.currentSpeakerIdx = 0;
-  room.nominations = new Map();
-  room.tribunalCandidates = [];
-  room.deathSpeakerId = null;
-  room.finalWordsReason = null;
-  room.pendingWinner = null;
-  room.activeFoul = null;
-  room.trialDefenseState = null;
-  room.activeEvent = null;
-  room.eventsLog = [];
-  room.lastDoctorTarget = null;
-  room.dousedPlayers = new Set();
-  room.newlyConvertedCultists = [];
-  room.mafiaKillTarget = null;
-  room.startedAt = 0;
-
-  // Fresh voice session — clients that reconnect with the old ID are ignored
-  room.voiceSessionId = generateVoiceSessionId();
-
-  // Restore all players to ready-to-play state
-  const promoted = promoteQueuedPlayers(room);
-  for (const p of room.players.values()) {
-    p.role = null;
-    p.team = null;
-    p.isAlive = true;
-    p.isReady = false;
-    p.voteTarget = null;
-    p.hasActedThisPhase = false;
-    p.deathType = null;
-    p.lastWill = null;
-    p.foulCount = 0;
-  }
-
-  if (promoted.length > 0) {
-    const names = promoted.map(p => p.name).join(', ');
-    broadcastSystemMsg(io, room, `${names} joined from the queue!`);
-    broadcastQueueUpdated(io, room);
-  }
-
-  broadcastSystemMsg(io, room, 'Game over — returning to lobby.');
-  broadcastRoom(io, room);
-  io.to(room.id).emit('voice:reset');
-  enforceVoicePhaseRules(io, room);
-}
-
 function closeRoom(io: AppServer, room: Room, reason: string): void {
   timerService.stop(room.id);
   // Cancel all pending lobby grace timers for this room's players
@@ -4653,8 +4585,6 @@ function closeRoom(io: AppServer, room: Room, reason: string): void {
       io.to(p.socketId).emit('room:closed', { reason });
     }
   }
-  // Tell all clients to fully destroy their WebRTC peer connections before leaving
-  io.to(room.id).emit('voice:disconnect-room', { reason });
   io.socketsLeave(room.id);
   deleteRoom(room.id);
 }
