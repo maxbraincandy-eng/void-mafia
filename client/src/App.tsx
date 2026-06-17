@@ -27,6 +27,8 @@ import { GiftReceivedAnimation } from '@/components/ui/GiftReceivedAnimation';
 import { CoinShopModal } from '@/components/ui/CoinShopModal';
 import { ShopSuccessModal } from '@/components/ui/ShopSuccessModal';
 import { ModAlertPanel } from '@/components/ui/ModAlertPanel';
+import { HermesToggle } from '@/components/hermes/HermesToggle';
+import { HermesPanel } from '@/components/hermes/HermesPanel';
 import { attachGlobalClickSounds, onSettingsChange } from '@/lib/audioEngine';
 import { useSettingsStore } from '@/store/settingsStore';
 import { socket } from '@/lib/socket';
@@ -429,6 +431,9 @@ export default function App() {
       <GiftReceivedAnimation notification={giftNotif} onDismiss={() => setGiftNotif(null)} />
       <CoinShopModal open={shopOpen} onClose={() => setShopOpen(false)} profileId={profile?.id ?? ''} />
       <ShopSuccessModal open={shopSuccess} onClose={() => setShopSuccess(false)} />
+      {/* Hermes AI assistant — available across all authenticated views */}
+      <HermesToggle />
+      <HermesPanel />
     </>
   );
 }

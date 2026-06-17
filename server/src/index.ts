@@ -24,6 +24,7 @@ import { configurePassport, createAuthRouter } from './auth.js';
 import { initPushService, getVapidPublicKey, sendPushToUser as _sendPush } from './pushService.js';
 import { creditPurchasedCoins } from './services/coinService.js';
 import { computeTrending } from './services/communityService.js';
+import { createHermesRouter } from './routes/hermes.js';
 
 // ── Stripe setup ──────────────────────────────────────────────────────
 const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY ?? '';
@@ -98,6 +99,7 @@ configurePassport();
 
 app.use('/api/auth', createAuthRouter());
 app.use(express.json());
+app.use('/api/hermes', createHermesRouter());
 
 // ── Lightweight health endpoint (no DB dependency) ────────────────────
 // Railway healthcheck hits this — must always respond 200 instantly.

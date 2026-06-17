@@ -947,6 +947,29 @@ export async function initializeDatabase(): Promise<void> {
     ON CONFLICT (id) DO NOTHING
   `;
 
+  // ── Hermes AI (additive) ──────────────────────────────────────────────
+  await sql`
+    CREATE TABLE IF NOT EXISTS hermes_conversations (
+      id         TEXT PRIMARY KEY,
+      user_id    TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      title      TEXT NOT NULL DEFAULT '',
+      mode       TEXT NOT NULL DEFAULT 'general',
+      created_at BIGINT NOT NULL,
+      updated_at BIGINT NOT NULL
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS hermes_messages (
+      id              TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL REFERENCES hermes_conversations(id) ON DELETE CASCADE,
+      role            TEXT NOT NULL,
+      content         TEXT NOT NULL,
+      created_at      BIGINT NOT NULL
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_hermes_conv_user ON hermes_conversations(user_id, updated_at)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_hermes_msg_conv ON hermes_messages(conversation_id, created_at)`;
+
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];
   console.log(`[Database] connected successfully`);
