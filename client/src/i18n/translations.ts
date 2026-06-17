@@ -466,6 +466,8 @@ export const TRANSLATIONS = {
         roomClosed: 'Room closed while disconnected',
         returningToLobby: 'Returning to lobby in {s}s…',
         startNewGame: 'Start New Game',
+        backToLobby: 'Back to Lobby',
+        continueBtn: 'Continue →',
       },
       header: {
         phase: 'Phase',
@@ -1361,6 +1363,8 @@ export const TRANSLATIONS = {
         roomClosed: 'ოთახი დაიხურა გათიშვის დროს',
         returningToLobby: 'ლობიში ბრუნდება {s}წ-ში…',
         startNewGame: 'ახალი თამაშის დაწყება',
+        backToLobby: 'ლობიში დაბრუნება',
+        continueBtn: 'გაგრძელება →',
       },
       header: {
         phase: 'ფაზა',

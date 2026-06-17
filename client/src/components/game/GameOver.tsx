@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { GameOverResult, RoleKey, Team } from '@/types/index';
 import { Button } from '@/components/ui/Button';
 import { useGameStore } from '@/store/gameStore';
@@ -222,14 +222,6 @@ export function GameOver({ result }: Props) {
   const myPlayerData = room?.players.find(p => p.id === myPlayerId);
   const amHost = myPlayerData?.isHost ?? false;
 
-  const [countdown, setCountdown] = useState(7);
-  useEffect(() => {
-    if (phase !== 'highlights') return;
-    setCountdown(7);
-    const iv = setInterval(() => setCountdown(c => Math.max(0, c - 1)), 1000);
-    return () => clearInterval(iv);
-  }, [phase]);
-
   const WINNER_CONFIG: Record<Team, { label: string; color: string; glowColor: string; symbol: string }> = {
     town:    { label: t.game.gameOver.townWins,  color: 'text-neon-cyan',   glowColor: '#00f5ff', symbol: '✦' },
     mafia:   { label: t.game.gameOver.mafiaWins, color: 'text-neon-pink',   glowColor: '#ff00cc', symbol: '◆' },
@@ -268,22 +260,6 @@ export function GameOver({ result }: Props) {
 
   const roleLabel = (role: RoleKey) =>
     (t.game.roles as Record<string, string>)[role] ?? role;
-
-  useEffect(() => {
-    if (phase !== 'mafia_cinematic') return;
-    const ms = mafiaPlayers.length > 0
-      ? 1000 + mafiaPlayers.length * 800 + 2200
-      : 1800;
-    const timer = setTimeout(() => setPhase('role_reveal'), ms);
-    return () => clearTimeout(timer);
-  }, [phase, mafiaPlayers.length]);
-
-  useEffect(() => {
-    if (phase !== 'role_reveal') return;
-    const ms = 500 + players.length * 150 + 3500;
-    const timer = setTimeout(() => setPhase('highlights'), ms);
-    return () => clearTimeout(timer);
-  }, [phase, players.length]);
 
   return (
     <motion.div
@@ -343,15 +319,16 @@ export function GameOver({ result }: Props) {
               ))}
             </div>
 
-            <motion.button
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1.5 }}
-              onClick={() => setPhase('role_reveal')}
-              className="absolute bottom-8 right-8 text-white/20 hover:text-white/50 font-mono text-xs transition-colors"
+              className="mt-8 w-full max-w-xs"
             >
-              SKIP
-            </motion.button>
+              <Button variant="primary" fullWidth onClick={() => setPhase('role_reveal')}>
+                {t.game.gameOver.continueBtn}
+              </Button>
+            </motion.div>
           </motion.div>
         )}
 
@@ -394,17 +371,18 @@ export function GameOver({ result }: Props) {
                   />
                 ))}
               </div>
-            </div>
 
-            <motion.button
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 1 }}
-              onClick={() => setPhase('highlights')}
-              className="fixed bottom-8 right-8 text-white/20 hover:text-white/50 font-mono text-xs transition-colors"
-            >
-              SKIP
-            </motion.button>
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.2 }}
+                className="mt-6 pb-4"
+              >
+                <Button variant="primary" fullWidth onClick={() => setPhase('highlights')}>
+                  {t.game.gameOver.continueBtn}
+                </Button>
+              </motion.div>
+            </div>
           </motion.div>
         )}
 
@@ -593,24 +571,22 @@ export function GameOver({ result }: Props) {
                 </motion.button>
               )}
 
-              {/* Countdown + action buttons */}
+              {/* Action buttons */}
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.48 }}
                 className="space-y-2"
               >
-                <p className="text-center font-mono text-[10px] text-white/25 uppercase tracking-widest">
-                  {t.game.gameOver.returningToLobby.replace('{s}', String(countdown))}
-                </p>
-                {amHost && (
+                {amHost ? (
                   <Button variant="primary" fullWidth loading={isLoading} onClick={() => restartGame()}>
-                    {t.game.gameOver.startNewGame}
+                    {t.game.gameOver.backToLobby}
+                  </Button>
+                ) : (
+                  <Button variant="ghost" fullWidth loading={isLoading} onClick={() => leaveRoom()}>
+                    {t.game.gameOver.leaveRoom}
                   </Button>
                 )}
-                <Button variant="ghost" fullWidth loading={isLoading} onClick={() => leaveRoom()}>
-                  {t.game.gameOver.leaveRoom}
-                </Button>
               </motion.div>
 
             </div>
