@@ -698,6 +698,7 @@ export async function createPostV2(authorId: string, data: {
   poll?: { question: string; options: string[]; endsAt?: number | null } | null;
   visibility?: 'public' | 'friends_only';
 }): Promise<CommunityPostV2> {
+  if (data.imageUrl && data.imageUrl.length > 680_000) throw new Error('Image too large — please use a smaller image.');
   const id = `post_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const now = Date.now();
   const hashtags = extractHashtags(data.content);

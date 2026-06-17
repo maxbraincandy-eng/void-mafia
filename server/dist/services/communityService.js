@@ -630,6 +630,8 @@ async function buildPostV2(row, viewerId) {
 }
 // Create post V2
 export async function createPostV2(authorId, data) {
+    if (data.imageUrl && data.imageUrl.length > 680000)
+        throw new Error('Image too large — please use a smaller image.');
     const id = `post_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const now = Date.now();
     const hashtags = extractHashtags(data.content);
