@@ -4,6 +4,7 @@ import { ok, err, } from './types/index.js';
 import { createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, addSpectatorPlayer, removePlayer, getPlayerBySocket, toPublicRoom, getHostPlayer, toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom, setPlayerAvatarUrl, enqueueForNextRound, dequeueFromNextRound, promoteQueuedPlayers, generateVoiceSessionId, } from './services/roomService.js';
 import { startGame, setPhase, advancePhase, submitNightAction, submitVote, submitNomination, checkWin, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult, getTrackResult, resolveVotes, } from './services/gameService.js';
 import { createPlayerMessage, createSystemMessage, addMessage, validateChat, } from './services/chatService.js';
+import { registerCheckersHandlers, handleCheckersDisconnect } from './checkers.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
 import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, grantStarterCosmetics, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
@@ -5136,6 +5137,8 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
+        // ── Checkers mini-game ──────────────────────────────────────────
+        registerCheckersHandlers(io, socket);
         // ── Disconnect ──────────────────────────────────────────────────
         socket.on('disconnect', () => {
             rateLimits.delete(socket.id);
@@ -5158,6 +5161,7 @@ export function attachSocketHandlers(io) {
                 handlePlayerLeave(io, socket, roomId, playerId);
             handleVoiceLeave(io, socket.id);
             handleLoungeLeave(io, socket);
+            handleCheckersDisconnect(io, socket.id);
             // Remove from any spectate queues
             for (const [qRoomId, queue] of spectateQueues) {
                 const idx = queue.indexOf(socket.id);
