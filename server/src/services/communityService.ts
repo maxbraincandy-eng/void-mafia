@@ -941,9 +941,11 @@ export async function listPeopleDirectory(viewerId: string): Promise<CommunityPr
 
   // Batch-fetch badges for all players in one query
   const playerIds = rows.map(r => r.id);
-  const badgeRows = await sql<{ player_id: string; badge: string }[]>`
-    SELECT player_id, badge FROM community_badges WHERE player_id = ANY(${sql(playerIds)})
-  `;
+  const badgeRows = playerIds.length > 0
+    ? await sql<{ player_id: string; badge: string }[]>`
+        SELECT player_id, badge FROM community_badges WHERE player_id = ANY(${playerIds})
+      `
+    : [];
   const badgeMap = new Map<string, CommunityBadge[]>();
   for (const b of badgeRows) {
     if (!badgeMap.has(b.player_id)) badgeMap.set(b.player_id, []);

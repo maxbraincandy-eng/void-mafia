@@ -864,9 +864,11 @@ export async function listPeopleDirectory(viewerId) {
         return [];
     // Batch-fetch badges for all players in one query
     const playerIds = rows.map(r => r.id);
-    const badgeRows = await sql `
-    SELECT player_id, badge FROM community_badges WHERE player_id = ANY(${sql(playerIds)})
-  `;
+    const badgeRows = playerIds.length > 0
+        ? await sql `
+        SELECT player_id, badge FROM community_badges WHERE player_id = ANY(${playerIds})
+      `
+        : [];
     const badgeMap = new Map();
     for (const b of badgeRows) {
         if (!badgeMap.has(b.player_id))
