@@ -86,7 +86,7 @@ export function CheckersGame() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex flex-col"
+      className="fixed inset-0 z-[100] flex flex-col"
       style={{ background: '#03000d' }}
     >
       {/* Header */}

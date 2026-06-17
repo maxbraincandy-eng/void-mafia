@@ -5,6 +5,8 @@ import { useLudoStore } from '@/store/ludoStore';
 import { LudoBoard, getPieceGridPos, WIN_POS } from './LudoBoard';
 import { useLudoAnimation } from './useLudoAnimation';
 import { play, sfxDiceRoll, sfxCapture, sfxPieceHome, sfxVictory, vibrate, isSoundOn, setSoundOn } from './ludoSounds';
+import { useLudoVoice } from '@/hooks/useLudoVoice';
+import { LudoPTTButton } from './LudoPTTButton';
 import type { LudoColor, LudoMatchPublic } from '@/types/ludo';
 
 // ── Ambient particles ──────────────────────────────────────────────────
@@ -347,6 +349,12 @@ export function LudoGame() {
     setSoundOn(next);
   }, [soundOn]);
 
+  // ── Voice (must be before conditional return) ───────────────────────
+  const { isTalking, speakingSocketIds, leave: leaveVoice } = useLudoVoice();
+  const isMatchFinished = match?.status === 'finished';
+  useEffect(() => { if (isMatchFinished) leaveVoice(); }, [isMatchFinished, leaveVoice]);
+  useEffect(() => () => leaveVoice(), [leaveVoice]);
+
   if (!match) return null;
 
   const myColor    = match.myColor;
@@ -380,7 +388,7 @@ export function LudoGame() {
   return (
     <motion.div
       initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
-      className="fixed inset-0 z-50 flex flex-col overflow-hidden"
+      className="fixed inset-0 z-[100] flex flex-col overflow-hidden"
       style={{background:'linear-gradient(180deg,#02050f 0%,#000810 100%)'}}
     >
       <Particles />
@@ -570,6 +578,11 @@ export function LudoGame() {
               )}
             </AnimatePresence>
           </div>
+
+          {/* PTT */}
+          {isPlayer && !isFinished && (
+            <LudoPTTButton matchId={match.id} myName={bottomSide?.name ?? 'Player'} />
+          )}
 
           {/* Consecutive sixes + chat */}
           <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>

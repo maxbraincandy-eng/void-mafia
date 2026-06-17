@@ -18,6 +18,8 @@ import { EconomyAdminPage } from '@/pages/EconomyAdminPage';
 import { ReplaysPage } from '@/pages/ReplaysPage';
 import { PublicProfilePage } from '@/pages/PublicProfilePage';
 import { BottomNav, NavTab } from '@/components/layout/BottomNav';
+import { useCheckersStore } from '@/store/checkersStore';
+import { useLudoStore } from '@/store/ludoStore';
 import { MorePanel } from '@/components/ui/MorePanel';
 import { PlayerProfileModal } from '@/components/ui/PlayerProfileModal';
 import { DmPanel } from '@/components/social/DmPanel';
@@ -169,6 +171,9 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const isMod   = profile?.isModerator ?? false;
   const isOwner = profile?.moderatorLevel === 'owner';
   const { openDmList } = useSocialStore();
+  const checkersMatch = useCheckersStore(s => s.match);
+  const ludoMatch     = useLudoStore(s => s.match);
+  const inGame = !!(checkersMatch || ludoMatch);
 
   function navigateToReplay(gameId: string) {
     setInitialReplayId(gameId);
@@ -187,7 +192,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
         {page === 'mod' && isMod            && <ModDashboardPage key="mod" />}
         {page === 'economy' && isOwner      && <EconomyAdminPage key="economy" />}
       </AnimatePresence>
-      <BottomNav active={page} isMod={isMod} onChange={tab => { if (tab !== 'replays') setInitialReplayId(undefined); setPage(tab); }} onMessagesClick={openDmList} />
+      {!inGame && <BottomNav active={page} isMod={isMod} onChange={tab => { if (tab !== 'replays') setInitialReplayId(undefined); setPage(tab); }} onMessagesClick={openDmList} />}
       <MorePanel isOwner={isOwner} onEconomyClick={() => setPage('economy')} onShopClick={onOpenShop} onReplaysClick={() => { setInitialReplayId(undefined); setPage('replays'); }} />
     </div>
   );

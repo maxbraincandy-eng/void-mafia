@@ -13,6 +13,12 @@ import {
   type LudoMatch, type LudoColor,
 } from './services/ludoService.js';
 import { addXP } from './services/playerService.js';
+import {
+  voiceJoin as ludoVoiceJoin,
+  voiceLeave as ludoVoiceLeave,
+  voiceGetMatchId as ludoVoiceGetMatchId,
+} from './services/ludoVoiceService.js';
+import { buildIceConfig } from './lib/iceConfig.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -208,6 +214,60 @@ export function registerLudoHandlers(io: AppServer, socket: AppSocket): void {
       cb(ok(null));
     } catch (e: any) { cb(err(e.message)); }
   });
+
+  // ── Voice (PTT) ──────────────────────────────────────────────────────
+  socket.on('ludo:voice-join' as any, (data: { matchId: string; name: string }, cb: (res: any) => void) => {
+    try {
+      const match = getMatch(data.matchId);
+      if (!match) return cb(err('Match not found.'));
+
+      const peers = ludoVoiceJoin(data.matchId, socket.id, data.name ?? 'Player');
+      const { iceServers, iceTransportPolicy } = buildIceConfig();
+
+      socket.to(LUDO_ROOM(match.id)).emit('ludo:voice-peer-joined' as any, {
+        socketId: socket.id,
+        name: data.name ?? 'Player',
+      });
+
+      cb(ok({ peers, iceServers, iceTransportPolicy }));
+    } catch (e: any) { cb(err(e.message ?? 'Failed to join voice.')); }
+  });
+
+  socket.on('ludo:voice-leave' as any, (_data: any, cb?: (res: any) => void) => {
+    const matchId = ludoVoiceLeave(socket.id);
+    if (matchId) {
+      socket.to(LUDO_ROOM(matchId)).emit('ludo:voice-peer-left' as any, { socketId: socket.id });
+    }
+    cb?.(ok(null));
+  });
+
+  socket.on('ludo:voice-offer' as any, (data: { to: string; sdp: any }) => {
+    io.to(data.to).emit('ludo:voice-offer' as any, { from: socket.id, sdp: data.sdp });
+  });
+
+  socket.on('ludo:voice-answer' as any, (data: { to: string; sdp: any }) => {
+    io.to(data.to).emit('ludo:voice-answer' as any, { from: socket.id, sdp: data.sdp });
+  });
+
+  socket.on('ludo:voice-ice' as any, (data: { to: string; candidate: any }) => {
+    io.to(data.to).emit('ludo:voice-ice' as any, { from: socket.id, candidate: data.candidate });
+  });
+
+  socket.on('ludo:ptt-start' as any, (data: { matchId: string }) => {
+    const match = getMatch(data.matchId);
+    if (!match) return;
+    socket.to(LUDO_ROOM(data.matchId)).emit('ludo:ptt-state' as any, {
+      socketId: socket.id, speaking: true,
+    });
+  });
+
+  socket.on('ludo:ptt-stop' as any, (data: { matchId: string }) => {
+    const match = getMatch(data.matchId);
+    if (!match) return;
+    socket.to(LUDO_ROOM(data.matchId)).emit('ludo:ptt-state' as any, {
+      socketId: socket.id, speaking: false,
+    });
+  });
 }
 
 function handleLudoLeave(io: AppServer, socketId: string, match: LudoMatch): void {
@@ -219,6 +279,14 @@ function handleLudoLeave(io: AppServer, socketId: string, match: LudoMatch): voi
 }
 
 export function handleLudoDisconnect(io: AppServer, socketId: string): void {
+  // Voice cleanup
+  const voiceMatchId = ludoVoiceGetMatchId(socketId);
+  if (voiceMatchId) {
+    ludoVoiceLeave(socketId);
+    io.to(LUDO_ROOM(voiceMatchId)).emit('ludo:voice-peer-left' as any, { socketId });
+    io.to(LUDO_ROOM(voiceMatchId)).emit('ludo:ptt-state' as any, { socketId, speaking: false });
+  }
+
   const match = cleanupSocket(socketId);
   if (match) {
     broadcastState(io, match);
