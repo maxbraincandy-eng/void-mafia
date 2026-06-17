@@ -9,12 +9,13 @@ import { FeedTabV2 } from '@/components/community/FeedTabV2';
 import { RecommendsTab } from '@/components/community/RecommendsTab';
 import { ThoughtsTab } from '@/components/community/ThoughtsTab';
 import { PeopleTab } from '@/components/community/PeopleTab';
+import { GamesTab } from '@/components/community/GamesTab';
 import { NotificationPanel } from '@/components/community/NotificationPanel';
 import { ModerationPanel } from '@/components/community/ModerationPanel';
 import { ProfileModalV2 } from '@/components/community/ProfileModalV2';
 import { CommunitySearchPanel } from '@/components/community/CommunitySearchPanel';
 
-type CommunityTab = 'feed' | 'voice' | 'news' | 'recommends' | 'thoughts' | 'people';
+type CommunityTab = 'feed' | 'voice' | 'news' | 'recommends' | 'thoughts' | 'people' | 'games';
 
 export function CommunityPage() {
   const t = useT();
@@ -39,6 +40,7 @@ export function CommunityPage() {
     { id: 'recommends', label: t.community.tabs.recommends, icon: '🎬' },
     { id: 'thoughts',   label: t.community.tabs.thoughts,   icon: '🧠' },
     { id: 'people',     label: t.community.tabs.people,     icon: '👥' },
+    { id: 'games',      label: t.community.tabs.games,      icon: '♟' },
   ];
 
   return (
@@ -133,6 +135,7 @@ export function CommunityPage() {
             {tab === 'recommends' && <RecommendsTab />}
             {tab === 'thoughts'   && <ThoughtsTab />}
             {tab === 'people'     && <PeopleTab onOpenProfile={setViewProfileId} />}
+            {tab === 'games'      && <GamesTab />}
           </motion.div>
         </AnimatePresence>
       </div>
