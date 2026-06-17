@@ -788,6 +788,9 @@ export interface ServerToClientEvents {
     }) => void;
     'community:notification': (n: CommunityNotification) => void;
     'community:lounge_update': (lounge: CommunityLounge) => void;
+    'community:lounge_removed': (data: {
+        loungeId: string;
+    }) => void;
     'community:post_new': (post: CommunityPost) => void;
     'community:post_updated': (post: CommunityPostV2) => void;
     'community:post_pinned': (postId: string) => void;
@@ -1353,6 +1356,9 @@ export interface ClientToServerEvents {
     'community:post_comments': (data: {
         postId: string;
     }, cb: Cb<CommunityComment[]>) => void;
+    'community:comment_delete': (data: {
+        commentId: string;
+    }, cb: Cb<null>) => void;
     'community:post_report': (data: {
         postId: string;
         reason: string;
@@ -1387,6 +1393,9 @@ export interface ClientToServerEvents {
         name: string;
         description: string;
     }, cb: Cb<CommunityLounge>) => void;
+    'community:lounge_delete': (data: {
+        loungeId: string;
+    }, cb: Cb<null>) => void;
     'community:lounge_set_live': (data: {
         loungeId: string;
         isLive: boolean;
@@ -1680,6 +1689,8 @@ export interface CommunityComment {
     authorId: string;
     authorName: string;
     authorAvatar: string;
+    authorAvatarUrl: string | null;
+    authorPublicId: number | null;
     content: string;
     createdAt: number;
 }

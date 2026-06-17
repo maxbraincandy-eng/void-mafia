@@ -7,9 +7,9 @@ import type { CommunityPostV2, CommunityComment } from '@/types/index';
 import { Avatar, BadgeRow, MrMaxGlow, timeAgo, ModalShell, TextArea, TextInput, PillButton, Spinner } from '@/components/community/shared';
 import { PollDisplay } from '@/components/community/PollDisplay';
 
-function CommentsSection({ postId }: { postId: string }) {
+function CommentsSection({ postId, onOpenProfile, myProfileId }: { postId: string; onOpenProfile: (id: string) => void; myProfileId: string | undefined }) {
   const t = useT();
-  const { fetchComments, addComment } = useCommunityStore();
+  const { fetchComments, addComment, deleteComment } = useCommunityStore();
   const [comments, setComments] = useState<CommunityComment[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState('');
@@ -34,6 +34,13 @@ function CommentsSection({ postId }: { postId: string }) {
     } finally { setSending(false); }
   }
 
+  async function handleDelete(commentId: string) {
+    try {
+      await deleteComment(postId, commentId);
+      setComments(prev => prev ? prev.filter(c => c.id !== commentId) : prev);
+    } catch {}
+  }
+
   return (
     <div className="mt-3 pt-3 border-t border-white/10 space-y-2.5">
       {loading ? (
@@ -44,9 +51,24 @@ function CommentsSection({ postId }: { postId: string }) {
         <div className="space-y-2">
           {comments.map(c => (
             <div key={c.id} className="flex items-start gap-2">
-              <Avatar avatar={c.authorAvatar} avatarUrl={null} size={24} />
+              <button onClick={() => onOpenProfile(c.authorId)} className="flex-shrink-0 active:scale-95 transition-transform">
+                <Avatar avatar={c.authorAvatar} avatarUrl={c.authorAvatarUrl} size={24} />
+              </button>
               <div className="min-w-0 flex-1">
-                <p className="font-mono text-[10px] text-white/40">{c.authorName} <span className="text-white/20">· {timeAgo(c.createdAt)}</span></p>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => onOpenProfile(c.authorId)} className="font-mono text-[10px] text-white/50 hover:text-white/70 transition-colors">
+                    {c.authorName}
+                  </button>
+                  <span className="font-mono text-[9px] text-white/20">· {timeAgo(c.createdAt)}</span>
+                  {c.authorId === myProfileId && (
+                    <button
+                      onClick={() => handleDelete(c.id)}
+                      className="ml-auto font-mono text-[9px] text-red-400/50 hover:text-red-400 transition-colors"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
                 <p className="font-mono text-xs text-white/70 break-words">{c.content}</p>
               </div>
             </div>
@@ -292,7 +314,7 @@ export function PostCardV2({
         </button>
       </div>
 
-      {showComments && <CommentsSection postId={post.id} />}
+      {showComments && <CommentsSection postId={post.id} onOpenProfile={onOpenProfile} myProfileId={profile?.id} />}
 
       <AnimatePresence>
         {showReport && <ReportModal postId={post.id} onClose={() => setShowReport(false)} />}

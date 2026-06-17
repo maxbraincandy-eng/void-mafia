@@ -922,6 +922,8 @@ export interface CommunityComment {
   authorId: string;
   authorName: string;
   authorAvatar: string;
+  authorAvatarUrl: string | null;
+  authorPublicId: number | null;
   content: string;
   createdAt: number;
 }

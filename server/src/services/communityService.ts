@@ -194,13 +194,16 @@ export async function toggleLike(postId: string, playerId: string): Promise<{ li
 function rowToComment(r: any): CommunityComment {
   return {
     id: r.id, postId: r.post_id, authorId: r.author_id, authorName: r.author_name ?? 'Unknown',
-    authorAvatar: r.author_avatar ?? '🙂', content: r.content, createdAt: Number(r.created_at),
+    authorAvatar: r.author_avatar ?? '🙂', authorAvatarUrl: r.author_avatar_url ?? null,
+    authorPublicId: r.author_public_id != null ? Number(r.author_public_id) : null,
+    content: r.content, createdAt: Number(r.created_at),
   };
 }
 
 export async function getComments(postId: string): Promise<CommunityComment[]> {
   const rows = await sql`
-    SELECT c.*, p.username as author_name, p.avatar as author_avatar
+    SELECT c.*, p.username as author_name, p.avatar as author_avatar,
+           p.avatar_url as author_avatar_url, p.public_id as author_public_id
     FROM community_post_comments c JOIN players p ON p.id = c.author_id
     WHERE c.post_id = ${postId} ORDER BY c.created_at ASC LIMIT 200
   ` as any[];
@@ -220,10 +223,19 @@ export async function addComment(postId: string, authorId: string, content: stri
   `;
   await sql`UPDATE community_posts SET comments_count = comments_count + 1 WHERE id = ${postId}`;
   const [row] = await sql`
-    SELECT c.*, p.username as author_name, p.avatar as author_avatar
+    SELECT c.*, p.username as author_name, p.avatar as author_avatar,
+           p.avatar_url as author_avatar_url, p.public_id as author_public_id
     FROM community_post_comments c JOIN players p ON p.id = c.author_id WHERE c.id = ${id}
   ` as any[];
   return rowToComment(row);
+}
+
+export async function deleteComment(commentId: string, requesterId: string): Promise<void> {
+  const [row] = await sql`SELECT author_id, post_id FROM community_post_comments WHERE id = ${commentId}` as any[];
+  if (!row) throw new Error('Comment not found.');
+  if (row.author_id !== requesterId) throw new Error('Not authorized.');
+  await sql`DELETE FROM community_post_comments WHERE id = ${commentId}`;
+  await sql`UPDATE community_posts SET comments_count = GREATEST(0, comments_count - 1) WHERE id = ${row.post_id}`;
 }
 
 export async function reportPost(postId: string, reporterId: string, reason: string): Promise<void> {
@@ -441,6 +453,14 @@ export async function createLounge(ownerId: string, name: string, description: s
   `;
   const row = await getLoungeRow(id);
   return rowToLounge(row, 0, 0);
+}
+
+export async function deleteLounge(loungeId: string, requesterId: string): Promise<void> {
+  const row = await getLoungeRow(loungeId);
+  if (!row) throw new Error('Lounge not found.');
+  if (row.kind !== 'lounge') throw new Error('Cannot delete special lounges.');
+  if (row.owner_id !== requesterId) throw new Error('Only the lounge owner can delete it.');
+  await sql`DELETE FROM community_lounges WHERE id = ${loungeId}`;
 }
 
 export async function setLoungeLive(loungeId: string, isLive: boolean, lastTopic: string | null): Promise<CommunityLounge> {

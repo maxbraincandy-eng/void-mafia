@@ -811,6 +811,7 @@ export interface ServerToClientEvents {
   // Community Hub (separate from Mafia game events)
   'community:notification': (n: CommunityNotification) => void;
   'community:lounge_update': (lounge: CommunityLounge) => void;
+  'community:lounge_removed': (data: { loungeId: string }) => void;
   'community:post_new':      (post: CommunityPost) => void;
   'community:post_updated': (post: CommunityPostV2) => void;
   'community:post_pinned': (postId: string) => void;
@@ -1021,6 +1022,7 @@ export interface ClientToServerEvents {
   'community:post_like':        (data: { postId: string }, cb: Cb<{ likesCount: number; likedByMe: boolean }>) => void;
   'community:post_comment':     (data: { postId: string; content: string }, cb: Cb<CommunityComment>) => void;
   'community:post_comments':    (data: { postId: string }, cb: Cb<CommunityComment[]>) => void;
+  'community:comment_delete':   (data: { commentId: string }, cb: Cb<null>) => void;
   'community:post_report':      (data: { postId: string; reason: string }, cb: Cb<null>) => void;
   'community:follow':           (data: { targetId: string }, cb: Cb<null>) => void;
   'community:unfollow':         (data: { targetId: string }, cb: Cb<null>) => void;
@@ -1034,6 +1036,7 @@ export interface ClientToServerEvents {
   'community:notifications_mark_read':  (cb: Cb<null>) => void;
   'community:lounge_list':      (cb: Cb<CommunityLounge[]>) => void;
   'community:lounge_create':    (data: { name: string; description: string }, cb: Cb<CommunityLounge>) => void;
+  'community:lounge_delete':    (data: { loungeId: string }, cb: Cb<null>) => void;
   'community:lounge_set_live':  (data: { loungeId: string; isLive: boolean; lastTopic?: string }, cb: Cb<null>) => void;
   'community:report_list':      (cb: Cb<any[]>) => void;
   'community:report_resolve':   (data: { reportId: string; status: string }, cb: Cb<null>) => void;
@@ -1230,6 +1233,8 @@ export interface CommunityComment {
   authorId: string;
   authorName: string;
   authorAvatar: string;
+  authorAvatarUrl: string | null;
+  authorPublicId: number | null;
   content: string;
   createdAt: number;
 }

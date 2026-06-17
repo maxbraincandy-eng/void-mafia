@@ -14,7 +14,7 @@ function accentFor(lounge: CommunityLounge): Accent {
   return lounge.kind === 'void_radio' ? 'cyan' : 'purple';
 }
 
-function LoungeCard({ lounge, onEnter }: { lounge: CommunityLounge; onEnter: () => void }) {
+function LoungeCard({ lounge, onEnter, onDelete }: { lounge: CommunityLounge; onEnter: () => void; onDelete?: () => void }) {
   const t = useT();
   const accent = accentFor(lounge);
   const c = ACCENT_COLORS[accent];
@@ -39,14 +39,25 @@ function LoungeCard({ lounge, onEnter }: { lounge: CommunityLounge; onEnter: () 
           <p className="font-display font-bold text-white text-sm truncate">{title}</p>
           {desc && <p className="font-mono text-[10px] text-white/40 mt-0.5 line-clamp-2">{desc}</p>}
         </div>
-        <span
-          className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border flex-shrink-0"
-          style={lounge.isLive
-            ? { color: '#00ff88', borderColor: 'rgba(0,255,136,0.3)', background: 'rgba(0,255,136,0.08)' }
-            : { color: 'rgba(255,255,255,0.35)', borderColor: 'rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.03)' }}
-        >
-          {lounge.isLive ? t.community.lounges.live : t.community.lounges.offline}
-        </span>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <span
+            className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border"
+            style={lounge.isLive
+              ? { color: '#00ff88', borderColor: 'rgba(0,255,136,0.3)', background: 'rgba(0,255,136,0.08)' }
+              : { color: 'rgba(255,255,255,0.35)', borderColor: 'rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.03)' }}
+          >
+            {lounge.isLive ? t.community.lounges.live : t.community.lounges.offline}
+          </span>
+          {onDelete && (
+            <button
+              onClick={e => { e.stopPropagation(); if (window.confirm('Delete this lounge?')) onDelete(); }}
+              className="font-mono text-[11px] text-red-400/50 hover:text-red-400/80 transition-colors leading-none"
+              title="Delete lounge"
+            >
+              🗑
+            </button>
+          )}
+        </div>
       </div>
 
       {lounge.isLive && lounge.lastTopic && (
@@ -120,7 +131,7 @@ function CreateLoungeModal({ onClose, onCreated }: { onClose: () => void; onCrea
 export function LoungesTab({ onOpenProfile }: { onOpenProfile: (playerId: string) => void }) {
   const t = useT();
   const profile = useAuthStore(s => s.profile);
-  const { lounges, fetchLounges } = useCommunityStore();
+  const { lounges, fetchLounges, deleteLounge } = useCommunityStore();
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [activeLoungeId, setActiveLoungeId] = useState<string | null>(null);
@@ -178,7 +189,14 @@ export function LoungesTab({ onOpenProfile }: { onOpenProfile: (playerId: string
           ) : (
             <div className="space-y-2.5">
               {playerLounges.map(lounge => (
-                <LoungeCard key={lounge.id} lounge={lounge} onEnter={() => setActiveLoungeId(lounge.id)} />
+                <LoungeCard
+                  key={lounge.id}
+                  lounge={lounge}
+                  onEnter={() => setActiveLoungeId(lounge.id)}
+                  onDelete={lounge.ownerId === profile?.id ? async () => {
+                    await deleteLounge(lounge.id);
+                  } : undefined}
+                />
               ))}
             </div>
           )}

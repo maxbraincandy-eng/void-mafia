@@ -26,7 +26,7 @@ import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
 import { getActiveSeason, getSeasonLeaderboard, getMySeasonHistory } from './services/seasonService.js';
 import { startReplay, recordEvent, finishReplay, listReplays, getReplay, getMyReplays, } from './services/replayService.js';
-import { listNews, createNews, deleteNews, listRecommends, createRecommend, deleteRecommend, listThoughts, createThought, deleteThought, listFeed, createPost, deletePost, toggleLike, getComments, addComment, reportPost, listCommunityReports, resolveCommunityReport, follow, unfollow, listEvents, createEvent, joinEvent, leaveEvent, createNotification, notifyAllPlayers, listNotifications, getUnreadNotificationCount, markNotificationsRead, listLoungeRows, getLoungeRow, rowToLounge, createLounge, setLoungeLive, communityBanPlayer, communityUnbanPlayer, getActiveCommunityBan, updateCommunityProfile, getCommunityProfileV2, assignBadge, revokeBadge, setShowcaseAchievement, clearShowcaseSlot, getPrivacySettings, setPrivacySettings, createPostV2, listFeedV2, votePoll, togglePostSave, getSavedPosts, pinPost, featurePost, hidePost, getCommunityModLogs, listPeopleDirectory, getFollowersList, getFollowingList, searchCommunity, upsertOnlineSeen, getOnlineMembers, } from './services/communityService.js';
+import { listNews, createNews, deleteNews, listRecommends, createRecommend, deleteRecommend, listThoughts, createThought, deleteThought, listFeed, createPost, deletePost, toggleLike, getComments, addComment, deleteComment, reportPost, listCommunityReports, resolveCommunityReport, follow, unfollow, listEvents, createEvent, joinEvent, leaveEvent, createNotification, notifyAllPlayers, listNotifications, getUnreadNotificationCount, markNotificationsRead, listLoungeRows, getLoungeRow, rowToLounge, createLounge, deleteLounge, setLoungeLive, communityBanPlayer, communityUnbanPlayer, getActiveCommunityBan, updateCommunityProfile, getCommunityProfileV2, assignBadge, revokeBadge, setShowcaseAchievement, clearShowcaseSlot, getPrivacySettings, setPrivacySettings, createPostV2, listFeedV2, votePoll, togglePostSave, getSavedPosts, pinPost, featurePost, hidePost, getCommunityModLogs, listPeopleDirectory, getFollowersList, getFollowingList, searchCommunity, upsertOnlineSeen, getOnlineMembers, } from './services/communityService.js';
 import { join as loungeJoin, leave as loungeLeave, getMembers as loungeGetMembers, getMemberByPlayerId as loungeGetMemberByPlayerId, setRole as loungeSetRole, setHandRaised as loungeSetHandRaised, removeMember as loungeRemoveMember, getCounts as loungeGetCounts, } from './services/loungeVoiceService.js';
 // ── TURN / ICE server config ──────────────────────────────────────────
 // Centralised in server/src/lib/iceConfig.ts.  Reads Railway env vars:
@@ -295,8 +295,24 @@ function handleLoungeLeave(io, socket) {
             io.to(peer.socketId).emit('lounge:peer-left', { socketId: socket.id });
         }
         const { listenerCount, speakerCount } = loungeGetCounts(lid);
-        getLoungeRow(lid).then(row => { if (row)
-            io.emit('community:lounge_update', rowToLounge(row, listenerCount, speakerCount)); });
+        getLoungeRow(lid).then(async (row) => {
+            if (!row)
+                return;
+            // Auto-delete user-created lounges when the owner leaves
+            if (row.kind === 'lounge' && row.owner_id === socket.data.profileId) {
+                for (const m of remaining) {
+                    io.to(m.socketId).emit('lounge:kicked');
+                }
+                try {
+                    await sql `DELETE FROM community_lounges WHERE id = ${lid}`;
+                }
+                catch { }
+                io.emit('community:lounge_removed', { loungeId: lid });
+            }
+            else {
+                io.emit('community:lounge_update', rowToLounge(row, listenerCount, speakerCount));
+            }
+        });
     }
 }
 function startPhaseTimer(io, room) {
@@ -4365,6 +4381,18 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
+        socket.on('community:comment_delete', async ({ commentId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                await deleteComment(commentId, profileId);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
         socket.on('community:post_report', async ({ postId, reason }, cb) => {
             try {
                 const profileId = socket.data.profileId;
@@ -4521,6 +4549,25 @@ export function attachSocketHandlers(io) {
                     throw new Error('Not authenticated.');
                 await requireNotCommunityBanned(profileId);
                 cb(ok(await createLounge(profileId, name, description)));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('community:lounge_delete', async ({ loungeId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                // Force-remove all members from in-memory state
+                const members = loungeGetMembers(loungeId);
+                for (const m of members) {
+                    loungeRemoveMember(loungeId, m.socketId);
+                    io.to(m.socketId).emit('lounge:kicked');
+                }
+                await deleteLounge(loungeId, profileId);
+                io.emit('community:lounge_removed', { loungeId });
+                cb(ok(null));
             }
             catch (e) {
                 cb(err(e.message));

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
 import { useCommunityStore } from '@/store/communityStore';
+import { useSocialStore } from '@/store/socialStore';
 import type { CommunityProfileV2 } from '@/types/index';
 import { emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
@@ -20,6 +21,7 @@ export function ProfileModalV2({ profileId, onClose }: { profileId: string; onCl
   const t = useT();
   const currentUser = useAuthStore(s => s.profile);
   const { followUser, unfollowUser } = useCommunityStore();
+  const openDmWith = useSocialStore(s => s.openDmWith);
   const [profile, setProfile] = useState<CommunityProfileV2 | null>(null);
   const [loading, setLoading] = useState(true);
   const [followBusy, setFollowBusy] = useState(false);
@@ -124,16 +126,25 @@ export function ProfileModalV2({ profileId, onClose }: { profileId: string; onCl
             )}
           </div>
 
-          {/* Follow / friend button */}
+          {/* Action buttons */}
           {!isSelf && (
-            <PillButton
-              onClick={handleToggleFollow}
-              disabled={followBusy}
-              accent={profile.isFollowedByMe ? 'cyan' : 'purple'}
-              className="w-full justify-center"
-            >
-              {profile.isFollowedByMe ? t.community.profile.unfollow : t.community.profile.follow}
-            </PillButton>
+            <div className="flex gap-2">
+              <PillButton
+                onClick={handleToggleFollow}
+                disabled={followBusy}
+                accent={profile.isFollowedByMe ? 'cyan' : 'purple'}
+                className="flex-1 justify-center"
+              >
+                {profile.isFollowedByMe ? t.community.profile.unfollow : t.community.profile.follow}
+              </PillButton>
+              <PillButton
+                onClick={() => { onClose(); openDmWith(profileId); }}
+                accent="purple"
+                className="flex-1 justify-center"
+              >
+                ✉ {t.community.profile.message ?? 'Message'}
+              </PillButton>
+            </div>
           )}
         </div>
       )}

@@ -90,13 +90,13 @@ import {
   listNews, createNews, deleteNews,
   listRecommends, createRecommend, deleteRecommend,
   listThoughts, createThought, deleteThought,
-  listFeed, createPost, deletePost, toggleLike, getComments, addComment, reportPost,
+  listFeed, createPost, deletePost, toggleLike, getComments, addComment, deleteComment, reportPost,
   listCommunityReports, resolveCommunityReport,
   follow, unfollow, getCommunityProfile,
   listEvents, createEvent, joinEvent, leaveEvent,
   createNotification, notifyFollowers, notifyAllPlayers,
   listNotifications, getUnreadNotificationCount, markNotificationsRead,
-  listLoungeRows, getLoungeRow, rowToLounge, createLounge, setLoungeLive,
+  listLoungeRows, getLoungeRow, rowToLounge, createLounge, deleteLounge, setLoungeLive,
   communityBanPlayer, communityUnbanPlayer, getActiveCommunityBan,
   updateCommunityProfile, getCommunityProfileV2, getPlayerBadges,
   assignBadge, revokeBadge, setShowcaseAchievement, clearShowcaseSlot,
@@ -401,7 +401,19 @@ function handleLoungeLeave(io: AppServer, socket: AppSocket): void {
       io.to(peer.socketId).emit('lounge:peer-left', { socketId: socket.id });
     }
     const { listenerCount, speakerCount } = loungeGetCounts(lid);
-    getLoungeRow(lid).then(row => { if (row) io.emit('community:lounge_update', rowToLounge(row, listenerCount, speakerCount)); });
+    getLoungeRow(lid).then(async row => {
+      if (!row) return;
+      // Auto-delete user-created lounges when the owner leaves
+      if (row.kind === 'lounge' && row.owner_id === socket.data.profileId) {
+        for (const m of remaining) {
+          io.to(m.socketId).emit('lounge:kicked' as any);
+        }
+        try { await sql`DELETE FROM community_lounges WHERE id = ${lid}`; } catch {}
+        io.emit('community:lounge_removed' as any, { loungeId: lid });
+      } else {
+        io.emit('community:lounge_update', rowToLounge(row, listenerCount, speakerCount));
+      }
+    });
   }
 }
 
@@ -3962,6 +3974,15 @@ export function attachSocketHandlers(io: AppServer): void {
       try { cb(ok(await getComments(postId))); } catch (e: any) { cb(err(e.message)); }
     });
 
+    socket.on('community:comment_delete', async ({ commentId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        await deleteComment(commentId, profileId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     socket.on('community:post_report', async ({ postId, reason }, cb) => {
       try {
         const profileId = socket.data.profileId;
@@ -4081,6 +4102,22 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!profileId) throw new Error('Not authenticated.');
         await requireNotCommunityBanned(profileId);
         cb(ok(await createLounge(profileId, name, description)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:lounge_delete', async ({ loungeId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        // Force-remove all members from in-memory state
+        const members = loungeGetMembers(loungeId);
+        for (const m of members) {
+          loungeRemoveMember(loungeId, m.socketId);
+          io.to(m.socketId).emit('lounge:kicked' as any);
+        }
+        await deleteLounge(loungeId, profileId);
+        io.emit('community:lounge_removed' as any, { loungeId });
+        cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });
 

@@ -409,6 +409,8 @@ export const TRANSLATIONS = {
         yourCrew: 'Your Crew',
         reconnected: 'Reconnected ✓',
         roomClosed: 'Room closed while disconnected',
+        returningToLobby: 'Returning to lobby in {s}s…',
+        startNewGame: 'Start New Game',
       },
       header: {
         phase: 'Phase',
@@ -701,6 +703,7 @@ export const TRANSLATIONS = {
         joined: 'Joined',
         follow: 'Follow',
         unfollow: 'Unfollow',
+        message: 'Message',
         bio: 'Bio',
         bioPh: 'Tell your story…',
         coverBanner: 'Cover banner',
@@ -1246,6 +1249,8 @@ export const TRANSLATIONS = {
         yourCrew: 'შენი გუნდი',
         reconnected: 'კავშირი აღდგა ✓',
         roomClosed: 'ოთახი დაიხურა გათიშვის დროს',
+        returningToLobby: 'ლობიში ბრუნდება {s}წ-ში…',
+        startNewGame: 'ახალი თამაშის დაწყება',
       },
       header: {
         phase: 'ფაზა',
@@ -1538,6 +1543,7 @@ export const TRANSLATIONS = {
         joined: 'შემოვიდა',
         follow: 'გამოწერა',
         unfollow: 'გამოწერის გაუქმება',
+        message: 'მიწერა',
         bio: 'ბიო',
         bioPh: 'მოგვიყევი შენ შესახებ…',
         coverBanner: 'გარეკანი',

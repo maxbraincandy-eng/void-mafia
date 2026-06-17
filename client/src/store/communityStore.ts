@@ -29,6 +29,7 @@ interface CommunityStore {
 
   fetchLounges: () => Promise<void>;
   createLounge: (name: string, description: string) => Promise<CommunityLounge>;
+  deleteLounge: (loungeId: string) => Promise<void>;
   setLoungeLive: (loungeId: string, isLive: boolean, lastTopic?: string) => Promise<void>;
   setCurrentLounge: (loungeId: string | null) => void;
   setLoungeMembers: (members: CommunityLoungeMember[]) => void;
@@ -51,6 +52,7 @@ interface CommunityStore {
   toggleLike: (postId: string) => Promise<void>;
   fetchComments: (postId: string) => Promise<CommunityComment[]>;
   addComment: (postId: string, content: string) => Promise<CommunityComment>;
+  deleteComment: (postId: string, commentId: string) => Promise<void>;
   reportPost: (postId: string, reason: string) => Promise<void>;
 
   followUser: (targetId: string) => Promise<void>;
@@ -106,6 +108,10 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
       next[idx] = lounge;
       return { lounges: next };
     });
+  });
+
+  socket.on('community:lounge_removed', ({ loungeId }: { loungeId: string }) => {
+    set(s => ({ lounges: s.lounges.filter(l => l.id !== loungeId) }));
   });
 
   socket.on('community:post_new', (post: CommunityPost) => {
@@ -174,6 +180,10 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
       const lounge = unwrap(await emitWithAck<any, Res<CommunityLounge>>('community:lounge_create', { name, description }));
       set(s => ({ lounges: [...s.lounges, lounge] }));
       return lounge;
+    },
+    deleteLounge: async (loungeId) => {
+      await emitWithAck<any, Res<null>>('community:lounge_delete', { loungeId });
+      set(s => ({ lounges: s.lounges.filter(l => l.id !== loungeId) }));
     },
     setLoungeLive: async (loungeId, isLive, lastTopic) => {
       unwrap(await emitWithAck<any, Res<null>>('community:lounge_set_live', { loungeId, isLive, lastTopic }));
@@ -277,6 +287,13 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
         feedV2Posts: s.feedV2Posts.map(p => p.id === postId ? { ...p, commentsCount: p.commentsCount + 1 } : p),
       }));
       return comment;
+    },
+    deleteComment: async (postId, commentId) => {
+      await emitWithAck<any, Res<null>>('community:comment_delete', { commentId });
+      set(s => ({
+        feedPosts: s.feedPosts.map(p => p.id === postId ? { ...p, commentsCount: Math.max(0, p.commentsCount - 1) } : p),
+        feedV2Posts: s.feedV2Posts.map(p => p.id === postId ? { ...p, commentsCount: Math.max(0, p.commentsCount - 1) } : p),
+      }));
     },
     reportPost: async (postId, reason) => {
       unwrap(await emitWithAck<any, Res<null>>('community:post_report', { postId, reason }));

@@ -17,6 +17,7 @@ export declare function toggleLike(postId: string, playerId: string): Promise<{
 }>;
 export declare function getComments(postId: string): Promise<CommunityComment[]>;
 export declare function addComment(postId: string, authorId: string, content: string): Promise<CommunityComment>;
+export declare function deleteComment(commentId: string, requesterId: string): Promise<void>;
 export declare function reportPost(postId: string, reporterId: string, reason: string): Promise<void>;
 export declare function listCommunityReports(): Promise<any[]>;
 export declare function resolveCommunityReport(reportId: string, status: string): Promise<void>;
@@ -40,6 +41,7 @@ export declare function listLoungeRows(): Promise<any[]>;
 export declare function getLoungeRow(id: string): Promise<any | null>;
 export { rowToLounge };
 export declare function createLounge(ownerId: string, name: string, description: string): Promise<CommunityLounge>;
+export declare function deleteLounge(loungeId: string, requesterId: string): Promise<void>;
 export declare function setLoungeLive(loungeId: string, isLive: boolean, lastTopic: string | null): Promise<CommunityLounge>;
 export interface CommunityBanRecord {
     id: string;
