@@ -4,6 +4,10 @@ import {
 } from '../types/index.js';
 import { generateId, generateRoomCode, nameToAvatar } from '../utils/helpers.js';
 
+export function generateVoiceSessionId(): string {
+  return generateId();
+}
+
 // ── In-Memory Store ───────────────────────────────────────────────────
 const rooms = new Map<string, Room>();
 
@@ -158,6 +162,7 @@ export function createRoom(
     eventsLog: [],
     lastDoctorTarget: null,
     gameTimeline: [],
+    voiceSessionId: generateVoiceSessionId(),
   };
 
   rooms.set(id, room);
@@ -617,6 +622,7 @@ export function rematchRoom(room: Room): void {
   room.eventsLog        = [];
   room.lastDoctorTarget = null;
   room.gameTimeline     = [];
+  room.voiceSessionId   = generateVoiceSessionId();
 
   // Promote queued spectators to active lobby
   promoteQueuedPlayers(room);

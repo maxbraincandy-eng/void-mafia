@@ -207,9 +207,10 @@ interface Props {
 export function GameOver({ result }: Props) {
   const [phase, setPhase] = useState<Phase>('mafia_cinematic');
 
-  const { leaveRoom, isLoading, room, myPlayerId, xpGain, dismissXPGain } =
+  const { leaveRoom, restartGame, isLoading, room, myPlayerId, xpGain, dismissXPGain } =
     useGameStore(s => ({
       leaveRoom: s.leaveRoom,
+      restartGame: s.restartGame,
       isLoading: s.isLoading,
       room: s.room,
       myPlayerId: s.myPlayerId,
@@ -217,6 +218,17 @@ export function GameOver({ result }: Props) {
       dismissXPGain: s.dismissXPGain,
     }));
   const t = useT();
+
+  const myPlayerData = room?.players.find(p => p.id === myPlayerId);
+  const amHost = myPlayerData?.isHost ?? false;
+
+  const [countdown, setCountdown] = useState(7);
+  useEffect(() => {
+    if (phase !== 'highlights') return;
+    setCountdown(7);
+    const iv = setInterval(() => setCountdown(c => Math.max(0, c - 1)), 1000);
+    return () => clearInterval(iv);
+  }, [phase]);
 
   const WINNER_CONFIG: Record<Team, { label: string; color: string; glowColor: string; symbol: string }> = {
     town:    { label: t.game.gameOver.townWins,  color: 'text-neon-cyan',   glowColor: '#00f5ff', symbol: '✦' },
@@ -581,12 +593,21 @@ export function GameOver({ result }: Props) {
                 </motion.button>
               )}
 
-              {/* Single return button */}
+              {/* Countdown + action buttons */}
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.48 }}
+                className="space-y-2"
               >
+                <p className="text-center font-mono text-[10px] text-white/25 uppercase tracking-widest">
+                  {t.game.gameOver.returningToLobby.replace('{s}', String(countdown))}
+                </p>
+                {amHost && (
+                  <Button variant="primary" fullWidth loading={isLoading} onClick={() => restartGame()}>
+                    {t.game.gameOver.startNewGame}
+                  </Button>
+                )}
                 <Button variant="ghost" fullWidth loading={isLoading} onClick={() => leaveRoom()}>
                   {t.game.gameOver.leaveRoom}
                 </Button>

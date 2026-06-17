@@ -450,6 +450,8 @@ export interface Room {
   eventsLog: EventLogEntry[];
   lastDoctorTarget: string | null;
   gameTimeline: TimelineEvent[];
+  /** UUID refreshed on every game start + lobby reset; clients drop stale WebRTC signals if this doesn't match. */
+  voiceSessionId: string;
 }
 
 // ── Public Types (sent to clients) ────────────────────────────────────
@@ -763,10 +765,11 @@ export interface ServerToClientEvents {
   'voice:answer':        (data: { from: string; sdp: object }) => void;
   'voice:ice-candidate': (data: { from: string; candidate: object }) => void;
   'voice:error':         (data: { message: string }) => void;
-  'voice:force-leave':   (data: { channel: VoiceChannel; reason: string }) => void;
-  'voice:force-mute':    (data: { reason: string }) => void;
-  'voice:force-unmute':  () => void;
-  'voice:reset':         () => void;
+  'voice:force-leave':      (data: { channel: VoiceChannel; reason: string }) => void;
+  'voice:force-mute':       (data: { reason: string }) => void;
+  'voice:force-unmute':     () => void;
+  'voice:reset':            () => void;
+  'voice:disconnect-room':  (data: { reason: string }) => void;
   // XP / levels / cosmetics
   'xp:gained':           (data: XPGain) => void;
   // Spectator prediction result

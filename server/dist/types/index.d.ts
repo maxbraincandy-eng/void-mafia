@@ -348,6 +348,8 @@ export interface Room {
     eventsLog: EventLogEntry[];
     lastDoctorTarget: string | null;
     gameTimeline: TimelineEvent[];
+    /** UUID refreshed on every game start + lobby reset; clients drop stale WebRTC signals if this doesn't match. */
+    voiceSessionId: string;
 }
 export interface PlayerPublic {
     id: string;
@@ -715,6 +717,9 @@ export interface ServerToClientEvents {
     }) => void;
     'voice:force-unmute': () => void;
     'voice:reset': () => void;
+    'voice:disconnect-room': (data: {
+        reason: string;
+    }) => void;
     'xp:gained': (data: XPGain) => void;
     'prediction:result': (data: {
         correct: boolean;

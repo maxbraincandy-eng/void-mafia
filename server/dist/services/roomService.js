@@ -1,5 +1,8 @@
 import { DEFAULT_DYNAMIC_EVENTS, } from '../types/index.js';
 import { generateId, generateRoomCode, nameToAvatar } from '../utils/helpers.js';
+export function generateVoiceSessionId() {
+    return generateId();
+}
 // ── In-Memory Store ───────────────────────────────────────────────────
 const rooms = new Map();
 // ── Default Spectator Queue Settings ─────────────────────────────────
@@ -141,6 +144,7 @@ export function createRoom(hostSocketId, hostName, profileId, settings, clanId, 
         eventsLog: [],
         lastDoctorTarget: null,
         gameTimeline: [],
+        voiceSessionId: generateVoiceSessionId(),
     };
     rooms.set(id, room);
     return room;
@@ -576,6 +580,7 @@ export function rematchRoom(room) {
     room.eventsLog = [];
     room.lastDoctorTarget = null;
     room.gameTimeline = [];
+    room.voiceSessionId = generateVoiceSessionId();
     // Promote queued spectators to active lobby
     promoteQueuedPlayers(room);
     for (const p of room.players.values()) {

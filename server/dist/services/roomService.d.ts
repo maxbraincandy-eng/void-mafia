@@ -1,4 +1,5 @@
 import { Room, Player, GameSettings, RoomPublic, RoomListItem, SpectatorQueueSettings } from '../types/index.js';
+export declare function generateVoiceSessionId(): string;
 export declare const DEFAULT_SPECTATOR_QUEUE: SpectatorQueueSettings;
 export declare const DEFAULT_SETTINGS: GameSettings;
 export declare function createRoom(hostSocketId: string, hostName: string, profileId: string | null, settings?: Partial<GameSettings>, clanId?: string | null, roomName?: string): Room;

@@ -345,6 +345,14 @@ function onForceLeave() {
   }
 }
 
+function onDisconnectRoom() {
+  if (_session) {
+    _session.destroy();
+    _reset();
+    log('voice:disconnect-room — all peer connections destroyed');
+  }
+}
+
 function onSocketDisconnect() {
   if (_session && _state.channel) {
     // Save voice state so we can auto-rejoin when socket comes back
@@ -382,9 +390,10 @@ function onSocketConnect() {
 (socket as any).on('voice:force-mute',     onForceMute);
 (socket as any).on('voice:force-unmute',   onForceUnmute);
 (socket as any).on('voice:reset',          onVoiceReset);
-(socket as any).on('voice:force-leave',    onForceLeave);
-socket.on('disconnect',                    onSocketDisconnect);
-socket.on('connect',                       onSocketConnect);
+(socket as any).on('voice:force-leave',      onForceLeave);
+(socket as any).on('voice:disconnect-room', onDisconnectRoom);
+socket.on('disconnect',                      onSocketDisconnect);
+socket.on('connect',                         onSocketConnect);
 
 // ── Visibility / background recovery ──────────────────────────────────
 // When the app returns from background, check if the WebRTC session is
