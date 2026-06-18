@@ -4,7 +4,6 @@ import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
 import { useCommunityStore } from '@/store/communityStore';
 import { LoungesTab } from '@/components/community/LoungesTab';
-import { NewsTab } from '@/components/community/NewsTab';
 import { FeedTabV2 } from '@/components/community/FeedTabV2';
 import { RecommendsTab } from '@/components/community/RecommendsTab';
 import { ThoughtsTab } from '@/components/community/ThoughtsTab';
@@ -17,7 +16,7 @@ import { ModerationPanel } from '@/components/community/ModerationPanel';
 import { ProfileModalV2 } from '@/components/community/ProfileModalV2';
 import { CommunitySearchPanel } from '@/components/community/CommunitySearchPanel';
 
-type CommunityTab = 'feed' | 'voice' | 'people' | 'games' | 'news' | 'debates' | 'activity';
+type CommunityTab = 'feed' | 'voice' | 'people' | 'games' | 'debates' | 'activity';
 
 export function CommunityPage() {
   const t = useT();
@@ -37,12 +36,11 @@ export function CommunityPage() {
 
   const TABS: { id: CommunityTab; label: string; icon: string }[] = [
     { id: 'feed',     label: t.community.tabs.feed,     icon: '🌌' },
-    { id: 'debates',  label: t.community.tabs.debates,  icon: '⚔️' },
-    { id: 'activity', label: t.community.tabs.activity, icon: '🔥' },
     { id: 'voice',    label: t.community.tabs.voice,    icon: '🎤' },
-    { id: 'people',   label: t.community.tabs.people,   icon: '👥' },
+    { id: 'debates',  label: t.community.tabs.debates,  icon: '⚔️' },
     { id: 'games',    label: t.community.tabs.games,    icon: '♟' },
-    { id: 'news',     label: t.community.tabs.news,     icon: '📰' },
+    { id: 'people',   label: t.community.tabs.people,   icon: '👥' },
+    { id: 'activity', label: t.community.tabs.activity, icon: '🔥' },
   ];
 
   return (
@@ -135,7 +133,6 @@ export function CommunityPage() {
             {tab === 'voice'    && <LoungesTab onOpenProfile={setViewProfileId} />}
             {tab === 'people'   && <PeopleTab onOpenProfile={setViewProfileId} />}
             {tab === 'games'    && <GamesTab />}
-            {tab === 'news'     && <NewsTab />}
             {tab === 'debates'  && <DebatesTab />}
             {tab === 'activity' && <ActivityTab onOpenProfile={setViewProfileId} />}
           </motion.div>
