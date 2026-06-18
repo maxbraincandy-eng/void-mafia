@@ -110,7 +110,10 @@ import {
 } from './services/communityService.js';
 import {
   listDebates, getDebateFull, createDebate, joinDebate, postArgument, voteDebate, closeDebate,
+  startDebate, advancePhase as advanceDebatePhase, skipPhase, raiseHand, lowerHand, getRaisedHands, promoteSpeaker,
+  PHASE_DURATION_SECONDS, getActiveSide as getDebateActiveSide,
 } from './services/debateService.js';
+import { voiceJoin as debateVoiceJoin, voiceLeave as debateVoiceLeave, getVoicePeers as debateGetVoicePeers } from './services/debateVoiceService.js';
 import { recordActivity, getFriendActivityFeed } from './services/activityService.js';
 import {
   join as loungeJoin, leave as loungeLeave, getMembers as loungeGetMembers,
@@ -197,6 +200,25 @@ function reportRateOk(reporterId: string, targetId: string, reason: string): { o
   window.push(now);
   reportWindows.set(windowKey, window);
   return { ok: true };
+}
+
+// ── Debate phase timers ───────────────────────────────────────────────
+const debatePhaseTimers = new Map<string, NodeJS.Timeout>();
+
+function scheduleDebatePhaseAdvance(io: AppServer, debateId: string, durationSeconds: number) {
+  const existing = debatePhaseTimers.get(debateId);
+  if (existing) clearTimeout(existing);
+  if (durationSeconds <= 0) return;
+  const t = setTimeout(async () => {
+    debatePhaseTimers.delete(debateId);
+    try {
+      const updated = await advanceDebatePhase(debateId);
+      io.to(`debate:${debateId}`).emit('debate:phase_update', updated as any);
+      const nextDur = (PHASE_DURATION_SECONDS as any)[updated.phase] ?? 0;
+      if (nextDur > 0) scheduleDebatePhaseAdvance(io, debateId, nextDur);
+    } catch {}
+  }, durationSeconds * 1000);
+  debatePhaseTimers.set(debateId, t);
 }
 
 // ── Maintenance mode ─────────────────────────────────────────────────
@@ -4416,6 +4438,11 @@ export function attachSocketHandlers(io: AppServer): void {
         const participant = await joinDebate(debateId, profileId, safeSide);
         io.to(`debate:${debateId}`).emit('debate:participant_update', participant as any);
         socket.join(`debate:${debateId}`);
+        // Emit current debate state so the joining socket gets phase info
+        const debateFull = await getDebateFull(debateId, profileId);
+        if (debateFull) {
+          socket.emit('debate:phase_update', debateFull as any);
+        }
         recordActivity(profileId, 'joined_debate', debateId, { side }).catch(() => {});
         cb(ok(participant));
       } catch (e: any) { cb(err(e.message)); }
@@ -4460,6 +4487,108 @@ export function attachSocketHandlers(io: AppServer): void {
     socket.on('debate:unsubscribe', async ({ debateId }, cb) => {
       socket.leave(`debate:${debateId}`);
       cb(ok(null));
+    });
+
+    socket.on('debate:start', async ({ debateId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const debate = await startDebate(debateId, profileId);
+        io.to(`debate:${debateId}`).emit('debate:phase_update', debate as any);
+        const dur = (PHASE_DURATION_SECONDS as any)[debate.phase] ?? 0;
+        if (dur > 0) scheduleDebatePhaseAdvance(io, debateId, dur);
+        cb(ok(debate));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('debate:skip_phase', async ({ debateId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const existing = debatePhaseTimers.get(debateId);
+        if (existing) { clearTimeout(existing); debatePhaseTimers.delete(debateId); }
+        const debate = await skipPhase(debateId, profileId);
+        io.to(`debate:${debateId}`).emit('debate:phase_update', debate as any);
+        const dur = (PHASE_DURATION_SECONDS as any)[debate.phase] ?? 0;
+        if (dur > 0) scheduleDebatePhaseAdvance(io, debateId, dur);
+        cb(ok(debate));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('debate:raise_hand', async ({ debateId, side }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const safeSide = side === 'pro' ? 'pro' : 'con';
+        await raiseHand(debateId, profileId, safeSide);
+        const hands = await getRaisedHands(debateId);
+        io.to(`debate:${debateId}`).emit('debate:hands_update', { debateId, hands } as any);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('debate:lower_hand', async ({ debateId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        await lowerHand(debateId, profileId);
+        const hands = await getRaisedHands(debateId);
+        io.to(`debate:${debateId}`).emit('debate:hands_update', { debateId, hands } as any);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('debate:promote', async ({ debateId, targetPlayerId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const participant = await promoteSpeaker(debateId, targetPlayerId, profileId);
+        const hands = await getRaisedHands(debateId);
+        io.to(`debate:${debateId}`).emit('debate:participant_update', participant as any);
+        io.to(`debate:${debateId}`).emit('debate:hands_update', { debateId, hands } as any);
+        cb(ok(participant));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('debate:voice_join', async ({ debateId, side }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const player = await getPlayer(profileId);
+        const safeSide = (side === 'pro' || side === 'con' || side === 'spectator') ? side : 'spectator';
+        const peers = debateVoiceJoin(debateId, profileId, socket.id, safeSide as any, player?.username ?? '???');
+        const iceServers = buildIceConfig();
+        socket.join(`debate:voice:${debateId}`);
+        socket.to(`debate:voice:${debateId}`).emit('debate:voice_peer_joined', {
+          socketId: socket.id, playerId: profileId, username: player?.username ?? '???', side: safeSide
+        } as any);
+        cb(ok({ peers: peers.map(p => ({ socketId: p.socketId, playerId: p.playerId, username: p.username, side: p.side })), iceServers }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('debate:voice_leave', ({ debateId }, cb) => {
+      const profileId = socket.data.profileId;
+      if (profileId) {
+        debateVoiceLeave(debateId, profileId);
+        socket.leave(`debate:voice:${debateId}`);
+        socket.to(`debate:voice:${debateId}`).emit('debate:voice_peer_left', { socketId: socket.id } as any);
+      }
+      if (typeof cb === 'function') cb(ok(null));
+    });
+
+    socket.on('debate:voice_offer', ({ debateId, to, sdp }, cb) => {
+      io.to(to).emit('debate:voice_offer', { from: socket.id, sdp } as any);
+      if (typeof cb === 'function') cb(ok(null));
+    });
+
+    socket.on('debate:voice_answer', ({ debateId, to, sdp }, cb) => {
+      io.to(to).emit('debate:voice_answer', { from: socket.id, sdp } as any);
+      if (typeof cb === 'function') cb(ok(null));
+    });
+
+    socket.on('debate:voice_ice', ({ debateId, to, candidate }, cb) => {
+      io.to(to).emit('debate:voice_ice', { from: socket.id, candidate } as any);
+      if (typeof cb === 'function') cb(ok(null));
     });
 
     // ── Activity Feed ─────────────────────────────────────────────────────
