@@ -1062,6 +1062,7 @@ export interface ClientToServerEvents {
   'community:unban':             (data: { targetProfileId: string }, cb: Cb<null>) => void;
   'community:profile_update': (data: { bio?: string; coverUrl?: string; favoriteRole?: string }, cb: (r: Res<CommunityProfileV2>) => void) => void;
   'community:feed_v2': (data: { category: FeedCategory; before?: number; hashtag?: string }, cb: (r: Res<CommunityPostV2[]>) => void) => void;
+  'community:user_posts': (data: { authorId: string; before?: number }, cb: (r: Res<CommunityPostV2[]>) => void) => void;
   'community:post_create_v2': (data: {
     postType: PostType;
     content: string;

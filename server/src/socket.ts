@@ -102,7 +102,7 @@ import {
   updateCommunityProfile, getCommunityProfileV2, getPlayerBadges,
   assignBadge, revokeBadge, setShowcaseAchievement, clearShowcaseSlot,
   getPrivacySettings, setPrivacySettings,
-  createPostV2, listFeedV2, votePoll, togglePostSave, getSavedPosts,
+  createPostV2, listFeedV2, getUserPosts, votePoll, togglePostSave, getSavedPosts,
   pinPost, featurePost, hidePost, logCommunityModAction, getCommunityModLogs,
   listPeopleDirectory, getFollowersList, getFollowingList,
   searchCommunity, upsertOnlineSeen, getOnlineMembers, computeTrending, recalcReputation,
@@ -4242,6 +4242,14 @@ export function attachSocketHandlers(io: AppServer): void {
         const profileId = socket.data.profileId;
         if (!profileId) { cb(err('Not authenticated.')); return; }
         const posts = await listFeedV2(profileId, { category: data.category ?? 'all', before: data.before, hashtag: data.hashtag });
+        cb(ok(posts));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:user_posts', async ({ authorId, before }, cb) => {
+      try {
+        const viewerId = socket.data.profileId ?? '';
+        const posts = await getUserPosts(authorId, viewerId, { before });
         cb(ok(posts));
       } catch (e: any) { cb(err(e.message)); }
     });

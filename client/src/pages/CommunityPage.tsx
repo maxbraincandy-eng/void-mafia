@@ -14,7 +14,7 @@ import { ActivityTab } from '@/components/community/ActivityTab';
 import { NotificationPanel } from '@/components/community/NotificationPanel';
 import { ModerationPanel } from '@/components/community/ModerationPanel';
 import AdminPanel from '@/components/community/AdminPanel';
-import { ProfileModalV2 } from '@/components/community/ProfileModalV2';
+import { CommunityProfilePage } from '@/components/community/CommunityProfilePage';
 import { CommunitySearchPanel } from '@/components/community/CommunitySearchPanel';
 
 type CommunityTab = 'feed' | 'voice' | 'people' | 'games' | 'debates' | 'activity';
@@ -136,20 +136,35 @@ export function CommunityPage() {
         </div>
 
         <AnimatePresence mode="wait">
-          <motion.div
-            key={tab}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.15 }}
-          >
-            {tab === 'feed'     && <FeedTabV2 onOpenProfile={setViewProfileId} />}
-            {tab === 'voice'    && <LoungesTab onOpenProfile={setViewProfileId} />}
-            {tab === 'people'   && <PeopleTab onOpenProfile={setViewProfileId} />}
-            {tab === 'games'    && <GamesTab />}
-            {tab === 'debates'  && <DebatesTab />}
-            {tab === 'activity' && <ActivityTab onOpenProfile={setViewProfileId} />}
-          </motion.div>
+          {viewProfileId ? (
+            <motion.div
+              key={`profile-${viewProfileId}`}
+              initial={{ opacity: 0, x: 24 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 24 }}
+              transition={{ duration: 0.18 }}
+            >
+              <CommunityProfilePage
+                profileId={viewProfileId}
+                onBack={() => setViewProfileId(null)}
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key={tab}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.15 }}
+            >
+              {tab === 'feed'     && <FeedTabV2 onOpenProfile={setViewProfileId} />}
+              {tab === 'voice'    && <LoungesTab onOpenProfile={setViewProfileId} />}
+              {tab === 'people'   && <PeopleTab onOpenProfile={setViewProfileId} />}
+              {tab === 'games'    && <GamesTab />}
+              {tab === 'debates'  && <DebatesTab />}
+              {tab === 'activity' && <ActivityTab onOpenProfile={setViewProfileId} />}
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
 
@@ -174,9 +189,6 @@ export function CommunityPage() {
             onOpenProfile={id => { setViewProfileId(id); setShowSearch(false); }}
           />
         )}
-      </AnimatePresence>
-      <AnimatePresence>
-        {viewProfileId && <ProfileModalV2 profileId={viewProfileId} onClose={() => setViewProfileId(null)} />}
       </AnimatePresence>
     </div>
   );

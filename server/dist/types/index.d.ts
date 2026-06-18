@@ -1455,6 +1455,10 @@ export interface ClientToServerEvents {
         before?: number;
         hashtag?: string;
     }, cb: (r: Res<CommunityPostV2[]>) => void) => void;
+    'community:user_posts': (data: {
+        authorId: string;
+        before?: number;
+    }, cb: (r: Res<CommunityPostV2[]>) => void) => void;
     'community:post_create_v2': (data: {
         postType: PostType;
         content: string;

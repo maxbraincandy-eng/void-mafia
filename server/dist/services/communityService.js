@@ -815,6 +815,20 @@ export async function listFeedV2(viewerId, options) {
     }
     return Promise.all(rows.map(r => buildPostV2(r, viewerId)));
 }
+// Fetch posts by a single author (for community profile page)
+export async function getUserPosts(authorId, viewerId, options = {}) {
+    const limit = Math.min(options.limit ?? 40, 80);
+    const before = options.before ?? Date.now() + 1;
+    const rows = await sql `
+    SELECT p.*, pl.username AS author_name, pl.avatar AS author_avatar, pl.avatar_url AS author_avatar_url,
+           pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url
+    FROM community_posts p
+    JOIN players pl ON pl.id = p.author_id
+    WHERE p.author_id = ${authorId} AND p.hidden = false AND p.created_at < ${before}
+    ORDER BY p.created_at DESC LIMIT ${limit}
+  `;
+    return Promise.all(rows.map(r => buildPostV2(r, viewerId)));
+}
 // Vote on poll
 export async function votePoll(postId, playerId, optionId) {
     const existing = await sql `SELECT option_id FROM community_poll_votes WHERE post_id = ${postId} AND player_id = ${playerId} LIMIT 1`;

@@ -107,6 +107,10 @@ export declare function listFeedV2(viewerId: string, options: {
     hashtag?: string;
     limit?: number;
 }): Promise<CommunityPostV2[]>;
+export declare function getUserPosts(authorId: string, viewerId: string, options?: {
+    before?: number;
+    limit?: number;
+}): Promise<CommunityPostV2[]>;
 export declare function votePoll(postId: string, playerId: string, optionId: string): Promise<PollResult[]>;
 export declare function togglePostSave(postId: string, playerId: string): Promise<boolean>;
 export declare function getSavedPosts(playerId: string, before?: number): Promise<CommunityPostV2[]>;
