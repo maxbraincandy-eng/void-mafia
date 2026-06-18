@@ -1,5 +1,5 @@
-// v3 — cache-busting update
-const CACHE_VERSION = 'vm-v3';
+// v4 — cache-busting update
+const CACHE_VERSION = 'vm-v4';
 
 self.addEventListener('install', e => {
   self.skipWaiting();
