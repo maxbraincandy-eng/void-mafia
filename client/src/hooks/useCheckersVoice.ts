@@ -124,12 +124,13 @@ async function _createAndJoin(matchId: string, listenOnly: boolean): Promise<voi
     }
     _patch({ peers: session.getPeers() });
 
-    // If user pressed PTT while we were joining, start talking now
+    // If user pressed PTT while we were joining full-duplex, start talking now
     if (_wantsToTalk && !listenOnly) {
       session.setMuted(false);
       _patch({ isTalking: true });
       (socket as any).emit('checkers:ptt-start', { matchId });
     }
+    // listen-only + _wantsToTalk: user pressed PTT during join — they'll press again after
   });
 }
 
@@ -156,14 +157,26 @@ async function _startTalking(matchId: string): Promise<void> {
 
   if (!_session) {
     if (!_joining) {
-      // First PTT press — create session and join voice
+      // First PTT press with no session at all — create full-duplex session
       await _createAndJoin(matchId, false);
     }
-    // Session will unmute after join completes (if _wantsToTalk is still true)
     return;
   }
 
-  if (_joining) return; // joining in progress, will unmute on join callback
+  if (_joining) return;
+
+  // If auto-joined in listen-only mode, upgrade to full-duplex on first PTT press.
+  // Must be called from user gesture (PTT touchstart/mousedown) for iOS Safari getUserMedia.
+  if (_session.isListenOnly()) {
+    try {
+      await _session.upgradeToSpeaker((peerId, offer) => {
+        (socket as any).emit('checkers:voice-offer', { to: peerId, sdp: offer });
+      });
+    } catch {
+      _patch({ error: 'Microphone access denied.' });
+      return;
+    }
+  }
 
   _session.setMuted(false);
   _patch({ isTalking: true });

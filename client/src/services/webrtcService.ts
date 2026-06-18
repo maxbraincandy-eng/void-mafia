@@ -174,6 +174,58 @@ export class WebRTCSession {
     this.setState('connecting');
   }
 
+  isListenOnly(): boolean {
+    return this.listenOnly;
+  }
+
+  /**
+   * Upgrade a listen-only session to full-duplex (speaker + listener).
+   * Call this from a user-gesture handler (e.g. PTT press) so getUserMedia
+   * is allowed on mobile browsers. Renegotiates every existing peer connection.
+   */
+  async upgradeToSpeaker(
+    onRenegotiate: (peerId: string, offer: RTCSessionDescriptionInit) => void,
+  ): Promise<void> {
+    if (!this.listenOnly) return;
+
+    // Must be called from user gesture — getUserMedia needs it on iOS Safari
+    await this.requestMedia(true, false, false);
+    this.listenOnly = false;
+
+    const audioTrack = this.localStream?.getAudioTracks()[0];
+    if (!audioTrack) return;
+
+    // Start muted — PTT controls actual unmuting
+    audioTrack.enabled = false;
+
+    for (const [peerId, pc] of this.pcs.entries()) {
+      // Find the recvonly audio transceiver added in listen-only mode
+      const transceivers = pc.getTransceivers();
+      const audioTxr = transceivers.find(
+        (t) => t.receiver.track?.kind === 'audio',
+      );
+
+      if (audioTxr) {
+        audioTxr.direction = 'sendrecv';
+        try { await audioTxr.sender.replaceTrack(audioTrack); } catch (e: any) {
+          log('replaceTrack during upgrade failed for', peerId, ':', e.message);
+        }
+      } else {
+        pc.addTrack(audioTrack, this.localStream!);
+      }
+
+      try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        onRenegotiate(peerId, offer);
+      } catch (e: any) {
+        log('upgrade renegotiation failed for', peerId, ':', e.message);
+      }
+    }
+
+    this.startSpeakingDetection();
+  }
+
   async requestMedia(
     wantAudio: boolean,
     wantVideo: boolean,

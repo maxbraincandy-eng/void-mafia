@@ -7,8 +7,15 @@ interface Props {
 }
 
 export function LudoPTTButton({ matchId, myName }: Props) {
-  const { isTalking, status, startTalk, stopTalk, leave } = useLudoVoice();
+  const { isTalking, status, joined, startTalk, stopTalk, leave, joinListen } = useLudoVoice();
   const talkingRef = useRef(false);
+
+  // Auto-join receive-only so we can hear others without pressing PTT first
+  useEffect(() => {
+    if (matchId && myName && !joined && status === 'disconnected') {
+      joinListen(matchId, myName);
+    }
+  }, [matchId, myName, joined, status, joinListen]);
 
   const handleStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();

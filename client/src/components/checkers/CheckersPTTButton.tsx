@@ -8,8 +8,15 @@ interface Props {
 
 export function CheckersPTTButton({ matchId }: Props) {
   const t = useT();
-  const { isTalking, status, startTalk, stopTalk, leave } = useCheckersVoice();
+  const { isTalking, status, joined, startTalk, stopTalk, leave, joinListen } = useCheckersVoice();
   const talkingRef = useRef(false); // track locally to avoid stale closure issues
+
+  // Auto-join receive-only so we can hear others without pressing PTT first
+  useEffect(() => {
+    if (matchId && !joined && status === 'disconnected') {
+      joinListen(matchId);
+    }
+  }, [matchId, joined, status, joinListen]);
 
   const handleStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();

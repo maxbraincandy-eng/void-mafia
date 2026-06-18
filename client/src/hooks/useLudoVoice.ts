@@ -46,7 +46,7 @@ function _reset() {
   for (const sub of _subscribers) sub({ ..._state });
 }
 
-async function _createAndJoin(matchId: string, name: string): Promise<void> {
+async function _createAndJoin(matchId: string, name: string, listenOnly = false): Promise<void> {
   if (_session) return;
   _joining = true;
 
@@ -66,16 +66,20 @@ async function _createAndJoin(matchId: string, name: string): Promise<void> {
     }
   });
 
-  try {
-    await session.requestMedia(true, false, false);
-  } catch {
-    session.destroy();
-    _session = null;
-    _joining = false;
-    _patch({ status: 'failed', error: 'Microphone access denied.' });
-    return;
+  if (listenOnly) {
+    session.setListenOnlyMode();
+  } else {
+    try {
+      await session.requestMedia(true, false, false);
+    } catch {
+      session.destroy();
+      _session = null;
+      _joining = false;
+      _patch({ status: 'failed', error: 'Microphone access denied.' });
+      return;
+    }
+    session.setMuted(true);
   }
-  session.setMuted(true);
 
   (socket as any).emit('ludo:voice-join', { matchId, name }, async (res: any) => {
     _joining = false;
@@ -108,7 +112,8 @@ async function _createAndJoin(matchId: string, name: string): Promise<void> {
     }
     _patch({ peers: session.getPeers() });
 
-    if (_wantsToTalk) {
+    // If full-duplex and user already pressed PTT, start talking now
+    if (_wantsToTalk && !listenOnly) {
       session.setMuted(false);
       _patch({ isTalking: true });
       (socket as any).emit('ludo:ptt-start', { matchId });
@@ -133,10 +138,23 @@ function _leave(): void {
 async function _startTalking(matchId: string, name: string): Promise<void> {
   _wantsToTalk = true;
   if (!_session) {
-    if (!_joining) await _createAndJoin(matchId, name);
+    if (!_joining) await _createAndJoin(matchId, name, false);
     return;
   }
   if (_joining) return;
+
+  // Upgrade from listen-only to full-duplex on first PTT press (user gesture context)
+  if (_session.isListenOnly()) {
+    try {
+      await _session.upgradeToSpeaker((peerId, offer) => {
+        (socket as any).emit('ludo:voice-offer', { to: peerId, sdp: offer });
+      });
+    } catch {
+      _patch({ error: 'Microphone access denied.' });
+      return;
+    }
+  }
+
   _session.setMuted(false);
   _patch({ isTalking: true });
   (socket as any).emit('ludo:ptt-start', { matchId });
@@ -215,9 +233,10 @@ export function useLudoVoice() {
     return () => { _subscribers.delete(setLocalState); };
   }, []);
 
-  const startTalk = useCallback((matchId: string, name: string) => { _startTalking(matchId, name); }, []);
-  const stopTalk  = useCallback((matchId: string) => _stopTalking(matchId), []);
-  const leave     = useCallback(() => _leave(), []);
+  const startTalk  = useCallback((matchId: string, name: string) => { _startTalking(matchId, name); }, []);
+  const stopTalk   = useCallback((matchId: string) => _stopTalking(matchId), []);
+  const leave      = useCallback(() => _leave(), []);
+  const joinListen = useCallback((matchId: string, name: string) => { _createAndJoin(matchId, name, true); }, []);
 
-  return { ...state, startTalk, stopTalk, leave };
+  return { ...state, startTalk, stopTalk, leave, joinListen };
 }
