@@ -27,10 +27,11 @@ import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
 import { getActiveSeason, getSeasonLeaderboard, getMySeasonHistory } from './services/seasonService.js';
 import { startReplay, recordEvent, finishReplay, listReplays, getReplay, getMyReplays, } from './services/replayService.js';
-import { listNews, createNews, deleteNews, listRecommends, createRecommend, deleteRecommend, listThoughts, createThought, deleteThought, listFeed, createPost, deletePost, toggleLike, getComments, addComment, deleteComment, reportPost, listCommunityReports, resolveCommunityReport, follow, unfollow, listEvents, createEvent, joinEvent, leaveEvent, createNotification, notifyAllPlayers, listNotifications, getUnreadNotificationCount, markNotificationsRead, listLoungeRows, getLoungeRow, rowToLounge, createLounge, deleteLounge, setLoungeLive, communityBanPlayer, communityUnbanPlayer, getActiveCommunityBan, updateCommunityProfile, getCommunityProfileV2, assignBadge, revokeBadge, setShowcaseAchievement, clearShowcaseSlot, getPrivacySettings, setPrivacySettings, createPostV2, listFeedV2, votePoll, togglePostSave, getSavedPosts, pinPost, featurePost, hidePost, getCommunityModLogs, listPeopleDirectory, getFollowersList, getFollowingList, searchCommunity, upsertOnlineSeen, getOnlineMembers, } from './services/communityService.js';
+import { listNews, createNews, deleteNews, listRecommends, createRecommend, deleteRecommend, listThoughts, createThought, deleteThought, listFeed, createPost, deletePost, toggleLike, getComments, addComment, deleteComment, reportPost, listCommunityReports, resolveCommunityReport, follow, unfollow, listEvents, createEvent, joinEvent, leaveEvent, createNotification, notifyAllPlayers, listNotifications, getUnreadNotificationCount, markNotificationsRead, listLoungeRows, getLoungeRow, rowToLounge, createLounge, deleteLounge, setLoungeLive, communityBanPlayer, communityUnbanPlayer, getActiveCommunityBan, updateCommunityProfile, getCommunityProfileV2, assignBadge, revokeBadge, setShowcaseAchievement, clearShowcaseSlot, getPrivacySettings, setPrivacySettings, createPostV2, listFeedV2, votePoll, togglePostSave, getSavedPosts, pinPost, featurePost, hidePost, logCommunityModAction, getCommunityModLogs, listPeopleDirectory, getFollowersList, getFollowingList, searchCommunity, upsertOnlineSeen, getOnlineMembers, } from './services/communityService.js';
 import { listDebates, getDebateFull, createDebate, joinDebate, postArgument, voteDebate, closeDebate, startDebate, advancePhase as advanceDebatePhase, skipPhase, raiseHand, lowerHand, getRaisedHands, promoteSpeaker, PHASE_DURATION_SECONDS, } from './services/debateService.js';
 import { voiceJoin as debateVoiceJoin, voiceLeave as debateVoiceLeave } from './services/debateVoiceService.js';
 import { recordActivity, getFriendActivityFeed } from './services/activityService.js';
+import { adminSearchUser, adminGetUserProfile, issueWarning, suspendUser, liftSuspension, muteUser, unmuteUser, setProfileControls, adminDeletePost, adminRestorePost, adminDeleteComment, adminRestoreComment, adminDeleteDebate, adminRestoreDebate, adminSetDebateFlags, listAllReports, listDeletedContent, getAdminAuditLogs, } from './services/adminService.js';
 import { join as loungeJoin, leave as loungeLeave, getMembers as loungeGetMembers, getMemberByPlayerId as loungeGetMemberByPlayerId, setRole as loungeSetRole, setHandRaised as loungeSetHandRaised, removeMember as loungeRemoveMember, getCounts as loungeGetCounts, } from './services/loungeVoiceService.js';
 // ── TURN / ICE server config ──────────────────────────────────────────
 // Centralised in server/src/lib/iceConfig.ts.  Reads Railway env vars:
@@ -5295,6 +5296,327 @@ export function attachSocketHandlers(io) {
                 }
                 const logs = await getCommunityModLogs(100);
                 cb(ok(logs));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Admin Panel Events ────────────────────────────────────────────────
+        socket.on('admin:user_search', async (data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(err('Not authenticated.'));
+                    return;
+                }
+                const requester = await getPlayer(profileId);
+                if (!requester || !['moderator', 'senior_moderator', 'admin', 'owner'].includes(requester.moderatorLevel ?? '')) {
+                    cb(err('Unauthorized.'));
+                    return;
+                }
+                const { query } = data;
+                if (!query || query.trim().length < 2) {
+                    cb(err('Query too short.'));
+                    return;
+                }
+                const users = await adminSearchUser(query.trim());
+                cb(ok(users));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('admin:user_profile', async (data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(err('Not authenticated.'));
+                    return;
+                }
+                const requester = await getPlayer(profileId);
+                if (!requester || !['moderator', 'senior_moderator', 'admin', 'owner'].includes(requester.moderatorLevel ?? '')) {
+                    cb(err('Unauthorized.'));
+                    return;
+                }
+                const { playerId } = data;
+                const profile = await adminGetUserProfile(playerId);
+                if (!profile) {
+                    cb(err('User not found.'));
+                    return;
+                }
+                cb(ok(profile));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('admin:user_action', async (data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(err('Not authenticated.'));
+                    return;
+                }
+                const requester = await getPlayer(profileId);
+                if (!requester || !['moderator', 'senior_moderator', 'admin', 'owner'].includes(requester.moderatorLevel ?? '')) {
+                    cb(err('Unauthorized.'));
+                    return;
+                }
+                const { action, playerId, reason, duration } = data;
+                if (action === 'warn') {
+                    await issueWarning(playerId, requester.id, reason ?? '');
+                    await logCommunityModAction(requester.id, 'warn', playerId, null, reason ?? '');
+                }
+                else if (action === 'mute') {
+                    await muteUser(playerId, requester.id, reason ?? '', duration ?? 3600);
+                    await logCommunityModAction(requester.id, 'mute', playerId, null, reason ?? '');
+                }
+                else if (action === 'unmute') {
+                    await unmuteUser(playerId);
+                    await logCommunityModAction(requester.id, 'unmute', playerId, null, '');
+                }
+                else if (action === 'suspend') {
+                    await suspendUser(playerId, requester.id, reason ?? '', duration ?? 86400);
+                    await logCommunityModAction(requester.id, 'suspend', playerId, null, reason ?? '');
+                }
+                else if (action === 'unsuspend') {
+                    await liftSuspension(playerId);
+                    await logCommunityModAction(requester.id, 'unsuspend', playerId, null, '');
+                }
+                else if (action === 'ban') {
+                    await communityBanPlayer(playerId, requester.id, reason ?? '', 0);
+                    await logCommunityModAction(requester.id, 'ban', playerId, null, reason ?? '');
+                }
+                else if (action === 'unban') {
+                    await communityUnbanPlayer(playerId);
+                    await logCommunityModAction(requester.id, 'unban', playerId, null, '');
+                }
+                else if (action === 'profile_controls') {
+                    if (requester.moderatorLevel !== 'owner' && requester.moderatorLevel !== 'admin') {
+                        cb(err('Unauthorized.'));
+                        return;
+                    }
+                    const { profileLocked, secretModeDisabled, forcePublic } = data;
+                    await setProfileControls(playerId, { profileLocked, secretModeDisabled, forcePublic });
+                    await logCommunityModAction(requester.id, 'profile_controls', playerId, null, JSON.stringify({ profileLocked, secretModeDisabled, forcePublic }));
+                }
+                else {
+                    cb(err('Unknown action.'));
+                    return;
+                }
+                cb(ok({}));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('admin:post_action', async (data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(err('Not authenticated.'));
+                    return;
+                }
+                const requester = await getPlayer(profileId);
+                if (!requester || !['moderator', 'senior_moderator', 'admin', 'owner'].includes(requester.moderatorLevel ?? '')) {
+                    cb(err('Unauthorized.'));
+                    return;
+                }
+                const { action, postId } = data;
+                if (action === 'delete') {
+                    await adminDeletePost(postId, requester.id);
+                    await logCommunityModAction(requester.id, 'delete_post', null, postId, '');
+                    io.emit('community:post_deleted', { postId });
+                }
+                else if (action === 'restore') {
+                    if (requester.moderatorLevel !== 'owner') {
+                        cb(err('Only owner can restore.'));
+                        return;
+                    }
+                    await adminRestorePost(postId);
+                    await logCommunityModAction(requester.id, 'restore_post', null, postId, '');
+                }
+                else if (action === 'pin') {
+                    await pinPost(postId, true, requester.id);
+                    io.emit('community:post_pinned', postId);
+                }
+                else if (action === 'unpin') {
+                    await pinPost(postId, false, requester.id);
+                    io.emit('community:post_pinned', postId);
+                }
+                else if (action === 'feature') {
+                    await featurePost(postId, true, requester.id);
+                    io.emit('community:post_featured', { postId, featured: true });
+                }
+                else if (action === 'unfeature') {
+                    await featurePost(postId, false, requester.id);
+                    io.emit('community:post_featured', { postId, featured: false });
+                }
+                else if (action === 'hide') {
+                    await hidePost(postId, requester.id);
+                    io.emit('community:post_hidden', postId);
+                }
+                else {
+                    cb(err('Unknown action.'));
+                    return;
+                }
+                cb(ok({}));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('admin:comment_action', async (data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(err('Not authenticated.'));
+                    return;
+                }
+                const requester = await getPlayer(profileId);
+                if (!requester || !['moderator', 'senior_moderator', 'admin', 'owner'].includes(requester.moderatorLevel ?? '')) {
+                    cb(err('Unauthorized.'));
+                    return;
+                }
+                const { action, commentId } = data;
+                if (action === 'delete') {
+                    await adminDeleteComment(commentId, requester.id);
+                    await logCommunityModAction(requester.id, 'delete_comment', null, null, commentId);
+                    io.emit('community:comment_deleted', { commentId });
+                }
+                else if (action === 'restore') {
+                    if (requester.moderatorLevel !== 'owner') {
+                        cb(err('Only owner can restore.'));
+                        return;
+                    }
+                    await adminRestoreComment(commentId);
+                    await logCommunityModAction(requester.id, 'restore_comment', null, null, commentId);
+                }
+                else {
+                    cb(err('Unknown action.'));
+                    return;
+                }
+                cb(ok({}));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('admin:debate_action', async (data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(err('Not authenticated.'));
+                    return;
+                }
+                const requester = await getPlayer(profileId);
+                if (!requester || !['moderator', 'senior_moderator', 'admin', 'owner'].includes(requester.moderatorLevel ?? '')) {
+                    cb(err('Unauthorized.'));
+                    return;
+                }
+                const { action, debateId } = data;
+                if (action === 'delete') {
+                    await adminDeleteDebate(debateId, requester.id);
+                    await logCommunityModAction(requester.id, 'delete_debate', null, debateId, '');
+                    io.emit('community:debate_deleted', { debateId });
+                }
+                else if (action === 'restore') {
+                    if (requester.moderatorLevel !== 'owner') {
+                        cb(err('Only owner can restore.'));
+                        return;
+                    }
+                    await adminRestoreDebate(debateId);
+                }
+                else if (action === 'pin') {
+                    await adminSetDebateFlags(debateId, { pinned: true });
+                    await logCommunityModAction(requester.id, 'pin_debate', null, debateId, '');
+                    io.emit('community:debate_updated', { debateId, pinned: true });
+                }
+                else if (action === 'unpin') {
+                    await adminSetDebateFlags(debateId, { pinned: false });
+                    io.emit('community:debate_updated', { debateId, pinned: false });
+                }
+                else if (action === 'feature') {
+                    await adminSetDebateFlags(debateId, { featured: true });
+                    await logCommunityModAction(requester.id, 'feature_debate', null, debateId, '');
+                    io.emit('community:debate_updated', { debateId, featured: true });
+                }
+                else if (action === 'unfeature') {
+                    await adminSetDebateFlags(debateId, { featured: false });
+                    io.emit('community:debate_updated', { debateId, featured: false });
+                }
+                else if (action === 'lock') {
+                    await adminSetDebateFlags(debateId, { locked: true });
+                    await logCommunityModAction(requester.id, 'lock_debate', null, debateId, '');
+                    io.emit('community:debate_updated', { debateId, locked: true });
+                }
+                else if (action === 'unlock') {
+                    await adminSetDebateFlags(debateId, { locked: false });
+                    io.emit('community:debate_updated', { debateId, locked: false });
+                }
+                else {
+                    cb(err('Unknown action.'));
+                    return;
+                }
+                cb(ok({}));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('admin:report_list', async (_data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(err('Not authenticated.'));
+                    return;
+                }
+                const requester = await getPlayer(profileId);
+                if (!requester || !['moderator', 'senior_moderator', 'admin', 'owner'].includes(requester.moderatorLevel ?? '')) {
+                    cb(err('Unauthorized.'));
+                    return;
+                }
+                const reports = await listAllReports();
+                cb(ok(reports));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('admin:audit_logs', async (_data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(err('Not authenticated.'));
+                    return;
+                }
+                const requester = await getPlayer(profileId);
+                if (!requester || !['admin', 'owner'].includes(requester.moderatorLevel ?? '')) {
+                    cb(err('Unauthorized.'));
+                    return;
+                }
+                const logs = await getAdminAuditLogs();
+                cb(ok(logs));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('admin:deleted_content', async (data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(err('Not authenticated.'));
+                    return;
+                }
+                const requester = await getPlayer(profileId);
+                if (!requester || requester.moderatorLevel !== 'owner') {
+                    cb(err('Unauthorized.'));
+                    return;
+                }
+                const { type } = data;
+                const content = await listDeletedContent(type);
+                cb(ok(content));
             }
             catch (e) {
                 cb(err(e.message));

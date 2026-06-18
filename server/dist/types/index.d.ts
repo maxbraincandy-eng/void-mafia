@@ -839,6 +839,25 @@ export interface ServerToClientEvents {
     'debate:voice_offer': (data: any) => void;
     'debate:voice_answer': (data: any) => void;
     'debate:voice_ice': (data: any) => void;
+    'community:post_deleted': (data: {
+        postId: string;
+    }) => void;
+    'community:comment_deleted': (data: {
+        commentId: string;
+    }) => void;
+    'community:debate_deleted': (data: {
+        debateId: string;
+    }) => void;
+    'community:debate_updated': (data: {
+        debateId: string;
+        pinned?: boolean;
+        featured?: boolean;
+        locked?: boolean;
+    }) => void;
+    'community:post_featured': (data: {
+        postId: string;
+        featured: boolean;
+    }) => void;
 }
 export interface ClientToServerEvents {
     'player:auth': (data: {
@@ -1642,6 +1661,30 @@ export interface ClientToServerEvents {
         candidate: any;
     }, cb?: (r: Res<null>) => void) => void;
     'activity:feed': (data: Record<string, never>, cb: (r: Res<any[]>) => void) => void;
+    'admin:user_search': (data: {
+        query: string;
+    }, cb: (r: Res<any[]>) => void) => void;
+    'admin:user_profile': (data: {
+        playerId: string;
+    }, cb: (r: Res<any>) => void) => void;
+    'admin:user_action': (data: any, cb: (r: Res<any>) => void) => void;
+    'admin:post_action': (data: {
+        action: string;
+        postId: string;
+    }, cb: (r: Res<any>) => void) => void;
+    'admin:comment_action': (data: {
+        action: string;
+        commentId: string;
+    }, cb: (r: Res<any>) => void) => void;
+    'admin:debate_action': (data: {
+        action: string;
+        debateId: string;
+    }, cb: (r: Res<any>) => void) => void;
+    'admin:report_list': (data: Record<string, never>, cb: (r: Res<any[]>) => void) => void;
+    'admin:audit_logs': (data: Record<string, never>, cb: (r: Res<any[]>) => void) => void;
+    'admin:deleted_content': (data: {
+        type: 'posts' | 'comments' | 'debates';
+    }, cb: (r: Res<any[]>) => void) => void;
 }
 export interface InterServerEvents {
 }

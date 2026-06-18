@@ -13,6 +13,7 @@ import { DebatesTab } from '@/components/community/DebatesTab';
 import { ActivityTab } from '@/components/community/ActivityTab';
 import { NotificationPanel } from '@/components/community/NotificationPanel';
 import { ModerationPanel } from '@/components/community/ModerationPanel';
+import AdminPanel from '@/components/community/AdminPanel';
 import { ProfileModalV2 } from '@/components/community/ProfileModalV2';
 import { CommunitySearchPanel } from '@/components/community/CommunitySearchPanel';
 
@@ -22,9 +23,12 @@ export function CommunityPage() {
   const t = useT();
   const profile = useAuthStore(s => s.profile);
   const isMod = profile?.isModerator ?? false;
+  const myModLevel = (profile as any)?.moderatorLevel ?? '';
+  const isAdminOrAbove = ['moderator', 'senior_moderator', 'admin', 'owner'].includes(myModLevel);
   const [tab, setTab] = useState<CommunityTab>('feed');
   const [showNotifications, setShowNotifications] = useState(false);
   const [showModeration, setShowModeration] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [viewProfileId, setViewProfileId] = useState<string | null>(null);
   const unreadCount = useCommunityStore(s => s.unreadCount);
@@ -80,6 +84,16 @@ export function CommunityPage() {
                 style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}
               >
                 🛡
+              </button>
+            )}
+            {isAdminOrAbove && (
+              <button
+                onClick={() => setShowAdminPanel(true)}
+                className="w-9 h-9 rounded-full flex items-center justify-center text-base transition-all active:scale-90"
+                style={{ background: 'rgba(255,200,0,0.1)', border: '1px solid rgba(255,200,0,0.3)' }}
+                title="Admin Panel"
+              >
+                ⚙
               </button>
             )}
             <button
@@ -144,6 +158,14 @@ export function CommunityPage() {
       </AnimatePresence>
       <AnimatePresence>
         {showModeration && <ModerationPanel onClose={() => setShowModeration(false)} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showAdminPanel && (
+          <AdminPanel
+            onClose={() => setShowAdminPanel(false)}
+            myModLevel={myModLevel}
+          />
+        )}
       </AnimatePresence>
       <AnimatePresence>
         {showSearch && (

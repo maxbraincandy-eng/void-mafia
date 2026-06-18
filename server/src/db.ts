@@ -1049,6 +1049,63 @@ export async function initializeDatabase(): Promise<void> {
   // ── Secret Profiles / Privacy additive columns ────────────────────────
   await sql`ALTER TABLE community_privacy_settings ADD COLUMN IF NOT EXISTS profile_mode TEXT NOT NULL DEFAULT 'public'`;
 
+  // ── Community Admin & Owner Panel (additive) ──────────────────────────
+  await sql`
+    CREATE TABLE IF NOT EXISTS community_warnings (
+      id         TEXT PRIMARY KEY,
+      player_id  TEXT NOT NULL,
+      issued_by  TEXT NOT NULL,
+      reason     TEXT NOT NULL DEFAULT '',
+      issued_at  BIGINT NOT NULL
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS community_suspensions (
+      id           TEXT PRIMARY KEY,
+      player_id    TEXT NOT NULL,
+      suspended_by TEXT NOT NULL,
+      reason       TEXT NOT NULL DEFAULT '',
+      issued_at    BIGINT NOT NULL,
+      expires_at   BIGINT NOT NULL,
+      active       INTEGER NOT NULL DEFAULT 1
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS community_mutes (
+      id         TEXT PRIMARY KEY,
+      player_id  TEXT NOT NULL,
+      muted_by   TEXT NOT NULL,
+      reason     TEXT NOT NULL DEFAULT '',
+      issued_at  BIGINT NOT NULL,
+      expires_at BIGINT NOT NULL,
+      active     INTEGER NOT NULL DEFAULT 1
+    )
+  `;
+
+  // Soft-delete columns for posts / comments / debates
+  await sql`ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS deleted_at BIGINT`;
+  await sql`ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS deleted_by TEXT`;
+  await sql`ALTER TABLE community_post_comments ADD COLUMN IF NOT EXISTS deleted_at BIGINT`;
+  await sql`ALTER TABLE community_post_comments ADD COLUMN IF NOT EXISTS deleted_by TEXT`;
+  await sql`ALTER TABLE community_debates ADD COLUMN IF NOT EXISTS deleted_at BIGINT`;
+  await sql`ALTER TABLE community_debates ADD COLUMN IF NOT EXISTS deleted_by TEXT`;
+  await sql`ALTER TABLE community_debates ADD COLUMN IF NOT EXISTS locked INTEGER NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE community_debates ADD COLUMN IF NOT EXISTS pinned INTEGER NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE community_debates ADD COLUMN IF NOT EXISTS featured INTEGER NOT NULL DEFAULT 0`;
+
+  // Extended report columns
+  await sql`ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS target_type TEXT NOT NULL DEFAULT 'post'`;
+  await sql`ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS comment_id TEXT`;
+  await sql`ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS debate_id TEXT`;
+  await sql`ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS target_player_id TEXT`;
+
+  // Profile control columns
+  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS profile_locked INTEGER NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS secret_mode_disabled INTEGER NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS force_public INTEGER NOT NULL DEFAULT 0`;
+
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];
   console.log(`[Database] connected successfully`);

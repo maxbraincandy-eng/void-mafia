@@ -146,6 +146,20 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
     set(s => ({ feedV2Posts: s.feedV2Posts.filter(p => p.id !== postId) }));
   });
 
+  // Admin panel deletions
+  socket.on('community:post_deleted', ({ postId }: { postId: string }) => {
+    set(s => ({
+      feedPosts: s.feedPosts.filter(p => p.id !== postId),
+      feedV2Posts: s.feedV2Posts.filter(p => p.id !== postId),
+    }));
+  });
+  socket.on('community:comment_deleted', (_payload: { commentId: string }) => {
+    // comments are fetched on demand; no cached list to update
+  });
+  socket.on('community:debate_deleted', (_payload: { debateId: string }) => {
+    // debates are managed in debateStore; no action needed here
+  });
+
   return {
     lounges: [],
     news: [],
