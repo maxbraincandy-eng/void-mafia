@@ -408,6 +408,11 @@ export function doLeave(socketId) {
     if (color && match.status === 'waiting') {
         match.players[color] = null;
         match.playerOrder = buildPlayerOrder(match.players);
+        // If no players remain, delete the match entirely
+        if (match.playerOrder.length === 0) {
+            matchStore.delete(matchId);
+            return { match: null, wasPlayer: true };
+        }
         return { match, wasPlayer: true };
     }
     return { match, wasPlayer: false };

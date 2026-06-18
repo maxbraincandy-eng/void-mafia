@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   useDebateStore, DebateFull, DebateSide, DebateParticipant,
@@ -8,25 +8,17 @@ import { useAuthStore } from '@/store/authStore';
 import { useT } from '@/store/langStore';
 import { Spinner, EmptyState } from '@/components/community/shared';
 import { socket } from '@/lib/socket';
-
-// ── Phase display labels ────────────────────────────────────────────────
-const PHASE_LABELS: Record<string, string> = {
-  waiting: '⏳ Waiting to Start',
-  opening_pro: '🎙 Pro Opening Statement',
-  opening_con: '🎙 Con Opening Statement',
-  argument_pro: '⚔️ Pro Main Argument',
-  argument_con: '⚔️ Con Main Argument',
-  rebuttal_con: '🔄 Con Rebuttal',
-  rebuttal_pro: '🔄 Pro Rebuttal',
-  closing_pro: '🏁 Pro Closing',
-  closing_con: '🏁 Con Closing',
-  voting: '🗳 Public Vote',
-  finished: '✅ Debate Finished',
-};
+import { useDebateVoice } from '@/hooks/useDebateVoice';
 
 // ── Phase Banner ────────────────────────────────────────────────────────
 function PhaseBanner({ debate }: { debate: DebateFull }) {
+  const t = useT();
   const [timeLeft, setTimeLeft] = useState(0);
+
+  const phaseLabels: Record<string, string> = {
+    waiting: t.community.debates.waiting,
+    ...t.community.debates.phases,
+  };
 
   useEffect(() => {
     if (!debate.phaseStartedAt || !debate.phaseDuration) { setTimeLeft(0); return; }
@@ -41,7 +33,7 @@ function PhaseBanner({ debate }: { debate: DebateFull }) {
 
   const pct = debate.phaseDuration > 0 ? (timeLeft / debate.phaseDuration) * 100 : 0;
   const activeSide = getActiveSide(debate.phase as DebatePhase);
-  const phaseLabel = PHASE_LABELS[debate.phase] ?? debate.phase;
+  const phaseLabel = phaseLabels[debate.phase] ?? debate.phase;
 
   return (
     <div className="rounded-2xl p-3 mb-3" style={{ background: 'rgba(155,0,255,0.08)', border: '1px solid rgba(155,0,255,0.2)' }}>
@@ -73,7 +65,7 @@ function PhaseBanner({ debate }: { debate: DebateFull }) {
 }
 
 // ── Speaker card ────────────────────────────────────────────────────────
-function SpeakerCard({ participant, isActive }: { participant: DebateParticipant; isActive: boolean }) {
+function SpeakerCard({ participant, isActive, isSpeaking }: { participant: DebateParticipant; isActive: boolean; isSpeaking?: boolean }) {
   const color = participant.side === 'pro' ? '#00f5ff' : '#ff6060';
   return (
     <div className="flex items-center gap-1.5 py-1">
@@ -88,13 +80,22 @@ function SpeakerCard({ participant, isActive }: { participant: DebateParticipant
         {(participant.username ?? '?').charAt(0).toUpperCase()}
       </div>
       <span className="font-mono text-[9px] text-white/60 truncate flex-1">{participant.username ?? '???'}</span>
-      {isActive && <span className="text-[8px]">🎙</span>}
+      {isActive && (
+        <motion.span
+          animate={isSpeaking ? { opacity: [1, 0.3, 1] } : { opacity: 1 }}
+          transition={{ repeat: Infinity, duration: 0.7 }}
+          className="text-[8px]"
+        >
+          🎙
+        </motion.span>
+      )}
     </div>
   );
 }
 
 // ── Debate Grid ─────────────────────────────────────────────────────────
-function DebateGrid({ debate }: { debate: DebateFull }) {
+function DebateGrid({ debate, speakingSocketIds }: { debate: DebateFull; speakingSocketIds?: string[] }) {
+  const t = useT();
   const proSpeakers = debate.participants.filter(p => p.side === 'pro');
   const conSpeakers = debate.participants.filter(p => p.side === 'con');
   const activeSide = getActiveSide(debate.phase as DebatePhase);
@@ -111,15 +112,18 @@ function DebateGrid({ debate }: { debate: DebateFull }) {
       >
         <div className="flex items-center gap-1 mb-2">
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#00f5ff' }} />
-          <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: '#00f5ff' }}>Pro</span>
+          <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: '#00f5ff' }}>{t.community.debates.pro}</span>
           {activeSide === 'pro' && (
-            <span className="ml-auto font-mono text-[9px] text-white/40 animate-pulse">● Speaking</span>
+            <span className="ml-auto font-mono text-[9px] text-white/40 animate-pulse">● {t.community.debates.speaking}</span>
           )}
         </div>
         {proSpeakers.length === 0 ? (
-          <p className="font-mono text-[9px] text-white/20 text-center py-2">No speakers</p>
+          <p className="font-mono text-[9px] text-white/20 text-center py-2">{'No speakers'}</p>
         ) : (
-          proSpeakers.map(p => <SpeakerCard key={p.id} participant={p} isActive={activeSide === 'pro'} />)
+          proSpeakers.map(p => (
+            <SpeakerCard key={p.id} participant={p} isActive={activeSide === 'pro'}
+              isSpeaking={speakingSocketIds?.some(sid => sid === p.playerId)} />
+          ))
         )}
       </div>
 
@@ -133,15 +137,18 @@ function DebateGrid({ debate }: { debate: DebateFull }) {
       >
         <div className="flex items-center gap-1 mb-2">
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#ff6060' }} />
-          <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: '#ff6060' }}>Con</span>
+          <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: '#ff6060' }}>{t.community.debates.con}</span>
           {activeSide === 'con' && (
-            <span className="ml-auto font-mono text-[9px] text-white/40 animate-pulse">● Speaking</span>
+            <span className="ml-auto font-mono text-[9px] text-white/40 animate-pulse">● {t.community.debates.speaking}</span>
           )}
         </div>
         {conSpeakers.length === 0 ? (
-          <p className="font-mono text-[9px] text-white/20 text-center py-2">No speakers</p>
+          <p className="font-mono text-[9px] text-white/20 text-center py-2">{'No speakers'}</p>
         ) : (
-          conSpeakers.map(p => <SpeakerCard key={p.id} participant={p} isActive={activeSide === 'con'} />)
+          conSpeakers.map(p => (
+            <SpeakerCard key={p.id} participant={p} isActive={activeSide === 'con'}
+              isSpeaking={speakingSocketIds?.some(sid => sid === p.playerId)} />
+          ))
         )}
       </div>
     </div>
@@ -203,18 +210,35 @@ function VoteBar({ side, count, total, label }: { side: 'pro' | 'con'; count: nu
 }
 
 // ── Debate Room ─────────────────────────────────────────────────────────
-function DebateRoom({ debate, onBack, uid }: { debate: DebateFull; onBack: () => void; uid: string }) {
+function DebateRoom({ debate, onBack, uid, username }: { debate: DebateFull; onBack: () => void; uid: string; username: string }) {
   const t = useT();
   const { joinDebate, postArgument, vote, closeDebate, startDebate, skipPhase, raiseHand, lowerHand, promote } = useDebateStore();
   const [argumentText, setArgumentText] = useState('');
   const [posting, setPosting] = useState(false);
   const [activeTab, setActiveTab] = useState<'pro' | 'con' | 'all'>('all');
+  const voiceJoinedSide = useRef<DebateSide | null>(null);
+
+  const voice = useDebateVoice();
 
   const isCreator = debate.createdBy === uid;
   const myPart = debate.myParticipation;
   const canPostArg = myPart && myPart.side !== 'spectator' && debate.status === 'open';
   const activeSide = getActiveSide(debate.phase as DebatePhase);
   const isHandRaised = debate.raisedHands.some(h => h.playerId === uid);
+
+  // Auto-join voice when participation changes
+  useEffect(() => {
+    if (!myPart || !uid) return;
+    const side = myPart.side;
+    if (voiceJoinedSide.current === side) return;
+    voiceJoinedSide.current = side;
+    voice.join(debate.id, side, username);
+  }, [myPart?.side, debate.id, uid, username]);
+
+  // Leave voice on unmount
+  useEffect(() => {
+    return () => { voice.leave(debate.id); };
+  }, [debate.id]);
 
   const visibleArgs = debate.arguments.filter(a => activeTab === 'all' || a.side === activeTab);
 
@@ -255,12 +279,30 @@ function DebateRoom({ debate, onBack, uid }: { debate: DebateFull; onBack: () =>
 
   return (
     <div>
-      <button
-        onClick={onBack}
-        className="flex items-center gap-1.5 text-white/40 font-mono text-[11px] mb-4 hover:text-white/70 transition-colors"
-      >
-        ← {t.community.debates.back}
-      </button>
+      <div className="flex items-center justify-between mb-4">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-white/40 font-mono text-[11px] hover:text-white/70 transition-colors"
+        >
+          ← {t.community.debates.back}
+        </button>
+        {/* Voice status */}
+        {voice.joined && (
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full"
+            style={{ background: 'rgba(155,0,255,0.1)', border: '1px solid rgba(155,0,255,0.25)' }}>
+            <motion.span
+              animate={voice.isSpeaker ? { opacity: [1, 0.3, 1] } : { opacity: 1 }}
+              transition={{ repeat: Infinity, duration: 0.9 }}
+              className="text-[10px]"
+            >
+              {voice.isSpeaker ? '🎙' : '👂'}
+            </motion.span>
+            <span className="font-mono text-[9px]" style={{ color: '#c084fc' }}>
+              {voice.isSpeaker ? 'MIC ON' : 'LIVE'}
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* Debate header */}
       <div className="rounded-2xl p-4 mb-3" style={{ background: 'rgba(155,0,255,0.06)', border: '1px solid rgba(155,0,255,0.2)' }}>
@@ -296,7 +338,7 @@ function DebateRoom({ debate, onBack, uid }: { debate: DebateFull; onBack: () =>
       <PhaseBanner debate={debate} />
 
       {/* Debate Grid */}
-      <DebateGrid debate={debate} />
+      <DebateGrid debate={debate} speakingSocketIds={voice.speakingSocketIds} />
 
       {/* Raised Hands (creator only) */}
       {isCreator && (
@@ -580,7 +622,7 @@ export function DebatesTab() {
   }
 
   if (activeDebate) {
-    return <DebateRoom debate={activeDebate} onBack={closeActiveDebate} uid={profile?.id ?? ''} />;
+    return <DebateRoom debate={activeDebate} onBack={closeActiveDebate} uid={profile?.id ?? ''} username={profile?.username ?? 'Player'} />;
   }
 
   return (
@@ -668,7 +710,7 @@ export function DebatesTab() {
             </div>
             {d.description && <p className="text-white/35 text-[11px] font-mono line-clamp-2">{d.description}</p>}
             {d.phase && d.phase !== 'waiting' && d.phase !== 'finished' && (
-              <p className="mt-1 font-mono text-[9px] text-white/30">{PHASE_LABELS[d.phase] ?? d.phase}</p>
+              <p className="mt-1 font-mono text-[9px] text-white/30">{(t.community.debates.phases as any)[d.phase] ?? d.phase}</p>
             )}
             {d.winnerSide && (
               <p className="mt-2 text-[10px] font-mono" style={{ color: '#c084fc' }}>
