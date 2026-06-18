@@ -1,15 +1,5 @@
-/**
- * UserActionModal — compact bottom-sheet that appears when tapping any
- * user avatar/name anywhere in the app.
- *
- * Shows:  avatar · username · level · stats
- *         Follow/Unfollow | Message | Open Profile
- *
- * "Open Profile" is the only action that navigates to CommunityProfilePage.
- */
-
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
 import { useCommunityStore } from '@/store/communityStore';
@@ -75,26 +65,32 @@ export function ProfileModalV2({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{ background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(3px)' }}
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}
       onClick={onClose}
     >
       <motion.div
-        initial={{ y: 60, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 60, opacity: 0 }}
-        transition={{ type: 'spring', damping: 28, stiffness: 340 }}
-        className="w-full max-w-lg rounded-t-3xl overflow-hidden"
+        initial={{ scale: 0.92, opacity: 0, y: 12 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.92, opacity: 0, y: 12 }}
+        transition={{ type: 'spring', damping: 26, stiffness: 360 }}
+        className="w-full max-w-sm rounded-3xl overflow-hidden"
         style={{
           background: 'linear-gradient(180deg, #120d24 0%, #0d0a1a 100%)',
-          border: '1px solid rgba(155,0,255,0.18)',
-          borderBottom: 'none',
+          border: '1px solid rgba(155,0,255,0.22)',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(155,0,255,0.08)',
         }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-0">
-          <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
+        {/* Close button */}
+        <div className="flex justify-end pt-3 pr-3 pb-0">
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-full flex items-center justify-center transition-opacity active:opacity-60"
+            style={{ background: 'rgba(255,255,255,0.08)' }}
+          >
+            <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1 }}>✕</span>
+          </button>
         </div>
 
         {loading ? (
@@ -102,19 +98,19 @@ export function ProfileModalV2({
         ) : !profile ? (
           <div className="py-10 text-center font-mono text-sm text-white/30">Not found</div>
         ) : (
-          <div className="px-5 pt-4 pb-6">
+          <div className="px-5 pt-2 pb-5">
             {/* Cover strip */}
             {profile.coverUrl && (
-              <div className="-mx-5 -mt-4 mb-4 h-20 overflow-hidden" style={{ position: 'relative' }}>
+              <div className="-mx-5 -mt-2 mb-4 h-20 overflow-hidden" style={{ position: 'relative' }}>
                 <img src={profile.coverUrl} alt="" className="w-full h-full object-cover" />
                 <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 30%, rgba(13,10,26,0.95))' }} />
               </div>
             )}
 
             {/* Avatar + info row */}
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-3 mb-3">
               <div className={isMrMax ? 'ring-2 ring-yellow-400/60 ring-offset-1 ring-offset-[#0d0a1a] rounded-full flex-shrink-0' : 'flex-shrink-0'}>
-                <Avatar avatar={profile.avatar} avatarUrl={profile.avatarUrl} size={56} />
+                <Avatar avatar={profile.avatar} avatarUrl={profile.avatarUrl} size={52} />
               </div>
 
               <div className="min-w-0 flex-1">
@@ -147,14 +143,14 @@ export function ProfileModalV2({
               </div>
             </div>
 
-            {/* Bio (short) */}
+            {/* Bio */}
             {profile.bio && (
               <p className="font-mono text-[11px] text-white/50 leading-relaxed mb-3 line-clamp-2">{profile.bio}</p>
             )}
 
             {/* Stats strip */}
             <div
-              className="flex items-center rounded-xl mb-4 overflow-hidden"
+              className="flex items-center rounded-xl mb-3 overflow-hidden"
               style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
             >
               {[
@@ -170,7 +166,7 @@ export function ProfileModalV2({
             </div>
 
             {/* Action buttons */}
-            <div className="flex flex-col gap-2.5">
+            <div className="flex flex-col gap-2">
               {/* Open Profile — primary CTA */}
               {onOpenFullProfile && (
                 <button
