@@ -970,6 +970,68 @@ export async function initializeDatabase(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_hermes_conv_user ON hermes_conversations(user_id, updated_at)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_hermes_msg_conv ON hermes_messages(conversation_id, created_at)`;
 
+  // ── Community Debates (additive) ──────────────────────────────────────
+  await sql`
+    CREATE TABLE IF NOT EXISTS community_debates (
+      id          TEXT PRIMARY KEY,
+      topic       TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      created_by  TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      status      TEXT NOT NULL DEFAULT 'open',
+      winner_side TEXT,
+      created_at  BIGINT NOT NULL,
+      ends_at     BIGINT
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS community_debate_participants (
+      id         TEXT PRIMARY KEY,
+      debate_id  TEXT NOT NULL REFERENCES community_debates(id) ON DELETE CASCADE,
+      player_id  TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      side       TEXT NOT NULL,
+      joined_at  BIGINT NOT NULL,
+      UNIQUE(debate_id, player_id)
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS community_debate_arguments (
+      id         TEXT PRIMARY KEY,
+      debate_id  TEXT NOT NULL REFERENCES community_debates(id) ON DELETE CASCADE,
+      player_id  TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      side       TEXT NOT NULL,
+      content    TEXT NOT NULL,
+      created_at BIGINT NOT NULL
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS community_debate_votes (
+      id         TEXT PRIMARY KEY,
+      debate_id  TEXT NOT NULL REFERENCES community_debates(id) ON DELETE CASCADE,
+      player_id  TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      side       TEXT NOT NULL,
+      created_at BIGINT NOT NULL,
+      UNIQUE(debate_id, player_id)
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_debates_status ON community_debates(status, created_at DESC)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_debate_args ON community_debate_arguments(debate_id, created_at ASC)`;
+
+  // ── Activity Feed (additive) ──────────────────────────────────────────
+  await sql`
+    CREATE TABLE IF NOT EXISTS activity_events (
+      id          TEXT PRIMARY KEY,
+      actor_id    TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      event_type  TEXT NOT NULL,
+      target_id   TEXT,
+      payload     TEXT NOT NULL DEFAULT '{}',
+      created_at  BIGINT NOT NULL
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_activity_actor ON activity_events(actor_id, created_at DESC)`;
+
+  // ── Secret Profiles / Privacy additive columns ────────────────────────
+  await sql`ALTER TABLE community_privacy_settings ADD COLUMN IF NOT EXISTS profile_mode TEXT NOT NULL DEFAULT 'public'`;
+
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];
   console.log(`[Database] connected successfully`);
