@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
 import { useCommunityStore } from '@/store/communityStore';
@@ -8,9 +8,13 @@ import { emitWithAck } from '@/lib/socket';
 import type { CommunityProfileV2, CommunityPostV2, CommunityComment, Res } from '@/types/index';
 import { Avatar, BadgeRow, MrMaxGlow, Spinner, timeAgo } from '@/components/community/shared';
 
-// ── Lightbox ────────────────────────────────────────────────────────────────
+// ── Post fullscreen lightbox ────────────────────────────────────────────────
 
-function PostLightbox({ post: initialPost, onClose, isLoggedIn }: {
+function PostLightbox({
+  post: initialPost,
+  onClose,
+  isLoggedIn,
+}: {
   post: CommunityPostV2;
   onClose: () => void;
   isLoggedIn: boolean;
@@ -45,7 +49,7 @@ function PostLightbox({ post: initialPost, onClose, isLoggedIn }: {
   };
 
   const mediaUrl = post.imageUrl ?? post.gifUrl ?? post.videoUrl;
-  const isVideo = !!post.videoUrl && !post.imageUrl && !post.gifUrl;
+  const isVideo  = !!post.videoUrl && !post.imageUrl && !post.gifUrl;
 
   return (
     <motion.div
@@ -53,7 +57,7 @@ function PostLightbox({ post: initialPost, onClose, isLoggedIn }: {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{ background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(4px)' }}
+      style={{ background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(6px)' }}
       onClick={onClose}
     >
       <motion.div
@@ -61,89 +65,109 @@ function PostLightbox({ post: initialPost, onClose, isLoggedIn }: {
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 80, opacity: 0 }}
         transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-        className="w-full max-w-lg rounded-t-3xl overflow-hidden flex flex-col"
+        className="w-full max-w-lg rounded-t-3xl flex flex-col"
         style={{
           background: '#0d0a1a',
           border: '1px solid rgba(155,0,255,0.2)',
-          maxHeight: '92dvh',
+          borderBottom: 'none',
+          maxHeight: '94dvh',
         }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
-          <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} />
+        {/* Top bar: drag handle + close */}
+        <div className="flex items-center justify-between px-4 pt-3 pb-2 flex-shrink-0">
+          <div className="w-10 h-1 rounded-full mx-auto" style={{ background: 'rgba(255,255,255,0.15)' }} />
+          <button
+            onClick={onClose}
+            className="absolute right-4 top-3 w-7 h-7 rounded-full flex items-center justify-center transition-all active:scale-90"
+            style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)', fontSize: 14 }}
+          >
+            ✕
+          </button>
         </div>
 
-        <div className="overflow-y-auto flex-1">
+        <div className="overflow-y-auto flex-1 overscroll-contain">
           {/* Media */}
           {mediaUrl && (
-            <div className="w-full" style={{ background: '#000' }}>
+            <div className="w-full flex-shrink-0" style={{ background: '#000' }}>
               {isVideo ? (
-                <video src={mediaUrl} controls className="w-full max-h-72 object-contain" />
+                <video src={mediaUrl} controls className="w-full max-h-80 object-contain" />
               ) : (
-                <img src={mediaUrl} alt="" className="w-full max-h-80 object-contain" />
+                <img src={mediaUrl} alt="" className="w-full object-contain" style={{ maxHeight: '55vw', minHeight: 160 }} />
               )}
             </div>
           )}
 
-          <div className="px-4 py-3">
-            {/* Author row */}
-            <div className="flex items-center gap-2 mb-2">
-              <Avatar avatar={post.authorAvatar} avatarUrl={post.authorAvatarUrl} size={32} />
+          <div className="px-4 pt-3 pb-2">
+            {/* Author */}
+            <div className="flex items-center gap-2 mb-3">
+              <Avatar avatar={post.authorAvatar} avatarUrl={post.authorAvatarUrl} size={34} />
               <div>
-                <span className="font-mono text-xs text-white/80 font-semibold">{post.authorName}</span>
-                <p className="font-mono text-[9px] text-white/30">{timeAgo(post.createdAt)}</p>
+                <p className="text-white/85 font-semibold" style={{ fontSize: 13 }}>{post.authorName}</p>
+                <p className="text-white/35 font-mono" style={{ fontSize: 10 }}>{timeAgo(post.createdAt)}</p>
               </div>
             </div>
 
-            {/* Content */}
+            {/* Caption */}
             {post.content && (
-              <p className="text-sm text-white/82 leading-relaxed mb-3 whitespace-pre-wrap" style={{ fontFamily: 'inherit' }}>{post.content}</p>
+              <p
+                className="text-white/80 leading-relaxed mb-3 whitespace-pre-wrap"
+                style={{ fontSize: 15, lineHeight: '1.5' }}
+              >
+                {post.content}
+              </p>
             )}
 
             {/* Hashtags */}
             {post.hashtags?.length > 0 && (
-              <div className="flex flex-wrap gap-1 mb-3">
+              <div className="flex flex-wrap gap-1.5 mb-3">
                 {post.hashtags.map(h => (
-                  <span key={h} className="font-mono text-[9px]" style={{ color: 'rgba(0,245,255,0.6)' }}>#{h}</span>
+                  <span key={h} style={{ fontSize: 11, color: 'rgba(0,245,255,0.65)', fontFamily: 'monospace' }}>#{h}</span>
                 ))}
               </div>
             )}
 
-            {/* Like / comment counts */}
-            <div className="flex items-center gap-4 py-2 border-b mb-3" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-              {isLoggedIn && (
+            {/* Like bar */}
+            <div
+              className="flex items-center gap-5 py-2.5 mb-3"
+              style={{ borderTop: '1px solid rgba(255,255,255,0.07)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}
+            >
+              {isLoggedIn ? (
                 <button
                   onClick={handleLike}
                   className="flex items-center gap-1.5 transition-all active:scale-90"
                 >
-                  <span style={{ fontSize: 18 }}>{post.likedByMe ? '❤️' : '🤍'}</span>
-                  <span className="font-mono text-[10px]" style={{ color: post.likedByMe ? '#ff4d6d' : 'rgba(255,255,255,0.5)' }}>
+                  <span style={{ fontSize: 20 }}>{post.likedByMe ? '❤️' : '🤍'}</span>
+                  <span style={{ fontSize: 12, color: post.likedByMe ? '#ff4d6d' : 'rgba(255,255,255,0.5)', fontFamily: 'monospace' }}>
                     {post.likesCount}
                   </span>
                 </button>
+              ) : (
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace' }}>❤️ {post.likesCount}</span>
               )}
-              <span className="font-mono text-[10px] text-white/35">
-                💬 {post.commentsCount}
-              </span>
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', fontFamily: 'monospace' }}>💬 {post.commentsCount}</span>
             </div>
 
             {/* Comments */}
             <div className="space-y-3 mb-3">
-              {!commentsLoaded && <Spinner color="#9b00ff" />}
+              {!commentsLoaded && <div className="py-2"><Spinner color="#9b00ff" /></div>}
               {commentsLoaded && comments.length === 0 && (
-                <p className="font-mono text-[10px] text-white/25 text-center py-2">No comments yet</p>
+                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', textAlign: 'center', padding: '8px 0', fontFamily: 'monospace' }}>
+                  კომენტარი არ არის
+                </p>
               )}
               {comments.map(c => (
                 <div key={c.id} className="flex gap-2">
-                  <span className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center font-mono text-[8px] font-bold"
-                    style={{ background: 'rgba(155,0,255,0.18)', color: '#c084fc', border: '1px solid rgba(155,0,255,0.25)' }}>
+                  <div
+                    className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center font-bold"
+                    style={{ background: 'rgba(155,0,255,0.18)', color: '#c084fc', border: '1px solid rgba(155,0,255,0.25)', fontSize: 9 }}
+                  >
                     {(c.authorName ?? '?').charAt(0).toUpperCase()}
-                  </span>
+                  </div>
                   <div className="flex-1 min-w-0">
-                    <span className="font-mono text-[10px] text-white/60 font-semibold mr-1.5">{c.authorName}</span>
-                    <span className="font-mono text-[10px] text-white/70 leading-relaxed break-words">{c.content}</span>
-                    <p className="font-mono text-[8px] text-white/25 mt-0.5">{timeAgo(c.createdAt)}</p>
+                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', fontWeight: 600, marginRight: 6 }}>{c.authorName}</span>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', lineHeight: '1.4', wordBreak: 'break-word' }}>{c.content}</span>
+                    <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', marginTop: 2, fontFamily: 'monospace' }}>{timeAgo(c.createdAt)}</p>
                   </div>
                 </div>
               ))}
@@ -151,20 +175,20 @@ function PostLightbox({ post: initialPost, onClose, isLoggedIn }: {
 
             {/* Comment input */}
             {isLoggedIn && (
-              <div className="flex gap-2 pb-2">
+              <div className="flex gap-2 pb-3">
                 <input
                   value={commentText}
                   onChange={e => setCommentText(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleComment(); } }}
-                  placeholder="Add a comment…"
-                  className="flex-1 rounded-xl px-3 py-2 text-white text-xs font-mono outline-none border border-white/8 focus:border-white/20 transition-colors placeholder-white/20"
-                  style={{ background: '#0a0715' }}
+                  placeholder="კომენტარის დამატება…"
+                  className="flex-1 rounded-xl px-3 py-2.5 text-white outline-none border border-white/8 focus:border-white/20 transition-colors placeholder-white/20"
+                  style={{ background: '#0a0715', fontSize: 13 }}
                 />
                 <button
                   onClick={handleComment}
                   disabled={!commentText.trim() || posting}
-                  className="px-3 py-2 rounded-xl font-mono text-[11px] transition-all active:scale-95 disabled:opacity-40"
-                  style={{ background: 'rgba(155,0,255,0.2)', border: '1px solid rgba(155,0,255,0.4)', color: '#c084fc' }}
+                  className="px-4 py-2 rounded-xl font-mono transition-all active:scale-95 disabled:opacity-40"
+                  style={{ background: 'rgba(155,0,255,0.2)', border: '1px solid rgba(155,0,255,0.4)', color: '#c084fc', fontSize: 13 }}
                 >
                   {posting ? '…' : '→'}
                 </button>
@@ -179,51 +203,80 @@ function PostLightbox({ post: initialPost, onClose, isLoggedIn }: {
 
 // ── Post text card (Posts tab) ──────────────────────────────────────────────
 
-function PostTextCard({ post, onExpand }: { post: CommunityPostV2; onExpand: () => void }) {
-  const POST_TYPE_ICONS: Record<string, string> = {
-    text: '', poll: '📊', movie_rec: '🎬', series_rec: '📺',
-    book_rec: '📚', music_rec: '🎵', philosophy: '💭',
-  };
-  const icon = POST_TYPE_ICONS[post.postType] ?? '';
+const READ_MORE_THRESHOLD = 180; // chars before showing "read more"
+
+const POST_TYPE_ICONS: Record<string, string> = {
+  text: '', poll: '📊', movie_rec: '🎬', series_rec: '📺',
+  book_rec: '📚', music_rec: '🎵', philosophy: '💭',
+};
+
+function PostTextCard({ post, readMoreLabel, onExpand }: {
+  post: CommunityPostV2;
+  readMoreLabel: string;
+  onExpand: () => void;
+}) {
+  const icon    = POST_TYPE_ICONS[post.postType] ?? '';
+  const isLong  = (post.content?.length ?? 0) > READ_MORE_THRESHOLD;
 
   return (
     <div
-      onClick={onExpand}
-      className="rounded-2xl p-3 cursor-pointer transition-all active:scale-[0.98]"
-      style={{
-        background: 'rgba(255,255,255,0.02)',
-        border: '1px solid rgba(255,255,255,0.08)',
-      }}
+      className="rounded-2xl cursor-pointer transition-all active:scale-[0.985]"
+      style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.09)' }}
     >
-      <div className="flex items-center gap-1.5 mb-2">
-        {icon && <span className="text-sm">{icon}</span>}
-        {post.recTitle && (
-          <span className="font-mono text-xs text-white/55 truncate">{post.recTitle}</span>
-        )}
-        <span className="font-mono text-[10px] text-white/25 ml-auto">{timeAgo(post.createdAt)}</span>
-      </div>
-      {post.content && (
-        <p className="text-sm text-white/80 leading-relaxed line-clamp-4" style={{ fontFamily: 'inherit' }}>{post.content}</p>
-      )}
-      {post.poll && (
-        <p className="font-mono text-xs text-white/45 mt-1.5">📊 {post.poll.question}</p>
-      )}
-      {post.hashtags?.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-2">
-          {post.hashtags.slice(0, 4).map(h => (
-            <span key={h} className="font-mono text-[10px]" style={{ color: 'rgba(0,245,255,0.55)' }}>#{h}</span>
-          ))}
+      <div className="p-4" onClick={onExpand}>
+        {/* Header row */}
+        <div className="flex items-center gap-2 mb-2">
+          {icon && <span style={{ fontSize: 15 }}>{icon}</span>}
+          {post.recTitle && (
+            <span className="font-mono truncate" style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{post.recTitle}</span>
+          )}
+          <span className="font-mono ml-auto flex-shrink-0" style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>{timeAgo(post.createdAt)}</span>
         </div>
-      )}
-      <div className="flex items-center gap-3 mt-2.5">
-        <span className="font-mono text-[10px] text-white/35">❤️ {post.likesCount}</span>
-        <span className="font-mono text-[10px] text-white/35">💬 {post.commentsCount}</span>
+
+        {/* Content */}
+        {post.content && (
+          <p
+            className={isLong ? 'line-clamp-3' : ''}
+            style={{ fontSize: 16, lineHeight: '1.45', color: 'rgba(255,255,255,0.82)' }}
+          >
+            {post.content}
+          </p>
+        )}
+
+        {/* Poll preview */}
+        {post.poll && (
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginTop: 6 }}>📊 {post.poll.question}</p>
+        )}
+
+        {/* Read more */}
+        {isLong && (
+          <span
+            style={{ fontSize: 12, color: 'rgba(0,245,255,0.7)', display: 'inline-block', marginTop: 6, fontFamily: 'monospace' }}
+          >
+            {readMoreLabel} →
+          </span>
+        )}
+
+        {/* Hashtags */}
+        {post.hashtags?.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {post.hashtags.slice(0, 5).map(h => (
+              <span key={h} style={{ fontSize: 10, color: 'rgba(0,245,255,0.55)', fontFamily: 'monospace' }}>#{h}</span>
+            ))}
+          </div>
+        )}
+
+        {/* Reaction row */}
+        <div className="flex items-center gap-4 mt-3">
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontFamily: 'monospace' }}>❤️ {post.likesCount}</span>
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontFamily: 'monospace' }}>💬 {post.commentsCount}</span>
+        </div>
       </div>
     </div>
   );
 }
 
-// ── Main Component ──────────────────────────────────────────────────────────
+// ── Main community profile page ─────────────────────────────────────────────
 
 interface Props {
   profileId: string;
@@ -236,15 +289,15 @@ export function CommunityProfilePage({ profileId, onBack }: Props) {
   const { followUser, unfollowUser } = useCommunityStore();
   const openDmWith = useSocialStore(s => s.openDmWith);
 
-  const [profile, setProfile] = useState<CommunityProfileV2 | null>(null);
-  const [posts, setPosts] = useState<CommunityPostV2[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [profile, setProfile]         = useState<CommunityProfileV2 | null>(null);
+  const [posts, setPosts]             = useState<CommunityPostV2[]>([]);
+  const [loading, setLoading]         = useState(true);
   const [postsLoading, setPostsLoading] = useState(true);
-  const [followBusy, setFollowBusy] = useState(false);
-  const [tab, setTab] = useState<'photos' | 'posts'>('photos');
+  const [followBusy, setFollowBusy]   = useState(false);
+  const [tab, setTab]                 = useState<'photos' | 'posts'>('photos');
   const [lightboxPost, setLightboxPost] = useState<CommunityPostV2 | null>(null);
 
-  const isSelf = currentUser?.id === profileId;
+  const isSelf     = currentUser?.id === profileId;
   const isLoggedIn = !!currentUser;
 
   useEffect(() => {
@@ -253,6 +306,7 @@ export function CommunityProfilePage({ profileId, onBack }: Props) {
     setPostsLoading(true);
     setPosts([]);
     setProfile(null);
+    setTab('photos');
 
     emitWithAck<any, Res<CommunityProfileV2>>('community:profile', { profileId }).then(r => {
       if (!cancelled && r.ok) setProfile(r.data);
@@ -290,89 +344,96 @@ export function CommunityProfilePage({ profileId, onBack }: Props) {
 
   const mediaPosts = posts.filter(p => p.imageUrl || p.gifUrl || p.videoUrl);
   const textPosts  = posts.filter(p => !p.imageUrl && !p.gifUrl && !p.videoUrl);
-
-  const isMrMax = profile?.badges?.includes('owner');
+  const isMrMax    = profile?.badges?.includes('owner');
 
   return (
     <div className="relative">
       {/* Back button */}
       <button
         onClick={onBack}
-        className="flex items-center gap-1.5 text-white/40 font-mono text-[11px] hover:text-white/70 transition-colors mb-4"
+        className="flex items-center gap-1.5 text-white/40 hover:text-white/70 transition-colors mb-4"
+        style={{ fontSize: 12, fontFamily: 'monospace' }}
       >
-        ← {t.community.debates.back ?? 'Back'}
+        ← {t.community.debates?.back ?? 'Back'}
       </button>
 
       {loading ? (
-        <div className="py-20"><Spinner color="#9b00ff" /></div>
+        <div className="py-20 flex justify-center"><Spinner color="#9b00ff" /></div>
       ) : !profile ? (
-        <p className="font-mono text-sm text-white/30 text-center py-16">Profile not found.</p>
+        <p className="font-mono text-sm text-white/30 text-center py-16">პროფილი ვერ მოიძებნა.</p>
       ) : (
         <>
-          {/* Cover photo */}
+          {/* Cover */}
           {profile.coverUrl ? (
-            <div className="-mx-4 mb-0 h-32 overflow-hidden rounded-2xl relative">
+            <div className="-mx-4 h-36 overflow-hidden rounded-2xl relative mb-0">
               <img src={profile.coverUrl} alt="" className="w-full h-full object-cover" />
-              <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 50%, rgba(3,0,13,0.8))' }} />
+              <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 45%, rgba(3,0,13,0.85))' }} />
             </div>
           ) : (
             <div
-              className="-mx-4 h-20 rounded-2xl mb-0"
-              style={{ background: 'linear-gradient(135deg, rgba(155,0,255,0.12), rgba(0,245,255,0.06))' }}
+              className="-mx-4 h-24 rounded-2xl mb-0"
+              style={{ background: 'linear-gradient(135deg, rgba(155,0,255,0.14), rgba(0,245,255,0.07))' }}
             />
           )}
 
-          {/* Avatar + info */}
-          <div className="flex items-end gap-3 -mt-8 mb-3 px-1">
-            <div className={`flex-shrink-0 ${isMrMax ? 'ring-2 ring-yellow-400/60 ring-offset-2 ring-offset-[#03000d]' : ''} rounded-full`}>
-              <Avatar avatar={profile.avatar} avatarUrl={profile.avatarUrl} size={72} />
+          {/* Avatar row */}
+          <div className="flex items-end gap-3 -mt-9 mb-3 px-1">
+            <div
+              className={`flex-shrink-0 rounded-full ${isMrMax ? 'ring-2 ring-yellow-400/60 ring-offset-2 ring-offset-[#03000d]' : ''}`}
+              style={{ background: '#03000d', padding: 3 }}
+            >
+              <Avatar avatar={profile.avatar} avatarUrl={profile.avatarUrl} size={76} />
             </div>
-            <div className="pb-0.5 min-w-0 flex-1">
+            <div className="pb-1 min-w-0 flex-1">
               {isMrMax ? (
                 <MrMaxGlow>
-                  <h2 className="font-display font-bold text-yellow-300 text-lg leading-tight truncate">{profile.username}</h2>
+                  <h2 className="font-display font-bold text-yellow-300 leading-tight truncate" style={{ fontSize: 20 }}>{profile.username}</h2>
                 </MrMaxGlow>
               ) : (
-                <h2 className="font-display font-bold text-white text-lg leading-tight truncate">{profile.username}</h2>
+                <h2 className="font-display font-bold text-white leading-tight truncate" style={{ fontSize: 20 }}>{profile.username}</h2>
               )}
-              {profile.publicId && (
-                <span className="font-mono text-[9px] text-white/30">#{profile.publicId}</span>
-              )}
+              <div className="flex items-center gap-2 mt-0.5">
+                <span
+                  className="font-mono uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                  style={{ fontSize: 9, background: 'rgba(155,0,255,0.15)', color: '#c084fc', border: '1px solid rgba(155,0,255,0.3)' }}
+                >
+                  {t.community.profile.level} {profile.level}
+                </span>
+                {profile.publicId && (
+                  <span className="font-mono text-white/25" style={{ fontSize: 9 }}>#{profile.publicId}</span>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Badges */}
           {profile.badges?.length > 0 && (
-            <div className="flex mb-2 px-1">
-              <BadgeRow badges={profile.badges} max={8} />
-            </div>
+            <div className="flex mb-2 px-1"><BadgeRow badges={profile.badges} max={8} /></div>
           )}
 
           {/* Bio */}
           {profile.bio && (
-            <p className="font-mono text-xs text-white/55 leading-relaxed mb-3 px-1">{profile.bio}</p>
+            <p className="text-white/58 leading-relaxed mb-3 px-1" style={{ fontSize: 13 }}>{profile.bio}</p>
           )}
 
           {/* Clan */}
           {profile.clanTag && (
-            <p className="font-mono text-[10px] text-white/30 mb-3 px-1">[{profile.clanTag}] {profile.clanName}</p>
+            <p className="font-mono text-white/30 mb-3 px-1" style={{ fontSize: 11 }}>[{profile.clanTag}] {profile.clanName}</p>
           )}
 
-          {/* Stats row */}
+          {/* Stats */}
           <div
             className="flex items-stretch rounded-2xl overflow-hidden mb-3"
-            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+            style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.08)' }}
           >
             {[
-              { label: t.community.profile.posts ?? 'Posts', value: profile.postsCount },
-              { label: t.community.profile.followers ?? 'Followers', value: profile.followersCount },
-              { label: t.community.profile.following ?? 'Following', value: profile.followingCount },
+              { label: t.community.profile.posts,     value: profile.postsCount },
+              { label: t.community.profile.followers,  value: profile.followersCount },
+              { label: t.community.profile.following,  value: profile.followingCount },
             ].map((s, i) => (
-              <div key={s.label} className="flex-1 py-3 text-center" style={{
-                borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.08)' : 'none',
-              }}>
-                <p className="font-display font-bold text-white text-lg leading-none">{s.value}</p>
-                <p className="font-mono text-[9px] uppercase tracking-wider text-white/35 mt-0.5">{s.label}</p>
+              <div key={s.label} className="flex-1 py-3 text-center" style={{ borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.07)' : 'none' }}>
+                <p className="font-display font-bold text-white" style={{ fontSize: 20, lineHeight: 1 }}>{s.value}</p>
+                <p className="font-mono uppercase tracking-wider text-white/35 mt-1" style={{ fontSize: 9 }}>{s.label}</p>
               </div>
             ))}
           </div>
@@ -383,107 +444,102 @@ export function CommunityProfilePage({ profileId, onBack }: Props) {
               <button
                 onClick={handleToggleFollow}
                 disabled={followBusy}
-                className="flex-1 py-2 rounded-xl font-mono text-[10px] uppercase tracking-wider font-bold transition-all active:scale-95 disabled:opacity-50"
+                className="flex-1 py-2.5 rounded-xl font-mono uppercase tracking-wider font-bold transition-all active:scale-95 disabled:opacity-50"
                 style={profile.isFollowedByMe ? {
-                  background: 'rgba(0,245,255,0.1)',
-                  border: '1px solid rgba(0,245,255,0.35)',
+                  fontSize: 11,
+                  background: 'rgba(0,245,255,0.09)',
+                  border: '1px solid rgba(0,245,255,0.3)',
                   color: '#00f5ff',
                 } : {
+                  fontSize: 11,
                   background: 'rgba(155,0,255,0.2)',
                   border: '1px solid rgba(155,0,255,0.45)',
                   color: '#c084fc',
                 }}
               >
-                {profile.isFollowedByMe
-                  ? (t.community.profile.unfollow ?? 'Unfollow')
-                  : (t.community.profile.follow ?? 'Follow')}
+                {profile.isFollowedByMe ? t.community.profile.unfollow : t.community.profile.follow}
               </button>
               <button
                 onClick={() => openDmWith(profileId)}
-                className="flex-1 py-2 rounded-xl font-mono text-[10px] uppercase tracking-wider font-bold transition-all active:scale-95"
+                className="flex-1 py-2.5 rounded-xl font-mono uppercase tracking-wider font-bold transition-all active:scale-95"
                 style={{
+                  fontSize: 11,
                   background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.12)',
-                  color: 'rgba(255,255,255,0.6)',
+                  border: '1px solid rgba(255,255,255,0.11)',
+                  color: 'rgba(255,255,255,0.55)',
                 }}
               >
-                {t.community.profile.message ?? 'Message'}
+                {t.community.profile.message}
               </button>
             </div>
           )}
 
-          {/* Tab switcher */}
-          <div className="flex gap-1 mb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', paddingBottom: '1px' }}>
-            {(['photos', 'posts'] as const).map(id => (
+          {/* Tab bar */}
+          <div
+            className="flex mb-4"
+            style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}
+          >
+            {([
+              { id: 'photos' as const, label: t.community.profile.photos ?? 'სურათები', icon: '▦', count: mediaPosts.length },
+              { id: 'posts'  as const, label: t.community.profile.posts,                 icon: '≡', count: textPosts.length },
+            ]).map(tb => (
               <button
-                key={id}
-                onClick={() => setTab(id)}
-                className="flex items-center gap-1.5 px-4 py-2 font-mono text-[10px] uppercase tracking-wider transition-all"
+                key={tb.id}
+                onClick={() => setTab(tb.id)}
+                className="flex items-center gap-1.5 px-4 py-2.5 font-mono uppercase tracking-wider transition-all"
                 style={{
-                  color: tab === id ? '#c084fc' : 'rgba(255,255,255,0.35)',
-                  borderBottom: tab === id ? '2px solid #9b00ff' : '2px solid transparent',
+                  fontSize: 10,
+                  color: tab === tb.id ? '#c084fc' : 'rgba(255,255,255,0.35)',
+                  borderBottom: tab === tb.id ? '2px solid #9b00ff' : '2px solid transparent',
                   marginBottom: '-1px',
                 }}
               >
-                <span>{id === 'photos' ? '◻' : '≡'}</span>
-                <span>{id === 'photos' ? 'Photos' : 'Posts'}</span>
-                <span className="ml-0.5 font-mono text-[8px] text-white/25">
-                  {id === 'photos' ? mediaPosts.length : textPosts.length}
-                </span>
+                <span>{tb.icon}</span>
+                <span>{tb.label}</span>
+                <span className="text-white/25" style={{ fontSize: 9, marginLeft: 2 }}>{tb.count}</span>
               </button>
             ))}
           </div>
 
-          {/* Content */}
+          {/* Tab content */}
           <AnimatePresence mode="wait">
             {postsLoading ? (
-              <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="py-12 flex justify-center">
                 <Spinner color="#9b00ff" />
               </motion.div>
             ) : tab === 'photos' ? (
-              <motion.div
-                key="photos"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-              >
+              <motion.div key="photos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
                 {mediaPosts.length === 0 ? (
-                  <p className="font-mono text-xs text-white/25 text-center py-12">No photos yet</p>
+                  <p className="font-mono text-white/25 text-center py-12" style={{ fontSize: 13 }}>სურათები არ არის</p>
                 ) : (
-                  <div className="grid grid-cols-3 gap-0.5">
+                  <div className="grid grid-cols-3" style={{ gap: 2 }}>
                     {mediaPosts.map(p => {
-                      const thumb = p.imageUrl ?? p.gifUrl ?? p.videoUrl!;
+                      const thumb   = p.imageUrl ?? p.gifUrl ?? p.videoUrl!;
                       const isVideo = !!p.videoUrl && !p.imageUrl && !p.gifUrl;
                       return (
                         <button
                           key={p.id}
                           onClick={() => setLightboxPost(p)}
-                          className="relative aspect-square overflow-hidden transition-opacity active:opacity-70"
-                          style={{ background: '#0d0a1a' }}
+                          className="relative overflow-hidden transition-opacity active:opacity-70"
+                          style={{ background: '#0d0a1a', aspectRatio: '1 / 1' }}
                         >
                           {isVideo ? (
-                            <video
-                              src={thumb}
-                              className="w-full h-full object-cover"
-                              muted
-                              preload="metadata"
-                            />
+                            <video src={thumb} className="w-full h-full object-cover" muted preload="metadata" />
                           ) : (
                             <img src={thumb} alt="" className="w-full h-full object-cover" />
                           )}
-                          {(p.likesCount > 0 || p.commentsCount > 0) && (
-                            <div
-                              className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 hover:opacity-100 transition-opacity"
-                              style={{ background: 'rgba(0,0,0,0.45)' }}
-                            >
-                              <span className="font-mono text-[10px] text-white">❤️ {p.likesCount}</span>
-                              <span className="font-mono text-[10px] text-white">💬 {p.commentsCount}</span>
-                            </div>
-                          )}
+                          {/* hover overlay (desktop) */}
+                          <div
+                            className="absolute inset-0 items-center justify-center gap-2 opacity-0 hover:opacity-100 transition-opacity hidden sm:flex"
+                            style={{ background: 'rgba(0,0,0,0.5)' }}
+                          >
+                            <span style={{ fontSize: 11, color: '#fff', fontFamily: 'monospace' }}>❤️ {p.likesCount}</span>
+                            <span style={{ fontSize: 11, color: '#fff', fontFamily: 'monospace' }}>💬 {p.commentsCount}</span>
+                          </div>
                           {isVideo && (
-                            <div className="absolute top-1 right-1">
-                              <span className="text-[10px]">▶</span>
+                            <div className="absolute top-1.5 right-1.5 rounded-full flex items-center justify-center"
+                              style={{ background: 'rgba(0,0,0,0.55)', width: 18, height: 18 }}>
+                              <span style={{ fontSize: 8, color: '#fff' }}>▶</span>
                             </div>
                           )}
                         </button>
@@ -493,19 +549,17 @@ export function CommunityProfilePage({ profileId, onBack }: Props) {
                 )}
               </motion.div>
             ) : (
-              <motion.div
-                key="posts"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="flex flex-col gap-2"
-              >
+              <motion.div key="posts" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="flex flex-col gap-2.5">
                 {textPosts.length === 0 ? (
-                  <p className="font-mono text-xs text-white/25 text-center py-12">No posts yet</p>
+                  <p className="font-mono text-white/25 text-center py-12" style={{ fontSize: 13 }}>პოსტები არ არის</p>
                 ) : (
                   textPosts.map(p => (
-                    <PostTextCard key={p.id} post={p} onExpand={() => setLightboxPost(p)} />
+                    <PostTextCard
+                      key={p.id}
+                      post={p}
+                      readMoreLabel={t.community.profile.readMore ?? 'სრულად ნახვა'}
+                      onExpand={() => setLightboxPost(p)}
+                    />
                   ))
                 )}
               </motion.div>
@@ -514,7 +568,7 @@ export function CommunityProfilePage({ profileId, onBack }: Props) {
         </>
       )}
 
-      {/* Image lightbox */}
+      {/* Lightbox */}
       <AnimatePresence>
         {lightboxPost && (
           <PostLightbox

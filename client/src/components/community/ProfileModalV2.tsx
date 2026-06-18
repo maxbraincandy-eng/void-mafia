@@ -1,4 +1,15 @@
+/**
+ * UserActionModal — compact bottom-sheet that appears when tapping any
+ * user avatar/name anywhere in the app.
+ *
+ * Shows:  avatar · username · level · stats
+ *         Follow/Unfollow | Message | Open Profile
+ *
+ * "Open Profile" is the only action that navigates to CommunityProfilePage.
+ */
+
 import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
 import { useCommunityStore } from '@/store/communityStore';
@@ -6,18 +17,17 @@ import { useSocialStore } from '@/store/socialStore';
 import type { CommunityProfileV2 } from '@/types/index';
 import { emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
-import { Spinner, PillButton, ModalShell, Avatar, BadgeRow, MrMaxGlow } from '@/components/community/shared';
+import { Avatar, BadgeRow, MrMaxGlow, Spinner } from '@/components/community/shared';
 
-function StatBox({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div className="text-center">
-      <p className="font-display font-bold text-white text-lg leading-none">{value}</p>
-      <p className="font-mono text-[9px] uppercase tracking-wider text-white/35 mt-0.5">{label}</p>
-    </div>
-  );
-}
-
-export function ProfileModalV2({ profileId, onClose, onOpenFullProfile }: { profileId: string; onClose: () => void; onOpenFullProfile?: () => void }) {
+export function ProfileModalV2({
+  profileId,
+  onClose,
+  onOpenFullProfile,
+}: {
+  profileId: string;
+  onClose: () => void;
+  onOpenFullProfile?: () => void;
+}) {
   const t = useT();
   const currentUser = useAuthStore(s => s.profile);
   const { followUser, unfollowUser } = useCommunityStore();
@@ -28,142 +38,194 @@ export function ProfileModalV2({ profileId, onClose, onOpenFullProfile }: { prof
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await emitWithAck<any, Res<CommunityProfileV2>>('community:profile', { profileId });
-        if (!cancelled && res.ok) setProfile(res.data);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+    emitWithAck<any, Res<CommunityProfileV2>>('community:profile', { profileId }).then(r => {
+      if (!cancelled && r.ok) setProfile(r.data);
+      if (!cancelled) setLoading(false);
+    });
     return () => { cancelled = true; };
   }, [profileId]);
 
-  async function handleToggleFollow() {
+  const handleToggleFollow = async () => {
     if (!profile || followBusy) return;
     setFollowBusy(true);
-    const wasFollowing = profile.isFollowedByMe;
+    const was = profile.isFollowedByMe;
     setProfile(p => p ? {
       ...p,
-      isFollowedByMe: !wasFollowing,
-      followersCount: wasFollowing ? Math.max(0, p.followersCount - 1) : p.followersCount + 1,
+      isFollowedByMe: !was,
+      followersCount: was ? Math.max(0, p.followersCount - 1) : p.followersCount + 1,
     } : p);
     try {
-      if (wasFollowing) await unfollowUser(profileId);
+      if (was) await unfollowUser(profileId);
       else await followUser(profileId);
     } catch {
       setProfile(p => p ? {
         ...p,
-        isFollowedByMe: wasFollowing,
-        followersCount: wasFollowing ? p.followersCount + 1 : Math.max(0, p.followersCount - 1),
+        isFollowedByMe: was,
+        followersCount: was ? p.followersCount + 1 : Math.max(0, p.followersCount - 1),
       } : p);
-    } finally {
-      setFollowBusy(false);
-    }
-  }
+    } finally { setFollowBusy(false); }
+  };
 
   const isMrMax = profile?.badges?.includes('owner');
-  const isSelf = currentUser?.id === profile?.id;
+  const isSelf  = currentUser?.id === profileId;
+  const isLoggedIn = !!currentUser;
 
   return (
-    <ModalShell onClose={onClose} accent="purple" maxWidthClass="max-w-md">
-      {loading || !profile ? (
-        <Spinner color="#9b00ff" />
-      ) : (
-        <div className="space-y-4">
-          {/* Cover banner */}
-          {profile.coverUrl && (
-            <div className="-mx-6 -mt-6 mb-2 h-24 rounded-t-3xl overflow-hidden">
-              <img src={profile.coverUrl} alt="" className="w-full h-full object-cover" />
-            </div>
-          )}
-
-          {/* Avatar + name + badges */}
-          <div className="flex flex-col items-center gap-2 text-center">
-            <div className={isMrMax ? 'ring-2 ring-yellow-400/60 ring-offset-2 ring-offset-black rounded-full' : ''}>
-              <Avatar avatar={profile.avatar} avatarUrl={profile.avatarUrl} size={72} />
-            </div>
-
-            <div className="space-y-1">
-              {isMrMax ? (
-                <MrMaxGlow><h3 className="font-display font-bold text-yellow-300 text-xl">{profile.username}</h3></MrMaxGlow>
-              ) : (
-                <h3 className="font-display font-bold text-white text-xl">{profile.username}</h3>
-              )}
-              {profile.badges?.length > 0 && (
-                <div className="flex justify-center"><BadgeRow badges={profile.badges} max={6} /></div>
-              )}
-            </div>
-
-            {profile.bio && (
-              <p className="font-mono text-xs text-white/55 text-center max-w-xs leading-relaxed">{profile.bio}</p>
-            )}
-
-            {profile.clanTag && (
-              <span className="font-mono text-[10px] text-white/35">[{profile.clanTag}] {profile.clanName}</span>
-            )}
-          </div>
-
-          {/* Stats */}
-          <div className="flex items-center justify-around rounded-2xl border border-white/10 bg-white/[0.02] py-3">
-            <StatBox label={t.community.profile.followers} value={profile.followersCount} />
-            <StatBox label={t.community.profile.following} value={profile.followingCount} />
-            <StatBox label={t.community.profile.posts} value={profile.postsCount} />
-            {profile.reputation > 0 && <StatBox label={t.community.profile.reputation} value={profile.reputation} />}
-          </div>
-
-          {/* Level + clan */}
-          <div className="flex items-center justify-center gap-3">
-            <span
-              className="font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full border"
-              style={{ color: 'rgba(180,80,255,0.95)', borderColor: 'rgba(155,0,255,0.4)', background: 'rgba(155,0,255,0.12)' }}
-            >
-              {t.community.profile.level}: {profile.level}
-            </span>
-            {profile.favoriteRole && (
-              <span className="font-mono text-[10px] text-white/35">⚙ {profile.favoriteRole}</span>
-            )}
-          </div>
-
-          {/* View Full Profile */}
-          {onOpenFullProfile && (
-            <button
-              onClick={onOpenFullProfile}
-              className="w-full py-2 rounded-2xl font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center gap-1.5"
-              style={{
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                color: 'rgba(255,255,255,0.55)',
-              }}
-            >
-              <span>👤</span>
-              <span>View Full Profile</span>
-            </button>
-          )}
-
-          {/* Action buttons */}
-          {!isSelf && (
-            <div className="flex gap-2">
-              <PillButton
-                onClick={handleToggleFollow}
-                disabled={followBusy}
-                accent={profile.isFollowedByMe ? 'cyan' : 'purple'}
-                className="flex-1 justify-center"
-              >
-                {profile.isFollowedByMe ? t.community.profile.unfollow : t.community.profile.follow}
-              </PillButton>
-              <PillButton
-                onClick={() => { onClose(); openDmWith(profileId); }}
-                accent="purple"
-                className="flex-1 justify-center"
-              >
-                {t.community.profile.message ?? 'Message'}
-              </PillButton>
-            </div>
-          )}
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-end justify-center"
+      style={{ background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(3px)' }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ y: 60, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 60, opacity: 0 }}
+        transition={{ type: 'spring', damping: 28, stiffness: 340 }}
+        className="w-full max-w-lg rounded-t-3xl overflow-hidden"
+        style={{
+          background: 'linear-gradient(180deg, #120d24 0%, #0d0a1a 100%)',
+          border: '1px solid rgba(155,0,255,0.18)',
+          borderBottom: 'none',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-0">
+          <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
         </div>
-      )}
-    </ModalShell>
+
+        {loading ? (
+          <div className="py-10 flex justify-center"><Spinner color="#9b00ff" /></div>
+        ) : !profile ? (
+          <div className="py-10 text-center font-mono text-sm text-white/30">Not found</div>
+        ) : (
+          <div className="px-5 pt-4 pb-6">
+            {/* Cover strip */}
+            {profile.coverUrl && (
+              <div className="-mx-5 -mt-4 mb-4 h-20 overflow-hidden" style={{ position: 'relative' }}>
+                <img src={profile.coverUrl} alt="" className="w-full h-full object-cover" />
+                <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 30%, rgba(13,10,26,0.95))' }} />
+              </div>
+            )}
+
+            {/* Avatar + info row */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className={isMrMax ? 'ring-2 ring-yellow-400/60 ring-offset-1 ring-offset-[#0d0a1a] rounded-full flex-shrink-0' : 'flex-shrink-0'}>
+                <Avatar avatar={profile.avatar} avatarUrl={profile.avatarUrl} size={56} />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                {isMrMax ? (
+                  <MrMaxGlow>
+                    <p className="font-display font-bold text-yellow-300 text-base leading-tight truncate">{profile.username}</p>
+                  </MrMaxGlow>
+                ) : (
+                  <p className="font-display font-bold text-white text-base leading-tight truncate">{profile.username}</p>
+                )}
+
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <span
+                    className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                    style={{ background: 'rgba(155,0,255,0.15)', color: '#c084fc', border: '1px solid rgba(155,0,255,0.3)' }}
+                  >
+                    {t.community.profile.level} {profile.level}
+                  </span>
+                  {profile.clanTag && (
+                    <span className="font-mono text-[9px] text-white/35">[{profile.clanTag}]</span>
+                  )}
+                  {profile.publicId && (
+                    <span className="font-mono text-[9px] text-white/25">#{profile.publicId}</span>
+                  )}
+                </div>
+
+                {profile.badges?.length > 0 && (
+                  <div className="mt-1"><BadgeRow badges={profile.badges} max={5} /></div>
+                )}
+              </div>
+            </div>
+
+            {/* Bio (short) */}
+            {profile.bio && (
+              <p className="font-mono text-[11px] text-white/50 leading-relaxed mb-3 line-clamp-2">{profile.bio}</p>
+            )}
+
+            {/* Stats strip */}
+            <div
+              className="flex items-center rounded-xl mb-4 overflow-hidden"
+              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
+            >
+              {[
+                { label: t.community.profile.posts, value: profile.postsCount },
+                { label: t.community.profile.followers, value: profile.followersCount },
+                { label: t.community.profile.following, value: profile.followingCount },
+              ].map((s, i) => (
+                <div key={s.label} className="flex-1 py-2.5 text-center" style={{ borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
+                  <p className="font-display font-bold text-white text-sm leading-none">{s.value}</p>
+                  <p className="font-mono text-[8px] uppercase tracking-wider text-white/30 mt-0.5">{s.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex flex-col gap-2.5">
+              {/* Open Profile — primary CTA */}
+              {onOpenFullProfile && (
+                <button
+                  onClick={onOpenFullProfile}
+                  className="w-full py-3 rounded-2xl font-mono text-[11px] uppercase tracking-wider font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(155,0,255,0.28), rgba(0,245,255,0.14))',
+                    border: '1px solid rgba(155,0,255,0.45)',
+                    color: '#e0c0ff',
+                  }}
+                >
+                  <span style={{ fontSize: 15 }}>👤</span>
+                  <span>{t.community.profile.openProfile ?? 'Open Profile'}</span>
+                </button>
+              )}
+
+              {/* Follow / Unfollow + Message */}
+              {!isSelf && isLoggedIn && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleToggleFollow}
+                    disabled={followBusy}
+                    className="flex-1 py-2.5 rounded-xl font-mono text-[10px] uppercase tracking-wider font-bold transition-all active:scale-95 disabled:opacity-50"
+                    style={profile.isFollowedByMe ? {
+                      background: 'rgba(0,245,255,0.08)',
+                      border: '1px solid rgba(0,245,255,0.3)',
+                      color: '#00f5ff',
+                    } : {
+                      background: 'rgba(155,0,255,0.14)',
+                      border: '1px solid rgba(155,0,255,0.35)',
+                      color: '#c084fc',
+                    }}
+                  >
+                    {profile.isFollowedByMe
+                      ? t.community.profile.unfollow
+                      : t.community.profile.follow}
+                  </button>
+
+                  <button
+                    onClick={() => { onClose(); openDmWith(profileId); }}
+                    className="flex-1 py-2.5 rounded-xl font-mono text-[10px] uppercase tracking-wider font-bold transition-all active:scale-95"
+                    style={{
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: 'rgba(255,255,255,0.55)',
+                    }}
+                  >
+                    {t.community.profile.message}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
   );
 }
