@@ -226,13 +226,13 @@ function DebateRoom({ debate, onBack, uid, username }: { debate: DebateFull; onB
   const activeSide = getActiveSide(debate.phase as DebatePhase);
   const isHandRaised = debate.raisedHands.some(h => h.playerId === uid);
 
-  // Auto-join voice when participation changes
+  // Spectators auto-join voice receive-only (no getUserMedia needed)
   useEffect(() => {
     if (!myPart || !uid) return;
-    const side = myPart.side;
-    if (voiceJoinedSide.current === side) return;
-    voiceJoinedSide.current = side;
-    voice.join(debate.id, side, username);
+    if (myPart.side !== 'spectator') return;
+    if (voiceJoinedSide.current === 'spectator') return;
+    voiceJoinedSide.current = 'spectator';
+    voice.join(debate.id, 'spectator', username);
   }, [myPart?.side, debate.id, uid, username]);
 
   // Leave voice on unmount
@@ -244,6 +244,10 @@ function DebateRoom({ debate, onBack, uid, username }: { debate: DebateFull; onB
 
   async function handleJoin(side: DebateSide) {
     if (!uid) return;
+    // Pro/con: join voice NOW inside user gesture so iOS Safari allows getUserMedia
+    if (side !== 'spectator' && !voice.joined) {
+      voice.join(debate.id, side as 'pro' | 'con', username);
+    }
     await joinDebate(debate.id, side).catch(() => {});
   }
 
@@ -286,8 +290,8 @@ function DebateRoom({ debate, onBack, uid, username }: { debate: DebateFull; onB
         >
           ← {t.community.debates.back}
         </button>
-        {/* Voice status */}
-        {voice.joined && (
+        {/* Voice status / connect */}
+        {voice.joined ? (
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-full"
             style={{ background: 'rgba(155,0,255,0.1)', border: '1px solid rgba(155,0,255,0.25)' }}>
             <motion.span
@@ -301,7 +305,23 @@ function DebateRoom({ debate, onBack, uid, username }: { debate: DebateFull; onB
               {voice.isSpeaker ? 'MIC ON' : 'LIVE'}
             </span>
           </div>
-        )}
+        ) : myPart && myPart.side !== 'spectator' && (voice.status === 'disconnected' || voice.status === 'failed') ? (
+          <button
+            onPointerDown={(e) => {
+              e.preventDefault();
+              voice.join(debate.id, myPart.side as 'pro' | 'con', username);
+            }}
+            className="flex items-center gap-1 px-2 py-1 rounded-full font-mono text-[9px] uppercase tracking-wider select-none touch-none transition-all active:scale-95"
+            style={{
+              background: 'rgba(0,245,255,0.07)',
+              border: voice.status === 'failed' ? '1px solid rgba(255,80,80,0.4)' : '1px solid rgba(0,245,255,0.25)',
+              color: voice.status === 'failed' ? '#ff5050' : 'rgba(0,245,255,0.7)',
+            }}
+          >
+            <span>🎤</span>
+            <span>{voice.status === 'failed' ? '⚠ Retry' : 'Enable Voice'}</span>
+          </button>
+        ) : null}
       </div>
 
       {/* Debate header */}
