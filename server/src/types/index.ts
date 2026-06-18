@@ -827,6 +827,11 @@ export interface ServerToClientEvents {
   'lounge:demoted':       () => void;
   'lounge:kicked':        (data: { reason: string }) => void;
   'lounge:force-leave':   (data: { reason: string }) => void;
+  'debate:new':               (data: any) => void;
+  'debate:participant_update': (data: any) => void;
+  'debate:new_argument':      (data: any) => void;
+  'debate:vote_update':       (data: any) => void;
+  'debate:closed':            (data: any) => void;
 }
 
 export interface ClientToServerEvents {
@@ -1070,8 +1075,8 @@ export interface ClientToServerEvents {
   'community:online_members': (cb: (r: Res<Array<{ playerId: string; username: string; avatar: string; avatarUrl: string | null }>>) => void) => void;
   'community:badge_assign': (data: { targetId: string; badge: CommunityBadge }, cb: (r: Res<void>) => void) => void;
   'community:badge_revoke': (data: { targetId: string; badge: CommunityBadge }, cb: (r: Res<void>) => void) => void;
-  'community:privacy_get': (cb: (r: Res<{ hideFollowersList: boolean; allowFriendRequests: boolean; defaultPostVisibility: string }>) => void) => void;
-  'community:privacy_set': (data: { hideFollowersList?: boolean; allowFriendRequests?: boolean; defaultPostVisibility?: string }, cb: (r: Res<void>) => void) => void;
+  'community:privacy_get': (cb: (r: Res<{ hideFollowersList: boolean; allowFriendRequests: boolean; defaultPostVisibility: string; profileMode: string }>) => void) => void;
+  'community:privacy_set': (data: { hideFollowersList?: boolean; allowFriendRequests?: boolean; defaultPostVisibility?: string; profileMode?: string }, cb: (r: Res<void>) => void) => void;
   'community:mod_logs': (cb: (r: Res<Array<{ id: string; action: string; modId: string; targetId: string | null; postId: string | null; note: string; createdAt: number }>>) => void) => void;
   // Lounge voice signaling
   'lounge:join':           (data: { loungeId: string; asSpeaker: boolean }, cb: Cb<{ peers: Array<{ socketId: string; name: string; role: CommunityLoungeRole }>; role: CommunityLoungeRole; iceServers?: any }>) => void;
@@ -1085,6 +1090,16 @@ export interface ClientToServerEvents {
   'lounge:demote':         (data: { targetPlayerId: string }, cb: Cb<null>) => void;
   'lounge:kick':           (data: { targetPlayerId: string; reason: string }, cb: Cb<null>) => void;
   'lounge:members':        (data: { loungeId: string }, cb: Cb<CommunityLoungeMember[]>) => void;
+  'debate:list':           (data: { status?: string }, cb: (r: Res<any[]>) => void) => void;
+  'debate:get':            (data: { debateId: string }, cb: (r: Res<any>) => void) => void;
+  'debate:create':         (data: { topic: string; description?: string }, cb: (r: Res<any>) => void) => void;
+  'debate:join':           (data: { debateId: string; side: string }, cb: (r: Res<any>) => void) => void;
+  'debate:argument':       (data: { debateId: string; content: string }, cb: (r: Res<any>) => void) => void;
+  'debate:vote':           (data: { debateId: string; side: 'pro' | 'con' }, cb: (r: Res<any>) => void) => void;
+  'debate:close':          (data: { debateId: string }, cb: (r: Res<any>) => void) => void;
+  'debate:subscribe':      (data: { debateId: string }, cb: (r: Res<null>) => void) => void;
+  'debate:unsubscribe':    (data: { debateId: string }, cb: (r: Res<null>) => void) => void;
+  'activity:feed':         (data: Record<string, never>, cb: (r: Res<any[]>) => void) => void;
 }
 
 export interface InterServerEvents {}
@@ -1326,7 +1341,10 @@ export interface CommunityProfileV2 extends CommunityProfile {
     hideFollowersList: boolean;
     allowFriendRequests: boolean;
     defaultPostVisibility: 'public' | 'friends_only';
+    profileMode: 'public' | 'secret';
   };
+  isSecret?: boolean;
+  anonymousName?: string;
 }
 
 export interface CommunitySearchResult {

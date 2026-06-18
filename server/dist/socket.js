@@ -28,6 +28,8 @@ import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankT
 import { getActiveSeason, getSeasonLeaderboard, getMySeasonHistory } from './services/seasonService.js';
 import { startReplay, recordEvent, finishReplay, listReplays, getReplay, getMyReplays, } from './services/replayService.js';
 import { listNews, createNews, deleteNews, listRecommends, createRecommend, deleteRecommend, listThoughts, createThought, deleteThought, listFeed, createPost, deletePost, toggleLike, getComments, addComment, deleteComment, reportPost, listCommunityReports, resolveCommunityReport, follow, unfollow, listEvents, createEvent, joinEvent, leaveEvent, createNotification, notifyAllPlayers, listNotifications, getUnreadNotificationCount, markNotificationsRead, listLoungeRows, getLoungeRow, rowToLounge, createLounge, deleteLounge, setLoungeLive, communityBanPlayer, communityUnbanPlayer, getActiveCommunityBan, updateCommunityProfile, getCommunityProfileV2, assignBadge, revokeBadge, setShowcaseAchievement, clearShowcaseSlot, getPrivacySettings, setPrivacySettings, createPostV2, listFeedV2, votePoll, togglePostSave, getSavedPosts, pinPost, featurePost, hidePost, getCommunityModLogs, listPeopleDirectory, getFollowersList, getFollowingList, searchCommunity, upsertOnlineSeen, getOnlineMembers, } from './services/communityService.js';
+import { listDebates, getDebateFull, createDebate, joinDebate, postArgument, voteDebate, closeDebate, } from './services/debateService.js';
+import { recordActivity, getFriendActivityFeed } from './services/activityService.js';
 import { join as loungeJoin, leave as loungeLeave, getMembers as loungeGetMembers, getMemberByPlayerId as loungeGetMemberByPlayerId, setRole as loungeSetRole, setHandRaised as loungeSetHandRaised, removeMember as loungeRemoveMember, getCounts as loungeGetCounts, } from './services/loungeVoiceService.js';
 // ── TURN / ICE server config ──────────────────────────────────────────
 // Centralised in server/src/lib/iceConfig.ts.  Reads Railway env vars:
@@ -3305,6 +3307,8 @@ export function attachSocketHandlers(io) {
                 if (!profileId)
                     throw new Error('Not authenticated.');
                 await acceptFriend(fromProfileId, profileId);
+                recordActivity(profileId, 'became_friends', fromProfileId, {}).catch(() => { });
+                recordActivity(fromProfileId, 'became_friends', profileId, {}).catch(() => { });
                 cb(ok(null));
             }
             catch (e) {
@@ -4418,6 +4422,7 @@ export function attachSocketHandlers(io) {
                 const targetSock = findSocketByProfile(io, targetId);
                 if (targetSock)
                     targetSock.emit('community:notification', notif);
+                recordActivity(profileId, 'followed', targetId, { targetUsername: follower?.username }).catch(() => { });
                 cb(ok(null));
             }
             catch (e) {
@@ -4706,6 +4711,7 @@ export function attachSocketHandlers(io) {
                 }
                 const post = await createPostV2(profileId, data);
                 io.emit('community:post_new', post);
+                recordActivity(profileId, 'posted', post.id, { postType: data.postType, preview: data.content?.slice(0, 80) ?? '' }).catch(() => { });
                 cb(ok(post));
             }
             catch (e) {
@@ -4951,6 +4957,133 @@ export function attachSocketHandlers(io) {
                 }
                 await revokeBadge(data.targetId, data.badge);
                 cb(ok(undefined));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Debate Rooms ──────────────────────────────────────────────────────
+        socket.on('debate:list', async ({ status } = {}, cb) => {
+            try {
+                const safeStatus = (status === 'all' || status === 'open' || status === 'finished') ? status : 'open';
+                const debates = await listDebates(safeStatus);
+                cb(ok(debates));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('debate:get', async ({ debateId }, cb) => {
+            try {
+                const profileId = socket.data.profileId ?? '';
+                const debate = await getDebateFull(debateId, profileId);
+                if (!debate) {
+                    cb(err('Debate not found.'));
+                    return;
+                }
+                cb(ok(debate));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('debate:create', async ({ topic, description }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(err('Not authenticated.'));
+                    return;
+                }
+                const debate = await createDebate(profileId, topic, description ?? '');
+                io.emit('debate:new', debate);
+                cb(ok(debate));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('debate:join', async ({ debateId, side }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(err('Not authenticated.'));
+                    return;
+                }
+                const safeSide = (side === 'pro' || side === 'con' || side === 'spectator') ? side : 'spectator';
+                const participant = await joinDebate(debateId, profileId, safeSide);
+                io.to(`debate:${debateId}`).emit('debate:participant_update', participant);
+                socket.join(`debate:${debateId}`);
+                recordActivity(profileId, 'joined_debate', debateId, { side }).catch(() => { });
+                cb(ok(participant));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('debate:argument', async ({ debateId, content }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(err('Not authenticated.'));
+                    return;
+                }
+                const arg = await postArgument(debateId, profileId, content);
+                io.to(`debate:${debateId}`).emit('debate:new_argument', arg);
+                recordActivity(profileId, 'debate_argument', debateId, { preview: content.slice(0, 80) }).catch(() => { });
+                cb(ok(arg));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('debate:vote', async ({ debateId, side }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(err('Not authenticated.'));
+                    return;
+                }
+                const counts = await voteDebate(debateId, profileId, side);
+                io.to(`debate:${debateId}`).emit('debate:vote_update', { debateId, counts });
+                cb(ok(counts));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('debate:close', async ({ debateId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(err('Not authenticated.'));
+                    return;
+                }
+                const debate = await closeDebate(debateId, profileId);
+                io.emit('debate:closed', debate);
+                cb(ok(debate));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('debate:subscribe', async ({ debateId }, cb) => {
+            socket.join(`debate:${debateId}`);
+            cb(ok(null));
+        });
+        socket.on('debate:unsubscribe', async ({ debateId }, cb) => {
+            socket.leave(`debate:${debateId}`);
+            cb(ok(null));
+        });
+        // ── Activity Feed ─────────────────────────────────────────────────────
+        socket.on('activity:feed', async (_data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(err('Not authenticated.'));
+                    return;
+                }
+                const events = await getFriendActivityFeed(profileId);
+                cb(ok(events));
             }
             catch (e) {
                 cb(err(e.message));

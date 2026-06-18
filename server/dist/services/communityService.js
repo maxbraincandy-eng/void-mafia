@@ -495,18 +495,24 @@ async function getFriendshipStatus(viewerId, targetId) {
 }
 // Privacy settings
 export async function getPrivacySettings(playerId) {
-    const rows = await sql `SELECT hide_followers_list, allow_friend_requests, default_post_visibility FROM community_privacy_settings WHERE player_id = ${playerId}`;
+    const rows = await sql `SELECT hide_followers_list, allow_friend_requests, default_post_visibility, profile_mode FROM community_privacy_settings WHERE player_id = ${playerId}`;
     if (!rows.length)
-        return { hideFollowersList: false, allowFriendRequests: true, defaultPostVisibility: 'public' };
+        return { hideFollowersList: false, allowFriendRequests: true, defaultPostVisibility: 'public', profileMode: 'public' };
     const r = rows[0];
-    return { hideFollowersList: Boolean(r.hide_followers_list), allowFriendRequests: Boolean(r.allow_friend_requests), defaultPostVisibility: r.default_post_visibility ?? 'public' };
+    return {
+        hideFollowersList: Boolean(r.hide_followers_list),
+        allowFriendRequests: Boolean(r.allow_friend_requests),
+        defaultPostVisibility: r.default_post_visibility ?? 'public',
+        profileMode: (r.profile_mode === 'secret' ? 'secret' : 'public'),
+    };
 }
 export async function setPrivacySettings(playerId, settings) {
     const current = await getPrivacySettings(playerId);
     const hideFollowersList = settings.hideFollowersList ?? current.hideFollowersList;
     const allowFriendRequests = settings.allowFriendRequests ?? current.allowFriendRequests;
     const defaultPostVisibility = settings.defaultPostVisibility ?? current.defaultPostVisibility;
-    await sql `INSERT INTO community_privacy_settings (player_id, hide_followers_list, allow_friend_requests, default_post_visibility) VALUES (${playerId}, ${hideFollowersList}, ${allowFriendRequests}, ${defaultPostVisibility}) ON CONFLICT (player_id) DO UPDATE SET hide_followers_list = EXCLUDED.hide_followers_list, allow_friend_requests = EXCLUDED.allow_friend_requests, default_post_visibility = EXCLUDED.default_post_visibility`;
+    const profileMode = settings.profileMode === 'secret' ? 'secret' : 'public';
+    await sql `INSERT INTO community_privacy_settings (player_id, hide_followers_list, allow_friend_requests, default_post_visibility, profile_mode) VALUES (${playerId}, ${hideFollowersList}, ${allowFriendRequests}, ${defaultPostVisibility}, ${profileMode}) ON CONFLICT (player_id) DO UPDATE SET hide_followers_list = EXCLUDED.hide_followers_list, allow_friend_requests = EXCLUDED.allow_friend_requests, default_post_visibility = EXCLUDED.default_post_visibility, profile_mode = EXCLUDED.profile_mode`;
 }
 // Extended profile V2
 export async function getCommunityProfileV2(targetId, viewerId) {
@@ -530,7 +536,9 @@ export async function getCommunityProfileV2(targetId, viewerId) {
         getFriendshipStatus(viewerId, targetId),
         sql `SELECT COUNT(*) AS count FROM friendships WHERE (from_id = ${targetId} OR to_id = ${targetId}) AND status = 'accepted'`,
     ]);
-    return {
+    const isOwnProfile = viewerId === targetId;
+    const isSecret = privacy.profileMode === 'secret' && !isOwnProfile;
+    const profile = {
         ...base,
         bio: pRow.community_bio ?? '',
         coverUrl: pRow.community_cover_url ?? null,
@@ -541,7 +549,35 @@ export async function getCommunityProfileV2(targetId, viewerId) {
         friendshipStatus,
         showcaseAchievements: showcase.map(s => ({ slot: s.slot, achievementKey: s.achievement_key })),
         privacySettings: privacy,
+        isSecret,
+        anonymousName: isSecret ? generateAnonymousName(targetId) : undefined,
     };
+    if (isSecret) {
+        const anon = generateAnonymousName(targetId);
+        return {
+            ...profile,
+            username: anon,
+            avatarUrl: null,
+            coverUrl: null,
+            bio: '',
+            badges: [],
+            showcaseAchievements: [],
+        };
+    }
+    return profile;
+}
+function generateAnonymousName(playerId) {
+    let hash = 0;
+    for (let i = 0; i < playerId.length; i++) {
+        hash = ((hash << 5) - hash) + playerId.charCodeAt(i);
+        hash |= 0;
+    }
+    const adjectives = ['Silent', 'Hollow', 'Phantom', 'Veiled', 'Cryptic', 'Shadow', 'Blank', 'Void', 'Hidden', 'Masked'];
+    const nouns = ['Stranger', 'Entity', 'Ghost', 'Cipher', 'Specter', 'Wraith', 'Shade', 'Nomad', 'Drifter', 'Agent'];
+    const adj = adjectives[Math.abs(hash) % adjectives.length];
+    const noun = nouns[Math.abs(hash >> 4) % nouns.length];
+    const num = Math.abs(hash >> 8) % 900 + 100;
+    return `${adj} ${noun} #${num}`;
 }
 // Update community profile fields
 export async function updateCommunityProfile(playerId, data) {
@@ -897,7 +933,7 @@ export async function listPeopleDirectory(viewerId) {
         friendsCount: 0,
         friendshipStatus: 'none',
         showcaseAchievements: [],
-        privacySettings: { hideFollowersList: false, allowFriendRequests: true, defaultPostVisibility: 'public' },
+        privacySettings: { hideFollowersList: false, allowFriendRequests: true, defaultPostVisibility: 'public', profileMode: 'public' },
     }));
 }
 // Followers / following lists

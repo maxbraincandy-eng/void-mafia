@@ -58,11 +58,13 @@ export declare function getPrivacySettings(playerId: string): Promise<{
     hideFollowersList: boolean;
     allowFriendRequests: boolean;
     defaultPostVisibility: 'public' | 'friends_only';
+    profileMode: 'public' | 'secret';
 }>;
 export declare function setPrivacySettings(playerId: string, settings: {
     hideFollowersList?: boolean;
     allowFriendRequests?: boolean;
     defaultPostVisibility?: string;
+    profileMode?: string;
 }): Promise<void>;
 export declare function getCommunityProfileV2(targetId: string, viewerId: string): Promise<CommunityProfileV2 | null>;
 export declare function updateCommunityProfile(playerId: string, data: {

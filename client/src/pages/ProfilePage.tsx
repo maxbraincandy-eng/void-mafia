@@ -116,6 +116,9 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
   const [nameError, setNameError] = useState('');
   const [nameSaving, setNameSaving] = useState(false);
   const [showRoleGuide, setShowRoleGuide] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [privacyMode, setPrivacyMode] = useState<'public' | 'secret'>('public');
+  const [privacyLoading, setPrivacyLoading] = useState(false);
   const [achievements, setAchievements] = useState<AchievementEarned[]>([]);
   const [history, setHistory]           = useState<GameHistoryEntry[]>([]);
   const [roleStats, setRoleStats]       = useState<PlayerRoleStats | null>(null);
@@ -227,6 +230,13 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
     if (!profile) return;
     emitWithAck<null, Res<SeasonResult[]>>('season:my_history' as any).then(res => {
       if (res.ok) setSeasonHistory(res.data);
+    }).catch(() => {});
+  }, [profile]);
+
+  useEffect(() => {
+    if (!profile) return;
+    emitWithAck<null, Res<{ profileMode: 'public' | 'secret' }>>('community:privacy_get' as any).then(res => {
+      if (res.ok) setPrivacyMode(res.data.profileMode ?? 'public');
     }).catch(() => {});
   }, [profile]);
 
@@ -1343,8 +1353,52 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
           })()}
         </motion.div>
 
+        {/* ── Privacy Settings ───────────────────────────────────────── */}
+        <div className="mt-4 mb-2">
+          <button
+            onClick={() => setShowPrivacy(s => !s)}
+            className="w-full py-2.5 flex items-center justify-between px-3 rounded-xl transition-all"
+            style={{ background: 'rgba(155,0,255,0.06)', border: '1px solid rgba(155,0,255,0.18)', color: 'rgba(192,132,252,0.85)' }}
+          >
+            <span className="font-mono text-[11px] uppercase tracking-widest">🔒 Privacy Settings</span>
+            <span className="font-mono text-[10px] text-white/35">{showPrivacy ? '▲' : '▼'}</span>
+          </button>
+          {showPrivacy && (
+            <div className="mt-2 rounded-xl p-4 space-y-3" style={{ background: 'rgba(155,0,255,0.04)', border: '1px solid rgba(155,0,255,0.14)' }}>
+              <p className="font-mono text-[10px] text-white/40">Secret Profile Mode hides your name and avatar in Community views — you appear as an anonymous entity.</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-mono text-[11px] text-white/70">Secret Profile</p>
+                  <p className="font-mono text-[9px] text-white/30 mt-0.5">
+                    {privacyMode === 'secret' ? 'You appear as an anonymous identity' : 'Your profile is visible normally'}
+                  </p>
+                </div>
+                <button
+                  onClick={async () => {
+                    const next = privacyMode === 'public' ? 'secret' : 'public';
+                    setPrivacyLoading(true);
+                    try {
+                      await emitWithAck('community:privacy_set', { profileMode: next });
+                      setPrivacyMode(next);
+                    } catch {}
+                    setPrivacyLoading(false);
+                  }}
+                  disabled={privacyLoading}
+                  className="relative w-10 h-5 rounded-full transition-all disabled:opacity-50 flex-shrink-0"
+                  style={{ background: privacyMode === 'secret' ? 'rgba(155,0,255,0.6)' : 'rgba(255,255,255,0.1)' }}
+                >
+                  <span
+                    className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all"
+                    style={{ left: privacyMode === 'secret' ? '1.25rem' : '0.125rem' }}
+                  />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* ── Actions ────────────────────────────────────────────────── */}
-        <div className="mt-4 mb-4 space-y-2">
+        <div className="mt-2 mb-4 space-y-2">
           <button onClick={() => setShowRoleGuide(true)}
             className="w-full py-3 border border-neon-cyan/20 text-neon-cyan/70 font-display font-bold tracking-widest rounded-xl hover:bg-neon-cyan/8 transition-all text-sm flex items-center justify-center gap-2">
             📖 Role Guide

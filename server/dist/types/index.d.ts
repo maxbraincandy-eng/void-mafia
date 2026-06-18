@@ -827,6 +827,11 @@ export interface ServerToClientEvents {
     'lounge:force-leave': (data: {
         reason: string;
     }) => void;
+    'debate:new': (data: any) => void;
+    'debate:participant_update': (data: any) => void;
+    'debate:new_argument': (data: any) => void;
+    'debate:vote_update': (data: any) => void;
+    'debate:closed': (data: any) => void;
 }
 export interface ClientToServerEvents {
     'player:auth': (data: {
@@ -1499,11 +1504,13 @@ export interface ClientToServerEvents {
         hideFollowersList: boolean;
         allowFriendRequests: boolean;
         defaultPostVisibility: string;
+        profileMode: string;
     }>) => void) => void;
     'community:privacy_set': (data: {
         hideFollowersList?: boolean;
         allowFriendRequests?: boolean;
         defaultPostVisibility?: string;
+        profileMode?: string;
     }, cb: (r: Res<void>) => void) => void;
     'community:mod_logs': (cb: (r: Res<Array<{
         id: string;
@@ -1554,6 +1561,38 @@ export interface ClientToServerEvents {
     'lounge:members': (data: {
         loungeId: string;
     }, cb: Cb<CommunityLoungeMember[]>) => void;
+    'debate:list': (data: {
+        status?: string;
+    }, cb: (r: Res<any[]>) => void) => void;
+    'debate:get': (data: {
+        debateId: string;
+    }, cb: (r: Res<any>) => void) => void;
+    'debate:create': (data: {
+        topic: string;
+        description?: string;
+    }, cb: (r: Res<any>) => void) => void;
+    'debate:join': (data: {
+        debateId: string;
+        side: string;
+    }, cb: (r: Res<any>) => void) => void;
+    'debate:argument': (data: {
+        debateId: string;
+        content: string;
+    }, cb: (r: Res<any>) => void) => void;
+    'debate:vote': (data: {
+        debateId: string;
+        side: 'pro' | 'con';
+    }, cb: (r: Res<any>) => void) => void;
+    'debate:close': (data: {
+        debateId: string;
+    }, cb: (r: Res<any>) => void) => void;
+    'debate:subscribe': (data: {
+        debateId: string;
+    }, cb: (r: Res<null>) => void) => void;
+    'debate:unsubscribe': (data: {
+        debateId: string;
+    }, cb: (r: Res<null>) => void) => void;
+    'activity:feed': (data: Record<string, never>, cb: (r: Res<any[]>) => void) => void;
 }
 export interface InterServerEvents {
 }
@@ -1784,7 +1823,10 @@ export interface CommunityProfileV2 extends CommunityProfile {
         hideFollowersList: boolean;
         allowFriendRequests: boolean;
         defaultPostVisibility: 'public' | 'friends_only';
+        profileMode: 'public' | 'secret';
     };
+    isSecret?: boolean;
+    anonymousName?: string;
 }
 export interface CommunitySearchResult {
     posts: CommunityPostV2[];
