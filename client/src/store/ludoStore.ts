@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { socket, emitWithAck } from '@/lib/socket';
 import type { LudoMatchPublic, LudoMatchListItem, LudoChatMsg, LudoColor } from '@/types/ludo';
 
+const PLAYER_ORDER: LudoColor[] = ['red', 'blue', 'green', 'yellow'];
+
 function unwrap<T>(res: { ok: boolean; data?: T; error?: string }): T {
   if (!res.ok) throw new Error((res as any).error ?? 'Unknown error');
   return (res as any).data as T;
@@ -10,10 +12,12 @@ function unwrap<T>(res: { ok: boolean; data?: T; error?: string }): T {
 function resolveMyColor(data: Omit<LudoMatchPublic, 'myColor'>): LudoColor | 'spectator' | null {
   const sid = socket.id;
   if (!sid) return null;
-  if (data.red?.socketId === sid) return 'red';
-  if (data.blue?.socketId === sid) return 'blue';
-  if (data.red && data.blue) return 'spectator';
-  if (data.status !== 'waiting') return 'spectator';
+  for (const color of PLAYER_ORDER) {
+    if (data.players[color]?.socketId === sid) return color;
+  }
+  // Determine if spectator
+  const playerCount = PLAYER_ORDER.filter(c => data.players[c] !== null).length;
+  if (playerCount >= 2 || data.status !== 'waiting') return 'spectator';
   return null;
 }
 
@@ -28,8 +32,9 @@ interface LudoStore {
   error: string | null;
 
   fetchList: () => Promise<void>;
-  createMatch: (name: string) => Promise<void>;
+  createMatch: (name: string, maxPlayers?: 2 | 3 | 4) => Promise<void>;
   joinMatch: (code: string, name: string) => Promise<void>;
+  startMatch: () => Promise<void>;
   leaveMatch: () => Promise<void>;
   rollDice: () => Promise<void>;
   movePiece: (pieceId: number) => Promise<void>;
@@ -54,10 +59,10 @@ export const useLudoStore = create<LudoStore>((set, get) => ({
     }
   },
 
-  createMatch: async (name: string) => {
+  createMatch: async (name: string, maxPlayers: 2 | 3 | 4 = 2) => {
     set({ isLoading: true, error: null });
     try {
-      const res = await emitWithAck<any, any>('ludo:create', { name });
+      const res = await emitWithAck<any, any>('ludo:create', { name, maxPlayers });
       set({ match: injectColor(unwrap(res)), isLoading: false });
     } catch (e: any) {
       set({ isLoading: false, error: e.message });
@@ -71,6 +76,18 @@ export const useLudoStore = create<LudoStore>((set, get) => ({
       set({ match: injectColor(unwrap(res)), isLoading: false });
     } catch (e: any) {
       set({ isLoading: false, error: e.message });
+    }
+  },
+
+  startMatch: async () => {
+    const { match } = get();
+    if (!match) return;
+    set({ error: null });
+    try {
+      const res = await emitWithAck<any, any>('ludo:start', { matchId: match.id });
+      if (!res.ok) set({ error: res.error });
+    } catch (e: any) {
+      set({ error: e.message });
     }
   },
 

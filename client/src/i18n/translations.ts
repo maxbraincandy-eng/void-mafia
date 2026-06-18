@@ -286,6 +286,11 @@ export const TRANSLATIONS = {
         noMoves: 'No moves available',
         opponentTurnSuffix: "'s turn…",
         rollAgain: 'Roll Again!',
+        startGame: 'Start Game',
+        waitingForHost: 'Waiting for host to start...',
+        lobby: 'Lobby',
+        players: 'players',
+        refresh: 'Refresh',
       },
     },
     game: {
@@ -1301,6 +1306,11 @@ export const TRANSLATIONS = {
         noMoves: 'სვლა შეუძლებელია',
         opponentTurnSuffix: '-ის სვლა…',
         rollAgain: 'კვლავ გადაყარე!',
+        startGame: 'თამაშის დაწყება',
+        waitingForHost: 'ჰოსტს ელოდებით...',
+        lobby: 'ლობი',
+        players: 'მოთამაშე',
+        refresh: 'განახლება',
       },
     },
     game: {

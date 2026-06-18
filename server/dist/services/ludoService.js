@@ -1,12 +1,13 @@
 /**
- * Ludo game service — 2-player (Red vs Blue), 4 pieces each.
+ * Ludo game service — 2-4 players (Red, Blue, Green, Yellow), 4 pieces each.
  * Turn flow: roll dice → pick piece to move → capture → win check.
  * Rolling 6 grants an extra roll (up to 3 consecutive 6s before forfeit).
  */
 import { randomBytes } from 'crypto';
+export const PLAYER_ORDER = ['red', 'blue', 'green', 'yellow'];
+export const COLOR_OFFSETS = { red: 0, blue: 26, green: 13, yellow: 39 };
 // ── Board constants ────────────────────────────────────────────────────
 const TRACK_LEN = 52;
-const BLUE_OFFSET = 26; // Blue enters track 26 steps ahead of Red
 const HOME_START = 52; // positions 52-56 = home column cells
 const HOME_END = 56;
 export const WIN_POS = 57; // piece finished
@@ -30,8 +31,12 @@ export const TRACK_CELLS = [
 ];
 export const RED_HOME_CELLS = [[13, 7], [12, 7], [11, 7], [10, 7], [9, 7]];
 export const BLUE_HOME_CELLS = [[1, 7], [2, 7], [3, 7], [4, 7], [5, 7]];
+export const GREEN_HOME_CELLS = [[7, 13], [7, 12], [7, 11], [7, 10], [7, 9]];
+export const YELLOW_HOME_CELLS = [[7, 1], [7, 2], [7, 3], [7, 4], [7, 5]];
 export const RED_YARD_CELLS = [[10, 1], [10, 3], [12, 1], [12, 3]];
 export const BLUE_YARD_CELLS = [[2, 10], [2, 12], [4, 10], [4, 12]];
+export const GREEN_YARD_CELLS = [[10, 10], [10, 12], [12, 10], [12, 12]];
+export const YELLOW_YARD_CELLS = [[2, 1], [2, 3], [4, 1], [4, 3]];
 export const CENTER_CELL = [7, 7];
 // ── In-memory store ────────────────────────────────────────────────────
 const matchStore = new Map();
@@ -47,9 +52,7 @@ function makePieces() {
 }
 // ── Helpers ────────────────────────────────────────────────────────────
 function relToAbs(relPos, color) {
-    if (color === 'red')
-        return relPos;
-    return (relPos + BLUE_OFFSET) % TRACK_LEN;
+    return (relPos + COLOR_OFFSETS[color]) % TRACK_LEN;
 }
 // Returns new position if move is valid, null if invalid (can't move or overshoot).
 function calcNewPos(piece, roll) {
@@ -69,19 +72,30 @@ function resetDice(match) {
     match.movablePieceIds = [];
 }
 function nextTurn(match) {
-    match.currentTurn = match.currentTurn === 'red' ? 'blue' : 'red';
+    const order = match.playerOrder;
+    const idx = order.indexOf(match.currentTurn);
+    match.currentTurn = order[(idx + 1) % order.length];
     match.consecutiveSixes = 0;
     resetDice(match);
 }
+function buildPlayerOrder(players) {
+    return PLAYER_ORDER.filter(c => players[c] !== null);
+}
 // ── Public API ─────────────────────────────────────────────────────────
-export function createMatch(player) {
+export function createMatch(player, maxPlayers = 2) {
     const id = genId();
     const code = genCode();
     const match = {
         id, code,
         status: 'waiting',
-        red: { name: player.name, profileId: player.profileId, socketId: player.socketId, pieces: makePieces() },
-        blue: null,
+        maxPlayers,
+        players: {
+            red: { name: player.name, profileId: player.profileId, socketId: player.socketId, pieces: makePieces() },
+            blue: null,
+            green: null,
+            yellow: null,
+        },
+        playerOrder: ['red'],
         currentTurn: 'red',
         diceRoll: null,
         diceRolled: false,
@@ -121,26 +135,53 @@ export function joinMatch(matchId, player) {
         throw new Error('Match not found.');
     if (match.status === 'finished')
         throw new Error('Match is finished.');
-    if (match.red.socketId === player.socketId) {
-        return { role: 'spectator', match }; // re-join as red (caller handles room join)
+    // Re-join as existing player
+    for (const color of PLAYER_ORDER) {
+        const side = match.players[color];
+        if (side && side.socketId === player.socketId) {
+            return { role: color, match };
+        }
     }
-    if (match.blue?.socketId === player.socketId) {
-        return { role: 'blue', match };
+    // Join as next available color
+    if (match.status === 'waiting') {
+        const colorOrder = ['blue', 'green', 'yellow'];
+        const currentCount = PLAYER_ORDER.filter(c => match.players[c] !== null).length;
+        if (currentCount < match.maxPlayers) {
+            const nextColor = colorOrder.find(c => match.players[c] === null);
+            if (nextColor) {
+                match.players[nextColor] = {
+                    name: player.name,
+                    profileId: player.profileId,
+                    socketId: player.socketId,
+                    pieces: makePieces(),
+                };
+                match.playerOrder = buildPlayerOrder(match.players);
+                socketIndex.set(player.socketId, matchId);
+                return { role: nextColor, match };
+            }
+        }
     }
-    if (!match.blue && match.status === 'waiting') {
-        match.blue = {
-            name: player.name, profileId: player.profileId,
-            socketId: player.socketId, pieces: makePieces(),
-        };
-        match.status = 'active';
-        socketIndex.set(player.socketId, matchId);
-        return { role: 'blue', match };
-    }
+    // Spectator
     if (!match.spectatorSocketIds.includes(player.socketId)) {
         match.spectatorSocketIds.push(player.socketId);
         socketIndex.set(player.socketId, matchId);
     }
     return { role: 'spectator', match };
+}
+export function startMatch(matchId, socketId) {
+    const match = matchStore.get(matchId);
+    if (!match)
+        throw new Error('Match not found.');
+    if (match.status !== 'waiting')
+        throw new Error('Match is not in waiting state.');
+    if (!match.players.red || match.players.red.socketId !== socketId)
+        throw new Error('Only the host (Red) can start the match.');
+    const playerCount = PLAYER_ORDER.filter(c => match.players[c] !== null).length;
+    if (playerCount < 2)
+        throw new Error('Need at least 2 players to start.');
+    match.status = 'active';
+    match.playerOrder = buildPlayerOrder(match.players);
+    return match;
 }
 export function doRoll(matchId, socketId) {
     const match = matchStore.get(matchId);
@@ -150,7 +191,8 @@ export function doRoll(matchId, socketId) {
         throw new Error('Game not active.');
     if (match.diceRolled)
         throw new Error('Already rolled this turn.');
-    const side = match.currentTurn === 'red' ? match.red : match.blue;
+    const currentColor = match.currentTurn;
+    const side = match.players[currentColor];
     if (!side || side.socketId !== socketId)
         throw new Error('Not your turn.');
     const roll = Math.floor(Math.random() * 6) + 1;
@@ -183,9 +225,7 @@ export function doMove(matchId, socketId, pieceId) {
     if (!match.diceRolled)
         throw new Error('Roll first.');
     const color = match.currentTurn;
-    const side = color === 'red' ? match.red : match.blue;
-    const oppColor = color === 'red' ? 'blue' : 'red';
-    const opponent = color === 'red' ? match.blue : match.red;
+    const side = match.players[color];
     if (!side || side.socketId !== socketId)
         throw new Error('Not your turn.');
     if (!match.movablePieceIds.includes(pieceId))
@@ -201,20 +241,31 @@ export function doMove(matchId, socketId, pieceId) {
     match.movablePieceIds = [];
     // Check capture — only on main track, non-safe squares
     let captured = false;
+    let capturedColor = null;
     let capturedPieceId = null;
-    if (np >= 0 && np < HOME_START && opponent) {
+    if (np >= 0 && np < HOME_START) {
         const myAbs = relToAbs(np, color);
         if (!SAFE_ABS.has(myAbs)) {
-            for (const oppPiece of opponent.pieces) {
-                if (oppPiece.pos >= 0 && oppPiece.pos < HOME_START) {
-                    const oppAbs = relToAbs(oppPiece.pos, oppColor);
-                    if (oppAbs === myAbs) {
-                        oppPiece.pos = -1;
-                        captured = true;
-                        capturedPieceId = oppPiece.id;
-                        break;
+            for (const oppColor of PLAYER_ORDER) {
+                if (oppColor === color)
+                    continue;
+                const opp = match.players[oppColor];
+                if (!opp)
+                    continue;
+                for (const oppPiece of opp.pieces) {
+                    if (oppPiece.pos >= 0 && oppPiece.pos < HOME_START) {
+                        const oppAbs = relToAbs(oppPiece.pos, oppColor);
+                        if (oppAbs === myAbs) {
+                            oppPiece.pos = -1;
+                            captured = true;
+                            capturedColor = oppColor;
+                            capturedPieceId = oppPiece.id;
+                            break;
+                        }
                     }
                 }
+                if (captured)
+                    break;
             }
         }
     }
@@ -226,15 +277,15 @@ export function doMove(matchId, socketId, pieceId) {
         match.status = 'finished';
         winnerColor = color;
         resetDice(match);
-        return { captured, capturedColor: captured ? oppColor : null, capturedPieceId, reached, turnEnded: true, winnerColor };
+        return { captured, capturedColor, capturedPieceId, reached, turnEnded: true, winnerColor };
     }
     // Roll 6 and not forfeit: extra turn
     if (roll === 6 && match.consecutiveSixes < 3) {
         resetDice(match);
-        return { captured, capturedColor: captured ? oppColor : null, capturedPieceId, reached, turnEnded: false, winnerColor: null };
+        return { captured, capturedColor, capturedPieceId, reached, turnEnded: false, winnerColor: null };
     }
     nextTurn(match);
-    return { captured, capturedColor: captured ? oppColor : null, capturedPieceId, reached, turnEnded: true, winnerColor: null };
+    return { captured, capturedColor, capturedPieceId, reached, turnEnded: true, winnerColor: null };
 }
 export function doResign(matchId, socketId) {
     const match = matchStore.get(matchId);
@@ -242,17 +293,37 @@ export function doResign(matchId, socketId) {
         throw new Error('Match not found.');
     if (match.status !== 'active')
         throw new Error('Game not active.');
-    let winnerColor;
-    if (match.red.socketId === socketId)
-        winnerColor = 'blue';
-    else if (match.blue?.socketId === socketId)
-        winnerColor = 'red';
-    else
+    // Find which color this socket is
+    const resignColor = PLAYER_ORDER.find(c => match.players[c]?.socketId === socketId);
+    if (!resignColor)
         throw new Error('You are not a player.');
-    match.winnerColor = winnerColor;
-    match.status = 'finished';
-    resetDice(match);
-    return winnerColor;
+    // Remove from player order, if they were current turn advance turn
+    match.playerOrder = match.playerOrder.filter(c => c !== resignColor);
+    match.players[resignColor] = null;
+    // Check if only one player left
+    const remaining = match.playerOrder;
+    if (remaining.length === 1) {
+        match.winnerColor = remaining[0];
+        match.status = 'finished';
+        resetDice(match);
+        return remaining[0];
+    }
+    // If it was this player's turn, advance
+    if (match.currentTurn === resignColor) {
+        const idx = PLAYER_ORDER.indexOf(resignColor);
+        // find next in remaining
+        let next = remaining[0];
+        for (const c of PLAYER_ORDER.slice(idx + 1)) {
+            if (remaining.includes(c)) {
+                next = c;
+                break;
+            }
+        }
+        match.currentTurn = next;
+        resetDice(match);
+    }
+    // Return the "winner" as first remaining (for XP purposes, just return first)
+    return remaining[0];
 }
 export function doRematch(matchId, socketId) {
     const old = matchStore.get(matchId);
@@ -260,21 +331,26 @@ export function doRematch(matchId, socketId) {
         throw new Error('Match not found.');
     if (old.status !== 'finished')
         throw new Error('Match still active.');
-    const isRed = old.red.socketId === socketId;
-    const isBlue = old.blue?.socketId === socketId;
-    if (!isRed && !isBlue)
+    const isPlayer = PLAYER_ORDER.some(c => old.players[c]?.socketId === socketId);
+    if (!isPlayer)
         throw new Error('Not a player.');
-    if (!old.blue)
+    // Count actual players
+    const activePlayers = PLAYER_ORDER.filter(c => old.players[c] !== null);
+    if (activePlayers.length < 2)
         throw new Error('Cannot rematch solo.');
-    // Swap colors
-    const newRed = isRed ? old.blue : old.red;
-    const newBlue = isRed ? old.red : old.blue;
+    // For rematch, create fresh match with same maxPlayers. Red stays Red (host).
     const nm = {
         id: genId(),
         code: genCode(),
         status: 'active',
-        red: { ...newRed, pieces: makePieces() },
-        blue: { ...newBlue, pieces: makePieces() },
+        maxPlayers: old.maxPlayers,
+        players: {
+            red: old.players.red ? { ...old.players.red, pieces: makePieces() } : null,
+            blue: old.players.blue ? { ...old.players.blue, pieces: makePieces() } : null,
+            green: old.players.green ? { ...old.players.green, pieces: makePieces() } : null,
+            yellow: old.players.yellow ? { ...old.players.yellow, pieces: makePieces() } : null,
+        },
+        playerOrder: activePlayers,
         currentTurn: 'red',
         diceRoll: null,
         diceRolled: false,
@@ -286,11 +362,17 @@ export function doRematch(matchId, socketId) {
         createdAt: Date.now(),
     };
     matchStore.set(nm.id, nm);
-    socketIndex.set(nm.red.socketId, nm.id);
-    socketIndex.set(nm.blue.socketId, nm.id);
+    for (const color of activePlayers) {
+        const side = nm.players[color];
+        if (side)
+            socketIndex.set(side.socketId, nm.id);
+    }
     // Clean up old
-    socketIndex.delete(old.red.socketId);
-    socketIndex.delete(old.blue.socketId);
+    for (const color of PLAYER_ORDER) {
+        const side = old.players[color];
+        if (side)
+            socketIndex.delete(side.socketId);
+    }
     for (const s of old.spectatorSocketIds)
         socketIndex.set(s, nm.id);
     matchStore.delete(matchId);
@@ -305,12 +387,27 @@ export function doLeave(socketId) {
     if (!match)
         return { match: null, wasPlayer: false };
     match.spectatorSocketIds = match.spectatorSocketIds.filter(s => s !== socketId);
-    const isRed = match.red.socketId === socketId;
-    const isBlue = match.blue?.socketId === socketId;
-    if ((isRed || isBlue) && match.status === 'active') {
-        match.winnerColor = isRed ? 'blue' : 'red';
-        match.status = 'finished';
-        resetDice(match);
+    const color = PLAYER_ORDER.find(c => match.players[c]?.socketId === socketId);
+    if (color && match.status === 'active') {
+        match.playerOrder = match.playerOrder.filter(c => c !== color);
+        match.players[color] = null;
+        const remaining = match.playerOrder;
+        if (remaining.length <= 1) {
+            match.winnerColor = remaining[0] ?? null;
+            match.status = 'finished';
+            resetDice(match);
+        }
+        else if (match.currentTurn === color) {
+            // Advance turn
+            const next = remaining[0];
+            match.currentTurn = next;
+            resetDice(match);
+        }
+        return { match, wasPlayer: true };
+    }
+    if (color && match.status === 'waiting') {
+        match.players[color] = null;
+        match.playerOrder = buildPlayerOrder(match.players);
         return { match, wasPlayer: true };
     }
     return { match, wasPlayer: false };
@@ -320,12 +417,13 @@ export function addChat(matchId, socketId, text) {
     if (!match)
         throw new Error('Match not found.');
     let name = 'Spectator';
-    if (match.red.socketId === socketId)
-        name = match.red.name;
-    else if (match.blue?.socketId === socketId)
-        name = match.blue.name;
-    else if (!match.spectatorSocketIds.includes(socketId))
+    const color = PLAYER_ORDER.find(c => match.players[c]?.socketId === socketId);
+    if (color) {
+        name = match.players[color].name;
+    }
+    else if (!match.spectatorSocketIds.includes(socketId)) {
         throw new Error('Not in match.');
+    }
     const msg = {
         id: randomBytes(4).toString('hex'),
         name,

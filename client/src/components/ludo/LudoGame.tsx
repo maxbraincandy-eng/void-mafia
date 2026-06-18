@@ -161,9 +161,10 @@ function PlayerCard({
   name:string; color:LudoColor; isActive:boolean; pieces:{pos:number}[];
   isYou:boolean; absent:boolean; lastRoll:number|null; t:any
 }) {
-  const isRed = color === 'red';
-  const accent = isRed ? '#ff2244' : '#0090ff';
-  const accentRgb = isRed ? '255,34,68' : '0,144,255';
+  const ACCENTS: Record<LudoColor, string> = { red:'#ff2244', blue:'#0090ff', green:'#22c55e', yellow:'#f59e0b' };
+  const ACCENT_RGBS: Record<LudoColor, string> = { red:'255,34,68', blue:'0,144,255', green:'34,197,94', yellow:'245,158,11' };
+  const accent = ACCENTS[color];
+  const accentRgb = ACCENT_RGBS[color];
   return (
     <motion.div
       animate={isActive ? { borderColor:`rgba(${accentRgb},0.6)`, boxShadow:`0 0 18px rgba(${accentRgb},0.2)` }
@@ -219,7 +220,7 @@ function PlayerCard({
 // ── Main component ─────────────────────────────────────────────────────
 export function LudoGame() {
   const t = useT();
-  const { match, isLoading, leaveMatch, rollDice, movePiece, resign, rematch, sendChat } = useLudoStore();
+  const { match, isLoading, leaveMatch, rollDice, movePiece, resign, rematch, sendChat, startMatch } = useLudoStore();
 
   const [isRolling, setIsRolling]   = useState(false);
   const [diceFace,  setDiceFace]    = useState<number|null>(null);
@@ -241,7 +242,7 @@ export function LudoGame() {
   const { displayPos, isAnimating } = useLudoAnimation(match);
 
   // Track last roll per color for player card display
-  const [lastRolls, setLastRolls] = useState<Record<LudoColor, number|null>>({ red:null, blue:null });
+  const [lastRolls, setLastRolls] = useState<Record<LudoColor, number|null>>({ red:null, blue:null, green:null, yellow:null });
 
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
@@ -267,35 +268,33 @@ export function LudoGame() {
       }
       if (curr.diceRoll === null && prev.diceRoll !== null) setIsSix(false);
 
-      // Captures
-      const checkCaptures = (currPieces:{pos:number;id:number}[], prevPieces:{pos:number;id:number}[], color:LudoColor) => {
-        for (const cp of currPieces) {
-          const pp = prevPieces.find(p=>p.id===cp.id);
+      // Captures & piece reaching home for all 4 colors
+      const ALL_COLORS: LudoColor[] = ['red', 'blue', 'green', 'yellow'];
+      for (const color of ALL_COLORS) {
+        const currSide = curr.players[color];
+        const prevSide = prev.players[color];
+        if (!currSide) continue;
+        // Captures
+        for (const cp of currSide.pieces) {
+          const pp = (prevSide?.pieces ?? []).find(p => p.id === cp.id);
           if (pp && pp.pos >= 0 && cp.pos === -1) {
-            const {row,col} = getPieceGridPos(pp.pos, color, cp.id);
-            setFlashCell({row,col});
+            const { row, col } = getPieceGridPos(pp.pos, color, cp.id);
+            setFlashCell({ row, col });
             setTimeout(() => setFlashCell(null), 700);
             play(sfxCapture);
             vibrate(60);
             addToast(t.games.ludo.sentToYard, '💥', '#f97316');
           }
         }
-      };
-      checkCaptures(curr.red.pieces, prev.red.pieces ?? [], 'red');
-      if (curr.blue && prev.blue) checkCaptures(curr.blue.pieces, prev.blue.pieces, 'blue');
-
-      // Piece reaching home
-      const checkHome = (currP:{pos:number;id:number}[], prevP:{pos:number;id:number}[], name:string) => {
-        for (const cp of currP) {
-          const pp = prevP.find(p=>p.id===cp.id);
+        // Piece reaching home
+        for (const cp of currSide.pieces) {
+          const pp = (prevSide?.pieces ?? []).find(p => p.id === cp.id);
           if (pp && pp.pos !== WIN_POS && cp.pos === WIN_POS) {
             play(sfxPieceHome);
-            addToast(`${name}: ${t.games.ludo.pieceHome}`, '⭐', '#22c55e');
+            addToast(`${currSide.name}: ${t.games.ludo.pieceHome}`, '⭐', '#22c55e');
           }
         }
-      };
-      checkHome(curr.red.pieces, prev.red.pieces ?? [], curr.red.name);
-      if (curr.blue && prev.blue) checkHome(curr.blue.pieces, prev.blue.pieces, curr.blue.name);
+      }
 
       // Game start
       if (prev.status === 'waiting' && curr.status === 'active') {
@@ -358,7 +357,7 @@ export function LudoGame() {
   if (!match) return null;
 
   const myColor    = match.myColor;
-  const isPlayer   = myColor === 'red' || myColor === 'blue';
+  const isPlayer   = myColor === 'red' || myColor === 'blue' || myColor === 'green' || myColor === 'yellow';
   const isMyTurn   = isPlayer && match.currentTurn === myColor;
   const isFinished = match.status === 'finished';
   const isWaiting  = match.status === 'waiting';
@@ -366,23 +365,33 @@ export function LudoGame() {
   const canRoll = isMyTurn && !match.diceRolled && !isFinished && !isWaiting && !isRolling;
   const canMove = isMyTurn && match.diceRolled && match.movablePieceIds.length > 0 && !isAnimating;
 
-  const topColor: LudoColor    = myColor === 'blue' ? 'red'  : 'blue';
-  const bottomColor: LudoColor = myColor === 'blue' ? 'blue' : 'red';
-  const topSide    = topColor    === 'red' ? match.red : match.blue;
-  const bottomSide = bottomColor === 'red' ? match.red : match.blue;
+  const PLAYER_ORDER_UI: LudoColor[] = ['red', 'blue', 'green', 'yellow'];
+  // bottomColor = myColor (or red by default for spectators)
+  const bottomColor: LudoColor = (myColor === 'red' || myColor === 'blue' || myColor === 'green' || myColor === 'yellow') ? myColor : 'red';
+  const topColor: LudoColor = match.playerOrder.find(c => c !== bottomColor) ?? 'blue';
+  const topSide    = match.players[topColor];
+  const bottomSide = match.players[bottomColor];
+  const activePlayers = match.playerOrder;
 
   const isWinner  = isFinished && match.winnerColor === myColor;
   const winnerName = match.winnerColor
-    ? (match.winnerColor==='red' ? match.red.name : match.blue?.name ?? '?')
+    ? (match.players[match.winnerColor]?.name ?? '?')
     : null;
 
-  const redHome  = match.red.pieces.filter(p=>p.pos===WIN_POS).length;
-  const blueHome = match.blue?.pieces.filter(p=>p.pos===WIN_POS).length ?? 0;
+  const homeCount: Record<LudoColor, number> = {
+    red:    match.players.red?.pieces.filter(p => p.pos === WIN_POS).length ?? 0,
+    blue:   match.players.blue?.pieces.filter(p => p.pos === WIN_POS).length ?? 0,
+    green:  match.players.green?.pieces.filter(p => p.pos === WIN_POS).length ?? 0,
+    yellow: match.players.yellow?.pieces.filter(p => p.pos === WIN_POS).length ?? 0,
+  };
 
-  const turnAccent  = !isFinished && match.currentTurn === 'red' ? '#ff2244' : '#0090ff';
+  const TURN_ACCENTS: Record<LudoColor, string> = {
+    red: '#ff2244', blue: '#0090ff', green: '#22c55e', yellow: '#f59e0b',
+  };
+  const turnAccent = !isFinished ? TURN_ACCENTS[match.currentTurn] : '#ffffff';
   const turnIsMe    = !isFinished && !isWaiting && isMyTurn;
   const turnName    = !isFinished && !isWaiting
-    ? (match.currentTurn === 'red' ? match.red.name : match.blue?.name ?? '?')
+    ? (match.players[match.currentTurn]?.name ?? '?')
     : null;
 
   return (
@@ -447,7 +456,11 @@ export function LudoGame() {
             transition={{duration:0.22}}
             style={{ position:'relative',zIndex:9,flexShrink:0,textAlign:'center',
                      padding:'6px 16px 2px',
-                     background:`linear-gradient(180deg,rgba(${turnIsMe?(match.currentTurn==='red'?'255,34,68':'0,144,255'):'255,255,255'},0.06) 0%,transparent 100%)` }}>
+                     background:`linear-gradient(180deg,rgba(${turnIsMe ? (
+                       match.currentTurn === 'red' ? '255,34,68' :
+                       match.currentTurn === 'blue' ? '0,144,255' :
+                       match.currentTurn === 'green' ? '34,197,94' : '245,158,11'
+                     ) : '255,255,255'},0.06) 0%,transparent 100%)` }}>
             <p style={{ fontFamily:'monospace', fontWeight:900, fontSize:16, letterSpacing:2,
                          textTransform:'uppercase',
                          color: turnAccent, textShadow:`0 0 20px ${turnAccent}` }}>
@@ -467,32 +480,55 @@ export function LudoGame() {
             key="waiting-banner"
             initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
             style={{ position:'relative',zIndex:9,flexShrink:0,textAlign:'center',padding:'6px 16px 2px' }}>
-            <motion.p
-              animate={{opacity:[1,0.5,1]}} transition={{repeat:Infinity,duration:1.5}}
-              style={{fontFamily:'monospace',fontWeight:700,fontSize:13,color:'#c084fc',
-                      letterSpacing:2,textTransform:'uppercase'}}>
-              ⏳ {t.games.ludo.waitingForOpponent}
-            </motion.p>
+            {myColor === 'red' ? (
+              <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+                <motion.p
+                  animate={{opacity:[1,0.5,1]}} transition={{repeat:Infinity,duration:1.5}}
+                  style={{fontFamily:'monospace',fontWeight:700,fontSize:13,color:'#c084fc',
+                          letterSpacing:2,textTransform:'uppercase'}}>
+                  ⏳ {match.players.blue ? t.games.ludo.waitingForHost?.replace('Waiting for host','Ready') ?? 'Players joined' : t.games.ludo.waitingForOpponent}
+                </motion.p>
+                {match.playerOrder.length >= 2 && (
+                  <motion.button
+                    whileTap={{scale:0.91}} whileHover={{scale:1.05}}
+                    onClick={startMatch}
+                    style={{padding:'6px 16px',borderRadius:10,fontFamily:'monospace',fontSize:11,
+                            fontWeight:900,letterSpacing:1,textTransform:'uppercase',cursor:'pointer',
+                            background:'linear-gradient(135deg,rgba(34,197,94,0.25),rgba(34,197,94,0.1))',
+                            border:'1.5px solid rgba(34,197,94,0.5)',color:'#22c55e',
+                            boxShadow:'0 0 16px rgba(34,197,94,0.2)',touchAction:'manipulation'}}>
+                    {t.games.ludo.startGame ?? 'Start Game'}
+                  </motion.button>
+                )}
+              </div>
+            ) : (
+              <motion.p
+                animate={{opacity:[1,0.5,1]}} transition={{repeat:Infinity,duration:1.5}}
+                style={{fontFamily:'monospace',fontWeight:700,fontSize:13,color:'#c084fc',
+                        letterSpacing:2,textTransform:'uppercase'}}>
+                ⏳ {t.games.ludo.waitingForHost ?? 'Waiting for host to start...'}
+              </motion.p>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* ── Player cards ─────────────────────────────────────────────── */}
-      <div style={{position:'relative',zIndex:9,flexShrink:0,display:'flex',gap:8,padding:'4px 12px 4px'}}>
-        <PlayerCard
-          name={topSide?.name ?? '—'} color={topColor}
-          isActive={!isFinished && match.currentTurn===topColor}
-          pieces={topSide?.pieces ?? []} isYou={myColor===topColor}
-          absent={!topSide} lastRoll={!isFinished&&match.currentTurn===topColor&&match.diceRoll!==null?match.diceRoll:null}
-          t={t}
-        />
-        <PlayerCard
-          name={bottomSide?.name ?? '—'} color={bottomColor}
-          isActive={!isFinished && match.currentTurn===bottomColor}
-          pieces={bottomSide?.pieces ?? []} isYou={myColor===bottomColor}
-          absent={!bottomSide} lastRoll={!isFinished&&match.currentTurn===bottomColor&&match.diceRoll!==null?match.diceRoll:null}
-          t={t}
-        />
+      <div style={{position:'relative',zIndex:9,flexShrink:0,display:'flex',gap:8,padding:'4px 12px 4px',flexWrap:'wrap'}}>
+        {activePlayers.map(color => {
+          const side = match.players[color];
+          return (
+            <PlayerCard
+              key={color}
+              name={side?.name ?? '—'} color={color}
+              isActive={!isFinished && match.currentTurn === color}
+              pieces={side?.pieces ?? []} isYou={myColor === color}
+              absent={!side}
+              lastRoll={!isFinished && match.currentTurn === color && match.diceRoll !== null ? match.diceRoll : null}
+              t={t}
+            />
+          );
+        })}
       </div>
 
       {/* ── Board ───────────────────────────────────────────────────── */}
@@ -581,7 +617,7 @@ export function LudoGame() {
 
           {/* PTT */}
           {isPlayer && !isFinished && (
-            <LudoPTTButton matchId={match.id} myName={bottomSide?.name ?? 'Player'} />
+            <LudoPTTButton matchId={match.id} myName={match.players[bottomColor]?.name ?? 'Player'} />
           )}
 
           {/* Consecutive sixes + chat */}
@@ -730,32 +766,36 @@ export function LudoGame() {
               </p>
 
               {/* Stats */}
-              <div style={{display:'flex',gap:12,justifyContent:'center',marginBottom:24}}>
-                {[
-                  { color:'red', name:match.red.name, home:redHome },
-                  { color:'blue', name:match.blue?.name ?? '?', home:blueHome },
-                ].map(({color,name,home}) => (
-                  <div key={color} style={{textAlign:'center',padding:'8px 14px',borderRadius:12,
-                    background:`rgba(${color==='red'?'255,34,68':'0,144,255'},0.1)`,
-                    border:`1px solid rgba(${color==='red'?'255,34,68':'0,144,255'},0.25)`,
-                    flex:1}}>
-                    <p style={{fontFamily:'monospace',fontSize:10,color:color==='red'?'#ff6688':'#66aaff',
-                                marginBottom:4,letterSpacing:1,textTransform:'uppercase'}}>
-                      {name}
-                    </p>
-                    <p style={{fontFamily:'monospace',fontSize:20,fontWeight:900,
-                                color:color==='red'?'#ff2244':'#0090ff',lineHeight:1}}>
-                      {home}<span style={{fontSize:12,opacity:0.6}}>/4</span>
-                    </p>
-                    <p style={{fontFamily:'monospace',fontSize:9,color:'rgba(255,255,255,0.3)',marginTop:2}}>
-                      pieces home
-                    </p>
-                  </div>
-                ))}
+              <div style={{display:'flex',gap:8,justifyContent:'center',marginBottom:24,flexWrap:'wrap'}}>
+                {(['red','blue','green','yellow'] as LudoColor[])
+                  .filter(color => match.players[color] !== null)
+                  .map(color => {
+                    const COLOR_TEXTS: Record<LudoColor, string> = { red:'#ff6688', blue:'#66aaff', green:'#86efac', yellow:'#fcd34d' };
+                    const COLOR_VALS: Record<LudoColor, string> = { red:'#ff2244', blue:'#0090ff', green:'#22c55e', yellow:'#f59e0b' };
+                    const COLOR_RGBS: Record<LudoColor, string> = { red:'255,34,68', blue:'0,144,255', green:'34,197,94', yellow:'245,158,11' };
+                    return (
+                      <div key={color} style={{textAlign:'center',padding:'8px 14px',borderRadius:12,
+                        background:`rgba(${COLOR_RGBS[color]},0.1)`,
+                        border:`1px solid rgba(${COLOR_RGBS[color]},0.25)`,
+                        flex:'1 1 80px',minWidth:0}}>
+                        <p style={{fontFamily:'monospace',fontSize:10,color:COLOR_TEXTS[color],
+                                    marginBottom:4,letterSpacing:1,textTransform:'uppercase'}}>
+                          {match.players[color]!.name}
+                        </p>
+                        <p style={{fontFamily:'monospace',fontSize:20,fontWeight:900,
+                                    color:COLOR_VALS[color],lineHeight:1}}>
+                          {homeCount[color]}<span style={{fontSize:12,opacity:0.6}}>/4</span>
+                        </p>
+                        <p style={{fontFamily:'monospace',fontSize:9,color:'rgba(255,255,255,0.3)',marginTop:2}}>
+                          pieces home
+                        </p>
+                      </div>
+                    );
+                  })}
               </div>
 
               <div style={{display:'flex',gap:10,justifyContent:'center'}}>
-                {isPlayer && match.blue && (
+                {isPlayer && match.playerOrder.length >= 2 && (
                   <motion.button whileTap={{scale:0.94}} onClick={rematch} disabled={isLoading}
                     style={{padding:'12px 22px',borderRadius:14,fontFamily:'monospace',fontSize:11,
                             fontWeight:900,letterSpacing:2,textTransform:'uppercase',cursor:'pointer',

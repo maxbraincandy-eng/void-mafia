@@ -1,26 +1,28 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, getMatchForSocket, getOpenMatches, joinMatch, doRoll, doMove, doResign, doRematch, doLeave, addChat, cleanupSocket, } from './services/ludoService.js';
+import { createMatch, getMatch, getMatchByCode, getMatchForSocket, getOpenMatches, joinMatch, doRoll, doMove, doResign, doRematch, doLeave, addChat, cleanupSocket, startMatch, PLAYER_ORDER, } from './services/ludoService.js';
 import { addXP } from './services/playerService.js';
 import { voiceJoin as ludoVoiceJoin, voiceLeave as ludoVoiceLeave, voiceGetMatchId as ludoVoiceGetMatchId, } from './services/ludoVoiceService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
 const LUDO_ROOM = (id) => `ld:${id}`;
 function toPublic(match) {
+    const mapSide = (s) => s ? {
+        name: s.name,
+        profileId: s.profileId,
+        socketId: s.socketId,
+        pieces: s.pieces,
+    } : null;
     return {
         id: match.id,
         code: match.code,
         status: match.status,
-        red: {
-            name: match.red.name,
-            profileId: match.red.profileId,
-            socketId: match.red.socketId,
-            pieces: match.red.pieces,
+        maxPlayers: match.maxPlayers,
+        players: {
+            red: mapSide(match.players.red),
+            blue: mapSide(match.players.blue),
+            green: mapSide(match.players.green),
+            yellow: mapSide(match.players.yellow),
         },
-        blue: match.blue ? {
-            name: match.blue.name,
-            profileId: match.blue.profileId,
-            socketId: match.blue.socketId,
-            pieces: match.blue.pieces,
-        } : null,
+        playerOrder: match.playerOrder,
         currentTurn: match.currentTurn,
         diceRoll: match.diceRoll,
         diceRolled: match.diceRolled,
@@ -32,12 +34,16 @@ function toPublic(match) {
     };
 }
 function toListItem(match) {
+    const playerNames = PLAYER_ORDER
+        .filter(c => match.players[c] !== null)
+        .map(c => match.players[c].name);
     return {
         id: match.id,
         code: match.code,
         status: match.status,
-        redName: match.red.name,
-        blueName: match.blue?.name ?? null,
+        playerCount: playerNames.length,
+        maxPlayers: match.maxPlayers,
+        playerNames,
         spectatorCount: match.spectatorSocketIds.length,
         createdAt: match.createdAt,
     };
@@ -61,11 +67,12 @@ export function registerLudoHandlers(io, socket) {
     socket.on('ludo:create', (data, cb) => {
         try {
             const name = String(data?.name ?? 'Player').trim().slice(0, 24) || 'Player';
+            const maxPlayers = ([2, 3, 4].includes(data?.maxPlayers) ? data.maxPlayers : 2);
             const existing = getMatchForSocket(socket.id);
             if (existing && existing.status !== 'finished') {
                 return cb(err('You are already in a Ludo match.'));
             }
-            const match = createMatch({ socketId: socket.id, name, profileId: socket.data.profileId ?? null });
+            const match = createMatch({ socketId: socket.id, name, profileId: socket.data.profileId ?? null }, maxPlayers);
             socket.join(LUDO_ROOM(match.id));
             broadcastList(io);
             cb(ok(toPublic(match)));
@@ -83,7 +90,8 @@ export function registerLudoHandlers(io, socket) {
             if (match.status === 'finished')
                 return cb(err('This match has ended.'));
             // Re-join own match
-            if (match.red.socketId === socket.id || match.blue?.socketId === socket.id) {
+            const isInMatch = PLAYER_ORDER.some(c => match.players[c]?.socketId === socket.id);
+            if (isInMatch) {
                 socket.join(LUDO_ROOM(match.id));
                 return cb(ok(toPublic(match)));
             }
@@ -93,11 +101,22 @@ export function registerLudoHandlers(io, socket) {
             }
             const { role } = joinMatch(match.id, { socketId: socket.id, name, profileId: socket.data.profileId ?? null });
             socket.join(LUDO_ROOM(match.id));
-            if (role === 'blue') {
+            if (role !== 'spectator') {
                 broadcastState(io, match);
                 broadcastList(io);
             }
             cb(ok(toPublic(match)));
+        }
+        catch (e) {
+            cb(err(e.message));
+        }
+    });
+    socket.on('ludo:start', (data, cb) => {
+        try {
+            const match = startMatch(data.matchId, socket.id);
+            broadcastState(io, match);
+            broadcastList(io);
+            cb(ok(null));
         }
         catch (e) {
             cb(err(e.message));
@@ -123,12 +142,14 @@ export function registerLudoHandlers(io, socket) {
             if (!match)
                 return cb(err('Match not found.'));
             if (result.winnerColor) {
-                const winner = result.winnerColor === 'red' ? match.red : match.blue;
-                const loser = result.winnerColor === 'red' ? match.blue : match.red;
-                if (winner?.profileId)
-                    addXP(winner.profileId, 25).catch(() => { });
-                if (loser?.profileId)
-                    addXP(loser.profileId, 8).catch(() => { });
+                for (const color of PLAYER_ORDER) {
+                    const side = match.players[color];
+                    if (!side)
+                        continue;
+                    if (side.profileId) {
+                        addXP(side.profileId, color === result.winnerColor ? 25 : 8).catch(() => { });
+                    }
+                }
                 broadcastList(io);
             }
             broadcastState(io, match);
@@ -144,12 +165,14 @@ export function registerLudoHandlers(io, socket) {
             const match = getMatch(data.matchId);
             if (!match)
                 return cb(err('Match not found.'));
-            const winner = winnerColor === 'red' ? match.red : match.blue;
-            const loser = winnerColor === 'red' ? match.blue : match.red;
-            if (winner?.profileId)
-                addXP(winner.profileId, 25).catch(() => { });
-            if (loser?.profileId)
-                addXP(loser.profileId, 8).catch(() => { });
+            if (match.status === 'finished') {
+                for (const color of PLAYER_ORDER) {
+                    const side = match.players[color];
+                    if (side?.profileId) {
+                        addXP(side.profileId, color === winnerColor ? 25 : 8).catch(() => { });
+                    }
+                }
+            }
             broadcastState(io, match);
             broadcastList(io);
             cb(ok(null));
@@ -164,15 +187,15 @@ export function registerLudoHandlers(io, socket) {
             if (!old)
                 return cb(err('Match not found.'));
             const nm = doRematch(data.matchId, socket.id);
-            const redSock = io.sockets.sockets.get(nm.red.socketId);
-            const blueSock = nm.blue ? io.sockets.sockets.get(nm.blue.socketId) : null;
-            if (redSock) {
-                redSock.join(LUDO_ROOM(nm.id));
-                redSock.leave(LUDO_ROOM(old.id));
-            }
-            if (blueSock) {
-                blueSock.join(LUDO_ROOM(nm.id));
-                blueSock.leave(LUDO_ROOM(old.id));
+            for (const color of PLAYER_ORDER) {
+                const side = nm.players[color];
+                if (side) {
+                    const s = io.sockets.sockets.get(side.socketId);
+                    if (s) {
+                        s.join(LUDO_ROOM(nm.id));
+                        s.leave(LUDO_ROOM(old.id));
+                    }
+                }
             }
             for (const sid of nm.spectatorSocketIds) {
                 const s = io.sockets.sockets.get(sid);

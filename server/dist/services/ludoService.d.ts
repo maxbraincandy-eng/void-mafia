@@ -1,16 +1,22 @@
 /**
- * Ludo game service — 2-player (Red vs Blue), 4 pieces each.
+ * Ludo game service — 2-4 players (Red, Blue, Green, Yellow), 4 pieces each.
  * Turn flow: roll dice → pick piece to move → capture → win check.
  * Rolling 6 grants an extra roll (up to 3 consecutive 6s before forfeit).
  */
-export type LudoColor = 'red' | 'blue';
+export type LudoColor = 'red' | 'blue' | 'green' | 'yellow';
+export declare const PLAYER_ORDER: LudoColor[];
+export declare const COLOR_OFFSETS: Record<LudoColor, number>;
 export declare const WIN_POS = 57;
 export declare const SAFE_ABS: Set<number>;
 export declare const TRACK_CELLS: [number, number][];
 export declare const RED_HOME_CELLS: [number, number][];
 export declare const BLUE_HOME_CELLS: [number, number][];
+export declare const GREEN_HOME_CELLS: [number, number][];
+export declare const YELLOW_HOME_CELLS: [number, number][];
 export declare const RED_YARD_CELLS: [number, number][];
 export declare const BLUE_YARD_CELLS: [number, number][];
+export declare const GREEN_YARD_CELLS: [number, number][];
+export declare const YELLOW_YARD_CELLS: [number, number][];
 export declare const CENTER_CELL: [number, number];
 export interface LudoPiece {
     id: number;
@@ -32,8 +38,14 @@ export interface LudoMatch {
     id: string;
     code: string;
     status: 'waiting' | 'active' | 'finished';
-    red: LudoSide;
-    blue: LudoSide | null;
+    maxPlayers: 2 | 3 | 4;
+    players: {
+        red: LudoSide | null;
+        blue: LudoSide | null;
+        green: LudoSide | null;
+        yellow: LudoSide | null;
+    };
+    playerOrder: LudoColor[];
     currentTurn: LudoColor;
     diceRoll: number | null;
     diceRolled: boolean;
@@ -48,7 +60,7 @@ export declare function createMatch(player: {
     socketId: string;
     name: string;
     profileId: string | null;
-}): LudoMatch;
+}, maxPlayers?: 2 | 3 | 4): LudoMatch;
 export declare function getMatch(id: string): LudoMatch | null;
 export declare function getMatchByCode(code: string): LudoMatch | null;
 export declare function getMatchForSocket(socketId: string): LudoMatch | null;
@@ -58,9 +70,10 @@ export declare function joinMatch(matchId: string, player: {
     name: string;
     profileId: string | null;
 }): {
-    role: 'blue' | 'spectator';
+    role: LudoColor | 'spectator';
     match: LudoMatch;
 };
+export declare function startMatch(matchId: string, socketId: string): LudoMatch;
 export interface RollResult {
     roll: number;
     movablePieceIds: number[];

@@ -37,8 +37,11 @@ export function useLudoAnimation(match: LudoMatchPublic | null) {
 
     if (!prevRef.current) {
       const m = new Map<string, number>();
-      for (const p of match.red.pieces) m.set(`red-${p.id}`, p.pos);
-      if (match.blue) for (const p of match.blue.pieces) m.set(`blue-${p.id}`, p.pos);
+      const COLORS: LudoColor[] = ['red', 'blue', 'green', 'yellow'];
+      for (const color of COLORS) {
+        const pieces = match.players[color]?.pieces ?? [];
+        for (const p of pieces) m.set(`${color}-${p.id}`, p.pos);
+      }
       setDisplayPos(m);
       prevRef.current = match;
       return;
@@ -47,9 +50,10 @@ export function useLudoAnimation(match: LudoMatchPublic | null) {
     const prev = prevRef.current;
     const moves: Array<{ key: string; path: number[] }> = [];
 
+    const COLORS: LudoColor[] = ['red', 'blue', 'green', 'yellow'];
     const detect = (color: LudoColor) => {
-      const curr = color === 'red' ? match.red.pieces : (match.blue?.pieces ?? []);
-      const prv  = color === 'red' ? prev.red.pieces  : (prev.blue?.pieces  ?? []);
+      const curr = match.players[color]?.pieces ?? [];
+      const prv  = prev.players[color]?.pieces ?? [];
       for (const cp of curr) {
         const pp = prv.find(p => p.id === cp.id);
         if (pp && pp.pos !== cp.pos) {
@@ -57,8 +61,7 @@ export function useLudoAnimation(match: LudoMatchPublic | null) {
         }
       }
     };
-    detect('red');
-    detect('blue');
+    for (const c of COLORS) detect(c);
     prevRef.current = match;
 
     if (!moves.length) return;

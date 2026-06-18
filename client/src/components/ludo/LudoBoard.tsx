@@ -24,7 +24,12 @@ export const TRACK_CELLS: [number, number][] = [
 export const RED_HOME_CELLS:  [number, number][] = [[13,7],[12,7],[11,7],[10,7],[9,7]];
 export const BLUE_HOME_CELLS: [number, number][] = [[1,7],[2,7],[3,7],[4,7],[5,7]];
 export const RED_YARD_CELLS:  [number, number][] = [[10,1],[10,3],[12,1],[12,3]];
-export const BLUE_YARD_CELLS: [number, number][] = [[2,10],[2,12],[4,10],[4,12]];
+export const BLUE_YARD_CELLS:   [number, number][] = [[2,10],[2,12],[4,10],[4,12]];
+export const GREEN_YARD_CELLS:  [number, number][] = [[10,10],[10,12],[12,10],[12,12]];
+export const YELLOW_YARD_CELLS: [number, number][] = [[2,1],[2,3],[4,1],[4,3]];
+export const GREEN_HOME_CELLS:  [number, number][] = [[7,13],[7,12],[7,11],[7,10],[7,9]];
+export const YELLOW_HOME_CELLS: [number, number][] = [[7,1],[7,2],[7,3],[7,4],[7,5]];
+export const COLOR_OFFSETS: Record<LudoColor, number> = { red: 0, blue: 26, green: 13, yellow: 39 };
 export const CENTER_CELL: [number, number] = [7, 7];
 
 const SAFE_ABS = new Set([0, 8, 13, 21, 26, 34, 39, 47]);
@@ -33,33 +38,53 @@ const BLUE_OFFSET = 26;
 const HOME_START = 52;
 export const WIN_POS = 57;
 
-type CellRole = 'void'|'track'|'safe'|'entry_red'|'entry_blue'|'home_red'|'home_blue'|'yard_red'|'yard_blue'|'center';
+type CellRole = 'void'|'track'|'safe'|'entry_red'|'entry_blue'|'entry_green'|'entry_yellow'|'home_red'|'home_blue'|'home_green'|'home_yellow'|'yard_red'|'yard_blue'|'yard_green'|'yard_yellow'|'center';
 
 const CELL_ROLES: CellRole[][] = Array.from({length:15}, () => Array(15).fill('void') as CellRole[]);
 TRACK_CELLS.forEach(([r,c], i) => {
   if (i === 0) CELL_ROLES[r][c] = 'entry_red';
   else if (i === 26) CELL_ROLES[r][c] = 'entry_blue';
+  else if (i === 13) CELL_ROLES[r][c] = 'entry_green';
+  else if (i === 39) CELL_ROLES[r][c] = 'entry_yellow';
   else if (SAFE_ABS.has(i)) CELL_ROLES[r][c] = 'safe';
   else CELL_ROLES[r][c] = 'track';
 });
-RED_HOME_CELLS.forEach(([r,c])  => { CELL_ROLES[r][c] = 'home_red'; });
-BLUE_HOME_CELLS.forEach(([r,c]) => { CELL_ROLES[r][c] = 'home_blue'; });
+RED_HOME_CELLS.forEach(([r,c])    => { CELL_ROLES[r][c] = 'home_red'; });
+BLUE_HOME_CELLS.forEach(([r,c])   => { CELL_ROLES[r][c] = 'home_blue'; });
+GREEN_HOME_CELLS.forEach(([r,c])  => { CELL_ROLES[r][c] = 'home_green'; });
+YELLOW_HOME_CELLS.forEach(([r,c]) => { CELL_ROLES[r][c] = 'home_yellow'; });
 for (let r=9; r<=14; r++) for (let c=0; c<=5; c++)  { if (CELL_ROLES[r][c]==='void') CELL_ROLES[r][c]='yard_red'; }
 for (let r=0; r<=5;  r++) for (let c=9; c<=14; c++) { if (CELL_ROLES[r][c]==='void') CELL_ROLES[r][c]='yard_blue'; }
+for (let r=9; r<=14; r++) for (let c=9; c<=14; c++) { if (CELL_ROLES[r][c]==='void') CELL_ROLES[r][c]='yard_green'; }
+for (let r=0; r<=5;  r++) for (let c=0; c<=5; c++)  { if (CELL_ROLES[r][c]==='void') CELL_ROLES[r][c]='yard_yellow'; }
 CELL_ROLES[7][7] = 'center';
 
 function relToAbs(relPos: number, color: LudoColor): number {
-  return color === 'red' ? relPos : (relPos + BLUE_OFFSET) % TRACK_LEN;
+  return (relPos + COLOR_OFFSETS[color]) % TRACK_LEN;
 }
+
+const YARD_CELLS_MAP: Record<LudoColor, [number, number][]> = {
+  red:    RED_YARD_CELLS,
+  blue:   BLUE_YARD_CELLS,
+  green:  GREEN_YARD_CELLS,
+  yellow: YELLOW_YARD_CELLS,
+};
+
+const HOME_CELLS_MAP: Record<LudoColor, [number, number][]> = {
+  red:    RED_HOME_CELLS,
+  blue:   BLUE_HOME_CELLS,
+  green:  GREEN_HOME_CELLS,
+  yellow: YELLOW_HOME_CELLS,
+};
 
 export function getPieceGridPos(pos: number, color: LudoColor, pieceId: number): {row:number;col:number} {
   if (pos === -1) {
-    const [r,c] = color === 'red' ? RED_YARD_CELLS[pieceId] : BLUE_YARD_CELLS[pieceId];
+    const [r,c] = YARD_CELLS_MAP[color][pieceId];
     return { row:r, col:c };
   }
   if (pos === WIN_POS) return { row:7, col:7 };
   if (pos >= HOME_START) {
-    const [r,c] = color === 'red' ? RED_HOME_CELLS[pos-HOME_START] : BLUE_HOME_CELLS[pos-HOME_START];
+    const [r,c] = HOME_CELLS_MAP[color][pos-HOME_START];
     return { row:r, col:c };
   }
   const [r,c] = TRACK_CELLS[relToAbs(pos, color)];
@@ -69,16 +94,22 @@ export function getPieceGridPos(pos: number, color: LudoColor, pieceId: number):
 // ── Cyberpunk cell visuals ─────────────────────────────────────────────
 type CellVisual = { bg: string; border: string };
 const CELL_VISUALS: Record<CellRole, CellVisual> = {
-  void:       { bg:'#000',                                              border:'none' },
-  track:      { bg:'rgba(0,245,255,0.06)',                              border:'1px solid rgba(0,245,255,0.14)' },
-  safe:       { bg:'rgba(255,210,0,0.13)',                              border:'1px solid rgba(255,200,0,0.35)' },
-  entry_red:  { bg:'rgba(255,40,80,0.22)',                              border:'2px solid rgba(255,50,80,0.65)' },
-  entry_blue: { bg:'rgba(0,150,255,0.22)',                              border:'2px solid rgba(0,180,255,0.65)' },
-  home_red:   { bg:'rgba(255,40,80,0.15)',                              border:'1px solid rgba(255,60,90,0.4)' },
-  home_blue:  { bg:'rgba(0,150,255,0.15)',                              border:'1px solid rgba(0,160,255,0.4)' },
-  yard_red:   { bg:'rgba(255,30,60,0.07)',                              border:'none' },
-  yard_blue:  { bg:'rgba(0,120,255,0.07)',                              border:'none' },
-  center:     { bg:'linear-gradient(135deg,rgba(255,200,0,0.5),rgba(255,130,0,0.35))', border:'2px solid rgba(255,180,0,0.75)' },
+  void:         { bg:'#000',                                              border:'none' },
+  track:        { bg:'rgba(0,245,255,0.06)',                              border:'1px solid rgba(0,245,255,0.14)' },
+  safe:         { bg:'rgba(255,210,0,0.13)',                              border:'1px solid rgba(255,200,0,0.35)' },
+  entry_red:    { bg:'rgba(255,40,80,0.22)',                              border:'2px solid rgba(255,50,80,0.65)' },
+  entry_blue:   { bg:'rgba(0,150,255,0.22)',                              border:'2px solid rgba(0,180,255,0.65)' },
+  entry_green:  { bg:'rgba(34,197,94,0.22)',                              border:'2px solid rgba(34,197,94,0.65)' },
+  entry_yellow: { bg:'rgba(245,158,11,0.22)',                             border:'2px solid rgba(245,158,11,0.65)' },
+  home_red:     { bg:'rgba(255,40,80,0.15)',                              border:'1px solid rgba(255,60,90,0.4)' },
+  home_blue:    { bg:'rgba(0,150,255,0.15)',                              border:'1px solid rgba(0,160,255,0.4)' },
+  home_green:   { bg:'rgba(34,197,94,0.15)',                              border:'1px solid rgba(34,197,94,0.4)' },
+  home_yellow:  { bg:'rgba(245,158,11,0.15)',                             border:'1px solid rgba(245,158,11,0.4)' },
+  yard_red:     { bg:'rgba(255,30,60,0.07)',                              border:'none' },
+  yard_blue:    { bg:'rgba(0,120,255,0.07)',                              border:'none' },
+  yard_green:   { bg:'rgba(34,197,94,0.07)',                              border:'none' },
+  yard_yellow:  { bg:'rgba(245,158,11,0.07)',                             border:'none' },
+  center:       { bg:'linear-gradient(135deg,rgba(255,200,0,0.5),rgba(255,130,0,0.35))', border:'2px solid rgba(255,180,0,0.75)' },
 };
 
 interface PieceInfo {
@@ -146,23 +177,28 @@ export function LudoBoard({ match, onPieceClick, flashCell, displayPos }: Props)
   const isMyTurn = match.myColor !== 'spectator' && match.myColor !== null && match.currentTurn === match.myColor;
   const canMove  = isMyTurn && match.diceRolled && match.movablePieceIds.length > 0;
 
+  const COLORS: LudoColor[] = ['red', 'blue', 'green', 'yellow'];
+
   const allPieces = useMemo((): PieceInfo[] => {
     const list: PieceInfo[] = [];
     const getDisp = (color: LudoColor, id: number, realPos: number) =>
       displayPos?.get(`${color}-${id}`) ?? realPos;
 
-    for (const p of match.red.pieces) {
-      list.push({ color:'red', id:p.id, realPos:p.pos, pos:getDisp('red', p.id, p.pos),
-        movable: match.movablePieceIds.includes(p.id) && match.currentTurn==='red' });
-    }
-    if (match.blue) {
-      for (const p of match.blue.pieces) {
-        list.push({ color:'blue', id:p.id, realPos:p.pos, pos:getDisp('blue', p.id, p.pos),
-          movable: match.movablePieceIds.includes(p.id) && match.currentTurn==='blue' });
+    for (const color of COLORS) {
+      const side = match.players[color];
+      if (!side) continue;
+      for (const p of side.pieces) {
+        list.push({
+          color,
+          id: p.id,
+          realPos: p.pos,
+          pos: getDisp(color, p.id, p.pos),
+          movable: match.movablePieceIds.includes(p.id) && match.currentTurn === color,
+        });
       }
     }
     return list;
-  }, [match.red.pieces, match.blue, match.movablePieceIds, match.currentTurn, displayPos]);
+  }, [match.players, match.movablePieceIds, match.currentTurn, displayPos]);
 
   const cellGroups = useMemo(() => {
     const map = new Map<string, PieceInfo[]>();
@@ -213,13 +249,23 @@ export function LudoBoard({ match, onPieceClick, flashCell, displayPos }: Props)
                          display:'flex', alignItems:'center', justifyContent:'center', position:'relative',
                          overflow:'hidden' }}>
                 {/* Yard zone subtle diagonal lines */}
-                {(role==='yard_red'||role==='yard_blue') && (
+                {(role==='yard_red'||role==='yard_blue'||role==='yard_green'||role==='yard_yellow') && (
                   <div style={{ position:'absolute',inset:0, opacity:0.07,
-                    backgroundImage:`repeating-linear-gradient(45deg,${role==='yard_red'?'#ff3355':'#0090ff'} 0px,${role==='yard_red'?'#ff3355':'#0090ff'} 1px,transparent 1px,transparent 8px)` }} />
+                    backgroundImage:`repeating-linear-gradient(45deg,${
+                      role==='yard_red' ? '#ff3355' :
+                      role==='yard_blue' ? '#0090ff' :
+                      role==='yard_green' ? '#22c55e' : '#f59e0b'
+                    } 0px,${
+                      role==='yard_red' ? '#ff3355' :
+                      role==='yard_blue' ? '#0090ff' :
+                      role==='yard_green' ? '#22c55e' : '#f59e0b'
+                    } 1px,transparent 1px,transparent 8px)` }} />
                 )}
                 {role==='safe' && <span style={{fontSize:'52%',opacity:0.6,lineHeight:1,color:'#ffd700',textShadow:'0 0 4px #ffd700'}}>★</span>}
-                {role==='entry_red'  && <span style={{fontSize:'44%',opacity:0.8,color:'#ff3355',textShadow:'0 0 6px #ff3355'}}>★</span>}
-                {role==='entry_blue' && <span style={{fontSize:'44%',opacity:0.8,color:'#00c3ff',textShadow:'0 0 6px #00c3ff'}}>★</span>}
+                {role==='entry_red'    && <span style={{fontSize:'44%',opacity:0.8,color:'#ff3355',textShadow:'0 0 6px #ff3355'}}>★</span>}
+                {role==='entry_blue'   && <span style={{fontSize:'44%',opacity:0.8,color:'#00c3ff',textShadow:'0 0 6px #00c3ff'}}>★</span>}
+                {role==='entry_green'  && <span style={{fontSize:'44%',opacity:0.8,color:'#22c55e',textShadow:'0 0 6px #22c55e'}}>★</span>}
+                {role==='entry_yellow' && <span style={{fontSize:'44%',opacity:0.8,color:'#f59e0b',textShadow:'0 0 6px #f59e0b'}}>★</span>}
                 {role==='center' && <span style={{fontSize:'58%',lineHeight:1,filter:'drop-shadow(0 0 4px rgba(255,180,0,0.8))'}}>🏠</span>}
               </div>
             );
@@ -248,6 +294,24 @@ export function LudoBoard({ match, onPieceClick, flashCell, displayPos }: Props)
                        background:'rgba(0,120,255,0.07)',
                        boxShadow:'0 0 8px rgba(0,120,255,0.15)' }} />
           ))}
+          {GREEN_YARD_CELLS.map(([r,c],i) => (
+            <div key={`gyh-${i}`}
+              style={{ position:'absolute', borderRadius:'50%', pointerEvents:'none',
+                       width:cellPx*0.76, height:cellPx*0.76,
+                       left:c*cellPx+cellPx*0.12, top:r*cellPx+cellPx*0.12,
+                       border:'1.5px solid rgba(34,197,94,0.35)',
+                       background:'rgba(34,197,94,0.07)',
+                       boxShadow:'0 0 8px rgba(34,197,94,0.15)' }} />
+          ))}
+          {YELLOW_YARD_CELLS.map(([r,c],i) => (
+            <div key={`yyh-${i}`}
+              style={{ position:'absolute', borderRadius:'50%', pointerEvents:'none',
+                       width:cellPx*0.76, height:cellPx*0.76,
+                       left:c*cellPx+cellPx*0.12, top:r*cellPx+cellPx*0.12,
+                       border:'1.5px solid rgba(245,158,11,0.35)',
+                       background:'rgba(245,158,11,0.07)',
+                       boxShadow:'0 0 8px rgba(245,158,11,0.15)' }} />
+          ))}
         </>
       )}
 
@@ -257,7 +321,11 @@ export function LudoBoard({ match, onPieceClick, flashCell, displayPos }: Props)
           const left = g.col * cellPx + cellPx * 0.3;
           const top  = g.row * cellPx + cellPx * 0.3;
           const sz   = cellPx * 0.4;
-          const clr  = g.color === 'red' ? 'rgba(255,60,90,0.7)' : 'rgba(0,190,255,0.7)';
+          const GHOST_COLORS: Record<LudoColor, string> = {
+            red: 'rgba(255,60,90,0.7)', blue: 'rgba(0,190,255,0.7)',
+            green: 'rgba(34,197,94,0.7)', yellow: 'rgba(245,158,11,0.7)',
+          };
+          const clr = GHOST_COLORS[g.color] ?? 'rgba(255,255,255,0.5)';
           return (
             <motion.div
               key={g.id}
@@ -295,17 +363,29 @@ export function LudoBoard({ match, onPieceClick, flashCell, displayPos }: Props)
         const left = col * cellPx + cellPx * 0.12 + subX;
         const top  = row * cellPx + cellPx * 0.12 + subY;
 
-        const isRed  = piece.color === 'red';
         const isHome = piece.pos >= HOME_START && piece.pos < WIN_POS;
         const isDone = piece.pos === WIN_POS;
         const isYard = piece.pos === -1;
 
-        const clickable = canMove && piece.movable &&
-          ((isRed && match.myColor==='red') || (!isRed && match.myColor==='blue'));
+        const clickable = canMove && piece.movable && piece.color === match.myColor;
 
-        const baseColor  = isRed ? '#ff2244' : '#0090ff';
-        const glowColor  = isRed ? 'rgba(255,34,68,0.8)' : 'rgba(0,144,255,0.8)';
-        const borderClr  = isRed ? '#ff7799' : '#66ccff';
+        const COLOR_BASES: Record<LudoColor, string> = {
+          red: '#ff2244', blue: '#0090ff', green: '#22c55e', yellow: '#f59e0b',
+        };
+        const COLOR_GLOWS: Record<LudoColor, string> = {
+          red: 'rgba(255,34,68,0.8)', blue: 'rgba(0,144,255,0.8)',
+          green: 'rgba(34,197,94,0.8)', yellow: 'rgba(245,158,11,0.8)',
+        };
+        const COLOR_BORDERS: Record<LudoColor, string> = {
+          red: '#ff7799', blue: '#66ccff', green: '#86efac', yellow: '#fcd34d',
+        };
+        const COLOR_LIGHT: Record<LudoColor, string> = {
+          red: '#ff7799', blue: '#44aaff', green: '#86efac', yellow: '#fcd34d',
+        };
+
+        const baseColor = COLOR_BASES[piece.color];
+        const glowColor = COLOR_GLOWS[piece.color];
+        const borderClr = COLOR_BORDERS[piece.color];
         const doneColor  = '#00ff88';
 
         const pieceGlow = isDone
@@ -329,8 +409,8 @@ export function LudoBoard({ match, onPieceClick, flashCell, displayPos }: Props)
               background: isDone
                 ? `radial-gradient(circle at 38% 35%, #80ffcc, ${doneColor} 60%)`
                 : isHome
-                  ? `radial-gradient(circle at 38% 35%, ${isRed?'#ff99aa':'#66ccff'}, ${baseColor} 65%)`
-                  : `radial-gradient(circle at 38% 35%, ${isRed?'#ff7799':'#44aaff'}, ${baseColor} 65%)`,
+                  ? `radial-gradient(circle at 38% 35%, ${COLOR_BORDERS[piece.color]}, ${baseColor} 65%)`
+                  : `radial-gradient(circle at 38% 35%, ${COLOR_LIGHT[piece.color]}, ${baseColor} 65%)`,
               border: `2px solid ${isDone ? '#80ffcc' : borderClr}`,
               zIndex: isDone ? 2 : clickable ? 12 : isHome ? 8 : 5,
               boxShadow: pieceGlow,

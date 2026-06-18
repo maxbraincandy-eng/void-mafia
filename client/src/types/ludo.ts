@@ -1,4 +1,4 @@
-export type LudoColor = 'red' | 'blue';
+export type LudoColor = 'red' | 'blue' | 'green' | 'yellow';
 export type LudoStatus = 'waiting' | 'active' | 'finished';
 
 export interface LudoPiece {
@@ -24,8 +24,14 @@ export interface LudoMatchPublic {
   id: string;
   code: string;
   status: LudoStatus;
-  red: LudoPlayerInfo;
-  blue: LudoPlayerInfo | null;
+  maxPlayers: 2 | 3 | 4;
+  players: {
+    red: LudoPlayerInfo;
+    blue: LudoPlayerInfo | null;
+    green: LudoPlayerInfo | null;
+    yellow: LudoPlayerInfo | null;
+  };
+  playerOrder: LudoColor[];
   currentTurn: LudoColor;
   diceRoll: number | null;
   diceRolled: boolean;
@@ -42,8 +48,9 @@ export interface LudoMatchListItem {
   id: string;
   code: string;
   status: LudoStatus;
-  redName: string;
-  blueName: string | null;
+  playerCount: number;
+  maxPlayers: 2 | 3 | 4;
+  playerNames: string[];
   spectatorCount: number;
   createdAt: number;
 }

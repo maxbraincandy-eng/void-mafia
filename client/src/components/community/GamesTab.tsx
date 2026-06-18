@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
@@ -44,8 +44,22 @@ export function GamesTab() {
 
   const [ldShowJoin, setLdShowJoin] = useState(false);
   const [ldJoinCode, setLdJoinCode] = useState('');
+  const [ldMaxPlayers, setLdMaxPlayers] = useState<2 | 3 | 4>(2);
+
+  const handleRefresh = useCallback(() => {
+    ckFetch();
+    jkFetch();
+    ldFetch();
+  }, [ckFetch, jkFetch, ldFetch]);
 
   useEffect(() => { ckFetch(); jkFetch(); ldFetch(); }, [ckFetch, jkFetch, ldFetch]);
+
+  // Refresh on visibility change
+  useEffect(() => {
+    const handler = () => { if (!document.hidden) handleRefresh(); };
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, [handleRefresh]);
 
   async function handleCkCreate() {
     await ckCreate(playerName);
@@ -70,7 +84,7 @@ export function GamesTab() {
   }
 
   async function handleLdCreate() {
-    await ldCreate(playerName);
+    await ldCreate(playerName, ldMaxPlayers);
   }
 
   async function handleLdJoin() {
@@ -118,6 +132,12 @@ export function GamesTab() {
             <p className="font-display font-bold text-white text-sm leading-tight">{t.games.checkers.title}</p>
             <p className="font-mono text-[10px] text-white/35">{t.games.checkers.subtitle}</p>
           </div>
+          <button onClick={handleRefresh}
+            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
+            style={{ background: 'rgba(155,0,255,0.08)', border: '1px solid rgba(155,0,255,0.2)', color: 'rgba(192,132,252,0.6)' }}
+            title="Refresh">
+            ↻
+          </button>
         </div>
         <div className="px-4 py-3 flex flex-wrap gap-2">
           {!ckShowJoin ? (
@@ -169,6 +189,12 @@ export function GamesTab() {
             <p className="font-display font-bold text-white text-sm leading-tight">{t.games.joker.title}</p>
             <p className="font-mono text-[10px] text-white/35">{t.games.joker.subtitle}</p>
           </div>
+          <button onClick={handleRefresh}
+            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
+            style={{ background: 'rgba(255,165,0,0.08)', border: '1px solid rgba(255,165,0,0.2)', color: 'rgba(251,191,36,0.6)' }}
+            title="Refresh">
+            ↻
+          </button>
         </div>
 
         {/* Mode selector */}
@@ -253,10 +279,30 @@ export function GamesTab() {
             <p className="font-display font-bold text-white text-sm leading-tight">{t.games.ludo.title}</p>
             <p className="font-mono text-[10px] text-white/35">{t.games.ludo.subtitle}</p>
           </div>
+          <button onClick={handleRefresh}
+            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
+            style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', color: 'rgba(34,197,94,0.6)' }}
+            title={t.games.ludo.refresh}>
+            ↻
+          </button>
         </div>
         <div className="px-4 py-3 flex flex-wrap gap-2">
           {!ldShowJoin ? (
             <>
+              <div className="w-full flex items-center gap-2 mb-1">
+                <span className="font-mono text-[9px] text-white/30 uppercase tracking-wider">Max Players:</span>
+                {([2, 3, 4] as const).map(n => (
+                  <button key={n} onClick={() => setLdMaxPlayers(n)}
+                    className="px-2 py-0.5 rounded-full font-mono text-[10px] transition-all"
+                    style={{
+                      background: ldMaxPlayers === n ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${ldMaxPlayers === n ? 'rgba(34,197,94,0.5)' : 'rgba(255,255,255,0.08)'}`,
+                      color: ldMaxPlayers === n ? '#22c55e' : 'rgba(255,255,255,0.35)',
+                    }}>
+                    {n}
+                  </button>
+                ))}
+              </div>
               <ActionButton onClick={handleLdCreate} accent="green" loading={ldLoading}>
                 {t.games.ludo.createMatch}
               </ActionButton>
@@ -364,16 +410,23 @@ function CheckersRow({ match, onJoin }: { match: CheckersMatchListItem; onJoin: 
 
 function LudoRow({ match, onJoin }: { match: LudoMatchListItem; onJoin: (code: string) => void }) {
   const t = useT();
+  const canJoin = match.status === 'waiting' && match.playerCount < match.maxPlayers;
   return (
     <div className="flex items-center gap-3 px-2 py-2 rounded-xl"
       style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
       <div className="flex-1 min-w-0">
-        <p className="font-mono text-xs text-white">
-          {match.redName} vs {match.blueName ?? <span className="text-white/30">{t.games.ludo.waiting}</span>}
+        <p className="font-mono text-xs text-white truncate">
+          {match.playerNames.length > 0 ? match.playerNames.join(', ') : '—'}
         </p>
-        <span className="font-mono text-[9px] text-white/25 tracking-widest">{match.code}</span>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="font-mono text-[9px] text-white/25 tracking-widest">{match.code}</span>
+          <span className="font-mono text-[9px] text-white/20">{match.playerCount}/{match.maxPlayers}</span>
+          {match.status === 'waiting' && (
+            <span className="font-mono text-[9px] text-white/20">{t.games.ludo.waiting}</span>
+          )}
+        </div>
       </div>
-      {match.status === 'waiting' && (
+      {canJoin && (
         <button onClick={() => onJoin(match.code)}
           className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
           style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: '#22c55e' }}>

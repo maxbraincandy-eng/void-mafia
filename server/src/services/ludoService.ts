@@ -1,16 +1,17 @@
 /**
- * Ludo game service — 2-player (Red vs Blue), 4 pieces each.
+ * Ludo game service — 2-4 players (Red, Blue, Green, Yellow), 4 pieces each.
  * Turn flow: roll dice → pick piece to move → capture → win check.
  * Rolling 6 grants an extra roll (up to 3 consecutive 6s before forfeit).
  */
 
 import { randomBytes } from 'crypto';
 
-export type LudoColor = 'red' | 'blue';
+export type LudoColor = 'red' | 'blue' | 'green' | 'yellow';
+export const PLAYER_ORDER: LudoColor[] = ['red', 'blue', 'green', 'yellow'];
+export const COLOR_OFFSETS: Record<LudoColor, number> = { red: 0, blue: 26, green: 13, yellow: 39 };
 
 // ── Board constants ────────────────────────────────────────────────────
 const TRACK_LEN = 52;
-const BLUE_OFFSET = 26; // Blue enters track 26 steps ahead of Red
 const HOME_START = 52;  // positions 52-56 = home column cells
 const HOME_END = 56;
 export const WIN_POS = 57; // piece finished
@@ -35,10 +36,14 @@ export const TRACK_CELLS: [number, number][] = [
   [14,8],[14,7],
 ];
 
-export const RED_HOME_CELLS: [number, number][] = [[13,7],[12,7],[11,7],[10,7],[9,7]];
-export const BLUE_HOME_CELLS: [number, number][] = [[1,7],[2,7],[3,7],[4,7],[5,7]];
-export const RED_YARD_CELLS: [number, number][] = [[10,1],[10,3],[12,1],[12,3]];
-export const BLUE_YARD_CELLS: [number, number][] = [[2,10],[2,12],[4,10],[4,12]];
+export const RED_HOME_CELLS:    [number, number][] = [[13,7],[12,7],[11,7],[10,7],[9,7]];
+export const BLUE_HOME_CELLS:   [number, number][] = [[1,7],[2,7],[3,7],[4,7],[5,7]];
+export const GREEN_HOME_CELLS:  [number, number][] = [[7,13],[7,12],[7,11],[7,10],[7,9]];
+export const YELLOW_HOME_CELLS: [number, number][] = [[7,1],[7,2],[7,3],[7,4],[7,5]];
+export const RED_YARD_CELLS:    [number, number][] = [[10,1],[10,3],[12,1],[12,3]];
+export const BLUE_YARD_CELLS:   [number, number][] = [[2,10],[2,12],[4,10],[4,12]];
+export const GREEN_YARD_CELLS:  [number, number][] = [[10,10],[10,12],[12,10],[12,12]];
+export const YELLOW_YARD_CELLS: [number, number][] = [[2,1],[2,3],[4,1],[4,3]];
 export const CENTER_CELL: [number, number] = [7,7];
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -65,12 +70,18 @@ export interface LudoMatch {
   id: string;
   code: string;
   status: 'waiting' | 'active' | 'finished';
-  red: LudoSide;
-  blue: LudoSide | null;
+  maxPlayers: 2 | 3 | 4;
+  players: {
+    red: LudoSide | null;
+    blue: LudoSide | null;
+    green: LudoSide | null;
+    yellow: LudoSide | null;
+  };
+  playerOrder: LudoColor[]; // active slots in turn order
   currentTurn: LudoColor;
   diceRoll: number | null;
   diceRolled: boolean;
-  movablePieceIds: number[];  // piece ids that can move after rolling
+  movablePieceIds: number[];
   consecutiveSixes: number;
   winnerColor: LudoColor | null;
   chat: LudoChatMsg[];
@@ -97,8 +108,7 @@ function makePieces(): LudoPiece[] {
 // ── Helpers ────────────────────────────────────────────────────────────
 
 function relToAbs(relPos: number, color: LudoColor): number {
-  if (color === 'red') return relPos;
-  return (relPos + BLUE_OFFSET) % TRACK_LEN;
+  return (relPos + COLOR_OFFSETS[color]) % TRACK_LEN;
 }
 
 // Returns new position if move is valid, null if invalid (can't move or overshoot).
@@ -120,23 +130,36 @@ function resetDice(match: LudoMatch): void {
 }
 
 function nextTurn(match: LudoMatch): void {
-  match.currentTurn = match.currentTurn === 'red' ? 'blue' : 'red';
+  const order = match.playerOrder;
+  const idx = order.indexOf(match.currentTurn);
+  match.currentTurn = order[(idx + 1) % order.length];
   match.consecutiveSixes = 0;
   resetDice(match);
+}
+
+function buildPlayerOrder(players: LudoMatch['players']): LudoColor[] {
+  return PLAYER_ORDER.filter(c => players[c] !== null) as LudoColor[];
 }
 
 // ── Public API ─────────────────────────────────────────────────────────
 
 export function createMatch(
   player: { socketId: string; name: string; profileId: string | null },
+  maxPlayers: 2 | 3 | 4 = 2,
 ): LudoMatch {
   const id = genId();
   const code = genCode();
   const match: LudoMatch = {
     id, code,
     status: 'waiting',
-    red: { name: player.name, profileId: player.profileId, socketId: player.socketId, pieces: makePieces() },
-    blue: null,
+    maxPlayers,
+    players: {
+      red: { name: player.name, profileId: player.profileId, socketId: player.socketId, pieces: makePieces() },
+      blue: null,
+      green: null,
+      yellow: null,
+    },
+    playerOrder: ['red'],
     currentTurn: 'red',
     diceRoll: null,
     diceRolled: false,
@@ -176,33 +199,59 @@ export function getOpenMatches(): LudoMatch[] {
 export function joinMatch(
   matchId: string,
   player: { socketId: string; name: string; profileId: string | null },
-): { role: 'blue' | 'spectator'; match: LudoMatch } {
+): { role: LudoColor | 'spectator'; match: LudoMatch } {
   const match = matchStore.get(matchId);
   if (!match) throw new Error('Match not found.');
   if (match.status === 'finished') throw new Error('Match is finished.');
 
-  if (match.red.socketId === player.socketId) {
-    return { role: 'spectator', match }; // re-join as red (caller handles room join)
-  }
-  if (match.blue?.socketId === player.socketId) {
-    return { role: 'blue', match };
-  }
-
-  if (!match.blue && match.status === 'waiting') {
-    match.blue = {
-      name: player.name, profileId: player.profileId,
-      socketId: player.socketId, pieces: makePieces(),
-    };
-    match.status = 'active';
-    socketIndex.set(player.socketId, matchId);
-    return { role: 'blue', match };
+  // Re-join as existing player
+  for (const color of PLAYER_ORDER) {
+    const side = match.players[color];
+    if (side && side.socketId === player.socketId) {
+      return { role: color, match };
+    }
   }
 
+  // Join as next available color
+  if (match.status === 'waiting') {
+    const colorOrder: LudoColor[] = ['blue', 'green', 'yellow'];
+    const currentCount = PLAYER_ORDER.filter(c => match.players[c] !== null).length;
+    if (currentCount < match.maxPlayers) {
+      const nextColor = colorOrder.find(c => match.players[c] === null);
+      if (nextColor) {
+        match.players[nextColor] = {
+          name: player.name,
+          profileId: player.profileId,
+          socketId: player.socketId,
+          pieces: makePieces(),
+        };
+        match.playerOrder = buildPlayerOrder(match.players);
+        socketIndex.set(player.socketId, matchId);
+        return { role: nextColor, match };
+      }
+    }
+  }
+
+  // Spectator
   if (!match.spectatorSocketIds.includes(player.socketId)) {
     match.spectatorSocketIds.push(player.socketId);
     socketIndex.set(player.socketId, matchId);
   }
   return { role: 'spectator', match };
+}
+
+export function startMatch(matchId: string, socketId: string): LudoMatch {
+  const match = matchStore.get(matchId);
+  if (!match) throw new Error('Match not found.');
+  if (match.status !== 'waiting') throw new Error('Match is not in waiting state.');
+  if (!match.players.red || match.players.red.socketId !== socketId) throw new Error('Only the host (Red) can start the match.');
+
+  const playerCount = PLAYER_ORDER.filter(c => match.players[c] !== null).length;
+  if (playerCount < 2) throw new Error('Need at least 2 players to start.');
+
+  match.status = 'active';
+  match.playerOrder = buildPlayerOrder(match.players);
+  return match;
 }
 
 export interface RollResult {
@@ -217,7 +266,8 @@ export function doRoll(matchId: string, socketId: string): RollResult {
   if (match.status !== 'active') throw new Error('Game not active.');
   if (match.diceRolled) throw new Error('Already rolled this turn.');
 
-  const side = match.currentTurn === 'red' ? match.red : match.blue;
+  const currentColor = match.currentTurn;
+  const side = match.players[currentColor];
   if (!side || side.socketId !== socketId) throw new Error('Not your turn.');
 
   const roll = Math.floor(Math.random() * 6) + 1;
@@ -261,9 +311,7 @@ export function doMove(matchId: string, socketId: string, pieceId: number): Move
   if (!match.diceRolled) throw new Error('Roll first.');
 
   const color = match.currentTurn;
-  const side = color === 'red' ? match.red : match.blue;
-  const oppColor: LudoColor = color === 'red' ? 'blue' : 'red';
-  const opponent = color === 'red' ? match.blue : match.red;
+  const side = match.players[color];
 
   if (!side || side.socketId !== socketId) throw new Error('Not your turn.');
   if (!match.movablePieceIds.includes(pieceId)) throw new Error('Piece cannot move with this roll.');
@@ -280,21 +328,29 @@ export function doMove(matchId: string, socketId: string, pieceId: number): Move
 
   // Check capture — only on main track, non-safe squares
   let captured = false;
+  let capturedColor: LudoColor | null = null;
   let capturedPieceId: number | null = null;
 
-  if (np >= 0 && np < HOME_START && opponent) {
+  if (np >= 0 && np < HOME_START) {
     const myAbs = relToAbs(np, color);
     if (!SAFE_ABS.has(myAbs)) {
-      for (const oppPiece of opponent.pieces) {
-        if (oppPiece.pos >= 0 && oppPiece.pos < HOME_START) {
-          const oppAbs = relToAbs(oppPiece.pos, oppColor);
-          if (oppAbs === myAbs) {
-            oppPiece.pos = -1;
-            captured = true;
-            capturedPieceId = oppPiece.id;
-            break;
+      for (const oppColor of PLAYER_ORDER) {
+        if (oppColor === color) continue;
+        const opp = match.players[oppColor];
+        if (!opp) continue;
+        for (const oppPiece of opp.pieces) {
+          if (oppPiece.pos >= 0 && oppPiece.pos < HOME_START) {
+            const oppAbs = relToAbs(oppPiece.pos, oppColor);
+            if (oppAbs === myAbs) {
+              oppPiece.pos = -1;
+              captured = true;
+              capturedColor = oppColor;
+              capturedPieceId = oppPiece.id;
+              break;
+            }
           }
         }
+        if (captured) break;
       }
     }
   }
@@ -308,17 +364,17 @@ export function doMove(matchId: string, socketId: string, pieceId: number): Move
     match.status = 'finished';
     winnerColor = color;
     resetDice(match);
-    return { captured, capturedColor: captured ? oppColor : null, capturedPieceId, reached, turnEnded: true, winnerColor };
+    return { captured, capturedColor, capturedPieceId, reached, turnEnded: true, winnerColor };
   }
 
   // Roll 6 and not forfeit: extra turn
   if (roll === 6 && match.consecutiveSixes < 3) {
     resetDice(match);
-    return { captured, capturedColor: captured ? oppColor : null, capturedPieceId, reached, turnEnded: false, winnerColor: null };
+    return { captured, capturedColor, capturedPieceId, reached, turnEnded: false, winnerColor: null };
   }
 
   nextTurn(match);
-  return { captured, capturedColor: captured ? oppColor : null, capturedPieceId, reached, turnEnded: true, winnerColor: null };
+  return { captured, capturedColor, capturedPieceId, reached, turnEnded: true, winnerColor: null };
 }
 
 export function doResign(matchId: string, socketId: string): LudoColor {
@@ -326,15 +382,37 @@ export function doResign(matchId: string, socketId: string): LudoColor {
   if (!match) throw new Error('Match not found.');
   if (match.status !== 'active') throw new Error('Game not active.');
 
-  let winnerColor: LudoColor;
-  if (match.red.socketId === socketId) winnerColor = 'blue';
-  else if (match.blue?.socketId === socketId) winnerColor = 'red';
-  else throw new Error('You are not a player.');
+  // Find which color this socket is
+  const resignColor = PLAYER_ORDER.find(c => match.players[c]?.socketId === socketId);
+  if (!resignColor) throw new Error('You are not a player.');
 
-  match.winnerColor = winnerColor;
-  match.status = 'finished';
-  resetDice(match);
-  return winnerColor;
+  // Remove from player order, if they were current turn advance turn
+  match.playerOrder = match.playerOrder.filter(c => c !== resignColor);
+  match.players[resignColor] = null;
+
+  // Check if only one player left
+  const remaining = match.playerOrder;
+  if (remaining.length === 1) {
+    match.winnerColor = remaining[0];
+    match.status = 'finished';
+    resetDice(match);
+    return remaining[0];
+  }
+
+  // If it was this player's turn, advance
+  if (match.currentTurn === resignColor) {
+    const idx = PLAYER_ORDER.indexOf(resignColor);
+    // find next in remaining
+    let next = remaining[0];
+    for (const c of PLAYER_ORDER.slice(idx + 1)) {
+      if (remaining.includes(c)) { next = c; break; }
+    }
+    match.currentTurn = next;
+    resetDice(match);
+  }
+
+  // Return the "winner" as first remaining (for XP purposes, just return first)
+  return remaining[0];
 }
 
 export function doRematch(matchId: string, socketId: string): LudoMatch {
@@ -342,21 +420,26 @@ export function doRematch(matchId: string, socketId: string): LudoMatch {
   if (!old) throw new Error('Match not found.');
   if (old.status !== 'finished') throw new Error('Match still active.');
 
-  const isRed = old.red.socketId === socketId;
-  const isBlue = old.blue?.socketId === socketId;
-  if (!isRed && !isBlue) throw new Error('Not a player.');
-  if (!old.blue) throw new Error('Cannot rematch solo.');
+  const isPlayer = PLAYER_ORDER.some(c => old.players[c]?.socketId === socketId);
+  if (!isPlayer) throw new Error('Not a player.');
 
-  // Swap colors
-  const newRed  = isRed ? old.blue  : old.red;
-  const newBlue = isRed ? old.red   : old.blue;
+  // Count actual players
+  const activePlayers = PLAYER_ORDER.filter(c => old.players[c] !== null) as LudoColor[];
+  if (activePlayers.length < 2) throw new Error('Cannot rematch solo.');
 
+  // For rematch, create fresh match with same maxPlayers. Red stays Red (host).
   const nm: LudoMatch = {
     id: genId(),
     code: genCode(),
     status: 'active',
-    red:  { ...newRed,  pieces: makePieces() },
-    blue: { ...newBlue, pieces: makePieces() },
+    maxPlayers: old.maxPlayers,
+    players: {
+      red:    old.players.red    ? { ...old.players.red,    pieces: makePieces() } : null as any,
+      blue:   old.players.blue   ? { ...old.players.blue,   pieces: makePieces() } : null,
+      green:  old.players.green  ? { ...old.players.green,  pieces: makePieces() } : null,
+      yellow: old.players.yellow ? { ...old.players.yellow, pieces: makePieces() } : null,
+    },
+    playerOrder: activePlayers,
     currentTurn: 'red',
     diceRoll: null,
     diceRolled: false,
@@ -369,12 +452,16 @@ export function doRematch(matchId: string, socketId: string): LudoMatch {
   };
 
   matchStore.set(nm.id, nm);
-  socketIndex.set(nm.red.socketId, nm.id);
-  socketIndex.set(nm.blue!.socketId, nm.id);
+  for (const color of activePlayers) {
+    const side = nm.players[color];
+    if (side) socketIndex.set(side.socketId, nm.id);
+  }
 
   // Clean up old
-  socketIndex.delete(old.red.socketId);
-  socketIndex.delete(old.blue.socketId);
+  for (const color of PLAYER_ORDER) {
+    const side = old.players[color];
+    if (side) socketIndex.delete(side.socketId);
+  }
   for (const s of old.spectatorSocketIds) socketIndex.set(s, nm.id);
   matchStore.delete(matchId);
 
@@ -391,13 +478,29 @@ export function doLeave(socketId: string): { match: LudoMatch | null; wasPlayer:
 
   match.spectatorSocketIds = match.spectatorSocketIds.filter(s => s !== socketId);
 
-  const isRed  = match.red.socketId === socketId;
-  const isBlue = match.blue?.socketId === socketId;
+  const color = PLAYER_ORDER.find(c => match.players[c]?.socketId === socketId);
 
-  if ((isRed || isBlue) && match.status === 'active') {
-    match.winnerColor = isRed ? 'blue' : 'red';
-    match.status = 'finished';
-    resetDice(match);
+  if (color && match.status === 'active') {
+    match.playerOrder = match.playerOrder.filter(c => c !== color);
+    match.players[color] = null;
+
+    const remaining = match.playerOrder;
+    if (remaining.length <= 1) {
+      match.winnerColor = remaining[0] ?? null;
+      match.status = 'finished';
+      resetDice(match);
+    } else if (match.currentTurn === color) {
+      // Advance turn
+      const next = remaining[0];
+      match.currentTurn = next;
+      resetDice(match);
+    }
+    return { match, wasPlayer: true };
+  }
+
+  if (color && match.status === 'waiting') {
+    match.players[color] = null;
+    match.playerOrder = buildPlayerOrder(match.players);
     return { match, wasPlayer: true };
   }
 
@@ -409,9 +512,12 @@ export function addChat(matchId: string, socketId: string, text: string): LudoCh
   if (!match) throw new Error('Match not found.');
 
   let name = 'Spectator';
-  if (match.red.socketId === socketId) name = match.red.name;
-  else if (match.blue?.socketId === socketId) name = match.blue.name;
-  else if (!match.spectatorSocketIds.includes(socketId)) throw new Error('Not in match.');
+  const color = PLAYER_ORDER.find(c => match.players[c]?.socketId === socketId);
+  if (color) {
+    name = match.players[color]!.name;
+  } else if (!match.spectatorSocketIds.includes(socketId)) {
+    throw new Error('Not in match.');
+  }
 
   const msg: LudoChatMsg = {
     id: randomBytes(4).toString('hex'),
