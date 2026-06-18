@@ -98,7 +98,7 @@ function PostLightbox({ post: initialPost, onClose, isLoggedIn }: {
 
             {/* Content */}
             {post.content && (
-              <p className="font-mono text-xs text-white/75 leading-relaxed mb-3 whitespace-pre-wrap">{post.content}</p>
+              <p className="text-sm text-white/82 leading-relaxed mb-3 whitespace-pre-wrap" style={{ fontFamily: 'inherit' }}>{post.content}</p>
             )}
 
             {/* Hashtags */}
@@ -195,29 +195,29 @@ function PostTextCard({ post, onExpand }: { post: CommunityPostV2; onExpand: () 
         border: '1px solid rgba(255,255,255,0.08)',
       }}
     >
-      <div className="flex items-center gap-1 mb-1.5">
-        {icon && <span className="text-xs">{icon}</span>}
+      <div className="flex items-center gap-1.5 mb-2">
+        {icon && <span className="text-sm">{icon}</span>}
         {post.recTitle && (
-          <span className="font-mono text-[10px] text-white/50 truncate">{post.recTitle}</span>
+          <span className="font-mono text-xs text-white/55 truncate">{post.recTitle}</span>
         )}
-        <span className="font-mono text-[9px] text-white/25 ml-auto">{timeAgo(post.createdAt)}</span>
+        <span className="font-mono text-[10px] text-white/25 ml-auto">{timeAgo(post.createdAt)}</span>
       </div>
       {post.content && (
-        <p className="font-mono text-xs text-white/70 leading-relaxed line-clamp-3">{post.content}</p>
+        <p className="text-sm text-white/80 leading-relaxed line-clamp-4" style={{ fontFamily: 'inherit' }}>{post.content}</p>
       )}
       {post.poll && (
-        <p className="font-mono text-[10px] text-white/40 mt-1">📊 {post.poll.question}</p>
+        <p className="font-mono text-xs text-white/45 mt-1.5">📊 {post.poll.question}</p>
       )}
       {post.hashtags?.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-1.5">
+        <div className="flex flex-wrap gap-1 mt-2">
           {post.hashtags.slice(0, 4).map(h => (
-            <span key={h} className="font-mono text-[9px]" style={{ color: 'rgba(0,245,255,0.5)' }}>#{h}</span>
+            <span key={h} className="font-mono text-[10px]" style={{ color: 'rgba(0,245,255,0.55)' }}>#{h}</span>
           ))}
         </div>
       )}
-      <div className="flex items-center gap-3 mt-2">
-        <span className="font-mono text-[9px] text-white/30">❤️ {post.likesCount}</span>
-        <span className="font-mono text-[9px] text-white/30">💬 {post.commentsCount}</span>
+      <div className="flex items-center gap-3 mt-2.5">
+        <span className="font-mono text-[10px] text-white/35">❤️ {post.likesCount}</span>
+        <span className="font-mono text-[10px] text-white/35">💬 {post.commentsCount}</span>
       </div>
     </div>
   );

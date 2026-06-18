@@ -15,6 +15,7 @@ import { NotificationPanel } from '@/components/community/NotificationPanel';
 import { ModerationPanel } from '@/components/community/ModerationPanel';
 import AdminPanel from '@/components/community/AdminPanel';
 import { CommunityProfilePage } from '@/components/community/CommunityProfilePage';
+import { ProfileModalV2 } from '@/components/community/ProfileModalV2';
 import { CommunitySearchPanel } from '@/components/community/CommunitySearchPanel';
 
 type CommunityTab = 'feed' | 'voice' | 'people' | 'games' | 'debates' | 'activity';
@@ -30,7 +31,8 @@ export function CommunityPage() {
   const [showModeration, setShowModeration] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [viewProfileId, setViewProfileId] = useState<string | null>(null);
+  const [viewProfileId, setViewProfileId] = useState<string | null>(null);  // quick popup
+  const [fullProfileId, setFullProfileId] = useState<string | null>(null); // full-page profile
   const unreadCount = useCommunityStore(s => s.unreadCount);
   const fetchUnreadCount = useCommunityStore(s => s.fetchUnreadCount);
 
@@ -136,17 +138,17 @@ export function CommunityPage() {
         </div>
 
         <AnimatePresence mode="wait">
-          {viewProfileId ? (
+          {fullProfileId ? (
             <motion.div
-              key={`profile-${viewProfileId}`}
+              key={`profile-${fullProfileId}`}
               initial={{ opacity: 0, x: 24 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 24 }}
               transition={{ duration: 0.18 }}
             >
               <CommunityProfilePage
-                profileId={viewProfileId}
-                onBack={() => setViewProfileId(null)}
+                profileId={fullProfileId}
+                onBack={() => setFullProfileId(null)}
               />
             </motion.div>
           ) : (
@@ -187,6 +189,19 @@ export function CommunityPage() {
           <CommunitySearchPanel
             onClose={() => setShowSearch(false)}
             onOpenProfile={id => { setViewProfileId(id); setShowSearch(false); }}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {viewProfileId && !fullProfileId && (
+          <ProfileModalV2
+            profileId={viewProfileId}
+            onClose={() => setViewProfileId(null)}
+            onOpenFullProfile={() => {
+              const id = viewProfileId;
+              setViewProfileId(null);
+              setFullProfileId(id);
+            }}
           />
         )}
       </AnimatePresence>

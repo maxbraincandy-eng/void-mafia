@@ -17,7 +17,7 @@ function StatBox({ label, value }: { label: string; value: number | string }) {
   );
 }
 
-export function ProfileModalV2({ profileId, onClose }: { profileId: string; onClose: () => void }) {
+export function ProfileModalV2({ profileId, onClose, onOpenFullProfile }: { profileId: string; onClose: () => void; onOpenFullProfile?: () => void }) {
   const t = useT();
   const currentUser = useAuthStore(s => s.profile);
   const { followUser, unfollowUser } = useCommunityStore();
@@ -125,6 +125,22 @@ export function ProfileModalV2({ profileId, onClose }: { profileId: string; onCl
               <span className="font-mono text-[10px] text-white/35">⚙ {profile.favoriteRole}</span>
             )}
           </div>
+
+          {/* View Full Profile */}
+          {onOpenFullProfile && (
+            <button
+              onClick={onOpenFullProfile}
+              className="w-full py-2 rounded-2xl font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center gap-1.5"
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: 'rgba(255,255,255,0.55)',
+              }}
+            >
+              <span>👤</span>
+              <span>View Full Profile</span>
+            </button>
+          )}
 
           {/* Action buttons */}
           {!isSelf && (
