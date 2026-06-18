@@ -1,3 +1,20 @@
+// v3 — cache-busting update
+const CACHE_VERSION = 'vm-v3';
+
+self.addEventListener('install', e => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.map(key => {
+        if (key !== CACHE_VERSION) return caches.delete(key);
+      }))
+    ).then(() => self.clients.claim())
+  );
+});
+
 self.addEventListener('push', e => {
   const data = e.data?.json() ?? {};
   e.waitUntil(

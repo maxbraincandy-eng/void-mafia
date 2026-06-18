@@ -301,14 +301,18 @@ if (IS_PROD) {
     maxAge: '1y',
     immutable: true,
     setHeaders: (res, filePath) => {
-      if (filePath.endsWith('index.html')) {
+      if (filePath.endsWith('index.html') || filePath.endsWith('sw.js') || filePath.endsWith('manifest.json')) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
       }
     },
   }));
 
   app.get('*', (_req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.sendFile(path.join(clientDist, 'index.html'));
   });
 }
