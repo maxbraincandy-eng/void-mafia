@@ -7,6 +7,33 @@ import type { Card, JokerPlayerPublic, Suit } from '@/types/joker';
 
 const SUIT_SYMBOL: Record<Suit, string> = { S: '♠', H: '♥', D: '♦', C: '♣', J: '🃏' };
 
+// ── CSS keyframe animations ────────────────────────────────────────────────
+function JokerStyles() {
+  return (
+    <style>{`
+      @keyframes jkTurnPulse {
+        0%   { box-shadow: 0 0 0 0px rgba(0,245,255,0.9), 0 0 12px rgba(0,245,255,0.4); }
+        60%  { box-shadow: 0 0 0 7px rgba(0,245,255,0),   0 0 20px rgba(0,245,255,0.2); }
+        100% { box-shadow: 0 0 0 0px rgba(0,245,255,0),   0 0 12px rgba(0,245,255,0.4); }
+      }
+      @keyframes jkDeclPulse {
+        0%   { box-shadow: 0 0 0 0px rgba(192,132,252,0.9), 0 0 12px rgba(155,0,255,0.4); }
+        60%  { box-shadow: 0 0 0 7px rgba(192,132,252,0),   0 0 22px rgba(155,0,255,0.2); }
+        100% { box-shadow: 0 0 0 0px rgba(192,132,252,0),   0 0 12px rgba(155,0,255,0.4); }
+      }
+      @keyframes jkMyTurnBlink {
+        0%,100% { opacity: 1; }
+        50%     { opacity: 0.4; }
+      }
+      .jk-turn-active  { animation: jkTurnPulse  1.1s ease-in-out infinite; }
+      .jk-decl-active  { animation: jkDeclPulse  1.0s ease-in-out infinite; }
+      .jk-my-turn-text { animation: jkMyTurnBlink 0.9s ease-in-out infinite; }
+    `}</style>
+  );
+}
+
+function cardKey(c: Card) { return `${c.suit}${c.rank}`; }
+
 export function JokerGame() {
   const t = useT();
   const {
@@ -38,7 +65,6 @@ export function JokerGame() {
   const isFinished = match.status === 'finished';
   const isCreator = isPlayer && mySeat === 0;
 
-  // Playable cards — jokers are always playable when it's our turn
   const playableSet = useMemo(() => {
     if (!isMyPlayTurn || myHand.length === 0) return new Set<string>();
     const trick = match.currentTrick;
@@ -64,7 +90,6 @@ export function JokerGame() {
     if (!playableSet.has(key)) return;
     if (selectedCard && cardKey(selectedCard) === key) {
       if (card.suit === 'J') {
-        // Show joker target choice instead of playing immediately
         setJokerPendingCard(card);
       } else {
         await playCard(card);
@@ -78,14 +103,11 @@ export function JokerGame() {
     ? match.players.find(p => p.id === match.winnerPlayerId)
     : null;
 
-  // Sort players so "me" is always at bottom (seat arrangement)
+  // Seat arrangement: me at bottom
   const seatedPlayers = [...match.players].sort((a, b) => {
     if (mySeat === null) return a.seatIndex - b.seatIndex;
     return ((a.seatIndex - mySeat + 4) % 4) - ((b.seatIndex - mySeat + 4) % 4);
   });
-
-  // Positions for the 4 seats: bottom(me), left, top, right
-  const seatPositions = ['bottom', 'left', 'top', 'right'] as const;
 
   return (
     <motion.div
@@ -93,175 +115,148 @@ export function JokerGame() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[100] flex flex-col"
-      style={{ background: '#020008' }}
+      style={{ background: '#050310' }}
     >
-      {/* Header */}
+      <JokerStyles />
+
+      {/* ── Header ── */}
       <div
-        className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b"
-        style={{ borderColor: 'rgba(155,0,255,0.2)', background: 'rgba(10,6,28,0.97)' }}
+        className="flex-shrink-0 flex items-center justify-between px-4"
+        style={{ height: 48, borderBottom: '1px solid rgba(155,0,255,0.2)', background: 'rgba(8,4,22,0.98)' }}
       >
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-base">🃏</span>
+          <span className="text-lg">🃏</span>
           <div className="min-w-0">
             <p className="font-display font-bold text-white text-sm leading-tight">
               {t.games.joker.title}
-              <span className="ml-2 font-mono text-[10px] text-white/30 font-normal">
+              <span className="ml-2 font-mono text-[9px] text-white/25 font-normal">
                 {match.settings.mode === 'classic' ? t.games.joker.modeClassic : t.games.joker.modeNines}
               </span>
             </p>
-            <p className="font-mono text-[9px] text-white/30">
+            <p className="font-mono text-[9px] text-white/25">
               {match.code} · {t.games.joker.round} {match.currentRoundIndex + 1}/{match.totalRounds} · {cardCount}🃏
             </p>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => setShowScoreboard(s => !s)}
-            className="font-mono text-[10px] text-white/40 hover:text-white/70 px-2 py-1 rounded border border-white/10 hover:border-white/25 transition-colors"
-          >
+          <button onClick={() => setShowScoreboard(s => !s)}
+            className="font-mono text-[10px] text-white/40 hover:text-white/70 px-2 py-1 rounded border border-white/10 hover:border-white/25 transition-colors">
             {t.games.joker.score}
           </button>
           {isPlayer && match.status === 'playing' && (
-            <button
-              onClick={resign}
-              className="font-mono text-[10px] text-red-400/60 hover:text-red-400 px-2 py-1 rounded border border-red-500/15 hover:border-red-500/35 transition-colors"
-            >
+            <button onClick={resign}
+              className="font-mono text-[10px] text-red-400/60 hover:text-red-400 px-2 py-1 rounded border border-red-500/15 hover:border-red-500/35 transition-colors">
               {t.games.joker.resign}
             </button>
           )}
-          <button
-            onClick={leaveMatch}
-            className="font-mono text-[10px] text-white/35 hover:text-white/70 px-2 py-1 rounded border border-white/10 hover:border-white/25 transition-colors"
-          >
+          <button onClick={leaveMatch}
+            className="font-mono text-[10px] text-white/35 hover:text-white/70 px-2 py-1 rounded border border-white/10 hover:border-white/25 transition-colors">
             ✕
           </button>
         </div>
       </div>
 
+      {/* ── Main content ── */}
       <div className="flex-1 overflow-hidden flex flex-col relative min-h-0">
+
         {/* ── Waiting room ── */}
         {match.status === 'waiting' && (
-          <WaitingRoom
-            match={match}
-            isCreator={isCreator}
-            onStart={startMatch}
-            isLoading={isLoading}
-          />
+          <WaitingRoom match={match} isCreator={isCreator} onStart={startMatch} isLoading={isLoading} />
         )}
 
-        {/* ── Game table ── */}
+        {/* ── Active game ── */}
         {match.status !== 'waiting' && !isFinished && (
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-            {/* Player badges (top + sides) */}
-            <div className="flex-shrink-0 px-3 pt-2 grid grid-cols-3 gap-1">
-              {/* Top player */}
-              <div />
-              <PlayerBadge
-                player={seatedPlayers[2]}
-                match={match}
-                myId={myId}
-                position="top"
-              />
-              <div />
-              {/* Left + Right */}
-              <PlayerBadge player={seatedPlayers[1]} match={match} myId={myId} position="left" />
-              <div />
-              <PlayerBadge player={seatedPlayers[3]} match={match} myId={myId} position="right" />
+
+            {/* Top player */}
+            <div className="flex-shrink-0 flex justify-center pt-2 pb-0.5 px-2">
+              <PlayerBadge player={seatedPlayers[2]} match={match} myId={myId} position="top" />
             </div>
 
-            {/* Table center: current trick */}
-            <div className="flex-1 flex items-center justify-center min-h-0 py-2">
-              <TrickArea match={match} seatedPlayers={seatedPlayers} />
-            </div>
-
-            {/* Declaration phase */}
-            <AnimatePresence>
-              {match.status === 'declaration' && isMyDeclTurn && myDeclaration === null && (
-                <DeclarationPanel
-                  cardCount={cardCount}
-                  onDeclare={declareAction}
-                />
-              )}
-            </AnimatePresence>
-
-            {/* Declaration waiting */}
-            {match.status === 'declaration' && (!isMyDeclTurn || myDeclaration !== null) && (
-              <div className="flex-shrink-0 text-center pb-2">
-                <p className="font-mono text-[11px] text-white/35">
-                  {myDeclaration !== null
-                    ? `${t.games.joker.yourDeclaration}: ${myDeclaration}`
-                    : t.games.joker.waitingDeclaration}
-                </p>
-                <DeclarationProgress match={match} />
+            {/* Left | Table | Right */}
+            <div className="flex-1 flex items-stretch min-h-0 gap-1 px-1">
+              {/* Left player */}
+              <div className="flex-shrink-0 flex items-center">
+                <PlayerBadge player={seatedPlayers[1]} match={match} myId={myId} position="side" />
               </div>
-            )}
 
-            {/* My hand */}
-            {isPlayer && (
-              <div className="flex-shrink-0 px-2 pb-2">
-                <PlayerBadge
-                  player={seatedPlayers[0]}
-                  match={match}
-                  myId={myId}
-                  position="bottom"
-                  compact
-                />
-                <div className="mt-1 flex gap-1 overflow-x-auto pb-1 justify-center flex-wrap">
-                  {myHand.map((card, i) => {
-                    const key = cardKey(card);
-                    const isSelected = selectedCard ? cardKey(selectedCard) === key : false;
-                    const isPlayable = playableSet.has(key);
-                    return (
-                      <JokerCard
-                        key={i}
-                        card={card}
-                        selected={isSelected}
-                        playable={isMyPlayTurn && isPlayable}
-                        disabled={isMyPlayTurn && !isPlayable}
-                        onClick={() => handleCardClick(card)}
-                      />
-                    );
-                  })}
+              {/* Table felt */}
+              <div className="flex-1 min-h-0 py-1">
+                <TrickArea match={match} seatedPlayers={seatedPlayers} />
+              </div>
+
+              {/* Right player */}
+              <div className="flex-shrink-0 flex items-center">
+                <PlayerBadge player={seatedPlayers[3]} match={match} myId={myId} position="side" />
+              </div>
+            </div>
+
+            {/* ── Bottom section: declaration + hand ── */}
+            <div className="flex-shrink-0 px-2 pb-2">
+
+              {/* Declaration panel (my turn) */}
+              <AnimatePresence>
+                {match.status === 'declaration' && isMyDeclTurn && myDeclaration === null && (
+                  <DeclarationPanel cardCount={cardCount} onDeclare={declareAction} />
+                )}
+              </AnimatePresence>
+
+              {/* Declaration waiting */}
+              {match.status === 'declaration' && (!isMyDeclTurn || myDeclaration !== null) && (
+                <div className="flex-shrink-0 text-center pb-1">
+                  <p className="font-mono text-[10px] text-white/35">
+                    {myDeclaration !== null
+                      ? `${t.games.joker.yourDeclaration}: ${myDeclaration}`
+                      : t.games.joker.waitingDeclaration}
+                  </p>
+                  <DeclarationProgress match={match} />
+                </div>
+              )}
+
+              {/* My player badge */}
+              {isPlayer && (
+                <PlayerBadge player={seatedPlayers[0]} match={match} myId={myId} position="bottom" />
+              )}
+
+              {/* My hand — fan layout */}
+              {isPlayer && (
+                <div className="mt-1.5">
+                  <HandFan
+                    cards={myHand}
+                    playableSet={playableSet}
+                    isMyTurn={isMyPlayTurn}
+                    selectedCard={selectedCard}
+                    onCardClick={handleCardClick}
+                  />
                   {myHand.length === 0 && match.status === 'playing' && (
-                    <p className="font-mono text-xs text-white/20 py-4">{t.games.joker.noCards}</p>
+                    <p className="font-mono text-xs text-white/20 text-center py-3">{t.games.joker.noCards}</p>
                   )}
                 </div>
-                {isMyPlayTurn && selectedCard && (
-                  <p className="text-center font-mono text-[10px] text-neon-cyan/60 mt-1">
-                    {t.games.joker.tapAgainToPlay}
-                  </p>
-                )}
-                {isMyPlayTurn && !selectedCard && (
-                  <p className="text-center font-mono text-[10px] text-neon-cyan mt-1">
-                    {t.games.joker.yourTurn}
-                  </p>
-                )}
-              </div>
-            )}
+              )}
 
-            {isSpectator && (
-              <div className="flex-shrink-0 text-center py-2">
-                <p className="font-mono text-[10px] text-white/25">{t.games.joker.spectating}</p>
-              </div>
-            )}
+              {/* Turn status text */}
+              {isPlayer && isMyPlayTurn && (
+                <p className={`text-center font-mono text-[11px] mt-1.5 tracking-wider ${selectedCard ? 'text-yellow-400/80' : 'text-cyan-400 jk-my-turn-text'}`}
+                  style={{ textShadow: selectedCard ? 'none' : '0 0 10px rgba(0,245,255,0.5)' }}>
+                  {selectedCard ? `▶ ${t.games.joker.tapAgainToPlay}` : `▶ ${t.games.joker.yourTurn}`}
+                </p>
+              )}
+
+              {isSpectator && (
+                <p className="font-mono text-[10px] text-white/20 text-center py-1">{t.games.joker.spectating}</p>
+              )}
+            </div>
           </div>
         )}
 
-        {/* ── Joker target choice modal ── */}
+        {/* ── Joker target modal ── */}
         <AnimatePresence>
           {jokerPendingCard && (
-            <motion.div
-              key="joker-choice"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+            <motion.div key="joker-choice" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="absolute inset-0 z-30 flex items-center justify-center"
-              style={{ background: 'rgba(2,0,8,0.88)', backdropFilter: 'blur(6px)' }}
-            >
-              <div
-                className="mx-4 w-full max-w-xs rounded-2xl overflow-hidden"
-                style={{ background: 'rgba(30,15,5,0.98)', border: '1px solid rgba(251,191,36,0.4)' }}
-              >
+              style={{ background: 'rgba(2,0,8,0.88)', backdropFilter: 'blur(6px)' }}>
+              <div className="mx-4 w-full max-w-xs rounded-2xl overflow-hidden"
+                style={{ background: 'rgba(30,15,5,0.98)', border: '1px solid rgba(251,191,36,0.4)' }}>
                 <div className="px-5 py-4 border-b text-center" style={{ borderColor: 'rgba(251,191,36,0.2)' }}>
                   <div className="text-3xl mb-1">🃏</div>
                   <p className="font-mono text-[10px] uppercase tracking-widest text-yellow-400/60">
@@ -269,29 +264,23 @@ export function JokerGame() {
                   </p>
                 </div>
                 <div className="px-4 py-3 space-y-2">
-                  <button
-                    onClick={async () => { setJokerPendingCard(null); await playCard(jokerPendingCard); }}
+                  <button onClick={async () => { setJokerPendingCard(null); await playCard(jokerPendingCard); }}
                     className="w-full py-2.5 rounded-xl font-display font-semibold text-sm uppercase tracking-wider transition-all active:scale-95"
-                    style={{ background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.4)', color: '#fbbf24' }}
-                  >
+                    style={{ background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.4)', color: '#fbbf24' }}>
                     {t.games.joker.jokerWinSelf}
                   </button>
-                  {match.players.filter(p => p.id !== myId).map(p => (
-                    <button
-                      key={p.id}
+                  {match.players.filter((p: JokerPlayerPublic) => p.id !== myId).map((p: JokerPlayerPublic) => (
+                    <button key={p.id}
                       onClick={async () => { setJokerPendingCard(null); await playCard(jokerPendingCard, p.id); }}
                       className="w-full py-2.5 rounded-xl font-display font-semibold text-sm transition-all active:scale-95"
-                      style={{ background: 'rgba(155,0,255,0.08)', border: '1px solid rgba(155,0,255,0.25)', color: '#c084fc' }}
-                    >
+                      style={{ background: 'rgba(155,0,255,0.08)', border: '1px solid rgba(155,0,255,0.25)', color: '#c084fc' }}>
                       {t.games.joker.jokerGiveTo} {p.name}{p.isBot ? ' 🤖' : ''}
                     </button>
                   ))}
                 </div>
                 <div className="px-4 pb-3">
-                  <button
-                    onClick={() => { setJokerPendingCard(null); selectCard(null); }}
-                    className="w-full py-2 rounded-lg font-mono text-xs text-white/30 border border-white/10 hover:text-white/60 transition-colors"
-                  >
+                  <button onClick={() => { setJokerPendingCard(null); selectCard(null); }}
+                    className="w-full py-2 rounded-lg font-mono text-xs text-white/30 border border-white/10 hover:text-white/60 transition-colors">
                     {t.games.joker.cancel}
                   </button>
                 </div>
@@ -303,14 +292,9 @@ export function JokerGame() {
         {/* ── Round End overlay ── */}
         <AnimatePresence>
           {match.status === 'round_end' && (
-            <motion.div
-              key="round-end"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+            <motion.div key="round-end" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="absolute inset-0 z-20 flex items-center justify-center"
-              style={{ background: 'rgba(2,0,8,0.92)', backdropFilter: 'blur(6px)' }}
-            >
+              style={{ background: 'rgba(2,0,8,0.92)', backdropFilter: 'blur(6px)' }}>
               <RoundEndPanel match={match} myId={myId} />
             </motion.div>
           )}
@@ -319,32 +303,21 @@ export function JokerGame() {
         {/* ── Finished overlay ── */}
         <AnimatePresence>
           {isFinished && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="absolute inset-0 z-20 flex items-center justify-center"
-              style={{ background: 'rgba(2,0,8,0.9)', backdropFilter: 'blur(6px)' }}
-            >
-              <div
-                className="mx-4 w-full max-w-xs rounded-2xl overflow-hidden"
-                style={{ background: 'rgba(20,10,40,0.98)', border: '1px solid rgba(155,0,255,0.4)' }}
-              >
+              style={{ background: 'rgba(2,0,8,0.9)', backdropFilter: 'blur(6px)' }}>
+              <div className="mx-4 w-full max-w-xs rounded-2xl overflow-hidden"
+                style={{ background: 'rgba(20,10,40,0.98)', border: '1px solid rgba(155,0,255,0.4)' }}>
                 <div className="px-5 py-4 border-b" style={{ borderColor: 'rgba(155,0,255,0.2)' }}>
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-white/30 text-center">
-                    {t.games.joker.finalScore}
-                  </p>
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-white/30 text-center">{t.games.joker.finalScore}</p>
                   {winner && (
-                    <p className="font-display text-xl font-bold text-center mt-1"
-                      style={{ color: '#00f5ff' }}>
-                      🏆 {winner.name}
-                    </p>
+                    <p className="font-display text-xl font-bold text-center mt-1" style={{ color: '#00f5ff' }}>🏆 {winner.name}</p>
                   )}
                 </div>
                 <div className="px-4 py-3 space-y-1">
                   {[...match.players]
-                    .sort((a, b) => (match.scores[b.id] ?? 0) - (match.scores[a.id] ?? 0))
-                    .map((p, i) => (
+                    .sort((a: JokerPlayerPublic, b: JokerPlayerPublic) => (match.scores[b.id] ?? 0) - (match.scores[a.id] ?? 0))
+                    .map((p: JokerPlayerPublic, i: number) => (
                       <div key={p.id} className="flex items-center gap-3 py-1">
                         <span className="font-mono text-xs text-white/30 w-4">{i + 1}.</span>
                         <span className={`font-mono text-sm flex-1 ${p.id === myId ? 'text-white' : 'text-white/60'}`}>
@@ -359,19 +332,14 @@ export function JokerGame() {
                 </div>
                 <div className="px-4 pb-4 flex gap-2">
                   {isPlayer && (
-                    <button
-                      onClick={rematch}
-                      disabled={isLoading}
-                      className="flex-1 py-2 rounded-xl font-display font-semibold text-sm uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
-                      style={{ background: 'linear-gradient(135deg, rgba(155,0,255,0.4), rgba(0,245,255,0.25))', border: '1px solid rgba(155,0,255,0.4)', color: '#fff' }}
-                    >
+                    <button onClick={rematch} disabled={isLoading}
+                      className="flex-1 py-2.5 rounded-xl font-display font-semibold text-sm uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
+                      style={{ background: 'linear-gradient(135deg,rgba(155,0,255,0.4),rgba(0,245,255,0.25))', border: '1px solid rgba(155,0,255,0.4)', color: '#fff' }}>
                       {t.games.joker.rematch}
                     </button>
                   )}
-                  <button
-                    onClick={leaveMatch}
-                    className="flex-1 py-2 rounded-xl font-mono text-sm text-white/50 border border-white/15 hover:text-white/80 transition-colors"
-                  >
+                  <button onClick={leaveMatch}
+                    className="flex-1 py-2.5 rounded-xl font-mono text-sm text-white/50 border border-white/15 hover:text-white/80 transition-colors">
                     {t.games.joker.backToGames}
                   </button>
                 </div>
@@ -383,41 +351,30 @@ export function JokerGame() {
         {/* ── Scoreboard panel ── */}
         <AnimatePresence>
           {showScoreboard && (
-            <motion.div
-              initial={{ opacity: 0, x: '100%' }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: '100%' }}
+            <motion.div initial={{ opacity: 0, x: '100%' }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: '100%' }}
               className="absolute inset-y-0 right-0 z-10 w-64 overflow-y-auto"
-              style={{ background: 'rgba(10,6,28,0.97)', borderLeft: '1px solid rgba(155,0,255,0.2)' }}
-            >
+              style={{ background: 'rgba(10,6,28,0.97)', borderLeft: '1px solid rgba(155,0,255,0.2)' }}>
               <ScoreboardPanel match={match} myId={myId} onClose={() => setShowScoreboard(false)} />
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Chat */}
-      <div
-        className="flex-shrink-0 border-t"
-        style={{ borderColor: 'rgba(155,0,255,0.15)', maxHeight: 120 }}
-      >
-        <div ref={chatRef} className="overflow-y-auto px-3 py-1 space-y-0.5" style={{ maxHeight: 80 }}>
-          {match.chat.map((msg, i) => (
+      {/* ── Chat ── */}
+      <div className="flex-shrink-0 border-t" style={{ borderColor: 'rgba(155,0,255,0.12)', maxHeight: 110 }}>
+        <div ref={chatRef} className="overflow-y-auto px-3 py-1 space-y-0.5" style={{ maxHeight: 72 }}>
+          {match.chat.map((msg: any, i: number) => (
             <div key={i} className="flex gap-2 items-start">
               <span className="font-mono text-[9px] text-white/30 flex-shrink-0 mt-0.5">{msg.senderName}</span>
-              <span className="font-mono text-[10px] text-white/65 break-words min-w-0">{msg.text}</span>
+              <span className="font-mono text-[10px] text-white/60 break-words min-w-0">{msg.text}</span>
             </div>
           ))}
         </div>
         <div className="flex gap-2 px-3 pb-2">
-          <input
-            value={chatInput}
-            onChange={e => setChatInput(e.target.value)}
+          <input value={chatInput} onChange={e => setChatInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') handleChatSend(); }}
-            placeholder={t.games.joker.chatPlaceholder}
-            maxLength={200}
-            className="flex-1 bg-transparent font-mono text-xs text-white placeholder-white/20 outline-none border-b border-white/10 focus:border-white/30 transition-colors py-0.5"
-          />
+            placeholder={t.games.joker.chatPlaceholder} maxLength={200}
+            className="flex-1 bg-transparent font-mono text-xs text-white placeholder-white/20 outline-none border-b border-white/10 focus:border-white/30 transition-colors py-0.5" />
           <button onClick={handleChatSend} disabled={!chatInput.trim()}
             className="font-mono text-xs text-white/40 hover:text-white/70 transition-colors disabled:opacity-20">↵</button>
         </div>
@@ -426,128 +383,102 @@ export function JokerGame() {
   );
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────
-
-function cardKey(c: Card) { return `${c.suit}${c.rank}`; }
-
-function WaitingRoom({ match, isCreator, onStart, isLoading }: {
-  match: any; isCreator: boolean; onStart: () => void; isLoading: boolean;
-}) {
-  const t = useT();
-  const [copied, setCopied] = useState(false);
-
-  return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-5 p-6">
-      <div
-        className="w-20 h-20 rounded-full flex items-center justify-center text-4xl"
-        style={{ background: 'rgba(155,0,255,0.08)', border: '2px solid rgba(155,0,255,0.2)' }}
-      >
-        🃏
-      </div>
-
-      <div className="text-center">
-        <p className="font-mono text-sm text-white/60">
-          {match.players.length}/4 {t.games.joker.players}
-        </p>
-        <p className="font-mono text-xs text-white/30 mt-1">{t.games.joker.waitingFor4}</p>
-      </div>
-
-      {/* Player seats */}
-      <div className="w-full max-w-xs space-y-1">
-        {Array.from({ length: 4 }, (_, i) => {
-          const p = match.players.find((pl: any) => pl.seatIndex === i);
-          return (
-            <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
-              style={{ background: p ? 'rgba(155,0,255,0.08)' : 'rgba(255,255,255,0.02)', border: `1px solid ${p ? 'rgba(155,0,255,0.2)' : 'rgba(255,255,255,0.06)'}` }}>
-              <span className="font-mono text-[10px] text-white/30 w-4">{i + 1}</span>
-              <span className={`font-mono text-xs ${p ? 'text-white' : 'text-white/20'}`}>
-                {p ? `${p.name}${i === 0 ? ' 👑' : ''}` : '—'}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
-      <button
-        onClick={() => {
-          navigator.clipboard?.writeText(match.code).catch(() => {});
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-        }}
-        className="flex items-center gap-2 px-4 py-2 rounded-xl font-mono text-sm transition-all active:scale-95"
-        style={{ border: '1px solid rgba(155,0,255,0.4)', background: 'rgba(155,0,255,0.08)', color: '#c084fc' }}
-      >
-        <span>{match.code}</span>
-        <span className="text-xs opacity-60">{copied ? '✓' : '⎘'}</span>
-      </button>
-
-      {isCreator && match.players.length === 4 && (
-        <button
-          onClick={onStart}
-          disabled={isLoading}
-          className="px-8 py-3 rounded-xl font-display font-bold text-sm uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
-          style={{ background: 'linear-gradient(135deg, rgba(155,0,255,0.5), rgba(0,245,255,0.3))', border: '1px solid rgba(155,0,255,0.5)', color: '#fff', boxShadow: '0 0 20px rgba(155,0,255,0.2)' }}
-        >
-          {t.games.joker.startGame}
-        </button>
-      )}
-    </div>
-  );
-}
+// ── Sub-components ─────────────────────────────────────────────────────────
 
 function PlayerBadge({ player, match, myId, position, compact }: {
   player: JokerPlayerPublic | undefined;
-  match: any;
-  myId: string | null;
-  position: 'top' | 'left' | 'right' | 'bottom';
+  match: any; myId: string | null;
+  position: 'top' | 'side' | 'bottom';
   compact?: boolean;
 }) {
   const t = useT();
-  if (!player) return <div />;
+  if (!player) return <div style={{ width: position === 'side' ? 72 : undefined }} />;
 
-  const isDealer = player.seatIndex === match.currentDealerSeat;
+  const isDealer   = player.seatIndex === match.currentDealerSeat;
   const declaration = match.declarations[player.id] ?? null;
-  const taken = match.tricksTaken[player.id] ?? 0;
-  const isMyTurn = match.currentPlaySeat === player.seatIndex && match.status === 'playing';
-  const isDeclTurn = match.currentDeclarationSeat === player.seatIndex && match.status === 'declaration';
-  const isMe = player.id === myId;
-  const score = match.scores[player.id] ?? 0;
+  const taken       = match.tricksTaken[player.id] ?? 0;
+  const isMyTurn    = match.currentPlaySeat === player.seatIndex && match.status === 'playing';
+  const isDeclTurn  = match.currentDeclarationSeat === player.seatIndex && match.status === 'declaration';
+  const isMe        = player.id === myId;
+  const score       = match.scores[player.id] ?? 0;
+  const cardCount   = player.cardCount;
+  const isActive    = isMyTurn || isDeclTurn;
 
-  const cardCount = player.cardCount;
+  const borderColor = isMyTurn ? 'rgba(0,245,255,0.55)' : isDeclTurn ? 'rgba(192,132,252,0.55)' : isMe ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)';
+  const bgColor     = isActive ? (isMyTurn ? 'rgba(0,245,255,0.07)' : 'rgba(155,0,255,0.08)') : 'rgba(255,255,255,0.03)';
+  const animClass   = isMyTurn ? 'jk-turn-active' : isDeclTurn ? 'jk-decl-active' : '';
 
-  return (
-    <div className={`flex ${position === 'left' || position === 'right' ? 'flex-col items-center' : 'items-center'} gap-1`}>
+  if (position === 'side') {
+    // Compact vertical badge for left/right players
+    return (
       <div
-        className="flex items-center gap-1.5 px-2 py-1 rounded-lg"
+        className={animClass}
         style={{
-          background: isMyTurn || isDeclTurn
-            ? 'rgba(0,245,255,0.08)'
-            : 'rgba(255,255,255,0.03)',
-          border: `1px solid ${isMyTurn || isDeclTurn ? 'rgba(0,245,255,0.3)' : 'rgba(255,255,255,0.06)'}`,
-          boxShadow: isMyTurn ? '0 0 10px rgba(0,245,255,0.15)' : 'none',
+          width: 72, padding: '6px 8px', borderRadius: 10,
+          background: bgColor, border: `1px solid ${borderColor}`,
+          display: 'flex', flexDirection: 'column', gap: 3,
+          transition: 'border-color 0.3s',
         }}
       >
-        {isDealer && <span className="text-[10px]" title="Dealer">🎴</span>}
-        <div className="min-w-0">
-          <p className="font-mono text-[10px] text-white truncate max-w-[70px]">
-            {player.name}{isMe ? ' ✦' : ''}{player.isBot ? ' 🤖' : ''}
-          </p>
-          {!compact && (
-            <p className="font-mono text-[9px] text-white/30">
-              {declaration !== null ? `${t.games.joker.declared}: ${declaration}` : ''}
-              {declaration !== null && ` · ${t.games.joker.taken}: ${taken}`}
-              {' · '}
-              <span style={{ color: score >= 0 ? 'rgba(0,245,255,0.7)' : '#f87171' }}>{score}</span>
-            </p>
-          )}
+        {/* Name */}
+        <div className="flex items-center gap-1">
+          {isDealer && <span style={{ fontSize: 9 }}>🎴</span>}
+          <span className="font-mono text-[10px] text-white truncate" style={{ maxWidth: 52 }}>
+            {player.name}{player.isBot ? '🤖' : ''}
+          </span>
         </div>
+        {/* Score */}
+        <span className="font-mono text-[10px] font-bold" style={{ color: score >= 0 ? '#00f5ff' : '#f87171' }}>
+          {score >= 0 ? '+' : ''}{score}
+        </span>
+        {/* Declaration → taken */}
+        {declaration !== null && (
+          <span className="font-mono text-[9px] text-white/40">
+            {declaration}→{taken}
+          </span>
+        )}
         {/* Card count dots */}
-        <div className="flex gap-0.5 flex-shrink-0">
-          {Array.from({ length: Math.min(cardCount, 9) }, (_, i) => (
-            <div key={i} style={{ width: 4, height: 8, background: 'rgba(192,132,252,0.5)', borderRadius: 1 }} />
+        <div className="flex gap-0.5 flex-wrap">
+          {Array.from({ length: Math.min(cardCount, 8) }, (_, i) => (
+            <div key={i} style={{ width: 5, height: 9, background: isActive ? (isMyTurn ? 'rgba(0,245,255,0.6)' : 'rgba(192,132,252,0.6)') : 'rgba(192,132,252,0.35)', borderRadius: 1.5 }} />
           ))}
-          {cardCount > 9 && <span className="font-mono text-[8px] text-white/30">+{cardCount - 9}</span>}
+          {cardCount > 8 && <span className="font-mono text-[8px] text-white/25">+{cardCount - 8}</span>}
         </div>
+      </div>
+    );
+  }
+
+  // Horizontal badge for top/bottom
+  return (
+    <div
+      className={animClass}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 8,
+        padding: '5px 10px', borderRadius: 10,
+        background: bgColor, border: `1px solid ${borderColor}`,
+        maxWidth: 260, transition: 'border-color 0.3s',
+      }}
+    >
+      {isDealer && <span style={{ fontSize: 11 }}>🎴</span>}
+      <div style={{ minWidth: 0 }}>
+        <p className="font-mono text-[11px] text-white font-semibold truncate" style={{ maxWidth: 110 }}>
+          {player.name}{isMe ? ' ✦' : ''}{player.isBot ? ' 🤖' : ''}
+        </p>
+        {!compact && declaration !== null && (
+          <p className="font-mono text-[9px] text-white/40">
+            {t.games.joker.declared}: {declaration} · {t.games.joker.taken}: {taken}
+          </p>
+        )}
+      </div>
+      <span className="font-mono text-[11px] font-bold flex-shrink-0" style={{ color: score >= 0 ? '#00f5ff' : '#f87171' }}>
+        {score >= 0 ? '+' : ''}{score}
+      </span>
+      {/* Card count */}
+      <div className="flex gap-0.5 flex-shrink-0">
+        {Array.from({ length: Math.min(cardCount, 10) }, (_, i) => (
+          <div key={i} style={{ width: 4, height: 10, background: isActive ? (isMyTurn ? 'rgba(0,245,255,0.65)' : 'rgba(192,132,252,0.65)') : 'rgba(192,132,252,0.3)', borderRadius: 1.5 }} />
+        ))}
+        {cardCount > 10 && <span className="font-mono text-[8px] text-white/25">+{cardCount - 10}</span>}
       </div>
     </div>
   );
@@ -556,72 +487,159 @@ function PlayerBadge({ player, match, myId, position, compact }: {
 function TrickArea({ match, seatedPlayers }: { match: any; seatedPlayers: JokerPlayerPublic[] }) {
   const t = useT();
   const trick = match.currentTrick as Array<{ playerId: string; seatIndex: number; card: Card }>;
-  // Map seatIndex to position in seatedPlayers (bottom=0, left=1, top=2, right=3)
+
   const seatToPos: Record<number, number> = {};
   seatedPlayers.forEach((p, idx) => { seatToPos[p.seatIndex] = idx; });
 
-  const positions = ['bottom', 'left', 'top', 'right'];
+  const positions = ['bottom', 'left', 'top', 'right'] as const;
+
+  // Card positions relative to felt center; placed with absolute + translate
   const posStyle: Record<string, React.CSSProperties> = {
-    bottom: { bottom: 0, left: '50%', transform: 'translateX(-50%)' },
-    left:   { left: 0, top: '50%', transform: 'translateY(-50%)' },
-    top:    { top: 0, left: '50%', transform: 'translateX(-50%)' },
-    right:  { right: 0, top: '50%', transform: 'translateY(-50%)' },
+    bottom: { bottom: '14%',  left: '50%', transform: 'translateX(-50%)' },
+    left:   { left:   '14%',  top:  '50%', transform: 'translateY(-50%)' },
+    top:    { top:    '14%',  left: '50%', transform: 'translateX(-50%)' },
+    right:  { right:  '14%',  top:  '50%', transform: 'translateY(-50%)' },
   };
 
+  const trumpSuit = match.trumpSuit as Suit | null;
+
   return (
-    <div className="relative" style={{ width: 230, height: 230 }}>
-      {/* Green felt center */}
+    <div style={{ width: '100%', height: '100%', minHeight: 160, position: 'relative' }}>
+      {/* Felt */}
       <div style={{
-        position: 'absolute', inset: 20, borderRadius: 14,
-        background: 'radial-gradient(circle, rgba(0,60,20,0.6), rgba(0,30,10,0.4))',
-        border: '1px solid rgba(0,200,50,0.12)',
+        position: 'absolute', inset: 0,
+        borderRadius: 18,
+        background: 'radial-gradient(ellipse 90% 80% at 50% 45%, #0e5c24 0%, #07350f 55%, #031208 100%)',
+        border: '1px solid rgba(10,160,60,0.18)',
+        boxShadow: 'inset 0 0 60px rgba(0,0,0,0.65), inset 0 0 20px rgba(0,80,20,0.3), 0 4px 24px rgba(0,0,0,0.5)',
       }} />
 
+      {/* Trump indicator */}
+      {trumpSuit && trumpSuit !== 'J' && (
+        <div style={{
+          position: 'absolute', top: 8, right: 10, zIndex: 3,
+          display: 'flex', alignItems: 'center', gap: 4,
+          padding: '2px 8px', borderRadius: 20,
+          background: 'rgba(0,0,0,0.45)',
+          border: '1px solid rgba(255,255,255,0.12)',
+        }}>
+          <span style={{ fontSize: 11, color: (trumpSuit === 'H' || trumpSuit === 'D') ? '#e53e3e' : '#e2e8f0' }}>
+            {SUIT_SYMBOL[trumpSuit]}
+          </span>
+          <span className="font-mono text-[9px] text-white/40">trump</span>
+        </div>
+      )}
+
+      {/* Round / phase indicator */}
+      <div style={{
+        position: 'absolute', top: 8, left: 10, zIndex: 3,
+        padding: '2px 8px', borderRadius: 20,
+        background: 'rgba(0,0,0,0.45)',
+        border: '1px solid rgba(255,255,255,0.1)',
+      }}>
+        <span className="font-mono text-[9px] text-white/35">
+          {t.games.joker.round} {match.currentRoundIndex + 1}
+        </span>
+      </div>
+
+      {/* Played cards */}
       {trick.map((pc) => {
         const posIdx = seatToPos[pc.seatIndex] ?? 0;
         const pos = positions[posIdx];
         return (
           <div key={`${pc.playerId}-${cardKey(pc.card)}`}
-            style={{ position: 'absolute', ...posStyle[pos] }}>
-            <JokerCard card={pc.card} size="md" />
+            style={{ position: 'absolute', zIndex: 4, ...posStyle[pos] }}>
+            <JokerCard card={pc.card} size="md" animate />
           </div>
         );
       })}
 
+      {/* Empty table prompt */}
       {trick.length === 0 && match.status === 'playing' && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p className="font-mono text-[9px] text-white/15">{t.games.joker.playCard}</p>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
+          <p className="font-mono text-[10px] text-white/15">{t.games.joker.playCard}</p>
         </div>
       )}
     </div>
   );
 }
 
+// ── Fan hand layout ────────────────────────────────────────────────────────
+
+const HAND_W = 72;
+const HAND_H = 108;
+
+function HandFan({ cards, playableSet, isMyTurn, selectedCard, onCardClick }: {
+  cards: Card[];
+  playableSet: Set<string>;
+  isMyTurn: boolean;
+  selectedCard: Card | null;
+  onCardClick: (card: Card) => void;
+}) {
+  if (cards.length === 0) return null;
+
+  const n = cards.length;
+  // Overlap shrinks as hand gets bigger so it always fits in ~340px
+  const maxWidth = Math.min(340, window.innerWidth - 32);
+  const overlap = n <= 1 ? 0 : Math.min(42, Math.floor((maxWidth - HAND_W) / (n - 1)));
+  const totalW = (n - 1) * overlap + HAND_W;
+
+  return (
+    <div style={{ position: 'relative', height: HAND_H + 18, width: totalW, margin: '0 auto' }}>
+      {cards.map((card, i) => {
+        const key = cardKey(card);
+        const isSelected = selectedCard ? cardKey(selectedCard) === key : false;
+        const isPlayable = playableSet.has(key);
+        return (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              left: i * overlap,
+              bottom: isSelected ? 18 : 0,
+              zIndex: isSelected ? n + 2 : i + 1,
+              transition: 'bottom 0.15s ease',
+              filter: isMyTurn && !isPlayable && !isSelected ? 'brightness(0.55)' : 'none',
+            }}
+          >
+            <JokerCard
+              card={card}
+              selected={isSelected}
+              playable={isMyTurn && isPlayable}
+              disabled={false}
+              size="lg"
+              onClick={() => onCardClick(card)}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Declaration panel ──────────────────────────────────────────────────────
+
 function DeclarationPanel({ cardCount, onDeclare }: { cardCount: number; onDeclare: (n: number) => void }) {
   const t = useT();
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 20 }}
-      className="flex-shrink-0 px-3 pb-2"
+      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }}
+      className="mb-2"
     >
-      <div className="rounded-xl p-3" style={{ background: 'rgba(155,0,255,0.06)', border: '1px solid rgba(155,0,255,0.25)' }}>
-        <p className="font-mono text-[10px] text-white/50 mb-2 text-center uppercase tracking-widest">
+      <div style={{ borderRadius: 14, padding: '10px 12px', background: 'rgba(155,0,255,0.07)', border: '1px solid rgba(155,0,255,0.28)' }}>
+        <p className="font-mono text-[10px] text-white/50 mb-2.5 text-center uppercase tracking-widest jk-decl-active"
+          style={{ display: 'inline-block', width: '100%', padding: '2px 0' }}>
           {t.games.joker.howManyTricks}
         </p>
-        <div className="flex gap-1.5 flex-wrap justify-center">
+        <div className="flex gap-2 flex-wrap justify-center">
           {Array.from({ length: cardCount + 1 }, (_, n) => (
-            <button
-              key={n}
-              onClick={() => onDeclare(n)}
-              className="w-9 h-9 rounded-lg font-display font-bold text-sm transition-all active:scale-90"
+            <button key={n} onClick={() => onDeclare(n)}
+              className="w-10 h-10 rounded-xl font-display font-bold text-sm transition-all active:scale-90"
               style={{
-                background: n === 0 ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, rgba(155,0,255,0.25), rgba(0,245,255,0.15))',
-                border: '1px solid rgba(155,0,255,0.35)',
-                color: '#fff',
-              }}
-            >
+                background: n === 0 ? 'rgba(255,255,255,0.06)' : 'linear-gradient(135deg,rgba(155,0,255,0.3),rgba(0,245,255,0.18))',
+                border: '1px solid rgba(155,0,255,0.4)', color: '#fff',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              }}>
               {n}
             </button>
           ))}
@@ -634,13 +652,14 @@ function DeclarationPanel({ cardCount, onDeclare }: { cardCount: number; onDecla
 function DeclarationProgress({ match }: { match: any }) {
   const t = useT();
   return (
-    <div className="flex gap-2 justify-center mt-1 flex-wrap">
+    <div className="flex gap-3 justify-center mt-1 flex-wrap">
       {match.players.map((p: JokerPlayerPublic) => {
         const decl = match.declarations[p.id];
         return (
           <div key={p.id} className="flex items-center gap-1">
             <span className="font-mono text-[9px] text-white/30">{p.name}:</span>
-            <span className="font-mono text-[9px]" style={{ color: decl !== null && decl !== undefined ? '#00f5ff' : 'rgba(255,255,255,0.2)' }}>
+            <span className="font-mono text-[10px] font-bold"
+              style={{ color: decl !== null && decl !== undefined ? '#00f5ff' : 'rgba(255,255,255,0.2)' }}>
               {decl !== null && decl !== undefined ? decl : '?'}
             </span>
           </div>
@@ -650,30 +669,24 @@ function DeclarationProgress({ match }: { match: any }) {
   );
 }
 
+// ── Round end panel ────────────────────────────────────────────────────────
+
 function RoundEndPanel({ match, myId }: { match: any; myId: string | null }) {
   const t = useT();
   const lastResult = match.roundHistory[match.roundHistory.length - 1];
   if (!lastResult) return null;
-
   return (
-    <div
-      className="mx-4 w-full max-w-xs rounded-2xl overflow-hidden"
-      style={{ background: 'rgba(20,10,40,0.98)', border: '1px solid rgba(155,0,255,0.4)' }}
-    >
+    <div className="mx-4 w-full max-w-xs rounded-2xl overflow-hidden"
+      style={{ background: 'rgba(20,10,40,0.98)', border: '1px solid rgba(155,0,255,0.4)' }}>
       <div className="px-5 py-3 border-b" style={{ borderColor: 'rgba(155,0,255,0.2)' }}>
-        <p className="font-mono text-[10px] uppercase tracking-widest text-white/30 text-center">
-          {t.games.joker.roundResults}
-        </p>
+        <p className="font-mono text-[10px] uppercase tracking-widest text-white/30 text-center">{t.games.joker.roundResults}</p>
         <p className="font-display text-base font-bold text-center mt-0.5" style={{ color: '#c084fc' }}>
           {t.games.joker.round} {lastResult.roundIndex + 1} · {lastResult.cardCount}🃏
           {lastResult.pulkaId !== null ? ` · Pulka ${lastResult.pulkaId}` : ''}
         </p>
       </div>
-
-      {/* Results table */}
       <div className="px-4 py-3">
-        {/* Header */}
-        <div className="flex items-center gap-1 mb-1.5 px-1">
+        <div className="flex items-center gap-1 mb-2 px-1">
           <span className="font-mono text-[9px] text-white/25 flex-1">{t.games.joker.players}</span>
           <span className="font-mono text-[9px] text-white/25 w-8 text-center">{t.games.joker.declared}</span>
           <span className="font-mono text-[9px] text-white/25 w-8 text-center">{t.games.joker.taken}</span>
@@ -683,59 +696,45 @@ function RoundEndPanel({ match, myId }: { match: any; myId: string | null }) {
           {match.players.map((p: any) => {
             const decl = lastResult.declarations[p.id] ?? '?';
             const took = lastResult.taken[p.id] ?? 0;
-            const pts = lastResult.points[p.id] ?? 0;
+            const pts  = lastResult.points[p.id] ?? 0;
             const khishti = lastResult.khishtiPlayers.includes(p.id);
             const bonus = lastResult.pulkaBonusPlayers[p.id] ?? 0;
             const isMe = p.id === myId;
             return (
-              <div
-                key={p.id}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg"
-                style={{
-                  background: isMe ? 'rgba(0,245,255,0.05)' : 'rgba(255,255,255,0.02)',
-                  border: `1px solid ${isMe ? 'rgba(0,245,255,0.15)' : 'transparent'}`,
-                }}
-              >
-                <span className={`font-mono text-[10px] flex-1 truncate ${isMe ? 'text-white' : 'text-white/55'}`}>
-                  {p.name}{isMe ? ' ✦' : ''}
-                </span>
+              <div key={p.id} className="flex items-center gap-1 px-2 py-1.5 rounded-lg"
+                style={{ background: isMe ? 'rgba(0,245,255,0.05)' : 'rgba(255,255,255,0.02)', border: `1px solid ${isMe ? 'rgba(0,245,255,0.15)' : 'transparent'}` }}>
+                <span className={`font-mono text-[10px] flex-1 truncate ${isMe ? 'text-white' : 'text-white/55'}`}>{p.name}{isMe ? ' ✦' : ''}</span>
                 <span className="font-mono text-[10px] text-white/40 w-8 text-center">{decl}</span>
                 <span className="font-mono text-[10px] text-white/40 w-8 text-center">{took}</span>
-                <span className="font-mono text-[10px] font-bold w-10 text-right"
-                  style={{ color: pts >= 0 ? '#00f5ff' : '#f87171' }}>
-                  {pts >= 0 ? '+' : ''}{pts}
-                  {khishti ? ' ⚡' : ''}
-                  {bonus > 0 ? ` 🎉` : ''}
+                <span className="font-mono text-[10px] font-bold w-10 text-right" style={{ color: pts >= 0 ? '#00f5ff' : '#f87171' }}>
+                  {pts >= 0 ? '+' : ''}{pts}{khishti ? ' ⚡' : ''}{bonus > 0 ? ` 🎉` : ''}
                 </span>
               </div>
             );
           })}
         </div>
-        {/* Running totals */}
         <div className="mt-2 pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
           {[...match.players]
             .sort((a: any, b: any) => (match.scores[b.id] ?? 0) - (match.scores[a.id] ?? 0))
             .map((p: any, i: number) => (
               <div key={p.id} className="flex items-center gap-2 py-0.5">
                 <span className="font-mono text-[9px] text-white/25 w-3">{i + 1}</span>
-                <span className={`font-mono text-[10px] flex-1 truncate ${p.id === myId ? 'text-white' : 'text-white/45'}`}>
-                  {p.name}
-                </span>
-                <span className="font-mono text-xs font-bold"
-                  style={{ color: (match.scores[p.id] ?? 0) >= 0 ? '#00f5ff' : '#f87171' }}>
+                <span className={`font-mono text-[10px] flex-1 truncate ${p.id === myId ? 'text-white' : 'text-white/45'}`}>{p.name}</span>
+                <span className="font-mono text-xs font-bold" style={{ color: (match.scores[p.id] ?? 0) >= 0 ? '#00f5ff' : '#f87171' }}>
                   {match.scores[p.id] ?? 0}
                 </span>
               </div>
             ))}
         </div>
       </div>
-
       <div className="px-4 pb-3 text-center">
         <p className="font-mono text-[9px] text-white/25 animate-pulse">{t.games.joker.nextRoundSoon}</p>
       </div>
     </div>
   );
 }
+
+// ── Scoreboard panel ───────────────────────────────────────────────────────
 
 function ScoreboardPanel({ match, myId, onClose }: { match: any; myId: string | null; onClose: () => void }) {
   const t = useT();
@@ -745,25 +744,19 @@ function ScoreboardPanel({ match, myId, onClose }: { match: any; myId: string | 
         <p className="font-display font-bold text-white text-sm">{t.games.joker.score}</p>
         <button onClick={onClose} className="text-white/40 hover:text-white/70 text-sm">✕</button>
       </div>
-
-      {/* Current totals */}
       <div className="space-y-1 mb-4">
         {[...match.players]
           .sort((a: any, b: any) => (match.scores[b.id] ?? 0) - (match.scores[a.id] ?? 0))
           .map((p: any, i: number) => (
             <div key={p.id} className="flex items-center gap-2 py-1 border-b" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
               <span className="font-mono text-[9px] text-white/30 w-3">{i + 1}</span>
-              <span className={`font-mono text-xs flex-1 truncate ${p.id === myId ? 'text-white' : 'text-white/50'}`}>
-                {p.name}
-              </span>
+              <span className={`font-mono text-xs flex-1 truncate ${p.id === myId ? 'text-white' : 'text-white/50'}`}>{p.name}</span>
               <span className="font-mono text-sm font-bold" style={{ color: (match.scores[p.id] ?? 0) >= 0 ? '#00f5ff' : '#f87171' }}>
                 {match.scores[p.id] ?? 0}
               </span>
             </div>
           ))}
       </div>
-
-      {/* Round history */}
       <p className="font-mono text-[9px] uppercase tracking-widest text-white/25 mb-2">{t.games.joker.roundHistory}</p>
       <div className="space-y-2">
         {match.roundHistory.map((r: any) => (
@@ -784,9 +777,7 @@ function ScoreboardPanel({ match, myId, onClose }: { match: any; myId: string | 
                     <span className="font-mono text-[9px] text-white/40 w-14 truncate">{p.name}</span>
                     <span className="font-mono text-[9px] text-white/30">{decl}→{taken}</span>
                     <span className="font-mono text-[9px] ml-auto" style={{ color: pts >= 0 ? 'rgba(0,245,255,0.7)' : '#f87171' }}>
-                      {pts >= 0 ? '+' : ''}{pts}
-                      {khishti ? ' ხ' : ''}
-                      {bonus > 0 ? ` +${bonus}🎉` : ''}
+                      {pts >= 0 ? '+' : ''}{pts}{khishti ? ' ხ' : ''}{bonus > 0 ? ` +${bonus}🎉` : ''}
                     </span>
                   </div>
                 );
@@ -795,6 +786,55 @@ function ScoreboardPanel({ match, myId, onClose }: { match: any; myId: string | 
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ── Waiting room ───────────────────────────────────────────────────────────
+
+function WaitingRoom({ match, isCreator, onStart, isLoading }: {
+  match: any; isCreator: boolean; onStart: () => void; isLoading: boolean;
+}) {
+  const t = useT();
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-5 p-6">
+      <div className="w-20 h-20 rounded-full flex items-center justify-center text-4xl"
+        style={{ background: 'rgba(155,0,255,0.08)', border: '2px solid rgba(155,0,255,0.2)' }}>
+        🃏
+      </div>
+      <div className="text-center">
+        <p className="font-mono text-sm text-white/60">{match.players.length}/4 {t.games.joker.players}</p>
+        <p className="font-mono text-xs text-white/30 mt-1">{t.games.joker.waitingFor4}</p>
+      </div>
+      <div className="w-full max-w-xs space-y-1">
+        {Array.from({ length: 4 }, (_, i) => {
+          const p = match.players.find((pl: any) => pl.seatIndex === i);
+          return (
+            <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-xl"
+              style={{ background: p ? 'rgba(155,0,255,0.08)' : 'rgba(255,255,255,0.02)', border: `1px solid ${p ? 'rgba(155,0,255,0.2)' : 'rgba(255,255,255,0.06)'}` }}>
+              <span className="font-mono text-[10px] text-white/30 w-4">{i + 1}</span>
+              <span className={`font-mono text-xs ${p ? 'text-white' : 'text-white/20'}`}>
+                {p ? `${p.name}${i === 0 ? ' 👑' : ''}` : '—'}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <button
+        onClick={() => { navigator.clipboard?.writeText(match.code).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+        className="flex items-center gap-2 px-4 py-2 rounded-xl font-mono text-sm transition-all active:scale-95"
+        style={{ border: '1px solid rgba(155,0,255,0.4)', background: 'rgba(155,0,255,0.08)', color: '#c084fc' }}>
+        <span>{match.code}</span>
+        <span className="text-xs opacity-60">{copied ? '✓' : '⎘'}</span>
+      </button>
+      {isCreator && match.players.length === 4 && (
+        <button onClick={onStart} disabled={isLoading}
+          className="px-8 py-3 rounded-xl font-display font-bold text-sm uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
+          style={{ background: 'linear-gradient(135deg,rgba(155,0,255,0.5),rgba(0,245,255,0.3))', border: '1px solid rgba(155,0,255,0.5)', color: '#fff', boxShadow: '0 0 20px rgba(155,0,255,0.2)' }}>
+          {t.games.joker.startGame}
+        </button>
+      )}
     </div>
   );
 }
