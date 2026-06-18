@@ -35,7 +35,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
-const CLIENT_BUILD = '2026-06-17-v17';
+const CLIENT_BUILD = '2026-06-18-v1';
 console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
@@ -103,6 +103,9 @@ app.get('/health', (_req, res) => {
         uptime: process.uptime(),
         timestamp: new Date().toISOString(),
     });
+});
+app.get('/api/version', (_req, res) => {
+    res.json({ build: CLIENT_BUILD, startedAt: BUILD_TIME });
 });
 // Keep /api/health for backward compatibility
 app.get('/api/health', (_req, res) => {
