@@ -1,5 +1,30 @@
 import { randomUUID } from 'crypto';
 import { sql } from '../db.js';
+const PHASE_SEQUENCE = [
+    'waiting', 'opening_pro', 'opening_con',
+    'argument_pro', 'argument_con',
+    'rebuttal_con', 'rebuttal_pro',
+    'closing_pro', 'closing_con',
+    'voting', 'finished',
+];
+export const PHASE_DURATION_SECONDS = {
+    opening_pro: 120, opening_con: 120,
+    argument_pro: 180, argument_con: 180,
+    rebuttal_con: 120, rebuttal_pro: 120,
+    closing_pro: 60, closing_con: 60,
+    voting: 90,
+};
+export function getActiveSide(phase) {
+    if (phase.endsWith('_pro'))
+        return 'pro';
+    if (phase.endsWith('_con'))
+        return 'con';
+    return null;
+}
+export function getNextPhase(current) {
+    const idx = PHASE_SEQUENCE.indexOf(current);
+    return PHASE_SEQUENCE[Math.min(idx + 1, PHASE_SEQUENCE.length - 1)];
+}
 function rowToDebate(r) {
     return {
         id: r.id,
@@ -7,6 +32,9 @@ function rowToDebate(r) {
         description: r.description ?? '',
         createdBy: r.created_by,
         status: r.status,
+        phase: (r.phase ?? 'waiting'),
+        phaseStartedAt: r.phase_started_at ? Number(r.phase_started_at) : null,
+        phaseDuration: r.phase_duration ? Number(r.phase_duration) : 0,
         winnerSide: r.winner_side ?? null,
         createdAt: Number(r.created_at),
         endsAt: r.ends_at ? Number(r.ends_at) : null,
@@ -66,7 +94,8 @@ export async function getDebateFull(debateId, viewerId) {
         id: myVoteRow[0].id, debateId, playerId: viewerId,
         side: myVoteRow[0].side, createdAt: Number(myVoteRow[0].created_at),
     } : null;
-    return { ...debate, participants, arguments: args, votesCounts, myParticipation: myPart, myVote };
+    const raisedHands = await getRaisedHands(debateId);
+    return { ...debate, participants, arguments: args, votesCounts, myParticipation: myPart, myVote, raisedHands };
 }
 export async function createDebate(createdBy, topic, description) {
     if (!topic.trim())
@@ -76,8 +105,8 @@ export async function createDebate(createdBy, topic, description) {
     const id = randomUUID();
     const now = Date.now();
     await sql `
-    INSERT INTO community_debates (id, topic, description, created_by, status, created_at)
-    VALUES (${id}, ${topic.trim()}, ${description.trim().slice(0, 1000)}, ${createdBy}, 'open', ${now})
+    INSERT INTO community_debates (id, topic, description, created_by, status, phase, phase_duration, created_at)
+    VALUES (${id}, ${topic.trim()}, ${description.trim().slice(0, 1000)}, ${createdBy}, 'open', 'waiting', 0, ${now})
   `;
     return rowToDebate((await sql `SELECT * FROM community_debates WHERE id = ${id}`)[0]);
 }
@@ -170,7 +199,126 @@ export async function closeDebate(debateId, requesterId) {
             con = Number(v.cnt);
     }
     const winnerSide = pro > con ? 'pro' : con > pro ? 'con' : null;
-    await sql `UPDATE community_debates SET status = 'finished', winner_side = ${winnerSide} WHERE id = ${debateId}`;
+    await sql `UPDATE community_debates SET status = 'finished', winner_side = ${winnerSide}, phase = 'finished' WHERE id = ${debateId}`;
     return rowToDebate((await sql `SELECT * FROM community_debates WHERE id = ${debateId}`)[0]);
+}
+export async function startDebate(debateId, requesterId) {
+    const rows = await sql `SELECT * FROM community_debates WHERE id = ${debateId}`;
+    if (!rows.length)
+        throw new Error('Debate not found.');
+    const d = rows[0];
+    if (d.status !== 'open')
+        throw new Error('Debate is not open.');
+    if ((d.phase ?? 'waiting') !== 'waiting')
+        throw new Error('Debate already started.');
+    if (d.created_by !== requesterId)
+        throw new Error('Only the creator can start the debate.');
+    const now = Date.now();
+    const newPhase = 'opening_pro';
+    const duration = PHASE_DURATION_SECONDS[newPhase] ?? 0;
+    await sql `
+    UPDATE community_debates
+    SET phase = ${newPhase}, phase_started_at = ${now}, phase_duration = ${duration}
+    WHERE id = ${debateId}
+  `;
+    return rowToDebate((await sql `SELECT * FROM community_debates WHERE id = ${debateId}`)[0]);
+}
+export async function advancePhase(debateId) {
+    const rows = await sql `SELECT * FROM community_debates WHERE id = ${debateId}`;
+    if (!rows.length)
+        throw new Error('Debate not found.');
+    const d = rows[0];
+    const currentPhase = (d.phase ?? 'waiting');
+    const nextPhase = getNextPhase(currentPhase);
+    const now = Date.now();
+    const duration = PHASE_DURATION_SECONDS[nextPhase] ?? 0;
+    if (nextPhase === 'finished') {
+        // Calculate winner from votes
+        const voteRows = await sql `SELECT side, COUNT(*) as cnt FROM community_debate_votes WHERE debate_id = ${debateId} GROUP BY side`;
+        let pro = 0, con = 0;
+        for (const v of voteRows) {
+            if (v.side === 'pro')
+                pro = Number(v.cnt);
+            if (v.side === 'con')
+                con = Number(v.cnt);
+        }
+        const winnerSide = pro > con ? 'pro' : con > pro ? 'con' : null;
+        await sql `
+      UPDATE community_debates
+      SET phase = ${nextPhase}, phase_started_at = ${now}, phase_duration = ${duration},
+          status = 'finished', winner_side = ${winnerSide}
+      WHERE id = ${debateId}
+    `;
+    }
+    else {
+        await sql `
+      UPDATE community_debates
+      SET phase = ${nextPhase}, phase_started_at = ${now}, phase_duration = ${duration}
+      WHERE id = ${debateId}
+    `;
+    }
+    return rowToDebate((await sql `SELECT * FROM community_debates WHERE id = ${debateId}`)[0]);
+}
+export async function skipPhase(debateId, requesterId) {
+    const rows = await sql `SELECT * FROM community_debates WHERE id = ${debateId}`;
+    if (!rows.length)
+        throw new Error('Debate not found.');
+    const d = rows[0];
+    const currentPhase = (d.phase ?? 'waiting');
+    const activeSide = getActiveSide(currentPhase);
+    // Check: requesterId must be on the active side OR be creator
+    if (d.created_by !== requesterId) {
+        if (activeSide) {
+            const partRows = await sql `SELECT * FROM community_debate_participants WHERE debate_id = ${debateId} AND player_id = ${requesterId}`;
+            if (!partRows.length || partRows[0].side !== activeSide) {
+                throw new Error('You are not on the active side.');
+            }
+        }
+        else {
+            throw new Error('Only the creator can skip this phase.');
+        }
+    }
+    return advancePhase(debateId);
+}
+export async function raiseHand(debateId, playerId, side) {
+    const id = randomUUID();
+    const now = Date.now();
+    await sql `
+    INSERT INTO community_debate_raised_hands (id, debate_id, player_id, side, raised_at)
+    VALUES (${id}, ${debateId}, ${playerId}, ${side}, ${now})
+    ON CONFLICT (debate_id, player_id) DO UPDATE SET side = EXCLUDED.side, raised_at = EXCLUDED.raised_at
+  `;
+}
+export async function lowerHand(debateId, playerId) {
+    await sql `DELETE FROM community_debate_raised_hands WHERE debate_id = ${debateId} AND player_id = ${playerId}`;
+}
+export async function getRaisedHands(debateId) {
+    const rows = await sql `
+    SELECT rh.player_id, rh.side, rh.raised_at, p.username
+    FROM community_debate_raised_hands rh
+    JOIN players p ON p.id = rh.player_id
+    WHERE rh.debate_id = ${debateId}
+    ORDER BY rh.raised_at ASC
+  `;
+    return rows.map((r) => ({
+        playerId: r.player_id,
+        side: r.side,
+        raisedAt: Number(r.raised_at),
+        username: r.username,
+    }));
+}
+export async function promoteSpeaker(debateId, targetPlayerId, promotedBy) {
+    const rows = await sql `SELECT * FROM community_debates WHERE id = ${debateId}`;
+    if (!rows.length)
+        throw new Error('Debate not found.');
+    if (rows[0].created_by !== promotedBy)
+        throw new Error('Only the creator can promote speakers.');
+    // Find their raised hand to get declared side
+    const handRows = await sql `SELECT * FROM community_debate_raised_hands WHERE debate_id = ${debateId} AND player_id = ${targetPlayerId}`;
+    const declaredSide = (handRows[0]?.side === 'pro' || handRows[0]?.side === 'con') ? handRows[0].side : 'pro';
+    // Remove from raised hands
+    await lowerHand(debateId, targetPlayerId);
+    // Join as speaker
+    return joinDebate(debateId, targetPlayerId, declaredSide);
 }
 //# sourceMappingURL=debateService.js.map

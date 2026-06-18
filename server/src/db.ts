@@ -1016,6 +1016,23 @@ export async function initializeDatabase(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_debates_status ON community_debates(status, created_at DESC)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_debate_args ON community_debate_arguments(debate_id, created_at ASC)`;
 
+  // ── Debate Rooms 2.0 (additive) ─────────────────────────────────────
+  await sql`ALTER TABLE community_debates ADD COLUMN IF NOT EXISTS phase TEXT NOT NULL DEFAULT 'waiting'`;
+  await sql`ALTER TABLE community_debates ADD COLUMN IF NOT EXISTS phase_started_at BIGINT`;
+  await sql`ALTER TABLE community_debates ADD COLUMN IF NOT EXISTS phase_duration INT DEFAULT 0`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS community_debate_raised_hands (
+      id TEXT PRIMARY KEY,
+      debate_id TEXT NOT NULL REFERENCES community_debates(id) ON DELETE CASCADE,
+      player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      side TEXT NOT NULL,
+      raised_at BIGINT NOT NULL,
+      UNIQUE(debate_id, player_id)
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_debate_raised_hands ON community_debate_raised_hands(debate_id, raised_at)`;
+
   // ── Activity Feed (additive) ──────────────────────────────────────────
   await sql`
     CREATE TABLE IF NOT EXISTS activity_events (

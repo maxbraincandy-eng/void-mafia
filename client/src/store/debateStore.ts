@@ -5,12 +5,36 @@ import type { Res } from '@/types/index';
 export type DebateSide = 'pro' | 'con' | 'spectator';
 export type DebateStatus = 'open' | 'finished';
 
+export type DebatePhase =
+  | 'waiting' | 'opening_pro' | 'opening_con'
+  | 'argument_pro' | 'argument_con'
+  | 'rebuttal_con' | 'rebuttal_pro'
+  | 'closing_pro' | 'closing_con'
+  | 'voting' | 'finished';
+
+export const PHASE_DURATION_SECONDS: Partial<Record<DebatePhase, number>> = {
+  opening_pro: 120, opening_con: 120,
+  argument_pro: 180, argument_con: 180,
+  rebuttal_con: 120, rebuttal_pro: 120,
+  closing_pro: 60, closing_con: 60,
+  voting: 90,
+};
+
+export function getActiveSide(phase: DebatePhase): 'pro' | 'con' | null {
+  if (phase.endsWith('_pro')) return 'pro';
+  if (phase.endsWith('_con')) return 'con';
+  return null;
+}
+
 export interface Debate {
   id: string;
   topic: string;
   description: string;
   createdBy: string;
   status: DebateStatus;
+  phase: DebatePhase;
+  phaseStartedAt: number | null;
+  phaseDuration: number;
   winnerSide: DebateSide | null;
   createdAt: number;
   endsAt: number | null;
@@ -37,12 +61,21 @@ export interface DebateArgument {
   avatarUrl?: string | null;
 }
 
+export interface DebateVote {
+  id: string;
+  debateId: string;
+  playerId: string;
+  side: DebateSide;
+  createdAt: number;
+}
+
 export interface DebateFull extends Debate {
   participants: DebateParticipant[];
   arguments: DebateArgument[];
   votesCounts: { pro: number; con: number };
   myParticipation: DebateParticipant | null;
-  myVote: { side: DebateSide } | null;
+  myVote: DebateVote | null;
+  raisedHands: Array<{ playerId: string; side: 'pro' | 'con'; raisedAt: number; username?: string }>;
 }
 
 function unwrap<T>(res: Res<T>): T {
@@ -64,12 +97,19 @@ interface DebateStore {
   postArgument: (debateId: string, content: string) => Promise<void>;
   vote: (debateId: string, side: 'pro' | 'con') => Promise<void>;
   closeDebate: (debateId: string) => Promise<void>;
+  startDebate: (debateId: string) => Promise<void>;
+  skipPhase: (debateId: string) => Promise<void>;
+  raiseHand: (debateId: string, side: 'pro' | 'con') => Promise<void>;
+  lowerHand: (debateId: string) => Promise<void>;
+  promote: (debateId: string, targetPlayerId: string) => Promise<void>;
 
   onNewDebate: (debate: Debate) => void;
   onParticipantUpdate: (participant: DebateParticipant) => void;
   onNewArgument: (arg: DebateArgument) => void;
   onVoteUpdate: (data: { debateId: string; counts: { pro: number; con: number } }) => void;
   onDebateClosed: (debate: Debate) => void;
+  onPhaseUpdate: (debate: Debate) => void;
+  onHandsUpdate: (data: { debateId: string; hands: Array<{ playerId: string; side: 'pro' | 'con'; raisedAt: number; username?: string }> }) => void;
 }
 
 export const useDebateStore = create<DebateStore>((set, get) => ({
@@ -139,7 +179,13 @@ export const useDebateStore = create<DebateStore>((set, get) => ({
     const counts = unwrap(res);
     set(s => {
       if (!s.activeDebate || s.activeDebate.id !== debateId) return s;
-      return { activeDebate: { ...s.activeDebate, votesCounts: counts, myVote: { side } } };
+      return {
+        activeDebate: {
+          ...s.activeDebate,
+          votesCounts: counts,
+          myVote: { id: '', debateId, playerId: '', side, createdAt: Date.now() },
+        },
+      };
     });
   },
 
@@ -150,6 +196,34 @@ export const useDebateStore = create<DebateStore>((set, get) => ({
       debates: s.debates.map(d => d.id === debateId ? updated : d),
       activeDebate: s.activeDebate?.id === debateId ? { ...s.activeDebate, ...updated } : s.activeDebate,
     }));
+  },
+
+  startDebate: async (debateId: string) => {
+    const res = await emitWithAck<{ debateId: string }, Res<Debate>>('debate:start' as any, { debateId });
+    const updated = unwrap(res);
+    set(s => ({
+      activeDebate: s.activeDebate?.id === debateId ? { ...s.activeDebate, ...updated } : s.activeDebate,
+    }));
+  },
+
+  skipPhase: async (debateId: string) => {
+    const res = await emitWithAck<{ debateId: string }, Res<Debate>>('debate:skip_phase' as any, { debateId });
+    const updated = unwrap(res);
+    set(s => ({
+      activeDebate: s.activeDebate?.id === debateId ? { ...s.activeDebate, ...updated } : s.activeDebate,
+    }));
+  },
+
+  raiseHand: async (debateId: string, side: 'pro' | 'con') => {
+    await emitWithAck<{ debateId: string; side: string }, Res<null>>('debate:raise_hand' as any, { debateId, side });
+  },
+
+  lowerHand: async (debateId: string) => {
+    await emitWithAck<{ debateId: string }, Res<null>>('debate:lower_hand' as any, { debateId });
+  },
+
+  promote: async (debateId: string, targetPlayerId: string) => {
+    await emitWithAck<{ debateId: string; targetPlayerId: string }, Res<DebateParticipant>>('debate:promote' as any, { debateId, targetPlayerId });
   },
 
   onNewDebate: (debate: Debate) => {
@@ -186,5 +260,19 @@ export const useDebateStore = create<DebateStore>((set, get) => ({
       debates: s.debates.map(d => d.id === debate.id ? debate : d),
       activeDebate: s.activeDebate?.id === debate.id ? { ...s.activeDebate, ...debate } : s.activeDebate,
     }));
+  },
+
+  onPhaseUpdate: (debate: Debate) => {
+    set(s => ({
+      debates: s.debates.map(d => d.id === debate.id ? { ...d, ...debate } : d),
+      activeDebate: s.activeDebate?.id === debate.id ? { ...s.activeDebate, ...debate } : s.activeDebate,
+    }));
+  },
+
+  onHandsUpdate: (data) => {
+    set(s => {
+      if (!s.activeDebate || s.activeDebate.id !== data.debateId) return s;
+      return { activeDebate: { ...s.activeDebate, raisedHands: data.hands } };
+    });
   },
 }));

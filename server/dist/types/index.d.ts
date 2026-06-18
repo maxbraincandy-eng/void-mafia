@@ -832,6 +832,13 @@ export interface ServerToClientEvents {
     'debate:new_argument': (data: any) => void;
     'debate:vote_update': (data: any) => void;
     'debate:closed': (data: any) => void;
+    'debate:phase_update': (data: any) => void;
+    'debate:hands_update': (data: any) => void;
+    'debate:voice_peer_joined': (data: any) => void;
+    'debate:voice_peer_left': (data: any) => void;
+    'debate:voice_offer': (data: any) => void;
+    'debate:voice_answer': (data: any) => void;
+    'debate:voice_ice': (data: any) => void;
 }
 export interface ClientToServerEvents {
     'player:auth': (data: {
@@ -1592,6 +1599,48 @@ export interface ClientToServerEvents {
     'debate:unsubscribe': (data: {
         debateId: string;
     }, cb: (r: Res<null>) => void) => void;
+    'debate:start': (data: {
+        debateId: string;
+    }, cb: (r: Res<any>) => void) => void;
+    'debate:skip_phase': (data: {
+        debateId: string;
+    }, cb: (r: Res<any>) => void) => void;
+    'debate:raise_hand': (data: {
+        debateId: string;
+        side: string;
+    }, cb: (r: Res<null>) => void) => void;
+    'debate:lower_hand': (data: {
+        debateId: string;
+    }, cb: (r: Res<null>) => void) => void;
+    'debate:promote': (data: {
+        debateId: string;
+        targetPlayerId: string;
+    }, cb: (r: Res<any>) => void) => void;
+    'debate:voice_join': (data: {
+        debateId: string;
+        side: string;
+    }, cb: (r: Res<{
+        peers: any[];
+        iceServers: any;
+    }>) => void) => void;
+    'debate:voice_leave': (data: {
+        debateId: string;
+    }, cb?: (r: Res<null>) => void) => void;
+    'debate:voice_offer': (data: {
+        debateId: string;
+        to: string;
+        sdp: any;
+    }, cb?: (r: Res<null>) => void) => void;
+    'debate:voice_answer': (data: {
+        debateId: string;
+        to: string;
+        sdp: any;
+    }, cb?: (r: Res<null>) => void) => void;
+    'debate:voice_ice': (data: {
+        debateId: string;
+        to: string;
+        candidate: any;
+    }, cb?: (r: Res<null>) => void) => void;
     'activity:feed': (data: Record<string, never>, cb: (r: Res<any[]>) => void) => void;
 }
 export interface InterServerEvents {
