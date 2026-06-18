@@ -8,15 +8,8 @@ interface Props {
 
 export function CheckersPTTButton({ matchId }: Props) {
   const t = useT();
-  const { isTalking, status, joined, startTalk, stopTalk, leave, joinListen } = useCheckersVoice();
-  const talkingRef = useRef(false); // track locally to avoid stale closure issues
-
-  // Auto-join receive-only so we can hear others without pressing PTT first
-  useEffect(() => {
-    if (matchId && !joined && status === 'disconnected') {
-      joinListen(matchId);
-    }
-  }, [matchId, joined, status, joinListen]);
+  const { isTalking, joined, status, startTalk, stopTalk, leave, joinVoice } = useCheckersVoice();
+  const talkingRef = useRef(false);
 
   const handleStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
@@ -33,6 +26,7 @@ export function CheckersPTTButton({ matchId }: Props) {
 
   // Keyboard: Space to talk
   useEffect(() => {
+    if (!joined) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space' && !e.repeat && !talkingRef.current) {
         e.preventDefault();
@@ -53,50 +47,71 @@ export function CheckersPTTButton({ matchId }: Props) {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [matchId, startTalk, stopTalk]);
+  }, [matchId, joined, startTalk, stopTalk]);
 
-  // Auto-stop on window blur or tab hide
+  // Stop on window blur or tab hide
   useEffect(() => {
+    if (!joined) return;
     const stop = () => {
-      if (talkingRef.current) {
-        talkingRef.current = false;
-        stopTalk(matchId);
-      }
+      if (talkingRef.current) { talkingRef.current = false; stopTalk(matchId); }
     };
-    const onVisibility = () => { if (document.hidden) stop(); };
+    const onVis = () => { if (document.hidden) stop(); };
     window.addEventListener('blur', stop);
-    document.addEventListener('visibilitychange', onVisibility);
+    document.addEventListener('visibilitychange', onVis);
     return () => {
       window.removeEventListener('blur', stop);
-      document.removeEventListener('visibilitychange', onVisibility);
+      document.removeEventListener('visibilitychange', onVis);
     };
-  }, [matchId, stopTalk]);
+  }, [matchId, joined, stopTalk]);
 
-  // Clean up voice session when component unmounts (match ended / user left)
+  // Cleanup on unmount
   useEffect(() => {
-    return () => {
-      talkingRef.current = false;
-      leave();
-    };
+    return () => { talkingRef.current = false; leave(); };
   }, [leave]);
 
   const isConnecting = status === 'requesting' || status === 'connecting';
-  const isFailed = status === 'failed';
+  const isFailed     = status === 'failed';
 
+  // ── Not yet joined: show "Connect Voice" button ──
+  // onPointerDown fires in user-gesture context → getUserMedia allowed on iOS Safari
+  if (!joined && !isConnecting) {
+    return (
+      <button
+        onPointerDown={(e) => { e.preventDefault(); joinVoice(matchId); }}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full font-mono text-[10px] uppercase tracking-wider select-none touch-none transition-all active:scale-95"
+        style={{
+          background: 'linear-gradient(135deg, rgba(0,245,255,0.1), rgba(155,0,255,0.07))',
+          border: isFailed ? '1px solid rgba(255,80,80,0.4)' : '1px solid rgba(0,245,255,0.28)',
+          color: isFailed ? '#ff5050' : 'rgba(0,245,255,0.75)',
+        }}
+      >
+        <span style={{ fontSize: 12 }}>🎤</span>
+        <span>{isFailed ? '⚠ Retry' : t.games.checkers.holdToTalk?.replace(/hold.*/i, '') || 'Join Voice'}</span>
+      </button>
+    );
+  }
+
+  // ── Connecting state ──
+  if (isConnecting) {
+    return (
+      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full font-mono text-[10px] uppercase tracking-wider"
+        style={{ border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.3)' }}>
+        <span>⌛</span>
+        <span>Connecting…</span>
+      </div>
+    );
+  }
+
+  // ── Joined: normal PTT button ──
   let label: string;
-  let subLabel: string | null = null;
   if (isTalking) {
     label = t.games.checkers.live;
-  } else if (isConnecting) {
-    label = '…';
   } else {
     label = t.games.checkers.holdToTalk;
   }
 
-  if (isFailed) subLabel = '⚠';
-
-  const glowColor = isTalking ? 'rgba(0,255,100,0.6)' : 'rgba(155,0,255,0.3)';
-  const borderColor = isTalking ? 'rgba(0,255,100,0.7)' : isFailed ? 'rgba(255,80,80,0.5)' : 'rgba(155,0,255,0.4)';
+  const glowColor  = isTalking ? 'rgba(0,255,100,0.6)'  : 'rgba(155,0,255,0.3)';
+  const borderColor = isTalking ? 'rgba(0,255,100,0.7)' : 'rgba(155,0,255,0.4)';
   const bg = isTalking
     ? 'linear-gradient(135deg, rgba(0,200,80,0.28), rgba(0,255,100,0.16))'
     : 'linear-gradient(135deg, rgba(155,0,255,0.18), rgba(0,245,255,0.10))';
@@ -114,7 +129,7 @@ export function CheckersPTTButton({ matchId }: Props) {
       style={{
         background: bg,
         border: `1px solid ${borderColor}`,
-        color: isTalking ? '#00ff64' : isFailed ? '#ff5050' : 'rgba(255,255,255,0.6)',
+        color: isTalking ? '#00ff64' : 'rgba(255,255,255,0.6)',
         boxShadow: isTalking ? `0 0 12px ${glowColor}, 0 0 4px ${glowColor}` : 'none',
         WebkitUserSelect: 'none',
         userSelect: 'none',
@@ -128,7 +143,6 @@ export function CheckersPTTButton({ matchId }: Props) {
           style={{ background: '#00ff64', boxShadow: '0 0 6px #00ff64', animation: 'pulse 1s infinite' }}
         />
       )}
-      {subLabel && <span>{subLabel}</span>}
     </button>
   );
 }

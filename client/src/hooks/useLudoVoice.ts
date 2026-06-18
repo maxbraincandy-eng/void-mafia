@@ -237,6 +237,7 @@ export function useLudoVoice() {
   const stopTalk   = useCallback((matchId: string) => _stopTalking(matchId), []);
   const leave      = useCallback(() => _leave(), []);
   const joinListen = useCallback((matchId: string, name: string) => { _createAndJoin(matchId, name, true); }, []);
+  const joinVoice  = useCallback((matchId: string, name: string) => { _createAndJoin(matchId, name, false); }, []);
 
-  return { ...state, startTalk, stopTalk, leave, joinListen };
+  return { ...state, startTalk, stopTalk, leave, joinListen, joinVoice };
 }

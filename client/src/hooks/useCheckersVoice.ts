@@ -260,9 +260,10 @@ export function useCheckersVoice() {
   const startTalk  = useCallback((matchId: string) => { _startTalking(matchId); }, []);
   const stopTalk   = useCallback((matchId: string) => _stopTalking(matchId), []);
   const joinListen = useCallback((matchId: string) => { _createAndJoin(matchId, true); }, []);
+  const joinVoice  = useCallback((matchId: string) => { _createAndJoin(matchId, false); }, []);
   const leave      = useCallback(() => _leave(), []);
 
-  return { ...state, startTalk, stopTalk, joinListen, leave };
+  return { ...state, startTalk, stopTalk, joinListen, joinVoice, leave };
 }
 
 /** Imperatively leave voice (used from stores/non-React code). */
