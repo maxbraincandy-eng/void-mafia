@@ -304,17 +304,20 @@ if (IS_PROD) {
   app.use(express.static(clientDist, {
     maxAge: '1y',
     immutable: true,
+    etag: true,
     setHeaders: (res, filePath) => {
       if (filePath.endsWith('index.html') || filePath.endsWith('sw.js') || filePath.endsWith('manifest.json')) {
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
+        res.removeHeader('ETag');
+        res.removeHeader('Last-Modified');
       }
     },
   }));
 
   app.get('*', (_req, res) => {
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
     res.sendFile(path.join(clientDist, 'index.html'));
