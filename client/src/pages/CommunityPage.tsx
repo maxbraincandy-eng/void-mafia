@@ -56,11 +56,12 @@ export function CommunityPage() {
 
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-8">
         {/* Header */}
-        <div className="mb-5 flex items-start justify-between gap-3">
-          <div className="min-w-0">
+        <div className="mb-5 flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
             <h1
-              className="font-display text-2xl font-bold tracking-wide"
+              className="font-display font-bold tracking-wide truncate"
               style={{
+                fontSize: 'clamp(18px, 5vw, 24px)',
                 background: 'linear-gradient(135deg, #c084fc, #00f5ff)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
@@ -69,12 +70,12 @@ export function CommunityPage() {
             >
               {t.community.header}
             </h1>
-            <p className="font-mono text-[10px] text-white/35 mt-0.5">{t.community.tagline}</p>
+            <p className="font-mono text-[10px] text-white/35 mt-0.5 truncate">{t.community.tagline}</p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             <button
               onClick={() => setShowSearch(true)}
-              className="w-9 h-9 rounded-full flex items-center justify-center text-base transition-all active:scale-90"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all active:scale-90"
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}
             >
               🔍
@@ -82,7 +83,7 @@ export function CommunityPage() {
             {isMod && (
               <button
                 onClick={() => setShowModeration(true)}
-                className="w-9 h-9 rounded-full flex items-center justify-center text-base transition-all active:scale-90"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all active:scale-90"
                 style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}
               >
                 🛡
@@ -91,7 +92,7 @@ export function CommunityPage() {
             {isAdminOrAbove && (
               <button
                 onClick={() => setShowAdminPanel(true)}
-                className="w-9 h-9 rounded-full flex items-center justify-center text-base transition-all active:scale-90"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all active:scale-90"
                 style={{ background: 'rgba(255,200,0,0.1)', border: '1px solid rgba(255,200,0,0.3)' }}
                 title="Admin Panel"
               >
@@ -100,7 +101,7 @@ export function CommunityPage() {
             )}
             <button
               onClick={() => setShowNotifications(true)}
-              className="relative w-9 h-9 rounded-full flex items-center justify-center text-base transition-all active:scale-90"
+              className="relative w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all active:scale-90"
               style={{ background: 'rgba(155,0,255,0.1)', border: '1px solid rgba(155,0,255,0.3)' }}
             >
               🔔
@@ -117,7 +118,10 @@ export function CommunityPage() {
         </div>
 
         {/* Tab bar */}
-        <div className="flex gap-1.5 overflow-x-auto pb-1 mb-5 -mx-1 px-1 scrollbar-none">
+        <div
+          className="flex gap-1.5 overflow-x-auto pb-1 mb-5 -mx-1 px-1 scrollbar-none"
+          style={{ overflowX: 'auto' }}
+        >
           {TABS.map(tb => {
             const active = tab === tb.id;
             return (

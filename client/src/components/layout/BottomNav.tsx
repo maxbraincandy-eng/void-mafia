@@ -32,15 +32,16 @@ export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 backdrop-blur-2xl"
+      className="fixed bottom-0 left-0 right-0 z-50"
       style={{
         background: 'rgba(3,0,13,0.96)',
         borderTop: '1px solid rgba(255,255,255,0.06)',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         boxShadow: '0 -4px 32px rgba(0,0,0,0.6)',
+        overflow: 'hidden',
       }}
     >
-      <div className="flex items-stretch justify-around max-w-lg mx-auto relative">
+      <div className="flex items-stretch justify-around max-w-lg mx-auto relative overflow-hidden">
         {visible.map(tab => {
           const isActive = active === tab.id;
           const isModeTab = tab.id === 'mod';
@@ -52,11 +53,13 @@ export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
             <button
               key={tab.id}
               onClick={() => onChange(tab.id)}
-              className="flex flex-col items-center justify-center flex-1 transition-all duration-150 active:scale-90"
+              className="flex flex-col items-center justify-center flex-1 min-w-0 transition-all duration-150 active:scale-90"
               style={{
                 minHeight: '56px',
                 paddingTop: '10px',
                 paddingBottom: '8px',
+                paddingLeft: '2px',
+                paddingRight: '2px',
                 color: isActive ? activeColor : inactiveColor,
               }}
             >
@@ -69,12 +72,15 @@ export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
                 }}
               />
               <span
-                className="text-xl leading-none mb-1.5 transition-all duration-150"
+                className="text-lg leading-none mb-1 transition-all duration-150"
                 style={{ filter: isActive ? `drop-shadow(0 0 6px ${activeColor})` : 'none' }}
               >
                 {tab.icon}
               </span>
-              <span className="text-[8px] font-mono tracking-widest uppercase leading-none">
+              <span
+                className="font-mono uppercase leading-none truncate w-full text-center"
+                style={{ fontSize: 'clamp(7px, 2vw, 9px)', letterSpacing: '0.05em' }}
+              >
                 {tab.label}
               </span>
             </button>
@@ -84,11 +90,13 @@ export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
         {/* Messages */}
         <button
           onClick={onMessagesClick}
-          className="relative flex flex-col items-center justify-center flex-1 transition-all duration-150 active:scale-90"
+          className="relative flex flex-col items-center justify-center flex-1 min-w-0 transition-all duration-150 active:scale-90"
           style={{
             minHeight: '56px',
             paddingTop: '10px',
             paddingBottom: '8px',
+            paddingLeft: '2px',
+            paddingRight: '2px',
             color: dmPanelOpen ? '#ff00cc' : 'rgba(255,255,255,0.28)',
           }}
         >
@@ -100,15 +108,18 @@ export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
             }}
           />
           <span
-            className="leading-none mb-1.5 flex items-center justify-center"
+            className="leading-none mb-1 flex items-center justify-center"
             style={{ filter: dmPanelOpen ? 'drop-shadow(0 0 6px #ff00cc)' : 'none' }}
           >
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
           </span>
-          <span className="text-[8px] font-mono tracking-widest uppercase leading-none">MSG</span>
+          <span
+            className="font-mono uppercase leading-none truncate w-full text-center"
+            style={{ fontSize: 'clamp(7px, 2vw, 9px)', letterSpacing: '0.05em' }}
+          >MSG</span>
           {unreadDmCount > 0 && (
             <span className="absolute top-1.5 right-[14%] bg-neon-pink text-void text-[8px] font-bold rounded-full min-w-[15px] h-3.5 flex items-center justify-center px-0.5 leading-none"
               style={{ boxShadow: '0 0 8px rgba(255,0,204,0.6)' }}>

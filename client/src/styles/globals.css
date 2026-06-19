@@ -26,6 +26,7 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
+    max-width: 100%;
     -webkit-text-size-adjust: 100%; /* prevent iOS font size inflation on rotate */
   }
 
@@ -34,10 +35,22 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
+    max-width: 100%;
     @apply bg-void text-white font-sans antialiased;
     background-color: #03000d;
     overscroll-behavior: none;
     /* iOS momentum scrolling needs to be on individual scroll containers */
+  }
+
+  /* Prevent text overflow on small screens */
+  * {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  /* But don't break mono/code text that shouldn't wrap */
+  code, kbd, samp, pre {
+    word-break: normal;
+    overflow-wrap: normal;
   }
 
   #root {
@@ -74,19 +87,35 @@
     animation: gridScroll 24s linear infinite;
   }
 
-  /* Glassmorphism panel */
+  /* Glassmorphism panel — solid dark base first for Android compatibility */
   .glass-panel {
-    background: rgba(10, 5, 32, 0.7);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background: rgba(8, 4, 20, 0.95);
     border: 1px solid rgba(0, 245, 255, 0.08);
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 2px 16px rgba(0,0,0,0.3);
+  }
+  @supports (backdrop-filter: blur(12px)) {
+    .glass-panel {
+      background: rgba(10, 5, 32, 0.7);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
   }
 
   /* Neon bordered glass */
   .glass-card {
     @apply glass-panel rounded-2xl;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 24px rgba(0,0,0,0.4);
+  }
+
+  /* Horizontally scrollable tab row */
+  .tab-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    scrollbar-width: none;
+  }
+  .tab-scroll::-webkit-scrollbar {
+    display: none;
   }
 
   /* Neon border glow utilities */

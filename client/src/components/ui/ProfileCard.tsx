@@ -145,8 +145,8 @@ export const ProfileCard = forwardRef<HTMLDivElement, Props>(({ data, template, 
         background: s.bg,
         border: `1px solid ${s.border}`,
         boxShadow: `0 0 40px ${s.glow}, 0 4px 40px rgba(0,0,0,0.7)`,
-        width: compact ? '100%' : '360px',
-        minWidth: compact ? undefined : '320px',
+        width: compact ? '100%' : 'min(360px, 100%)',
+        minWidth: compact ? undefined : undefined,
         fontFamily: "'Inter', system-ui, sans-serif",
       }}
     >

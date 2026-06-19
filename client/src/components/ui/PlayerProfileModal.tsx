@@ -551,7 +551,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       )}
                       {!isSelf && friendshipStatus === 'pending_sent' && (
                         <button disabled className="w-full py-2 rounded-xl border border-white/10 text-white/30 font-mono text-xs opacity-50 cursor-not-allowed"
-                          style={{ backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
+                          style={{ background: 'rgba(8,4,20,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
                         >
                           Request Sent
                         </button>

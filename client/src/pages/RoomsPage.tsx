@@ -181,11 +181,11 @@ export function RoomsPage() {
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-7">
 
         {/* ── Header ──────────────────────────────────────────── */}
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center gap-2 mb-6">
           {/* More / hamburger button */}
           <button
             onClick={openMoreMenu}
-            className="flex-shrink-0 w-9 h-9 rounded-xl flex flex-col items-center justify-center gap-[4.5px] transition-all hover:bg-white/5 active:scale-95"
+            className="flex-shrink-0 w-8 h-8 rounded-xl flex flex-col items-center justify-center gap-[4px] transition-all hover:bg-white/5 active:scale-95"
             style={{ border: '1px solid rgba(255,255,255,0.07)' }}
             aria-label="More options"
           >
@@ -194,30 +194,33 @@ export function RoomsPage() {
             <span className="block w-2.5 h-[1.5px] rounded-full bg-white/25" />
           </button>
 
-          {/* Title — pushed slightly right by the gap */}
+          {/* Title */}
           <div className="flex-1 min-w-0">
-            <h1 className="font-display text-2xl font-bold gradient-text tracking-wide leading-none">
+            <h1
+              className="font-display font-bold gradient-text tracking-wide leading-none truncate"
+              style={{ fontSize: 'clamp(18px, 5vw, 24px)' }}
+            >
               VOID MAFIA
             </h1>
-            <div className="flex items-center gap-2 mt-1">
-              <p className="text-[10px] font-mono text-white/20 tracking-widest">
+            <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+              <p className="text-[10px] font-mono text-white/20 tracking-wider truncate">
                 SOCIAL DEDUCTION
               </p>
               {onlineCount > 0 && (
-                <span className="flex items-center gap-1 font-mono text-[9px] text-neon-green/60">
+                <span className="flex-shrink-0 flex items-center gap-1 font-mono text-[9px] text-neon-green/60">
                   <span className="w-1.5 h-1.5 bg-neon-green rounded-full animate-pulse" />
-                  {onlineCount} online
+                  {onlineCount}
                 </span>
               )}
             </div>
           </div>
 
           {/* Right controls */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             <LanguageSwitcher />
             <button
               onClick={openLobbyChat}
-              className="relative px-3 py-1.5 rounded-xl border border-white/[0.07] text-white/25 hover:text-white/55 hover:border-white/14 font-mono text-sm transition-all"
+              className="relative px-2.5 py-1.5 rounded-xl border border-white/[0.07] text-white/25 hover:text-white/55 hover:border-white/14 font-mono text-sm transition-all"
               title="Lobby Chat"
             >
               ⌥
