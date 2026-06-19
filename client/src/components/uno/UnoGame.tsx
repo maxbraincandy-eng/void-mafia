@@ -4,6 +4,7 @@ import { useUnoStore } from '@/store/unoStore';
 import { useUnoVoice } from '@/hooks/useUnoVoice';
 import { UnoCardComponent, UnoCardBack, ColorChip } from './UnoCard';
 import type { UnoPublicState, UnoCard, GameColor, UnoPlayerPublic } from '@/types/uno';
+import { haptic } from '@/lib/haptics';
 
 const UNO_ACCENT = '#a855f7';
 
@@ -518,19 +519,23 @@ export function UnoGame() {
     if (selectedCardId === card.id) {
       // Second tap on same card — try to play it
       if (card.type === 'wild' || card.type === 'wild4') {
+        haptic('tap');
         setPendingWildCard(card);
         setSelectedCardId(null);
       } else {
+        haptic('success');
         storePlayCard(card.id);
         setSelectedCardId(null);
       }
     } else {
+      haptic('selection');
       setSelectedCardId(card.id);
     }
   }, [isMyTurn, match, selectedCardId, storePlayCard]);
 
   const handleColorChoice = useCallback((color: GameColor) => {
     if (!pendingWildCard) return;
+    haptic('success');
     storePlayCard(pendingWildCard.id, color);
     setPendingWildCard(null);
     setSelectedCardId(null);
@@ -538,6 +543,7 @@ export function UnoGame() {
 
   const handleDraw = useCallback(() => {
     if (!isMyTurn) return;
+    haptic('tap');
     storeDrawCard();
     setSelectedCardId(null);
   }, [isMyTurn, storeDrawCard]);

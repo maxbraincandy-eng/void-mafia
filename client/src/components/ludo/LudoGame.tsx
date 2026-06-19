@@ -341,6 +341,7 @@ export function LudoGame() {
 
   const handlePieceClick = useCallback(async (_color:LudoColor, id:number) => {
     if (isAnimating) return;
+    vibrate(12);
     await movePiece(id);
   }, [movePiece, isAnimating]);
 

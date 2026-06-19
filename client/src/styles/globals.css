@@ -191,6 +191,24 @@
   .overscroll-none    { overscroll-behavior: none; }
 }
 
+/* ── Skeleton shimmer ─────────────────────────────────────────── */
+@keyframes skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(155,0,255,0.04) 25%,
+    rgba(155,0,255,0.12) 50%,
+    rgba(155,0,255,0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+  border-radius: 8px;
+}
+
 /* ── Powered-by cyberpunk badge ───────────────────────────── */
 .powered-by-cyber {
   position: relative;

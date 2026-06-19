@@ -5,6 +5,7 @@ import { useJokerStore } from '@/store/jokerStore';
 import { useJokerVoice } from '@/hooks/useJokerVoice';
 import { JokerCard } from './JokerCard';
 import type { Card, JokerPlayerPublic, Suit } from '@/types/joker';
+import { haptic } from '@/lib/haptics';
 
 const SUIT_SYMBOL: Record<Suit, string> = { S: '♠', H: '♥', D: '♦', C: '♣', J: '🃏' };
 
@@ -115,11 +116,14 @@ export function JokerGame() {
     if (!playableSet.has(key)) return;
     if (selectedCard && cardKey(selectedCard) === key) {
       if (card.suit === 'J') {
+        haptic('tap');
         setJokerPendingCard(card);
       } else {
+        haptic('success');
         await playCard(card);
       }
     } else {
+      haptic('selection');
       selectCard(card);
     }
   }

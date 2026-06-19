@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { CheckersBoard as Board, PieceColor, MoveOption } from '@/types/checkers';
 import { getValidMovesForPiece, getCaptures } from '@/lib/checkersLogic';
+import { haptic } from '@/lib/haptics';
 
 interface Props {
   board: Board;
@@ -77,12 +78,14 @@ export function CheckersBoard({
 
     // Clicking a valid destination executes the move.
     if (selectedCell && validDestSet.has(`${displayRow},${displayCol}`)) {
+      haptic('success');
       onMove(selectedCell, { row: dataRow, col: dataCol });
       return;
     }
 
     const piece = board[dataRow][dataCol];
     if (piece && piece.color === myColor) {
+      haptic('tap');
       if (selectedCell?.row === dataRow && selectedCell?.col === dataCol) {
         onSelectCell(null);
       } else {

@@ -6,6 +6,7 @@ import type { FeedCategory } from '@/types/index';
 import { Spinner, EmptyState } from '@/components/community/shared';
 import { PostCardV2 } from '@/components/community/PostCardV2';
 import { PostComposerV2 } from '@/components/community/PostComposerV2';
+import { SkeletonPost } from '@/components/ui/Skeleton';
 
 export function FeedTabV2({ onOpenProfile }: { onOpenProfile: (playerId: string) => void }) {
   const t = useT();
@@ -87,7 +88,9 @@ export function FeedTabV2({ onOpenProfile }: { onOpenProfile: (playerId: string)
       </div>
 
       {loading ? (
-        <Spinner color="#9b00ff" />
+        <div className="space-y-3 pt-2">
+          {Array.from({ length: 3 }, (_, i) => <SkeletonPost key={i} />)}
+        </div>
       ) : feedV2Posts.length === 0 ? (
         <EmptyState text={t.community.feed.empty} />
       ) : (

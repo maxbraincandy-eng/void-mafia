@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import { useT } from '@/store/langStore';
 import { useSocialStore } from '@/store/socialStore';
+import { haptic } from '@/lib/haptics';
 
 export type NavTab = 'rooms' | 'games' | 'community' | 'clans' | 'leaderboard' | 'profile' | 'mod' | 'economy' | 'replays';
 
@@ -52,7 +53,7 @@ export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
           return (
             <button
               key={tab.id}
-              onClick={() => onChange(tab.id)}
+              onClick={() => { haptic('selection'); onChange(tab.id); }}
               className="flex flex-col items-center justify-center flex-1 min-w-0 transition-all duration-150 active:scale-90"
               style={{
                 minHeight: '56px',

@@ -8,6 +8,7 @@ import { MorePanel } from '@/components/ui/MorePanel';
 import { useT } from '@/store/langStore';
 import { useAmbientDrone } from '@/hooks/useAudio';
 import { Button } from '@/components/ui/Button';
+import { SkeletonRoomCard } from '@/components/ui/Skeleton';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { DailyChallengeCard } from '@/components/ui/DailyChallengeCard';
 import { NewsCard } from '@/components/ui/NewsCard';
@@ -278,7 +279,9 @@ export function RoomsPage() {
             </div>
 
             {loadingRooms && rooms.length === 0 && (
-              <p className="text-center text-white/25 font-mono text-sm py-10">{t.common.loading}</p>
+              <div className="space-y-2 py-2">
+                {Array.from({ length: 4 }, (_, i) => <SkeletonRoomCard key={i} />)}
+              </div>
             )}
 
             {!loadingRooms && rooms.length === 0 && (

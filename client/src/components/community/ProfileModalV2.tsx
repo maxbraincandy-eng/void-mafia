@@ -65,28 +65,34 @@ export function ProfileModalV2({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-4"
       style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}
       onClick={onClose}
     >
       <motion.div
-        initial={{ scale: 0.92, opacity: 0, y: 12 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.92, opacity: 0, y: 12 }}
-        transition={{ type: 'spring', damping: 26, stiffness: 360 }}
-        className="w-full max-w-sm rounded-3xl overflow-hidden"
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 32, stiffness: 340, mass: 0.8 }}
+        className="w-full sm:max-w-sm overflow-hidden"
         style={{
           background: 'linear-gradient(180deg, #120d24 0%, #0d0a1a 100%)',
           border: '1px solid rgba(155,0,255,0.22)',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(155,0,255,0.08)',
+          borderRadius: '20px 20px 0 0',
+          boxShadow: '0 -8px 40px rgba(0,0,0,0.6)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         }}
         onClick={e => e.stopPropagation()}
       >
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+          <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.18)' }} />
+        </div>
         {/* Close button */}
-        <div className="flex justify-end pt-3 pr-3 pb-0">
+        <div className="flex justify-end pt-2 pr-3 pb-0">
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-full flex items-center justify-center transition-opacity active:opacity-60"
+            className="w-8 h-8 rounded-full flex items-center justify-center transition-opacity active:opacity-60"
             style={{ background: 'rgba(255,255,255,0.08)' }}
           >
             <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1 }}>✕</span>
