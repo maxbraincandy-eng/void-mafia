@@ -845,6 +845,14 @@ export interface ServerToClientEvents {
   'community:debate_deleted': (data: { debateId: string }) => void;
   'community:debate_updated': (data: { debateId: string; pinned?: boolean; featured?: boolean; locked?: boolean }) => void;
   'community:post_featured':  (data: { postId: string; featured: boolean }) => void;
+  // WWW (What? Where? When?) game events
+  'www:state': (match: import('../services/wwwService.js').WWWMatchPublic) => void;
+  'www:voice-peer-joined': (data: { socketId: string; name: string }) => void;
+  'www:voice-peer-left': (data: { socketId: string }) => void;
+  'www:voice-offer': (data: { from: string; sdp: object }) => void;
+  'www:voice-answer': (data: { from: string; sdp: object }) => void;
+  'www:voice-ice': (data: { from: string; candidate: object }) => void;
+  'www:voice-peer-state': (data: { socketId: string; speaking: boolean }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -1134,6 +1142,28 @@ export interface ClientToServerEvents {
   'admin:report_list':    (data: Record<string, never>, cb: (r: Res<any[]>) => void) => void;
   'admin:audit_logs':     (data: Record<string, never>, cb: (r: Res<any[]>) => void) => void;
   'admin:deleted_content': (data: { type: 'posts' | 'comments' | 'debates' }, cb: (r: Res<any[]>) => void) => void;
+  // ── WWW (What? Where? When?) game events ─────────────────────────────
+  'www:list':              (cb: (r: Res<any[]>) => void) => void;
+  'www:state':             (cb: (r: Res<any>) => void) => void;
+  'www:create':            (data: { nickname: string; settings?: any }, cb: (r: Res<any>) => void) => void;
+  'www:join':              (data: { code: string; nickname: string }, cb: (r: Res<any>) => void) => void;
+  'www:spectate':          (data: { code: string; nickname: string }, cb: (r: Res<any>) => void) => void;
+  'www:leave':             (cb?: (r: Res<null>) => void) => void;
+  'www:join-team':         (data: { teamId: string }, cb: (r: Res<any>) => void) => void;
+  'www:assign-captain':    (data: { targetUserId: string; teamId: string }, cb: (r: Res<any>) => void) => void;
+  'www:start':             (cb?: (r: Res<any>) => void) => void;
+  'www:advance-discussion': (cb?: (r: Res<any>) => void) => void;
+  'www:submit-answer':     (data: { answerText: string }, cb: (r: Res<any>) => void) => void;
+  'www:judge-answer':      (data: { teamId: string; isCorrect: boolean; judgeNote?: string }, cb: (r: Res<any>) => void) => void;
+  'www:next-question':     (cb?: (r: Res<any>) => void) => void;
+  'www:chat':              (data: { text: string }, cb: (r: Res<null>) => void) => void;
+  'www:voice-join':        (data: { matchId: string }, cb: (r: Res<any>) => void) => void;
+  'www:voice-leave':       (data: { matchId: string }) => void;
+  'www:voice-offer':       (data: { to: string; sdp: object }) => void;
+  'www:voice-answer':      (data: { to: string; sdp: object }) => void;
+  'www:voice-ice':         (data: { to: string; candidate: object }) => void;
+  'www:voice-start-talk':  (data: { matchId: string }) => void;
+  'www:voice-stop-talk':   (data: { matchId: string }) => void;
 }
 
 export interface InterServerEvents {}
