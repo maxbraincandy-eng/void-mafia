@@ -117,7 +117,7 @@ export function VoteRevealScreen({ breakdown, onDismiss }: Props) {
             exit={{ opacity: 0 }}
             className="w-full max-w-sm"
           >
-            <h2 className="font-display text-[10px] text-neon-red/50 tracking-widest text-center mb-4 uppercase">
+            <h2 className="font-display text-[12px] text-neon-red/50 tracking-widest text-center mb-4 uppercase">
               Vote Reveal
             </h2>
 
@@ -154,7 +154,7 @@ export function VoteRevealScreen({ breakdown, onDismiss }: Props) {
                   animate={{ opacity: 1, y: 0 }}
                   className="glass-panel border border-white/8 rounded-xl p-3"
                 >
-                  <p className="text-[9px] font-mono text-white/25 uppercase tracking-widest mb-2">
+                  <p className="text-[12px] font-mono text-white/25 uppercase tracking-widest mb-2">
                     Running Tally
                   </p>
                   {tallyEntries.map((entry, i) => (

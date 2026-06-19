@@ -451,13 +451,13 @@ export function GamePage() {
       {/* Night phase notice for spectators and non-mafia */}
       {isNight && amSpectator && (
         <div className="mb-2 px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 flex items-center gap-2">
-          <span className="text-[10px] font-mono text-white/40">🌙 Night phase — Mafia private channel is hidden.</span>
+          <span className="text-[12px] font-mono text-white/40">🌙 Night phase — Mafia private channel is hidden.</span>
         </div>
       )}
       {voice.forceMuted && voice.channel && !voice.listenOnly && (
         <div className="mb-2 px-3 py-1.5 rounded-lg border border-yellow-500/20 bg-yellow-500/5 flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-yellow-500/70 flex-shrink-0" />
-          <p className="text-[10px] font-mono text-yellow-500/70 leading-tight">
+          <p className="text-[12px] font-mono text-yellow-500/70 leading-tight">
             {voice.forceMutedReason ?? 'Muted by system'}
           </p>
         </div>
@@ -506,21 +506,21 @@ export function GamePage() {
     <div className="py-8 space-y-4">
       <div className="flex items-center gap-3">
         <div className="w-1.5 h-1.5 rounded-full bg-white/40 animate-pulse" />
-        <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-white/40">Waiting for Next Round</span>
+        <span className="font-mono text-[12px] tracking-[0.25em] uppercase text-white/40">Waiting for Next Round</span>
         <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.08), transparent)' }} />
       </div>
       <p className="text-white/35 text-sm font-mono leading-relaxed">
         The current round is still in progress. You'll be assigned a role and seat when the next round begins.
       </p>
       <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
-        <p className="text-[10px] font-mono tracking-widest uppercase text-white/25 mb-2">Players In This Round</p>
+        <p className="text-[12px] font-mono tracking-widest uppercase text-white/25 mb-2">Players In This Round</p>
         <p className="font-mono text-white/50 text-lg font-bold">
           {room.players.filter(p => !p.isSpectator && !p.isQueuedNextRound).length}
         </p>
       </div>
       {(room.nextRoundQueue ?? []).length > 1 && (
         <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
-          <p className="text-[10px] font-mono tracking-widest uppercase text-white/25 mb-2">Also Waiting</p>
+          <p className="text-[12px] font-mono tracking-widest uppercase text-white/25 mb-2">Also Waiting</p>
           <div className="flex flex-wrap gap-2">
             {(room.nextRoundQueue ?? []).filter(p => p.id !== myPlayer?.id).map(p => (
               <span key={p.id} className="text-xs font-mono text-white/40 px-2 py-0.5 rounded border border-white/[0.07]">
@@ -547,16 +547,16 @@ export function GamePage() {
             <div className="py-8 space-y-4">
               <div className="flex items-center gap-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-neon-purple/60" />
-                <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-neon-purple/60">{t.game.spectatingLabel}</span>
+                <span className="font-mono text-[12px] tracking-[0.25em] uppercase text-neon-purple/60">{t.game.spectatingLabel}</span>
                 <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(155,0,255,0.2), transparent)' }} />
               </div>
               <p className="text-white/40 text-sm font-mono">{t.game.roleRevealSpectating}</p>
               {Object.keys(room.activeRoleCounts ?? {}).length > 0 && (
                 <div className="rounded-xl border border-neon-purple/15 bg-neon-purple/[0.04] p-3">
-                  <p className="text-[10px] font-mono tracking-widest uppercase text-neon-purple/50 mb-2">{t.game.roleDistribution}</p>
+                  <p className="text-[12px] font-mono tracking-widest uppercase text-neon-purple/50 mb-2">{t.game.roleDistribution}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {Object.entries(room.activeRoleCounts).map(([role, count]) => (
-                      <span key={role} className="text-[10px] font-mono px-2 py-0.5 rounded border border-white/10 text-white/40">
+                      <span key={role} className="text-[12px] font-mono px-2 py-0.5 rounded border border-white/10 text-white/40">
                         {t.game.roles[role as keyof typeof t.game.roles] ?? role} ×{count}
                       </span>
                     ))}
@@ -588,7 +588,7 @@ export function GamePage() {
             <div className="py-4">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-neon-purple/70" style={{ boxShadow: '0 0 6px rgba(155,0,255,0.8)' }} />
-                <span className="font-mono text-[10px] tracking-[0.25em] uppercase" style={{ color: 'rgba(155,0,255,0.8)' }}>
+                <span className="font-mono text-[12px] tracking-[0.25em] uppercase" style={{ color: 'rgba(155,0,255,0.8)' }}>
                   {t.game.night.title} · {t.game.header.phase} {room.day}
                 </span>
                 <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(155,0,255,0.25), transparent)' }} />
@@ -602,8 +602,8 @@ export function GamePage() {
               <div className="rounded-2xl border border-neon-red/20 overflow-hidden" style={{ background: 'rgba(30,0,8,0.7)' }}>
                 <div className="flex items-center gap-2.5 px-3 py-2 border-b border-neon-red/10">
                   <span className="text-xs" style={{ filter: 'drop-shadow(0 0 4px rgba(255,45,85,0.8))' }}>📻</span>
-                  <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-neon-red/70">{t.game.mafiaRadio}</span>
-                  <span className="text-[9px] font-mono text-white/25 ml-auto">{t.game.mafiaRadioOnly}</span>
+                  <span className="font-mono text-[12px] tracking-[0.2em] uppercase text-neon-red/70">{t.game.mafiaRadio}</span>
+                  <span className="text-[12px] font-mono text-white/25 ml-auto">{t.game.mafiaRadioOnly}</span>
                 </div>
                 <div className="p-3">
                   <VoiceControls
@@ -633,7 +633,7 @@ export function GamePage() {
             {/* Night message for non-Mafia alive players */}
             {!isMafiaPlayer && amAlive && !amSpectator && (
               <div className="rounded-xl border border-white/[0.06] px-4 py-3" style={{ background: 'rgba(10,6,28,0.6)' }}>
-                <p className="text-[10px] font-mono tracking-widest uppercase text-white/25 mb-1">{t.game.voiceLabel}</p>
+                <p className="text-[12px] font-mono tracking-widest uppercase text-white/25 mb-1">{t.game.voiceLabel}</p>
                 <p className="text-white/35 text-xs font-mono">{t.game.voiceDisabledNight}</p>
               </div>
             )}
@@ -665,7 +665,7 @@ export function GamePage() {
               <div className="py-4">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-neon-cyan/70" style={{ boxShadow: '0 0 6px rgba(0,196,204,0.8)' }} />
-                  <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-neon-cyan/70">
+                  <span className="font-mono text-[12px] tracking-[0.25em] uppercase text-neon-cyan/70">
                     {t.game.day.title} {room.day}
                   </span>
                   <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(0,196,204,0.25), transparent)' }} />
@@ -694,7 +694,7 @@ export function GamePage() {
             <div className="py-4">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-neon-cyan/70" style={{ boxShadow: '0 0 6px rgba(0,196,204,0.8)' }} />
-                <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-neon-cyan/70">
+                <span className="font-mono text-[12px] tracking-[0.25em] uppercase text-neon-cyan/70">
                   {t.game.phaseLabels.morning}
                 </span>
                 <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(0,196,204,0.25), transparent)' }} />
@@ -733,7 +733,7 @@ export function GamePage() {
               <div className="py-4">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-1.5 h-1.5 rounded-full bg-neon-green/70" style={{ boxShadow: '0 0 6px rgba(0,230,100,0.8)' }} />
-                  <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-neon-green/70">
+                  <span className="font-mono text-[12px] tracking-[0.25em] uppercase text-neon-green/70">
                     {t.game.speech.title}
                   </span>
                   <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(0,230,100,0.25), transparent)' }} />
@@ -745,9 +745,9 @@ export function GamePage() {
                       {t.game.speech.speaker} {speakerIdx + 1} {t.game.speech.of} {totalSpeakers}
                     </p>
                     {room.currentSpeakerId === myPlayer?.id ? (
-                      <p className="text-neon-green text-[10px] font-mono tracking-widest uppercase">{t.game.yourTurnMic}</p>
+                      <p className="text-neon-green text-[12px] font-mono tracking-widest uppercase">{t.game.yourTurnMic}</p>
                     ) : (
-                      <p className="text-yellow-500/60 text-[10px] font-mono tracking-widest uppercase">{t.game.listeningMuted}</p>
+                      <p className="text-yellow-500/60 text-[12px] font-mono tracking-widest uppercase">{t.game.listeningMuted}</p>
                     )}
                   </div>
                 ) : (
@@ -758,7 +758,7 @@ export function GamePage() {
               {/* Nomination panel — only for current speaker, hidden on Day 1 */}
               {isMyTurn && room.day > 1 && (
                 <div className="p-3 rounded-xl border border-neon-red/20 bg-neon-red/5 space-y-2">
-                  <p className="text-[10px] font-mono text-neon-red/50 uppercase tracking-widest">
+                  <p className="text-[12px] font-mono text-neon-red/50 uppercase tracking-widest">
                     ⚖️ {t.game.speech.nominateLabel}
                   </p>
                   {nominatedPlayer ? (
@@ -769,7 +769,7 @@ export function GamePage() {
                       <button
                         onClick={() => nominate(null)}
                         disabled={isLoading}
-                        className="text-[10px] text-white/40 hover:text-neon-red font-mono transition-colors"
+                        className="text-[12px] text-white/40 hover:text-neon-red font-mono transition-colors"
                       >
                         ✕ {t.game.speech.withdrawNomination}
                       </button>
@@ -796,7 +796,7 @@ export function GamePage() {
               {/* Show current nominations visible to everyone */}
               {Object.keys(room.nominations ?? {}).length > 0 && (
                 <div className="p-3 rounded-xl border border-white/8 bg-white/3 space-y-1.5">
-                  <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest">
+                  <p className="text-[12px] font-mono text-white/30 uppercase tracking-widest">
                     {t.game.nominations}
                   </p>
                   {Object.entries(room.nominations ?? {}).map(([nominatorId, nomineeId]) => {
@@ -838,7 +838,7 @@ export function GamePage() {
                       }}
                     >
                       ⚠️ {t.game.speech.foul} · {myFoulCount}/3
-                      {myFoulCount >= 3 && <span className="block text-[9px] opacity-70">{t.game.speech.nextFoulEliminate}</span>}
+                      {myFoulCount >= 3 && <span className="block text-[12px] opacity-70">{t.game.speech.nextFoulEliminate}</span>}
                     </button>
                   )}
                 </div>
@@ -860,17 +860,17 @@ export function GamePage() {
               <div className="py-4">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-1.5 h-1.5 rounded-full bg-neon-red/70" style={{ boxShadow: '0 0 6px rgba(255,45,85,0.8)' }} />
-                  <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-neon-red/70">
+                  <span className="font-mono text-[12px] tracking-[0.25em] uppercase text-neon-red/70">
                     {t.game.trialDefense.phaseLabel}
                   </span>
                   <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(255,45,85,0.25), transparent)' }} />
-                  <span className="text-[9px] font-mono text-white/25">{candidateNum}/{totalCandidates}</span>
+                  <span className="text-[12px] font-mono text-white/25">{candidateNum}/{totalCandidates}</span>
                 </div>
                 {candidate ? (
                   <div className="pl-4 space-y-2">
                     <div className="flex items-center gap-2">
                       <p className="text-white font-semibold text-base">{candidate.name}</p>
-                      <span className="px-2 py-0.5 rounded-full text-[9px] font-mono uppercase tracking-widest bg-neon-red/15 border border-neon-red/30 text-neon-red/80">
+                      <span className="px-2 py-0.5 rounded-full text-[12px] font-mono uppercase tracking-widest bg-neon-red/15 border border-neon-red/30 text-neon-red/80">
                         {t.game.trialDefense.onTrial}
                       </span>
                     </div>
@@ -917,7 +917,7 @@ export function GamePage() {
             <div className="py-4">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-neon-red/70" style={{ boxShadow: '0 0 6px rgba(255,45,85,0.8)' }} />
-                <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-neon-red/70">
+                <span className="font-mono text-[12px] tracking-[0.25em] uppercase text-neon-red/70">
                   {t.game.voting.title}
                 </span>
                 <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(255,45,85,0.25), transparent)' }} />
@@ -1057,7 +1057,7 @@ export function GamePage() {
               >
                 {/* Role name */}
                 <div className="text-center">
-                  <p className="text-[10px] font-mono tracking-[0.3em] uppercase mb-2" style={{ color: `${myRole.glowColor}80` }}>{t.game.yourRole}</p>
+                  <p className="text-[12px] font-mono tracking-[0.3em] uppercase mb-2" style={{ color: `${myRole.glowColor}80` }}>{t.game.yourRole}</p>
                   <h2
                     className="font-display text-3xl font-bold tracking-widest uppercase"
                     style={{ color: myRole.glowColor, textShadow: `0 0 20px ${myRole.glowColor}` }}
@@ -1076,14 +1076,14 @@ export function GamePage() {
 
                     <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3 space-y-3">
                       <div>
-                        <p className="text-[10px] font-mono tracking-widest uppercase mb-1" style={{ color: `${myRole.glowColor}70` }}>
+                        <p className="text-[12px] font-mono tracking-widest uppercase mb-1" style={{ color: `${myRole.glowColor}70` }}>
                           {t.roleGuide.nightAbility}
                         </p>
                         <p className="text-white/55 text-xs">{roleInfo.ability}</p>
                       </div>
                       <div className="h-px bg-white/[0.05]" />
                       <div>
-                        <p className="text-[10px] font-mono tracking-widest uppercase mb-1" style={{ color: `${myRole.glowColor}70` }}>
+                        <p className="text-[12px] font-mono tracking-widest uppercase mb-1" style={{ color: `${myRole.glowColor}70` }}>
                           {t.roleGuide.winCondition}
                         </p>
                         <p className="text-white/55 text-xs">{roleInfo.win}</p>
@@ -1233,7 +1233,7 @@ export function GamePage() {
 
             {/* Phase */}
             <div className="min-w-0">
-              <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest hidden sm:block">{t.game.header.phase}</p>
+              <p className="text-[12px] font-mono text-white/30 uppercase tracking-widest hidden sm:block">{t.game.header.phase}</p>
               <h1
                 className={clsx('font-display text-sm md:text-xl font-bold tracking-widest uppercase truncate transition-all duration-700', PHASE_COLORS[phase])}
                 style={{ textShadow: PHASE_GLOW[phase] }}
@@ -1243,7 +1243,7 @@ export function GamePage() {
                   <span className="text-white/40 text-sm"> · D{room.day}</span>
                 )}
               </h1>
-              <p className="text-[10px] font-mono text-white/35 truncate hidden sm:block leading-tight mt-0.5">
+              <p className="text-[12px] font-mono text-white/35 truncate hidden sm:block leading-tight mt-0.5">
                 {getPhaseSubtitle(phase, room.day, t, room.players.find(p => p.id === room.currentSpeakerId)?.name, amAlive, amSpectator)}
               </p>
             </div>
@@ -1259,28 +1259,28 @@ export function GamePage() {
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-neon-green/20 bg-neon-green/5">
               <div className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
               <span className="text-xs font-mono text-neon-green/80 font-bold">{alivePlayers}</span>
-              <span className="text-[10px] font-mono text-white/30">{t.game.alive}</span>
+              <span className="text-[12px] font-mono text-white/30">{t.game.alive}</span>
             </div>
 
             <div className="ml-auto flex items-center gap-1.5 md:gap-3">
               {/* Room code */}
               <div className="hidden sm:block text-right">
                 {room.name && (
-                  <p className="text-[10px] font-display font-bold text-white/50 truncate max-w-[140px]">{room.name}</p>
+                  <p className="text-[12px] font-display font-bold text-white/50 truncate max-w-[140px]">{room.name}</p>
                 )}
-                <p className="text-[10px] text-white/30 font-mono">{t.game.header.room}</p>
+                <p className="text-[12px] text-white/30 font-mono">{t.game.header.room}</p>
                 <p className="font-mono text-xs md:text-sm text-neon-cyan/70 font-bold tracking-widest">{room.code}</p>
               </div>
 
               {/* Spectator badge */}
               {amSpectator && !amQueuedNextRound && (
-                <div className="px-2 py-1 rounded-lg border border-neon-purple/40 bg-neon-purple/10 text-[10px] font-mono tracking-widest uppercase text-neon-purple/80">
+                <div className="px-2 py-1 rounded-lg border border-neon-purple/40 bg-neon-purple/10 text-[12px] font-mono tracking-widest uppercase text-neon-purple/80">
                   {t.game.spectatorBadge}
                 </div>
               )}
               {/* Queue badge */}
               {amQueuedNextRound && (
-                <div className="px-2 py-1 rounded-lg border border-neon-cyan/40 bg-neon-cyan/10 text-[10px] font-mono tracking-widest uppercase text-neon-cyan/80">
+                <div className="px-2 py-1 rounded-lg border border-neon-cyan/40 bg-neon-cyan/10 text-[12px] font-mono tracking-widest uppercase text-neon-cyan/80">
                   QUEUE #{queuePosition}
                 </div>
               )}
@@ -1340,7 +1340,7 @@ export function GamePage() {
               {/* Leaderboard button */}
               <button
                 onClick={() => setShowLeaderboard(true)}
-                className="hidden sm:flex px-2.5 py-1 rounded-lg text-[10px] font-mono tracking-widest uppercase text-white/30 hover:text-white/70 hover:bg-white/5 transition-all"
+                className="hidden sm:flex px-2.5 py-1 rounded-lg text-[12px] font-mono tracking-widest uppercase text-white/30 hover:text-white/70 hover:bg-white/5 transition-all"
                 title={t.game.header.leaderboard}
               >
                 {t.game.ranks}
@@ -1483,10 +1483,10 @@ export function GamePage() {
             {/* Spectator role distribution panel */}
             {amSpectator && phase !== 'lobby' && phase !== 'role_reveal' && Object.keys(room.activeRoleCounts ?? {}).length > 0 && (
               <div className="mb-3 rounded-xl border border-neon-purple/15 bg-neon-purple/[0.04] p-3 flex-shrink-0">
-                <p className="text-[10px] font-mono tracking-widest uppercase text-neon-purple/50 mb-2">{t.game.rolesInPlay}</p>
+                <p className="text-[12px] font-mono tracking-widest uppercase text-neon-purple/50 mb-2">{t.game.rolesInPlay}</p>
                 <div className="flex flex-wrap gap-1">
                   {Object.entries(room.activeRoleCounts).map(([role, count]) => (
-                    <span key={role} className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/8 text-white/35">
+                    <span key={role} className="text-[12px] font-mono px-1.5 py-0.5 rounded border border-white/8 text-white/35">
                       {t.game.roles[role as keyof typeof t.game.roles] ?? role} ×{count}
                     </span>
                   ))}
@@ -1497,7 +1497,7 @@ export function GamePage() {
             {amSpectator && phase !== 'lobby' && phase !== 'game_over' && (
               <div className="mb-3 rounded-xl border border-neon-cyan/15 bg-neon-cyan/[0.03] p-3 flex-shrink-0">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] font-mono tracking-widest uppercase text-neon-cyan/50">
+                  <p className="text-[12px] font-mono tracking-widest uppercase text-neon-cyan/50">
                     {t.rooms.nextRoundQueue ?? 'Next Round Queue'}
                     {(room.nextRoundQueue?.length ?? 0) > 0 && (
                       <span className="ml-1 text-neon-cyan/70">({room.nextRoundQueue.length})</span>
@@ -1511,13 +1511,13 @@ export function GamePage() {
                         <span className="text-neon-cyan/40 w-4">#{p.queuePosition}</span>
                         <span className="text-white/50 truncate">{p.name}</span>
                         {p.id === myPlayer?.id && (
-                          <span className="text-neon-cyan/60 text-[9px]">(you)</span>
+                          <span className="text-neon-cyan/60 text-[12px]">(you)</span>
                         )}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-[10px] font-mono text-white/20 mb-2">
+                  <p className="text-[12px] font-mono text-white/20 mb-2">
                     {t.rooms.nextRoundQueueHint ?? 'No players in queue'}
                   </p>
                 )}
@@ -1525,7 +1525,7 @@ export function GamePage() {
                   <button
                     onClick={() => leaveQueue()}
                     disabled={isLoading}
-                    className="w-full text-[10px] font-mono py-1.5 rounded-lg border border-neon-red/30 text-neon-red/60 hover:bg-neon-red/10 transition-all"
+                    className="w-full text-[12px] font-mono py-1.5 rounded-lg border border-neon-red/30 text-neon-red/60 hover:bg-neon-red/10 transition-all"
                   >
                     {t.rooms.leaveQueue ?? 'Leave Queue'}
                   </button>
@@ -1533,7 +1533,7 @@ export function GamePage() {
                   <button
                     onClick={() => joinQueue()}
                     disabled={isLoading}
-                    className="w-full text-[10px] font-mono py-1.5 rounded-lg border border-neon-cyan/30 text-neon-cyan/60 hover:bg-neon-cyan/10 transition-all"
+                    className="w-full text-[12px] font-mono py-1.5 rounded-lg border border-neon-cyan/30 text-neon-cyan/60 hover:bg-neon-cyan/10 transition-all"
                   >
                     {t.rooms.joinQueue ?? 'Join Next Round Queue'}
                   </button>
@@ -1550,7 +1550,7 @@ export function GamePage() {
                   key={tab}
                   onClick={() => setRightTab(tab)}
                   className={clsx(
-                    'flex-1 py-1.5 rounded-lg text-[10px] font-display font-bold tracking-widest uppercase transition-all relative',
+                    'flex-1 py-1.5 rounded-lg text-[12px] font-display font-bold tracking-widest uppercase transition-all relative',
                     rightTab === tab
                       ? tab === 'spectator'
                         ? 'bg-neon-purple/10 border border-neon-purple/30 text-neon-purple'
@@ -1560,12 +1560,12 @@ export function GamePage() {
                 >
                   {tab === 'spectator' ? '👁 Theater' : tab === 'events' ? t.game.eventsTab : t.game.chatTab}
                   {tab === 'events' && unreadEvents > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-neon-cyan text-void text-[8px] flex items-center justify-center font-bold">
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-neon-cyan text-void text-[12px] flex items-center justify-center font-bold">
                       {unreadEvents > 9 ? '9+' : unreadEvents}
                     </span>
                   )}
                   {tab === 'chat' && unreadChat > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-neon-red text-white text-[8px] flex items-center justify-center font-bold">
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-neon-red text-white text-[12px] flex items-center justify-center font-bold">
                       {unreadChat > 9 ? '9+' : unreadChat}
                     </span>
                   )}
@@ -1613,7 +1613,7 @@ export function GamePage() {
                       className="w-full flex items-center justify-between px-3 py-2 text-xs font-mono text-white/40 hover:text-white/60 transition-colors"
                     >
                       <span>{isInVoice ? voiceChannelLabel : t.game.voice.join}</span>
-                      <span className="text-[10px]">{mobileVoiceOpen ? '▲' : '▼'}</span>
+                      <span className="text-[12px]">{mobileVoiceOpen ? '▲' : '▼'}</span>
                     </button>
                     {mobileVoiceOpen && <div className="px-3 pb-3">{VoicePanel}</div>}
                   </div>
@@ -1634,7 +1634,7 @@ export function GamePage() {
                   return (
                     <>
                       <div className="text-center space-y-2">
-                        <p className="text-[10px] font-mono tracking-[0.3em] uppercase text-neon-red/60">
+                        <p className="text-[12px] font-mono tracking-[0.3em] uppercase text-neon-red/60">
                           {t.game.trialDefense.phaseLabel} · {candidateNum}/{totalCandidates}
                         </p>
                         <h2 className="text-2xl font-display font-bold text-white">
@@ -1655,7 +1655,7 @@ export function GamePage() {
                       >
                         <span className="text-3xl font-mono font-bold text-neon-red">{room.timer}</span>
                       </div>
-                      <p className="text-[10px] font-mono text-white/25 text-center">{t.game.trialDefense.votingAfter}</p>
+                      <p className="text-[12px] font-mono text-white/25 text-center">{t.game.trialDefense.votingAfter}</p>
                       {isMyDefense && (
                         <Button size="sm" variant="ghost" loading={isLoading} onClick={() => { skipDefense(); navigator.vibrate?.(50); }}>
                           ⏭ {t.game.trialDefense.skipDefense}
@@ -1702,7 +1702,7 @@ export function GamePage() {
                   return (
                     <>
                       <div className="text-center space-y-2">
-                        <p className="text-[10px] font-mono tracking-[0.3em] uppercase text-neon-red/60">{t.game.finalWordsTitle}</p>
+                        <p className="text-[12px] font-mono tracking-[0.3em] uppercase text-neon-red/60">{t.game.finalWordsTitle}</p>
                         <h2 className="text-2xl font-display font-bold text-white">
                           {dyingPlayer?.name ?? '—'}
                         </h2>
@@ -1827,7 +1827,7 @@ export function GamePage() {
               </svg>
             )}
             {unreadChat > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-neon-red text-white text-[9px] flex items-center justify-center font-bold">
+              <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-neon-red text-white text-[12px] flex items-center justify-center font-bold">
                 {unreadChat > 9 ? '9+' : unreadChat}
               </span>
             )}

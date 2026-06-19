@@ -137,7 +137,7 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                       </h2>
                     </div>
                     {propCoins != null && (
-                      <p className="font-mono text-[10px] text-amber-400/50 tracking-widest">
+                      <p className="font-mono text-[12px] text-amber-400/50 tracking-widest">
                         Balance: {propCoins.toLocaleString()} coins
                       </p>
                     )}
@@ -158,7 +158,7 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                   ].map(t => (
                     <button key={t.id}
                       onClick={() => setShopTab(t.id as any)}
-                      className={`px-3 py-1.5 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all ${shopTab === t.id ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30' : 'text-white/30 hover:text-white/50'}`}
+                      className={`px-3 py-1.5 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all ${shopTab === t.id ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30' : 'text-white/30 hover:text-white/50'}`}
                     >
                       {t.label}
                     </button>
@@ -173,7 +173,7 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                 {/* Trust indicators */}
                 <div className="flex items-center justify-center gap-4 pb-1">
                   {['🔒 Secure', '⚡ Instant', '💳 Stripe'].map(t => (
-                    <span key={t} className="font-mono text-[9px] text-white/25 uppercase tracking-widest">{t}</span>
+                    <span key={t} className="font-mono text-[12px] text-white/25 uppercase tracking-widest">{t}</span>
                   ))}
                 </div>
 
@@ -223,13 +223,13 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                         <div className="flex items-center gap-2">
                           <p className="font-display text-base font-bold text-white">{pkg.label}</p>
                           {pkg.bonus && (
-                            <span className="font-mono text-[8px] uppercase tracking-widest px-1.5 py-0.5 rounded-full text-amber-400"
+                            <span className="font-mono text-[12px] uppercase tracking-widest px-1.5 py-0.5 rounded-full text-amber-400"
                               style={{ background: 'rgba(255,180,0,0.1)', border: '1px solid rgba(255,180,0,0.2)' }}>
                               {pkg.bonus}
                             </span>
                           )}
                           {i === 2 && (
-                            <span className="font-mono text-[8px] uppercase tracking-widest px-1.5 py-0.5 rounded-full text-neon-purple"
+                            <span className="font-mono text-[12px] uppercase tracking-widest px-1.5 py-0.5 rounded-full text-neon-purple"
                               style={{ background: 'rgba(155,0,255,0.1)', border: '1px solid rgba(155,0,255,0.25)' }}>
                               Popular
                             </span>
@@ -256,7 +256,7 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                 ))}
 
                 {/* Disclaimer */}
-                <p className="text-center font-mono text-[9px] text-white/15 leading-relaxed pt-2 px-2">
+                <p className="text-center font-mono text-[12px] text-white/15 leading-relaxed pt-2 px-2">
                   Coins are non-refundable and cannot be exchanged for real money.
                   Purchases are processed securely via Stripe.
                 </p>
@@ -266,7 +266,7 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                 {/* ── Backgrounds tab ── */}
                 {shopTab === 'backgrounds' && (
                 <div className="space-y-2">
-                  <p className="font-mono text-[10px] text-white/30 tracking-widest text-center pb-1">
+                  <p className="font-mono text-[12px] text-white/30 tracking-widest text-center pb-1">
                     Full-bleed backgrounds for your profile page
                   </p>
                   {bgMsg && (
@@ -285,26 +285,26 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                         <div className="w-12 h-12 rounded-xl shrink-0 border border-white/10" style={{ background: bg.css }} />
                         <div className="flex-1 min-w-0">
                           <p className="font-display font-bold text-sm text-white/90 truncate">{bg.name}</p>
-                          <p className="font-mono text-[9px] uppercase tracking-wider" style={{ color: RARITY_COLOR[bg.rarity] }}>
+                          <p className="font-mono text-[12px] uppercase tracking-wider" style={{ color: RARITY_COLOR[bg.rarity] }}>
                             {RARITY_LABEL[bg.rarity]}
                           </p>
                           {isOwned ? (
-                            <p className="font-mono text-[9px] text-neon-green/60">Owned</p>
+                            <p className="font-mono text-[12px] text-neon-green/60">Owned</p>
                           ) : (
-                            <p className="font-mono text-[10px] text-amber-400/70 font-bold">
+                            <p className="font-mono text-[12px] text-amber-400/70 font-bold">
                               {bg.price === 0 ? 'Free' : `${bg.price} coins`}
                             </p>
                           )}
                         </div>
                         {isOwned ? (
-                          <div className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[10px] text-neon-green/60 border border-neon-green/20">
+                          <div className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[12px] text-neon-green/60 border border-neon-green/20">
                             Owned
                           </div>
                         ) : (
                           <button
                             disabled={isBuying || !!buyingBg || bg.price === 0}
                             onClick={() => bg.price > 0 && handleBuyBackground(bg.id)}
-                            className="shrink-0 px-2.5 py-1.5 rounded-lg font-mono text-[10px] font-bold transition-all disabled:opacity-40"
+                            className="shrink-0 px-2.5 py-1.5 rounded-lg font-mono text-[12px] font-bold transition-all disabled:opacity-40"
                             style={{ background: 'rgba(255,180,0,0.1)', color: 'rgba(255,180,0,0.85)', border: '1px solid rgba(255,180,0,0.25)' }}
                           >
                             {isBuying ? '...' : bg.price === 0 ? 'Free' : 'Buy'}
@@ -313,7 +313,7 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                       </div>
                     );
                   })}
-                  <p className="text-center font-mono text-[9px] text-white/15 leading-relaxed pt-2 px-2">
+                  <p className="text-center font-mono text-[12px] text-white/15 leading-relaxed pt-2 px-2">
                     Profile backgrounds are permanent unlocks. Equip from Profile &gt; Wallpapers tab.
                   </p>
                 </div>

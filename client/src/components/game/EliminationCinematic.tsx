@@ -66,7 +66,7 @@ export function EliminationCinematic({ victims, onDone }: Props) {
                   💀
                 </motion.div>
                 <p
-                  className="text-[10px] font-mono uppercase tracking-[0.3em] mb-2"
+                  className="text-[12px] font-mono uppercase tracking-[0.3em] mb-2"
                   style={{ color: 'rgba(255,30,60,0.6)' }}
                 >
                   eliminated

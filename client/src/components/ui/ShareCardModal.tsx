@@ -102,7 +102,7 @@ export function ShareCardModal({ open, data, onClose }: Props) {
 
               {/* Template selector */}
               <div className="px-5 mb-4">
-                <p className="text-[10px] font-mono tracking-[0.2em] uppercase text-white/30 mb-2">Card Style</p>
+                <p className="text-[12px] font-mono tracking-[0.2em] uppercase text-white/30 mb-2">Card Style</p>
                 <div className="grid grid-cols-3 gap-2">
                   {CARD_TEMPLATES.map(t => (
                     <button
@@ -116,7 +116,7 @@ export function ShareCardModal({ open, data, onClose }: Props) {
                       )}
                     >
                       <span className="text-base">{t.emoji}</span>
-                      <span className="text-[9px] tracking-wide leading-tight text-center">{t.label}</span>
+                      <span className="text-[12px] tracking-wide leading-tight text-center">{t.label}</span>
                     </button>
                   ))}
                 </div>
@@ -125,7 +125,7 @@ export function ShareCardModal({ open, data, onClose }: Props) {
               {/* Profile link */}
               {data.profile.publicId && (
                 <div className="px-5 mb-4">
-                  <p className="text-[10px] font-mono tracking-[0.2em] uppercase text-white/30 mb-2">Profile Link</p>
+                  <p className="text-[12px] font-mono tracking-[0.2em] uppercase text-white/30 mb-2">Profile Link</p>
                   <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 bg-white/3">
                     <span className="text-xs font-mono text-white/50 flex-1 truncate">{profileUrl}</span>
                   </div>
@@ -184,7 +184,7 @@ export function ShareCardModal({ open, data, onClose }: Props) {
 
                 {/* Social CTA */}
                 <div className="text-center pt-2">
-                  <p className="text-[10px] font-mono text-white/20">
+                  <p className="text-[12px] font-mono text-white/20">
                     Join me on Void Mafia · Play at voidmafia.one
                   </p>
                 </div>

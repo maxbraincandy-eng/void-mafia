@@ -56,8 +56,8 @@ export function SeasonPassModal({ open, onClose }: Props) {
               <div className="flex items-start justify-between">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[9px] font-mono uppercase tracking-[0.25em] text-neon-purple/50">Season Pass</span>
-                    <span className="text-[8px] font-mono px-2 py-0.5 rounded-full uppercase tracking-widest"
+                    <span className="text-[12px] font-mono uppercase tracking-[0.25em] text-neon-purple/50">Season Pass</span>
+                    <span className="text-[12px] font-mono px-2 py-0.5 rounded-full uppercase tracking-widest"
                       style={{ background: 'rgba(138,43,226,0.15)', border: '1px solid rgba(138,43,226,0.3)', color: 'rgba(138,43,226,0.8)' }}>
                       მალე
                     </span>
@@ -95,7 +95,7 @@ export function SeasonPassModal({ open, onClose }: Props) {
                       </div>
                       <span className="text-sm font-mono text-white/70 flex-1">{t.reward}</span>
                       {t.xp > 0 && (
-                        <span className="text-[10px] font-mono text-white/25">{t.xp} XP</span>
+                        <span className="text-[12px] font-mono text-white/25">{t.xp} XP</span>
                       )}
                     </div>
                   ))}
@@ -107,7 +107,7 @@ export function SeasonPassModal({ open, onClose }: Props) {
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-xs font-display font-bold uppercase tracking-widest text-neon-purple/60">Premium Pass</span>
                   <div className="flex-1 h-px" style={{ background: 'rgba(138,43,226,0.15)' }} />
-                  <span className="text-[9px] font-mono px-2 py-0.5 rounded-full text-neon-purple/50"
+                  <span className="text-[12px] font-mono px-2 py-0.5 rounded-full text-neon-purple/50"
                     style={{ background: 'rgba(138,43,226,0.08)', border: '1px solid rgba(138,43,226,0.15)' }}>
                     🔒 მალე
                   </span>
@@ -121,13 +121,13 @@ export function SeasonPassModal({ open, onClose }: Props) {
                         {t.tier}
                       </div>
                       <span className="text-sm font-mono text-white/70 flex-1">{t.reward}</span>
-                      <span className="text-[10px] font-mono text-white/25">{t.xp} XP</span>
+                      <span className="text-[12px] font-mono text-white/25">{t.xp} XP</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <p className="text-[10px] font-mono text-white/20 text-center pb-2">
+              <p className="text-[12px] font-mono text-white/20 text-center pb-2">
                 პრემიუმ სეზონის ფასი და გააქტიურება მალე დაემატება
               </p>
             </div>

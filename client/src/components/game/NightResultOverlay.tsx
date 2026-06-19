@@ -46,7 +46,7 @@ export function NightResultOverlay({ result, onDismiss }: Props) {
               <div className="h-[3px] w-full bg-gradient-to-r from-transparent via-neon-green/60 to-transparent" />
 
               <div className="p-8 text-center">
-                <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-white/30 mb-6">
+                <p className="text-[12px] font-mono uppercase tracking-[0.3em] text-white/30 mb-6">
                   {t.game.dawn.title}
                 </p>
 
@@ -106,7 +106,7 @@ export function NightResultOverlay({ result, onDismiss }: Props) {
               <div className="h-[3px] w-full bg-gradient-to-r from-transparent via-neon-red/80 to-transparent" />
 
               <div className="p-8 text-center relative">
-                <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-white/25 mb-6">
+                <p className="text-[12px] font-mono uppercase tracking-[0.3em] text-white/25 mb-6">
                   {t.game.dawn.title}
                 </p>
 
@@ -155,12 +155,12 @@ export function NightResultOverlay({ result, onDismiss }: Props) {
                       <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-neon-red/60" />
                       <div className="px-4 py-3 pl-5 text-left">
                         <p className="font-display text-white font-bold text-xl tracking-wide">{k.name}</p>
-                        <p className="text-[10px] font-mono text-white/30 mt-0.5 tracking-widest">
+                        <p className="text-[12px] font-mono text-white/30 mt-0.5 tracking-widest">
                           {t.game.dawn.foundDead}
                         </p>
                         {k.lastWill && (
                           <div className="mt-2 px-2 py-1.5 bg-white/4 border border-white/8 rounded-lg">
-                            <p className="text-[9px] font-mono uppercase tracking-widest text-white/25 mb-0.5">📜 Last Will</p>
+                            <p className="text-[12px] font-mono uppercase tracking-widest text-white/25 mb-0.5">📜 Last Will</p>
                             <p className="text-xs text-white/60 italic leading-snug">"{k.lastWill}"</p>
                           </div>
                         )}

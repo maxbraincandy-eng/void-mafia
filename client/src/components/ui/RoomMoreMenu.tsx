@@ -60,7 +60,7 @@ function SectionHeader({
         {label}
       </span>
       {count !== undefined && (
-        <span className="text-[10px] font-mono text-white/30 mr-1">{count}</span>
+        <span className="text-[12px] font-mono text-white/30 mr-1">{count}</span>
       )}
       <span className="text-white/25 text-xs transition-transform duration-200" style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>▾</span>
     </button>
@@ -94,7 +94,7 @@ function Row({
       <span className="text-lg flex-shrink-0">{icon}</span>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-display font-semibold tracking-wide truncate" style={{ color: palette.text }}>{label}</p>
-        {sub && <p className="text-[10px] font-mono text-white/30 mt-0.5 leading-tight truncate">{sub}</p>}
+        {sub && <p className="text-[12px] font-mono text-white/30 mt-0.5 leading-tight truncate">{sub}</p>}
       </div>
       {onClick && !disabled && <span className="text-white/18 text-xs">›</span>}
     </button>
@@ -115,7 +115,7 @@ function ToggleBtn({
       }}
     >
       <span className="text-lg leading-none">{icon}</span>
-      <span className="text-[9px] font-mono tracking-wide" style={{ color: active ? 'rgba(0,229,255,0.9)' : 'rgba(255,255,255,0.35)' }}>
+      <span className="text-[12px] font-mono tracking-wide" style={{ color: active ? 'rgba(0,229,255,0.9)' : 'rgba(255,255,255,0.35)' }}>
         {label}
       </span>
     </button>
@@ -240,7 +240,7 @@ export function RoomMoreMenu({
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="font-mono text-xs text-neon-cyan/60 tracking-widest">{roomCode}</span>
                     <span className="text-white/15">·</span>
-                    <span className="font-mono text-[10px]" style={{ color: voiceStatusColor }}>
+                    <span className="font-mono text-[12px]" style={{ color: voiceStatusColor }}>
                       {voiceLabel}
                     </span>
                   </div>
@@ -268,7 +268,7 @@ export function RoomMoreMenu({
                           { label: 'Phase', value: phase.replace(/_/g, ' ') },
                         ].map(s => (
                           <div key={s.label} className="flex-1 rounded-xl px-3 py-2 text-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                            <p className="font-mono text-[9px] text-white/30 uppercase tracking-widest mb-0.5">{s.label}</p>
+                            <p className="font-mono text-[12px] text-white/30 uppercase tracking-widest mb-0.5">{s.label}</p>
                             <p className="font-display text-sm font-bold text-white/75 capitalize">{s.value}</p>
                           </div>
                         ))}
@@ -295,7 +295,7 @@ export function RoomMoreMenu({
                           <span className="text-sm">🛡</span>
                           <span className="text-[11px] font-mono text-purple-300/60">Clan Room</span>
                           {hasClanModPower && (
-                            <span className="ml-auto text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-400/15 text-cyan-300 border border-cyan-400/25 uppercase tracking-wide">
+                            <span className="ml-auto text-[12px] font-mono px-1.5 py-0.5 rounded bg-cyan-400/15 text-cyan-300 border border-cyan-400/25 uppercase tracking-wide">
                               {viewerClanRole}
                             </span>
                           )}
@@ -318,10 +318,10 @@ export function RoomMoreMenu({
                             <ToggleBtn active={false} icon="🚪" label="Leave" onClick={() => { voice.onLeave(); }} />
                           </div>
                           {voice.forceMuted && (
-                            <p className="text-[10px] font-mono text-yellow-400/60 text-center">Mic locked by room</p>
+                            <p className="text-[12px] font-mono text-yellow-400/60 text-center">Mic locked by room</p>
                           )}
                           {voice.listenOnly && (
-                            <p className="text-[10px] font-mono text-white/30 text-center">Listen-only mode</p>
+                            <p className="text-[12px] font-mono text-white/30 text-center">Listen-only mode</p>
                           )}
                           {voice.onReset && (
                             <Row icon="🔄" label="Reset Connection" sub="Reconnects mic, camera & audio" color="cyan" onClick={() => { onClose(); voice.onReset?.(); }} />
@@ -341,7 +341,7 @@ export function RoomMoreMenu({
                             </>
                           )}
                           {voice.status === 'failed' && (
-                            <p className="text-[10px] font-mono text-neon-red/60 text-center px-2">
+                            <p className="text-[12px] font-mono text-neon-red/60 text-center px-2">
                               {voice.error ?? 'Connection failed'}
                             </p>
                           )}
@@ -358,15 +358,15 @@ export function RoomMoreMenu({
                     <div className="px-4 pb-3 space-y-2">
                       {isActiveGame && (
                         <div>
-                          <p className="text-[9px] font-mono text-white/25 uppercase tracking-widest mb-1.5 px-1">Alive — {alivePlayers.length}</p>
+                          <p className="text-[12px] font-mono text-white/25 uppercase tracking-widest mb-1.5 px-1">Alive — {alivePlayers.length}</p>
                           <div className="space-y-0.5">
                             {alivePlayers.map(p => (
                               <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
                                 <span className="text-sm flex-shrink-0">{p.avatar}</span>
                                 <span className="text-xs font-mono text-white/70 flex-1 truncate">{p.name}</span>
-                                {p.isHost && <span className="text-[9px] font-mono text-neon-purple/50 uppercase">host</span>}
-                                {p.isModerator && <span className="text-[9px] font-mono text-neon-green/50 uppercase">mod</span>}
-                                {!p.isConnected && <span className="text-[9px] font-mono text-yellow-400/50">offline</span>}
+                                {p.isHost && <span className="text-[12px] font-mono text-neon-purple/50 uppercase">host</span>}
+                                {p.isModerator && <span className="text-[12px] font-mono text-neon-green/50 uppercase">mod</span>}
+                                {!p.isConnected && <span className="text-[12px] font-mono text-yellow-400/50">offline</span>}
                               </div>
                             ))}
                           </div>
@@ -378,8 +378,8 @@ export function RoomMoreMenu({
                             <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
                               <span className="text-sm flex-shrink-0">{p.avatar}</span>
                               <span className="text-xs font-mono text-white/70 flex-1 truncate">{p.name}</span>
-                              {p.isHost && <span className="text-[9px] font-mono text-neon-purple/50 uppercase tracking-wide">host</span>}
-                              {p.isModerator && <span className="text-[9px] font-mono text-neon-green/50 uppercase tracking-wide">mod</span>}
+                              {p.isHost && <span className="text-[12px] font-mono text-neon-purple/50 uppercase tracking-wide">host</span>}
+                              {p.isModerator && <span className="text-[12px] font-mono text-neon-green/50 uppercase tracking-wide">mod</span>}
                               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${p.isReady ? 'bg-neon-green' : 'bg-white/15'}`} />
                             </div>
                           ))}
@@ -387,7 +387,7 @@ export function RoomMoreMenu({
                       )}
                       {isActiveGame && deadPlayers.length > 0 && (
                         <div>
-                          <p className="text-[9px] font-mono text-white/25 uppercase tracking-widest mb-1.5 px-1 mt-2">Dead — {deadPlayers.length}</p>
+                          <p className="text-[12px] font-mono text-white/25 uppercase tracking-widest mb-1.5 px-1 mt-2">Dead — {deadPlayers.length}</p>
                           <div className="space-y-0.5">
                             {deadPlayers.map(p => (
                               <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg opacity-50" style={{ background: 'rgba(255,255,255,0.02)' }}>
@@ -415,11 +415,11 @@ export function RoomMoreMenu({
                             <div key={s.id} className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
                               <span className="text-sm">{s.avatar}</span>
                               <span className="text-xs font-mono text-white/55 flex-1 truncate">{s.name}</span>
-                              {!s.isConnected && <span className="text-[9px] font-mono text-yellow-400/40">offline</span>}
+                              {!s.isConnected && <span className="text-[12px] font-mono text-yellow-400/40">offline</span>}
                               {amHost && isLobby && onKickPlayer && (
                                 <button
                                   onClick={() => { onKickPlayer(s.id); onClose(); }}
-                                  className="text-[10px] font-mono text-neon-red/50 hover:text-neon-red/80 transition-colors ml-1 px-1.5 py-0.5 rounded"
+                                  className="text-[12px] font-mono text-neon-red/50 hover:text-neon-red/80 transition-colors ml-1 px-1.5 py-0.5 rounded"
                                   style={{ border: '1px solid rgba(255,22,84,0.15)' }}
                                 >
                                   Remove
@@ -451,7 +451,7 @@ export function RoomMoreMenu({
                 {/* Clan Mod info */}
                 {hasClanModPower && (
                   <div className="px-4 py-2.5 rounded-xl" style={{ background: 'rgba(155,0,255,0.05)', border: '1px solid rgba(155,0,255,0.15)' }}>
-                    <p className="text-[10px] font-mono text-purple-300/60">
+                    <p className="text-[12px] font-mono text-purple-300/60">
                       You have clan moderation powers here. Click players to warn/kick.
                     </p>
                   </div>
@@ -459,7 +459,7 @@ export function RoomMoreMenu({
 
                 {/* ── 7. Danger Zone ───────────────────────────────────── */}
                 <div className="pt-1">
-                  <p className="text-[9px] font-mono text-white/20 uppercase tracking-[0.25em] px-1 mb-2">Danger Zone</p>
+                  <p className="text-[12px] font-mono text-white/20 uppercase tracking-[0.25em] px-1 mb-2">Danger Zone</p>
                   <div className="space-y-1.5">
                     {amHost && isActiveGame && onTerminateGame && (
                       <Row icon="⏹" label="Terminate Game" sub="Stop game, return to lobby" color="yellow"

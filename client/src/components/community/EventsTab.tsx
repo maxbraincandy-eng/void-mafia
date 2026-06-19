@@ -28,10 +28,10 @@ function EventCard({ event, onJoin, onLeave }: {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <h3 className="font-display font-bold text-white text-base leading-snug">{event.title}</h3>
-          <p className="font-mono text-[10px] text-white/35 mt-0.5">{new Date(event.eventAt).toLocaleString()}</p>
+          <p className="font-mono text-[12px] text-white/35 mt-0.5">{new Date(event.eventAt).toLocaleString()}</p>
         </div>
         <span
-          className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border flex-shrink-0"
+          className="font-mono text-[12px] uppercase tracking-wider px-2 py-0.5 rounded-full border flex-shrink-0"
           style={{ color: 'rgba(180,80,255,0.95)', borderColor: 'rgba(155,0,255,0.4)', background: 'rgba(155,0,255,0.12)' }}
         >
           {t.community.events.categories[event.category]}
@@ -41,7 +41,7 @@ function EventCard({ event, onJoin, onLeave }: {
       <p className="font-mono text-xs text-white/60 whitespace-pre-wrap leading-relaxed">{event.description}</p>
 
       <div className="flex items-center justify-between pt-1">
-        <p className="font-mono text-[10px] text-white/35">
+        <p className="font-mono text-[12px] text-white/35">
           {event.participantCount} {t.community.events.participants}
         </p>
         {event.joinedByMe ? (
@@ -90,22 +90,22 @@ function CreateEventModal({ onClose }: { onClose: () => void }) {
       {error && <p className="mb-3 text-xs text-red-400/80 font-mono">{error}</p>}
       <div className="space-y-3">
         <div>
-          <label className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">{t.community.events.titleLabel}</label>
+          <label className="font-mono text-[12px] uppercase tracking-wider text-white/40 block mb-1">{t.community.events.titleLabel}</label>
           <TextInput value={title} onChange={setTitle} placeholder={t.community.events.titlePh} maxLength={120} accent="purple" />
         </div>
         <div>
-          <label className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">{t.community.events.descLabel}</label>
+          <label className="font-mono text-[12px] uppercase tracking-wider text-white/40 block mb-1">{t.community.events.descLabel}</label>
           <TextArea value={description} onChange={setDescription} placeholder={t.community.events.descPh} maxLength={2000} rows={4} accent="purple" />
         </div>
         <div>
-          <label className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">{t.community.events.category}</label>
+          <label className="font-mono text-[12px] uppercase tracking-wider text-white/40 block mb-1">{t.community.events.category}</label>
           <div className="flex flex-wrap gap-2">
             {CATEGORIES.map(cat => (
               <button
                 key={cat}
                 type="button"
                 onClick={() => setCategory(cat)}
-                className="font-mono text-[10px] uppercase tracking-wider px-2.5 py-1.5 rounded-full border transition-all active:scale-95"
+                className="font-mono text-[12px] uppercase tracking-wider px-2.5 py-1.5 rounded-full border transition-all active:scale-95"
                 style={category === cat
                   ? { color: 'rgba(180,80,255,0.95)', borderColor: 'rgba(155,0,255,0.5)', background: 'rgba(155,0,255,0.18)' }
                   : { color: 'rgba(255,255,255,0.4)', borderColor: 'rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.03)' }}
@@ -116,7 +116,7 @@ function CreateEventModal({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <div>
-          <label className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">{t.community.events.dateLabel}</label>
+          <label className="font-mono text-[12px] uppercase tracking-wider text-white/40 block mb-1">{t.community.events.dateLabel}</label>
           <input
             type="datetime-local"
             value={dateValue}

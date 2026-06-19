@@ -176,7 +176,7 @@ export function NightPanel() {
       {/* Mafia teammate votes panel */}
       {(role === 'mafia' || role === 'don') && allMafiaTeammates.length > 0 && (
         <div className="p-3 rounded-xl border border-pink-500/30 bg-pink-950/20 space-y-1.5">
-          <p className="text-[10px] font-mono text-pink-400/60 uppercase tracking-widest">
+          <p className="text-[12px] font-mono text-pink-400/60 uppercase tracking-widest">
             Team Kill — {allVotesSame && mafiaVoteTargets.length > 0 ? '✓ Agreed' : mafiaVoteTargets.length > 0 ? '⚠ Disagreement' : 'Waiting…'}
           </p>
           {allMafiaTeammates.map(tm => {
@@ -201,7 +201,7 @@ export function NightPanel() {
 
       {yakuzaShogunInfo && (
         <div className="p-3 rounded-xl border border-red-500/30 bg-red-950/20">
-          <p className="text-[10px] font-mono text-red-400/60 uppercase tracking-widest mb-0.5">Your Ally</p>
+          <p className="text-[12px] font-mono text-red-400/60 uppercase tracking-widest mb-0.5">Your Ally</p>
           <p className="text-sm font-bold text-red-400">⚔️ Shogun: {yakuzaShogunInfo.name}</p>
         </div>
       )}

@@ -56,14 +56,14 @@ function CommentsSection({ postId, onOpenProfile, myProfileId }: { postId: strin
               </button>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <button onClick={() => onOpenProfile(c.authorId)} className="font-mono text-[10px] text-white/50 hover:text-white/70 transition-colors">
+                  <button onClick={() => onOpenProfile(c.authorId)} className="font-mono text-[12px] text-white/50 hover:text-white/70 transition-colors">
                     {c.authorName}
                   </button>
-                  <span className="font-mono text-[9px] text-white/20">· {timeAgo(c.createdAt)}</span>
+                  <span className="font-mono text-[12px] text-white/20">· {timeAgo(c.createdAt)}</span>
                   {c.authorId === myProfileId && (
                     <button
                       onClick={() => handleDelete(c.id)}
-                      className="ml-auto font-mono text-[9px] text-red-400/50 hover:text-red-400 transition-colors"
+                      className="ml-auto font-mono text-[12px] text-red-400/50 hover:text-red-400 transition-colors"
                     >
                       ✕
                     </button>
@@ -182,7 +182,7 @@ export function PostCardV2({
     >
       {post.isPinned && (
         <div className="flex items-center gap-1.5">
-          <span className="font-mono text-[9px] uppercase tracking-widest text-white/40">📌 {t.community.feed.pinned}</span>
+          <span className="font-mono text-[12px] uppercase tracking-widest text-white/40">📌 {t.community.feed.pinned}</span>
         </div>
       )}
 
@@ -199,7 +199,7 @@ export function PostCardV2({
               )}
               {post.authorBadges?.length > 0 && <BadgeRow badges={post.authorBadges} />}
             </div>
-            <p className="font-mono text-[10px] text-white/30">{timeAgo(post.createdAt)}</p>
+            <p className="font-mono text-[12px] text-white/30">{timeAgo(post.createdAt)}</p>
           </div>
         </button>
         <div className="flex items-center gap-1 flex-shrink-0">
@@ -253,7 +253,7 @@ export function PostCardV2({
           {post.imageUrl && <img src={post.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />}
           <div className="min-w-0">
             {post.recCategory && (
-              <span className="font-mono text-[9px] uppercase tracking-widest text-white/35">{post.recCategory}</span>
+              <span className="font-mono text-[12px] uppercase tracking-widest text-white/35">{post.recCategory}</span>
             )}
             <p className="font-display font-bold text-white text-sm truncate">{post.recTitle}</p>
           </div>
@@ -268,7 +268,7 @@ export function PostCardV2({
         <div className="flex flex-wrap gap-1.5">
           {post.hashtags.map(tag => (
             <button key={tag} onClick={() => setActiveHashtag(tag)}
-              className="font-mono text-[10px] px-2 py-0.5 rounded-full transition-colors"
+              className="font-mono text-[12px] px-2 py-0.5 rounded-full transition-colors"
               style={{ color: '#00f5ff', background: 'rgba(0,245,255,0.08)', border: '1px solid rgba(0,245,255,0.2)' }}>
               #{tag}
             </button>

@@ -72,7 +72,7 @@ export function CoinHistoryModal({ open, onClose }: Props) {
             {/* Header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-white/6 flex-shrink-0">
               <div>
-                <p className="font-mono text-[9px] uppercase tracking-[0.25em] text-amber-400/50 mb-0.5">Wallet</p>
+                <p className="font-mono text-[12px] uppercase tracking-[0.25em] text-amber-400/50 mb-0.5">Wallet</p>
                 <div className="flex items-center gap-2">
                   <h2 className="font-display font-bold text-white text-base">Coin History</h2>
                   {balance !== null && (
@@ -109,7 +109,7 @@ export function CoinHistoryModal({ open, onClose }: Props) {
                   <p className="font-mono text-sm text-red-400/60 mb-3">{error}</p>
                   <button
                     onClick={() => { setLoading(true); setError(null); }}
-                    className="font-mono text-[10px] uppercase tracking-widest text-neon-cyan/60 hover:text-neon-cyan transition-colors"
+                    className="font-mono text-[12px] uppercase tracking-widest text-neon-cyan/60 hover:text-neon-cyan transition-colors"
                   >
                     Retry
                   </button>
@@ -145,7 +145,7 @@ export function CoinHistoryModal({ open, onClose }: Props) {
                           <p className="font-mono text-[11px] text-white/65 truncate leading-tight">
                             {tx.description || cfg.label}
                           </p>
-                          <p className="font-mono text-[9px] text-white/22 mt-0.5">
+                          <p className="font-mono text-[12px] text-white/22 mt-0.5">
                             {new Date(tx.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                             <span className="mx-1 text-white/15">·</span>
                             <span className="text-amber-400/40">{tx.balanceAfter.toLocaleString()} 🪙</span>
@@ -155,7 +155,7 @@ export function CoinHistoryModal({ open, onClose }: Props) {
                           <p className={`font-display font-bold text-sm ${amountColor}`}>
                             {isPositive ? '+' : ''}{tx.amount.toLocaleString()}
                           </p>
-                          <p className="font-mono text-[8px] text-white/20 uppercase tracking-wider mt-0.5">
+                          <p className="font-mono text-[12px] text-white/20 uppercase tracking-wider mt-0.5">
                             {cfg.label || tx.type}
                           </p>
                         </div>
@@ -172,7 +172,7 @@ export function CoinHistoryModal({ open, onClose }: Props) {
                 className="px-5 py-3 flex-shrink-0"
                 style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
               >
-                <p className="font-mono text-[9px] text-white/15 text-center">
+                <p className="font-mono text-[12px] text-white/15 text-center">
                   Last {txs.length} transactions
                 </p>
               </div>

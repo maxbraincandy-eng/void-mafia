@@ -31,7 +31,7 @@ interface Section {
 function SectionLabel({ title }: { title: string }) {
   return (
     <div className="flex items-center gap-2 px-1 pt-4 pb-1">
-      <p className="text-[9px] font-mono font-bold uppercase tracking-[0.22em] text-white/20">
+      <p className="text-[12px] font-mono font-bold uppercase tracking-[0.22em] text-white/20">
         {title}
       </p>
       <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.04)' }} />
@@ -76,14 +76,14 @@ function MenuRow({ item, index }: { item: MenuItem; index: number }) {
           </p>
           {item.badge && !item.comingSoon && (
             <span
-              className="text-[8px] font-mono font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full leading-none"
+              className="text-[12px] font-mono font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full leading-none"
               style={{ background: item.badge.color + '22', color: item.badge.color, border: `1px solid ${item.badge.color}44` }}
             >
               {item.badge.text}
             </span>
           )}
         </div>
-        <p className={`text-[10px] font-mono mt-1 leading-tight ${item.comingSoon ? 'text-white/12' : 'text-white/30'}`}>
+        <p className={`text-[12px] font-mono mt-1 leading-tight ${item.comingSoon ? 'text-white/12' : 'text-white/30'}`}>
           {item.description}
         </p>
       </div>
@@ -91,7 +91,7 @@ function MenuRow({ item, index }: { item: MenuItem; index: number }) {
       {/* Right side */}
       {item.comingSoon ? (
         <span
-          className="text-[8px] font-mono uppercase tracking-widest px-2 py-1 rounded-lg flex-shrink-0"
+          className="text-[12px] font-mono uppercase tracking-widest px-2 py-1 rounded-lg flex-shrink-0"
           style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.06)' }}
         >
           soon
@@ -294,14 +294,14 @@ export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onRepl
               <div className="flex items-center justify-between px-4 pt-14 pb-4"
                 style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                 <div>
-                  <p className="font-mono text-[8px] uppercase tracking-[0.3em] text-neon-purple/40 mb-1">
+                  <p className="font-mono text-[12px] uppercase tracking-[0.3em] text-neon-purple/40 mb-1">
                     Menu
                   </p>
                   <h2 className="font-display font-black text-white/90 text-lg tracking-widest">
                     VOID MAFIA
                   </h2>
                   {profile?.username && (
-                    <p className="text-[10px] font-mono text-white/25 mt-0.5 truncate max-w-[160px]">
+                    <p className="text-[12px] font-mono text-white/25 mt-0.5 truncate max-w-[160px]">
                       {profile.username}
                     </p>
                   )}
@@ -358,7 +358,7 @@ export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onRepl
               <div className="px-4 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
                 <div className="flex items-center justify-between">
                   <span
-                    className="text-[8px] font-mono font-bold uppercase tracking-[0.2em] px-2 py-1 rounded-lg"
+                    className="text-[12px] font-mono font-bold uppercase tracking-[0.2em] px-2 py-1 rounded-lg"
                     style={{
                       background: 'linear-gradient(135deg, rgba(138,43,226,0.15), rgba(0,229,255,0.06))',
                       border: '1px solid rgba(138,43,226,0.2)',
@@ -367,7 +367,7 @@ export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onRepl
                   >
                     V1.0
                   </span>
-                  <p className="font-mono text-[8px] text-white/12 tracking-widest uppercase">
+                  <p className="font-mono text-[12px] text-white/12 tracking-widest uppercase">
                     Void Mafia
                   </p>
                 </div>

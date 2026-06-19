@@ -154,11 +154,11 @@ export function VoiceControls({
               <div className="rounded-xl border border-neon-red/30 bg-neon-red/8 overflow-hidden">
                 <div className="px-3 py-2.5 border-b border-neon-red/15">
                   <p className="text-xs font-display font-bold text-neon-red">🎙 მიკროფონი გათიშულია</p>
-                  <p className="text-[10px] font-mono text-white/40 mt-0.5">Microphone permission blocked</p>
+                  <p className="text-[12px] font-mono text-white/40 mt-0.5">Microphone permission blocked</p>
                 </div>
                 <div className="px-3 py-2.5 space-y-2">
                   <p className="text-[11px] font-mono text-white/70 font-semibold">Android Chrome:</p>
-                  <ol className="space-y-1.5 text-[10px] font-mono text-white/50">
+                  <ol className="space-y-1.5 text-[12px] font-mono text-white/50">
                     <li className="flex items-start gap-1.5">
                       <span className="text-neon-cyan shrink-0 mt-0.5">1.</span>
                       <span>მისამართის ზოლში <span className="text-white/80">🔒</span> ან <span className="text-white/80">ⓘ</span> ხატულაზე დააჭირე</span>
@@ -312,17 +312,17 @@ export function VoiceControls({
           )}
 
           {!ptt && muteLocked && (
-            <p className="text-[10px] text-neon-red/50 font-mono text-center">
+            <p className="text-[12px] text-neon-red/50 font-mono text-center">
               {v.micLockedHint}
             </p>
           )}
           {!ptt && !muteLocked && forceMuted && (
-            <p className="text-[10px] text-yellow-400/60 font-mono text-center">
+            <p className="text-[12px] text-yellow-400/60 font-mono text-center">
               {v.tapToRestore}
             </p>
           )}
           {!ptt && !muteLocked && !forceMuted && !cameraOn && (
-            <p className="text-[10px] text-white/20 font-mono text-center">
+            <p className="text-[12px] text-white/20 font-mono text-center">
               {v.camHint}
             </p>
           )}

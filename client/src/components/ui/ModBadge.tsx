@@ -18,7 +18,7 @@ export function ModBadge({ level, size = 'xs' }: Props) {
   return (
     <span className={`inline-flex items-center px-1.5 py-0.5 rounded font-mono font-bold tracking-wider border
       bg-neon-green/10 border-neon-green/30 text-neon-green text-glow-green
-      ${size === 'xs' ? 'text-[9px]' : 'text-xs'}`}
+      ${size === 'xs' ? 'text-[12px]' : 'text-xs'}`}
     >
       {label}
     </span>

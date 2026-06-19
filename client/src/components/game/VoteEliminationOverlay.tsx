@@ -72,7 +72,7 @@ export function VoteEliminationOverlay({ result, onDismiss }: Props) {
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
-                className="text-[10px] font-mono uppercase tracking-[0.25em] text-neon-red/60 mb-2"
+                className="text-[12px] font-mono uppercase tracking-[0.25em] text-neon-red/60 mb-2"
               >
                 Condemned by the Town
               </motion.p>
@@ -109,7 +109,7 @@ export function VoteEliminationOverlay({ result, onDismiss }: Props) {
                   transition={{ delay: 0.45 }}
                   className="mx-auto max-w-xs rounded-2xl border border-white/10 bg-white/4 px-4 py-3 mb-6"
                 >
-                  <p className="text-[10px] font-mono uppercase tracking-widest text-white/30 mb-1.5">📜 Last Will</p>
+                  <p className="text-[12px] font-mono uppercase tracking-widest text-white/30 mb-1.5">📜 Last Will</p>
                   <p className="text-sm text-white/70 italic leading-relaxed">"{result.lastWill}"</p>
                 </motion.div>
               )}

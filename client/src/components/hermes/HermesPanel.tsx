@@ -76,7 +76,7 @@ export function HermesPanel() {
                   >
                     {t.hermes.name}
                   </p>
-                  <p className="font-mono text-[9px] uppercase tracking-widest"
+                  <p className="font-mono text-[12px] uppercase tracking-widest"
                     style={{ color: isEnabled ? 'rgba(0,245,255,0.42)' : 'rgba(255,80,80,0.5)' }}
                   >
                     {isEnabled ? t.hermes.online : t.hermes.offline}
@@ -87,7 +87,7 @@ export function HermesPanel() {
                 {messages.length > 0 && (
                   <button
                     onClick={clearMessages}
-                    className="font-mono text-[10px] uppercase tracking-widest text-white/18 hover:text-white/45 transition-colors px-2 py-1"
+                    className="font-mono text-[12px] uppercase tracking-widest text-white/18 hover:text-white/45 transition-colors px-2 py-1"
                   >
                     {t.hermes.clearChat}
                   </button>

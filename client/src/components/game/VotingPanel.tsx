@@ -71,7 +71,7 @@ export function VotingPanel() {
     <div className="space-y-3">
       {/* Tribunal info banner */}
       {tribunalCandidates.length > 0 && (
-        <div className="px-3 py-2 rounded-xl border border-neon-red/30 bg-neon-red/8 text-[10px] font-mono text-neon-red/70 text-center">
+        <div className="px-3 py-2 rounded-xl border border-neon-red/30 bg-neon-red/8 text-[12px] font-mono text-neon-red/70 text-center">
           ⚖️ Tribunal — only nominated players can be voted out
         </div>
       )}
@@ -122,7 +122,7 @@ export function VotingPanel() {
                 ⚖️
               </motion.span>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-neon-red/70">Majority Reached</p>
+                <p className="text-[12px] font-mono uppercase tracking-[0.2em] text-neon-red/70">Majority Reached</p>
                 <p className="text-sm font-display font-bold text-white truncate">
                   {room.players.find(p => p.id === condemnedId)?.name} — Condemned
                 </p>

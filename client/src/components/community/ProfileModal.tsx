@@ -60,7 +60,7 @@ export function ProfileModal({ profileId, onClose }: { profileId: string; onClos
             <Avatar avatar={profile.avatar} avatarUrl={profile.avatarUrl} size={72} />
             <h3 className="font-display font-bold text-white text-xl">{profile.username}</h3>
             <span
-              className="font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full border"
+              className="font-mono text-[12px] uppercase tracking-wider px-2.5 py-1 rounded-full border"
               style={{ color: 'rgba(180,80,255,0.95)', borderColor: 'rgba(155,0,255,0.4)', background: 'rgba(155,0,255,0.12)' }}
             >
               {t.community.profile.level}: {profile.level}
@@ -75,15 +75,15 @@ export function ProfileModal({ profileId, onClose }: { profileId: string; onClos
           <div className="flex items-center justify-around rounded-2xl border border-white/10 bg-white/[0.02] py-3">
             <div className="text-center">
               <p className="font-display font-bold text-white text-lg">{profile.followersCount}</p>
-              <p className="font-mono text-[9px] uppercase tracking-wider text-white/35">{t.community.profile.followers}</p>
+              <p className="font-mono text-[12px] uppercase tracking-wider text-white/35">{t.community.profile.followers}</p>
             </div>
             <div className="text-center">
               <p className="font-display font-bold text-white text-lg">{profile.followingCount}</p>
-              <p className="font-mono text-[9px] uppercase tracking-wider text-white/35">{t.community.profile.following}</p>
+              <p className="font-mono text-[12px] uppercase tracking-wider text-white/35">{t.community.profile.following}</p>
             </div>
             <div className="text-center">
               <p className="font-display font-bold text-white text-lg">{profile.postsCount}</p>
-              <p className="font-mono text-[9px] uppercase tracking-wider text-white/35">{t.community.profile.posts}</p>
+              <p className="font-mono text-[12px] uppercase tracking-wider text-white/35">{t.community.profile.posts}</p>
             </div>
           </div>
 

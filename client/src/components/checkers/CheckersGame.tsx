@@ -103,33 +103,33 @@ export function CheckersGame() {
       {/* Header */}
       <div
         className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b"
-        style={{ borderColor: 'rgba(155,0,255,0.2)', background: 'rgba(10,6,28,0.95)' }}
+        style={{ borderColor: 'rgba(155,0,255,0.2)', background: 'rgba(10,6,28,0.95)', paddingTop: 'max(12px, env(safe-area-inset-top, 0px))' }}
       >
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-lg">♟</span>
           <div className="min-w-0">
             <p className="font-display font-bold text-white text-sm leading-tight">{t.games.checkers.title}</p>
-            <p className="font-mono text-[10px] text-white/35">{match.code}</p>
+            <p className="font-mono text-[12px] text-white/35">{match.code}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           {match.status === 'waiting' && (
-            <div className="font-mono text-[10px] text-white/40 px-2 py-1 rounded border border-white/10">
+            <div className="font-mono text-[12px] text-white/40 px-2 py-1 rounded border border-white/10">
               {t.games.checkers.waitingForOpponent}
             </div>
           )}
           {isPlayer && match.status === 'active' && (
             <button
               onClick={resign}
-              className="font-mono text-[10px] text-red-400/70 hover:text-red-400 px-2 py-1 rounded border border-red-500/20 hover:border-red-500/40 transition-colors"
+              className="font-mono text-[12px] text-red-400/70 hover:text-red-400 px-3 py-2 rounded border border-red-500/20 hover:border-red-500/40 transition-colors min-h-[44px] flex items-center"
             >
               {t.games.checkers.resign}
             </button>
           )}
           <button
             onClick={leaveMatch}
-            className="font-mono text-[10px] text-white/35 hover:text-white/70 px-2 py-1 rounded border border-white/10 hover:border-white/25 transition-colors"
+            className="font-mono text-[16px] text-white/35 hover:text-white/70 w-11 h-11 rounded border border-white/10 hover:border-white/25 transition-colors flex items-center justify-center"
           >
             ✕
           </button>
@@ -149,11 +149,11 @@ export function CheckersGame() {
             isSpeaking={leftSpeaking}
           />
           <div className="text-center flex-shrink-0">
-            <p className="font-mono text-[10px] uppercase tracking-widest" style={{ color: turnColor }}>
+            <p className="font-mono text-[12px] uppercase tracking-widest" style={{ color: turnColor }}>
               {turnLabel}
             </p>
             {captureRequired && (
-              <p className="font-mono text-[9px] uppercase tracking-wider mt-0.5" style={{ color: '#ff6622' }}>
+              <p className="font-mono text-[12px] uppercase tracking-wider mt-0.5" style={{ color: '#ff6622' }}>
                 {t.games.checkers.captureRequired}
               </p>
             )}
@@ -210,7 +210,7 @@ export function CheckersGame() {
                 className="mx-4 px-8 py-6 rounded-2xl text-center space-y-4"
                 style={{ background: 'rgba(20,10,40,0.95)', border: '1px solid rgba(155,0,255,0.35)' }}
               >
-                <p className="font-mono text-[10px] uppercase tracking-widest text-white/30">
+                <p className="font-mono text-[12px] uppercase tracking-widest text-white/30">
                   {t.games.checkers.gameOver}
                 </p>
                 <p
@@ -251,11 +251,11 @@ export function CheckersGame() {
         >
           <div ref={chatRef} className="overflow-y-auto px-3 py-2 space-y-1" style={{ maxHeight: 110 }}>
             {match.chat.length === 0 && (
-              <p className="font-mono text-[10px] text-white/20 text-center py-2">{t.games.checkers.noMessages}</p>
+              <p className="font-mono text-[12px] text-white/20 text-center py-2">{t.games.checkers.noMessages}</p>
             )}
             {match.chat.map((msg, i) => (
               <div key={i} className="flex gap-2 items-start">
-                <span className="font-mono text-[10px] text-white/35 flex-shrink-0 mt-0.5">{msg.senderName}</span>
+                <span className="font-mono text-[12px] text-white/35 flex-shrink-0 mt-0.5">{msg.senderName}</span>
                 <span className="font-mono text-[11px] text-white/70 break-words min-w-0">{msg.text}</span>
               </div>
             ))}
@@ -326,7 +326,7 @@ function PlayerBadge({
         <p className="font-mono text-xs text-white truncate">
           {name}{isMe ? ' ✦' : ''}
         </p>
-        <p className="font-mono text-[9px] text-white/30">
+        <p className="font-mono text-[12px] text-white/30">
           {isSpeaking ? '🎙' : ''}{captures} cap.
         </p>
       </div>
@@ -361,7 +361,7 @@ function WaitingState({ code }: { code: string }) {
         <span>{code}</span>
         <span className="text-xs opacity-60">{copied ? '✓' : '⎘'}</span>
       </button>
-      <p className="font-mono text-[10px] text-white/25">{t.games.checkers.shareCode}</p>
+      <p className="font-mono text-[12px] text-white/25">{t.games.checkers.shareCode}</p>
     </div>
   );
 }

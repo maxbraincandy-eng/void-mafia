@@ -176,7 +176,7 @@ function VoiceMessageBubble({ msg, isMe }: { msg: DirectMessage; isMe: boolean }
             );
           })}
         </div>
-        <p className="text-[9px] font-mono" style={{ color: 'rgba(255,255,255,0.3)' }}>{formatDuration(dur)}</p>
+        <p className="text-[12px] font-mono" style={{ color: 'rgba(255,255,255,0.3)' }}>{formatDuration(dur)}</p>
       </div>
     </div>
   );
@@ -224,13 +224,13 @@ function SwipeableRow({
           <div className="flex gap-1">
             <button
               onClick={cancel}
-              className="px-2 py-1 text-[10px] font-mono text-white/40 border border-white/10 rounded-lg"
+              className="px-2 py-1 text-[12px] font-mono text-white/40 border border-white/10 rounded-lg"
             >
               Cancel
             </button>
             <button
               onClick={onDelete}
-              className="px-2 py-1 text-[10px] font-mono text-neon-pink border border-neon-pink/30 bg-neon-pink/10 rounded-lg"
+              className="px-2 py-1 text-[12px] font-mono text-neon-pink border border-neon-pink/30 bg-neon-pink/10 rounded-lg"
             >
               Delete
             </button>
@@ -629,7 +629,7 @@ export function DmPanel() {
                                 <div className="flex items-center gap-1.5 shrink-0 ml-2">
                                   {count > 0 ? (
                                     <span
-                                      className="min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[10px] font-mono font-bold"
+                                      className="min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[12px] font-mono font-bold"
                                       style={{
                                         background: 'rgba(255,0,204,0.8)',
                                         color: '#fff',
@@ -642,7 +642,7 @@ export function DmPanel() {
                                     <span className="w-2 h-2 rounded-full bg-neon-pink" />
                                   ) : null}
                                   {conv.lastMessageAt && (
-                                    <span className="text-white/20 font-mono text-[9px]">
+                                    <span className="text-white/20 font-mono text-[12px]">
                                       {formatTime(conv.lastMessageAt)}
                                     </span>
                                   )}
@@ -704,7 +704,7 @@ export function DmPanel() {
                               <p>{msg.text}</p>
                             </div>
                           )}
-                          <p className={`text-[9px] font-mono px-1 ${isMe ? 'text-right' : ''}`}
+                          <p className={`text-[12px] font-mono px-1 ${isMe ? 'text-right' : ''}`}
                              style={{ color: 'rgba(255,255,255,0.22)' }}>
                             {formatTime(msg.createdAt)}
                           </p>

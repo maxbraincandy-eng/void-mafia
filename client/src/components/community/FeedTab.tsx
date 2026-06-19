@@ -49,7 +49,7 @@ function CommentsSection({ postId }: { postId: string }) {
             <div key={c.id} className="flex items-start gap-2">
               <Avatar avatar={c.authorAvatar} avatarUrl={null} size={24} />
               <div className="min-w-0 flex-1">
-                <p className="font-mono text-[10px] text-white/40">{c.authorName} <span className="text-white/20">· {timeAgo(c.createdAt)}</span></p>
+                <p className="font-mono text-[12px] text-white/40">{c.authorName} <span className="text-white/20">· {timeAgo(c.createdAt)}</span></p>
                 <p className="font-mono text-xs text-white/70 break-words">{c.content}</p>
               </div>
             </div>
@@ -136,13 +136,13 @@ function PostCard({
           <Avatar avatar={post.authorAvatar} avatarUrl={post.authorAvatarUrl} size={36} />
           <div className="text-left min-w-0">
             <p className="font-mono text-xs text-white/80 truncate">{post.authorName}</p>
-            <p className="font-mono text-[10px] text-white/30">{timeAgo(post.createdAt)}</p>
+            <p className="font-mono text-[12px] text-white/30">{timeAgo(post.createdAt)}</p>
           </div>
         </button>
         {canDelete && (
           <button
             onClick={() => onDelete(post.id)}
-            className="flex-shrink-0 font-mono text-[10px] text-white/25 hover:text-red-400/80 transition-colors px-1"
+            className="flex-shrink-0 font-mono text-[12px] text-white/25 hover:text-red-400/80 transition-colors px-1"
             aria-label={t.community.feed.delete}
           >
             🗑

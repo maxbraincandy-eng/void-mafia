@@ -143,7 +143,7 @@ export function LevelMilestoneOverlay({ gain, onDismiss }: Props) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.5 }}
-          className="absolute bottom-12 font-mono text-[10px] tracking-[0.2em] uppercase text-white/20"
+          className="absolute bottom-12 font-mono text-[12px] tracking-[0.2em] uppercase text-white/20"
         >
           tap to dismiss
         </motion.p>

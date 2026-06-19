@@ -39,7 +39,7 @@ export function EmptyState({ text }: { text: string }) {
 export function SectionHeader({ label, action }: { label: string; action?: ReactNode }) {
   return (
     <div className="flex items-center justify-between mb-3">
-      <h2 className="font-mono text-[10px] uppercase tracking-[0.25em] text-white/30">{label}</h2>
+      <h2 className="font-mono text-[12px] uppercase tracking-[0.25em] text-white/30">{label}</h2>
       {action}
     </div>
   );

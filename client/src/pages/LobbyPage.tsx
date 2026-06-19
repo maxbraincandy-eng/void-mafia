@@ -254,13 +254,13 @@ export function LobbyPage() {
             {room.name && (
               <p className="text-xs font-display font-bold text-white/55 truncate max-w-[180px] mb-1">{room.name}</p>
             )}
-            <p className="text-[9px] font-mono text-white/18 uppercase tracking-[0.18em] mb-1">Room</p>
+            <p className="text-[12px] font-mono text-white/18 uppercase tracking-[0.18em] mb-1">Room</p>
             <div className="flex items-center justify-end gap-2">
               <span className="font-mono text-xl font-bold text-neon-cyan/80 tracking-[0.22em]">
                 {room.code}
               </span>
               <button onClick={handleCopy} className={clsx(
-                'text-[10px] px-2 py-0.5 rounded border font-mono transition-all',
+                'text-[12px] px-2 py-0.5 rounded border font-mono transition-all',
                 copied
                   ? 'border-neon-green/35 bg-neon-green/[0.07] text-neon-green/80'
                   : 'border-white/[0.08] text-white/22 hover:border-white/18 hover:text-white/45',
@@ -268,7 +268,7 @@ export function LobbyPage() {
                 {copied ? '✓' : 'Copy'}
               </button>
               <button onClick={handleShare} className={clsx(
-                'text-[10px] px-2 py-0.5 rounded border font-mono transition-all',
+                'text-[12px] px-2 py-0.5 rounded border font-mono transition-all',
                 shared
                   ? 'border-neon-cyan/35 bg-neon-cyan/[0.07] text-neon-cyan/80'
                   : 'border-white/[0.08] text-white/22 hover:border-white/18 hover:text-white/45',
@@ -278,11 +278,11 @@ export function LobbyPage() {
             </div>
             <div className="flex items-center gap-2 mt-1">
               {room.settings.isPrivate && (
-                <p className="text-[10px] text-white/22 font-mono">Private room</p>
+                <p className="text-[12px] text-white/22 font-mono">Private room</p>
               )}
               {room.settings.ranked && (
                 <span
-                  className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md"
+                  className="text-[12px] font-mono font-bold px-2 py-0.5 rounded-md"
                   style={{ color: '#9b00ff', background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.25)' }}
                 >
                   ⚔️ Ranked
@@ -316,7 +316,7 @@ export function LobbyPage() {
                   {spectators.length > 0 && (
                     <button
                       onClick={() => setShowSpectators(s => !s)}
-                      className="flex items-center gap-1 text-[10px] font-mono text-white/30 hover:text-white/55 transition-colors"
+                      className="flex items-center gap-1 text-[12px] font-mono text-white/30 hover:text-white/55 transition-colors"
                       title="Spectators"
                     >
                       <span>👁</span>
@@ -325,7 +325,7 @@ export function LobbyPage() {
                   )}
                 {nonHostCount > 0 && (
                   <div className="flex items-center gap-2.5">
-                    <span className="text-[10px] font-mono text-white/22">
+                    <span className="text-[12px] font-mono text-white/22">
                       {readyCount}/{nonHostCount} ready
                     </span>
                     <div className="w-16 h-0.5 bg-white/[0.07] rounded-full overflow-hidden">
@@ -372,17 +372,17 @@ export function LobbyPage() {
                             {player.name}
                           </span>
                           {isMe && (
-                            <span className="text-[9px] font-mono text-white/18 border border-white/[0.08] rounded px-1 py-px">
+                            <span className="text-[12px] font-mono text-white/18 border border-white/[0.08] rounded px-1 py-px">
                               you
                             </span>
                           )}
                           {player.isModerator && (
-                            <span className="text-[9px] font-mono text-neon-green/50 border border-neon-green/15 rounded px-1 py-px">
+                            <span className="text-[12px] font-mono text-neon-green/50 border border-neon-green/15 rounded px-1 py-px">
                               mod
                             </span>
                           )}
                           {!player.isConnected && (
-                            <span className="text-[9px] font-mono text-white/18 border border-white/[0.07] rounded px-1 py-px">
+                            <span className="text-[12px] font-mono text-white/18 border border-white/[0.07] rounded px-1 py-px">
                               reconnecting
                             </span>
                           )}
@@ -392,14 +392,14 @@ export function LobbyPage() {
                       {/* Status */}
                       <div className="shrink-0 text-right">
                         {player.isHost ? (
-                          <span className="text-[10px] font-mono text-yellow-400/50">Host</span>
+                          <span className="text-[12px] font-mono text-yellow-400/50">Host</span>
                         ) : player.isReady ? (
-                          <span className="flex items-center gap-1.5 text-[10px] font-mono text-neon-green/60">
+                          <span className="flex items-center gap-1.5 text-[12px] font-mono text-neon-green/60">
                             <span className="w-1 h-1 rounded-full bg-neon-green/60" />
                             Ready
                           </span>
                         ) : (
-                          <span className="text-[10px] font-mono text-white/18">—</span>
+                          <span className="text-[12px] font-mono text-white/18">—</span>
                         )}
                       </div>
 
@@ -408,15 +408,15 @@ export function LobbyPage() {
                         <div className="flex items-center gap-1 ml-0.5 shrink-0" onClick={e => e.stopPropagation()}>
                           {confirmTransferId === player.id ? (
                             <div className="flex items-center gap-1">
-                              <span className="text-[9px] text-white/22 font-mono">make host?</span>
+                              <span className="text-[12px] text-white/22 font-mono">make host?</span>
                               <button
                                 onClick={() => { transferHost(player.id); setConfirmTransferId(null); }}
                                 disabled={isLoading}
-                                className="text-[10px] px-1.5 py-0.5 rounded border border-yellow-400/25 text-yellow-400/60 hover:bg-yellow-400/8 transition-colors"
+                                className="text-[12px] px-1.5 py-0.5 rounded border border-yellow-400/25 text-yellow-400/60 hover:bg-yellow-400/8 transition-colors"
                               >✓</button>
                               <button
                                 onClick={() => setConfirmTransferId(null)}
-                                className="text-[10px] px-1 text-white/18 hover:text-white/45 transition-colors"
+                                className="text-[12px] px-1 text-white/18 hover:text-white/45 transition-colors"
                               >✕</button>
                             </div>
                           ) : (
@@ -447,11 +447,11 @@ export function LobbyPage() {
               {/* Spectator list (collapsible) */}
               {showSpectators && spectators.length > 0 && (
                 <div className="px-4 pb-3 border-t border-white/[0.04]">
-                  <p className="text-[9px] font-mono text-white/20 uppercase tracking-[0.2em] pt-2 mb-1.5">Watching</p>
+                  <p className="text-[12px] font-mono text-white/20 uppercase tracking-[0.2em] pt-2 mb-1.5">Watching</p>
                   <div className="space-y-0.5">
                     {spectators.map(s => (
                       <div key={s.id} className="flex items-center gap-2 px-1 py-1">
-                        <span className="text-[10px] text-white/25">👁</span>
+                        <span className="text-[12px] text-white/25">👁</span>
                         <span className="text-[11px] font-mono text-white/40">{s.name}</span>
                       </div>
                     ))}
@@ -470,7 +470,7 @@ export function LobbyPage() {
                       )} />
                     ))}
                   </div>
-                  <span className="text-[10px] font-mono text-white/22">
+                  <span className="text-[12px] font-mono text-white/22">
                     {minPlayers - playerCount} more player{minPlayers - playerCount !== 1 ? 's' : ''} needed
                   </span>
                 </div>
@@ -539,13 +539,13 @@ export function LobbyPage() {
                     exit={{ opacity: 0, scale: 0.97 }}
                     className="flex items-center gap-2 px-3 py-2 rounded-xl border border-neon-red/18 bg-neon-red/[0.03] shrink-0"
                   >
-                    <span className="text-[10px] text-white/35 font-mono leading-tight whitespace-nowrap">
+                    <span className="text-[12px] text-white/35 font-mono leading-tight whitespace-nowrap">
                       {playerCount > 1 ? 'Leave?' : 'Close room?'}
                     </span>
                     <button
                       onClick={handleLeave}
                       disabled={isLoading}
-                      className="text-[10px] px-2.5 py-1 rounded-lg bg-neon-red/70 text-white font-mono font-bold hover:bg-neon-red/90 transition-colors disabled:opacity-40 whitespace-nowrap"
+                      className="text-[12px] px-2.5 py-1 rounded-lg bg-neon-red/70 text-white font-mono font-bold hover:bg-neon-red/90 transition-colors disabled:opacity-40 whitespace-nowrap"
                     >
                       Leave
                     </button>
@@ -598,7 +598,7 @@ export function LobbyPage() {
                 >
                   <div className="pt-1 space-y-3">
                     <div className={`${SURFACE} p-4`} style={SURFACE_BG}>
-                      <label className="block text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2.5">
+                      <label className="block text-[12px] font-mono text-white/28 uppercase tracking-widest mb-2.5">
                         {t.lobby.passwordSection}
                       </label>
                       <input
@@ -610,7 +610,7 @@ export function LobbyPage() {
                         className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-3 py-2 text-sm font-mono text-white/65 placeholder-white/15 focus:outline-none focus:border-neon-cyan/28 transition-colors"
                       />
                       {room.settings.password && (
-                        <p className="text-[10px] font-mono text-white/28 mt-2">
+                        <p className="text-[12px] font-mono text-white/28 mt-2">
                           {t.lobby.passwordHint}
                         </p>
                       )}
@@ -618,7 +618,7 @@ export function LobbyPage() {
 
                     {/* ── Host Privileges ─────────────────────────── */}
                     <div className={`${SURFACE} p-4`} style={SURFACE_BG}>
-                      <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-3">
+                      <p className="text-[12px] font-mono text-white/28 uppercase tracking-widest mb-3">
                         Host Privileges
                       </p>
                       <button
@@ -627,7 +627,7 @@ export function LobbyPage() {
                       >
                         <div className="text-left">
                           <p className="text-[13px] font-mono text-white/70">⏭ Skip speech turns</p>
-                          <p className="text-[10px] font-mono text-white/30 mt-0.5">
+                          <p className="text-[12px] font-mono text-white/30 mt-0.5">
                             {room.settings.hostSkipPrivilege
                               ? 'Host can skip any player\'s speech minute'
                               : 'Only the speaker can pass their own turn'}
@@ -649,13 +649,13 @@ export function LobbyPage() {
 
                     {/* ── Ranked Mode ─────────────────────────────── */}
                     <div className={`${SURFACE} p-4`} style={SURFACE_BG}>
-                      <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-3">
+                      <p className="text-[12px] font-mono text-white/28 uppercase tracking-widest mb-3">
                         Ranked Mode
                       </p>
                       {myLevel < 5 ? (
                         <div className="py-1">
                           <p className="text-[13px] font-mono text-white/40">⚔️ Ranked</p>
-                          <p className="text-[10px] font-mono text-white/25 mt-0.5">
+                          <p className="text-[12px] font-mono text-white/25 mt-0.5">
                             Reach Level 5 to enable ranked matches ({5 - myLevel} level{5 - myLevel !== 1 ? 's' : ''} away)
                           </p>
                         </div>
@@ -666,7 +666,7 @@ export function LobbyPage() {
                         >
                           <div className="text-left">
                             <p className="text-[13px] font-mono text-white/70">⚔️ Ranked Match</p>
-                            <p className="text-[10px] font-mono text-white/30 mt-0.5">
+                            <p className="text-[12px] font-mono text-white/30 mt-0.5">
                               {room.settings.ranked
                                 ? 'ELO rating will be updated for all players'
                                 : 'Enable to affect ELO ratings'}
@@ -745,7 +745,7 @@ export function LobbyPage() {
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04] flex-shrink-0">
               <span className="text-[11px] font-mono text-white/35">Chat</span>
-              <span className="text-[10px] font-mono text-white/15">lobby</span>
+              <span className="text-[12px] font-mono text-white/15">lobby</span>
             </div>
             <div className="flex-1 min-h-0 p-3">
               <ChatPanel />
@@ -775,7 +775,7 @@ export function LobbyPage() {
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
         </svg>
         {unreadChat > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-neon-red text-white text-[9px] flex items-center justify-center font-bold">
+          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-neon-red text-white text-[12px] flex items-center justify-center font-bold">
             {unreadChat > 9 ? '9+' : unreadChat}
           </span>
         )}

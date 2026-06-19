@@ -40,7 +40,7 @@ function StatusBadge({ status }: { status: string }) {
   const s = labels[status] ?? { label: status, color: '#a1a1aa' };
   return (
     <span
-      className="px-2 py-0.5 rounded-full font-mono text-[9px] uppercase"
+      className="px-2 py-0.5 rounded-full font-mono text-[12px] uppercase"
       style={{ background: `${s.color}20`, color: s.color, border: `1px solid ${s.color}40` }}
     >
       {s.label}
@@ -54,7 +54,7 @@ function DiffBadge({ diff }: { diff: string }) {
   const c = colors[diff] ?? '#a1a1aa';
   return (
     <span
-      className="px-1.5 py-0.5 rounded-full font-mono text-[8px] uppercase"
+      className="px-1.5 py-0.5 rounded-full font-mono text-[12px] uppercase"
       style={{ background: `${c}20`, color: c, border: `1px solid ${c}30` }}
     >
       {diff === 'easy' ? 'მარტ.' : diff === 'medium' ? 'საშ.' : 'რთ.'}
@@ -73,9 +73,9 @@ function QuestionCard({ q, index, total }: { q: any; index: number; total: numbe
         className="px-4 py-2 flex items-center gap-2 border-b"
         style={{ borderColor: 'rgba(168,85,247,0.15)', background: 'rgba(168,85,247,0.06)' }}
       >
-        <span className="font-mono text-[9px] text-white/40 uppercase tracking-wide">{q.category}</span>
+        <span className="font-mono text-[12px] text-white/40 uppercase tracking-wide">{q.category}</span>
         <DiffBadge diff={q.difficulty} />
-        <span className="ml-auto font-mono text-[9px] text-white/25">{index + 1}/{total}</span>
+        <span className="ml-auto font-mono text-[12px] text-white/25">{index + 1}/{total}</span>
       </div>
       <div className="px-4 py-5">
         <p className="font-display font-bold text-[18px] text-white leading-relaxed">{q.questionText}</p>
@@ -98,7 +98,7 @@ function VoiceStatusBar({ status, peers }: { status: string; peers: any[] }) {
       className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
       style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
     >
-      <span className="font-mono text-[10px]" style={{ color: dot }}>{label}</span>
+      <span className="font-mono text-[12px]" style={{ color: dot }}>{label}</span>
     </div>
   );
 }
@@ -145,8 +145,8 @@ function TeamPanel({
       {/* Captain */}
       {captain && (
         <div className="px-3 pt-2 pb-1 flex items-center gap-1.5">
-          <span className="text-[10px]">👑</span>
-          <span className="font-mono text-[10px] text-white/50 truncate">{captain.nickname}</span>
+          <span className="text-[12px]">👑</span>
+          <span className="font-mono text-[12px] text-white/50 truncate">{captain.nickname}</span>
         </div>
       )}
 
@@ -170,7 +170,7 @@ function TeamPanel({
                 }}
               />
               <span
-                className="font-mono text-[10px] truncate"
+                className="font-mono text-[12px] truncate"
                 style={{ color: uid === myId ? ACCENT : 'rgba(255,255,255,0.55)' }}
               >
                 {p.nickname}{uid === myId ? ' ★' : ''}{team.captainId === uid ? ' 👑' : ''}
@@ -179,7 +179,7 @@ function TeamPanel({
           );
         })}
         {team.playerIds.length === 0 && (
-          <p className="font-mono text-[9px] text-white/20">— ცარიელია —</p>
+          <p className="font-mono text-[12px] text-white/20">— ცარიელია —</p>
         )}
       </div>
 
@@ -189,7 +189,7 @@ function TeamPanel({
           className="mx-2 mb-2 px-2 py-1 rounded-lg text-center"
           style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
         >
-          <span className="font-mono text-[10px]" style={{ color: as.color }}>{as.text}</span>
+          <span className="font-mono text-[12px]" style={{ color: as.color }}>{as.text}</span>
         </div>
       )}
     </div>
@@ -210,9 +210,9 @@ function WaitingScreen({
         className="text-center py-5 rounded-2xl"
         style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.2)' }}
       >
-        <p className="font-mono text-[10px] text-white/35 mb-1 uppercase tracking-wide">კოდი</p>
+        <p className="font-mono text-[12px] text-white/35 mb-1 uppercase tracking-wide">კოდი</p>
         <p className="font-display font-bold text-4xl tracking-normal" style={{ color: ACCENT }}>{match.code}</p>
-        <p className="font-mono text-[10px] text-white/25 mt-2">გაუზიარე მეგობრებს</p>
+        <p className="font-mono text-[12px] text-white/25 mt-2">გაუზიარე მეგობრებს</p>
       </div>
 
       {/* Teams */}
@@ -232,18 +232,18 @@ function WaitingScreen({
             </div>
             <div className="px-3 py-2 space-y-1">
               {team.playerIds.length === 0 ? (
-                <p className="font-mono text-[10px] text-white/20">— ჯერ არავინ —</p>
+                <p className="font-mono text-[12px] text-white/20">— ჯერ არავინ —</p>
               ) : team.playerIds.map(uid => (
                 <div key={uid} className="flex items-center gap-2">
                   <span className={`w-1.5 h-1.5 rounded-full ${match.players[uid]?.connected ? 'bg-green-400' : 'bg-white/20'}`} />
-                  <span className="font-mono text-[10px] text-white/65">{match.players[uid]?.nickname ?? uid}</span>
+                  <span className="font-mono text-[12px] text-white/65">{match.players[uid]?.nickname ?? uid}</span>
                   {team.captainId === uid && (
                     <span
-                      className="font-mono text-[8px] px-1.5 rounded-full"
+                      className="font-mono text-[12px] px-1.5 rounded-full"
                       style={{ background: `${team.color}20`, color: team.color }}
                     >კაპ</span>
                   )}
-                  {uid === myId && <span className="font-mono text-[9px] text-white/25">(შენ)</span>}
+                  {uid === myId && <span className="font-mono text-[12px] text-white/25">(შენ)</span>}
                 </div>
               ))}
             </div>
@@ -251,7 +251,7 @@ function WaitingScreen({
         ))}
       </div>
 
-      <div className="text-center font-mono text-[10px] text-white/30">{connectedPlayers.length} მოთამაშე</div>
+      <div className="text-center font-mono text-[12px] text-white/30">{connectedPlayers.length} მოთამაშე</div>
 
       {isHost ? (
         <button
@@ -379,9 +379,9 @@ function DiscussionScreen({
                 {team.name}
               </span>
               {submitted ? (
-                <span className="font-mono text-[10px] text-white/50">✓ პასუხი გაგზავნილია</span>
+                <span className="font-mono text-[12px] text-white/50">✓ პასუხი გაგზავნილია</span>
               ) : (
-                <span className="font-mono text-[10px] text-white/25">ელოდება…</span>
+                <span className="font-mono text-[12px] text-white/25">ელოდება…</span>
               )}
             </div>
           );
@@ -391,7 +391,7 @@ function DiscussionScreen({
       {/* Captain answer input */}
       {isCaptain && !isSpectator && !hasSubmitted && (
         <div className="space-y-2">
-          <p className="font-mono text-[10px] text-white/40 uppercase tracking-wide">კაპიტანი — გაგზავნე პასუხი</p>
+          <p className="font-mono text-[12px] text-white/40 uppercase tracking-wide">კაპიტანი — გაგზავნე პასუხი</p>
           <div className="flex gap-2">
             <input
               value={answerText}
@@ -453,10 +453,10 @@ function JudgingScreen({
         className="px-4 py-4 rounded-2xl text-center"
         style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)' }}
       >
-        <p className="font-mono text-[10px] text-white/40 uppercase tracking-wide mb-2">სწორი პასუხი</p>
+        <p className="font-mono text-[12px] text-white/40 uppercase tracking-wide mb-2">სწორი პასუხი</p>
         <p className="font-display font-bold text-[18px] text-green-400">{q.correctAnswer}</p>
         {q.explanation && (
-          <p className="font-mono text-[10px] text-white/30 mt-2">{q.explanation}</p>
+          <p className="font-mono text-[12px] text-white/30 mt-2">{q.explanation}</p>
         )}
       </div>
 
@@ -495,7 +495,7 @@ function JudgingScreen({
                 <span className="font-mono text-xs font-bold" style={{ color: team.color }}>{team.name}</span>
                 {judged && (
                   <span
-                    className="ml-auto font-mono text-[10px] font-bold"
+                    className="ml-auto font-mono text-[12px] font-bold"
                     style={{ color: answer.isCorrect ? '#22c55e' : '#ff2d55' }}
                   >
                     {answer.isCorrect ? '✓ სწორი' : '✗ არასწორი'}
@@ -551,10 +551,10 @@ function RoundResultScreen({
           className="px-4 py-4 rounded-2xl text-center"
           style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)' }}
         >
-          <p className="font-mono text-[10px] text-white/40 uppercase tracking-wide mb-2">სწორი პასუხი იყო</p>
+          <p className="font-mono text-[12px] text-white/40 uppercase tracking-wide mb-2">სწორი პასუხი იყო</p>
           <p className="font-display font-bold text-[18px] text-green-400">{q.correctAnswer}</p>
           {q.explanation && (
-            <p className="font-mono text-[10px] text-white/30 mt-2">{q.explanation}</p>
+            <p className="font-mono text-[12px] text-white/30 mt-2">{q.explanation}</p>
           )}
         </div>
       )}
@@ -572,7 +572,7 @@ function RoundResultScreen({
               <div className="flex-1 min-w-0">
                 <p className="font-mono text-xs font-bold" style={{ color: team.color }}>{team.name}</p>
                 {answer && (
-                  <p className="font-mono text-[10px] text-white/40 truncate">{answer.answerText}</p>
+                  <p className="font-mono text-[12px] text-white/40 truncate">{answer.answerText}</p>
                 )}
               </div>
               {answer?.isCorrect !== undefined && (
@@ -617,7 +617,7 @@ function FinishedScreen({ match, onLeave }: { match: WWWMatchPublic; onLeave: ()
   return (
     <div className="space-y-4 pt-4 text-center">
       <div>
-        <p className="font-mono text-[10px] text-white/30 uppercase tracking-wide mb-3">გამარჯვებული</p>
+        <p className="font-mono text-[12px] text-white/30 uppercase tracking-wide mb-3">გამარჯვებული</p>
         <div
           className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4"
           style={{
@@ -755,7 +755,7 @@ export function WWWGame() {
             <span className="font-display font-bold text-sm" style={{ color: ACCENT }}>რა? სად? როდის?</span>
             <StatusBadge status={match.status} />
           </div>
-          <p className="font-mono text-[9px] text-white/30 mt-0.5">
+          <p className="font-mono text-[12px] text-white/30 mt-0.5">
             {match.status !== 'waiting' && match.status !== 'finished'
               ? `შეკ ${match.currentQuestionIndex + 1}/${match.totalQuestions}`
               : `კოდი: ${match.code}`}

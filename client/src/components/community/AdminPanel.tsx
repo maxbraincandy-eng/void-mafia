@@ -37,7 +37,7 @@ function Badge({ label, color }: { label: string; color: string }) {
   return (
     <span style={{
       display: 'inline-block', padding: '1px 7px', borderRadius: 999,
-      fontSize: 10, fontWeight: 700, background: `${color}22`, color, border: `1px solid ${color}55`,
+      fontSize: 12, fontWeight: 700, background: `${color}22`, color, border: `1px solid ${color}55`,
     }}>
       {label}
     </span>
@@ -74,7 +74,7 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
 }
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <span style={{ color: MUTED, fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>{children}</span>;
+  return <span style={{ color: MUTED, fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>{children}</span>;
 }
 
 // ── Users Tab ─────────────────────────────────────────────────────────
@@ -152,7 +152,7 @@ function UsersTab({ myModLevel }: { myModLevel: string }) {
               {u.moderator_level && <span style={{ marginLeft: 6 }}><Badge label={u.moderator_level} color={ACCENT} /></span>}
               <div style={{ color: MUTED, fontSize: 11, marginTop: 2 }}>
                 {u.friend_code && <span style={{ marginRight: 10 }}>#{u.friend_code}</span>}
-                <span style={{ fontSize: 10 }}>{u.id}</span>
+                <span style={{ fontSize: 12 }}>{u.id}</span>
               </div>
             </div>
             <ActionBtn label="View" onClick={() => openProfile(u.id)} />
@@ -175,7 +175,7 @@ function UsersTab({ myModLevel }: { myModLevel: string }) {
           <Card>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
               <div><Label>Friend code</Label><br /><span style={{ color: '#fff' }}>#{selected.friend_code || '—'}</span></div>
-              <div><Label>ID</Label><br /><span style={{ color: '#fff', fontSize: 10 }}>{selected.id}</span></div>
+              <div><Label>ID</Label><br /><span style={{ color: '#fff', fontSize: 12 }}>{selected.id}</span></div>
               <div><Label>Joined</Label><br /><span style={{ color: '#fff' }}>{fmtShort(selected.joined_at)}</span></div>
               <div><Label>Last seen</Label><br /><span style={{ color: '#fff' }}>{fmtShort(selected.last_seen_at)}</span></div>
               <div><Label>Posts</Label><br /><span style={{ color: '#fff' }}>{selected.post_count ?? 0}</span></div>
@@ -346,7 +346,7 @@ function ReportsTab() {
                   {r.post_content.slice(0, 200)}
                 </div>
               )}
-              <div style={{ color: MUTED, fontSize: 10, marginTop: 4 }}>{fmt(r.created_at)}</div>
+              <div style={{ color: MUTED, fontSize: 12, marginTop: 4 }}>{fmt(r.created_at)}</div>
             </div>
             {r.status === 'pending' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>

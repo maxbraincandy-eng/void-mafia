@@ -47,7 +47,7 @@ export function SeatMap({ players, myPlayerId, maxSeats = 16 }: Props) {
           justifyContent: 'center',
         }}
       >
-        <span className="font-mono text-[10px] tracking-[0.25em] text-white/20 uppercase select-none">
+        <span className="font-mono text-[12px] tracking-[0.25em] text-white/20 uppercase select-none">
           VOID MAFIA
         </span>
       </div>
@@ -102,10 +102,10 @@ export function SeatMap({ players, myPlayerId, maxSeats = 16 }: Props) {
                     <span className="absolute -top-1 -right-1 text-xs leading-none pointer-events-none">👑</span>
                   )}
                   {isSpectator && (
-                    <span className="absolute bottom-0 right-0 text-[10px] leading-none pointer-events-none">👁</span>
+                    <span className="absolute bottom-0 right-0 text-[12px] leading-none pointer-events-none">👁</span>
                   )}
                   {/* Name floats below without affecting the anchor box */}
-                  <span className="absolute top-full left-1/2 -translate-x-1/2 mt-0.5 font-mono text-[9px] text-white/50 text-center w-12 truncate leading-tight pointer-events-none">
+                  <span className="absolute top-full left-1/2 -translate-x-1/2 mt-0.5 font-mono text-[12px] text-white/50 text-center w-12 truncate leading-tight pointer-events-none">
                     {player.name}
                   </span>
                 </>
@@ -116,7 +116,7 @@ export function SeatMap({ players, myPlayerId, maxSeats = 16 }: Props) {
                     'flex items-center justify-center',
                   )}
                 >
-                  <span className="font-mono text-[10px] text-white/20">#{seatNum}</span>
+                  <span className="font-mono text-[12px] text-white/20">#{seatNum}</span>
                 </div>
               )}
             </div>

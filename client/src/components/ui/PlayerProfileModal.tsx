@@ -334,7 +334,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                             <span className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-neon-green rounded-full border-2 border-void" />
                           )}
                           <div
-                            className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full font-mono font-bold text-[9px] whitespace-nowrap"
+                            className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full font-mono font-bold text-[12px] whitespace-nowrap"
                             style={{ background: `${col}25`, border: `1px solid ${col}60`, color: col }}
                           >
                             Lv.{level}
@@ -353,7 +353,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                           </div>
                           {titleDef && (
                             <div className="mb-1">
-                              <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded"
+                              <span className="font-mono text-[12px] font-bold px-1.5 py-0.5 rounded"
                                 style={{ color: titleDef.color, background: `${titleDef.color}15`, border: `1px solid ${titleDef.color}40` }}>
                                 {titleDef.name}
                               </span>
@@ -362,15 +362,15 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {profile.publicId != null && (
                               <span
-                                className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded"
+                                className="font-mono text-[12px] font-bold px-1.5 py-0.5 rounded"
                                 style={{ background: 'rgba(0,229,255,0.08)', color: 'rgba(0,229,255,0.7)', border: '1px solid rgba(0,229,255,0.2)' }}
                               >
                                 ID #{profile.publicId}
                               </span>
                             )}
                             {isOnline
-                              ? <span className="text-neon-green font-mono text-[9px]">● online</span>
-                              : <span className="text-white/25 font-mono text-[9px]">Last: {formatDate(roleStats?.lastGameAt ?? profile.joinedAt)}</span>
+                              ? <span className="text-neon-green font-mono text-[12px]">● online</span>
+                              : <span className="text-white/25 font-mono text-[12px]">Last: {formatDate(roleStats?.lastGameAt ?? profile.joinedAt)}</span>
                             }
                           </div>
                         </div>
@@ -380,10 +380,10 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       <div className="mt-4">
                         <div className="flex justify-between items-center mb-1">
                           {level >= MAX_LEVEL
-                            ? <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: '#facc1590' }}>მაქსიმალური დონე</span>
-                            : <span className="font-mono text-[9px]" style={{ color: `${col}80` }}>XP {xp - xpMin} / {xpMax - xpMin}</span>
+                            ? <span className="font-mono text-[12px] uppercase tracking-widest" style={{ color: '#facc1590' }}>მაქსიმალური დონე</span>
+                            : <span className="font-mono text-[12px]" style={{ color: `${col}80` }}>XP {xp - xpMin} / {xpMax - xpMin}</span>
                           }
-                          <span className="font-mono text-[9px]" style={{ color: `${col}80` }}>{xpPct}%</span>
+                          <span className="font-mono text-[12px]" style={{ color: `${col}80` }}>{xpPct}%</span>
                         </div>
                         <div className="h-1.5 rounded-full bg-white/6 overflow-hidden">
                           <motion.div
@@ -404,14 +404,14 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                           <div className="flex items-center gap-2 mb-1">
                             <span className="font-mono text-neon-cyan text-xs font-bold">[{clan.tag}]</span>
                             <span className="font-mono text-white/60 text-xs truncate flex-1">{clan.name}</span>
-                            <span className="font-mono text-[9px] text-white/30 capitalize">{clan.memberRole}</span>
+                            <span className="font-mono text-[12px] text-white/30 capitalize">{clan.memberRole}</span>
                           </div>
-                          <p className="font-mono text-[9px] text-white/25">
+                          <p className="font-mono text-[12px] text-white/25">
                             Joined {new Date(clan.joinedAt).toLocaleDateString()} · {clan.memberCount} members
                           </p>
                         </div>
                       ) : (
-                        <p className="text-center font-mono text-[10px] text-white/20 py-1">Not in a clan</p>
+                        <p className="text-center font-mono text-[12px] text-white/20 py-1">Not in a clan</p>
                       )}
 
                       {/* ── Stats grid ─────────────────────────── */}
@@ -424,7 +424,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         ].map(s => (
                           <div key={s.label} className="glass-panel border border-white/5 rounded-xl p-2 text-center">
                             <p className={`font-display font-bold text-base ${s.color}`}>{s.value}</p>
-                            <p className="text-white/25 text-[9px] font-mono">{s.label}</p>
+                            <p className="text-white/25 text-[12px] font-mono">{s.label}</p>
                           </div>
                         ))}
                       </div>
@@ -440,7 +440,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       {/* ── Team breakdown ─────────────────────── */}
                       {roleStats && roleStats.byTeam.length > 0 && (
                         <div className="rounded-xl border border-white/8 bg-white/3 px-3 py-2">
-                          <p className="font-mono text-[9px] text-white/30 uppercase tracking-wider mb-1.5">By Team</p>
+                          <p className="font-mono text-[12px] text-white/30 uppercase tracking-wider mb-1.5">By Team</p>
                           <TeamBreakdown roleStats={roleStats} />
                         </div>
                       )}
@@ -448,7 +448,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       {/* ── Achievements ───────────────────────── */}
                       {achievements.length > 0 && (
                         <div className="rounded-xl border border-white/8 bg-white/3 px-3 py-2">
-                          <p className="font-mono text-[9px] text-white/30 uppercase tracking-wider mb-1.5">
+                          <p className="font-mono text-[12px] text-white/30 uppercase tracking-wider mb-1.5">
                             Achievements ({achievements.length})
                           </p>
                           <div className="flex flex-wrap gap-1.5">
@@ -596,9 +596,9 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         return (
                           <div className="rounded-xl border border-yellow-400/15 bg-yellow-400/5 p-3">
                             <div className="flex items-center gap-2 mb-2">
-                              <span className="text-yellow-400/70 text-[9px] font-mono uppercase tracking-widest font-bold">🛡 Mod Actions</span>
+                              <span className="text-yellow-400/70 text-[12px] font-mono uppercase tracking-widest font-bold">🛡 Mod Actions</span>
                               {!canAct && (
-                                <span className="text-white/20 text-[9px] font-mono">(rank protected)</span>
+                                <span className="text-white/20 text-[12px] font-mono">(rank protected)</span>
                               )}
                             </div>
                             {!modPanel ? (
@@ -606,14 +606,14 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                                 <button
                                   disabled={!canAct}
                                   onClick={() => openModPanel('warn')}
-                                  className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-yellow-400/30 text-yellow-400 hover:bg-yellow-400/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                                  className="px-2 py-1 text-[12px] font-mono uppercase rounded-lg border border-yellow-400/30 text-yellow-400 hover:bg-yellow-400/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                                 >
                                   ⚠ Warn
                                 </button>
                                 <button
                                   disabled={!canAct}
                                   onClick={() => openModPanel('kick')}
-                                  className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-orange-400/30 text-orange-400 hover:bg-orange-400/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                                  className="px-2 py-1 text-[12px] font-mono uppercase rounded-lg border border-orange-400/30 text-orange-400 hover:bg-orange-400/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                                 >
                                   ⬆ Kick
                                 </button>
@@ -621,7 +621,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                                   <button
                                     disabled={!canAct}
                                     onClick={() => openModPanel('ban')}
-                                    className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-neon-red/30 text-neon-red hover:bg-neon-red/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                                    className="px-2 py-1 text-[12px] font-mono uppercase rounded-lg border border-neon-red/30 text-neon-red hover:bg-neon-red/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                                   >
                                     🔨 Ban
                                   </button>
@@ -646,9 +646,9 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                                   className="w-full bg-void-50/80 border border-yellow-400/20 rounded-lg px-2 py-1.5 text-xs text-white font-mono placeholder-white/25 focus:outline-none focus:border-yellow-400/40"
                                 />
                                 <div className="flex gap-1">
-                                  <button onClick={closeModPanel} className="flex-1 py-1.5 text-[10px] font-mono border border-white/10 text-white/40 rounded-lg hover:text-white/60">Cancel</button>
+                                  <button onClick={closeModPanel} className="flex-1 py-1.5 text-[12px] font-mono border border-white/10 text-white/40 rounded-lg hover:text-white/60">Cancel</button>
                                   <button onClick={doModWarn} disabled={modActionLoading || !modReason.trim()}
-                                    className="flex-1 py-1.5 text-[10px] font-mono font-bold border border-yellow-400/30 bg-yellow-400/10 text-yellow-400 rounded-lg hover:bg-yellow-400/20 disabled:opacity-40">
+                                    className="flex-1 py-1.5 text-[12px] font-mono font-bold border border-yellow-400/30 bg-yellow-400/10 text-yellow-400 rounded-lg hover:bg-yellow-400/20 disabled:opacity-40">
                                     {modActionLoading ? '…' : 'Send Warning'}
                                   </button>
                                 </div>
@@ -662,11 +662,11 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                                   placeholder="Kick reason…"
                                   className="w-full bg-void-50/80 border border-orange-400/20 rounded-lg px-2 py-1.5 text-xs text-white font-mono placeholder-white/25 focus:outline-none focus:border-orange-400/40"
                                 />
-                                <p className="text-white/30 text-[10px] font-mono">Player will be removed from room and voice.</p>
+                                <p className="text-white/30 text-[12px] font-mono">Player will be removed from room and voice.</p>
                                 <div className="flex gap-1">
-                                  <button onClick={closeModPanel} className="flex-1 py-1.5 text-[10px] font-mono border border-white/10 text-white/40 rounded-lg hover:text-white/60">Cancel</button>
+                                  <button onClick={closeModPanel} className="flex-1 py-1.5 text-[12px] font-mono border border-white/10 text-white/40 rounded-lg hover:text-white/60">Cancel</button>
                                   <button onClick={doModKick} disabled={modActionLoading || !modReason.trim()}
-                                    className="flex-1 py-1.5 text-[10px] font-mono font-bold border border-orange-400/30 bg-orange-400/10 text-orange-400 rounded-lg hover:bg-orange-400/20 disabled:opacity-40">
+                                    className="flex-1 py-1.5 text-[12px] font-mono font-bold border border-orange-400/30 bg-orange-400/10 text-orange-400 rounded-lg hover:bg-orange-400/20 disabled:opacity-40">
                                     {modActionLoading ? '…' : 'Kick Player'}
                                   </button>
                                 </div>
@@ -690,9 +690,9 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                                   ))}
                                 </select>
                                 <div className="flex gap-1">
-                                  <button onClick={closeModPanel} className="flex-1 py-1.5 text-[10px] font-mono border border-white/10 text-white/40 rounded-lg hover:text-white/60">Cancel</button>
+                                  <button onClick={closeModPanel} className="flex-1 py-1.5 text-[12px] font-mono border border-white/10 text-white/40 rounded-lg hover:text-white/60">Cancel</button>
                                   <button onClick={doModBan} disabled={modActionLoading || !modReason.trim()}
-                                    className="flex-1 py-1.5 text-[10px] font-mono font-bold border border-neon-red/30 bg-neon-red/10 text-neon-red rounded-lg hover:bg-neon-red/20 disabled:opacity-40">
+                                    className="flex-1 py-1.5 text-[12px] font-mono font-bold border border-neon-red/30 bg-neon-red/10 text-neon-red rounded-lg hover:bg-neon-red/20 disabled:opacity-40">
                                     {modActionLoading ? '…' : 'Ban Player'}
                                   </button>
                                 </div>
@@ -706,21 +706,21 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       {hasClanModPower && playerId !== myProfileId && (
                         <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-3">
                           <div className="flex items-center gap-2 mb-2">
-                            <span className="text-cyan-400/70 text-[9px] font-mono uppercase tracking-widest font-bold">🛡 Clan Moderation</span>
-                            <span className="text-cyan-400/40 text-[9px] font-mono capitalize">{myClanRole}</span>
+                            <span className="text-cyan-400/70 text-[12px] font-mono uppercase tracking-widest font-bold">🛡 Clan Moderation</span>
+                            <span className="text-cyan-400/40 text-[12px] font-mono capitalize">{myClanRole}</span>
                           </div>
                           {!clanModPanel ? (
                             <div className="flex flex-wrap gap-1">
                               <button
                                 onClick={() => { setClanModPanel('warn'); setClanModReason(''); }}
-                                className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-yellow-400/30 text-yellow-400 hover:bg-yellow-400/10 transition-all"
+                                className="px-2 py-1 text-[12px] font-mono uppercase rounded-lg border border-yellow-400/30 text-yellow-400 hover:bg-yellow-400/10 transition-all"
                               >
                                 ⚠ Clan Warn
                               </button>
                               {(myClanRole === 'owner' || myClanRole === 'admin') && (
                                 <button
                                   onClick={() => { setClanModPanel('kick'); setClanModReason(''); }}
-                                  className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-orange-400/30 text-orange-400 hover:bg-orange-400/10 transition-all"
+                                  className="px-2 py-1 text-[12px] font-mono uppercase rounded-lg border border-orange-400/30 text-orange-400 hover:bg-orange-400/10 transition-all"
                                 >
                                   ⬆ Clan Kick
                                 </button>
@@ -728,7 +728,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                               {myClanRole === 'moderator' && (
                                 <button
                                   onClick={() => { setClanModPanel('kick'); setClanModReason(''); }}
-                                  className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-orange-400/30 text-orange-400 hover:bg-orange-400/10 transition-all"
+                                  className="px-2 py-1 text-[12px] font-mono uppercase rounded-lg border border-orange-400/30 text-orange-400 hover:bg-orange-400/10 transition-all"
                                 >
                                   ⬆ Clan Kick
                                 </button>
@@ -744,11 +744,11 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                                 maxLength={300}
                                 className="w-full bg-void-50/80 border border-yellow-400/20 rounded-lg px-2 py-1.5 text-xs text-white font-mono placeholder-white/25 focus:outline-none focus:border-yellow-400/40"
                               />
-                              <p className="text-white/30 text-[10px] font-mono">Warning will show clan name and your role.</p>
+                              <p className="text-white/30 text-[12px] font-mono">Warning will show clan name and your role.</p>
                               <div className="flex gap-1">
-                                <button onClick={() => setClanModPanel(null)} className="flex-1 py-1.5 text-[10px] font-mono border border-white/10 text-white/40 rounded-lg hover:text-white/60">Cancel</button>
+                                <button onClick={() => setClanModPanel(null)} className="flex-1 py-1.5 text-[12px] font-mono border border-white/10 text-white/40 rounded-lg hover:text-white/60">Cancel</button>
                                 <button onClick={doClanWarn} disabled={clanModLoading || !clanModReason.trim()}
-                                  className="flex-1 py-1.5 text-[10px] font-mono font-bold border border-yellow-400/30 bg-yellow-400/10 text-yellow-400 rounded-lg hover:bg-yellow-400/20 disabled:opacity-40">
+                                  className="flex-1 py-1.5 text-[12px] font-mono font-bold border border-yellow-400/30 bg-yellow-400/10 text-yellow-400 rounded-lg hover:bg-yellow-400/20 disabled:opacity-40">
                                   {clanModLoading ? '…' : 'Send Warning'}
                                 </button>
                               </div>
@@ -763,11 +763,11 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                                 maxLength={300}
                                 className="w-full bg-void-50/80 border border-orange-400/20 rounded-lg px-2 py-1.5 text-xs text-white font-mono placeholder-white/25 focus:outline-none focus:border-orange-400/40"
                               />
-                              <p className="text-white/30 text-[10px] font-mono">Player will be removed from this clan room only.</p>
+                              <p className="text-white/30 text-[12px] font-mono">Player will be removed from this clan room only.</p>
                               <div className="flex gap-1">
-                                <button onClick={() => setClanModPanel(null)} className="flex-1 py-1.5 text-[10px] font-mono border border-white/10 text-white/40 rounded-lg hover:text-white/60">Cancel</button>
+                                <button onClick={() => setClanModPanel(null)} className="flex-1 py-1.5 text-[12px] font-mono border border-white/10 text-white/40 rounded-lg hover:text-white/60">Cancel</button>
                                 <button onClick={doClanKick} disabled={clanModLoading || !clanModReason.trim()}
-                                  className="flex-1 py-1.5 text-[10px] font-mono font-bold border border-orange-400/30 bg-orange-400/10 text-orange-400 rounded-lg hover:bg-orange-400/20 disabled:opacity-40">
+                                  className="flex-1 py-1.5 text-[12px] font-mono font-bold border border-orange-400/30 bg-orange-400/10 text-orange-400 rounded-lg hover:bg-orange-400/20 disabled:opacity-40">
                                   {clanModLoading ? '…' : 'Kick from Clan Room'}
                                 </button>
                               </div>
@@ -779,7 +779,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       {/* ── Gift Gallery ─────────────────────────── */}
                       {data && (
                         <div className="rounded-xl border border-white/8 bg-white/3 px-3 py-2.5">
-                          <p className="font-mono text-[9px] text-white/30 uppercase tracking-wider mb-2">
+                          <p className="font-mono text-[12px] text-white/30 uppercase tracking-wider mb-2">
                             🎁 Gifts
                           </p>
                           <GiftGallery profileId={data.profile.id} viewerId={myProfileId ?? ''} />
@@ -791,7 +791,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         {!isSelf && (
                         <button
                           onClick={() => setShowReport(true)}
-                          className="flex-1 py-2 rounded-xl font-mono text-[10px] transition-all hover:scale-[1.01] active:scale-[0.98]"
+                          className="flex-1 py-2 rounded-xl font-mono text-[12px] transition-all hover:scale-[1.01] active:scale-[0.98]"
                           style={{
                             background: 'rgba(255,30,60,0.05)',
                             border: '1px solid rgba(255,30,60,0.15)',

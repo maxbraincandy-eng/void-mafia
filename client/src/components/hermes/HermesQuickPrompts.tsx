@@ -13,7 +13,7 @@ export function HermesQuickPrompts() {
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-3">
-      <p className="font-mono text-[9px] uppercase tracking-widest text-white/18 mb-2.5">
+      <p className="font-mono text-[12px] uppercase tracking-widest text-white/18 mb-2.5">
         {t.hermes.quickPromptsLabel}
       </p>
       <div className="flex flex-wrap gap-2">
@@ -21,7 +21,7 @@ export function HermesQuickPrompts() {
           <button
             key={p}
             onClick={() => sendMessage(p, uid)}
-            className="px-3 py-2 rounded-xl border border-white/8 bg-white/3 hover:bg-white/6 hover:border-white/14 transition-colors font-mono text-[10px] text-white/38 hover:text-white/62 text-left"
+            className="px-3 py-2 rounded-xl border border-white/8 bg-white/3 hover:bg-white/6 hover:border-white/14 transition-colors font-mono text-[12px] text-white/38 hover:text-white/62 text-left"
           >
             {p}
           </button>

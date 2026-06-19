@@ -124,16 +124,16 @@ export function ProfileModalV2({
 
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   <span
-                    className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                    className="font-mono text-[12px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
                     style={{ background: 'rgba(155,0,255,0.15)', color: '#c084fc', border: '1px solid rgba(155,0,255,0.3)' }}
                   >
                     {t.community.profile.level} {profile.level}
                   </span>
                   {profile.clanTag && (
-                    <span className="font-mono text-[9px] text-white/35">[{profile.clanTag}]</span>
+                    <span className="font-mono text-[12px] text-white/35">[{profile.clanTag}]</span>
                   )}
                   {profile.publicId && (
-                    <span className="font-mono text-[9px] text-white/25">#{profile.publicId}</span>
+                    <span className="font-mono text-[12px] text-white/25">#{profile.publicId}</span>
                   )}
                 </div>
 
@@ -160,7 +160,7 @@ export function ProfileModalV2({
               ].map((s, i) => (
                 <div key={s.label} className="flex-1 py-2.5 text-center" style={{ borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
                   <p className="font-display font-bold text-white text-sm leading-none">{s.value}</p>
-                  <p className="font-mono text-[8px] uppercase tracking-wider text-white/30 mt-0.5">{s.label}</p>
+                  <p className="font-mono text-[12px] uppercase tracking-wider text-white/30 mt-0.5">{s.label}</p>
                 </div>
               ))}
             </div>
@@ -189,7 +189,7 @@ export function ProfileModalV2({
                   <button
                     onClick={handleToggleFollow}
                     disabled={followBusy}
-                    className="flex-1 py-2.5 rounded-xl font-mono text-[10px] uppercase tracking-wider font-bold transition-all active:scale-95 disabled:opacity-50"
+                    className="flex-1 py-2.5 rounded-xl font-mono text-[12px] uppercase tracking-wider font-bold transition-all active:scale-95 disabled:opacity-50"
                     style={profile.isFollowedByMe ? {
                       background: 'rgba(0,245,255,0.08)',
                       border: '1px solid rgba(0,245,255,0.3)',
@@ -207,7 +207,7 @@ export function ProfileModalV2({
 
                   <button
                     onClick={() => { onClose(); openDmWith(profileId); }}
-                    className="flex-1 py-2.5 rounded-xl font-mono text-[10px] uppercase tracking-wider font-bold transition-all active:scale-95"
+                    className="flex-1 py-2.5 rounded-xl font-mono text-[12px] uppercase tracking-wider font-bold transition-all active:scale-95"
                     style={{
                       background: 'rgba(255,255,255,0.04)',
                       border: '1px solid rgba(255,255,255,0.1)',

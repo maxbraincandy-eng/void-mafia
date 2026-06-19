@@ -165,7 +165,7 @@ export function GamesTab() {
           <span className="text-2xl">🧠</span>
           <div className="flex-1 min-w-0">
             <p className="font-display font-bold text-white text-sm leading-tight">{t.games.www.title}</p>
-            <p className="font-mono text-[10px] text-white/35">{t.games.www.subtitle}</p>
+            <p className="font-mono text-[12px] text-white/35">{t.games.www.subtitle}</p>
           </div>
           <button onClick={handleRefresh}
             className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
@@ -207,7 +207,7 @@ export function GamesTab() {
         </div>
         {wwList.length > 0 && (
           <div className="px-4 pb-3 space-y-1">
-            <p className="font-mono text-[9px] uppercase tracking-widest text-white/25">{t.games.www.openMatches}</p>
+            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">{t.games.www.openMatches}</p>
             {wwList.map(m => <WWWRow key={m.id} match={m} onJoin={code => wwJoin(code, playerName)} />)}
           </div>
         )}
@@ -247,7 +247,7 @@ export function GamesTab() {
           <span className="text-2xl">♟</span>
           <div className="flex-1 min-w-0">
             <p className="font-display font-bold text-white text-sm leading-tight">{t.games.checkers.title}</p>
-            <p className="font-mono text-[10px] text-white/35">{t.games.checkers.subtitle}</p>
+            <p className="font-mono text-[12px] text-white/35">{t.games.checkers.subtitle}</p>
           </div>
           <button onClick={handleRefresh}
             className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
@@ -290,7 +290,7 @@ export function GamesTab() {
         {/* Open checkers matches */}
         {ckList.length > 0 && (
           <div className="px-4 pb-3 space-y-1">
-            <p className="font-mono text-[9px] uppercase tracking-widest text-white/25">{t.games.checkers.openMatches}</p>
+            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">{t.games.checkers.openMatches}</p>
             {ckList.map(m => <CheckersRow key={m.id} match={m} onJoin={code => ckJoin(code, playerName)} />)}
           </div>
         )}
@@ -304,7 +304,7 @@ export function GamesTab() {
           <span className="text-2xl">🃏</span>
           <div className="flex-1 min-w-0">
             <p className="font-display font-bold text-white text-sm leading-tight">{t.games.joker.title}</p>
-            <p className="font-mono text-[10px] text-white/35">{t.games.joker.subtitle}</p>
+            <p className="font-mono text-[12px] text-white/35">{t.games.joker.subtitle}</p>
           </div>
           <button onClick={handleRefresh}
             className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
@@ -320,7 +320,7 @@ export function GamesTab() {
             <button
               key={m}
               onClick={() => setJkMode(m)}
-              className="px-3 py-1 rounded-full font-mono text-[10px] uppercase tracking-wider transition-all"
+              className="px-3 py-1 rounded-full font-mono text-[12px] uppercase tracking-wider transition-all"
               style={{
                 background: jkMode === m ? 'rgba(255,165,0,0.2)' : 'rgba(255,255,255,0.03)',
                 border: `1px solid ${jkMode === m ? 'rgba(255,165,0,0.5)' : 'rgba(255,255,255,0.08)'}`,
@@ -367,7 +367,7 @@ export function GamesTab() {
         {/* Open joker tables */}
         {jkList.length > 0 && (
           <div className="px-4 pb-3 space-y-1">
-            <p className="font-mono text-[9px] uppercase tracking-widest text-white/25">{t.games.joker.openTables}</p>
+            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">{t.games.joker.openTables}</p>
             {jkList.map(m => <JokerRow key={m.id} match={m} onJoin={code => jkJoin(code, playerName)} />)}
           </div>
         )}
@@ -394,7 +394,7 @@ export function GamesTab() {
           <span className="text-2xl">🎲</span>
           <div className="flex-1 min-w-0">
             <p className="font-display font-bold text-white text-sm leading-tight">{t.games.ludo.title}</p>
-            <p className="font-mono text-[10px] text-white/35">{t.games.ludo.subtitle}</p>
+            <p className="font-mono text-[12px] text-white/35">{t.games.ludo.subtitle}</p>
           </div>
           <button onClick={handleRefresh}
             className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
@@ -407,10 +407,10 @@ export function GamesTab() {
           {!ldShowJoin ? (
             <>
               <div className="w-full flex items-center gap-2 mb-1">
-                <span className="font-mono text-[9px] text-white/30 uppercase tracking-wider">Max Players:</span>
+                <span className="font-mono text-[12px] text-white/30 uppercase tracking-wider">Max Players:</span>
                 {([2, 3, 4] as const).map(n => (
                   <button key={n} onClick={() => setLdMaxPlayers(n)}
-                    className="px-2 py-0.5 rounded-full font-mono text-[10px] transition-all"
+                    className="px-2 py-0.5 rounded-full font-mono text-[12px] transition-all"
                     style={{
                       background: ldMaxPlayers === n ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.03)',
                       border: `1px solid ${ldMaxPlayers === n ? 'rgba(34,197,94,0.5)' : 'rgba(255,255,255,0.08)'}`,
@@ -450,7 +450,7 @@ export function GamesTab() {
         </div>
         {ldList.length > 0 && (
           <div className="px-4 pb-3 space-y-1">
-            <p className="font-mono text-[9px] uppercase tracking-widest text-white/25">{t.games.ludo.openMatches}</p>
+            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">{t.games.ludo.openMatches}</p>
             {ldList.map(m => <LudoRow key={m.id} match={m} onJoin={code => ldJoin(code, playerName)} />)}
           </div>
         )}
@@ -477,7 +477,7 @@ export function GamesTab() {
           <span className="text-2xl">🃠</span>
           <div className="flex-1 min-w-0">
             <p className="font-display font-bold text-white text-sm leading-tight">{t.games.uno.title}</p>
-            <p className="font-mono text-[10px] text-white/35">{t.games.uno.subtitle}</p>
+            <p className="font-mono text-[12px] text-white/35">{t.games.uno.subtitle}</p>
           </div>
           <button onClick={handleRefresh}
             className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
@@ -489,10 +489,10 @@ export function GamesTab() {
 
         {/* Max players selector */}
         <div className="px-4 pt-3 flex items-center gap-2">
-          <span className="font-mono text-[9px] text-white/30 uppercase tracking-wider">{t.games.uno.maxPlayers}:</span>
+          <span className="font-mono text-[12px] text-white/30 uppercase tracking-wider">{t.games.uno.maxPlayers}:</span>
           {([2, 3, 4, 6, 8, 10] as const).map(n => (
             <button key={n} onClick={() => setUnoMaxPlayers(n)}
-              className="px-2 py-0.5 rounded-full font-mono text-[10px] transition-all"
+              className="px-2 py-0.5 rounded-full font-mono text-[12px] transition-all"
               style={{
                 background: unoMaxPlayers === n ? 'rgba(255,100,0,0.2)' : 'rgba(255,255,255,0.03)',
                 border: `1px solid ${unoMaxPlayers === n ? 'rgba(255,100,0,0.5)' : 'rgba(255,255,255,0.08)'}`,
@@ -537,7 +537,7 @@ export function GamesTab() {
 
         {unoList.length > 0 && (
           <div className="px-4 pb-3 space-y-1">
-            <p className="font-mono text-[9px] uppercase tracking-widest text-white/25">{t.games.uno.openMatches}</p>
+            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">{t.games.uno.openMatches}</p>
             {unoList.map(m => (
               <UnoRow key={m.id} match={m}
                 onJoin={code => unoJoin(code, playerName)}
@@ -607,18 +607,18 @@ function CheckersRow({ match, onJoin }: { match: CheckersMatchListItem; onJoin: 
         <p className="font-mono text-xs text-white">
           {match.redName} vs {match.blackName ?? <span className="text-white/30">{t.games.checkers.waiting}</span>}
         </p>
-        <span className="font-mono text-[9px] text-white/25 tracking-widest">{match.code}</span>
+        <span className="font-mono text-[12px] text-white/25 tracking-widest">{match.code}</span>
       </div>
       {match.status === 'waiting' && (
         <button onClick={() => onJoin(match.code)}
-          className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+          className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
           style={{ background: 'rgba(0,245,255,0.1)', border: '1px solid rgba(0,245,255,0.25)', color: '#00f5ff' }}>
           {t.games.checkers.join}
         </button>
       )}
       {match.status === 'active' && (
         <button onClick={() => onJoin(match.code)}
-          className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+          className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
           style={{ background: 'rgba(155,0,255,0.08)', border: '1px solid rgba(155,0,255,0.2)', color: '#c084fc' }}>
           {t.games.checkers.spectate}
         </button>
@@ -638,23 +638,23 @@ function LudoRow({ match, onJoin }: { match: LudoMatchListItem; onJoin: (code: s
           {match.playerNames.length > 0 ? match.playerNames.join(', ') : '—'}
         </p>
         <div className="flex items-center gap-2 mt-0.5">
-          <span className="font-mono text-[9px] text-white/25 tracking-widest">{match.code}</span>
-          <span className="font-mono text-[9px] text-white/20">{match.playerCount}/{match.maxPlayers}</span>
+          <span className="font-mono text-[12px] text-white/25 tracking-widest">{match.code}</span>
+          <span className="font-mono text-[12px] text-white/20">{match.playerCount}/{match.maxPlayers}</span>
           {match.status === 'waiting' && (
-            <span className="font-mono text-[9px] text-white/20">{t.games.ludo.waiting}</span>
+            <span className="font-mono text-[12px] text-white/20">{t.games.ludo.waiting}</span>
           )}
         </div>
       </div>
       {canJoin && (
         <button onClick={() => onJoin(match.code)}
-          className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+          className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
           style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: '#22c55e' }}>
           {t.games.ludo.join}
         </button>
       )}
       {match.status === 'active' && (
         <button onClick={() => onJoin(match.code)}
-          className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+          className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
           style={{ background: 'rgba(155,0,255,0.08)', border: '1px solid rgba(155,0,255,0.2)', color: '#c084fc' }}>
           {t.games.ludo.spectate}
         </button>
@@ -674,21 +674,21 @@ function WWWRow({ match, onJoin }: { match: WWWListItem; onJoin: (code: string) 
           {match.hostNickname}
         </p>
         <div className="flex items-center gap-2 mt-0.5">
-          <span className="font-mono text-[9px] text-white/25 tracking-widest">{match.code}</span>
-          <span className="font-mono text-[9px] text-white/20">{match.playerCount} მოთ.</span>
-          <span className="font-mono text-[9px] text-white/20">{match.questionsCount} შეკ.</span>
+          <span className="font-mono text-[12px] text-white/25 tracking-widest">{match.code}</span>
+          <span className="font-mono text-[12px] text-white/20">{match.playerCount} მოთ.</span>
+          <span className="font-mono text-[12px] text-white/20">{match.questionsCount} შეკ.</span>
         </div>
       </div>
       {isWaiting && (
         <button onClick={() => onJoin(match.code)}
-          className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+          className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
           style={{ background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.25)', color: '#c084fc' }}>
           {t.games.www.join}
         </button>
       )}
       {!isWaiting && (
         <button onClick={() => onJoin(match.code)}
-          className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+          className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
           style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.15)', color: 'rgba(192,132,252,0.6)' }}>
           {t.games.www.spectate}
         </button>
@@ -709,23 +709,23 @@ function UnoRow({ match, onJoin, onSpectate }: { match: UnoListItem; onJoin: (co
           {match.playerNicknames.length > 0 ? match.playerNicknames.join(', ') : '—'}
         </p>
         <div className="flex items-center gap-2 mt-0.5">
-          <span className="font-mono text-[9px] text-white/25 tracking-widest">{match.code}</span>
-          <span className="font-mono text-[9px] text-white/20">{match.playerCount}/{match.maxPlayers}</span>
+          <span className="font-mono text-[12px] text-white/25 tracking-widest">{match.code}</span>
+          <span className="font-mono text-[12px] text-white/20">{match.playerCount}/{match.maxPlayers}</span>
           {match.status === 'waiting' && (
-            <span className="font-mono text-[9px] text-white/20">{t.games.uno.waitingForPlayers}</span>
+            <span className="font-mono text-[12px] text-white/20">{t.games.uno.waitingForPlayers}</span>
           )}
         </div>
       </div>
       {canJoin && (
         <button onClick={() => onJoin(match.code)}
-          className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+          className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
           style={{ background: 'rgba(255,100,0,0.12)', border: '1px solid rgba(255,100,0,0.3)', color: '#fb923c' }}>
           {t.games.uno.join}
         </button>
       )}
       {isActive && (
         <button onClick={() => onSpectate(match.code)}
-          className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+          className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
           style={{ background: 'rgba(155,0,255,0.08)', border: '1px solid rgba(155,0,255,0.2)', color: '#c084fc' }}>
           {t.games.uno.spectate}
         </button>
@@ -746,23 +746,23 @@ function JokerRow({ match, onJoin }: { match: JokerMatchListItem; onJoin: (code:
           {match.playerNames.join(', ') || '—'}
         </p>
         <div className="flex items-center gap-2 mt-0.5">
-          <span className="font-mono text-[9px] text-white/25 tracking-widest">{match.code}</span>
-          <span className="font-mono text-[9px] text-white/20">{match.playerCount}/4</span>
-          <span className="font-mono text-[9px] text-white/20">
+          <span className="font-mono text-[12px] text-white/25 tracking-widest">{match.code}</span>
+          <span className="font-mono text-[12px] text-white/20">{match.playerCount}/4</span>
+          <span className="font-mono text-[12px] text-white/20">
             {match.mode === 'classic' ? t.games.joker.modeClassic : t.games.joker.modeNines}
           </span>
         </div>
       </div>
       {isWaiting && match.playerCount < 4 && (
         <button onClick={() => onJoin(match.code)}
-          className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+          className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
           style={{ background: 'rgba(255,165,0,0.12)', border: '1px solid rgba(255,165,0,0.3)', color: '#fbbf24' }}>
           {t.games.joker.join}
         </button>
       )}
       {isActive && (
         <button onClick={() => onJoin(match.code)}
-          className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+          className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
           style={{ background: 'rgba(155,0,255,0.08)', border: '1px solid rgba(155,0,255,0.2)', color: '#c084fc' }}>
           {t.games.joker.spectate}
         </button>

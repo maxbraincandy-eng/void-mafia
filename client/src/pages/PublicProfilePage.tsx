@@ -79,8 +79,8 @@ export function PublicProfilePage({ publicId, onEnterApp }: Props) {
     >
       {/* Branding header */}
       <div className="mb-6 text-center">
-        <p className="font-mono text-[10px] tracking-[0.4em] uppercase text-white/25 mb-0.5">VOID MAFIA</p>
-        <p className="font-mono text-[10px] text-white/15">Player Profile</p>
+        <p className="font-mono text-[12px] tracking-[0.4em] uppercase text-white/25 mb-0.5">VOID MAFIA</p>
+        <p className="font-mono text-[12px] text-white/15">Player Profile</p>
       </div>
 
       {/* Card preview */}
@@ -132,7 +132,7 @@ export function PublicProfilePage({ publicId, onEnterApp }: Props) {
         </button>
       </div>
 
-      <p className="mt-8 font-mono text-[10px] text-white/12">voidmafia.one</p>
+      <p className="mt-8 font-mono text-[12px] text-white/12">voidmafia.one</p>
     </div>
   );
 }

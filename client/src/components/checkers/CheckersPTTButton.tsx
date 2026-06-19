@@ -78,7 +78,7 @@ export function CheckersPTTButton({ matchId }: Props) {
     return (
       <button
         onPointerDown={(e) => { e.preventDefault(); joinVoice(matchId); }}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full font-mono text-[10px] uppercase tracking-wider select-none touch-none transition-all active:scale-95"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full font-mono text-[12px] uppercase tracking-wider select-none touch-none transition-all active:scale-95"
         style={{
           background: 'linear-gradient(135deg, rgba(0,245,255,0.1), rgba(155,0,255,0.07))',
           border: isFailed ? '1px solid rgba(255,80,80,0.4)' : '1px solid rgba(0,245,255,0.28)',
@@ -94,7 +94,7 @@ export function CheckersPTTButton({ matchId }: Props) {
   // ── Connecting state ──
   if (isConnecting) {
     return (
-      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full font-mono text-[10px] uppercase tracking-wider"
+      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full font-mono text-[12px] uppercase tracking-wider"
         style={{ border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.3)' }}>
         <span>⌛</span>
         <span>Connecting…</span>
@@ -125,7 +125,7 @@ export function CheckersPTTButton({ matchId }: Props) {
       onTouchEnd={handleStop}
       onTouchCancel={handleStop}
       onPointerCancel={handleStop}
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full font-mono text-[10px] uppercase tracking-wider select-none touch-none transition-all active:scale-95"
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full font-mono text-[12px] uppercase tracking-wider select-none touch-none transition-all active:scale-95"
       style={{
         background: bg,
         border: `1px solid ${borderColor}`,

@@ -37,11 +37,11 @@ function LoungeCard({ lounge, onEnter, onDelete }: { lounge: CommunityLounge; on
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="font-display font-bold text-white text-sm truncate">{title}</p>
-          {desc && <p className="font-mono text-[10px] text-white/40 mt-0.5 line-clamp-2">{desc}</p>}
+          {desc && <p className="font-mono text-[12px] text-white/40 mt-0.5 line-clamp-2">{desc}</p>}
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <span
-            className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border"
+            className="font-mono text-[12px] uppercase tracking-wider px-2 py-0.5 rounded-full border"
             style={lounge.isLive
               ? { color: '#00ff88', borderColor: 'rgba(0,255,136,0.3)', background: 'rgba(0,255,136,0.08)' }
               : { color: 'rgba(255,255,255,0.35)', borderColor: 'rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.03)' }}
@@ -61,11 +61,11 @@ function LoungeCard({ lounge, onEnter, onDelete }: { lounge: CommunityLounge; on
       </div>
 
       {lounge.isLive && lounge.lastTopic && (
-        <p className="font-mono text-[10px] text-white/50 italic truncate">"{lounge.lastTopic}"</p>
+        <p className="font-mono text-[12px] text-white/50 italic truncate">"{lounge.lastTopic}"</p>
       )}
 
       <div className="flex items-center justify-between">
-        <p className="font-mono text-[10px] text-white/35">
+        <p className="font-mono text-[12px] text-white/35">
           {lounge.speakerCount} {t.community.lounges.speakers} · {lounge.listenerCount} {t.community.lounges.listeners}
         </p>
         <PillButton onClick={onEnter} accent={accent}>
@@ -104,13 +104,13 @@ function CreateLoungeModal({ onClose, onCreated }: { onClose: () => void; onCrea
       {error && <p className="mb-3 text-xs text-red-400/80 font-mono">{error}</p>}
       <div className="space-y-3">
         <div>
-          <label className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">
+          <label className="font-mono text-[12px] uppercase tracking-wider text-white/40 block mb-1">
             {t.community.lounges.loungeName}
           </label>
           <TextInput value={name} onChange={setName} placeholder={t.community.lounges.loungeNamePh} maxLength={40} accent="purple" />
         </div>
         <div>
-          <label className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">
+          <label className="font-mono text-[12px] uppercase tracking-wider text-white/40 block mb-1">
             {t.community.lounges.loungeDesc}
           </label>
           <TextArea value={description} onChange={setDescription} placeholder={t.community.lounges.loungeDescPh} maxLength={200} rows={3} accent="purple" />

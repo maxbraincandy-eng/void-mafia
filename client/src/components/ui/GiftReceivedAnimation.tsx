@@ -50,7 +50,7 @@ export function GiftReceivedAnimation({ notification, onDismiss }: Props) {
           char: cfg.particles[i % cfg.particles.length]!,
           dx: Math.cos(angle) * dist,
           dy: Math.sin(angle) * dist,
-          fontSize: 10 + Math.random() * 14,
+          fontSize: 12 + Math.random() * 14,
         };
       })
     : [];
@@ -96,7 +96,7 @@ export function GiftReceivedAnimation({ notification, onDismiss }: Props) {
               initial={{ opacity: 0, y: -12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15, duration: 0.4 }}
-              className={`font-mono text-[10px] uppercase tracking-[0.3em] ${cfg.label}`}
+              className={`font-mono text-[12px] uppercase tracking-[0.3em] ${cfg.label}`}
             >
               Gift Received
             </motion.div>
@@ -127,7 +127,7 @@ export function GiftReceivedAnimation({ notification, onDismiss }: Props) {
                 initial={{ opacity: 0, scale: 0 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.4 }}
-                className={`absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full font-mono text-[8px] uppercase tracking-widest ${cfg.label}`}
+                className={`absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full font-mono text-[12px] uppercase tracking-widest ${cfg.label}`}
                 style={{ background: 'rgba(8,4,20,0.95)', border: `1px solid ${cfg.border}` }}
               >
                 {notification.giftRarity}
@@ -164,7 +164,7 @@ export function GiftReceivedAnimation({ notification, onDismiss }: Props) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 0.3 }}
               transition={{ delay: 1.5 }}
-              className="font-mono text-[9px] uppercase tracking-[0.25em] text-white/30"
+              className="font-mono text-[12px] uppercase tracking-[0.25em] text-white/30"
             >
               tap to dismiss
             </motion.p>

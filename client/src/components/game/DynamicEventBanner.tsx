@@ -42,7 +42,7 @@ export function DynamicEventBanner({ event }: Props) {
           <span className="text-xl flex-shrink-0 leading-none">{event.icon}</span>
           <div className="flex-1 min-w-0">
             <p
-              className="text-[10px] font-mono tracking-[0.22em] uppercase font-bold leading-none mb-0.5"
+              className="text-[12px] font-mono tracking-[0.22em] uppercase font-bold leading-none mb-0.5"
               style={{ color: colors.text, textShadow: `0 0 10px ${colors.text}` }}
             >
               {event.label}
@@ -52,7 +52,7 @@ export function DynamicEventBanner({ event }: Props) {
             </p>
           </div>
           <span
-            className="flex-shrink-0 text-[9px] font-mono tracking-widest uppercase px-1.5 py-0.5 rounded-full border"
+            className="flex-shrink-0 text-[12px] font-mono tracking-widest uppercase px-1.5 py-0.5 rounded-full border"
             style={{ borderColor: colors.border, color: colors.text }}
           >
             Active

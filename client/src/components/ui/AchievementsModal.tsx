@@ -92,7 +92,7 @@ export function AchievementsModal({ open, onClose, profileId }: Props) {
           >
             <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-white/6 flex-shrink-0">
               <div>
-                <p className="font-mono text-[9px] uppercase tracking-[0.25em] text-neon-purple/50 mb-0.5">Progress</p>
+                <p className="font-mono text-[12px] uppercase tracking-[0.25em] text-neon-purple/50 mb-0.5">Progress</p>
                 <div className="flex items-center gap-2">
                   <h2 className="font-display font-bold text-white text-base">Achievements</h2>
                   {!loading && (
@@ -156,14 +156,14 @@ export function AchievementsModal({ open, onClose, profileId }: Props) {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
                             <span className="font-display font-bold text-white/85 text-sm">{achievement.name}</span>
-                            <span className={`font-mono text-[9px] uppercase tracking-wider ${RARITY_COLOR[achievement.rarity]}`}>
+                            <span className={`font-mono text-[12px] uppercase tracking-wider ${RARITY_COLOR[achievement.rarity]}`}>
                               {achievement.rarity}
                             </span>
                           </div>
-                          <p className="font-mono text-[10px] text-white/40 mt-0.5 truncate">{achievement.description}</p>
+                          <p className="font-mono text-[12px] text-white/40 mt-0.5 truncate">{achievement.description}</p>
                         </div>
                         {isEarned && earnedEntry && (
-                          <p className="font-mono text-[9px] text-white/25 flex-shrink-0 text-right">
+                          <p className="font-mono text-[12px] text-white/25 flex-shrink-0 text-right">
                             {new Date(earnedEntry.earnedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                           </p>
                         )}

@@ -16,7 +16,7 @@ interface Props {
 
 function SectionHeader({ label }: { label: string }) {
   return (
-    <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-neon-purple/40 mb-2 px-1 mt-5 first:mt-0">
+    <p className="text-[12px] font-mono uppercase tracking-[0.25em] text-neon-purple/40 mb-2 px-1 mt-5 first:mt-0">
       {label}
     </p>
   );
@@ -27,7 +27,7 @@ function SettingRow({ label, sub, children }: { label: string; sub?: string; chi
     <div className="flex items-center justify-between gap-3 py-3 px-3 rounded-xl bg-white/[0.025] border border-white/[0.05] mb-1.5">
       <div className="min-w-0">
         <p className="text-sm text-white/80 font-mono leading-tight">{label}</p>
-        {sub && <p className="text-[10px] text-white/30 font-mono mt-0.5 leading-tight">{sub}</p>}
+        {sub && <p className="text-[12px] text-white/30 font-mono mt-0.5 leading-tight">{sub}</p>}
       </div>
       <div className="flex-shrink-0">{children}</div>
     </div>
@@ -85,7 +85,7 @@ function SelectChip<T extends string>({ options, value, onChange }: {
         <button
           key={o.value}
           onClick={() => onChange(o.value)}
-          className="px-2 py-1 rounded-lg text-[10px] font-mono transition-all"
+          className="px-2 py-1 rounded-lg text-[12px] font-mono transition-all"
           style={o.value === value ? {
             background: 'rgba(155,0,255,0.25)',
             border: '1px solid rgba(155,0,255,0.5)',
@@ -142,7 +142,7 @@ function ChangeNameSection() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-2 p-3 rounded-xl border border-white/8 bg-white/[0.02] mb-1.5">
-      <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest mb-3">{t.profile.changeName}</p>
+      <p className="text-[12px] font-mono text-white/30 uppercase tracking-widest mb-3">{t.profile.changeName}</p>
       <input
         type="text"
         placeholder="New name…"
@@ -151,8 +151,8 @@ function ChangeNameSection() {
         maxLength={20}
         className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-white placeholder-white/20 font-mono text-xs focus:outline-none focus:border-neon-purple/50 transition-all"
       />
-      {err && <p className="text-neon-red text-[10px] font-mono">{err}</p>}
-      {msg && <p className="text-neon-green text-[10px] font-mono">{msg}</p>}
+      {err && <p className="text-neon-red text-[12px] font-mono">{err}</p>}
+      {msg && <p className="text-neon-green text-[12px] font-mono">{msg}</p>}
       <div className="flex gap-2 pt-1">
         <button
           type="button"
@@ -217,7 +217,7 @@ function ChangePasswordSection() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-2 p-3 rounded-xl border border-white/8 bg-white/[0.02]">
-      <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest mb-3">Change Password</p>
+      <p className="text-[12px] font-mono text-white/30 uppercase tracking-widest mb-3">Change Password</p>
       {['Current Password', 'New Password', 'Confirm New Password'].map((label, i) => {
         const val = i === 0 ? currentPw : i === 1 ? newPw : confirmPw;
         const setter = i === 0 ? setCurrentPw : i === 1 ? setNewPw : setConfirmPw;
@@ -232,8 +232,8 @@ function ChangePasswordSection() {
           />
         );
       })}
-      {err && <p className="text-neon-red text-[10px] font-mono">{err}</p>}
-      {msg && <p className="text-neon-green text-[10px] font-mono">{msg}</p>}
+      {err && <p className="text-neon-red text-[12px] font-mono">{err}</p>}
+      {msg && <p className="text-neon-green text-[12px] font-mono">{msg}</p>}
       <div className="flex gap-2 pt-1">
         <button
           type="button"
@@ -288,7 +288,7 @@ export function SettingsPanel({ open, onClose }: Props) {
             <div className="px-5 py-3 flex items-center justify-between border-b border-white/[0.06] flex-shrink-0">
               <div>
                 <h3 className="font-display font-bold text-base text-white tracking-wide">Settings</h3>
-                <p className="text-[10px] font-mono text-white/25 mt-0.5">Audio, game & privacy</p>
+                <p className="text-[12px] font-mono text-white/25 mt-0.5">Audio, game & privacy</p>
               </div>
               <button
                 onClick={onClose}
@@ -338,7 +338,7 @@ export function SettingsPanel({ open, onClose }: Props) {
               {/* Last Will */}
               <div className="mb-1.5 p-3 rounded-xl bg-white/[0.025] border border-white/[0.05]">
                 <p className="text-sm text-white/80 font-mono mb-1">Default Last Will</p>
-                <p className="text-[10px] text-white/30 font-mono mb-2">Shown to others when you're eliminated</p>
+                <p className="text-[12px] text-white/30 font-mono mb-2">Shown to others when you're eliminated</p>
                 <textarea
                   value={s.defaultLastWill}
                   onChange={e => s.update({ defaultLastWill: e.target.value })}
@@ -347,7 +347,7 @@ export function SettingsPanel({ open, onClose }: Props) {
                   placeholder="I was [role]. The mafia is..."
                   className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-white placeholder-white/20 font-mono text-xs focus:outline-none focus:border-neon-purple/40 transition-all resize-none"
                 />
-                <p className="text-right text-[9px] font-mono text-white/20 mt-1">{s.defaultLastWill.length}/200</p>
+                <p className="text-right text-[12px] font-mono text-white/20 mt-1">{s.defaultLastWill.length}/200</p>
               </div>
 
               {/* ── Privacy ───────────────────────────────────────────── */}

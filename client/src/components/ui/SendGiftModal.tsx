@@ -36,7 +36,7 @@ function Stars({ n }: { n: number }) {
   return (
     <div className="flex gap-0.5">
       {Array.from({ length: 5 }).map((_, i) => (
-        <span key={i} className={`text-[8px] ${i < n ? 'text-amber-400' : 'text-white/10'}`}>★</span>
+        <span key={i} className={`text-[12px] ${i < n ? 'text-amber-400' : 'text-white/10'}`}>★</span>
       ))}
     </div>
   );
@@ -136,12 +136,12 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
                 : <span>{recipientAvatar ?? '?'}</span>}
             </div>
             <div>
-              <p className="font-mono text-[9px] uppercase tracking-widest text-white/30">Send Gift to</p>
+              <p className="font-mono text-[12px] uppercase tracking-widest text-white/30">Send Gift to</p>
               <h3 className="font-display font-bold text-white text-sm leading-tight">{recipientName}</h3>
             </div>
           </div>
           <div className="text-right">
-            <p className="font-mono text-[9px] text-white/30 uppercase tracking-widest">Balance</p>
+            <p className="font-mono text-[12px] text-white/30 uppercase tracking-widest">Balance</p>
             <p className="font-mono text-sm font-bold text-amber-400">{balance.toLocaleString()} 🪙</p>
           </div>
         </div>
@@ -159,12 +159,12 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
             >
               <span className="text-base">✨</span>
               <div className="flex-1 min-w-0">
-                <p className="font-mono text-[9px] uppercase tracking-widest text-amber-400/80">
+                <p className="font-mono text-[12px] uppercase tracking-widest text-amber-400/80">
                   Seasonal gifts available
                 </p>
-                <p className="font-mono text-[8px] text-white/30">Tap to {seasonalOnly ? 'show all' : 'show only seasonal'}</p>
+                <p className="font-mono text-[12px] text-white/30">Tap to {seasonalOnly ? 'show all' : 'show only seasonal'}</p>
               </div>
-              <span className={`font-mono text-[8px] uppercase tracking-widest px-1.5 py-0.5 rounded-full ${seasonalOnly ? 'text-amber-400 bg-amber-400/15 border border-amber-400/30' : 'text-white/25 border border-white/10'}`}>
+              <span className={`font-mono text-[12px] uppercase tracking-widest px-1.5 py-0.5 rounded-full ${seasonalOnly ? 'text-amber-400 bg-amber-400/15 border border-amber-400/30' : 'text-white/25 border border-white/10'}`}>
                 {seasonalOnly ? 'on' : 'off'}
               </span>
             </button>
@@ -181,7 +181,7 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
               <p className="font-mono text-xs text-white/40 mt-1">
                 {selected?.name} → {recipientName}
               </p>
-              <p className="font-mono text-[10px] text-amber-400/60 mt-1">Balance: {balance.toLocaleString()} 🪙</p>
+              <p className="font-mono text-[12px] text-amber-400/60 mt-1">Balance: {balance.toLocaleString()} 🪙</p>
             </div>
           )}
 
@@ -195,7 +195,7 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
                     <button
                       key={cat}
                       onClick={() => setFilterCat(cat)}
-                      className={`px-2 py-0.5 rounded-md font-mono text-[8px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 ${
+                      className={`px-2 py-0.5 rounded-md font-mono text-[12px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 ${
                         filterCat === cat
                           ? 'bg-neon-cyan/15 text-neon-cyan border border-neon-cyan/30'
                           : 'text-white/30 border border-white/8 hover:text-white/50'
@@ -208,7 +208,7 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
                 {/* Affordable toggle */}
                 <button
                   onClick={() => setAffordable(v => !v)}
-                  className={`px-2 py-0.5 rounded-md font-mono text-[8px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 border ${
+                  className={`px-2 py-0.5 rounded-md font-mono text-[12px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 border ${
                     affordableOnly
                       ? 'bg-amber-400/15 text-amber-400 border-amber-400/30'
                       : 'text-white/25 border-white/8 hover:text-white/40'
@@ -224,7 +224,7 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
                   <button
                     key={r}
                     onClick={() => setFilterRarity(r)}
-                    className={`px-2 py-0.5 rounded-full font-mono text-[8px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 border ${
+                    className={`px-2 py-0.5 rounded-full font-mono text-[12px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 border ${
                       filterRarity === r
                         ? r === 'all'
                           ? 'bg-white/10 text-white/70 border-white/20'
@@ -262,30 +262,30 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
                       : <span className="text-3xl flex-shrink-0">{selected.icon}</span>}
                     <div className="flex-1 min-w-0">
                       <p className="font-display font-bold text-white text-sm">{selected.name}</p>
-                      <p className="font-mono text-[10px] text-white/40 truncate">{selected.description}</p>
+                      <p className="font-mono text-[12px] text-white/40 truncate">{selected.description}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <Stars n={selected.stars} />
-                        <span className={`font-mono text-[9px] uppercase tracking-wider ${RARITY_LABEL[selected.rarity]}`}>
+                        <span className={`font-mono text-[12px] uppercase tracking-wider ${RARITY_LABEL[selected.rarity]}`}>
                           {selected.rarity}
                         </span>
                         {selected.limitedEdition && (
-                          <span className="font-mono text-[8px] text-neon-red/70 border border-neon-red/20 px-1 rounded">LIMITED</span>
+                          <span className="font-mono text-[12px] text-neon-red/70 border border-neon-red/20 px-1 rounded">LIMITED</span>
                         )}
                         {selected.isCurrentSeason && (
-                          <span className="font-mono text-[8px] text-amber-400/70 border border-amber-400/20 px-1 rounded">✨ SEASONAL</span>
+                          <span className="font-mono text-[12px] text-amber-400/70 border border-amber-400/20 px-1 rounded">✨ SEASONAL</span>
                         )}
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="font-mono text-sm font-bold text-amber-400">{selected.price.toLocaleString()}</p>
-                      <p className="font-mono text-[8px] text-white/30">coins</p>
+                      <p className="font-mono text-[12px] text-white/30">coins</p>
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
               {/* Gift grid */}
-              <p className="font-mono text-[9px] uppercase tracking-widest text-white/25 mb-2">
+              <p className="font-mono text-[12px] uppercase tracking-widest text-white/25 mb-2">
                 Choose a gift {filtered.length > 0 && `(${filtered.length})`}
               </p>
               <div className="grid grid-cols-3 gap-1.5 mb-3 max-h-44 overflow-y-auto pr-0.5">
@@ -311,16 +311,16 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
                       {g.imageUrl
                         ? <img src={g.imageUrl} alt={g.name} className="w-8 h-8 rounded-md object-cover" />
                         : <span className="text-xl">{g.icon}</span>}
-                      <span className="font-mono text-[8px] text-white/60 truncate max-w-full">{g.name}</span>
+                      <span className="font-mono text-[12px] text-white/60 truncate max-w-full">{g.name}</span>
                       <Stars n={g.stars} />
-                      <span className={`font-mono text-[8px] font-bold ${RARITY_LABEL[g.rarity]}`}>
+                      <span className={`font-mono text-[12px] font-bold ${RARITY_LABEL[g.rarity]}`}>
                         {g.price} 🪙
                       </span>
                       {g.limitedEdition && (
                         <span className="absolute top-0.5 right-0.5 font-mono text-[6px] text-neon-red/80 bg-neon-red/10 px-0.5 rounded">LTD</span>
                       )}
                       {g.isCurrentSeason && !g.limitedEdition && (
-                        <span className="absolute top-0.5 right-0.5 text-[8px]">✨</span>
+                        <span className="absolute top-0.5 right-0.5 text-[12px]">✨</span>
                       )}
                     </button>
                   );
@@ -331,8 +331,8 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
               {selected && (
                 <div className="mb-3">
                   <div className="flex items-center justify-between mb-1">
-                    <p className="font-mono text-[9px] uppercase tracking-widest text-white/30">Message (optional)</p>
-                    <span className="font-mono text-[8px] text-white/20">{message.length}/120</span>
+                    <p className="font-mono text-[12px] uppercase tracking-widest text-white/30">Message (optional)</p>
+                    <span className="font-mono text-[12px] text-white/20">{message.length}/120</span>
                   </div>
                   <input
                     type="text"

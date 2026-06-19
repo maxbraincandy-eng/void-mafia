@@ -91,7 +91,7 @@ export function PlayerList({ players, phase, onSelectTarget, selectableIds, sele
                 <div className="flex items-center gap-1 flex-wrap">
                   {/* Seat badge */}
                   <span className={clsx(
-                    'flex-shrink-0 min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 text-[9px] font-mono font-bold',
+                    'flex-shrink-0 min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 text-[12px] font-mono font-bold',
                     !player.isAlive && !player.isSpectator
                       ? 'bg-white/5 border border-white/8 text-white/20'
                       : isMe
@@ -105,13 +105,13 @@ export function PlayerList({ players, phase, onSelectTarget, selectableIds, sele
                     !player.isAlive ? 'line-through text-white/40' : 'text-white',
                   )}>
                     {!player.isAlive && !player.isSpectator && '💀 '}{player.name}
-                    {isMe && <span className="text-neon-purple text-[10px] ml-0.5">(you)</span>}
+                    {isMe && <span className="text-neon-purple text-[12px] ml-0.5">(you)</span>}
                   </span>
                   {player.isModerator && player.moderatorLevel && (
                     <ModBadge level={player.moderatorLevel} size="xs" />
                   )}
                   {isSpeaking && (
-                    <span className="text-[9px] font-mono font-bold text-neon-green bg-neon-green/10 px-1 rounded flex-shrink-0">
+                    <span className="text-[12px] font-mono font-bold text-neon-green bg-neon-green/10 px-1 rounded flex-shrink-0">
                       🎤 SPEAKING
                     </span>
                   )}
@@ -119,19 +119,19 @@ export function PlayerList({ players, phase, onSelectTarget, selectableIds, sele
 
                 <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                   {player.role && (
-                    <span className={clsx('text-[10px] font-mono', ROLE_COLORS[player.role])}>
+                    <span className={clsx('text-[12px] font-mono', ROLE_COLORS[player.role])}>
                       {ROLE_LABELS[player.role]}
                     </span>
                   )}
                   {!player.isConnected && (
-                    <span className="text-[10px] text-white/30">dc</span>
+                    <span className="text-[12px] text-white/30">dc</span>
                   )}
                   {phase === 'night' && player.isAlive && (
                     isMe
                       ? (player.hasActed
-                        ? <span className="text-[10px] text-neon-green font-bold bg-neon-green/10 px-1 rounded">✓ done</span>
-                        : <span className="text-[10px] text-neon-purple/50 animate-pulse">…</span>)
-                      : <span className="text-[10px] text-neon-purple/50 animate-pulse">…</span>
+                        ? <span className="text-[12px] text-neon-green font-bold bg-neon-green/10 px-1 rounded">✓ done</span>
+                        : <span className="text-[12px] text-neon-purple/50 animate-pulse">…</span>)
+                      : <span className="text-[12px] text-neon-purple/50 animate-pulse">…</span>
                   )}
                 </div>
               </div>
@@ -146,7 +146,7 @@ export function PlayerList({ players, phase, onSelectTarget, selectableIds, sele
               {/* Selection indicator */}
               {isSelected && (
                 <div className="flex-shrink-0 w-4 h-4 rounded-full bg-neon-cyan flex items-center justify-center">
-                  <span className="text-void text-[9px] font-bold">✓</span>
+                  <span className="text-void text-[12px] font-bold">✓</span>
                 </div>
               )}
             </motion.div>

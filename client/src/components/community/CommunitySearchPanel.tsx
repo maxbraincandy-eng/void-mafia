@@ -73,7 +73,7 @@ export function CommunitySearchPanel({ onClose, onOpenProfile }: Props) {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className="px-3 py-1 rounded-full font-mono text-[10px] uppercase tracking-wider transition-all"
+                className="px-3 py-1 rounded-full font-mono text-[12px] uppercase tracking-wider transition-all"
                 style={{
                   background: activeTab === tab ? 'rgba(155,0,255,0.2)' : 'rgba(255,255,255,0.04)',
                   border: `1px solid ${activeTab === tab ? 'rgba(155,0,255,0.4)' : 'rgba(255,255,255,0.08)'}`,
@@ -104,7 +104,7 @@ export function CommunitySearchPanel({ onClose, onOpenProfile }: Props) {
                 >
                   <div className="flex items-center gap-2">
                     <Avatar avatar={post.authorAvatar} avatarUrl={post.authorAvatarUrl} size={24} />
-                    <span className="font-mono text-[10px] text-white/50">{post.authorName}</span>
+                    <span className="font-mono text-[12px] text-white/50">{post.authorName}</span>
                   </div>
                   <p className="font-mono text-xs text-white/70 line-clamp-2">{post.content}</p>
                 </div>
@@ -123,7 +123,7 @@ export function CommunitySearchPanel({ onClose, onOpenProfile }: Props) {
                       <span className="font-mono text-sm text-white/80 truncate">{person.username}</span>
                       {person.badges?.length > 0 && <BadgeRow badges={person.badges} max={2} />}
                     </div>
-                    <p className="font-mono text-[10px] text-white/35">{person.followersCount} {t.community.profile.followers}</p>
+                    <p className="font-mono text-[12px] text-white/35">{person.followersCount} {t.community.profile.followers}</p>
                   </div>
                 </button>
               ))}
@@ -136,7 +136,7 @@ export function CommunitySearchPanel({ onClose, onOpenProfile }: Props) {
                   style={{ background: 'rgba(0,245,255,0.03)' }}
                 >
                   <span className="font-mono text-sm" style={{ color: '#00f5ff' }}>#{h.hashtag}</span>
-                  <span className="font-mono text-[10px] text-white/35">{h.count} posts</span>
+                  <span className="font-mono text-[12px] text-white/35">{h.count} posts</span>
                 </button>
               ))}
             </>

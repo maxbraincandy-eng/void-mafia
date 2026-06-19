@@ -85,7 +85,7 @@ export function HowToPlayModal({ open, onClose }: Props) {
           >
             <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-white/6 flex-shrink-0">
               <div>
-                <p className="font-mono text-[9px] uppercase tracking-[0.25em] text-neon-purple/50 mb-0.5">Guide</p>
+                <p className="font-mono text-[12px] uppercase tracking-[0.25em] text-neon-purple/50 mb-0.5">Guide</p>
                 <h2 className="font-display font-bold text-white text-base">How to Play</h2>
               </div>
               <button
@@ -104,7 +104,7 @@ export function HowToPlayModal({ open, onClose }: Props) {
                 <button
                   key={t}
                   onClick={() => setTab(t)}
-                  className="flex-1 py-1.5 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all"
+                  className="flex-1 py-1.5 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all"
                   style={{
                     background: tab === t ? 'rgba(138,43,226,0.2)' : 'rgba(255,255,255,0.03)',
                     border: tab === t ? '1px solid rgba(138,43,226,0.35)' : '1px solid rgba(255,255,255,0.07)',
@@ -131,7 +131,7 @@ export function HowToPlayModal({ open, onClose }: Props) {
                           <span className="font-display font-bold text-white/85 text-sm">{role.name}</span>
                           <span className="text-xs">{role.badge}</span>
                         </div>
-                        <p className={`font-mono text-[10px] mt-0.5 ${TEAM_COLOR[role.team]}/70`}>{role.desc}</p>
+                        <p className={`font-mono text-[12px] mt-0.5 ${TEAM_COLOR[role.team]}/70`}>{role.desc}</p>
                       </div>
                     </div>
                   ))}

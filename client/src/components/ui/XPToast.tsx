@@ -60,7 +60,7 @@ export function XPToast({ gain, onDismiss }: Props) {
                   {gain.newLevel >= MAX_LEVEL ? '👑 VOID MASTER!' : `🎉 LEVEL UP! → ${gain.newLevel}`}
                 </p>
                 {LEVEL_TITLES[gain.newLevel] && (
-                  <p className="font-mono text-[10px] mt-0.5" style={{ color: 'rgba(255,215,0,0.6)' }}>
+                  <p className="font-mono text-[12px] mt-0.5" style={{ color: 'rgba(255,215,0,0.6)' }}>
                     {LEVEL_TITLES[gain.newLevel]!.ka}
                   </p>
                 )}
@@ -83,12 +83,12 @@ export function XPToast({ gain, onDismiss }: Props) {
                   <p className="text-xs font-display font-bold tracking-wider text-white/70">
                     +{gain.amount} XP
                     {gain.challengeCompleted && (
-                      <span className="ml-2 text-[9px] text-yellow-400 border border-yellow-400/30 px-1.5 py-0.5 rounded-full">
+                      <span className="ml-2 text-[12px] text-yellow-400 border border-yellow-400/30 px-1.5 py-0.5 rounded-full">
                         +{gain.challengeBonus} challenge
                       </span>
                     )}
                   </p>
-                  <p className="text-[9px] font-mono text-white/30">{gain.newXP} XP</p>
+                  <p className="text-[12px] font-mono text-white/30">{gain.newXP} XP</p>
                 </div>
                 <div className="h-1.5 rounded-full bg-white/8 overflow-hidden">
                   <motion.div

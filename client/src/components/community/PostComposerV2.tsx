@@ -76,7 +76,7 @@ function ImagePicker({
         >
           {compressing ? '⏳ Compressing…' : '📷 Upload photo'}
         </button>
-        <span className="font-mono text-[10px] text-white/25">or paste URL below</span>
+        <span className="font-mono text-[12px] text-white/25">or paste URL below</span>
         <input
           ref={fileRef}
           type="file"
@@ -206,7 +206,7 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
           <button
             key={tp.id}
             onClick={() => setPostType(tp.id)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full font-mono text-[10px] uppercase tracking-wider transition-all"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full font-mono text-[12px] uppercase tracking-wider transition-all"
             style={{
               background: postType === tp.id
                 ? 'linear-gradient(135deg, rgba(155,0,255,0.28), rgba(0,245,255,0.16))'
@@ -240,7 +240,7 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
               setUrlValue={setImageUrl}
               compressing={compressing}
             />
-            {imgError && <p className="font-mono text-[10px] text-red-400">{imgError}</p>}
+            {imgError && <p className="font-mono text-[12px] text-red-400">{imgError}</p>}
           </>
         )}
         {postType === 'gif' && (
@@ -271,7 +271,7 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
           <button
             key={v}
             onClick={() => setVisibility(v)}
-            className="px-2.5 py-1 rounded-full font-mono text-[10px] uppercase tracking-wider transition-all"
+            className="px-2.5 py-1 rounded-full font-mono text-[12px] uppercase tracking-wider transition-all"
             style={{
               background: visibility === v ? 'rgba(155,0,255,0.2)' : 'rgba(255,255,255,0.03)',
               border: `1px solid ${visibility === v ? 'rgba(155,0,255,0.4)' : 'rgba(255,255,255,0.08)'}`,

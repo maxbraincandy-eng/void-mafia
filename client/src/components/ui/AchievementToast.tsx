@@ -48,11 +48,11 @@ export function AchievementToast({ achievements, onDismiss }: Props) {
               >
                 <span className="text-3xl flex-shrink-0">{a.icon}</span>
                 <div className="min-w-0">
-                  <p className={`font-mono text-[9px] uppercase tracking-[0.2em] ${style.label}`}>
+                  <p className={`font-mono text-[12px] uppercase tracking-[0.2em] ${style.label}`}>
                     {a.rarity} achievement
                   </p>
                   <p className="font-display text-sm font-bold text-white tracking-wide">{a.name}</p>
-                  <p className="font-mono text-[10px] text-white/40 leading-snug mt-0.5 truncate">{a.description}</p>
+                  <p className="font-mono text-[12px] text-white/40 leading-snug mt-0.5 truncate">{a.description}</p>
                 </div>
               </div>
             );

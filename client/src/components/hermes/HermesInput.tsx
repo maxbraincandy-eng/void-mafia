@@ -67,7 +67,7 @@ export function HermesInput({ uid }: Props) {
           </svg>
         </button>
       </div>
-      <p className="text-center font-mono text-[9px] text-white/12 mt-1.5 uppercase tracking-widest">
+      <p className="text-center font-mono text-[12px] text-white/12 mt-1.5 uppercase tracking-widest">
         {t.hermes.sendHint}
       </p>
     </div>

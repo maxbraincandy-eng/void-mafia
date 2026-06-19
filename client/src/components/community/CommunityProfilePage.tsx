@@ -104,7 +104,7 @@ function PostLightbox({
               <Avatar avatar={post.authorAvatar} avatarUrl={post.authorAvatarUrl} size={34} />
               <div>
                 <p className="text-white/85 font-semibold" style={{ fontSize: 13 }}>{post.authorName}</p>
-                <p className="text-white/35 font-mono" style={{ fontSize: 10 }}>{timeAgo(post.createdAt)}</p>
+                <p className="text-white/35 font-mono" style={{ fontSize: 12 }}>{timeAgo(post.createdAt)}</p>
               </div>
             </div>
 
@@ -160,14 +160,14 @@ function PostLightbox({
                 <div key={c.id} className="flex gap-2">
                   <div
                     className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center font-bold"
-                    style={{ background: 'rgba(155,0,255,0.18)', color: '#c084fc', border: '1px solid rgba(155,0,255,0.25)', fontSize: 9 }}
+                    style={{ background: 'rgba(155,0,255,0.18)', color: '#c084fc', border: '1px solid rgba(155,0,255,0.25)', fontSize: 12 }}
                   >
                     {(c.authorName ?? '?').charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', fontWeight: 600, marginRight: 6 }}>{c.authorName}</span>
                     <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', lineHeight: '1.4', wordBreak: 'break-word' }}>{c.content}</span>
-                    <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', marginTop: 2, fontFamily: 'monospace' }}>{timeAgo(c.createdAt)}</p>
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', marginTop: 2, fontFamily: 'monospace' }}>{timeAgo(c.createdAt)}</p>
                   </div>
                 </div>
               ))}
@@ -230,7 +230,7 @@ function PostTextCard({ post, readMoreLabel, onExpand }: {
           {post.recTitle && (
             <span className="font-mono truncate" style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{post.recTitle}</span>
           )}
-          <span className="font-mono ml-auto flex-shrink-0" style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>{timeAgo(post.createdAt)}</span>
+          <span className="font-mono ml-auto flex-shrink-0" style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>{timeAgo(post.createdAt)}</span>
         </div>
 
         {/* Content */}
@@ -261,7 +261,7 @@ function PostTextCard({ post, readMoreLabel, onExpand }: {
         {post.hashtags?.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {post.hashtags.slice(0, 5).map(h => (
-              <span key={h} style={{ fontSize: 10, color: 'rgba(0,245,255,0.55)', fontFamily: 'monospace' }}>#{h}</span>
+              <span key={h} style={{ fontSize: 12, color: 'rgba(0,245,255,0.55)', fontFamily: 'monospace' }}>#{h}</span>
             ))}
           </div>
         )}
@@ -395,12 +395,12 @@ export function CommunityProfilePage({ profileId, onBack }: Props) {
               <div className="flex items-center gap-2 mt-0.5">
                 <span
                   className="font-mono uppercase tracking-wider px-1.5 py-0.5 rounded-full"
-                  style={{ fontSize: 9, background: 'rgba(155,0,255,0.15)', color: '#c084fc', border: '1px solid rgba(155,0,255,0.3)' }}
+                  style={{ fontSize: 12, background: 'rgba(155,0,255,0.15)', color: '#c084fc', border: '1px solid rgba(155,0,255,0.3)' }}
                 >
                   {t.community.profile.level} {profile.level}
                 </span>
                 {profile.publicId && (
-                  <span className="font-mono text-white/25" style={{ fontSize: 9 }}>#{profile.publicId}</span>
+                  <span className="font-mono text-white/25" style={{ fontSize: 12 }}>#{profile.publicId}</span>
                 )}
               </div>
             </div>
@@ -433,7 +433,7 @@ export function CommunityProfilePage({ profileId, onBack }: Props) {
             ].map((s, i) => (
               <div key={s.label} className="flex-1 py-3 text-center" style={{ borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.07)' : 'none' }}>
                 <p className="font-display font-bold text-white" style={{ fontSize: 20, lineHeight: 1 }}>{s.value}</p>
-                <p className="font-mono uppercase tracking-wider text-white/35 mt-1" style={{ fontSize: 9 }}>{s.label}</p>
+                <p className="font-mono uppercase tracking-wider text-white/35 mt-1" style={{ fontSize: 12 }}>{s.label}</p>
               </div>
             ))}
           </div>
@@ -488,7 +488,7 @@ export function CommunityProfilePage({ profileId, onBack }: Props) {
                 onClick={() => setTab(tb.id)}
                 className="flex items-center gap-1.5 px-4 py-2.5 font-mono uppercase tracking-wider transition-all"
                 style={{
-                  fontSize: 10,
+                  fontSize: 12,
                   color: tab === tb.id ? '#c084fc' : 'rgba(255,255,255,0.35)',
                   borderBottom: tab === tb.id ? '2px solid #9b00ff' : '2px solid transparent',
                   marginBottom: '-1px',
@@ -496,7 +496,7 @@ export function CommunityProfilePage({ profileId, onBack }: Props) {
               >
                 <span>{tb.icon}</span>
                 <span>{tb.label}</span>
-                <span className="text-white/25" style={{ fontSize: 9, marginLeft: 2 }}>{tb.count}</span>
+                <span className="text-white/25" style={{ fontSize: 12, marginLeft: 2 }}>{tb.count}</span>
               </button>
             ))}
           </div>
@@ -539,7 +539,7 @@ export function CommunityProfilePage({ profileId, onBack }: Props) {
                           {isVideo && (
                             <div className="absolute top-1.5 right-1.5 rounded-full flex items-center justify-center"
                               style={{ background: 'rgba(0,0,0,0.55)', width: 18, height: 18 }}>
-                              <span style={{ fontSize: 8, color: '#fff' }}>▶</span>
+                              <span style={{ fontSize: 12, color: '#fff' }}>▶</span>
                             </div>
                           )}
                         </button>

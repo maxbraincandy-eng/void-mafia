@@ -144,7 +144,7 @@ function DmToastNotification() {
               {/* Text */}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className="text-[9px] font-mono uppercase tracking-widest" style={{ color: 'rgba(192,132,252,0.55)' }}>
+                  <span className="text-[12px] font-mono uppercase tracking-widest" style={{ color: 'rgba(192,132,252,0.55)' }}>
                     💬 New message
                   </span>
                 </div>
@@ -239,7 +239,7 @@ function ReconnectingOverlay() {
       <div className="flex flex-col items-center gap-3 px-6 py-6 rounded-2xl border border-neon-cyan/15 bg-void/80">
         <div className="w-8 h-8 border-2 border-neon-cyan/40 border-t-neon-cyan rounded-full animate-spin" />
         <p className="font-mono text-sm text-neon-cyan/80 tracking-widest uppercase">Reconnecting…</p>
-        <p className="font-mono text-[10px] text-white/25">Your session is being restored</p>
+        <p className="font-mono text-[12px] text-white/25">Your session is being restored</p>
       </div>
     </motion.div>
   );
@@ -359,25 +359,25 @@ function ModNoticeOverlay() {
         <div className="space-y-2 mb-5">
           {modNotice.type === 'warn' && modNotice.category && modNotice.category !== 'other' && (
             <div className={clsx('rounded-xl p-3 border', cfg.border)}>
-              <p className="text-white/40 text-[10px] font-mono uppercase tracking-widest mb-0.5">Category</p>
+              <p className="text-white/40 text-[12px] font-mono uppercase tracking-widest mb-0.5">Category</p>
               <p className="text-white text-sm font-mono capitalize">{modNotice.category.replace(/_/g, ' ')}</p>
             </div>
           )}
           <div className={clsx('rounded-xl p-3 border', cfg.border)}>
-            <p className="text-white/40 text-[10px] font-mono uppercase tracking-widest mb-0.5">Reason</p>
+            <p className="text-white/40 text-[12px] font-mono uppercase tracking-widest mb-0.5">Reason</p>
             <p className="text-white text-sm font-mono">{modNotice.reason || '—'}</p>
           </div>
 
           {modNotice.expiresAt && (
             <div className={clsx('rounded-xl p-3 border', cfg.border)}>
-              <p className="text-white/40 text-[10px] font-mono uppercase tracking-widest mb-0.5">Expires</p>
+              <p className="text-white/40 text-[12px] font-mono uppercase tracking-widest mb-0.5">Expires</p>
               <p className="text-white text-sm font-mono">{formatExpiry(modNotice.expiresAt)}</p>
             </div>
           )}
 
           {modNotice.moderatorName && (
             <div className={clsx('rounded-xl p-3 border', cfg.border)}>
-              <p className="text-white/40 text-[10px] font-mono uppercase tracking-widest mb-0.5">Moderator</p>
+              <p className="text-white/40 text-[12px] font-mono uppercase tracking-widest mb-0.5">Moderator</p>
               <p className="text-white text-sm font-mono">{modNotice.moderatorName}</p>
             </div>
           )}

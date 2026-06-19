@@ -20,7 +20,7 @@ export function PollDisplay({ post, onVote, voting }: Props) {
     <div className="mt-2 space-y-2 rounded-xl border border-white/10 p-3" style={{ background: 'rgba(155,0,255,0.06)' }}>
       <p className="font-mono text-xs font-semibold text-white/80">{poll.question}</p>
       {isExpired && (
-        <p className="font-mono text-[10px] text-white/35 uppercase tracking-wider">{t.community.poll.expired}</p>
+        <p className="font-mono text-[12px] text-white/35 uppercase tracking-wider">{t.community.poll.expired}</p>
       )}
       <div className="space-y-1.5">
         {poll.options.map(opt => {
@@ -43,7 +43,7 @@ export function PollDisplay({ post, onVote, voting }: Props) {
                     {isMyVote && <span style={{ color: '#9b00ff' }}>✓</span>}
                     {opt.text}
                   </span>
-                  <span className="font-mono text-[10px] text-white/45">{pct.toFixed(0)}%</span>
+                  <span className="font-mono text-[12px] text-white/45">{pct.toFixed(0)}%</span>
                 </div>
               </div>
             );
@@ -63,7 +63,7 @@ export function PollDisplay({ post, onVote, voting }: Props) {
         })}
       </div>
       {showResults && (
-        <p className="font-mono text-[10px] text-white/30">{totalVotes} {t.community.poll.votes}</p>
+        <p className="font-mono text-[12px] text-white/30">{totalVotes} {t.community.poll.votes}</p>
       )}
     </div>
   );

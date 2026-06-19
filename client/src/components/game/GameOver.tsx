@@ -184,13 +184,13 @@ function FlipCard({ player, delay, myPlayerId, roleLabel }: FlipCardProps) {
           )}
           <div className="relative z-10 flex flex-col items-center gap-0.5">
             <span className="text-lg leading-none font-mono" style={{ color: tc.glow }}>{ROLE_ICONS[player.role]}</span>
-            <p className={`text-[9px] font-mono font-bold leading-none ${ROLE_COLORS[player.role]}`}>
+            <p className={`text-[12px] font-mono font-bold leading-none ${ROLE_COLORS[player.role]}`}>
               {roleLabel(player.role)}
             </p>
-            <p className="text-[8px] text-white/40 truncate w-full text-center leading-none mt-0.5 px-1">
+            <p className="text-[12px] text-white/40 truncate w-full text-center leading-none mt-0.5 px-1">
               {player.name}
             </p>
-            <span className={`text-[8px] font-bold ${player.survived ? 'text-neon-green/70' : 'text-white/25'}`}>
+            <span className={`text-[12px] font-bold ${player.survived ? 'text-neon-green/70' : 'text-white/25'}`}>
               {player.survived ? '✓' : '×'}
             </span>
           </div>
@@ -442,7 +442,7 @@ export function GameOver({ result }: Props) {
                       />
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-[10px] font-mono uppercase tracking-widest text-white/30 mb-0.5">
+                      <p className="text-[12px] font-mono uppercase tracking-widest text-white/30 mb-0.5">
                         {t.game.gameOver.youWere}
                       </p>
                       <div className="flex items-center gap-1.5 mb-1">
@@ -482,10 +482,10 @@ export function GameOver({ result }: Props) {
                       <span className={`font-mono text-base shrink-0 ${badge.color}`}>{badge.icon}</span>
                       <div className="flex-1 min-w-0">
                         <p className={`text-xs font-display font-bold ${badge.color}`}>{badge.title}</p>
-                        <p className="text-[10px] font-mono text-white/30">{badge.description}</p>
+                        <p className="text-[12px] font-mono text-white/30">{badge.description}</p>
                       </div>
                       {badge.playerName && (
-                        <span className="text-[10px] font-mono text-white/40 shrink-0">{badge.playerName}</span>
+                        <span className="text-[12px] font-mono text-white/40 shrink-0">{badge.playerName}</span>
                       )}
                     </motion.div>
                   ))}
@@ -499,7 +499,7 @@ export function GameOver({ result }: Props) {
                 transition={{ delay: 0.3 }}
                 className="glass-card border border-white/8 rounded-2xl p-4 space-y-4"
               >
-                <h3 className="text-[10px] font-display uppercase tracking-widest text-white/30">
+                <h3 className="text-[12px] font-display uppercase tracking-widest text-white/30">
                   {t.game.gameOver.finalRoles}
                 </h3>
 
@@ -511,11 +511,11 @@ export function GameOver({ result }: Props) {
                   return (
                     <div key={team}>
                       <div className="flex items-center gap-2 mb-2">
-                        <span className={`text-[10px] font-display font-bold tracking-widest uppercase ${tc.color}`}>
+                        <span className={`text-[12px] font-display font-bold tracking-widest uppercase ${tc.color}`}>
                           {tc.label}
                         </span>
                         <div className="flex-1 h-px bg-white/6" />
-                        <span className="text-[10px] font-mono text-white/25">{aliveCount}/{group.length}</span>
+                        <span className="text-[12px] font-mono text-white/25">{aliveCount}/{group.length}</span>
                       </div>
                       <div className="grid grid-cols-2 gap-1.5">
                         {group.map((p, i) => (
@@ -541,12 +541,12 @@ export function GameOver({ result }: Props) {
                               <p className="text-[11px] font-semibold text-white truncate leading-tight">
                                 {p.name}
                                 {p.id === myPlayerId && (
-                                  <span className="text-[9px] text-white/30 font-mono ml-1">you</span>
+                                  <span className="text-[12px] text-white/30 font-mono ml-1">you</span>
                                 )}
                               </p>
-                              <p className={`text-[9px] font-mono ${ROLE_COLORS[p.role]}`}>{roleLabel(p.role)}</p>
+                              <p className={`text-[12px] font-mono ${ROLE_COLORS[p.role]}`}>{roleLabel(p.role)}</p>
                             </div>
-                            <span className={`relative z-10 text-[10px] shrink-0 font-bold ${p.survived ? 'text-neon-green/70' : 'text-white/20'}`}>
+                            <span className={`relative z-10 text-[12px] shrink-0 font-bold ${p.survived ? 'text-neon-green/70' : 'text-white/20'}`}>
                               {p.survived ? '✓' : '×'}
                             </span>
                           </motion.div>
@@ -644,7 +644,7 @@ export function GameOver({ result }: Props) {
                         transition={{ delay: di * 0.06 }}
                       >
                         <div className="flex items-center gap-2 mb-3">
-                          <span className="text-[10px] font-display font-bold tracking-widest uppercase text-white/30">
+                          <span className="text-[12px] font-display font-bold tracking-widest uppercase text-white/30">
                             Day {day}
                           </span>
                           <div className="flex-1 h-px bg-white/8" />
@@ -670,12 +670,12 @@ export function GameOver({ result }: Props) {
                                       <div className="flex items-center gap-1.5 flex-wrap">
                                         <span className="text-sm font-semibold text-white">{ev.victimName ?? '?'}</span>
                                         {ev.victimRole && (
-                                          <span className={`text-[10px] font-mono ${roleColor}`}>
+                                          <span className={`text-[12px] font-mono ${roleColor}`}>
                                             {roleIcon} {roleLabel(ev.victimRole)}
                                           </span>
                                         )}
                                       </div>
-                                      <p className="text-[10px] font-mono text-white/35 mt-0.5">
+                                      <p className="text-[12px] font-mono text-white/35 mt-0.5">
                                         Killed at night
                                         {ev.killerRole && (
                                           <span> by {killerIcon} {roleLabel(ev.killerRole)}</span>
@@ -683,7 +683,7 @@ export function GameOver({ result }: Props) {
                                       </p>
                                     </div>
                                     {ev.victimTeam && (
-                                      <span className={`text-[9px] font-mono shrink-0 ${TEAM_CONFIG[ev.victimTeam]?.color ?? 'text-white/30'}`}>
+                                      <span className={`text-[12px] font-mono shrink-0 ${TEAM_CONFIG[ev.victimTeam]?.color ?? 'text-white/30'}`}>
                                         {TEAM_CONFIG[ev.victimTeam]?.label}
                                       </span>
                                     )}
@@ -730,17 +730,17 @@ export function GameOver({ result }: Props) {
                                       <div className="flex items-center gap-1.5 flex-wrap">
                                         <span className="text-sm font-semibold text-white">{ev.victimName ?? '?'}</span>
                                         {ev.victimRole && (
-                                          <span className={`text-[10px] font-mono ${roleColor}`}>
+                                          <span className={`text-[12px] font-mono ${roleColor}`}>
                                             {roleIcon} {roleLabel(ev.victimRole)}
                                           </span>
                                         )}
                                       </div>
-                                      <p className="text-[10px] font-mono text-white/35 mt-0.5">
+                                      <p className="text-[12px] font-mono text-white/35 mt-0.5">
                                         Eliminated by vote
                                       </p>
                                     </div>
                                     {ev.victimTeam && (
-                                      <span className={`text-[9px] font-mono shrink-0 ${TEAM_CONFIG[ev.victimTeam]?.color ?? 'text-white/30'}`}>
+                                      <span className={`text-[12px] font-mono shrink-0 ${TEAM_CONFIG[ev.victimTeam]?.color ?? 'text-white/30'}`}>
                                         {TEAM_CONFIG[ev.victimTeam]?.label}
                                       </span>
                                     )}
@@ -748,7 +748,7 @@ export function GameOver({ result }: Props) {
                                   {ev.voteBreakdown && ev.voteBreakdown.length > 0 && (
                                     <div className="pl-7 space-y-0.5">
                                       {ev.voteBreakdown.map((v, vi) => (
-                                        <p key={vi} className="text-[9px] font-mono text-white/25">
+                                        <p key={vi} className="text-[12px] font-mono text-white/25">
                                           {v.voterName} → {v.targetName}
                                         </p>
                                       ))}

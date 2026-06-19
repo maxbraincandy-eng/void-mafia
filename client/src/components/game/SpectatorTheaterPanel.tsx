@@ -106,11 +106,11 @@ export function SpectatorTheaterPanel({ room, myPlayer }: Props) {
         style={{ borderBottom: collapsed ? 'none' : '1px solid rgba(0,229,255,0.08)' }}
       >
         <span className="text-xs" style={{ filter: 'drop-shadow(0 0 4px rgba(0,229,255,0.8))' }}>👁</span>
-        <span className="font-mono text-[10px] tracking-[0.25em] uppercase flex-1"
+        <span className="font-mono text-[12px] tracking-[0.25em] uppercase flex-1"
           style={{ color: 'rgba(0,229,255,0.7)' }}>
           Spec Theater
         </span>
-        <span className="text-[10px] font-mono text-white/25">{collapsed ? '▼' : '▲'}</span>
+        <span className="text-[12px] font-mono text-white/25">{collapsed ? '▼' : '▲'}</span>
       </button>
 
       {!collapsed && (
@@ -121,7 +121,7 @@ export function SpectatorTheaterPanel({ room, myPlayer }: Props) {
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className="flex-1 py-1 rounded-lg text-[10px] font-mono font-bold tracking-widest uppercase transition-all relative"
+                className="flex-1 py-1 rounded-lg text-[12px] font-mono font-bold tracking-widest uppercase transition-all relative"
                 style={{
                   background: tab === t ? 'rgba(0,229,255,0.08)' : 'transparent',
                   border: tab === t ? '1px solid rgba(0,229,255,0.25)' : '1px solid rgba(255,255,255,0.06)',
@@ -131,7 +131,7 @@ export function SpectatorTheaterPanel({ room, myPlayer }: Props) {
                 {t === 'chat' ? '💬 Chat' : '🔍 Suspicion'}
                 {t === 'chat' && unreadChat > 0 && (
                   <span
-                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[8px] flex items-center justify-center font-bold"
+                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[12px] flex items-center justify-center font-bold"
                     style={{ background: 'rgba(0,229,255,1)', color: '#03000d' }}
                   >
                     {unreadChat > 9 ? '9+' : unreadChat}
@@ -147,19 +147,19 @@ export function SpectatorTheaterPanel({ room, myPlayer }: Props) {
               {/* Messages */}
               <div className="flex-1 overflow-y-auto px-2 pb-1 space-y-1" style={{ minHeight: '80px', maxHeight: '160px' }}>
                 {messages.length === 0 && (
-                  <p className="text-[10px] font-mono text-white/20 text-center py-4">
+                  <p className="text-[12px] font-mono text-white/20 text-center py-4">
                     No messages yet. Spec chat is private to spectators.
                   </p>
                 )}
                 {messages.map(msg => (
                   <div key={msg.id} className="flex flex-col gap-0.5">
                     <span
-                      className="text-[9px] font-mono font-bold"
+                      className="text-[12px] font-mono font-bold"
                       style={{ color: msg.senderId === (profileId ?? '') ? 'rgba(138,43,226,0.9)' : 'rgba(0,229,255,0.7)' }}
                     >
                       {msg.senderName}
                     </span>
-                    <span className="text-[10px] font-mono text-white/60 leading-snug">{msg.text}</span>
+                    <span className="text-[12px] font-mono text-white/60 leading-snug">{msg.text}</span>
                   </div>
                 ))}
                 <div ref={messagesEndRef} />
@@ -181,7 +181,7 @@ export function SpectatorTheaterPanel({ room, myPlayer }: Props) {
                 <button
                   onClick={sendMessage}
                   disabled={!input.trim() || sending}
-                  className="px-2.5 py-1.5 rounded-lg text-[10px] font-mono font-bold transition-all disabled:opacity-30"
+                  className="px-2.5 py-1.5 rounded-lg text-[12px] font-mono font-bold transition-all disabled:opacity-30"
                   style={{
                     background: 'rgba(0,229,255,0.1)',
                     border: '1px solid rgba(0,229,255,0.25)',
@@ -200,7 +200,7 @@ export function SpectatorTheaterPanel({ room, myPlayer }: Props) {
               {/* Post-game results */}
               {isGameOver && roleReveals ? (
                 <div className="space-y-1.5">
-                  <p className="text-[10px] font-mono tracking-widest uppercase text-white/30 pt-1">Game Over — Role Reveals</p>
+                  <p className="text-[12px] font-mono tracking-widest uppercase text-white/30 pt-1">Game Over — Role Reveals</p>
                   {room.players.filter(p => !p.isSpectator).map(p => {
                     const role = roleReveals[p.id];
                     const wasMafia = role ? isMafiaRole(role) : false;
@@ -208,8 +208,8 @@ export function SpectatorTheaterPanel({ room, myPlayer }: Props) {
                     return (
                       <div key={p.id} className="flex items-center gap-2 px-2 py-1 rounded-lg"
                         style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                        <span className={`text-[10px] font-mono flex-1 ${p.isAlive ? 'text-white/60' : 'text-white/30 line-through'}`}>{p.name}</span>
-                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded"
+                        <span className={`text-[12px] font-mono flex-1 ${p.isAlive ? 'text-white/60' : 'text-white/30 line-through'}`}>{p.name}</span>
+                        <span className="text-[12px] font-mono px-1.5 py-0.5 rounded"
                           style={{
                             background: wasMafia ? 'rgba(255,30,60,0.12)' : 'rgba(0,255,136,0.08)',
                             color: wasMafia ? 'rgba(255,30,60,0.85)' : 'rgba(0,255,136,0.7)',
@@ -223,7 +223,7 @@ export function SpectatorTheaterPanel({ room, myPlayer }: Props) {
                     );
                   })}
                   {myVote && (
-                    <p className="text-[9px] font-mono text-white/30 text-center pt-1">
+                    <p className="text-[12px] font-mono text-white/30 text-center pt-1">
                       Your pick: {getPlayerName(myVote)} — {roleReveals[myVote] ? (isMafiaRole(roleReveals[myVote]) ? '✓ Correct!' : '✗ Wrong') : '?'}
                     </p>
                   )}
@@ -231,7 +231,7 @@ export function SpectatorTheaterPanel({ room, myPlayer }: Props) {
               ) : isGameActive ? (
                 /* During game: vote UI */
                 <div className="space-y-1.5">
-                  <p className="text-[10px] font-mono tracking-widest uppercase text-white/30 pt-1">
+                  <p className="text-[12px] font-mono tracking-widest uppercase text-white/30 pt-1">
                     {myVote ? '✓ Voted — results after game' : 'Who do you think is Mafia?'}
                   </p>
                   {alivePlayers.map(p => (
@@ -239,7 +239,7 @@ export function SpectatorTheaterPanel({ room, myPlayer }: Props) {
                       key={p.id}
                       disabled={!!myVote || voting}
                       onClick={() => castVote(p.id)}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-mono transition-all disabled:opacity-60 text-left"
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[12px] font-mono transition-all disabled:opacity-60 text-left"
                       style={{
                         background: myVote === p.id ? 'rgba(138,43,226,0.15)' : 'rgba(255,255,255,0.03)',
                         border: myVote === p.id ? '1px solid rgba(138,43,226,0.4)' : '1px solid rgba(255,255,255,0.07)',
@@ -252,11 +252,11 @@ export function SpectatorTheaterPanel({ room, myPlayer }: Props) {
                     </button>
                   ))}
                   {alivePlayers.length === 0 && (
-                    <p className="text-[10px] font-mono text-white/20 text-center py-2">No alive players</p>
+                    <p className="text-[12px] font-mono text-white/20 text-center py-2">No alive players</p>
                   )}
                 </div>
               ) : (
-                <p className="text-[10px] font-mono text-white/20 text-center py-4">
+                <p className="text-[12px] font-mono text-white/20 text-center py-4">
                   Suspicion voting available during active game.
                 </p>
               )}

@@ -67,7 +67,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void }): JSX.Ele
               <div className="min-w-0 flex-1">
                 <p className="font-mono text-xs text-white/85 font-semibold">{n.title}</p>
                 <p className="font-mono text-xs text-white/55 mt-0.5">{n.body}</p>
-                <p className="font-mono text-[10px] text-white/25 mt-1">{timeAgo(n.createdAt)}</p>
+                <p className="font-mono text-[12px] text-white/25 mt-1">{timeAgo(n.createdAt)}</p>
               </div>
             </div>
           ))}

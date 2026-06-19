@@ -147,35 +147,35 @@ export function JokerGame() {
       {/* ── Header ── */}
       <div
         className="flex-shrink-0 flex items-center justify-between px-4"
-        style={{ height: 48, borderBottom: '1px solid rgba(155,0,255,0.2)', background: 'rgba(8,4,22,0.98)' }}
+        style={{ minHeight: 56, paddingTop: 'max(8px, env(safe-area-inset-top, 0px))', borderBottom: '1px solid rgba(155,0,255,0.2)', background: 'rgba(8,4,22,0.98)' }}
       >
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-lg">🃏</span>
           <div className="min-w-0">
             <p className="font-display font-bold text-white text-sm leading-tight">
               {t.games.joker.title}
-              <span className="ml-2 font-mono text-[9px] text-white/25 font-normal">
+              <span className="ml-2 font-mono text-[12px] text-white/25 font-normal">
                 {match.settings.mode === 'classic' ? t.games.joker.modeClassic : t.games.joker.modeNines}
               </span>
             </p>
-            <p className="font-mono text-[9px] text-white/25">
+            <p className="font-mono text-[12px] text-white/25">
               {match.code} · {t.games.joker.round} {match.currentRoundIndex + 1}/{match.totalRounds} · {cardCount}🃏
             </p>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
           <button onClick={() => setShowScoreboard(s => !s)}
-            className="font-mono text-[10px] text-white/40 hover:text-white/70 px-2 py-1 rounded border border-white/10 hover:border-white/25 transition-colors">
+            className="font-mono text-[12px] text-white/40 hover:text-white/70 px-3 py-2 rounded border border-white/10 hover:border-white/25 transition-colors min-h-[44px] flex items-center">
             {t.games.joker.score}
           </button>
           {isPlayer && match.status === 'playing' && (
             <button onClick={resign}
-              className="font-mono text-[10px] text-red-400/60 hover:text-red-400 px-2 py-1 rounded border border-red-500/15 hover:border-red-500/35 transition-colors">
+              className="font-mono text-[12px] text-red-400/60 hover:text-red-400 px-3 py-2 rounded border border-red-500/15 hover:border-red-500/35 transition-colors min-h-[44px] flex items-center">
               {t.games.joker.resign}
             </button>
           )}
           <button onClick={leaveMatch}
-            className="font-mono text-[10px] text-white/35 hover:text-white/70 px-2 py-1 rounded border border-white/10 hover:border-white/25 transition-colors">
+            className="font-mono text-[16px] text-white/35 hover:text-white/70 w-11 h-11 rounded border border-white/10 hover:border-white/25 transition-colors flex items-center justify-center">
             ✕
           </button>
         </div>
@@ -229,7 +229,7 @@ export function JokerGame() {
               {/* Declaration waiting */}
               {match.status === 'declaration' && (!isMyDeclTurn || myDeclaration !== null) && (
                 <div className="flex-shrink-0 text-center pb-1">
-                  <p className="font-mono text-[10px] text-white/35">
+                  <p className="font-mono text-[12px] text-white/35">
                     {myDeclaration !== null
                       ? `${t.games.joker.yourDeclaration}: ${myDeclaration}`
                       : t.games.joker.waitingDeclaration}
@@ -286,7 +286,7 @@ export function JokerGame() {
               )}
 
               {isSpectator && (
-                <p className="font-mono text-[10px] text-white/20 text-center py-1">{t.games.joker.spectating}</p>
+                <p className="font-mono text-[12px] text-white/20 text-center py-1">{t.games.joker.spectating}</p>
               )}
             </div>
           </div>
@@ -302,7 +302,7 @@ export function JokerGame() {
                 style={{ background: 'rgba(30,15,5,0.98)', border: '1px solid rgba(251,191,36,0.4)' }}>
                 <div className="px-5 py-4 border-b text-center" style={{ borderColor: 'rgba(251,191,36,0.2)' }}>
                   <div className="text-3xl mb-1">🃏</div>
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-yellow-400/60">
+                  <p className="font-mono text-[12px] uppercase tracking-widest text-yellow-400/60">
                     {t.games.joker.jokerPlay}
                   </p>
                 </div>
@@ -352,7 +352,7 @@ export function JokerGame() {
               <div className="mx-4 w-full max-w-xs rounded-2xl overflow-hidden"
                 style={{ background: 'rgba(20,10,40,0.98)', border: '1px solid rgba(155,0,255,0.4)' }}>
                 <div className="px-5 py-4 border-b" style={{ borderColor: 'rgba(155,0,255,0.2)' }}>
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-white/30 text-center">{t.games.joker.finalScore}</p>
+                  <p className="font-mono text-[12px] uppercase tracking-widest text-white/30 text-center">{t.games.joker.finalScore}</p>
                   {winner && (
                     <p className="font-display text-xl font-bold text-center mt-1" style={{ color: '#00f5ff' }}>🏆 {winner.name}</p>
                   )}
@@ -408,8 +408,8 @@ export function JokerGame() {
         <div ref={chatRef} className="overflow-y-auto px-3 py-1 space-y-0.5" style={{ maxHeight: 72 }}>
           {match.chat.map((msg: any, i: number) => (
             <div key={i} className="flex gap-2 items-start">
-              <span className="font-mono text-[9px] text-white/30 flex-shrink-0 mt-0.5">{msg.senderName}</span>
-              <span className="font-mono text-[10px] text-white/60 break-words min-w-0">{msg.text}</span>
+              <span className="font-mono text-[12px] text-white/30 flex-shrink-0 mt-0.5">{msg.senderName}</span>
+              <span className="font-mono text-[12px] text-white/60 break-words min-w-0">{msg.text}</span>
             </div>
           ))}
         </div>
@@ -465,18 +465,18 @@ function PlayerBadge({ player, match, myId, position, compact }: {
       >
         {/* Name */}
         <div className="flex items-center gap-1">
-          {isDealer && <span style={{ fontSize: 9 }}>🎴</span>}
-          <span className="font-mono text-[10px] text-white truncate" style={{ maxWidth: 52 }}>
+          {isDealer && <span style={{ fontSize: 12 }}>🎴</span>}
+          <span className="font-mono text-[12px] text-white truncate" style={{ maxWidth: 52 }}>
             {player.name}{player.isBot ? '🤖' : ''}
           </span>
         </div>
         {/* Score */}
-        <span className="font-mono text-[10px] font-bold" style={{ color: score >= 0 ? '#00f5ff' : '#f87171' }}>
+        <span className="font-mono text-[12px] font-bold" style={{ color: score >= 0 ? '#00f5ff' : '#f87171' }}>
           {score >= 0 ? '+' : ''}{score}
         </span>
         {/* Declaration → taken */}
         {declaration !== null && (
-          <span className="font-mono text-[9px] text-white/40">
+          <span className="font-mono text-[12px] text-white/40">
             {declaration}→{taken}
           </span>
         )}
@@ -485,7 +485,7 @@ function PlayerBadge({ player, match, myId, position, compact }: {
           {Array.from({ length: Math.min(cardCount, 8) }, (_, i) => (
             <div key={i} style={{ width: 5, height: 9, background: isActive ? (isMyTurn ? 'rgba(0,245,255,0.6)' : 'rgba(192,132,252,0.6)') : 'rgba(192,132,252,0.35)', borderRadius: 1.5 }} />
           ))}
-          {cardCount > 8 && <span className="font-mono text-[8px] text-white/25">+{cardCount - 8}</span>}
+          {cardCount > 8 && <span className="font-mono text-[12px] text-white/25">+{cardCount - 8}</span>}
         </div>
       </div>
     );
@@ -508,7 +508,7 @@ function PlayerBadge({ player, match, myId, position, compact }: {
           {player.name}{isMe ? ' ✦' : ''}{player.isBot ? ' 🤖' : ''}
         </p>
         {!compact && declaration !== null && (
-          <p className="font-mono text-[9px] text-white/40">
+          <p className="font-mono text-[12px] text-white/40">
             {t.games.joker.declared}: {declaration} · {t.games.joker.taken}: {taken}
           </p>
         )}
@@ -521,7 +521,7 @@ function PlayerBadge({ player, match, myId, position, compact }: {
         {Array.from({ length: Math.min(cardCount, 10) }, (_, i) => (
           <div key={i} style={{ width: 4, height: 10, background: isActive ? (isMyTurn ? 'rgba(0,245,255,0.65)' : 'rgba(192,132,252,0.65)') : 'rgba(192,132,252,0.3)', borderRadius: 1.5 }} />
         ))}
-        {cardCount > 10 && <span className="font-mono text-[8px] text-white/25">+{cardCount - 10}</span>}
+        {cardCount > 10 && <span className="font-mono text-[12px] text-white/25">+{cardCount - 10}</span>}
       </div>
     </div>
   );
@@ -569,7 +569,7 @@ function TrickArea({ match, seatedPlayers }: { match: any; seatedPlayers: JokerP
           <span style={{ fontSize: 11, color: (trumpSuit === 'H' || trumpSuit === 'D') ? '#e53e3e' : '#e2e8f0' }}>
             {SUIT_SYMBOL[trumpSuit]}
           </span>
-          <span className="font-mono text-[9px] text-white/40">trump</span>
+          <span className="font-mono text-[12px] text-white/40">trump</span>
         </div>
       )}
 
@@ -580,7 +580,7 @@ function TrickArea({ match, seatedPlayers }: { match: any; seatedPlayers: JokerP
         background: 'rgba(0,0,0,0.45)',
         border: '1px solid rgba(255,255,255,0.1)',
       }}>
-        <span className="font-mono text-[9px] text-white/35">
+        <span className="font-mono text-[12px] text-white/35">
           {t.games.joker.round} {match.currentRoundIndex + 1}
         </span>
       </div>
@@ -600,7 +600,7 @@ function TrickArea({ match, seatedPlayers }: { match: any; seatedPlayers: JokerP
       {/* Empty table prompt */}
       {trick.length === 0 && match.status === 'playing' && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
-          <p className="font-mono text-[10px] text-white/15">{t.games.joker.playCard}</p>
+          <p className="font-mono text-[12px] text-white/15">{t.games.joker.playCard}</p>
         </div>
       )}
     </div>
@@ -670,7 +670,7 @@ function DeclarationPanel({ cardCount, onDeclare }: { cardCount: number; onDecla
       className="mb-2"
     >
       <div style={{ borderRadius: 14, padding: '10px 12px', background: 'rgba(155,0,255,0.07)', border: '1px solid rgba(155,0,255,0.28)' }}>
-        <p className="font-mono text-[10px] text-white/50 mb-2.5 text-center uppercase tracking-widest jk-decl-active"
+        <p className="font-mono text-[12px] text-white/50 mb-2.5 text-center uppercase tracking-widest jk-decl-active"
           style={{ display: 'inline-block', width: '100%', padding: '2px 0' }}>
           {t.games.joker.howManyTricks}
         </p>
@@ -700,8 +700,8 @@ function DeclarationProgress({ match }: { match: any }) {
         const decl = match.declarations[p.id];
         return (
           <div key={p.id} className="flex items-center gap-1">
-            <span className="font-mono text-[9px] text-white/30">{p.name}:</span>
-            <span className="font-mono text-[10px] font-bold"
+            <span className="font-mono text-[12px] text-white/30">{p.name}:</span>
+            <span className="font-mono text-[12px] font-bold"
               style={{ color: decl !== null && decl !== undefined ? '#00f5ff' : 'rgba(255,255,255,0.2)' }}>
               {decl !== null && decl !== undefined ? decl : '?'}
             </span>
@@ -722,7 +722,7 @@ function RoundEndPanel({ match, myId }: { match: any; myId: string | null }) {
     <div className="mx-4 w-full max-w-xs rounded-2xl overflow-hidden"
       style={{ background: 'rgba(20,10,40,0.98)', border: '1px solid rgba(155,0,255,0.4)' }}>
       <div className="px-5 py-3 border-b" style={{ borderColor: 'rgba(155,0,255,0.2)' }}>
-        <p className="font-mono text-[10px] uppercase tracking-widest text-white/30 text-center">{t.games.joker.roundResults}</p>
+        <p className="font-mono text-[12px] uppercase tracking-widest text-white/30 text-center">{t.games.joker.roundResults}</p>
         <p className="font-display text-base font-bold text-center mt-0.5" style={{ color: '#c084fc' }}>
           {t.games.joker.round} {lastResult.roundIndex + 1} · {lastResult.cardCount}🃏
           {lastResult.pulkaId !== null ? ` · Pulka ${lastResult.pulkaId}` : ''}
@@ -730,10 +730,10 @@ function RoundEndPanel({ match, myId }: { match: any; myId: string | null }) {
       </div>
       <div className="px-4 py-3">
         <div className="flex items-center gap-1 mb-2 px-1">
-          <span className="font-mono text-[9px] text-white/25 flex-1">{t.games.joker.players}</span>
-          <span className="font-mono text-[9px] text-white/25 w-8 text-center">{t.games.joker.declared}</span>
-          <span className="font-mono text-[9px] text-white/25 w-8 text-center">{t.games.joker.taken}</span>
-          <span className="font-mono text-[9px] text-white/25 w-10 text-right">{t.games.joker.pts}</span>
+          <span className="font-mono text-[12px] text-white/25 flex-1">{t.games.joker.players}</span>
+          <span className="font-mono text-[12px] text-white/25 w-8 text-center">{t.games.joker.declared}</span>
+          <span className="font-mono text-[12px] text-white/25 w-8 text-center">{t.games.joker.taken}</span>
+          <span className="font-mono text-[12px] text-white/25 w-10 text-right">{t.games.joker.pts}</span>
         </div>
         <div className="space-y-1">
           {match.players.map((p: any) => {
@@ -746,10 +746,10 @@ function RoundEndPanel({ match, myId }: { match: any; myId: string | null }) {
             return (
               <div key={p.id} className="flex items-center gap-1 px-2 py-1.5 rounded-lg"
                 style={{ background: isMe ? 'rgba(0,245,255,0.05)' : 'rgba(255,255,255,0.02)', border: `1px solid ${isMe ? 'rgba(0,245,255,0.15)' : 'transparent'}` }}>
-                <span className={`font-mono text-[10px] flex-1 truncate ${isMe ? 'text-white' : 'text-white/55'}`}>{p.name}{isMe ? ' ✦' : ''}</span>
-                <span className="font-mono text-[10px] text-white/40 w-8 text-center">{decl}</span>
-                <span className="font-mono text-[10px] text-white/40 w-8 text-center">{took}</span>
-                <span className="font-mono text-[10px] font-bold w-10 text-right" style={{ color: pts >= 0 ? '#00f5ff' : '#f87171' }}>
+                <span className={`font-mono text-[12px] flex-1 truncate ${isMe ? 'text-white' : 'text-white/55'}`}>{p.name}{isMe ? ' ✦' : ''}</span>
+                <span className="font-mono text-[12px] text-white/40 w-8 text-center">{decl}</span>
+                <span className="font-mono text-[12px] text-white/40 w-8 text-center">{took}</span>
+                <span className="font-mono text-[12px] font-bold w-10 text-right" style={{ color: pts >= 0 ? '#00f5ff' : '#f87171' }}>
                   {pts >= 0 ? '+' : ''}{pts}{khishti ? ' ⚡' : ''}{bonus > 0 ? ` 🎉` : ''}
                 </span>
               </div>
@@ -761,8 +761,8 @@ function RoundEndPanel({ match, myId }: { match: any; myId: string | null }) {
             .sort((a: any, b: any) => (match.scores[b.id] ?? 0) - (match.scores[a.id] ?? 0))
             .map((p: any, i: number) => (
               <div key={p.id} className="flex items-center gap-2 py-0.5">
-                <span className="font-mono text-[9px] text-white/25 w-3">{i + 1}</span>
-                <span className={`font-mono text-[10px] flex-1 truncate ${p.id === myId ? 'text-white' : 'text-white/45'}`}>{p.name}</span>
+                <span className="font-mono text-[12px] text-white/25 w-3">{i + 1}</span>
+                <span className={`font-mono text-[12px] flex-1 truncate ${p.id === myId ? 'text-white' : 'text-white/45'}`}>{p.name}</span>
                 <span className="font-mono text-xs font-bold" style={{ color: (match.scores[p.id] ?? 0) >= 0 ? '#00f5ff' : '#f87171' }}>
                   {match.scores[p.id] ?? 0}
                 </span>
@@ -771,7 +771,7 @@ function RoundEndPanel({ match, myId }: { match: any; myId: string | null }) {
         </div>
       </div>
       <div className="px-4 pb-3 text-center">
-        <p className="font-mono text-[9px] text-white/25 animate-pulse">{t.games.joker.nextRoundSoon}</p>
+        <p className="font-mono text-[12px] text-white/25 animate-pulse">{t.games.joker.nextRoundSoon}</p>
       </div>
     </div>
   );
@@ -792,7 +792,7 @@ function ScoreboardPanel({ match, myId, onClose }: { match: any; myId: string | 
           .sort((a: any, b: any) => (match.scores[b.id] ?? 0) - (match.scores[a.id] ?? 0))
           .map((p: any, i: number) => (
             <div key={p.id} className="flex items-center gap-2 py-1 border-b" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
-              <span className="font-mono text-[9px] text-white/30 w-3">{i + 1}</span>
+              <span className="font-mono text-[12px] text-white/30 w-3">{i + 1}</span>
               <span className={`font-mono text-xs flex-1 truncate ${p.id === myId ? 'text-white' : 'text-white/50'}`}>{p.name}</span>
               <span className="font-mono text-sm font-bold" style={{ color: (match.scores[p.id] ?? 0) >= 0 ? '#00f5ff' : '#f87171' }}>
                 {match.scores[p.id] ?? 0}
@@ -800,11 +800,11 @@ function ScoreboardPanel({ match, myId, onClose }: { match: any; myId: string | 
             </div>
           ))}
       </div>
-      <p className="font-mono text-[9px] uppercase tracking-widest text-white/25 mb-2">{t.games.joker.roundHistory}</p>
+      <p className="font-mono text-[12px] uppercase tracking-widest text-white/25 mb-2">{t.games.joker.roundHistory}</p>
       <div className="space-y-2">
         {match.roundHistory.map((r: any) => (
           <div key={r.roundIndex} className="rounded-lg px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.03)' }}>
-            <p className="font-mono text-[9px] text-white/30 mb-1">
+            <p className="font-mono text-[12px] text-white/30 mb-1">
               {t.games.joker.round} {r.roundIndex + 1} · {r.cardCount}🃏
               {r.pulkaId !== null ? ` · Pulka ${r.pulkaId}` : ''}
             </p>
@@ -817,9 +817,9 @@ function ScoreboardPanel({ match, myId, onClose }: { match: any; myId: string | 
                 const bonus = r.pulkaBonusPlayers[p.id] ?? 0;
                 return (
                   <div key={p.id} className="flex items-center gap-1">
-                    <span className="font-mono text-[9px] text-white/40 w-14 truncate">{p.name}</span>
-                    <span className="font-mono text-[9px] text-white/30">{decl}→{taken}</span>
-                    <span className="font-mono text-[9px] ml-auto" style={{ color: pts >= 0 ? 'rgba(0,245,255,0.7)' : '#f87171' }}>
+                    <span className="font-mono text-[12px] text-white/40 w-14 truncate">{p.name}</span>
+                    <span className="font-mono text-[12px] text-white/30">{decl}→{taken}</span>
+                    <span className="font-mono text-[12px] ml-auto" style={{ color: pts >= 0 ? 'rgba(0,245,255,0.7)' : '#f87171' }}>
                       {pts >= 0 ? '+' : ''}{pts}{khishti ? ' ხ' : ''}{bonus > 0 ? ` +${bonus}🎉` : ''}
                     </span>
                   </div>
@@ -856,7 +856,7 @@ function WaitingRoom({ match, isCreator, onStart, isLoading }: {
           return (
             <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-xl"
               style={{ background: p ? 'rgba(155,0,255,0.08)' : 'rgba(255,255,255,0.02)', border: `1px solid ${p ? 'rgba(155,0,255,0.2)' : 'rgba(255,255,255,0.06)'}` }}>
-              <span className="font-mono text-[10px] text-white/30 w-4">{i + 1}</span>
+              <span className="font-mono text-[12px] text-white/30 w-4">{i + 1}</span>
               <span className={`font-mono text-xs ${p ? 'text-white' : 'text-white/20'}`}>
                 {p ? `${p.name}${i === 0 ? ' 👑' : ''}` : '—'}
               </span>

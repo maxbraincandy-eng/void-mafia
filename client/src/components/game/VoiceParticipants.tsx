@@ -107,7 +107,7 @@ function ParticipantDot({
     <div
       title={`${name}${muted ? ' (muted)' : ''}`}
       className={clsx(
-        'w-6 h-6 rounded-full border flex items-center justify-center text-[10px] font-bold uppercase transition-all',
+        'w-6 h-6 rounded-full border flex items-center justify-center text-[12px] font-bold uppercase transition-all',
         speaking
           ? 'bg-neon-green/20 border-neon-green/60 text-neon-green shadow-[0_0_6px_#00ff88]'
           : 'bg-white/5 border-white/15 text-white/50',

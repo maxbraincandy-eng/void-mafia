@@ -101,7 +101,7 @@ export function ReportModal({ targetProfileId, targetName, roomId, onClose, onSu
                   <button
                     key={r}
                     onClick={() => setReason(r)}
-                    className="py-2.5 px-2 text-[10px] font-mono rounded-xl border transition-all text-center leading-tight"
+                    className="py-2.5 px-2 text-[12px] font-mono rounded-xl border transition-all text-center leading-tight"
                     style={active ? {
                       borderColor: 'rgba(255,45,85,0.6)',
                       background: 'rgba(255,45,85,0.12)',
@@ -131,7 +131,7 @@ export function ReportModal({ targetProfileId, targetName, roomId, onClose, onSu
                 border: reason ? '1px solid rgba(255,45,85,0.25)' : '1px solid rgba(255,255,255,0.08)',
               }}
             />
-            <p className="text-right text-[9px] font-mono text-white/20 mb-4">{details.length}/500</p>
+            <p className="text-right text-[12px] font-mono text-white/20 mb-4">{details.length}/500</p>
 
             {error && (
               <p className="text-[11px] font-mono mb-3" style={{ color: '#ff2d55' }}>{error}</p>

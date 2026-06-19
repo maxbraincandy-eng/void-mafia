@@ -26,7 +26,7 @@ export function HermesModeSelector() {
             key={m}
             onClick={() => setMode(m)}
             className={`
-              px-3 py-1.5 rounded-full font-mono text-[10px] uppercase tracking-widest whitespace-nowrap
+              px-3 py-1.5 rounded-full font-mono text-[12px] uppercase tracking-widest whitespace-nowrap
               transition-all duration-150
               ${mode === m
                 ? 'bg-neon-cyan/12 border border-neon-cyan/45 text-neon-cyan'

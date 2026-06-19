@@ -67,7 +67,7 @@ export function CultConversionOverlay({ visible, onDismiss }: Props) {
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="text-[10px] font-mono uppercase tracking-[0.3em] text-fuchsia-400/60 mb-2"
+                className="text-[12px] font-mono uppercase tracking-[0.3em] text-fuchsia-400/60 mb-2"
               >
                 You have been converted
               </motion.p>

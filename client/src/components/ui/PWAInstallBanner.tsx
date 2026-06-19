@@ -27,7 +27,7 @@ export function PWAInstallBanner() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-display font-bold text-sm text-white leading-tight">Install Void Mafia</p>
-              <p className="font-mono text-[10px] text-white/40 mt-0.5 leading-tight">
+              <p className="font-mono text-[12px] text-white/40 mt-0.5 leading-tight">
                 Play like an app from your home screen
               </p>
             </div>

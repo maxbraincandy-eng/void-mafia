@@ -192,7 +192,7 @@ export function RoleReveal({ role, teammates, skin }: Props) {
                 >
                   ?
                 </motion.div>
-                <p className="text-[10px] font-display tracking-[0.35em] uppercase relative z-10"
+                <p className="text-[12px] font-display tracking-[0.35em] uppercase relative z-10"
                   style={{ color: 'rgba(155,0,255,0.55)' }}>
                   · VOID MAFIA ·
                 </p>
@@ -250,7 +250,7 @@ export function RoleReveal({ role, teammates, skin }: Props) {
                   {/* Header */}
                   <div className="relative z-10 pt-3 pb-1 flex items-center justify-center gap-2">
                     <div className="w-4 h-px" style={{ background: `linear-gradient(90deg, transparent, ${c2})` }} />
-                    <span className="text-[9px] font-display tracking-[0.3em] uppercase" style={{ color: c2, opacity: 0.8 }}>
+                    <span className="text-[12px] font-display tracking-[0.3em] uppercase" style={{ color: c2, opacity: 0.8 }}>
                       {skinDef ? skinDef.name.toUpperCase() : 'VOID MAFIA'}
                     </span>
                     <div className="w-4 h-px" style={{ background: `linear-gradient(90deg, ${c2}, transparent)` }} />
@@ -346,7 +346,7 @@ export function RoleReveal({ role, teammates, skin }: Props) {
             boxShadow: '0 0 30px rgba(255,0,204,0.08)',
           }}
         >
-          <p className="text-[10px] font-display tracking-[0.25em] uppercase text-neon-pink/50 mb-3">
+          <p className="text-[12px] font-display tracking-[0.25em] uppercase text-neon-pink/50 mb-3">
             {t.game.gameOver.yourCrew}
           </p>
           <div className="space-y-2">
@@ -354,7 +354,7 @@ export function RoleReveal({ role, teammates, skin }: Props) {
               <div key={tm.name} className="flex items-center gap-2">
                 <span className="text-base font-bold" style={{ color: '#ff4488' }}>{ROLE_ICONS[tm.roleKey] ?? '◆'}</span>
                 <span className="text-sm text-white font-semibold flex-1 truncate">{tm.name}</span>
-                <span className="text-[10px] text-neon-pink/50 font-mono">{tm.roleName}</span>
+                <span className="text-[12px] text-neon-pink/50 font-mono">{tm.roleName}</span>
               </div>
             ))}
           </div>

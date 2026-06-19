@@ -17,9 +17,9 @@ export function ClanRoleBadge({ role, clanTag, size = 'xs' }: Props) {
   const cfg = ROLE_CONFIG[role];
   if (!cfg) return null;
 
-  const textSize = size === 'sm' ? 'text-[10px]' : 'text-[8px]';
+  const textSize = size === 'sm' ? 'text-[12px]' : 'text-[12px]';
   const px = size === 'sm' ? 'px-1.5 py-0.5' : 'px-1 py-0.5';
-  const iconSize = size === 'sm' ? 'text-xs' : 'text-[9px]';
+  const iconSize = size === 'sm' ? 'text-xs' : 'text-[12px]';
 
   return (
     <span

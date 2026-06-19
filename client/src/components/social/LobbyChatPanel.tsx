@@ -140,7 +140,7 @@ export function LobbyChatPanel() {
             <div className="flex items-center gap-3 px-5 py-4 border-b border-white/[0.06] shrink-0">
               <div className="flex-1">
                 <p className="font-mono text-xs font-bold text-white/55 tracking-widest uppercase">Lobby Chat</p>
-                <p className="text-[10px] font-mono text-white/22 mt-0.5">All online players</p>
+                <p className="text-[12px] font-mono text-white/22 mt-0.5">All online players</p>
               </div>
               <button
                 onClick={closeLobbyChat}
@@ -165,15 +165,15 @@ export function LobbyChatPanel() {
                     <div className={`max-w-[72%] flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
                       <div className={`flex items-center gap-1.5 ${isMe ? 'flex-row-reverse' : ''}`}>
                         <span
-                          className="text-[10px] font-mono font-semibold"
+                          className="text-[12px] font-mono font-semibold"
                           style={{ color: msg.nameColor ?? 'rgba(255,255,255,0.4)' }}
                         >{msg.username}</span>
-                        <span className="text-[9px] font-mono text-neon-cyan/30">Lv{msg.level}</span>
-                        <span className="text-[9px] font-mono text-white/18">{fmt(msg.createdAt)}</span>
+                        <span className="text-[12px] font-mono text-neon-cyan/30">Lv{msg.level}</span>
+                        <span className="text-[12px] font-mono text-white/18">{fmt(msg.createdAt)}</span>
                         {isMod && (
                           <button
                             onClick={() => handleDelete(msg.id)}
-                            className="text-[9px] font-mono text-neon-red/40 hover:text-neon-red/80 transition-colors opacity-0 group-hover:opacity-100 ml-1"
+                            className="text-[12px] font-mono text-neon-red/40 hover:text-neon-red/80 transition-colors opacity-0 group-hover:opacity-100 ml-1"
                             title="Delete message"
                           >
                             ✕
@@ -197,7 +197,7 @@ export function LobbyChatPanel() {
             {/* Input */}
             <div className="px-4 pt-3 pb-4 border-t border-white/[0.06] shrink-0">
               {sendError && (
-                <p className="text-neon-red/70 font-mono text-[10px] mb-1.5 px-1">{sendError}</p>
+                <p className="text-neon-red/70 font-mono text-[12px] mb-1.5 px-1">{sendError}</p>
               )}
               <div className="flex items-center gap-2">
                 <input

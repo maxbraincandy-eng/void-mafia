@@ -33,7 +33,7 @@ function Stars({ n }: { n: number }) {
   return (
     <div className="flex gap-0.5">
       {Array.from({ length: 5 }).map((_, i) => (
-        <span key={i} className={`text-[8px] ${i < n ? 'text-amber-400' : 'text-white/10'}`}>★</span>
+        <span key={i} className={`text-[12px] ${i < n ? 'text-amber-400' : 'text-white/10'}`}>★</span>
       ))}
     </div>
   );
@@ -106,7 +106,7 @@ function GiftDetailModal({
             : <div className="text-5xl mb-2">{gift.giftIcon}</div>}
           <h3 className="font-display font-bold text-white text-base">{gift.giftName}</h3>
           <Stars n={gift.giftStars} />
-          <span className={`font-mono text-[10px] uppercase tracking-widest mt-1 inline-block ${RARITY_TEXT[gift.giftRarity] ?? ''}`}>
+          <span className={`font-mono text-[12px] uppercase tracking-widest mt-1 inline-block ${RARITY_TEXT[gift.giftRarity] ?? ''}`}>
             {gift.giftRarity}
           </span>
         </div>
@@ -115,7 +115,7 @@ function GiftDetailModal({
           <button
             onClick={handlePinToggle}
             disabled={pinLoading}
-            className={`w-full mb-3 py-2 rounded-xl font-mono text-[10px] uppercase tracking-widest border transition-all ${
+            className={`w-full mb-3 py-2 rounded-xl font-mono text-[12px] uppercase tracking-widest border transition-all ${
               isPinned
                 ? 'bg-amber-400/10 border-amber-400/30 text-amber-400 hover:bg-amber-400/20'
                 : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:text-white/70'
@@ -132,7 +132,7 @@ function GiftDetailModal({
             {detail.description && (
               <p className="text-white/40 font-mono text-xs text-center mb-3">{detail.description}</p>
             )}
-            <p className="font-mono text-[10px] uppercase tracking-widest text-white/30 mb-2">
+            <p className="font-mono text-[12px] uppercase tracking-widest text-white/30 mb-2">
               Sent by ({detail.totalSent})
             </p>
             <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
@@ -142,8 +142,8 @@ function GiftDetailModal({
                   <Avatar avatar={s.senderAvatar} avatarUrl={s.senderAvatarUrl} />
                   <div className="min-w-0 flex-1">
                     <p className="font-mono text-xs text-white/80 font-bold truncate">{s.senderUsername}</p>
-                    {s.message && <p className="font-mono text-[10px] text-white/35 truncate italic">"{s.message}"</p>}
-                    <p className="font-mono text-[9px] text-white/20">{new Date(s.sentAt).toLocaleDateString()}</p>
+                    {s.message && <p className="font-mono text-[12px] text-white/35 truncate italic">"{s.message}"</p>}
+                    <p className="font-mono text-[12px] text-white/20">{new Date(s.sentAt).toLocaleDateString()}</p>
                   </div>
                 </div>
               ))}
@@ -166,7 +166,7 @@ function PinnedGiftsStrip({ pinned, canManage, onUnpin }: {
   if (pinned.length === 0) return null;
   return (
     <div className="mb-4">
-      <p className="font-mono text-[9px] uppercase tracking-widest text-amber-400/50 mb-2">📌 Pinned Gifts</p>
+      <p className="font-mono text-[12px] uppercase tracking-widest text-amber-400/50 mb-2">📌 Pinned Gifts</p>
       <div className="flex gap-2">
         {pinned.map(g => (
           <div
@@ -181,12 +181,12 @@ function PinnedGiftsStrip({ pinned, canManage, onUnpin }: {
             {g.giftImageUrl
               ? <img src={g.giftImageUrl} alt={g.giftName} className="w-8 h-8 rounded-lg object-cover" />
               : <span className="text-2xl">{g.giftIcon}</span>}
-            <span className="font-mono text-[8px] text-white/50 truncate max-w-full text-center">{g.giftName}</span>
+            <span className="font-mono text-[12px] text-white/50 truncate max-w-full text-center">{g.giftName}</span>
             <Stars n={g.giftStars} />
             {canManage && (
               <button
                 onClick={() => onUnpin(g.giftId)}
-                className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white/10 text-white/40 hover:text-white/80 hover:bg-white/20 flex items-center justify-center text-[8px] transition-colors"
+                className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white/10 text-white/40 hover:text-white/80 hover:bg-white/20 flex items-center justify-center text-[12px] transition-colors"
               >
                 ✕
               </button>
@@ -219,20 +219,20 @@ function GiftStatsPanel({ stats }: { stats: GiftStats }) {
         <div key={s.label} className="rounded-xl p-2.5 text-center"
           style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
           <p className={`font-display font-bold text-lg ${s.color}`}>{s.value}</p>
-          <p className="font-mono text-[9px] text-white/30 mt-0.5">{s.label}</p>
+          <p className="font-mono text-[12px] text-white/30 mt-0.5">{s.label}</p>
         </div>
       ))}
       {stats.mostReceivedGiftName && (
         <div className="col-span-2 rounded-xl p-2.5"
           style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-          <p className="font-mono text-[9px] text-white/25 uppercase tracking-wider mb-0.5">Most Received</p>
+          <p className="font-mono text-[12px] text-white/25 uppercase tracking-wider mb-0.5">Most Received</p>
           <p className="font-mono text-xs text-white/70 font-bold">{stats.mostReceivedGiftName}</p>
         </div>
       )}
       {stats.mostSentGiftName && (
         <div className="col-span-2 rounded-xl p-2.5"
           style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-          <p className="font-mono text-[9px] text-white/25 uppercase tracking-wider mb-0.5">Most Sent</p>
+          <p className="font-mono text-[12px] text-white/25 uppercase tracking-wider mb-0.5">Most Sent</p>
           <p className="font-mono text-xs text-white/70 font-bold">{stats.mostSentGiftName}</p>
         </div>
       )}
@@ -249,11 +249,11 @@ function TimelineRow({ entry, viewerId }: { entry: GiftTimelineEntry; viewerId: 
       <Avatar avatar={entry.senderAvatar} avatarUrl={entry.senderAvatarUrl} size={7} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1 flex-wrap">
-          <span className={`font-mono text-[10px] font-bold ${isSender ? 'text-neon-cyan' : 'text-white/70'}`}>
+          <span className={`font-mono text-[12px] font-bold ${isSender ? 'text-neon-cyan' : 'text-white/70'}`}>
             {entry.senderName}
           </span>
-          <span className="font-mono text-[9px] text-white/25">→</span>
-          <span className={`font-mono text-[10px] font-bold ${!isSender ? 'text-neon-cyan' : 'text-white/70'}`}>
+          <span className="font-mono text-[12px] text-white/25">→</span>
+          <span className={`font-mono text-[12px] font-bold ${!isSender ? 'text-neon-cyan' : 'text-white/70'}`}>
             {entry.receiverName}
           </span>
         </div>
@@ -261,15 +261,15 @@ function TimelineRow({ entry, viewerId }: { entry: GiftTimelineEntry; viewerId: 
           {entry.giftImageUrl
             ? <img src={entry.giftImageUrl} alt={entry.giftName} className="w-5 h-5 rounded object-cover flex-shrink-0" />
             : <span className="text-sm">{entry.giftIcon}</span>}
-          <span className={`font-mono text-[10px] ${RARITY_TEXT[entry.giftRarity] ?? 'text-white/50'}`}>{entry.giftName}</span>
+          <span className={`font-mono text-[12px] ${RARITY_TEXT[entry.giftRarity] ?? 'text-white/50'}`}>{entry.giftName}</span>
           {entry.message && (
-            <span className="font-mono text-[9px] text-white/25 italic truncate max-w-[80px]">"{entry.message}"</span>
+            <span className="font-mono text-[12px] text-white/25 italic truncate max-w-[80px]">"{entry.message}"</span>
           )}
         </div>
       </div>
       <div className="text-right flex-shrink-0">
-        <p className="font-mono text-[8px] text-white/20">{new Date(entry.createdAt).toLocaleDateString()}</p>
-        <p className="font-mono text-[8px] text-amber-400/40">{entry.coinCost} 🪙</p>
+        <p className="font-mono text-[12px] text-white/20">{new Date(entry.createdAt).toLocaleDateString()}</p>
+        <p className="font-mono text-[12px] text-amber-400/40">{entry.coinCost} 🪙</p>
       </div>
     </div>
   );
@@ -412,7 +412,7 @@ export function GiftGallery({ profileId, viewerId }: Props) {
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`flex-1 py-1.5 rounded-lg font-mono text-[9px] uppercase tracking-wider transition-all ${
+            className={`flex-1 py-1.5 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all ${
               tab === t
                 ? 'bg-neon-cyan/15 text-neon-cyan border border-neon-cyan/25'
                 : 'text-white/25 hover:text-white/45'
@@ -433,8 +433,8 @@ export function GiftGallery({ profileId, viewerId }: Props) {
               {loading && <p className="text-white/20 font-mono text-xs text-center py-4">Loading...</p>}
               {!loading && loadError && (
                 <div className="text-center py-4">
-                  <p className="text-red-400/60 font-mono text-[10px] mb-2">{loadError}</p>
-                  <button onClick={loadReceived} className="font-mono text-[9px] text-neon-cyan/60 hover:text-neon-cyan transition-colors">
+                  <p className="text-red-400/60 font-mono text-[12px] mb-2">{loadError}</p>
+                  <button onClick={loadReceived} className="font-mono text-[12px] text-neon-cyan/60 hover:text-neon-cyan transition-colors">
                     Retry
                   </button>
                 </div>
@@ -460,15 +460,15 @@ export function GiftGallery({ profileId, viewerId }: Props) {
                         }}
                       >
                         {pinnedIds.has(g.giftId) && (
-                          <span className="absolute top-1 left-1 text-[8px] text-amber-400/70">📌</span>
+                          <span className="absolute top-1 left-1 text-[12px] text-amber-400/70">📌</span>
                         )}
                         {g.giftImageUrl
                           ? <img src={g.giftImageUrl} alt={g.giftName} className="w-9 h-9 rounded-lg object-cover" />
                           : <span className="text-2xl">{g.giftIcon}</span>}
-                        <span className="font-mono text-[9px] text-white/60 truncate max-w-full">{g.giftName}</span>
+                        <span className="font-mono text-[12px] text-white/60 truncate max-w-full">{g.giftName}</span>
                         <Stars n={g.giftStars} />
                         {count > 1 && (
-                          <span className="absolute -top-1 -right-1 bg-neon-cyan text-void text-[8px] font-bold rounded-full min-w-[14px] h-3.5 flex items-center justify-center px-0.5">
+                          <span className="absolute -top-1 -right-1 bg-neon-cyan text-void text-[12px] font-bold rounded-full min-w-[14px] h-3.5 flex items-center justify-center px-0.5">
                             ×{count}
                           </span>
                         )}
@@ -504,11 +504,11 @@ export function GiftGallery({ profileId, viewerId }: Props) {
                         {g.giftImageUrl
                           ? <img src={g.giftImageUrl} alt={g.giftName} className="w-9 h-9 rounded-lg object-cover" />
                           : <span className="text-2xl">{g.giftIcon}</span>}
-                        <span className="font-mono text-[9px] text-white/60 truncate max-w-full">{g.giftName}</span>
+                        <span className="font-mono text-[12px] text-white/60 truncate max-w-full">{g.giftName}</span>
                         <Stars n={g.giftStars} />
-                        <span className="font-mono text-[8px] text-amber-400/60">{totalSpent} 🪙</span>
+                        <span className="font-mono text-[12px] text-amber-400/60">{totalSpent} 🪙</span>
                         {count > 1 && (
-                          <span className="absolute -top-1 -right-1 bg-neon-purple text-white text-[8px] font-bold rounded-full min-w-[14px] h-3.5 flex items-center justify-center px-0.5">
+                          <span className="absolute -top-1 -right-1 bg-neon-purple text-white text-[12px] font-bold rounded-full min-w-[14px] h-3.5 flex items-center justify-center px-0.5">
                             ×{count}
                           </span>
                         )}

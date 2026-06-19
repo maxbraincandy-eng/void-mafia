@@ -33,11 +33,11 @@ export function DailyChallengeCard() {
       }}
     >
       <div className="flex items-center justify-between mb-1.5">
-        <p className="text-[8px] font-display font-bold tracking-[0.25em] uppercase text-white/25">
+        <p className="text-[12px] font-display font-bold tracking-[0.25em] uppercase text-white/25">
           Daily Quests
         </p>
         <span
-          className="text-[8px] font-mono px-1.5 py-0.5 rounded-full"
+          className="text-[12px] font-mono px-1.5 py-0.5 rounded-full"
           style={{
             background: 'rgba(255,215,0,0.08)',
             border: '1px solid rgba(255,215,0,0.2)',
@@ -56,7 +56,7 @@ export function DailyChallengeCard() {
             <div key={q.id} className="flex-1 min-w-0">
               <div className="flex items-center gap-1 mb-0.5">
                 <span className="text-xs leading-none">{q.completedToday ? '✅' : QUEST_ICONS[i]}</span>
-                <p className={`text-[9px] font-mono truncate ${q.completedToday ? 'text-neon-green/40 line-through' : 'text-white/50'}`}>
+                <p className={`text-[12px] font-mono truncate ${q.completedToday ? 'text-neon-green/40 line-through' : 'text-white/50'}`}>
                   {q.description}
                 </p>
               </div>

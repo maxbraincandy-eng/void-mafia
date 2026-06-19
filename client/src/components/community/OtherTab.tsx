@@ -26,7 +26,7 @@ export function OtherTab(): JSX.Element {
             <button
               key={sec.id}
               onClick={() => setOpen(active ? null : sec.id)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-full font-mono text-[10px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 active:scale-95"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-full font-mono text-[12px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 active:scale-95"
               style={{
                 background: active ? 'linear-gradient(135deg, rgba(155,0,255,0.28), rgba(0,245,255,0.16))' : 'rgba(255,255,255,0.03)',
                 border: `1px solid ${active ? 'rgba(155,0,255,0.45)' : 'rgba(255,255,255,0.08)'}`,
@@ -34,7 +34,7 @@ export function OtherTab(): JSX.Element {
               }}
             >
               <span>{sec.icon}</span>{sec.label}
-              <span className="text-[8px] ml-0.5">{active ? '▲' : '▼'}</span>
+              <span className="text-[12px] ml-0.5">{active ? '▲' : '▼'}</span>
             </button>
           );
         })}

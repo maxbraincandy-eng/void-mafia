@@ -47,7 +47,7 @@ function SeasonBanner() {
           <p className="font-display font-bold text-xs text-white/80 uppercase tracking-widest truncate pr-2">
             {season.name.toUpperCase()}
           </p>
-          <span className="flex-shrink-0 font-mono text-[10px] text-neon-cyan/70 bg-neon-cyan/8 border border-neon-cyan/15 rounded-lg px-2 py-0.5 whitespace-nowrap">
+          <span className="flex-shrink-0 font-mono text-[12px] text-neon-cyan/70 bg-neon-cyan/8 border border-neon-cyan/15 rounded-lg px-2 py-0.5 whitespace-nowrap">
             {daysLeft}d left
           </span>
         </div>
@@ -203,11 +203,11 @@ export function RoomsPage() {
               VOID MAFIA
             </h1>
             <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
-              <p className="text-[10px] font-mono text-white/20 tracking-wider truncate">
+              <p className="text-[12px] font-mono text-white/20 tracking-wider truncate">
                 SOCIAL DEDUCTION
               </p>
               {onlineCount > 0 && (
-                <span className="flex-shrink-0 flex items-center gap-1 font-mono text-[9px] text-neon-green/60">
+                <span className="flex-shrink-0 flex items-center gap-1 font-mono text-[12px] text-neon-green/60">
                   <span className="w-1.5 h-1.5 bg-neon-green rounded-full animate-pulse" />
                   {onlineCount}
                 </span>
@@ -225,7 +225,7 @@ export function RoomsPage() {
             >
               ⌥
               {lobbyChatUnread > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] rounded-full bg-neon-cyan/70 text-[8px] font-mono flex items-center justify-center text-black font-bold px-0.5">
+                <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] rounded-full bg-neon-cyan/70 text-[12px] font-mono flex items-center justify-center text-black font-bold px-0.5">
                   {lobbyChatUnread > 9 ? '9+' : lobbyChatUnread}
                 </span>
               )}
@@ -308,7 +308,7 @@ export function RoomsPage() {
                         <span className="font-medium text-sm text-white/70 truncate">
                           {room.name || room.hostName}
                         </span>
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono tracking-wider uppercase flex-shrink-0 ${
+                        <span className={`text-[12px] px-1.5 py-0.5 rounded font-mono tracking-wider uppercase flex-shrink-0 ${
                           isLobby
                             ? 'bg-neon-cyan/[0.08] text-neon-cyan/60 border border-neon-cyan/[0.12]'
                             : 'bg-neon-red/[0.08] text-neon-red/55 border border-neon-red/[0.12]'
@@ -357,7 +357,7 @@ export function RoomsPage() {
               </h3>
 
               {/* Room name */}
-              <label className="block text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2">
+              <label className="block text-[12px] font-mono text-white/28 uppercase tracking-widest mb-2">
                 {t.rooms.roomNameLabel}
               </label>
               <input
@@ -370,7 +370,7 @@ export function RoomsPage() {
               />
 
               {/* Public / Private toggle */}
-              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2">Visibility</p>
+              <p className="text-[12px] font-mono text-white/28 uppercase tracking-widest mb-2">Visibility</p>
               <div className="grid grid-cols-2 gap-2 mb-5">
                 {[
                   { val: false, label: t.rooms.publicRoom, desc: 'Visible in browser' },
@@ -386,13 +386,13 @@ export function RoomsPage() {
                     }`}
                   >
                     <p className="text-xs font-mono font-bold">{opt.label}</p>
-                    <p className="text-[10px] font-mono text-white/30 mt-0.5">{opt.desc}</p>
+                    <p className="text-[12px] font-mono text-white/30 mt-0.5">{opt.desc}</p>
                   </button>
                 ))}
               </div>
 
               {/* Preset selector */}
-              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2 mt-1">Game Pace</p>
+              <p className="text-[12px] font-mono text-white/28 uppercase tracking-widest mb-2 mt-1">Game Pace</p>
               <div className="grid grid-cols-3 gap-2 mb-5">
                 {(['quick', 'classic', 'hardcore'] as Preset[]).map(id => (
                   <button
@@ -429,7 +429,7 @@ export function RoomsPage() {
 
               <form onSubmit={handleJoin} className="space-y-3">
                 <div>
-                  <label className="block text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2">
+                  <label className="block text-[12px] font-mono text-white/28 uppercase tracking-widest mb-2">
                     {t.rooms.roomCodeLabel}
                   </label>
                   <input
@@ -444,7 +444,7 @@ export function RoomsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-mono text-white/28 uppercase tracking-widest mb-2">
+                  <label className="block text-[12px] font-mono text-white/28 uppercase tracking-widest mb-2">
                     Password
                   </label>
                   <input
@@ -501,7 +501,7 @@ export function RoomsPage() {
               style={SURFACE_BG}
               onClick={e => e.stopPropagation()}
             >
-              <p className="text-[10px] font-mono text-white/28 uppercase tracking-widest mb-0.5">
+              <p className="text-[12px] font-mono text-white/28 uppercase tracking-widest mb-0.5">
                 {joinChoice.isLobby ? t.rooms.join : t.rooms.gameInProgress}
               </p>
               <p className="font-mono font-bold text-neon-cyan/75 tracking-[0.25em] text-xl mb-5">
@@ -517,7 +517,7 @@ export function RoomsPage() {
                   {joinChoice.isLobby ? t.rooms.joinAsPlayer : t.rooms.joinNextRound}
                 </Button>
                 {!joinChoice.isLobby && (
-                  <p className="text-[10px] font-mono text-white/30 -mt-0.5 mb-1">{t.rooms.joinNextRoundHint}</p>
+                  <p className="text-[12px] font-mono text-white/30 -mt-0.5 mb-1">{t.rooms.joinNextRoundHint}</p>
                 )}
                 <Button
                   fullWidth
@@ -528,7 +528,7 @@ export function RoomsPage() {
                   {t.rooms.watchAsSpectator}
                 </Button>
                 {!joinChoice.isLobby && (
-                  <p className="text-[10px] font-mono text-white/25 -mt-0.5">{t.rooms.watchSpectatorHint}</p>
+                  <p className="text-[12px] font-mono text-white/25 -mt-0.5">{t.rooms.watchSpectatorHint}</p>
                 )}
               </div>
             </motion.div>

@@ -83,13 +83,13 @@ function RecommendCard({ rec, label, canManage, onOpen, onDelete }: {
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => onDelete(rec.id)}
-                  className="font-mono text-[8px] uppercase tracking-wider px-1.5 py-1 rounded-lg text-red-400 border border-red-500/40 bg-black/70 active:scale-95 transition-all"
+                  className="font-mono text-[12px] uppercase tracking-wider px-1.5 py-1 rounded-lg text-red-400 border border-red-500/40 bg-black/70 active:scale-95 transition-all"
                 >
                   {t.community.recommends.delete}?
                 </button>
                 <button
                   onClick={() => setConfirming(false)}
-                  className="font-mono text-[9px] text-white/50 hover:text-white/80 bg-black/70 rounded-full w-5 h-5 flex items-center justify-center"
+                  className="font-mono text-[12px] text-white/50 hover:text-white/80 bg-black/70 rounded-full w-5 h-5 flex items-center justify-center"
                 >
                   ✕
                 </button>
@@ -108,13 +108,13 @@ function RecommendCard({ rec, label, canManage, onOpen, onDelete }: {
       </div>
       <div className="p-2.5 space-y-1">
         <span
-          className="inline-block font-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+          className="inline-block font-mono text-[12px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
           style={{ background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.3)', color: 'rgba(180,80,255,0.9)' }}
         >
           {label}
         </span>
         <p className="font-display font-bold text-white text-sm leading-snug line-clamp-2">{rec.title}</p>
-        <p className="font-mono text-[10px] text-white/40 line-clamp-2 leading-relaxed">{rec.review}</p>
+        <p className="font-mono text-[12px] text-white/40 line-clamp-2 leading-relaxed">{rec.review}</p>
       </div>
     </motion.div>
   );
@@ -183,7 +183,7 @@ export function RecommendsTab(): JSX.Element {
       <div className="flex gap-1.5 overflow-x-auto pb-1 mb-4 -mx-1 px-1 scrollbar-none">
         <button
           onClick={() => setFilter('all')}
-          className="flex-shrink-0 px-3 py-1.5 rounded-full font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+          className="flex-shrink-0 px-3 py-1.5 rounded-full font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
           style={{
             background: filter === 'all' ? 'rgba(155,0,255,0.22)' : 'rgba(255,255,255,0.03)',
             border: `1px solid ${filter === 'all' ? 'rgba(155,0,255,0.45)' : 'rgba(255,255,255,0.08)'}`,
@@ -196,7 +196,7 @@ export function RecommendsTab(): JSX.Element {
           <button
             key={c}
             onClick={() => setFilter(c)}
-            className="flex-shrink-0 px-3 py-1.5 rounded-full font-mono text-[10px] uppercase tracking-wider whitespace-nowrap transition-all active:scale-95"
+            className="flex-shrink-0 px-3 py-1.5 rounded-full font-mono text-[12px] uppercase tracking-wider whitespace-nowrap transition-all active:scale-95"
             style={{
               background: filter === c ? 'rgba(155,0,255,0.22)' : 'rgba(255,255,255,0.03)',
               border: `1px solid ${filter === c ? 'rgba(155,0,255,0.45)' : 'rgba(255,255,255,0.08)'}`,
@@ -233,14 +233,14 @@ export function RecommendsTab(): JSX.Element {
           <ModalShell accent="purple" onClose={() => setDetail(null)}>
             <DetailImage imageUrl={detail.imageUrl} emoji={CATEGORY_EMOJI[detail.category]} />
             <span
-              className="inline-block font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full mb-2"
+              className="inline-block font-mono text-[12px] uppercase tracking-wider px-2 py-0.5 rounded-full mb-2"
               style={{ background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.3)', color: 'rgba(180,80,255,0.9)' }}
             >
               {categoryLabel(detail.category)}
             </span>
             <h3 className="font-display font-bold text-white text-xl mb-2">{detail.title}</h3>
             <p className="font-mono text-sm text-white/60 whitespace-pre-wrap leading-relaxed mb-3">{detail.review}</p>
-            <p className="font-mono text-[10px] text-white/25">{timeAgo(detail.createdAt)}</p>
+            <p className="font-mono text-[12px] text-white/25">{timeAgo(detail.createdAt)}</p>
             {isOwner && (
               <button
                 onClick={() => handleDelete(detail.id)}
@@ -264,7 +264,7 @@ export function RecommendsTab(): JSX.Element {
                   <button
                     key={c}
                     onClick={() => setCategory(c)}
-                    className="px-3 py-1.5 rounded-full font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+                    className="px-3 py-1.5 rounded-full font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
                     style={{
                       background: category === c ? 'rgba(155,0,255,0.22)' : 'rgba(255,255,255,0.03)',
                       border: `1px solid ${category === c ? 'rgba(155,0,255,0.45)' : 'rgba(255,255,255,0.08)'}`,
@@ -276,15 +276,15 @@ export function RecommendsTab(): JSX.Element {
                 ))}
               </div>
               <div>
-                <label className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">{t.community.recommends.titleLabel}</label>
+                <label className="font-mono text-[12px] uppercase tracking-wider text-white/40 block mb-1">{t.community.recommends.titleLabel}</label>
                 <TextInput value={title} onChange={setTitle} placeholder={t.community.recommends.titlePh} maxLength={120} accent="purple" />
               </div>
               <div>
-                <label className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">{t.community.recommends.reviewLabel}</label>
+                <label className="font-mono text-[12px] uppercase tracking-wider text-white/40 block mb-1">{t.community.recommends.reviewLabel}</label>
                 <TextArea value={review} onChange={setReview} placeholder={t.community.recommends.reviewPh} maxLength={2000} rows={4} accent="purple" />
               </div>
               <div>
-                <label className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">{t.community.recommends.imageLabel}</label>
+                <label className="font-mono text-[12px] uppercase tracking-wider text-white/40 block mb-1">{t.community.recommends.imageLabel}</label>
                 <TextInput value={imageUrl} onChange={setImageUrl} placeholder="https://…" accent="purple" />
               </div>
               <button

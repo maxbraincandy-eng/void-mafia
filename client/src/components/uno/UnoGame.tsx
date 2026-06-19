@@ -143,7 +143,7 @@ function PlayerBadge({
           {player.nickname}{isMe ? ' ✦' : ''}{isCurrent ? ' ▶' : ''}
         </p>
         {player.calledUno && player.cardCount === 1 && (
-          <p className="font-mono text-[9px]" style={{ color: '#ff2d55' }}>UNO!</p>
+          <p className="font-mono text-[12px]" style={{ color: '#ff2d55' }}>UNO!</p>
         )}
       </div>
 
@@ -239,7 +239,7 @@ function DrawPile({ count, canDraw, pendingDraw, onDraw }: {
       {pendingDraw > 0 ? (
         <span className="font-mono text-xs font-bold" style={{ color: '#ff2d55' }}>+{pendingDraw}</span>
       ) : (
-        <span className="font-mono text-[9px]" style={{ color: 'rgba(255,255,255,0.3)' }}>{count}</span>
+        <span className="font-mono text-[12px]" style={{ color: 'rgba(255,255,255,0.3)' }}>{count}</span>
       )}
     </motion.button>
   );
@@ -265,7 +265,7 @@ function WaitingScreen({
         className="w-full rounded-2xl text-center py-6"
         style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.2)' }}
       >
-        <p className="font-mono text-[10px] text-white/35 mb-1 uppercase tracking-wide">მოიწვიე მეგობრები</p>
+        <p className="font-mono text-[12px] text-white/35 mb-1 uppercase tracking-wide">მოიწვიე მეგობრები</p>
         <p className="font-display font-bold text-4xl tracking-normal" style={{ color: UNO_ACCENT }}>
           {match.code}
         </p>
@@ -303,12 +303,12 @@ function WaitingScreen({
             className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
             style={{ background: 'rgba(255,255,255,0.01)', border: '1px dashed rgba(255,255,255,0.08)' }}
           >
-            <span className="font-mono text-[10px] text-white/20">{match.settings.maxPlayers - match.players.length} ადგილი თავისუფალია</span>
+            <span className="font-mono text-[12px] text-white/20">{match.settings.maxPlayers - match.players.length} ადგილი თავისუფალია</span>
           </div>
         )}
       </div>
 
-      <div className="text-center font-mono text-[10px] text-white/25">
+      <div className="text-center font-mono text-[12px] text-white/25">
         {match.players.length}/{match.settings.maxPlayers} მოთამაშე
       </div>
 
@@ -365,7 +365,7 @@ function WinScreen({
       </motion.div>
 
       <div>
-        <p className="font-mono text-[10px] uppercase tracking-widest text-white/30 mb-2">
+        <p className="font-mono text-[12px] uppercase tracking-widest text-white/30 mb-2">
           {isWinner ? '🎉 გაიმარჯვე!' : 'გამარჯვებული'}
         </p>
         <p className="font-display font-bold text-3xl" style={{ color: isWinner ? UNO_ACCENT : '#fff' }}>
@@ -595,12 +595,12 @@ export function UnoGame() {
     >
       {/* ── Header ── */}
       <div
-        className="flex items-center gap-3 px-4 py-3 border-b flex-shrink-0"
-        style={{ borderColor: 'rgba(168,85,247,0.15)', background: 'rgba(168,85,247,0.05)' }}
+        className="flex items-center gap-3 px-4 border-b flex-shrink-0"
+        style={{ borderColor: 'rgba(168,85,247,0.15)', background: 'rgba(168,85,247,0.05)', paddingTop: 'max(12px, env(safe-area-inset-top, 0px))', paddingBottom: 12 }}
       >
         <button
           onClick={() => leaveMatch()}
-          className="w-8 h-8 flex items-center justify-center rounded-lg transition-all active:scale-90"
+          className="w-11 h-11 flex items-center justify-center rounded-lg transition-all active:scale-90 flex-shrink-0"
           style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' }}
         >←</button>
 
@@ -620,7 +620,7 @@ export function UnoGame() {
               </>
             )}
           </div>
-          <p className="font-mono text-[9px] text-white/30 mt-0.5">
+          <p className="font-mono text-[12px] text-white/30 mt-0.5">
             {isWaiting ? `კოდი: ${match.code}` :
              isActive ? (isMyTurn ? '▶ შენი სვლაა' : `${currentPlayerInfo?.nickname ?? '?'}-ს სვლა`) :
              isFinished ? 'თამაში დასრულდა' : match.code}
@@ -633,7 +633,7 @@ export function UnoGame() {
             onPointerDown={() => voice.startTalk(match.id)}
             onPointerUp={() => voice.stopTalk(match.id)}
             onPointerLeave={() => voice.stopTalk(match.id)}
-            className="w-8 h-8 flex items-center justify-center rounded-lg transition-all select-none"
+            className="w-11 h-11 flex items-center justify-center rounded-lg transition-all select-none"
             style={{
               background: voice.isTalking ? 'rgba(34,197,94,0.25)' : 'rgba(255,255,255,0.05)',
               border: voice.isTalking ? '1px solid rgba(34,197,94,0.6)' : '1px solid rgba(255,255,255,0.1)',
@@ -646,7 +646,7 @@ export function UnoGame() {
 
         <button
           onClick={() => setChatOpen(o => !o)}
-          className="relative w-8 h-8 flex items-center justify-center rounded-lg transition-all active:scale-90"
+          className="relative w-11 h-11 flex items-center justify-center rounded-lg transition-all active:scale-90"
           style={{
             background: 'rgba(168,85,247,0.1)',
             border: `1px solid ${chatOpen ? UNO_ACCENT + '50' : 'rgba(168,85,247,0.25)'}`,
@@ -738,7 +738,7 @@ export function UnoGame() {
 
             {/* Spectator count */}
             {match.spectatorCount > 0 && (
-              <p className="text-center font-mono text-[9px] text-white/20 pb-1">
+              <p className="text-center font-mono text-[12px] text-white/20 pb-1">
                 👁 {match.spectatorCount} მაყურებელი
               </p>
             )}
@@ -774,11 +774,11 @@ export function UnoGame() {
 
               {/* Hand label */}
               <div className="flex items-center justify-between px-4 mb-2">
-                <p className="font-mono text-[10px] text-white/30 uppercase tracking-wide">
+                <p className="font-mono text-[12px] text-white/30 uppercase tracking-wide">
                   ჩემი კარტები ({myCardCount})
                 </p>
                 {isMyTurn && selectedCardId && (
-                  <p className="font-mono text-[10px]" style={{ color: UNO_ACCENT }}>
+                  <p className="font-mono text-[12px]" style={{ color: UNO_ACCENT }}>
                     ↑ კვლავ დააჭირე სათამაშოდ
                   </p>
                 )}

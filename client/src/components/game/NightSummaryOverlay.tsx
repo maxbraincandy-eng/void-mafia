@@ -39,7 +39,7 @@ export function NightSummaryOverlay({ summary, onDismiss }: Props) {
             {/* Header */}
             <div className="flex items-center gap-2 mb-3">
               <span className="text-lg">🌅</span>
-              <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-white/40">
+              <p className="font-mono text-[12px] uppercase tracking-[0.25em] text-white/40">
                 Night {summary.day} Report
               </p>
             </div>
@@ -48,12 +48,12 @@ export function NightSummaryOverlay({ summary, onDismiss }: Props) {
             <div className="flex gap-3 mb-3">
               <div className="flex-1 rounded-xl border border-white/8 bg-white/4 px-3 py-2 text-center">
                 <p className="font-display text-lg font-bold text-white">{summary.totalTargeted}</p>
-                <p className="font-mono text-[9px] text-white/35 uppercase tracking-wider mt-0.5">targeted</p>
+                <p className="font-mono text-[12px] text-white/35 uppercase tracking-wider mt-0.5">targeted</p>
               </div>
               {summary.saved && (
                 <div className="flex-1 rounded-xl border border-neon-cyan/30 bg-neon-cyan/5 px-3 py-2 text-center">
                   <p className="font-display text-lg font-bold text-neon-cyan">1</p>
-                  <p className="font-mono text-[9px] text-neon-cyan/60 uppercase tracking-wider mt-0.5">saved</p>
+                  <p className="font-mono text-[12px] text-neon-cyan/60 uppercase tracking-wider mt-0.5">saved</p>
                 </div>
               )}
               <div
@@ -69,7 +69,7 @@ export function NightSummaryOverlay({ summary, onDismiss }: Props) {
                 >
                   {summary.eliminated.length}
                 </p>
-                <p className="font-mono text-[9px] uppercase tracking-wider mt-0.5"
+                <p className="font-mono text-[12px] uppercase tracking-wider mt-0.5"
                   style={{ color: summary.eliminated.length > 0 ? 'rgba(255,60,80,0.5)' : 'rgba(255,255,255,0.25)' }}
                 >
                   eliminated
@@ -95,7 +95,7 @@ export function NightSummaryOverlay({ summary, onDismiss }: Props) {
               </p>
             )}
 
-            <p className="font-mono text-[9px] text-white/15 text-center mt-2">tap to dismiss</p>
+            <p className="font-mono text-[12px] text-white/15 text-center mt-2">tap to dismiss</p>
           </div>
         </motion.div>
       )}

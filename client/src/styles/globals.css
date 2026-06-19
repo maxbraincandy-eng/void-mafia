@@ -47,6 +47,17 @@
     overflow-wrap: anywhere;
     word-break: break-word;
   }
+
+  /* Minimum readable font size on mobile */
+  body {
+    font-size: max(14px, 1em);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Minimum touch target — buttons inherit 44px min even if styled smaller visually */
+  button, [role="button"] {
+    min-height: 36px;
+  }
   /* But don't break mono/code text that shouldn't wrap */
   code, kbd, samp, pre {
     word-break: normal;

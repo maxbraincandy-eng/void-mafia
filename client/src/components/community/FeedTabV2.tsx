@@ -61,7 +61,7 @@ export function FeedTabV2({ onOpenProfile }: { onOpenProfile: (playerId: string)
       {activeHashtag && (
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs" style={{ color: '#00f5ff' }}>#{activeHashtag}</span>
-          <button onClick={() => setActiveHashtag(null)} className="font-mono text-[10px] text-white/40 hover:text-white/70 transition-colors">✕</button>
+          <button onClick={() => setActiveHashtag(null)} className="font-mono text-[12px] text-white/40 hover:text-white/70 transition-colors">✕</button>
         </div>
       )}
 
@@ -73,7 +73,7 @@ export function FeedTabV2({ onOpenProfile }: { onOpenProfile: (playerId: string)
             <button
               key={cat.id}
               onClick={() => setFeedCategory(cat.id)}
-              className="px-3 py-1.5 rounded-full font-mono text-[10px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 active:scale-95"
+              className="px-3 py-1.5 rounded-full font-mono text-[12px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 active:scale-95"
               style={{
                 background: active ? 'linear-gradient(135deg, rgba(155,0,255,0.28), rgba(0,245,255,0.16))' : 'rgba(255,255,255,0.03)',
                 border: `1px solid ${active ? 'rgba(155,0,255,0.45)' : 'rgba(255,255,255,0.08)'}`,

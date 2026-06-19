@@ -68,7 +68,7 @@ export function HermesMessageList() {
               🤖
             </div>
             <div className="bg-white/4 border border-white/8 rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-2">
-              <span className="font-mono text-[10px] text-neon-cyan/55 uppercase tracking-widest">
+              <span className="font-mono text-[12px] text-neon-cyan/55 uppercase tracking-widest">
                 {t.hermes.thinking}
               </span>
               <div className="flex gap-1">

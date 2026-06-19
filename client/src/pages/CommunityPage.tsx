@@ -70,7 +70,7 @@ export function CommunityPage() {
             >
               {t.community.header}
             </h1>
-            <p className="font-mono text-[10px] text-white/35 mt-0.5 truncate">{t.community.tagline}</p>
+            <p className="font-mono text-[12px] text-white/35 mt-0.5 truncate">{t.community.tagline}</p>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <button
@@ -107,7 +107,7 @@ export function CommunityPage() {
               🔔
               {unreadCount > 0 && (
                 <span
-                  className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-neon-pink text-[8px] font-bold text-white flex items-center justify-center"
+                  className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-neon-pink text-[12px] font-bold text-white flex items-center justify-center"
                   style={{ boxShadow: '0 0 8px rgba(255,0,204,0.6)' }}
                 >
                   {unreadCount > 9 ? '9+' : unreadCount}
@@ -128,7 +128,7 @@ export function CommunityPage() {
               <button
                 key={tb.id}
                 onClick={() => setTab(tb.id)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full font-mono text-[10px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 active:scale-95"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full font-mono text-[12px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 active:scale-95"
                 style={{
                   background: active ? 'linear-gradient(135deg, rgba(155,0,255,0.28), rgba(0,245,255,0.16))' : 'rgba(255,255,255,0.03)',
                   border: `1px solid ${active ? 'rgba(155,0,255,0.45)' : 'rgba(255,255,255,0.08)'}`,

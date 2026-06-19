@@ -154,12 +154,12 @@ function BalanceBar({ roles, playerCount }: { roles: GameSettings['roles']; play
       {!b.isAutoMode && total > 0 && (
         <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5">
           {segments.map(s => (
-            <span key={s.label} className="text-[10px] font-mono" style={{ color: s.color }}>
+            <span key={s.label} className="text-[12px] font-mono" style={{ color: s.color }}>
               {s.label} {s.val}
             </span>
           ))}
           {b.citizens > 0 && (
-            <span className="text-[10px] font-mono text-white/30">Citizens {b.citizens}</span>
+            <span className="text-[12px] font-mono text-white/30">Citizens {b.citizens}</span>
           )}
         </div>
       )}
@@ -243,8 +243,8 @@ function RoleCard({
             exit={{ opacity: 0, y: 4 }}
             className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20 w-44 rounded-xl border border-white/15 bg-void-50/95 backdrop-blur-sm p-2.5 pointer-events-none"
           >
-            <p className="text-[10px] font-bold text-white mb-1">{role.icon} {role.name}</p>
-            <p className="text-[10px] text-white/55 leading-relaxed">{role.desc}</p>
+            <p className="text-[12px] font-bold text-white mb-1">{role.icon} {role.name}</p>
+            <p className="text-[12px] text-white/55 leading-relaxed">{role.desc}</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -360,7 +360,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
           <button
             type="button"
             onClick={handleAutoSetup}
-            className="px-3 py-1 rounded-lg text-[10px] font-mono font-bold border border-neon-cyan/30 text-neon-cyan/70 hover:border-neon-cyan/60 hover:text-neon-cyan hover:bg-neon-cyan/5 transition-all uppercase tracking-wider"
+            className="px-3 py-1 rounded-lg text-[12px] font-mono font-bold border border-neon-cyan/30 text-neon-cyan/70 hover:border-neon-cyan/60 hover:text-neon-cyan hover:bg-neon-cyan/5 transition-all uppercase tracking-wider"
           >
             ⚡ Auto Setup
           </button>
@@ -371,7 +371,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
       {/* ── Role cards by team ─────────────────────────────────────────── */}
       {ROLE_GROUPS.map(group => (
         <div key={group.label} className={clsx('rounded-2xl border p-4', group.borderColor, group.bgColor)}>
-          <p className={clsx('text-[10px] font-display font-bold tracking-[0.2em] uppercase mb-3', group.color)}>
+          <p className={clsx('text-[12px] font-display font-bold tracking-[0.2em] uppercase mb-3', group.color)}>
             {group.label}
           </p>
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -441,7 +441,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
                 type="button"
                 onClick={() => { setSaved(false); setLocal(s => ({ ...s, tieVoteRule: rule })); }}
                 className={clsx(
-                  'flex-1 py-1.5 rounded-lg text-[10px] font-mono border transition-all',
+                  'flex-1 py-1.5 rounded-lg text-[12px] font-mono border transition-all',
                   local.tieVoteRule === rule
                     ? 'border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan'
                     : 'border-white/8 text-white/30 hover:text-white/60',
@@ -462,7 +462,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
                 type="button"
                 onClick={() => { setSaved(false); setLocal(s => ({ ...s, minPlayers: n })); }}
                 className={clsx(
-                  'flex-1 py-1.5 rounded-lg text-[10px] font-mono border transition-all',
+                  'flex-1 py-1.5 rounded-lg text-[12px] font-mono border transition-all',
                   local.minPlayers === n
                     ? 'border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan'
                     : 'border-white/8 text-white/30 hover:text-white/60',
@@ -482,7 +482,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
             <h4 className="text-xs font-display font-bold text-white/50 uppercase tracking-widest">
               ⚖️ Tribunal Settings
             </h4>
-            <p className="text-[10px] font-mono text-white/30 mt-0.5">
+            <p className="text-[12px] font-mono text-white/30 mt-0.5">
               ტრიბუნალის პარამეტრები
             </p>
           </div>
@@ -515,7 +515,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
           </div>
           <div>
             <span className="text-xs font-mono text-white/60">🛡 Enable Trial Defense Time</span>
-            <span className="block text-[10px] font-mono text-white/28 mt-0.5">
+            <span className="block text-[12px] font-mono text-white/28 mt-0.5">
               დაცვის დროის ჩართვა — each candidate speaks before voting
             </span>
           </div>
@@ -541,7 +541,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
                     }));
                   }}
                   className={clsx(
-                    'flex-1 py-1.5 rounded-lg text-[10px] font-mono border transition-all',
+                    'flex-1 py-1.5 rounded-lg text-[12px] font-mono border transition-all',
                     (local.trialDefense?.secondsPerCandidate ?? 30) === secs
                       ? 'border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan'
                       : 'border-white/8 text-white/30 hover:text-white/60',
@@ -562,7 +562,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
             <h4 className="text-xs font-display font-bold text-neon-purple/70 uppercase tracking-widest">
               ⚡ Dynamic Events
             </h4>
-            <p className="text-[10px] font-mono text-white/30 mt-0.5">
+            <p className="text-[12px] font-mono text-white/30 mt-0.5">
               Random chaos events each phase
             </p>
           </div>
@@ -585,7 +585,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
         {de.enabled && (
           <div className="space-y-3">
             <div>
-              <p className="text-[10px] font-mono text-white/35 uppercase tracking-widest mb-2">Frequency</p>
+              <p className="text-[12px] font-mono text-white/35 uppercase tracking-widest mb-2">Frequency</p>
               <div className="flex gap-2">
                 {(['low', 'medium', 'high'] as const).map(f => (
                   <button
@@ -594,14 +594,14 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
                     onClick={() => updateDE({ frequency: f })}
                     disabled={isLoading}
                     className={clsx(
-                      'flex-1 py-1.5 rounded-lg border text-[10px] font-mono tracking-widest uppercase transition-all',
+                      'flex-1 py-1.5 rounded-lg border text-[12px] font-mono tracking-widest uppercase transition-all',
                       de.frequency === f
                         ? 'border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan/80'
                         : 'border-white/[0.07] text-white/25 hover:border-white/15 hover:text-white/45',
                     )}
                   >
                     {f}
-                    <span className="block text-[8px] opacity-60 mt-0.5 normal-case tracking-normal">
+                    <span className="block text-[12px] opacity-60 mt-0.5 normal-case tracking-normal">
                       {f === 'low' ? '10%' : f === 'medium' ? '20%' : '35%'}
                     </span>
                   </button>
@@ -610,7 +610,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
             </div>
 
             <div>
-              <p className="text-[10px] font-mono text-white/35 uppercase tracking-widest mb-2">Allowed Events</p>
+              <p className="text-[12px] font-mono text-white/35 uppercase tracking-widest mb-2">Allowed Events</p>
               <div className="grid grid-cols-1 gap-1">
                 {DE_EVENT_LABELS.map(({ key, label, icon }) => {
                   const on = de.allowed[key] !== false;
@@ -627,7 +627,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
                     >
                       <span className="text-sm leading-none flex-shrink-0">{icon}</span>
                       <span className="text-[11px] font-mono text-white/55 flex-1">{label}</span>
-                      <span className={clsx('text-[9px] font-mono uppercase tracking-widest flex-shrink-0', on ? 'text-neon-green/50' : 'text-white/15')}>
+                      <span className={clsx('text-[12px] font-mono uppercase tracking-widest flex-shrink-0', on ? 'text-neon-green/50' : 'text-white/15')}>
                         {on ? 'on' : 'off'}
                       </span>
                     </button>

@@ -38,7 +38,7 @@ function PhaseBanner({ debate }: { debate: DebateFull }) {
   return (
     <div className="rounded-2xl p-3 mb-3" style={{ background: 'rgba(155,0,255,0.08)', border: '1px solid rgba(155,0,255,0.2)' }}>
       <div className="flex items-center justify-between mb-2">
-        <span className="font-mono text-[10px] uppercase tracking-widest" style={{
+        <span className="font-mono text-[12px] uppercase tracking-widest" style={{
           color: activeSide === 'pro' ? '#00f5ff' : activeSide === 'con' ? '#ff6060' : '#c084fc',
         }}>
           {phaseLabel}
@@ -70,7 +70,7 @@ function SpeakerCard({ participant, isActive, isSpeaking }: { participant: Debat
   return (
     <div className="flex items-center gap-1.5 py-1">
       <div
-        className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0"
+        className="w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold flex-shrink-0"
         style={{
           background: isActive ? color + '25' : 'rgba(255,255,255,0.05)',
           border: `1px solid ${isActive ? color + '50' : 'rgba(255,255,255,0.08)'}`,
@@ -79,12 +79,12 @@ function SpeakerCard({ participant, isActive, isSpeaking }: { participant: Debat
       >
         {(participant.username ?? '?').charAt(0).toUpperCase()}
       </div>
-      <span className="font-mono text-[9px] text-white/60 truncate flex-1">{participant.username ?? '???'}</span>
+      <span className="font-mono text-[12px] text-white/60 truncate flex-1">{participant.username ?? '???'}</span>
       {isActive && (
         <motion.span
           animate={isSpeaking ? { opacity: [1, 0.3, 1] } : { opacity: 1 }}
           transition={{ repeat: Infinity, duration: 0.7 }}
-          className="text-[8px]"
+          className="text-[12px]"
         >
           🎙
         </motion.span>
@@ -112,13 +112,13 @@ function DebateGrid({ debate, speakingSocketIds }: { debate: DebateFull; speakin
       >
         <div className="flex items-center gap-1 mb-2">
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#00f5ff' }} />
-          <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: '#00f5ff' }}>{t.community.debates.pro}</span>
+          <span className="font-mono text-[12px] uppercase tracking-widest" style={{ color: '#00f5ff' }}>{t.community.debates.pro}</span>
           {activeSide === 'pro' && (
-            <span className="ml-auto font-mono text-[9px] text-white/40 animate-pulse">● {t.community.debates.speaking}</span>
+            <span className="ml-auto font-mono text-[12px] text-white/40 animate-pulse">● {t.community.debates.speaking}</span>
           )}
         </div>
         {proSpeakers.length === 0 ? (
-          <p className="font-mono text-[9px] text-white/20 text-center py-2">{'No speakers'}</p>
+          <p className="font-mono text-[12px] text-white/20 text-center py-2">{'No speakers'}</p>
         ) : (
           proSpeakers.map(p => (
             <SpeakerCard key={p.id} participant={p} isActive={activeSide === 'pro'}
@@ -137,13 +137,13 @@ function DebateGrid({ debate, speakingSocketIds }: { debate: DebateFull; speakin
       >
         <div className="flex items-center gap-1 mb-2">
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#ff6060' }} />
-          <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: '#ff6060' }}>{t.community.debates.con}</span>
+          <span className="font-mono text-[12px] uppercase tracking-widest" style={{ color: '#ff6060' }}>{t.community.debates.con}</span>
           {activeSide === 'con' && (
-            <span className="ml-auto font-mono text-[9px] text-white/40 animate-pulse">● {t.community.debates.speaking}</span>
+            <span className="ml-auto font-mono text-[12px] text-white/40 animate-pulse">● {t.community.debates.speaking}</span>
           )}
         </div>
         {conSpeakers.length === 0 ? (
-          <p className="font-mono text-[9px] text-white/20 text-center py-2">{'No speakers'}</p>
+          <p className="font-mono text-[12px] text-white/20 text-center py-2">{'No speakers'}</p>
         ) : (
           conSpeakers.map(p => (
             <SpeakerCard key={p.id} participant={p} isActive={activeSide === 'con'}
@@ -166,12 +166,12 @@ function RaisedHandsPanel({
   if (debate.raisedHands.length === 0) return null;
   return (
     <div className="rounded-xl p-3 mb-3" style={{ background: 'rgba(155,0,255,0.06)', border: '1px solid rgba(155,0,255,0.2)' }}>
-      <p className="font-mono text-[9px] uppercase tracking-widest text-white/40 mb-2">✋ Raised Hands</p>
+      <p className="font-mono text-[12px] uppercase tracking-widest text-white/40 mb-2">✋ Raised Hands</p>
       {debate.raisedHands.map(h => (
         <div key={h.playerId} className="flex items-center gap-2 py-1">
-          <span className="font-mono text-[10px] text-white/60 flex-1">{h.username ?? '???'}</span>
+          <span className="font-mono text-[12px] text-white/60 flex-1">{h.username ?? '???'}</span>
           <span
-            className="font-mono text-[9px] px-1.5 py-0.5 rounded"
+            className="font-mono text-[12px] px-1.5 py-0.5 rounded"
             style={{
               background: h.side === 'pro' ? 'rgba(0,245,255,0.1)' : 'rgba(255,96,96,0.1)',
               color: h.side === 'pro' ? '#00f5ff' : '#ff6060',
@@ -181,7 +181,7 @@ function RaisedHandsPanel({
           </span>
           <button
             onClick={() => onPromote(h.playerId)}
-            className="font-mono text-[9px] px-2 py-1 rounded-lg transition-all active:scale-95"
+            className="font-mono text-[12px] px-2 py-1 rounded-lg transition-all active:scale-95"
             style={{ background: 'rgba(155,0,255,0.2)', border: '1px solid rgba(155,0,255,0.4)', color: '#c084fc' }}
           >
             Bring Up
@@ -199,8 +199,8 @@ function VoteBar({ side, count, total, label }: { side: 'pro' | 'con'; count: nu
   return (
     <div className="flex-1">
       <div className="flex items-center justify-between mb-1">
-        <span className="font-mono text-[10px]" style={{ color }}>{label}</span>
-        <span className="font-mono text-[10px] text-white/40">{count} ({pct}%)</span>
+        <span className="font-mono text-[12px]" style={{ color }}>{label}</span>
+        <span className="font-mono text-[12px] text-white/40">{count} ({pct}%)</span>
       </div>
       <div className="h-1 rounded-full bg-white/8 overflow-hidden">
         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
@@ -297,11 +297,11 @@ function DebateRoom({ debate, onBack, uid, username }: { debate: DebateFull; onB
             <motion.span
               animate={voice.isSpeaker ? { opacity: [1, 0.3, 1] } : { opacity: 1 }}
               transition={{ repeat: Infinity, duration: 0.9 }}
-              className="text-[10px]"
+              className="text-[12px]"
             >
               {voice.isSpeaker ? '🎙' : '👂'}
             </motion.span>
-            <span className="font-mono text-[9px]" style={{ color: '#c084fc' }}>
+            <span className="font-mono text-[12px]" style={{ color: '#c084fc' }}>
               {voice.isSpeaker ? 'MIC ON' : 'LIVE'}
             </span>
           </div>
@@ -311,7 +311,7 @@ function DebateRoom({ debate, onBack, uid, username }: { debate: DebateFull; onB
               e.preventDefault();
               voice.join(debate.id, myPart.side as 'pro' | 'con', username);
             }}
-            className="flex items-center gap-1 px-2 py-1 rounded-full font-mono text-[9px] uppercase tracking-wider select-none touch-none transition-all active:scale-95"
+            className="flex items-center gap-1 px-2 py-1 rounded-full font-mono text-[12px] uppercase tracking-wider select-none touch-none transition-all active:scale-95"
             style={{
               background: 'rgba(0,245,255,0.07)',
               border: voice.status === 'failed' ? '1px solid rgba(255,80,80,0.4)' : '1px solid rgba(0,245,255,0.25)',
@@ -329,7 +329,7 @@ function DebateRoom({ debate, onBack, uid, username }: { debate: DebateFull; onB
         <div className="flex items-start justify-between gap-2 mb-1">
           <h3 className="text-white/90 font-mono text-sm leading-snug">{debate.topic}</h3>
           <span
-            className="flex-shrink-0 px-2 py-0.5 rounded-full font-mono text-[9px] uppercase tracking-wider"
+            className="flex-shrink-0 px-2 py-0.5 rounded-full font-mono text-[12px] uppercase tracking-wider"
             style={{
               background: debate.status === 'open' ? 'rgba(0,245,255,0.1)' : 'rgba(255,255,255,0.06)',
               border: `1px solid ${debate.status === 'open' ? 'rgba(0,245,255,0.3)' : 'rgba(255,255,255,0.12)'}`,
@@ -372,7 +372,7 @@ function DebateRoom({ debate, onBack, uid, username }: { debate: DebateFull; onB
           {isCreator && debate.phase === 'waiting' && (
             <button
               onClick={handleStart}
-              className="flex-1 py-2 rounded-xl font-mono text-[10px] transition-all active:scale-95"
+              className="flex-1 py-2 rounded-xl font-mono text-[12px] transition-all active:scale-95"
               style={{ background: 'rgba(155,0,255,0.2)', border: '1px solid rgba(155,0,255,0.4)', color: '#c084fc' }}
             >
               ▶ {t.community.debates.startDebate}
@@ -384,7 +384,7 @@ function DebateRoom({ debate, onBack, uid, username }: { debate: DebateFull; onB
             (myPart?.side === activeSide || isCreator) && (
               <button
                 onClick={handleSkip}
-                className="px-3 py-2 rounded-xl font-mono text-[10px] transition-all active:scale-95"
+                className="px-3 py-2 rounded-xl font-mono text-[12px] transition-all active:scale-95"
                 style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.5)' }}
               >
                 ⏭ {t.community.debates.skipTurn}
@@ -400,7 +400,7 @@ function DebateRoom({ debate, onBack, uid, username }: { debate: DebateFull; onB
               <button
                 key={side}
                 onClick={() => handleJoin(side)}
-                className="flex-1 py-2 rounded-xl font-mono text-[10px] transition-all active:scale-95"
+                className="flex-1 py-2 rounded-xl font-mono text-[12px] transition-all active:scale-95"
                 style={{
                   background: active
                     ? side === 'pro' ? 'rgba(0,245,255,0.18)' : side === 'con' ? 'rgba(255,60,60,0.18)' : 'rgba(155,0,255,0.18)'
@@ -427,7 +427,7 @@ function DebateRoom({ debate, onBack, uid, username }: { debate: DebateFull; onB
                   <button
                     key={side}
                     onClick={() => vote(debate.id, side).catch(() => {})}
-                    className="flex-1 py-2 rounded-xl font-mono text-[10px] transition-all active:scale-95"
+                    className="flex-1 py-2 rounded-xl font-mono text-[12px] transition-all active:scale-95"
                     style={{
                       background: voted
                         ? side === 'pro' ? 'rgba(0,245,255,0.12)' : 'rgba(255,60,60,0.12)'
@@ -452,7 +452,7 @@ function DebateRoom({ debate, onBack, uid, username }: { debate: DebateFull; onB
             isHandRaised ? (
               <button
                 onClick={handleLowerHand}
-                className="px-3 py-2 rounded-xl font-mono text-[10px] transition-all active:scale-95"
+                className="px-3 py-2 rounded-xl font-mono text-[12px] transition-all active:scale-95"
                 style={{ background: 'rgba(155,0,255,0.15)', border: '1px solid rgba(155,0,255,0.35)', color: '#c084fc' }}
               >
                 {t.community.debates.lowerHand}
@@ -461,14 +461,14 @@ function DebateRoom({ debate, onBack, uid, username }: { debate: DebateFull; onB
               <>
                 <button
                   onClick={() => handleRaiseHand('pro')}
-                  className="flex-1 py-2 rounded-xl font-mono text-[10px] transition-all active:scale-95"
+                  className="flex-1 py-2 rounded-xl font-mono text-[12px] transition-all active:scale-95"
                   style={{ background: 'rgba(0,245,255,0.06)', border: '1px solid rgba(0,245,255,0.2)', color: '#00f5ff' }}
                 >
                   {t.community.debates.raiseHandPro}
                 </button>
                 <button
                   onClick={() => handleRaiseHand('con')}
-                  className="flex-1 py-2 rounded-xl font-mono text-[10px] transition-all active:scale-95"
+                  className="flex-1 py-2 rounded-xl font-mono text-[12px] transition-all active:scale-95"
                   style={{ background: 'rgba(255,96,96,0.06)', border: '1px solid rgba(255,96,96,0.2)', color: '#ff6060' }}
                 >
                   {t.community.debates.raiseHandCon}
@@ -481,7 +481,7 @@ function DebateRoom({ debate, onBack, uid, username }: { debate: DebateFull; onB
           {isCreator && (
             <button
               onClick={() => closeDebate(debate.id).catch(() => {})}
-              className="px-3 py-2 rounded-xl font-mono text-[10px] text-white/40 hover:text-red-400 transition-colors"
+              className="px-3 py-2 rounded-xl font-mono text-[12px] text-white/40 hover:text-red-400 transition-colors"
               style={{ border: '1px solid rgba(255,255,255,0.08)' }}
             >
               {t.community.debates.close}
@@ -499,7 +499,7 @@ function DebateRoom({ debate, onBack, uid, username }: { debate: DebateFull; onB
               <button
                 key={side}
                 onClick={() => vote(debate.id, side).catch(() => {})}
-                className="flex-1 py-1.5 rounded-xl font-mono text-[10px] transition-all active:scale-95"
+                className="flex-1 py-1.5 rounded-xl font-mono text-[12px] transition-all active:scale-95"
                 style={{
                   background: voted
                     ? side === 'pro' ? 'rgba(0,245,255,0.12)' : 'rgba(255,60,60,0.12)'
@@ -525,7 +525,7 @@ function DebateRoom({ debate, onBack, uid, username }: { debate: DebateFull; onB
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className="px-3 py-1 rounded-full font-mono text-[10px] transition-all"
+            className="px-3 py-1 rounded-full font-mono text-[12px] transition-all"
             style={{
               background: activeTab === tab ? 'rgba(155,0,255,0.18)' : 'rgba(255,255,255,0.03)',
               border: `1px solid ${activeTab === tab ? 'rgba(155,0,255,0.4)' : 'rgba(255,255,255,0.08)'}`,
@@ -554,8 +554,8 @@ function DebateRoom({ debate, onBack, uid, username }: { debate: DebateFull; onB
                 className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                 style={{ background: arg.side === 'pro' ? '#00f5ff' : '#ff6060' }}
               />
-              <span className="font-mono text-[10px] text-white/50">{arg.username ?? '???'}</span>
-              <span className="font-mono text-[9px] text-white/25 ml-auto">
+              <span className="font-mono text-[12px] text-white/50">{arg.username ?? '???'}</span>
+              <span className="font-mono text-[12px] text-white/25 ml-auto">
                 {new Date(arg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
@@ -652,7 +652,7 @@ export function DebatesTab() {
         {profile && (
           <button
             onClick={() => setShowCreate(s => !s)}
-            className="px-3 py-1.5 rounded-xl font-mono text-[10px] transition-all active:scale-95"
+            className="px-3 py-1.5 rounded-xl font-mono text-[12px] transition-all active:scale-95"
             style={{ background: 'rgba(155,0,255,0.15)', border: '1px solid rgba(155,0,255,0.35)', color: '#c084fc' }}
           >
             + {t.community.debates.create}
@@ -687,14 +687,14 @@ export function DebatesTab() {
             <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setShowCreate(false)}
-                className="px-3 py-1.5 rounded-xl font-mono text-[10px] text-white/40 hover:text-white/70 transition-colors"
+                className="px-3 py-1.5 rounded-xl font-mono text-[12px] text-white/40 hover:text-white/70 transition-colors"
               >
                 {t.community.debates.cancel}
               </button>
               <button
                 onClick={handleCreate}
                 disabled={!newTopic.trim() || creating}
-                className="px-4 py-1.5 rounded-xl font-mono text-[10px] transition-all active:scale-95 disabled:opacity-40"
+                className="px-4 py-1.5 rounded-xl font-mono text-[12px] transition-all active:scale-95 disabled:opacity-40"
                 style={{ background: 'rgba(155,0,255,0.25)', border: '1px solid rgba(155,0,255,0.4)', color: '#c084fc' }}
               >
                 {creating ? '…' : t.community.debates.post}
@@ -718,7 +718,7 @@ export function DebatesTab() {
             <div className="flex items-start justify-between gap-2 mb-2">
               <p className="text-white/85 text-sm font-mono leading-snug">{d.topic}</p>
               <span
-                className="flex-shrink-0 px-2 py-0.5 rounded-full font-mono text-[9px] uppercase tracking-wider"
+                className="flex-shrink-0 px-2 py-0.5 rounded-full font-mono text-[12px] uppercase tracking-wider"
                 style={{
                   background: d.status === 'open' ? 'rgba(0,245,255,0.1)' : 'rgba(255,255,255,0.06)',
                   border: `1px solid ${d.status === 'open' ? 'rgba(0,245,255,0.3)' : 'rgba(255,255,255,0.12)'}`,
@@ -730,10 +730,10 @@ export function DebatesTab() {
             </div>
             {d.description && <p className="text-white/35 text-[11px] font-mono line-clamp-2">{d.description}</p>}
             {d.phase && d.phase !== 'waiting' && d.phase !== 'finished' && (
-              <p className="mt-1 font-mono text-[9px] text-white/30">{(t.community.debates.phases as any)[d.phase] ?? d.phase}</p>
+              <p className="mt-1 font-mono text-[12px] text-white/30">{(t.community.debates.phases as any)[d.phase] ?? d.phase}</p>
             )}
             {d.winnerSide && (
-              <p className="mt-2 text-[10px] font-mono" style={{ color: '#c084fc' }}>
+              <p className="mt-2 text-[12px] font-mono" style={{ color: '#c084fc' }}>
                 {t.community.debates.winner}: {d.winnerSide === 'pro' ? t.community.debates.pro : t.community.debates.con}
               </p>
             )}

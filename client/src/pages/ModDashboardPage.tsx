@@ -385,7 +385,7 @@ export function ModDashboardPage() {
             <p className="text-white/25 font-mono text-xs">Moderator Dashboard</p>
           </div>
           {maintenance && (
-            <span className="ml-auto text-[10px] font-mono uppercase border border-orange-400/40 text-orange-400 px-2 py-0.5 rounded-lg animate-pulse">Maintenance</span>
+            <span className="ml-auto text-[12px] font-mono uppercase border border-orange-400/40 text-orange-400 px-2 py-0.5 rounded-lg animate-pulse">Maintenance</span>
           )}
         </div>
 
@@ -453,8 +453,8 @@ export function ModDashboardPage() {
                   <div className="flex-1 cursor-pointer">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-neon-cyan text-sm font-bold">{r.code}</span>
-                      {r.isPrivate && <span className="text-[9px] font-mono text-white/30 border border-white/10 rounded px-1">PVT</span>}
-                      {r.isPaused && <span className="text-[9px] font-mono text-yellow-400 border border-yellow-400/30 rounded px-1">PAUSED</span>}
+                      {r.isPrivate && <span className="text-[12px] font-mono text-white/30 border border-white/10 rounded px-1">PVT</span>}
+                      {r.isPaused && <span className="text-[12px] font-mono text-yellow-400 border border-yellow-400/30 rounded px-1">PAUSED</span>}
                       <span className={`text-xs font-mono ${PHASE_COLORS[r.phase] ?? 'text-white/40'}`}>{r.phase}</span>
                     </div>
                     <p className="text-white/25 font-mono text-xs">{r.playerCount}p · Day {r.day} · Host: {r.hostName}</p>
@@ -471,7 +471,7 @@ export function ModDashboardPage() {
                           socket.emit('mod:resume_timer' as any, { roomId: r.id }, (res: Res<null>) => {
                             if (res.ok) { addToast('Timer resumed', 'success'); loadRooms(); } else addToast(res.error, 'error');
                           });
-                        }} className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-neon-green/30 text-neon-green hover:bg-neon-green/10 transition-all">
+                        }} className="px-2 py-1 text-[12px] font-mono uppercase rounded-lg border border-neon-green/30 text-neon-green hover:bg-neon-green/10 transition-all">
                           ▶ Resume
                         </button>
                       ) : (
@@ -479,23 +479,23 @@ export function ModDashboardPage() {
                           socket.emit('mod:pause_timer' as any, { roomId: r.id }, (res: Res<null>) => {
                             if (res.ok) { addToast('Timer paused', 'success'); loadRooms(); } else addToast(res.error, 'error');
                           });
-                        }} className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-yellow-400/30 text-yellow-400 hover:bg-yellow-400/10 transition-all">
+                        }} className="px-2 py-1 text-[12px] font-mono uppercase rounded-lg border border-yellow-400/30 text-yellow-400 hover:bg-yellow-400/10 transition-all">
                           ⏸ Pause
                         </button>
                       )}
                       {can(2) && (
                         <button onClick={() => openAction('terminate', r.id, `Room ${r.code}`)}
-                          className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-neon-red/30 text-neon-red hover:bg-neon-red/10 transition-all">
+                          className="px-2 py-1 text-[12px] font-mono uppercase rounded-lg border border-neon-red/30 text-neon-red hover:bg-neon-red/10 transition-all">
                           Terminate
                         </button>
                       )}
                       <button onClick={() => openAction('system_msg', r.id, `Room ${r.code}`)}
-                        className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-neon-cyan/30 text-neon-cyan hover:bg-neon-cyan/10 transition-all">
+                        className="px-2 py-1 text-[12px] font-mono uppercase rounded-lg border border-neon-cyan/30 text-neon-cyan hover:bg-neon-cyan/10 transition-all">
                         Msg
                       </button>
                       {can(2) && (
                         <button onClick={() => { openAction('force_phase', r.id, `Room ${r.code}`); setActionReason('night'); }}
-                          className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-neon-pink/30 text-neon-pink hover:bg-neon-pink/10 transition-all">
+                          className="px-2 py-1 text-[12px] font-mono uppercase rounded-lg border border-neon-pink/30 text-neon-pink hover:bg-neon-pink/10 transition-all">
                           Phase
                         </button>
                       )}
@@ -503,7 +503,7 @@ export function ModDashboardPage() {
                         socket.emit('mod:voice_mute_room' as any, { roomId: r.id, reason: 'Muted by moderator' }, (res: Res<null>) => {
                           if (res.ok) addToast('Voice muted', 'success'); else addToast(res.error, 'error');
                         });
-                      }} className="px-2 py-1 text-[10px] font-mono uppercase rounded-lg border border-white/10 text-white/30 hover:text-white/60 transition-all">
+                      }} className="px-2 py-1 text-[12px] font-mono uppercase rounded-lg border border-white/10 text-white/30 hover:text-white/60 transition-all">
                         🔇 Voice
                       </button>
                     </>
@@ -522,20 +522,20 @@ export function ModDashboardPage() {
                             <span className={`text-xs font-mono flex-1 truncate ${p.isAlive ? 'text-white/70' : 'text-white/25 line-through'}`}>
                               {p.seat}. {p.name}
                             </span>
-                            {!p.isConnected && <span className="text-[9px] font-mono text-white/20">off</span>}
+                            {!p.isConnected && <span className="text-[12px] font-mono text-white/20">off</span>}
                             {p.profileId && (
                               <>
                                 <button onClick={() => openAction('warn', p.profileId!, p.name, r.id)}
-                                  className="px-1.5 py-0.5 text-[9px] font-mono text-yellow-400/60 border border-yellow-400/20 rounded hover:bg-yellow-400/10 transition-all">
+                                  className="px-1.5 py-0.5 text-[12px] font-mono text-yellow-400/60 border border-yellow-400/20 rounded hover:bg-yellow-400/10 transition-all">
                                   W
                                 </button>
                                 <button onClick={() => openAction('kick', p.profileId!, p.name, r.id)}
-                                  className="px-1.5 py-0.5 text-[9px] font-mono text-orange-400/60 border border-orange-400/20 rounded hover:bg-orange-400/10 transition-all">
+                                  className="px-1.5 py-0.5 text-[12px] font-mono text-orange-400/60 border border-orange-400/20 rounded hover:bg-orange-400/10 transition-all">
                                   K
                                 </button>
                                 {can(1) && (
                                   <button onClick={() => openAction('ban', p.profileId!, p.name, r.id)}
-                                    className="px-1.5 py-0.5 text-[9px] font-mono text-neon-red/60 border border-neon-red/20 rounded hover:bg-neon-red/10 transition-all">
+                                    className="px-1.5 py-0.5 text-[12px] font-mono text-neon-red/60 border border-neon-red/20 rounded hover:bg-neon-red/10 transition-all">
                                     B
                                   </button>
                                 )}
@@ -565,7 +565,7 @@ export function ModDashboardPage() {
                 { key: 'rejected',  label: 'Dismissed' },
               ] as const).map(f => (
                 <button key={f.key} onClick={() => setReportFilter(f.key)}
-                  className={`px-3 py-1 text-[10px] font-mono uppercase rounded-lg border transition-all ${
+                  className={`px-3 py-1 text-[12px] font-mono uppercase rounded-lg border transition-all ${
                     reportFilter === f.key ? 'border-neon-green/40 bg-neon-green/10 text-neon-green' : 'border-white/10 text-white/30 hover:text-white/60'
                   }`}>
                   {f.label}
@@ -593,9 +593,9 @@ export function ModDashboardPage() {
                     <p className="text-white/30 text-xs font-mono mt-0.5">
                       {r.reason.replace(/_/g, ' ')} · {new Date(r.createdAt).toLocaleDateString()}
                     </p>
-                    {r.assignedModeratorId && <p className="text-neon-cyan/40 text-[10px] font-mono mt-0.5">● Assigned</p>}
+                    {r.assignedModeratorId && <p className="text-neon-cyan/40 text-[12px] font-mono mt-0.5">● Assigned</p>}
                   </div>
-                  <span className={`text-[10px] font-mono uppercase ml-2 flex-shrink-0 px-2 py-0.5 rounded-lg border ${
+                  <span className={`text-[12px] font-mono uppercase ml-2 flex-shrink-0 px-2 py-0.5 rounded-lg border ${
                     r.status === 'open' ? 'border-neon-red/30 text-neon-red bg-neon-red/8' :
                     r.status === 'reviewing' ? 'border-yellow-400/30 text-yellow-400 bg-yellow-400/8' :
                     r.status === 'resolved' ? 'border-neon-green/30 text-neon-green bg-neon-green/8' :
@@ -609,34 +609,34 @@ export function ModDashboardPage() {
                   {/* Status progression actions */}
                   {r.status === 'open' && (
                     <button onClick={() => assignReport(r.id)}
-                      className="px-2 py-1 text-[10px] font-mono text-yellow-400 border border-yellow-400/30 rounded-lg hover:bg-yellow-400/10">
+                      className="px-2 py-1 text-[12px] font-mono text-yellow-400 border border-yellow-400/30 rounded-lg hover:bg-yellow-400/10">
                       Reviewing
                     </button>
                   )}
                   {(r.status === 'open' || r.status === 'reviewing') && can(1) && (
                     <>
                       <button onClick={() => resolveReport(r.id, 'resolved')}
-                        className="px-2 py-1 text-[10px] font-mono text-neon-green border border-neon-green/30 rounded-lg hover:bg-neon-green/10">
+                        className="px-2 py-1 text-[12px] font-mono text-neon-green border border-neon-green/30 rounded-lg hover:bg-neon-green/10">
                         Resolve
                       </button>
                       <button onClick={() => resolveReport(r.id, 'rejected')}
-                        className="px-2 py-1 text-[10px] font-mono text-white/30 border border-white/10 rounded-lg hover:text-white/60">
+                        className="px-2 py-1 text-[12px] font-mono text-white/30 border border-white/10 rounded-lg hover:text-white/60">
                         Dismiss
                       </button>
                     </>
                   )}
                   {/* Player actions */}
                   <button onClick={() => openAction('warn', r.reportedPlayerId, r.reportedName)}
-                    className="px-2 py-1 text-[10px] font-mono text-yellow-400/70 border border-yellow-400/20 rounded-lg hover:bg-yellow-400/10 ml-auto">
+                    className="px-2 py-1 text-[12px] font-mono text-yellow-400/70 border border-yellow-400/20 rounded-lg hover:bg-yellow-400/10 ml-auto">
                     Warn
                   </button>
                   <button onClick={() => openAction('kick', r.reportedPlayerId, r.reportedName)}
-                    className="px-2 py-1 text-[10px] font-mono text-orange-400/80 border border-orange-400/25 rounded-lg hover:bg-orange-400/10">
+                    className="px-2 py-1 text-[12px] font-mono text-orange-400/80 border border-orange-400/25 rounded-lg hover:bg-orange-400/10">
                     Kick
                   </button>
                   {can(1) && (
                     <button onClick={() => openAction('ban', r.reportedPlayerId, r.reportedName)}
-                      className="px-2 py-1 text-[10px] font-mono text-neon-red/80 border border-neon-red/30 rounded-lg hover:bg-neon-red/10">
+                      className="px-2 py-1 text-[12px] font-mono text-neon-red/80 border border-neon-red/30 rounded-lg hover:bg-neon-red/10">
                       Ban
                     </button>
                   )}
@@ -678,23 +678,23 @@ export function ModDashboardPage() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="font-mono text-sm text-neon-red/90 font-bold truncate">{b.username}</span>
-                              {b.friendCode && <span className="font-mono text-[10px] text-neon-pink/50">{b.friendCode}</span>}
-                              {b.publicId != null && <span className="font-mono text-[10px] text-white/25">#{b.publicId}</span>}
+                              {b.friendCode && <span className="font-mono text-[12px] text-neon-pink/50">{b.friendCode}</span>}
+                              {b.publicId != null && <span className="font-mono text-[12px] text-white/25">#{b.publicId}</span>}
                             </div>
-                            <p className="font-mono text-[10px] text-white/40 mt-0.5 line-clamp-1">"{b.reason}"</p>
-                            <p className="font-mono text-[10px] text-white/20 mt-0.5">
+                            <p className="font-mono text-[12px] text-white/40 mt-0.5 line-clamp-1">"{b.reason}"</p>
+                            <p className="font-mono text-[12px] text-white/20 mt-0.5">
                               by {b.issuedByName} · until {new Date(b.expiresAt).toLocaleDateString()}
                             </p>
                           </div>
                           <div className="flex flex-col gap-1 flex-shrink-0">
                             <button
                               onClick={() => setConfirm({ title: `Unban ${b.username}?`, msg: `Remove the active ban on ${b.username}?`, onConfirm: () => { setConfirm(null); doUnban(b); } })}
-                              className="px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border border-neon-green/30 text-neon-green bg-neon-green/8 hover:bg-neon-green/18 transition-all whitespace-nowrap">
+                              className="px-3 py-1.5 text-[12px] font-mono font-bold uppercase rounded-lg border border-neon-green/30 text-neon-green bg-neon-green/8 hover:bg-neon-green/18 transition-all whitespace-nowrap">
                               ✓ Unban
                             </button>
                             <button
                               onClick={() => openPlayerDetail(b.profileId)}
-                              className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-white/10 text-white/30 hover:text-white/60 transition-all whitespace-nowrap">
+                              className="px-3 py-1.5 text-[12px] font-mono uppercase rounded-lg border border-white/10 text-white/30 hover:text-white/60 transition-all whitespace-nowrap">
                               Detail
                             </button>
                           </div>
@@ -714,19 +714,19 @@ export function ModDashboardPage() {
               className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono placeholder-white/25 focus:outline-none focus:border-neon-green/40" />
             <div className="flex items-center gap-2">
               <button onClick={() => setPlayerFilterOnline(!playerFilterOnline)}
-                className={`px-2 py-1 text-[10px] font-mono uppercase rounded-lg border transition-all ${
+                className={`px-2 py-1 text-[12px] font-mono uppercase rounded-lg border transition-all ${
                   playerFilterOnline ? 'border-neon-green/40 bg-neon-green/10 text-neon-green' : 'border-white/10 text-white/30 hover:text-white/60'
                 }`}>
                 Online
               </button>
               <button onClick={() => setPlayerFilterSpectating(!playerFilterSpectating)}
-                className={`px-2 py-1 text-[10px] font-mono uppercase rounded-lg border transition-all ${
+                className={`px-2 py-1 text-[12px] font-mono uppercase rounded-lg border transition-all ${
                   playerFilterSpectating ? 'border-yellow-400/40 bg-yellow-400/10 text-yellow-400' : 'border-white/10 text-white/30 hover:text-white/60'
                 }`}>
                 Spectating
               </button>
               <button onClick={() => setPlayerFilterMod(!playerFilterMod)}
-                className={`px-2 py-1 text-[10px] font-mono uppercase rounded-lg border transition-all ${
+                className={`px-2 py-1 text-[12px] font-mono uppercase rounded-lg border transition-all ${
                   playerFilterMod ? 'border-neon-green/40 bg-neon-green/10 text-neon-green' : 'border-white/10 text-white/30 hover:text-white/60'
                 }`}>
                 Mods
@@ -756,23 +756,23 @@ export function ModDashboardPage() {
                         {p.isModerator && <ModBadge level={p.moderatorLevel} size="sm" />}
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
-                        {p.friendCode && <span className="font-mono text-[10px] text-neon-pink/50">{p.friendCode}</span>}
-                        {p.publicId != null && <span className="font-mono text-[10px] text-neon-cyan/40">#{p.publicId}</span>}
-                        <span className="font-mono text-[10px] text-white/20">Lv{p.level ?? 1} · G{p.stats.gamesPlayed}</span>
+                        {p.friendCode && <span className="font-mono text-[12px] text-neon-pink/50">{p.friendCode}</span>}
+                        {p.publicId != null && <span className="font-mono text-[12px] text-neon-cyan/40">#{p.publicId}</span>}
+                        <span className="font-mono text-[12px] text-white/20">Lv{p.level ?? 1} · G{p.stats.gamesPlayed}</span>
                       </div>
                     </div>
                     <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
                       <button onClick={() => openAction('warn', p.id, p.username)}
-                        className="w-7 h-7 flex items-center justify-center text-[10px] font-mono rounded-lg border border-yellow-400/20 text-yellow-400/60 hover:bg-yellow-400/10 hover:text-yellow-400 transition-all">
+                        className="w-7 h-7 flex items-center justify-center text-[12px] font-mono rounded-lg border border-yellow-400/20 text-yellow-400/60 hover:bg-yellow-400/10 hover:text-yellow-400 transition-all">
                         W
                       </button>
                       <button onClick={() => openAction('kick', p.id, p.username)}
-                        className="w-7 h-7 flex items-center justify-center text-[10px] font-mono rounded-lg border border-orange-400/20 text-orange-400/60 hover:bg-orange-400/10 hover:text-orange-400 transition-all">
+                        className="w-7 h-7 flex items-center justify-center text-[12px] font-mono rounded-lg border border-orange-400/20 text-orange-400/60 hover:bg-orange-400/10 hover:text-orange-400 transition-all">
                         K
                       </button>
                       {can(1) && (
                         <button onClick={() => openAction('ban', p.id, p.username)}
-                          className="w-7 h-7 flex items-center justify-center text-[10px] font-mono rounded-lg border border-neon-red/20 text-neon-red/60 hover:bg-neon-red/10 hover:text-neon-red transition-all">
+                          className="w-7 h-7 flex items-center justify-center text-[12px] font-mono rounded-lg border border-neon-red/20 text-neon-red/60 hover:bg-neon-red/10 hover:text-neon-red transition-all">
                           B
                         </button>
                       )}
@@ -838,7 +838,7 @@ export function ModDashboardPage() {
                     : l.actionType === 'warn' ? 'text-yellow-400' : l.actionType === 'freeze' ? 'text-orange-400'
                     : l.actionType === 'rename' ? 'text-neon-cyan' : 'text-neon-green'
                   }`}>{l.actionType.replace(/_/g, ' ')}</span>
-                  <span className="text-white/20 text-[10px] font-mono">{fmtTime(l.createdAt)}</span>
+                  <span className="text-white/20 text-[12px] font-mono">{fmtTime(l.createdAt)}</span>
                 </div>
                 <p className="text-white/50 text-xs font-mono">
                   <span className="text-neon-cyan">{l.moderatorName}</span> → <span className="text-white/70">{l.targetName}</span>
@@ -872,7 +872,7 @@ export function ModDashboardPage() {
               {/* Close strip */}
               <div className="sticky top-0 z-10 flex items-center justify-between px-4 pt-4 pb-2"
                 style={{ background: 'rgba(8,8,14,0.95)', backdropFilter: 'blur(12px)' }}>
-                <span className="text-white/20 font-mono text-[10px] uppercase tracking-widest">Player Detail</span>
+                <span className="text-white/20 font-mono text-[12px] uppercase tracking-widest">Player Detail</span>
                 <button onClick={() => setPlayerDetail(null)}
                   className="w-8 h-8 flex items-center justify-center rounded-xl border border-white/10 text-white/40 hover:text-white hover:border-white/30 transition-all text-base">
                   ✕
@@ -1058,13 +1058,13 @@ function PlayerDetailPanel({
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-mono text-neon-cyan font-bold text-lg">{p.username}</span>
           {p.isModerator && <ModBadge level={p.moderatorLevel} size="sm" />}
-          {detail.accountFrozen && <span className="text-[10px] font-mono text-orange-400 border border-orange-400/30 rounded px-1.5 py-0.5">FROZEN</span>}
+          {detail.accountFrozen && <span className="text-[12px] font-mono text-orange-400 border border-orange-400/30 rounded px-1.5 py-0.5">FROZEN</span>}
         </div>
         {p.friendCode && (
           <button onClick={copyFriendCode}
             className="mt-1 flex items-center gap-1.5 text-neon-pink/60 hover:text-neon-pink font-mono text-xs transition-all group">
             <span>{p.friendCode}</span>
-            <span className="text-[9px] opacity-0 group-hover:opacity-70 transition-opacity">⧉ copy</span>
+            <span className="text-[12px] opacity-0 group-hover:opacity-70 transition-opacity">⧉ copy</span>
           </button>
         )}
       </div>
@@ -1076,7 +1076,7 @@ function PlayerDetailPanel({
           <div><p className="font-mono text-lg font-bold text-neon-green">{p.stats.wins}</p><p className="text-white/25 font-mono text-xs">Wins</p></div>
           <div><p className={`font-mono text-lg font-bold ${detail.reportCount > 2 ? 'text-neon-red' : 'text-white/50'}`}>{detail.reportCount}</p><p className="text-white/25 font-mono text-xs">Reports</p></div>
         </div>
-        <p className="text-white/20 font-mono text-[10px] truncate">{p.id}</p>
+        <p className="text-white/20 font-mono text-[12px] truncate">{p.id}</p>
         {p.publicId != null && <p className="text-white/30 font-mono text-xs">#{p.publicId} · Lv{p.level}</p>}
       </div>
 
@@ -1085,9 +1085,9 @@ function PlayerDetailPanel({
         <div className="glass-panel border border-neon-red/15 rounded-xl p-3">
           <p className="text-neon-red text-xs font-mono font-bold">BANNED until {new Date(detail.ban.expiresAt).toLocaleDateString()}</p>
           <p className="text-white/40 text-xs font-mono">{detail.ban.reason}</p>
-          <p className="text-white/20 text-[10px] font-mono">by {detail.ban.issuedByName}</p>
+          <p className="text-white/20 text-[12px] font-mono">by {detail.ban.issuedByName}</p>
           {can(1) && (
-            <button onClick={() => onAction('unban', p.id, p.username)} className="mt-2 px-3 py-1 text-[10px] font-mono text-neon-green border border-neon-green/30 rounded-lg hover:bg-neon-green/10">
+            <button onClick={() => onAction('unban', p.id, p.username)} className="mt-2 px-3 py-1 text-[12px] font-mono text-neon-green border border-neon-green/30 rounded-lg hover:bg-neon-green/10">
               Unban
             </button>
           )}
@@ -1097,7 +1097,7 @@ function PlayerDetailPanel({
         <div className="glass-panel border border-neon-pink/15 rounded-xl p-3">
           <p className="text-neon-pink text-xs font-mono font-bold">MUTED until {new Date(detail.mute.expiresAt).toLocaleDateString()}</p>
           <p className="text-white/40 text-xs font-mono">{detail.mute.reason}</p>
-          <button onClick={() => onAction('unmute', p.id, p.username)} className="mt-2 px-3 py-1 text-[10px] font-mono text-neon-green border border-neon-green/30 rounded-lg hover:bg-neon-green/10">
+          <button onClick={() => onAction('unmute', p.id, p.username)} className="mt-2 px-3 py-1 text-[12px] font-mono text-neon-green border border-neon-green/30 rounded-lg hover:bg-neon-green/10">
             Unmute
           </button>
         </div>
@@ -1108,7 +1108,7 @@ function PlayerDetailPanel({
         <div className="glass-panel border border-yellow-400/10 rounded-xl p-3">
           <p className="text-yellow-400 text-xs font-mono font-bold mb-2">{detail.warnings.length} Warning{detail.warnings.length !== 1 ? 's' : ''}</p>
           {detail.warnings.slice(0, 3).map(w => (
-            <p key={w.id} className="text-white/30 text-[10px] font-mono mb-1">· {w.reason} — <span className="text-white/20">{w.issuedByName}</span></p>
+            <p key={w.id} className="text-white/30 text-[12px] font-mono mb-1">· {w.reason} — <span className="text-white/20">{w.issuedByName}</span></p>
           ))}
         </div>
       )}
@@ -1116,35 +1116,35 @@ function PlayerDetailPanel({
       {/* Actions */}
       <div className="flex flex-wrap gap-1">
         <button onClick={() => onAction('warn', p.id, p.username)}
-          className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-yellow-400/30 text-yellow-400 hover:bg-yellow-400/10 transition-all">
+          className="px-3 py-1.5 text-[12px] font-mono uppercase rounded-lg border border-yellow-400/30 text-yellow-400 hover:bg-yellow-400/10 transition-all">
           warn
         </button>
         <button onClick={() => onAction('mute', p.id, p.username)}
-          className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-neon-pink/30 text-neon-pink hover:bg-neon-pink/10 transition-all">
+          className="px-3 py-1.5 text-[12px] font-mono uppercase rounded-lg border border-neon-pink/30 text-neon-pink hover:bg-neon-pink/10 transition-all">
           mute
         </button>
         <button onClick={() => onAction('kick', p.id, p.username)}
-          className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-neon-blue/30 text-neon-blue hover:bg-neon-blue/10 transition-all">
+          className="px-3 py-1.5 text-[12px] font-mono uppercase rounded-lg border border-neon-blue/30 text-neon-blue hover:bg-neon-blue/10 transition-all">
           kick
         </button>
         {can(1) && (
           <>
             <button onClick={() => onAction('ban', p.id, p.username)}
-              className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-neon-red/30 text-neon-red hover:bg-neon-red/10 transition-all">
+              className="px-3 py-1.5 text-[12px] font-mono uppercase rounded-lg border border-neon-red/30 text-neon-red hover:bg-neon-red/10 transition-all">
               ban
             </button>
             <button onClick={() => onAction('rename', p.id, p.username)}
-              className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-neon-cyan/30 text-neon-cyan hover:bg-neon-cyan/10 transition-all">
+              className="px-3 py-1.5 text-[12px] font-mono uppercase rounded-lg border border-neon-cyan/30 text-neon-cyan hover:bg-neon-cyan/10 transition-all">
               rename
             </button>
             {detail.accountFrozen ? (
               <button onClick={() => onAction('unfreeze', p.id, p.username)}
-                className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-neon-green/30 text-neon-green hover:bg-neon-green/10 transition-all">
+                className="px-3 py-1.5 text-[12px] font-mono uppercase rounded-lg border border-neon-green/30 text-neon-green hover:bg-neon-green/10 transition-all">
                 unfreeze
               </button>
             ) : (
               <button onClick={() => onAction('freeze', p.id, p.username)}
-                className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-orange-400/30 text-orange-400 hover:bg-orange-400/10 transition-all">
+                className="px-3 py-1.5 text-[12px] font-mono uppercase rounded-lg border border-orange-400/30 text-orange-400 hover:bg-orange-400/10 transition-all">
                 freeze
               </button>
             )}
@@ -1154,11 +1154,11 @@ function PlayerDetailPanel({
 
       {/* Quick mute presets */}
       <div className="glass-panel border border-neon-pink/10 rounded-xl p-3">
-        <p className="text-white/30 font-mono text-[10px] uppercase tracking-widest mb-2">Quick Mute</p>
+        <p className="text-white/30 font-mono text-[12px] uppercase tracking-widest mb-2">Quick Mute</p>
         <div className="flex gap-1.5">
           {[{ label: '5 min', duration: 300 }, { label: '15 min', duration: 900 }, { label: '1 hr', duration: 3600 }].map(({ label, duration }) => (
             <button key={duration} onClick={() => onAction('mute', p.id, p.username, undefined, duration)}
-              className="flex-1 py-1.5 text-[10px] font-mono rounded-lg border border-neon-pink/25 text-neon-pink/70 hover:bg-neon-pink/10 hover:text-neon-pink transition-all">
+              className="flex-1 py-1.5 text-[12px] font-mono rounded-lg border border-neon-pink/25 text-neon-pink/70 hover:bg-neon-pink/10 hover:text-neon-pink transition-all">
               {label}
             </button>
           ))}
@@ -1167,18 +1167,18 @@ function PlayerDetailPanel({
 
       {/* Voice Tools */}
       <div className="glass-panel border border-neon-blue/10 rounded-xl p-3">
-        <p className="text-white/30 font-mono text-[10px] uppercase tracking-widest mb-2">Voice Tools</p>
+        <p className="text-white/30 font-mono text-[12px] uppercase tracking-widest mb-2">Voice Tools</p>
         <div className="flex gap-1.5">
           <button
             onClick={() => doVoiceTool('clear_forced_mute')}
             disabled={voiceToolBusy !== null}
-            className="flex-1 py-1.5 text-[10px] font-mono rounded-lg border border-neon-green/25 text-neon-green/70 hover:bg-neon-green/10 hover:text-neon-green transition-all disabled:opacity-40">
+            className="flex-1 py-1.5 text-[12px] font-mono rounded-lg border border-neon-green/25 text-neon-green/70 hover:bg-neon-green/10 hover:text-neon-green transition-all disabled:opacity-40">
             {voiceToolBusy === 'clear_forced_mute' ? '…' : '🔊 Clear Mute'}
           </button>
           <button
             onClick={() => doVoiceTool('force_reconnect')}
             disabled={voiceToolBusy !== null}
-            className="flex-1 py-1.5 text-[10px] font-mono rounded-lg border border-neon-blue/25 text-neon-blue/70 hover:bg-neon-blue/10 hover:text-neon-blue transition-all disabled:opacity-40">
+            className="flex-1 py-1.5 text-[12px] font-mono rounded-lg border border-neon-blue/25 text-neon-blue/70 hover:bg-neon-blue/10 hover:text-neon-blue transition-all disabled:opacity-40">
             {voiceToolBusy === 'force_reconnect' ? '…' : '↺ Reconnect'}
           </button>
         </div>
@@ -1189,7 +1189,7 @@ function PlayerDetailPanel({
         <div className="glass-panel border border-amber-400/10 rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <p className="font-mono text-xs text-amber-400 font-bold uppercase tracking-widest">Mod Level</p>
-            <span className="text-[10px] font-mono text-white/30">
+            <span className="text-[12px] font-mono text-white/30">
               {p.isModerator && p.moderatorLevel ? p.moderatorLevel.replace('_', ' ') : '— none —'}
             </span>
           </div>
@@ -1202,7 +1202,7 @@ function PlayerDetailPanel({
                   <button
                     key={value}
                     onClick={() => setMlPending(value)}
-                    className={`px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border transition-all ${
+                    className={`px-3 py-1.5 text-[12px] font-mono uppercase rounded-lg border transition-all ${
                       active
                         ? `${color} ${border} opacity-100 ring-1 ring-current/30`
                         : `text-white/30 border-white/10 hover:${border} hover:${color}`
@@ -1215,7 +1215,7 @@ function PlayerDetailPanel({
               {p.isModerator && (
                 <button
                   onClick={() => setMlPending('revoke')}
-                  className="px-3 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-neon-red/20 text-neon-red/60 hover:text-neon-red hover:border-neon-red/40 transition-all"
+                  className="px-3 py-1.5 text-[12px] font-mono uppercase rounded-lg border border-neon-red/20 text-neon-red/60 hover:text-neon-red hover:border-neon-red/40 transition-all"
                 >
                   revoke
                 </button>
@@ -1232,13 +1232,13 @@ function PlayerDetailPanel({
               <div className="flex gap-2">
                 <button
                   onClick={() => applyModLevel(mlPending === 'revoke' ? null : mlPending as ModeratorLevel)}
-                  className="px-4 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border border-amber-400/40 text-amber-400 bg-amber-400/10 hover:bg-amber-400/20 transition-all"
+                  className="px-4 py-1.5 text-[12px] font-mono font-bold uppercase rounded-lg border border-amber-400/40 text-amber-400 bg-amber-400/10 hover:bg-amber-400/20 transition-all"
                 >
                   Confirm
                 </button>
                 <button
                   onClick={() => setMlPending(false)}
-                  className="px-4 py-1.5 text-[10px] font-mono uppercase rounded-lg border border-white/10 text-white/30 hover:text-white/60 transition-all"
+                  className="px-4 py-1.5 text-[12px] font-mono uppercase rounded-lg border border-white/10 text-white/30 hover:text-white/60 transition-all"
                 >
                   Cancel
                 </button>
@@ -1255,7 +1255,7 @@ function PlayerDetailPanel({
         {detail.notes.map(n => (
           <div key={n.id} className="border-l-2 border-neon-green/20 pl-2">
             <p className="text-white/60 text-xs font-mono">{n.note}</p>
-            <p className="text-white/20 text-[10px] font-mono">{n.modName} · {new Date(n.createdAt).toLocaleDateString()}</p>
+            <p className="text-white/20 text-[12px] font-mono">{n.modName} · {new Date(n.createdAt).toLocaleDateString()}</p>
           </div>
         ))}
         <div className="flex gap-2 mt-2">

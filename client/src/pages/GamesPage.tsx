@@ -32,7 +32,7 @@ export function GamesPage() {
             >
               {t.nav.games}
             </h1>
-            <p className="font-mono text-[9px] uppercase tracking-widest text-white/25 mt-0.5">
+            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25 mt-0.5">
               Checkers · Joker · Ludo
             </p>
           </div>

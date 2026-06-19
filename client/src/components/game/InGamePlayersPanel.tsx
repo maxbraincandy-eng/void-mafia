@@ -64,7 +64,7 @@ export function InGamePlayersPanel({
             <div className="px-5 py-3 flex items-center justify-between border-b border-white/[0.07] flex-shrink-0">
               <div>
                 <h3 className="font-display font-bold text-base text-white tracking-wide">{t.players.header}</h3>
-                <p className="text-[10px] font-mono text-white/30 mt-0.5 uppercase tracking-wider">
+                <p className="text-[12px] font-mono text-white/30 mt-0.5 uppercase tracking-wider">
                   {t.players.aliveOf.replace('{n}', String(alivePlayers.length)).replace('{m}', String(deadPlayers.length))}
                 </p>
               </div>
@@ -80,7 +80,7 @@ export function InGamePlayersPanel({
             <div className="overflow-y-auto flex-1 px-4 pb-6">
               {alivePlayers.length > 0 && (
                 <div className="pt-3">
-                  <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-neon-green/45 mb-2 px-1">
+                  <p className="text-[12px] font-mono uppercase tracking-[0.25em] text-neon-green/45 mb-2 px-1">
                     {t.players.inBattle.replace('{n}', String(alivePlayers.length))}
                   </p>
                   <div className="space-y-1.5">
@@ -101,7 +101,7 @@ export function InGamePlayersPanel({
 
               {deadPlayers.length > 0 && (
                 <div className="pt-4">
-                  <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-white/20 mb-2 px-1">
+                  <p className="text-[12px] font-mono uppercase tracking-[0.25em] text-white/20 mb-2 px-1">
                     {t.players.eliminated.replace('{n}', String(deadPlayers.length))}
                   </p>
                   <div className="space-y-1.5 opacity-50">
@@ -123,7 +123,7 @@ export function InGamePlayersPanel({
 
               {nextRoundQueue.length > 0 && (
                 <div className="pt-4">
-                  <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-white/25 mb-2 px-1">
+                  <p className="text-[12px] font-mono uppercase tracking-[0.25em] text-white/25 mb-2 px-1">
                     ⏳ Waiting Next Round · {nextRoundQueue.length}
                   </p>
                   <div className="space-y-1.5 opacity-60">
@@ -218,7 +218,7 @@ function PlayerRow({
       <div className="flex-1 min-w-0 text-left">
         <div className="flex items-center gap-1.5 flex-wrap">
           <span
-            className="flex-shrink-0 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[9px] font-mono font-bold px-1"
+            className="flex-shrink-0 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[12px] font-mono font-bold px-1"
             style={isMe
               ? { background: 'rgba(155,0,255,0.25)', color: 'rgba(205,150,255,0.9)', border: '1px solid rgba(155,0,255,0.4)' }
               : { background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.1)' }
@@ -233,7 +233,7 @@ function PlayerRow({
             {player.name}
           </span>
           {isMe && (
-            <span className="flex-shrink-0 text-[9px] font-mono text-neon-purple/55 bg-neon-purple/10 px-1.5 py-0.5 rounded-full">
+            <span className="flex-shrink-0 text-[12px] font-mono text-neon-purple/55 bg-neon-purple/10 px-1.5 py-0.5 rounded-full">
               {t.common.you.replace(/[()]/g, '')}
             </span>
           )}
@@ -241,33 +241,33 @@ function PlayerRow({
 
         <div className="flex items-center gap-1.5 mt-0.5">
           {isSpeaker && (
-            <span className="text-[9px] font-mono text-neon-cyan font-bold bg-neon-cyan/10 px-1.5 py-0.5 rounded-full">
+            <span className="text-[12px] font-mono text-neon-cyan font-bold bg-neon-cyan/10 px-1.5 py-0.5 rounded-full">
               {t.players.speaking}
             </span>
           )}
           {!isSpeaker && isSpeaking && (
-            <span className="text-[9px] font-mono text-neon-green font-bold bg-neon-green/10 px-1.5 py-0.5 rounded-full animate-pulse">
+            <span className="text-[12px] font-mono text-neon-green font-bold bg-neon-green/10 px-1.5 py-0.5 rounded-full animate-pulse">
               {t.players.voiceOn}
             </span>
           )}
           {!dead && !isSpeaker && !isSpeaking && player.isConnected && (
-            <span className="text-[9px] font-mono text-neon-green/45 tracking-wide">{t.players.inBattleLabel}</span>
+            <span className="text-[12px] font-mono text-neon-green/45 tracking-wide">{t.players.inBattleLabel}</span>
           )}
           {!player.isConnected && !dead && (
-            <span className="text-[9px] font-mono text-yellow-500/50">{t.players.reconnecting}</span>
+            <span className="text-[12px] font-mono text-yellow-500/50">{t.players.reconnecting}</span>
           )}
           {dead && player.deathType === 'night' && (
-            <span className="text-[9px] font-mono font-bold text-red-400 bg-red-500/15 border border-red-500/30 px-1.5 py-0.5 rounded-full">
+            <span className="text-[12px] font-mono font-bold text-red-400 bg-red-500/15 border border-red-500/30 px-1.5 py-0.5 rounded-full">
               {t.players.killed}
             </span>
           )}
           {dead && player.deathType === 'vote' && (
-            <span className="text-[9px] font-mono font-bold text-orange-400 bg-orange-500/15 border border-orange-500/30 px-1.5 py-0.5 rounded-full">
+            <span className="text-[12px] font-mono font-bold text-orange-400 bg-orange-500/15 border border-orange-500/30 px-1.5 py-0.5 rounded-full">
               {t.players.votedOut}
             </span>
           )}
           {dead && !player.deathType && (
-            <span className="text-[9px] font-mono text-white/25">{t.players.eliminatedStatus}</span>
+            <span className="text-[12px] font-mono text-white/25">{t.players.eliminatedStatus}</span>
           )}
         </div>
       </div>

@@ -36,13 +36,13 @@ function BanForm({ targetProfileId, onClose }: { targetProfileId: string; onClos
 
   return (
     <div className="mt-2 pt-2 border-t border-red-500/20 space-y-2">
-      {error && <p className="text-[10px] text-red-400/80 font-mono">{error}</p>}
+      {error && <p className="text-[12px] text-red-400/80 font-mono">{error}</p>}
       <div>
-        <label className="font-mono text-[9px] uppercase tracking-wider text-white/40 block mb-1">{t.community.moderation.banReason}</label>
+        <label className="font-mono text-[12px] uppercase tracking-wider text-white/40 block mb-1">{t.community.moderation.banReason}</label>
         <TextInput value={reason} onChange={setReason} placeholder={t.community.moderation.banReason} maxLength={300} accent="purple" />
       </div>
       <div>
-        <label className="font-mono text-[9px] uppercase tracking-wider text-white/40 block mb-1">{t.community.moderation.banDuration} (h, 0 = permanent)</label>
+        <label className="font-mono text-[12px] uppercase tracking-wider text-white/40 block mb-1">{t.community.moderation.banDuration} (h, 0 = permanent)</label>
         <input
           type="number"
           min={0}
@@ -74,10 +74,10 @@ function ReportCard({ report, onResolve }: {
   return (
     <div className="rounded-2xl border px-4 py-3.5 space-y-2.5" style={{ borderColor: 'rgba(155,0,255,0.25)', background: 'rgba(255,255,255,0.02)' }}>
       <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border" style={{ color: status.color, borderColor: status.border, background: status.bg }}>
+        <span className="font-mono text-[12px] uppercase tracking-wider px-2 py-0.5 rounded-full border" style={{ color: status.color, borderColor: status.border, background: status.bg }}>
           {t.community.moderation.status[report.status as 'pending' | 'resolved' | 'rejected'] ?? report.status}
         </span>
-        <span className="font-mono text-[10px] text-white/30">{report.reporterName}</span>
+        <span className="font-mono text-[12px] text-white/30">{report.reporterName}</span>
       </div>
 
       <p className="font-mono text-xs text-white/60 italic">
@@ -99,7 +99,7 @@ function ReportCard({ report, onResolve }: {
         {report.postAuthorId && (
           <button
             onClick={() => setBanOpen(v => !v)}
-            className="ml-auto font-mono text-[10px] uppercase tracking-wider text-red-400/70 hover:text-red-400 transition-colors"
+            className="ml-auto font-mono text-[12px] uppercase tracking-wider text-red-400/70 hover:text-red-400 transition-colors"
           >
             {t.community.moderation.ban}
           </button>
@@ -153,7 +153,7 @@ export function ModerationPanel({ onClose }: { onClose: () => void }): JSX.Eleme
 
       {error && <p className="mb-3 text-xs text-red-400/80 font-mono">{error}</p>}
 
-      <h4 className="font-mono text-[10px] uppercase tracking-[0.25em] text-white/30 mb-3">{t.community.moderation.reports}</h4>
+      <h4 className="font-mono text-[12px] uppercase tracking-[0.25em] text-white/30 mb-3">{t.community.moderation.reports}</h4>
 
       {loading ? (
         <Spinner color="#9b00ff" />

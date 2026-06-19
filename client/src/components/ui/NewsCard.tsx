@@ -49,11 +49,11 @@ export function NewsCard() {
         style={{ borderBottom: '1px solid rgba(138,43,226,0.1)' }}
       >
         <span style={{ fontSize: 12 }}>📰</span>
-        <p className="text-[8px] font-display font-bold tracking-[0.25em] uppercase text-white/25 flex-1">
+        <p className="text-[12px] font-display font-bold tracking-[0.25em] uppercase text-white/25 flex-1">
           სიახლეები
         </p>
         <span
-          className="text-[8px] font-mono px-1.5 py-0.5 rounded-full"
+          className="text-[12px] font-mono px-1.5 py-0.5 rounded-full"
           style={{ background: 'rgba(138,43,226,0.15)', border: '1px solid rgba(138,43,226,0.3)', color: '#c084fc' }}
         >
           {NEWS.length}
@@ -82,7 +82,7 @@ export function NewsCard() {
                         {tag.label}
                       </span>
                     )}
-                    <span className="text-[8px] font-mono text-white/20">{formatDate(item.date)}</span>
+                    <span className="text-[12px] font-mono text-white/20">{formatDate(item.date)}</span>
                   </div>
                   <AnimatePresence initial={false}>
                     {isOpen ? (
@@ -110,7 +110,7 @@ export function NewsCard() {
                 </div>
                 <span
                   className="text-white/20 flex-shrink-0 mt-0.5 transition-transform duration-200"
-                  style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', fontSize: 10 }}
+                  style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', fontSize: 12 }}
                 >
                   ›
                 </span>

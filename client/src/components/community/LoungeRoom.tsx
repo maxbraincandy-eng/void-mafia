@@ -29,7 +29,7 @@ function RoleBadge({ role, accent }: { role: CommunityLoungeMember['role']; acce
   const label = role === 'host' ? t.community.lounges.host : role === 'speaker' ? t.community.lounges.speaker : t.community.lounges.listener;
   return (
     <span
-      className="font-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded-full border flex-shrink-0"
+      className="font-mono text-[12px] uppercase tracking-wider px-1.5 py-0.5 rounded-full border flex-shrink-0"
       style={role === 'listener'
         ? { color: 'rgba(255,255,255,0.35)', borderColor: 'rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.03)' }
         : { color: c.text, borderColor: c.border, background: c.bg }}
@@ -69,14 +69,14 @@ function MemberRow({
           {member.username}{isMe ? ` ${t.common.you}` : ''}
         </p>
         {member.handRaised && (
-          <p className="font-mono text-[9px] mt-0.5" style={{ color: c.text }}>✋ {t.community.lounges.handRaised}</p>
+          <p className="font-mono text-[12px] mt-0.5" style={{ color: c.text }}>✋ {t.community.lounges.handRaised}</p>
         )}
       </div>
       <RoleBadge role={member.role} accent={accent} />
       {canManage && !isMe && (
         <button
           onClick={onTap}
-          className="font-mono text-[10px] text-white/30 hover:text-white/60 px-1.5 flex-shrink-0"
+          className="font-mono text-[12px] text-white/30 hover:text-white/60 px-1.5 flex-shrink-0"
         >
           •••
         </button>
@@ -154,7 +154,7 @@ function PreJoinScreen({ lounge, accent, onJoin }: {
     <div className="flex flex-col items-center justify-center text-center py-16 px-4 space-y-6">
       <div>
         <p className="font-display font-bold text-white text-lg">{title}</p>
-        <p className="font-mono text-[10px] text-white/35 mt-1">
+        <p className="font-mono text-[12px] text-white/35 mt-1">
           {lounge.speakerCount} {t.community.lounges.speakers} · {lounge.listenerCount} {t.community.lounges.listeners}
         </p>
       </div>
@@ -173,7 +173,7 @@ function PreJoinScreen({ lounge, accent, onJoin }: {
         >
           🎙 {t.community.lounges.joinAsSpeaker}
         </button>
-        <p className="font-mono text-[9px] text-white/30 leading-relaxed px-2">
+        <p className="font-mono text-[12px] text-white/30 leading-relaxed px-2">
           {t.community.lounges.micCapNotice}
         </p>
       </div>
@@ -272,14 +272,14 @@ export function LoungeRoom({ lounge, onLeave, onOpenProfile }: {
           <p className="font-display font-bold text-white text-base truncate">{title}</p>
           <div className="flex items-center gap-2 mt-1">
             <span
-              className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border"
+              className="font-mono text-[12px] uppercase tracking-wider px-2 py-0.5 rounded-full border"
               style={lounge.isLive
                 ? { color: '#00ff88', borderColor: 'rgba(0,255,136,0.3)', background: 'rgba(0,255,136,0.08)' }
                 : { color: 'rgba(255,255,255,0.35)', borderColor: 'rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.03)' }}
             >
               {lounge.isLive ? t.community.lounges.live : t.community.lounges.offline}
             </span>
-            <span className="font-mono text-[10px] text-white/30">
+            <span className="font-mono text-[12px] text-white/30">
               {lounge.speakerCount} {t.community.lounges.speakers} · {lounge.listenerCount} {t.community.lounges.listeners}
             </span>
           </div>
@@ -333,13 +333,13 @@ export function LoungeRoom({ lounge, onLeave, onOpenProfile }: {
                 ✋ {voice.handRaised ? t.community.lounges.lowerHand : t.community.lounges.raiseHand}
               </PillButton>
             )}
-            <span className="font-mono text-[9px] text-white/25 ml-auto">
+            <span className="font-mono text-[12px] text-white/25 ml-auto">
               {voice.status === 'connecting' || voice.status === 'requesting' ? '…' : voice.status}
             </span>
           </div>
 
           {voice.error && (
-            <p className="font-mono text-[10px] text-red-400/70 px-1">{voice.error}</p>
+            <p className="font-mono text-[12px] text-red-400/70 px-1">{voice.error}</p>
           )}
 
           {/* Roster */}

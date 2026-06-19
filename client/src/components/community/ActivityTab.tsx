@@ -49,10 +49,10 @@ function ActivityCard({ event, onOpenProfile }: { event: ActivityEvent; onOpenPr
         </button>
         <span className="font-mono text-[11px] text-white/40"> {text}</span>
         {typeof event.payload?.preview === 'string' && (
-          <p className="mt-1 text-[10px] font-mono text-white/30 line-clamp-1 italic">"{event.payload.preview as string}"</p>
+          <p className="mt-1 text-[12px] font-mono text-white/30 line-clamp-1 italic">"{event.payload.preview as string}"</p>
         )}
       </div>
-      <span className="font-mono text-[9px] text-white/20 flex-shrink-0 mt-0.5">{timeLabel}</span>
+      <span className="font-mono text-[12px] text-white/20 flex-shrink-0 mt-0.5">{timeLabel}</span>
     </div>
   );
 }

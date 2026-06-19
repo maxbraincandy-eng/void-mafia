@@ -86,7 +86,7 @@ function RoleChip({ role, team }: { role: RoleKey; team: string | null }) {
   const label = role.replace(/_/g, ' ').toUpperCase();
   return (
     <div
-      className="flex items-center gap-1 px-2 py-1 rounded-lg font-mono font-bold text-[9px] tracking-widest uppercase"
+      className="flex items-center gap-1 px-2 py-1 rounded-lg font-mono font-bold text-[12px] tracking-widest uppercase"
       style={{
         background: `${c.bg}`,
         border: `1px solid ${c.border}`,
@@ -97,7 +97,7 @@ function RoleChip({ role, team }: { role: RoleKey; team: string | null }) {
       }}
     >
       {icon && (
-        <span className="text-[10px] leading-none font-bold" style={{ color: c.text, textShadow: `0 0 8px ${c.text}` }}>
+        <span className="text-[12px] leading-none font-bold" style={{ color: c.text, textShadow: `0 0 8px ${c.text}` }}>
           {icon}
         </span>
       )}
@@ -113,7 +113,7 @@ function OwnRoleChip({ role, team }: { role: RoleKey; team: string | null }) {
   const imgSrc = ROLE_CARD_IMAGES[role];
   return (
     <div
-      className="flex items-center gap-1.5 px-2 py-0.5 rounded-full font-mono font-bold text-[8px] tracking-widest uppercase"
+      className="flex items-center gap-1.5 px-2 py-0.5 rounded-full font-mono font-bold text-[12px] tracking-widest uppercase"
       style={{
         background: `linear-gradient(135deg, ${c.bg}, rgba(0,0,0,0.55))`,
         border: `1px solid ${c.border}`,
@@ -126,7 +126,7 @@ function OwnRoleChip({ role, team }: { role: RoleKey; team: string | null }) {
       {imgSrc
         ? <img src={imgSrc} alt="" aria-hidden className="w-4 h-[18px] object-cover rounded-sm flex-shrink-0" />
         : icon
-          ? <span className="text-[10px] flex-shrink-0" style={{ color: c.text, textShadow: `0 0 6px ${c.text}` }}>{icon}</span>
+          ? <span className="text-[12px] flex-shrink-0" style={{ color: c.text, textShadow: `0 0 6px ${c.text}` }}>{icon}</span>
           : null}
       <span>{label}</span>
     </div>
@@ -348,7 +348,7 @@ function SpeakerHero({ player, isMe, isAlly, speakerIndex, totalSpeakers, voice 
         >
           <div className="flex items-center gap-1.5">
             <span
-              className="flex-shrink-0 w-[18px] h-[18px] rounded-full flex items-center justify-center text-[9px] font-mono font-bold"
+              className="flex-shrink-0 w-[18px] h-[18px] rounded-full flex items-center justify-center text-[12px] font-mono font-bold"
               style={{ background: 'rgba(0,229,255,0.22)', color: '#00e5ff' }}
             >
               {player.seat}
@@ -358,7 +358,7 @@ function SpeakerHero({ player, isMe, isAlly, speakerIndex, totalSpeakers, voice 
             </span>
             {isMe && (
               <span
-                className="flex-shrink-0 text-[9px] font-display font-bold tracking-wider uppercase px-1.5 py-0.5 rounded-full"
+                className="flex-shrink-0 text-[12px] font-display font-bold tracking-wider uppercase px-1.5 py-0.5 rounded-full"
                 style={{ background: 'rgba(155,0,255,0.3)', border: '1px solid rgba(155,0,255,0.5)', color: '#c084fc' }}
               >
                 you
@@ -414,7 +414,7 @@ function SpeakerHero({ player, isMe, isAlly, speakerIndex, totalSpeakers, voice 
           ) : (
             <div className="flex items-center gap-2">
               <div
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-mono"
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] font-mono"
                 style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.1)' }}
               >
                 <span>{hasRemoteVideo ? '📹' : '📷'}</span>
@@ -424,7 +424,7 @@ function SpeakerHero({ player, isMe, isAlly, speakerIndex, totalSpeakers, voice 
               </div>
               {isSpeaking && (
                 <div
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-mono animate-pulse"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] font-mono animate-pulse"
                   style={{ background: 'rgba(0,255,136,0.1)', border: '1px solid rgba(0,255,136,0.4)', color: '#00ff88' }}
                 >
                   🔊
@@ -440,7 +440,7 @@ function SpeakerHero({ player, isMe, isAlly, speakerIndex, totalSpeakers, voice 
         <p className="text-xs font-mono uppercase tracking-widest" style={{ color: isMe ? '#a78bfa' : '#00e5ff', opacity: 0.75 }}>
           {isMe ? '🎤 your turn to speak' : '🎤 speaking now'}
         </p>
-        <p className="text-[10px] font-mono text-white/25">{speakerIndex + 1} / {totalSpeakers}</p>
+        <p className="text-[12px] font-mono text-white/25">{speakerIndex + 1} / {totalSpeakers}</p>
       </div>
     </motion.div>
   );
@@ -644,7 +644,7 @@ function PlayerCard({
         <div className="flex items-center gap-1 min-w-0">
           {/* Seat */}
           <span
-            className="flex-shrink-0 min-w-[16px] h-[16px] px-1 rounded-full flex items-center justify-center text-[9px] font-mono font-bold"
+            className="flex-shrink-0 min-w-[16px] h-[16px] px-1 rounded-full flex items-center justify-center text-[12px] font-mono font-bold"
             style={isMe
               ? { background: 'rgba(155,0,255,0.3)', color: 'rgba(205,150,255,0.98)' }
               : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.6)' }}
@@ -661,10 +661,10 @@ function PlayerCard({
           {player.isModerator && player.moderatorLevel && (
             <ModBadge level={player.moderatorLevel} size="xs" />
           )}
-          {player.isSpectator && <span className="text-[9px] flex-shrink-0">👁</span>}
+          {player.isSpectator && <span className="text-[12px] flex-shrink-0">👁</span>}
           {isAlly && !dead && (
             <span
-              className="flex-shrink-0 text-[8px] font-mono font-bold px-1 py-0.5 rounded"
+              className="flex-shrink-0 text-[12px] font-mono font-bold px-1 py-0.5 rounded"
               style={{ background: 'rgba(255,45,85,0.25)', color: 'rgba(255,100,120,0.95)', border: '1px solid rgba(255,45,85,0.4)' }}
             >
               ally
@@ -677,7 +677,7 @@ function PlayerCard({
       {/* ── Vote count badge — top-right ── */}
       {voteCount > 0 && (
         <div className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] rounded-full bg-neon-red flex items-center justify-center px-1 shadow-[0_0_8px_rgba(255,45,85,0.6)] z-10">
-          <span className="text-[9px] font-bold text-white">{voteCount}</span>
+          <span className="text-[12px] font-bold text-white">{voteCount}</span>
         </div>
       )}
 
@@ -767,7 +767,7 @@ function PlayerCard({
       {/* ── Speaking indicator (tribunal) ── */}
       {isSpeaker && (
         <div className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-black/55 z-10">
-          <span className="text-[9px] font-mono text-neon-cyan animate-pulse">▶ floor</span>
+          <span className="text-[12px] font-mono text-neon-cyan animate-pulse">▶ floor</span>
         </div>
       )}
 

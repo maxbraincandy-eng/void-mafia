@@ -69,12 +69,12 @@ export function FriendsPanel() {
       {profile?.friendCode && (
         <div className="px-3 py-2 rounded-xl border border-neon-cyan/20 bg-neon-cyan/5 flex items-center justify-between">
           <div>
-            <p className="font-mono text-[9px] uppercase tracking-wider text-white/30">Your code</p>
+            <p className="font-mono text-[12px] uppercase tracking-wider text-white/30">Your code</p>
             <p className="font-display font-bold text-neon-cyan text-lg tracking-widest">#{profile.friendCode}</p>
           </div>
           <button
             onClick={() => navigator.clipboard?.writeText(profile.friendCode!)}
-            className="font-mono text-[9px] text-white/30 hover:text-neon-cyan/70 transition-colors uppercase tracking-wider"
+            className="font-mono text-[12px] text-white/30 hover:text-neon-cyan/70 transition-colors uppercase tracking-wider"
           >
             copy
           </button>
@@ -105,7 +105,7 @@ export function FriendsPanel() {
       <AnimatePresence>
         {pendingFriendRequests.length > 0 && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <p className="text-[9px] font-display uppercase tracking-[0.25em] text-neon-pink/50 mb-2">
+            <p className="text-[12px] font-display uppercase tracking-[0.25em] text-neon-pink/50 mb-2">
               Requests ({pendingFriendRequests.length})
             </p>
             <div className="space-y-2">
@@ -121,11 +121,11 @@ export function FriendsPanel() {
                   <span className="flex-1 text-sm text-white font-semibold truncate">{req.fromUsername}</span>
                   <button
                     onClick={() => accept(req.fromId)}
-                    className="px-2 py-1 rounded-lg text-[10px] font-bold text-neon-green border border-neon-green/30 bg-neon-green/8 hover:bg-neon-green/15 transition-all"
+                    className="px-2 py-1 rounded-lg text-[12px] font-bold text-neon-green border border-neon-green/30 bg-neon-green/8 hover:bg-neon-green/15 transition-all"
                   >✓</button>
                   <button
                     onClick={() => decline(req.fromId)}
-                    className="px-2 py-1 rounded-lg text-[10px] font-bold text-white/40 border border-white/10 hover:bg-white/8 transition-all"
+                    className="px-2 py-1 rounded-lg text-[12px] font-bold text-white/40 border border-white/10 hover:bg-white/8 transition-all"
                   >✕</button>
                 </div>
               ))}
@@ -137,7 +137,7 @@ export function FriendsPanel() {
       {/* Online / In Game friends */}
       {online.length > 0 && (
         <div>
-          <p className="text-[9px] font-display uppercase tracking-[0.25em] text-neon-green/50 mb-2">
+          <p className="text-[12px] font-display uppercase tracking-[0.25em] text-neon-green/50 mb-2">
             Online ({online.length})
           </p>
           <div className="space-y-1.5">
@@ -151,7 +151,7 @@ export function FriendsPanel() {
       {/* Offline friends */}
       {offline.length > 0 && (
         <div>
-          <p className="text-[9px] font-display uppercase tracking-[0.25em] text-white/25 mb-2">
+          <p className="text-[12px] font-display uppercase tracking-[0.25em] text-white/25 mb-2">
             Offline ({offline.length})
           </p>
           <div className="space-y-1.5 opacity-60">
@@ -167,7 +167,7 @@ export function FriendsPanel() {
         <div className="text-center py-8 text-white/20 font-mono text-sm">
           <p className="text-3xl mb-2">👥</p>
           <p>No friends yet</p>
-          <p className="text-[10px] mt-1 text-white/15">Add friends by their 4-digit code</p>
+          <p className="text-[12px] mt-1 text-white/15">Add friends by their 4-digit code</p>
         </div>
       )}
     </div>
@@ -207,7 +207,7 @@ function FriendRow({ friend, onRemove }: { friend: Friend; onRemove: (id: string
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm text-white font-semibold truncate leading-tight">{friend.username}</p>
-        <p className={`text-[9px] font-mono ${lvlColor(friend.level)}`}>
+        <p className={`text-[12px] font-mono ${lvlColor(friend.level)}`}>
           {friend.playerStatus === 'in_game' ? (
             <span style={{ color: '#00f5ff' }}>In Game</span>
           ) : friend.playerStatus === 'online' || friend.isOnline ? (

@@ -70,12 +70,12 @@ export function ModAlertPanel() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   <span
-                    className="font-mono text-[10px] font-bold uppercase tracking-widest"
+                    className="font-mono text-[12px] font-bold uppercase tracking-widest"
                     style={{ color: cfg.color }}
                   >
                     {cfg.label}
                   </span>
-                  <span className="text-white/25 font-mono text-[9px]">{fmtTime(alert.createdAt)}</span>
+                  <span className="text-white/25 font-mono text-[12px]">{fmtTime(alert.createdAt)}</span>
                 </div>
                 <p className="text-white/80 font-mono text-xs leading-snug">{alert.message}</p>
               </div>

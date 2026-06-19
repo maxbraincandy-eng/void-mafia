@@ -21,20 +21,20 @@ function ThoughtRow({ thought, canManage, onDelete }: {
     >
       <div className="min-w-0 flex-1">
         <p className="font-mono text-xs text-white/60 whitespace-pre-wrap leading-relaxed">{thought.content}</p>
-        <p className="font-mono text-[9px] text-white/25 mt-1">{timeAgo(thought.createdAt)}</p>
+        <p className="font-mono text-[12px] text-white/25 mt-1">{timeAgo(thought.createdAt)}</p>
       </div>
       {canManage && (
         confirming ? (
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <button
               onClick={() => onDelete(thought.id)}
-              className="font-mono text-[9px] uppercase tracking-wider px-2 py-1 rounded-lg text-red-400 border border-red-500/30 bg-red-500/10 active:scale-95 transition-all"
+              className="font-mono text-[12px] uppercase tracking-wider px-2 py-1 rounded-lg text-red-400 border border-red-500/30 bg-red-500/10 active:scale-95 transition-all"
             >
               {t.community.thoughts.delete}?
             </button>
             <button
               onClick={() => setConfirming(false)}
-              className="font-mono text-[9px] text-white/30 hover:text-white/60"
+              className="font-mono text-[12px] text-white/30 hover:text-white/60"
             >
               ✕
             </button>
@@ -42,7 +42,7 @@ function ThoughtRow({ thought, canManage, onDelete }: {
         ) : (
           <button
             onClick={() => setConfirming(true)}
-            className="flex-shrink-0 font-mono text-[10px] text-white/25 hover:text-red-400/80 transition-colors px-1"
+            className="flex-shrink-0 font-mono text-[12px] text-white/25 hover:text-red-400/80 transition-colors px-1"
             aria-label={t.community.thoughts.delete}
           >
             🗑
@@ -120,7 +120,7 @@ export function ThoughtsTab(): JSX.Element {
             >
               <div className="flex items-center justify-between mb-3">
                 <span
-                  className="font-mono text-[9px] uppercase tracking-[0.2em] px-2 py-0.5 rounded-full"
+                  className="font-mono text-[12px] uppercase tracking-[0.2em] px-2 py-0.5 rounded-full"
                   style={{ background: 'rgba(155,0,255,0.18)', border: '1px solid rgba(155,0,255,0.4)', color: 'rgba(180,80,255,0.95)' }}
                 >
                   {t.community.thoughts.todayLabel}
@@ -128,7 +128,7 @@ export function ThoughtsTab(): JSX.Element {
                 {isOwner && (
                   <button
                     onClick={() => deleteThought(pinnedThought.id)}
-                    className="font-mono text-[10px] text-white/25 hover:text-red-400/80 transition-colors"
+                    className="font-mono text-[12px] text-white/25 hover:text-red-400/80 transition-colors"
                     aria-label={t.community.thoughts.delete}
                   >
                     🗑
@@ -136,7 +136,7 @@ export function ThoughtsTab(): JSX.Element {
                 )}
               </div>
               <p className="font-display text-white text-lg leading-relaxed whitespace-pre-wrap">{pinnedThought.content}</p>
-              <p className="font-mono text-[10px] text-white/30 mt-3">{timeAgo(pinnedThought.createdAt)}</p>
+              <p className="font-mono text-[12px] text-white/30 mt-3">{timeAgo(pinnedThought.createdAt)}</p>
             </motion.div>
           )}
 
@@ -144,10 +144,10 @@ export function ThoughtsTab(): JSX.Element {
             <div>
               <button
                 onClick={() => setShowArchive(v => !v)}
-                className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.25em] text-white/30 hover:text-white/60 transition-colors mb-3"
+                className="flex items-center gap-2 font-mono text-[12px] uppercase tracking-[0.25em] text-white/30 hover:text-white/60 transition-colors mb-3"
               >
                 {t.community.thoughts.archive}
-                <span className="text-[8px]">{showArchive ? '▲' : '▼'}</span>
+                <span className="text-[12px]">{showArchive ? '▲' : '▼'}</span>
               </button>
 
               <AnimatePresence>
@@ -177,7 +177,7 @@ export function ThoughtsTab(): JSX.Element {
             <h3 className="font-display font-bold text-white text-xl mb-4">{t.community.thoughts.create}</h3>
             <div className="space-y-3">
               <div>
-                <label className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">{t.community.thoughts.contentLabel}</label>
+                <label className="font-mono text-[12px] uppercase tracking-wider text-white/40 block mb-1">{t.community.thoughts.contentLabel}</label>
                 <TextArea value={content} onChange={setContent} placeholder={t.community.thoughts.contentPh} maxLength={2000} rows={5} accent="purple" />
               </div>
               <label className="flex items-center gap-2 font-mono text-xs text-white/50 cursor-pointer select-none">

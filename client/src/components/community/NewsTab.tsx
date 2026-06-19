@@ -28,7 +28,7 @@ function NewsCard({ post, canManage, onDelete }: {
         <div className="flex items-center gap-2 min-w-0">
           {post.pinned && (
             <span
-              className="flex-shrink-0 font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full"
+              className="flex-shrink-0 font-mono text-[12px] uppercase tracking-wider px-2 py-0.5 rounded-full"
               style={{ background: 'rgba(155,0,255,0.15)', border: '1px solid rgba(155,0,255,0.35)', color: 'rgba(180,80,255,0.95)' }}
             >
               📌 {t.community.news.pinned}
@@ -40,13 +40,13 @@ function NewsCard({ post, canManage, onDelete }: {
             <div className="flex items-center gap-1.5 flex-shrink-0">
               <button
                 onClick={() => onDelete(post.id)}
-                className="font-mono text-[9px] uppercase tracking-wider px-2 py-1 rounded-lg text-red-400 border border-red-500/30 bg-red-500/10 active:scale-95 transition-all"
+                className="font-mono text-[12px] uppercase tracking-wider px-2 py-1 rounded-lg text-red-400 border border-red-500/30 bg-red-500/10 active:scale-95 transition-all"
               >
                 {t.community.news.delete}?
               </button>
               <button
                 onClick={() => setConfirming(false)}
-                className="font-mono text-[9px] text-white/30 hover:text-white/60"
+                className="font-mono text-[12px] text-white/30 hover:text-white/60"
               >
                 ✕
               </button>
@@ -54,7 +54,7 @@ function NewsCard({ post, canManage, onDelete }: {
           ) : (
             <button
               onClick={() => setConfirming(true)}
-              className="flex-shrink-0 font-mono text-[10px] text-white/25 hover:text-red-400/80 transition-colors px-1"
+              className="flex-shrink-0 font-mono text-[12px] text-white/25 hover:text-red-400/80 transition-colors px-1"
               aria-label={t.community.news.delete}
             >
               🗑
@@ -67,9 +67,9 @@ function NewsCard({ post, canManage, onDelete }: {
       <p className="font-mono text-xs text-white/60 whitespace-pre-wrap leading-relaxed">{post.content}</p>
 
       <div className="flex items-center gap-2 pt-1">
-        <span className="font-mono text-[10px] text-white/35">{post.authorName}</span>
+        <span className="font-mono text-[12px] text-white/35">{post.authorName}</span>
         <span className="text-white/15">·</span>
-        <span className="font-mono text-[10px] text-white/25">{timeAgo(post.createdAt)}</span>
+        <span className="font-mono text-[12px] text-white/25">{timeAgo(post.createdAt)}</span>
       </div>
     </motion.div>
   );
@@ -144,11 +144,11 @@ export function NewsTab(): JSX.Element {
             <h3 className="font-display font-bold text-white text-xl mb-4">{t.community.news.create}</h3>
             <div className="space-y-3">
               <div>
-                <label className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">{t.community.news.titleLabel}</label>
+                <label className="font-mono text-[12px] uppercase tracking-wider text-white/40 block mb-1">{t.community.news.titleLabel}</label>
                 <TextInput value={title} onChange={setTitle} placeholder={t.community.news.titlePh} maxLength={120} accent="purple" />
               </div>
               <div>
-                <label className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">{t.community.news.contentLabel}</label>
+                <label className="font-mono text-[12px] uppercase tracking-wider text-white/40 block mb-1">{t.community.news.contentLabel}</label>
                 <TextArea value={content} onChange={setContent} placeholder={t.community.news.contentPh} maxLength={4000} rows={5} accent="purple" />
               </div>
               <label className="flex items-center gap-2 font-mono text-xs text-white/50 cursor-pointer select-none">

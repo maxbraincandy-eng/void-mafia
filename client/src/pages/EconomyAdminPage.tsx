@@ -18,7 +18,7 @@ const TX_COLOR: Record<string, string> = {
   gift_received: 'text-neon-cyan', daily_reward: 'text-amber-400', refund: 'text-neon-purple',
 };
 
-function Stars({ n, size = 'text-[10px]' }: { n: number; size?: string }) {
+function Stars({ n, size = 'text-[12px]' }: { n: number; size?: string }) {
   return (
     <span className={size}>
       {Array.from({ length: 5 }).map((_, i) => (
@@ -74,12 +74,12 @@ function GiftForm({ initial, onSave, onCancel }: GiftFormProps) {
     <div className="rounded-xl border border-white/10 p-4 space-y-3 bg-white/3">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="font-mono text-[9px] text-white/30 uppercase tracking-widest block mb-1">Name</label>
+          <label className="font-mono text-[12px] text-white/30 uppercase tracking-widest block mb-1">Name</label>
           <input value={name} onChange={e => setName(e.target.value)} maxLength={40}
             className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white font-mono text-xs focus:outline-none focus:border-neon-cyan/40" />
         </div>
         <div>
-          <label className="font-mono text-[9px] text-white/30 uppercase tracking-widest block mb-1">Icon (emoji)</label>
+          <label className="font-mono text-[12px] text-white/30 uppercase tracking-widest block mb-1">Icon (emoji)</label>
           <input value={icon} onChange={e => setIcon(e.target.value)} maxLength={4}
             className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white font-mono text-lg text-center focus:outline-none focus:border-neon-cyan/40" />
         </div>
@@ -87,7 +87,7 @@ function GiftForm({ initial, onSave, onCancel }: GiftFormProps) {
 
       {/* PNG image upload */}
       <div>
-        <label className="font-mono text-[9px] text-white/30 uppercase tracking-widest block mb-1">
+        <label className="font-mono text-[12px] text-white/30 uppercase tracking-widest block mb-1">
           Custom Image (PNG/JPG — overrides emoji icon)
         </label>
         <div className="flex items-center gap-3">
@@ -96,11 +96,11 @@ function GiftForm({ initial, onSave, onCancel }: GiftFormProps) {
               <img src={imageUrl} alt="" className="w-full h-full object-cover" />
               <button
                 onClick={() => setImageUrl('')}
-                className="absolute top-0 right-0 w-4 h-4 bg-black/70 text-white/60 text-[8px] flex items-center justify-center hover:text-white"
+                className="absolute top-0 right-0 w-4 h-4 bg-black/70 text-white/60 text-[12px] flex items-center justify-center hover:text-white"
               >✕</button>
             </div>
           )}
-          <label className="flex-1 cursor-pointer px-3 py-2 rounded-lg border border-dashed border-white/15 bg-white/3 text-white/30 font-mono text-[10px] text-center hover:border-neon-cyan/30 hover:text-neon-cyan/60 transition-colors">
+          <label className="flex-1 cursor-pointer px-3 py-2 rounded-lg border border-dashed border-white/15 bg-white/3 text-white/30 font-mono text-[12px] text-center hover:border-neon-cyan/30 hover:text-neon-cyan/60 transition-colors">
             {imageUrl ? 'Replace image' : '+ Upload image'}
             <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleImageFile} className="hidden" />
           </label>
@@ -108,21 +108,21 @@ function GiftForm({ initial, onSave, onCancel }: GiftFormProps) {
       </div>
 
       <div>
-        <label className="font-mono text-[9px] text-white/30 uppercase tracking-widest block mb-1">Description</label>
+        <label className="font-mono text-[12px] text-white/30 uppercase tracking-widest block mb-1">Description</label>
         <input value={description} onChange={e => setDesc(e.target.value)} maxLength={120}
           className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white font-mono text-xs focus:outline-none focus:border-neon-cyan/40" />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="font-mono text-[9px] text-white/30 uppercase tracking-widest block mb-1">Rarity</label>
+          <label className="font-mono text-[12px] text-white/30 uppercase tracking-widest block mb-1">Rarity</label>
           <select value={rarity} onChange={e => setRarity(e.target.value)}
             className="w-full px-3 py-2 rounded-lg bg-void border border-white/10 text-white font-mono text-xs focus:outline-none">
             {RARITIES.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
         <div>
-          <label className="font-mono text-[9px] text-white/30 uppercase tracking-widest block mb-1">Stars (1–5)</label>
+          <label className="font-mono text-[12px] text-white/30 uppercase tracking-widest block mb-1">Stars (1–5)</label>
           <input type="number" min={1} max={5} value={stars} onChange={e => setStars(Number(e.target.value))}
             className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white font-mono text-xs focus:outline-none focus:border-neon-cyan/40" />
         </div>
@@ -130,7 +130,7 @@ function GiftForm({ initial, onSave, onCancel }: GiftFormProps) {
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="font-mono text-[9px] text-white/30 uppercase tracking-widest block mb-1">Price (coins)</label>
+          <label className="font-mono text-[12px] text-white/30 uppercase tracking-widest block mb-1">Price (coins)</label>
           <input type="number" min={0} value={price} onChange={e => setPrice(e.target.value)}
             className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white font-mono text-xs focus:outline-none focus:border-neon-cyan/40" />
         </div>
@@ -142,7 +142,7 @@ function GiftForm({ initial, onSave, onCancel }: GiftFormProps) {
             >
               <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${active ? 'translate-x-5' : 'translate-x-0.5'}`} />
             </div>
-            <span className="font-mono text-[9px] text-white/40 uppercase tracking-widest">Active</span>
+            <span className="font-mono text-[12px] text-white/40 uppercase tracking-widest">Active</span>
           </label>
         </div>
       </div>
@@ -266,7 +266,7 @@ export function EconomyAdminPage() {
     >
       {/* Header */}
       <div className="mb-5">
-        <p className="font-mono text-[9px] uppercase tracking-[0.25em] text-amber-400/60 mb-0.5">Owner Panel</p>
+        <p className="font-mono text-[12px] uppercase tracking-[0.25em] text-amber-400/60 mb-0.5">Owner Panel</p>
         <h1 className="font-display font-bold text-white text-xl tracking-wide">Economy Admin</h1>
       </div>
 
@@ -274,7 +274,7 @@ export function EconomyAdminPage() {
       <div className="flex gap-1 mb-5 rounded-xl p-1 bg-white/3 border border-white/5">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex-1 py-2 rounded-lg font-mono text-[10px] uppercase tracking-widest transition-all ${
+            className={`flex-1 py-2 rounded-lg font-mono text-[12px] uppercase tracking-widest transition-all ${
               tab === t.id ? 'bg-amber-400/15 text-amber-400 border border-amber-400/25' : 'text-white/30 hover:text-white/50'
             }`}>
             {t.icon} {t.label}
@@ -286,12 +286,12 @@ export function EconomyAdminPage() {
       {tab === 'catalog' && (
         <div>
           <div className="flex items-center justify-between mb-3">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-white/30">
+            <p className="font-mono text-[12px] uppercase tracking-widest text-white/30">
               {catalog.length} gifts
             </p>
             <button
               onClick={() => { setEditing('new' as any); setShowForm(true); }}
-              className="px-3 py-1.5 rounded-lg bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan font-mono text-[10px] uppercase tracking-widest hover:bg-neon-cyan/20"
+              className="px-3 py-1.5 rounded-lg bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan font-mono text-[12px] uppercase tracking-widest hover:bg-neon-cyan/20"
             >
               + New Gift
             </button>
@@ -322,14 +322,14 @@ export function EconomyAdminPage() {
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs text-white/80 font-bold">{g.name}</span>
                     <Stars n={g.stars} />
-                    <span className={`font-mono text-[9px] uppercase ${RARITY_COLOR[g.rarity]}`}>{g.rarity}</span>
-                    {!g.active && <span className="font-mono text-[9px] text-white/25 bg-white/5 px-1.5 rounded">inactive</span>}
+                    <span className={`font-mono text-[12px] uppercase ${RARITY_COLOR[g.rarity]}`}>{g.rarity}</span>
+                    {!g.active && <span className="font-mono text-[12px] text-white/25 bg-white/5 px-1.5 rounded">inactive</span>}
                   </div>
-                  <p className="font-mono text-[10px] text-amber-400">{g.price} 🪙</p>
+                  <p className="font-mono text-[12px] text-amber-400">{g.price} 🪙</p>
                 </div>
                 <button
                   onClick={() => { setEditing(g); setShowForm(true); }}
-                  className="px-2.5 py-1 rounded-lg border border-white/10 text-white/40 font-mono text-[9px] uppercase hover:border-white/20 transition-colors">
+                  className="px-2.5 py-1 rounded-lg border border-white/10 text-white/40 font-mono text-[12px] uppercase hover:border-white/20 transition-colors">
                   Edit
                 </button>
               </div>
@@ -343,7 +343,7 @@ export function EconomyAdminPage() {
         <div className="space-y-4">
           {/* Player lookup */}
           <div className="rounded-xl border border-white/10 p-4">
-            <p className="font-mono text-[9px] uppercase tracking-widest text-white/30 mb-3">Find Player by Friend Code</p>
+            <p className="font-mono text-[12px] uppercase tracking-widest text-white/30 mb-3">Find Player by Friend Code</p>
             <div className="flex gap-2">
               <input
                 value={targetCode}
@@ -368,7 +368,7 @@ export function EconomyAdminPage() {
                 </div>
                 <div>
                   <p className="font-mono text-xs text-white font-bold">{targetPlayer.username}</p>
-                  <p className="font-mono text-[9px] text-white/30">#{targetPlayer.publicId}</p>
+                  <p className="font-mono text-[12px] text-white/30">#{targetPlayer.publicId}</p>
                 </div>
               </motion.div>
             )}
@@ -378,14 +378,14 @@ export function EconomyAdminPage() {
           {targetPlayer && (
             <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
               className="rounded-xl border border-amber-400/20 p-4 bg-amber-400/4">
-              <p className="font-mono text-[9px] uppercase tracking-widest text-amber-400/60 mb-3">
+              <p className="font-mono text-[12px] uppercase tracking-widest text-amber-400/60 mb-3">
                 Adjust coins for {targetPlayer.username}
               </p>
 
               <div className="flex gap-1 mb-3 rounded-lg p-1 bg-black/20 border border-white/5">
                 {(['grant', 'deduct'] as const).map(m => (
                   <button key={m} onClick={() => setGrantMode(m)}
-                    className={`flex-1 py-1.5 rounded font-mono text-[10px] uppercase tracking-widest transition-all ${
+                    className={`flex-1 py-1.5 rounded font-mono text-[12px] uppercase tracking-widest transition-all ${
                       grantMode === m
                         ? m === 'grant' ? 'bg-neon-green/15 text-neon-green border border-neon-green/25' : 'bg-neon-red/15 text-neon-red border border-neon-red/25'
                         : 'text-white/30'
@@ -418,8 +418,8 @@ export function EconomyAdminPage() {
       {tab === 'transactions' && (
         <div>
           <div className="flex items-center justify-between mb-3">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-white/30">Last 500 transactions</p>
-            <button onClick={loadTxs} className="px-3 py-1.5 rounded-lg border border-white/10 text-white/40 font-mono text-[10px] uppercase hover:border-white/20">
+            <p className="font-mono text-[12px] uppercase tracking-widest text-white/30">Last 500 transactions</p>
+            <button onClick={loadTxs} className="px-3 py-1.5 rounded-lg border border-white/10 text-white/40 font-mono text-[12px] uppercase hover:border-white/20">
               Refresh
             </button>
           </div>
@@ -430,15 +430,15 @@ export function EconomyAdminPage() {
             {txs.map(tx => (
               <div key={tx.id} className="rounded-lg px-3 py-2 flex items-center gap-2"
                 style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <span className={`font-mono text-[9px] uppercase tracking-widest min-w-[70px] ${TX_COLOR[tx.type] ?? 'text-white/40'}`}>
+                <span className={`font-mono text-[12px] uppercase tracking-widest min-w-[70px] ${TX_COLOR[tx.type] ?? 'text-white/40'}`}>
                   {TX_TYPE_LABEL[tx.type] ?? tx.type}
                 </span>
                 <span className={`font-mono text-xs font-bold min-w-[50px] text-right ${tx.amount >= 0 ? 'text-neon-green' : 'text-neon-red'}`}>
                   {tx.amount >= 0 ? '+' : ''}{tx.amount}
                 </span>
-                <span className="font-mono text-[9px] text-white/25 min-w-[50px]">→ {tx.balanceAfter}</span>
-                <span className="font-mono text-[9px] text-white/35 flex-1 truncate">{tx.description}</span>
-                <span className="font-mono text-[9px] text-white/20">{new Date(tx.createdAt).toLocaleDateString()}</span>
+                <span className="font-mono text-[12px] text-white/25 min-w-[50px]">→ {tx.balanceAfter}</span>
+                <span className="font-mono text-[12px] text-white/35 flex-1 truncate">{tx.description}</span>
+                <span className="font-mono text-[12px] text-white/20">{new Date(tx.createdAt).toLocaleDateString()}</span>
               </div>
             ))}
             {txs.length === 0 && !loading && (

@@ -191,7 +191,7 @@ function PlayerCard({
                       fontWeight:isActive?700:400, transition:'all 0.3s' }}>
             {absent ? <span style={{color:'rgba(255,255,255,0.25)'}}>—</span> : name}
           </p>
-          {isYou && <span style={{fontFamily:'monospace',fontSize:8,color:'rgba(255,255,255,0.25)',letterSpacing:1}}>YOU</span>}
+          {isYou && <span style={{fontFamily:'monospace',fontSize: 12,color:'rgba(255,255,255,0.25)',letterSpacing:1}}>YOU</span>}
         </div>
         {!absent && <PiecePips pieces={pieces} color={color} />}
         {/* Last roll display */}
@@ -200,7 +200,7 @@ function PlayerCard({
             <motion.p
               key={`lr-${lastRoll}`}
               initial={{opacity:0,y:4}} animate={{opacity:1,y:0}} exit={{opacity:0}}
-              style={{fontFamily:'monospace',fontSize:9,color:accent,marginTop:2,letterSpacing:0.5}}>
+              style={{fontFamily:'monospace',fontSize: 12,color:accent,marginTop:2,letterSpacing:0.5}}>
               🎲 {lastRoll === 6 ? `6 — Roll again!` : `Rolled ${lastRoll}`}
             </motion.p>
           )}
@@ -429,6 +429,7 @@ export function LudoGame() {
       {/* ── Header ──────────────────────────────────────────────────── */}
       <div style={{ position:'relative', zIndex:10, flexShrink:0, display:'flex', alignItems:'center',
                     justifyContent:'space-between', padding:'10px 14px',
+                    paddingTop:'max(10px, env(safe-area-inset-top, 0px))',
                     background:'rgba(2,5,18,0.97)',
                     borderBottom:'1px solid rgba(0,245,255,0.12)',
                     boxShadow:'0 2px 20px rgba(0,0,0,0.5)' }}>
@@ -440,7 +441,7 @@ export function LudoGame() {
                         letterSpacing:2,textShadow:'0 0 12px rgba(0,245,255,0.6)'}}>
               VOID LUDO
             </p>
-            <p style={{fontFamily:'monospace',fontSize:9,color:'rgba(0,245,255,0.35)',letterSpacing:3}}>
+            <p style={{fontFamily:'monospace',fontSize: 12,color:'rgba(0,245,255,0.35)',letterSpacing:3}}>
               {match.code}
             </p>
           </div>
@@ -448,24 +449,24 @@ export function LudoGame() {
         <div style={{display:'flex',gap:6,alignItems:'center'}}>
           {/* Sound toggle */}
           <button onClick={toggleSound}
-            style={{width:30,height:30,display:'flex',alignItems:'center',justifyContent:'center',
+            style={{width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center',
                     borderRadius:8,border:'1px solid rgba(255,255,255,0.1)',
                     background:soundOn?'rgba(0,245,255,0.08)':'rgba(255,255,255,0.03)',
-                    cursor:'pointer',fontSize:14,color:soundOn?'#00f5ff':'rgba(255,255,255,0.25)'}}>
+                    cursor:'pointer',fontSize:16,color:soundOn?'#00f5ff':'rgba(255,255,255,0.25)'}}>
             {soundOn ? '🔊' : '🔇'}
           </button>
           {isPlayer && !isFinished && !isWaiting && (
             <button onClick={()=>setShowResign(true)}
-              style={{padding:'4px 10px',borderRadius:8,fontFamily:'monospace',fontSize:10,
+              style={{padding:'8px 12px',borderRadius:8,fontFamily:'monospace',fontSize: 12,
                       color:'rgba(255,255,255,0.3)',border:'1px solid rgba(255,255,255,0.08)',
-                      background:'transparent',cursor:'pointer',letterSpacing:1}}>
+                      background:'transparent',cursor:'pointer',letterSpacing:1,minHeight:44}}>
               RESIGN
             </button>
           )}
           <button onClick={leaveMatch}
-            style={{width:30,height:30,display:'flex',alignItems:'center',justifyContent:'center',
+            style={{width:44,height:44,display:'flex',alignItems:'center',justifyContent:'center',
                     borderRadius:8,color:'rgba(255,255,255,0.35)',border:'1px solid rgba(255,255,255,0.1)',
-                    background:'rgba(255,255,255,0.04)',cursor:'pointer',fontSize:15,fontFamily:'monospace'}}>
+                    background:'rgba(255,255,255,0.04)',cursor:'pointer',fontSize:16,fontFamily:'monospace'}}>
             ✕
           </button>
         </div>
@@ -490,7 +491,7 @@ export function LudoGame() {
                          color: turnAccent, textShadow:`0 0 20px ${turnAccent}` }}>
               {turnIsMe ? '⚡' : '⏳'} {turnIsMe ? 'YOUR' : `${turnName}'s`} TURN
             </p>
-            <p style={{ fontFamily:'monospace', fontSize:10, letterSpacing:1,
+            <p style={{ fontFamily:'monospace', fontSize: 12, letterSpacing:1,
                          color:'rgba(255,255,255,0.3)', marginTop:1 }}>
               {canRoll && 'Roll the dice!'}
               {canMove && '↑ Tap a piece to move'}
@@ -578,7 +579,7 @@ export function LudoGame() {
                   initial={{opacity:0,scale:0.6,y:6}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:0.6}}
                   style={{position:'absolute',top:-26,left:'50%',transform:'translateX(-50%)',
                           background:'#fbbf24',color:'#78350f',borderRadius:8,
-                          padding:'3px 9px',fontFamily:'monospace',fontSize:9,fontWeight:900,
+                          padding:'3px 9px',fontFamily:'monospace',fontSize: 12,fontWeight:900,
                           whiteSpace:'nowrap',boxShadow:'0 0 14px rgba(251,191,36,0.7)',letterSpacing:1}}>
                   🎲 ROLL AGAIN!
                 </motion.div>
@@ -654,7 +655,7 @@ export function LudoGame() {
                     style={{width:8,height:8,borderRadius:'50%',background:'#fbbf24',
                             boxShadow:'0 0 6px rgba(251,191,36,0.8)'}} />
                 ))}
-                <p style={{fontFamily:'monospace',fontSize:8,color:'#fbbf24',letterSpacing:0.5}}>
+                <p style={{fontFamily:'monospace',fontSize: 12,color:'#fbbf24',letterSpacing:0.5}}>
                   {match.consecutiveSixes}/3
                 </p>
               </div>
@@ -687,16 +688,16 @@ export function LudoGame() {
                     background:'rgba(2,5,18,0.8)',backdropFilter:'blur(8px)'}}>
             <div ref={chatRef} style={{overflowY:'auto',padding:'6px 12px',maxHeight:100}}>
               {match.chat.length===0 && (
-                <p style={{fontFamily:'monospace',fontSize:10,color:'rgba(255,255,255,0.18)'}}>
+                <p style={{fontFamily:'monospace',fontSize: 12,color:'rgba(255,255,255,0.18)'}}>
                   {t.games.ludo.noMessages}
                 </p>
               )}
               {match.chat.map(msg=>(
                 <div key={msg.id} style={{display:'flex',gap:6,marginBottom:3}}>
-                  <span style={{fontFamily:'monospace',fontSize:10,color:'rgba(0,245,255,0.5)',flexShrink:0}}>
+                  <span style={{fontFamily:'monospace',fontSize: 12,color:'rgba(0,245,255,0.5)',flexShrink:0}}>
                     {msg.name}:
                   </span>
-                  <span style={{fontFamily:'monospace',fontSize:10,color:'rgba(255,255,255,0.7)',wordBreak:'break-word'}}>
+                  <span style={{fontFamily:'monospace',fontSize: 12,color:'rgba(255,255,255,0.7)',wordBreak:'break-word'}}>
                     {msg.text}
                   </span>
                 </div>
@@ -802,7 +803,7 @@ export function LudoGame() {
                         background:`rgba(${COLOR_RGBS[color]},0.1)`,
                         border:`1px solid rgba(${COLOR_RGBS[color]},0.25)`,
                         flex:'1 1 80px',minWidth:0}}>
-                        <p style={{fontFamily:'monospace',fontSize:10,color:COLOR_TEXTS[color],
+                        <p style={{fontFamily:'monospace',fontSize: 12,color:COLOR_TEXTS[color],
                                     marginBottom:4,letterSpacing:1,textTransform:'uppercase'}}>
                           {match.players[color]!.name}
                         </p>
@@ -810,7 +811,7 @@ export function LudoGame() {
                                     color:COLOR_VALS[color],lineHeight:1}}>
                           {homeCount[color]}<span style={{fontSize:12,opacity:0.6}}>/4</span>
                         </p>
-                        <p style={{fontFamily:'monospace',fontSize:9,color:'rgba(255,255,255,0.3)',marginTop:2}}>
+                        <p style={{fontFamily:'monospace',fontSize: 12,color:'rgba(255,255,255,0.3)',marginTop:2}}>
                           pieces home
                         </p>
                       </div>

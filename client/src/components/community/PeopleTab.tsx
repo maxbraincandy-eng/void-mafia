@@ -42,7 +42,7 @@ function PersonCard({ person, onOpenProfile }: { person: CommunityProfileV2; onO
           )}
           {person.badges?.length > 0 && <BadgeRow badges={person.badges} max={3} />}
         </div>
-        <p className="font-mono text-[10px] text-white/35">
+        <p className="font-mono text-[12px] text-white/35">
           {person.followersCount} {t.community.profile.followers}
           {person.reputation > 0 && ` · ⭐ ${person.reputation}`}
         </p>
@@ -51,7 +51,7 @@ function PersonCard({ person, onOpenProfile }: { person: CommunityProfileV2; onO
         <button
           onClick={handleFollow}
           disabled={followBusy}
-          className="flex-shrink-0 px-2.5 py-1 rounded-full font-mono text-[10px] uppercase tracking-wider transition-all disabled:opacity-40"
+          className="flex-shrink-0 px-2.5 py-1 rounded-full font-mono text-[12px] uppercase tracking-wider transition-all disabled:opacity-40"
           style={{
             background: following ? 'rgba(0,245,255,0.1)' : 'rgba(155,0,255,0.15)',
             border: `1px solid ${following ? 'rgba(0,245,255,0.3)' : 'rgba(155,0,255,0.35)'}`,
@@ -88,9 +88,9 @@ export function PeopleTab({ onOpenProfile }: { onOpenProfile: (playerId: string)
       {(onlineMembers?.length ?? 0) > 0 && (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-white/30">{t.community.people.online}</span>
+            <span className="font-mono text-[12px] uppercase tracking-[0.25em] text-white/30">{t.community.people.online}</span>
             <span
-              className="font-mono text-[9px] px-1.5 py-0.5 rounded-full"
+              className="font-mono text-[12px] px-1.5 py-0.5 rounded-full"
               style={{ background: 'rgba(0,255,136,0.15)', color: '#00ff88', border: '1px solid rgba(0,255,136,0.3)' }}
             >
               {onlineMemberCount} {t.community.people.onlineCount}
@@ -110,7 +110,7 @@ export function PeopleTab({ onOpenProfile }: { onOpenProfile: (playerId: string)
                     style={{ background: '#00ff88' }}
                   />
                 </div>
-                <span className="font-mono text-[9px] text-white/50 max-w-[48px] truncate">{m.username}</span>
+                <span className="font-mono text-[12px] text-white/50 max-w-[48px] truncate">{m.username}</span>
               </button>
             ))}
           </div>
@@ -119,7 +119,7 @@ export function PeopleTab({ onOpenProfile }: { onOpenProfile: (playerId: string)
 
       {/* All members */}
       <div className="space-y-2">
-        <h3 className="font-mono text-[9px] uppercase tracking-[0.25em] text-white/30">{t.community.people.title}</h3>
+        <h3 className="font-mono text-[12px] uppercase tracking-[0.25em] text-white/30">{t.community.people.title}</h3>
         {loading ? (
           <Spinner color="#9b00ff" />
         ) : peopleList.length === 0 ? (

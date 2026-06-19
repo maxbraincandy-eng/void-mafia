@@ -46,7 +46,7 @@ export function GameEventLog({ messages, className }: Props) {
           </span>
           <div className="flex-1 min-w-0">
             <p className="text-[11px] font-mono text-white/65 leading-snug">{msg.text}</p>
-            <p className="text-[9px] font-mono text-white/20 mt-0.5">
+            <p className="text-[12px] font-mono text-white/20 mt-0.5">
               {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </p>
           </div>

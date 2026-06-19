@@ -49,15 +49,15 @@ export function GiftNotificationToast({ notification, onDismiss }: Props) {
                   ? <img src={notification.giftImageUrl} alt={notification.giftName} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
                   : <span className="text-3xl flex-shrink-0">{notification.giftIcon}</span>}
                 <div className="min-w-0">
-                  <p className={`font-mono text-[9px] uppercase tracking-[0.15em] ${style.label}`}>
+                  <p className={`font-mono text-[12px] uppercase tracking-[0.15em] ${style.label}`}>
                     Gift received · {notification.giftRarity}
                   </p>
                   <p className="font-display text-sm font-bold text-white leading-tight">{notification.giftName}</p>
-                  <p className="font-mono text-[10px] text-white/40 truncate mt-0.5">
+                  <p className="font-mono text-[12px] text-white/40 truncate mt-0.5">
                     from {notification.senderName}
                   </p>
                   {notification.message && (
-                    <p className="font-mono text-[9px] text-white/25 truncate italic mt-0.5">
+                    <p className="font-mono text-[12px] text-white/25 truncate italic mt-0.5">
                       "{notification.message}"
                     </p>
                   )}

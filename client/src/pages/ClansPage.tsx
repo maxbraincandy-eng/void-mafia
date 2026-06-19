@@ -58,7 +58,7 @@ function WarCard({ war, myClanId, onAccept, onDecline }: {
     >
       {/* Status badge */}
       <div className="flex items-center justify-between">
-        <span className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border"
+        <span className="font-mono text-[12px] uppercase tracking-wider px-2 py-0.5 rounded-full border"
           style={
             war.status === 'active' ? { color: '#00ff88', borderColor: 'rgba(0,255,136,0.3)', background: 'rgba(0,255,136,0.08)' }
             : war.status === 'pending' ? { color: '#ffc800', borderColor: 'rgba(255,200,0,0.3)', background: 'rgba(255,200,0,0.08)' }
@@ -71,10 +71,10 @@ function WarCard({ war, myClanId, onAccept, onDecline }: {
             : won ? 'Victory' : war.status === 'cancelled' ? 'Cancelled' : 'Defeated'}
         </span>
         {war.status === 'active' && war.endsAt && (
-          <span className="font-mono text-[9px] text-white/35">{formatCountdown(war.endsAt)}</span>
+          <span className="font-mono text-[12px] text-white/35">{formatCountdown(war.endsAt)}</span>
         )}
         {war.status === 'completed' && (
-          <span className="font-mono text-[9px] text-white/30">
+          <span className="font-mono text-[12px] text-white/30">
             {new Date(war.createdAt).toLocaleDateString()}
           </span>
         )}
@@ -84,7 +84,7 @@ function WarCard({ war, myClanId, onAccept, onDecline }: {
       <div className="flex items-center justify-center gap-4 py-1">
         <div className="text-center min-w-0 flex-1">
           <p className="font-display font-bold text-white text-sm truncate">{myName}</p>
-          <p className="font-mono text-[9px] text-white/35">you</p>
+          <p className="font-mono text-[12px] text-white/35">you</p>
         </div>
         <div className="text-center flex-shrink-0">
           <p className="font-display font-bold text-2xl tracking-wider" style={{ color: '#00ff88' }}>
@@ -93,12 +93,12 @@ function WarCard({ war, myClanId, onAccept, onDecline }: {
             {theirWins}
           </p>
           {war.status === 'active' && (
-            <p className="font-mono text-[8px] text-white/25">first to 10 wins</p>
+            <p className="font-mono text-[12px] text-white/25">first to 10 wins</p>
           )}
         </div>
         <div className="text-center min-w-0 flex-1">
           <p className="font-display font-bold text-white text-sm truncate">{theirName}</p>
-          <p className="font-mono text-[9px] text-white/35">enemy</p>
+          <p className="font-mono text-[12px] text-white/35">enemy</p>
         </div>
       </div>
 
@@ -122,7 +122,7 @@ function WarCard({ war, myClanId, onAccept, onDecline }: {
         </div>
       )}
       {war.status === 'pending' && isChallenger && (
-        <p className="font-mono text-[9px] text-white/30 text-center pt-1">Waiting for response…</p>
+        <p className="font-mono text-[12px] text-white/30 text-center pt-1">Waiting for response…</p>
       )}
     </div>
   );
@@ -378,7 +378,7 @@ export function ClansPage() {
           {profile && amInAnyClan && (
             <button
               onClick={handleLeave}
-              className="font-mono text-[10px] uppercase tracking-wider text-white/30 hover:text-neon-red/70 transition-colors"
+              className="font-mono text-[12px] uppercase tracking-wider text-white/30 hover:text-neon-red/70 transition-colors"
             >
               Leave clan
             </button>
@@ -428,10 +428,10 @@ export function ClansPage() {
             </div>
             <div className="flex-1 min-w-0 cursor-pointer" onClick={() => loadClanDetail(myClan)}>
               <p className="font-display font-bold text-white text-sm">{myClan.name}</p>
-              <p className="font-mono text-[10px] text-white/40">{myClan.memberCount} members · <WinRate wins={myClan.wins} losses={myClan.losses} /> win rate</p>
-              {imageError && <p className="font-mono text-[9px] text-red-400/70 mt-0.5">{imageError}</p>}
+              <p className="font-mono text-[12px] text-white/40">{myClan.memberCount} members · <WinRate wins={myClan.wins} losses={myClan.losses} /> win rate</p>
+              {imageError && <p className="font-mono text-[12px] text-red-400/70 mt-0.5">{imageError}</p>}
             </div>
-            <span className="font-mono text-[9px] text-neon-purple/60 uppercase tracking-wider">your clan</span>
+            <span className="font-mono text-[12px] text-neon-purple/60 uppercase tracking-wider">your clan</span>
           </motion.div>
         )}
 
@@ -443,7 +443,7 @@ export function ClansPage() {
         )}
 
         {/* Leaderboard */}
-        <h2 className="font-mono text-[10px] uppercase tracking-[0.25em] text-white/30 mb-3">
+        <h2 className="font-mono text-[12px] uppercase tracking-[0.25em] text-white/30 mb-3">
           Clan Leaderboard — {clans.length} clans
         </h2>
 
@@ -470,7 +470,7 @@ export function ClansPage() {
                   borderColor: myClan?.id === clan.id ? 'rgba(155,0,255,0.25)' : 'rgba(255,255,255,0.06)',
                 }}
               >
-                <span className="font-mono text-[10px] text-white/20 w-4 text-right flex-shrink-0">{idx + 1}</span>
+                <span className="font-mono text-[12px] text-white/20 w-4 text-right flex-shrink-0">{idx + 1}</span>
                 <div
                   className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center font-display font-bold text-xs flex-shrink-0"
                   style={{ background: 'rgba(155,0,255,0.15)', border: '1px solid rgba(155,0,255,0.25)', color: 'rgba(180,80,255,0.9)' }}
@@ -481,11 +481,11 @@ export function ClansPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-display font-semibold text-white text-sm truncate">{clan.name}</p>
-                  <p className="font-mono text-[9px] text-white/30">{clan.memberCount} members</p>
+                  <p className="font-mono text-[12px] text-white/30">{clan.memberCount} members</p>
                 </div>
                 <div className="text-right flex-shrink-0">
                   <p className="font-display font-bold text-sm"><WinRate wins={clan.wins} losses={clan.losses} /></p>
-                  <p className="font-mono text-[9px] text-white/25">{clan.wins}W {clan.losses}L</p>
+                  <p className="font-mono text-[12px] text-white/25">{clan.wins}W {clan.losses}L</p>
                 </div>
               </motion.div>
             ))}
@@ -499,13 +499,13 @@ export function ClansPage() {
           <div className="flex items-center justify-between mb-3">
             <button
               onClick={() => setShowWars(v => !v)}
-              className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.25em] text-white/30 hover:text-white/60 transition-colors"
+              className="flex items-center gap-2 font-mono text-[12px] uppercase tracking-[0.25em] text-white/30 hover:text-white/60 transition-colors"
             >
               <span style={{ color: showWars ? '#00ff88' : undefined }}>⚔</span>
               Clan Wars
-              <span className="text-[8px]">{showWars ? '▲' : '▼'}</span>
+              <span className="text-[12px]">{showWars ? '▲' : '▼'}</span>
               {activeWar && (
-                <span className="ml-1 px-1.5 py-0.5 rounded-full text-[8px] font-mono"
+                <span className="ml-1 px-1.5 py-0.5 rounded-full text-[12px] font-mono"
                   style={{
                     background: activeWar.status === 'active' ? 'rgba(0,255,136,0.15)' : 'rgba(255,200,0,0.15)',
                     color: activeWar.status === 'active' ? '#00ff88' : '#ffc800',
@@ -519,7 +519,7 @@ export function ClansPage() {
             {canManageWars && !activeWar && showWars && (
               <button
                 onClick={() => setShowChallengeModal(true)}
-                className="font-mono text-[9px] uppercase tracking-wider px-3 py-1.5 rounded-xl transition-all active:scale-95"
+                className="font-mono text-[12px] uppercase tracking-wider px-3 py-1.5 rounded-xl transition-all active:scale-95"
                 style={{ background: 'rgba(0,255,136,0.1)', border: '1px solid rgba(0,255,136,0.3)', color: '#00ff88' }}
               >
                 + Challenge
@@ -564,7 +564,7 @@ export function ClansPage() {
                     {/* History */}
                     {warHistory.length > 0 && (
                       <div>
-                        <p className="font-mono text-[9px] uppercase tracking-wider text-white/25 mb-2">
+                        <p className="font-mono text-[12px] uppercase tracking-wider text-white/25 mb-2">
                           War History — last {warHistory.length}
                         </p>
                         <div className="space-y-2">
@@ -680,7 +680,7 @@ export function ClansPage() {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-display font-bold text-white text-lg">{selected.name}</h3>
-                    <p className="font-mono text-[10px] text-white/35">{selected.memberCount} members · {selected.wins}W {selected.losses}L</p>
+                    <p className="font-mono text-[12px] text-white/35">{selected.memberCount} members · {selected.wins}W {selected.losses}L</p>
                   </div>
                   {profile && !amInAnyClan && (
                     <button
@@ -699,11 +699,11 @@ export function ClansPage() {
 
               {/* Members header with mod logs button */}
               <div className="px-5 pt-3 pb-1 flex items-center justify-between">
-                <span className="font-mono text-[9px] uppercase tracking-wider text-white/30">Members · {members.length}</span>
+                <span className="font-mono text-[12px] uppercase tracking-wider text-white/30">Members · {members.length}</span>
                 {amInSelected && canManageRoles && (
                   <button
                     onClick={loadModLogs}
-                    className="font-mono text-[9px] uppercase tracking-wider text-neon-cyan/60 hover:text-neon-cyan transition-colors"
+                    className="font-mono text-[12px] uppercase tracking-wider text-neon-cyan/60 hover:text-neon-cyan transition-colors"
                   >
                     Mod Logs
                   </button>
@@ -748,7 +748,7 @@ export function ClansPage() {
                                   key={r}
                                   disabled={roleLoading}
                                   onClick={() => handleSetRole(m.playerId, r)}
-                                  className="font-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded border transition-all hover:opacity-80 disabled:opacity-40"
+                                  className="font-mono text-[12px] uppercase tracking-wider px-1.5 py-0.5 rounded border transition-all hover:opacity-80 disabled:opacity-40"
                                   style={{
                                     color: r === 'admin' ? '#c084fc' : r === 'moderator' ? '#22d3ee' : 'rgba(255,255,255,0.4)',
                                     borderColor: r === 'admin' ? 'rgba(192,132,252,0.4)' : r === 'moderator' ? 'rgba(34,211,238,0.4)' : 'rgba(255,255,255,0.15)',
@@ -761,19 +761,19 @@ export function ClansPage() {
                             }
                             <button
                               onClick={() => setRoleTarget(null)}
-                              className="font-mono text-[8px] text-white/30 hover:text-white/60 ml-1"
+                              className="font-mono text-[12px] text-white/30 hover:text-white/60 ml-1"
                             >✕</button>
                           </div>
                         ) : (
                           <button
                             onClick={() => setRoleTarget(m.playerId)}
-                            className={`font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border cursor-pointer hover:opacity-80 ${RARITY_TAG[m.role] ?? RARITY_TAG.member}`}
+                            className={`font-mono text-[12px] uppercase tracking-wider px-2 py-0.5 rounded-full border cursor-pointer hover:opacity-80 ${RARITY_TAG[m.role] ?? RARITY_TAG.member}`}
                           >
                             {m.role}
                           </button>
                         )
                       ) : (
-                        <span className={`font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border ${RARITY_TAG[m.role] ?? RARITY_TAG.member}`}>
+                        <span className={`font-mono text-[12px] uppercase tracking-wider px-2 py-0.5 rounded-full border ${RARITY_TAG[m.role] ?? RARITY_TAG.member}`}>
                           {m.role}
                         </span>
                       )}
@@ -817,10 +817,10 @@ export function ClansPage() {
                 ) : modLogs.map(log => (
                   <div key={log.id} className="rounded-xl border border-white/8 bg-white/2 px-3 py-2">
                     <div className="flex items-center justify-between mb-1">
-                      <span className={`font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded ${log.action === 'clan_warning' ? 'bg-yellow-400/15 text-yellow-300' : 'bg-red-500/15 text-red-400'}`}>
+                      <span className={`font-mono text-[12px] uppercase tracking-wider px-1.5 py-0.5 rounded ${log.action === 'clan_warning' ? 'bg-yellow-400/15 text-yellow-300' : 'bg-red-500/15 text-red-400'}`}>
                         {log.action === 'clan_warning' ? 'Warn' : 'Kick'}
                       </span>
-                      <span className="font-mono text-[9px] text-white/25">
+                      <span className="font-mono text-[12px] text-white/25">
                         {new Date(log.createdAt).toLocaleDateString()}
                       </span>
                     </div>
@@ -863,7 +863,7 @@ export function ClansPage() {
               {error && <p className="mb-3 text-xs text-neon-red/80 font-mono">{error}</p>}
               <div className="space-y-3">
                 <div>
-                  <label className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">Clan Name</label>
+                  <label className="font-mono text-[12px] uppercase tracking-wider text-white/40 block mb-1">Clan Name</label>
                   <input
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 font-mono text-sm text-white outline-none focus:border-neon-purple/40 transition-colors"
                     placeholder="Brotherhood of Shadows"
@@ -873,7 +873,7 @@ export function ClansPage() {
                   />
                 </div>
                 <div>
-                  <label className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">Tag (max 5 chars)</label>
+                  <label className="font-mono text-[12px] uppercase tracking-wider text-white/40 block mb-1">Tag (max 5 chars)</label>
                   <input
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 font-mono text-sm text-white outline-none focus:border-neon-purple/40 transition-colors uppercase"
                     placeholder="BSHDW"
@@ -883,7 +883,7 @@ export function ClansPage() {
                   />
                 </div>
                 <div>
-                  <label className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">Description (optional)</label>
+                  <label className="font-mono text-[12px] uppercase tracking-wider text-white/40 block mb-1">Description (optional)</label>
                   <textarea
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 font-mono text-sm text-white outline-none focus:border-neon-purple/40 transition-colors resize-none"
                     placeholder="Elite players only..."

@@ -70,7 +70,7 @@ export function ReferralModal({ open, onClose }: Props) {
             <div className="flex items-center justify-between px-5 pt-2 pb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <div>
                 <h2 className="font-display font-bold text-white/85 text-base tracking-wide">Invite Friends</h2>
-                <p className="text-[10px] font-mono text-white/35 mt-0.5">Earn 250 coins for every friend you invite</p>
+                <p className="text-[12px] font-mono text-white/35 mt-0.5">Earn 250 coins for every friend you invite</p>
               </div>
               <button
                 onClick={onClose}
@@ -94,7 +94,7 @@ export function ReferralModal({ open, onClose }: Props) {
                   <p className="text-xl font-display font-bold" style={{ color: '#c084fc' }}>
                     {referralCount ?? '—'}
                   </p>
-                  <p className="text-[9px] font-mono text-white/35 uppercase tracking-widest mt-0.5">Friends Invited</p>
+                  <p className="text-[12px] font-mono text-white/35 uppercase tracking-widest mt-0.5">Friends Invited</p>
                 </div>
                 <div
                   className="flex-1 rounded-xl p-3 text-center"
@@ -103,13 +103,13 @@ export function ReferralModal({ open, onClose }: Props) {
                   <p className="text-xl font-display font-bold" style={{ color: '#00ff88' }}>
                     {referralCount != null ? referralCount * 250 : '—'}
                   </p>
-                  <p className="text-[9px] font-mono text-white/35 uppercase tracking-widest mt-0.5">Coins Earned</p>
+                  <p className="text-[12px] font-mono text-white/35 uppercase tracking-widest mt-0.5">Coins Earned</p>
                 </div>
               </div>
 
               {/* Link row */}
               <div>
-                <p className="text-[9px] font-mono text-white/30 uppercase tracking-widest mb-2">Your Referral Link</p>
+                <p className="text-[12px] font-mono text-white/30 uppercase tracking-widest mb-2">Your Referral Link</p>
                 <div className="flex items-center gap-2">
                   <p
                     className="flex-1 text-[11px] font-mono text-white/45 truncate px-3 py-2.5 rounded-xl"
@@ -137,7 +137,7 @@ export function ReferralModal({ open, onClose }: Props) {
 
               {/* How it works */}
               <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <p className="text-[9px] font-mono text-white/30 uppercase tracking-widest mb-2">How it works</p>
+                <p className="text-[12px] font-mono text-white/30 uppercase tracking-widest mb-2">How it works</p>
                 <div className="space-y-1.5">
                   {[
                     '1. Share your link with friends',

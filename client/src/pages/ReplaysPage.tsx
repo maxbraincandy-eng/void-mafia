@@ -106,13 +106,13 @@ function ReplaySummaryCard({
           <div className="flex items-center gap-2 mb-0.5">
             <span className="font-display font-bold text-sm text-white/90 truncate">#{replay.roomName}</span>
             <span
-              className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full flex-shrink-0"
+              className="text-[12px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full flex-shrink-0"
               style={{ background: `${winColor}15`, color: winColor, border: `1px solid ${winColor}30` }}
             >
               {replay.winner} win
             </span>
           </div>
-          <p className="font-mono text-[10px] text-white/30">
+          <p className="font-mono text-[12px] text-white/30">
             {replay.playerCount}p · {formatDuration(replay.durationMs)} · {formatDate(replay.createdAt)}
           </p>
         </div>
@@ -195,7 +195,7 @@ function ReplayViewer({
             {replay.winner} wins
           </span>
         </div>
-        <div className="flex gap-4 font-mono text-[10px] text-white/35">
+        <div className="flex gap-4 font-mono text-[12px] text-white/35">
           <span>{replay.playerCount} players</span>
           <span>{formatDuration(replay.durationMs)}</span>
           <span>{formatDate(replay.startedAt)}</span>
@@ -205,7 +205,7 @@ function ReplayViewer({
       {/* Player Roster */}
       {playerList.length > 0 && (
         <div className="mb-4">
-          <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/25 mb-2">Players</p>
+          <p className="text-[12px] font-mono uppercase tracking-[0.2em] text-white/25 mb-2">Players</p>
           <div className="grid grid-cols-2 gap-1.5">
             {playerList.map(([profileId, info]) => {
               const teamColor = TEAM_COLOR[info.team] ?? TEAM_COLOR.unknown;
@@ -221,8 +221,8 @@ function ReplayViewer({
                 >
                   <span className="text-sm">{info.alive ? '🟢' : '💀'}</span>
                   <div className="min-w-0 flex-1">
-                    <p className="font-mono text-[10px] text-white/80 font-bold truncate">{info.username}</p>
-                    <p className="font-mono text-[9px] truncate" style={{ color: teamColor }}>
+                    <p className="font-mono text-[12px] text-white/80 font-bold truncate">{info.username}</p>
+                    <p className="font-mono text-[12px] truncate" style={{ color: teamColor }}>
                       {ROLE_LABEL[info.role] ?? info.role}
                     </p>
                   </div>
@@ -235,7 +235,7 @@ function ReplayViewer({
 
       {/* Timeline */}
       <div>
-        <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/25 mb-2">Timeline</p>
+        <p className="text-[12px] font-mono uppercase tracking-[0.2em] text-white/25 mb-2">Timeline</p>
         <div className="space-y-1">
           {replay.events.map((event, idx) => {
             const isPhaseChange = event.type === 'phase_change';
@@ -262,7 +262,7 @@ function ReplayViewer({
                     {eventDescription(event)}
                   </p>
                 </div>
-                <span className="font-mono text-[9px] text-white/20 flex-shrink-0 mt-0.5">
+                <span className="font-mono text-[12px] text-white/20 flex-shrink-0 mt-0.5">
                   {formatTime(event.t)}
                 </span>
               </div>
@@ -357,7 +357,7 @@ export function ReplaysPage({ initialReplayId }: { initialReplayId?: string }) {
           style={{ color: 'rgba(0,229,255,0.9)', textShadow: '0 0 20px rgba(0,229,255,0.3)' }}>
           Game Replays
         </p>
-        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/25 mt-0.5">
+        <p className="font-mono text-[12px] uppercase tracking-[0.2em] text-white/25 mt-0.5">
           Review past games
         </p>
       </div>
@@ -392,7 +392,7 @@ export function ReplaysPage({ initialReplayId }: { initialReplayId?: string }) {
               <div className="text-center py-14">
                 <p className="text-4xl mb-3">📺</p>
                 <p className="font-mono text-sm text-white/25">No replays yet</p>
-                <p className="font-mono text-[10px] text-white/15 mt-1">Play a game to see replays here</p>
+                <p className="font-mono text-[12px] text-white/15 mt-1">Play a game to see replays here</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -414,7 +414,7 @@ export function ReplaysPage({ initialReplayId }: { initialReplayId?: string }) {
               <div className="text-center py-14">
                 <p className="text-4xl mb-3">📺</p>
                 <p className="font-mono text-sm text-white/25">No replays yet</p>
-                <p className="font-mono text-[10px] text-white/15 mt-1">Replays appear here after games finish</p>
+                <p className="font-mono text-[12px] text-white/15 mt-1">Replays appear here after games finish</p>
               </div>
             ) : (
               <>

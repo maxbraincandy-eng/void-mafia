@@ -97,7 +97,7 @@ export function RoleInfoModal({ open, onClose }: Props) {
                         {team.toUpperCase()}
                       </span>
                       <div className="flex-1 h-px bg-white/6" />
-                      <span className="text-white/20 font-mono text-[10px]">{roles.length} roles</span>
+                      <span className="text-white/20 font-mono text-[12px]">{roles.length} roles</span>
                     </div>
                     <div className="space-y-1.5">
                       {roles.map(role => (
@@ -109,7 +109,7 @@ export function RoleInfoModal({ open, onClose }: Props) {
               })}
 
               <div className="mt-2 p-4 rounded-2xl border border-white/6 bg-white/2">
-                <p className="text-[10px] font-mono uppercase tracking-widest text-white/30 mb-3">{rg.winConditions}</p>
+                <p className="text-[12px] font-mono uppercase tracking-widest text-white/30 mb-3">{rg.winConditions}</p>
                 <div className="space-y-2">
                   {[
                     { color: 'text-neon-cyan',   icon: '⚖️', label: 'Town',   desc: rg.winSummary.town },
@@ -161,7 +161,7 @@ function RoleCard({
           <p className={`font-display font-semibold text-sm ${tm.color}`}>{name}</p>
           <p className="text-white/40 text-xs leading-snug truncate">{i18n?.desc ?? ''}</p>
         </div>
-        <span className={`text-white/25 text-[10px] shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}>▼</span>
+        <span className={`text-white/25 text-[12px] shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}>▼</span>
       </div>
 
       <AnimatePresence>
@@ -174,11 +174,11 @@ function RoleCard({
           >
             <div className="mt-3 pt-3 border-t border-white/6 space-y-2.5 text-left">
               <div>
-                <p className="text-[10px] font-mono uppercase tracking-widest text-white/25 mb-0.5">{t.roleGuide.nightAbility}</p>
+                <p className="text-[12px] font-mono uppercase tracking-widest text-white/25 mb-0.5">{t.roleGuide.nightAbility}</p>
                 <p className="text-white/70 text-xs leading-relaxed">{i18n?.ability ?? ''}</p>
               </div>
               <div>
-                <p className="text-[10px] font-mono uppercase tracking-widest text-white/25 mb-0.5">{t.roleGuide.winCondition}</p>
+                <p className="text-[12px] font-mono uppercase tracking-widest text-white/25 mb-0.5">{t.roleGuide.winCondition}</p>
                 <p className={`text-xs font-medium ${tm.color}`}>{i18n?.win ?? ''}</p>
               </div>
             </div>

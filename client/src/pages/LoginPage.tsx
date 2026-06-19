@@ -127,7 +127,7 @@ export function LoginPage() {
               </svg>
               <span className="text-white/40 text-sm font-mono font-bold tracking-wide">{t.login.continueFacebook}</span>
             </div>
-            <span className="text-[10px] font-mono text-white/25 tracking-widest shrink-0">მალე დაემატება</span>
+            <span className="text-[12px] font-mono text-white/25 tracking-widest shrink-0">მალე დაემატება</span>
           </div>
 
           {/* Apple — coming soon */}
@@ -141,7 +141,7 @@ export function LoginPage() {
               </svg>
               <span className="text-white/40 text-sm font-mono font-bold tracking-wide">{t.login.continueApple}</span>
             </div>
-            <span className="text-[10px] font-mono text-white/25 tracking-widest shrink-0">მალე დაემატება</span>
+            <span className="text-[12px] font-mono text-white/25 tracking-widest shrink-0">მალე დაემატება</span>
           </div>
         </motion.div>
 
@@ -153,7 +153,7 @@ export function LoginPage() {
           className="flex items-center gap-3 mb-4"
         >
           <div className="flex-1 h-px bg-white/8" />
-          <span className="text-white/20 text-[10px] font-mono tracking-widest uppercase">{t.login.orEmail}</span>
+          <span className="text-white/20 text-[12px] font-mono tracking-widest uppercase">{t.login.orEmail}</span>
           <div className="flex-1 h-px bg-white/8" />
         </motion.div>
 
@@ -317,7 +317,7 @@ export function LoginPage() {
             </svg>
             <div className="min-w-0">
               <p className="text-[11px] font-mono text-white/70 group-hover:text-white/90 transition-colors leading-tight">{t.login.downloadAndroid}</p>
-              <p className="text-[9px] font-mono text-white/28 leading-tight">APK · voidmafia.one</p>
+              <p className="text-[12px] font-mono text-white/28 leading-tight">APK · voidmafia.one</p>
             </div>
             <svg viewBox="0 0 16 16" className="w-3 h-3 shrink-0 text-white/20 group-hover:text-white/45 fill-current transition-colors ml-auto" xmlns="http://www.w3.org/2000/svg">
               <path d="M8 12L2 6h12z"/>
@@ -330,7 +330,7 @@ export function LoginPage() {
             </svg>
             <div className="min-w-0">
               <p className="text-[11px] font-mono text-white/45 leading-tight">{t.login.iosSoon}</p>
-              <p className="text-[9px] font-mono text-white/20 leading-tight">{t.login.iosFlight}</p>
+              <p className="text-[12px] font-mono text-white/20 leading-tight">{t.login.iosFlight}</p>
             </div>
           </div>
         </motion.div>

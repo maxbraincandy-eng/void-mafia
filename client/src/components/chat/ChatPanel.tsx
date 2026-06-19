@@ -33,7 +33,7 @@ function MessageBubble({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
         animate={{ opacity: 1, scale: 1 }}
         className={clsx('flex items-center gap-1.5', isMe ? 'justify-end' : 'justify-start')}
       >
-        <span className="text-[10px] font-mono text-neon-purple/50">{msg.senderName}</span>
+        <span className="text-[12px] font-mono text-neon-purple/50">{msg.senderName}</span>
         <span className="text-lg">{msg.text}</span>
       </motion.div>
     );
@@ -55,9 +55,9 @@ function MessageBubble({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
       <div className="flex items-baseline gap-1.5">
         <span className={clsx('text-xs font-mono', accentColor)}>
           {msg.seat ? `#${msg.seat} ` : ''}{msg.senderName}
-          {msg.isMod && <span className="ml-1 text-[9px] font-bold text-neon-green border border-neon-green/30 px-1 rounded bg-neon-green/10">MOD</span>}
+          {msg.isMod && <span className="ml-1 text-[12px] font-bold text-neon-green border border-neon-green/30 px-1 rounded bg-neon-green/10">MOD</span>}
         </span>
-        <span className="text-[9px] font-mono text-white/15">
+        <span className="text-[12px] font-mono text-white/15">
           {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </span>
       </div>
@@ -218,7 +218,7 @@ export function ChatPanel({ compact = false }: Props) {
             className="flex-1 bg-transparent text-sm text-white placeholder-white/20 focus:outline-none disabled:opacity-40 min-w-0"
           />
           {text.length > 300 && (
-            <span className={clsx('text-[10px] font-mono flex-shrink-0 ml-1', text.length > 380 ? 'text-neon-red/70' : 'text-white/25')}>
+            <span className={clsx('text-[12px] font-mono flex-shrink-0 ml-1', text.length > 380 ? 'text-neon-red/70' : 'text-white/25')}>
               {400 - text.length}
             </span>
           )}

@@ -153,7 +153,7 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
           )}
           <div className="flex-1 min-w-0">
             <h2 className="font-display text-2xl font-bold text-neon-pink tracking-widest uppercase leading-none">ტოპი</h2>
-            <p className="text-white/25 font-mono text-[10px] tracking-widest mt-0.5">
+            <p className="text-white/25 font-mono text-[12px] tracking-widest mt-0.5">
               {tab === 'rankings' ? 'ALL PLAYERS · SORTED BY LEVEL' : tab === 'ranked' ? 'ELO RATING · RANKED MATCHES' : tab === 'season' ? 'CURRENT SEASON · TOP 50' : 'TOP GIFTERS & RECIPIENTS'}
             </p>
           </div>
@@ -173,7 +173,7 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
               key={t}
               onClick={() => setTab(t)}
               className={clsx(
-                'flex-1 py-2 rounded-lg font-mono text-[10px] uppercase tracking-widest transition-all',
+                'flex-1 py-2 rounded-lg font-mono text-[12px] uppercase tracking-widest transition-all',
                 tab === t
                   ? t === 'gifts'
                     ? 'bg-amber-400/10 text-amber-400 border border-amber-400/20'
@@ -274,7 +274,7 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
                       {/* ELO + W/L */}
                       <div className="text-right shrink-0">
                         <p className="font-display font-bold text-base text-neon-purple">{entry.elo}</p>
-                        <p className="text-white/25 font-mono text-[10px]">
+                        <p className="text-white/25 font-mono text-[12px]">
                           {entry.rankedWins}W {entry.rankedLosses}L
                         </p>
                       </div>
@@ -310,12 +310,12 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
                 {/* Season header */}
                 <div className="rounded-2xl p-4" style={{ background: 'linear-gradient(135deg, rgba(0,229,255,0.07), rgba(155,0,255,0.07))', border: '1px solid rgba(0,229,255,0.15)' }}>
                   <p className="font-display font-bold text-base text-neon-cyan tracking-wide">{seasonData.season.name.toUpperCase()}</p>
-                  <p className="font-mono text-[10px] text-white/30 mt-0.5">
+                  <p className="font-mono text-[12px] text-white/30 mt-0.5">
                     Ends {new Date(seasonData.season.endAt).toLocaleDateString()}
                     {' · '}{Math.max(0, Math.ceil((seasonData.season.endAt - Date.now()) / (1000 * 60 * 60 * 24)))} days remaining
                   </p>
                   {/* Reward preview */}
-                  <div className="mt-3 grid grid-cols-2 gap-1.5 text-[10px] font-mono">
+                  <div className="mt-3 grid grid-cols-2 gap-1.5 text-[12px] font-mono">
                     {[
                       { label: 'Top 1', reward: '👑 5000 coins + Void Champion', color: 'text-yellow-400' },
                       { label: 'Top 2-3', reward: '⚡ 2000 coins + Shadow Elite', color: 'text-gray-300' },
@@ -391,7 +391,7 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
                           {/* ELO */}
                           <div className="text-right shrink-0">
                             <p className="font-display font-bold text-base text-neon-cyan">{entry.elo}</p>
-                            <p className="text-white/25 font-mono text-[10px]">ELO</p>
+                            <p className="text-white/25 font-mono text-[12px]">ELO</p>
                           </div>
                         </motion.div>
                       );
@@ -560,7 +560,7 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
                         style={{ width: `${levelPct(player.level ?? 1, player.xp ?? 0)}%` }}
                       />
                     </div>
-                    <span className="text-white/25 font-mono text-[10px]">
+                    <span className="text-white/25 font-mono text-[12px]">
                       {player.stats.wins}W {player.stats.losses}L
                     </span>
                   </div>
@@ -571,7 +571,7 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
                   <p className={clsx('font-display font-bold text-base', levelColor(player.level ?? 1))}>
                     {(player.level ?? 1) >= MAX_LEVEL ? 'Lv.100 MAX' : `Lv.${player.level ?? 1}`}
                   </p>
-                  <p className="text-white/25 font-mono text-[10px]">{player.stats.gamesPlayed}g · {player.stats.winRate}%</p>
+                  <p className="text-white/25 font-mono text-[12px]">{player.stats.gamesPlayed}g · {player.stats.winRate}%</p>
                 </div>
               </motion.div>
             ))}
@@ -600,7 +600,7 @@ function GiftLeaderSection({
         <span className="text-lg">{emoji}</span>
         <div>
           <p className="font-display font-bold text-sm text-white/80">{title}</p>
-          <p className="font-mono text-[9px] text-white/25 uppercase tracking-widest">{subtitle}</p>
+          <p className="font-mono text-[12px] text-white/25 uppercase tracking-widest">{subtitle}</p>
         </div>
       </div>
       <div className="space-y-2">
@@ -634,7 +634,7 @@ function GiftLeaderSection({
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-display font-semibold text-sm text-white/70 truncate">{entry.username}</p>
-              <p className="font-mono text-[10px] text-white/25">{entry.giftCount} gifts</p>
+              <p className="font-mono text-[12px] text-white/25">{entry.giftCount} gifts</p>
             </div>
             <p className={clsx('font-display font-bold text-sm shrink-0', i === 0 ? 'text-amber-400' : 'text-white/40')}>
               {((entry[valueKey] ?? 0) as number).toLocaleString()}{valueSuffix}
@@ -689,7 +689,7 @@ function PodiumCard({
       <p className={clsx('font-mono font-bold', tall ? 'text-lg' : 'text-sm', MEDAL_TEXT[rank])}>
         Lv.{player.level ?? 1}
       </p>
-      <p className="text-white/25 font-mono text-[10px]">{player.stats.winRate}% · {player.stats.gamesPlayed}g</p>
+      <p className="text-white/25 font-mono text-[12px]">{player.stats.winRate}% · {player.stats.gamesPlayed}g</p>
     </motion.div>
   );
 }

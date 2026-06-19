@@ -79,7 +79,7 @@ export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
               </span>
               <span
                 className="font-mono uppercase leading-none truncate w-full text-center"
-                style={{ fontSize: 'clamp(7px, 2vw, 9px)', letterSpacing: '0.05em' }}
+                style={{ fontSize: 'clamp(10px, 2.5vw, 12px)', letterSpacing: '0.05em' }}
               >
                 {tab.label}
               </span>
@@ -118,10 +118,10 @@ export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
           </span>
           <span
             className="font-mono uppercase leading-none truncate w-full text-center"
-            style={{ fontSize: 'clamp(7px, 2vw, 9px)', letterSpacing: '0.05em' }}
+            style={{ fontSize: 'clamp(10px, 2.5vw, 12px)', letterSpacing: '0.05em' }}
           >MSG</span>
           {unreadDmCount > 0 && (
-            <span className="absolute top-1.5 right-[14%] bg-neon-pink text-void text-[8px] font-bold rounded-full min-w-[15px] h-3.5 flex items-center justify-center px-0.5 leading-none"
+            <span className="absolute top-1.5 right-[10%] bg-neon-pink text-void text-[11px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 leading-none"
               style={{ boxShadow: '0 0 8px rgba(255,0,204,0.6)' }}>
               {unreadDmCount > 9 ? '9+' : unreadDmCount}
             </span>

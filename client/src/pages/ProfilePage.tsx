@@ -63,7 +63,7 @@ function SectionHeader({ icon, title }: { icon: string; title: string }) {
   return (
     <div className="flex items-center gap-2 mb-2">
       <span className="text-sm">{icon}</span>
-      <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/30">{title}</p>
+      <p className="text-[12px] font-mono uppercase tracking-[0.2em] text-white/30">{title}</p>
     </div>
   );
 }
@@ -82,7 +82,7 @@ function TeamBadge({ team }: { team: string | null }) {
     mafia: 'text-neon-red/80', town: 'text-neon-green/80',
     neutral: 'text-yellow-400/80', cult: 'text-neon-purple/80', yakuza: 'text-neon-cyan/80',
   };
-  return <span className={`font-mono text-[9px] uppercase tracking-wider ${colors[team ?? ''] ?? 'text-white/30'}`}>{team ?? '—'}</span>;
+  return <span className={`font-mono text-[12px] uppercase tracking-wider ${colors[team ?? ''] ?? 'text-white/30'}`}>{team ?? '—'}</span>;
 }
 
 async function resizeImage(file: File): Promise<string> {
@@ -411,7 +411,7 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                 </div>
               </button>
               {/* Level badge */}
-              <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-display font-bold border"
+              <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-display font-bold border"
                 style={{ background: `${col}30`, borderColor: `${col}70`, color: col, boxShadow: `0 0 8px ${col}50` }}>
                 {level}
               </div>
@@ -452,56 +452,56 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                   </button>
                 </div>
               )}
-              {nameError && <p className="text-[10px] font-mono text-neon-red/80 mt-0.5">{nameError}</p>}
+              {nameError && <p className="text-[12px] font-mono text-neon-red/80 mt-0.5">{nameError}</p>}
               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 {profile.publicId != null && (
-                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded"
+                  <span className="font-mono text-[12px] font-bold px-1.5 py-0.5 rounded"
                     style={{ background: 'rgba(0,229,255,0.08)', color: 'rgba(0,229,255,0.7)', border: '1px solid rgba(0,229,255,0.2)' }}>
                     ID #{profile.publicId}
                   </span>
                 )}
-                <span className="font-mono text-[10px] text-white/30">
+                <span className="font-mono text-[12px] text-white/30">
                   Joined {new Date(profile.joinedAt).toLocaleDateString()}
                 </span>
               </div>
               {/* Avatar actions */}
               <div className="flex items-center gap-2 mt-1.5">
                 <button onClick={handleAvatarClick} disabled={uploadLoading}
-                  className="font-mono text-[9px] uppercase tracking-wider text-neon-cyan/50 hover:text-neon-cyan/80 transition-colors disabled:opacity-40">
+                  className="font-mono text-[12px] uppercase tracking-wider text-neon-cyan/50 hover:text-neon-cyan/80 transition-colors disabled:opacity-40">
                   {displayAvatar ? 'Change photo' : 'Upload photo'}
                 </button>
                 {displayAvatar && (
                   <>
-                    <span className="text-white/15 font-mono text-[9px]">·</span>
+                    <span className="text-white/15 font-mono text-[12px]">·</span>
                     <button onClick={handleRemove} disabled={uploadLoading}
-                      className="font-mono text-[9px] uppercase tracking-wider text-neon-red/40 hover:text-neon-red/70 transition-colors disabled:opacity-40">
+                      className="font-mono text-[12px] uppercase tracking-wider text-neon-red/40 hover:text-neon-red/70 transition-colors disabled:opacity-40">
                       Remove
                     </button>
                   </>
                 )}
               </div>
-              {uploadError && <p className="text-[10px] font-mono text-neon-red/80 mt-1">{uploadError}</p>}
+              {uploadError && <p className="text-[12px] font-mono text-neon-red/80 mt-1">{uploadError}</p>}
             </div>
           </div>
 
           {/* XP bar */}
           <div className="mb-4 p-3 rounded-xl border border-white/8 bg-white/3">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] font-display font-bold tracking-widest uppercase" style={{ color: `${col}90` }}>
+              <span className="text-[12px] font-display font-bold tracking-widest uppercase" style={{ color: `${col}90` }}>
                 Level {level}
               </span>
-              <span className="text-[10px] font-mono text-white/30">{xp} XP</span>
+              <span className="text-[12px] font-mono text-white/30">{xp} XP</span>
             </div>
             <div className="h-2 rounded-full bg-white/8 overflow-hidden">
               <div className="h-full rounded-full transition-all duration-1000"
                 style={{ width: `${xpPct}%`, background: `linear-gradient(90deg, ${col}80, ${col})` }} />
             </div>
             {level < MAX_LEVEL ? (
-              <p className="text-[9px] font-mono text-white/20 mt-1 text-right">
+              <p className="text-[12px] font-mono text-white/20 mt-1 text-right">
                 {xpMax - xp} XP to Level {level + 1}
               </p>
             ) : (
-              <p className="text-[9px] font-mono text-yellow-400/40 mt-1 text-right uppercase tracking-widest">
+              <p className="text-[12px] font-mono text-yellow-400/40 mt-1 text-right uppercase tracking-widest">
                 მაქსიმალური დონე
               </p>
             )}
@@ -517,14 +517,14 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
             ].map(s => (
               <div key={s.label} className="glass-panel border border-white/5 rounded-xl p-2.5 text-center">
                 <p className={`font-display font-bold text-xl ${s.color}`}>{s.value}</p>
-                <p className="text-white/30 text-[10px] font-mono mt-0.5">{s.label}</p>
+                <p className="text-white/30 text-[12px] font-mono mt-0.5">{s.label}</p>
               </div>
             ))}
           </div>
 
           {stats.gamesPlayed > 0 && (
             <div className="space-y-1.5">
-              <div className="flex justify-between text-[10px] font-mono text-white/30">
+              <div className="flex justify-between text-[12px] font-mono text-white/30">
                 <span>{stats.wins} wins</span>
                 <span>{stats.losses} losses</span>
               </div>
@@ -586,8 +586,8 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                       {(profile.username[0] ?? '?').toUpperCase()}
                     </div>
                   </div>
-                  <p className="text-[9px] font-mono text-white/30 uppercase tracking-wider text-center">Frame</p>
-                  <p className="text-[10px] font-mono text-white/60 text-center truncate w-full">
+                  <p className="text-[12px] font-mono text-white/30 uppercase tracking-wider text-center">Frame</p>
+                  <p className="text-[12px] font-mono text-white/60 text-center truncate w-full">
                     {frameDef ? frameDef.name : 'None'}
                   </p>
                 </div>
@@ -603,7 +603,7 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                   >
                     {titleDef ? titleDef.name : '—'}
                   </div>
-                  <p className="text-[9px] font-mono text-white/30 uppercase tracking-wider">Title</p>
+                  <p className="text-[12px] font-mono text-white/30 uppercase tracking-wider">Title</p>
                 </div>
 
                 {/* Skin preview */}
@@ -617,8 +617,8 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                   >
                     🃏
                   </div>
-                  <p className="text-[9px] font-mono text-white/30 uppercase tracking-wider">Card</p>
-                  <p className="text-[10px] font-mono text-white/60 text-center truncate w-full">
+                  <p className="text-[12px] font-mono text-white/30 uppercase tracking-wider">Card</p>
+                  <p className="text-[12px] font-mono text-white/60 text-center truncate w-full">
                     {skinDef ? skinDef.name : 'Classic'}
                   </p>
                 </div>
@@ -633,8 +633,8 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                   })() : (
                     <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/8" />
                   )}
-                  <p className="text-[9px] font-mono text-white/30 uppercase tracking-wider">Wall</p>
-                  <p className="text-[10px] font-mono text-white/60 text-center truncate w-full">
+                  <p className="text-[12px] font-mono text-white/30 uppercase tracking-wider">Wall</p>
+                  <p className="text-[12px] font-mono text-white/60 text-center truncate w-full">
                     {getWallpaperById(equippedWallpaper)?.name ?? 'None'}
                   </p>
                 </div>
@@ -651,7 +651,7 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                   { id: 'colors',     label: `Colors (${unlockedNameColors.length})` },
                 ].map(t => (
                   <button key={t.id} onClick={() => setCosmeticsTab(t.id as any)}
-                    className={`shrink-0 px-2.5 py-1.5 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all ${
+                    className={`shrink-0 px-2.5 py-1.5 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all ${
                       cosmeticsTab === t.id ? 'bg-neon-purple/20 text-neon-purple border border-neon-purple/30' : 'text-white/30 hover:text-white/50'
                     }`}>
                     {t.label}
@@ -683,14 +683,14 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-mono text-xs text-white/80 font-bold">{f.name}</p>
-                          <p className="font-mono text-[9px]" style={{ color: RARITY_COLOR[f.rarity] }}>
+                          <p className="font-mono text-[12px]" style={{ color: RARITY_COLOR[f.rarity] }}>
                             {RARITY_LABEL[f.rarity]}
                           </p>
                         </div>
                         <button
                           disabled={equipLoading}
                           onClick={() => handleEquip('frame', isEquipped ? null : f.id)}
-                          className="flex-shrink-0 px-3 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all disabled:opacity-40"
+                          className="flex-shrink-0 px-3 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all disabled:opacity-40"
                           style={isEquipped
                             ? { background: `${f.colors[0]}20`, color: f.colors[0], border: `1px solid ${f.colors[0]}50` }
                             : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.12)' }
@@ -725,14 +725,14 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                           {t.name}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-mono text-[9px]" style={{ color: RARITY_COLOR[t.rarity] }}>
+                          <p className="font-mono text-[12px]" style={{ color: RARITY_COLOR[t.rarity] }}>
                             {RARITY_LABEL[t.rarity]}
                           </p>
                         </div>
                         <button
                           disabled={equipLoading}
                           onClick={() => handleEquip('title', isEquipped ? null : t.id)}
-                          className="flex-shrink-0 px-3 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all disabled:opacity-40"
+                          className="flex-shrink-0 px-3 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all disabled:opacity-40"
                           style={isEquipped
                             ? { background: `${t.color}20`, color: t.color, border: `1px solid ${t.color}50` }
                             : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.12)' }
@@ -768,14 +768,14 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-mono text-xs text-white/80 font-bold">{s.name}</p>
-                          <p className="font-mono text-[9px]" style={{ color: RARITY_COLOR[s.rarity] }}>
+                          <p className="font-mono text-[12px]" style={{ color: RARITY_COLOR[s.rarity] }}>
                             {RARITY_LABEL[s.rarity]}
                           </p>
                         </div>
                         <button
                           disabled={equipLoading}
                           onClick={() => handleEquip('role_skin', isEquipped ? null : s.id)}
-                          className="flex-shrink-0 px-3 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all disabled:opacity-40"
+                          className="flex-shrink-0 px-3 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all disabled:opacity-40"
                           style={isEquipped
                             ? { background: `${s.c1}20`, color: s.c1, border: `1px solid ${s.c1}50` }
                             : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.12)' }
@@ -793,7 +793,7 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
               {cosmeticsTab === 'wallpapers' && (
                 <div className="space-y-1.5">
                   {/* Profile Backgrounds (purchasable) */}
-                  <p className="text-[9px] font-mono text-white/25 uppercase tracking-widest mb-1">Profile Backgrounds</p>
+                  <p className="text-[12px] font-mono text-white/25 uppercase tracking-widest mb-1">Profile Backgrounds</p>
                   {buyMsg && (
                     <p className="text-center font-mono text-xs text-neon-green/70 py-1">{buyMsg}</p>
                   )}
@@ -810,19 +810,19 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                         <div className="w-10 h-10 rounded-lg shrink-0 border border-white/10" style={{ background: bg.css }} />
                         <div className="flex-1 min-w-0">
                           <p className="text-[11px] font-mono font-bold text-white/80 truncate">{bg.name}</p>
-                          <p className="text-[9px] font-mono uppercase tracking-wider" style={{ color: RARITY_COLOR[bg.rarity] }}>{RARITY_LABEL[bg.rarity]}</p>
+                          <p className="text-[12px] font-mono uppercase tracking-wider" style={{ color: RARITY_COLOR[bg.rarity] }}>{RARITY_LABEL[bg.rarity]}</p>
                           {!isOwned && bg.price > 0 && (
-                            <p className="text-[9px] font-mono text-amber-400/70">{bg.price} coins</p>
+                            <p className="text-[12px] font-mono text-amber-400/70">{bg.price} coins</p>
                           )}
                           {isOwned && !isEquipped && (
-                            <p className="text-[9px] font-mono text-white/25">Owned</p>
+                            <p className="text-[12px] font-mono text-white/25">Owned</p>
                           )}
                         </div>
                         {isOwned ? (
                           <button
                             disabled={equipLoading}
                             onClick={() => handleEquip('wallpaper', isEquipped ? null : bg.id)}
-                            className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[10px] font-bold transition-all disabled:opacity-40"
+                            className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[12px] font-bold transition-all disabled:opacity-40"
                             style={isEquipped
                               ? { background: `${bg.accent}20`, color: bg.accent, border: `1px solid ${bg.accent}50` }
                               : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
@@ -833,7 +833,7 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                           <button
                             disabled={isBuying || !!buyingItem}
                             onClick={() => handleBuyBackground(bg.id)}
-                            className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[10px] font-bold transition-all disabled:opacity-40"
+                            className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[12px] font-bold transition-all disabled:opacity-40"
                             style={{ background: 'rgba(255,180,0,0.1)', color: 'rgba(255,180,0,0.8)', border: '1px solid rgba(255,180,0,0.25)' }}
                           >
                             {isBuying ? '...' : 'Buy'}
@@ -846,7 +846,7 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                   {/* Legacy level-unlock wallpapers */}
                   {unlockedWallpapers.length > 0 && (
                     <>
-                      <p className="text-[9px] font-mono text-white/25 uppercase tracking-widest mt-3 mb-1">Level Wallpapers</p>
+                      <p className="text-[12px] font-mono text-white/25 uppercase tracking-widest mt-3 mb-1">Level Wallpapers</p>
                       {unlockedWallpapers.map(w => {
                         const isEquipped = equippedWallpaper === w.id;
                         return (
@@ -856,11 +856,11 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                             <div className="w-10 h-10 rounded-lg shrink-0 border border-white/10" style={{ background: w.gradient }} />
                             <div className="flex-1 min-w-0">
                               <p className="text-[11px] font-mono font-bold text-white/80 truncate">{w.name}</p>
-                              <p className="text-[9px] font-mono uppercase tracking-wider" style={{ color: RARITY_COLOR[w.rarity] }}>{RARITY_LABEL[w.rarity]}</p>
+                              <p className="text-[12px] font-mono uppercase tracking-wider" style={{ color: RARITY_COLOR[w.rarity] }}>{RARITY_LABEL[w.rarity]}</p>
                             </div>
                             <button
                               onClick={() => handleEquip('wallpaper', isEquipped ? null : w.id)}
-                              className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[10px] font-bold transition-all"
+                              className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[12px] font-bold transition-all"
                               style={isEquipped
                                 ? { background: `${w.accent}20`, color: w.accent, border: `1px solid ${w.accent}40` }
                                 : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
@@ -893,11 +893,11 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[11px] font-mono font-bold text-white/80 truncate">{b.name}</p>
-                          <p className="text-[9px] font-mono uppercase tracking-wider" style={{ color: RARITY_COLOR[b.rarity] }}>{RARITY_LABEL[b.rarity]}</p>
+                          <p className="text-[12px] font-mono uppercase tracking-wider" style={{ color: RARITY_COLOR[b.rarity] }}>{RARITY_LABEL[b.rarity]}</p>
                         </div>
                         <button
                           onClick={() => handleEquip('border', isEquipped ? null : b.id)}
-                          className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[10px] font-bold transition-all"
+                          className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[12px] font-bold transition-all"
                           style={isEquipped
                             ? { background: `${b.colors[0]}20`, color: b.colors[0], border: `1px solid ${b.colors[0]}40` }
                             : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
@@ -928,11 +928,11 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[11px] font-mono font-bold truncate" style={{ color: nc.color }}>{nc.name}</p>
-                          <p className="text-[9px] font-mono uppercase tracking-wider" style={{ color: RARITY_COLOR[nc.rarity] }}>{RARITY_LABEL[nc.rarity]}</p>
+                          <p className="text-[12px] font-mono uppercase tracking-wider" style={{ color: RARITY_COLOR[nc.rarity] }}>{RARITY_LABEL[nc.rarity]}</p>
                         </div>
                         <button
                           onClick={() => handleEquip('name_color', isEquipped ? null : nc.id)}
-                          className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[10px] font-bold transition-all"
+                          className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[12px] font-bold transition-all"
                           style={isEquipped
                             ? { background: `${nc.color}20`, color: nc.color, border: `1px solid ${nc.color}40` }
                             : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
@@ -970,14 +970,14 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
           {rating === null ? (
             <div className="text-center py-2">
               <p className="font-mono text-xs text-white/25">No ranked games yet</p>
-              <p className="font-mono text-[10px] text-white/15 mt-0.5">Play ranked matches to earn a rating</p>
+              <p className="font-mono text-[12px] text-white/15 mt-0.5">Play ranked matches to earn a rating</p>
             </div>
           ) : (
             <>
               <div className="flex items-center justify-between mb-3">
                 <RatingBadge tier={rating.tier} elo={rating.elo} size="md" />
                 {rating.peakElo > rating.elo && (
-                  <span className="font-mono text-[10px] text-white/30">
+                  <span className="font-mono text-[12px] text-white/30">
                     Peak: <span className="text-white/50">{rating.peakElo}</span>
                   </span>
                 )}
@@ -993,7 +993,7 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                       style={{ width: `${Math.round((rating.placementGames / 5) * 100)}%` }}
                     />
                   </div>
-                  <p className="font-mono text-[10px] text-white/25 text-center mt-1">
+                  <p className="font-mono text-[12px] text-white/25 text-center mt-1">
                     {5 - rating.placementGames} more to get ranked
                   </p>
                 </div>
@@ -1001,11 +1001,11 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
               <div className="grid grid-cols-3 gap-2">
                 <div className="text-center p-2 rounded-xl bg-white/3 border border-white/6">
                   <p className="font-mono text-base font-bold text-neon-green">{rating.rankedWins}</p>
-                  <p className="font-mono text-[9px] text-white/30 uppercase tracking-wider">Wins</p>
+                  <p className="font-mono text-[12px] text-white/30 uppercase tracking-wider">Wins</p>
                 </div>
                 <div className="text-center p-2 rounded-xl bg-white/3 border border-white/6">
                   <p className="font-mono text-base font-bold text-neon-red/80">{rating.rankedLosses}</p>
-                  <p className="font-mono text-[9px] text-white/30 uppercase tracking-wider">Losses</p>
+                  <p className="font-mono text-[12px] text-white/30 uppercase tracking-wider">Losses</p>
                 </div>
                 <div className="text-center p-2 rounded-xl bg-white/3 border border-white/6">
                   <p className="font-mono text-base font-bold text-white/60">
@@ -1013,7 +1013,7 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                       ? Math.round((rating.rankedWins / (rating.rankedWins + rating.rankedLosses)) * 100)
                       : 0}%
                   </p>
-                  <p className="font-mono text-[9px] text-white/30 uppercase tracking-wider">Win Rate</p>
+                  <p className="font-mono text-[12px] text-white/30 uppercase tracking-wider">Win Rate</p>
                 </div>
               </div>
             </>
@@ -1037,18 +1037,18 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                 <div key={sr.seasonId} className="rounded-xl p-3 border border-white/6 bg-white/3">
                   <div className="flex items-center justify-between mb-1.5">
                     <p className="font-display font-bold text-xs text-white/80 truncate pr-2">{sr.seasonName}</p>
-                    <span className="font-mono text-[10px] text-white/30 shrink-0">#{sr.finalRank}</span>
+                    <span className="font-mono text-[12px] text-white/30 shrink-0">#{sr.finalRank}</span>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <RatingBadge tier={sr.finalTier as any} size="sm" showElo={false} />
-                    <span className="font-mono text-[10px] text-white/40">{sr.finalElo} ELO</span>
+                    <span className="font-mono text-[12px] text-white/40">{sr.finalElo} ELO</span>
                     {sr.rewardTitle && (
-                      <span className="font-mono text-[10px] text-neon-purple/70 border border-neon-purple/20 rounded-lg px-1.5 py-0.5">
+                      <span className="font-mono text-[12px] text-neon-purple/70 border border-neon-purple/20 rounded-lg px-1.5 py-0.5">
                         {sr.rewardTitle}
                       </span>
                     )}
                     {sr.rewardCoins > 0 && (
-                      <span className="font-mono text-[10px] text-amber-400/70">+{sr.rewardCoins} 🪙</span>
+                      <span className="font-mono text-[12px] text-amber-400/70">+{sr.rewardCoins} 🪙</span>
                     )}
                   </div>
                 </div>
@@ -1133,14 +1133,14 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                         {TEAM_LABEL[t.team] ?? t.team}
                       </span>
                     </div>
-                    <span className="font-mono text-[10px] text-white/40">
+                    <span className="font-mono text-[12px] text-white/40">
                       {t.games}g · {t.wins}W · {t.survived}sur
                     </span>
                   </div>
                   <div className="h-1.5 rounded-full bg-white/6 overflow-hidden">
                     <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: `${tc}80` }} />
                   </div>
-                  <p className="text-right font-mono text-[9px] mt-0.5" style={{ color: `${tc}80` }}>{wr}% win rate</p>
+                  <p className="text-right font-mono text-[12px] mt-0.5" style={{ color: `${tc}80` }}>{wr}% win rate</p>
                 </div>
               );
             })}
@@ -1160,15 +1160,15 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                     {ROLE_LABEL[r.role] ?? r.role}
                   </span>
                   <div className="flex items-center gap-3 text-right">
-                    <span className="font-mono text-[10px] text-white/30">{r.games}g</span>
-                    <span className="font-mono text-[10px] text-neon-green/70">{r.wins}W</span>
-                    <span className="font-mono text-[10px] text-white/50">{wr}%</span>
+                    <span className="font-mono text-[12px] text-white/30">{r.games}g</span>
+                    <span className="font-mono text-[12px] text-neon-green/70">{r.wins}W</span>
+                    <span className="font-mono text-[12px] text-white/50">{wr}%</span>
                   </div>
                 </div>
               );
             })}
             {roleStats.byRole.length > 10 && (
-              <p className="text-[9px] font-mono text-white/20 text-center mt-2">+{roleStats.byRole.length - 10} more roles</p>
+              <p className="text-[12px] font-mono text-white/20 text-center mt-2">+{roleStats.byRole.length - 10} more roles</p>
             )}
           </motion.div>
         )}
@@ -1209,7 +1209,7 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                     <span className="text-2xl flex-shrink-0">{a.icon}</span>
                     <div className="min-w-0">
                       <p className="font-display font-bold text-white text-sm leading-tight truncate">{a.name}</p>
-                      <p className="font-mono text-[9px] text-white/35 leading-tight mt-0.5">{a.description}</p>
+                      <p className="font-mono text-[12px] text-white/35 leading-tight mt-0.5">{a.description}</p>
                     </div>
                   </div>
                 ))}
@@ -1240,15 +1240,15 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                         <span className="font-mono text-xs text-white/70 font-bold">{g.myRole ?? 'Unknown'}</span>
                         <TeamBadge team={g.myTeam} />
                       </div>
-                      <p className="font-mono text-[10px] text-white/30">Room #{g.roomCode} · Day {g.dayReached} · {g.playerCount}p</p>
+                      <p className="font-mono text-[12px] text-white/30">Room #{g.roomCode} · Day {g.dayReached} · {g.playerCount}p</p>
                     </div>
                     <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
                       <p className={`font-display font-bold text-sm ${g.won ? 'text-neon-green' : 'text-neon-red/70'}`}>{g.won ? 'WIN' : 'LOSS'}</p>
-                      <p className="font-mono text-[9px] text-white/20">{new Date(g.endedAt).toLocaleDateString()}</p>
+                      <p className="font-mono text-[12px] text-white/20">{new Date(g.endedAt).toLocaleDateString()}</p>
                       {onViewReplay && (
                         <button
                           onClick={() => onViewReplay(g.id)}
-                          className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-lg transition-all"
+                          className="font-mono text-[12px] uppercase tracking-wider px-2 py-0.5 rounded-lg transition-all"
                           style={{
                             background: 'rgba(0,229,255,0.08)',
                             color: 'rgba(0,229,255,0.6)',
@@ -1276,7 +1276,7 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
         {/* ── Connected accounts ─────────────────────────────────────── */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
           className="mt-4 glass-panel border border-white/8 rounded-2xl p-4">
-          <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/25 mb-3">Connected Accounts</p>
+          <p className="text-[12px] font-mono uppercase tracking-[0.2em] text-white/25 mb-3">Connected Accounts</p>
           {linkMsg   && <p className="text-neon-green text-xs font-mono mb-2">{linkMsg}</p>}
           {linkError && <p className="text-neon-red text-xs font-mono mb-2">{linkError}</p>}
 
@@ -1294,13 +1294,13 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                   </svg>
                   <div>
                     <p className="text-white/60 font-mono text-xs">Google</p>
-                    {linked && <p className="text-white/25 font-mono text-[9px]">{linked.email ?? linked.displayName ?? 'Connected'}</p>}
+                    {linked && <p className="text-white/25 font-mono text-[12px]">{linked.email ?? linked.displayName ?? 'Connected'}</p>}
                   </div>
                 </div>
                 {linked ? (
-                  <button onClick={() => handleUnlink('google')} className="text-[9px] font-mono text-neon-red/50 hover:text-neon-red/80 transition-colors uppercase tracking-wider">Disconnect</button>
+                  <button onClick={() => handleUnlink('google')} className="text-[12px] font-mono text-neon-red/50 hover:text-neon-red/80 transition-colors uppercase tracking-wider">Disconnect</button>
                 ) : (
-                  <button onClick={() => handleLinkOAuth('google')} className="text-[9px] font-mono text-neon-cyan/50 hover:text-neon-cyan/80 transition-colors uppercase tracking-wider">Connect</button>
+                  <button onClick={() => handleLinkOAuth('google')} className="text-[12px] font-mono text-neon-cyan/50 hover:text-neon-cyan/80 transition-colors uppercase tracking-wider">Connect</button>
                 )}
               </div>
             );
@@ -1317,13 +1317,13 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                   </svg>
                   <div>
                     <p className="text-white/60 font-mono text-xs">Facebook</p>
-                    {linked && <p className="text-white/25 font-mono text-[9px]">{linked.email ?? linked.displayName ?? 'Connected'}</p>}
+                    {linked && <p className="text-white/25 font-mono text-[12px]">{linked.email ?? linked.displayName ?? 'Connected'}</p>}
                   </div>
                 </div>
                 {linked ? (
-                  <button onClick={() => handleUnlink('facebook')} className="text-[9px] font-mono text-neon-red/50 hover:text-neon-red/80 transition-colors uppercase tracking-wider">Disconnect</button>
+                  <button onClick={() => handleUnlink('facebook')} className="text-[12px] font-mono text-neon-red/50 hover:text-neon-red/80 transition-colors uppercase tracking-wider">Disconnect</button>
                 ) : (
-                  <button onClick={() => handleLinkOAuth('facebook')} className="text-[9px] font-mono text-neon-cyan/50 hover:text-neon-cyan/80 transition-colors uppercase tracking-wider">Connect</button>
+                  <button onClick={() => handleLinkOAuth('facebook')} className="text-[12px] font-mono text-neon-cyan/50 hover:text-neon-cyan/80 transition-colors uppercase tracking-wider">Connect</button>
                 )}
               </div>
             );
@@ -1340,13 +1340,13 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                   </svg>
                   <div>
                     <p className="text-white/60 font-mono text-xs">Apple</p>
-                    {linked && <p className="text-white/25 font-mono text-[9px]">{linked.email ?? linked.displayName ?? 'Connected'}</p>}
+                    {linked && <p className="text-white/25 font-mono text-[12px]">{linked.email ?? linked.displayName ?? 'Connected'}</p>}
                   </div>
                 </div>
                 {linked ? (
-                  <button onClick={() => handleUnlink('apple')} className="text-[9px] font-mono text-neon-red/50 hover:text-neon-red/80 transition-colors uppercase tracking-wider">Disconnect</button>
+                  <button onClick={() => handleUnlink('apple')} className="text-[12px] font-mono text-neon-red/50 hover:text-neon-red/80 transition-colors uppercase tracking-wider">Disconnect</button>
                 ) : (
-                  <button onClick={() => handleLinkOAuth('apple')} className="text-[9px] font-mono text-neon-cyan/50 hover:text-neon-cyan/80 transition-colors uppercase tracking-wider">Connect</button>
+                  <button onClick={() => handleLinkOAuth('apple')} className="text-[12px] font-mono text-neon-cyan/50 hover:text-neon-cyan/80 transition-colors uppercase tracking-wider">Connect</button>
                 )}
               </div>
             );
@@ -1361,15 +1361,15 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
             style={{ background: 'rgba(155,0,255,0.06)', border: '1px solid rgba(155,0,255,0.18)', color: 'rgba(192,132,252,0.85)' }}
           >
             <span className="font-mono text-[11px] uppercase tracking-widest">🔒 Privacy Settings</span>
-            <span className="font-mono text-[10px] text-white/35">{showPrivacy ? '▲' : '▼'}</span>
+            <span className="font-mono text-[12px] text-white/35">{showPrivacy ? '▲' : '▼'}</span>
           </button>
           {showPrivacy && (
             <div className="mt-2 rounded-xl p-4 space-y-3" style={{ background: 'rgba(155,0,255,0.04)', border: '1px solid rgba(155,0,255,0.14)' }}>
-              <p className="font-mono text-[10px] text-white/40">Secret Profile Mode hides your name and avatar in Community views — you appear as an anonymous entity.</p>
+              <p className="font-mono text-[12px] text-white/40">Secret Profile Mode hides your name and avatar in Community views — you appear as an anonymous entity.</p>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-mono text-[11px] text-white/70">Secret Profile</p>
-                  <p className="font-mono text-[9px] text-white/30 mt-0.5">
+                  <p className="font-mono text-[12px] text-white/30 mt-0.5">
                     {privacyMode === 'secret' ? 'You appear as an anonymous identity' : 'Your profile is visible normally'}
                   </p>
                 </div>

@@ -46,14 +46,14 @@ export function SpectatorTheater({ room, myPlayer }: Props) {
       <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl border border-neon-purple/20 bg-neon-purple/[0.06]">
         <span className="text-base" style={{ filter: 'drop-shadow(0 0 6px rgba(155,0,255,0.9))' }}>👁</span>
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-mono tracking-[0.25em] uppercase text-neon-purple/70">Spectator Theater</p>
-          <p className="text-[10px] font-mono text-white/30 truncate">
+          <p className="text-[12px] font-mono tracking-[0.25em] uppercase text-neon-purple/70">Spectator Theater</p>
+          <p className="text-[12px] font-mono text-white/30 truncate">
             {spectators.length} watching · {alivePlayers.length} alive
           </p>
         </div>
         <div className="flex items-center gap-1">
           <span className="w-1.5 h-1.5 rounded-full bg-neon-purple animate-pulse flex-shrink-0" />
-          <span className="text-[10px] font-mono text-neon-purple/60 uppercase tracking-widest">LIVE</span>
+          <span className="text-[12px] font-mono text-neon-purple/60 uppercase tracking-widest">LIVE</span>
         </div>
       </div>
 
@@ -66,7 +66,7 @@ export function SpectatorTheater({ room, myPlayer }: Props) {
             border: predicted ? '1px solid rgba(0,229,255,0.2)' : '1px solid rgba(155,0,255,0.2)',
           }}
         >
-          <p className="text-[10px] font-display font-bold tracking-[0.2em] uppercase mb-2"
+          <p className="text-[12px] font-display font-bold tracking-[0.2em] uppercase mb-2"
             style={{ color: predicted ? 'rgba(0,229,255,0.7)' : 'rgba(155,0,255,0.7)' }}>
             {predicted ? `✅ პროგნოზი: ${TEAM_OPTIONS.find(o => o.value === predicted)?.ka ?? predicted}` : '🔮 ვინ მოიგებს?'}
           </p>
@@ -77,7 +77,7 @@ export function SpectatorTheater({ room, myPlayer }: Props) {
                   key={opt.value}
                   disabled={submitting}
                   onClick={() => submitPrediction(opt.value)}
-                  className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold transition-all active:scale-95 disabled:opacity-40"
+                  className="px-2.5 py-1 rounded-lg text-[12px] font-mono font-bold transition-all active:scale-95 disabled:opacity-40"
                   style={{ background: `${opt.color}15`, border: `1px solid ${opt.color}40`, color: opt.color }}
                 >
                   {opt.ka}
@@ -85,7 +85,7 @@ export function SpectatorTheater({ room, myPlayer }: Props) {
               ))}
             </div>
           ) : (
-            <p className="text-[10px] font-mono text-white/30">
+            <p className="text-[12px] font-mono text-white/30">
               შედეგი გაირკვევა თამაშის ბოლოს · სწორი პროგნოზი = +50 XP
             </p>
           )}
@@ -95,10 +95,10 @@ export function SpectatorTheater({ room, myPlayer }: Props) {
       {/* Role distribution (game active only) */}
       {isGameActive && Object.keys(room.activeRoleCounts ?? {}).length > 0 && (
         <div className="rounded-xl border border-white/[0.06] p-3 space-y-2" style={{ background: 'rgba(10,6,28,0.5)' }}>
-          <p className="text-[10px] font-mono tracking-widest uppercase text-white/30">Roles in play</p>
+          <p className="text-[12px] font-mono tracking-widest uppercase text-white/30">Roles in play</p>
           <div className="flex flex-wrap gap-1">
             {Object.entries(room.activeRoleCounts).map(([role, count]) => (
-              <span key={role} className="text-[10px] font-mono px-2 py-0.5 rounded border border-white/10 text-white/40">
+              <span key={role} className="text-[12px] font-mono px-2 py-0.5 rounded border border-white/10 text-white/40">
                 {t.game.roles[role as keyof typeof t.game.roles] ?? role} ×{count}
               </span>
             ))}
@@ -110,8 +110,8 @@ export function SpectatorTheater({ room, myPlayer }: Props) {
       {isGameActive && activePlayers.length > 0 && (
         <div className="rounded-xl border border-white/[0.06] p-3 space-y-2" style={{ background: 'rgba(10,6,28,0.5)' }}>
           <div className="flex items-center justify-between mb-1">
-            <p className="text-[10px] font-mono tracking-widest uppercase text-white/30">Players</p>
-            <div className="flex items-center gap-2 text-[10px] font-mono">
+            <p className="text-[12px] font-mono tracking-widest uppercase text-white/30">Players</p>
+            <div className="flex items-center gap-2 text-[12px] font-mono">
               <span className="text-neon-green/60">{alivePlayers.length} alive</span>
               <span className="text-white/20">·</span>
               <span className="text-white/30">{deadPlayers.length} dead</span>
@@ -128,18 +128,18 @@ export function SpectatorTheater({ room, myPlayer }: Props) {
       {/* Who's watching */}
       {spectators.length > 1 && (
         <div className="rounded-xl border border-neon-purple/10 p-3 space-y-1.5" style={{ background: 'rgba(20,6,40,0.4)' }}>
-          <p className="text-[10px] font-mono tracking-widest uppercase text-neon-purple/40">Also watching</p>
+          <p className="text-[12px] font-mono tracking-widest uppercase text-neon-purple/40">Also watching</p>
           <div className="flex flex-wrap gap-1.5">
             {spectators
               .filter(s => s.id !== myPlayer?.id)
               .slice(0, 8)
               .map(s => (
-                <span key={s.id} className="text-[10px] font-mono text-white/40 px-2 py-0.5 rounded border border-white/8">
+                <span key={s.id} className="text-[12px] font-mono text-white/40 px-2 py-0.5 rounded border border-white/8">
                   {s.name}
                 </span>
               ))}
             {spectators.length - 1 > 8 && (
-              <span className="text-[10px] font-mono text-white/25">
+              <span className="text-[12px] font-mono text-white/25">
                 +{spectators.length - 1 - 8} more
               </span>
             )}
@@ -157,7 +157,7 @@ function PlayerStatusTile({ player, t }: { player: PlayerPublic; t: any }) {
     <motion.div
       layout
       className={clsx(
-        'flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-[10px] font-mono transition-all',
+        'flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-[12px] font-mono transition-all',
         player.isAlive
           ? 'border-neon-green/15 bg-neon-green/[0.04] text-white/70'
           : 'border-white/[0.05] bg-white/[0.02] text-white/25 line-through',
@@ -170,7 +170,7 @@ function PlayerStatusTile({ player, t }: { player: PlayerPublic; t: any }) {
       <span className="truncate flex-1">{player.name}</span>
       {roleLabel && (
         <span className={clsx(
-          'text-[9px] tracking-widest',
+          'text-[12px] tracking-widest',
           player.team === 'mafia' ? 'text-neon-red/60'
             : player.team === 'town' ? 'text-neon-green/50'
             : player.team === 'neutral' ? 'text-yellow-400/50'
