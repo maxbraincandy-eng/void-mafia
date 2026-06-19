@@ -101,6 +101,7 @@ export declare function startMatch(matchId: string, hostId: string): WWWMatch | 
 export declare function advanceToDiscussion(matchId: string, hostId: string): WWWMatch | null;
 export declare function submitAnswer(matchId: string, userId: string, answerText: string): WWWMatch | null;
 export declare function judgeAnswer(matchId: string, hostId: string, teamId: string, isCorrect: boolean): WWWMatch | null;
+export declare function autoAdvanceToJudging(matchId: string): WWWMatch | null;
 export declare function nextQuestion(matchId: string, hostId: string): WWWMatch | null;
 export declare function sendChat(matchId: string, userId: string, nickname: string, text: string): WWWMatch | null;
 export declare function disconnectUser(userId: string): string | null;

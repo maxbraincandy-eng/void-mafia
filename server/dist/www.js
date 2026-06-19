@@ -1,5 +1,5 @@
 import { ok, err } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, spectateMatch, leaveMatch, assignCaptain, startMatch, advanceToDiscussion, submitAnswer, judgeAnswer, nextQuestion, sendChat, disconnectUser, toPublic, } from './services/wwwService.js';
+import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, spectateMatch, leaveMatch, assignCaptain, startMatch, advanceToDiscussion, submitAnswer, judgeAnswer, nextQuestion, sendChat, disconnectUser, toPublic, autoAdvanceToJudging, } from './services/wwwService.js';
 import { voiceJoin, voiceLeave, voiceGetMatchId } from './services/wwwVoiceService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
 const WWW_ROOM = (id) => `www:${id}`;
@@ -118,6 +118,13 @@ export function registerWWWHandlers(io, socket) {
                 return cb(err('Cannot advance'));
             broadcast(io, m.id, toPublic(m));
             cb(ok(null));
+            // Auto-advance to judging when timer expires
+            const delay = m.settings.discussionSeconds * 1000;
+            setTimeout(() => {
+                const updated = autoAdvanceToJudging(m.id);
+                if (updated)
+                    broadcast(io, m.id, toPublic(updated));
+            }, delay);
         }
         catch (e) {
             cb(err(e.message));
@@ -173,50 +180,82 @@ export function registerWWWHandlers(io, socket) {
         catch { /* ignore */ }
     });
     // ── voice: join ───────────────────────────────────────────────────────
-    socket.on('www:voice_join', (data, cb) => {
+    socket.on('www:voice-join', (data, cb) => {
         try {
-            const name = String(data?.name ?? 'Player').trim().slice(0, 24) || 'Player';
-            const peers = voiceJoin(String(data?.matchId), socket.id, name);
+            const match = getMatch(String(data?.matchId));
+            if (!match)
+                return cb(err('Match not found.'));
+            if (match.status === 'finished')
+                return cb(err('Match has ended.'));
+            const player = match.players[userId()];
+            if (!player)
+                return cb(err('Not in this match.'));
+            const existingPeers = voiceJoin(match.id, socket.id, player.nickname);
+            // CRITICAL: broadcast to existing peers so they initiate WebRTC
+            socket.to(WWW_ROOM(match.id)).emit('www:voice-peer-joined', {
+                socketId: socket.id,
+                name: player.nickname,
+            });
             const iceConfig = buildIceConfig();
-            cb(ok({ peers, iceConfig }));
+            cb(ok({
+                peers: existingPeers,
+                iceServers: iceConfig.iceServers,
+                iceTransportPolicy: iceConfig.iceTransportPolicy,
+                canSpeak: !player.isSpectator,
+            }));
         }
         catch (e) {
             cb(err(e.message));
         }
     });
     // ── voice: leave ──────────────────────────────────────────────────────
-    socket.on('www:voice_leave', (data, cb) => {
+    socket.on('www:voice-leave', (_data, cb) => {
         const matchId = voiceLeave(socket.id);
         if (matchId) {
-            socket.to(WWW_ROOM(matchId)).emit('www:voice_peer_left', { socketId: socket.id });
+            socket.to(WWW_ROOM(matchId)).emit('www:voice-peer-left', { socketId: socket.id });
         }
-        if (cb)
-            cb(ok(null));
+        cb?.(ok(null));
     });
-    // ── voice: signal (WebRTC offer/answer/ice) ───────────────────────────
-    socket.on('www:voice_signal', (data) => {
-        if (!data?.to || !data?.signal)
-            return;
-        socket.to(data.to).emit('www:voice_signal', { from: socket.id, signal: data.signal });
+    // ── voice: WebRTC signalling relay ────────────────────────────────────
+    socket.on('www:voice-offer', (data) => {
+        io.to(data.to).emit('www:voice-offer', { from: socket.id, sdp: data.sdp });
     });
-    // ── voice: speaking ───────────────────────────────────────────────────
-    socket.on('www:voice_speaking', (data) => {
-        const matchId = voiceGetMatchId(socket.id);
-        if (!matchId)
+    socket.on('www:voice-answer', (data) => {
+        io.to(data.to).emit('www:voice-answer', { from: socket.id, sdp: data.sdp });
+    });
+    socket.on('www:voice-ice', (data) => {
+        io.to(data.to).emit('www:voice-ice', { from: socket.id, candidate: data.candidate });
+    });
+    // ── voice: Push-to-Talk state ─────────────────────────────────────────
+    socket.on('www:ptt-start', (data) => {
+        const match = getMatch(String(data?.matchId));
+        if (!match)
             return;
-        socket.to(WWW_ROOM(matchId)).emit('www:voice_speaking', { socketId: socket.id, speaking: !!data?.speaking });
+        const player = match.players[userId()];
+        if (!player || player.isSpectator)
+            return;
+        socket.to(WWW_ROOM(data.matchId)).emit('www:ptt-state', { socketId: socket.id, speaking: true });
+    });
+    socket.on('www:ptt-stop', (data) => {
+        const match = getMatch(String(data?.matchId));
+        if (!match)
+            return;
+        socket.to(WWW_ROOM(data.matchId)).emit('www:ptt-state', { socketId: socket.id, speaking: false });
     });
 }
 export function handleWWWDisconnect(io, socketId) {
+    // Voice cleanup for disconnected socket
+    const voiceMatchId = voiceGetMatchId(socketId);
+    if (voiceMatchId) {
+        voiceLeave(socketId);
+        io.to(WWW_ROOM(voiceMatchId)).emit('www:voice-peer-left', { socketId });
+        io.to(WWW_ROOM(voiceMatchId)).emit('www:ptt-state', { socketId, speaking: false });
+    }
     const matchId = disconnectUser(socketId);
     if (matchId) {
         const m = getMatch(matchId);
         if (m)
             broadcast(io, matchId, toPublic(m));
-    }
-    const voiceMatchId = voiceLeave(socketId);
-    if (voiceMatchId) {
-        io.to(WWW_ROOM(voiceMatchId)).emit('www:voice_peer_left', { socketId });
     }
 }
 //# sourceMappingURL=www.js.map

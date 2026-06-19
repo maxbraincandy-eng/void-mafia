@@ -7,7 +7,7 @@ import {
   createMatch, getMatch, getMatchByCode, getMatchIdForUser, listMatches,
   joinMatch, spectateMatch, leaveMatch, assignCaptain, startMatch,
   advanceToDiscussion, submitAnswer, judgeAnswer, nextQuestion, sendChat,
-  disconnectUser, toPublic,
+  disconnectUser, toPublic, autoAdvanceToJudging,
 } from './services/wwwService.js';
 import { voiceJoin, voiceLeave, voiceGetMatchId } from './services/wwwVoiceService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
@@ -111,6 +111,12 @@ export function registerWWWHandlers(io: AppServer, socket: AppSocket): void {
       if (!m) return cb(err('Cannot advance'));
       broadcast(io, m.id, toPublic(m));
       cb(ok(null));
+      // Auto-advance to judging when timer expires
+      const delay = m.settings.discussionSeconds * 1000;
+      setTimeout(() => {
+        const updated = autoAdvanceToJudging(m.id);
+        if (updated) broadcast(io, m.id, toPublic(updated));
+      }, delay);
     } catch (e: any) { cb(err(e.message)); }
   });
 
@@ -154,46 +160,82 @@ export function registerWWWHandlers(io: AppServer, socket: AppSocket): void {
   });
 
   // ── voice: join ───────────────────────────────────────────────────────
-  socket.on('www:voice_join' as any, (data: { matchId: string; name: string }, cb: (r: any) => void) => {
+  socket.on('www:voice-join' as any, (data: { matchId: string }, cb: (res: any) => void) => {
     try {
-      const name = String(data?.name ?? 'Player').trim().slice(0, 24) || 'Player';
-      const peers = voiceJoin(String(data?.matchId), socket.id, name);
+      const match = getMatch(String(data?.matchId));
+      if (!match) return cb(err('Match not found.'));
+      if (match.status === 'finished') return cb(err('Match has ended.'));
+
+      const player = match.players[userId()];
+      if (!player) return cb(err('Not in this match.'));
+
+      const existingPeers = voiceJoin(match.id, socket.id, player.nickname);
+      // CRITICAL: broadcast to existing peers so they initiate WebRTC
+      socket.to(WWW_ROOM(match.id)).emit('www:voice-peer-joined' as any, {
+        socketId: socket.id,
+        name: player.nickname,
+      });
+
       const iceConfig = buildIceConfig();
-      cb(ok({ peers, iceConfig }));
+      cb(ok({
+        peers: existingPeers,
+        iceServers: iceConfig.iceServers,
+        iceTransportPolicy: iceConfig.iceTransportPolicy,
+        canSpeak: !player.isSpectator,
+      }));
     } catch (e: any) { cb(err(e.message)); }
   });
 
   // ── voice: leave ──────────────────────────────────────────────────────
-  socket.on('www:voice_leave' as any, (data: { matchId: string }, cb?: (r: any) => void) => {
+  socket.on('www:voice-leave' as any, (_data: any, cb?: (res: any) => void) => {
     const matchId = voiceLeave(socket.id);
     if (matchId) {
-      socket.to(WWW_ROOM(matchId)).emit('www:voice_peer_left' as any, { socketId: socket.id });
+      socket.to(WWW_ROOM(matchId)).emit('www:voice-peer-left' as any, { socketId: socket.id });
     }
-    if (cb) cb(ok(null));
+    cb?.(ok(null));
   });
 
-  // ── voice: signal (WebRTC offer/answer/ice) ───────────────────────────
-  socket.on('www:voice_signal' as any, (data: { to: string; signal: any }) => {
-    if (!data?.to || !data?.signal) return;
-    socket.to(data.to).emit('www:voice_signal' as any, { from: socket.id, signal: data.signal });
+  // ── voice: WebRTC signalling relay ────────────────────────────────────
+  socket.on('www:voice-offer' as any, (data: { to: string; sdp: any }) => {
+    io.to(data.to).emit('www:voice-offer' as any, { from: socket.id, sdp: data.sdp });
   });
 
-  // ── voice: speaking ───────────────────────────────────────────────────
-  socket.on('www:voice_speaking' as any, (data: { speaking: boolean }) => {
-    const matchId = voiceGetMatchId(socket.id);
-    if (!matchId) return;
-    socket.to(WWW_ROOM(matchId)).emit('www:voice_speaking' as any, { socketId: socket.id, speaking: !!data?.speaking });
+  socket.on('www:voice-answer' as any, (data: { to: string; sdp: any }) => {
+    io.to(data.to).emit('www:voice-answer' as any, { from: socket.id, sdp: data.sdp });
+  });
+
+  socket.on('www:voice-ice' as any, (data: { to: string; candidate: any }) => {
+    io.to(data.to).emit('www:voice-ice' as any, { from: socket.id, candidate: data.candidate });
+  });
+
+  // ── voice: Push-to-Talk state ─────────────────────────────────────────
+  socket.on('www:ptt-start' as any, (data: { matchId: string }) => {
+    const match = getMatch(String(data?.matchId));
+    if (!match) return;
+    const player = match.players[userId()];
+    if (!player || player.isSpectator) return;
+    socket.to(WWW_ROOM(data.matchId)).emit('www:ptt-state' as any, { socketId: socket.id, speaking: true });
+  });
+
+  socket.on('www:ptt-stop' as any, (data: { matchId: string }) => {
+    const match = getMatch(String(data?.matchId));
+    if (!match) return;
+    socket.to(WWW_ROOM(data.matchId)).emit('www:ptt-state' as any, { socketId: socket.id, speaking: false });
   });
 }
 
 export function handleWWWDisconnect(io: AppServer, socketId: string): void {
+  // Voice cleanup for disconnected socket
+  const voiceMatchId = voiceGetMatchId(socketId);
+  if (voiceMatchId) {
+    voiceLeave(socketId);
+    io.to(WWW_ROOM(voiceMatchId)).emit('www:voice-peer-left' as any, { socketId });
+    io.to(WWW_ROOM(voiceMatchId)).emit('www:ptt-state' as any, { socketId, speaking: false });
+  }
+
   const matchId = disconnectUser(socketId);
   if (matchId) {
     const m = getMatch(matchId);
     if (m) broadcast(io, matchId, toPublic(m));
-  }
-  const voiceMatchId = voiceLeave(socketId);
-  if (voiceMatchId) {
-    io.to(WWW_ROOM(voiceMatchId)).emit('www:voice_peer_left' as any, { socketId });
   }
 }

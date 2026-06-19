@@ -237,9 +237,14 @@ export function judgeAnswer(matchId, hostId, teamId, isCorrect) {
     if (m.status !== 'judging' && m.status !== 'discussion')
         return null;
     const answer = m.answers[teamId];
-    if (!answer || answer.isCorrect !== undefined)
+    if (!answer)
         return null;
+    // Guard: already judged — do not double-apply
+    if (answer.isCorrect !== undefined)
+        return null;
+    // Only update this specific team's answer
     answer.isCorrect = isCorrect;
+    // Score increment only happens once (guarded above)
     if (isCorrect)
         m.scores[teamId] = (m.scores[teamId] ?? 0) + 1;
     // Check if all submitted answers are judged
@@ -249,6 +254,26 @@ export function judgeAnswer(matchId, hostId, teamId, isCorrect) {
         m.status = 'round_result';
         m.timerEndsAt = null;
     }
+    return m;
+}
+export function autoAdvanceToJudging(matchId) {
+    const m = matches.get(matchId);
+    if (!m || m.status !== 'discussion')
+        return null;
+    // Fill missing answers for teams that didn't submit
+    for (const team of m.teams) {
+        if (team.playerIds.length > 0 && !m.answers[team.id]) {
+            m.answers[team.id] = {
+                teamId: team.id,
+                captainId: team.captainId ?? '',
+                answerText: '',
+                submittedAt: Date.now(),
+                isCorrect: undefined,
+            };
+        }
+    }
+    m.status = 'judging';
+    m.timerEndsAt = null;
     return m;
 }
 export function nextQuestion(matchId, hostId) {
