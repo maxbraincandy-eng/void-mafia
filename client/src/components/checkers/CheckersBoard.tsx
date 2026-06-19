@@ -21,10 +21,10 @@ const PIECE_COLORS = {
     kingGlow: '0 0 8px rgba(120,0,220,0.9)',
   },
   black: {
-    fill: 'radial-gradient(circle at 32% 28%, #424260 0%, #1c1c2e 40%, #07070f 100%)',
-    glow: 'rgba(110,50,220,0.75)',
-    kingColor: '#ddc8ff' as const,
-    kingGlow: '0 0 8px rgba(200,160,255,0.9)',
+    fill: 'radial-gradient(circle at 32% 28%, #a8e8ff 0%, #4fc3f7 30%, #0288d1 65%, #005a9e 100%)',
+    glow: 'rgba(79,195,247,0.85)',
+    kingColor: '#001a2e' as const,
+    kingGlow: '0 0 8px rgba(0,180,255,0.9)',
   },
 };
 
