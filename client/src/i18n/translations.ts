@@ -35,6 +35,7 @@ export const TRANSLATIONS = {
     },
     nav: {
       rooms: 'Rooms',
+      games: 'Games',
       community: 'Community',
       clans: 'Clans',
       leaderboard: 'Top',
@@ -1058,6 +1059,7 @@ export const TRANSLATIONS = {
     },
     nav: {
       rooms: 'ოთახები',
+      games: 'თამაშები',
       community: 'კომუნითი',
       clans: 'კლანები',
       leaderboard: 'ტოპი',

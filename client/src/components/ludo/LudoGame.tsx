@@ -226,7 +226,8 @@ export function LudoGame() {
   const [diceFace,  setDiceFace]    = useState<number|null>(null);
   const [isSix,     setIsSix]       = useState(false);
   const [soundOn,   setSoundState]  = useState(isSoundOn);
-  const rollIntervalRef = useRef<ReturnType<typeof setInterval>|null>(null);
+  const rollIntervalRef  = useRef<ReturnType<typeof setInterval>|null>(null);
+  const pendingRollRef   = useRef<number|null>(null);
 
   const [chatOpen,  setChatOpen]   = useState(false);
   const [chatInput, setChatInput]  = useState('');
@@ -257,7 +258,9 @@ export function LudoGame() {
     if (prev) {
       // New dice roll
       if (curr.diceRoll !== null && curr.diceRoll !== prev.diceRoll) {
-        setDiceFace(curr.diceRoll);
+        // Save the final value; the rolling interval effect will apply it
+        // when it stops so the interval can't overwrite the correct face.
+        pendingRollRef.current = curr.diceRoll;
         setLastRolls(lr => ({ ...lr, [curr.currentTurn]: curr.diceRoll }));
         if (curr.diceRoll === 6) {
           setIsSix(true);
@@ -316,6 +319,12 @@ export function LudoGame() {
       rollIntervalRef.current = setInterval(() => setDiceFace(Math.floor(Math.random()*6)+1), 75);
     } else {
       if (rollIntervalRef.current) { clearInterval(rollIntervalRef.current); rollIntervalRef.current = null; }
+      // After clearing the interval, set the real roll value so the
+      // animation cannot overwrite it with a random face.
+      if (pendingRollRef.current !== null) {
+        setDiceFace(pendingRollRef.current);
+        pendingRollRef.current = null;
+      }
     }
     return () => { if (rollIntervalRef.current) clearInterval(rollIntervalRef.current); };
   }, [isRolling]);

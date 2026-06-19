@@ -20,6 +20,8 @@ import { PublicProfilePage } from '@/pages/PublicProfilePage';
 import { BottomNav, NavTab } from '@/components/layout/BottomNav';
 import { useCheckersStore } from '@/store/checkersStore';
 import { useLudoStore } from '@/store/ludoStore';
+import { useJokerStore } from '@/store/jokerStore';
+import { GamesPage } from '@/pages/GamesPage';
 import { MorePanel } from '@/components/ui/MorePanel';
 import { PlayerProfileModal } from '@/components/ui/PlayerProfileModal';
 import { DmPanel } from '@/components/social/DmPanel';
@@ -175,7 +177,8 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const { openDmList } = useSocialStore();
   const checkersMatch = useCheckersStore(s => s.match);
   const ludoMatch     = useLudoStore(s => s.match);
-  const inGame = !!(checkersMatch || ludoMatch);
+  const jokerMatch    = useJokerStore(s => s.match);
+  const inGame = !!(checkersMatch || ludoMatch || jokerMatch);
 
   function navigateToReplay(gameId: string) {
     setInitialReplayId(gameId);
@@ -186,6 +189,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
     <div className="pb-20 min-h-screen">
       <AnimatePresence mode="wait">
         {page === 'rooms'                   && <RoomsPage key="rooms" />}
+        {page === 'games'                   && <GamesPage key="games" />}
         {page === 'community'               && <CommunityPage key="community" />}
         {page === 'clans'                   && <ClansPage key="clans" />}
         {page === 'replays'                 && <ReplaysPage key={`replays-${initialReplayId ?? ''}`} initialReplayId={initialReplayId} />}
