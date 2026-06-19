@@ -1070,7 +1070,7 @@ export const TRANSLATIONS = {
     nav: {
       rooms: 'მაფია',
       games: 'თამაშები',
-      community: 'კომუნითი',
+      community: 'ქომუნითი',
       clans: 'კლანები',
       leaderboard: 'ტოპი',
       profile: 'პროფილი',
