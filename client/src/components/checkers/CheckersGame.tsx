@@ -283,10 +283,10 @@ export function CheckersGame() {
   );
 }
 
-// Piece swatch colors match those in CheckersBoard.tsx
+// Piece swatch colors must match PIECE_COLORS in CheckersBoard.tsx
 const BADGE_COLORS = {
-  red:   { bg: 'radial-gradient(circle at 35% 35%, #e74c3c, #c0392b)', ring: '#e74c3c' },
-  black: { bg: 'radial-gradient(circle at 35% 35%, #f5d76e, #b8860b)',  ring: '#f5d76e' },
+  red:   { bg: 'radial-gradient(circle at 32% 28%, #ffffff 0%, #e0e0f4 30%, #ababcc 65%, #7878a8 100%)', ring: 'rgba(200,200,255,0.9)' },
+  black: { bg: 'radial-gradient(circle at 32% 28%, #a8e8ff 0%, #4fc3f7 30%, #0288d1 65%, #005a9e 100%)', ring: 'rgba(79,195,247,0.9)' },
 };
 
 function PlayerBadge({
