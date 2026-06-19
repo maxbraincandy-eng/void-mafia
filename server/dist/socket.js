@@ -7,6 +7,7 @@ import { createPlayerMessage, createSystemMessage, addMessage, validateChat, } f
 import { registerCheckersHandlers, handleCheckersDisconnect } from './checkers.js';
 import { registerJokerHandlers, handleJokerDisconnect } from './joker.js';
 import { registerLudoHandlers, handleLudoDisconnect } from './ludo.js';
+import { registerWWWHandlers, handleWWWDisconnect } from './www.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
 import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, grantStarterCosmetics, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
@@ -5815,6 +5816,8 @@ export function attachSocketHandlers(io) {
         registerJokerHandlers(io, socket);
         // ── Ludo board game ──────────────────────────────────────────────
         registerLudoHandlers(io, socket);
+        // ── What? Where? When? quiz game ──────────────────────────────────
+        registerWWWHandlers(io, socket);
         // ── Disconnect ──────────────────────────────────────────────────
         socket.on('disconnect', () => {
             rateLimits.delete(socket.id);
@@ -5840,6 +5843,7 @@ export function attachSocketHandlers(io) {
             handleCheckersDisconnect(io, socket.id);
             handleJokerDisconnect(io, socket.id);
             handleLudoDisconnect(io, socket.id);
+            handleWWWDisconnect(io, socket.id);
             // Remove from any spectate queues
             for (const [qRoomId, queue] of spectateQueues) {
                 const idx = queue.indexOf(socket.id);

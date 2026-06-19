@@ -23,6 +23,7 @@ import {
 import { registerCheckersHandlers, handleCheckersDisconnect } from './checkers.js';
 import { registerJokerHandlers, handleJokerDisconnect } from './joker.js';
 import { registerLudoHandlers, handleLudoDisconnect } from './ludo.js';
+import { registerWWWHandlers, handleWWWDisconnect } from './www.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
 import {
@@ -5035,6 +5036,9 @@ export function attachSocketHandlers(io: AppServer): void {
     // ── Ludo board game ──────────────────────────────────────────────
     registerLudoHandlers(io, socket);
 
+    // ── What? Where? When? quiz game ──────────────────────────────────
+    registerWWWHandlers(io, socket);
+
     // ── Disconnect ──────────────────────────────────────────────────
     socket.on('disconnect', () => {
       rateLimits.delete(socket.id);
@@ -5057,6 +5061,7 @@ export function attachSocketHandlers(io: AppServer): void {
       handleCheckersDisconnect(io, socket.id);
       handleJokerDisconnect(io, socket.id);
       handleLudoDisconnect(io, socket.id);
+      handleWWWDisconnect(io, socket.id);
       // Remove from any spectate queues
       for (const [qRoomId, queue] of spectateQueues) {
         const idx = queue.indexOf(socket.id);

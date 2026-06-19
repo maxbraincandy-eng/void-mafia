@@ -5,12 +5,15 @@ import { useAuthStore } from '@/store/authStore';
 import { useCheckersStore } from '@/store/checkersStore';
 import { useJokerStore } from '@/store/jokerStore';
 import { useLudoStore } from '@/store/ludoStore';
+import { useWWWStore } from '@/store/wwwStore';
 import { CheckersGame } from '@/components/checkers/CheckersGame';
 import { JokerGame } from '@/components/joker/JokerGame';
 import { LudoGame } from '@/components/ludo/LudoGame';
+import { WWWGame } from '@/components/www/WWWGame';
 import type { CheckersMatchListItem } from '@/types/checkers';
 import type { JokerMatchListItem } from '@/types/joker';
 import type { LudoMatchListItem } from '@/types/ludo';
+import type { WWWListItem } from '@/types/www';
 
 export function GamesTab() {
   const t = useT();
@@ -46,13 +49,22 @@ export function GamesTab() {
   const [ldJoinCode, setLdJoinCode] = useState('');
   const [ldMaxPlayers, setLdMaxPlayers] = useState<2 | 3 | 4>(2);
 
+  // ── What? Where? When? ───────────────────────────────────────────────
+  const {
+    match: wwMatch, matchList: wwList, isLoading: wwLoading, error: wwError,
+    fetchList: wwFetch, createMatch: wwCreate, joinMatch: wwJoin, clearError: wwClear,
+  } = useWWWStore();
+  const [wwShowJoin, setWwShowJoin] = useState(false);
+  const [wwJoinCode, setWwJoinCode] = useState('');
+
   const handleRefresh = useCallback(() => {
     ckFetch();
     jkFetch();
     ldFetch();
-  }, [ckFetch, jkFetch, ldFetch]);
+    wwFetch();
+  }, [ckFetch, jkFetch, ldFetch, wwFetch]);
 
-  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); }, [ckFetch, jkFetch, ldFetch]);
+  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch]);
 
   // Refresh on visibility change
   useEffect(() => {
@@ -94,8 +106,88 @@ export function GamesTab() {
     setLdJoinCode('');
   }
 
+  async function handleWwCreate() {
+    await wwCreate(playerName);
+  }
+
+  async function handleWwJoin() {
+    if (!wwJoinCode.trim()) return;
+    setWwShowJoin(false);
+    await wwJoin(wwJoinCode.trim().toUpperCase(), playerName);
+    setWwJoinCode('');
+  }
+
   return (
     <div className="space-y-4">
+      {/* WWW error */}
+      <AnimatePresence>
+        {wwError && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            onClick={wwClear}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer"
+            style={{ background: 'rgba(255,45,85,0.08)', borderColor: 'rgba(255,45,85,0.3)', color: '#ff2d55' }}>
+            <span className="font-mono text-xs flex-1">{wwError}</span>
+            <span className="text-xs opacity-60">✕</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── What? Where? When? card ───────────────────────────────────────── */}
+      <div className="rounded-2xl overflow-hidden"
+        style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(168,85,247,0.2)' }}>
+        <div className="px-4 py-3 flex items-center gap-3 border-b"
+          style={{ borderColor: 'rgba(168,85,247,0.15)', background: 'rgba(168,85,247,0.05)' }}>
+          <span className="text-2xl">🧠</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-display font-bold text-white text-sm leading-tight">{t.games.www.title}</p>
+            <p className="font-mono text-[10px] text-white/35">{t.games.www.subtitle}</p>
+          </div>
+          <button onClick={handleRefresh}
+            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
+            style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.2)', color: 'rgba(192,132,252,0.6)' }}
+            title="Refresh">
+            ↻
+          </button>
+        </div>
+        <div className="px-4 py-3 flex flex-wrap gap-2">
+          {!wwShowJoin ? (
+            <>
+              <ActionButton onClick={handleWwCreate} accent="purple" loading={wwLoading}>
+                {t.games.www.createMatch}
+              </ActionButton>
+              <ActionButton onClick={() => setWwShowJoin(true)} accent="cyan">
+                {t.games.www.joinMatch}
+              </ActionButton>
+            </>
+          ) : (
+            <div className="flex gap-2 w-full">
+              <input
+                value={wwJoinCode}
+                onChange={e => setWwJoinCode(e.target.value.toUpperCase())}
+                onKeyDown={e => { if (e.key === 'Enter') handleWwJoin(); }}
+                placeholder="XXXXXX"
+                maxLength={6}
+                autoFocus
+                className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest"
+              />
+              <button onClick={handleWwJoin} disabled={!wwJoinCode.trim() || wwLoading}
+                className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
+                style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.35)', color: '#c084fc' }}>
+                {wwLoading ? '…' : t.games.www.joinMatch}
+              </button>
+              <button onClick={() => { setWwShowJoin(false); setWwJoinCode(''); }}
+                className="px-3 py-2 rounded-xl font-mono text-xs text-white/40 border border-white/10 hover:text-white/70 transition-colors">✕</button>
+            </div>
+          )}
+        </div>
+        {wwList.length > 0 && (
+          <div className="px-4 pb-3 space-y-1">
+            <p className="font-mono text-[9px] uppercase tracking-widest text-white/25">{t.games.www.openMatches}</p>
+            {wwList.map(m => <WWWRow key={m.id} match={m} onJoin={code => wwJoin(code, playerName)} />)}
+          </div>
+        )}
+      </div>
+
       {/* Checkers error */}
       <AnimatePresence>
         {ckError && (
@@ -353,6 +445,11 @@ export function GamesTab() {
       <AnimatePresence>
         {ldMatch && <LudoGame />}
       </AnimatePresence>
+
+      {/* WWW game overlay */}
+      <AnimatePresence>
+        {wwMatch && <WWWGame />}
+      </AnimatePresence>
     </div>
   );
 }
@@ -438,6 +535,40 @@ function LudoRow({ match, onJoin }: { match: LudoMatchListItem; onJoin: (code: s
           className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
           style={{ background: 'rgba(155,0,255,0.08)', border: '1px solid rgba(155,0,255,0.2)', color: '#c084fc' }}>
           {t.games.ludo.spectate}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function WWWRow({ match, onJoin }: { match: WWWListItem; onJoin: (code: string) => void }) {
+  const t = useT();
+  const isWaiting = match.status === 'waiting';
+  return (
+    <div className="flex items-center gap-3 px-2 py-2 rounded-xl"
+      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="flex-1 min-w-0">
+        <p className="font-mono text-xs text-white truncate">
+          {match.hostNickname}
+        </p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="font-mono text-[9px] text-white/25 tracking-widest">{match.code}</span>
+          <span className="font-mono text-[9px] text-white/20">{match.playerCount} მოთ.</span>
+          <span className="font-mono text-[9px] text-white/20">{match.questionsCount} შეკ.</span>
+        </div>
+      </div>
+      {isWaiting && (
+        <button onClick={() => onJoin(match.code)}
+          className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+          style={{ background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.25)', color: '#c084fc' }}>
+          {t.games.www.join}
+        </button>
+      )}
+      {!isWaiting && (
+        <button onClick={() => onJoin(match.code)}
+          className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+          style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.15)', color: 'rgba(192,132,252,0.6)' }}>
+          {t.games.www.spectate}
         </button>
       )}
     </div>

@@ -293,6 +293,16 @@ export const TRANSLATIONS = {
         players: 'players',
         refresh: 'Refresh',
       },
+      www: {
+        title: 'What? Where? When?',
+        subtitle: 'Team intellectual quiz game',
+        createMatch: 'Create Quiz',
+        joinMatch: 'Join Quiz',
+        openMatches: 'Open Games',
+        join: 'Join',
+        spectate: 'Watch',
+        waitingForHost: 'Waiting for host to start…',
+      },
     },
     game: {
       phaseLabels: {
@@ -1316,6 +1326,16 @@ export const TRANSLATIONS = {
         lobby: 'ლობი',
         players: 'მოთამაშე',
         refresh: 'განახლება',
+      },
+      www: {
+        title: 'რა? სად? როდის?',
+        subtitle: 'გუნდური ინტელექტუალური ვიქტორინა',
+        createMatch: 'ვიქტორინის შექმნა',
+        joinMatch: 'შეუერთდი',
+        openMatches: 'ღია თამაშები',
+        join: 'შეუერთდი',
+        spectate: 'დაყოლება',
+        waitingForHost: 'ჰოსტს ელოდებით…',
       },
     },
     game: {
