@@ -358,8 +358,23 @@ export function LudoGame() {
   }, [soundOn]);
 
   // ── Voice (must be before conditional return) ───────────────────────
-  const { isTalking, speakingSocketIds, leave: leaveVoice } = useLudoVoice();
+  const { isTalking, speakingSocketIds, leave: leaveVoice, joinVoice, joinListen } = useLudoVoice();
   const isMatchFinished = match?.status === 'finished';
+  const ludoMatchId = match?.id;
+  const ludoMyColor = match?.myColor;
+  const ludoIsPlayer = ludoMyColor === 'red' || ludoMyColor === 'blue' || ludoMyColor === 'green' || ludoMyColor === 'yellow';
+  const ludoMyName = ludoIsPlayer
+    ? (match?.players[ludoMyColor as 'red'|'blue'|'green'|'yellow']?.name ?? 'Player')
+    : 'Player';
+
+  // Auto-join voice on match entry
+  useEffect(() => {
+    if (!ludoMatchId) return;
+    if (ludoIsPlayer) joinVoice(ludoMatchId, ludoMyName);
+    else joinListen(ludoMatchId, ludoMyName);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ludoMatchId]);
+
   useEffect(() => { if (isMatchFinished) leaveVoice(); }, [isMatchFinished, leaveVoice]);
   useEffect(() => () => leaveVoice(), [leaveVoice]);
 

@@ -105,12 +105,14 @@ function VoiceStatusBar({ status, peers }: { status: string; peers: any[] }) {
 
 // ── TeamPanel ─────────────────────────────────────────────────────────────────
 function TeamPanel({
-  team, match, myId, speakingSocketIds,
+  team, match, myId, speakingSocketIds, peers, isTalking,
 }: {
   team: WWWTeam;
   match: WWWMatchPublic;
   myId: string;
   speakingSocketIds: string[];
+  peers: Array<{ socketId: string; name: string }>;
+  isTalking: boolean;
 }) {
   const answer: WWWAnswer | undefined = match.answers[team.id];
   const score = match.scores[team.id] ?? 0;
@@ -153,7 +155,11 @@ function TeamPanel({
         {team.playerIds.map(uid => {
           const p = match.players[uid];
           if (!p) return null;
-          const isSpeaking = speakingSocketIds.length > 0; // generic speaking indicator
+          // Match by name — best effort since WWW doesn't expose per-player socketId
+          const peer = peers.find(pr => pr.name === p.nickname);
+          const isSpeaking = uid === myId
+            ? isTalking
+            : peer ? speakingSocketIds.includes(peer.socketId) : false;
           return (
             <div key={uid} className="flex items-center gap-1.5">
               <span
@@ -796,6 +802,8 @@ export function WWWGame() {
             match={match}
             myId={myId}
             speakingSocketIds={voice.speakingSocketIds}
+            peers={voice.peers}
+            isTalking={voice.isTalking}
           />
         ))}
       </div>

@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@/store/langStore';
 import { useJokerStore } from '@/store/jokerStore';
+import { useJokerVoice } from '@/hooks/useJokerVoice';
 import { JokerCard } from './JokerCard';
 import type { Card, JokerPlayerPublic, Suit } from '@/types/joker';
 
@@ -50,6 +51,30 @@ export function JokerGame() {
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [match?.chat]);
+
+  // ── Voice (must be before conditional return) ──────────────────────
+  const voice = useJokerVoice();
+  const jokerMatchId = match?.id;
+  const jokerIsPlayer = match?.myPlayerId !== null && match?.myPlayerId !== undefined;
+
+  useEffect(() => {
+    if (!jokerMatchId) return;
+    if (jokerIsPlayer) voice.joinVoice(jokerMatchId);
+    else voice.joinListen(jokerMatchId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jokerMatchId]);
+
+  const jokerIsFinished = match?.status === 'finished';
+  useEffect(() => { if (jokerIsFinished) voice.leave(); }, [jokerIsFinished, voice.leave]);
+  useEffect(() => () => { voice.leave(); }, [voice.leave]);
+
+  const handlePttStart = useCallback(() => {
+    if (jokerMatchId) voice.startTalk(jokerMatchId);
+  }, [jokerMatchId, voice.startTalk]);
+
+  const handlePttStop = useCallback(() => {
+    if (jokerMatchId) voice.stopTalk(jokerMatchId);
+  }, [jokerMatchId, voice.stopTalk]);
 
   if (!match) return null;
 
@@ -240,6 +265,24 @@ export function JokerGame() {
                   style={{ textShadow: selectedCard ? 'none' : '0 0 10px rgba(0,245,255,0.5)' }}>
                   {selectedCard ? `▶ ${t.games.joker.tapAgainToPlay}` : `▶ ${t.games.joker.yourTurn}`}
                 </p>
+              )}
+
+              {/* PTT button */}
+              {isPlayer && !isFinished && voice.joined && (
+                <button
+                  onPointerDown={handlePttStart}
+                  onPointerUp={handlePttStop}
+                  onPointerLeave={handlePttStop}
+                  className="w-full mt-1.5 py-2 rounded-xl font-mono text-[11px] font-bold transition-all active:scale-95 select-none"
+                  style={{
+                    background: voice.isTalking ? 'rgba(168,85,247,0.3)' : 'rgba(168,85,247,0.08)',
+                    border: voice.isTalking ? '1px solid rgba(168,85,247,0.7)' : '1px solid rgba(168,85,247,0.2)',
+                    color: voice.isTalking ? '#fff' : 'rgba(168,85,247,0.6)',
+                    touchAction: 'none',
+                  }}
+                >
+                  {voice.isTalking ? '🎙 LIVE' : '🎤 HOLD TO TALK'}
+                </button>
               )}
 
               {isSpectator && (

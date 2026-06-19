@@ -13,6 +13,12 @@ import {
   type JokerMatch, type JokerPlayer, type JokerSettings, type Card, type PlayedCard,
 } from './services/jokerService.js';
 import { addXP } from './services/playerService.js';
+import {
+  voiceJoin as jokerVoiceJoin,
+  voiceLeave as jokerVoiceLeave,
+  voiceGetMatchId as jokerVoiceGetMatchId,
+} from './services/jokerVoiceService.js';
+import { buildIceConfig } from './lib/iceConfig.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -531,10 +537,82 @@ export function registerJokerHandlers(io: AppServer, socket: AppSocket): void {
       cb(ok(null));
     } catch (e: any) { cb(err(e.message)); }
   });
+
+  // ── Voice: join ───────────────────────────────────────────────────
+  socket.on('joker:voice-join' as any, (data: { matchId: string }, cb: (res: any) => void) => {
+    try {
+      const match = getMatch(data?.matchId);
+      if (!match) return cb(err('Match not found.'));
+      if (match.status === 'finished') return cb(err('Match has ended.'));
+
+      const player = match.players.find(p => p.socketId === socket.id);
+      const isSpectator = match.spectatorSocketIds.includes(socket.id);
+      if (!player && !isSpectator) return cb(err('Not in this match.'));
+
+      const name = player?.name ?? 'Spectator';
+
+      const existingPeers = jokerVoiceJoin(match.id, socket.id, name);
+      socket.to(JOKER_ROOM(match.id)).emit('joker:voice-peer-joined' as any, {
+        socketId: socket.id,
+        name,
+      });
+
+      const iceConfig = buildIceConfig();
+      cb(ok({
+        peers: existingPeers,
+        iceServers: iceConfig.iceServers,
+        iceTransportPolicy: iceConfig.iceTransportPolicy,
+        canSpeak: !!player,
+      }));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  // ── Voice: leave ──────────────────────────────────────────────────
+  socket.on('joker:voice-leave' as any, (_data: any, cb?: (res: any) => void) => {
+    const matchId = jokerVoiceLeave(socket.id);
+    if (matchId) {
+      socket.to(JOKER_ROOM(matchId)).emit('joker:voice-peer-left' as any, { socketId: socket.id });
+    }
+    cb?.(ok(null));
+  });
+
+  // ── Voice: WebRTC signalling relay ────────────────────────────────
+  socket.on('joker:voice-offer' as any, (data: { to: string; sdp: any }) => {
+    io.to(data.to).emit('joker:voice-offer' as any, { from: socket.id, sdp: data.sdp });
+  });
+
+  socket.on('joker:voice-answer' as any, (data: { to: string; sdp: any }) => {
+    io.to(data.to).emit('joker:voice-answer' as any, { from: socket.id, sdp: data.sdp });
+  });
+
+  socket.on('joker:voice-ice' as any, (data: { to: string; candidate: any }) => {
+    io.to(data.to).emit('joker:voice-ice' as any, { from: socket.id, candidate: data.candidate });
+  });
+
+  // ── Voice: Push-to-Talk state ─────────────────────────────────────
+  socket.on('joker:ptt-start' as any, (data: { matchId: string }) => {
+    const match = getMatch(data?.matchId);
+    if (!match) return;
+    const player = match.players.find(p => p.socketId === socket.id);
+    if (!player) return;
+    socket.to(JOKER_ROOM(data.matchId)).emit('joker:ptt-state' as any, { socketId: socket.id, speaking: true });
+  });
+
+  socket.on('joker:ptt-stop' as any, (data: { matchId: string }) => {
+    socket.to(JOKER_ROOM(String(data?.matchId))).emit('joker:ptt-state' as any, { socketId: socket.id, speaking: false });
+  });
 }
 
 // ── Disconnect cleanup ─────────────────────────────────────────────────
 export function handleJokerDisconnect(io: AppServer, socketId: string): void {
+  // Voice cleanup
+  const voiceMatchId = jokerVoiceGetMatchId(socketId);
+  if (voiceMatchId) {
+    jokerVoiceLeave(socketId);
+    io.to(JOKER_ROOM(voiceMatchId)).emit('joker:voice-peer-left' as any, { socketId });
+    io.to(JOKER_ROOM(voiceMatchId)).emit('joker:ptt-state' as any, { socketId, speaking: false });
+  }
+
   const match = getMatchForSocket(socketId);
   if (!match) return;
 

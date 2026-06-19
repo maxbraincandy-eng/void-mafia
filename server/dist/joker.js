@@ -1,6 +1,8 @@
 import { ok, err, } from './types/index.js';
 import { createMatch, getMatch, getMatchByCode, getMatchForSocket, getOpenMatches, dealRound, validateCardPlay, resolveTrick, applyRoundScores, finishMatch, } from './services/jokerService.js';
 import { addXP } from './services/playerService.js';
+import { voiceJoin as jokerVoiceJoin, voiceLeave as jokerVoiceLeave, voiceGetMatchId as jokerVoiceGetMatchId, } from './services/jokerVoiceService.js';
+import { buildIceConfig } from './lib/iceConfig.js';
 const JOKER_ROOM = (id) => `jk:${id}`;
 // Per-match turn timers (bot auto-play + 25s human timeout)
 const turnTimers = new Map();
@@ -506,9 +508,77 @@ export function registerJokerHandlers(io, socket) {
             cb(err(e.message));
         }
     });
+    // ── Voice: join ───────────────────────────────────────────────────
+    socket.on('joker:voice-join', (data, cb) => {
+        try {
+            const match = getMatch(data?.matchId);
+            if (!match)
+                return cb(err('Match not found.'));
+            if (match.status === 'finished')
+                return cb(err('Match has ended.'));
+            const player = match.players.find(p => p.socketId === socket.id);
+            const isSpectator = match.spectatorSocketIds.includes(socket.id);
+            if (!player && !isSpectator)
+                return cb(err('Not in this match.'));
+            const name = player?.name ?? 'Spectator';
+            const existingPeers = jokerVoiceJoin(match.id, socket.id, name);
+            socket.to(JOKER_ROOM(match.id)).emit('joker:voice-peer-joined', {
+                socketId: socket.id,
+                name,
+            });
+            const iceConfig = buildIceConfig();
+            cb(ok({
+                peers: existingPeers,
+                iceServers: iceConfig.iceServers,
+                iceTransportPolicy: iceConfig.iceTransportPolicy,
+                canSpeak: !!player,
+            }));
+        }
+        catch (e) {
+            cb(err(e.message));
+        }
+    });
+    // ── Voice: leave ──────────────────────────────────────────────────
+    socket.on('joker:voice-leave', (_data, cb) => {
+        const matchId = jokerVoiceLeave(socket.id);
+        if (matchId) {
+            socket.to(JOKER_ROOM(matchId)).emit('joker:voice-peer-left', { socketId: socket.id });
+        }
+        cb?.(ok(null));
+    });
+    // ── Voice: WebRTC signalling relay ────────────────────────────────
+    socket.on('joker:voice-offer', (data) => {
+        io.to(data.to).emit('joker:voice-offer', { from: socket.id, sdp: data.sdp });
+    });
+    socket.on('joker:voice-answer', (data) => {
+        io.to(data.to).emit('joker:voice-answer', { from: socket.id, sdp: data.sdp });
+    });
+    socket.on('joker:voice-ice', (data) => {
+        io.to(data.to).emit('joker:voice-ice', { from: socket.id, candidate: data.candidate });
+    });
+    // ── Voice: Push-to-Talk state ─────────────────────────────────────
+    socket.on('joker:ptt-start', (data) => {
+        const match = getMatch(data?.matchId);
+        if (!match)
+            return;
+        const player = match.players.find(p => p.socketId === socket.id);
+        if (!player)
+            return;
+        socket.to(JOKER_ROOM(data.matchId)).emit('joker:ptt-state', { socketId: socket.id, speaking: true });
+    });
+    socket.on('joker:ptt-stop', (data) => {
+        socket.to(JOKER_ROOM(String(data?.matchId))).emit('joker:ptt-state', { socketId: socket.id, speaking: false });
+    });
 }
 // ── Disconnect cleanup ─────────────────────────────────────────────────
 export function handleJokerDisconnect(io, socketId) {
+    // Voice cleanup
+    const voiceMatchId = jokerVoiceGetMatchId(socketId);
+    if (voiceMatchId) {
+        jokerVoiceLeave(socketId);
+        io.to(JOKER_ROOM(voiceMatchId)).emit('joker:voice-peer-left', { socketId });
+        io.to(JOKER_ROOM(voiceMatchId)).emit('joker:ptt-state', { socketId, speaking: false });
+    }
     const match = getMatchForSocket(socketId);
     if (!match)
         return;

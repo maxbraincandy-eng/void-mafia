@@ -25,8 +25,19 @@ export function CheckersGame() {
 
   // ── Voice ──────────────────────────────────────────────────────────
   // Must be called before any conditional return to satisfy Rules of Hooks
-  const { isTalking, speakingSocketIds, leave: leaveVoice } = useCheckersVoice();
+  const { isTalking, speakingSocketIds, leave: leaveVoice, joinVoice, joinListen } = useCheckersVoice();
   const isFinished = match?.status === 'finished';
+  const checkersMatchId = match?.id;
+  const checkersMyColor = match?.myColor;
+  const checkersIsPlayer = checkersMyColor === 'red' || checkersMyColor === 'black';
+
+  // Auto-join voice on match entry
+  useEffect(() => {
+    if (!checkersMatchId) return;
+    if (checkersIsPlayer) joinVoice(checkersMatchId);
+    else joinListen(checkersMatchId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkersMatchId]);
 
   // Clean up voice on match end or unmount
   useEffect(() => {
