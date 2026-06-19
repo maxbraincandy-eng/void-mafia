@@ -40,6 +40,7 @@ export function LobbyChatPanel() {
   const [sendError, setSendError] = useState('');
   const loadedRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const loadHistory = useCallback(async () => {
@@ -69,7 +70,13 @@ export function LobbyChatPanel() {
   }, [lobbyChatOpen, clearLobbyChatUnread, loadHistory]);
 
   useEffect(() => {
-    if (lobbyChatOpen) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = scrollRef.current;
+    if (!el || !lobbyChatOpen) return;
+    // Pin to bottom — instant on open, smooth for new messages
+    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    if (msgs.length <= 1 || isAtBottom) {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [msgs.length, lobbyChatOpen]);
 
   const handleSend = async () => {
@@ -150,8 +157,8 @@ export function LobbyChatPanel() {
               </button>
             </div>
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
+            {/* Messages — pinned to bottom */}
+            <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0" style={{ overflowAnchor: 'none' }}>
               {msgs.length === 0 && (
                 <p className="text-center text-white/20 font-mono text-xs py-8">
                   No messages yet. Say something!
@@ -180,7 +187,7 @@ export function LobbyChatPanel() {
                           </button>
                         )}
                       </div>
-                      <div className={`px-3 py-2 rounded-2xl text-sm font-mono leading-snug ${
+                      <div className={`px-3 py-2 rounded-2xl text-sm font-mono leading-snug break-anywhere ${
                         isMe
                           ? 'bg-neon-cyan/[0.12] text-neon-cyan/80 rounded-tr-sm'
                           : 'bg-white/[0.06] text-white/65 rounded-tl-sm'

@@ -140,7 +140,7 @@ export function LobbyPage() {
           animate={{ opacity: 1, y: 0 }}
           className="flex items-start justify-between mb-6 gap-4"
         >
-          <div className="flex items-start gap-2.5">
+          <div className="flex items-start gap-2.5 min-w-0 flex-1">
             {/* Leave room — top-left shortcut */}
             <button
               onClick={() => amHost ? setShowLeaveConfirm(true) : handleLeave()}
@@ -167,17 +167,17 @@ export function LobbyPage() {
               </svg>
             </button>
 
-            <div>
-              <h1 className="font-display text-2xl font-bold gradient-text tracking-wide mb-2 leading-none">
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <h1 className="font-display text-2xl font-bold gradient-text tracking-wide mb-1 leading-none whitespace-nowrap">
                 VOID MAFIA
               </h1>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 flex-wrap">
                 <div className="flex items-center gap-1.5">
                   <span className={clsx(
                     'w-1.5 h-1.5 rounded-full shrink-0 transition-colors',
                     allReady && canStart ? 'bg-neon-green animate-pulse' : 'bg-white/[0.18]',
                   )} />
-                  <span className="text-[11px] font-mono text-white/35">
+                  <span className="text-[11px] font-mono text-white/35 whitespace-nowrap">
                     {allReady && canStart
                       ? t.lobby.allReady
                       : t.lobby.joinedOf.replace('{n}', String(playerCount)).replace('{m}', String(minPlayers))}
@@ -186,7 +186,7 @@ export function LobbyPage() {
                 <span className="text-white/10 select-none">·</span>
                 <button
                   onClick={() => setShowRoleGuide(true)}
-                  className="text-[11px] font-mono text-white/22 hover:text-white/50 transition-colors"
+                  className="text-[11px] font-mono text-white/22 hover:text-white/50 transition-colors whitespace-nowrap"
                 >
                   {t.lobby.roleGuideLink}
                 </button>

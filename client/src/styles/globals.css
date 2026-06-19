@@ -42,19 +42,25 @@
     /* iOS momentum scrolling needs to be on individual scroll containers */
   }
 
-  /* Prevent text overflow on small screens */
+  /* Prevent overflow on truly unbreakable strings (URLs, long hashes).
+     Do NOT use 'anywhere' or 'word-break: break-word' globally — they
+     cause Georgian/CJK characters to wrap one-per-line in narrow flex items. */
   * {
+    overflow-wrap: break-word;
+  }
+
+  /* Elements that should hard-break long strings (chat, feed body text) */
+  .break-anywhere {
     overflow-wrap: anywhere;
     word-break: break-word;
   }
 
   /* Minimum readable font size on mobile */
   body {
-    font-size: max(14px, 1em);
     -webkit-text-size-adjust: 100%;
   }
 
-  /* Minimum touch target — buttons inherit 44px min even if styled smaller visually */
+  /* Minimum touch target */
   button, [role="button"] {
     min-height: 36px;
   }

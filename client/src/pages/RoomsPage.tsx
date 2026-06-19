@@ -221,13 +221,18 @@ export function RoomsPage() {
             <LanguageSwitcher />
             <button
               onClick={openLobbyChat}
-              className="relative px-2.5 py-1.5 rounded-xl border border-white/[0.07] text-white/25 hover:text-white/55 hover:border-white/14 font-mono text-sm transition-all"
+              className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl font-mono text-sm transition-all active:scale-95"
+              style={lobbyChatUnread > 0
+                ? { border: '1px solid rgba(255,45,85,0.5)', color: 'rgba(255,45,85,0.9)', background: 'rgba(255,45,85,0.08)' }
+                : { border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.28)' }}
               title="Lobby Chat"
             >
-              ⌥
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
               {lobbyChatUnread > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] rounded-full bg-neon-cyan/70 text-[12px] font-mono flex items-center justify-center text-black font-bold px-0.5">
-                  {lobbyChatUnread > 9 ? '9+' : lobbyChatUnread}
+                <span className="font-bold text-[12px]">
+                  +{lobbyChatUnread > 99 ? '99' : lobbyChatUnread}
                 </span>
               )}
             </button>

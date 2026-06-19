@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useGameStore, hasPendingSession } from '@/store/gameStore';
 import clsx from 'clsx';
@@ -38,6 +38,8 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { socket } from '@/lib/socket';
 import type { GiftReceivedNotification } from '@/types/index';
 import { CLIENT_VERSION } from './version';
+import { haptic } from '@/lib/haptics';
+import { YourTurnToast } from '@/components/ui/YourTurnToast';
 
 // Auto-reload when server has a newer client build than what's cached.
 // This permanently solves the stale-cache problem on iOS Safari / PWA.
@@ -183,8 +185,25 @@ function DmToastNotification() {
   );
 }
 
+const NAV_ORDER: NavTab[] = ['rooms', 'games', 'community', 'clans', 'leaderboard', 'profile'];
+
+function PageTransition({ children, direction }: { children: React.ReactNode; direction: 1 | -1 }) {
+  return (
+    <motion.div
+      initial={{ x: direction * 40, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      exit={{ x: direction * -40, opacity: 0 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 36, mass: 0.7 }}
+      style={{ willChange: 'transform, opacity' }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const [page, setPage] = useState<NavTab>('rooms');
+  const [direction, setDirection] = useState<1 | -1>(1);
   const [initialReplayId, setInitialReplayId] = useState<string | undefined>(undefined);
   const profile = useAuthStore(s => s.profile);
   const isMod   = profile?.isModerator ?? false;
@@ -197,26 +216,65 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const unoMatch      = useUnoStore(s => s.match);
   const inGame = !!(checkersMatch || ludoMatch || jokerMatch || wwwMatch || unoMatch);
 
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const swipeLocked = useRef(false);
+
+  const navigate = useCallback((tab: NavTab) => {
+    const from = NAV_ORDER.indexOf(page);
+    const to   = NAV_ORDER.indexOf(tab);
+    setDirection(to >= from ? 1 : -1);
+    if (tab !== 'replays') setInitialReplayId(undefined);
+    setPage(tab);
+  }, [page]);
+
   function navigateToReplay(gameId: string) {
     setInitialReplayId(gameId);
+    setDirection(1);
     setPage('replays');
   }
 
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    swipeLocked.current = false;
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (swipeLocked.current || inGame) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = e.changedTouches[0].clientY - touchStartY.current;
+    if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx) * 0.7) return;
+    const idx = NAV_ORDER.indexOf(page);
+    if (dx < 0 && idx < NAV_ORDER.length - 1) {
+      haptic('selection');
+      navigate(NAV_ORDER[idx + 1]!);
+    } else if (dx > 0 && idx > 0) {
+      haptic('selection');
+      navigate(NAV_ORDER[idx - 1]!);
+    }
+  }
+
   return (
-    <div className="pb-20 min-h-screen">
+    <div
+      className="pb-20 min-h-screen"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       <AnimatePresence mode="wait">
-        {page === 'rooms'                   && <RoomsPage key="rooms" />}
-        {page === 'games'                   && <GamesPage key="games" />}
-        {page === 'community'               && <CommunityPage key="community" />}
-        {page === 'clans'                   && <ClansPage key="clans" />}
-        {page === 'replays'                 && <ReplaysPage key={`replays-${initialReplayId ?? ''}`} initialReplayId={initialReplayId} />}
-        {page === 'leaderboard'             && <LeaderboardPage key="leaderboard" onBack={() => setPage('rooms')} />}
-        {page === 'profile'                 && <ProfilePage key="profile" onViewReplay={navigateToReplay} />}
-        {page === 'mod' && isMod            && <ModDashboardPage key="mod" />}
-        {page === 'economy' && isOwner      && <EconomyAdminPage key="economy" />}
+        {page === 'rooms'       && <PageTransition key="rooms"        direction={direction}><RoomsPage /></PageTransition>}
+        {page === 'games'       && <PageTransition key="games"        direction={direction}><GamesPage /></PageTransition>}
+        {page === 'community'   && <PageTransition key="community"    direction={direction}><CommunityPage /></PageTransition>}
+        {page === 'clans'       && <PageTransition key="clans"        direction={direction}><ClansPage /></PageTransition>}
+        {page === 'replays'     && <PageTransition key={`replays-${initialReplayId ?? ''}`} direction={direction}><ReplaysPage initialReplayId={initialReplayId} /></PageTransition>}
+        {page === 'leaderboard' && <PageTransition key="leaderboard"  direction={direction}><LeaderboardPage onBack={() => navigate('rooms')} /></PageTransition>}
+        {page === 'profile'     && <PageTransition key="profile"      direction={direction}><ProfilePage onViewReplay={navigateToReplay} /></PageTransition>}
+        {page === 'mod' && isMod   && <PageTransition key="mod"       direction={direction}><ModDashboardPage /></PageTransition>}
+        {page === 'economy' && isOwner && <PageTransition key="economy" direction={direction}><EconomyAdminPage /></PageTransition>}
       </AnimatePresence>
-      {!inGame && <BottomNav active={page} isMod={isMod} onChange={tab => { if (tab !== 'replays') setInitialReplayId(undefined); setPage(tab); }} onMessagesClick={openDmList} />}
-      <MorePanel isOwner={isOwner} onEconomyClick={() => setPage('economy')} onShopClick={onOpenShop} onReplaysClick={() => { setInitialReplayId(undefined); setPage('replays'); }} />
+      {!inGame && <BottomNav active={page} isMod={isMod} onChange={tab => navigate(tab)} onMessagesClick={openDmList} />}
+      <MorePanel isOwner={isOwner} onEconomyClick={() => { setDirection(1); setPage('economy'); }} onShopClick={onOpenShop} onReplaysClick={() => { setInitialReplayId(undefined); setDirection(1); setPage('replays'); }} />
+      <YourTurnToast />
     </div>
   );
 }
