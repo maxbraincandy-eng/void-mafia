@@ -35,6 +35,19 @@ import { attachGlobalClickSounds, onSettingsChange } from '@/lib/audioEngine';
 import { useSettingsStore } from '@/store/settingsStore';
 import { socket } from '@/lib/socket';
 import type { GiftReceivedNotification } from '@/types/index';
+import { CLIENT_VERSION } from './version';
+
+// Auto-reload when server has a newer client build than what's cached.
+// This permanently solves the stale-cache problem on iOS Safari / PWA.
+fetch('/api/version')
+  .then(r => r.json())
+  .then((d: { build?: string }) => {
+    if (d.build && d.build !== CLIENT_VERSION) {
+      // Hard-reload — bypasses service worker and HTTP cache
+      window.location.replace(window.location.href.split('?')[0] + '?v=' + d.build);
+    }
+  })
+  .catch(() => {});
 
 // Detect /u/:publicId deep link on initial load
 const _initialPathMatch = window.location.pathname.match(/^\/u\/(\d+)$/);
