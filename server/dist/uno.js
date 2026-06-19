@@ -95,10 +95,9 @@ export function registerUnoHandlers(io, socket) {
             const matchId = String(data?.matchId);
             const m = leaveMatch(matchId, uid(), socket.id);
             socket.leave(UNO_ROOM(matchId));
-            if (m) {
+            if (m)
                 broadcastState(io, matchId);
-                broadcastList(io);
-            }
+            broadcastList(io); // always — match may have been deleted
             cb(ok(null));
         }
         catch (e) {
@@ -259,6 +258,7 @@ export function handleUnoDisconnect(io, socketId) {
         const m = getMatch(matchId);
         if (m)
             broadcastState(io, matchId);
+        broadcastList(io); // always — match may have been deleted
     }
 }
 //# sourceMappingURL=uno.js.map

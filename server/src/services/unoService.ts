@@ -297,6 +297,11 @@ export function leaveMatch(matchId: string, userId: string, socketId: string): U
       m.players = m.players.filter(p => p.userId !== userId);
       // Re-number seats
       m.players.forEach((p, i) => { p.seat = i; });
+      // If no players remain, delete the match entirely
+      if (m.players.length === 0) {
+        matches.delete(m.id);
+        return null;
+      }
       // Transfer host if needed
       if (m.hostId === userId && m.players.length > 0) {
         m.hostId = m.players[0]!.userId;
@@ -626,7 +631,19 @@ export function disconnectSocket(socketId: string): string | null {
   for (const [matchId, m] of matches) {
     const player = m.players.find(p => p.socketId === socketId);
     if (player) {
-      player.connected = false;
+      if (m.status === 'waiting') {
+        // Remove from waiting lobby; delete if empty
+        playerMatch.delete(player.userId);
+        m.players = m.players.filter(p => p.socketId !== socketId);
+        m.players.forEach((p, i) => { p.seat = i; });
+        if (m.players.length === 0) {
+          matches.delete(matchId);
+        } else if (m.hostId === player.userId) {
+          m.hostId = m.players[0]!.userId;
+        }
+      } else {
+        player.connected = false;
+      }
       return matchId;
     }
     const specIdx = m.spectatorIds.indexOf(socketId);

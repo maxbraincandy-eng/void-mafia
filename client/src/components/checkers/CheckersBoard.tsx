@@ -14,8 +14,18 @@ interface Props {
 }
 
 const PIECE_COLORS = {
-  red:   { fill: 'radial-gradient(circle at 35% 35%, #e74c3c, #c0392b)', glow: 'rgba(231,76,60,0.7)' },
-  black: { fill: 'radial-gradient(circle at 35% 35%, #f5d76e, #b8860b)',  glow: 'rgba(245,215,110,0.7)' },
+  red: {
+    fill: 'radial-gradient(circle at 32% 28%, #ffffff 0%, #e0e0f4 30%, #ababcc 65%, #7878a8 100%)',
+    glow: 'rgba(200,200,255,0.85)',
+    kingColor: '#2d0060' as const,
+    kingGlow: '0 0 8px rgba(120,0,220,0.9)',
+  },
+  black: {
+    fill: 'radial-gradient(circle at 32% 28%, #424260 0%, #1c1c2e 40%, #07070f 100%)',
+    glow: 'rgba(110,50,220,0.75)',
+    kingColor: '#ddc8ff' as const,
+    kingGlow: '0 0 8px rgba(200,160,255,0.9)',
+  },
 };
 
 export function CheckersBoard({
@@ -111,11 +121,11 @@ export function CheckersBoard({
 
           const cellBg = isDark
             ? isSelected
-              ? 'rgba(0,245,255,0.22)'
+              ? 'rgba(0,220,255,0.20)'
               : isValidTarget
-                ? 'rgba(0,245,255,0.10)'
-                : 'rgba(10,6,28,0.9)'
-            : 'rgba(40,30,60,0.4)';
+                ? 'rgba(0,220,255,0.09)'
+                : 'rgba(8,4,22,0.97)'
+            : 'rgba(32,22,58,0.55)';
 
           const pc = piece ? PIECE_COLORS[piece.color] : null;
 
@@ -146,17 +156,24 @@ export function CheckersBoard({
                   width: '76%', height: '76%', borderRadius: '50%',
                   background: pc.fill,
                   boxShadow: isSelected || isMustContinue
-                    ? `0 0 0 3px #00f5ff, 0 0 16px ${pc.glow}`
+                    ? `0 0 0 3px #00f5ff, 0 0 20px ${pc.glow}, inset 0 -2px 4px rgba(0,0,0,0.35), inset 0 2px 3px rgba(255,255,255,0.12)`
                     : isMandatoryCapture
-                      ? `0 0 0 2px #ff6622, 0 0 14px rgba(255,102,34,0.65), 0 0 8px ${pc.glow}`
+                      ? `0 0 0 2.5px #ff6622, 0 0 16px rgba(255,102,34,0.7), 0 0 8px ${pc.glow}, inset 0 -2px 4px rgba(0,0,0,0.35), inset 0 2px 3px rgba(255,255,255,0.12)`
                       : isValidTarget
-                        ? `0 0 0 2px rgba(0,245,255,0.5), 0 0 10px ${pc.glow}`
-                        : `0 2px 6px rgba(0,0,0,0.5), 0 0 10px ${pc.glow}`,
+                        ? `0 0 0 2px rgba(0,245,255,0.45), 0 0 12px ${pc.glow}, inset 0 -2px 4px rgba(0,0,0,0.35), inset 0 2px 3px rgba(255,255,255,0.12)`
+                        : `0 3px 8px rgba(0,0,0,0.55), 0 0 12px ${pc.glow}, inset 0 -2px 4px rgba(0,0,0,0.35), inset 0 2px 3px rgba(255,255,255,0.12)`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0, transition: 'box-shadow 0.15s',
                 }}>
                   {piece.king && (
-                    <span style={{ color: 'rgba(0,0,0,0.7)', fontSize: '55%', fontWeight: 'bold', lineHeight: 1 }}>♛</span>
+                    <span style={{
+                      color: pc.kingColor,
+                      fontSize: '52%',
+                      fontWeight: 900,
+                      lineHeight: 1,
+                      textShadow: pc.kingGlow,
+                      userSelect: 'none',
+                    }}>♛</span>
                   )}
                 </div>
               )}

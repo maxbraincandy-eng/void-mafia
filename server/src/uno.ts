@@ -108,7 +108,8 @@ export function registerUnoHandlers(io: AppServer, socket: AppSocket): void {
       const matchId = String(data?.matchId);
       const m = leaveMatch(matchId, uid(), socket.id);
       socket.leave(UNO_ROOM(matchId));
-      if (m) { broadcastState(io, matchId); broadcastList(io); }
+      if (m) broadcastState(io, matchId);
+      broadcastList(io); // always — match may have been deleted
       cb(ok(null));
     } catch (e: any) { cb(err(e.message)); }
   });
@@ -252,5 +253,6 @@ export function handleUnoDisconnect(io: AppServer, socketId: string): void {
   if (matchId) {
     const m = getMatch(matchId);
     if (m) broadcastState(io, matchId);
+    broadcastList(io); // always — match may have been deleted
   }
 }

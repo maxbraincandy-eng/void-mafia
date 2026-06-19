@@ -99,8 +99,16 @@ export function registerCheckersHandlers(io, socket) {
                 return cb(err('You are already in another checkers match.'));
             }
             if (match.status === 'waiting' && !match.black) {
-                // Join as the black player.
-                match.black = { socketId: socket.id, name, profileId: socket.data.profileId ?? null };
+                // Randomly assign colors: 50% chance the joining player gets red (goes first).
+                const guest = { socketId: socket.id, name, profileId: socket.data.profileId ?? null };
+                if (Math.random() < 0.5) {
+                    // Guest becomes red (first mover), host becomes black.
+                    match.black = { ...match.red };
+                    match.red = guest;
+                }
+                else {
+                    match.black = guest;
+                }
                 match.status = 'active';
                 match.updatedAt = Date.now();
                 socket.join(CHECKERS_ROOM(match.id));
@@ -216,9 +224,9 @@ export function registerCheckersHandlers(io, socket) {
             const isBlack = old.black?.socketId === socket.id;
             if (!isRed && !isBlack)
                 return cb(err('You are not a player.'));
-            // Swap colors for rematch.
-            const newRed = isRed ? old.black : old.red;
-            const newBlack = isRed ? old.red : old.black;
+            // Always swap colors so first-mover alternates each rematch.
+            const newRed = { ...old.black };
+            const newBlack = { ...old.red };
             const nm = createMatch({ ...newRed }, old.settings);
             nm.black = { ...newBlack };
             nm.status = 'active';
