@@ -22,6 +22,7 @@ import { useCheckersStore } from '@/store/checkersStore';
 import { useLudoStore } from '@/store/ludoStore';
 import { useJokerStore } from '@/store/jokerStore';
 import { useWWWStore } from '@/store/wwwStore';
+import { useUnoStore } from '@/store/unoStore';
 import { GamesPage } from '@/pages/GamesPage';
 import { MorePanel } from '@/components/ui/MorePanel';
 import { PlayerProfileModal } from '@/components/ui/PlayerProfileModal';
@@ -193,7 +194,8 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const ludoMatch     = useLudoStore(s => s.match);
   const jokerMatch    = useJokerStore(s => s.match);
   const wwwMatch      = useWWWStore(s => s.match);
-  const inGame = !!(checkersMatch || ludoMatch || jokerMatch || wwwMatch);
+  const unoMatch      = useUnoStore(s => s.match);
+  const inGame = !!(checkersMatch || ludoMatch || jokerMatch || wwwMatch || unoMatch);
 
   function navigateToReplay(gameId: string) {
     setInitialReplayId(gameId);

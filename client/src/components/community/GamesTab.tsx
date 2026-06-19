@@ -6,14 +6,17 @@ import { useCheckersStore } from '@/store/checkersStore';
 import { useJokerStore } from '@/store/jokerStore';
 import { useLudoStore } from '@/store/ludoStore';
 import { useWWWStore } from '@/store/wwwStore';
+import { useUnoStore } from '@/store/unoStore';
 import { CheckersGame } from '@/components/checkers/CheckersGame';
 import { JokerGame } from '@/components/joker/JokerGame';
 import { LudoGame } from '@/components/ludo/LudoGame';
 import { WWWGame } from '@/components/www/WWWGame';
+import { UnoGame } from '@/components/uno/UnoGame';
 import type { CheckersMatchListItem } from '@/types/checkers';
 import type { JokerMatchListItem } from '@/types/joker';
 import type { LudoMatchListItem } from '@/types/ludo';
 import type { WWWListItem } from '@/types/www';
+import type { UnoListItem } from '@/types/uno';
 
 export function GamesTab() {
   const t = useT();
@@ -57,14 +60,25 @@ export function GamesTab() {
   const [wwShowJoin, setWwShowJoin] = useState(false);
   const [wwJoinCode, setWwJoinCode] = useState('');
 
+  // ── UNO ─────────────────────────────────────────────────────────────
+  const {
+    match: unoMatch, matchList: unoList, isLoading: unoLoading, error: unoError,
+    fetchList: unoFetch, createMatch: unoCreate, joinMatch: unoJoin,
+    spectateMatch: unoSpectate, clearError: unoClear,
+  } = useUnoStore();
+  const [unoShowJoin, setUnoShowJoin] = useState(false);
+  const [unoJoinCode, setUnoJoinCode] = useState('');
+  const [unoMaxPlayers, setUnoMaxPlayers] = useState(4);
+
   const handleRefresh = useCallback(() => {
     ckFetch();
     jkFetch();
     ldFetch();
     wwFetch();
-  }, [ckFetch, jkFetch, ldFetch, wwFetch]);
+    unoFetch();
+  }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch]);
 
-  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch]);
+  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch]);
 
   // Refresh on visibility change
   useEffect(() => {
@@ -115,6 +129,17 @@ export function GamesTab() {
     setWwShowJoin(false);
     await wwJoin(wwJoinCode.trim().toUpperCase(), playerName);
     setWwJoinCode('');
+  }
+
+  async function handleUnoCreate() {
+    await unoCreate(playerName, unoMaxPlayers);
+  }
+
+  async function handleUnoJoin() {
+    if (!unoJoinCode.trim()) return;
+    setUnoShowJoin(false);
+    await unoJoin(unoJoinCode.trim().toUpperCase(), playerName);
+    setUnoJoinCode('');
   }
 
   return (
@@ -431,6 +456,97 @@ export function GamesTab() {
         )}
       </div>
 
+      {/* ── UNO error ────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {unoError && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            onClick={unoClear}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer"
+            style={{ background: 'rgba(255,45,85,0.08)', borderColor: 'rgba(255,45,85,0.3)', color: '#ff2d55' }}>
+            <span className="font-mono text-xs flex-1">{unoError}</span>
+            <span className="text-xs opacity-60">✕</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── UNO card ─────────────────────────────────────────────────── */}
+      <div className="rounded-2xl overflow-hidden"
+        style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(255,100,0,0.2)' }}>
+        <div className="px-4 py-3 flex items-center gap-3 border-b"
+          style={{ borderColor: 'rgba(255,100,0,0.15)', background: 'rgba(255,100,0,0.04)' }}>
+          <span className="text-2xl">🃠</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-display font-bold text-white text-sm leading-tight">{t.games.uno.title}</p>
+            <p className="font-mono text-[10px] text-white/35">{t.games.uno.subtitle}</p>
+          </div>
+          <button onClick={handleRefresh}
+            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
+            style={{ background: 'rgba(255,100,0,0.08)', border: '1px solid rgba(255,100,0,0.2)', color: 'rgba(251,146,60,0.6)' }}
+            title="Refresh">
+            ↻
+          </button>
+        </div>
+
+        {/* Max players selector */}
+        <div className="px-4 pt-3 flex items-center gap-2">
+          <span className="font-mono text-[9px] text-white/30 uppercase tracking-wider">{t.games.uno.maxPlayers}:</span>
+          {([2, 3, 4, 6, 8, 10] as const).map(n => (
+            <button key={n} onClick={() => setUnoMaxPlayers(n)}
+              className="px-2 py-0.5 rounded-full font-mono text-[10px] transition-all"
+              style={{
+                background: unoMaxPlayers === n ? 'rgba(255,100,0,0.2)' : 'rgba(255,255,255,0.03)',
+                border: `1px solid ${unoMaxPlayers === n ? 'rgba(255,100,0,0.5)' : 'rgba(255,255,255,0.08)'}`,
+                color: unoMaxPlayers === n ? '#fb923c' : 'rgba(255,255,255,0.35)',
+              }}>
+              {n}
+            </button>
+          ))}
+        </div>
+
+        <div className="px-4 py-3 flex flex-wrap gap-2">
+          {!unoShowJoin ? (
+            <>
+              <ActionButton onClick={handleUnoCreate} accent="orange" loading={unoLoading}>
+                {t.games.uno.createMatch}
+              </ActionButton>
+              <ActionButton onClick={() => setUnoShowJoin(true)} accent="cyan">
+                {t.games.uno.joinMatch}
+              </ActionButton>
+            </>
+          ) : (
+            <div className="flex gap-2 w-full">
+              <input
+                value={unoJoinCode}
+                onChange={e => setUnoJoinCode(e.target.value.toUpperCase())}
+                onKeyDown={e => { if (e.key === 'Enter') handleUnoJoin(); }}
+                placeholder="UN-0000"
+                maxLength={7}
+                autoFocus
+                className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest"
+              />
+              <button onClick={handleUnoJoin} disabled={!unoJoinCode.trim() || unoLoading}
+                className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
+                style={{ background: 'rgba(255,100,0,0.15)', border: '1px solid rgba(255,100,0,0.4)', color: '#fb923c' }}>
+                {unoLoading ? '…' : t.games.uno.joinMatch}
+              </button>
+              <button onClick={() => { setUnoShowJoin(false); setUnoJoinCode(''); }}
+                className="px-3 py-2 rounded-xl font-mono text-xs text-white/40 border border-white/10 hover:text-white/70 transition-colors">✕</button>
+            </div>
+          )}
+        </div>
+
+        {unoList.length > 0 && (
+          <div className="px-4 pb-3 space-y-1">
+            <p className="font-mono text-[9px] uppercase tracking-widest text-white/25">{t.games.uno.openMatches}</p>
+            {unoList.map(m => (
+              <UnoRow key={m.id} match={m}
+                onJoin={code => unoJoin(code, playerName)}
+                onSpectate={code => unoSpectate(code)} />
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Checkers game overlay */}
       <AnimatePresence>
         {ckMatch && <CheckersGame />}
@@ -450,6 +566,11 @@ export function GamesTab() {
       <AnimatePresence>
         {wwMatch && <WWWGame />}
       </AnimatePresence>
+
+      {/* UNO game overlay */}
+      <AnimatePresence>
+        {unoMatch && <UnoGame />}
+      </AnimatePresence>
     </div>
   );
 }
@@ -457,7 +578,7 @@ export function GamesTab() {
 function ActionButton({ children, onClick, accent = 'purple', loading }: {
   children: React.ReactNode;
   onClick: () => void;
-  accent?: 'purple' | 'cyan' | 'gold' | 'green';
+  accent?: 'purple' | 'cyan' | 'gold' | 'green' | 'orange';
   loading?: boolean;
 }) {
   const colors = {
@@ -465,6 +586,7 @@ function ActionButton({ children, onClick, accent = 'purple', loading }: {
     cyan:   { bg: 'rgba(0,245,255,0.08)', border: 'rgba(0,245,255,0.25)', color: '#00f5ff' },
     gold:   { bg: 'rgba(255,165,0,0.12)', border: 'rgba(255,165,0,0.35)',  color: '#fbbf24' },
     green:  { bg: 'rgba(34,197,94,0.12)', border: 'rgba(34,197,94,0.35)',  color: '#22c55e' },
+    orange: { bg: 'rgba(255,100,0,0.12)', border: 'rgba(255,100,0,0.35)',  color: '#fb923c' },
   };
   const c = colors[accent];
   return (
@@ -569,6 +691,43 @@ function WWWRow({ match, onJoin }: { match: WWWListItem; onJoin: (code: string) 
           className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
           style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.15)', color: 'rgba(192,132,252,0.6)' }}>
           {t.games.www.spectate}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function UnoRow({ match, onJoin, onSpectate }: { match: UnoListItem; onJoin: (code: string) => void; onSpectate: (code: string) => void }) {
+  const t = useT();
+  const canJoin = match.status === 'waiting' && match.playerCount < match.maxPlayers;
+  const isActive = match.status === 'active';
+  return (
+    <div className="flex items-center gap-3 px-2 py-2 rounded-xl"
+      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="flex-1 min-w-0">
+        <p className="font-mono text-xs text-white truncate">
+          {match.playerNicknames.length > 0 ? match.playerNicknames.join(', ') : '—'}
+        </p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="font-mono text-[9px] text-white/25 tracking-widest">{match.code}</span>
+          <span className="font-mono text-[9px] text-white/20">{match.playerCount}/{match.maxPlayers}</span>
+          {match.status === 'waiting' && (
+            <span className="font-mono text-[9px] text-white/20">{t.games.uno.waitingForPlayers}</span>
+          )}
+        </div>
+      </div>
+      {canJoin && (
+        <button onClick={() => onJoin(match.code)}
+          className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+          style={{ background: 'rgba(255,100,0,0.12)', border: '1px solid rgba(255,100,0,0.3)', color: '#fb923c' }}>
+          {t.games.uno.join}
+        </button>
+      )}
+      {isActive && (
+        <button onClick={() => onSpectate(match.code)}
+          className="px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+          style={{ background: 'rgba(155,0,255,0.08)', border: '1px solid rgba(155,0,255,0.2)', color: '#c084fc' }}>
+          {t.games.uno.spectate}
         </button>
       )}
     </div>
