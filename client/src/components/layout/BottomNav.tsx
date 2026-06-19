@@ -16,7 +16,7 @@ export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
   const { unreadDmCount, dmPanelOpen } = useSocialStore();
 
   const TABS: { id: NavTab; label: string; icon: string; modOnly?: boolean }[] = [
-    { id: 'rooms',       label: t.nav.rooms,       icon: '⬡' },
+    { id: 'rooms',       label: t.nav.rooms,       icon: '🎩' },
     { id: 'games',       label: t.nav.games,       icon: '🎮' },
     { id: 'community',   label: t.nav.community,   icon: '✦' },
     { id: 'clans',       label: t.nav.clans,       icon: '⚔' },

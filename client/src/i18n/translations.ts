@@ -34,7 +34,7 @@ export const TRANSLATIONS = {
       iosFlight: 'TestFlight planned',
     },
     nav: {
-      rooms: 'Rooms',
+      rooms: 'Mafia',
       games: 'Games',
       community: 'Community',
       clans: 'Clans',
@@ -1068,7 +1068,7 @@ export const TRANSLATIONS = {
       iosFlight: 'TestFlight იგეგმება',
     },
     nav: {
-      rooms: 'ოთახები',
+      rooms: 'მაფია',
       games: 'თამაშები',
       community: 'კომუნითი',
       clans: 'კლანები',
