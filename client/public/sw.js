@@ -1,5 +1,5 @@
-// v5 — force-reload on new deploy
-const CACHE_VERSION = 'vm-v5';
+// v6 — force-reload on new deploy
+const CACHE_VERSION = 'vm-v6';
 
 self.addEventListener('install', e => {
   self.skipWaiting();
