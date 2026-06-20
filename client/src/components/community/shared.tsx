@@ -3,6 +3,7 @@
  * Purple/cyan neon theme — visually distinct from Mafia game-room red/danger styling.
  */
 import { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 
 export type Accent = 'purple' | 'cyan';
@@ -78,12 +79,12 @@ export function ModalShell({
   maxWidthClass?: string;
 }) {
   const c = ACCENT_COLORS[accent];
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
       onClick={onClose}
     >
       <motion.div
@@ -96,7 +97,8 @@ export function ModalShell({
       >
         {children}
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 

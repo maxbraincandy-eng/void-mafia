@@ -158,11 +158,8 @@ function PostLightbox({
               )}
               {comments.map(c => (
                 <div key={c.id} className="flex gap-2">
-                  <div
-                    className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center font-bold"
-                    style={{ background: 'rgba(155,0,255,0.18)', color: '#c084fc', border: '1px solid rgba(155,0,255,0.25)', fontSize: 12 }}
-                  >
-                    {(c.authorName ?? '?').charAt(0).toUpperCase()}
+                  <div className="flex-shrink-0">
+                    <Avatar avatar={c.authorAvatar} avatarUrl={c.authorAvatarUrl} size={24} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', fontWeight: 600, marginRight: 6 }}>{c.authorName}</span>

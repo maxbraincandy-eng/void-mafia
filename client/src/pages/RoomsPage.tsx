@@ -9,6 +9,7 @@ import { useT } from '@/store/langStore';
 import { useAmbientDrone } from '@/hooks/useAudio';
 import { Button } from '@/components/ui/Button';
 import { SkeletonRoomCard } from '@/components/ui/Skeleton';
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { DailyChallengeCard } from '@/components/ui/DailyChallengeCard';
 import { NewsCard } from '@/components/ui/NewsCard';
 import { LobbyChatPanel } from '@/components/social/LobbyChatPanel';
@@ -219,6 +220,7 @@ export function RoomsPage() {
 
           {/* Right controls */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            <LanguageSwitcher />
             <button
               onClick={openDmList}
               className="relative w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90"
