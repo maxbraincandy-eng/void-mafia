@@ -1,5 +1,5 @@
-// v7 — removed c.navigate() loop fix
-const CACHE_VERSION = 'vm-v7';
+// v8 — loop-safe, no navigate, no fetch intercept
+const CACHE_VERSION = 'vm-v8';
 
 self.addEventListener('install', e => {
   self.skipWaiting();
