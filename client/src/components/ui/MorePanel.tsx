@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
@@ -11,9 +12,11 @@ import { HowToPlayModal } from '@/components/ui/HowToPlayModal';
 import { AchievementsModal } from '@/components/ui/AchievementsModal';
 import { SeasonPassModal } from '@/components/ui/SeasonPassModal';
 import { ReferralModal } from '@/components/ui/ReferralModal';
+import { VoidLeaderboardIcon } from '@/components/ui/VoidLeaderboardIcon';
+import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
 
 interface MenuItem {
-  icon: string;
+  icon: ReactNode;
   label: string;
   description: string;
   iconBg: string;
@@ -169,7 +172,7 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
       title: 'ნავიგაცია',
       items: [
         {
-          icon: '⚔️',
+          icon: <VoidClansIcon size={22} color="#ef4444" />,
           label: 'კლანები',
           description: 'კლანური ბრძოლები და რეიტინგი',
           iconBg: 'linear-gradient(135deg, rgba(239,68,68,0.28), rgba(220,38,38,0.1))',
@@ -177,7 +180,7 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
           onClick: open(() => onClansClick?.()),
         },
         {
-          icon: '🏅',
+          icon: <VoidLeaderboardIcon size={22} color="#facc15" />,
           label: 'ლიდერბორდი',
           description: 'სეზონის საუკეთესო მოთამაშეები',
           iconBg: 'linear-gradient(135deg, rgba(250,204,21,0.28), rgba(245,158,11,0.1))',

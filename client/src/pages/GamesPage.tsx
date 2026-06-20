@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { useT } from '@/store/langStore';
 import { GamesTab } from '@/components/community/GamesTab';
+import { VoidGamesIcon } from '@/components/ui/VoidGamesIcon';
 
 export function GamesPage() {
   const t = useT();
@@ -24,7 +25,7 @@ export function GamesPage() {
         }}
       >
         <div className="flex items-center gap-3 max-w-lg mx-auto">
-          <span style={{ fontSize: 22 }}>🎮</span>
+          <VoidGamesIcon size={22} color="#f59e0b" />
           <div>
             <h1
               className="font-display font-bold text-lg leading-none"

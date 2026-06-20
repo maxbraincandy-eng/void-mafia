@@ -8,6 +8,7 @@ import { ClanPublic, ClanMember, ClanModLog, ClanRole, ClanWar } from '@/types/i
 import { PoweredBy } from '@/components/ui/PoweredBy';
 import { ClanRoleBadge } from '@/components/ui/ClanRoleBadge';
 import { socket } from '@/lib/socket';
+import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
 
 type Res<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -501,7 +502,7 @@ export function ClansPage() {
               onClick={() => setShowWars(v => !v)}
               className="flex items-center gap-2 font-mono text-[12px] uppercase tracking-[0.25em] text-white/30 hover:text-white/60 transition-colors"
             >
-              <span style={{ color: showWars ? '#00ff88' : undefined }}>⚔</span>
+              <VoidClansIcon size={14} color={showWars ? '#00ff88' : 'currentColor'} />
               Clan Wars
               <span className="text-[12px]">{showWars ? '▲' : '▼'}</span>
               {activeWar && (

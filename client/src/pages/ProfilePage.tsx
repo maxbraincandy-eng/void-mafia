@@ -1,8 +1,12 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
+import type { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { VoidProfileIcon } from '@/components/ui/VoidProfileIcon';
+import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
+import { VoidGamesIcon } from '@/components/ui/VoidGamesIcon';
+import { VoidLeaderboardIcon } from '@/components/ui/VoidLeaderboardIcon';
 import { PoweredBy } from '@/components/ui/PoweredBy';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { FriendsPanel } from '@/components/ui/FriendsPanel';
@@ -60,10 +64,10 @@ function formatDate(ts: number | null | undefined) {
   return new Date(ts).toLocaleDateString();
 }
 
-function SectionHeader({ icon, title }: { icon: string; title: string }) {
+function SectionHeader({ icon, title }: { icon: ReactNode; title: string }) {
   return (
     <div className="flex items-center gap-2 mb-2">
-      <span className="text-sm">{icon}</span>
+      <span className="text-sm flex items-center">{icon}</span>
       <p className="text-[12px] font-mono uppercase tracking-[0.2em] text-white/30">{title}</p>
     </div>
   );
@@ -969,7 +973,7 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.065 }}
           className="glass-panel rounded-2xl p-4 mb-3"
           style={{ border: '1px solid rgba(155,0,255,0.2)', background: 'rgba(155,0,255,0.04)' }}>
-          <SectionHeader icon="⚔️" title="Ranked" />
+          <SectionHeader icon={<VoidClansIcon size={14} color="rgba(155,0,255,0.7)" />} title="Ranked" />
           {rating === null ? (
             <div className="text-center py-2">
               <p className="font-mono text-xs text-white/25">No ranked games yet</p>
@@ -1122,7 +1126,7 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
         {roleStats && roleStats.byTeam.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.09 }}
             className="glass-panel border border-white/8 rounded-2xl p-4 mb-3">
-            <SectionHeader icon="🎮" title="Games by Team" />
+            <SectionHeader icon={<VoidGamesIcon size={14} color="rgba(245,158,11,0.7)" />} title="Games by Team" />
             {roleStats.byTeam.map(t => {
               const wr  = t.games > 0 ? Math.round((t.wins / t.games) * 100) : 0;
               const pct = t.games > 0 ? Math.round((t.wins / t.games) * 100) : 0;
@@ -1183,7 +1187,12 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
               className={`flex-1 py-2 rounded-lg font-mono text-[11px] uppercase tracking-wider transition-all ${
                 tab === t ? 'bg-neon-purple/20 text-neon-purple border border-neon-purple/30' : 'text-white/30 hover:text-white/50'
               }`}>
-              {t === 'achievements' ? `🏅 (${achievements.length})` : t === 'history' ? '📋 History' : '👥 Friends'}
+              {t === 'achievements' ? (
+                <span className="flex items-center gap-1 justify-center">
+                  <VoidLeaderboardIcon size={11} color="currentColor" />
+                  ({achievements.length})
+                </span>
+              ) : t === 'history' ? '📋 History' : '👥 Friends'}
             </button>
           ))}
         </div>
@@ -1197,7 +1206,9 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
               </div>
             ) : achievements.length === 0 ? (
               <div className="text-center py-10 text-white/20 font-mono text-sm">
-                <p className="text-3xl mb-2">🏅</p>
+                <div className="flex justify-center mb-2 opacity-30">
+                  <VoidLeaderboardIcon size={36} color="#facc15" />
+                </div>
                 <p>Play games to earn achievements</p>
               </div>
             ) : (

@@ -1,6 +1,9 @@
 import { useSocialStore } from '@/store/socialStore';
 import { haptic } from '@/lib/haptics';
 import { VoidProfileIcon } from '@/components/ui/VoidProfileIcon';
+import { VoidLeaderboardIcon } from '@/components/ui/VoidLeaderboardIcon';
+import { VoidGamesIcon } from '@/components/ui/VoidGamesIcon';
+import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
 
 export type NavTab = 'rooms' | 'games' | 'community' | 'clans' | 'leaderboard' | 'profile' | 'mod' | 'economy' | 'replays';
 
@@ -78,12 +81,21 @@ const LEFT_TABS: TabDef[] = [
     id: 'community', kind: 'svg', label: 'ვოიდი', color: '#9b00ff',
     renderIcon: (a) => <VoidMafiaIcon size={18} active={a} color="#9b00ff" />,
   },
-  { id: 'games',  kind: 'emoji', label: 'გართობა', icon: '🎮', color: '#f59e0b' },
-  { id: 'clans',  kind: 'emoji', label: 'კლანები',  icon: '⚔️', color: '#ef4444' },
+  {
+    id: 'games', kind: 'svg', label: 'გართობა', color: '#f59e0b',
+    renderIcon: (a) => <VoidGamesIcon size={18} active={a} color="#f59e0b" />,
+  },
+  {
+    id: 'clans', kind: 'svg', label: 'კლანები', color: '#ef4444',
+    renderIcon: (a) => <VoidClansIcon size={18} active={a} color="#ef4444" />,
+  },
 ];
 
 const RIGHT_TABS: TabDef[] = [
-  { id: 'leaderboard', kind: 'emoji', label: 'ლიდ.', icon: '🏅', color: '#facc15' },
+  {
+    id: 'leaderboard', kind: 'svg', label: 'ლიდ.', color: '#facc15',
+    renderIcon: (a) => <VoidLeaderboardIcon size={18} active={a} color="#facc15" />,
+  },
   {
     id: 'profile', kind: 'svg', label: 'მე', color: '#00e5ff',
     renderIcon: (a) => <VoidProfileIcon size={18} active={a} color="#00e5ff" />,

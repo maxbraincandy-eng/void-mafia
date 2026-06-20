@@ -10,6 +10,7 @@ import type { RankTier } from '@/types/index';
 import { emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
 import { MAX_LEVEL, xpForLevel, xpForNextLevel } from '@/lib/level';
+import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 const MEDAL_BORDER = ['border-yellow-400/25', 'border-gray-400/15', 'border-amber-700/20'];
@@ -168,7 +169,7 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-5 p-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-          {([['rankings', '🏆 Levels'], ['ranked', '⚔️ Ranked'], ['season', '🌀 Season'], ['gifts', '🎁 Gifts']] as const).map(([t, label]) => (
+          {([['rankings', '🏆 Levels'], ['ranked', 'Ranked'], ['season', '🌀 Season'], ['gifts', '🎁 Gifts']] as const).map(([t, label]) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -196,7 +197,9 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
             {rankedLoading && (
               <div className="flex items-center justify-center py-20">
                 <div className="text-center space-y-3">
-                  <div className="text-4xl animate-pulse">⚔️</div>
+                  <div className="flex justify-center animate-pulse">
+                    <VoidClansIcon size={40} color="rgba(155,0,255,0.6)" />
+                  </div>
                   <p className="text-white/30 font-mono text-sm">Loading ranked…</p>
                 </div>
               </div>
@@ -215,7 +218,9 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
                 animate={{ opacity: 1, y: 0 }}
                 className="glass-panel border border-neon-purple/20 rounded-2xl p-10 text-center"
               >
-                <div className="text-5xl mb-4 opacity-30">⚔️</div>
+                <div className="flex justify-center mb-4 opacity-30">
+                  <VoidClansIcon size={48} color="#9b00ff" />
+                </div>
                 <p className="text-white/30 font-mono text-sm">No ranked players yet.</p>
                 <p className="text-white/15 font-mono text-xs mt-1">Complete 5 placement games to appear here!</p>
               </motion.div>
