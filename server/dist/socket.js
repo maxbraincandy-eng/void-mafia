@@ -6011,11 +6011,28 @@ function handlePlayerLeave(io, socket, roomId, playerId, explicit = false) {
             }
             return;
         }
-        player.isConnected = false;
-        player.socketId = '';
-        broadcastSystemMsg(io, room, `${player.name} disconnected.`);
-        broadcastRoom(io, room);
-        promoteFromQueue(io, room);
+        if (explicit && room.phase === 'game_over') {
+            // Game is fully over — explicit leave means "I'm done", remove the player cleanly.
+            // This prevents orphaned player slots when host later restarts the room.
+            removePlayer(room, playerId);
+            if (room.players.size === 0) {
+                timerService.stop(roomId);
+                deleteRoom(roomId);
+                spectateQueues.delete(roomId);
+                return;
+            }
+            broadcastSystemMsg(io, room, `${player.name} left.`);
+            broadcastRoom(io, room);
+            promoteFromQueue(io, room);
+        }
+        else {
+            // Mid-game disconnect or non-game_over explicit leave — keep slot for reconnect.
+            player.isConnected = false;
+            player.socketId = '';
+            broadcastSystemMsg(io, room, `${player.name} disconnected.`);
+            broadcastRoom(io, room);
+            promoteFromQueue(io, room);
+        }
     }
 }
 function handleVoiceLeave(io, socketId) {

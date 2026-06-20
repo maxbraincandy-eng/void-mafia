@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
@@ -60,12 +61,12 @@ export function ProfileModalV2({
   const isSelf  = currentUser?.id === profileId;
   const isLoggedIn = !!currentUser;
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-4"
+      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:px-4"
       style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}
       onClick={onClose}
     >
@@ -228,6 +229,7 @@ export function ProfileModalV2({
           </div>
         )}
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
