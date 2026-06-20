@@ -12,7 +12,7 @@ import { HowToPlayModal } from '@/components/ui/HowToPlayModal';
 import { AchievementsModal } from '@/components/ui/AchievementsModal';
 import { SeasonPassModal } from '@/components/ui/SeasonPassModal';
 import { ReferralModal } from '@/components/ui/ReferralModal';
-import { VoidLeaderboardIcon } from '@/components/ui/VoidLeaderboardIcon';
+import { VoidStatsIcon } from '@/components/ui/VoidStatsIcon';
 import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
 
 interface MenuItem {
@@ -180,8 +180,8 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
           onClick: open(() => onClansClick?.()),
         },
         {
-          icon: <VoidLeaderboardIcon size={22} color="#facc15" />,
-          label: 'ლიდერბორდი',
+          icon: <VoidStatsIcon size={22} color="#facc15" />,
+          label: 'ტოპი',
           description: 'სეზონის საუკეთესო მოთამაშეები',
           iconBg: 'linear-gradient(135deg, rgba(250,204,21,0.28), rgba(245,158,11,0.1))',
           iconGlow: 'rgba(250,204,21,0.2)',

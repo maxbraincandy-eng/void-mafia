@@ -1,9 +1,10 @@
 import { useSocialStore } from '@/store/socialStore';
 import { haptic } from '@/lib/haptics';
-import { VoidProfileIcon } from '@/components/ui/VoidProfileIcon';
-import { VoidLeaderboardIcon } from '@/components/ui/VoidLeaderboardIcon';
+import { VoidCommunityIcon } from '@/components/ui/VoidCommunityIcon';
 import { VoidGamesIcon } from '@/components/ui/VoidGamesIcon';
 import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
+import { VoidStatsIcon } from '@/components/ui/VoidStatsIcon';
+import { VoidProfileIcon } from '@/components/ui/VoidProfileIcon';
 
 export type NavTab = 'rooms' | 'games' | 'community' | 'clans' | 'leaderboard' | 'profile' | 'mod' | 'economy' | 'replays';
 
@@ -78,11 +79,11 @@ type TabDef = { id: NavTab; label: string; color: string } & (
 
 const LEFT_TABS: TabDef[] = [
   {
-    id: 'community', kind: 'svg', label: 'ვოიდი', color: '#9b00ff',
-    renderIcon: (a) => <VoidMafiaIcon size={18} active={a} color="#9b00ff" />,
+    id: 'community', kind: 'svg', label: 'კომუნითი', color: '#9b00ff',
+    renderIcon: (a) => <VoidCommunityIcon size={18} active={a} color="#9b00ff" />,
   },
   {
-    id: 'games', kind: 'svg', label: 'გართობა', color: '#f59e0b',
+    id: 'games', kind: 'svg', label: 'თამაშები', color: '#f59e0b',
     renderIcon: (a) => <VoidGamesIcon size={18} active={a} color="#f59e0b" />,
   },
   {
@@ -93,11 +94,11 @@ const LEFT_TABS: TabDef[] = [
 
 const RIGHT_TABS: TabDef[] = [
   {
-    id: 'leaderboard', kind: 'svg', label: 'ლიდ.', color: '#facc15',
-    renderIcon: (a) => <VoidLeaderboardIcon size={18} active={a} color="#facc15" />,
+    id: 'leaderboard', kind: 'svg', label: 'ტოპი', color: '#facc15',
+    renderIcon: (a) => <VoidStatsIcon size={18} active={a} color="#facc15" />,
   },
   {
-    id: 'profile', kind: 'svg', label: 'მე', color: '#00e5ff',
+    id: 'profile', kind: 'svg', label: 'პროფილი', color: '#00e5ff',
     renderIcon: (a) => <VoidProfileIcon size={18} active={a} color="#00e5ff" />,
   },
 ];
@@ -131,7 +132,10 @@ function NavItem({ tab, active, onPress }: { tab: TabDef; active: boolean; onPre
         }
       </span>
 
-      <span className="font-mono uppercase leading-none text-center" style={{ fontSize: 9, letterSpacing: '0.03em' }}>
+      <span
+        className="font-mono leading-none text-center w-full truncate px-0.5"
+        style={{ fontSize: 'clamp(7px, 2.3vw, 9px)', letterSpacing: '0.01em' }}
+      >
         {tab.label}
       </span>
     </button>
