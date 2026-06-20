@@ -111,12 +111,14 @@ function MenuRow({ item, index }: { item: MenuItem; index: number }) {
 
 interface MorePanelProps {
   isOwner?: boolean;
+  isMod?: boolean;
   onEconomyClick?: () => void;
   onShopClick?: () => void;
   onReplaysClick?: () => void;
   onClansClick?: () => void;
   onLeaderboardClick?: () => void;
   onMessagesClick?: () => void;
+  onModClick?: () => void;
 }
 
 function AudioToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
@@ -140,7 +142,7 @@ function AudioToggle({ value, onChange }: { value: boolean; onChange: (v: boolea
   );
 }
 
-export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onReplaysClick, onClansClick, onLeaderboardClick, onMessagesClick }: MorePanelProps) {
+export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onShopClick, onReplaysClick, onClansClick, onLeaderboardClick, onMessagesClick, onModClick }: MorePanelProps) {
   const { morePanelOpen, closeMoreMenu } = useSocialStore();
   const profile = useAuthStore(s => s.profile);
   const profileId = profile?.id ?? null;
@@ -276,6 +278,14 @@ export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onRepl
           iconGlow: 'rgba(100,116,139,0.18)',
           onClick: open(() => setShowSettings(true)),
         },
+        ...(isMod && onModClick ? [{
+          icon: '🛡',
+          label: 'მოდერაცია',
+          description: 'სამართავი პანელი',
+          iconBg: 'linear-gradient(135deg, rgba(239,68,68,0.28), rgba(220,38,38,0.1))',
+          iconGlow: 'rgba(239,68,68,0.2)',
+          onClick: open(onModClick),
+        }] : []),
         ...(isOwner && onEconomyClick ? [{
           icon: '👑',
           label: mp.economyAdmin.label,

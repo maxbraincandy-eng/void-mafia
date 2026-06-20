@@ -185,7 +185,7 @@ function DmToastNotification() {
   );
 }
 
-const NAV_ORDER: NavTab[] = ['community', 'games', 'rooms', 'profile'];
+const NAV_ORDER: NavTab[] = ['community', 'games', 'clans', 'rooms', 'leaderboard', 'profile'];
 
 function PageTransition({ children, direction }: { children: React.ReactNode; direction: 1 | -1 }) {
   return (
@@ -275,12 +275,14 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       {!inGame && <BottomNav active={page} isMod={isMod} onChange={tab => navigate(tab)} onMoreClick={openMoreMenu} />}
       <MorePanel
         isOwner={isOwner}
+        isMod={isMod}
         onEconomyClick={() => { setDirection(1); setPage('economy'); }}
         onShopClick={onOpenShop}
         onReplaysClick={() => { setInitialReplayId(undefined); setDirection(1); setPage('replays'); }}
         onClansClick={() => navigate('clans')}
         onLeaderboardClick={() => navigate('leaderboard')}
         onMessagesClick={openDmList}
+        onModClick={() => { setDirection(1); setPage('mod'); }}
       />
       <YourTurnToast />
     </div>

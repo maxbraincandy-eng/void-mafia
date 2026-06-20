@@ -17,6 +17,7 @@ import AdminPanel from '@/components/community/AdminPanel';
 import { CommunityProfilePage } from '@/components/community/CommunityProfilePage';
 import { ProfileModalV2 } from '@/components/community/ProfileModalV2';
 import { CommunitySearchPanel } from '@/components/community/CommunitySearchPanel';
+import { useSocialStore } from '@/store/socialStore';
 
 type CommunityTab = 'feed' | 'voice' | 'people' | 'games' | 'debates' | 'activity';
 
@@ -35,6 +36,7 @@ export function CommunityPage() {
   const [fullProfileId, setFullProfileId] = useState<string | null>(null); // full-page profile
   const unreadCount = useCommunityStore(s => s.unreadCount);
   const fetchUnreadCount = useCommunityStore(s => s.fetchUnreadCount);
+  const { openDmList, unreadDmCount } = useSocialStore(s => ({ openDmList: s.openDmList, unreadDmCount: s.unreadDmCount }));
 
   useEffect(() => {
     if (profile) fetchUnreadCount();
@@ -79,6 +81,24 @@ export function CommunityPage() {
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}
             >
               🔍
+            </button>
+            <button
+              onClick={openDmList}
+              className="relative w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}
+              title="Direct Messages"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              {unreadDmCount > 0 && (
+                <span
+                  className="absolute -top-1 -right-1 min-w-[14px] h-3.5 rounded-full bg-neon-pink text-void text-[9px] font-bold flex items-center justify-center px-0.5 leading-none"
+                  style={{ boxShadow: '0 0 6px rgba(255,0,204,0.6)' }}
+                >
+                  {unreadDmCount > 9 ? '9+' : unreadDmCount}
+                </span>
+              )}
             </button>
             {isMod && (
               <button

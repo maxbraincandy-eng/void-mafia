@@ -9,7 +9,6 @@ import { useT } from '@/store/langStore';
 import { useAmbientDrone } from '@/hooks/useAudio';
 import { Button } from '@/components/ui/Button';
 import { SkeletonRoomCard } from '@/components/ui/Skeleton';
-import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { DailyChallengeCard } from '@/components/ui/DailyChallengeCard';
 import { NewsCard } from '@/components/ui/NewsCard';
 import { LobbyChatPanel } from '@/components/social/LobbyChatPanel';
@@ -98,11 +97,13 @@ export function RoomsPage() {
     clearJoinError: s.clearError,
   }));
   const username = useAuthStore(s => s.username) ?? '';
-  const { onlineCount, openMoreMenu, openLobbyChat, lobbyChatUnread } = useSocialStore(s => ({
+  const { onlineCount, openMoreMenu, openLobbyChat, lobbyChatUnread, openDmList, unreadDmCount } = useSocialStore(s => ({
     onlineCount: s.onlineCount,
     openMoreMenu: s.openMoreMenu,
     openLobbyChat: s.openLobbyChat,
     lobbyChatUnread: s.lobbyChatUnread,
+    openDmList: s.openDmList,
+    unreadDmCount: s.unreadDmCount,
   }));
   const t = useT();
   // Music now handled at MainApp level
@@ -218,7 +219,24 @@ export function RoomsPage() {
 
           {/* Right controls */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            <LanguageSwitcher />
+            <button
+              onClick={openDmList}
+              className="relative w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}
+              title="Direct Messages"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              {unreadDmCount > 0 && (
+                <span
+                  className="absolute -top-1 -right-1 min-w-[14px] h-3.5 rounded-full bg-neon-pink text-void text-[9px] font-bold flex items-center justify-center px-0.5 leading-none"
+                  style={{ boxShadow: '0 0 6px rgba(255,0,204,0.6)' }}
+                >
+                  {unreadDmCount > 9 ? '9+' : unreadDmCount}
+                </span>
+              )}
+            </button>
             <button
               onClick={openLobbyChat}
               className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl font-mono text-sm transition-all active:scale-95"
