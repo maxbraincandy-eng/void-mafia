@@ -33,6 +33,11 @@ import { ShopSuccessModal } from '@/components/ui/ShopSuccessModal';
 import { ModAlertPanel } from '@/components/ui/ModAlertPanel';
 import { HermesToggle } from '@/components/hermes/HermesToggle';
 import { HermesPanel } from '@/components/hermes/HermesPanel';
+import { CheckersGame } from '@/components/checkers/CheckersGame';
+import { JokerGame } from '@/components/joker/JokerGame';
+import { LudoGame } from '@/components/ludo/LudoGame';
+import { WWWGame } from '@/components/www/WWWGame';
+import { UnoGame } from '@/components/uno/UnoGame';
 import { attachGlobalClickSounds, onSettingsChange } from '@/lib/audioEngine';
 import { useSettingsStore } from '@/store/settingsStore';
 import { socket } from '@/lib/socket';
@@ -273,6 +278,13 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
         {page === 'economy' && isOwner && <PageTransition key="economy" direction={direction}><EconomyAdminPage /></PageTransition>}
       </AnimatePresence>
       {!inGame && <BottomNav active={page} isMod={isMod} onChange={tab => navigate(tab)} onMoreClick={openMoreMenu} />}
+
+      {/* Game overlays — rendered outside PageTransition so fixed inset-0 works correctly */}
+      <AnimatePresence>{checkersMatch && <CheckersGame />}</AnimatePresence>
+      <AnimatePresence>{jokerMatch    && <JokerGame />}</AnimatePresence>
+      <AnimatePresence>{ludoMatch     && <LudoGame />}</AnimatePresence>
+      <AnimatePresence>{wwwMatch      && <WWWGame />}</AnimatePresence>
+      <AnimatePresence>{unoMatch      && <UnoGame />}</AnimatePresence>
       <MorePanel
         isOwner={isOwner}
         isMod={isMod}

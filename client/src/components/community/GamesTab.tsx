@@ -7,11 +7,6 @@ import { useJokerStore } from '@/store/jokerStore';
 import { useLudoStore } from '@/store/ludoStore';
 import { useWWWStore } from '@/store/wwwStore';
 import { useUnoStore } from '@/store/unoStore';
-import { CheckersGame } from '@/components/checkers/CheckersGame';
-import { JokerGame } from '@/components/joker/JokerGame';
-import { LudoGame } from '@/components/ludo/LudoGame';
-import { WWWGame } from '@/components/www/WWWGame';
-import { UnoGame } from '@/components/uno/UnoGame';
 import type { CheckersMatchListItem } from '@/types/checkers';
 import type { JokerMatchListItem } from '@/types/joker';
 import type { LudoMatchListItem } from '@/types/ludo';
@@ -547,30 +542,6 @@ export function GamesTab() {
         )}
       </div>
 
-      {/* Checkers game overlay */}
-      <AnimatePresence>
-        {ckMatch && <CheckersGame />}
-      </AnimatePresence>
-
-      {/* Joker game overlay */}
-      <AnimatePresence>
-        {jkMatch && <JokerGame />}
-      </AnimatePresence>
-
-      {/* Ludo game overlay */}
-      <AnimatePresence>
-        {ldMatch && <LudoGame />}
-      </AnimatePresence>
-
-      {/* WWW game overlay */}
-      <AnimatePresence>
-        {wwMatch && <WWWGame />}
-      </AnimatePresence>
-
-      {/* UNO game overlay */}
-      <AnimatePresence>
-        {unoMatch && <UnoGame />}
-      </AnimatePresence>
     </div>
   );
 }
