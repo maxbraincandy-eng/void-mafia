@@ -123,7 +123,7 @@ export function LobbyPage() {
 
   return (
     <div
-      className="min-h-screen relative overflow-hidden pb-24"
+      className="min-h-screen relative overflow-hidden pb-20"
       style={{ background: 'linear-gradient(160deg, #0c0525 0%, #050311 50%)' }}
     >
       {/* Ambient — single top glow only */}
@@ -132,13 +132,13 @@ export function LobbyPage() {
         style={{ background: 'radial-gradient(ellipse 90% 35% at 50% -5%, rgba(100,0,240,0.08) 0%, transparent 55%)' }}
       />
 
-      <div className="relative z-10 max-w-5xl mx-auto px-4 py-5">
+      <div className="relative z-10 max-w-5xl mx-auto px-4 py-3">
 
         {/* ── Header ──────────────────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-start justify-between mb-6 gap-4"
+          className="flex items-start justify-between mb-2 gap-4"
         >
           <div className="flex items-start gap-2.5 min-w-0 flex-1">
             {/* Leave room — top-left shortcut */}
@@ -754,32 +754,65 @@ export function LobbyPage() {
         </div>
       </div>
 
-      {/* ── Mobile floating chat bubble ─────────────────────────── */}
-      <button
-        onClick={() => { setShowChat(true); setUnreadChat(0); }}
-        className={clsx(
-          'lg:hidden fixed right-4 z-40 w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-90',
-          unreadChat > 0 && 'animate-pulse',
-        )}
-        style={{
-          bottom: 'max(1.5rem, calc(env(safe-area-inset-bottom) + 0.75rem))',
-          background: unreadChat > 0 ? 'rgba(255,45,85,0.18)' : 'rgba(0,229,255,0.15)',
-          border: unreadChat > 0 ? '1.5px solid rgba(255,45,85,0.6)' : '1.5px solid rgba(0,229,255,0.4)',
-          boxShadow: unreadChat > 0
-            ? '0 0 22px rgba(255,45,85,0.35), 0 4px 16px rgba(0,0,0,0.5)'
-            : '0 0 20px rgba(0,229,255,0.15), 0 4px 16px rgba(0,0,0,0.5)',
-        }}
-        aria-label="Open chat"
-      >
-        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke={unreadChat > 0 ? 'rgba(255,45,85,0.95)' : 'rgba(0,229,255,0.9)'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
-        {unreadChat > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-neon-red text-white text-[12px] flex items-center justify-center font-bold">
-            {unreadChat > 9 ? '9+' : unreadChat}
-          </span>
-        )}
-      </button>
+      {/* ── Mobile chat preview strip (sticky bottom bar) ──────── */}
+      {!showChat && (() => {
+        const filtered = room.chat.filter(m => !m.isSystem);
+        const recentMsg = filtered.length > 0 ? filtered[filtered.length - 1] : null;
+        const hasUnread = unreadChat > 0;
+        return (
+          <motion.button
+            animate={hasUnread ? { borderColor: ['rgba(255,45,85,0.35)', 'rgba(255,45,85,0.75)', 'rgba(255,45,85,0.35)'] } : {}}
+            transition={hasUnread ? { repeat: Infinity, duration: 1.2 } : {}}
+            onClick={() => { setShowChat(true); setUnreadChat(0); }}
+            className="lg:hidden fixed bottom-0 left-0 right-0 z-30 flex items-center gap-3 px-4 active:opacity-80 transition-opacity"
+            style={{
+              paddingTop: '10px',
+              paddingBottom: 'max(10px, env(safe-area-inset-bottom, 10px))',
+              background: hasUnread ? 'rgba(20,4,10,0.97)' : 'rgba(6,2,20,0.95)',
+              borderTop: hasUnread ? '1px solid rgba(255,45,85,0.45)' : '1px solid rgba(0,229,255,0.12)',
+              boxShadow: hasUnread ? '0 -6px 24px rgba(255,45,85,0.18)' : '0 -4px 20px rgba(0,0,0,0.45)',
+            }}
+            aria-label="Open chat"
+          >
+            {/* Icon + badge */}
+            <div className="relative shrink-0">
+              <svg
+                width="18" height="18" viewBox="0 0 22 22" fill="none"
+                stroke={hasUnread ? 'rgba(255,45,85,0.9)' : 'rgba(0,229,255,0.55)'}
+                strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              {hasUnread && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-3.5 rounded-full bg-neon-red text-[8px] font-bold text-white flex items-center justify-center px-0.5 leading-none">
+                  {unreadChat > 9 ? '9+' : unreadChat}
+                </span>
+              )}
+            </div>
+
+            {/* Last message preview */}
+            <div className="flex-1 min-w-0 text-left">
+              {recentMsg ? (
+                <p className="text-[12px] font-mono truncate leading-snug">
+                  <span className={hasUnread ? 'text-neon-red/80 font-semibold' : 'text-white/35'}>
+                    {recentMsg.senderName}:{' '}
+                  </span>
+                  <span className={hasUnread ? 'text-white/70' : 'text-white/40'}>
+                    {recentMsg.text}
+                  </span>
+                </p>
+              ) : (
+                <p className="text-[12px] font-mono text-white/20">ლობი ჩათი</p>
+              )}
+            </div>
+
+            {/* Tap hint */}
+            <span className="text-[10px] font-mono shrink-0" style={{ color: hasUnread ? 'rgba(255,45,85,0.5)' : 'rgba(255,255,255,0.15)' }}>
+              გახსნა ›
+            </span>
+          </motion.button>
+        );
+      })()}
 
       {/* Mobile chat overlay panel */}
       <AnimatePresence>
