@@ -1,5 +1,5 @@
-// v6 — force-reload on new deploy
-const CACHE_VERSION = 'vm-v6';
+// v7 — removed c.navigate() loop fix
+const CACHE_VERSION = 'vm-v7';
 
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -12,12 +12,6 @@ self.addEventListener('activate', e => {
         if (key !== CACHE_VERSION) return caches.delete(key);
       }))
     ).then(() => self.clients.claim())
-     .then(() => {
-       // Tell all open tabs to reload after SW takes over
-       return self.clients.matchAll({ type: 'window' }).then(list => {
-         for (const c of list) c.navigate(c.url);
-       });
-     })
   );
 });
 
