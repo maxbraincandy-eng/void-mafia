@@ -583,9 +583,28 @@ export function GameOver({ result }: Props) {
                     {t.game.gameOver.backToLobby}
                   </Button>
                 ) : (
-                  <Button variant="ghost" fullWidth loading={isLoading} onClick={() => leaveRoom()}>
-                    {t.game.gameOver.leaveRoom}
-                  </Button>
+                  <div className="space-y-1.5">
+                    {/* Non-host: stay in room and wait for host to restart */}
+                    <div
+                      className="w-full flex items-center justify-center gap-2.5 py-3 rounded-2xl border"
+                      style={{
+                        border: '1px solid rgba(255,255,255,0.07)',
+                        background: 'rgba(255,255,255,0.02)',
+                      }}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-white/20 animate-pulse" />
+                      <span className="font-mono text-[12px] text-white/35 tracking-widest uppercase">
+                        ჰოსტი ათამაშებს...
+                      </span>
+                    </div>
+                    <button
+                      disabled={isLoading}
+                      onClick={() => leaveRoom()}
+                      className="w-full text-[12px] font-mono text-white/18 hover:text-neon-red/55 py-1.5 transition-colors disabled:opacity-30"
+                    >
+                      {t.game.gameOver.leaveRoom}
+                    </button>
+                  </div>
                 )}
               </motion.div>
 

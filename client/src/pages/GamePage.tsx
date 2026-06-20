@@ -1116,6 +1116,21 @@ export function GamePage() {
       {/* Game Over */}
       {gameOverResult && <GameOver result={gameOverResult} />}
 
+      {/* Waiting for host to restart (non-host dismissed game over, room still game_over) */}
+      {!gameOverResult && phase === 'game_over' && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5"
+          style={{ background: 'rgba(3,0,13,0.97)' }}>
+          <div className="w-7 h-7 border-2 border-white/10 border-t-neon-cyan/50 rounded-full animate-spin" />
+          <p className="font-mono text-[13px] text-white/35 tracking-[0.22em] uppercase">ჰოსტი ათამაშებს...</p>
+          <button
+            onClick={() => leaveRoom()}
+            className="text-[12px] font-mono text-white/18 hover:text-neon-red/50 transition-colors"
+          >
+            ოთახის დატოვება
+          </button>
+        </div>
+      )}
+
       {/* Elimination cinematic */}
       <EliminationCinematic victims={eliminationVictims} onDone={handleElimDone} />
 
