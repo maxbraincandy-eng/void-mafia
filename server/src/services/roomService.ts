@@ -1,6 +1,6 @@
 import {
   Room, Player, GameSettings, RoomPublic, PlayerPublic, Phase, RoomListItem,
-  DEFAULT_DYNAMIC_EVENTS, SpectatorQueueSettings,
+  DEFAULT_DYNAMIC_EVENTS, SpectatorQueueSettings, DonModeStatePublic,
 } from '../types/index.js';
 import { generateId, generateRoomCode, nameToAvatar } from '../utils/helpers.js';
 
@@ -37,6 +37,8 @@ export const DEFAULT_SETTINGS: GameSettings = {
   trialDefense: { enabled: false, secondsPerCandidate: 30 },
   dynamicEvents: DEFAULT_DYNAMIC_EVENTS,
   spectatorQueue: DEFAULT_SPECTATOR_QUEUE,
+  donMode: false,
+  planningNightDuration: 60,
   roles: {
     mafia: 0,
     don: 0,
@@ -163,6 +165,7 @@ export function createRoom(
     lastDoctorTarget: null,
     gameTimeline: [],
     voiceSessionId: generateVoiceSessionId(),
+    donModeState: null,
   };
 
   rooms.set(id, room);
@@ -529,6 +532,16 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
           }
           return votes;
         })()
+      : null,
+    donModeState: room.donModeState
+      ? {
+          tieCandidates: room.donModeState.tieCandidates,
+          defenseQueue: room.donModeState.defenseQueue,
+          currentDefenseIdx: room.donModeState.currentDefenseIdx,
+          doubleElimYes: Object.values(room.donModeState.doubleEliminationVotes).filter(v => v).length,
+          doubleElimNo: Object.values(room.donModeState.doubleEliminationVotes).filter(v => !v).length,
+          donCheckDone: room.donModeState.donCheckDone,
+        }
       : null,
   };
 }

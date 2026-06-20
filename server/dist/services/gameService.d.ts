@@ -13,6 +13,12 @@ export declare function getTrackResult(room: Room, actor: Player): {
     trackedName: string;
     visitedName: string | null;
 } | null;
+/** Submit actions for Don Mode special phases */
+export declare function submitDonCheck(room: Room, actor: Player, targetId: string | null): void;
+export declare function submitMafiaKillVote(room: Room, actor: Player, targetId: string): void;
+export declare function submitDoubleEliminationVote(room: Room, voter: Player, yes: boolean): void;
+export declare function allMafiaKillVotesSubmitted(room: Room): boolean;
+export declare function allDoubleElimVotesSubmitted(room: Room): boolean;
 export declare function submitNomination(room: Room, actor: Player, nomineeId: string | null): void;
 export declare function submitVote(room: Room, voter: Player, targetId: string | null): void;
 export declare function resolveVotes(room: Room): string | null;

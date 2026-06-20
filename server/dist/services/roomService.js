@@ -30,6 +30,8 @@ export const DEFAULT_SETTINGS = {
     trialDefense: { enabled: false, secondsPerCandidate: 30 },
     dynamicEvents: DEFAULT_DYNAMIC_EVENTS,
     spectatorQueue: DEFAULT_SPECTATOR_QUEUE,
+    donMode: false,
+    planningNightDuration: 60,
     roles: {
         mafia: 0,
         don: 0,
@@ -145,6 +147,7 @@ export function createRoom(hostSocketId, hostName, profileId, settings, clanId, 
         lastDoctorTarget: null,
         gameTimeline: [],
         voiceSessionId: generateVoiceSessionId(),
+        donModeState: null,
     };
     rooms.set(id, room);
     return room;
@@ -489,6 +492,16 @@ export function toPublicRoom(room, viewerPlayerId) {
                 }
                 return votes;
             })()
+            : null,
+        donModeState: room.donModeState
+            ? {
+                tieCandidates: room.donModeState.tieCandidates,
+                defenseQueue: room.donModeState.defenseQueue,
+                currentDefenseIdx: room.donModeState.currentDefenseIdx,
+                doubleElimYes: Object.values(room.donModeState.doubleEliminationVotes).filter(v => v).length,
+                doubleElimNo: Object.values(room.donModeState.doubleEliminationVotes).filter(v => !v).length,
+                donCheckDone: room.donModeState.donCheckDone,
+            }
             : null,
     };
 }
