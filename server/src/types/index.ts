@@ -8,7 +8,14 @@ export type Phase =
   | 'trial_defense'
   | 'voting'
   | 'final_words'
-  | 'game_over';
+  | 'game_over'
+  // ── Don Mode exclusive phases ────────────────────────────────────────
+  | 'planning_night'   // mafia meets before Day 0 — no kill, strategy only
+  | 'don_check'        // Don checks one player for Sheriff role
+  | 'mafia_kill'       // each mafia member votes independently; kill requires unanimity
+  | 'tie_defense'      // tied vote candidates each get a defense speech
+  | 'revote'           // re-vote between the original tied candidates
+  | 'double_elim_vote' // city votes yes/no on eliminating both tied players
 
 export type RoleKey =
   | 'mafia'
@@ -361,6 +368,28 @@ export const DEFAULT_DYNAMIC_EVENTS: DynamicEventSettings = {
   },
 };
 
+export interface DonModeState {
+  planningNightCompleted: boolean;
+  donCheckTargetId: string | null;
+  donCheckResult: boolean | null;
+  donCheckDone: boolean;
+  /** mafiaPlayerId → targetId — kept server-side only, never sent to clients */
+  mafiaKillVotes: Record<string, string>;
+  tieCandidates: string[];
+  defenseQueue: string[];
+  currentDefenseIdx: number;
+  doubleEliminationVotes: Record<string, boolean>;
+}
+
+export interface DonModeStatePublic {
+  tieCandidates: string[];
+  defenseQueue: string[];
+  currentDefenseIdx: number;
+  doubleElimYes: number;
+  doubleElimNo: number;
+  donCheckDone: boolean;
+}
+
 export interface GameSettings {
   nightDuration: number;
   dayDuration: number;
@@ -381,6 +410,10 @@ export interface GameSettings {
   dynamicEvents: DynamicEventSettings;
   spectatorQueue: SpectatorQueueSettings;
   ranked?: boolean;
+  /** Don Card mode — classic 10/12-player Don-table rules */
+  donMode?: boolean;
+  /** Planning night duration in seconds (Don Mode only). Default: 60 */
+  planningNightDuration?: number;
   roles: {
     mafia: number;
     don: number;
@@ -452,6 +485,7 @@ export interface Room {
   gameTimeline: TimelineEvent[];
   /** UUID refreshed on every game start + lobby reset; clients drop stale WebRTC signals if this doesn't match. */
   voiceSessionId: string;
+  donModeState: DonModeState | null;
 }
 
 // ── Public Types (sent to clients) ────────────────────────────────────
@@ -517,6 +551,7 @@ export interface RoomPublic {
   clanId: string | null;
   clanRoom: boolean;
   activeEvent: ActiveEvent | null;
+  donModeState: DonModeStatePublic | null;
 }
 
 export interface RoomListItem {
@@ -754,6 +789,7 @@ export interface ServerToClientEvents {
   'game:vote_result':   (data: { name: string; role: string | null; lastWill: string | null; seat: number }) => void;
   'game:roleblocked':   () => void;
   'game:yakuza_ally':   (data: { allyRole: string; allyId: string | null; allyName: string | null }) => void;
+  'game:don_check_result': (data: { targetId: string; targetName: string; isSheriff: boolean }) => void;
   'mod:notification':   (data: { type: string; message: string; targetName?: string }) => void;
   'warning:received':   (data: { reason: string; moderatorName: string }) => void;
   'ban:received':       (data: { reason: string; expiresAt: number }) => void;
@@ -873,8 +909,12 @@ export interface ClientToServerEvents {
   'game:restart':       (cb: Cb<null>) => void;
   'game:set_will':      (data: { text: string }, cb: Cb<null>) => void;
   'game:pause':         (cb: Cb<{ isPaused: boolean }>) => void;
-  'game:terminate':     (cb: Cb<null>) => void;
-  'leaderboard:get':    (cb: Cb<PlayerProfilePublic[]>) => void;
+  'game:terminate':          (cb: Cb<null>) => void;
+  // Don Mode
+  'game:don_check':          (data: { targetId: string | null }, cb: Cb<null>) => void;
+  'game:mafia_kill_vote':    (data: { targetId: string }, cb: Cb<null>) => void;
+  'game:double_elim_vote':   (data: { yes: boolean }, cb: Cb<null>) => void;
+  'leaderboard:get':         (cb: Cb<PlayerProfilePublic[]>) => void;
   'player:profile':     (data: { profileId: string }, cb: Cb<PlayerProfilePublic>) => void;
   'player:achievements': (data: { profileId: string }, cb: Cb<AchievementEarned[]>) => void;
   'player:history':     (data: { profileId: string }, cb: Cb<GameHistoryEntry[]>) => void;

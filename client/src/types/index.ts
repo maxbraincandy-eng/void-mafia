@@ -10,7 +10,14 @@ export type Phase =
   | 'trial_defense'
   | 'voting'
   | 'final_words'
-  | 'game_over';
+  | 'game_over'
+  // ── Don Mode exclusive phases ─────────────────────────────────────────
+  | 'planning_night'
+  | 'don_check'
+  | 'mafia_kill'
+  | 'tie_defense'
+  | 'revote'
+  | 'double_elim_vote';
 
 export type RoleKey =
   | 'mafia'
@@ -236,6 +243,15 @@ export interface PlayerRating {
   placementGames: number;
 }
 
+export interface DonModeStatePublic {
+  tieCandidates: string[];
+  defenseQueue: string[];
+  currentDefenseIdx: number;
+  doubleElimYes: number;
+  doubleElimNo: number;
+  donCheckDone: boolean;
+}
+
 export interface GameSettings {
   nightDuration: number;
   dayDuration: number;
@@ -255,6 +271,8 @@ export interface GameSettings {
   dynamicEvents?: DynamicEventSettings;
   spectatorQueue?: SpectatorQueueSettings;
   ranked?: boolean;
+  donMode?: boolean;
+  planningNightDuration?: number;
   roles: {
     mafia: number;
     don: number;
@@ -326,6 +344,7 @@ export interface RoomPublic {
   clanId: string | null;
   clanRoom: boolean;
   activeEvent: ActiveEvent | null;
+  donModeState: DonModeStatePublic | null;
 }
 
 export interface RoomListItem {
