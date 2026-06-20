@@ -413,7 +413,7 @@ export function SettingsPanel({ open, onClose }: Props) {
               </SettingRow>
 
               {/* ── Account ───────────────────────────────────────────── */}
-              <SectionHeader label="👤 Account" />
+              <SectionHeader label="Account" />
               <ChangeNameSection />
               {hasEmail && <ChangePasswordSection />}
 

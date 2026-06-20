@@ -1,5 +1,6 @@
 import { useSocialStore } from '@/store/socialStore';
 import { haptic } from '@/lib/haptics';
+import { VoidProfileIcon } from '@/components/ui/VoidProfileIcon';
 
 export type NavTab = 'rooms' | 'games' | 'community' | 'clans' | 'leaderboard' | 'profile' | 'mod' | 'economy' | 'replays';
 
@@ -83,7 +84,10 @@ const LEFT_TABS: TabDef[] = [
 
 const RIGHT_TABS: TabDef[] = [
   { id: 'leaderboard', kind: 'emoji', label: 'ლიდ.', icon: '🏅', color: '#facc15' },
-  { id: 'profile',     kind: 'emoji', label: 'მე',   icon: '◉',  color: '#00e5ff' },
+  {
+    id: 'profile', kind: 'svg', label: 'მე', color: '#00e5ff',
+    renderIcon: (a) => <VoidProfileIcon size={18} active={a} color="#00e5ff" />,
+  },
 ];
 
 // ── NavItem ─────────────────────────────────────────────────────────────────

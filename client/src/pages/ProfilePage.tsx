@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
 import { ModBadge } from '@/components/ui/ModBadge';
+import { VoidProfileIcon } from '@/components/ui/VoidProfileIcon';
 import { PoweredBy } from '@/components/ui/PoweredBy';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { FriendsPanel } from '@/components/ui/FriendsPanel';
@@ -889,7 +890,9 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                         style={isEquipped ? { borderColor: `${b.colors[0]}40`, background: `${b.colors[0]}08` } : { borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
                         <div className={`w-10 h-10 rounded-full p-[2.5px] shrink-0 ${b.animationClass}`}
                           style={{ background: `linear-gradient(135deg, ${b.colors[0]}, ${b.colors[1]})` }}>
-                          <div className="w-full h-full rounded-full bg-void flex items-center justify-center text-sm">👤</div>
+                          <div className="w-full h-full rounded-full bg-void flex items-center justify-center">
+                            <VoidProfileIcon size={20} color="rgba(255,255,255,0.55)" />
+                          </div>
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[11px] font-mono font-bold text-white/80 truncate">{b.name}</p>
