@@ -4,6 +4,7 @@ interface Props {
   color?: string;
 }
 
+// Clean minimal game controller — no portal ring
 export function VoidGamesIcon({ size = 18, active = false, color = 'currentColor' }: Props) {
   return (
     <svg
@@ -20,44 +21,36 @@ export function VoidGamesIcon({ size = 18, active = false, color = 'currentColor
         transition: 'filter 0.2s ease',
       }}
     >
-      {/* Outer portal ring */}
-      <circle cx="10" cy="10" r="8.8" stroke={color} strokeWidth="1.1" opacity={active ? 1 : 0.55} />
-      {/* Inner depth ring */}
-      <circle cx="10" cy="10" r="6.8" stroke={color} strokeWidth="0.5" opacity={active ? 0.38 : 0.16} />
-      {/* Cardinal tick marks */}
-      <line x1="10" y1="0.8"  x2="10" y2="2.4"  stroke={color} strokeWidth="0.85" strokeLinecap="round" opacity={active ? 0.9 : 0.28} />
-      <line x1="10" y1="17.6" x2="10" y2="19.2" stroke={color} strokeWidth="0.85" strokeLinecap="round" opacity={active ? 0.9 : 0.28} />
-      <line x1="0.8"  y1="10" x2="2.4"  y2="10" stroke={color} strokeWidth="0.85" strokeLinecap="round" opacity={active ? 0.9 : 0.28} />
-      <line x1="17.6" y1="10" x2="19.2" y2="10" stroke={color} strokeWidth="0.85" strokeLinecap="round" opacity={active ? 0.9 : 0.28} />
-
-      {/* Game controller silhouette — body + handle gap */}
-      {/* Path: body covers x=6–14, y=7.5–13; handles hang below on left (x=6–8.5) and right (x=11.5–14) */}
+      {/* Controller body + grip handles */}
       <path
-        d="M7.5 7.5H12.5C13.3 7.5 14 8.2 14 9V12.5C14 13.2 13.5 13.5 13 13.5H11.5V15H8.5V13.5H7C6.5 13.5 6 13.2 6 12.5V9C6 8.2 6.7 7.5 7.5 7.5Z"
+        d="M6.6 5 H13.4 C14.2 5 15.5 6 15.5 7.2 V12.3 C15.5 13.4 14.8 13.8 14.1 13.8 H12.1 V16 H7.9 V13.8 H5.9 C5.2 13.8 4.5 13.4 4.5 12.3 V7.2 C4.5 6 5.4 5 6.6 5 Z"
         stroke={color}
-        strokeWidth="0.9"
-        fill="none"
-        opacity={active ? 0.85 : 0.5}
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+        opacity={active ? 0.9 : 0.55}
       />
-      {/* D-pad horizontal bar */}
-      <line x1="7.2" y1="10.8" x2="9.2" y2="10.8" stroke={color} strokeWidth="0.8" strokeLinecap="round" opacity={active ? 0.9 : 0.58} />
-      {/* D-pad vertical bar */}
-      <line x1="8.2" y1="9.8" x2="8.2" y2="11.8" stroke={color} strokeWidth="0.8" strokeLinecap="round" opacity={active ? 0.9 : 0.58} />
-      {/* Action buttons — triangle formation */}
-      <circle cx="12"   cy="9.5"  r="0.6" fill={color} opacity={active ? 0.9 : 0.55} />
-      <circle cx="12.8" cy="10.5" r="0.6" fill={color} opacity={active ? 0.9 : 0.55} />
-      <circle cx="12"   cy="11.5" r="0.6" fill={color} opacity={active ? 0.9 : 0.55} />
-      {/* Select / start dots */}
-      <circle cx="9.5"  cy="9"    r="0.4" fill={color} opacity={active ? 0.55 : 0.28} />
-      <circle cx="10.5" cy="9"    r="0.4" fill={color} opacity={active ? 0.55 : 0.28} />
 
-      {/* Active accent dots */}
-      {active && (
-        <>
-          <circle cx="10" cy="1.6"  r="0.6" fill={color} opacity="0.85" />
-          <circle cx="10" cy="18.4" r="0.6" fill={color} opacity="0.85" />
-        </>
-      )}
+      {/* D-pad — horizontal */}
+      <line
+        x1="6.2" y1="9.8" x2="8.9" y2="9.8"
+        stroke={color} strokeWidth="0.95" strokeLinecap="round"
+        opacity={active ? 0.95 : 0.65}
+      />
+      {/* D-pad — vertical */}
+      <line
+        x1="7.55" y1="8.45" x2="7.55" y2="11.15"
+        stroke={color} strokeWidth="0.95" strokeLinecap="round"
+        opacity={active ? 0.95 : 0.65}
+      />
+
+      {/* Face buttons — triangle of 3 */}
+      <circle cx="12.8" cy="7.9"  r="0.72" fill={color} opacity={active ? 0.9 : 0.6} />
+      <circle cx="13.9" cy="9.4"  r="0.72" fill={color} opacity={active ? 0.9 : 0.6} />
+      <circle cx="12.8" cy="10.9" r="0.72" fill={color} opacity={active ? 0.9 : 0.6} />
+
+      {/* Select / start dots */}
+      <circle cx="9.5"  cy="7.5" r="0.45" fill={color} opacity={active ? 0.55 : 0.28} />
+      <circle cx="10.7" cy="7.5" r="0.45" fill={color} opacity={active ? 0.55 : 0.28} />
     </svg>
   );
 }
