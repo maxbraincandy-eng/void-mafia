@@ -30,35 +30,29 @@ export function VoidClansIcon({ size = 18, active = false, color = 'currentColor
       <line x1="0.8"  y1="10" x2="2.4"  y2="10" stroke={color} strokeWidth="0.85" strokeLinecap="round" opacity={active ? 0.9 : 0.28} />
       <line x1="17.6" y1="10" x2="19.2" y2="10" stroke={color} strokeWidth="0.85" strokeLinecap="round" opacity={active ? 0.9 : 0.28} />
 
-      {/* Shield outer frame */}
-      <path
-        d="M10 4.5L15 7.5V13C15 15.2 10 16.5 10 16.5C10 16.5 5 15.2 5 13V7.5L10 4.5Z"
-        stroke={color}
-        strokeWidth="1"
-        strokeLinejoin="round"
-        fill="none"
-        opacity={active ? 0.85 : 0.5}
-      />
-      {/* Shield inner depth line */}
-      <path
-        d="M10 6.2L13.5 8.5V12.5C13.5 14.1 10 15 10 15C10 15 6.5 14.1 6.5 12.5V8.5L10 6.2Z"
-        stroke={color}
-        strokeWidth="0.45"
-        strokeLinejoin="round"
-        fill="none"
-        opacity={active ? 0.38 : 0.15}
-      />
+      {/* ── Crossed swords ⚔️ ── */}
 
-      {/* Bold V — Void / Victory */}
-      <path
-        d="M7.5 8.5L10 12.8L12.5 8.5"
-        stroke={color}
-        strokeWidth="1.65"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {/* Node at V apex — targeting reticle */}
-      <circle cx="10" cy="12.8" r="0.9" fill={color} opacity={active ? 1 : 0.7} />
+      {/* Sword 1: NW tip → SE pommel */}
+      <line x1="5.5" y1="5.5" x2="14.5" y2="14.5"
+        stroke={color} strokeWidth="1.0" strokeLinecap="round"
+        opacity={active ? 0.85 : 0.55} />
+      {/* Crossguard 1 — perpendicular at ~30% from tip */}
+      <line x1="6.1" y1="8.9" x2="8.9" y2="6.1"
+        stroke={color} strokeWidth="1.4" strokeLinecap="round"
+        opacity={active ? 1 : 0.68} />
+      {/* Pommel 1 — SE */}
+      <circle cx="14" cy="14" r="1.1" fill={color} opacity={active ? 0.95 : 0.62} />
+
+      {/* Sword 2: NE tip → SW pommel */}
+      <line x1="14.5" y1="5.5" x2="5.5" y2="14.5"
+        stroke={color} strokeWidth="1.0" strokeLinecap="round"
+        opacity={active ? 0.85 : 0.55} />
+      {/* Crossguard 2 — perpendicular at ~30% from tip */}
+      <line x1="11.1" y1="6.1" x2="13.9" y2="8.9"
+        stroke={color} strokeWidth="1.4" strokeLinecap="round"
+        opacity={active ? 1 : 0.68} />
+      {/* Pommel 2 — SW */}
+      <circle cx="6" cy="14" r="1.1" fill={color} opacity={active ? 0.95 : 0.62} />
 
       {/* Active accent dots */}
       {active && (

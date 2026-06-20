@@ -30,26 +30,42 @@ export function VoidLeaderboardIcon({ size = 18, active = false, color = 'curren
       <line x1="0.8"  y1="10" x2="2.4"  y2="10" stroke={color} strokeWidth="0.85" strokeLinecap="round" opacity={active ? 0.9 : 0.28} />
       <line x1="17.6" y1="10" x2="19.2" y2="10" stroke={color} strokeWidth="0.85" strokeLinecap="round" opacity={active ? 0.9 : 0.28} />
 
-      {/* Podium base line */}
-      <line x1="4.5" y1="15" x2="15.5" y2="15" stroke={color} strokeWidth="0.65" strokeLinecap="round" opacity={active ? 0.45 : 0.2} />
+      {/* ── Medal 🥇 ── */}
 
-      {/* Rank 2 — left bar */}
-      <rect x="4.5" y="10.5" width="3" height="4.5" rx="0.4" fill={color} opacity={active ? 0.62 : 0.32} />
-      {/* Rank 1 — center bar (tallest) */}
-      <rect x="8.5" y="7"    width="3" height="8"   rx="0.4" fill={color} opacity={active ? 0.9 : 0.55} />
-      {/* Rank 3 — right bar */}
-      <rect x="12.5" y="12" width="3" height="3"   rx="0.4" fill={color} opacity={active ? 0.5 : 0.26} />
+      {/* Ribbon — left stripe */}
+      <line x1="8.8" y1="3" x2="8.8" y2="8"
+        stroke={color} strokeWidth="1.9" strokeLinecap="round"
+        opacity={active ? 0.68 : 0.38} />
+      {/* Ribbon — right stripe */}
+      <line x1="11.2" y1="3" x2="11.2" y2="8"
+        stroke={color} strokeWidth="1.9" strokeLinecap="round"
+        opacity={active ? 0.68 : 0.38} />
+      {/* Clasp connecting ribbon to medal */}
+      <rect x="8.2" y="7.6" width="3.6" height="1.0" rx="0.4"
+        fill={color} opacity={active ? 0.52 : 0.26} />
 
-      {/* Crown above rank 1 */}
-      <path
-        d="M8.5 7L9.3 5.2L10 6.5L10.7 5.2L11.5 7"
-        stroke={color}
-        strokeWidth="0.9"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-        opacity={active ? 1 : 0.58}
-      />
+      {/* Medal outer circle */}
+      <circle cx="10" cy="12.5" r="4"
+        stroke={color} strokeWidth="1.1" fill="none"
+        opacity={active ? 0.95 : 0.58} />
+      {/* Medal inner depth ring */}
+      <circle cx="10" cy="12.5" r="2.6"
+        stroke={color} strokeWidth="0.45" fill="none"
+        opacity={active ? 0.42 : 0.18} />
+
+      {/* "1" numeral */}
+      {/* Vertical stroke */}
+      <line x1="10" y1="10.9" x2="10" y2="14.1"
+        stroke={color} strokeWidth="1.45" strokeLinecap="round"
+        opacity={active ? 1 : 0.68} />
+      {/* Approach stroke (top-left to top of "1") */}
+      <line x1="9.1" y1="11.5" x2="10" y2="10.9"
+        stroke={color} strokeWidth="1.0" strokeLinecap="round"
+        opacity={active ? 0.85 : 0.48} />
+      {/* Base underline */}
+      <line x1="8.8" y1="14.1" x2="11.2" y2="14.1"
+        stroke={color} strokeWidth="0.9" strokeLinecap="round"
+        opacity={active ? 0.78 : 0.44} />
 
       {/* Active accent dots */}
       {active && (
