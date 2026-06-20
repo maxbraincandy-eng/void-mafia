@@ -46,17 +46,19 @@ import { CLIENT_VERSION } from './version';
 import { haptic } from '@/lib/haptics';
 import { YourTurnToast } from '@/components/ui/YourTurnToast';
 
-// Auto-reload when server has a newer client build than what's cached.
-// This permanently solves the stale-cache problem on iOS Safari / PWA.
-fetch('/api/version')
-  .then(r => r.json())
-  .then((d: { build?: string }) => {
-    if (d.build && d.build !== CLIENT_VERSION) {
-      // Hard-reload — bypasses service worker and HTTP cache
-      window.location.replace(window.location.href.split('?')[0] + '?v=' + d.build);
-    }
-  })
-  .catch(() => {});
+// Version check: reload once if server has newer build (guards against infinite loop).
+// sessionStorage survives reloads in same tab — prevents re-triggering after the reload.
+if (!sessionStorage.getItem('_vm_v_checked')) {
+  fetch('/api/version')
+    .then(r => r.json())
+    .then((d: { build?: string }) => {
+      sessionStorage.setItem('_vm_v_checked', '1');
+      if (d.build && d.build !== CLIENT_VERSION) {
+        window.location.replace(window.location.href.split('?')[0] + '?v=' + d.build);
+      }
+    })
+    .catch(() => { sessionStorage.setItem('_vm_v_checked', '1'); });
+}
 
 // Detect /u/:publicId deep link on initial load
 const _initialPathMatch = window.location.pathname.match(/^\/u\/(\d+)$/);
