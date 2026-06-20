@@ -10,22 +10,84 @@ interface Props {
   onMoreClick: () => void;
 }
 
-const LEFT_TABS = [
-  { id: 'community'   as NavTab, label: 'VoidGram', icon: '🌀', color: '#9b00ff' },
-  { id: 'games'       as NavTab, label: 'გართობა',  icon: '🎮', color: '#f59e0b' },
-  { id: 'clans'       as NavTab, label: 'კლანები',  icon: '⚔️', color: '#ef4444' },
-] as const;
+// ── Void Mafia logo SVG ────────────────────────────────────────────────────
+// Hexagonal double frame + bold V + node — cyberpunk neon aesthetic
+function VoidMafiaIcon({ size = 18, active = false, color = 'currentColor' }: { size?: number; active?: boolean; color?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 20 20"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      style={{
+        display: 'block',
+        filter: active ? `drop-shadow(0 0 4px ${color}) drop-shadow(0 0 8px ${color})` : 'none',
+        transition: 'filter 0.2s ease',
+      }}
+    >
+      {/* Outer hexagon */}
+      <path
+        d="M10 1.5L17.3 5.75V14.25L10 18.5L2.7 14.25V5.75L10 1.5Z"
+        stroke={color}
+        strokeWidth="1.1"
+        strokeLinejoin="round"
+        opacity={active ? 1 : 0.6}
+      />
+      {/* Inner hexagon ring — depth effect */}
+      <path
+        d="M10 4.5L14.9 7.25V12.75L10 15.5L5.1 12.75V7.25L10 4.5Z"
+        stroke={color}
+        strokeWidth="0.55"
+        strokeLinejoin="round"
+        opacity={active ? 0.45 : 0.22}
+      />
+      {/* Corner accent marks — cyberpunk tick marks */}
+      <path d="M10 1.5V3.2" stroke={color} strokeWidth="0.8" strokeLinecap="round" opacity={active ? 0.9 : 0.35} />
+      <path d="M10 16.8V18.5" stroke={color} strokeWidth="0.8" strokeLinecap="round" opacity={active ? 0.9 : 0.35} />
+      {/* Bold V — Void */}
+      <path
+        d="M7 7.5L10 12.8L13 7.5"
+        stroke={color}
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Node at V apex — targeting reticle */}
+      <circle cx="10" cy="12.8" r="1.1" fill={color} opacity={active ? 1 : 0.7} />
+      {/* Flanking dots for active state */}
+      {active && (
+        <>
+          <circle cx="10" cy="3.7" r="0.6" fill={color} opacity="0.8" />
+          <circle cx="10" cy="16.3" r="0.6" fill={color} opacity="0.8" />
+        </>
+      )}
+    </svg>
+  );
+}
 
-const RIGHT_TABS = [
-  { id: 'leaderboard' as NavTab, label: 'ლიდ.',     icon: '🏅', color: '#facc15' },
-  { id: 'profile'     as NavTab, label: 'მე',        icon: '◉',  color: '#00e5ff' },
-] as const;
+// ── Tab definitions ─────────────────────────────────────────────────────────
+type TabDef = { id: NavTab; label: string; color: string } & (
+  | { kind: 'emoji'; icon: string }
+  | { kind: 'svg'; renderIcon: (active: boolean) => React.ReactElement }
+);
 
-function NavItem({ tab, active, onPress }: {
-  tab: { id: NavTab; label: string; icon: string; color: string };
-  active: boolean;
-  onPress: (id: NavTab) => void;
-}) {
+const LEFT_TABS: TabDef[] = [
+  {
+    id: 'community', kind: 'svg', label: 'ვოიდი', color: '#9b00ff',
+    renderIcon: (a) => <VoidMafiaIcon size={18} active={a} color="#9b00ff" />,
+  },
+  { id: 'games',  kind: 'emoji', label: 'გართობა', icon: '🎮', color: '#f59e0b' },
+  { id: 'clans',  kind: 'emoji', label: 'კლანები',  icon: '⚔️', color: '#ef4444' },
+];
+
+const RIGHT_TABS: TabDef[] = [
+  { id: 'leaderboard', kind: 'emoji', label: 'ლიდ.', icon: '🏅', color: '#facc15' },
+  { id: 'profile',     kind: 'emoji', label: 'მე',   icon: '◉',  color: '#00e5ff' },
+];
+
+// ── NavItem ─────────────────────────────────────────────────────────────────
+function NavItem({ tab, active, onPress }: { tab: TabDef; active: boolean; onPress: (id: NavTab) => void }) {
   return (
     <button
       onClick={() => onPress(tab.id)}
@@ -38,12 +100,21 @@ function NavItem({ tab, active, onPress }: {
           style={{ background: tab.color, boxShadow: `0 0 6px ${tab.color}` }}
         />
       )}
-      <span
-        className="text-base leading-none mb-1"
-        style={{ filter: active ? `drop-shadow(0 0 5px ${tab.color})` : 'none' }}
-      >
-        {tab.icon}
+
+      <span className="leading-none mb-1 flex items-center justify-center" style={{ height: 18 }}>
+        {tab.kind === 'svg'
+          ? tab.renderIcon(active)
+          : (
+            <span
+              className="text-base leading-none"
+              style={{ filter: active ? `drop-shadow(0 0 5px ${tab.color})` : 'none' }}
+            >
+              {tab.icon}
+            </span>
+          )
+        }
       </span>
+
       <span className="font-mono uppercase leading-none text-center" style={{ fontSize: 9, letterSpacing: '0.03em' }}>
         {tab.label}
       </span>
@@ -51,20 +122,13 @@ function NavItem({ tab, active, onPress }: {
   );
 }
 
+// ── BottomNav ───────────────────────────────────────────────────────────────
 export function BottomNav({ active, onChange, onMoreClick }: Props) {
   const { unreadDmCount } = useSocialStore();
-
   const isRooms = active === 'rooms';
 
-  function go(tab: NavTab) {
-    haptic('selection');
-    onChange(tab);
-  }
-
-  function goMore() {
-    haptic('tap');
-    onMoreClick();
-  }
+  function go(tab: NavTab) { haptic('selection'); onChange(tab); }
+  function goMore() { haptic('tap'); onMoreClick(); }
 
   return (
     <nav
@@ -78,7 +142,7 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
     >
       <div className="flex items-end max-w-lg mx-auto" style={{ height: 64 }}>
 
-        {/* Left 3 tabs: VoidGram, Games, Clans */}
+        {/* Left 3 tabs */}
         {LEFT_TABS.map(tab => (
           <NavItem key={tab.id} tab={tab} active={active === tab.id} onPress={go} />
         ))}
@@ -89,10 +153,7 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
             onClick={() => go('rooms')}
             className="absolute transition-all duration-200 active:scale-90 flex flex-col items-center justify-center"
             style={{
-              width: 58,
-              height: 58,
-              borderRadius: '50%',
-              bottom: 8,
+              width: 58, height: 58, borderRadius: '50%', bottom: 8,
               background: isRooms
                 ? 'linear-gradient(145deg, #c026d3, #7c3aed, #0ea5e9)'
                 : 'linear-gradient(145deg, #7c3aed, #4f46e5)',
@@ -110,7 +171,7 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
           </button>
         </div>
 
-        {/* Right 2 tabs: Leaderboard, Profile */}
+        {/* Right 2 tabs */}
         {RIGHT_TABS.map(tab => (
           <NavItem key={tab.id} tab={tab} active={active === tab.id} onPress={go} />
         ))}
