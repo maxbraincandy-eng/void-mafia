@@ -1,4 +1,4 @@
-import { buildRoleDeck, buildAutoRoleDeck, validateRoleDistribution, getTeam, isSuspiciousToSheriff, getRole } from './roleService.js';
+import { buildRoleDeck, buildAutoRoleDeck, buildDonModeRoleDeck, validateRoleDistribution, getTeam, isSuspiciousToSheriff, getRole } from './roleService.js';
 import { getAlivePlayers } from './roomService.js';
 import { tryTriggerEvent, setRoomEvent, clearRoomEvent } from './dynamicEventService.js';
 // ── Start Game ────────────────────────────────────────────────────────
@@ -9,6 +9,12 @@ export function startGame(room) {
     if (count < room.settings.minPlayers) {
         throw new Error(`Need at least ${room.settings.minPlayers} players to start.`);
     }
+    // Don Mode player count validation
+    if (room.settings.donMode) {
+        if (count !== 10 && count !== 12) {
+            throw new Error('Don Mode requires exactly 10 or 12 players.');
+        }
+    }
     for (const p of allPlayers) {
         if (p.isSpectator) {
             p.isAlive = false;
@@ -16,16 +22,21 @@ export function startGame(room) {
             p.team = null;
         }
     }
-    const r = room.settings.roles;
-    const mafiaTotal = (r.mafia ?? 0) + (r.don ?? 0);
-    const yakuzaTotal = (r.yakuza ?? 0) + (r.shogun ?? 0);
     let deck;
-    if (mafiaTotal === 0 && yakuzaTotal === 0) {
-        deck = buildAutoRoleDeck(count);
+    if (room.settings.donMode) {
+        deck = buildDonModeRoleDeck(count);
     }
     else {
-        validateRoleDistribution(count, room.settings);
-        deck = buildRoleDeck(room.settings, count);
+        const r = room.settings.roles;
+        const mafiaTotal = (r.mafia ?? 0) + (r.don ?? 0);
+        const yakuzaTotal = (r.yakuza ?? 0) + (r.shogun ?? 0);
+        if (mafiaTotal === 0 && yakuzaTotal === 0) {
+            deck = buildAutoRoleDeck(count);
+        }
+        else {
+            validateRoleDistribution(count, room.settings);
+            deck = buildRoleDeck(room.settings, count);
+        }
     }
     activePlayers.sort((a, b) => a.seat - b.seat);
     activePlayers.forEach((player, i) => {
@@ -47,6 +58,19 @@ export function startGame(room) {
     room.newlyConvertedCultists = [];
     room.activeFoul = null;
     room.trialDefenseState = null;
+    room.donModeState = room.settings.donMode
+        ? {
+            planningNightCompleted: false,
+            donCheckTargetId: null,
+            donCheckResult: null,
+            donCheckDone: false,
+            mafiaKillVotes: {},
+            tieCandidates: [],
+            defenseQueue: [],
+            currentDefenseIdx: 0,
+            doubleEliminationVotes: {},
+        }
+        : null;
 }
 const MORNING_DURATION = 30;
 // ── Set Phase ─────────────────────────────────────────────────────────
@@ -153,6 +177,59 @@ export function setPhase(room, phase) {
             room.maxTimer = 0;
             room._gameOverAt = Date.now();
             break;
+        // ── Don Mode phases ──────────────────────────────────────────────
+        case 'planning_night': {
+            const dur = room.settings.planningNightDuration ?? 60;
+            room.timer = dur;
+            room.maxTimer = dur;
+            if (room.donModeState)
+                room.donModeState.planningNightCompleted = false;
+            break;
+        }
+        case 'don_check': {
+            if (room.donModeState) {
+                room.donModeState.donCheckTargetId = null;
+                room.donModeState.donCheckResult = null;
+                room.donModeState.donCheckDone = false;
+            }
+            room.timer = 30;
+            room.maxTimer = 30;
+            break;
+        }
+        case 'mafia_kill': {
+            if (room.donModeState)
+                room.donModeState.mafiaKillVotes = {};
+            room.killedLastNight = [];
+            room.savedLastNight = false;
+            room.mafiaKillTarget = null;
+            room.timer = room.settings.nightDuration;
+            room.maxTimer = room.settings.nightDuration;
+            break;
+        }
+        case 'tie_defense': {
+            if (room.donModeState)
+                room.donModeState.currentDefenseIdx = 0;
+            room.timer = 60;
+            room.maxTimer = 60;
+            break;
+        }
+        case 'revote': {
+            room.votes = new Map();
+            for (const p of room.players.values())
+                p.voteTarget = null;
+            room.timer = room.settings.voteDuration;
+            room.maxTimer = room.settings.voteDuration;
+            break;
+        }
+        case 'double_elim_vote': {
+            if (room.donModeState)
+                room.donModeState.doubleEliminationVotes = {};
+            for (const p of room.players.values())
+                p.hasActedThisPhase = false;
+            room.timer = 30;
+            room.maxTimer = 30;
+            break;
+        }
     }
 }
 // ── Advance Phase ─────────────────────────────────────────────────────
@@ -166,6 +243,10 @@ export function advancePhase(room) {
             if (checkWin(room)) {
                 setPhase(room, 'game_over');
                 return 'game_over';
+            }
+            if (room.settings.donMode) {
+                setPhase(room, 'planning_night');
+                return 'planning_night';
             }
             if (!room.settings.startWithNight) {
                 setPhase(room, 'day');
@@ -229,19 +310,31 @@ export function advancePhase(room) {
                 room.maxTimer = room.settings.speechDuration;
                 return 'speech';
             }
-            // All speakers done — go to tribunal if anyone was nominated, else skip to night
+            // All speakers done
             if (room.nominations.size > 0) {
                 const candidates = [...new Set(room.nominations.values())].filter(id => {
                     const p = room.players.get(id);
                     return p?.isAlive && !p.isSpectator;
                 });
-                if (candidates.length > 0 && room.settings.trialDefense?.enabled) {
-                    room.trialDefenseState = { candidateIds: candidates, currentCandidateIdx: 0 };
-                    setPhase(room, 'trial_defense');
-                    return 'trial_defense';
+                if (candidates.length > 0) {
+                    if (room.settings.donMode) {
+                        // Don Mode: go straight to voting (no trial defense)
+                        setPhase(room, 'voting');
+                        return 'voting';
+                    }
+                    if (room.settings.trialDefense?.enabled) {
+                        room.trialDefenseState = { candidateIds: candidates, currentCandidateIdx: 0 };
+                        setPhase(room, 'trial_defense');
+                        return 'trial_defense';
+                    }
+                    setPhase(room, 'voting');
+                    return 'voting';
                 }
-                setPhase(room, 'voting');
-                return 'voting';
+            }
+            // No nominations — skip to night or don_check
+            if (room.settings.donMode) {
+                setPhase(room, 'don_check');
+                return 'don_check';
             }
             setPhase(room, 'night');
             return 'night';
@@ -278,17 +371,29 @@ export function advancePhase(room) {
             // announceVoteResult in socket.ts calls it first; this call is safe when called again.
             if (!room.deathSpeakerId)
                 resolveVotes(room);
+            // Don Mode: detect tie → go to tie_defense instead of no-elim
+            if (room.settings.donMode && !room.deathSpeakerId && room.donModeState) {
+                const candidates = room.tribunalCandidates.filter(id => {
+                    const p = room.players.get(id);
+                    return p?.isAlive && !p.isSpectator;
+                });
+                const tied = detectDonModeTie(room, candidates);
+                if (tied.length >= 2) {
+                    room.donModeState.tieCandidates = tied;
+                    room.donModeState.defenseQueue = [...tied];
+                    room.donModeState.currentDefenseIdx = 0;
+                    setPhase(room, 'tie_defense');
+                    return 'tie_defense';
+                }
+            }
             if (room.deathSpeakerId) {
-                // Simulate the elimination to check win BEFORE starting final_words.
-                // If the kill ends the game, go straight to game_over (no final speech).
                 const testPlayer = room.players.get(room.deathSpeakerId);
                 if (testPlayer)
                     testPlayer.isAlive = false;
                 const gameEnds = checkWin(room);
                 if (testPlayer)
-                    testPlayer.isAlive = true; // restore for final_words phase
+                    testPlayer.isAlive = true;
                 if (gameEnds) {
-                    // Finalize death and go directly to game_over
                     if (testPlayer) {
                         testPlayer.isAlive = false;
                         testPlayer.deathType = 'vote';
@@ -301,10 +406,13 @@ export function advancePhase(room) {
                 setPhase(room, 'final_words');
                 return 'final_words';
             }
-            // Tie or no elimination
             if (checkWin(room)) {
                 setPhase(room, 'game_over');
                 return 'game_over';
+            }
+            if (room.settings.donMode) {
+                setPhase(room, 'don_check');
+                return 'don_check';
             }
             setPhase(room, 'night');
             return 'night';
@@ -335,15 +443,233 @@ export function advancePhase(room) {
             }
             if (reason === 'night_kill' || reason === 'foul_death') {
                 room.day++;
+                if (room.settings.donMode) {
+                    setPhase(room, 'speech'); // Don Mode: individual speeches next day
+                    return 'speech';
+                }
                 setPhase(room, 'day');
                 return 'day';
+            }
+            // vote_elimination
+            if (room.settings.donMode) {
+                setPhase(room, 'don_check'); // Don Mode: night begins
+                return 'don_check';
             }
             setPhase(room, 'night');
             return 'night';
         }
+        // ── Don Mode phases ──────────────────────────────────────────────
+        case 'planning_night': {
+            if (room.donModeState)
+                room.donModeState.planningNightCompleted = true;
+            // Start Day 1 individual speeches (speech phase, nominations allowed from day 1)
+            setPhase(room, 'speech');
+            return 'speech';
+        }
+        case 'don_check': {
+            // Don check is done (or timed out) — move to mafia kill selection
+            setPhase(room, 'mafia_kill');
+            return 'mafia_kill';
+        }
+        case 'mafia_kill': {
+            resolveDonModeKill(room);
+            if (checkWin(room)) {
+                setPhase(room, 'game_over');
+                return 'game_over';
+            }
+            if (room.killedLastNight.length > 0) {
+                const primary = room.killedLastNight[0];
+                const dying = room.players.get(primary.id);
+                if (dying) {
+                    dying.isAlive = true;
+                    dying.deathType = null;
+                }
+                room.deathSpeakerId = primary.id;
+                room.finalWordsReason = 'night_kill';
+                setPhase(room, 'final_words');
+                return 'final_words';
+            }
+            room.day++;
+            setPhase(room, 'speech');
+            return 'speech';
+        }
+        case 'tie_defense': {
+            if (!room.donModeState) {
+                setPhase(room, 'revote');
+                return 'revote';
+            }
+            const nextIdx = room.donModeState.currentDefenseIdx + 1;
+            let validIdx = nextIdx;
+            while (validIdx < room.donModeState.defenseQueue.length) {
+                const p = room.players.get(room.donModeState.defenseQueue[validIdx]);
+                if (p?.isAlive && !p.isSpectator)
+                    break;
+                validIdx++;
+            }
+            if (validIdx < room.donModeState.defenseQueue.length) {
+                room.donModeState.currentDefenseIdx = validIdx;
+                room.timer = 60;
+                room.maxTimer = 60;
+                return 'tie_defense';
+            }
+            // All done → revote
+            room.tribunalCandidates = room.donModeState.tieCandidates.filter(id => {
+                const p = room.players.get(id);
+                return p?.isAlive && !p.isSpectator;
+            });
+            setPhase(room, 'revote');
+            return 'revote';
+        }
+        case 'revote': {
+            if (!room.donModeState) {
+                setPhase(room, 'don_check');
+                return 'don_check';
+            }
+            // Detect winner or tie
+            const revoteResult = resolveDonModeRevote(room);
+            if (revoteResult === 'winner' && room.deathSpeakerId) {
+                const testPlayer = room.players.get(room.deathSpeakerId);
+                if (testPlayer)
+                    testPlayer.isAlive = false;
+                const gameEnds = checkWin(room);
+                if (testPlayer)
+                    testPlayer.isAlive = true;
+                if (gameEnds) {
+                    if (testPlayer) {
+                        testPlayer.isAlive = false;
+                        testPlayer.deathType = 'vote';
+                    }
+                    room.deathSpeakerId = null;
+                    room.finalWordsReason = null;
+                    setPhase(room, 'game_over');
+                    return 'game_over';
+                }
+                setPhase(room, 'final_words');
+                return 'final_words';
+            }
+            if (revoteResult === 'tie') {
+                // Second tie — double elimination vote
+                setPhase(room, 'double_elim_vote');
+                return 'double_elim_vote';
+            }
+            // No elimination
+            room.donModeState.tieCandidates = [];
+            setPhase(room, 'don_check');
+            return 'don_check';
+        }
+        case 'double_elim_vote': {
+            if (room.donModeState) {
+                const votes = Object.values(room.donModeState.doubleEliminationVotes);
+                const yesCount = votes.filter(v => v).length;
+                const noCount = votes.filter(v => !v).length;
+                if (yesCount > noCount) {
+                    // Eliminate both tied players — no final words
+                    for (const id of room.donModeState.tieCandidates) {
+                        const p = room.players.get(id);
+                        if (p && p.isAlive) {
+                            p.isAlive = false;
+                            p.deathType = 'vote';
+                        }
+                    }
+                }
+                room.donModeState.tieCandidates = [];
+                if (checkWin(room)) {
+                    setPhase(room, 'game_over');
+                    return 'game_over';
+                }
+            }
+            setPhase(room, 'don_check');
+            return 'don_check';
+        }
         default:
             return room.phase;
     }
+}
+// ── Don Mode Helpers ──────────────────────────────────────────────────
+/** Detect a voting tie in Don Mode. Returns tied player IDs or [] if no tie. */
+function detectDonModeTie(room, candidateIds) {
+    const counts = new Map();
+    for (const [voterId, targetId] of room.votes.entries()) {
+        if (!targetId)
+            continue;
+        if (candidateIds.length > 0 && !candidateIds.includes(targetId))
+            continue;
+        const voter = room.players.get(voterId);
+        const weight = voter?.role === 'mayor' ? 2 : 1;
+        counts.set(targetId, (counts.get(targetId) ?? 0) + weight);
+    }
+    if (counts.size === 0)
+        return [];
+    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    const topCount = sorted[0][1];
+    if (sorted.length >= 2 && sorted[1][1] === topCount) {
+        return sorted.filter(([, c]) => c === topCount).map(([id]) => id);
+    }
+    return [];
+}
+/** Resolve a Don Mode revote (between tieCandidates only). Sets deathSpeakerId on winner. */
+function resolveDonModeRevote(room) {
+    if (!room.donModeState)
+        return 'no_elim';
+    const candidates = room.donModeState.tieCandidates.filter(id => {
+        const p = room.players.get(id);
+        return p?.isAlive && !p.isSpectator;
+    });
+    const tied = detectDonModeTie(room, candidates);
+    if (tied.length >= 2) {
+        room.donModeState.tieCandidates = tied;
+        return 'tie';
+    }
+    // Find top vote-getter among candidates
+    const counts = new Map();
+    for (const [voterId, targetId] of room.votes.entries()) {
+        if (!targetId || !candidates.includes(targetId))
+            continue;
+        const voter = room.players.get(voterId);
+        counts.set(targetId, (counts.get(targetId) ?? 0) + (voter?.role === 'mayor' ? 2 : 1));
+    }
+    if (counts.size === 0)
+        return 'no_elim';
+    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    const winnerId = sorted[0][0];
+    const winner = room.players.get(winnerId);
+    if (!winner || !winner.isAlive)
+        return 'no_elim';
+    room.deathSpeakerId = winnerId;
+    room.finalWordsReason = 'vote_elimination';
+    room.donModeState.tieCandidates = [];
+    return 'winner';
+}
+/** Resolve Don Mode mafia kill — requires ALL alive mafia to choose the same target. */
+function resolveDonModeKill(room) {
+    if (!room.donModeState)
+        return;
+    const aliveMafia = [...room.players.values()].filter(p => p.isAlive && !p.isSpectator && p.team === 'mafia');
+    const votes = room.donModeState.mafiaKillVotes;
+    const allVoted = aliveMafia.length > 0 && aliveMafia.every(p => votes[p.id]);
+    if (!allVoted) {
+        room.killedLastNight = [];
+        room.mafiaKillTarget = null;
+        return;
+    }
+    const choices = aliveMafia.map(p => votes[p.id]);
+    const allSame = choices.every(t => t === choices[0]);
+    if (!allSame) {
+        room.killedLastNight = [];
+        room.mafiaKillTarget = null;
+        return;
+    }
+    const targetId = choices[0];
+    const target = room.players.get(targetId);
+    if (!target || !target.isAlive) {
+        room.killedLastNight = [];
+        room.mafiaKillTarget = null;
+        return;
+    }
+    room.mafiaKillTarget = targetId;
+    target.isAlive = false;
+    target.deathType = 'night';
+    room.killedLastNight = [{ id: targetId, name: target.name, lastWill: target.lastWill ?? null }];
 }
 // ── Night Resolution ──────────────────────────────────────────────────
 export function resolveNight(room) {
@@ -581,6 +907,73 @@ export function getTrackResult(room, actor) {
     };
 }
 // ── Nomination ────────────────────────────────────────────────────────
+/** Submit actions for Don Mode special phases */
+export function submitDonCheck(room, actor, targetId) {
+    if (room.phase !== 'don_check')
+        throw new Error('Not Don Check phase.');
+    if (actor.role !== 'don')
+        throw new Error('Only the Don can perform this check.');
+    if (!actor.isAlive)
+        throw new Error('You are eliminated.');
+    if (!room.donModeState)
+        throw new Error('Don Mode is not active.');
+    if (room.donModeState.donCheckDone)
+        throw new Error('Don check already performed this night.');
+    room.donModeState.donCheckTargetId = targetId;
+    room.donModeState.donCheckDone = true;
+    if (targetId) {
+        const target = room.players.get(targetId);
+        if (!target || !target.isAlive)
+            throw new Error('Target not found or eliminated.');
+        if (target.id === actor.id)
+            throw new Error('Cannot check yourself.');
+        room.donModeState.donCheckResult = target.role === 'sheriff';
+    }
+    else {
+        room.donModeState.donCheckResult = null; // skipped
+    }
+}
+export function submitMafiaKillVote(room, actor, targetId) {
+    if (room.phase !== 'mafia_kill')
+        throw new Error('Not Mafia Kill phase.');
+    if (actor.team !== 'mafia')
+        throw new Error('Only Mafia team members can vote.');
+    if (!actor.isAlive)
+        throw new Error('You are eliminated.');
+    if (!room.donModeState)
+        throw new Error('Don Mode is not active.');
+    const target = room.players.get(targetId);
+    if (!target || !target.isAlive || target.isSpectator)
+        throw new Error('Invalid target.');
+    if (target.team === 'mafia')
+        throw new Error('Cannot target a fellow Mafia member.');
+    room.donModeState.mafiaKillVotes[actor.id] = targetId;
+    actor.hasActedThisPhase = true;
+}
+export function submitDoubleEliminationVote(room, voter, yes) {
+    if (room.phase !== 'double_elim_vote')
+        throw new Error('Not Double Elimination Vote phase.');
+    if (!voter.isAlive || voter.isSpectator)
+        throw new Error('Must be an active player.');
+    if (!room.donModeState)
+        throw new Error('Don Mode is not active.');
+    if (voter.hasActedThisPhase)
+        throw new Error('Already voted.');
+    room.donModeState.doubleEliminationVotes[voter.id] = yes;
+    voter.hasActedThisPhase = true;
+}
+export function allMafiaKillVotesSubmitted(room) {
+    if (!room.donModeState)
+        return false;
+    const aliveMafia = [...room.players.values()].filter(p => p.isAlive && !p.isSpectator && p.team === 'mafia');
+    return aliveMafia.length > 0 && aliveMafia.every(p => room.donModeState.mafiaKillVotes[p.id]);
+}
+export function allDoubleElimVotesSubmitted(room) {
+    if (!room.donModeState)
+        return false;
+    const alive = [...room.players.values()].filter(p => p.isAlive && !p.isSpectator && !p.isQueuedNextRound);
+    return alive.length > 0 && alive.every(p => p.hasActedThisPhase);
+}
 export function submitNomination(room, actor, nomineeId) {
     if (room.phase !== 'speech')
         throw new Error('Nominations are only allowed during speech phase.');
@@ -588,7 +981,8 @@ export function submitNomination(room, actor, nomineeId) {
         throw new Error('Eliminated players cannot nominate.');
     if (actor.isSpectator)
         throw new Error('Spectators cannot nominate.');
-    if (room.day < 2)
+    // Don Mode allows nominations from Day 1; normal mode requires Day 2+
+    if (!room.settings.donMode && room.day < 2)
         throw new Error('Nominations are not allowed on Day 1.');
     const currentSpeakerId = room.speechOrder[room.currentSpeakerIdx];
     if (actor.id !== currentSpeakerId)

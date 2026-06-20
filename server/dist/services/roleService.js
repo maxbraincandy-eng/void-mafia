@@ -31,6 +31,18 @@ export function buildAutoRoleDeck(count) {
         deck.push('citizen');
     return shuffle(deck);
 }
+/** Fixed role decks for Don Card mode. Only 10 and 12 players are valid. */
+export function buildDonModeRoleDeck(count) {
+    if (count === 10) {
+        // 1 Don + 2 Mafia + 1 Sheriff + 6 Citizens
+        return shuffle(['don', 'mafia', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen', 'citizen', 'citizen', 'citizen']);
+    }
+    if (count === 12) {
+        // 1 Don + 2 Mafia + 1 Sheriff + 8 Citizens
+        return shuffle(['don', 'mafia', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen', 'citizen', 'citizen', 'citizen', 'citizen', 'citizen']);
+    }
+    throw new Error('Don Mode requires exactly 10 or 12 players.');
+}
 export const ROLES = {
     mafia: {
         key: 'mafia',

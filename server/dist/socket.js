@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { ok, err, } from './types/index.js';
 import { createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, addSpectatorPlayer, removePlayer, getPlayerBySocket, toPublicRoom, getHostPlayer, toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom, setPlayerAvatarUrl, enqueueForNextRound, dequeueFromNextRound, promoteQueuedPlayers, } from './services/roomService.js';
-import { startGame, setPhase, advancePhase, submitNightAction, submitVote, submitNomination, checkWin, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult, getTrackResult, resolveVotes, } from './services/gameService.js';
+import { startGame, setPhase, advancePhase, submitNightAction, submitVote, submitNomination, checkWin, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult, getTrackResult, resolveVotes, submitDonCheck, submitMafiaKillVote, submitDoubleEliminationVote, allMafiaKillVotesSubmitted, allDoubleElimVotesSubmitted, } from './services/gameService.js';
 import { createPlayerMessage, createSystemMessage, addMessage, validateChat, } from './services/chatService.js';
 import { registerCheckersHandlers, handleCheckersDisconnect } from './checkers.js';
 import { registerJokerHandlers, handleJokerDisconnect } from './joker.js';
@@ -354,7 +354,10 @@ function startPhaseTimer(io, room) {
         room.timer = 0;
         const wasNight = room.phase === 'night';
         const wasSpeech = room.phase === 'speech';
-        if (room.phase === 'voting')
+        const wasMafiaKill = room.phase === 'mafia_kill';
+        const wasDonCheck = room.phase === 'don_check';
+        const wasDoubleElimVote = room.phase === 'double_elim_vote';
+        if (room.phase === 'voting' || room.phase === 'revote')
             announceVoteResult(io, room);
         advancePhase(room);
         const nextPhase = room.phase;
@@ -362,7 +365,7 @@ function startPhaseTimer(io, room) {
         if (nextPhase !== 'game_over') {
             recordEvent(room.id, { t: Date.now() - room.startedAt, type: 'phase_change', data: { phase: nextPhase, round: room.day } });
         }
-        if (wasNight) {
+        if (wasNight || wasMafiaKill) {
             announceNightResult(io, room);
             notifySpies(io, room);
             notifyTrackers(io, room);
@@ -371,6 +374,34 @@ function startPhaseTimer(io, room) {
         }
         if (wasSpeech && nextPhase !== 'speech')
             announceSpeechEnd(io, room, nextPhase);
+        if (wasDonCheck)
+            broadcastSystemMsg(io, room, 'Don has completed the night check. Mafia selecting target...');
+        if (wasDoubleElimVote) {
+            const dm = room.donModeState;
+            if (dm) {
+                const yes = Object.values(dm.doubleEliminationVotes).filter(v => v).length;
+                const no = Object.values(dm.doubleEliminationVotes).filter(v => !v).length;
+                if (yes > no)
+                    broadcastSystemMsg(io, room, '⚖️ გადაწყვეტილება: ორივე მოთამაშე გაძევებულია.');
+                else
+                    broadcastSystemMsg(io, room, '⚖️ გადაწყვეტილება: ორივე მოთამაშე რჩება.');
+            }
+        }
+        if (nextPhase === 'don_check') {
+            // Send private notification to Don only
+            for (const p of room.players.values()) {
+                if (p.role === 'don' && p.socketId && p.isAlive) {
+                    io.to(p.socketId).emit('game:notification', { title: '🌙 Don Check', body: 'Choose a player to check for Sheriff role.' });
+                }
+            }
+        }
+        if (nextPhase === 'mafia_kill') {
+            for (const p of room.players.values()) {
+                if (p.team === 'mafia' && p.socketId && p.isAlive) {
+                    io.to(p.socketId).emit('game:notification', { title: '🔫 Mafia Selection', body: 'All mafia must choose the same target to kill.' });
+                }
+            }
+        }
         if (nextPhase === 'night') {
             io.to(room.id).emit('game:notification', { title: 'Night Falls', body: 'Perform your night action.' });
             // Push offline players
@@ -1397,6 +1428,13 @@ export function attachSocketHandlers(io) {
                     throw new Error('Only the host can change settings.');
                 if (room.phase !== 'lobby')
                     throw new Error('Settings cannot be changed after game starts.');
+                // Don Mode: validate player count
+                if (settings.donMode) {
+                    const playerCount = [...room.players.values()].filter(p => !p.isSpectator).length;
+                    if (playerCount !== 10 && playerCount !== 12) {
+                        throw new Error('Don Mode requires exactly 10 or 12 players.');
+                    }
+                }
                 room.settings = {
                     ...room.settings,
                     ...settings,
@@ -1607,6 +1645,103 @@ export function attachSocketHandlers(io) {
                     broadcastSystemMsg(io, room, `${actor.name} withdrew their nomination.`);
                 }
                 broadcastRoom(io, room);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Don Check (Don Mode) ────────────────────────────────────────
+        socket.on('game:don_check', async ({ targetId }, cb) => {
+            try {
+                const room = getRoomFromSocket(socket);
+                const actor = getPlayerOrError(socket, room);
+                submitDonCheck(room, actor, targetId ?? null);
+                // Send result privately to Don
+                if (targetId && room.donModeState?.donCheckResult !== null) {
+                    const isSheriff = room.donModeState.donCheckResult;
+                    const targetName = room.players.get(targetId)?.name ?? '?';
+                    io.to(socket.id).emit('game:don_check_result', { targetId, targetName, isSheriff });
+                    broadcastSystemMsg(io, room, `🔍 Don has investigated a player.`);
+                }
+                else {
+                    broadcastSystemMsg(io, room, `🔍 Don skipped the investigation.`);
+                }
+                // Advance to mafia_kill
+                timerService.stop(room.id);
+                room.timer = 0;
+                advancePhase(room);
+                broadcastRoom(io, room);
+                enforceVoicePhaseRules(io, room);
+                if (room.phase !== 'game_over')
+                    startPhaseTimer(io, room);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Mafia Kill Vote (Don Mode) ──────────────────────────────────
+        socket.on('game:mafia_kill_vote', async ({ targetId }, cb) => {
+            try {
+                const room = getRoomFromSocket(socket);
+                const actor = getPlayerOrError(socket, room);
+                submitMafiaKillVote(room, actor, targetId);
+                if (allMafiaKillVotesSubmitted(room)) {
+                    timerService.stop(room.id);
+                    room.timer = 0;
+                    advancePhase(room);
+                    announceNightResult(io, room);
+                    if (room.phase !== 'game_over') {
+                        broadcastRoom(io, room);
+                        enforceVoicePhaseRules(io, room);
+                        startPhaseTimer(io, room);
+                    }
+                    else {
+                        await emitGameOver(io, room);
+                        broadcastRoom(io, room);
+                    }
+                }
+                else {
+                    broadcastRoom(io, room);
+                }
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Double Elimination Vote (Don Mode) ─────────────────────────
+        socket.on('game:double_elim_vote', async ({ yes }, cb) => {
+            try {
+                const room = getRoomFromSocket(socket);
+                const voter = getPlayerOrError(socket, room);
+                if (voter.isSpectator || voter.isQueuedNextRound)
+                    throw new Error('Not an active player.');
+                submitDoubleEliminationVote(room, voter, yes);
+                if (allDoubleElimVotesSubmitted(room)) {
+                    timerService.stop(room.id);
+                    room.timer = 0;
+                    const dm = room.donModeState;
+                    const votes = dm ? Object.values(dm.doubleEliminationVotes) : [];
+                    const yesCount = votes.filter(v => v).length;
+                    const noCount = votes.filter(v => !v).length;
+                    if (yesCount > noCount)
+                        broadcastSystemMsg(io, room, '⚖️ გადაწყვეტილება: ორივე მოთამაშე გაძევებულია.');
+                    else
+                        broadcastSystemMsg(io, room, '⚖️ გადაწყვეტილება: ორივე მოთამაშე რჩება.');
+                    advancePhase(room);
+                    if (room.phase === 'game_over') {
+                        await emitGameOver(io, room);
+                    }
+                    broadcastRoom(io, room);
+                    enforceVoicePhaseRules(io, room);
+                    if (room.phase !== 'game_over')
+                        startPhaseTimer(io, room);
+                }
+                else {
+                    broadcastRoom(io, room);
+                }
                 cb(ok(null));
             }
             catch (e) {
@@ -6143,6 +6278,38 @@ function enforceVoicePhaseRules(io, room) {
         // All players silent during voting — no voice chat allowed
         for (const member of voiceGetMembers(roomId, 'room')) {
             io.to(member.socketId).emit('voice:force-mute', { reason: 'Silent during voting.' });
+        }
+        return;
+    }
+    // ── Don Mode exclusive phases ──────────────────────────────────────
+    if (phase === 'planning_night') {
+        for (const member of voiceGetMembers(roomId, 'room')) {
+            const player = room.players.get(member.playerId);
+            if (player?.team === 'mafia') {
+                io.to(member.socketId).emit('voice:force-unmute');
+            }
+            else {
+                io.to(member.socketId).emit('voice:force-mute', { reason: 'Planning Night — Mafia team is planning.' });
+            }
+        }
+        return;
+    }
+    if (phase === 'tie_defense') {
+        const dms = room.donModeState;
+        const speakerId = dms ? dms.defenseQueue[dms.currentDefenseIdx] : null;
+        for (const member of voiceGetMembers(roomId, 'room')) {
+            if (member.playerId === speakerId) {
+                io.to(member.socketId).emit('voice:force-unmute');
+            }
+            else {
+                io.to(member.socketId).emit('voice:force-mute', { reason: 'Only the defending player may speak.' });
+            }
+        }
+        return;
+    }
+    if (phase === 'don_check' || phase === 'mafia_kill' || phase === 'revote' || phase === 'double_elim_vote') {
+        for (const member of voiceGetMembers(roomId, 'room')) {
+            io.to(member.socketId).emit('voice:force-mute', { reason: 'Silent phase.' });
         }
         return;
     }

@@ -1,4 +1,4 @@
-export type Phase = 'lobby' | 'role_reveal' | 'night' | 'morning' | 'day' | 'speech' | 'trial_defense' | 'voting' | 'final_words' | 'game_over';
+export type Phase = 'lobby' | 'role_reveal' | 'night' | 'morning' | 'day' | 'speech' | 'trial_defense' | 'voting' | 'final_words' | 'game_over' | 'planning_night' | 'don_check' | 'mafia_kill' | 'tie_defense' | 'revote' | 'double_elim_vote';
 export type RoleKey = 'mafia' | 'citizen' | 'sheriff' | 'doctor' | 'don' | 'maniac' | 'jester' | 'bodyguard' | 'spy' | 'escort' | 'vigilante' | 'cult_leader' | 'cultist' | 'veteran' | 'tracker' | 'arsonist' | 'mayor' | 'yakuza' | 'shogun';
 export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
@@ -247,6 +247,26 @@ export interface EventLogEntry {
     eventLabel: string;
 }
 export declare const DEFAULT_DYNAMIC_EVENTS: DynamicEventSettings;
+export interface DonModeState {
+    planningNightCompleted: boolean;
+    donCheckTargetId: string | null;
+    donCheckResult: boolean | null;
+    donCheckDone: boolean;
+    /** mafiaPlayerId → targetId — kept server-side only, never sent to clients */
+    mafiaKillVotes: Record<string, string>;
+    tieCandidates: string[];
+    defenseQueue: string[];
+    currentDefenseIdx: number;
+    doubleEliminationVotes: Record<string, boolean>;
+}
+export interface DonModeStatePublic {
+    tieCandidates: string[];
+    defenseQueue: string[];
+    currentDefenseIdx: number;
+    doubleElimYes: number;
+    doubleElimNo: number;
+    donCheckDone: boolean;
+}
 export interface GameSettings {
     nightDuration: number;
     dayDuration: number;
@@ -270,6 +290,10 @@ export interface GameSettings {
     dynamicEvents: DynamicEventSettings;
     spectatorQueue: SpectatorQueueSettings;
     ranked?: boolean;
+    /** Don Card mode — classic 10/12-player Don-table rules */
+    donMode?: boolean;
+    /** Planning night duration in seconds (Don Mode only). Default: 60 */
+    planningNightDuration?: number;
     roles: {
         mafia: number;
         don: number;
@@ -350,6 +374,7 @@ export interface Room {
     gameTimeline: TimelineEvent[];
     /** UUID refreshed on every game start + lobby reset; clients drop stale WebRTC signals if this doesn't match. */
     voiceSessionId: string;
+    donModeState: DonModeState | null;
 }
 export interface PlayerPublic {
     id: string;
@@ -425,6 +450,7 @@ export interface RoomPublic {
     clanId: string | null;
     clanRoom: boolean;
     activeEvent: ActiveEvent | null;
+    donModeState: DonModeStatePublic | null;
 }
 export interface RoomListItem {
     id: string;
@@ -666,6 +692,11 @@ export interface ServerToClientEvents {
         allyRole: string;
         allyId: string | null;
         allyName: string | null;
+    }) => void;
+    'game:don_check_result': (data: {
+        targetId: string;
+        targetName: string;
+        isSheriff: boolean;
     }) => void;
     'mod:notification': (data: {
         type: string;
@@ -933,6 +964,15 @@ export interface ClientToServerEvents {
         isPaused: boolean;
     }>) => void;
     'game:terminate': (cb: Cb<null>) => void;
+    'game:don_check': (data: {
+        targetId: string | null;
+    }, cb: Cb<null>) => void;
+    'game:mafia_kill_vote': (data: {
+        targetId: string;
+    }, cb: Cb<null>) => void;
+    'game:double_elim_vote': (data: {
+        yes: boolean;
+    }, cb: Cb<null>) => void;
     'leaderboard:get': (cb: Cb<PlayerProfilePublic[]>) => void;
     'player:profile': (data: {
         profileId: string;

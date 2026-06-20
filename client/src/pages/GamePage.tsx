@@ -41,43 +41,66 @@ import { useT } from '@/store/langStore';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { ModDashboardPage } from '@/pages/ModDashboardPage';
+import { PlanningNightPanel } from '@/components/game/PlanningNightPanel';
+import { DonCheckPanel } from '@/components/game/DonCheckPanel';
+import { MafiaKillPanel } from '@/components/game/MafiaKillPanel';
+import { TieDefensePanel } from '@/components/game/TieDefensePanel';
+import { DoubleEliminationPanel } from '@/components/game/DoubleEliminationPanel';
 
 type RightTab = 'events' | 'chat' | 'spectator';
 
 const PHASE_COLORS: Record<Phase, string> = {
-  lobby:         'text-white',
-  role_reveal:   'text-neon-purple',
-  night:         'text-neon-cyan',
-  morning:       'text-neon-cyan',
-  day:           'text-neon-cyan',
-  speech:        'text-neon-cyan',
-  trial_defense: 'text-neon-red',
-  voting:        'text-neon-red',
-  final_words:   'text-neon-red',
-  game_over:     'text-white',
+  lobby:           'text-white',
+  role_reveal:     'text-neon-purple',
+  night:           'text-neon-cyan',
+  morning:         'text-neon-cyan',
+  day:             'text-neon-cyan',
+  speech:          'text-neon-cyan',
+  trial_defense:   'text-neon-red',
+  voting:          'text-neon-red',
+  final_words:     'text-neon-red',
+  game_over:       'text-white',
+  planning_night:  'text-neon-purple',
+  don_check:       'text-neon-purple',
+  mafia_kill:      'text-neon-purple',
+  tie_defense:     'text-neon-red',
+  revote:          'text-neon-red',
+  double_elim_vote:'text-neon-red',
 };
 
 const PHASE_STRIP: Record<Phase, string> = {
-  lobby:         'rgba(255,255,255,0.05)',
-  role_reveal:   '#9b00ff',
-  night:         '#3b00cc',
-  morning:       '#00c4cc',
-  day:           '#00c4cc',
-  speech:        '#00e5ff',
-  trial_defense: '#cc2244',
-  voting:        '#ff2d55',
-  final_words:   '#cc1133',
-  game_over:     'rgba(255,255,255,0.1)',
+  lobby:           'rgba(255,255,255,0.05)',
+  role_reveal:     '#9b00ff',
+  night:           '#3b00cc',
+  morning:         '#00c4cc',
+  day:             '#00c4cc',
+  speech:          '#00e5ff',
+  trial_defense:   '#cc2244',
+  voting:          '#ff2d55',
+  final_words:     '#cc1133',
+  game_over:       'rgba(255,255,255,0.1)',
+  planning_night:  '#4a00aa',
+  don_check:       '#6600cc',
+  mafia_kill:      '#550099',
+  tie_defense:     '#cc2244',
+  revote:          '#ff2d55',
+  double_elim_vote:'#dd1144',
 };
 
 const PHASE_GLOW: Partial<Record<Phase, string>> = {
-  night:        '0 0 12px rgba(59,0,204,0.8)',
-  morning:      '0 0 10px rgba(0,196,204,0.5)',
-  voting:       '0 0 12px rgba(255,45,85,0.7)',
-  final_words:  '0 0 12px rgba(255,45,85,0.7)',
-  role_reveal:  '0 0 12px rgba(155,0,255,0.7)',
-  speech:       '0 0 10px rgba(0,229,255,0.5)',
-  day:          '0 0 10px rgba(0,196,204,0.5)',
+  night:           '0 0 12px rgba(59,0,204,0.8)',
+  morning:         '0 0 10px rgba(0,196,204,0.5)',
+  voting:          '0 0 12px rgba(255,45,85,0.7)',
+  final_words:     '0 0 12px rgba(255,45,85,0.7)',
+  role_reveal:     '0 0 12px rgba(155,0,255,0.7)',
+  speech:          '0 0 10px rgba(0,229,255,0.5)',
+  day:             '0 0 10px rgba(0,196,204,0.5)',
+  planning_night:  '0 0 12px rgba(74,0,170,0.8)',
+  don_check:       '0 0 12px rgba(102,0,204,0.8)',
+  mafia_kill:      '0 0 12px rgba(85,0,153,0.8)',
+  tie_defense:     '0 0 12px rgba(255,45,85,0.7)',
+  revote:          '0 0 12px rgba(255,45,85,0.7)',
+  double_elim_vote:'0 0 12px rgba(221,17,68,0.7)',
 };
 
 function getPhaseSubtitle(phase: Phase, day: number, t: import('@/i18n/translations').T, currentSpeakerName?: string | null, amAlive = true, isSpectator = false): string {
@@ -125,11 +148,11 @@ export function GamePage() {
     room, myPlayer, myRole, amHost, amAlive,
     nightResult, investigationResult, spyReport, gameOverResult,
     voteEliminationResult, cultConversionNotice, nightSummary, newAchievements,
-    voteBreakdown,
+    voteBreakdown, donCheckResult,
     skipPhase, speechPass, daySkipVote, issueFoul, skipDefense, leaveRoom, terminateGame,
     dismissNightResult, dismissInvestigation, dismissSpyReport, dismissGameOver,
     dismissVoteElimination, dismissCultConversion, dismissNightSummary, dismissNewAchievements,
-    dismissVoteBreakdown,
+    dismissVoteBreakdown, dismissDonCheckResult,
     pauseTimer, submitVote, nominate,
     isLoading, addToast,
     joinQueue, leaveQueue, queuePosition,
@@ -148,6 +171,7 @@ export function GamePage() {
     nightSummary: s.nightSummary,
     newAchievements: s.newAchievements,
     voteBreakdown: s.voteBreakdown,
+    donCheckResult: s.donCheckResult,
     skipPhase: s.skipPhase,
     speechPass: s.speechPass,
     daySkipVote: s.daySkipVote,
@@ -164,6 +188,7 @@ export function GamePage() {
     dismissNightSummary: s.dismissNightSummary,
     dismissNewAchievements: s.dismissNewAchievements,
     dismissVoteBreakdown: s.dismissVoteBreakdown,
+    dismissDonCheckResult: s.dismissDonCheckResult,
     pauseTimer: s.pauseTimer,
     submitVote: s.submitVote,
     nominate: s.nominate,
@@ -943,6 +968,30 @@ export function GamePage() {
             {!amSpectator && <VotingPanel />}
           </div>
         )}
+
+        {/* ── Don Mode exclusive panels ─────────────────────────────────── */}
+        {phase === 'planning_night' && <PlanningNightPanel />}
+        {phase === 'don_check' && !amSpectator && <DonCheckPanel />}
+        {phase === 'mafia_kill' && !amSpectator && <MafiaKillPanel />}
+        {phase === 'tie_defense' && <TieDefensePanel />}
+        {phase === 'revote' && (
+          <div className="space-y-4">
+            <div className="py-4">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-neon-red/70" style={{ boxShadow: '0 0 6px rgba(255,45,85,0.8)' }} />
+                <span className="font-mono text-[12px] tracking-[0.25em] uppercase text-neon-red/70">
+                  ხელახალი კენჭისყრა
+                </span>
+                <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(255,45,85,0.25), transparent)' }} />
+              </div>
+              <p className="text-white/40 text-sm font-mono pl-4">
+                ხმა მხოლოდ ფრეს კანდიდატებზე. ხელახლა ფრე = ორმაგი ელიმინაციის ხმა.
+              </p>
+            </div>
+            {!amSpectator && <VotingPanel />}
+          </div>
+        )}
+        {phase === 'double_elim_vote' && <DoubleEliminationPanel />}
       </motion.div>
     </AnimatePresence>
   );
@@ -958,8 +1007,11 @@ export function GamePage() {
         {(phase === 'day' || phase === 'speech') && (
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[180px] rounded-full blur-[90px]" style={{ background: 'rgba(0,180,200,0.06)' }} />
         )}
-        {(phase === 'voting' || phase === 'trial_defense') && (
+        {(phase === 'voting' || phase === 'trial_defense' || phase === 'tie_defense' || phase === 'revote' || phase === 'double_elim_vote') && (
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[180px] rounded-full blur-[90px]" style={{ background: 'rgba(220,0,50,0.06)' }} />
+        )}
+        {(phase === 'planning_night' || phase === 'don_check' || phase === 'mafia_kill') && (
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[200px] rounded-full blur-[100px]" style={{ background: 'rgba(85,0,153,0.07)' }} />
         )}
       </div>
 
@@ -1213,6 +1265,44 @@ export function GamePage() {
               </p>
               <Button variant="secondary" className="mt-6" onClick={dismissSpyReport} fullWidth>
                 {t.game.spyReport.gotIt}
+              </Button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Don Check result overlay (private to Don) */}
+      <AnimatePresence>
+        {donCheckResult && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            onClick={dismissDonCheckResult}
+          >
+            <motion.div
+              initial={{ scale: 0.85, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.85, y: 20 }}
+              className="glass-card border p-8 text-center max-w-sm w-full"
+              style={{ borderColor: donCheckResult.isSheriff ? 'rgba(59,130,246,0.4)' : 'rgba(0,255,136,0.3)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <p className="text-xs font-mono uppercase tracking-widest text-white/40 mb-4">დონ-ჩეკი • პირადი შედეგი</p>
+              <div className="text-5xl mb-4">{donCheckResult.isSheriff ? '🚨' : '✅'}</div>
+              <h2
+                className="font-display text-3xl font-bold tracking-widest uppercase mb-2"
+                style={{ color: donCheckResult.isSheriff ? '#3b82f6' : '#00ff88' }}
+              >
+                {donCheckResult.isSheriff ? 'შერიფია!' : 'წმინდაა'}
+              </h2>
+              <p className="text-white/70 text-sm">
+                <strong className="text-white">{donCheckResult.targetName}</strong>{' '}
+                {donCheckResult.isSheriff ? 'არის შერიფი.' : 'შერიფი არ არის.'}
+              </p>
+              <Button variant="secondary" className="mt-6" onClick={dismissDonCheckResult} fullWidth>
+                გასაგებია
               </Button>
             </motion.div>
           </motion.div>
