@@ -172,7 +172,9 @@ export function VotingPanel() {
       )}
 
       <PlayerList
-        players={room.players}
+        players={tribunalCandidates.length > 0
+          ? room.players.filter(p => tribunalCandidates.includes(p.id))
+          : room.players}
         phase="voting"
         onSelectTarget={p => handleSelect(p.id)}
         selectableIds={selectableIds}
