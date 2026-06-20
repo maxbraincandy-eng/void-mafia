@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
 import { useCommunityStore } from '@/store/communityStore';
@@ -51,12 +52,12 @@ function PostLightbox({
   const mediaUrl = post.imageUrl ?? post.gifUrl ?? post.videoUrl;
   const isVideo  = !!post.videoUrl && !post.imageUrl && !post.gifUrl;
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-end justify-center"
+      className="fixed inset-0 z-[200] flex items-end justify-center"
       style={{ background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(6px)' }}
       onClick={onClose}
     >
@@ -194,7 +195,8 @@ function PostLightbox({
           </div>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 

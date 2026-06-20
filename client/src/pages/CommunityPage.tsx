@@ -8,7 +8,6 @@ import { FeedTabV2 } from '@/components/community/FeedTabV2';
 import { RecommendsTab } from '@/components/community/RecommendsTab';
 import { ThoughtsTab } from '@/components/community/ThoughtsTab';
 import { PeopleTab } from '@/components/community/PeopleTab';
-import { GamesTab } from '@/components/community/GamesTab';
 import { DebatesTab } from '@/components/community/DebatesTab';
 import { ActivityTab } from '@/components/community/ActivityTab';
 import { NotificationPanel } from '@/components/community/NotificationPanel';
@@ -46,7 +45,6 @@ export function CommunityPage() {
     { id: 'feed',     label: t.community.tabs.feed,     icon: '🌌' },
     { id: 'voice',    label: t.community.tabs.voice,    icon: '🎤' },
     { id: 'debates',  label: t.community.tabs.debates,  icon: '⚔️' },
-    { id: 'games',    label: t.community.tabs.games,    icon: '♟' },
     { id: 'people',   label: t.community.tabs.people,   icon: '👥' },
     { id: 'activity', label: t.community.tabs.activity, icon: '🔥' },
   ];
@@ -186,7 +184,6 @@ export function CommunityPage() {
               {tab === 'feed'     && <FeedTabV2 onOpenProfile={setViewProfileId} />}
               {tab === 'voice'    && <LoungesTab onOpenProfile={setViewProfileId} />}
               {tab === 'people'   && <PeopleTab onOpenProfile={setViewProfileId} />}
-              {tab === 'games'    && <GamesTab />}
               {tab === 'debates'  && <DebatesTab />}
               {tab === 'activity' && <ActivityTab onOpenProfile={setViewProfileId} />}
             </motion.div>

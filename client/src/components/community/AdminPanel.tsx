@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { emitWithAck } from '@/lib/socket';
 
@@ -684,7 +685,7 @@ export default function AdminPanel({ onClose, myModLevel }: AdminPanelProps) {
     return myLevel >= (levelOrder[t.minLevel] ?? 99);
   });
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -774,6 +775,7 @@ export default function AdminPanel({ onClose, myModLevel }: AdminPanelProps) {
           </AnimatePresence>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
