@@ -185,7 +185,7 @@ function DmToastNotification() {
   );
 }
 
-const NAV_ORDER: NavTab[] = ['rooms', 'games', 'community', 'clans', 'leaderboard', 'profile'];
+const NAV_ORDER: NavTab[] = ['community', 'games', 'rooms', 'profile'];
 
 function PageTransition({ children, direction }: { children: React.ReactNode; direction: 1 | -1 }) {
   return (
@@ -208,7 +208,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const profile = useAuthStore(s => s.profile);
   const isMod   = profile?.isModerator ?? false;
   const isOwner = profile?.moderatorLevel === 'owner';
-  const { openDmList } = useSocialStore();
+  const { openDmList, openMoreMenu } = useSocialStore();
   const checkersMatch = useCheckersStore(s => s.match);
   const ludoMatch     = useLudoStore(s => s.match);
   const jokerMatch    = useJokerStore(s => s.match);
@@ -272,8 +272,16 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
         {page === 'mod' && isMod   && <PageTransition key="mod"       direction={direction}><ModDashboardPage /></PageTransition>}
         {page === 'economy' && isOwner && <PageTransition key="economy" direction={direction}><EconomyAdminPage /></PageTransition>}
       </AnimatePresence>
-      {!inGame && <BottomNav active={page} isMod={isMod} onChange={tab => navigate(tab)} onMessagesClick={openDmList} />}
-      <MorePanel isOwner={isOwner} onEconomyClick={() => { setDirection(1); setPage('economy'); }} onShopClick={onOpenShop} onReplaysClick={() => { setInitialReplayId(undefined); setDirection(1); setPage('replays'); }} />
+      {!inGame && <BottomNav active={page} isMod={isMod} onChange={tab => navigate(tab)} onMoreClick={openMoreMenu} />}
+      <MorePanel
+        isOwner={isOwner}
+        onEconomyClick={() => { setDirection(1); setPage('economy'); }}
+        onShopClick={onOpenShop}
+        onReplaysClick={() => { setInitialReplayId(undefined); setDirection(1); setPage('replays'); }}
+        onClansClick={() => navigate('clans')}
+        onLeaderboardClick={() => navigate('leaderboard')}
+        onMessagesClick={openDmList}
+      />
       <YourTurnToast />
     </div>
   );

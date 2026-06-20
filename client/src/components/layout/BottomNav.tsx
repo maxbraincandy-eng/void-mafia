@@ -1,5 +1,3 @@
-import clsx from 'clsx';
-import { useT } from '@/store/langStore';
 import { useSocialStore } from '@/store/socialStore';
 import { haptic } from '@/lib/haptics';
 
@@ -9,125 +7,150 @@ interface Props {
   active: NavTab;
   isMod: boolean;
   onChange: (tab: NavTab) => void;
-  onMessagesClick: () => void;
+  onMoreClick: () => void;
 }
 
-export function BottomNav({ active, isMod, onChange, onMessagesClick }: Props) {
-  const t = useT();
-  const { unreadDmCount, dmPanelOpen } = useSocialStore();
+const TABS = [
+  { id: 'community' as NavTab, label: 'VoidGram', icon: '🌀', color: '#9b00ff' },
+  { id: 'games'     as NavTab, label: 'გართობა', icon: '🎮', color: '#f59e0b' },
+  { id: 'profile'   as NavTab, label: 'მე',       icon: '◉',  color: '#00e5ff' },
+] as const;
 
-  const TABS: { id: NavTab; label: string; icon: string; modOnly?: boolean }[] = [
-    { id: 'rooms',       label: t.nav.rooms,       icon: '🎩' },
-    { id: 'games',       label: t.nav.games,       icon: '🎮' },
-    { id: 'community',   label: t.nav.community,   icon: '🌐' },
-    { id: 'clans',       label: t.nav.clans,       icon: '⚔' },
-    { id: 'leaderboard', label: t.nav.leaderboard, icon: '◈' },
-    { id: 'profile',     label: t.nav.profile,     icon: '◉' },
-    { id: 'mod',         label: t.nav.mod,         icon: '⚡', modOnly: true },
-  ];
+export function BottomNav({ active, onChange, onMoreClick }: Props) {
+  const { unreadDmCount } = useSocialStore();
 
-  const visible = TABS.filter(tab => {
-    if (tab.modOnly) return isMod;
-    return true;
-  });
+  const isRooms = active === 'rooms';
+
+  function go(tab: NavTab) {
+    haptic('selection');
+    onChange(tab);
+  }
+
+  function goMore() {
+    haptic('tap');
+    onMoreClick();
+  }
 
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-50"
       style={{
-        background: 'rgba(3,0,13,0.96)',
+        background: 'rgba(3,0,13,0.97)',
         borderTop: '1px solid rgba(255,255,255,0.06)',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        boxShadow: '0 -4px 32px rgba(0,0,0,0.6)',
-        overflow: 'hidden',
+        boxShadow: '0 -4px 32px rgba(0,0,0,0.65)',
       }}
     >
-      <div className="flex items-stretch justify-around max-w-lg mx-auto relative overflow-hidden">
-        {visible.map(tab => {
+      <div
+        className="flex items-end max-w-lg mx-auto"
+        style={{ height: 64 }}
+      >
+
+        {/* VoidGram + გართობა (left 2) */}
+        {TABS.slice(0, 2).map(tab => {
           const isActive = active === tab.id;
-          const isModeTab = tab.id === 'mod';
-          const isCommunityTab = tab.id === 'community';
-          const isGamesTab = tab.id === 'games';
-          const activeColor = isModeTab ? '#00ff88' : isCommunityTab ? '#9b00ff' : isGamesTab ? '#f59e0b' : '#00e5ff';
-          const inactiveColor = 'rgba(255,255,255,0.28)';
           return (
             <button
               key={tab.id}
-              onClick={() => { haptic('selection'); onChange(tab.id); }}
-              className="flex flex-col items-center justify-center flex-1 min-w-0 transition-all duration-150 active:scale-90"
-              style={{
-                minHeight: '56px',
-                paddingTop: '10px',
-                paddingBottom: '8px',
-                paddingLeft: '2px',
-                paddingRight: '2px',
-                color: isActive ? activeColor : inactiveColor,
-              }}
+              onClick={() => go(tab.id)}
+              className="flex flex-col items-center justify-end flex-1 pb-3 transition-all duration-150 active:scale-90 relative"
+              style={{ color: isActive ? tab.color : 'rgba(255,255,255,0.28)', minHeight: 64 }}
             >
-              {/* Active pill indicator */}
+              {isActive && (
+                <span
+                  className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full"
+                  style={{ background: tab.color, boxShadow: `0 0 8px ${tab.color}` }}
+                />
+              )}
               <span
-                className="absolute top-0 w-8 h-0.5 rounded-full transition-all duration-200"
-                style={{
-                  background: isActive ? activeColor : 'transparent',
-                  boxShadow: isActive ? `0 0 10px ${activeColor}` : 'none',
-                }}
-              />
-              <span
-                className="text-lg leading-none mb-1 transition-all duration-150"
-                style={{ filter: isActive ? `drop-shadow(0 0 6px ${activeColor})` : 'none' }}
+                className="text-xl leading-none mb-1"
+                style={{ filter: isActive ? `drop-shadow(0 0 6px ${tab.color})` : 'none' }}
               >
                 {tab.icon}
               </span>
-              <span
-                className="font-mono uppercase leading-none truncate w-full text-center"
-                style={{ fontSize: 'clamp(10px, 2.5vw, 12px)', letterSpacing: '0.05em' }}
-              >
+              <span className="font-mono uppercase leading-none text-center" style={{ fontSize: 10, letterSpacing: '0.04em' }}>
                 {tab.label}
               </span>
             </button>
           );
         })}
 
-        {/* Messages */}
-        <button
-          onClick={onMessagesClick}
-          className="relative flex flex-col items-center justify-center flex-1 min-w-0 transition-all duration-150 active:scale-90"
-          style={{
-            minHeight: '56px',
-            paddingTop: '10px',
-            paddingBottom: '8px',
-            paddingLeft: '2px',
-            paddingRight: '2px',
-            color: dmPanelOpen ? '#ff00cc' : 'rgba(255,255,255,0.28)',
-          }}
-        >
-          <span
-            className="absolute top-0 w-8 h-0.5 rounded-full transition-all"
+        {/* ── CENTER FAB — Mafia ── */}
+        <div className="flex-1 flex justify-center" style={{ position: 'relative', height: 64 }}>
+          <button
+            onClick={() => go('rooms')}
+            className="absolute transition-all duration-200 active:scale-90 flex flex-col items-center justify-center"
             style={{
-              background: dmPanelOpen ? '#ff00cc' : 'transparent',
-              boxShadow: dmPanelOpen ? '0 0 10px #ff00cc' : 'none',
+              width: 62,
+              height: 62,
+              borderRadius: '50%',
+              bottom: 10,
+              background: isRooms
+                ? 'linear-gradient(145deg, #c026d3, #7c3aed, #0ea5e9)'
+                : 'linear-gradient(145deg, #7c3aed, #4f46e5)',
+              boxShadow: isRooms
+                ? '0 0 0 2px rgba(192,38,211,0.5), 0 0 28px rgba(124,58,237,0.7), 0 4px 16px rgba(0,0,0,0.6)'
+                : '0 0 0 1.5px rgba(124,58,237,0.4), 0 0 18px rgba(79,70,229,0.45), 0 4px 16px rgba(0,0,0,0.5)',
+              zIndex: 2,
             }}
-          />
-          <span
-            className="leading-none mb-1 flex items-center justify-center"
-            style={{ filter: dmPanelOpen ? 'drop-shadow(0 0 6px #ff00cc)' : 'none' }}
+            aria-label="Mafia"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-          </span>
-          <span
-            className="font-mono uppercase leading-none truncate w-full text-center"
-            style={{ fontSize: 'clamp(10px, 2.5vw, 12px)', letterSpacing: '0.05em' }}
-          >MSG</span>
-          {unreadDmCount > 0 && (
-            <span className="absolute top-1.5 right-[10%] bg-neon-pink text-void text-[11px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 leading-none"
-              style={{ boxShadow: '0 0 8px rgba(255,0,204,0.6)' }}>
-              {unreadDmCount > 9 ? '9+' : unreadDmCount}
+            <span style={{ fontSize: 28, lineHeight: 1, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}>🎩</span>
+            <span className="font-mono uppercase text-white/70 leading-none" style={{ fontSize: 9, letterSpacing: '0.08em', marginTop: 2 }}>
+              მაფია
             </span>
-          )}
+          </button>
+        </div>
+
+        {/* მე (profile) */}
+        {TABS.slice(2).map(tab => {
+          const isActive = active === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => go(tab.id)}
+              className="flex flex-col items-center justify-end flex-1 pb-3 transition-all duration-150 active:scale-90 relative"
+              style={{ color: isActive ? tab.color : 'rgba(255,255,255,0.28)', minHeight: 64 }}
+            >
+              {isActive && (
+                <span
+                  className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full"
+                  style={{ background: tab.color, boxShadow: `0 0 8px ${tab.color}` }}
+                />
+              )}
+              <span
+                className="text-xl leading-none mb-1"
+                style={{ filter: isActive ? `drop-shadow(0 0 6px ${tab.color})` : 'none' }}
+              >
+                {tab.icon}
+              </span>
+              <span className="font-mono uppercase leading-none text-center" style={{ fontSize: 10, letterSpacing: '0.04em' }}>
+                {tab.label}
+              </span>
+            </button>
+          );
+        })}
+
+        {/* ☰ მეტი */}
+        <button
+          onClick={goMore}
+          className="flex flex-col items-center justify-end flex-1 pb-3 transition-all duration-150 active:scale-90 relative"
+          style={{ color: 'rgba(255,255,255,0.28)', minHeight: 64 }}
+        >
+          <span className="text-xl leading-none mb-1">☰</span>
+          <span className="font-mono uppercase leading-none text-center relative" style={{ fontSize: 10, letterSpacing: '0.04em' }}>
+            მეტი
+            {unreadDmCount > 0 && (
+              <span
+                className="absolute -top-1 -right-2 min-w-[14px] h-3.5 rounded-full bg-neon-pink text-void text-[9px] font-bold flex items-center justify-center px-0.5 leading-none"
+                style={{ boxShadow: '0 0 6px rgba(255,0,204,0.6)' }}
+              >
+                {unreadDmCount > 9 ? '9+' : unreadDmCount}
+              </span>
+            )}
+          </span>
         </button>
+
       </div>
     </nav>
   );

@@ -114,6 +114,9 @@ interface MorePanelProps {
   onEconomyClick?: () => void;
   onShopClick?: () => void;
   onReplaysClick?: () => void;
+  onClansClick?: () => void;
+  onLeaderboardClick?: () => void;
+  onMessagesClick?: () => void;
 }
 
 function AudioToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
@@ -137,7 +140,7 @@ function AudioToggle({ value, onChange }: { value: boolean; onChange: (v: boolea
   );
 }
 
-export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onReplaysClick }: MorePanelProps) {
+export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onReplaysClick, onClansClick, onLeaderboardClick, onMessagesClick }: MorePanelProps) {
   const { morePanelOpen, closeMoreMenu } = useSocialStore();
   const profile = useAuthStore(s => s.profile);
   const profileId = profile?.id ?? null;
@@ -160,6 +163,35 @@ export function MorePanel({ isOwner = false, onEconomyClick, onShopClick, onRepl
   const open = (fn: () => void) => () => { closeMoreMenu(); setTimeout(fn, 220); };
 
   const sections: Section[] = [
+    {
+      title: 'ნავიგაცია',
+      items: [
+        {
+          icon: '⚔️',
+          label: 'კლანები',
+          description: 'კლანური ბრძოლები და რეიტინგი',
+          iconBg: 'linear-gradient(135deg, rgba(239,68,68,0.28), rgba(220,38,38,0.1))',
+          iconGlow: 'rgba(239,68,68,0.2)',
+          onClick: open(() => onClansClick?.()),
+        },
+        {
+          icon: '🏅',
+          label: 'ლიდერბორდი',
+          description: 'სეზონის საუკეთესო მოთამაშეები',
+          iconBg: 'linear-gradient(135deg, rgba(250,204,21,0.28), rgba(245,158,11,0.1))',
+          iconGlow: 'rgba(250,204,21,0.2)',
+          onClick: open(() => onLeaderboardClick?.()),
+        },
+        {
+          icon: '💬',
+          label: 'შეტყობინებები',
+          description: 'პირდაპირი შეტყობინებები',
+          iconBg: 'linear-gradient(135deg, rgba(0,229,255,0.22), rgba(0,180,200,0.08))',
+          iconGlow: 'rgba(0,229,255,0.18)',
+          onClick: open(() => onMessagesClick?.()),
+        },
+      ],
+    },
     {
       title: mp.sections.discover,
       items: [
