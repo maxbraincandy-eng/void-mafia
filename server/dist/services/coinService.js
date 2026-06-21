@@ -536,14 +536,14 @@ export async function unhideGift(recipientId, giftId) {
 }
 export async function getHiddenGifts(recipientId) {
     const rows = await sql `
-    SELECT
+    SELECT DISTINCT ON (hg.gift_id)
       pg.id, pg.recipient_id, pg.sender_id, pg.gift_id, pg.message, pg.transaction_id, pg.created_at,
       pg.sender_public_id, pg.sender_name,
       pg.receiver_public_id, pg.receiver_name,
       pg.gift_key, pg.gift_image_url, pg.coin_cost,
       p.avatar     AS sender_avatar,
       p.avatar_url AS sender_avatar_url,
-      COALESCE(pg.sender_name, p.username)  AS sender_username,
+      COALESCE(pg.sender_name, p.username) AS sender_username,
       gc.name      AS gift_name,
       gc.icon      AS gift_icon,
       gc.rarity    AS gift_rarity,
@@ -554,8 +554,7 @@ export async function getHiddenGifts(recipientId) {
     JOIN players p       ON p.id   = pg.sender_id
     JOIN gift_catalog gc ON gc.id  = pg.gift_id
     WHERE hg.recipient_id = ${recipientId}
-    GROUP BY pg.id, p.avatar, p.avatar_url, gc.name, gc.icon, gc.rarity, gc.stars, gc.image_url
-    ORDER BY pg.created_at DESC
+    ORDER BY hg.gift_id, pg.created_at DESC
     LIMIT 100
   `;
     return rows.map(r => ({
