@@ -195,6 +195,7 @@ export interface Player {
     moderatorLevel: ModeratorLevel | null;
     deathType: 'night' | 'vote' | 'foul' | null;
     foulCount: number;
+    isBot?: boolean;
 }
 export interface NightAction {
     actorId: string;
@@ -399,6 +400,7 @@ export interface PlayerPublic {
     queuePosition: number | null;
     deathType: 'night' | 'vote' | 'foul' | null;
     foulCount: number;
+    isBot?: boolean;
 }
 export interface RoomPublic {
     id: string;
@@ -964,6 +966,10 @@ export interface ClientToServerEvents {
         isPaused: boolean;
     }>) => void;
     'game:terminate': (cb: Cb<null>) => void;
+    'dev:fill_bots': (data: {
+        count: number;
+    }, cb: Cb<null>) => void;
+    'dev:clear_bots': (cb: Cb<null>) => void;
     'game:don_check': (data: {
         targetId: string | null;
     }, cb: Cb<null>) => void;

@@ -966,14 +966,14 @@ export function submitDoubleEliminationVote(room: Room, voter: Player, yes: bool
 export function allMafiaKillVotesSubmitted(room: Room): boolean {
   if (!room.donModeState) return false;
   const aliveMafia = [...room.players.values()].filter(
-    p => p.isAlive && !p.isSpectator && p.team === 'mafia',
+    p => p.isAlive && !p.isSpectator && p.team === 'mafia' && !p.isBot,
   );
   return aliveMafia.length > 0 && aliveMafia.every(p => room.donModeState!.mafiaKillVotes[p.id]);
 }
 
 export function allDoubleElimVotesSubmitted(room: Room): boolean {
   if (!room.donModeState) return false;
-  const alive = [...room.players.values()].filter(p => p.isAlive && !p.isSpectator && !p.isQueuedNextRound);
+  const alive = [...room.players.values()].filter(p => p.isAlive && !p.isSpectator && !p.isQueuedNextRound && !p.isBot);
   return alive.length > 0 && alive.every(p => p.hasActedThisPhase);
 }
 
@@ -1134,6 +1134,7 @@ export function buildGameOverResult(room: Room): GameOverResult {
 export function allNightActionsSubmitted(room: Room): boolean {
   const alivePlayers = getAlivePlayers(room);
   const actorsNeeded = alivePlayers.filter(p => {
+    if (p.isBot) return false;
     if (!p.role) return false;
     return getRole(p.role).wakeAtNight;
   });

@@ -184,6 +184,7 @@ export interface PlayerPublic {
   moderatorLevel: ModeratorLevel | null;
   deathType: 'night' | 'vote' | 'foul' | null;
   foulCount: number;
+  isBot?: boolean;
 }
 
 export interface DynamicEventAllowed {

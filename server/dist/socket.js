@@ -1748,6 +1748,67 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
+        // ── Dev: Fill Bots (owner-only, lobby phase only) ───────────────
+        socket.on('dev:fill_bots', async ({ count }, cb) => {
+            try {
+                const room = getRoomFromSocket(socket);
+                const actor = getPlayerOrError(socket, room);
+                const profile = socket.data.profileId ? await getPlayer(socket.data.profileId) : null;
+                if (profile?.moderatorLevel !== 'owner')
+                    throw new Error('Owner only.');
+                if (room.phase !== 'lobby')
+                    throw new Error('Can only fill bots in lobby.');
+                const existing = [...room.players.values()].filter(p => !p.isSpectator).length;
+                const toAdd = Math.min(count, 20 - existing);
+                if (toAdd <= 0)
+                    throw new Error('Room already has enough players.');
+                const botNames = ['Beka', 'Nino', 'Gio', 'Maka', 'Dato', 'Lika', 'Zura', 'Ana', 'Sandro', 'Tama',
+                    'Keti', 'Nika', 'Mari', 'Irakli', 'Salome', 'Giorgi', 'Levan', 'Nana', 'Lasha', 'Elene'];
+                const taken = new Set([...room.players.values()].map(p => p.name));
+                let seatNum = Math.max(...[...room.players.values()].map(p => p.seat), 0);
+                for (let i = 0; i < toAdd; i++) {
+                    const name = botNames.find(n => !taken.has(n)) ?? `Bot${i + 1}`;
+                    taken.add(name);
+                    seatNum++;
+                    const botId = `bot_${randomUUID()}`;
+                    const bot = {
+                        id: botId, name, avatar: '🤖', avatarUrl: null, socketId: `bot_socket_${botId}`,
+                        isHost: false, isAlive: true, isConnected: true, isReady: true,
+                        role: null, team: null, voteTarget: null, hasActedThisPhase: false,
+                        seat: seatNum, joinedAt: Date.now(), profileId: null,
+                        isSpectator: false, isQueuedNextRound: false, queuePosition: null,
+                        lastWill: null, isModerator: false, moderatorLevel: null,
+                        deathType: null, foulCount: 0, isBot: true,
+                    };
+                    room.players.set(botId, bot);
+                }
+                broadcastRoom(io, room);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Dev: Remove Bots (owner-only) ────────────────────────────────
+        socket.on('dev:clear_bots', async (cb) => {
+            try {
+                const room = getRoomFromSocket(socket);
+                const profile = socket.data.profileId ? await getPlayer(socket.data.profileId) : null;
+                if (profile?.moderatorLevel !== 'owner')
+                    throw new Error('Owner only.');
+                if (room.phase !== 'lobby')
+                    throw new Error('Can only clear bots in lobby.');
+                for (const [id, p] of room.players) {
+                    if (p.isBot)
+                        room.players.delete(id);
+                }
+                broadcastRoom(io, room);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
         // ── Skip Phase ──────────────────────────────────────────────────
         socket.on('game:skip', async (cb) => {
             try {

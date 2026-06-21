@@ -440,6 +440,7 @@ export function toPublicRoom(room, viewerPlayerId) {
         queuePosition: p.queuePosition,
         deathType: p.deathType,
         foulCount: p.foulCount ?? 0,
+        ...(p.isBot ? { isBot: true } : {}),
     });
     const players = [...room.players.values()]
         .sort((a, b) => a.seat - b.seat)
