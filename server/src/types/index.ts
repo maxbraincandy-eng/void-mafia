@@ -299,6 +299,7 @@ export interface Player {
   moderatorLevel: ModeratorLevel | null;
   deathType: 'night' | 'vote' | 'foul' | null;
   foulCount: number;
+  isBot?: boolean;
 }
 
 export interface NightAction {
@@ -512,6 +513,7 @@ export interface PlayerPublic {
   queuePosition: number | null;
   deathType: 'night' | 'vote' | 'foul' | null;
   foulCount: number;
+  isBot?: boolean;
 }
 
 export interface RoomPublic {
@@ -910,6 +912,9 @@ export interface ClientToServerEvents {
   'game:set_will':      (data: { text: string }, cb: Cb<null>) => void;
   'game:pause':         (cb: Cb<{ isPaused: boolean }>) => void;
   'game:terminate':          (cb: Cb<null>) => void;
+  // Dev tools (owner-only)
+  'dev:fill_bots':           (data: { count: number }, cb: Cb<null>) => void;
+  'dev:clear_bots':          (cb: Cb<null>) => void;
   // Don Mode
   'game:don_check':          (data: { targetId: string | null }, cb: Cb<null>) => void;
   'game:mafia_kill_vote':    (data: { targetId: string }, cb: Cb<null>) => void;

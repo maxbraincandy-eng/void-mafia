@@ -94,6 +94,9 @@ interface GameStore {
   getLeaderboard: () => Promise<PlayerProfilePublic[]>;
   joinQueue: () => Promise<void>;
   leaveQueue: () => Promise<void>;
+  // Dev tools (owner only)
+  fillBots: (count: number) => Promise<void>;
+  clearBots: () => Promise<void>;
   // Don Mode
   donCheckResult: { targetId: string; targetName: string; isSheriff: boolean } | null;
   submitDonCheck: (targetId: string | null) => Promise<void>;
@@ -705,6 +708,17 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (!res.ok) throw new Error(res.error);
       set({ queuePosition: null });
       get().addToast('Left the next-round queue', 'info');
+    }),
+
+    // ── Dev tools (owner only) ────────────────────────────────────────────
+    fillBots: withLoading(async (count: number) => {
+      const res = await emitWithAck<{ count: number }, Res<null>>('dev:fill_bots', { count });
+      if (!res.ok) throw new Error(res.error);
+    }),
+
+    clearBots: withLoading(async () => {
+      const res = await emitWithAck<undefined, Res<null>>('dev:clear_bots', undefined);
+      if (!res.ok) throw new Error(res.error);
     }),
 
     // ── Don Mode ──────────────────────────────────────────────────────────

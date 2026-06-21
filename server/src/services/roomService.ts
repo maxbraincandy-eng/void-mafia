@@ -476,6 +476,7 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     queuePosition: p.queuePosition,
     deathType: p.deathType,
     foulCount: p.foulCount ?? 0,
+    ...(p.isBot ? { isBot: true } : {}),
   });
 
   const players: PlayerPublic[] = [...room.players.values()]

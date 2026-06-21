@@ -40,7 +40,9 @@ export function LobbyPage() {
 
   const { openProfile, openDmList, unreadDmCount } = useSocialStore();
   const isMod = useAuthStore(s => s.profile?.isModerator ?? false);
+  const isOwner = useAuthStore(s => s.profile?.moderatorLevel === 'owner');
   const myLevel = useAuthStore(s => s.profile?.level ?? 1);
+  const { fillBots, clearBots } = useGameStore(s => ({ fillBots: s.fillBots, clearBots: s.clearBots }));
 
   const handleLeave = () => { voice.leaveVoice(); leaveRoom(); };
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -526,6 +528,35 @@ export function LobbyPage() {
                   >
                     Settings
                   </button>
+
+                  {/* Dev tools — owner only */}
+                  {isOwner && (
+                    <div className="flex gap-2 w-full">
+                      {[10, 12].map(target => {
+                        const need = target - playerCount;
+                        if (need <= 0) return null;
+                        return (
+                          <button
+                            key={target}
+                            onClick={() => fillBots(need)}
+                            disabled={isLoading}
+                            className="flex-1 px-3 py-1.5 rounded-xl border border-neon-purple/30 text-neon-purple/60 text-[11px] font-mono hover:border-neon-purple/60 hover:text-neon-purple/90 transition-all disabled:opacity-40"
+                          >
+                            🤖 +{need} → {target}p
+                          </button>
+                        );
+                      })}
+                      {[...room.players.values()].some(p => p.isBot) && (
+                        <button
+                          onClick={() => clearBots()}
+                          disabled={isLoading}
+                          className="px-3 py-1.5 rounded-xl border border-red-500/30 text-red-400/50 text-[11px] font-mono hover:border-red-500/60 hover:text-red-400/80 transition-all disabled:opacity-40"
+                        >
+                          ✕ bots
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
 
