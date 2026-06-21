@@ -82,7 +82,7 @@ import {
   getGiftCatalog, createGift, updateGift,
   sendGift, getPlayerGifts, getGiftDetail,
   getGiftsSent, getGiftTimeline, getGiftStats,
-  getPinnedGifts, pinGift, unpinGift,
+  getPinnedGifts, pinGift, unpinGift, hideGift, unhideGift,
   purchaseCosmeticItem,
 } from './services/coinService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
@@ -3819,6 +3819,26 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!profileId) throw new Error('Not authenticated.');
         if (!giftId) throw new Error('giftId required.');
         await unpinGift(profileId, giftId);
+        cb(ok({}));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('gifts:hide' as any, async ({ giftId }: any, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        if (!giftId) throw new Error('giftId required.');
+        await hideGift(profileId, giftId);
+        cb(ok({}));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('gifts:unhide' as any, async ({ giftId }: any, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        if (!giftId) throw new Error('giftId required.');
+        await unhideGift(profileId, giftId);
         cb(ok({}));
       } catch (e: any) { cb(err(e.message)); }
     });

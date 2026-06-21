@@ -14,7 +14,8 @@ import { GiftGallery } from '@/components/ui/GiftGallery';
 import { ShareCardModal } from '@/components/ui/ShareCardModal';
 import type { ProfileCardData } from '@/components/ui/ProfileCard';
 import { emitWithAck, socket } from '@/lib/socket';
-import type { AchievementEarned, GameHistoryEntry, PlayerRoleStats, ClanMembership, Res, PlayerCosmetics, PlayerRating, SeasonResult } from '@/types/index';
+import type { AchievementEarned, GameHistoryEntry, PlayerRoleStats, ClanMembership, Res, PlayerCosmetics, PlayerRating, SeasonResult, Friend, FriendRequest } from '@/types/index';
+import { useGameStore } from '@/store/gameStore';
 import { RatingBadge } from '@/components/ui/RatingBadge';
 import {
   FRAMES, TITLES, ROLE_SKINS, WALLPAPERS, BORDERS, NAME_COLORS,
@@ -146,6 +147,9 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
   const [buyMsg, setBuyMsg] = useState<string | null>(null);
   const [rating, setRating] = useState<PlayerRating | null>(null);
   const [seasonHistory, setSeasonHistory] = useState<SeasonResult[] | null>(null);
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [showFriendsModal, setShowFriendsModal] = useState(false);
+  const pendingFriendRequests = useGameStore(s => s.pendingFriendRequests);
 
   const startEditName = () => {
     setNewName(profile?.username ?? '');
@@ -204,6 +208,14 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
       if (rsRes.ok)   setRoleStats(rsRes.data);
       setClan(clanRes.ok ? clanRes.data : null);
     }).finally(() => setLoadingAch(false));
+  }, [profile]);
+
+  // Friends list
+  useEffect(() => {
+    if (!profile) return;
+    emitWithAck<void, Res<Friend[]>>('friend:list').then(res => {
+      if (res.ok) setFriends(res.data ?? []);
+    }).catch(() => {});
   }, [profile]);
 
   // Coin balance
@@ -1064,6 +1076,107 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
           )}
         </motion.div>
 
+        {/* ── Friends box ────────────────────────────────────────────── */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.065 }}
+          className="glass-panel border border-white/8 rounded-2xl p-4 mb-3">
+          <div className="flex items-center justify-between mb-2">
+            <SectionHeader icon="👥" title="Friends" />
+            <div className="flex items-center gap-2">
+              {pendingFriendRequests.length > 0 && (
+                <span className="bg-neon-pink/20 border border-neon-pink/30 text-neon-pink font-mono text-[12px] px-1.5 py-0.5 rounded-full">
+                  {pendingFriendRequests.length} new
+                </span>
+              )}
+              <button
+                onClick={() => setShowFriendsModal(true)}
+                className="font-mono text-[12px] text-white/25 hover:text-neon-cyan/60 transition-colors uppercase tracking-wider"
+              >
+                see more
+              </button>
+            </div>
+          </div>
+
+          {/* Pending requests first */}
+          {pendingFriendRequests.length > 0 && (
+            <div className="mb-2 space-y-1.5">
+              {pendingFriendRequests.slice(0, 2).map(req => (
+                <div key={req.id} className="flex items-center gap-2 px-2.5 py-2 rounded-xl border border-neon-pink/15 bg-neon-pink/5">
+                  <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-sm flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg,rgba(255,0,128,.35),rgba(138,43,226,.35))', border: '1px solid rgba(138,43,226,.25)' }}>
+                    {req.fromAvatarUrl
+                      ? <img src={req.fromAvatarUrl} alt={req.fromUsername} className="w-full h-full object-cover rounded-full" />
+                      : req.fromAvatar}
+                  </div>
+                  <span className="flex-1 font-mono text-xs text-white/80 truncate">{req.fromUsername}</span>
+                  <button
+                    onClick={async () => {
+                      await emitWithAck<{ fromProfileId: string }, Res<null>>('friend:accept', { fromProfileId: req.fromId });
+                      useGameStore.setState(s => ({ pendingFriendRequests: s.pendingFriendRequests.filter(r => r.fromId !== req.fromId) }));
+                      emitWithAck<void, Res<Friend[]>>('friend:list').then(r => { if (r.ok) setFriends(r.data ?? []); }).catch(() => {});
+                    }}
+                    className="px-2 py-1 rounded-lg text-[12px] font-bold text-neon-green border border-neon-green/30 bg-neon-green/8 hover:bg-neon-green/15 transition-all"
+                  >✓ Add</button>
+                  <button
+                    onClick={async () => {
+                      await emitWithAck<{ fromProfileId: string }, Res<null>>('friend:decline', { fromProfileId: req.fromId });
+                      useGameStore.setState(s => ({ pendingFriendRequests: s.pendingFriendRequests.filter(r => r.fromId !== req.fromId) }));
+                    }}
+                    className="px-2 py-1 rounded-lg text-[12px] font-bold text-white/35 border border-white/10 hover:bg-white/8 transition-all"
+                  >✕</button>
+                </div>
+              ))}
+              {pendingFriendRequests.length > 2 && (
+                <button onClick={() => setShowFriendsModal(true)} className="text-center w-full font-mono text-[12px] text-neon-pink/50 hover:text-neon-pink/80 transition-colors py-0.5">
+                  +{pendingFriendRequests.length - 2} more requests
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Friends list — up to 5 */}
+          {friends.length === 0 && pendingFriendRequests.length === 0 && (
+            <p className="text-white/15 font-mono text-xs text-center py-2">No friends yet — add by 4-digit code</p>
+          )}
+          {friends.length > 0 && (
+            <div className="space-y-0.5">
+              {[...friends]
+                .sort((a, b) => {
+                  const aOn = a.isOnline || a.playerStatus === 'online' || a.playerStatus === 'in_game';
+                  const bOn = b.isOnline || b.playerStatus === 'online' || b.playerStatus === 'in_game';
+                  return Number(bOn) - Number(aOn);
+                })
+                .slice(0, 5)
+                .map(f => {
+                  const isOnline = f.isOnline || f.playerStatus === 'online' || f.playerStatus === 'in_game';
+                  return (
+                    <div key={f.profileId} className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-white/4 transition-colors">
+                      <div className="relative flex-shrink-0">
+                        <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-sm"
+                          style={{ background: 'linear-gradient(135deg,rgba(255,0,128,.35),rgba(138,43,226,.35))', border: '1px solid rgba(138,43,226,.25)' }}>
+                          {f.avatarUrl
+                            ? <img src={f.avatarUrl} alt={f.username} className="w-full h-full object-cover rounded-full" />
+                            : f.avatar}
+                        </div>
+                        <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-void"
+                          style={{ background: f.playerStatus === 'in_game' ? '#00f5ff' : isOnline ? '#00ff88' : 'rgba(255,255,255,0.15)' }} />
+                      </div>
+                      <span className="flex-1 font-mono text-xs text-white/70 truncate">{f.username}</span>
+                      <span className="font-mono text-[12px]" style={{ color: f.playerStatus === 'in_game' ? '#00f5ff' : isOnline ? '#00ff88' : 'rgba(255,255,255,0.2)' }}>
+                        {f.playerStatus === 'in_game' ? 'In Game' : isOnline ? 'Online' : `Lv.${f.level}`}
+                      </span>
+                    </div>
+                  );
+                })}
+              {friends.length > 5 && (
+                <button onClick={() => setShowFriendsModal(true)}
+                  className="w-full text-center font-mono text-[12px] text-white/20 hover:text-neon-cyan/50 transition-colors py-1.5">
+                  see more… ({friends.length - 5} more)
+                </button>
+              )}
+            </div>
+          )}
+        </motion.div>
+
         {/* ── Clan section ───────────────────────────────────────────── */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.07 }}
           className="glass-panel border border-white/8 rounded-2xl p-4 mb-3">
@@ -1425,6 +1538,32 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
       </div>
 
       <RoleInfoModal open={showRoleGuide} onClose={() => setShowRoleGuide(false)} />
+
+      {/* ── Friends full modal ──────────────────────────────────────── */}
+      <AnimatePresence>
+        {showFriendsModal && (
+          <motion.div
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 backdrop-blur-sm px-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setShowFriendsModal(false)}
+          >
+            <motion.div
+              className="w-full max-w-sm rounded-2xl overflow-hidden flex flex-col"
+              style={{ background: 'rgba(8,4,20,0.97)', border: '1px solid rgba(255,255,255,0.08)', maxHeight: '80vh' }}
+              initial={{ scale: 0.94, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.94, y: 20 }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-white/6">
+                <p className="font-mono text-[12px] uppercase tracking-[0.2em] text-white/40">👥 Friends</p>
+                <button onClick={() => setShowFriendsModal(false)} className="text-white/30 hover:text-white/70 text-sm">✕</button>
+              </div>
+              <div className="overflow-y-auto flex-1 p-4">
+                <FriendsPanel />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <ShareCardModal
         open={showShare}
