@@ -455,6 +455,14 @@ export async function initializeDatabase() {
       PRIMARY KEY (player_id, gift_id)
     )
   `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS hidden_gifts (
+      recipient_id TEXT NOT NULL,
+      gift_id      TEXT NOT NULL,
+      hidden_at    BIGINT NOT NULL,
+      PRIMARY KEY (recipient_id, gift_id)
+    )
+  `;
     await sql `ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS gift_rarity TEXT NOT NULL DEFAULT 'common'`;
     await sql `ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS gift_stars INTEGER NOT NULL DEFAULT 1`;
     await sql `ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS gift_category TEXT NOT NULL DEFAULT 'symbols'`;

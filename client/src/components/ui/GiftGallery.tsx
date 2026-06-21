@@ -53,15 +53,18 @@ function Avatar({ avatar, avatarUrl, size = 8 }: { avatar: string; avatarUrl?: s
 // ── Gift Detail Modal ───────────────────────────────────────────────────────
 
 function GiftDetailModal({
-  gift, recipientId, canPin, isPinned, onClose, onPin, onUnpin,
+  gift, recipientId, canPin, isPinned, onClose, onPin, onUnpin, onHide,
 }: {
   gift: PlayerGift; recipientId: string; canPin: boolean;
   isPinned: boolean; onClose: () => void;
   onPin: (giftId: string) => void; onUnpin: (giftId: string) => void;
+  onHide?: (giftId: string) => void;
 }) {
   const [detail, setDetail] = useState<GiftDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [pinLoading, setPinLoading] = useState(false);
+  const [hideLoading, setHideLoading] = useState(false);
+  const [hideConfirm, setHideConfirm] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -81,6 +84,15 @@ function GiftDetailModal({
         if (res.ok) onPin(gift.giftId);
       }
     } finally { setPinLoading(false); }
+  };
+
+  const handleHide = async () => {
+    if (!hideConfirm) { setHideConfirm(true); return; }
+    setHideLoading(true);
+    try {
+      const res = await emitWithAck<any, Res<{}>>('gifts:hide' as any, { giftId: gift.giftId });
+      if (res.ok) { onHide?.(gift.giftId); onClose(); }
+    } finally { setHideLoading(false); setHideConfirm(false); }
   };
 
   const borderColor = RARITY_BORDER[gift.giftRarity] ?? RARITY_BORDER.common;
@@ -112,17 +124,30 @@ function GiftDetailModal({
         </div>
 
         {canPin && (
-          <button
-            onClick={handlePinToggle}
-            disabled={pinLoading}
-            className={`w-full mb-3 py-2 rounded-xl font-mono text-[12px] uppercase tracking-widest border transition-all ${
-              isPinned
-                ? 'bg-amber-400/10 border-amber-400/30 text-amber-400 hover:bg-amber-400/20'
-                : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:text-white/70'
-            }`}
-          >
-            {pinLoading ? '...' : isPinned ? '📌 Unpin from Profile' : '📌 Pin to Profile'}
-          </button>
+          <div className="flex gap-2 mb-3">
+            <button
+              onClick={handlePinToggle}
+              disabled={pinLoading}
+              className={`flex-1 py-2 rounded-xl font-mono text-[12px] uppercase tracking-widest border transition-all ${
+                isPinned
+                  ? 'bg-amber-400/10 border-amber-400/30 text-amber-400 hover:bg-amber-400/20'
+                  : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:text-white/70'
+              }`}
+            >
+              {pinLoading ? '...' : isPinned ? '📌 Unpin' : '📌 Pin'}
+            </button>
+            <button
+              onClick={handleHide}
+              disabled={hideLoading}
+              className={`flex-1 py-2 rounded-xl font-mono text-[12px] uppercase tracking-widest border transition-all ${
+                hideConfirm
+                  ? 'bg-red-500/20 border-red-500/40 text-red-400 hover:bg-red-500/30'
+                  : 'bg-white/3 border-white/8 text-white/25 hover:bg-white/8 hover:text-white/50'
+              }`}
+            >
+              {hideLoading ? '...' : hideConfirm ? '✕ Confirm Hide' : '🗑 Hide Gift'}
+            </button>
+          </div>
         )}
 
         {loading && <p className="text-center text-white/30 font-mono text-xs py-4">Loading...</p>}
@@ -292,6 +317,7 @@ export function GiftGallery({ profileId, viewerId }: Props) {
   const [stats, setStats]       = useState<GiftStats | null>(null);
   const [pinned, setPinned]     = useState<PinnedGiftEntry[]>([]);
   const [selected, setSelected] = useState<PlayerGift | null>(null);
+  const [hidden, setHidden]     = useState<Set<string>>(new Set());
   const [loading, setLoading]   = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [statsLoaded, setStatsLoaded]     = useState(false);
@@ -380,9 +406,14 @@ export function GiftGallery({ profileId, viewerId }: Props) {
     setPinned(prev => prev.filter(p => p.giftId !== giftId));
   }, [isOwn]);
 
-  // Deduplicate received by giftId for the grid
+  const handleHide = useCallback((giftId: string) => {
+    setHidden(prev => new Set([...prev, giftId]));
+    setPinned(prev => prev.filter(p => p.giftId !== giftId));
+  }, []);
+
+  // Deduplicate received by giftId for the grid (excluding hidden)
   const uniqueReceived = received.reduce<PlayerGift[]>((acc, g) => {
-    if (!acc.find(x => x.giftId === g.giftId)) acc.push(g);
+    if (!acc.find(x => x.giftId === g.giftId) && !hidden.has(g.giftId)) acc.push(g);
     return acc;
   }, []);
 
@@ -562,6 +593,7 @@ export function GiftGallery({ profileId, viewerId }: Props) {
             onClose={() => setSelected(null)}
             onPin={handlePin}
             onUnpin={handleUnpin}
+            onHide={isOwn ? handleHide : undefined}
           />
         )}
       </AnimatePresence>
