@@ -722,6 +722,54 @@ export async function unhideGift(recipientId: string, giftId: string): Promise<v
   await sql`DELETE FROM hidden_gifts WHERE recipient_id = ${recipientId} AND gift_id = ${giftId}`;
 }
 
+export async function getHiddenGifts(recipientId: string): Promise<PlayerGift[]> {
+  const rows = await sql`
+    SELECT
+      pg.id, pg.recipient_id, pg.sender_id, pg.gift_id, pg.message, pg.transaction_id, pg.created_at,
+      pg.sender_public_id, pg.sender_name,
+      pg.receiver_public_id, pg.receiver_name,
+      pg.gift_key, pg.gift_image_url, pg.coin_cost,
+      p.avatar     AS sender_avatar,
+      p.avatar_url AS sender_avatar_url,
+      COALESCE(pg.sender_name, p.username)  AS sender_username,
+      gc.name      AS gift_name,
+      gc.icon      AS gift_icon,
+      gc.rarity    AS gift_rarity,
+      gc.stars     AS gift_stars,
+      COALESCE(gc.image_url, '') AS gift_img
+    FROM hidden_gifts hg
+    JOIN player_gifts pg ON pg.gift_id = hg.gift_id AND pg.recipient_id = hg.recipient_id
+    JOIN players p       ON p.id   = pg.sender_id
+    JOIN gift_catalog gc ON gc.id  = pg.gift_id
+    WHERE hg.recipient_id = ${recipientId}
+    GROUP BY pg.id, p.avatar, p.avatar_url, gc.name, gc.icon, gc.rarity, gc.stars, gc.image_url
+    ORDER BY pg.created_at DESC
+    LIMIT 100
+  ` as any[];
+  return rows.map(r => ({
+    id: r.id,
+    recipientId: r.recipient_id,
+    receiverPublicId: r.receiver_public_id != null ? Number(r.receiver_public_id) : null,
+    receiverName: r.receiver_name ?? '',
+    senderId: r.sender_id,
+    senderPublicId: r.sender_public_id != null ? Number(r.sender_public_id) : null,
+    senderUsername: r.sender_username ?? '',
+    senderAvatar: r.sender_avatar ?? '',
+    senderAvatarUrl: r.sender_avatar_url ?? null,
+    giftId: r.gift_id,
+    giftKey: r.gift_key ?? r.gift_id,
+    giftName: r.gift_name,
+    giftIcon: r.gift_icon,
+    giftImageUrl: r.gift_img ?? '',
+    giftRarity: r.gift_rarity,
+    giftStars: Number(r.gift_stars),
+    coinCost: r.coin_cost != null ? Number(r.coin_cost) : 0,
+    message: r.message ?? '',
+    transactionId: r.transaction_id,
+    createdAt: Number(r.created_at),
+  }));
+}
+
 export function currentSeasonTag(): string | null {
   const now = new Date();
   const month = now.getMonth() + 1; // 1-12
