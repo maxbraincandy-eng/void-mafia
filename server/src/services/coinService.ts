@@ -456,6 +456,9 @@ export async function getPlayerGifts(recipientId: string): Promise<PlayerGift[]>
     JOIN players p       ON p.id   = pg.sender_id
     JOIN gift_catalog gc ON gc.id  = pg.gift_id
     WHERE pg.recipient_id = ${recipientId}
+      AND pg.gift_id NOT IN (
+        SELECT gift_id FROM hidden_gifts WHERE recipient_id = ${recipientId}
+      )
     ORDER BY pg.created_at DESC
     LIMIT 200
   ` as any[];
@@ -704,6 +707,19 @@ export async function pinGift(playerId: string, giftId: string): Promise<void> {
 
 export async function unpinGift(playerId: string, giftId: string): Promise<void> {
   await sql`DELETE FROM pinned_gifts WHERE player_id = ${playerId} AND gift_id = ${giftId}`;
+}
+
+export async function hideGift(recipientId: string, giftId: string): Promise<void> {
+  await sql`
+    INSERT INTO hidden_gifts (recipient_id, gift_id, hidden_at)
+    VALUES (${recipientId}, ${giftId}, ${Date.now()})
+    ON CONFLICT (recipient_id, gift_id) DO NOTHING
+  `;
+  await sql`DELETE FROM pinned_gifts WHERE player_id = ${recipientId} AND gift_id = ${giftId}`;
+}
+
+export async function unhideGift(recipientId: string, giftId: string): Promise<void> {
+  await sql`DELETE FROM hidden_gifts WHERE recipient_id = ${recipientId} AND gift_id = ${giftId}`;
 }
 
 export function currentSeasonTag(): string | null {
