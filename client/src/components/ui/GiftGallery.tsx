@@ -316,9 +316,12 @@ export function GiftGallery({ profileId, viewerId }: Props) {
   const [timeline, setTimeline] = useState<GiftTimelineEntry[]>([]);
   const [stats, setStats]       = useState<GiftStats | null>(null);
   const [pinned, setPinned]     = useState<PinnedGiftEntry[]>([]);
-  const [selected, setSelected] = useState<PlayerGift | null>(null);
-  const [hidden, setHidden]     = useState<Set<string>>(new Set());
-  const [loading, setLoading]   = useState(true);
+  const [selected, setSelected]       = useState<PlayerGift | null>(null);
+  const [hidden, setHidden]           = useState<Set<string>>(new Set());
+  const [hiddenGifts, setHiddenGifts] = useState<PlayerGift[]>([]);
+  const [showHidden, setShowHidden]   = useState(false);
+  const [hiddenLoaded, setHiddenLoaded] = useState(false);
+  const [loading, setLoading]         = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [statsLoaded, setStatsLoaded]     = useState(false);
   const [timelineLoaded, setTimelineLoaded] = useState(false);
@@ -409,7 +412,24 @@ export function GiftGallery({ profileId, viewerId }: Props) {
   const handleHide = useCallback((giftId: string) => {
     setHidden(prev => new Set([...prev, giftId]));
     setPinned(prev => prev.filter(p => p.giftId !== giftId));
+    setHiddenLoaded(false);
   }, []);
+
+  const handleUnhide = useCallback(async (giftId: string) => {
+    const res = await emitWithAck<any, Res<{}>>('gifts:unhide' as any, { giftId });
+    if (!res.ok) return;
+    setHiddenGifts(prev => prev.filter(g => g.giftId !== giftId));
+    setHidden(prev => { const n = new Set(prev); n.delete(giftId); return n; });
+    setHiddenLoaded(false);
+    loadReceived();
+  }, [loadReceived]);
+
+  const loadHidden = useCallback(async () => {
+    if (hiddenLoaded) return;
+    const res = await emitWithAck<any, Res<PlayerGift[]>>('gifts:getHidden' as any, {});
+    if (res.ok) setHiddenGifts(res.data);
+    setHiddenLoaded(true);
+  }, [hiddenLoaded]);
 
   // Deduplicate received by giftId for the grid (excluding hidden)
   const uniqueReceived = received.reduce<PlayerGift[]>((acc, g) => {
@@ -506,6 +526,56 @@ export function GiftGallery({ profileId, viewerId }: Props) {
                       </motion.button>
                     );
                   })}
+                </div>
+              )}
+
+              {/* ── Hidden gifts section (own profile only) ── */}
+              {!loading && isOwn && (
+                <div className="mt-4">
+                  <button
+                    onClick={() => { setShowHidden(v => !v); if (!showHidden) loadHidden(); }}
+                    className="w-full flex items-center justify-between py-1.5 px-2 rounded-xl hover:bg-white/4 transition-colors group"
+                  >
+                    <span className="font-mono text-[12px] text-white/20 group-hover:text-white/35 transition-colors uppercase tracking-wider">
+                      🗑 Hidden gifts {hiddenGifts.length > 0 && !showHidden ? `(${hiddenGifts.length})` : hidden.size > 0 && !hiddenLoaded ? '' : ''}
+                    </span>
+                    <span className="text-white/15 text-[12px]">{showHidden ? '▲' : '▼'}</span>
+                  </button>
+                  <AnimatePresence>
+                    {showHidden && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        {!hiddenLoaded && <p className="text-white/15 font-mono text-xs text-center py-3">Loading...</p>}
+                        {hiddenLoaded && hiddenGifts.length === 0 && (
+                          <p className="text-white/12 font-mono text-xs text-center py-3">No hidden gifts</p>
+                        )}
+                        {hiddenLoaded && hiddenGifts.length > 0 && (
+                          <div className="space-y-1.5 pt-2">
+                            {hiddenGifts.map(g => (
+                              <div key={g.giftId} className="flex items-center gap-2.5 px-2 py-2 rounded-xl opacity-50 hover:opacity-75 transition-opacity"
+                                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                {g.giftImageUrl
+                                  ? <img src={g.giftImageUrl} alt={g.giftName} className="w-7 h-7 rounded-lg object-cover flex-shrink-0" />
+                                  : <span className="text-lg flex-shrink-0">{g.giftIcon}</span>}
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-mono text-xs text-white/50 truncate">{g.giftName}</p>
+                                  <p className="font-mono text-[12px] text-white/20">{g.senderUsername}</p>
+                                </div>
+                                <button
+                                  onClick={() => handleUnhide(g.giftId)}
+                                  className="flex-shrink-0 px-2.5 py-1 rounded-lg font-mono text-[12px] text-neon-cyan/60 border border-neon-cyan/20 hover:bg-neon-cyan/10 hover:text-neon-cyan transition-all"
+                                >
+                                  ↩ Restore
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               )}
             </>

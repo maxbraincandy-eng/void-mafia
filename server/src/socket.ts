@@ -82,7 +82,7 @@ import {
   getGiftCatalog, createGift, updateGift,
   sendGift, getPlayerGifts, getGiftDetail,
   getGiftsSent, getGiftTimeline, getGiftStats,
-  getPinnedGifts, pinGift, unpinGift, hideGift, unhideGift,
+  getPinnedGifts, pinGift, unpinGift, hideGift, unhideGift, getHiddenGifts,
   purchaseCosmeticItem,
 } from './services/coinService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
@@ -3840,6 +3840,15 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!giftId) throw new Error('giftId required.');
         await unhideGift(profileId, giftId);
         cb(ok({}));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('gifts:getHidden' as any, async (_: any, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const gifts = await getHiddenGifts(profileId);
+        cb(ok(gifts));
       } catch (e: any) { cb(err(e.message)); }
     });
 
