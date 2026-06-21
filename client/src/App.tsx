@@ -248,7 +248,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
-    if (swipeLocked.current || inGame || page === 'community') return;
+    if (swipeLocked.current || inGame || page === 'community' || page === 'mod' || page === 'economy') return;
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     const dy = e.changedTouches[0].clientY - touchStartY.current;
     if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx) * 0.7) return;
