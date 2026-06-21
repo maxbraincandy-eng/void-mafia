@@ -412,15 +412,17 @@ export function GiftGallery({ profileId, viewerId }: Props) {
   const handleHide = useCallback((giftId: string) => {
     setHidden(prev => new Set([...prev, giftId]));
     setPinned(prev => prev.filter(p => p.giftId !== giftId));
-    setHiddenLoaded(false);
-  }, []);
+    // Optimistically add the gift to the hidden list immediately
+    const gift = received.find(g => g.giftId === giftId);
+    if (gift) setHiddenGifts(prev => prev.find(g => g.giftId === giftId) ? prev : [gift, ...prev]);
+    setHiddenLoaded(true); // mark as loaded so we don't clobber optimistic state
+  }, [received]);
 
   const handleUnhide = useCallback(async (giftId: string) => {
     const res = await emitWithAck<any, Res<{}>>('gifts:unhide' as any, { giftId });
     if (!res.ok) return;
     setHiddenGifts(prev => prev.filter(g => g.giftId !== giftId));
     setHidden(prev => { const n = new Set(prev); n.delete(giftId); return n; });
-    setHiddenLoaded(false);
     loadReceived();
   }, [loadReceived]);
 
