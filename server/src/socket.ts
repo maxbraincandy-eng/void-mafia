@@ -1525,14 +1525,6 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!host.isHost) throw new Error('Only the host can change settings.');
         if (room.phase !== 'lobby') throw new Error('Settings cannot be changed after game starts.');
 
-        // Don Mode: validate player count
-        if (settings.donMode) {
-          const playerCount = [...room.players.values()].filter(p => !p.isSpectator).length;
-          if (playerCount !== 10 && playerCount !== 12) {
-            throw new Error('Don Mode requires exactly 10 or 12 players.');
-          }
-        }
-
         room.settings = {
           ...room.settings,
           ...settings,
