@@ -424,9 +424,10 @@ export function LobbyPage() {
                               <button
                                 onClick={() => setConfirmTransferId(player.id)}
                                 title="Transfer host"
-                                className="w-6 h-6 flex items-center justify-center rounded text-white/12 hover:text-yellow-400/60 transition-colors text-[13px]"
+                                className="flex flex-col items-center gap-0.5 rounded px-1.5 py-0.5 text-yellow-400/50 hover:text-yellow-400 hover:bg-yellow-400/10 transition-colors group"
                               >
-                                ♛
+                                <span className="text-[16px] leading-none">♛</span>
+                                <span className="text-[8px] font-mono uppercase tracking-wide opacity-70 group-hover:opacity-100">Host</span>
                               </button>
                               <button
                                 onClick={() => kickPlayer(player.id)}
