@@ -14,6 +14,7 @@ import { SeasonPassModal } from '@/components/ui/SeasonPassModal';
 import { ReferralModal } from '@/components/ui/ReferralModal';
 import { VoidStatsIcon } from '@/components/ui/VoidStatsIcon';
 import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
+import { CLIENT_VERSION } from '@/version';
 
 interface MenuItem {
   icon: ReactNode;
@@ -34,7 +35,7 @@ interface Section {
 function SectionLabel({ title }: { title: string }) {
   return (
     <div className="flex items-center gap-2 px-1 pt-4 pb-1">
-      <p className="text-[12px] font-mono font-bold uppercase tracking-[0.22em] text-white/20">
+      <p className="text-[11px] font-mono font-bold uppercase tracking-[0.28em] text-white/18">
         {title}
       </p>
       <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.04)' }} />
@@ -45,12 +46,12 @@ function SectionLabel({ title }: { title: string }) {
 function MenuRow({ item, index }: { item: MenuItem; index: number }) {
   return (
     <motion.button
-      initial={{ opacity: 0, x: -12 }}
+      initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: 0.05 + index * 0.04, duration: 0.22, ease: 'easeOut' }}
+      transition={{ delay: 0.04 + index * 0.035, duration: 0.2, ease: 'easeOut' }}
       onClick={item.comingSoon ? undefined : item.onClick}
       disabled={item.comingSoon}
-      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all duration-150 group disabled:cursor-default active:scale-[0.98]"
+      className="w-full flex items-center gap-3 px-2.5 py-2 rounded-2xl transition-all duration-150 group disabled:cursor-default active:scale-[0.98]"
       style={{ background: 'transparent' }}
       onMouseEnter={e => {
         if (!item.comingSoon)
@@ -60,7 +61,6 @@ function MenuRow({ item, index }: { item: MenuItem; index: number }) {
         (e.currentTarget as HTMLElement).style.background = 'transparent';
       }}
     >
-      {/* Icon */}
       <div
         className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 text-lg transition-transform duration-150 group-active:scale-95"
         style={{
@@ -71,27 +71,25 @@ function MenuRow({ item, index }: { item: MenuItem; index: number }) {
         <span className={item.comingSoon ? 'opacity-25 grayscale' : ''}>{item.icon}</span>
       </div>
 
-      {/* Text */}
       <div className="flex-1 text-left min-w-0">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <p className={`text-sm font-display font-bold tracking-wide leading-none ${item.comingSoon ? 'text-white/20' : 'text-white/85'}`}>
             {item.label}
           </p>
           {item.badge && !item.comingSoon && (
             <span
-              className="text-[12px] font-mono font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full leading-none"
+              className="text-[11px] font-mono font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full leading-none"
               style={{ background: item.badge.color + '22', color: item.badge.color, border: `1px solid ${item.badge.color}44` }}
             >
               {item.badge.text}
             </span>
           )}
         </div>
-        <p className={`text-[12px] font-mono mt-1 leading-tight ${item.comingSoon ? 'text-white/12' : 'text-white/30'}`}>
+        <p className={`text-[12px] font-mono mt-0.5 leading-tight ${item.comingSoon ? 'text-white/12' : 'text-white/28'}`}>
           {item.description}
         </p>
       </div>
 
-      {/* Right side */}
       {item.comingSoon ? (
         <span
           className="text-[12px] font-mono uppercase tracking-widest px-2 py-1 rounded-lg flex-shrink-0"
@@ -101,27 +99,15 @@ function MenuRow({ item, index }: { item: MenuItem; index: number }) {
         </span>
       ) : (
         <svg
-          width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-          className="text-white/15 group-hover:text-white/40 transition-colors flex-shrink-0"
+          className="text-white/12 group-hover:text-white/35 transition-colors flex-shrink-0"
         >
           <polyline points="9 18 15 12 9 6" />
         </svg>
       )}
     </motion.button>
   );
-}
-
-interface MorePanelProps {
-  isOwner?: boolean;
-  isMod?: boolean;
-  onEconomyClick?: () => void;
-  onShopClick?: () => void;
-  onReplaysClick?: () => void;
-  onClansClick?: () => void;
-  onLeaderboardClick?: () => void;
-  onMessagesClick?: () => void;
-  onModClick?: () => void;
 }
 
 function AudioToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
@@ -143,6 +129,18 @@ function AudioToggle({ value, onChange }: { value: boolean; onChange: (v: boolea
       />
     </button>
   );
+}
+
+interface MorePanelProps {
+  isOwner?: boolean;
+  isMod?: boolean;
+  onEconomyClick?: () => void;
+  onShopClick?: () => void;
+  onReplaysClick?: () => void;
+  onClansClick?: () => void;
+  onLeaderboardClick?: () => void;
+  onMessagesClick?: () => void;
+  onModClick?: () => void;
 }
 
 export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onShopClick, onReplaysClick, onClansClick, onLeaderboardClick, onMessagesClick, onModClick }: MorePanelProps) {
@@ -281,20 +279,12 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
           iconGlow: 'rgba(100,116,139,0.18)',
           onClick: open(() => setShowSettings(true)),
         },
-        ...(isMod && onModClick ? [{
-          icon: '🛡',
-          label: 'მოდერაცია',
-          description: 'სამართავი პანელი',
-          iconBg: 'linear-gradient(135deg, rgba(239,68,68,0.28), rgba(220,38,38,0.1))',
-          iconGlow: 'rgba(239,68,68,0.2)',
-          onClick: open(onModClick),
-        }] : []),
         ...(isOwner && onEconomyClick ? [{
           icon: '👑',
           label: mp.economyAdmin.label,
           description: mp.economyAdmin.desc,
-          iconBg: 'linear-gradient(135deg, rgba(239,68,68,0.28), rgba(220,38,38,0.1))',
-          iconGlow: 'rgba(239,68,68,0.2)',
+          iconBg: 'linear-gradient(135deg, rgba(251,191,36,0.28), rgba(245,158,11,0.1))',
+          iconGlow: 'rgba(251,191,36,0.22)',
           onClick: open(onEconomyClick),
         }] : []),
       ],
@@ -302,6 +292,7 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
   ];
 
   let globalIndex = 0;
+  const level = profile?.level ?? 1;
 
   return (
     <>
@@ -331,58 +322,108 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
               style={{
                 width: 'min(310px, 88vw)',
                 background: 'linear-gradient(180deg, rgba(8,4,22,0.99) 0%, rgba(5,2,15,0.99) 100%)',
-                borderRight: '1px solid rgba(138,43,226,0.15)',
-                boxShadow: '12px 0 48px rgba(0,0,0,0.7), 1px 0 0 rgba(138,43,226,0.08)',
+                borderRight: '1px solid rgba(138,43,226,0.12)',
+                boxShadow: '12px 0 48px rgba(0,0,0,0.7), 1px 0 0 rgba(138,43,226,0.06)',
               }}
             >
+              {/* Neon left edge accent */}
+              <div className="absolute top-0 left-0 bottom-0 w-[2px] pointer-events-none"
+                style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(138,43,226,0.35) 30%, rgba(0,229,255,0.2) 70%, transparent 100%)' }} />
+
               {/* Header */}
-              <div className="flex items-center justify-between px-4 pt-14 pb-4"
-                style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                <div>
-                  <p className="font-mono text-[12px] uppercase tracking-[0.3em] text-neon-purple/40 mb-1">
-                    Menu
-                  </p>
-                  <h2 className="font-display font-black text-white/90 text-lg tracking-widest">
-                    VOID MAFIA
-                  </h2>
-                  {profile?.username && (
-                    <p className="text-[12px] font-mono text-white/25 mt-0.5 truncate max-w-[160px]">
-                      {profile.username}
-                    </p>
-                  )}
+              <div className="px-4 pt-12 pb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-neon-purple/35">Menu</p>
+                  <button
+                    onClick={closeMoreMenu}
+                    className="w-8 h-8 rounded-xl flex items-center justify-center text-white/25 hover:text-white/55 transition-all active:scale-95"
+                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
                 </div>
-                <button
-                  onClick={closeMoreMenu}
-                  className="w-9 h-9 rounded-2xl flex items-center justify-center text-white/30 hover:text-white/60 transition-all active:scale-95"
-                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.07)' }}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
+
+                {/* User identity */}
+                <div className="flex items-center gap-3">
+                  <div className="relative flex-shrink-0">
+                    <div
+                      className="w-11 h-11 rounded-2xl overflow-hidden flex items-center justify-center text-xl"
+                      style={{ background: 'linear-gradient(135deg, rgba(138,43,226,0.4), rgba(0,229,255,0.15))', border: '1px solid rgba(138,43,226,0.25)' }}
+                    >
+                      {profile?.avatarUrl
+                        ? <img src={profile.avatarUrl} alt="" className="w-full h-full object-cover" />
+                        : <span>{profile?.avatar ?? '👤'}</span>}
+                    </div>
+                    {/* Level pip */}
+                    <div
+                      className="absolute -bottom-1 -right-1 min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1"
+                      style={{ background: 'linear-gradient(135deg, #9b00ff, #00e5ff)', boxShadow: '0 0 6px rgba(155,0,255,0.5)', fontSize: '10px' }}
+                    >
+                      <span className="font-mono font-black text-white leading-none" style={{ fontSize: '10px' }}>{level}</span>
+                    </div>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-display font-black text-white/90 text-base tracking-wide leading-none truncate">
+                      {profile?.username ?? 'Guest'}
+                    </p>
+                    <p className="font-mono text-[12px] text-white/22 mt-1 truncate">VOID MAFIA</p>
+                  </div>
+                </div>
               </div>
 
-              {/* Sections */}
+              {/* Scrollable content */}
               <div className="flex-1 overflow-y-auto px-3 pb-4">
 
-                {/* Audio quick toggles */}
+                {/* ── Moderation quick-access (mods only) ── */}
+                {isMod && onModClick && (
+                  <motion.button
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.08, duration: 0.2 }}
+                    onClick={open(onModClick)}
+                    className="w-full mt-3 flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all active:scale-[0.98]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(239,68,68,0.14), rgba(220,38,38,0.05))',
+                      border: '1px solid rgba(239,68,68,0.28)',
+                      boxShadow: '0 0 18px rgba(239,68,68,0.08)',
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'linear-gradient(135deg, rgba(239,68,68,0.2), rgba(220,38,38,0.08))'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'linear-gradient(135deg, rgba(239,68,68,0.14), rgba(220,38,38,0.05))'; }}
+                  >
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-base"
+                      style={{ background: 'linear-gradient(135deg, rgba(239,68,68,0.3), rgba(220,38,38,0.12))', boxShadow: '0 0 10px rgba(239,68,68,0.25)' }}>
+                      🛡
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="text-sm font-display font-bold text-red-400/90 leading-none">მოდერაცია</p>
+                      <p className="text-[12px] font-mono text-red-400/45 mt-0.5">სამართავი პანელი</p>
+                    </div>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                      strokeLinecap="round" strokeLinejoin="round" className="text-red-400/30 flex-shrink-0">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </motion.button>
+                )}
+
+                {/* ── Audio quick toggles ── */}
                 <div
-                  className="mt-3 mb-1 rounded-2xl px-3 py-2"
-                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+                  className="mt-3 mb-1 rounded-2xl px-3"
+                  style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.05)' }}
                 >
-                  <div className="flex items-center justify-between py-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base leading-none">🔊</span>
-                      <p className="text-xs font-mono text-white/70">ხმის ეფექტები</p>
+                  <div className="flex items-center justify-between py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-base leading-none opacity-70">🔊</span>
+                      <p className="text-xs font-mono text-white/55">ხმის ეფექტები</p>
                     </div>
                     <AudioToggle value={sfxEnabled} onChange={toggleSfx} />
                   </div>
-                  <div className="h-px mx-0" style={{ background: 'rgba(255,255,255,0.05)' }} />
-                  <div className="flex items-center justify-between py-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base leading-none">🎵</span>
-                      <p className="text-xs font-mono text-white/70">ბექგრაუნდ მუსიკა</p>
+                  <div className="h-px" style={{ background: 'rgba(255,255,255,0.04)' }} />
+                  <div className="flex items-center justify-between py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-base leading-none opacity-70">🎵</span>
+                      <p className="text-xs font-mono text-white/55">ბექგრაუნდ მუსიკა</p>
                     </div>
                     <AudioToggle value={musicEnabled} onChange={toggleMusic} />
                   </div>
@@ -400,21 +441,15 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
               </div>
 
               {/* Footer */}
-              <div className="px-4 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+              <div className="px-4 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
                 <div className="flex items-center justify-between">
-                  <span
-                    className="text-[12px] font-mono font-bold uppercase tracking-[0.2em] px-2 py-1 rounded-lg"
-                    style={{
-                      background: 'linear-gradient(135deg, rgba(138,43,226,0.15), rgba(0,229,255,0.06))',
-                      border: '1px solid rgba(138,43,226,0.2)',
-                      color: 'rgba(138,43,226,0.7)',
-                    }}
-                  >
-                    V1.0
-                  </span>
-                  <p className="font-mono text-[12px] text-white/12 tracking-widest uppercase">
-                    Void Mafia
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-neon-green/60" style={{ boxShadow: '0 0 4px rgba(0,255,136,0.5)' }} />
+                    <span className="font-mono text-[11px] text-white/18 tracking-wider uppercase">
+                      {CLIENT_VERSION}
+                    </span>
+                  </div>
+                  <p className="font-mono text-[11px] text-white/10 tracking-[0.2em] uppercase">Void Mafia</p>
                 </div>
               </div>
             </motion.div>
