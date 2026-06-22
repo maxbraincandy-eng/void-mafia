@@ -110,7 +110,7 @@ import {
   pinPost, featurePost, hidePost, logCommunityModAction, getCommunityModLogs,
   listPeopleDirectory, getFollowersList, getFollowingList,
   searchCommunity, upsertOnlineSeen, getOnlineMembers, computeTrending, recalcReputation,
-  extractHashtags,
+  extractHashtags, generateAnonymousName,
 } from './services/communityService.js';
 import {
   listDebates, getDebateFull, createDebate, joinDebate, postArgument, voteDebate, closeDebate,
@@ -4962,6 +4962,7 @@ export function attachSocketHandlers(io: AppServer): void {
         }
         const { action, postId } = data as { action: string; postId: string };
         if (action === 'delete') {
+          if (requester.moderatorLevel !== 'owner') { cb(err('Only owner can delete posts.')); return; }
           await adminDeletePost(postId, requester.id);
           await logCommunityModAction(requester.id, 'delete_post', null, postId, '');
           io.emit('community:post_deleted', { postId });
@@ -4988,6 +4989,48 @@ export function attachSocketHandlers(io: AppServer): void {
           cb(err('Unknown action.')); return;
         }
         cb(ok({}));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('admin:post_list', async (_data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const requester = await getPlayer(profileId);
+        if (!requester || !['moderator', 'senior_moderator', 'admin', 'owner'].includes(requester.moderatorLevel ?? '')) {
+          cb(err('Unauthorized.')); return;
+        }
+        const isOwner = requester.moderatorLevel === 'owner';
+        const rows = await sql<any[]>`
+          SELECT p.id, p.author_id, p.content, p.post_type, p.created_at, p.is_pinned, p.is_featured,
+                 p.hidden, p.likes_count, p.comments_count, p.is_anonymous,
+                 pl.username AS author_name
+          FROM community_posts p
+          JOIN players pl ON pl.id = p.author_id
+          WHERE p.deleted_at IS NULL
+          ORDER BY p.created_at DESC
+          LIMIT 50
+        `;
+        const posts = rows.map(r => {
+          const isAnon = Boolean(r.is_anonymous);
+          const anonName = generateAnonymousName(r.author_id);
+          return {
+            id: r.id,
+            authorId: r.author_id,
+            isAnonymous: isAnon,
+            authorName: isAnon ? anonName : r.author_name,
+            realAuthorName: isOwner && isAnon ? r.author_name : null,
+            content: r.content ?? '',
+            postType: r.post_type ?? 'text',
+            createdAt: Number(r.created_at),
+            isPinned: Boolean(r.is_pinned),
+            isFeatured: Boolean(r.is_featured),
+            hidden: Boolean(r.hidden),
+            likesCount: Number(r.likes_count ?? 0),
+            commentsCount: Number(r.comments_count ?? 0),
+          };
+        });
+        cb(ok(posts));
       } catch (e: any) { cb(err(e.message)); }
     });
 

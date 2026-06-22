@@ -1736,6 +1736,7 @@ export interface ClientToServerEvents {
         playerId: string;
     }, cb: (r: Res<any>) => void) => void;
     'admin:user_action': (data: any, cb: (r: Res<any>) => void) => void;
+    'admin:post_list': (data: Record<string, never>, cb: (r: Res<any[]>) => void) => void;
     'admin:post_action': (data: {
         action: string;
         postId: string;

@@ -620,7 +620,7 @@ export async function getCommunityProfileV2(targetId: string, viewerId: string):
   return profile;
 }
 
-function generateAnonymousName(playerId: string): string {
+export function generateAnonymousName(playerId: string): string {
   let hash = 0;
   for (let i = 0; i < playerId.length; i++) {
     hash = ((hash << 5) - hash) + playerId.charCodeAt(i);
@@ -807,7 +807,7 @@ export async function listFeedV2(viewerId: string, options: { category: FeedCate
       FROM community_posts p
       JOIN players pl ON pl.id = p.author_id
       JOIN community_post_hashtags ht ON ht.post_id = p.id AND ht.hashtag = ${hashtag.toLowerCase()}
-      WHERE p.hidden = false AND p.created_at < ${before}
+      WHERE p.hidden = false AND p.deleted_at IS NULL AND p.created_at < ${before}
       ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ${limit}
     `;
   } else if (category === 'following') {
@@ -816,7 +816,7 @@ export async function listFeedV2(viewerId: string, options: { category: FeedCate
       FROM community_posts p
       JOIN players pl ON pl.id = p.author_id
       JOIN follows f ON f.following_id = p.author_id AND f.follower_id = ${viewerId}
-      WHERE p.hidden = false AND p.visibility = 'public' AND p.created_at < ${before}
+      WHERE p.hidden = false AND p.deleted_at IS NULL AND p.visibility = 'public' AND p.created_at < ${before}
       ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ${limit}
     `;
   } else if (category === 'friends') {
@@ -824,7 +824,7 @@ export async function listFeedV2(viewerId: string, options: { category: FeedCate
       SELECT p.*, pl.username AS author_name, pl.avatar AS author_avatar, pl.avatar_url AS author_avatar_url, pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url
       FROM community_posts p
       JOIN players pl ON pl.id = p.author_id
-      WHERE p.hidden = false AND p.created_at < ${before}
+      WHERE p.hidden = false AND p.deleted_at IS NULL AND p.created_at < ${before}
         AND (p.author_id IN (
           SELECT to_id FROM friendships WHERE from_id = ${viewerId} AND status = 'accepted'
           UNION SELECT from_id FROM friendships WHERE to_id = ${viewerId} AND status = 'accepted'
@@ -836,7 +836,7 @@ export async function listFeedV2(viewerId: string, options: { category: FeedCate
       SELECT p.*, pl.username AS author_name, pl.avatar AS author_avatar, pl.avatar_url AS author_avatar_url, pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url
       FROM community_posts p
       JOIN players pl ON pl.id = p.author_id
-      WHERE p.hidden = false AND p.created_at < ${before} AND pl.moderator_level = 'owner'
+      WHERE p.hidden = false AND p.deleted_at IS NULL AND p.created_at < ${before} AND pl.moderator_level = 'owner'
       ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ${limit}
     `;
   } else if (category === 'mr_max') {
@@ -845,7 +845,7 @@ export async function listFeedV2(viewerId: string, options: { category: FeedCate
       FROM community_posts p
       JOIN players pl ON pl.id = p.author_id
       JOIN community_badges b ON b.player_id = p.author_id AND b.badge = 'owner'
-      WHERE p.hidden = false AND p.created_at < ${before}
+      WHERE p.hidden = false AND p.deleted_at IS NULL AND p.created_at < ${before}
       ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ${limit}
     `;
   } else if (category === 'clans') {
@@ -853,7 +853,7 @@ export async function listFeedV2(viewerId: string, options: { category: FeedCate
       SELECT p.*, pl.username AS author_name, pl.avatar AS author_avatar, pl.avatar_url AS author_avatar_url, pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url
       FROM community_posts p
       JOIN players pl ON pl.id = p.author_id
-      WHERE p.hidden = false AND p.created_at < ${before}
+      WHERE p.hidden = false AND p.deleted_at IS NULL AND p.created_at < ${before}
         AND p.author_id IN (
           SELECT cm.player_id FROM clan_members cm
           WHERE cm.clan_id = (SELECT clan_id FROM clan_members WHERE player_id = ${viewerId} LIMIT 1)
@@ -866,7 +866,7 @@ export async function listFeedV2(viewerId: string, options: { category: FeedCate
       FROM community_posts p
       JOIN players pl ON pl.id = p.author_id
       JOIN community_trending_posts tr ON tr.post_id = p.id
-      WHERE p.hidden = false AND p.created_at < ${before}
+      WHERE p.hidden = false AND p.deleted_at IS NULL AND p.created_at < ${before}
       ORDER BY tr.score DESC LIMIT ${limit}
     `;
   } else {
@@ -874,7 +874,7 @@ export async function listFeedV2(viewerId: string, options: { category: FeedCate
       SELECT p.*, pl.username AS author_name, pl.avatar AS author_avatar, pl.avatar_url AS author_avatar_url, pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url
       FROM community_posts p
       JOIN players pl ON pl.id = p.author_id
-      WHERE p.hidden = false AND p.created_at < ${before}
+      WHERE p.hidden = false AND p.deleted_at IS NULL AND p.created_at < ${before}
         AND (
           p.visibility = 'public'
           OR (p.visibility = 'friends_only' AND p.author_id IN (

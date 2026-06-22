@@ -67,6 +67,7 @@ export declare function setPrivacySettings(playerId: string, settings: {
     profileMode?: string;
 }): Promise<void>;
 export declare function getCommunityProfileV2(targetId: string, viewerId: string): Promise<CommunityProfileV2 | null>;
+export declare function generateAnonymousName(playerId: string): string;
 export declare function updateCommunityProfile(playerId: string, data: {
     bio?: string;
     coverUrl?: string;
