@@ -322,6 +322,14 @@ export function LobbyPage() {
               )}>
                 {shared ? '✓' : 'Share'}
               </button>
+              {amHost && (
+                <button
+                  onClick={() => { loadFriends(); setShowInvite(true); }}
+                  className="text-[12px] px-2 py-0.5 rounded border font-mono transition-all border-yellow-400/25 text-yellow-400/60 hover:border-yellow-400/45 hover:text-yellow-400/90 hover:bg-yellow-400/[0.06]"
+                >
+                  Invite
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-2 mt-1">
               {room.settings.isPrivate && (
