@@ -1114,6 +1114,9 @@ export async function initializeDatabase(): Promise<void> {
   await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS secret_mode_disabled INTEGER NOT NULL DEFAULT 0`;
   await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS force_public INTEGER NOT NULL DEFAULT 0`;
 
+  // Anonymous post flag
+  await sql`ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS is_anonymous BOOLEAN NOT NULL DEFAULT false`;
+
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];
   console.log(`[Database] connected successfully`);

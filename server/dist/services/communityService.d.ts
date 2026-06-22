@@ -100,6 +100,7 @@ export declare function createPostV2(authorId: string, data: {
         endsAt?: number | null;
     } | null;
     visibility?: 'public' | 'friends_only';
+    isAnonymous?: boolean;
 }): Promise<CommunityPostV2>;
 export declare function listFeedV2(viewerId: string, options: {
     category: FeedCategory;
