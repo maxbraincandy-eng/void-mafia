@@ -621,7 +621,8 @@ export async function getCommunityModLogs(limit = 100) {
 async function buildPostV2(row, viewerId) {
     const savedRow = viewerId ? await sql `SELECT player_id FROM community_post_saves WHERE post_id = ${row.id} AND player_id = ${viewerId} LIMIT 1` : [];
     const likedRow = viewerId ? await sql `SELECT player_id FROM community_post_likes WHERE post_id = ${row.id} AND player_id = ${viewerId} LIMIT 1` : [];
-    const authorBadges = await getPlayerBadges(row.author_id);
+    const isAnon = Boolean(row.is_anonymous);
+    const authorBadges = isAnon ? [] : await getPlayerBadges(row.author_id);
     let hashtags = [];
     try {
         hashtags = JSON.parse(row.hashtags ?? '[]');
@@ -658,11 +659,11 @@ async function buildPostV2(row, viewerId) {
     }
     return {
         id: row.id,
-        authorId: row.author_id,
-        authorName: row.author_name ?? '',
-        authorAvatar: row.author_avatar ?? '',
-        authorAvatarUrl: row.author_avatar_url ?? null,
-        authorLevel: Number(row.author_level ?? 1),
+        authorId: isAnon ? '' : row.author_id,
+        authorName: isAnon ? generateAnonymousName(row.author_id) : (row.author_name ?? ''),
+        authorAvatar: isAnon ? '' : (row.author_avatar ?? ''),
+        authorAvatarUrl: isAnon ? null : (row.author_avatar_url ?? null),
+        authorLevel: isAnon ? 1 : Number(row.author_level ?? 1),
         content: row.content ?? '',
         imageUrl: row.image_url ?? null,
         likesCount: Number(row.likes_count ?? 0),
@@ -683,8 +684,8 @@ async function buildPostV2(row, viewerId) {
         hidden: Boolean(row.hidden),
         poll,
         authorBadges,
-        authorBio: row.author_bio ?? '',
-        authorCoverUrl: row.author_cover_url ?? null,
+        authorBio: isAnon ? '' : (row.author_bio ?? ''),
+        authorCoverUrl: isAnon ? null : (row.author_cover_url ?? null),
     };
 }
 // Create post V2
@@ -696,9 +697,10 @@ export async function createPostV2(authorId, data) {
     const hashtags = extractHashtags(data.content);
     const hashtagsJson = JSON.stringify(hashtags);
     const visibility = data.visibility ?? 'public';
+    const isAnonymous = Boolean(data.isAnonymous);
     await sql `
-    INSERT INTO community_posts (id, author_id, content, image_url, post_type, gif_url, video_url, rec_title, rec_category, hashtags, visibility, likes_count, comments_count, saves_count, is_pinned, is_featured, hidden, created_at)
-    VALUES (${id}, ${authorId}, ${data.content}, ${data.imageUrl ?? null}, ${data.postType}, ${data.gifUrl ?? null}, ${data.videoUrl ?? null}, ${data.recTitle ?? null}, ${data.recCategory ?? null}, ${hashtagsJson}, ${visibility}, 0, 0, 0, false, false, false, ${now})
+    INSERT INTO community_posts (id, author_id, content, image_url, post_type, gif_url, video_url, rec_title, rec_category, hashtags, visibility, likes_count, comments_count, saves_count, is_pinned, is_featured, hidden, is_anonymous, created_at)
+    VALUES (${id}, ${authorId}, ${data.content}, ${data.imageUrl ?? null}, ${data.postType}, ${data.gifUrl ?? null}, ${data.videoUrl ?? null}, ${data.recTitle ?? null}, ${data.recCategory ?? null}, ${hashtagsJson}, ${visibility}, 0, 0, 0, false, false, false, ${isAnonymous}, ${now})
   `;
     if (data.postType === 'poll' && data.poll) {
         const options = data.poll.options.map((text, i) => ({ id: `opt_${i}`, text: text.slice(0, 100) }));

@@ -121,6 +121,7 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOptions, setPollOptions] = useState(['', '']);
   const [visibility, setVisibility] = useState<'public' | 'friends_only'>('public');
+  const [isAnonymous, setIsAnonymous] = useState(false);
   const [posting, setPosting] = useState(false);
   const [compressing, setCompressing] = useState(false);
   const [imgError, setImgError] = useState('');
@@ -172,6 +173,7 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
         recTitle: recTitle.trim() || null,
         recCategory: recCategoryMap[postType] ?? null,
         visibility,
+        isAnonymous,
       };
       if (postType === 'poll') {
         data.poll = {
@@ -222,7 +224,11 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
 
       {/* Text area */}
       <div className="flex items-start gap-2.5 mb-3">
-        <Avatar avatar={profile?.avatar ?? '?'} avatarUrl={profile?.avatarUrl ?? null} size={36} />
+        {isAnonymous ? (
+          <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-base" style={{ background: 'rgba(155,0,255,0.2)', border: '1px solid rgba(155,0,255,0.4)' }}>🕵</div>
+        ) : (
+          <Avatar avatar={profile?.avatar ?? '?'} avatarUrl={profile?.avatarUrl ?? null} size={36} />
+        )}
         <div className="flex-1 min-w-0">
           <TextArea value={content} onChange={setContent} placeholder={t.community.feed.composerPh} maxLength={2000} rows={3} />
         </div>
@@ -265,8 +271,8 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
         )}
       </div>
 
-      {/* Visibility toggle */}
-      <div className="flex items-center gap-2 mb-4">
+      {/* Visibility + Anonymous toggles */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
         {(['public', 'friends_only'] as const).map(v => (
           <button
             key={v}
@@ -281,6 +287,17 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
             {v === 'public' ? '🌍 Public' : '🔒 Friends'}
           </button>
         ))}
+        <button
+          onClick={() => setIsAnonymous(v => !v)}
+          className="px-2.5 py-1 rounded-full font-mono text-[12px] uppercase tracking-wider transition-all"
+          style={{
+            background: isAnonymous ? 'rgba(155,0,255,0.25)' : 'rgba(255,255,255,0.03)',
+            border: `1px solid ${isAnonymous ? 'rgba(155,0,255,0.5)' : 'rgba(255,255,255,0.08)'}`,
+            color: isAnonymous ? '#c084fc' : 'rgba(255,255,255,0.4)',
+          }}
+        >
+          🕵 {isAnonymous ? 'Anonymous ON' : 'Anonymous'}
+        </button>
       </div>
 
       <button
