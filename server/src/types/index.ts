@@ -1176,6 +1176,7 @@ export interface ClientToServerEvents {
   'admin:user_search':    (data: { query: string }, cb: (r: Res<any[]>) => void) => void;
   'admin:user_profile':   (data: { playerId: string }, cb: (r: Res<any>) => void) => void;
   'admin:user_action':    (data: any, cb: (r: Res<any>) => void) => void;
+  'admin:post_list':      (data: Record<string, never>, cb: (r: Res<any[]>) => void) => void;
   'admin:post_action':    (data: { action: string; postId: string }, cb: (r: Res<any>) => void) => void;
   'admin:comment_action': (data: { action: string; commentId: string }, cb: (r: Res<any>) => void) => void;
   'admin:debate_action':  (data: { action: string; debateId: string }, cb: (r: Res<any>) => void) => void;

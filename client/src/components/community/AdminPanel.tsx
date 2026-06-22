@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { emitWithAck } from '@/lib/socket';
 
-// ── Types ──────────────────────────────────────────────────────────────
 interface Res<T> { ok: boolean; data: T; error?: string }
 type Tab = 'users' | 'reports' | 'content' | 'recovery' | 'audit' | 'badges';
 
@@ -12,50 +11,57 @@ interface AdminPanelProps {
   myModLevel: string;
 }
 
-// ── Colour tokens ──────────────────────────────────────────────────────
-const BG     = '#0d0d1a';
-const BG2    = '#13132b';
-const BORDER = 'rgba(255,255,255,0.08)';
-const ACCENT = '#ffc800';
-const PURPLE = '#9b00ff';
-const DANGER = '#ff4060';
-const GREEN  = '#00e676';
-const MUTED  = 'rgba(255,255,255,0.4)';
+// ── Design tokens ──────────────────────────────────────────────────────
+const BG      = '#07000f';
+const BG2     = '#0e0020';
+const BG3     = '#130030';
+const BORDER  = 'rgba(155,0,255,0.18)';
+const ACCENT  = '#ffc800';
+const PURPLE  = '#9b00ff';
+const CYAN    = '#00f5ff';
+const DANGER  = '#ff3060';
+const GREEN   = '#00e676';
+const WARN    = '#ff9800';
+const MUTED   = 'rgba(255,255,255,0.38)';
+const WHITE   = '#fff';
 
-// ── Helper ─────────────────────────────────────────────────────────────
 function fmt(ts: number | null | undefined) {
   if (!ts) return '—';
-  return new Date(Number(ts)).toLocaleString();
+  const d = new Date(Number(ts));
+  return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 function fmtShort(ts: number | null | undefined) {
   if (!ts) return '—';
-  return new Date(Number(ts)).toLocaleDateString();
+  return new Date(Number(ts)).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────
+// ── Shared components ──────────────────────────────────────────────────
 
-function Badge({ label, color }: { label: string; color: string }) {
+function Chip({ label, color = MUTED }: { label: string; color?: string }) {
   return (
     <span style={{
-      display: 'inline-block', padding: '1px 7px', borderRadius: 999,
-      fontSize: 12, fontWeight: 700, background: `${color}22`, color, border: `1px solid ${color}55`,
+      display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 999,
+      fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase',
+      background: `${color}1a`, color, border: `1px solid ${color}40`,
     }}>
       {label}
     </span>
   );
 }
 
-function ActionBtn({ label, color = ACCENT, onClick, disabled }: {
-  label: string; color?: string; onClick: () => void; disabled?: boolean;
+function Btn({ label, color = ACCENT, onClick, disabled, small }: {
+  label: string; color?: string; onClick: () => void; disabled?: boolean; small?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       style={{
-        padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer',
-        background: `${color}18`, color, border: `1px solid ${color}44`, opacity: disabled ? 0.4 : 1,
-        transition: 'opacity 0.15s',
+        padding: small ? '4px 10px' : '6px 14px',
+        borderRadius: 8, fontSize: small ? 11 : 12, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer',
+        background: `${color}15`, color, border: `1px solid ${color}50`,
+        opacity: disabled ? 0.4 : 1, transition: 'all 0.15s', letterSpacing: 0.3,
+        whiteSpace: 'nowrap',
       }}
     >
       {label}
@@ -63,225 +69,240 @@ function ActionBtn({ label, color = ACCENT, onClick, disabled }: {
   );
 }
 
-function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <span style={{ color: MUTED, fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase' }}>{title}</span>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Row({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <div style={{
-      background: BG2, border: `1px solid ${BORDER}`, borderRadius: 10, padding: '12px 14px',
-      marginBottom: 10, ...style,
+      background: BG2, border: `1px solid ${BORDER}`, borderRadius: 10, padding: '10px 14px',
+      marginBottom: 8, ...style,
     }}>
       {children}
     </div>
   );
 }
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <span style={{ color: MUTED, fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>{children}</span>;
+function StatusBar({ text, isError }: { text: string; isError?: boolean }) {
+  return (
+    <div style={{
+      padding: '8px 12px', borderRadius: 8, marginBottom: 10, fontSize: 12, fontWeight: 600,
+      background: isError ? `${DANGER}15` : `${GREEN}15`,
+      border: `1px solid ${isError ? DANGER : GREEN}40`,
+      color: isError ? DANGER : GREEN,
+    }}>
+      {isError ? '⚠ ' : '✓ '}{text}
+    </div>
+  );
 }
 
-// ── Users Tab ─────────────────────────────────────────────────────────
+function Input({ value, onChange, placeholder, onEnter }: {
+  value: string; onChange: (v: string) => void; placeholder?: string; onEnter?: () => void;
+}) {
+  return (
+    <input
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      onKeyDown={e => e.key === 'Enter' && onEnter?.()}
+      placeholder={placeholder}
+      style={{
+        flex: 1, background: BG3, border: `1px solid ${BORDER}`,
+        borderRadius: 8, padding: '9px 12px', color: WHITE, fontSize: 13, outline: 'none',
+        width: '100%', boxSizing: 'border-box',
+      }}
+    />
+  );
+}
+
+// ── Users Tab ──────────────────────────────────────────────────────────
 function UsersTab({ myModLevel }: { myModLevel: string }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<any | null>(null);
-  const [profileLoading, setProfileLoading] = useState(false);
   const [reason, setReason] = useState('');
   const [feedback, setFeedback] = useState('');
+  const [feedbackError, setFeedbackError] = useState(false);
 
   const search = async () => {
     if (query.trim().length < 2) return;
     setLoading(true);
+    setResults([]);
+    setSelected(null);
     try {
       const res = await emitWithAck<any, Res<any[]>>('admin:user_search', { query });
       if (res.ok) setResults(res.data);
-      else setFeedback(res.error ?? 'Error');
+      else { setFeedback(res.error ?? 'Error'); setFeedbackError(true); }
     } finally { setLoading(false); }
   };
 
   const openProfile = async (playerId: string) => {
-    setProfileLoading(true);
     setSelected(null);
     try {
       const res = await emitWithAck<any, Res<any>>('admin:user_profile', { playerId });
       if (res.ok) setSelected(res.data);
-      else setFeedback(res.error ?? 'Error');
-    } finally { setProfileLoading(false); }
+    } catch {}
   };
 
   const doAction = async (action: string, extra?: any) => {
     if (!selected) return;
-    setFeedback('');
+    setFeedback(''); setFeedbackError(false);
     try {
-      const res = await emitWithAck<any, Res<any>>('admin:user_action', {
-        action, playerId: selected.id, reason, ...extra,
-      });
+      const res = await emitWithAck<any, Res<any>>('admin:user_action', { action, playerId: selected.id, reason, ...extra });
       if (res.ok) {
-        setFeedback(`Action "${action}" applied.`);
+        setFeedback(`"${action}" applied.`);
         await openProfile(selected.id);
         setReason('');
-      } else {
-        setFeedback(res.error ?? 'Error');
-      }
-    } catch (e: any) { setFeedback(e.message); }
+      } else { setFeedback(res.error ?? 'Error'); setFeedbackError(true); }
+    } catch (e: any) { setFeedback(e.message); setFeedbackError(true); }
   };
 
-  return (
-    <div style={{ height: '100%', overflowY: 'auto', paddingBottom: 24 }}>
-      {/* Search */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        <input
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && search()}
-          placeholder="Search by name, friend code, or id…"
-          style={{
-            flex: 1, background: BG, border: `1px solid ${BORDER}`, borderRadius: 8,
-            padding: '8px 12px', color: '#fff', fontSize: 13, outline: 'none',
-          }}
-        />
-        <ActionBtn label={loading ? '…' : 'Search'} onClick={search} disabled={loading} />
-      </div>
+  if (selected) {
+    const s = selected;
+    return (
+      <div>
+        <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: CYAN, cursor: 'pointer', fontSize: 13, marginBottom: 12, padding: 0, fontWeight: 600 }}>
+          ← Back to results
+        </button>
+        {feedback && <StatusBar text={feedback} isError={feedbackError} />}
 
-      {feedback && <div style={{ color: feedback.startsWith('Action') ? GREEN : DANGER, fontSize: 12, marginBottom: 10 }}>{feedback}</div>}
+        {/* Profile header */}
+        <Row>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 40, height: 40, borderRadius: '50%', background: BG3, border: `2px solid ${PURPLE}50`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+              {s.avatar || '?'}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ color: WHITE, fontWeight: 700, fontSize: 15 }}>{s.username}</div>
+              <div style={{ color: MUTED, fontSize: 11, marginTop: 1 }}>#{s.friend_code || '—'} · ID: {s.id?.slice(0,12)}…</div>
+            </div>
+            {s.moderator_level && <Chip label={s.moderator_level} color={s.moderator_level === 'owner' ? ACCENT : PURPLE} />}
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {s.ban && <Chip label="BANNED" color={DANGER} />}
+            {s.suspension && <Chip label="SUSPENDED" color={DANGER} />}
+            {s.mute && <Chip label="MUTED" color={WARN} />}
+            {s.profile_locked && <Chip label="PROFILE LOCKED" color={PURPLE} />}
+            {s.force_public && <Chip label="FORCE PUBLIC" color={CYAN} />}
+          </div>
+        </Row>
 
-      {/* Results list */}
-      {!selected && results.map(u => (
-        <Card key={u.id}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <span style={{ color: '#fff', fontWeight: 600, fontSize: 14 }}>{u.username}</span>
-              {u.moderator_level && <span style={{ marginLeft: 6 }}><Badge label={u.moderator_level} color={ACCENT} /></span>}
-              <div style={{ color: MUTED, fontSize: 11, marginTop: 2 }}>
-                {u.friend_code && <span style={{ marginRight: 10 }}>#{u.friend_code}</span>}
-                <span style={{ fontSize: 12 }}>{u.id}</span>
+        {/* Stats grid */}
+        <Row>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
+            {[
+              { label: 'Games', value: s.games ?? 0 },
+              { label: 'Posts', value: s.post_count ?? 0 },
+              { label: 'Joined', value: fmtShort(s.joined_at) },
+              { label: 'Last seen', value: fmtShort(s.last_seen_at) },
+            ].map(({ label, value }) => (
+              <div key={label} style={{ textAlign: 'center' }}>
+                <div style={{ color: WHITE, fontWeight: 700, fontSize: 14 }}>{value}</div>
+                <div style={{ color: MUTED, fontSize: 10, marginTop: 2 }}>{label}</div>
               </div>
-            </div>
-            <ActionBtn label="View" onClick={() => openProfile(u.id)} />
+            ))}
           </div>
-        </Card>
-      ))}
+        </Row>
 
-      {/* Profile view */}
-      {profileLoading && <div style={{ color: MUTED, textAlign: 'center', padding: 20 }}>Loading profile…</div>}
-
-      {selected && (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-            <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: MUTED, cursor: 'pointer', fontSize: 18 }}>←</button>
-            <span style={{ color: '#fff', fontWeight: 700, fontSize: 16 }}>{selected.username}</span>
-            {selected.moderator_level && <Badge label={selected.moderator_level} color={ACCENT} />}
-          </div>
-
-          {/* Stats */}
-          <Card>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
-              <div><Label>Friend code</Label><br /><span style={{ color: '#fff' }}>#{selected.friend_code || '—'}</span></div>
-              <div><Label>ID</Label><br /><span style={{ color: '#fff', fontSize: 12 }}>{selected.id}</span></div>
-              <div><Label>Joined</Label><br /><span style={{ color: '#fff' }}>{fmtShort(selected.joined_at)}</span></div>
-              <div><Label>Last seen</Label><br /><span style={{ color: '#fff' }}>{fmtShort(selected.last_seen_at)}</span></div>
-              <div><Label>Posts</Label><br /><span style={{ color: '#fff' }}>{selected.post_count ?? 0}</span></div>
-              <div><Label>Comments</Label><br /><span style={{ color: '#fff' }}>{selected.comment_count ?? 0}</span></div>
-            </div>
-          </Card>
-
-          {/* Status badges */}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-            {selected.ban && <Badge label="BANNED" color={DANGER} />}
-            {selected.suspension && <Badge label="SUSPENDED" color={DANGER} />}
-            {selected.mute && <Badge label="MUTED" color="#ff9800" />}
-            {selected.profile_locked ? <Badge label="PROFILE LOCKED" color="#9b59b6" /> : null}
-            {selected.force_public ? <Badge label="FORCE PUBLIC" color="#3498db" /> : null}
-          </div>
-
-          {/* Warnings */}
-          {selected.warnings?.length > 0 && (
-            <Card>
-              <Label>Warnings ({selected.warnings.length})</Label>
-              {selected.warnings.slice(0, 5).map((w: any) => (
-                <div key={w.id} style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 6, marginTop: 6, fontSize: 12 }}>
-                  <span style={{ color: MUTED }}>{fmtShort(w.issued_at)}</span>
-                  <span style={{ marginLeft: 8, color: '#fff' }}>{w.reason || '(no reason)'}</span>
-                  <span style={{ marginLeft: 8, color: MUTED }}>by {w.issued_by_name}</span>
+        {/* Warnings */}
+        {s.warnings?.length > 0 && (
+          <Section title={`Warnings (${s.warnings.length})`}>
+            {s.warnings.slice(0, 5).map((w: any) => (
+              <Row key={w.id} style={{ padding: '8px 12px', marginBottom: 6 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12 }}>
+                  <span style={{ color: WARN, whiteSpace: 'nowrap', flexShrink: 0 }}>{fmtShort(w.issued_at)}</span>
+                  <span style={{ color: WHITE }}>{w.reason || '(no reason)'}</span>
+                  <span style={{ color: MUTED, whiteSpace: 'nowrap', flexShrink: 0 }}>by {w.issued_by_name}</span>
                 </div>
-              ))}
-            </Card>
-          )}
+              </Row>
+            ))}
+          </Section>
+        )}
 
-          {/* Badges */}
-          {selected.badges?.length > 0 && (
-            <Card>
-              <Label>Badges</Label>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
-                {selected.badges.map((b: any) => <Badge key={b.badge} label={b.badge} color={ACCENT} />)}
-              </div>
-            </Card>
-          )}
+        {/* Reason */}
+        <Section title="Reason (optional)">
+          <Input value={reason} onChange={setReason} placeholder="Provide a reason for the action…" />
+        </Section>
 
-          {/* Reason input */}
-          <div style={{ marginBottom: 10 }}>
-            <Label>Reason (for actions below)</Label>
-            <input
-              value={reason}
-              onChange={e => setReason(e.target.value)}
-              placeholder="Optional reason…"
-              style={{
-                width: '100%', marginTop: 4, background: BG, border: `1px solid ${BORDER}`,
-                borderRadius: 8, padding: '7px 10px', color: '#fff', fontSize: 12, outline: 'none', boxSizing: 'border-box',
-              }}
-            />
+        {/* Actions by severity */}
+        <Section title="Moderation actions">
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+            <Btn label="Warn" color={WARN} onClick={() => doAction('warn')} small />
+            <Btn label="Mute 1h" color={WARN} onClick={() => doAction('mute', { duration: 3600 })} small />
+            <Btn label="Mute 24h" color={WARN} onClick={() => doAction('mute', { duration: 86400 })} small />
+            <Btn label="Mute 7d" color={WARN} onClick={() => doAction('mute', { duration: 604800 })} small />
+            {s.mute && <Btn label="Unmute" color={GREEN} onClick={() => doAction('unmute')} small />}
           </div>
+          <div style={{ width: '100%', height: 1, background: BORDER, margin: '6px 0' }} />
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+            <Btn label="Suspend 1d" color={DANGER} onClick={() => doAction('suspend', { duration: 86400 })} small />
+            <Btn label="Suspend 7d" color={DANGER} onClick={() => doAction('suspend', { duration: 604800 })} small />
+            <Btn label="Suspend 30d" color={DANGER} onClick={() => doAction('suspend', { duration: 2592000 })} small />
+            <Btn label="Suspend ∞" color={DANGER} onClick={() => doAction('suspend', { duration: 0 })} small />
+            {s.suspension && <Btn label="Unsuspend" color={GREEN} onClick={() => doAction('unsuspend')} small />}
+          </div>
+          <div style={{ width: '100%', height: 1, background: BORDER, margin: '6px 0' }} />
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <Btn label="Community Ban" color={DANGER} onClick={() => doAction('ban')} small />
+            {s.ban && <Btn label="Unban" color={GREEN} onClick={() => doAction('unban')} small />}
+          </div>
+        </Section>
 
-          {/* Actions */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-            <ActionBtn label="Warn" color={ACCENT} onClick={() => doAction('warn')} />
-            <ActionBtn label="Mute 1h" color="#ff9800" onClick={() => doAction('mute', { duration: 3600 })} />
-            <ActionBtn label="Mute 24h" color="#ff9800" onClick={() => doAction('mute', { duration: 86400 })} />
-            <ActionBtn label="Mute 7d" color="#ff9800" onClick={() => doAction('mute', { duration: 604800 })} />
-            {selected.mute && <ActionBtn label="Unmute" color={GREEN} onClick={() => doAction('unmute')} />}
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-            <ActionBtn label="Suspend 1d" color={DANGER} onClick={() => doAction('suspend', { duration: 86400 })} />
-            <ActionBtn label="Suspend 3d" color={DANGER} onClick={() => doAction('suspend', { duration: 259200 })} />
-            <ActionBtn label="Suspend 7d" color={DANGER} onClick={() => doAction('suspend', { duration: 604800 })} />
-            <ActionBtn label="Suspend 30d" color={DANGER} onClick={() => doAction('suspend', { duration: 2592000 })} />
-            <ActionBtn label="Suspend Perm" color={DANGER} onClick={() => doAction('suspend', { duration: 0 })} />
-            {selected.suspension && <ActionBtn label="Unsuspend" color={GREEN} onClick={() => doAction('unsuspend')} />}
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-            <ActionBtn label="Community Ban" color={DANGER} onClick={() => doAction('ban')} />
-            {selected.ban && <ActionBtn label="Community Unban" color={GREEN} onClick={() => doAction('unban')} />}
-          </div>
+        {/* Admin/owner controls */}
+        {(myModLevel === 'admin' || myModLevel === 'owner') && (
+          <Section title="Profile controls">
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <Btn small label={s.profile_locked ? 'Unlock Profile' : 'Lock Profile'} color={PURPLE} onClick={() => doAction('profile_controls', { profileLocked: !s.profile_locked })} />
+              <Btn small label={s.secret_mode_disabled ? 'Re-enable Secret Mode' : 'Disable Secret Mode'} color={CYAN} onClick={() => doAction('profile_controls', { secretModeDisabled: !s.secret_mode_disabled })} />
+              <Btn small label={s.force_public ? 'Remove Force Public' : 'Force Public'} color={CYAN} onClick={() => doAction('profile_controls', { forcePublic: !s.force_public })} />
+            </div>
+          </Section>
+        )}
+      </div>
+    );
+  }
 
-          {/* Profile controls (admin/owner only) */}
-          {(myModLevel === 'admin' || myModLevel === 'owner') && (
-            <Card>
-              <Label>Profile Controls</Label>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                <ActionBtn
-                  label={selected.profile_locked ? 'Unlock Profile' : 'Lock Profile'}
-                  color="#9b59b6"
-                  onClick={() => doAction('profile_controls', { profileLocked: !selected.profile_locked })}
-                />
-                <ActionBtn
-                  label={selected.secret_mode_disabled ? 'Re-enable Secret Mode' : 'Disable Secret Mode'}
-                  color="#3498db"
-                  onClick={() => doAction('profile_controls', { secretModeDisabled: !selected.secret_mode_disabled })}
-                />
-                <ActionBtn
-                  label={selected.force_public ? 'Remove Force Public' : 'Force Public Profile'}
-                  color="#3498db"
-                  onClick={() => doAction('profile_controls', { forcePublic: !selected.force_public })}
-                />
-              </div>
-            </Card>
-          )}
+  return (
+    <div>
+      {feedback && <StatusBar text={feedback} isError={feedbackError} />}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        <Input value={query} onChange={setQuery} placeholder="Search by name, friend code, or ID…" onEnter={search} />
+        <Btn label={loading ? '…' : 'Search'} onClick={search} disabled={loading} />
+      </div>
+      {results.length === 0 && !loading && (
+        <div style={{ color: MUTED, textAlign: 'center', padding: '30px 0', fontSize: 13 }}>
+          Search for a player above
         </div>
       )}
+      {results.map(u => (
+        <Row key={u.id}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: '50%', background: BG3, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
+              {u.avatar || '?'}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ color: WHITE, fontWeight: 600, fontSize: 13 }}>{u.username}</div>
+              <div style={{ color: MUTED, fontSize: 11 }}>#{u.friend_code || '—'}</div>
+            </div>
+            {u.moderator_level && <Chip label={u.moderator_level} color={u.moderator_level === 'owner' ? ACCENT : PURPLE} />}
+            <Btn label="View" small onClick={() => openProfile(u.id)} />
+          </div>
+        </Row>
+      ))}
     </div>
   );
 }
 
-// ── Reports Tab ───────────────────────────────────────────────────────
+// ── Reports Tab ────────────────────────────────────────────────────────
 function ReportsTab() {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -302,61 +323,52 @@ function ReportsTab() {
     if (res.ok) {
       setReports(r => r.map(x => x.id === reportId ? { ...x, status } : x));
       setFeedback('Resolved.');
-    } else {
-      setFeedback(res.error ?? 'Error');
-    }
+    } else setFeedback(res.error ?? 'Error');
   };
 
-  if (loading) return <div style={{ color: MUTED, textAlign: 'center', padding: 20 }}>Loading reports…</div>;
+  const pending = reports.filter(r => r.status === 'pending');
+  const resolved = reports.filter(r => r.status !== 'pending');
+
+  if (loading) return <div style={{ color: MUTED, textAlign: 'center', padding: 30 }}>Loading reports…</div>;
 
   return (
-    <div style={{ overflowY: 'auto', paddingBottom: 24 }}>
-      {feedback && <div style={{ color: GREEN, fontSize: 12, marginBottom: 10 }}>{feedback}</div>}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <span style={{ color: MUTED, fontSize: 12 }}>{reports.length} reports</span>
-        <ActionBtn label="Refresh" onClick={load} />
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <Chip label={`${pending.length} pending`} color={pending.length > 0 ? DANGER : MUTED} />
+          <Chip label={`${resolved.length} resolved`} color={MUTED} />
+        </div>
+        <Btn label="↻ Refresh" small onClick={load} />
       </div>
-      {reports.length === 0 && <div style={{ color: MUTED, textAlign: 'center', padding: 20 }}>No reports found.</div>}
+      {feedback && <StatusBar text={feedback} />}
+      {reports.length === 0 && <div style={{ color: MUTED, textAlign: 'center', padding: 30, fontSize: 13 }}>No reports found.</div>}
       {reports.map(r => (
-        <Card key={r.id}>
+        <Row key={r.id}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
-                <Badge
-                  label={r.status}
-                  color={r.status === 'pending' ? '#ff9800' : r.status === 'resolved' ? GREEN : MUTED}
-                />
-                <Badge label={r.target_type || 'post'} color={PURPLE} />
+              <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+                <Chip label={r.status} color={r.status === 'pending' ? WARN : r.status === 'resolved' ? GREEN : MUTED} />
+                <Chip label={r.target_type || 'post'} color={PURPLE} />
               </div>
-              <div style={{ fontSize: 12, color: '#fff', marginBottom: 2 }}>
-                <strong>Reporter:</strong> <span style={{ color: MUTED }}>{r.reporter_name || r.reporter_id}</span>
+              <div style={{ fontSize: 12, color: MUTED, marginBottom: 4 }}>
+                <span style={{ color: WHITE, fontWeight: 600 }}>{r.reporter_name || r.reporter_id}</span> reported{r.target_name ? <> <span style={{ color: CYAN }}>{r.target_name}</span></> : ''}
               </div>
-              {r.target_name && (
-                <div style={{ fontSize: 12, color: '#fff', marginBottom: 2 }}>
-                  <strong>Target:</strong> <span style={{ color: MUTED }}>{r.target_name}</span>
-                </div>
-              )}
-              <div style={{ fontSize: 12, color: '#fff', marginBottom: 2 }}>
-                <strong>Reason:</strong> <span style={{ color: MUTED }}>{r.reason}</span>
-              </div>
+              <div style={{ fontSize: 12, color: WHITE, marginBottom: 4 }}>{r.reason}</div>
               {r.post_content && (
-                <div style={{
-                  fontSize: 11, color: MUTED, background: BG, borderRadius: 6, padding: '5px 8px',
-                  marginTop: 6, maxHeight: 60, overflow: 'hidden',
-                }}>
+                <div style={{ fontSize: 11, color: MUTED, background: BG3, borderRadius: 6, padding: '5px 8px', marginTop: 4, maxHeight: 50, overflow: 'hidden' }}>
                   {r.post_content.slice(0, 200)}
                 </div>
               )}
-              <div style={{ color: MUTED, fontSize: 12, marginTop: 4 }}>{fmt(r.created_at)}</div>
+              <div style={{ color: MUTED, fontSize: 11, marginTop: 6 }}>{fmt(r.created_at)}</div>
             </div>
             {r.status === 'pending' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
-                <ActionBtn label="Resolve" color={GREEN} onClick={() => resolve(r.id, 'resolved')} />
-                <ActionBtn label="Dismiss" color={MUTED} onClick={() => resolve(r.id, 'dismissed')} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0 }}>
+                <Btn label="Resolve" color={GREEN} small onClick={() => resolve(r.id, 'resolved')} />
+                <Btn label="Dismiss" color={MUTED} small onClick={() => resolve(r.id, 'dismissed')} />
               </div>
             )}
           </div>
-        </Card>
+        </Row>
       ))}
     </div>
   );
@@ -367,72 +379,91 @@ function ContentTab({ myModLevel }: { myModLevel: string }) {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState('');
+  const [feedbackError, setFeedbackError] = useState(false);
+  const isOwner = myModLevel === 'owner';
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await emitWithAck<any, Res<any>>('community:feed_v2', { limit: 30, offset: 0 });
-      if (res.ok) setPosts((res.data as any)?.posts ?? res.data ?? []);
+      const res = await emitWithAck<any, Res<any[]>>('admin:post_list', {});
+      if (res.ok) setPosts(res.data ?? []);
     } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
   const postAction = async (postId: string, action: string) => {
-    setFeedback('');
+    setFeedback(''); setFeedbackError(false);
     const res = await emitWithAck<any, Res<any>>('admin:post_action', { postId, action });
     if (res.ok) {
       setFeedback(`Post ${action} done.`);
-      if (action === 'delete') setPosts(p => p.filter(x => x.id !== postId));
-    } else {
-      setFeedback(res.error ?? 'Error');
-    }
+      if (action === 'delete' || action === 'hide') setPosts(p => p.filter(x => x.id !== postId));
+      else setPosts(p => p.map(x => x.id === postId ? {
+        ...x,
+        isPinned: action === 'pin' ? true : action === 'unpin' ? false : x.isPinned,
+        isFeatured: action === 'feature' ? true : action === 'unfeature' ? false : x.isFeatured,
+      } : x));
+    } else { setFeedback(res.error ?? 'Error'); setFeedbackError(true); }
   };
 
-  if (loading) return <div style={{ color: MUTED, textAlign: 'center', padding: 20 }}>Loading content…</div>;
+  if (loading) return <div style={{ color: MUTED, textAlign: 'center', padding: 30 }}>Loading content…</div>;
 
   return (
-    <div style={{ overflowY: 'auto', paddingBottom: 24 }}>
-      {feedback && <div style={{ color: feedback.includes('Error') || feedback.includes('Only') ? DANGER : GREEN, fontSize: 12, marginBottom: 10 }}>{feedback}</div>}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <span style={{ color: MUTED, fontSize: 12 }}>{posts.length} recent posts</span>
-        <ActionBtn label="Refresh" onClick={load} />
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <Chip label={`${posts.length} posts`} color={MUTED} />
+        <Btn label="↻ Refresh" small onClick={load} />
       </div>
-      {posts.length === 0 && <div style={{ color: MUTED, textAlign: 'center', padding: 20 }}>No posts found.</div>}
+      {feedback && <StatusBar text={feedback} isError={feedbackError} />}
+      {posts.length === 0 && <div style={{ color: MUTED, textAlign: 'center', padding: 30 }}>No posts found.</div>}
       {posts.map((p: any) => (
-        <Card key={p.id}>
+        <Row key={p.id}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
-                {p.isPinned && <Badge label="pinned" color={ACCENT} />}
-                {p.isFeatured && <Badge label="featured" color={PURPLE} />}
-                {p.hidden && <Badge label="hidden" color={MUTED} />}
+            <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+              {/* badges */}
+              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 5 }}>
+                {p.isPinned && <Chip label="pinned" color={ACCENT} />}
+                {p.isFeatured && <Chip label="featured" color={PURPLE} />}
+                {p.hidden && <Chip label="hidden" color={MUTED} />}
+                {p.isAnonymous && <Chip label="anonymous" color={CYAN} />}
               </div>
-              <div style={{ fontSize: 12, color: MUTED, marginBottom: 3 }}>
-                {p.authorName || p.author_id} · {fmtShort(p.createdAt || p.created_at)}
+              {/* author */}
+              <div style={{ fontSize: 12, marginBottom: 3 }}>
+                <span style={{ color: p.isAnonymous ? CYAN : MUTED }}>{p.authorName}</span>
+                {p.realAuthorName && (
+                  <span style={{ color: ACCENT, fontSize: 10, marginLeft: 6 }}>→ {p.realAuthorName}</span>
+                )}
+                <span style={{ color: MUTED }}> · {fmtShort(p.createdAt)}</span>
               </div>
-              <div style={{ fontSize: 13, color: '#fff', overflow: 'hidden', maxHeight: 50, lineHeight: 1.4 }}>
-                {(p.content || '').slice(0, 180)}
+              {/* content */}
+              <div style={{ fontSize: 12, color: WHITE, overflow: 'hidden', maxHeight: 44, lineHeight: 1.5 }}>
+                {(p.content || '').slice(0, 160) || <span style={{ color: MUTED, fontStyle: 'italic' }}>[{p.postType}]</span>}
+              </div>
+              {/* stats */}
+              <div style={{ display: 'flex', gap: 10, marginTop: 5, fontSize: 11, color: MUTED }}>
+                <span>♥ {p.likesCount}</span>
+                <span>💬 {p.commentsCount}</span>
               </div>
             </div>
+            {/* actions */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
-              <ActionBtn label="Delete" color={DANGER} onClick={() => postAction(p.id, 'delete')} />
+              {isOwner && <Btn label="Delete" color={DANGER} small onClick={() => postAction(p.id, 'delete')} />}
               {!p.isPinned
-                ? <ActionBtn label="Pin" color={ACCENT} onClick={() => postAction(p.id, 'pin')} />
-                : <ActionBtn label="Unpin" color={MUTED} onClick={() => postAction(p.id, 'unpin')} />}
+                ? <Btn label="Pin" color={ACCENT} small onClick={() => postAction(p.id, 'pin')} />
+                : <Btn label="Unpin" color={MUTED} small onClick={() => postAction(p.id, 'unpin')} />}
               {!p.isFeatured
-                ? <ActionBtn label="Feature" color={PURPLE} onClick={() => postAction(p.id, 'feature')} />
-                : <ActionBtn label="Unfeature" color={MUTED} onClick={() => postAction(p.id, 'unfeature')} />}
-              {!p.hidden && <ActionBtn label="Hide" color={MUTED} onClick={() => postAction(p.id, 'hide')} />}
+                ? <Btn label="Feature" color={PURPLE} small onClick={() => postAction(p.id, 'feature')} />
+                : <Btn label="Unfeature" color={MUTED} small onClick={() => postAction(p.id, 'unfeature')} />}
+              {!p.hidden && <Btn label="Hide" color={MUTED} small onClick={() => postAction(p.id, 'hide')} />}
             </div>
           </div>
-        </Card>
+        </Row>
       ))}
     </div>
   );
 }
 
-// ── Recovery Tab (owner only) ──────────────────────────────────────────
+// ── Recovery Tab ───────────────────────────────────────────────────────
 function RecoveryTab() {
   const [contentType, setContentType] = useState<'posts' | 'comments' | 'debates'>('posts');
   const [items, setItems] = useState<any[]>([]);
@@ -452,61 +483,59 @@ function RecoveryTab() {
   useEffect(() => { load(contentType); }, [contentType, load]);
 
   const restore = async (id: string) => {
-    const action = contentType === 'posts' ? 'restore' : contentType === 'debates' ? 'restore' : 'restore';
     const event = contentType === 'posts' ? 'admin:post_action' : contentType === 'comments' ? 'admin:comment_action' : 'admin:debate_action';
     const key = contentType === 'posts' ? 'postId' : contentType === 'comments' ? 'commentId' : 'debateId';
-    const res = await emitWithAck<any, Res<any>>(event, { action, [key]: id });
+    const res = await emitWithAck<any, Res<any>>(event, { action: 'restore', [key]: id });
     if (res.ok) {
-      setFeedback('Restored.');
+      setFeedback('Restored successfully.');
       setItems(it => it.filter(x => x.id !== id));
-    } else {
-      setFeedback(res.error ?? 'Error');
-    }
+    } else setFeedback(res.error ?? 'Error');
   };
 
   return (
-    <div style={{ overflowY: 'auto', paddingBottom: 24 }}>
-      {/* Type selector */}
+    <div>
       <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
         {(['posts', 'comments', 'debates'] as const).map(t => (
           <button
             key={t}
             onClick={() => setContentType(t)}
             style={{
-              padding: '5px 14px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
-              background: contentType === t ? `${ACCENT}22` : BG2,
-              border: `1px solid ${contentType === t ? ACCENT : BORDER}`,
-              color: contentType === t ? ACCENT : MUTED,
-              fontWeight: 600,
+              padding: '5px 14px', borderRadius: 20, fontSize: 11, cursor: 'pointer', fontWeight: 600,
+              background: contentType === t ? `${PURPLE}25` : 'transparent',
+              border: `1px solid ${contentType === t ? PURPLE : BORDER}`,
+              color: contentType === t ? WHITE : MUTED,
+              textTransform: 'capitalize',
             }}
           >
             {t}
           </button>
         ))}
       </div>
-      {feedback && <div style={{ color: GREEN, fontSize: 12, marginBottom: 10 }}>{feedback}</div>}
-      {loading && <div style={{ color: MUTED, textAlign: 'center', padding: 20 }}>Loading…</div>}
-      {!loading && items.length === 0 && <div style={{ color: MUTED, textAlign: 'center', padding: 20 }}>Nothing deleted.</div>}
+      {feedback && <StatusBar text={feedback} />}
+      {loading && <div style={{ color: MUTED, textAlign: 'center', padding: 30 }}>Loading…</div>}
+      {!loading && items.length === 0 && <div style={{ color: MUTED, textAlign: 'center', padding: 30, fontSize: 13 }}>Nothing deleted.</div>}
       {items.map((item: any) => (
-        <Card key={item.id}>
+        <Row key={item.id}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, color: MUTED, marginBottom: 3 }}>
-                {item.author_name || item.creator_name || item.author_id} · Deleted {fmt(item.deleted_at)} by {item.deleted_by_name || '?'}
+              <div style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>
+                <span style={{ color: WHITE, fontWeight: 600 }}>{item.author_name || item.creator_name || '?'}</span>
+                {' · '}Deleted {fmt(item.deleted_at)}
+                {item.deleted_by_name && <> by <span style={{ color: WARN }}>{item.deleted_by_name}</span></>}
               </div>
-              <div style={{ fontSize: 13, color: '#fff', overflow: 'hidden', maxHeight: 50 }}>
+              <div style={{ fontSize: 12, color: WHITE, overflow: 'hidden', maxHeight: 44 }}>
                 {(item.content || item.topic || '(no content)').slice(0, 180)}
               </div>
             </div>
-            <ActionBtn label="Restore" color={GREEN} onClick={() => restore(item.id)} />
+            <Btn label="↩ Restore" color={GREEN} small onClick={() => restore(item.id)} />
           </div>
-        </Card>
+        </Row>
       ))}
     </div>
   );
 }
 
-// ── Audit Logs Tab ─────────────────────────────────────────────────────
+// ── Audit Tab ──────────────────────────────────────────────────────────
 function AuditTab() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -521,27 +550,43 @@ function AuditTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading) return <div style={{ color: MUTED, textAlign: 'center', padding: 20 }}>Loading logs…</div>;
+  const actionColor = (action: string) => {
+    if (action.includes('delete') || action.includes('ban') || action.includes('suspend')) return DANGER;
+    if (action.includes('restore') || action.includes('unban') || action.includes('unsuspend')) return GREEN;
+    if (action.includes('warn') || action.includes('mute') || action.includes('hide')) return WARN;
+    if (action.includes('pin') || action.includes('feature') || action.includes('badge')) return ACCENT;
+    return CYAN;
+  };
+
+  if (loading) return <div style={{ color: MUTED, textAlign: 'center', padding: 30 }}>Loading logs…</div>;
 
   return (
-    <div style={{ overflowY: 'auto', paddingBottom: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <span style={{ color: MUTED, fontSize: 12 }}>{logs.length} entries</span>
-        <ActionBtn label="Refresh" onClick={load} />
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <Chip label={`${logs.length} entries`} color={MUTED} />
+        <Btn label="↻ Refresh" small onClick={load} />
       </div>
-      {logs.length === 0 && <div style={{ color: MUTED, textAlign: 'center', padding: 20 }}>No logs yet.</div>}
-      {logs.map((l: any) => (
-        <Card key={l.id} style={{ padding: '8px 12px' }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12 }}>
-            <span style={{ color: MUTED, whiteSpace: 'nowrap', flexShrink: 0 }}>{fmtShort(l.created_at)}</span>
-            <span style={{ color: ACCENT, fontWeight: 700, flexShrink: 0 }}>{l.action}</span>
-            <span style={{ color: '#fff' }}>
-              by <strong>{l.mod_name || l.mod_id}</strong>
-              {l.target_name && <> → <strong>{l.target_name}</strong></>}
-              {l.note && <span style={{ color: MUTED }}> · {l.note}</span>}
-            </span>
+      {logs.length === 0 && <div style={{ color: MUTED, textAlign: 'center', padding: 30, fontSize: 13 }}>No audit logs yet.</div>}
+      {logs.map((l: any, i) => (
+        <div key={l.id} style={{ display: 'flex', gap: 10, paddingBottom: 10, marginBottom: 4, borderBottom: i < logs.length - 1 ? `1px solid ${BORDER}` : 'none' }}>
+          {/* timeline dot */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: actionColor(l.action), marginTop: 4, boxShadow: `0 0 6px ${actionColor(l.action)}` }} />
+            {i < logs.length - 1 && <div style={{ width: 1, flex: 1, background: BORDER, marginTop: 4 }} />}
           </div>
-        </Card>
+          {/* content */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2, flexWrap: 'wrap' }}>
+              <span style={{ color: actionColor(l.action), fontWeight: 700, fontSize: 11, letterSpacing: 0.5 }}>{l.action.toUpperCase()}</span>
+              <span style={{ color: MUTED, fontSize: 10 }}>{fmt(l.created_at)}</span>
+            </div>
+            <div style={{ fontSize: 12, color: WHITE }}>
+              by <span style={{ color: CYAN, fontWeight: 600 }}>{l.mod_name || l.mod_id}</span>
+              {l.target_name && <> → <span style={{ color: WHITE }}>{l.target_name}</span></>}
+            </div>
+            {l.note && <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>{l.note}</div>}
+          </div>
+        </div>
       ))}
     </div>
   );
@@ -549,6 +594,9 @@ function AuditTab() {
 
 // ── Badges Tab ─────────────────────────────────────────────────────────
 const BADGE_TYPES = ['owner', 'admin', 'moderator', 'contributor', 'verified'];
+const BADGE_COLORS: Record<string, string> = {
+  owner: ACCENT, admin: DANGER, moderator: PURPLE, contributor: CYAN, verified: GREEN,
+};
 
 function BadgesTab() {
   const [query, setQuery] = useState('');
@@ -556,6 +604,7 @@ function BadgesTab() {
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<any | null>(null);
   const [feedback, setFeedback] = useState('');
+  const [feedbackError, setFeedbackError] = useState(false);
 
   const search = async () => {
     if (query.trim().length < 2) return;
@@ -573,89 +622,67 @@ function BadgesTab() {
 
   const assignBadge = async (badge: string) => {
     if (!selected) return;
+    setFeedback(''); setFeedbackError(false);
     const res = await emitWithAck<any, Res<any>>('community:badge_assign', { targetId: selected.id, badge });
-    if (res.ok) {
-      setFeedback(`Badge "${badge}" assigned.`);
-      await openProfile(selected.id);
-    } else {
-      setFeedback(res.error ?? 'Error');
-    }
+    if (res.ok) { setFeedback(`Badge "${badge}" assigned.`); await openProfile(selected.id); }
+    else { setFeedback(res.error ?? 'Error'); setFeedbackError(true); }
   };
 
   const revokeBadge = async (badge: string) => {
     if (!selected) return;
+    setFeedback(''); setFeedbackError(false);
     const res = await emitWithAck<any, Res<any>>('community:badge_revoke', { targetId: selected.id, badge });
-    if (res.ok) {
-      setFeedback(`Badge "${badge}" revoked.`);
-      await openProfile(selected.id);
-    } else {
-      setFeedback(res.error ?? 'Error');
-    }
+    if (res.ok) { setFeedback(`Badge "${badge}" revoked.`); await openProfile(selected.id); }
+    else { setFeedback(res.error ?? 'Error'); setFeedbackError(true); }
   };
 
   return (
-    <div style={{ overflowY: 'auto', paddingBottom: 24 }}>
+    <div>
+      {feedback && <StatusBar text={feedback} isError={feedbackError} />}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        <input
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && search()}
-          placeholder="Search user…"
-          style={{
-            flex: 1, background: BG, border: `1px solid ${BORDER}`, borderRadius: 8,
-            padding: '8px 12px', color: '#fff', fontSize: 13, outline: 'none',
-          }}
-        />
-        <ActionBtn label={loading ? '…' : 'Search'} onClick={search} disabled={loading} />
+        <Input value={query} onChange={setQuery} placeholder="Search player…" onEnter={search} />
+        <Btn label={loading ? '…' : 'Search'} onClick={search} disabled={loading} />
       </div>
 
-      {feedback && <div style={{ color: feedback.includes('Error') ? DANGER : GREEN, fontSize: 12, marginBottom: 10 }}>{feedback}</div>}
-
       {!selected && results.map(u => (
-        <Card key={u.id}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ color: '#fff', fontWeight: 600 }}>{u.username}</span>
-            <ActionBtn label="Select" onClick={() => openProfile(u.id)} />
+        <Row key={u.id}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: WHITE, fontWeight: 600 }}>{u.username}</div>
+              <div style={{ color: MUTED, fontSize: 11 }}>#{u.friend_code || '—'}</div>
+            </div>
+            <Btn label="Select" small onClick={() => openProfile(u.id)} />
           </div>
-        </Card>
+        </Row>
       ))}
 
       {selected && (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: MUTED, cursor: 'pointer', fontSize: 18 }}>←</button>
-            <span style={{ color: '#fff', fontWeight: 700 }}>{selected.username}</span>
-          </div>
-
-          {/* Current badges */}
-          <Card>
-            <Label>Current badges</Label>
-            {(!selected.badges || selected.badges.length === 0) && (
-              <div style={{ color: MUTED, fontSize: 12, marginTop: 6 }}>No badges.</div>
-            )}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
-              {(selected.badges ?? []).map((b: any) => (
-                <div key={b.badge} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Badge label={b.badge} color={ACCENT} />
-                  <button
-                    onClick={() => revokeBadge(b.badge)}
-                    style={{ background: 'none', border: 'none', color: DANGER, cursor: 'pointer', fontSize: 12, padding: '0 2px' }}
-                    title="Revoke"
-                  >×</button>
-                </div>
-              ))}
+          <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: CYAN, cursor: 'pointer', fontSize: 13, marginBottom: 12, padding: 0, fontWeight: 600 }}>
+            ← Back
+          </button>
+          <Row>
+            <div style={{ color: WHITE, fontWeight: 700, fontSize: 14, marginBottom: 8 }}>{selected.username}</div>
+            <div style={{ marginBottom: 6 }}>
+              <div style={{ color: MUTED, fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>CURRENT BADGES</div>
+              {(!selected.badges || selected.badges.length === 0) && <div style={{ color: MUTED, fontSize: 12 }}>No badges assigned.</div>}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {(selected.badges ?? []).map((b: any) => (
+                  <div key={b.badge} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <Chip label={b.badge} color={BADGE_COLORS[b.badge] ?? MUTED} />
+                    <button onClick={() => revokeBadge(b.badge)} style={{ background: 'none', border: 'none', color: DANGER, cursor: 'pointer', fontSize: 13, padding: '0 2px', lineHeight: 1 }}>×</button>
+                  </div>
+                ))}
+              </div>
             </div>
-          </Card>
-
-          {/* Assign badge */}
-          <Card>
-            <Label>Assign badge</Label>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+          </Row>
+          <Section title="Assign badge">
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {BADGE_TYPES.map(b => (
-                <ActionBtn key={b} label={b} color={ACCENT} onClick={() => assignBadge(b)} />
+                <Btn key={b} label={b} color={BADGE_COLORS[b] ?? ACCENT} small onClick={() => assignBadge(b)} />
               ))}
             </div>
-          </Card>
+          </Section>
         </div>
       )}
     </div>
@@ -663,27 +690,25 @@ function BadgesTab() {
 }
 
 // ── Main AdminPanel ────────────────────────────────────────────────────
+const TABS: { id: Tab; label: string; icon: string; minLevel?: string }[] = [
+  { id: 'users',    label: 'Users',    icon: '👥' },
+  { id: 'reports',  label: 'Reports',  icon: '🚨' },
+  { id: 'content',  label: 'Content',  icon: '📋' },
+  { id: 'badges',   label: 'Badges',   icon: '🏅' },
+  { id: 'audit',    label: 'Audit',    icon: '🔍', minLevel: 'admin' },
+  { id: 'recovery', label: 'Recovery', icon: '🔄', minLevel: 'owner' },
+];
+
+const LEVEL_ORDER: Record<string, number> = { moderator: 1, senior_moderator: 2, admin: 3, owner: 4 };
+
+const RANK_COLOR: Record<string, string> = {
+  moderator: '#9b00ff', senior_moderator: '#c084fc', admin: '#ff9800', owner: '#ffc800',
+};
+
 export default function AdminPanel({ onClose, myModLevel }: AdminPanelProps) {
   const [tab, setTab] = useState<Tab>('users');
-
-  const TABS: { id: Tab; label: string; minLevel?: string }[] = [
-    { id: 'users',    label: 'Users' },
-    { id: 'reports',  label: 'Reports' },
-    { id: 'content',  label: 'Content' },
-    { id: 'badges',   label: 'Badges' },
-    { id: 'audit',    label: 'Audit', minLevel: 'admin' },
-    { id: 'recovery', label: 'Recovery', minLevel: 'owner' },
-  ];
-
-  const levelOrder: Record<string, number> = {
-    moderator: 1, senior_moderator: 2, admin: 3, owner: 4,
-  };
-  const myLevel = levelOrder[myModLevel] ?? 0;
-
-  const visibleTabs = TABS.filter(t => {
-    if (!t.minLevel) return true;
-    return myLevel >= (levelOrder[t.minLevel] ?? 99);
-  });
+  const myLevel = LEVEL_ORDER[myModLevel] ?? 0;
+  const visibleTabs = TABS.filter(t => !t.minLevel || myLevel >= (LEVEL_ORDER[t.minLevel] ?? 99));
 
   return createPortal(
     <motion.div
@@ -692,18 +717,18 @@ export default function AdminPanel({ onClose, myModLevel }: AdminPanelProps) {
       exit={{ opacity: 0 }}
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
-        background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)',
+        background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)',
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
       }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <motion.div
-        initial={{ y: 80, opacity: 0 }}
+        initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 80, opacity: 0 }}
-        transition={{ type: 'spring', damping: 24, stiffness: 200 }}
+        exit={{ y: 100, opacity: 0 }}
+        transition={{ type: 'spring', damping: 26, stiffness: 220 }}
         style={{
-          width: '100%', maxWidth: 600, height: '90vh',
+          width: '100%', maxWidth: 600, height: '92vh',
           background: BG, borderRadius: '20px 20px 0 0',
           border: `1px solid ${BORDER}`, borderBottom: 'none',
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -711,59 +736,66 @@ export default function AdminPanel({ onClose, myModLevel }: AdminPanelProps) {
       >
         {/* Header */}
         <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '16px 20px 12px', borderBottom: `1px solid ${BORDER}`, flexShrink: 0,
+          padding: '14px 18px 0',
+          background: `linear-gradient(180deg, ${BG3} 0%, ${BG} 100%)`,
+          flexShrink: 0,
         }}>
-          <div>
-            <h2 style={{ margin: 0, color: '#fff', fontSize: 18, fontWeight: 700 }}>Admin Panel</h2>
-            <div style={{ color: MUTED, fontSize: 11, marginTop: 2 }}>
-              <Badge label={myModLevel} color={myModLevel === 'owner' ? ACCENT : PURPLE} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', color: MUTED }}>⚙ Admin Console</span>
+              </div>
+              <div style={{ marginTop: 4 }}>
+                <Chip label={myModLevel.replace('_', ' ')} color={RANK_COLOR[myModLevel] ?? PURPLE} />
+              </div>
             </div>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'rgba(255,255,255,0.06)', border: `1px solid ${BORDER}`,
-              borderRadius: '50%', width: 32, height: 32, color: '#fff',
-              cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-          >
-            ×
-          </button>
-        </div>
-
-        {/* Tab bar */}
-        <div style={{
-          display: 'flex', gap: 4, padding: '10px 16px', borderBottom: `1px solid ${BORDER}`,
-          overflowX: 'auto', flexShrink: 0,
-        }}>
-          {visibleTabs.map(t => (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
+              onClick={onClose}
               style={{
-                padding: '5px 14px', borderRadius: 20, fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap',
-                background: tab === t.id ? `${ACCENT}22` : 'transparent',
-                border: `1px solid ${tab === t.id ? ACCENT : BORDER}`,
-                color: tab === t.id ? ACCENT : MUTED,
-                fontWeight: 600,
+                background: 'rgba(255,255,255,0.05)', border: `1px solid ${BORDER}`,
+                borderRadius: '50%', width: 30, height: 30, color: MUTED,
+                cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'all 0.15s',
               }}
             >
-              {t.label}
+              ×
             </button>
-          ))}
+          </div>
+
+          {/* Tab bar */}
+          <div style={{ display: 'flex', gap: 0, overflowX: 'auto', paddingBottom: 0 }} className="scrollbar-none">
+            {visibleTabs.map(t => {
+              const active = tab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    padding: '8px 14px', background: 'none', border: 'none',
+                    borderBottom: active ? `2px solid ${PURPLE}` : '2px solid transparent',
+                    color: active ? WHITE : MUTED,
+                    fontWeight: active ? 700 : 500,
+                    fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
+                    transition: 'all 0.15s', letterSpacing: 0.3,
+                  }}
+                >
+                  <span style={{ fontSize: 13 }}>{t.icon}</span>{t.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 24px' }}>
           <AnimatePresence mode="wait">
             <motion.div
               key={tab}
-              initial={{ opacity: 0, y: 6 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.12 }}
-              style={{ height: '100%' }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.14 }}
             >
               {tab === 'users'    && <UsersTab myModLevel={myModLevel} />}
               {tab === 'reports'  && <ReportsTab />}
