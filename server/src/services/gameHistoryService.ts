@@ -91,26 +91,23 @@ export interface GameHistoryEntry {
   myRole: string | null; myTeam: string | null; won: boolean;
 }
 
-export async function getPlayersLastRoles(
+export async function getPlayersLastRolesInRoom(
   profileIds: string[],
-  limit = 3,
-): Promise<Record<string, Array<{ role: string; team: string; won: boolean }>>> {
-  if (!profileIds.length) return {};
+  roomCode: string,
+): Promise<Record<string, { role: string; team: string; won: boolean }>> {
+  if (!profileIds.length || !roomCode) return {};
   const rows = await sql`
-    SELECT player_id, role, team, won FROM (
-      SELECT gp.player_id, gp.role, gp.team, gp.won,
-             ROW_NUMBER() OVER (PARTITION BY gp.player_id ORDER BY gh.ended_at DESC) as rn
-      FROM game_players gp
-      JOIN game_history gh ON gh.id = gp.game_id
-      WHERE gp.player_id = ANY(${profileIds})
-    ) ranked
-    WHERE rn <= ${limit}
-    ORDER BY player_id, rn
+    SELECT DISTINCT ON (gp.player_id)
+      gp.player_id, gp.role, gp.team, gp.won
+    FROM game_players gp
+    JOIN game_history gh ON gh.id = gp.game_id
+    WHERE gp.player_id = ANY(${profileIds})
+      AND gh.room_code = ${roomCode}
+    ORDER BY gp.player_id, gh.ended_at DESC
   ` as any[];
-  const result: Record<string, Array<{ role: string; team: string; won: boolean }>> = {};
+  const result: Record<string, { role: string; team: string; won: boolean }> = {};
   for (const r of rows) {
-    if (!result[r.player_id]) result[r.player_id] = [];
-    result[r.player_id]!.push({ role: r.role ?? '', team: r.team ?? '', won: r.won === 1 });
+    result[r.player_id] = { role: r.role ?? '', team: r.team ?? '', won: r.won === 1 };
   }
   return result;
 }

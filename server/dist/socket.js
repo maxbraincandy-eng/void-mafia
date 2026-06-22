@@ -15,7 +15,7 @@ import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActive
 import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount, } from './services/friendService.js';
 import { checkAndAwardChallenges, getDailyQuestsForPlayer, } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
-import { recordGame, getPlayerHistory, getPlayerRoleStats, getPlayersLastRoles } from './services/gameHistoryService.js';
+import { recordGame, getPlayerHistory, getPlayerRoleStats, getPlayersLastRolesInRoom } from './services/gameHistoryService.js';
 import { createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan, setClanMemberRole, addClanModLog, getClanModLogs, } from './services/clanService.js';
 import { challengeClan, acceptWar, declineWar, recordWarGame, getActiveWar, getWarHistory, } from './services/clanWarService.js';
 import { canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer, warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, getBannedPlayers, logKick, addModNote, freezeAccount, unfreezeAccount, renamePlayer, getPlayerDetail, assignReport, getDashboardDbStats, addModLog, } from './services/moderationService.js';
@@ -2958,13 +2958,13 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
-        socket.on('lobby:player_roles', async ({ profileIds }, cb) => {
+        socket.on('lobby:player_roles', async ({ profileIds, roomCode }, cb) => {
             try {
-                if (!Array.isArray(profileIds) || !profileIds.length) {
+                if (!Array.isArray(profileIds) || !profileIds.length || !roomCode) {
                     cb(ok({}));
                     return;
                 }
-                cb(ok(await getPlayersLastRoles(profileIds.slice(0, 20), 3)));
+                cb(ok(await getPlayersLastRolesInRoom(profileIds.slice(0, 20), roomCode)));
             }
             catch (e) {
                 cb(err(e.message));

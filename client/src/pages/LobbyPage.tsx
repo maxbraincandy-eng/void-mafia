@@ -57,7 +57,7 @@ export function LobbyPage() {
   const [showSpectators, setShowSpectators] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [unreadChat, setUnreadChat] = useState(0);
-  const [playerRoles, setPlayerRoles] = useState<Record<string, Array<{ role: string; team: string; won: boolean }>>>({});
+  const [playerRoles, setPlayerRoles] = useState<Record<string, { role: string; team: string; won: boolean }>>({});
   const [showInvite, setShowInvite] = useState(false);
   const [friends, setFriends] = useState<Array<{ profileId: string; username: string; avatar: string; isOnline: boolean }>>([]);
   const [sentInvites, setSentInvites] = useState<Set<string>>(new Set());
@@ -102,12 +102,12 @@ export function LobbyPage() {
   const profileIdsKey = profileIds.sort().join(',');
 
   useEffect(() => {
-    if (!profileIds.length) return;
-    socket.emit('lobby:player_roles' as any, { profileIds }, (res: any) => {
+    if (!profileIds.length || !room?.code) return;
+    socket.emit('lobby:player_roles' as any, { profileIds, roomCode: room.code }, (res: any) => {
       if (res?.data) setPlayerRoles(res.data);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profileIdsKey]);
+  }, [profileIdsKey, room?.code]);
 
   const loadFriends = useCallback(() => {
     socket.emit('friend:list' as any, (res: any) => {
@@ -126,25 +126,12 @@ export function LobbyPage() {
   const allReady = nonHostCount > 0 && readyCount === nonHostCount;
   const readyPct = nonHostCount > 0 ? (readyCount / nonHostCount) * 100 : 0;
 
-  function roleBadge(role: string, team: string, won: boolean) {
-    const abbr = role === 'citizen' ? 'C' : role === 'sheriff' ? 'S' : role === 'doctor' ? 'Dr'
-      : role === 'mafia' ? 'M' : role === 'don' ? 'D' : role === 'maniac' ? 'Ma'
-      : role === 'jester' ? 'J' : role === 'bodyguard' ? 'BG' : role === 'spy' ? 'Sp'
-      : role === 'escort' ? 'E' : role === 'vigilante' ? 'Vi' : role === 'cult_leader' ? 'CL'
-      : role === 'cultist' ? 'Cu' : role === 'veteran' ? 'Vt' : role === 'tracker' ? 'Tr'
-      : role === 'arsonist' ? 'Ar' : role === 'mayor' ? 'Mr' : role === 'yakuza' ? 'Y'
-      : role === 'shogun' ? 'Sh' : role.slice(0, 2).toUpperCase();
-    const color = team === 'mafia' ? 'rgba(239,68,68,0.75)'
-      : team === 'yakuza' ? 'rgba(251,146,60,0.75)'
-      : team === 'cult' ? 'rgba(168,85,247,0.75)'
-      : team === 'neutral' ? 'rgba(250,204,21,0.75)'
-      : 'rgba(34,211,238,0.75)';
-    const bg = team === 'mafia' ? 'rgba(239,68,68,0.10)'
-      : team === 'yakuza' ? 'rgba(251,146,60,0.10)'
-      : team === 'cult' ? 'rgba(168,85,247,0.10)'
-      : team === 'neutral' ? 'rgba(250,204,21,0.10)'
-      : 'rgba(34,211,238,0.10)';
-    return { abbr, color, bg, opacity: won ? 1 : 0.45 };
+  function roleColor(team: string) {
+    return team === 'mafia' ? 'rgba(239,68,68,0.65)'
+      : team === 'yakuza' ? 'rgba(251,146,60,0.65)'
+      : team === 'cult' ? 'rgba(168,85,247,0.65)'
+      : team === 'neutral' ? 'rgba(250,204,21,0.65)'
+      : 'rgba(34,211,238,0.55)';
   }
 
   const handleCopy = () => {
@@ -430,24 +417,6 @@ export function LobbyPage() {
                       <Avatar name={player.name} isHost={player.isHost} size="sm" src={player.avatarUrl ?? undefined} />
 
                       <div className="flex-1 min-w-0">
-                        {/* Role history badges */}
-                        {player.profileId && playerRoles[player.profileId]?.length ? (
-                          <div className="flex items-center gap-0.5 mb-0.5">
-                            {playerRoles[player.profileId]!.map((r, idx) => {
-                              const b = roleBadge(r.role, r.team, r.won);
-                              return (
-                                <span
-                                  key={idx}
-                                  title={`${r.role} · ${r.won ? 'Win' : 'Loss'}`}
-                                  className="text-[8px] font-mono font-bold px-1 rounded"
-                                  style={{ color: b.color, background: b.bg, opacity: b.opacity, border: `1px solid ${b.color}`, lineHeight: '14px' }}
-                                >
-                                  {b.abbr}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        ) : null}
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={clsx(
                             'text-sm font-medium truncate',
@@ -474,6 +443,11 @@ export function LobbyPage() {
                             </span>
                           )}
                         </div>
+                        {player.profileId && playerRoles[player.profileId] && (
+                          <p className="text-[11px] font-mono mt-0.5" style={{ color: roleColor(playerRoles[player.profileId]!.team) }}>
+                            was {playerRoles[player.profileId]!.role}
+                          </p>
+                        )}
                       </div>
 
                       {/* Status */}

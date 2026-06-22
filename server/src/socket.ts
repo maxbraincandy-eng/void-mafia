@@ -46,7 +46,7 @@ import {
   checkAndAwardChallenges, getDailyQuestsForPlayer,
 } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
-import { recordGame, getPlayerHistory, getPlayerRoleStats, getPlayersLastRoles } from './services/gameHistoryService.js';
+import { recordGame, getPlayerHistory, getPlayerRoleStats, getPlayersLastRolesInRoom } from './services/gameHistoryService.js';
 import {
   createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan,
   setClanMemberRole, addClanModLog, getClanModLogs,
@@ -2874,10 +2874,10 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
-    socket.on('lobby:player_roles', async ({ profileIds }, cb) => {
+    socket.on('lobby:player_roles', async ({ profileIds, roomCode }, cb) => {
       try {
-        if (!Array.isArray(profileIds) || !profileIds.length) { cb(ok({})); return; }
-        cb(ok(await getPlayersLastRoles(profileIds.slice(0, 20), 3)));
+        if (!Array.isArray(profileIds) || !profileIds.length || !roomCode) { cb(ok({})); return; }
+        cb(ok(await getPlayersLastRolesInRoom(profileIds.slice(0, 20), roomCode)));
       } catch (e: any) { cb(err(e.message)); }
     });
 
