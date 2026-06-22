@@ -46,7 +46,7 @@ import {
   checkAndAwardChallenges, getDailyQuestsForPlayer,
 } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
-import { recordGame, getPlayerHistory, getPlayerRoleStats } from './services/gameHistoryService.js';
+import { recordGame, getPlayerHistory, getPlayerRoleStats, getPlayersLastRoles } from './services/gameHistoryService.js';
 import {
   createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan,
   setClanMemberRole, addClanModLog, getClanModLogs,
@@ -2871,6 +2871,36 @@ export function attachSocketHandlers(io: AppServer): void {
       try {
         const history = await getPlayerHistory(profileId, 20);
         cb(ok(history));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('lobby:player_roles', async ({ profileIds }, cb) => {
+      try {
+        if (!Array.isArray(profileIds) || !profileIds.length) { cb(ok({})); return; }
+        cb(ok(await getPlayersLastRoles(profileIds.slice(0, 20), 3)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('room:invite', async ({ friendProfileId }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const room = getAllRooms().find(r => getPlayerByProfile(r, profileId));
+        if (!room) throw new Error('Not in a room.');
+        const me = getPlayerByProfile(room, profileId);
+        if (!me) throw new Error('Not in a room.');
+        const friendSock = findSocketByProfile(io as any, friendProfileId);
+        if (friendSock) {
+          const playerCount = [...room.players.values()].filter(p => !p.isSpectator).length;
+          friendSock.emit('room:invite_received', {
+            inviterName: me.name,
+            inviterAvatar: me.avatarUrl ?? me.name[0] ?? '?',
+            roomCode: room.code,
+            playerCount,
+            maxPlayers: room.settings.minPlayers,
+          });
+        }
+        cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });
 

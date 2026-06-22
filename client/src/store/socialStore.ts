@@ -17,6 +17,14 @@ export interface DmToast {
   preview: string;
 }
 
+export interface InviteToast {
+  inviterName: string;
+  inviterAvatar: string;
+  roomCode: string;
+  playerCount: number;
+  maxPlayers: number;
+}
+
 interface SocialStore {
   profilePopupId: string | null;
   openProfile: (profileId: string) => void;
@@ -36,6 +44,9 @@ interface SocialStore {
   dmToast: DmToast | null;
   showDmToast: (toast: DmToast) => void;
   clearDmToast: () => void;
+
+  inviteToast: InviteToast | null;
+  clearInviteToast: () => void;
 
   morePanelOpen: boolean;
   openMoreMenu: () => void;
@@ -100,6 +111,10 @@ export const useSocialStore = create<SocialStore>((set, get) => {
     set(s => ({ lobbyMessages: s.lobbyMessages.filter(m => m.id !== msgId) }));
   });
 
+  socket.on('room:invite_received' as any, (data: InviteToast) => {
+    set({ inviteToast: data });
+  });
+
   socket.on('mod:notification', (data: { type: string; message: string; targetName?: string }) => {
     const alert: ModAlert = {
       id: crypto.randomUUID(),
@@ -133,6 +148,9 @@ export const useSocialStore = create<SocialStore>((set, get) => {
     dmToast: null,
     showDmToast: (toast) => set({ dmToast: toast }),
     clearDmToast: () => set({ dmToast: null }),
+
+    inviteToast: null,
+    clearInviteToast: () => set({ inviteToast: null }),
 
     morePanelOpen: false,
     openMoreMenu: () => set({ morePanelOpen: true }),

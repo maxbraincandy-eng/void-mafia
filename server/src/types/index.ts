@@ -883,6 +883,7 @@ export interface ServerToClientEvents {
   'community:debate_deleted': (data: { debateId: string }) => void;
   'community:debate_updated': (data: { debateId: string; pinned?: boolean; featured?: boolean; locked?: boolean }) => void;
   'community:post_featured':  (data: { postId: string; featured: boolean }) => void;
+  'room:invite_received': (data: { inviterName: string; inviterAvatar: string; roomCode: string; playerCount: number; maxPlayers: number }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -923,6 +924,8 @@ export interface ClientToServerEvents {
   'player:profile':     (data: { profileId: string }, cb: Cb<PlayerProfilePublic>) => void;
   'player:achievements': (data: { profileId: string }, cb: Cb<AchievementEarned[]>) => void;
   'player:history':     (data: { profileId: string }, cb: Cb<GameHistoryEntry[]>) => void;
+  'room:invite':        (data: { friendProfileId: string }, cb: Cb<null>) => void;
+  'lobby:player_roles': (data: { profileIds: string[] }, cb: Cb<Record<string, Array<{ role: string; team: string; won: boolean }>>>) => void;
   'clan:list':          (cb: Cb<ClanPublic[]>) => void;
   'clan:get':           (data: { clanId: string }, cb: Cb<{ clan: ClanPublic; members: ClanMember[] }>) => void;
   'clan:create':        (data: { name: string; tag: string; description: string }, cb: Cb<ClanPublic>) => void;

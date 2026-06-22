@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
@@ -13,6 +13,7 @@ import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { RolePickerPanel } from '@/components/lobby/RolePickerPanel';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { RoomMoreMenu } from '@/components/ui/RoomMoreMenu';
+import { socket } from '@/lib/socket';
 import { ModDashboardPage } from '@/pages/ModDashboardPage';
 import { useVoiceChat, registerVoiceGestureRetry } from '@/hooks/useVoiceChat';
 import { useGameSounds } from '@/hooks/useSoundFX';
@@ -56,6 +57,10 @@ export function LobbyPage() {
   const [showSpectators, setShowSpectators] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [unreadChat, setUnreadChat] = useState(0);
+  const [playerRoles, setPlayerRoles] = useState<Record<string, Array<{ role: string; team: string; won: boolean }>>>({});
+  const [showInvite, setShowInvite] = useState(false);
+  const [friends, setFriends] = useState<Array<{ profileId: string; username: string; avatar: string; isOnline: boolean }>>([]);
+  const [sentInvites, setSentInvites] = useState<Set<string>>(new Set());
   const t = useT();
   const voice = useVoiceChat();
   useGameSounds();
@@ -91,6 +96,25 @@ export function LobbyPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id, amSpectator]);
 
+  const profileIds = room?.players
+    ? [...room.players.values()].filter(p => !p.isSpectator && p.profileId).map(p => p.profileId!)
+    : [];
+  const profileIdsKey = profileIds.sort().join(',');
+
+  useEffect(() => {
+    if (!profileIds.length) return;
+    socket.emit('lobby:player_roles' as any, { profileIds }, (res: any) => {
+      if (res?.data) setPlayerRoles(res.data);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileIdsKey]);
+
+  const loadFriends = useCallback(() => {
+    socket.emit('friend:list' as any, (res: any) => {
+      if (res?.data) setFriends(res.data);
+    });
+  }, []);
+
   if (!room) return null;
   const activePlayers = room.players.filter(p => !p.isSpectator);
   const spectators = room.players.filter(p => p.isSpectator);
@@ -101,6 +125,27 @@ export function LobbyPage() {
   const nonHostCount = activePlayers.filter(p => !p.isHost).length;
   const allReady = nonHostCount > 0 && readyCount === nonHostCount;
   const readyPct = nonHostCount > 0 ? (readyCount / nonHostCount) * 100 : 0;
+
+  function roleBadge(role: string, team: string, won: boolean) {
+    const abbr = role === 'citizen' ? 'C' : role === 'sheriff' ? 'S' : role === 'doctor' ? 'Dr'
+      : role === 'mafia' ? 'M' : role === 'don' ? 'D' : role === 'maniac' ? 'Ma'
+      : role === 'jester' ? 'J' : role === 'bodyguard' ? 'BG' : role === 'spy' ? 'Sp'
+      : role === 'escort' ? 'E' : role === 'vigilante' ? 'Vi' : role === 'cult_leader' ? 'CL'
+      : role === 'cultist' ? 'Cu' : role === 'veteran' ? 'Vt' : role === 'tracker' ? 'Tr'
+      : role === 'arsonist' ? 'Ar' : role === 'mayor' ? 'Mr' : role === 'yakuza' ? 'Y'
+      : role === 'shogun' ? 'Sh' : role.slice(0, 2).toUpperCase();
+    const color = team === 'mafia' ? 'rgba(239,68,68,0.75)'
+      : team === 'yakuza' ? 'rgba(251,146,60,0.75)'
+      : team === 'cult' ? 'rgba(168,85,247,0.75)'
+      : team === 'neutral' ? 'rgba(250,204,21,0.75)'
+      : 'rgba(34,211,238,0.75)';
+    const bg = team === 'mafia' ? 'rgba(239,68,68,0.10)'
+      : team === 'yakuza' ? 'rgba(251,146,60,0.10)'
+      : team === 'cult' ? 'rgba(168,85,247,0.10)'
+      : team === 'neutral' ? 'rgba(250,204,21,0.10)'
+      : 'rgba(34,211,238,0.10)';
+    return { abbr, color, bg, opacity: won ? 1 : 0.45 };
+  }
 
   const handleCopy = () => {
     navigator.clipboard.writeText(`https://voidmafia.one/join/${room.code}`);
@@ -277,6 +322,14 @@ export function LobbyPage() {
               )}>
                 {shared ? '✓' : 'Share'}
               </button>
+              {amHost && (
+                <button
+                  onClick={() => { loadFriends(); setShowInvite(true); }}
+                  className="text-[12px] px-2 py-0.5 rounded border font-mono transition-all border-yellow-400/25 text-yellow-400/60 hover:border-yellow-400/45 hover:text-yellow-400/90 hover:bg-yellow-400/[0.06]"
+                >
+                  Invite
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-2 mt-1">
               {room.settings.isPrivate && (
@@ -363,6 +416,24 @@ export function LobbyPage() {
                       <Avatar name={player.name} isHost={player.isHost} size="sm" src={player.avatarUrl ?? undefined} />
 
                       <div className="flex-1 min-w-0">
+                        {/* Role history badges */}
+                        {player.profileId && playerRoles[player.profileId]?.length ? (
+                          <div className="flex items-center gap-0.5 mb-0.5">
+                            {playerRoles[player.profileId]!.map((r, idx) => {
+                              const b = roleBadge(r.role, r.team, r.won);
+                              return (
+                                <span
+                                  key={idx}
+                                  title={`${r.role} · ${r.won ? 'Win' : 'Loss'}`}
+                                  className="text-[8px] font-mono font-bold px-1 rounded"
+                                  style={{ color: b.color, background: b.bg, opacity: b.opacity, border: `1px solid ${b.color}`, lineHeight: '14px' }}
+                                >
+                                  {b.abbr}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        ) : null}
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={clsx(
                             'text-sm font-medium truncate',
@@ -941,6 +1012,68 @@ export function LobbyPage() {
               </button>
               <ModDashboardPage />
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Invite friends modal */}
+      <AnimatePresence>
+        {showInvite && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[180] flex items-end justify-center pb-6 px-4"
+            style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)' }}
+            onClick={() => setShowInvite(false)}
+          >
+            <motion.div
+              initial={{ y: 40, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 40, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 340, damping: 30 }}
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-sm rounded-2xl overflow-hidden"
+              style={{ background: 'rgba(8,4,22,0.98)', border: '1px solid rgba(250,204,21,0.2)' }}
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+                <span className="text-sm font-display font-bold text-white/80">Invite Friends</span>
+                <button onClick={() => setShowInvite(false)} className="text-white/30 hover:text-white/60 text-lg leading-none">✕</button>
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {friends.filter(f => f.isOnline).length === 0 ? (
+                  <p className="text-center text-[13px] font-mono text-white/25 py-8">No friends online</p>
+                ) : (
+                  friends.filter(f => f.isOnline).map(f => {
+                    const sent = sentInvites.has(f.profileId);
+                    return (
+                      <div key={f.profileId} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.03] transition-colors">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-base shrink-0"
+                          style={{ background: 'linear-gradient(135deg, #7c3aed, #2563eb)' }}>
+                          {f.avatar || f.username[0]}
+                        </div>
+                        <span className="flex-1 text-sm font-medium text-white/80 truncate">{f.username}</span>
+                        <button
+                          disabled={sent}
+                          onClick={() => {
+                            socket.emit('room:invite' as any, { friendProfileId: f.profileId }, () => {});
+                            setSentInvites(s => new Set([...s, f.profileId]));
+                          }}
+                          className={clsx(
+                            'text-[12px] px-3 py-1 rounded-lg font-mono border transition-all',
+                            sent
+                              ? 'border-neon-green/25 text-neon-green/50 cursor-default'
+                              : 'border-yellow-400/30 text-yellow-400/70 hover:border-yellow-400/55 hover:text-yellow-400 hover:bg-yellow-400/[0.07]',
+                          )}
+                        >
+                          {sent ? '✓ Sent' : 'Invite'}
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

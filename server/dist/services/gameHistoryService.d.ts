@@ -31,5 +31,10 @@ export interface GameHistoryEntry {
     myTeam: string | null;
     won: boolean;
 }
+export declare function getPlayersLastRoles(profileIds: string[], limit?: number): Promise<Record<string, Array<{
+    role: string;
+    team: string;
+    won: boolean;
+}>>>;
 export declare function getPlayerHistory(playerId: string, limit?: number): Promise<GameHistoryEntry[]>;
 //# sourceMappingURL=gameHistoryService.d.ts.map
