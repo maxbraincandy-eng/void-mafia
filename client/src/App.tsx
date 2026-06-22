@@ -192,6 +192,101 @@ function DmToastNotification() {
   );
 }
 
+function RoomInviteToast() {
+  const { inviteToast, clearInviteToast } = useSocialStore();
+  const [progress, setProgress] = useState(100);
+
+  useEffect(() => {
+    if (!inviteToast) { setProgress(100); return; }
+    setProgress(100);
+    const start = Date.now();
+    const tick = setInterval(() => {
+      const pct = Math.max(0, 100 - ((Date.now() - start) / TOAST_MS) * 100);
+      setProgress(pct);
+    }, 50);
+    const id = setTimeout(() => { clearInviteToast(); clearInterval(tick); }, TOAST_MS);
+    return () => { clearTimeout(id); clearInterval(tick); };
+  }, [inviteToast, clearInviteToast]);
+
+  const handleJoin = () => {
+    if (!inviteToast) return;
+    socket.emit('room:join' as any, { code: inviteToast.roomCode }, () => {});
+    clearInviteToast();
+  };
+
+  return (
+    <AnimatePresence>
+      {inviteToast && (
+        <motion.div
+          key="invite-toast"
+          initial={{ opacity: 0, y: -20, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -16, scale: 0.96 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+          className="fixed top-4 left-3 right-3 z-[201]"
+          style={{ maxWidth: '360px', margin: '0 auto' }}
+        >
+          <div
+            className="rounded-2xl overflow-hidden backdrop-blur-2xl"
+            style={{
+              background: 'rgba(8,4,22,0.97)',
+              border: '1px solid rgba(250,204,21,0.35)',
+              boxShadow: '0 0 32px rgba(250,204,21,0.12), 0 8px 32px rgba(0,0,0,0.6)',
+            }}
+          >
+            <div className="flex items-center gap-3 px-3 py-3">
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0"
+                style={{ background: 'linear-gradient(135deg, #f59e0b, #78350f)' }}
+              >
+                {inviteToast.inviterAvatar.length > 2 ? '♛' : inviteToast.inviterAvatar}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1 mb-0.5">
+                  <span className="text-[11px] font-mono uppercase tracking-widest" style={{ color: 'rgba(250,204,21,0.5)' }}>
+                    Room Invite
+                  </span>
+                </div>
+                <p className="font-display text-sm font-bold text-white/90 truncate leading-tight">
+                  {inviteToast.inviterName}
+                </p>
+                <p className="font-mono text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.40)' }}>
+                  {inviteToast.playerCount}/{inviteToast.maxPlayers} players · {inviteToast.roomCode}
+                </p>
+              </div>
+              <button
+                onClick={handleJoin}
+                className="px-3 py-1.5 rounded-lg text-[12px] font-mono font-bold shrink-0 transition-all active:scale-95"
+                style={{ background: 'rgba(250,204,21,0.15)', border: '1px solid rgba(250,204,21,0.35)', color: 'rgba(250,204,21,0.9)' }}
+              >
+                Join
+              </button>
+              <button
+                onClick={e => { e.stopPropagation(); clearInviteToast(); }}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-white/20 hover:text-white/60 hover:bg-white/8 transition-all flex-shrink-0"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div className="h-0.5 w-full" style={{ background: 'rgba(255,255,255,0.04)' }}>
+              <motion.div
+                className="h-full"
+                style={{
+                  width: `${progress}%`,
+                  background: 'linear-gradient(90deg, #f59e0b, #fbbf24)',
+                  transition: 'width 50ms linear',
+                }}
+              />
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 const NAV_ORDER: NavTab[] = ['community', 'games', 'clans', 'rooms', 'leaderboard', 'profile'];
 
 function PageTransition({ children, direction }: { children: React.ReactNode; direction: 1 | -1 }) {
@@ -530,6 +625,7 @@ export default function App() {
       <PlayerProfileModal playerId={profilePopupId} onClose={closeProfile} />
       <DmPanel />
       <DmToastNotification />
+      <RoomInviteToast />
       <ModAlertPanel />
       <GiftReceivedAnimation notification={giftNotif} onDismiss={() => setGiftNotif(null)} />
       <CoinShopModal open={shopOpen} onClose={() => setShopOpen(false)} profileId={profile?.id ?? ''} />
