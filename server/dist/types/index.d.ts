@@ -1001,11 +1001,12 @@ export interface ClientToServerEvents {
     }, cb: Cb<null>) => void;
     'lobby:player_roles': (data: {
         profileIds: string[];
-    }, cb: Cb<Record<string, Array<{
+        roomCode: string;
+    }, cb: Cb<Record<string, {
         role: string;
         team: string;
         won: boolean;
-    }>>>) => void;
+    }>>) => void;
     'clan:list': (cb: Cb<ClanPublic[]>) => void;
     'clan:get': (data: {
         clanId: string;

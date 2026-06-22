@@ -925,7 +925,7 @@ export interface ClientToServerEvents {
   'player:achievements': (data: { profileId: string }, cb: Cb<AchievementEarned[]>) => void;
   'player:history':     (data: { profileId: string }, cb: Cb<GameHistoryEntry[]>) => void;
   'room:invite':        (data: { friendProfileId: string }, cb: Cb<null>) => void;
-  'lobby:player_roles': (data: { profileIds: string[] }, cb: Cb<Record<string, Array<{ role: string; team: string; won: boolean }>>>) => void;
+  'lobby:player_roles': (data: { profileIds: string[]; roomCode: string }, cb: Cb<Record<string, { role: string; team: string; won: boolean }>>) => void;
   'clan:list':          (cb: Cb<ClanPublic[]>) => void;
   'clan:get':           (data: { clanId: string }, cb: Cb<{ clan: ClanPublic; members: ClanMember[] }>) => void;
   'clan:create':        (data: { name: string; tag: string; description: string }, cb: Cb<ClanPublic>) => void;
