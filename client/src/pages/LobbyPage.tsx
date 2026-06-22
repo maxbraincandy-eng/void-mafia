@@ -286,15 +286,14 @@ export function LobbyPage() {
           {/* Room code */}
           <div className="text-right shrink-0">
             {room.name && (
-              <p className="text-xs font-display font-bold text-white/55 truncate max-w-[180px] mb-1">{room.name}</p>
+              <p className="text-xs font-display font-bold text-white/55 truncate max-w-[140px] mb-1">{room.name}</p>
             )}
-            <p className="text-[12px] font-mono text-white/18 uppercase tracking-[0.18em] mb-1">Room</p>
-            <div className="flex items-center justify-end gap-2">
-              <span className="font-mono text-xl font-bold text-neon-cyan/80 tracking-[0.22em]">
+            <div className="flex items-center justify-end gap-1.5">
+              <span className="font-mono text-lg font-bold text-neon-cyan/80 tracking-[0.18em]">
                 {room.code}
               </span>
               <button onClick={handleCopy} className={clsx(
-                'text-[12px] px-2 py-0.5 rounded border font-mono transition-all',
+                'text-[11px] px-1.5 py-0.5 rounded border font-mono transition-all',
                 copied
                   ? 'border-neon-green/35 bg-neon-green/[0.07] text-neon-green/80'
                   : 'border-white/[0.08] text-white/22 hover:border-white/18 hover:text-white/45',
@@ -302,29 +301,21 @@ export function LobbyPage() {
                 {copied ? '✓' : 'Copy'}
               </button>
               <button onClick={handleShare} className={clsx(
-                'text-[12px] px-2 py-0.5 rounded border font-mono transition-all',
+                'text-[11px] px-1.5 py-0.5 rounded border font-mono transition-all',
                 shared
                   ? 'border-neon-cyan/35 bg-neon-cyan/[0.07] text-neon-cyan/80'
                   : 'border-white/[0.08] text-white/22 hover:border-white/18 hover:text-white/45',
               )}>
                 {shared ? '✓' : 'Share'}
               </button>
-              {amHost && (
-                <button
-                  onClick={() => { loadFriends(); setShowInvite(true); }}
-                  className="text-[12px] px-2 py-0.5 rounded border font-mono transition-all border-yellow-400/25 text-yellow-400/60 hover:border-yellow-400/45 hover:text-yellow-400/90 hover:bg-yellow-400/[0.06]"
-                >
-                  Invite
-                </button>
-              )}
             </div>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center justify-end gap-2 mt-1">
               {room.settings.isPrivate && (
-                <p className="text-[12px] text-white/22 font-mono">Private room</p>
+                <p className="text-[11px] text-white/22 font-mono">Private</p>
               )}
               {room.settings.ranked && (
                 <span
-                  className="text-[12px] font-mono font-bold px-2 py-0.5 rounded-md"
+                  className="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded-md"
                   style={{ color: '#9b00ff', background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.25)' }}
                 >
                   ⚔️ Ranked
@@ -544,8 +535,9 @@ export function LobbyPage() {
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.08 }}
-              className="flex gap-2"
+              className="space-y-2"
             >
+              {/* Row 1: main action */}
               {!amHost && !amSpectator && (
                 <Button
                   fullWidth
@@ -561,13 +553,13 @@ export function LobbyPage() {
               )}
 
               {amSpectator && (
-                <div className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/[0.07] text-white/28 text-sm font-mono">
+                <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/[0.07] text-white/28 text-sm font-mono">
                   {t.lobby.watchingSpectator}
                 </div>
               )}
 
               {amHost && (
-                <>
+                <div className="flex gap-2">
                   <Button
                     fullWidth
                     variant="primary"
@@ -580,7 +572,7 @@ export function LobbyPage() {
                   <button
                     onClick={() => setShowSettings(s => !s)}
                     className={clsx(
-                      'px-4 py-2 rounded-xl border text-[11px] font-mono whitespace-nowrap transition-all',
+                      'px-3 py-2 rounded-xl border text-[11px] font-mono whitespace-nowrap transition-all shrink-0',
                       showSettings
                         ? 'border-white/18 bg-white/[0.04] text-white/55'
                         : 'border-white/[0.07] bg-white/[0.02] text-white/28 hover:border-white/14 hover:text-white/50',
@@ -588,75 +580,90 @@ export function LobbyPage() {
                   >
                     Settings
                   </button>
-
-                  {/* Dev tools — owner only */}
-                  {isOwner && (
-                    <div className="flex gap-2 w-full">
-                      {[10, 12].map(target => {
-                        const need = target - playerCount;
-                        if (need <= 0) return null;
-                        return (
-                          <button
-                            key={target}
-                            onClick={() => fillBots(need)}
-                            disabled={isLoading}
-                            className="flex-1 px-3 py-1.5 rounded-xl border border-neon-purple/30 text-neon-purple/60 text-[11px] font-mono hover:border-neon-purple/60 hover:text-neon-purple/90 transition-all disabled:opacity-40"
-                          >
-                            🤖 +{need} → {target}p
-                          </button>
-                        );
-                      })}
-                      {[...room.players.values()].some(p => p.isBot) && (
-                        <button
-                          onClick={() => clearBots()}
-                          disabled={isLoading}
-                          className="px-3 py-1.5 rounded-xl border border-red-500/30 text-red-400/50 text-[11px] font-mono hover:border-red-500/60 hover:text-red-400/80 transition-all disabled:opacity-40"
-                        >
-                          ✕ bots
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* Leave */}
-              <AnimatePresence mode="wait">
-                {showLeaveConfirm ? (
-                  <motion.div
-                    key="confirm"
-                    initial={{ opacity: 0, scale: 0.97 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.97 }}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl border border-neon-red/18 bg-neon-red/[0.03] shrink-0"
-                  >
-                    <span className="text-[12px] text-white/35 font-mono leading-tight whitespace-nowrap">
-                      {playerCount > 1 ? 'Leave?' : 'Close room?'}
-                    </span>
-                    <button
-                      onClick={handleLeave}
-                      disabled={isLoading}
-                      className="text-[12px] px-2.5 py-1 rounded-lg bg-neon-red/70 text-white font-mono font-bold hover:bg-neon-red/90 transition-colors disabled:opacity-40 whitespace-nowrap"
-                    >
-                      Leave
-                    </button>
-                    <button
-                      onClick={() => setShowLeaveConfirm(false)}
-                      className="text-white/18 hover:text-white/50 text-xs shrink-0"
-                    >✕</button>
-                  </motion.div>
-                ) : (
-                  <motion.button
-                    key="leave"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                  <button
                     onClick={() => amHost ? setShowLeaveConfirm(true) : handleLeave()}
                     disabled={isLoading}
-                    className="px-3 py-2 rounded-xl text-[11px] font-mono text-white/20 hover:text-neon-red/55 transition-colors disabled:opacity-30 whitespace-nowrap"
+                    className="p-2 rounded-xl border border-white/[0.06] text-white/20 hover:text-neon-red/55 hover:border-neon-red/20 transition-colors disabled:opacity-30 shrink-0"
+                    title={playerCount > 1 ? 'Leave' : 'Close room'}
                   >
-                    Leave
-                  </motion.button>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                      <polyline points="16 17 21 12 16 7"/>
+                      <line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                  </button>
+                </div>
+              )}
+
+              {/* Non-host leave */}
+              {!amHost && !amSpectator && (
+                <button
+                  onClick={handleLeave}
+                  disabled={isLoading}
+                  className="w-full py-1.5 rounded-xl text-[11px] font-mono text-white/18 hover:text-neon-red/50 transition-colors disabled:opacity-30"
+                >
+                  Leave room
+                </button>
+              )}
+
+              {/* Owner bot tools — row 2 */}
+              {amHost && isOwner && (
+                <div className="flex gap-2">
+                  {[10, 12].map(target => {
+                    const need = target - playerCount;
+                    if (need <= 0) return null;
+                    return (
+                      <button
+                        key={target}
+                        onClick={() => fillBots(need)}
+                        disabled={isLoading}
+                        className="flex-1 px-3 py-1.5 rounded-xl border border-neon-purple/30 text-neon-purple/60 text-[11px] font-mono hover:border-neon-purple/60 hover:text-neon-purple/90 transition-all disabled:opacity-40"
+                      >
+                        🤖 +{need} → {target}p
+                      </button>
+                    );
+                  })}
+                  {[...room.players.values()].some(p => p.isBot) && (
+                    <button
+                      onClick={() => clearBots()}
+                      disabled={isLoading}
+                      className="px-3 py-1.5 rounded-xl border border-red-500/30 text-red-400/50 text-[11px] font-mono hover:border-red-500/60 hover:text-red-400/80 transition-all disabled:opacity-40"
+                    >
+                      ✕ bots
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Leave confirm — full-width bar below */}
+              <AnimatePresence>
+                {showLeaveConfirm && (
+                  <motion.div
+                    key="confirm"
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-neon-red/20 bg-neon-red/[0.04]"
+                  >
+                    <span className="text-[13px] text-white/50 font-mono">
+                      {playerCount > 1 ? 'Leave the room?' : 'Close this room?'}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleLeave}
+                        disabled={isLoading}
+                        className="px-4 py-1.5 rounded-lg bg-neon-red/70 text-white text-[12px] font-mono font-bold hover:bg-neon-red/90 transition-colors disabled:opacity-40"
+                      >
+                        Yes
+                      </button>
+                      <button
+                        onClick={() => setShowLeaveConfirm(false)}
+                        className="px-4 py-1.5 rounded-lg border border-white/10 text-white/35 text-[12px] font-mono hover:text-white/60 hover:border-white/20 transition-colors"
+                      >
+                        No
+                      </button>
+                    </div>
+                  </motion.div>
                 )}
               </AnimatePresence>
             </motion.div>
