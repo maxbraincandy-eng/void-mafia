@@ -322,14 +322,6 @@ export function LobbyPage() {
               )}>
                 {shared ? '✓' : 'Share'}
               </button>
-              {amHost && (
-                <button
-                  onClick={() => { loadFriends(); setShowInvite(true); }}
-                  className="text-[12px] px-2 py-0.5 rounded border font-mono transition-all border-yellow-400/25 text-yellow-400/60 hover:border-yellow-400/45 hover:text-yellow-400/90 hover:bg-yellow-400/[0.06]"
-                >
-                  Invite
-                </button>
-              )}
             </div>
             <div className="flex items-center gap-2 mt-1">
               {room.settings.isPrivate && (
@@ -368,6 +360,20 @@ export function LobbyPage() {
                   <span className="ml-2 text-white/50">{playerCount}</span>
                 </span>
                 <div className="flex items-center gap-3">
+                  {amHost && (
+                    <button
+                      onClick={() => { loadFriends(); setShowInvite(true); }}
+                      className="flex items-center gap-1 text-[11px] font-mono transition-colors text-yellow-400/55 hover:text-yellow-400/90"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <line x1="19" y1="8" x2="19" y2="14"/>
+                        <line x1="22" y1="11" x2="16" y2="11"/>
+                      </svg>
+                      <span>Invite</span>
+                    </button>
+                  )}
                   {spectators.length > 0 && (
                     <button
                       onClick={() => setShowSpectators(s => !s)}
