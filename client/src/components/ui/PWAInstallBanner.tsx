@@ -23,7 +23,7 @@ export function PWAInstallBanner() {
     <div
       className="fixed left-0 right-0 z-[200] flex items-center gap-3 px-4"
       style={{
-        top: 'env(safe-area-inset-top, 0px)',
+        top: 'var(--sat)',
         height: `${PWA_BANNER_H}px`,
         background: 'rgba(3, 0, 19, 0.97)',
         borderBottom: '1px solid rgba(0, 245, 255, 0.18)',

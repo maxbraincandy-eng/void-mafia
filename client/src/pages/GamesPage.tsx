@@ -17,8 +17,9 @@ export function GamesPage() {
     >
       {/* Header */}
       <div
-        className="sticky top-0 z-10 px-4 pt-4 pb-3"
+        className="sticky z-10 px-4 pt-4 pb-3"
         style={{
+          top: 'calc(var(--sat) + var(--vm-banner-h, 0px))',
           background: 'rgba(3,0,13,0.92)',
           backdropFilter: 'blur(16px)',
           borderBottom: '1px solid rgba(255,255,255,0.05)',

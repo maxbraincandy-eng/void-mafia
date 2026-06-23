@@ -362,7 +362,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
     <div
       className="min-h-screen"
       style={{
-        paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--vm-banner-h, 0px))',
+        paddingTop: 'calc(var(--sat) + var(--vm-banner-h, 0px))',
         paddingBottom: 'calc(64px + env(safe-area-inset-bottom, 0px))',
       }}
       onTouchStart={handleTouchStart}

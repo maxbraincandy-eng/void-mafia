@@ -1319,7 +1319,7 @@ export function GamePage() {
       <PhaseAtmosphere phase={phase} />
 
       {/* ── Main layout ─────────────────────────────────────────────── */}
-      <div className="relative z-10 h-[100dvh] flex flex-col" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--vm-banner-h, 0px))' }}>
+      <div className="relative z-10 h-[100dvh] flex flex-col" style={{ paddingTop: 'calc(var(--sat) + var(--vm-banner-h, 0px))' }}>
 
         {/* Top bar */}
         <header className="flex-shrink-0 glass-panel border-b border-white/6">
