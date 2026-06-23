@@ -15,28 +15,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Void Mafia" />
-    <script>
-      // Run before React mounts so --sat/--sab are correct on first render
-      (function(){
-        function _ua(){
-          var p=document.createElement('div');
-          p.style.cssText='position:fixed;pointer-events:none;top:env(safe-area-inset-top,0px);bottom:env(safe-area-inset-bottom,0px);left:0;right:0;';
-          document.documentElement.appendChild(p);
-          var r=p.getBoundingClientRect();
-          document.documentElement.removeChild(p);
-          var t=Math.round(r.top),b=Math.round(window.innerHeight-r.bottom);
-          document.documentElement.style.setProperty('--sat',Math.max(t,0)+'px');
-          document.documentElement.style.setProperty('--sab',Math.max(b,0)+'px');
-        }
-        _ua();
-        window.addEventListener('resize',_ua);
-      })();
-    </script>
     <meta property="og:title" content="Void Mafia" />
     <meta property="og:description" content="Cyberpunk social deduction game of lies, loyalty, and betrayal." />
     <meta property="og:type" content="website" />
-    <script type="module" crossorigin src="/assets/index-FSG8nmv-.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DZTcnfB7.css">
+    <script type="module" crossorigin src="/assets/index-DczzR6QD.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-vdhv49N1.css">
   </head>
   <body class="bg-void text-white">
     <div id="root"></div>

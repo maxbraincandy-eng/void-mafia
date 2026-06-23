@@ -4,21 +4,16 @@
 
 :root {
   --vm-banner-h: 0px;
-  /* CSS fallbacks — overridden at runtime by JS probe in App.tsx for accuracy */
-  --sat: env(safe-area-inset-top, 0px);
-  --sab: env(safe-area-inset-bottom, 0px);
 }
 
-/* Bottom nav: extend background into home indicator zone via CSS (not inline style) */
+/* Bottom nav background extends into home indicator zone */
 .vm-bottom-nav {
   padding-bottom: env(safe-area-inset-bottom, 0px);
-  padding-bottom: var(--sab); /* override with JS-probed value when available */
 }
 
 /* Page content bottom padding including nav height */
 .vm-main-pb {
   padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
-  padding-bottom: calc(64px + var(--sab));
 }
 
 @layer base {

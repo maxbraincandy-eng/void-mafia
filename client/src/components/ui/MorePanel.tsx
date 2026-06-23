@@ -331,7 +331,7 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
                 style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(138,43,226,0.35) 30%, rgba(0,229,255,0.2) 70%, transparent 100%)' }} />
 
               {/* Header */}
-              <div className="px-4 pb-4" style={{ paddingTop: 'calc(var(--sat) + 12px)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <div className="px-4 pb-4" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                 <div className="flex items-center justify-between mb-3">
                   <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-neon-purple/35">Menu</p>
                   <button

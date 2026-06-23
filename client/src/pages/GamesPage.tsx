@@ -19,7 +19,7 @@ export function GamesPage() {
       <div
         className="sticky z-10 px-4 pt-4 pb-3"
         style={{
-          top: 'calc(var(--sat) + var(--vm-banner-h, 0px))',
+          top: 'calc(env(safe-area-inset-top, 0px) + var(--vm-banner-h, 0px))',
           background: 'rgba(3,0,13,0.92)',
           backdropFilter: 'blur(16px)',
           borderBottom: '1px solid rgba(255,255,255,0.05)',
