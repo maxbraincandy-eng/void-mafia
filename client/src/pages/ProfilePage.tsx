@@ -150,6 +150,9 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
   const [friends, setFriends] = useState<Friend[]>([]);
   const [showFriendsModal, setShowFriendsModal] = useState(false);
   const pendingFriendRequests = useGameStore(s => s.pendingFriendRequests);
+  const [showCoinsClan, setShowCoinsClan] = useState(false);
+  const [showFullProfile, setShowFullProfile] = useState(false);
+  const [showGifts, setShowGifts] = useState(false);
 
   const startEditName = () => {
     setNewName(profile?.username ?? '');
@@ -561,6 +564,220 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
           </button>
         </motion.div>
 
+        {/* ── Gifts section (collapsed accordion) ───────────────────── */}
+        <div className="glass-panel border border-white/8 rounded-2xl mb-3 overflow-hidden">
+          <button
+            onClick={() => setShowGifts(v => !v)}
+            className="w-full flex items-center justify-between p-4"
+          >
+            <span className="font-mono text-sm font-bold text-white/60">🎁 Gifts</span>
+            <span className="text-white/30 font-mono text-xs">{showGifts ? '▲' : '▼'}</span>
+          </button>
+          {showGifts && (
+            <div className="border-t border-white/8 p-4">
+              {profile && <GiftGallery profileId={profile.id} viewerId={profile.id} />}
+            </div>
+          )}
+        </div>
+
+        {/* ── Daily Reward ────────────────────────────────────────────── */}
+        <div className="glass-panel border border-amber-400/15 rounded-2xl p-4 mb-3">
+          <button onClick={claimDaily} disabled={dailyClaiming}
+            className="w-full py-3 rounded-xl bg-amber-400/10 border border-amber-400/25 text-amber-400 font-mono text-sm uppercase tracking-widest hover:bg-amber-400/20 transition-all disabled:opacity-50 font-bold">
+            {dailyClaiming ? 'Claiming...' : '☀ Claim Daily Reward — 50 🪙'}
+          </button>
+          {dailyMsg && <p className="text-center font-mono text-xs mt-2 text-amber-400/70">{dailyMsg}</p>}
+        </div>
+
+        {/* ── Info section ───────────────────────────────────────────── */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+          className="glass-panel border border-white/8 rounded-2xl p-4 mb-3">
+          <SectionHeader icon="📋" title="Info" />
+          <StatRow label="Public ID"    value={profile.publicId != null ? `#${profile.publicId}` : '—'} />
+          <StatRow label="XP"           value={xp} />
+          <StatRow label="Level"        value={level} />
+          <StatRow label="Joined"       value={new Date(profile.joinedAt).toLocaleDateString()} />
+          <StatRow label="Last active"  value={formatDate(profile.lastSeenAt ?? undefined)} />
+          <StatRow label="First game"   value={formatDate(roleStats?.firstGameAt ?? undefined)} />
+          <StatRow label="Last played"  value={formatDate(roleStats?.lastGameAt ?? undefined)} />
+          <StatRow label="Survived"     value={totalGames > 0 ? `${survived} / ${totalGames} (${survivalRate}%)` : '—'} />
+        </motion.div>
+
+        {/* ── Coins + Clan collapsed accordion ───────────────────────── */}
+        <div className="glass-panel border border-amber-400/15 rounded-2xl mb-3 overflow-hidden">
+          {/* Header — always visible, click to expand */}
+          <button
+            onClick={() => setShowCoinsClan(v => !v)}
+            className="w-full flex items-center justify-between p-4"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-amber-400 font-mono text-sm">🪙</span>
+              <span className="font-mono text-sm font-bold text-amber-400">
+                {coins != null ? coins.toLocaleString() : '—'}
+              </span>
+              {clan && (
+                <>
+                  <span className="text-white/20 font-mono text-xs">·</span>
+                  <span className="font-mono text-xs text-white/50">[{clan.tag}] {clan.name}</span>
+                </>
+              )}
+            </div>
+            <span className="text-white/30 font-mono text-xs">{showCoinsClan ? '▲' : '▼'}</span>
+          </button>
+          {/* Expanded content */}
+          {showCoinsClan && (
+            <div className="border-t border-white/8 p-4 space-y-4">
+              {/* Coins section */}
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-widest text-white/30 mb-2">Coin Wallet</p>
+                <p className="font-mono text-2xl font-bold text-amber-400">{coins != null ? coins.toLocaleString() : '—'} <span className="text-base">🪙</span></p>
+              </div>
+              {/* Clan section */}
+              {clan === undefined && (
+                <p className="text-white/20 font-mono text-xs text-center py-2">Loading…</p>
+              )}
+              {clan === null && (
+                <p className="text-white/20 font-mono text-xs text-center py-2">Not in a clan</p>
+              )}
+              {clan && (
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-white/30 mb-2">Clan</p>
+                  <p className="font-mono text-sm text-white font-bold">[{clan.tag}] {clan.name}</p>
+                  <div className="mt-2 space-y-1">
+                    {[
+                      { label: 'Role', value: clan.memberRole.charAt(0).toUpperCase() + clan.memberRole.slice(1) },
+                      { label: 'Joined clan', value: new Date(clan.joinedAt).toLocaleDateString() },
+                      { label: 'Members', value: clan.memberCount },
+                      { label: 'Clan wins', value: clan.wins },
+                      { label: 'Clan losses', value: clan.losses },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="flex items-center justify-between py-1 border-b border-white/5 last:border-0">
+                        <span className="font-mono text-xs text-white/40">{label}</span>
+                        <span className="font-mono text-xs text-white/80">{value ?? '—'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Friends box ────────────────────────────────────────────── */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.065 }}
+          className="glass-panel border border-white/8 rounded-2xl p-4 mb-3">
+          <div className="flex items-center justify-between mb-2">
+            <SectionHeader icon="👥" title="Friends" />
+            <div className="flex items-center gap-2">
+              {pendingFriendRequests.length > 0 && (
+                <span className="bg-neon-pink/20 border border-neon-pink/30 text-neon-pink font-mono text-[12px] px-1.5 py-0.5 rounded-full">
+                  {pendingFriendRequests.length} new
+                </span>
+              )}
+              <button
+                onClick={() => setShowFriendsModal(true)}
+                className="font-mono text-[12px] text-white/25 hover:text-neon-cyan/60 transition-colors uppercase tracking-wider"
+              >
+                see more
+              </button>
+            </div>
+          </div>
+
+          {/* Pending requests first */}
+          {pendingFriendRequests.length > 0 && (
+            <div className="mb-2 space-y-1.5">
+              {pendingFriendRequests.slice(0, 2).map(req => (
+                <div key={req.id} className="flex items-center gap-2 px-2.5 py-2 rounded-xl border border-neon-pink/15 bg-neon-pink/5">
+                  <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-sm flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg,rgba(255,0,128,.35),rgba(138,43,226,.35))', border: '1px solid rgba(138,43,226,.25)' }}>
+                    {req.fromAvatarUrl
+                      ? <img src={req.fromAvatarUrl} alt={req.fromUsername} className="w-full h-full object-cover rounded-full" />
+                      : req.fromAvatar}
+                  </div>
+                  <span className="flex-1 font-mono text-xs text-white/80 truncate">{req.fromUsername}</span>
+                  <button
+                    onClick={async () => {
+                      await emitWithAck<{ fromProfileId: string }, Res<null>>('friend:accept', { fromProfileId: req.fromId });
+                      useGameStore.setState(s => ({ pendingFriendRequests: s.pendingFriendRequests.filter(r => r.fromId !== req.fromId) }));
+                      emitWithAck<void, Res<Friend[]>>('friend:list').then(r => { if (r.ok) setFriends(r.data ?? []); }).catch(() => {});
+                    }}
+                    className="px-2 py-1 rounded-lg text-[12px] font-bold text-neon-green border border-neon-green/30 bg-neon-green/8 hover:bg-neon-green/15 transition-all"
+                  >✓ Add</button>
+                  <button
+                    onClick={async () => {
+                      await emitWithAck<{ fromProfileId: string }, Res<null>>('friend:decline', { fromProfileId: req.fromId });
+                      useGameStore.setState(s => ({ pendingFriendRequests: s.pendingFriendRequests.filter(r => r.fromId !== req.fromId) }));
+                    }}
+                    className="px-2 py-1 rounded-lg text-[12px] font-bold text-white/35 border border-white/10 hover:bg-white/8 transition-all"
+                  >✕</button>
+                </div>
+              ))}
+              {pendingFriendRequests.length > 2 && (
+                <button onClick={() => setShowFriendsModal(true)} className="text-center w-full font-mono text-[12px] text-neon-pink/50 hover:text-neon-pink/80 transition-colors py-0.5">
+                  +{pendingFriendRequests.length - 2} more requests
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Friends list — up to 5 */}
+          {friends.length === 0 && pendingFriendRequests.length === 0 && (
+            <p className="text-white/15 font-mono text-xs text-center py-2">No friends yet — add by 4-digit code</p>
+          )}
+          {friends.length > 0 && (
+            <div className="space-y-0.5">
+              {[...friends]
+                .sort((a, b) => {
+                  const aOn = a.isOnline || a.playerStatus === 'online' || a.playerStatus === 'in_game';
+                  const bOn = b.isOnline || b.playerStatus === 'online' || b.playerStatus === 'in_game';
+                  return Number(bOn) - Number(aOn);
+                })
+                .slice(0, 5)
+                .map(f => {
+                  const isOnline = f.isOnline || f.playerStatus === 'online' || f.playerStatus === 'in_game';
+                  return (
+                    <div key={f.profileId} className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-white/4 transition-colors">
+                      <div className="relative flex-shrink-0">
+                        <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-sm"
+                          style={{ background: 'linear-gradient(135deg,rgba(255,0,128,.35),rgba(138,43,226,.35))', border: '1px solid rgba(138,43,226,.25)' }}>
+                          {f.avatarUrl
+                            ? <img src={f.avatarUrl} alt={f.username} className="w-full h-full object-cover rounded-full" />
+                            : f.avatar}
+                        </div>
+                        <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-void"
+                          style={{ background: f.playerStatus === 'in_game' ? '#00f5ff' : isOnline ? '#00ff88' : 'rgba(255,255,255,0.15)' }} />
+                      </div>
+                      <span className="flex-1 font-mono text-xs text-white/70 truncate">{f.username}</span>
+                      <span className="font-mono text-[12px]" style={{ color: f.playerStatus === 'in_game' ? '#00f5ff' : isOnline ? '#00ff88' : 'rgba(255,255,255,0.2)' }}>
+                        {f.playerStatus === 'in_game' ? 'In Game' : isOnline ? 'Online' : `Lv.${f.level}`}
+                      </span>
+                    </div>
+                  );
+                })}
+              {friends.length > 5 && (
+                <button onClick={() => setShowFriendsModal(true)}
+                  className="w-full text-center font-mono text-[12px] text-white/20 hover:text-neon-cyan/50 transition-colors py-1.5">
+                  see more… ({friends.length - 5} more)
+                </button>
+              )}
+            </div>
+          )}
+        </motion.div>
+
+        {/* ── Expandable "see more" section ──────────────────────────── */}
+        <div className="mb-3">
+          <button
+            onClick={() => setShowFullProfile(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl mb-2"
+            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}
+          >
+            <span className="font-mono text-[12px] text-white/40 uppercase tracking-widest">
+              {showFullProfile ? '▲ See Less' : '▼ See More — Identity, Stats, History'}
+            </span>
+          </button>
+          {showFullProfile && (
+            <div>
+
         {/* ── Cosmetics / Wardrobe ───────────────────────────────────── */}
         {(() => {
           const cosmetics = profile.cosmetics;
@@ -967,20 +1184,6 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
           );
         })()}
 
-        {/* ── Info section ───────────────────────────────────────────── */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-          className="glass-panel border border-white/8 rounded-2xl p-4 mb-3">
-          <SectionHeader icon="📋" title="Info" />
-          <StatRow label="Public ID"    value={profile.publicId != null ? `#${profile.publicId}` : '—'} />
-          <StatRow label="XP"           value={xp} />
-          <StatRow label="Level"        value={level} />
-          <StatRow label="Joined"       value={new Date(profile.joinedAt).toLocaleDateString()} />
-          <StatRow label="Last active"  value={formatDate(profile.lastSeenAt ?? undefined)} />
-          <StatRow label="First game"   value={formatDate(roleStats?.firstGameAt ?? undefined)} />
-          <StatRow label="Last played"  value={formatDate(roleStats?.lastGameAt ?? undefined)} />
-          <StatRow label="Survived"     value={totalGames > 0 ? `${survived} / ${totalGames} (${survivalRate}%)` : '—'} />
-        </motion.div>
-
         {/* ── Ranked Rating ───────────────────────────────────────────── */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.065 }}
           className="glass-panel rounded-2xl p-4 mb-3"
@@ -1074,165 +1277,6 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
               ))}
             </div>
           )}
-        </motion.div>
-
-        {/* ── Friends box ────────────────────────────────────────────── */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.065 }}
-          className="glass-panel border border-white/8 rounded-2xl p-4 mb-3">
-          <div className="flex items-center justify-between mb-2">
-            <SectionHeader icon="👥" title="Friends" />
-            <div className="flex items-center gap-2">
-              {pendingFriendRequests.length > 0 && (
-                <span className="bg-neon-pink/20 border border-neon-pink/30 text-neon-pink font-mono text-[12px] px-1.5 py-0.5 rounded-full">
-                  {pendingFriendRequests.length} new
-                </span>
-              )}
-              <button
-                onClick={() => setShowFriendsModal(true)}
-                className="font-mono text-[12px] text-white/25 hover:text-neon-cyan/60 transition-colors uppercase tracking-wider"
-              >
-                see more
-              </button>
-            </div>
-          </div>
-
-          {/* Pending requests first */}
-          {pendingFriendRequests.length > 0 && (
-            <div className="mb-2 space-y-1.5">
-              {pendingFriendRequests.slice(0, 2).map(req => (
-                <div key={req.id} className="flex items-center gap-2 px-2.5 py-2 rounded-xl border border-neon-pink/15 bg-neon-pink/5">
-                  <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-sm flex-shrink-0"
-                    style={{ background: 'linear-gradient(135deg,rgba(255,0,128,.35),rgba(138,43,226,.35))', border: '1px solid rgba(138,43,226,.25)' }}>
-                    {req.fromAvatarUrl
-                      ? <img src={req.fromAvatarUrl} alt={req.fromUsername} className="w-full h-full object-cover rounded-full" />
-                      : req.fromAvatar}
-                  </div>
-                  <span className="flex-1 font-mono text-xs text-white/80 truncate">{req.fromUsername}</span>
-                  <button
-                    onClick={async () => {
-                      await emitWithAck<{ fromProfileId: string }, Res<null>>('friend:accept', { fromProfileId: req.fromId });
-                      useGameStore.setState(s => ({ pendingFriendRequests: s.pendingFriendRequests.filter(r => r.fromId !== req.fromId) }));
-                      emitWithAck<void, Res<Friend[]>>('friend:list').then(r => { if (r.ok) setFriends(r.data ?? []); }).catch(() => {});
-                    }}
-                    className="px-2 py-1 rounded-lg text-[12px] font-bold text-neon-green border border-neon-green/30 bg-neon-green/8 hover:bg-neon-green/15 transition-all"
-                  >✓ Add</button>
-                  <button
-                    onClick={async () => {
-                      await emitWithAck<{ fromProfileId: string }, Res<null>>('friend:decline', { fromProfileId: req.fromId });
-                      useGameStore.setState(s => ({ pendingFriendRequests: s.pendingFriendRequests.filter(r => r.fromId !== req.fromId) }));
-                    }}
-                    className="px-2 py-1 rounded-lg text-[12px] font-bold text-white/35 border border-white/10 hover:bg-white/8 transition-all"
-                  >✕</button>
-                </div>
-              ))}
-              {pendingFriendRequests.length > 2 && (
-                <button onClick={() => setShowFriendsModal(true)} className="text-center w-full font-mono text-[12px] text-neon-pink/50 hover:text-neon-pink/80 transition-colors py-0.5">
-                  +{pendingFriendRequests.length - 2} more requests
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Friends list — up to 5 */}
-          {friends.length === 0 && pendingFriendRequests.length === 0 && (
-            <p className="text-white/15 font-mono text-xs text-center py-2">No friends yet — add by 4-digit code</p>
-          )}
-          {friends.length > 0 && (
-            <div className="space-y-0.5">
-              {[...friends]
-                .sort((a, b) => {
-                  const aOn = a.isOnline || a.playerStatus === 'online' || a.playerStatus === 'in_game';
-                  const bOn = b.isOnline || b.playerStatus === 'online' || b.playerStatus === 'in_game';
-                  return Number(bOn) - Number(aOn);
-                })
-                .slice(0, 5)
-                .map(f => {
-                  const isOnline = f.isOnline || f.playerStatus === 'online' || f.playerStatus === 'in_game';
-                  return (
-                    <div key={f.profileId} className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-white/4 transition-colors">
-                      <div className="relative flex-shrink-0">
-                        <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-sm"
-                          style={{ background: 'linear-gradient(135deg,rgba(255,0,128,.35),rgba(138,43,226,.35))', border: '1px solid rgba(138,43,226,.25)' }}>
-                          {f.avatarUrl
-                            ? <img src={f.avatarUrl} alt={f.username} className="w-full h-full object-cover rounded-full" />
-                            : f.avatar}
-                        </div>
-                        <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-void"
-                          style={{ background: f.playerStatus === 'in_game' ? '#00f5ff' : isOnline ? '#00ff88' : 'rgba(255,255,255,0.15)' }} />
-                      </div>
-                      <span className="flex-1 font-mono text-xs text-white/70 truncate">{f.username}</span>
-                      <span className="font-mono text-[12px]" style={{ color: f.playerStatus === 'in_game' ? '#00f5ff' : isOnline ? '#00ff88' : 'rgba(255,255,255,0.2)' }}>
-                        {f.playerStatus === 'in_game' ? 'In Game' : isOnline ? 'Online' : `Lv.${f.level}`}
-                      </span>
-                    </div>
-                  );
-                })}
-              {friends.length > 5 && (
-                <button onClick={() => setShowFriendsModal(true)}
-                  className="w-full text-center font-mono text-[12px] text-white/20 hover:text-neon-cyan/50 transition-colors py-1.5">
-                  see more… ({friends.length - 5} more)
-                </button>
-              )}
-            </div>
-          )}
-        </motion.div>
-
-        {/* ── Clan section ───────────────────────────────────────────── */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.07 }}
-          className="glass-panel border border-white/8 rounded-2xl p-4 mb-3">
-          <SectionHeader icon="🏰" title="Clan" />
-          {clan === undefined && (
-            <p className="text-white/20 font-mono text-xs text-center py-2">Loading…</p>
-          )}
-          {clan === null && (
-            <p className="text-white/20 font-mono text-xs text-center py-2">Not in a clan</p>
-          )}
-          {clan && (
-            <>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="font-mono text-sm font-bold text-neon-cyan">[{clan.tag}]</span>
-                <span className="font-mono text-sm text-white/70 truncate">{clan.name}</span>
-              </div>
-              <StatRow label="Role"        value={clan.memberRole.charAt(0).toUpperCase() + clan.memberRole.slice(1)} />
-              <StatRow label="Joined clan" value={new Date(clan.joinedAt).toLocaleDateString()} />
-              <StatRow label="Members"     value={clan.memberCount} />
-              <StatRow label="Clan wins"   value={clan.wins} />
-              <StatRow label="Clan losses" value={clan.losses} />
-            </>
-          )}
-        </motion.div>
-
-        {/* ── Coin Wallet ────────────────────────────────────────────── */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}
-          className="glass-panel border border-amber-400/15 rounded-2xl p-4 mb-3">
-          <div className="flex items-center justify-between mb-3">
-            <SectionHeader icon="🪙" title="Coins" />
-            <span className="font-mono text-lg font-bold text-amber-400">
-              {coins != null ? coins.toLocaleString() : '—'}
-            </span>
-          </div>
-          <button
-            onClick={claimDaily}
-            disabled={dailyClaiming}
-            className="w-full py-2.5 rounded-xl bg-amber-400/10 border border-amber-400/25 text-amber-400 font-mono text-xs uppercase tracking-widest hover:bg-amber-400/20 transition-all disabled:opacity-50"
-          >
-            {dailyClaiming ? 'Claiming...' : '☀ Claim Daily Reward (50 🪙)'}
-          </button>
-          <AnimatePresence>
-            {dailyMsg && (
-              <motion.p initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                className="text-center font-mono text-xs mt-2 text-amber-400/70">
-                {dailyMsg}
-              </motion.p>
-            )}
-          </AnimatePresence>
-        </motion.div>
-
-        {/* ── Gift Gallery ────────────────────────────────────────────── */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.085 }}
-          className="glass-panel border border-white/8 rounded-2xl p-4 mb-3">
-          <SectionHeader icon="🎁" title="Gifts" />
-          {profile && <GiftGallery profileId={profile.id} viewerId={profile.id} />}
         </motion.div>
 
         {/* ── Games by team ──────────────────────────────────────────── */}
@@ -1399,6 +1443,10 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
             <FriendsPanel />
           </motion.div>
         )}
+
+            </div>
+          )}
+        </div>
 
         {/* ── Connected accounts ─────────────────────────────────────── */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
