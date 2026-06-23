@@ -13,7 +13,10 @@ import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { RolePickerPanel } from '@/components/lobby/RolePickerPanel';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { RoomMoreMenu } from '@/components/ui/RoomMoreMenu';
+import { PlayerActionMenu } from '@/components/ui/PlayerActionMenu';
+import { SendGiftModal } from '@/components/ui/SendGiftModal';
 import { socket } from '@/lib/socket';
+import type { PlayerPublic } from '@/types/index';
 import { ModDashboardPage } from '@/pages/ModDashboardPage';
 import { useVoiceChat, registerVoiceGestureRetry } from '@/hooks/useVoiceChat';
 import { useGameSounds } from '@/hooks/useSoundFX';
@@ -60,6 +63,8 @@ export function LobbyPage() {
   const [playerRoles, setPlayerRoles] = useState<Record<string, { role: string; team: string; won: boolean }>>({});
   const [showInvite, setShowInvite] = useState(false);
   const [friends, setFriends] = useState<Array<{ profileId: string; username: string; avatar: string; isOnline: boolean }>>([]);
+  const [lobbyActionTarget, setLobbyActionTarget] = useState<PlayerPublic | null>(null);
+  const [lobbyGiftTarget, setLobbyGiftTarget] = useState<{ profileId: string; name: string; avatar: string; avatarUrl: string | null } | null>(null);
   const [sentInvites, setSentInvites] = useState<Set<string>>(new Set());
   const t = useT();
   const voice = useVoiceChat();
@@ -402,7 +407,11 @@ export function LobbyPage() {
                       initial={{ opacity: 0, x: -6 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.06 + i * 0.03 }}
-                      onClick={() => player.profileId && openProfile(player.profileId)}
+                      onClick={() => {
+                        if (!player.profileId) return;
+                        if (isMe) { openProfile(player.profileId); }
+                        else { setLobbyActionTarget(player as PlayerPublic); }
+                      }}
                       className={clsx(
                         'flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-colors cursor-pointer',
                         isMe
@@ -1082,6 +1091,34 @@ export function LobbyPage() {
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Player action menu (lobby) */}
+      <AnimatePresence>
+        {lobbyActionTarget && (
+          <PlayerActionMenu
+            player={lobbyActionTarget}
+            isHostOrMod={amHost || isMod}
+            onClose={() => setLobbyActionTarget(null)}
+            onOpenProfile={profileId => { openProfile(profileId); setLobbyActionTarget(null); }}
+            onSendGift={(profileId, name, avatar, avatarUrl) => {
+              setLobbyGiftTarget({ profileId, name, avatar, avatarUrl });
+              setLobbyActionTarget(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {lobbyGiftTarget && (
+          <SendGiftModal
+            recipientId={lobbyGiftTarget.profileId}
+            recipientName={lobbyGiftTarget.name}
+            recipientAvatar={lobbyGiftTarget.avatar}
+            recipientAvatarUrl={lobbyGiftTarget.avatarUrl}
+            onClose={() => setLobbyGiftTarget(null)}
+          />
         )}
       </AnimatePresence>
     </div>
