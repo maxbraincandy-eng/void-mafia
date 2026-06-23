@@ -116,7 +116,11 @@ export function LobbyPage() {
   }, []);
 
   if (!room) return null;
-  const activePlayers = room.players.filter(p => !p.isSpectator);
+  // Host always first (#1), then everyone else in join order
+  const activePlayers = [
+    ...room.players.filter(p => !p.isSpectator && p.isHost),
+    ...room.players.filter(p => !p.isSpectator && !p.isHost),
+  ];
   const spectators = room.players.filter(p => p.isSpectator);
   const playerCount = activePlayers.length;
   const minPlayers = room.settings.minPlayers;
@@ -391,6 +395,7 @@ export function LobbyPage() {
               <div className="px-2 py-2">
                 {activePlayers.map((player, i) => {
                   const isMe = player.id === myPlayer?.id;
+                  const num = i + 1;
                   return (
                     <motion.div
                       key={player.id}
@@ -399,12 +404,19 @@ export function LobbyPage() {
                       transition={{ delay: 0.06 + i * 0.03 }}
                       onClick={() => player.profileId && openProfile(player.profileId)}
                       className={clsx(
-                        'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors cursor-pointer',
+                        'flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-colors cursor-pointer',
                         isMe
                           ? 'bg-white/[0.03] hover:bg-white/[0.05]'
                           : 'hover:bg-white/[0.025]',
                       )}
                     >
+                      {/* Sequential number */}
+                      <span
+                        className="flex-shrink-0 w-5 text-center font-mono text-[12px] font-bold select-none"
+                        style={{ color: num === 1 ? 'rgba(255,180,0,0.55)' : 'rgba(255,255,255,0.18)' }}
+                      >
+                        {num}
+                      </span>
                       <Avatar name={player.name} isHost={player.isHost} size="sm" src={player.avatarUrl ?? undefined} />
 
                       <div className="flex-1 min-w-0">
