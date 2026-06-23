@@ -363,7 +363,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       className="min-h-screen"
       style={{
         paddingTop: 'calc(var(--sat) + var(--vm-banner-h, 0px))',
-        paddingBottom: 'calc(64px + env(safe-area-inset-bottom, 0px))',
+        paddingBottom: 'calc(64px + var(--sab))',
       }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
@@ -606,24 +606,26 @@ export default function App() {
       window.history.replaceState({}, '', '/');
     }
 
-    // Request fullscreen on first user gesture — hides browser URL bar + nav bar.
-    // Works on Chrome Android; iOS Safari only supports it when installed as PWA.
-    let fsTriggered = false;
-    const tryFullscreen = () => {
-      if (fsTriggered) return;
-      if (document.fullscreenElement || (document as any).webkitFullscreenElement) return;
-      fsTriggered = true;
-      const el = document.documentElement as any;
-      const req = el.requestFullscreen ?? el.webkitRequestFullscreen ?? el.mozRequestFullScreen;
-      if (req) req.call(el).catch(() => { fsTriggered = false; });
+    // Detect safe area insets via JS probe — more reliable than CSS-only env() on iOS PWA
+    const updateSafeArea = () => {
+      const probe = document.createElement('div');
+      probe.style.cssText = 'position:fixed;pointer-events:none;top:env(safe-area-inset-top,0px);bottom:env(safe-area-inset-bottom,0px);left:0;right:0;';
+      document.body.appendChild(probe);
+      const rect = probe.getBoundingClientRect();
+      document.body.removeChild(probe);
+      const top = Math.round(rect.top);
+      const bottom = Math.round(window.innerHeight - rect.bottom);
+      // iOS PWA standalone: env() is reliable, no floor needed beyond device value
+      // Use 0px floor for bottom (home indicator), minimum 0px for top
+      document.documentElement.style.setProperty('--sat', `${Math.max(top, 0)}px`);
+      document.documentElement.style.setProperty('--sab', `${Math.max(bottom, 0)}px`);
     };
-    document.addEventListener('touchend', tryFullscreen, { passive: true });
-    document.addEventListener('click', tryFullscreen);
+    updateSafeArea();
+    window.addEventListener('resize', updateSafeArea);
 
     return () => {
       unsub();
-      document.removeEventListener('touchend', tryFullscreen);
-      document.removeEventListener('click', tryFullscreen);
+      window.removeEventListener('resize', updateSafeArea);
     };
   }, [connect]);
 

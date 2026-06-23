@@ -152,12 +152,11 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50"
+      className="vm-bottom-nav fixed bottom-0 left-0 right-0 z-50"
       style={{
         background: 'rgba(3,0,13,0.97)',
         borderTop: '1px solid rgba(255,255,255,0.06)',
         boxShadow: '0 -4px 32px rgba(0,0,0,0.65)',
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
     >
       <div className="flex items-end max-w-lg mx-auto" style={{ height: 64 }}>
