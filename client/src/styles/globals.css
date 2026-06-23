@@ -13,7 +13,7 @@
 
 /* Page content bottom padding including nav height */
 .vm-main-pb {
-  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
 }
 
 /* Safe area padding — CSS classes for iOS PWA reliability (inline env() can be unreliable) */

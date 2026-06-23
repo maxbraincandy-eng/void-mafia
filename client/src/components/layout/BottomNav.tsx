@@ -109,7 +109,7 @@ function NavItem({ tab, active, onPress }: { tab: TabDef; active: boolean; onPre
     <button
       onClick={() => onPress(tab.id)}
       className="flex flex-col items-center justify-end flex-1 transition-all duration-150 active:scale-90 relative"
-      style={{ color: active ? tab.color : 'rgba(255,255,255,0.28)', height: 64, paddingBottom: 6 }}
+      style={{ color: active ? tab.color : 'rgba(255,255,255,0.28)', height: 76, paddingBottom: 14 }}
     >
       {active && (
         <span
@@ -159,7 +159,7 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
         boxShadow: '0 -4px 32px rgba(0,0,0,0.65)',
       }}
     >
-      <div className="flex items-end max-w-lg mx-auto" style={{ height: 64 }}>
+      <div className="flex items-end max-w-lg mx-auto" style={{ height: 76 }}>
 
         {/* Left 3 tabs */}
         {LEFT_TABS.map(tab => (
@@ -167,7 +167,7 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
         ))}
 
         {/* CENTER FAB — Mafia */}
-        <div className="flex-1 flex justify-center" style={{ position: 'relative', height: 64 }}>
+        <div className="flex-1 flex justify-center" style={{ position: 'relative', height: 76 }}>
           <button
             onClick={() => go('rooms')}
             className="absolute transition-all duration-200 active:scale-90 flex flex-col items-center justify-center"
@@ -199,7 +199,7 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
         <button
           onClick={goMore}
           className="flex flex-col items-center justify-end flex-1 transition-all duration-150 active:scale-90 relative"
-          style={{ color: 'rgba(255,255,255,0.28)', height: 64, paddingBottom: 6 }}
+          style={{ color: 'rgba(255,255,255,0.28)', height: 76, paddingBottom: 14 }}
         >
           <span className="text-base leading-none mb-1">☰</span>
           <span className="font-mono uppercase leading-none text-center relative" style={{ fontSize: 9, letterSpacing: '0.03em' }}>

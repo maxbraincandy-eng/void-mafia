@@ -80,7 +80,7 @@ interface Toast {
 function ToastLayer() {
   const toasts = useGameStore(s => s.toasts);
   return (
-    <div className="fixed left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 items-center pointer-events-none" style={{ bottom: 'calc(96px + env(safe-area-inset-bottom, 0px))' }}>
+    <div className="fixed left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 items-center pointer-events-none" style={{ bottom: 'calc(108px + env(safe-area-inset-bottom, 0px))' }}>
       <AnimatePresence>
         {toasts.map((t: Toast) => (
           <motion.div
