@@ -606,26 +606,8 @@ export default function App() {
       window.history.replaceState({}, '', '/');
     }
 
-    // Detect safe area insets via JS probe — more reliable than CSS-only env() on iOS PWA
-    const updateSafeArea = () => {
-      const probe = document.createElement('div');
-      probe.style.cssText = 'position:fixed;pointer-events:none;top:env(safe-area-inset-top,0px);bottom:env(safe-area-inset-bottom,0px);left:0;right:0;';
-      document.body.appendChild(probe);
-      const rect = probe.getBoundingClientRect();
-      document.body.removeChild(probe);
-      const top = Math.round(rect.top);
-      const bottom = Math.round(window.innerHeight - rect.bottom);
-      // iOS PWA standalone: env() is reliable, no floor needed beyond device value
-      // Use 0px floor for bottom (home indicator), minimum 0px for top
-      document.documentElement.style.setProperty('--sat', `${Math.max(top, 0)}px`);
-      document.documentElement.style.setProperty('--sab', `${Math.max(bottom, 0)}px`);
-    };
-    updateSafeArea();
-    window.addEventListener('resize', updateSafeArea);
-
     return () => {
       unsub();
-      window.removeEventListener('resize', updateSafeArea);
     };
   }, [connect]);
 
