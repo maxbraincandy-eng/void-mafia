@@ -550,13 +550,11 @@ export async function getCommunityProfileV2(targetId, viewerId) {
         showcaseAchievements: showcase.map(s => ({ slot: s.slot, achievementKey: s.achievement_key })),
         privacySettings: privacy,
         isSecret,
-        anonymousName: isSecret ? generateAnonymousName(targetId) : undefined,
     };
     if (isSecret) {
-        const anon = generateAnonymousName(targetId);
         return {
             ...profile,
-            username: anon,
+            username: 'Private User',
             avatarUrl: null,
             coverUrl: null,
             bio: '',
