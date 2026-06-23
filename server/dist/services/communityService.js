@@ -277,7 +277,7 @@ export async function getCommunityProfile(targetId, viewerId) {
     const [[followers], [following], [posts], clan, followedByMe] = await Promise.all([
         sql `SELECT COUNT(*) as c FROM follows WHERE following_id = ${targetId}`,
         sql `SELECT COUNT(*) as c FROM follows WHERE follower_id = ${targetId}`,
-        sql `SELECT COUNT(*) as c FROM community_posts WHERE author_id = ${targetId}`,
+        sql `SELECT COUNT(*) as c FROM community_posts WHERE author_id = ${targetId} AND hidden = false AND is_anonymous = false`,
         getClanMembershipByPlayer(targetId),
         viewerId ? isFollowing(viewerId, targetId) : Promise.resolve(false),
     ]);
@@ -536,9 +536,7 @@ export async function getCommunityProfileV2(targetId, viewerId) {
         getFriendshipStatus(viewerId, targetId),
         sql `SELECT COUNT(*) AS count FROM friendships WHERE (from_id = ${targetId} OR to_id = ${targetId}) AND status = 'accepted'`,
     ]);
-    const isOwnProfile = viewerId === targetId;
-    const isSecret = privacy.profileMode === 'secret' && !isOwnProfile;
-    const profile = {
+    return {
         ...base,
         bio: pRow.community_bio ?? '',
         coverUrl: pRow.community_cover_url ?? null,
@@ -549,20 +547,8 @@ export async function getCommunityProfileV2(targetId, viewerId) {
         friendshipStatus,
         showcaseAchievements: showcase.map(s => ({ slot: s.slot, achievementKey: s.achievement_key })),
         privacySettings: privacy,
-        isSecret,
+        isSecret: false,
     };
-    if (isSecret) {
-        return {
-            ...profile,
-            username: 'Private User',
-            avatarUrl: null,
-            coverUrl: null,
-            bio: '',
-            badges: [],
-            showcaseAchievements: [],
-        };
-    }
-    return profile;
 }
 export function generateAnonymousName(playerId) {
     let hash = 0;
