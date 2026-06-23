@@ -4,9 +4,9 @@
 
 :root {
   --vm-banner-h: 0px;
-  /* --sat: safe-area-inset-top, minimum 44px so Dynamic Island never overlaps
-     content in iOS browser mode where env() may return 0 when URL bar is visible */
-  --sat: max(env(safe-area-inset-top, 0px), 44px);
+  /* --sat: 60px floor covers Dynamic Island (~59px) even when iOS Safari
+     browser-mode reports env(safe-area-inset-top) as 0 with URL bar visible */
+  --sat: max(env(safe-area-inset-top, 0px), 60px);
   --sab: env(safe-area-inset-bottom, 0px);
 }
 
