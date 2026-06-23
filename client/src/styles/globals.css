@@ -16,6 +16,20 @@
   padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
 }
 
+/* Safe area padding — CSS classes for iOS PWA reliability (inline env() can be unreliable) */
+.safe-top {
+  padding-top: calc(env(safe-area-inset-top, 0px) + var(--vm-banner-h, 0px));
+}
+.safe-top-pos {
+  top: calc(env(safe-area-inset-top, 0px) + var(--vm-banner-h, 0px));
+}
+.safe-top-only {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-top-plus-3 {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+}
+
 @layer base {
   * {
     box-sizing: border-box;

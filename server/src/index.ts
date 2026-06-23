@@ -43,7 +43,7 @@ const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-const CLIENT_BUILD = '2026-06-23-v67';
+const CLIENT_BUILD = '2026-06-23-v68';
 console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
@@ -306,7 +306,8 @@ if (IS_PROD) {
     immutable: true,
     etag: true,
     setHeaders: (res, filePath) => {
-      if (filePath.endsWith('index.html') || filePath.endsWith('sw.js') || filePath.endsWith('manifest.json')) {
+      const noCache = ['index.html', 'sw.js', 'manifest.json', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'];
+      if (noCache.some(f => filePath.endsWith(f))) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');

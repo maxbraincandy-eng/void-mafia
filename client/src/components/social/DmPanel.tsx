@@ -508,8 +508,8 @@ export function DmPanel() {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="absolute right-0 top-0 bottom-0 w-full max-w-sm flex flex-col"
-            style={{ background: 'rgba(8,5,20,0.97)', borderLeft: '1px solid rgba(138,43,226,0.2)', paddingTop: 'env(safe-area-inset-top, 0px)' }}
+            className="absolute right-0 top-0 bottom-0 w-full max-w-sm flex flex-col safe-top-only"
+            style={{ background: 'rgba(8,5,20,0.97)', borderLeft: '1px solid rgba(138,43,226,0.2)' }}
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}

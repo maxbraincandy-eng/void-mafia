@@ -360,11 +360,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
 
   return (
     <div
-      className="min-h-screen"
-      style={{
-        paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--vm-banner-h, 0px))',
-        paddingBottom: 'calc(64px + env(safe-area-inset-bottom, 0px))',
-      }}
+      className="min-h-screen safe-top vm-main-pb"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
