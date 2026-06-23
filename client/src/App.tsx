@@ -45,6 +45,7 @@ import type { GiftReceivedNotification } from '@/types/index';
 import { CLIENT_VERSION } from './version';
 import { haptic } from '@/lib/haptics';
 import { YourTurnToast } from '@/components/ui/YourTurnToast';
+import { PWAInstallBanner } from '@/components/ui/PWAInstallBanner';
 
 // Version check: reload once if server has newer build (guards against infinite loop).
 // sessionStorage survives reloads in same tab — prevents re-triggering after the reload.
@@ -361,7 +362,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
     <div
       className="min-h-screen"
       style={{
-        paddingTop: 'env(safe-area-inset-top, 0px)',
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--vm-banner-h, 0px))',
         paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
       }}
       onTouchStart={handleTouchStart}
@@ -634,6 +635,7 @@ export default function App() {
 
   return (
     <>
+      <PWAInstallBanner />
       <AnimatePresence mode="wait">
         <Screen publicProfileId={publicProfileId} onClearPublicProfile={() => setPublicProfileId(null)} onOpenShop={() => setShopOpen(true)} />
       </AnimatePresence>

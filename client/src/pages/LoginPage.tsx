@@ -4,7 +4,6 @@ import { useAuthStore } from '@/store/authStore';
 import { useT } from '@/store/langStore';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { PoweredBy } from '@/components/ui/PoweredBy';
-import { PWAInstallBanner } from '@/components/ui/PWAInstallBanner';
 
 type Tab = 'signin' | 'register';
 
@@ -61,7 +60,6 @@ export function LoginPage() {
       </div>
 
       <div className="relative z-10 w-full max-w-sm">
-        <PWAInstallBanner />
         {/* Logo */}
         <motion.div
           initial={{ opacity: 0, y: -30 }}

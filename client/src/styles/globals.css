@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+:root { --vm-banner-h: 0px; }
+
 @layer base {
   * {
     box-sizing: border-box;
