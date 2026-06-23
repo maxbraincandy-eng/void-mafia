@@ -898,6 +898,7 @@ export interface ClientToServerEvents {
   'room:leave':         (cb: Cb<null>) => void;
   'room:ready':         (cb: Cb<null>) => void;
   'room:kick':          (data: { playerId: string }, cb: Cb<null>) => void;
+  'room:warn':          (data: { playerId: string }, cb: Cb<null>) => void;
   'room:transfer_host': (data: { playerId: string }, cb: Cb<null>) => void;
   'room:settings':      (data: { settings: Partial<GameSettings> }, cb: Cb<null>) => void;
   'game:start':         (cb: Cb<null>) => void;

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { emitWithAck } from '@/lib/socket';
 import { socket } from '@/lib/socket';
@@ -15,6 +15,107 @@ import type { Res, PublicProfileFull, FriendshipStatus, PlayerRoleStats, Moderat
 import { getFrameById, getTitleById, getWallpaperById, getBorderById } from '@/constants/cosmetics';
 import type { ProfileCardData } from '@/components/ui/ProfileCard';
 import { MAX_LEVEL, xpForLevel, xpForNextLevel, levelColor } from '@/lib/level';
+
+// ── Gift carousel constants ───────────────────────────────────────────
+const G_BG: Record<string, string> = {
+  common:    'rgba(255,255,255,0.04)',
+  uncommon:  'rgba(0,229,255,0.07)',
+  rare:      'rgba(155,0,255,0.10)',
+  epic:      'rgba(255,0,204,0.10)',
+  legendary: 'rgba(255,180,0,0.12)',
+};
+const G_BORDER: Record<string, string> = {
+  common:    'rgba(255,255,255,0.09)',
+  uncommon:  'rgba(0,229,255,0.20)',
+  rare:      'rgba(155,0,255,0.30)',
+  epic:      'rgba(255,0,204,0.32)',
+  legendary: 'rgba(255,180,0,0.42)',
+};
+const G_TEXT: Record<string, string> = {
+  common: 'text-white/45', uncommon: 'text-cyan-400', rare: 'text-purple-400',
+  epic:   'text-pink-400',  legendary: 'text-amber-400',
+};
+
+type AggGift = { gift: import('@/types/index').PlayerGift; count: number };
+
+function GiftSwipeViewer({ items, startIdx, onClose }: { items: AggGift[]; startIdx: number; onClose: () => void }) {
+  const [idx, setIdx] = useState(startIdx);
+  const [dir, setDir] = useState(0);
+  const touchX = useRef(0);
+
+  const cur = items[idx];
+  if (!cur) return null;
+  const { gift, count } = cur;
+
+  const goPrev = () => { if (idx > 0) { setDir(-1); setIdx(i => i - 1); } };
+  const goNext = () => { if (idx < items.length - 1) { setDir(1); setIdx(i => i + 1); } };
+
+  const borderCol = G_BORDER[gift.giftRarity] ?? 'rgba(255,255,255,0.12)';
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-md px-5"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <AnimatePresence mode="popLayout" custom={dir}>
+        <motion.div
+          key={idx}
+          custom={dir}
+          variants={{
+            enter: (d: number) => ({ opacity: 0, x: d * 70, scale: 0.92 }),
+            center: { opacity: 1, x: 0, scale: 1 },
+            exit: (d: number) => ({ opacity: 0, x: d * -50, scale: 0.92 }),
+          }}
+          initial="enter" animate="center" exit="exit"
+          transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+          className="relative w-full max-w-xs rounded-2xl p-5"
+          style={{ background: 'rgba(7,2,20,0.98)', border: `1px solid ${borderCol}`, boxShadow: `0 0 60px ${G_BG[gift.giftRarity] ?? 'rgba(0,0,0,0)'}` }}
+          onClick={e => e.stopPropagation()}
+          onTouchStart={e => { touchX.current = e.touches[0].clientX; }}
+          onTouchEnd={e => {
+            const dx = e.changedTouches[0].clientX - touchX.current;
+            if (dx < -50) goNext(); else if (dx > 50) goPrev();
+          }}
+        >
+          <button onClick={onClose} className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full text-white/30 hover:text-white/70 text-[13px] transition-colors">✕</button>
+
+          <div className="text-center mb-5">
+            {gift.giftImageUrl
+              ? <img src={gift.giftImageUrl} alt={gift.giftName} className="w-24 h-24 rounded-2xl object-cover mx-auto mb-3 shadow-2xl" />
+              : <div className="text-7xl mb-3 leading-none select-none">{gift.giftIcon}</div>}
+            <h3 className="font-display font-bold text-white text-lg mb-1.5">{gift.giftName}</h3>
+            <div className="flex items-center justify-center gap-0.5 mb-1.5">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <span key={i} className={`text-[15px] ${i < gift.giftStars ? 'text-amber-400' : 'text-white/10'}`}>★</span>
+              ))}
+            </div>
+            <span className={`font-mono text-[12px] uppercase tracking-widest ${G_TEXT[gift.giftRarity] ?? 'text-white/40'}`}>
+              {gift.giftRarity}
+            </span>
+            <p className="font-mono text-[13px] text-white/35 mt-2">
+              Received <span className="text-white/75 font-bold">×{count}</span>
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <button
+              onClick={goPrev} disabled={idx === 0}
+              className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-xl text-white/40 hover:text-white/85 disabled:opacity-15 transition-all"
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)' }}
+            >‹</button>
+            <span className="font-mono text-[12px] text-white/25 select-none">{idx + 1} / {items.length}</span>
+            <button
+              onClick={goNext} disabled={idx === items.length - 1}
+              className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-xl text-white/40 hover:text-white/85 disabled:opacity-15 transition-all"
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)' }}
+            >›</button>
+          </div>
+        </motion.div>
+      </AnimatePresence>
+    </motion.div>
+  );
+}
 
 const MOD_RANK: Record<ModeratorLevel, number> = { moderator: 0, senior_moderator: 1, admin: 2, owner: 3 };
 function modRank(lvl: ModeratorLevel | null | undefined) { return lvl ? (MOD_RANK[lvl] ?? -1) : -1; }
@@ -110,6 +211,10 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
   const [modCategory, setModCategory] = useState<WarnCategory>('other');
   const [modBanDuration, setModBanDuration] = useState(3600);
   const [modActionLoading, setModActionLoading] = useState(false);
+  const [carouselGifts, setCarouselGifts] = useState<import('@/types/index').PlayerGift[]>([]);
+  const [carouselLoading, setCarouselLoading] = useState(false);
+  const [aggGifts, setAggGifts] = useState<AggGift[]>([]);
+  const [giftViewerIdx, setGiftViewerIdx] = useState<number | null>(null);
 
   const myProfile = useAuthStore(s => s.profile);
   const myProfileId = myProfile?.id;
@@ -134,13 +239,31 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
   const isSelf = !!playerId && playerId === myProfileId;
 
   useEffect(() => {
-    if (!playerId) { setData(null); return; }
+    if (!playerId) { setData(null); setCarouselGifts([]); return; }
     setLoading(true);
     setData(null);
     emitWithAck<{ profileId: string }, Res<PublicProfileFull>>('player:public_profile', { profileId: playerId })
       .then(res => { if (res.ok) setData(res.data); })
       .finally(() => setLoading(false));
   }, [playerId]);
+
+  useEffect(() => {
+    if (!data?.profile.id) { setCarouselGifts([]); return; }
+    setCarouselLoading(true);
+    emitWithAck<any, Res<import('@/types/index').PlayerGift[]>>('gifts:player_gifts', { profileId: data.profile.id })
+      .then(res => { if (res.ok) setCarouselGifts(res.data); })
+      .finally(() => setCarouselLoading(false));
+  }, [data?.profile.id]);
+
+  useEffect(() => {
+    const map = new Map<string, AggGift>();
+    for (const g of carouselGifts) {
+      const e = map.get(g.giftId);
+      if (e) e.count++;
+      else map.set(g.giftId, { gift: g, count: 1 });
+    }
+    setAggGifts(Array.from(map.values()));
+  }, [carouselGifts]);
 
   const openModPanel = useCallback((panel: 'warn' | 'kick' | 'ban') => {
     setModPanel(panel);
@@ -293,24 +416,31 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                   <div className="overflow-y-auto flex-1 overscroll-contain">
                     {/* ── Hero band ─────────────────────────────── */}
                     <div
-                      className="px-5 pt-5 pb-4 relative"
+                      className="px-5 pt-7 pb-4 relative"
                       style={{
                         background: wallpaperDef
                           ? wallpaperDef.gradient
-                          : `linear-gradient(160deg, ${col}10 0%, rgba(6,3,20,0) 60%)`,
+                          : `linear-gradient(160deg, ${col}12 0%, rgba(6,3,20,0) 65%)`,
                       }}
                     >
-                      <div className="flex items-start gap-3">
-                        {/* Avatar */}
-                        <div className="relative flex-shrink-0">
+                      {/* Close button */}
+                      <button
+                        onClick={onClose}
+                        className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full transition-all text-[13px]"
+                        style={{ color: 'rgba(255,255,255,0.28)', background: 'rgba(255,255,255,0.05)' }}
+                      >✕</button>
+
+                      {/* Avatar — centered */}
+                      <div className="flex flex-col items-center mb-2">
+                        <div className="relative">
                           {(frameDef || borderDef) ? (
                             <div
-                              className={`w-16 h-16 rounded-full p-[2.5px] ${borderDef ? borderDef.animationClass : ''}`}
+                              className={`w-20 h-20 rounded-full p-[2.5px] ${borderDef ? borderDef.animationClass : ''}`}
                               style={{
                                 background: `linear-gradient(135deg, ${(borderDef ?? frameDef)!.colors[0]}, ${(borderDef ?? frameDef)!.colors[1]})`,
-                                boxShadow: `0 0 10px ${(borderDef ?? frameDef)!.glow}`,
+                                boxShadow: `0 0 16px ${(borderDef ?? frameDef)!.glow}`,
                               }}>
-                              <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center text-2xl font-bold"
+                              <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center text-3xl font-bold"
                                 style={{ background: 'linear-gradient(135deg,rgba(255,0,128,0.6),rgba(138,43,226,0.6))' }}>
                                 {profile.avatarUrl
                                   ? <img src={profile.avatarUrl} alt={profile.username} className="w-full h-full object-cover" />
@@ -319,10 +449,11 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                             </div>
                           ) : (
                             <div
-                              className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center text-2xl font-bold"
+                              className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center text-3xl font-bold"
                               style={{
                                 background: 'linear-gradient(135deg,rgba(255,0,128,0.6),rgba(138,43,226,0.6))',
                                 border: `2px solid ${col}60`,
+                                boxShadow: `0 0 20px ${col}20`,
                               }}
                             >
                               {profile.avatarUrl
@@ -331,48 +462,46 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                             </div>
                           )}
                           {isOnline && (
-                            <span className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-neon-green rounded-full border-2 border-void" />
+                            <span className="absolute bottom-1 right-1 w-3.5 h-3.5 bg-neon-green rounded-full border-2 border-void" />
                           )}
                           <div
-                            className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full font-mono font-bold text-[12px] whitespace-nowrap"
+                            className="absolute -bottom-3 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full font-mono font-bold text-[11px] whitespace-nowrap"
                             style={{ background: `${col}25`, border: `1px solid ${col}60`, color: col }}
                           >
                             Lv.{level}
                           </div>
                         </div>
+                      </div>
 
-                        {/* Name + meta */}
-                        <div className="flex-1 min-w-0 pt-0.5">
-                          <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                            <h3 className={`font-display font-bold text-base leading-tight ${profile.isModerator ? 'text-neon-green' : 'text-white'}`}>
-                              {profile.username}
-                            </h3>
-                            {profile.isModerator && profile.moderatorBadgeVisible && (
-                              <ModBadge level={profile.moderatorLevel} />
-                            )}
-                          </div>
-                          {titleDef && (
-                            <div className="mb-1">
-                              <span className="font-mono text-[12px] font-bold px-1.5 py-0.5 rounded"
-                                style={{ color: titleDef.color, background: `${titleDef.color}15`, border: `1px solid ${titleDef.color}40` }}>
-                                {titleDef.name}
-                              </span>
-                            </div>
+                      {/* Name + badges — centered */}
+                      <div className="text-center mt-5">
+                        <h3 className={`font-display font-bold text-[17px] leading-tight ${profile.isModerator ? 'text-neon-green' : 'text-white'}`}>
+                          {profile.username}
+                        </h3>
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap mt-1 mb-0.5">
+                          {profile.isModerator && profile.moderatorBadgeVisible && (
+                            <ModBadge level={profile.moderatorLevel} />
                           )}
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {profile.publicId != null && (
-                              <span
-                                className="font-mono text-[12px] font-bold px-1.5 py-0.5 rounded"
-                                style={{ background: 'rgba(0,229,255,0.08)', color: 'rgba(0,229,255,0.7)', border: '1px solid rgba(0,229,255,0.2)' }}
-                              >
-                                ID #{profile.publicId}
-                              </span>
-                            )}
-                            {isOnline
-                              ? <span className="text-neon-green font-mono text-[12px]">● online</span>
-                              : <span className="text-white/25 font-mono text-[12px]">Last: {formatDate(roleStats?.lastGameAt ?? profile.joinedAt)}</span>
-                            }
-                          </div>
+                          {titleDef && (
+                            <span className="font-mono text-[12px] font-bold px-1.5 py-0.5 rounded"
+                              style={{ color: titleDef.color, background: `${titleDef.color}15`, border: `1px solid ${titleDef.color}40` }}>
+                              {titleDef.name}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-center gap-2 flex-wrap mt-0.5">
+                          {profile.publicId != null && (
+                            <span
+                              className="font-mono text-[12px] font-bold px-1.5 py-0.5 rounded"
+                              style={{ background: 'rgba(0,229,255,0.08)', color: 'rgba(0,229,255,0.7)', border: '1px solid rgba(0,229,255,0.2)' }}
+                            >
+                              ID #{profile.publicId}
+                            </span>
+                          )}
+                          {isOnline
+                            ? <span className="text-neon-green font-mono text-[12px]">● online</span>
+                            : <span className="text-white/25 font-mono text-[12px]">Last: {formatDate(roleStats?.lastGameAt ?? profile.joinedAt)}</span>
+                          }
                         </div>
                       </div>
 
@@ -428,6 +557,50 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                           </div>
                         ))}
                       </div>
+
+                      {/* ── Gift carousel ─────────────────────── */}
+                      {(carouselLoading || aggGifts.length > 0) && (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="font-mono text-[12px] text-white/30 uppercase tracking-wider">🎁 Gifts</p>
+                            {aggGifts.length > 0 && (
+                              <span className="font-mono text-[12px] text-white/20">{aggGifts.length} types</span>
+                            )}
+                          </div>
+                          {carouselLoading ? (
+                            <div className="flex gap-2">
+                              {[0,1,2,3].map(i => (
+                                <div key={i} className="flex-shrink-0 w-[62px] h-[72px] rounded-xl animate-pulse" style={{ background: 'rgba(255,255,255,0.04)' }} />
+                              ))}
+                            </div>
+                          ) : (
+                            <div
+                              className="flex gap-2 overflow-x-auto pb-1"
+                              style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+                            >
+                              {aggGifts.map(({ gift, count }, i) => (
+                                <button
+                                  key={gift.giftId}
+                                  onClick={() => setGiftViewerIdx(i)}
+                                  className="flex-shrink-0 w-[62px] rounded-xl flex flex-col items-center gap-1 pt-2 pb-1.5 relative transition-all hover:scale-105 active:scale-95"
+                                  style={{
+                                    background: G_BG[gift.giftRarity] ?? G_BG.common,
+                                    border: `1px solid ${G_BORDER[gift.giftRarity] ?? G_BORDER.common}`,
+                                  }}
+                                >
+                                  {gift.giftImageUrl
+                                    ? <img src={gift.giftImageUrl} alt={gift.giftName} className="w-9 h-9 rounded-lg object-cover" />
+                                    : <span className="text-2xl leading-none">{gift.giftIcon}</span>}
+                                  <span
+                                    className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center font-mono font-bold text-[11px] px-1"
+                                    style={{ background: 'rgba(155,0,255,0.85)', color: '#fff' }}
+                                  >{count}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* ── Info rows ──────────────────────────── */}
                       <div className="rounded-xl border border-white/8 bg-white/3 px-3 py-1">
@@ -860,6 +1033,16 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
       />
     )}
     <CoinHistoryModal open={showCoinHistory} onClose={() => setShowCoinHistory(false)} />
+
+    <AnimatePresence>
+      {giftViewerIdx !== null && aggGifts.length > 0 && (
+        <GiftSwipeViewer
+          items={aggGifts}
+          startIdx={giftViewerIdx}
+          onClose={() => setGiftViewerIdx(null)}
+        />
+      )}
+    </AnimatePresence>
     </>
   );
 }

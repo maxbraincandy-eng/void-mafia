@@ -46,6 +46,8 @@ import { DonCheckPanel } from '@/components/game/DonCheckPanel';
 import { MafiaKillPanel } from '@/components/game/MafiaKillPanel';
 import { TieDefensePanel } from '@/components/game/TieDefensePanel';
 import { DoubleEliminationPanel } from '@/components/game/DoubleEliminationPanel';
+import { PlayerActionMenu } from '@/components/ui/PlayerActionMenu';
+import { SendGiftModal } from '@/components/ui/SendGiftModal';
 
 type RightTab = 'events' | 'chat' | 'spectator';
 
@@ -120,6 +122,8 @@ export function GamePage() {
   const [reportProfileId, setReportProfileId] = useState<string | null>(null);
   const [showPlayersPanel, setShowPlayersPanel] = useState(false);
   const [showModPanel, setShowModPanel] = useState(false);
+  const [playerActionTarget, setPlayerActionTarget] = useState<PlayerPublic | null>(null);
+  const [giftTarget, setGiftTarget] = useState<{ profileId: string; name: string; avatar: string; avatarUrl: string | null } | null>(null);
   const isMod = useAuthStore(s => s.profile?.isModerator ?? false);
   const myRoleSkin = useAuthStore(s => s.profile?.cosmetics?.equippedRoleSkin ?? null);
   const myClanId = useAuthStore(s => s.myClanId);
@@ -396,7 +400,7 @@ export function GamePage() {
     onJoin: (withCamera?: boolean) => voice.joinVoice(voiceChannel, withCamera),
   };
 
-  // During voting phase, grid taps select vote target; elsewhere open social profile
+  // During voting phase, grid taps select vote target; otherwise show action menu
   const handlePlayerSelect = (p: PlayerPublic) => {
     if (phase === 'voting' && amAlive && !amSpectator && p.isAlive && p.id !== myPlayer?.id) {
       if (pendingVoteId === p.id) {
@@ -406,8 +410,10 @@ export function GamePage() {
       } else {
         setPendingVoteId(p.id);
       }
-    } else if (p.profileId) {
+    } else if (p.id === myPlayer?.id && p.profileId) {
       openProfile(p.profileId);
+    } else if (p.profileId) {
+      setPlayerActionTarget(p);
     }
   };
 
@@ -2071,6 +2077,35 @@ export function GamePage() {
               <ModDashboardPage />
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Player action menu */}
+      <AnimatePresence>
+        {playerActionTarget && (
+          <PlayerActionMenu
+            player={playerActionTarget}
+            isHostOrMod={amHost || isMod}
+            onClose={() => setPlayerActionTarget(null)}
+            onOpenProfile={profileId => { openProfile(profileId); setPlayerActionTarget(null); }}
+            onSendGift={(profileId, name, avatar, avatarUrl) => {
+              setGiftTarget({ profileId, name, avatar, avatarUrl });
+              setPlayerActionTarget(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Send gift from action menu */}
+      <AnimatePresence>
+        {giftTarget && (
+          <SendGiftModal
+            recipientId={giftTarget.profileId}
+            recipientName={giftTarget.name}
+            recipientAvatar={giftTarget.avatar}
+            recipientAvatarUrl={giftTarget.avatarUrl}
+            onClose={() => setGiftTarget(null)}
+          />
         )}
       </AnimatePresence>
 

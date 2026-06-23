@@ -1398,6 +1398,25 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
+        // ── Warn Player (host only, announced to room) ───────────────────
+        socket.on('room:warn', ({ playerId }, cb) => {
+            try {
+                const room = getRoomFromSocket(socket);
+                const host = getPlayerOrError(socket, room);
+                if (!host.isHost)
+                    throw new Error('Only the host can warn players.');
+                const target = room.players.get(playerId);
+                if (!target)
+                    throw new Error('Player not found.');
+                if (target.id === host.id)
+                    throw new Error('Cannot warn yourself.');
+                broadcastSystemMsg(io, room, `⚠️ ${host.name} sent a warning to ${target.name}.`);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
         // ── Transfer Host ───────────────────────────────────────────────
         socket.on('room:transfer_host', ({ playerId }, cb) => {
             try {

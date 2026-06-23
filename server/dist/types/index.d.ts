@@ -944,6 +944,9 @@ export interface ClientToServerEvents {
     'room:kick': (data: {
         playerId: string;
     }, cb: Cb<null>) => void;
+    'room:warn': (data: {
+        playerId: string;
+    }, cb: Cb<null>) => void;
     'room:transfer_host': (data: {
         playerId: string;
     }, cb: Cb<null>) => void;
