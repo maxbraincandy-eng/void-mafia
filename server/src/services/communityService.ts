@@ -902,7 +902,10 @@ export async function getUserPosts(
            pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url
     FROM community_posts p
     JOIN players pl ON pl.id = p.author_id
-    WHERE p.author_id = ${authorId} AND p.hidden = false AND p.created_at < ${before}
+    WHERE p.author_id = ${authorId}
+      AND p.hidden = false
+      AND p.created_at < ${before}
+      AND (p.is_anonymous = false OR p.author_id = ${viewerId})
     ORDER BY p.created_at DESC LIMIT ${limit}
   `;
   return Promise.all(rows.map(r => buildPostV2(r, viewerId)));
