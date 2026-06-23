@@ -363,7 +363,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       className="min-h-screen"
       style={{
         paddingTop: 'calc(var(--sat) + var(--vm-banner-h, 0px))',
-        paddingBottom: 'calc(64px + env(safe-area-inset-bottom, 0px))',
+        paddingBottom: '64px',
       }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
