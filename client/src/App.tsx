@@ -79,7 +79,7 @@ interface Toast {
 function ToastLayer() {
   const toasts = useGameStore(s => s.toasts);
   return (
-    <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 items-center pointer-events-none">
+    <div className="fixed left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 items-center pointer-events-none" style={{ bottom: 'calc(96px + env(safe-area-inset-bottom, 0px))' }}>
       <AnimatePresence>
         {toasts.map((t: Toast) => (
           <motion.div
@@ -359,7 +359,11 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
 
   return (
     <div
-      className="pb-20 min-h-screen"
+      className="min-h-screen"
+      style={{
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+        paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
+      }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
