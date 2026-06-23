@@ -28,6 +28,8 @@
     overflow: hidden;
     max-width: 100%;
     -webkit-text-size-adjust: 100%; /* prevent iOS font size inflation on rotate */
+    overscroll-behavior: none;
+    overscroll-behavior-x: none; /* belt-and-suspenders: prevent horizontal edge swipe */
   }
 
   body {

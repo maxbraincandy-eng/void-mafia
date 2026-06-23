@@ -600,7 +600,21 @@ export default function App() {
     if (window.location.pathname === '/shop/success') {
       window.history.replaceState({}, '', '/');
     }
-    return unsub;
+
+    // Request fullscreen on first user touch — hides browser URL bar + nav bar.
+    // Only fires once; if the user explicitly exits fullscreen we don't re-ask.
+    const tryFullscreen = () => {
+      if (document.fullscreenElement || (document as any).webkitFullscreenElement) return;
+      const el = document.documentElement as any;
+      const req = el.requestFullscreen ?? el.webkitRequestFullscreen ?? el.mozRequestFullScreen;
+      if (req) req.call(el, { navigationUI: 'hide' }).catch(() => {});
+    };
+    document.addEventListener('touchend', tryFullscreen, { passive: true, once: true });
+
+    return () => {
+      unsub();
+      document.removeEventListener('touchend', tryFullscreen);
+    };
   }, [connect]);
 
   useEffect(() => {
