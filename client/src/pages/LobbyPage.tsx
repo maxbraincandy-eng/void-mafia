@@ -166,7 +166,7 @@ export function LobbyPage() {
 
   return (
     <div
-      className="min-h-screen relative overflow-hidden pb-20 safe-top"
+      className="min-h-screen relative overflow-hidden pb-20"
       style={{ background: 'linear-gradient(160deg, #0c0525 0%, #050311 50%)' }}
     >
       {/* Ambient — single top glow only */}

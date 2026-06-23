@@ -360,7 +360,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
 
   return (
     <div
-      className="min-h-screen safe-top vm-main-pb"
+      className="min-h-screen vm-main-pb"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
