@@ -601,19 +601,24 @@ export default function App() {
       window.history.replaceState({}, '', '/');
     }
 
-    // Request fullscreen on first user touch — hides browser URL bar + nav bar.
-    // Only fires once; if the user explicitly exits fullscreen we don't re-ask.
+    // Request fullscreen on first user gesture — hides browser URL bar + nav bar.
+    // Works on Chrome Android; iOS Safari only supports it when installed as PWA.
+    let fsTriggered = false;
     const tryFullscreen = () => {
+      if (fsTriggered) return;
       if (document.fullscreenElement || (document as any).webkitFullscreenElement) return;
+      fsTriggered = true;
       const el = document.documentElement as any;
       const req = el.requestFullscreen ?? el.webkitRequestFullscreen ?? el.mozRequestFullScreen;
-      if (req) req.call(el, { navigationUI: 'hide' }).catch(() => {});
+      if (req) req.call(el).catch(() => { fsTriggered = false; });
     };
-    document.addEventListener('touchend', tryFullscreen, { passive: true, once: true });
+    document.addEventListener('touchend', tryFullscreen, { passive: true });
+    document.addEventListener('click', tryFullscreen);
 
     return () => {
       unsub();
       document.removeEventListener('touchend', tryFullscreen);
+      document.removeEventListener('click', tryFullscreen);
     };
   }, [connect]);
 
