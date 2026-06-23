@@ -2588,6 +2588,26 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    // ── Mod: Close Room (permanently removes room, kicks all players) ─
+    socket.on('mod:close_room', async ({ roomId, reason }: { roomId: string; reason: string }, cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        if (!modProfileId) throw new Error('Not authenticated.');
+        const mod = await getPlayer(modProfileId);
+        if (!mod || !canDo(mod, 'ban_long')) throw new Error('Insufficient permissions. Admin+ required.');
+
+        const room = getRoom(roomId);
+        if (!room) throw new Error('Room not found.');
+
+        const code = room.code;
+        const playerNames = [...room.players.values()].map(p => p.name).join(', ');
+        closeRoom(io, room, reason || 'Closed by moderator');
+        await logKick(modProfileId, mod.username, roomId, code, roomId, `Closed room: ${reason || 'No reason given'}`);
+        await notifyMods(io, 'mod_kick', `${mod.username} closed room ${code} (${playerNames})`, code);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     // ── Mod: Dashboard Stats ──────────────────────────────────────────
     socket.on('mod:get_dashboard', async (cb: any) => {
       try {

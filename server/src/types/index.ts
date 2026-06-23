@@ -951,6 +951,7 @@ export interface ClientToServerEvents {
   'mod:get_logs':       (cb: Cb<ModLog[]>) => void;
   'mod:resolve_report':  (data: { reportId: string; status: 'resolved' | 'rejected'; notes: string }, cb: Cb<null>) => void;
   'mod:terminate_game':  (data: { roomId: string; reason: string }, cb: Cb<null>) => void;
+  'mod:close_room':      (data: { roomId: string; reason: string }, cb: Cb<null>) => void;
   'mod:get_dashboard':      (cb: Cb<DashboardStats>) => void;
   'mod:get_rooms_live':     (cb: Cb<LiveRoomInfo[]>) => void;
   'mod:pause_timer':        (data: { roomId: string }, cb: Cb<null>) => void;

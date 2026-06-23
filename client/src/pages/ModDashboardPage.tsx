@@ -34,7 +34,7 @@ function modRank(level: ModeratorLevel | null | undefined): number {
 
 // ── Tab types ─────────────────────────────────────────────────────────
 type Tab = 'dashboard' | 'rooms' | 'reports' | 'players' | 'broadcast' | 'logs';
-type ActionType = 'ban' | 'mute' | 'warn' | 'kick' | 'unban' | 'unmute' | 'terminate' | 'freeze' | 'unfreeze' | 'rename' | 'system_msg' | 'force_phase';
+type ActionType = 'ban' | 'mute' | 'warn' | 'kick' | 'unban' | 'unmute' | 'terminate' | 'close_room' | 'freeze' | 'unfreeze' | 'rename' | 'system_msg' | 'force_phase';
 
 const TABS: { id: Tab; label: string; minRank: number }[] = [
   { id: 'dashboard', label: 'Dashboard', minRank: 0 },
@@ -263,6 +263,8 @@ export function ModDashboardPage() {
       socket.emit('mod:unmute' as any, { targetProfileId: targetId }, onOk('Unmuted'));
     } else if (type === 'terminate') {
       socket.emit('mod:terminate_game' as any, { roomId: targetId, reason: actionReason || 'Rule violation' }, onOk('Terminated'));
+    } else if (type === 'close_room') {
+      socket.emit('mod:close_room' as any, { roomId: targetId, reason: actionReason || 'Closed by moderator' }, onOk('Room closed'));
     } else if (type === 'freeze') {
       if (!actionReason.trim()) { addToast('Reason required', 'error'); return; }
       socket.emit('mod:freeze_account' as any, { targetProfileId: targetId, reason: actionReason }, onOk('Account frozen'));
@@ -507,6 +509,12 @@ export function ModDashboardPage() {
                         🔇 Voice
                       </button>
                     </>
+                  )}
+                  {can(2) && (
+                    <button onClick={() => openAction('close_room', r.id, `Room ${r.code}`)}
+                      className="px-2 py-1 text-[12px] font-mono uppercase rounded-lg border border-neon-red/40 text-neon-red hover:bg-neon-red/15 transition-all">
+                      🗑 Close
+                    </button>
                   )}
                 </div>
 
@@ -911,7 +919,7 @@ export function ModDashboardPage() {
               className="glass-panel border border-neon-green/20 rounded-2xl p-6 w-full max-w-sm"
               onClick={e => e.stopPropagation()}>
               <h3 className={`font-display font-bold tracking-widest uppercase mb-1 ${
-                action.type === 'ban' || action.type === 'terminate' || action.type === 'freeze' ? 'text-neon-red'
+                action.type === 'ban' || action.type === 'terminate' || action.type === 'close_room' || action.type === 'freeze' ? 'text-neon-red'
                 : action.type === 'mute' ? 'text-neon-pink'
                 : action.type === 'rename' ? 'text-neon-cyan'
                 : action.type === 'unban' || action.type === 'unmute' || action.type === 'unfreeze' ? 'text-neon-green'
@@ -971,7 +979,7 @@ export function ModDashboardPage() {
                 <button onClick={closeAction} className="flex-1 py-2 border border-white/10 text-white/40 font-mono text-xs rounded-xl hover:text-white/70">Cancel</button>
                 <button onClick={doAction}
                   className={`flex-1 py-2 border font-mono font-bold text-xs rounded-xl transition-all capitalize ${
-                    action.type === 'ban' || action.type === 'terminate' || action.type === 'freeze' ? 'bg-neon-red/15 border-neon-red/30 text-neon-red hover:bg-neon-red/25'
+                    action.type === 'ban' || action.type === 'terminate' || action.type === 'close_room' || action.type === 'freeze' ? 'bg-neon-red/15 border-neon-red/30 text-neon-red hover:bg-neon-red/25'
                     : action.type === 'mute' ? 'bg-neon-pink/15 border-neon-pink/30 text-neon-pink hover:bg-neon-pink/25'
                     : action.type === 'rename' ? 'bg-neon-cyan/15 border-neon-cyan/30 text-neon-cyan hover:bg-neon-cyan/25'
                     : 'bg-neon-green/15 border-neon-green/30 text-neon-green hover:bg-neon-green/25'

@@ -1086,6 +1086,10 @@ export interface ClientToServerEvents {
         roomId: string;
         reason: string;
     }, cb: Cb<null>) => void;
+    'mod:close_room': (data: {
+        roomId: string;
+        reason: string;
+    }, cb: Cb<null>) => void;
     'mod:get_dashboard': (cb: Cb<DashboardStats>) => void;
     'mod:get_rooms_live': (cb: Cb<LiveRoomInfo[]>) => void;
     'mod:pause_timer': (data: {
