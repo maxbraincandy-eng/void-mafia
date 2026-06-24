@@ -317,7 +317,7 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', stiffness: 340, damping: 34 }}
-              className="fixed top-0 left-0 bottom-0 z-[80] flex flex-col"
+              className="vm-more-panel fixed top-0 left-0 bottom-0 z-[80] flex flex-col"
               style={{
                 width: 'min(310px, 88vw)',
                 background: 'var(--panel-bg)',

@@ -85,7 +85,7 @@
 }
 
 [data-theme="minimal-glass"] {
-  --bg-main: #08080f;
+  --bg-main: #0f1629;
   /* White-tinted frosted glass — dramatically different from void-neon's dark purple */
   --glass-bg: rgba(255, 255, 255, 0.09);
   --glass-bg-solid: rgba(24, 24, 40, 0.97);
@@ -93,22 +93,22 @@
   --glass-blur: blur(36px);
   --shadow-card: 0 0 0 1px rgba(255,255,255,0.06), inset 0 1px 0 rgba(255,255,255,0.09), 0 8px 32px rgba(0,0,0,0.5);
   --shadow-elevated: 0 0 0 1px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.11), 0 16px 48px rgba(0,0,0,0.5);
-  --panel-bg: rgba(12, 12, 22, 0.99);
-  --panel-border: rgba(255, 255, 255, 0.10);
+  --panel-bg: rgba(255, 255, 255, 0.06);
+  --panel-border: rgba(255, 255, 255, 0.14);
   --radius-card: 22px;
   --radius-button: 16px;
 
   /* ── Page / layout ── */
-  --vm-page-gradient: linear-gradient(160deg, #0d0d1a 0%, #07070d 50%);
-  --vm-page-radial: radial-gradient(ellipse 90% 35% at 50% -5%, rgba(139,92,246,0.06) 0%, transparent 55%);
-  --vm-surface-bg: rgba(255,255,255,0.075);
-  --vm-surface-border: rgba(255,255,255,0.12);
-  --vm-header-bg: rgba(7,7,13,0.94);
-  --vm-header-border: rgba(255,255,255,0.07);
+  --vm-page-gradient: linear-gradient(160deg, #111428 0%, #0a0e1e 50%);
+  --vm-page-radial: radial-gradient(ellipse 90% 35% at 50% -5%, rgba(139,92,246,0.1) 0%, transparent 55%);
+  --vm-surface-bg: rgba(255,255,255,0.08);
+  --vm-surface-border: rgba(255,255,255,0.14);
+  --vm-header-bg: rgba(10, 13, 28, 0.94);
+  --vm-header-border: rgba(255,255,255,0.09);
 
   /* ── Bottom nav ── */
-  --vm-nav-bg: rgba(10,10,18,0.97);
-  --vm-nav-border: rgba(255,255,255,0.08);
+  --vm-nav-bg: rgba(255, 255, 255, 0.05);
+  --vm-nav-border: rgba(255, 255, 255, 0.16);
   --vm-fab-off: linear-gradient(145deg, #6d28d9, #4c1d95);
   --vm-fab-on: linear-gradient(145deg, #8b5cf6, #6d28d9, #0891b2);
   --vm-fab-shadow-off: 0 0 0 1.5px rgba(109,40,217,0.35), 0 0 18px rgba(109,40,217,0.30), 0 4px 16px rgba(0,0,0,0.5);
@@ -167,6 +167,16 @@
 /* Bottom nav background extends into home indicator zone */
 .vm-bottom-nav {
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Minimal-glass: frosted glass nav + panel — backdrop-filter cannot go in CSS vars */
+[data-theme="minimal-glass"] .vm-bottom-nav {
+  backdrop-filter: blur(32px) saturate(1.4);
+  -webkit-backdrop-filter: blur(32px) saturate(1.4);
+}
+[data-theme="minimal-glass"] .vm-more-panel {
+  backdrop-filter: blur(40px) saturate(1.5);
+  -webkit-backdrop-filter: blur(40px) saturate(1.5);
 }
 
 /* Page content bottom padding including nav height */
