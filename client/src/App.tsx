@@ -50,18 +50,19 @@ import { NotificationPrompt } from '@/components/ui/NotificationPrompt';
 import { MediaPermissionPrimer } from '@/components/ui/MediaPermissionPrimer';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
 
-// Version check: reload once if server has newer build (guards against infinite loop).
-// sessionStorage survives reloads in same tab — prevents re-triggering after the reload.
-if (!sessionStorage.getItem('_vm_v_checked')) {
+// Version check: reload if server has newer build. Uses localStorage with 10-min TTL
+// so iOS PWA app-restore-from-memory still re-checks (sessionStorage would persist there).
+const _verCheckedAt = parseInt(localStorage.getItem('_vm_v_checked_at') ?? '0', 10);
+if (Date.now() - _verCheckedAt > 10 * 60 * 1000) {
   fetch('/api/version')
     .then(r => r.json())
     .then((d: { build?: string }) => {
-      sessionStorage.setItem('_vm_v_checked', '1');
+      localStorage.setItem('_vm_v_checked_at', String(Date.now()));
       if (d.build && d.build !== CLIENT_VERSION) {
         window.location.replace(window.location.href.split('?')[0] + '?v=' + d.build);
       }
     })
-    .catch(() => { sessionStorage.setItem('_vm_v_checked', '1'); });
+    .catch(() => { localStorage.setItem('_vm_v_checked_at', String(Date.now())); });
 }
 
 // Detect /u/:publicId deep link on initial load
