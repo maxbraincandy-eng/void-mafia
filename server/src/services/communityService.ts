@@ -886,7 +886,7 @@ export async function getUserPosts(
     WHERE p.author_id = ${authorId}
       AND p.hidden = false
       AND p.created_at < ${before}
-      AND (p.is_anonymous = false OR p.author_id = ${viewerId})
+      AND p.is_anonymous = false
     ORDER BY p.created_at DESC LIMIT ${limit}
   `;
   return Promise.all(rows.map(r => buildPostV2(r, viewerId)));
