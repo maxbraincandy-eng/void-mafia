@@ -245,8 +245,11 @@ export function PostCardV2({
         {renderContent(post.content, post.hashtags ?? [], tag => { setActiveHashtag(tag); setShowModMenu(false); }, () => {})}
       </p>
 
-      {/* YouTube embed — auto-detected from content */}
-      {(() => { const ytId = extractYouTubeId(post.content); return ytId ? <YouTubeEmbed videoId={ytId} /> : null; })()}
+      {/* YouTube embed — auto-detected from content or videoUrl */}
+      {(() => {
+        const ytId = extractYouTubeId(post.content) ?? (post.videoUrl ? extractYouTubeId(post.videoUrl) : null);
+        return ytId ? <YouTubeEmbed videoId={ytId} /> : null;
+      })()}
 
       {/* Media */}
       {post.imageUrl && (
@@ -255,7 +258,7 @@ export function PostCardV2({
       {post.gifUrl && (
         <img src={post.gifUrl} alt="GIF" className="w-full rounded-xl border border-white/10 object-cover max-h-60" />
       )}
-      {post.videoUrl && (
+      {post.videoUrl && !extractYouTubeId(post.videoUrl) && (
         <a href={post.videoUrl} target="_blank" rel="noopener noreferrer"
           className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 font-mono text-xs text-white/50 hover:text-white/80 transition-colors">
           🎬 {post.videoUrl}
