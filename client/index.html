@@ -18,6 +18,10 @@
     <meta property="og:title" content="Void Mafia" />
     <meta property="og:description" content="Cyberpunk social deduction game of lies, loyalty, and betrayal." />
     <meta property="og:type" content="website" />
+  <!-- Apply saved theme before React loads to prevent flash of unstyled content -->
+  <script>
+    (function(){try{var s=localStorage.getItem('void-mafia-settings');if(s){var p=JSON.parse(s);var m=p&&p.state&&p.state.themeMode;if(m==='void-neon'||m==='minimal-glass'){document.documentElement.setAttribute('data-theme',m);return;}}}catch(e){}document.documentElement.setAttribute('data-theme','void-neon');})();
+  </script>
   </head>
   <body class="bg-void text-white">
     <div id="root"></div>

@@ -151,6 +151,7 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
   const mp = t.morePanel;
   const sfxEnabled = useSettingsStore(s => s.sfxEnabled);
   const musicEnabled = useSettingsStore(s => s.musicEnabled);
+  const themeMode = useSettingsStore(s => s.themeMode) ?? 'void-neon';
   const updateSettings = useSettingsStore(s => s.update);
 
   const toggleSfx = (v: boolean) => { updateSettings({ sfxEnabled: v }); onSettingsChange(); };
@@ -321,9 +322,10 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
               className="fixed top-0 left-0 bottom-0 z-[80] flex flex-col"
               style={{
                 width: 'min(310px, 88vw)',
-                background: 'linear-gradient(180deg, rgba(8,4,22,0.99) 0%, rgba(5,2,15,0.99) 100%)',
-                borderRight: '1px solid rgba(138,43,226,0.12)',
-                boxShadow: '12px 0 48px rgba(0,0,0,0.7), 1px 0 0 rgba(138,43,226,0.06)',
+                background: 'var(--panel-bg)',
+                borderRight: '1px solid var(--panel-border)',
+                boxShadow: '12px 0 48px rgba(0,0,0,0.7)',
+                transition: 'background 180ms ease, border-color 180ms ease',
               }}
             >
               {/* Neon left edge accent */}
@@ -426,6 +428,73 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
                       <p className="text-xs font-mono text-white/55">ბექგრაუნდ მუსიკა</p>
                     </div>
                     <AudioToggle value={musicEnabled} onChange={toggleMusic} />
+                  </div>
+                </div>
+
+                {/* ── Design theme switcher ── */}
+                <div className="mt-3">
+                  <div className="flex items-center gap-2 px-1 mb-2">
+                    <p className="text-[11px] font-mono font-bold uppercase tracking-[0.28em] text-white/18">დიზაინი</p>
+                    <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.04)' }} />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => updateSettings({ themeMode: 'void-neon' })}
+                      className="flex-1 flex flex-col items-center gap-1.5 py-3 px-2 rounded-2xl transition-all duration-200 active:scale-95"
+                      style={{
+                        background: themeMode === 'void-neon'
+                          ? 'linear-gradient(135deg, rgba(155,0,255,0.18), rgba(0,245,255,0.06))'
+                          : 'rgba(255,255,255,0.03)',
+                        border: themeMode === 'void-neon'
+                          ? '1px solid rgba(155,0,255,0.42)'
+                          : '1px solid rgba(255,255,255,0.07)',
+                        boxShadow: themeMode === 'void-neon' ? '0 0 14px rgba(155,0,255,0.1)' : 'none',
+                      }}
+                    >
+                      <div className="flex gap-1">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#9b00ff', boxShadow: '0 0 5px rgba(155,0,255,0.9)' }} />
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#00f5ff', boxShadow: '0 0 5px rgba(0,245,255,0.9)' }} />
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#ff00cc', boxShadow: '0 0 5px rgba(255,0,204,0.9)' }} />
+                      </div>
+                      <p className="text-[11px] font-mono font-bold tracking-widest uppercase leading-none" style={{ color: themeMode === 'void-neon' ? 'rgba(155,0,255,0.9)' : 'rgba(255,255,255,0.28)' }}>
+                        Void Neon
+                      </p>
+                      <p className="text-[10px] font-mono leading-none" style={{ color: 'rgba(255,255,255,0.18)' }}>კიბერ-ნეონი</p>
+                      {themeMode === 'void-neon' && (
+                        <div className="w-3.5 h-3.5 rounded-full flex items-center justify-center" style={{ background: 'rgba(155,0,255,0.28)', border: '1px solid rgba(155,0,255,0.5)', fontSize: '9px', color: 'rgba(155,0,255,0.9)' }}>
+                          ✓
+                        </div>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => updateSettings({ themeMode: 'minimal-glass' })}
+                      className="flex-1 flex flex-col items-center gap-1.5 py-3 px-2 rounded-2xl transition-all duration-200 active:scale-95"
+                      style={{
+                        background: themeMode === 'minimal-glass'
+                          ? 'linear-gradient(135deg, rgba(139,92,246,0.18), rgba(34,211,238,0.06))'
+                          : 'rgba(255,255,255,0.03)',
+                        border: themeMode === 'minimal-glass'
+                          ? '1px solid rgba(139,92,246,0.42)'
+                          : '1px solid rgba(255,255,255,0.07)',
+                        boxShadow: themeMode === 'minimal-glass' ? '0 0 14px rgba(139,92,246,0.1)' : 'none',
+                      }}
+                    >
+                      <div className="flex gap-1">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: 'rgba(255,255,255,0.82)', boxShadow: '0 0 4px rgba(255,255,255,0.4)' }} />
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#8b5cf6' }} />
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#22d3ee' }} />
+                      </div>
+                      <p className="text-[11px] font-mono font-bold tracking-widest uppercase leading-none" style={{ color: themeMode === 'minimal-glass' ? 'rgba(139,92,246,0.9)' : 'rgba(255,255,255,0.28)' }}>
+                        Min. Glass
+                      </p>
+                      <p className="text-[10px] font-mono leading-none" style={{ color: 'rgba(255,255,255,0.18)' }}>მინიმალური</p>
+                      {themeMode === 'minimal-glass' && (
+                        <div className="w-3.5 h-3.5 rounded-full flex items-center justify-center" style={{ background: 'rgba(139,92,246,0.28)', border: '1px solid rgba(139,92,246,0.5)', fontSize: '9px', color: 'rgba(139,92,246,0.9)' }}>
+                          ✓
+                        </div>
+                      )}
+                    </button>
                   </div>
                 </div>
 

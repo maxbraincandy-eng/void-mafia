@@ -4,6 +4,31 @@
 
 :root {
   --vm-banner-h: 0px;
+
+  /* ── Void Neon defaults (match existing hardcoded values exactly) ── */
+  --bg-main: #03000d;
+  --glass-bg: rgba(10, 5, 32, 0.7);
+  --glass-bg-solid: rgba(8, 4, 20, 0.95);
+  --glass-border: rgba(0, 245, 255, 0.08);
+  --shadow-card: inset 0 1px 0 rgba(255,255,255,0.04), 0 2px 16px rgba(0,0,0,0.3);
+  --shadow-elevated: inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 24px rgba(0,0,0,0.4);
+  --panel-bg: linear-gradient(180deg, rgba(8,4,22,0.99) 0%, rgba(5,2,15,0.99) 100%);
+  --panel-border: rgba(138, 43, 226, 0.12);
+  --radius-card: 16px;
+  --radius-button: 12px;
+}
+
+[data-theme="minimal-glass"] {
+  --bg-main: #07070d;
+  --glass-bg: rgba(20, 20, 32, 0.62);
+  --glass-bg-solid: rgba(18, 18, 28, 0.97);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --shadow-card: inset 0 1px 0 rgba(255,255,255,0.07), 0 8px 32px rgba(0,0,0,0.35);
+  --shadow-elevated: inset 0 1px 0 rgba(255,255,255,0.09), 0 18px 60px rgba(0,0,0,0.35);
+  --panel-bg: rgba(12, 12, 20, 0.98);
+  --panel-border: rgba(255, 255, 255, 0.09);
+  --radius-card: 22px;
+  --radius-button: 16px;
 }
 
 /* Bottom nav background extends into home indicator zone */
@@ -67,8 +92,9 @@
     overflow: hidden;
     max-width: 100%;
     @apply bg-void text-white font-sans antialiased;
-    background-color: #03000d;
+    background-color: var(--bg-main, #03000d);
     overscroll-behavior: none;
+    transition: background-color 180ms ease;
     /* iOS momentum scrolling needs to be on individual scroll containers */
   }
 
@@ -136,13 +162,14 @@
 
   /* Glassmorphism panel — solid dark base first for Android compatibility */
   .glass-panel {
-    background: rgba(8, 4, 20, 0.95);
-    border: 1px solid rgba(0, 245, 255, 0.08);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 2px 16px rgba(0,0,0,0.3);
+    background: var(--glass-bg-solid);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-card);
+    transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
   }
   @supports (backdrop-filter: blur(12px)) {
     .glass-panel {
-      background: rgba(10, 5, 32, 0.7);
+      background: var(--glass-bg);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
     }
@@ -150,8 +177,9 @@
 
   /* Neon bordered glass */
   .glass-card {
-    @apply glass-panel rounded-2xl;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 24px rgba(0,0,0,0.4);
+    @apply glass-panel;
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-elevated);
   }
 
   /* Horizontally scrollable tab row */
@@ -225,6 +253,13 @@
   /* Allow scrolling inside a container while blocking pull-to-refresh on outer */
   .overscroll-contain { overscroll-behavior: contain; }
   .overscroll-none    { overscroll-behavior: none; }
+}
+
+/* ── Theme transition: smooth swap when switching themes ─────── */
+html.theme-transitioning .glass-panel,
+html.theme-transitioning .glass-card,
+html.theme-transitioning body {
+  transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease !important;
 }
 
 /* ── Skeleton shimmer ─────────────────────────────────────────── */

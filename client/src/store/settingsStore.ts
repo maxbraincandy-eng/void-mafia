@@ -28,6 +28,9 @@ export interface Settings {
   // Accessibility
   reduceAnimations: boolean;
   largeText: boolean;
+
+  // Design
+  themeMode: 'void-neon' | 'minimal-glass';
 }
 
 interface SettingsStore extends Settings {
@@ -53,6 +56,7 @@ const DEFAULTS: Settings = {
   notifyDMs: true,
   reduceAnimations: false,
   largeText: false,
+  themeMode: 'void-neon',
 };
 
 export const useSettingsStore = create<SettingsStore>()(
@@ -64,13 +68,16 @@ export const useSettingsStore = create<SettingsStore>()(
     }),
     {
       name: 'void-mafia-settings',
-      version: 3,
+      version: 4,
       migrate: (stored: any, fromVersion: number) => {
         if (fromVersion < 2) {
           return { ...DEFAULTS, ...stored, sfxEnabled: true, musicEnabled: false, sfxVolume: Math.max(stored?.sfxVolume ?? 0, 80) };
         }
         if (fromVersion < 3) {
           return { ...DEFAULTS, ...stored, musicEnabled: false };
+        }
+        if (fromVersion < 4) {
+          return { ...DEFAULTS, ...stored, themeMode: stored?.themeMode ?? 'void-neon' };
         }
         return stored as SettingsStore;
       },

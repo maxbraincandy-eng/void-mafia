@@ -49,6 +49,7 @@ import { PWAInstallBanner } from '@/components/ui/PWAInstallBanner';
 import { NotificationPrompt } from '@/components/ui/NotificationPrompt';
 import { MediaPermissionPrimer } from '@/components/ui/MediaPermissionPrimer';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
+import { ThemeProvider } from '@/components/ui/ThemeProvider';
 
 // Version check: reload if server has newer build. Uses localStorage with 10-min TTL
 // so iOS PWA app-restore-from-memory still re-checks (sessionStorage would persist there).
@@ -620,6 +621,7 @@ export default function App() {
 
   return (
     <>
+      <ThemeProvider />
       <PWAInstallBanner />
       <AnimatePresence mode="wait">
         <Screen publicProfileId={publicProfileId} onClearPublicProfile={() => setPublicProfileId(null)} onOpenShop={() => setShopOpen(true)} />
