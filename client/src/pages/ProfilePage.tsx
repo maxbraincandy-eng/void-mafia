@@ -210,7 +210,8 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
       if (histRes.ok) setHistory(histRes.data);
       if (rsRes.ok)   setRoleStats(rsRes.data);
       setClan(clanRes.ok ? clanRes.data : null);
-    }).finally(() => setLoadingAch(false));
+    }).catch(() => { setClan(null); })
+      .finally(() => setLoadingAch(false));
   }, [profile]);
 
   // Friends list
@@ -226,7 +227,8 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
     if (!profile) return;
     emitWithAck<null, Res<{ coins: number }>>('coins:balance').then(res => {
       if (res.ok) setCoins(res.data.coins);
-    });
+      else setCoins(0);
+    }).catch(() => setCoins(0));
     const onCoinsUpdated = ({ coins: c }: { coins: number }) => setCoins(c);
     socket.on('coins:updated' as any, onCoinsUpdated);
     return () => { socket.off('coins:updated' as any, onCoinsUpdated); };
@@ -268,7 +270,11 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
       if (res.ok) {
         setCoins(res.data.balance);
         setDailyMsg(res.data.alreadyClaimed ? 'Already claimed today. Come back tomorrow!' : `+${res.data.coins} coins claimed!`);
+      } else {
+        setDailyMsg((res as any).error ?? 'Claim failed — please try again.');
       }
+    } catch {
+      setDailyMsg('Connection error — please try again.');
     } finally {
       setDailyClaiming(false);
       setTimeout(() => setDailyMsg(null), 3000);

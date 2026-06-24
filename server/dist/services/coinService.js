@@ -16,6 +16,7 @@ async function recordTransaction(playerId, type, amount, description, opts = {})
               (SELECT coins FROM before) AS balance_before,
               (SELECT public_id FROM before) AS player_public_id
   `;
+    if (!row) throw new Error('Player record not found — cannot update coins.');
     const balanceBefore = Number(row.balance_before ?? 0);
     const balanceAfter = Number(row.balance_after);
     const playerPublicId = row.player_public_id != null ? Number(row.player_public_id) : null;
