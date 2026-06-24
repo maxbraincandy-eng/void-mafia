@@ -107,6 +107,8 @@ export class WebRTCSession {
   private remoteSpeakingCooldowns = new Map<string, boolean>();
   // Silent looping audio to hold browser audio focus in background
   private keepaliveAudio: HTMLAudioElement | null = null;
+  // Interval that retries paused audio elements while page is hidden
+  private _bgInterval: ReturnType<typeof setInterval> | null = null;
 
   /**
    * Override ICE config with servers provided by the server.
@@ -823,6 +825,16 @@ export class WebRTCSession {
         artist: 'Voice Chat Active',
       });
       navigator.mediaSession.playbackState = 'playing';
+      // Action handlers keep iOS from killing the audio session in background.
+      // 'play' resumes keepalive; 'pause' is acknowledged but ignored so the
+      // OS doesn't actually pause our voice stream.
+      navigator.mediaSession.setActionHandler('play', () => {
+        this.keepaliveAudio?.play().catch(() => {});
+        if (this.audioCtx?.state === 'suspended') this.audioCtx.resume().catch(() => {});
+      });
+      navigator.mediaSession.setActionHandler('pause', () => {
+        // Intentionally empty — prevent iOS from pausing the voice session
+      });
     } catch {}
   }
 
@@ -867,6 +879,11 @@ export class WebRTCSession {
     this.remoteStreams.clear();
     this.iceCandidateQueues.clear();
     this.videoSenders.clear();
+
+    if (this._bgInterval) {
+      clearInterval(this._bgInterval);
+      this._bgInterval = null;
+    }
 
     if (this._visibilityHandler) {
       document.removeEventListener('visibilitychange', this._visibilityHandler);
@@ -984,42 +1001,70 @@ export class WebRTCSession {
     // Register a single shared visibility handler the first time we attach audio
     if (!this._visibilityHandler) {
       this._visibilityHandler = () => {
-        if (document.visibilityState === 'visible') {
-          // Resume AudioContext (suspended by OS in background)
-          if (this.audioCtx?.state === 'suspended') {
-            this.audioCtx.resume().catch(() => {});
-          }
-          // Resume all remote audio elements
-          for (const el of this.audioEls.values()) {
-            if (el.paused && !el.ended) el.play().catch(() => {});
-          }
-          // Resume keepalive
-          if (this.keepaliveAudio?.paused) {
-            this.keepaliveAudio.play().catch(() => {});
-          }
-          // Check if local mic track was killed (ended) in background
-          const audioTrack = this.localStream?.getAudioTracks()[0];
-          if (!audioTrack) return;
-
-          if (audioTrack.readyState === 'ended') {
-            log('local audio track ended in background — emitting local-track-ended');
-            this.emit({ type: 'local-track-ended' });
-            return;
-          }
-
-          // Check if track was OS-muted in background (Android) and still muted after return
-          if ((audioTrack as any)._osMutedInBackground) {
-            (audioTrack as any)._osMutedInBackground = false;
-            // Give the OS 1 second to auto-unmute the track; if still muted, reconnect
-            setTimeout(() => {
-              if (audioTrack.muted || audioTrack.readyState === 'ended') {
-                log('local audio track still muted/ended after return — emitting local-track-ended');
-                this.emit({ type: 'local-track-ended' });
-              } else {
-                log('local audio track auto-unmuted by OS — mic ok');
+        if (document.visibilityState === 'hidden') {
+          // Start a background interval that keeps retrying paused audio elements.
+          // On Android Chrome this can actually resume them; on iOS it's best-effort
+          // (iOS blocks play() from background, but the retry fires immediately on resume).
+          if (!this._bgInterval) {
+            this._bgInterval = setInterval(() => {
+              for (const el of this.audioEls.values()) {
+                if (el.paused && !el.ended) el.play().catch(() => {});
               }
-            }, 1000);
+              if (this.keepaliveAudio?.paused) this.keepaliveAudio.play().catch(() => {});
+            }, 4000);
           }
+          return;
+        }
+
+        // ── Page is now visible ────────────────────────────────────────
+
+        // Stop background retry interval
+        if (this._bgInterval) {
+          clearInterval(this._bgInterval);
+          this._bgInterval = null;
+        }
+
+        // Resume AudioContext (may have been suspended by OS)
+        if (this.audioCtx?.state === 'suspended') {
+          this.audioCtx.resume().catch(() => {});
+        }
+
+        // Resume keepalive
+        if (this.keepaliveAudio?.paused) {
+          this.keepaliveAudio.play().catch(() => {});
+        }
+
+        // Resume all remote audio elements.
+        // Re-attach srcObject first if iOS cleared it, then call play().
+        for (const [peerId, el] of this.audioEls.entries()) {
+          if (!el.srcObject) {
+            const stream = this.remoteStreams.get(peerId);
+            if (stream) { el.srcObject = stream; }
+          }
+          if (el.paused && !el.ended) el.play().catch(() => {});
+        }
+
+        // Check if local mic track was killed (ended) in background
+        const audioTrack = this.localStream?.getAudioTracks()[0];
+        if (!audioTrack) return;
+
+        if (audioTrack.readyState === 'ended') {
+          log('local audio track ended in background — emitting local-track-ended');
+          this.emit({ type: 'local-track-ended' });
+          return;
+        }
+
+        // Check if track was OS-muted in background (Android) and still muted after return
+        if ((audioTrack as any)._osMutedInBackground) {
+          (audioTrack as any)._osMutedInBackground = false;
+          setTimeout(() => {
+            if (audioTrack.muted || audioTrack.readyState === 'ended') {
+              log('local audio track still muted/ended after return — emitting local-track-ended');
+              this.emit({ type: 'local-track-ended' });
+            } else {
+              log('local audio track auto-unmuted by OS — mic ok');
+            }
+          }, 1000);
         }
       };
       document.addEventListener('visibilitychange', this._visibilityHandler);

@@ -99,29 +99,38 @@ let _reconnectOnResume: { channel: VoiceChannel; withCamera: boolean } | null = 
 
 // ── Auto-refresh debounce ──────────────────────────────────────────────
 let _refreshTimer: ReturnType<typeof setTimeout> | null = null;
+// Reason deferred while page was hidden — executed on next foreground return
+let _deferredRefreshReason: string | null = null;
+
+async function doVoiceRefresh(reason: string) {
+  if (!_state.channel) return;
+  const channel = _state.channel;
+  const withCamera = _state.cameraOn;
+  log('auto-refreshing voice connection, reason:', reason);
+  _patch({ isRefreshing: true, error: null });
+  if (_session) {
+    (socket as any).emit('voice:leave');
+    _session.destroy();
+    _session = null;
+  }
+  _moduleJoinVoice(channel, withCamera, true).finally(() => {
+    _patch({ isRefreshing: false });
+  });
+}
 
 function scheduleVoiceRefresh(reason: string, delayMs = 2000) {
   if (_refreshTimer) clearTimeout(_refreshTimer);
   log('scheduling voice refresh:', reason, 'in', delayMs, 'ms');
   _refreshTimer = setTimeout(() => {
     _refreshTimer = null;
-    if (!_state.channel) return; // not in a channel — nothing to refresh
-    const channel = _state.channel;
-    const withCamera = _state.cameraOn;
-    log('auto-refreshing voice connection, reason:', reason);
-    _patch({ isRefreshing: true, error: null });
-
-    // Tear down existing session silently
-    if (_session) {
-      (socket as any).emit('voice:leave');
-      _session.destroy();
-      _session = null;
+    if (!_state.channel) return;
+    // If hidden, defer until foreground — getUserMedia is blocked in background on iOS/Android
+    if (document.visibilityState === 'hidden') {
+      log('deferring voice refresh until foreground:', reason);
+      _deferredRefreshReason = reason;
+      return;
     }
-
-    // Rejoin — pass silent=true so errors don't block the UI
-    _moduleJoinVoice(channel, withCamera, true).finally(() => {
-      _patch({ isRefreshing: false });
-    });
+    doVoiceRefresh(reason);
   }, delayMs);
 }
 
@@ -443,12 +452,22 @@ socket.on('disconnect',                      onSocketDisconnect);
 socket.on('connect',                         onSocketConnect);
 
 // ── Visibility / background recovery ──────────────────────────────────
-// When the app returns from background, check if the WebRTC session is
-// healthy. If ICE is dead, schedule a full reconnect.
+// When the app returns from background, execute any deferred refresh first,
+// then check ICE health. If unhealthy, schedule a full reconnect.
 
 if (typeof window !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return;
+
+    // Execute refresh that was deferred while page was hidden
+    if (_deferredRefreshReason && _state.channel) {
+      const reason = _deferredRefreshReason;
+      _deferredRefreshReason = null;
+      log('executing deferred voice refresh on foreground return:', reason);
+      doVoiceRefresh(reason);
+      return;
+    }
+
     if (!_session || !_state.channel) return;
     log('visibility returned — checking voice health');
     const health = _session.checkHealth();
