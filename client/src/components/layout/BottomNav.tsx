@@ -133,8 +133,8 @@ function NavItem({ tab, active, onPress }: { tab: TabDef; active: boolean; onPre
       </span>
 
       <span
-        className="font-mono leading-none text-center w-full truncate px-0.5"
-        style={{ fontSize: 'clamp(7px, 2.3vw, 9px)', letterSpacing: '0.01em' }}
+        className="font-mono leading-none text-center w-full overflow-hidden"
+        style={{ fontSize: 'clamp(7px, 2vw, 9px)', letterSpacing: '0.01em', display: 'block' }}
       >
         {tab.label}
       </span>
@@ -156,10 +156,11 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
       style={{
         background: 'rgba(3,0,13,0.97)',
         borderTop: '1px solid rgba(255,255,255,0.06)',
+        borderRadius: '20px 20px 0 0',
         boxShadow: '0 -4px 32px rgba(0,0,0,0.65)',
       }}
     >
-      <div className="flex items-end max-w-lg mx-auto" style={{ height: 76 }}>
+      <div className="flex items-end max-w-lg mx-auto px-2" style={{ height: 76 }}>
 
         {/* Left 3 tabs */}
         {LEFT_TABS.map(tab => (
