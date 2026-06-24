@@ -23,7 +23,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   nightDuration: 60,
   dayDuration: 120,
   voteDuration: 60,
-  roleRevealDuration: 8,
+  roleRevealDuration: 3,
   speechDuration: 45,
   allowDoctorSelfHeal: true,
   tieVoteRule: 'no_elimination',
