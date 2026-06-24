@@ -178,8 +178,8 @@ export function setPhase(room: Room, phase: Phase): void {
       break;
     }
     case 'role_reveal':
-      room.timer = room.settings.roleRevealDuration;
-      room.maxTimer = room.settings.roleRevealDuration;
+      room.timer = 3;
+      room.maxTimer = 3;
       break;
     case 'game_over':
       room.timer = 0;
