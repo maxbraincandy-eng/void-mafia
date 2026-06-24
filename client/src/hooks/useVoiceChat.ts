@@ -159,6 +159,10 @@ async function _moduleJoinVoice(
       if (event.message.toLowerCase().includes('failed')) {
         scheduleVoiceRefresh('ice-failure', 4000);
       }
+    } else if (event.type === 'local-track-ended') {
+      // Mic track killed by OS (backgrounded) — reconnect voice
+      log('local track ended — scheduling voice refresh');
+      scheduleVoiceRefresh('local-track-ended', 800);
     }
   });
 

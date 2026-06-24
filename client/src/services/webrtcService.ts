@@ -47,7 +47,8 @@ export type WebRTCEvent =
   | { type: 'peer-removed'; socketId: string }
   | { type: 'speaking'; socketId: string | 'local'; isSpeaking: boolean }
   | { type: 'stream-update'; socketId: string; stream: MediaStream | null }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+  | { type: 'local-track-ended' };
 
 type Listener = (event: WebRTCEvent) => void;
 
@@ -104,6 +105,8 @@ export class WebRTCSession {
   private speakingTimer: ReturnType<typeof setInterval> | null = null;
   private localSpeakingCooldown = false;
   private remoteSpeakingCooldowns = new Map<string, boolean>();
+  // Silent looping audio to hold browser audio focus in background
+  private keepaliveAudio: HTMLAudioElement | null = null;
 
   /**
    * Override ICE config with servers provided by the server.
@@ -259,6 +262,9 @@ export class WebRTCSession {
       );
 
       this.startSpeakingDetection();
+      this.startAudioKeepalive();
+      this.registerMediaSession();
+      this.monitorLocalTracks();
       this.setState('connecting');
     } catch (e: any) {
       this.setState('failed');
@@ -792,6 +798,50 @@ export class WebRTCSession {
     log('camera stopped — senders preserved for re-enable');
   }
 
+  // ── Background audio keepalive ───────────────────────────────────────
+
+  private startAudioKeepalive(): void {
+    if (this.keepaliveAudio) return;
+    // Tiny silent WAV (44-byte header, 0 data bytes) looped to hold browser audio focus.
+    // Without this, Android Chrome suspends audio and mutes the mic after ~5s in background.
+    const audio = document.createElement('audio');
+    audio.loop = true;
+    audio.volume = 0.001;
+    // 1-second silent WAV at 8kHz, 8-bit, mono
+    audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+    audio.style.display = 'none';
+    document.body.appendChild(audio);
+    audio.play().catch(() => {});
+    this.keepaliveAudio = audio;
+  }
+
+  private registerMediaSession(): void {
+    if (!('mediaSession' in navigator)) return;
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: 'Void Mafia',
+        artist: 'Voice Chat Active',
+      });
+      navigator.mediaSession.playbackState = 'playing';
+    } catch {}
+  }
+
+  private monitorLocalTracks(): void {
+    if (!this.localStream) return;
+    for (const track of this.localStream.getAudioTracks()) {
+      track.addEventListener('ended', () => {
+        log('local audio track ended (OS killed in background)');
+        this.emit({ type: 'local-track-ended' });
+      });
+      track.addEventListener('mute', () => {
+        log('local audio track muted by OS');
+      });
+      track.addEventListener('unmute', () => {
+        log('local audio track unmuted by OS');
+      });
+    }
+  }
+
   // ── Cleanup ─────────────────────────────────────────────────────────
 
   destroy(): void {
@@ -819,8 +869,17 @@ export class WebRTCSession {
       audio.srcObject = null;
       try { audio.remove(); } catch {}
     }
-
     this.audioEls.clear();
+
+    if (this.keepaliveAudio) {
+      this.keepaliveAudio.pause();
+      try { this.keepaliveAudio.remove(); } catch {}
+      this.keepaliveAudio = null;
+    }
+
+    if ('mediaSession' in navigator) {
+      try { navigator.mediaSession.playbackState = 'none'; } catch {}
+    }
 
     this.localStream?.getTracks().forEach((t) => {
       t.stop();
@@ -918,8 +977,23 @@ export class WebRTCSession {
     if (!this._visibilityHandler) {
       this._visibilityHandler = () => {
         if (document.visibilityState === 'visible') {
+          // Resume AudioContext (suspended by OS in background)
+          if (this.audioCtx?.state === 'suspended') {
+            this.audioCtx.resume().catch(() => {});
+          }
+          // Resume all remote audio elements
           for (const el of this.audioEls.values()) {
             if (el.paused && !el.ended) el.play().catch(() => {});
+          }
+          // Resume keepalive
+          if (this.keepaliveAudio?.paused) {
+            this.keepaliveAudio.play().catch(() => {});
+          }
+          // Check if local mic track was killed in background
+          const audioTrack = this.localStream?.getAudioTracks()[0];
+          if (audioTrack && audioTrack.readyState === 'ended') {
+            log('local audio track ended in background — emitting local-track-ended');
+            this.emit({ type: 'local-track-ended' });
           }
         }
       };
