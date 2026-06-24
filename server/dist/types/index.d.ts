@@ -901,8 +901,9 @@ export interface ServerToClientEvents {
     'space:player-joined': (player: {
         socketId: string;
         name: string;
-        emoji: string;
-        color: string;
+        bodyColor: string;
+        glowColor: string;
+        mask: string;
         x: number;
         y: number;
     }) => void;
@@ -917,6 +918,25 @@ export interface ServerToClientEvents {
     'space:message': (data: {
         socketId: string;
         message: string;
+    }) => void;
+    'space:voice-peer-joined': (data: {
+        socketId: string;
+        name: string;
+    }) => void;
+    'space:voice-peer-left': (data: {
+        socketId: string;
+    }) => void;
+    'space:voice-offer': (data: {
+        from: string;
+        sdp: object;
+    }) => void;
+    'space:voice-answer': (data: {
+        from: string;
+        sdp: object;
+    }) => void;
+    'space:voice-ice': (data: {
+        from: string;
+        candidate: object;
     }) => void;
 }
 export interface ClientToServerEvents {
@@ -1784,8 +1804,9 @@ export interface ClientToServerEvents {
     'space:join': (data: {
         spaceId: string;
         name: string;
-        emoji: string;
-        color: string;
+        bodyColor: string;
+        glowColor: string;
+        mask: string;
     }, cb: (res: any) => void) => void;
     'space:move': (data: {
         x: number;
@@ -1795,6 +1816,20 @@ export interface ClientToServerEvents {
         message: string;
     }) => void;
     'space:leave': () => void;
+    'space:voice-join': (data: Record<string, never>, cb: (res: any) => void) => void;
+    'space:voice-leave': () => void;
+    'space:voice-offer': (data: {
+        to: string;
+        sdp: object;
+    }) => void;
+    'space:voice-answer': (data: {
+        to: string;
+        sdp: object;
+    }) => void;
+    'space:voice-ice': (data: {
+        to: string;
+        candidate: object;
+    }) => void;
 }
 export interface InterServerEvents {
 }

@@ -156,6 +156,7 @@ const lobbyGraceTimers = new Map();
 const _lobbyChat = [];
 const MAX_LOBBY_CHAT = 200;
 const _spaces = new Map();
+const _spaceVoice = new Map(); // spaceId → Map<socketId, playerName>
 function _leaveSpace(sid, io) {
     for (const [spaceId, room] of _spaces) {
         if (room.has(sid)) {
@@ -163,6 +164,17 @@ function _leaveSpace(sid, io) {
             io.to(`space:${spaceId}`).emit('space:player-left', { socketId: sid });
             if (room.size === 0)
                 _spaces.delete(spaceId);
+            return;
+        }
+    }
+}
+function _leaveSpaceVoice(sid, io) {
+    for (const [spaceId, voices] of _spaceVoice) {
+        if (voices.has(sid)) {
+            voices.delete(sid);
+            io.to(`space:${spaceId}`).emit('space:voice-peer-left', { socketId: sid });
+            if (voices.size === 0)
+                _spaceVoice.delete(spaceId);
             return;
         }
     }
@@ -6198,20 +6210,21 @@ export function attachSocketHandlers(io) {
         registerUnoHandlers(io, socket);
         // ── Disconnect ──────────────────────────────────────────────────
         // ── Virtual Space ─────────────────────────────────────────────────
-        socket.on('space:join', ({ spaceId = 'main', name, emoji, color }, cb) => {
+        socket.on('space:join', ({ spaceId = 'main', name, bodyColor, glowColor, mask }, cb) => {
             try {
-                if (!name || !emoji || !color)
+                if (!name || !bodyColor)
                     return cb?.({ ok: false, error: 'Missing fields' });
                 const safeName = String(name).slice(0, 24);
-                const safeEmoji = String(emoji).slice(0, 8);
-                const safeColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#9b00ff';
+                const safeBody = /^#[0-9a-fA-F]{6}$/.test(bodyColor) ? bodyColor : '#9b00ff';
+                const safeGlow = /^#[0-9a-fA-F]{6}$/.test(glowColor ?? '') ? glowColor : '#00e5ff';
+                const safeMask = ['none', 'half', 'full', 'visor'].includes(mask) ? mask : 'none';
                 const safeSpace = String(spaceId).slice(0, 32).replace(/[^a-zA-Z0-9_-]/g, '') || 'main';
                 if (!_spaces.has(safeSpace))
                     _spaces.set(safeSpace, new Map());
                 const room = _spaces.get(safeSpace);
                 const x = 15 + Math.random() * 70;
                 const y = 20 + Math.random() * 60;
-                const player = { socketId: socket.id, name: safeName, emoji: safeEmoji, color: safeColor, x, y };
+                const player = { socketId: socket.id, name: safeName, bodyColor: safeBody, glowColor: safeGlow, mask: safeMask, x, y };
                 room.set(socket.id, player);
                 socket.join(`space:${safeSpace}`);
                 socket.to(`space:${safeSpace}`).emit('space:player-joined', player);
@@ -6250,6 +6263,40 @@ export function attachSocketHandlers(io) {
             }
         });
         socket.on('space:leave', () => { _leaveSpace(socket.id, io); });
+        // ── Virtual Space Voice ────────────────────────────────────────────
+        socket.on('space:voice-join', (_, cb) => {
+            for (const [spaceId, room] of _spaces) {
+                if (room.has(socket.id)) {
+                    if (!_spaceVoice.has(spaceId))
+                        _spaceVoice.set(spaceId, new Map());
+                    const voices = _spaceVoice.get(spaceId);
+                    const peers = [...voices.entries()].map(([sid, nm]) => ({ socketId: sid, name: nm }));
+                    const player = room.get(socket.id);
+                    voices.set(socket.id, player.name);
+                    socket.to(`space:${spaceId}`).emit('space:voice-peer-joined', { socketId: socket.id, name: player.name });
+                    const iceConfig = buildIceConfig();
+                    cb?.({ ok: true, data: { peers, iceServers: iceConfig.iceServers, iceTransportPolicy: iceConfig.iceTransportPolicy } });
+                    return;
+                }
+            }
+            cb?.({ ok: false, error: 'Not in a space' });
+        });
+        socket.on('space:voice-leave', () => { _leaveSpaceVoice(socket.id, io); });
+        socket.on('space:voice-offer', ({ to, sdp }) => {
+            if (typeof to !== 'string' || !sdp)
+                return;
+            io.to(to).emit('space:voice-offer', { from: socket.id, sdp });
+        });
+        socket.on('space:voice-answer', ({ to, sdp }) => {
+            if (typeof to !== 'string' || !sdp)
+                return;
+            io.to(to).emit('space:voice-answer', { from: socket.id, sdp });
+        });
+        socket.on('space:voice-ice', ({ to, candidate }) => {
+            if (typeof to !== 'string' || !candidate)
+                return;
+            io.to(to).emit('space:voice-ice', { from: socket.id, candidate });
+        });
         socket.on('disconnect', () => {
             rateLimits.delete(socket.id);
             const { roomId, playerId, profileId } = socket.data;
@@ -6270,6 +6317,7 @@ export function attachSocketHandlers(io) {
             if (roomId && playerId)
                 handlePlayerLeave(io, socket, roomId, playerId);
             _leaveSpace(socket.id, io);
+            _leaveSpaceVoice(socket.id, io);
             handleVoiceLeave(io, socket.id);
             handleLoungeLeave(io, socket);
             handleCheckersDisconnect(io, socket.id);
