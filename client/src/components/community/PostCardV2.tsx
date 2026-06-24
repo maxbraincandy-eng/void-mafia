@@ -6,6 +6,9 @@ import { useCommunityStore } from '@/store/communityStore';
 import type { CommunityPostV2, CommunityComment } from '@/types/index';
 import { Avatar, BadgeRow, MrMaxGlow, timeAgo, ModalShell, TextArea, TextInput, PillButton, Spinner } from '@/components/community/shared';
 import { PollDisplay } from '@/components/community/PollDisplay';
+import { YouTubeEmbed, extractYouTubeId } from '@/components/community/YouTubeEmbed';
+
+const URL_RE = /(https?:\/\/[^\s]+)/g;
 
 function CommentsSection({ postId, onOpenProfile, myProfileId }: { postId: string; onOpenProfile: (id: string) => void; myProfileId: string | undefined }) {
   const t = useT();
@@ -123,7 +126,7 @@ function ReportModal({ postId, onClose }: { postId: string; onClose: () => void 
 }
 
 function renderContent(content: string, hashtags: string[], onHashtag: (tag: string) => void, onMention: (name: string) => void) {
-  const parts = content.split(/(#\w+|@\w+)/g);
+  const parts = content.split(/(#\w+|@\w+|https?:\/\/[^\s]+)/g);
   return parts.map((part, i) => {
     if (part.startsWith('#')) {
       const tag = part.slice(1);
@@ -138,6 +141,15 @@ function renderContent(content: string, hashtags: string[], onHashtag: (tag: str
         <button key={i} onClick={() => onMention(part.slice(1))} className="font-mono text-xs transition-colors" style={{ color: '#c084fc' }}>
           {part}
         </button>
+      );
+    }
+    if (/^https?:\/\//.test(part)) {
+      return (
+        <a key={i} href={part} target="_blank" rel="noopener noreferrer"
+          className="font-mono text-xs underline underline-offset-2 break-all"
+          style={{ color: '#60a5fa' }}>
+          {part}
+        </a>
       );
     }
     return <span key={i}>{part}</span>;
@@ -232,6 +244,9 @@ export function PostCardV2({
       <p className="font-mono text-sm text-white/80 whitespace-pre-wrap leading-relaxed">
         {renderContent(post.content, post.hashtags ?? [], tag => { setActiveHashtag(tag); setShowModMenu(false); }, () => {})}
       </p>
+
+      {/* YouTube embed — auto-detected from content */}
+      {(() => { const ytId = extractYouTubeId(post.content); return ytId ? <YouTubeEmbed videoId={ytId} /> : null; })()}
 
       {/* Media */}
       {post.imageUrl && (
