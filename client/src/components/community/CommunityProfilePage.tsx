@@ -8,6 +8,7 @@ import { useT } from '@/store/langStore';
 import { emitWithAck } from '@/lib/socket';
 import type { CommunityProfileV2, CommunityPostV2, CommunityComment, Res } from '@/types/index';
 import { Avatar, BadgeRow, MrMaxGlow, Spinner, timeAgo } from '@/components/community/shared';
+import { YouTubeEmbed, extractYouTubeId } from '@/components/community/YouTubeEmbed';
 
 // ── Post fullscreen lightbox ────────────────────────────────────────────────
 
@@ -49,8 +50,10 @@ function PostLightbox({
     } finally { setPosting(false); }
   };
 
-  const mediaUrl = post.imageUrl ?? post.gifUrl ?? post.videoUrl;
-  const isVideo  = !!post.videoUrl && !post.imageUrl && !post.gifUrl;
+  const mediaUrl  = post.imageUrl ?? post.gifUrl ?? post.videoUrl;
+  const isVideo   = !!post.videoUrl && !post.imageUrl && !post.gifUrl;
+  const ytIdMedia = isVideo && post.videoUrl ? extractYouTubeId(post.videoUrl) : null;
+  const ytIdText  = !ytIdMedia && post.content ? extractYouTubeId(post.content) : null;
 
   return createPortal(
     <motion.div
@@ -89,13 +92,24 @@ function PostLightbox({
 
         <div className="overflow-y-auto flex-1 overscroll-contain">
           {/* Media */}
-          {mediaUrl && (
+          {ytIdMedia ? (
+            <div className="w-full flex-shrink-0 px-4 pt-2">
+              <YouTubeEmbed videoId={ytIdMedia} />
+            </div>
+          ) : mediaUrl ? (
             <div className="w-full flex-shrink-0" style={{ background: '#000' }}>
               {isVideo ? (
                 <video src={mediaUrl} controls className="w-full max-h-80 object-contain" />
               ) : (
                 <img src={mediaUrl} alt="" className="w-full object-contain" style={{ maxHeight: '55vw', minHeight: 160 }} />
               )}
+            </div>
+          ) : null}
+
+          {/* YouTube embed from content text */}
+          {ytIdText && (
+            <div className="w-full flex-shrink-0 px-4 pt-2">
+              <YouTubeEmbed videoId={ytIdText} />
             </div>
           )}
 
@@ -216,6 +230,7 @@ function PostTextCard({ post, readMoreLabel, onExpand }: {
 }) {
   const icon    = POST_TYPE_ICONS[post.postType] ?? '';
   const isLong  = (post.content?.length ?? 0) > READ_MORE_THRESHOLD;
+  const ytId    = extractYouTubeId(post.videoUrl ?? '') ?? extractYouTubeId(post.content ?? '');
 
   return (
     <div
@@ -240,6 +255,18 @@ function PostTextCard({ post, readMoreLabel, onExpand }: {
           >
             {post.content}
           </p>
+        )}
+
+        {/* YouTube thumbnail preview */}
+        {ytId && (
+          <div className="relative mt-2 rounded-xl overflow-hidden" style={{ aspectRatio: '16/9', background: '#000' }}>
+            <img src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`} alt="" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.3)' }}>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,0,0,0.9)' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Poll preview */}
