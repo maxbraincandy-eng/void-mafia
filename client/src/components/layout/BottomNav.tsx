@@ -1,4 +1,5 @@
 import { useSocialStore } from '@/store/socialStore';
+import { useSettingsStore } from '@/store/settingsStore';
 import { haptic } from '@/lib/haptics';
 import { VoidCommunityIcon } from '@/components/ui/VoidCommunityIcon';
 import { VoidGamesIcon } from '@/components/ui/VoidGamesIcon';
@@ -72,59 +73,68 @@ function VoidMafiaIcon({ size = 18, active = false, color = 'currentColor' }: { 
 }
 
 // ── Tab definitions ─────────────────────────────────────────────────────────
-type TabDef = { id: NavTab; label: string; color: string } & (
+type TabDef = { id: NavTab; label: string } & (
   | { kind: 'emoji'; icon: string }
-  | { kind: 'svg'; renderIcon: (active: boolean) => React.ReactElement }
+  | { kind: 'svg'; renderIcon: (active: boolean, color: string) => React.ReactElement }
 );
 
 const LEFT_TABS: TabDef[] = [
   {
-    id: 'community', kind: 'svg', label: 'კომუნითი', color: '#9b00ff',
-    renderIcon: (a) => <VoidCommunityIcon size={18} active={a} color="#9b00ff" />,
+    id: 'community', kind: 'svg', label: 'კომუნითი',
+    renderIcon: (a, c) => <VoidCommunityIcon size={18} active={a} color={c} />,
   },
   {
-    id: 'games', kind: 'svg', label: 'თამაშები', color: '#f59e0b',
-    renderIcon: (a) => <VoidGamesIcon size={18} active={a} color="#f59e0b" />,
+    id: 'games', kind: 'svg', label: 'თამაშები',
+    renderIcon: (a, c) => <VoidGamesIcon size={18} active={a} color={c} />,
   },
   {
-    id: 'clans', kind: 'svg', label: 'კლანები', color: '#ef4444',
-    renderIcon: (a) => <VoidClansIcon size={18} active={a} color="#ef4444" />,
+    id: 'clans', kind: 'svg', label: 'კლანები',
+    renderIcon: (a, c) => <VoidClansIcon size={18} active={a} color={c} />,
   },
 ];
 
 const RIGHT_TABS: TabDef[] = [
   {
-    id: 'leaderboard', kind: 'svg', label: 'ტოპი', color: '#facc15',
-    renderIcon: (a) => <VoidStatsIcon size={18} active={a} color="#facc15" />,
+    id: 'leaderboard', kind: 'svg', label: 'ტოპი',
+    renderIcon: (a, c) => <VoidStatsIcon size={18} active={a} color={c} />,
   },
   {
-    id: 'profile', kind: 'svg', label: 'პროფილი', color: '#00e5ff',
-    renderIcon: (a) => <VoidProfileIcon size={18} active={a} color="#00e5ff" />,
+    id: 'profile', kind: 'svg', label: 'პროფილი',
+    renderIcon: (a, c) => <VoidProfileIcon size={18} active={a} color={c} />,
   },
 ];
 
+const NEON_TAB_COLORS: Record<string, string> = {
+  community: '#9b00ff', games: '#f59e0b', clans: '#ef4444',
+  leaderboard: '#facc15', profile: '#00e5ff',
+};
+const GLASS_TAB_COLORS: Record<string, string> = {
+  community: '#8b5cf6', games: '#fbbf24', clans: '#f87171',
+  leaderboard: '#fde68a', profile: '#67e8f9',
+};
+
 // ── NavItem ─────────────────────────────────────────────────────────────────
-function NavItem({ tab, active, onPress }: { tab: TabDef; active: boolean; onPress: (id: NavTab) => void }) {
+function NavItem({ tab, active, color, onPress }: { tab: TabDef; active: boolean; color: string; onPress: (id: NavTab) => void }) {
   return (
     <button
       onClick={() => onPress(tab.id)}
       className="flex flex-col items-center justify-end flex-1 transition-all duration-150 active:scale-90 relative"
-      style={{ color: active ? tab.color : 'rgba(255,255,255,0.28)', height: 76, paddingBottom: 14 }}
+      style={{ color: active ? color : 'rgba(255,255,255,0.28)', height: 76, paddingBottom: 14 }}
     >
       {active && (
         <span
           className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full"
-          style={{ background: tab.color, boxShadow: `0 0 6px ${tab.color}` }}
+          style={{ background: color, boxShadow: `0 0 6px ${color}` }}
         />
       )}
 
       <span className="flex items-center justify-center mb-1" style={{ height: 18 }}>
         {tab.kind === 'svg'
-          ? tab.renderIcon(active)
+          ? tab.renderIcon(active, color)
           : (
             <span
               className="text-base leading-none"
-              style={{ filter: active ? `drop-shadow(0 0 5px ${tab.color})` : 'none' }}
+              style={{ filter: active ? `drop-shadow(0 0 5px ${color})` : 'none' }}
             >
               {tab.icon}
             </span>
@@ -145,6 +155,8 @@ function NavItem({ tab, active, onPress }: { tab: TabDef; active: boolean; onPre
 // ── BottomNav ───────────────────────────────────────────────────────────────
 export function BottomNav({ active, onChange, onMoreClick }: Props) {
   const { unreadDmCount } = useSocialStore();
+  const themeMode = useSettingsStore(s => s.themeMode) ?? 'void-neon';
+  const TAB_COLORS = themeMode === 'minimal-glass' ? GLASS_TAB_COLORS : NEON_TAB_COLORS;
   const isRooms = active === 'rooms';
 
   function go(tab: NavTab) { haptic('selection'); onChange(tab); }
@@ -165,7 +177,7 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
 
         {/* Left 3 tabs */}
         {LEFT_TABS.map(tab => (
-          <NavItem key={tab.id} tab={tab} active={active === tab.id} onPress={go} />
+          <NavItem key={tab.id} tab={tab} active={active === tab.id} color={TAB_COLORS[tab.id] ?? '#ffffff'} onPress={go} />
         ))}
 
         {/* CENTER FAB — Mafia */}
@@ -190,7 +202,7 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
 
         {/* Right 2 tabs */}
         {RIGHT_TABS.map(tab => (
-          <NavItem key={tab.id} tab={tab} active={active === tab.id} onPress={go} />
+          <NavItem key={tab.id} tab={tab} active={active === tab.id} color={TAB_COLORS[tab.id] ?? '#ffffff'} onPress={go} />
         ))}
 
         {/* ☰ მეტი */}

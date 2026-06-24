@@ -63,6 +63,25 @@
   --vm-games-shadow: 0 0 18px rgba(245,158,11,0.45);
   --vm-notif-bg: rgba(155,0,255,0.10);
   --vm-notif-border: rgba(155,0,255,0.30);
+
+  /* ── Nav tab icon accent colors ── */
+  --vm-tab-community: #9b00ff;
+  --vm-tab-games: #f59e0b;
+  --vm-tab-clans: #ef4444;
+  --vm-tab-leaderboard: #facc15;
+  --vm-tab-profile: #00e5ff;
+
+  /* ── Toggle / switch ── */
+  --vm-toggle-on: linear-gradient(90deg, #9b00ff, #00e5ff);
+  --vm-toggle-on-border: rgba(155,0,255,0.4);
+  --vm-toggle-on-shadow: 0 0 8px rgba(155,0,255,0.25);
+
+  /* ── Panel / user identity ── */
+  --vm-panel-left-accent: linear-gradient(180deg, transparent 0%, rgba(138,43,226,0.35) 30%, rgba(0,229,255,0.2) 70%, transparent 100%);
+  --vm-avatar-bg: linear-gradient(135deg, rgba(138,43,226,0.4), rgba(0,229,255,0.15));
+  --vm-avatar-border: rgba(138,43,226,0.25);
+  --vm-level-pip: linear-gradient(135deg, #9b00ff, #00e5ff);
+  --vm-level-pip-shadow: rgba(155,0,255,0.5);
 }
 
 [data-theme="minimal-glass"] {
@@ -124,6 +143,25 @@
   --vm-games-shadow: 0 0 18px rgba(139,92,246,0.40);
   --vm-notif-bg: rgba(139,92,246,0.10);
   --vm-notif-border: rgba(139,92,246,0.30);
+
+  /* ── Nav tab icon accent colors ── */
+  --vm-tab-community: #8b5cf6;
+  --vm-tab-games: #fbbf24;
+  --vm-tab-clans: #f87171;
+  --vm-tab-leaderboard: #fde68a;
+  --vm-tab-profile: #67e8f9;
+
+  /* ── Toggle / switch ── */
+  --vm-toggle-on: linear-gradient(90deg, #8b5cf6, #22d3ee);
+  --vm-toggle-on-border: rgba(139,92,246,0.4);
+  --vm-toggle-on-shadow: 0 0 8px rgba(139,92,246,0.25);
+
+  /* ── Panel / user identity ── */
+  --vm-panel-left-accent: linear-gradient(180deg, transparent 0%, rgba(139,92,246,0.30) 30%, rgba(34,211,238,0.15) 70%, transparent 100%);
+  --vm-avatar-bg: linear-gradient(135deg, rgba(139,92,246,0.35), rgba(34,211,238,0.12));
+  --vm-avatar-border: rgba(139,92,246,0.22);
+  --vm-level-pip: linear-gradient(135deg, #8b5cf6, #22d3ee);
+  --vm-level-pip-shadow: rgba(139,92,246,0.4);
 }
 
 /* Bottom nav background extends into home indicator zone */

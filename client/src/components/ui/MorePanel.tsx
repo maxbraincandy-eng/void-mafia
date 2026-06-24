@@ -116,11 +116,9 @@ function AudioToggle({ value, onChange }: { value: boolean; onChange: (v: boolea
       onClick={() => onChange(!value)}
       className="relative w-10 h-[22px] rounded-full transition-all duration-300 flex-shrink-0"
       style={{
-        background: value
-          ? 'linear-gradient(90deg, #9b00ff, #00e5ff)'
-          : 'rgba(255,255,255,0.08)',
-        border: value ? '1px solid rgba(155,0,255,0.4)' : '1px solid rgba(255,255,255,0.1)',
-        boxShadow: value ? '0 0 8px rgba(155,0,255,0.25)' : 'none',
+        background: value ? 'var(--vm-toggle-on)' : 'rgba(255,255,255,0.08)',
+        border: value ? '1px solid var(--vm-toggle-on-border)' : '1px solid rgba(255,255,255,0.1)',
+        boxShadow: value ? 'var(--vm-toggle-on-shadow)' : 'none',
       }}
     >
       <span
@@ -328,9 +326,9 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
                 transition: 'background 180ms ease, border-color 180ms ease',
               }}
             >
-              {/* Neon left edge accent */}
+              {/* Left edge accent */}
               <div className="absolute top-0 left-0 bottom-0 w-[2px] pointer-events-none"
-                style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(138,43,226,0.35) 30%, rgba(0,229,255,0.2) 70%, transparent 100%)' }} />
+                style={{ background: 'var(--vm-panel-left-accent)' }} />
 
               {/* Header */}
               <div className="px-4 pb-4 safe-top-plus-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -352,7 +350,7 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
                   <div className="relative flex-shrink-0">
                     <div
                       className="w-11 h-11 rounded-2xl overflow-hidden flex items-center justify-center text-xl"
-                      style={{ background: 'linear-gradient(135deg, rgba(138,43,226,0.4), rgba(0,229,255,0.15))', border: '1px solid rgba(138,43,226,0.25)' }}
+                      style={{ background: 'var(--vm-avatar-bg)', border: '1px solid var(--vm-avatar-border)' }}
                     >
                       {profile?.avatarUrl
                         ? <img src={profile.avatarUrl} alt="" className="w-full h-full object-cover" />
@@ -361,7 +359,7 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
                     {/* Level pip */}
                     <div
                       className="absolute -bottom-1 -right-1 min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1"
-                      style={{ background: 'linear-gradient(135deg, #9b00ff, #00e5ff)', boxShadow: '0 0 6px rgba(155,0,255,0.5)', fontSize: '10px' }}
+                      style={{ background: 'var(--vm-level-pip)', boxShadow: `0 0 6px var(--vm-level-pip-shadow)`, fontSize: '10px' }}
                     >
                       <span className="font-mono font-black text-white leading-none" style={{ fontSize: '10px' }}>{level}</span>
                     </div>
