@@ -25,6 +25,7 @@ export function usePWAInstall() {
     (window.navigator as any).standalone === true;
 
   const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const isAndroid = /Android/.test(navigator.userAgent);
 
   useEffect(() => {
     const onPrompt = (e: Event) => {
@@ -54,8 +55,12 @@ export function usePWAInstall() {
     } catch { /* user cancelled */ }
   };
 
-  // Show banner when: not already installed, not running as standalone PWA
-  const canInstall = !isStandalone && !installed && (!!installPrompt || isIOS);
+  // Show banner when not standalone and not installed.
+  // Android: always show (even without native prompt — fallback to manual instructions).
+  // iOS: always show manual instructions.
+  // Desktop/other: only show when native prompt is available.
+  const canInstall = !isStandalone && !installed && (!!installPrompt || isIOS || isAndroid);
+  const hasNativePrompt = !!installPrompt;
 
-  return { canInstall, install, isIOS, isStandalone };
+  return { canInstall, install, isIOS, isAndroid, isStandalone, hasNativePrompt };
 }

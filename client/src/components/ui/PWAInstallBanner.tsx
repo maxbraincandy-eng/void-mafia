@@ -4,7 +4,7 @@ import { usePWAInstall } from '@/hooks/usePWAInstall';
 export const PWA_BANNER_H = 44;
 
 export function PWAInstallBanner() {
-  const { canInstall, install, isIOS } = usePWAInstall();
+  const { canInstall, install, isIOS, isAndroid, hasNativePrompt } = usePWAInstall();
 
   // Push all page content down by setting a CSS variable on :root
   useEffect(() => {
@@ -45,6 +45,16 @@ export function PWAInstallBanner() {
           <p className="font-mono text-[11px] text-white/70 leading-tight truncate">
             Install: tap <span className="text-neon-cyan">Share ↑</span> → "Add to Home Screen"
           </p>
+        ) : isAndroid && !hasNativePrompt ? (
+          // Android but Chrome didn't fire beforeinstallprompt — show manual instructions
+          <>
+            <p className="font-display font-bold text-[12px] text-white leading-tight">
+              Void Mafia
+            </p>
+            <p className="font-mono text-[10px] text-white/40 leading-tight">
+              Tap <span className="text-neon-cyan">⋮</span> → "Add to Home Screen"
+            </p>
+          </>
         ) : (
           <>
             <p className="font-display font-bold text-[12px] text-white leading-tight">
@@ -57,8 +67,8 @@ export function PWAInstallBanner() {
         )}
       </div>
 
-      {/* Install button (Android/Chrome only) */}
-      {!isIOS && (
+      {/* Install button — only when native prompt is available (Android/Chrome) */}
+      {!isIOS && hasNativePrompt && (
         <button
           onClick={install}
           className="flex-shrink-0 px-3 py-1 rounded-lg font-display font-bold text-[11px] tracking-widest uppercase border border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan active:scale-95 transition-all"
