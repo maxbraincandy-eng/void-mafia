@@ -2,7 +2,6 @@ import { useLayoutEffect } from 'react';
 import { useSettingsStore } from '@/store/settingsStore';
 
 // Apply theme from localStorage before React mounts to avoid FOUC.
-// Zustand-persist stores state under key.state, so we read it directly.
 (function applyEarly() {
   try {
     const raw = localStorage.getItem('void-mafia-settings');
@@ -18,12 +17,20 @@ import { useSettingsStore } from '@/store/settingsStore';
   document.documentElement.setAttribute('data-theme', 'void-neon');
 })();
 
+function applyTheme(mode: string) {
+  const safe = (mode === 'void-neon' || mode === 'minimal-glass') ? mode : 'void-neon';
+  document.documentElement.setAttribute('data-theme', safe);
+}
+
 export function ThemeProvider() {
   const themeMode = useSettingsStore(s => s.themeMode) ?? 'void-neon';
 
+  // Apply synchronously during render (prevents any paint with wrong theme)
+  applyTheme(themeMode);
+
   useLayoutEffect(() => {
+    applyTheme(themeMode);
     document.documentElement.classList.add('theme-transitioning');
-    document.documentElement.setAttribute('data-theme', themeMode);
     const timer = setTimeout(() => {
       document.documentElement.classList.remove('theme-transitioning');
     }, 250);

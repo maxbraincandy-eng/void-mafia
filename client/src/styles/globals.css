@@ -16,6 +16,7 @@
   --panel-border: rgba(138, 43, 226, 0.12);
   --radius-card: 16px;
   --radius-button: 12px;
+  --glass-blur: blur(20px);
 
   /* ── Page / layout ── */
   --vm-page-gradient: linear-gradient(160deg, #0c0525 0%, #050311 50%);
@@ -65,22 +66,24 @@
 }
 
 [data-theme="minimal-glass"] {
-  --bg-main: #07070d;
-  --glass-bg: rgba(20, 20, 32, 0.62);
-  --glass-bg-solid: rgba(18, 18, 28, 0.97);
-  --glass-border: rgba(255, 255, 255, 0.12);
-  --shadow-card: inset 0 1px 0 rgba(255,255,255,0.07), 0 8px 32px rgba(0,0,0,0.35);
-  --shadow-elevated: inset 0 1px 0 rgba(255,255,255,0.09), 0 18px 60px rgba(0,0,0,0.35);
-  --panel-bg: rgba(12, 12, 20, 0.98);
-  --panel-border: rgba(255, 255, 255, 0.09);
+  --bg-main: #08080f;
+  /* White-tinted frosted glass — dramatically different from void-neon's dark purple */
+  --glass-bg: rgba(255, 255, 255, 0.09);
+  --glass-bg-solid: rgba(24, 24, 40, 0.97);
+  --glass-border: rgba(255, 255, 255, 0.16);
+  --glass-blur: blur(36px);
+  --shadow-card: 0 0 0 1px rgba(255,255,255,0.06), inset 0 1px 0 rgba(255,255,255,0.09), 0 8px 32px rgba(0,0,0,0.5);
+  --shadow-elevated: 0 0 0 1px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.11), 0 16px 48px rgba(0,0,0,0.5);
+  --panel-bg: rgba(12, 12, 22, 0.99);
+  --panel-border: rgba(255, 255, 255, 0.10);
   --radius-card: 22px;
   --radius-button: 16px;
 
   /* ── Page / layout ── */
   --vm-page-gradient: linear-gradient(160deg, #0d0d1a 0%, #07070d 50%);
   --vm-page-radial: radial-gradient(ellipse 90% 35% at 50% -5%, rgba(139,92,246,0.06) 0%, transparent 55%);
-  --vm-surface-bg: rgba(255,255,255,0.055);
-  --vm-surface-border: rgba(255,255,255,0.09);
+  --vm-surface-bg: rgba(255,255,255,0.075);
+  --vm-surface-border: rgba(255,255,255,0.12);
   --vm-header-bg: rgba(7,7,13,0.94);
   --vm-header-border: rgba(255,255,255,0.07);
 
@@ -93,12 +96,12 @@
   --vm-fab-shadow-on:  0 0 0 2px rgba(139,92,246,0.40), 0 0 24px rgba(109,40,217,0.50), 0 4px 16px rgba(0,0,0,0.6);
 
   /* ── Background orbs ── */
-  --vm-orb-1: rgba(139,92,246,0.07);
-  --vm-orb-2: rgba(34,211,238,0.05);
+  --vm-orb-1: rgba(139,92,246,0.18);
+  --vm-orb-2: rgba(34,211,238,0.12);
 
   /* ── Season banner / progress ── */
-  --vm-season-border: rgba(139,92,246,0.22);
-  --vm-season-bg: linear-gradient(135deg, rgba(139,92,246,0.08) 0%, rgba(34,211,238,0.04) 100%);
+  --vm-season-border: rgba(255,255,255,0.14);
+  --vm-season-bg: rgba(255,255,255,0.05);
   --vm-progress-track: rgba(255,255,255,0.06);
   --vm-progress-fill: linear-gradient(90deg, rgba(139,92,246,0.9), rgba(34,211,238,0.9));
   --vm-progress-glow: rgba(139,92,246,0.40);
@@ -262,8 +265,8 @@
   @supports (backdrop-filter: blur(12px)) {
     .glass-panel {
       background: var(--glass-bg);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
     }
   }
 
