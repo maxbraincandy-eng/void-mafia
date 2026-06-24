@@ -540,8 +540,11 @@ export function CommunityProfilePage({ profileId, onBack }: Props) {
                 ) : (
                   <div className="grid grid-cols-3" style={{ gap: 2 }}>
                     {mediaPosts.map(p => {
-                      const thumb   = p.imageUrl ?? p.gifUrl ?? p.videoUrl!;
                       const isVideo = !!p.videoUrl && !p.imageUrl && !p.gifUrl;
+                      const ytId    = isVideo && p.videoUrl ? extractYouTubeId(p.videoUrl) : null;
+                      const thumb   = ytId
+                        ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
+                        : (p.imageUrl ?? p.gifUrl ?? p.videoUrl!);
                       return (
                         <button
                           key={p.id}
@@ -549,7 +552,7 @@ export function CommunityProfilePage({ profileId, onBack }: Props) {
                           className="relative overflow-hidden transition-opacity active:opacity-70"
                           style={{ background: '#0d0a1a', aspectRatio: '1 / 1' }}
                         >
-                          {isVideo ? (
+                          {isVideo && !ytId ? (
                             <video src={thumb} className="w-full h-full object-cover" muted preload="metadata" />
                           ) : (
                             <img src={thumb} alt="" className="w-full h-full object-cover" />
@@ -564,8 +567,8 @@ export function CommunityProfilePage({ profileId, onBack }: Props) {
                           </div>
                           {isVideo && (
                             <div className="absolute top-1.5 right-1.5 rounded-full flex items-center justify-center"
-                              style={{ background: 'rgba(0,0,0,0.55)', width: 18, height: 18 }}>
-                              <span style={{ fontSize: 12, color: '#fff' }}>▶</span>
+                              style={{ background: ytId ? 'rgba(255,0,0,0.85)' : 'rgba(0,0,0,0.55)', width: 20, height: 20 }}>
+                              <svg width="9" height="9" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
                             </div>
                           )}
                         </button>
