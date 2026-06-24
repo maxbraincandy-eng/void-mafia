@@ -833,11 +833,19 @@ export class WebRTCSession {
         log('local audio track ended (OS killed in background)');
         this.emit({ type: 'local-track-ended' });
       });
+      // On Android, the OS mutes (not ends) the track when backgrounded.
+      // When this fires while in background, we schedule a check: if the track
+      // is still OS-muted when we return to foreground, we trigger a reconnect.
       track.addEventListener('mute', () => {
-        log('local audio track muted by OS');
+        log('local audio track OS-muted (backgrounded?)');
+        if (document.visibilityState === 'hidden') {
+          // Will be re-checked in _visibilityHandler on return to foreground
+          (track as any)._osMutedInBackground = true;
+        }
       });
       track.addEventListener('unmute', () => {
-        log('local audio track unmuted by OS');
+        log('local audio track OS-unmuted');
+        (track as any)._osMutedInBackground = false;
       });
     }
   }
@@ -989,11 +997,28 @@ export class WebRTCSession {
           if (this.keepaliveAudio?.paused) {
             this.keepaliveAudio.play().catch(() => {});
           }
-          // Check if local mic track was killed in background
+          // Check if local mic track was killed (ended) in background
           const audioTrack = this.localStream?.getAudioTracks()[0];
-          if (audioTrack && audioTrack.readyState === 'ended') {
+          if (!audioTrack) return;
+
+          if (audioTrack.readyState === 'ended') {
             log('local audio track ended in background — emitting local-track-ended');
             this.emit({ type: 'local-track-ended' });
+            return;
+          }
+
+          // Check if track was OS-muted in background (Android) and still muted after return
+          if ((audioTrack as any)._osMutedInBackground) {
+            (audioTrack as any)._osMutedInBackground = false;
+            // Give the OS 1 second to auto-unmute the track; if still muted, reconnect
+            setTimeout(() => {
+              if (audioTrack.muted || audioTrack.readyState === 'ended') {
+                log('local audio track still muted/ended after return — emitting local-track-ended');
+                this.emit({ type: 'local-track-ended' });
+              } else {
+                log('local audio track auto-unmuted by OS — mic ok');
+              }
+            }, 1000);
           }
         }
       };
@@ -1010,6 +1035,23 @@ export class WebRTCSession {
 
     try {
       this.audioCtx = new AudioContext();
+
+      // Keep AudioContext alive in background with a silent looping buffer (-60 dB)
+      const keepFrames = Math.ceil(this.audioCtx.sampleRate * 1);
+      const keepBuf = this.audioCtx.createBuffer(1, keepFrames, this.audioCtx.sampleRate);
+      const keepCh = keepBuf.getChannelData(0);
+      for (let i = 0; i < keepFrames; i++) keepCh[i] = (Math.random() * 2 - 1) * 0.001;
+      const keepGain = this.audioCtx.createGain();
+      keepGain.gain.value = 0.001;
+      keepGain.connect(this.audioCtx.destination);
+      const keepSrc = this.audioCtx.createBufferSource();
+      keepSrc.buffer = keepBuf;
+      keepSrc.loop = true;
+      keepSrc.connect(keepGain);
+      keepSrc.start();
+      this.audioCtx.addEventListener('statechange', () => {
+        if (this.audioCtx?.state === 'suspended') this.audioCtx.resume().catch(() => {});
+      });
 
       const analyser = this.audioCtx.createAnalyser();
       analyser.fftSize = 512;

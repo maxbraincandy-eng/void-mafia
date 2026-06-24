@@ -66,20 +66,20 @@ export function onSettingsChange() {
 // Three-layer approach: silent looping buffer + statechange auto-resume + MediaSession.
 
 let _keepaliveInit = false;
+let _htmlKeepAlive: HTMLAudioElement | null = null;
 
 function attachKeepAlive(ctx: AudioContext) {
   if (_keepaliveInit) return;
   _keepaliveInit = true;
 
-  // Silent 2-second looping buffer keeps the audio graph "active"
-  // (tiny noise floor so the buffer isn't optimized away by the engine)
+  // Layer 1: silent looping Web Audio buffer (-60 dB, inaudible but not optimized away)
   const frames = Math.ceil(ctx.sampleRate * 2);
   const buf = ctx.createBuffer(1, frames, ctx.sampleRate);
   const ch = buf.getChannelData(0);
-  for (let i = 0; i < frames; i++) ch[i] = (Math.random() * 2 - 1) * 0.00005;
+  for (let i = 0; i < frames; i++) ch[i] = (Math.random() * 2 - 1) * 0.002;
 
   const silentGain = ctx.createGain();
-  silentGain.gain.value = 0.00001; // ~-100 dB, inaudible
+  silentGain.gain.value = 0.001; // ~-60 dB: inaudible but not zero — prevents browser optimization
   silentGain.connect(ctx.destination);
 
   const src = ctx.createBufferSource();
@@ -88,15 +88,30 @@ function attachKeepAlive(ctx: AudioContext) {
   src.connect(silentGain);
   src.start();
 
-  // Auto-resume if the context is suspended (e.g. mid-session OS interruption)
+  // Layer 2: HTMLAudioElement with silent WAV — keeps Chrome on Android from
+  // throttling the Web Audio context; <audio> has stronger background audio priority
+  if (!_htmlKeepAlive) {
+    const audio = document.createElement('audio');
+    audio.loop = true;
+    audio.volume = 0.001;
+    // 1-second silent WAV at 8kHz
+    audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+    audio.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;';
+    document.body.appendChild(audio);
+    audio.play().catch(() => {});
+    _htmlKeepAlive = audio;
+  }
+
+  // Layer 3: Auto-resume if the context is suspended (e.g. mid-session OS interruption)
   ctx.addEventListener('statechange', () => {
     if (ctx.state === 'suspended') ctx.resume().catch(() => {});
   });
 
-  // Resume when tab returns to foreground
+  // Resume both context and HTML audio when tab returns to foreground
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
+    if (document.visibilityState === 'visible') {
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      if (_htmlKeepAlive?.paused) _htmlKeepAlive.play().catch(() => {});
     }
   });
 
@@ -107,7 +122,10 @@ function attachKeepAlive(ctx: AudioContext) {
       title: 'Void Mafia',
       artist: 'In-game audio',
     });
-    navigator.mediaSession.setActionHandler('play', () => ctx.resume().catch(() => {}));
+    navigator.mediaSession.setActionHandler('play', () => {
+      ctx.resume().catch(() => {});
+      _htmlKeepAlive?.play().catch(() => {});
+    });
     // Acknowledge pause without actually pausing — keeps session alive
     navigator.mediaSession.setActionHandler('pause', () => {});
   }
