@@ -185,9 +185,6 @@ export const useGameStore = create<GameStore>((set, get) => {
   socket.on('connect', () => {
     const { room, myPlayerId } = get();
     set({ isConnected: true, isLoading: false, error: null, connectionFailed: false });
-    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      Notification.requestPermission().catch(() => {});
-    }
     // Auto-rejoin room after transport reconnect
     if (room && myPlayerId) {
       const player = room.players.find(p => p.id === myPlayerId)

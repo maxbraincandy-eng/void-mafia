@@ -46,6 +46,9 @@ import { CLIENT_VERSION } from './version';
 import { haptic } from '@/lib/haptics';
 import { YourTurnToast } from '@/components/ui/YourTurnToast';
 import { PWAInstallBanner } from '@/components/ui/PWAInstallBanner';
+import { NotificationPrompt } from '@/components/ui/NotificationPrompt';
+import { MediaPermissionPrimer } from '@/components/ui/MediaPermissionPrimer';
+import { useVoiceChat } from '@/hooks/useVoiceChat';
 
 // Version check: reload once if server has newer build (guards against infinite loop).
 // sessionStorage survives reloads in same tab — prevents re-triggering after the reload.
@@ -589,6 +592,7 @@ export default function App() {
   const connect = useGameStore(s => s.connect);
   const { profilePopupId, closeProfile } = useSocialStore();
   const profile = useAuthStore(s => s.profile);
+  const { awaitingMediaPrimer } = useVoiceChat();
   const [giftNotif, setGiftNotif] = useState<GiftReceivedNotification | null>(null);
   const [shopOpen, setShopOpen] = useState(false);
   const [publicProfileId, setPublicProfileId] = useState<number | null>(INITIAL_PUBLIC_ID);
@@ -638,6 +642,10 @@ export default function App() {
       {/* Hermes AI assistant — temporarily hidden until provider is stable */}
       {/* <HermesToggle /> */}
       {/* <HermesPanel /> */}
+      <NotificationPrompt />
+      <AnimatePresence>
+        {awaitingMediaPrimer && <MediaPermissionPrimer />}
+      </AnimatePresence>
     </>
   );
 }

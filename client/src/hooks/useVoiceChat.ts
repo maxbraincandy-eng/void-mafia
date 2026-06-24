@@ -35,6 +35,8 @@ export interface VoiceState {
   listenOnly: boolean;
   /** Auto-recovery is in progress */
   isRefreshing: boolean;
+  /** Waiting for user to confirm mic/camera permission primer */
+  awaitingMediaPrimer: boolean;
 }
 
 const INITIAL: VoiceState = {
@@ -51,11 +53,31 @@ const INITIAL: VoiceState = {
   forceMutedReason: null,
   listenOnly:       false,
   isRefreshing:     false,
+  awaitingMediaPrimer: false,
 };
 
 // ── Module-level singleton ─────────────────────────────────────────────
 // Session and state live here — outside any React component — so they
 // survive LobbyPage → GamePage transitions without re-joining voice.
+
+const MIC_PRIMED_KEY = 'vm-mic-primed';
+let _primerResolve: (() => void) | null = null;
+let _primerReject: ((e: Error) => void) | null = null;
+
+export function confirmMediaPrimer() {
+  localStorage.setItem(MIC_PRIMED_KEY, '1');
+  _patch({ awaitingMediaPrimer: false });
+  _primerResolve?.();
+  _primerResolve = null;
+  _primerReject = null;
+}
+
+export function dismissMediaPrimer() {
+  _patch({ awaitingMediaPrimer: false });
+  _primerReject?.(new Error('cancelled'));
+  _primerResolve = null;
+  _primerReject = null;
+}
 
 let _session: WebRTCSession | null = null;
 let _state: VoiceState = { ...INITIAL };
@@ -139,6 +161,27 @@ async function _moduleJoinVoice(
       }
     }
   });
+
+  // Show mic/camera permission primer on first use (if permission not yet decided)
+  if (!silent && !localStorage.getItem(MIC_PRIMED_KEY)) {
+    try {
+      const perm = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+      if (perm.state === 'prompt') {
+        _patch({ awaitingMediaPrimer: true });
+        await new Promise<void>((resolve, reject) => {
+          _primerResolve = resolve;
+          _primerReject = reject;
+        });
+      } else {
+        localStorage.setItem(MIC_PRIMED_KEY, '1');
+      }
+    } catch {
+      // permissions API unavailable — proceed directly
+    }
+  }
+
+  // Re-check session is still alive (user may have cancelled primer)
+  if (_session !== session) return;
 
   try {
     await session.requestMedia(true, withCamera, silent);
