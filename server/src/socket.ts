@@ -267,6 +267,20 @@ interface LobbyMsg {
 const _lobbyChat: LobbyMsg[] = [];
 const MAX_LOBBY_CHAT = 200;
 
+// ── Virtual Space state ───────────────────────────────────────────────
+interface SpacePlayer { socketId: string; name: string; emoji: string; color: string; x: number; y: number; }
+const _spaces = new Map<string, Map<string, SpacePlayer>>();
+function _leaveSpace(sid: string, io: AppServer): void {
+  for (const [spaceId, room] of _spaces) {
+    if (room.has(sid)) {
+      room.delete(sid);
+      io.to(`space:${spaceId}`).emit('space:player-left', { socketId: sid });
+      if (room.size === 0) _spaces.delete(spaceId);
+      return;
+    }
+  }
+}
+
 function clearLobbyGrace(playerId: string): void {
   const entry = lobbyGraceTimers.get(playerId);
   if (entry) { clearTimeout(entry.timer); lobbyGraceTimers.delete(playerId); }
@@ -5349,6 +5363,55 @@ export function attachSocketHandlers(io: AppServer): void {
     registerUnoHandlers(io, socket);
 
     // ── Disconnect ──────────────────────────────────────────────────
+    // ── Virtual Space ─────────────────────────────────────────────────
+
+    socket.on('space:join', ({ spaceId = 'main', name, emoji, color }: any, cb: Function) => {
+      try {
+        if (!name || !emoji || !color) return cb?.({ ok: false, error: 'Missing fields' });
+        const safeName = String(name).slice(0, 24);
+        const safeEmoji = String(emoji).slice(0, 8);
+        const safeColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#9b00ff';
+        const safeSpace = String(spaceId).slice(0, 32).replace(/[^a-zA-Z0-9_-]/g, '') || 'main';
+        if (!_spaces.has(safeSpace)) _spaces.set(safeSpace, new Map());
+        const room = _spaces.get(safeSpace)!;
+        const x = 15 + Math.random() * 70;
+        const y = 20 + Math.random() * 60;
+        const player: SpacePlayer = { socketId: socket.id, name: safeName, emoji: safeEmoji, color: safeColor, x, y };
+        room.set(socket.id, player);
+        socket.join(`space:${safeSpace}`);
+        socket.to(`space:${safeSpace}`).emit('space:player-joined', player);
+        cb?.({ ok: true, data: { players: [...room.values()], mySocketId: socket.id } });
+      } catch { cb?.({ ok: false, error: 'Internal error' }); }
+    });
+
+    socket.on('space:move', ({ x, y }: any) => {
+      if (typeof x !== 'number' || typeof y !== 'number') return;
+      const cx = Math.max(2, Math.min(98, x));
+      const cy = Math.max(2, Math.min(96, y));
+      for (const [spaceId, room] of _spaces) {
+        const player = room.get(socket.id);
+        if (player) {
+          player.x = cx; player.y = cy;
+          socket.to(`space:${spaceId}`).emit('space:player-moved', { socketId: socket.id, x: cx, y: cy });
+          return;
+        }
+      }
+    });
+
+    socket.on('space:chat', ({ message }: any) => {
+      if (typeof message !== 'string') return;
+      const msg = message.trim().slice(0, 200);
+      if (!msg) return;
+      for (const [spaceId, room] of _spaces) {
+        if (room.has(socket.id)) {
+          io.to(`space:${spaceId}`).emit('space:message', { socketId: socket.id, message: msg });
+          return;
+        }
+      }
+    });
+
+    socket.on('space:leave', () => { _leaveSpace(socket.id, io); });
+
     socket.on('disconnect', () => {
       rateLimits.delete(socket.id);
       const { roomId, playerId, profileId } = socket.data;
@@ -5365,6 +5428,7 @@ export function attachSocketHandlers(io: AppServer): void {
         lastChatMsg.delete(socket.id);
       }
       if (roomId && playerId) handlePlayerLeave(io, socket, roomId, playerId);
+      _leaveSpace(socket.id, io);
       handleVoiceLeave(io, socket.id);
       handleLoungeLeave(io, socket);
       handleCheckersDisconnect(io, socket.id);

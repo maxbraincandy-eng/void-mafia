@@ -38,6 +38,7 @@ import { JokerGame } from '@/components/joker/JokerGame';
 import { LudoGame } from '@/components/ludo/LudoGame';
 import { WWWGame } from '@/components/www/WWWGame';
 import { UnoGame } from '@/components/uno/UnoGame';
+import { VirtualSpace } from '@/components/space/VirtualSpace';
 import { attachGlobalClickSounds, onSettingsChange } from '@/lib/audioEngine';
 import { useSettingsStore } from '@/store/settingsStore';
 import { socket } from '@/lib/socket';
@@ -323,6 +324,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const wwwMatch      = useWWWStore(s => s.match);
   const unoMatch      = useUnoStore(s => s.match);
   const inGame = !!(checkersMatch || ludoMatch || jokerMatch || wwwMatch || unoMatch);
+  const [spaceOpen, setSpaceOpen] = useState(false);
 
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
@@ -371,7 +373,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
     >
       <AnimatePresence mode="wait">
         {page === 'rooms'       && <PageTransition key="rooms"        direction={direction}><RoomsPage /></PageTransition>}
-        {page === 'games'       && <PageTransition key="games"        direction={direction}><GamesPage /></PageTransition>}
+        {page === 'games'       && <PageTransition key="games"        direction={direction}><GamesPage onOpenSpace={() => setSpaceOpen(true)} /></PageTransition>}
         {page === 'community'   && <PageTransition key="community"    direction={direction}><CommunityPage /></PageTransition>}
         {page === 'clans'       && <PageTransition key="clans"        direction={direction}><ClansPage /></PageTransition>}
         {page === 'replays'     && <PageTransition key={`replays-${initialReplayId ?? ''}`} direction={direction}><ReplaysPage initialReplayId={initialReplayId} /></PageTransition>}
@@ -388,6 +390,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       <AnimatePresence>{ludoMatch     && <LudoGame />}</AnimatePresence>
       <AnimatePresence>{wwwMatch      && <WWWGame />}</AnimatePresence>
       <AnimatePresence>{unoMatch      && <UnoGame />}</AnimatePresence>
+      <AnimatePresence>{spaceOpen    && <VirtualSpace onClose={() => setSpaceOpen(false)} />}</AnimatePresence>
       <MorePanel
         isOwner={isOwner}
         isMod={isMod}

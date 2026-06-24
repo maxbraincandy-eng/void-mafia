@@ -13,7 +13,7 @@ import type { LudoMatchListItem } from '@/types/ludo';
 import type { WWWListItem } from '@/types/www';
 import type { UnoListItem } from '@/types/uno';
 
-export function GamesTab() {
+export function GamesTab({ onOpenSpace }: { onOpenSpace?: () => void }) {
   const t = useT();
   const profile = useAuthStore(s => s.profile);
   const playerName = profile?.username ?? 'Player';
@@ -139,6 +139,27 @@ export function GamesTab() {
 
   return (
     <div className="space-y-4">
+      {/* ── Virtual Space card ──────────────────────────────────────────── */}
+      {onOpenSpace && (
+        <div className="rounded-2xl overflow-hidden"
+          style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(0,229,255,0.2)' }}>
+          <div className="px-4 py-3 flex items-center gap-3"
+            style={{ background: 'rgba(0,229,255,0.04)' }}>
+            <span className="text-2xl">🌐</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-display font-bold text-white text-sm leading-tight">Virtual Space</p>
+              <p className="font-mono text-[12px] text-white/35">სოციალური სივრცე · ავატარი · ჩათი</p>
+            </div>
+            <button
+              onClick={onOpenSpace}
+              className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
+              style={{ background: 'rgba(0,229,255,0.1)', border: '1px solid rgba(0,229,255,0.35)', color: '#00e5ff' }}>
+              შესვლა
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* WWW error */}
       <AnimatePresence>
         {wwError && (

@@ -3,7 +3,7 @@ import { useT } from '@/store/langStore';
 import { GamesTab } from '@/components/community/GamesTab';
 import { VoidGamesIcon } from '@/components/ui/VoidGamesIcon';
 
-export function GamesPage() {
+export function GamesPage({ onOpenSpace }: { onOpenSpace?: () => void }) {
   const t = useT();
 
   return (
@@ -41,7 +41,7 @@ export function GamesPage() {
       </div>
 
       <div className="max-w-lg mx-auto">
-        <GamesTab />
+        <GamesTab onOpenSpace={onOpenSpace} />
       </div>
     </motion.div>
   );

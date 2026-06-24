@@ -898,6 +898,26 @@ export interface ServerToClientEvents {
         playerCount: number;
         maxPlayers: number;
     }) => void;
+    'space:player-joined': (player: {
+        socketId: string;
+        name: string;
+        emoji: string;
+        color: string;
+        x: number;
+        y: number;
+    }) => void;
+    'space:player-moved': (data: {
+        socketId: string;
+        x: number;
+        y: number;
+    }) => void;
+    'space:player-left': (data: {
+        socketId: string;
+    }) => void;
+    'space:message': (data: {
+        socketId: string;
+        message: string;
+    }) => void;
 }
 export interface ClientToServerEvents {
     'player:auth': (data: {
@@ -1761,6 +1781,20 @@ export interface ClientToServerEvents {
     'admin:deleted_content': (data: {
         type: 'posts' | 'comments' | 'debates';
     }, cb: (r: Res<any[]>) => void) => void;
+    'space:join': (data: {
+        spaceId: string;
+        name: string;
+        emoji: string;
+        color: string;
+    }, cb: (res: any) => void) => void;
+    'space:move': (data: {
+        x: number;
+        y: number;
+    }) => void;
+    'space:chat': (data: {
+        message: string;
+    }) => void;
+    'space:leave': () => void;
 }
 export interface InterServerEvents {
 }
