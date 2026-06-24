@@ -55,12 +55,16 @@ export function usePWAInstall() {
     } catch { /* user cancelled */ }
   };
 
+  // ?pwa-debug=1 in URL forces banner visible even in standalone for diagnostics
+  const debugMode = new URLSearchParams(window.location.search).get('pwa-debug') === '1';
+
   // Show banner when not standalone and not installed.
   // Android: always show (even without native prompt — fallback to manual instructions).
   // iOS: always show manual instructions.
   // Desktop/other: only show when native prompt is available.
-  const canInstall = !isStandalone && !installed && (!!installPrompt || isIOS || isAndroid);
+  const canInstall =
+    (debugMode || (!isStandalone && !installed)) && (!!installPrompt || isIOS || isAndroid || debugMode);
   const hasNativePrompt = !!installPrompt;
 
-  return { canInstall, install, isIOS, isAndroid, isStandalone, hasNativePrompt };
+  return { canInstall, install, isIOS, isAndroid, isStandalone, hasNativePrompt, debugMode };
 }

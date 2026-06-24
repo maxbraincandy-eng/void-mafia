@@ -4,7 +4,7 @@ import { usePWAInstall } from '@/hooks/usePWAInstall';
 export const PWA_BANNER_H = 44;
 
 export function PWAInstallBanner() {
-  const { canInstall, install, isIOS, isAndroid, hasNativePrompt } = usePWAInstall();
+  const { canInstall, install, isIOS, isAndroid, hasNativePrompt, isStandalone, debugMode } = usePWAInstall();
 
   // Push all page content down by setting a CSS variable on :root
   useEffect(() => {
@@ -41,6 +41,11 @@ export function PWAInstallBanner() {
 
       {/* Text */}
       <div className="flex-1 min-w-0">
+        {debugMode && (
+          <p className="font-mono text-[9px] text-yellow-400 leading-tight truncate">
+            standalone:{isStandalone?'Y':'N'} android:{isAndroid?'Y':'N'} ios:{isIOS?'Y':'N'} prompt:{hasNativePrompt?'Y':'N'}
+          </p>
+        )}
         {isIOS ? (
           <p className="font-mono text-[11px] text-white/70 leading-tight truncate">
             Install: tap <span className="text-neon-cyan">Share ↑</span> → "Add to Home Screen"
