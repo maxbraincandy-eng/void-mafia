@@ -50,9 +50,9 @@ export function CommunityPage() {
   ];
 
   return (
-    <div className="min-h-screen pb-20 relative overflow-hidden" style={{ background: '#03000d' }}>
-      <div className="absolute top-0 right-0 w-80 h-80 rounded-full blur-[120px] pointer-events-none" style={{ background: 'rgba(155,0,255,0.10)' }} />
-      <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full blur-[100px] pointer-events-none" style={{ background: 'rgba(0,245,255,0.08)' }} />
+    <div className="min-h-screen pb-20 relative overflow-hidden" style={{ background: 'var(--bg-main)' }}>
+      <div className="absolute top-0 right-0 w-80 h-80 rounded-full blur-[120px] pointer-events-none" style={{ background: 'var(--vm-orb-1)' }} />
+      <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full blur-[100px] pointer-events-none" style={{ background: 'var(--vm-orb-2)' }} />
 
       <div className="relative z-10 max-w-lg mx-auto px-4 pt-8">
         {/* Header */}
@@ -62,7 +62,7 @@ export function CommunityPage() {
               className="font-display font-bold tracking-wide truncate"
               style={{
                 fontSize: 'clamp(18px, 5vw, 24px)',
-                background: 'linear-gradient(135deg, #c084fc, #00f5ff)',
+                background: 'var(--vm-community-gradient)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text',
@@ -76,14 +76,14 @@ export function CommunityPage() {
             <button
               onClick={() => setShowSearch(true)}
               className="w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all active:scale-90"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}
+              style={{ background: 'var(--vm-btn-icon-bg)', border: '1px solid var(--vm-btn-icon-border)' }}
             >
               🔍
             </button>
             <button
               onClick={openDmList}
               className="relative w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}
+              style={{ background: 'var(--vm-btn-icon-bg)', border: '1px solid var(--vm-btn-icon-border)' }}
               title="Direct Messages"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'rgba(255,255,255,0.5)' }}>
@@ -102,7 +102,7 @@ export function CommunityPage() {
               <button
                 onClick={() => setShowModeration(true)}
                 className="w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all active:scale-90"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}
+                style={{ background: 'var(--vm-btn-icon-bg)', border: '1px solid var(--vm-btn-icon-border)' }}
               >
                 🛡
               </button>
@@ -120,7 +120,7 @@ export function CommunityPage() {
             <button
               onClick={() => setShowNotifications(true)}
               className="relative w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all active:scale-90"
-              style={{ background: 'rgba(155,0,255,0.1)', border: '1px solid rgba(155,0,255,0.3)' }}
+              style={{ background: 'var(--vm-notif-bg)', border: '1px solid var(--vm-notif-border)' }}
             >
               🔔
               {unreadCount > 0 && (
@@ -148,9 +148,9 @@ export function CommunityPage() {
                 onClick={() => setTab(tb.id)}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-full font-mono text-[12px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 active:scale-95"
                 style={{
-                  background: active ? 'linear-gradient(135deg, rgba(155,0,255,0.28), rgba(0,245,255,0.16))' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${active ? 'rgba(155,0,255,0.45)' : 'rgba(255,255,255,0.08)'}`,
-                  color: active ? '#fff' : 'rgba(255,255,255,0.4)',
+                  background: active ? 'var(--vm-tab-active-bg)' : 'var(--vm-tab-inactive-bg)',
+                  border: `1px solid ${active ? 'var(--vm-tab-active-border)' : 'var(--vm-tab-inactive-border)'}`,
+                  color: active ? 'var(--vm-tab-active-color)' : 'var(--vm-tab-inactive-color)',
                 }}
               >
                 <span>{tb.icon}</span>{tb.label}

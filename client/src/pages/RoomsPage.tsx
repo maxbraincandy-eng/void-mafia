@@ -39,8 +39,8 @@ function SeasonBanner() {
       animate={{ opacity: 1, y: 0 }}
       className="mb-3 rounded-2xl overflow-hidden"
       style={{
-        border: '1px solid rgba(155,0,255,0.25)',
-        background: 'linear-gradient(135deg, rgba(155,0,255,0.08) 0%, rgba(0,229,255,0.05) 100%)',
+        border: '1px solid var(--vm-season-border)',
+        background: 'var(--vm-season-bg)',
       }}
     >
       <div className="px-3.5 py-2.5">
@@ -52,13 +52,13 @@ function SeasonBanner() {
             {daysLeft}d left
           </span>
         </div>
-        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
+        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--vm-progress-track)' }}>
           <div
             className="h-full rounded-full transition-all duration-700"
             style={{
               width: `${pct}%`,
-              background: 'linear-gradient(90deg, rgba(155,0,255,0.9), rgba(0,229,255,0.9))',
-              boxShadow: '0 0 6px rgba(155,0,255,0.5)',
+              background: 'var(--vm-progress-fill)',
+              boxShadow: `0 0 6px var(--vm-progress-glow)`,
             }}
           />
         </div>
@@ -68,7 +68,7 @@ function SeasonBanner() {
 }
 
 const SURFACE = 'rounded-2xl border border-white/[0.06]';
-const SURFACE_BG = { background: 'rgba(10, 6, 28, 0.92)' } as const;
+const SURFACE_BG = { background: 'var(--vm-surface-bg)' } as const;
 
 export function RoomsPage() {
   type Preset = 'quick' | 'classic' | 'hardcore';
@@ -171,11 +171,11 @@ export function RoomsPage() {
   return (
     <div
       className="min-h-screen relative overflow-hidden pb-24"
-      style={{ background: 'linear-gradient(160deg, #0c0525 0%, #050311 50%)' }}
+      style={{ background: 'var(--vm-page-gradient)' }}
     >
       <div
         className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse 90% 35% at 50% -5%, rgba(100,0,240,0.08) 0%, transparent 55%)' }}
+        style={{ background: 'var(--vm-page-radial)' }}
       />
 
       <MorePanel />
@@ -224,7 +224,7 @@ export function RoomsPage() {
             <button
               onClick={openDmList}
               className="relative w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}
+              style={{ background: 'var(--vm-btn-icon-bg)', border: '1px solid var(--vm-btn-icon-border)' }}
               title="Direct Messages"
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'rgba(255,255,255,0.5)' }}>

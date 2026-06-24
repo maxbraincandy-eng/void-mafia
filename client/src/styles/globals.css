@@ -16,6 +16,52 @@
   --panel-border: rgba(138, 43, 226, 0.12);
   --radius-card: 16px;
   --radius-button: 12px;
+
+  /* ── Page / layout ── */
+  --vm-page-gradient: linear-gradient(160deg, #0c0525 0%, #050311 50%);
+  --vm-page-radial: radial-gradient(ellipse 90% 35% at 50% -5%, rgba(100,0,240,0.08) 0%, transparent 55%);
+  --vm-surface-bg: rgba(10, 6, 28, 0.92);
+  --vm-surface-border: rgba(255,255,255,0.06);
+  --vm-header-bg: rgba(3,0,13,0.92);
+  --vm-header-border: rgba(255,255,255,0.05);
+
+  /* ── Bottom nav ── */
+  --vm-nav-bg: rgba(3,0,13,0.97);
+  --vm-nav-border: rgba(255,255,255,0.06);
+  --vm-fab-off: linear-gradient(145deg, #7c3aed, #4f46e5);
+  --vm-fab-on: linear-gradient(145deg, #c026d3, #7c3aed, #0ea5e9);
+  --vm-fab-shadow-off: 0 0 0 1.5px rgba(124,58,237,0.4), 0 0 18px rgba(79,70,229,0.45), 0 4px 16px rgba(0,0,0,0.5);
+  --vm-fab-shadow-on:  0 0 0 2px rgba(192,38,211,0.5), 0 0 28px rgba(124,58,237,0.7), 0 4px 16px rgba(0,0,0,0.6);
+
+  /* ── Background orbs ── */
+  --vm-orb-1: rgba(155,0,255,0.10);
+  --vm-orb-2: rgba(0,245,255,0.08);
+
+  /* ── Season banner / progress ── */
+  --vm-season-border: rgba(155,0,255,0.25);
+  --vm-season-bg: linear-gradient(135deg, rgba(155,0,255,0.08) 0%, rgba(0,229,255,0.05) 100%);
+  --vm-progress-track: rgba(255,255,255,0.07);
+  --vm-progress-fill: linear-gradient(90deg, rgba(155,0,255,0.9), rgba(0,229,255,0.9));
+  --vm-progress-glow: rgba(155,0,255,0.5);
+
+  /* ── Icon / action buttons ── */
+  --vm-btn-icon-bg: rgba(255,255,255,0.04);
+  --vm-btn-icon-border: rgba(255,255,255,0.10);
+
+  /* ── Tab pills ── */
+  --vm-tab-active-bg: linear-gradient(135deg, rgba(155,0,255,0.28), rgba(0,245,255,0.16));
+  --vm-tab-active-border: rgba(155,0,255,0.45);
+  --vm-tab-active-color: #fff;
+  --vm-tab-inactive-bg: rgba(255,255,255,0.03);
+  --vm-tab-inactive-border: rgba(255,255,255,0.08);
+  --vm-tab-inactive-color: rgba(255,255,255,0.40);
+
+  /* ── Page-specific ── */
+  --vm-community-gradient: linear-gradient(135deg, #c084fc, #00f5ff);
+  --vm-games-color: #f59e0b;
+  --vm-games-shadow: 0 0 18px rgba(245,158,11,0.45);
+  --vm-notif-bg: rgba(155,0,255,0.10);
+  --vm-notif-border: rgba(155,0,255,0.30);
 }
 
 [data-theme="minimal-glass"] {
@@ -29,6 +75,52 @@
   --panel-border: rgba(255, 255, 255, 0.09);
   --radius-card: 22px;
   --radius-button: 16px;
+
+  /* ── Page / layout ── */
+  --vm-page-gradient: linear-gradient(160deg, #0d0d1a 0%, #07070d 50%);
+  --vm-page-radial: radial-gradient(ellipse 90% 35% at 50% -5%, rgba(139,92,246,0.06) 0%, transparent 55%);
+  --vm-surface-bg: rgba(255,255,255,0.055);
+  --vm-surface-border: rgba(255,255,255,0.09);
+  --vm-header-bg: rgba(7,7,13,0.94);
+  --vm-header-border: rgba(255,255,255,0.07);
+
+  /* ── Bottom nav ── */
+  --vm-nav-bg: rgba(10,10,18,0.97);
+  --vm-nav-border: rgba(255,255,255,0.08);
+  --vm-fab-off: linear-gradient(145deg, #6d28d9, #4c1d95);
+  --vm-fab-on: linear-gradient(145deg, #8b5cf6, #6d28d9, #0891b2);
+  --vm-fab-shadow-off: 0 0 0 1.5px rgba(109,40,217,0.35), 0 0 18px rgba(109,40,217,0.30), 0 4px 16px rgba(0,0,0,0.5);
+  --vm-fab-shadow-on:  0 0 0 2px rgba(139,92,246,0.40), 0 0 24px rgba(109,40,217,0.50), 0 4px 16px rgba(0,0,0,0.6);
+
+  /* ── Background orbs ── */
+  --vm-orb-1: rgba(139,92,246,0.07);
+  --vm-orb-2: rgba(34,211,238,0.05);
+
+  /* ── Season banner / progress ── */
+  --vm-season-border: rgba(139,92,246,0.22);
+  --vm-season-bg: linear-gradient(135deg, rgba(139,92,246,0.08) 0%, rgba(34,211,238,0.04) 100%);
+  --vm-progress-track: rgba(255,255,255,0.06);
+  --vm-progress-fill: linear-gradient(90deg, rgba(139,92,246,0.9), rgba(34,211,238,0.9));
+  --vm-progress-glow: rgba(139,92,246,0.40);
+
+  /* ── Icon / action buttons ── */
+  --vm-btn-icon-bg: rgba(255,255,255,0.05);
+  --vm-btn-icon-border: rgba(255,255,255,0.11);
+
+  /* ── Tab pills ── */
+  --vm-tab-active-bg: linear-gradient(135deg, rgba(139,92,246,0.22), rgba(34,211,238,0.12));
+  --vm-tab-active-border: rgba(139,92,246,0.40);
+  --vm-tab-active-color: rgba(255,255,255,0.92);
+  --vm-tab-inactive-bg: rgba(255,255,255,0.03);
+  --vm-tab-inactive-border: rgba(255,255,255,0.07);
+  --vm-tab-inactive-color: rgba(255,255,255,0.38);
+
+  /* ── Page-specific ── */
+  --vm-community-gradient: linear-gradient(135deg, #a78bfa, #22d3ee);
+  --vm-games-color: #a78bfa;
+  --vm-games-shadow: 0 0 18px rgba(139,92,246,0.40);
+  --vm-notif-bg: rgba(139,92,246,0.10);
+  --vm-notif-border: rgba(139,92,246,0.30);
 }
 
 /* Bottom nav background extends into home indicator zone */
@@ -335,4 +427,30 @@ html.theme-transitioning body {
   87%  { opacity: 1; transform: translateX( 2px); }
   88%  { opacity: 0; }
   90%  { opacity: 1; transform: translateX(-2px) skewX(1deg); }
+}
+
+/* ── Minimal Glass: Tailwind neon class overrides ──────────────── */
+[data-theme="minimal-glass"] .text-neon-cyan   { color: #22d3ee; }
+[data-theme="minimal-glass"] .text-neon-purple { color: #a78bfa; }
+[data-theme="minimal-glass"] .text-neon-pink   { color: #c4b5fd; }
+[data-theme="minimal-glass"] .text-neon-green  { color: #34d399; }
+[data-theme="minimal-glass"] .bg-neon-pink     { background-color: #a78bfa; }
+[data-theme="minimal-glass"] .bg-neon-purple   { background-color: #8b5cf6; }
+[data-theme="minimal-glass"] .border-neon-cyan   { border-color: rgba(34,211,238,0.45); }
+[data-theme="minimal-glass"] .border-neon-purple { border-color: rgba(139,92,246,0.45); }
+[data-theme="minimal-glass"] .text-glow-cyan   { text-shadow: 0 0 16px rgba(34,211,238,0.55), 0 0 32px rgba(34,211,238,0.22); }
+[data-theme="minimal-glass"] .text-glow-purple { text-shadow: 0 0 16px rgba(139,92,246,0.55), 0 0 32px rgba(139,92,246,0.22); }
+[data-theme="minimal-glass"] .gradient-text {
+  background: linear-gradient(135deg, #a78bfa, #22d3ee) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+}
+[data-theme="minimal-glass"] ::-webkit-scrollbar-thumb {
+  background: rgba(139,92,246,0.25);
+}
+[data-theme="minimal-glass"] .skeleton-shimmer {
+  background: linear-gradient(90deg, rgba(139,92,246,0.04) 25%, rgba(139,92,246,0.12) 50%, rgba(139,92,246,0.04) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
 }

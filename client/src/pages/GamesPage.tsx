@@ -13,23 +13,23 @@ export function GamesPage() {
       exit={{ opacity: 0, y: 8 }}
       transition={{ duration: 0.18 }}
       className="min-h-screen"
-      style={{ background: '#03000d' }}
+      style={{ background: 'var(--bg-main)' }}
     >
       {/* Header */}
       <div
         className="sticky z-10 px-4 pt-4 pb-3 safe-top-pos"
         style={{
-          background: 'rgba(3,0,13,0.92)',
+          background: 'var(--vm-header-bg)',
           backdropFilter: 'blur(16px)',
-          borderBottom: '1px solid rgba(255,255,255,0.05)',
+          borderBottom: '1px solid var(--vm-header-border)',
         }}
       >
         <div className="flex items-center gap-3 max-w-lg mx-auto">
-          <VoidGamesIcon size={22} color="#f59e0b" />
+          <VoidGamesIcon size={22} color="var(--vm-games-color)" />
           <div>
             <h1
               className="font-display font-bold text-lg leading-none"
-              style={{ color: '#f59e0b', textShadow: '0 0 18px rgba(245,158,11,0.45)' }}
+              style={{ color: 'var(--vm-games-color)', textShadow: 'var(--vm-games-shadow)' }}
             >
               {t.nav.games}
             </h1>

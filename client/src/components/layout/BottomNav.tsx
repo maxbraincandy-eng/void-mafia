@@ -154,10 +154,11 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
     <nav
       className="vm-bottom-nav fixed bottom-0 left-0 right-0 z-50"
       style={{
-        background: 'rgba(3,0,13,0.97)',
-        borderTop: '1px solid rgba(255,255,255,0.06)',
+        background: 'var(--vm-nav-bg)',
+        borderTop: '1px solid var(--vm-nav-border)',
         borderRadius: '20px 20px 0 0',
         boxShadow: '0 -4px 32px rgba(0,0,0,0.65)',
+        transition: 'background 180ms ease, border-color 180ms ease',
       }}
     >
       <div className="flex items-end max-w-lg mx-auto px-2" style={{ height: 76 }}>
@@ -174,12 +175,8 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
             className="absolute transition-all duration-200 active:scale-90 flex flex-col items-center justify-center"
             style={{
               width: 58, height: 58, borderRadius: '50%', bottom: 8,
-              background: isRooms
-                ? 'linear-gradient(145deg, #c026d3, #7c3aed, #0ea5e9)'
-                : 'linear-gradient(145deg, #7c3aed, #4f46e5)',
-              boxShadow: isRooms
-                ? '0 0 0 2px rgba(192,38,211,0.5), 0 0 28px rgba(124,58,237,0.7), 0 4px 16px rgba(0,0,0,0.6)'
-                : '0 0 0 1.5px rgba(124,58,237,0.4), 0 0 18px rgba(79,70,229,0.45), 0 4px 16px rgba(0,0,0,0.5)',
+              background: isRooms ? 'var(--vm-fab-on)' : 'var(--vm-fab-off)',
+              boxShadow: isRooms ? 'var(--vm-fab-shadow-on)' : 'var(--vm-fab-shadow-off)',
               zIndex: 2,
             }}
             aria-label="Mafia"
