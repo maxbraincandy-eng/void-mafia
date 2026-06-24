@@ -57,12 +57,12 @@ export function usePWAInstall() {
 
   const debugMode = new URLSearchParams(window.location.search).get('pwa-debug') === '1';
 
-  // Android: always show banner (even in standalone) — user may not have installed or may want to reinstall.
-  // iOS: show when not standalone.
-  // Desktop/other: only when native prompt is available and not standalone.
-  const canInstall = isAndroid
-    ? true
-    : (debugMode || (!isStandalone && !installed)) && (!!installPrompt || isIOS || debugMode);
+  // Show banner only when not standalone (not already installed as PWA).
+  // Android/Chrome: show when native install prompt is available.
+  // iOS: always show Share instructions.
+  // Desktop/other: only when native prompt available.
+  const canInstall =
+    (debugMode || (!isStandalone && !installed)) && (!!installPrompt || isIOS);
   const hasNativePrompt = !!installPrompt;
 
   return { canInstall, install, isIOS, isAndroid, isStandalone, hasNativePrompt, debugMode };
