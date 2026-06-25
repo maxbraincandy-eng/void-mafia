@@ -666,29 +666,26 @@ export function VirtualSpace({ onClose }: Props) {
 
   const worldRef = useRef<HTMLDivElement>(null);
   const ytDivRef = useRef<HTMLDivElement>(null);
-  const volRef   = useRef(70);
-  const searchPendingRef  = useRef(false);
-  // True once user tapped ▶ მოსმენა (or pressed Play as DJ) — auto-play subsequent songs
-  const hasOptedInRef     = useRef(false);
-  // videoId confirmed playing by onStateChange PLAYING — prevents own broadcast re-cuing
-  const currentVideoRef   = useRef('');
-  // Mirrors localPlaying state for use inside closures without stale capture
-  const localPlayingRef   = useRef(false);
-  // Mirrors playerName for use inside closures
-  const myNameRef         = useRef(playerName);
+  const volRef          = useRef(70);
+  const searchPendingRef = useRef(false);
+  const hasOptedInRef    = useRef(false);   // true once user activated audio (DJ or listener)
+  const currentVideoRef  = useRef('');       // videoId confirmed playing via onStateChange
+  const localPlayingRef  = useRef(false);    // mirrors localPlaying for closures
+  const myNameRef        = useRef(playerName);
+  const joinTimeRef      = useRef(0);        // timestamp of join gesture (set BEFORE await)
+  const pendingPlayRef   = useRef<{videoId: string; seek: number} | null>(null); // queued if player not ready yet
   useEffect(() => { myNameRef.current = playerName; }, [playerName]);
 
-  // ── YouTube player lifecycle ──────────────────────────────────────
+  // ── YouTube player — init on mount so it's ready before join ────────
 
   useEffect(() => {
-    if (!joined || !ytDivRef.current) return;
+    if (!ytDivRef.current) return;
 
     _ytStateChangeCb = (state) => {
       const playing = state === 1; /* YT.PlayerState.PLAYING */
       setLP(playing);
       if (playing) {
         currentVideoRef.current = ytGetVideoId();
-        // Search mode: emit real videoId once confirmed playing
         if (searchPendingRef.current) {
           searchPendingRef.current = false;
           const vid = ytGetVideoId();
@@ -701,14 +698,20 @@ export function VirtualSpace({ onClose }: Props) {
     _createYTPlayer(ytDivRef.current, () => {
       setYtReady(true);
       ytSetVol(volRef.current);
+      // Play anything queued before the player was ready
+      if (pendingPlayRef.current) {
+        const { videoId, seek } = pendingPlayRef.current;
+        pendingPlayRef.current = null;
+        ytPlay(videoId, seek);
+      }
     });
 
     return () => {
       _destroyYTPlayer();
       setYtReady(false);
-      setLocalPlaying(false);
+      setLP(false);
     };
-  }, [joined]);
+  }, []); // mount/unmount only
 
   // ── DJ socket events ──────────────────────────────────────────────
 
@@ -718,21 +721,33 @@ export function VirtualSpace({ onClose }: Props) {
       if (!state?.isPlaying) {
         ytStop();
         setLP(false);
-        // Reset opt-in so next DJ session requires deliberate join
         hasOptedInRef.current = false;
+        pendingPlayRef.current = null;
         return;
       }
       const seek = Math.max(0, (Date.now() - state.startedAt) / 1000);
 
-      // Already playing this exact video? Don't interrupt.
-      // This prevents own broadcast echo from stopping the DJ's playback.
+      // Same video already playing locally — don't interrupt (prevents echo for DJ)
       if (state.videoId === currentVideoRef.current && localPlayingRef.current) return;
 
-      // DJ who initiated, or listener who already opted in: auto-play.
-      if (state.djName === myNameRef.current || hasOptedInRef.current) {
-        ytPlay(state.videoId, seek);
+      // Decide whether to auto-play:
+      // - DJ who initiated the track
+      // - Listener who already opted in (tapped ▶ მოსმენა before)
+      // - Listener who JUST joined: still within iOS Safari's user-activation window
+      //   (~5s) from when they tapped "Void Lounge-ში შესვლა →". Parent-page
+      //   activation propagates to child iframes in iOS 14+, so ytPlay() works.
+      const justJoined = joinTimeRef.current > 0 && (Date.now() - joinTimeRef.current) < 6000;
+      const shouldPlay = state.djName === myNameRef.current || hasOptedInRef.current || justJoined;
+
+      if (shouldPlay) {
+        hasOptedInRef.current = true;
+        if (!_yt) {
+          // Player still initialising — queue it; fired in onReady callback
+          pendingPlayRef.current = { videoId: state.videoId, seek };
+        } else {
+          ytPlay(state.videoId, seek);
+        }
       } else {
-        // New listener: cue silently, show ▶ მოსმენა button (iOS needs gesture)
         ytCue(state.videoId, seek);
       }
     }
@@ -745,6 +760,9 @@ export function VirtualSpace({ onClose }: Props) {
   const handleClose = useCallback(() => { leaveVoice(); leave(); onClose(); }, [leave, leaveVoice, onClose]);
 
   async function handleJoin(bodyColor: string, glowColor: string, mask: SpaceMask) {
+    // Capture the user gesture timestamp BEFORE await so onDJUpdate's
+    // justJoined check is accurate when music is playing in the room.
+    joinTimeRef.current = Date.now();
     const ok = await join(playerName, bodyColor, glowColor, mask);
     if (ok) joinVoice();
   }
@@ -849,8 +867,6 @@ export function VirtualSpace({ onClose }: Props) {
             onClick={e=>handleWorldTap(e.clientX,e.clientY)}
             onTouchStart={e=>{e.preventDefault();const t=e.touches[0];handleWorldTap(t.clientX,t.clientY);}}
           >
-            {/* Hidden YouTube player — always mounted while joined */}
-            <div ref={ytDivRef} style={{position:'absolute',opacity:0,pointerEvents:'none',width:1,height:1,left:-10,top:-10}}/>
 
             <Particles/>
             <PerspectiveFloor/>
@@ -919,6 +935,8 @@ export function VirtualSpace({ onClose }: Props) {
           </form>
         </div>
       )}
+      {/* Hidden YouTube player — always mounted, initialises before join */}
+      <div ref={ytDivRef} style={{position:'fixed',opacity:0,pointerEvents:'none',width:1,height:1,left:-10,top:-10,zIndex:-1}}/>
     </motion.div>
   );
 }
