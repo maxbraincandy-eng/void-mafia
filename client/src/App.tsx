@@ -433,44 +433,65 @@ function ReconnectingOverlay() {
   );
 }
 
-function ResumingSplash() {
+function ResumingSplash({ subtitle }: { subtitle?: string }) {
   return (
     <div
       className="fixed inset-0 z-[500] flex flex-col items-center justify-center gap-5"
       style={{ background: '#03000d' }}
     >
-      {/* Ambient glow */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{ background: 'radial-gradient(ellipse 70% 45% at 50% 50%, rgba(0,229,255,0.07) 0%, transparent 65%)' }}
       />
       <motion.div
-        initial={{ opacity: 0, scale: 0.85 }}
+        initial={{ opacity: 0, scale: 0.88 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5, ease: 'easeOut' }}
+        transition={{ duration: 0.45, ease: 'easeOut' }}
         className="relative flex flex-col items-center gap-4"
       >
-        <div
-          className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl"
+        {/* Logo icon */}
+        <motion.div
+          animate={{ boxShadow: ['0 0 28px rgba(0,229,255,0.10)', '0 0 52px rgba(0,229,255,0.22)', '0 0 28px rgba(0,229,255,0.10)'] }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+          className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl"
           style={{
-            background: 'rgba(0,229,255,0.08)',
-            border: '1px solid rgba(0,229,255,0.2)',
-            boxShadow: '0 0 40px rgba(0,229,255,0.12)',
+            background: 'linear-gradient(135deg, rgba(0,229,255,0.10), rgba(155,0,255,0.08))',
+            border: '1px solid rgba(0,229,255,0.22)',
           }}
         >
-          ⬡
-        </div>
+          🎭
+        </motion.div>
+
+        {/* Title */}
         <p
-          className="font-display text-xl font-bold tracking-[0.2em] uppercase"
-          style={{ color: 'rgba(0,229,255,0.85)', textShadow: '0 0 20px rgba(0,229,255,0.4)' }}
+          className="font-display text-2xl font-black tracking-[0.25em] uppercase"
+          style={{ color: 'rgba(255,255,255,0.92)', textShadow: '0 0 24px rgba(0,229,255,0.35)' }}
         >
           VOID MAFIA
         </p>
-        <div className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-neon-cyan/60 animate-ping" />
-          <p className="font-mono text-xs tracking-[0.22em] uppercase text-white/35">
-            თამაშს უბრუნდები…
-          </p>
+
+        {/* Subtitle / spinner */}
+        <div className="flex items-center gap-2.5 mt-1">
+          <motion.div
+            animate={{ opacity: [0.4, 1, 0.4] }}
+            transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+            className="w-1 h-1 rounded-full bg-neon-cyan/70"
+          />
+          <motion.div
+            animate={{ opacity: [0.4, 1, 0.4] }}
+            transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut', delay: 0.2 }}
+            className="w-1 h-1 rounded-full bg-neon-cyan/70"
+          />
+          <motion.div
+            animate={{ opacity: [0.4, 1, 0.4] }}
+            transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut', delay: 0.4 }}
+            className="w-1 h-1 rounded-full bg-neon-cyan/70"
+          />
+          {subtitle && (
+            <p className="font-mono text-[11px] tracking-[0.2em] uppercase text-white/30 ml-1">
+              {subtitle}
+            </p>
+          )}
         </div>
       </motion.div>
     </div>
@@ -479,16 +500,31 @@ function ResumingSplash() {
 
 function Screen({ publicProfileId, onClearPublicProfile, onOpenShop }: { publicProfileId: number | null; onClearPublicProfile: () => void; onOpenShop: () => void }) {
   const isAuthed = useAuthStore(s => s.isAuthed);
+  const uid      = useAuthStore(s => s.uid);
   const isReconnecting = useGameStore(s => s.isReconnecting);
   const room = useGameStore(s => s.room);
+
+  // If uid is saved but auth hasn't completed yet (socket still connecting),
+  // show the logo splash instead of rendering LoginPage — this prevents
+  // the iOS/Android autofill sheet from appearing on every app open.
+  const [authTimedOut, setAuthTimedOut] = useState(false);
+  useEffect(() => {
+    if (isAuthed || !uid || authTimedOut) return;
+    const t = setTimeout(() => setAuthTimedOut(true), 9000);
+    return () => clearTimeout(t);
+  }, [isAuthed, uid, authTimedOut]);
 
   if (publicProfileId) {
     return <PublicProfilePage publicId={publicProfileId} onEnterApp={onClearPublicProfile} />;
   }
 
-  // Show a full-screen splash if we know there's a saved session and haven't restored it yet.
-  // This prevents flashing the login/rooms page during the reconnect handshake.
+  // Returning to an in-progress game
   if (!room && isReconnecting && hasPendingSession()) {
+    return <ResumingSplash subtitle="თამაშს უბრუნდები…" />;
+  }
+
+  // Saved session exists — wait for socket auth before showing login
+  if (!isAuthed && uid && !authTimedOut) {
     return <ResumingSplash />;
   }
 
