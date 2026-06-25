@@ -68,11 +68,11 @@ function PersonCard({ person, onOpenProfile }: { person: CommunityProfileV2; onO
 export function PeopleTab({ onOpenProfile }: { onOpenProfile: (playerId: string) => void }) {
   const t = useT();
   const { peopleList, onlineMembers, onlineMemberCount, fetchPeopleList, fetchOnlineMembers } = useCommunityStore();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(peopleList.length === 0);
 
   useEffect(() => {
     (async () => {
-      setLoading(true);
+      if (peopleList.length === 0) setLoading(true);
       try {
         await Promise.allSettled([fetchPeopleList(), fetchOnlineMembers()]);
       } catch {}

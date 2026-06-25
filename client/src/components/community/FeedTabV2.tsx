@@ -7,16 +7,21 @@ import { Spinner, EmptyState } from '@/components/community/shared';
 import { PostCardV2 } from '@/components/community/PostCardV2';
 import { PostComposerV2 } from '@/components/community/PostComposerV2';
 import { SkeletonPost } from '@/components/ui/Skeleton';
-import { socket } from '@/lib/socket';
 
 export function FeedTabV2({ onOpenProfile }: { onOpenProfile: (playerId: string) => void }) {
   const t = useT();
   const { feedV2Posts, feedV2HasMore, feedCategory, activeHashtag, setFeedCategory, fetchFeedV2, setActiveHashtag } = useCommunityStore();
-  const [loading, setLoading] = useState(true);
+
+  // Start loading only if there's no cached data to show — avoids skeleton flash on re-navigation
+  const [loading, setLoading] = useState(feedV2Posts.length === 0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Track cached length without making it a useCallback dep (avoids infinite reload loop)
+  const cachedLenRef = useRef(feedV2Posts.length);
+  cachedLenRef.current = feedV2Posts.length;
 
   const CATS: { id: FeedCategory; label: string }[] = [
     { id: 'all',       label: t.community.feedCategories.all },
@@ -26,12 +31,14 @@ export function FeedTabV2({ onOpenProfile }: { onOpenProfile: (playerId: string)
   ];
 
   const doLoad = useCallback(async () => {
-    setLoading(true);
+    const hasCache = cachedLenRef.current > 0;
+    if (!hasCache) setLoading(true);
     setLoadError(null);
     try {
       await fetchFeedV2(true);
     } catch (e: any) {
-      setLoadError(e.message ?? 'Failed to load.');
+      // If we have cached posts, silently swallow the error — stale data > broken UI
+      if (!hasCache) setLoadError(e.message ?? 'Failed to load.');
     } finally {
       setLoading(false);
     }
@@ -41,13 +48,13 @@ export function FeedTabV2({ onOpenProfile }: { onOpenProfile: (playerId: string)
     doLoad();
   }, [doLoad]);
 
-  // Auto-reload when socket reconnects after a failed load
+  // Auto-reload after auth restores (fires after every reconnect + auth success)
   useEffect(() => {
-    const onReconnect = () => {
-      if (loadError) doLoad();
+    const onAuthReady = () => {
+      if (loadError || cachedLenRef.current === 0) doLoad();
     };
-    socket.on('connect', onReconnect);
-    return () => { socket.off('connect', onReconnect); };
+    window.addEventListener('vm:auth-ready', onAuthReady);
+    return () => window.removeEventListener('vm:auth-ready', onAuthReady);
   }, [loadError, doLoad]);
 
   // Infinite scroll

@@ -7,7 +7,6 @@ import { useJokerStore } from '@/store/jokerStore';
 import { useLudoStore } from '@/store/ludoStore';
 import { useWWWStore } from '@/store/wwwStore';
 import { useUnoStore } from '@/store/unoStore';
-import { socket } from '@/lib/socket';
 import type { CheckersMatchListItem } from '@/types/checkers';
 import type { JokerMatchListItem } from '@/types/joker';
 import type { LudoMatchListItem } from '@/types/ludo';
@@ -84,13 +83,13 @@ export function GamesTab({ onOpenSpace }: { onOpenSpace?: () => void }) {
     return () => document.removeEventListener('visibilitychange', handler);
   }, [handleRefresh]);
 
-  // Auto-retry on reconnect if there are errors
+  // Auto-retry after auth restores (post-reconnect, after player:auth succeeds)
   useEffect(() => {
     const hasError = ckError || jkError || ldError || wwError || unoError;
     if (!hasError) return;
-    const onReconnect = () => handleRefresh();
-    socket.on('connect', onReconnect);
-    return () => { socket.off('connect', onReconnect); };
+    const onAuthReady = () => handleRefresh();
+    window.addEventListener('vm:auth-ready', onAuthReady);
+    return () => window.removeEventListener('vm:auth-ready', onAuthReady);
   }, [ckError, jkError, ldError, wwError, unoError, handleRefresh]);
 
   async function handleCkCreate() {

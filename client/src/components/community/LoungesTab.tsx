@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
@@ -132,24 +132,36 @@ export function LoungesTab({ onOpenProfile }: { onOpenProfile: (playerId: string
   const t = useT();
   const profile = useAuthStore(s => s.profile);
   const { lounges, fetchLounges, deleteLounge } = useCommunityStore();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(lounges.length === 0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [activeLoungeId, setActiveLoungeId] = useState<string | null>(null);
 
+  const cachedLenRef = useRef(lounges.length);
+  cachedLenRef.current = lounges.length;
+
   const doLoad = useCallback(async () => {
-    setLoading(true);
+    const hasCache = cachedLenRef.current > 0;
+    if (!hasCache) setLoading(true);
     setLoadError(null);
     try {
       await fetchLounges();
     } catch (e: any) {
-      setLoadError(e.message ?? 'Failed to load.');
+      if (!hasCache) setLoadError(e.message ?? 'Failed to load.');
     } finally {
       setLoading(false);
     }
   }, [fetchLounges]);
 
   useEffect(() => { doLoad(); }, [doLoad]);
+
+  useEffect(() => {
+    const onAuthReady = () => {
+      if (loadError || cachedLenRef.current === 0) doLoad();
+    };
+    window.addEventListener('vm:auth-ready', onAuthReady);
+    return () => window.removeEventListener('vm:auth-ready', onAuthReady);
+  }, [loadError, doLoad]);
 
   const activeLounge = activeLoungeId ? lounges.find(l => l.id === activeLoungeId) ?? null : null;
 
