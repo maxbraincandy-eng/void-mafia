@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useT } from '@/store/langStore';
 import { useCommunityStore } from '@/store/communityStore';
@@ -7,11 +7,13 @@ import { Spinner, EmptyState } from '@/components/community/shared';
 import { PostCardV2 } from '@/components/community/PostCardV2';
 import { PostComposerV2 } from '@/components/community/PostComposerV2';
 import { SkeletonPost } from '@/components/ui/Skeleton';
+import { socket } from '@/lib/socket';
 
 export function FeedTabV2({ onOpenProfile }: { onOpenProfile: (playerId: string) => void }) {
   const t = useT();
   const { feedV2Posts, feedV2HasMore, feedCategory, activeHashtag, setFeedCategory, fetchFeedV2, setActiveHashtag } = useCommunityStore();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -23,13 +25,30 @@ export function FeedTabV2({ onOpenProfile }: { onOpenProfile: (playerId: string)
     { id: 'trending',  label: t.community.feedCategories.trending },
   ];
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
+  const doLoad = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
       await fetchFeedV2(true);
+    } catch (e: any) {
+      setLoadError(e.message ?? 'Failed to load.');
+    } finally {
       setLoading(false);
-    })();
-  }, [feedCategory, activeHashtag, fetchFeedV2]);
+    }
+  }, [fetchFeedV2, feedCategory, activeHashtag]);
+
+  useEffect(() => {
+    doLoad();
+  }, [doLoad]);
+
+  // Auto-reload when socket reconnects after a failed load
+  useEffect(() => {
+    const onReconnect = () => {
+      if (loadError) doLoad();
+    };
+    socket.on('connect', onReconnect);
+    return () => { socket.off('connect', onReconnect); };
+  }, [loadError, doLoad]);
 
   // Infinite scroll
   useEffect(() => {
@@ -90,6 +109,18 @@ export function FeedTabV2({ onOpenProfile }: { onOpenProfile: (playerId: string)
       {loading ? (
         <div className="space-y-3 pt-2">
           {Array.from({ length: 3 }, (_, i) => <SkeletonPost key={i} />)}
+        </div>
+      ) : loadError ? (
+        <div className="flex flex-col items-center gap-3 py-10">
+          <span className="text-2xl">📡</span>
+          <p className="font-mono text-[12px] text-white/40 text-center">{loadError}</p>
+          <button
+            onClick={doLoad}
+            className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
+            style={{ background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.35)', color: '#c084fc' }}
+          >
+            ხელახლა
+          </button>
         </div>
       ) : feedV2Posts.length === 0 ? (
         <EmptyState text={t.community.feed.empty} />

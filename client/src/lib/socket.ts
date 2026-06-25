@@ -27,10 +27,15 @@ export function emitWithAck<TData, TRes>(
   data?: TData,
 ): Promise<TRes> {
   return new Promise((resolve, reject) => {
+    if (!socket.connected) {
+      reject(new Error('კავშირი გაწყდა — სცადე ხელახლა.'));
+      return;
+    }
+
     const timeout = setTimeout(() => {
       console.warn(`[ack-timeout] ${event} connected=${socket.connected}`);
       reject(new Error('Connection slow — please try again.'));
-    }, 30_000);
+    }, 10_000);
 
     const cb = (res: TRes) => {
       clearTimeout(timeout);

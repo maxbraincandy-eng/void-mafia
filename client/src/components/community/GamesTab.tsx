@@ -7,6 +7,7 @@ import { useJokerStore } from '@/store/jokerStore';
 import { useLudoStore } from '@/store/ludoStore';
 import { useWWWStore } from '@/store/wwwStore';
 import { useUnoStore } from '@/store/unoStore';
+import { socket } from '@/lib/socket';
 import type { CheckersMatchListItem } from '@/types/checkers';
 import type { JokerMatchListItem } from '@/types/joker';
 import type { LudoMatchListItem } from '@/types/ludo';
@@ -66,12 +67,13 @@ export function GamesTab({ onOpenSpace }: { onOpenSpace?: () => void }) {
   const [unoMaxPlayers, setUnoMaxPlayers] = useState(4);
 
   const handleRefresh = useCallback(() => {
+    ckClear(); jkClear(); ldClear(); wwClear(); unoClear();
     ckFetch();
     jkFetch();
     ldFetch();
     wwFetch();
     unoFetch();
-  }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch]);
+  }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, ckClear, jkClear, ldClear, wwClear, unoClear]);
 
   useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch]);
 
@@ -81,6 +83,15 @@ export function GamesTab({ onOpenSpace }: { onOpenSpace?: () => void }) {
     document.addEventListener('visibilitychange', handler);
     return () => document.removeEventListener('visibilitychange', handler);
   }, [handleRefresh]);
+
+  // Auto-retry on reconnect if there are errors
+  useEffect(() => {
+    const hasError = ckError || jkError || ldError || wwError || unoError;
+    if (!hasError) return;
+    const onReconnect = () => handleRefresh();
+    socket.on('connect', onReconnect);
+    return () => { socket.off('connect', onReconnect); };
+  }, [ckError, jkError, ldError, wwError, unoError, handleRefresh]);
 
   async function handleCkCreate() {
     await ckCreate(playerName);
@@ -160,15 +171,21 @@ export function GamesTab({ onOpenSpace }: { onOpenSpace?: () => void }) {
         </div>
       )}
 
-      {/* WWW error */}
+      {/* Consolidated connection error banner */}
       <AnimatePresence>
-        {wwError && (
+        {(ckError || jkError || ldError || wwError || unoError) && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            onClick={wwClear}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl border"
             style={{ background: 'rgba(255,45,85,0.08)', borderColor: 'rgba(255,45,85,0.3)', color: '#ff2d55' }}>
-            <span className="font-mono text-xs flex-1">{wwError}</span>
-            <span className="text-xs opacity-60">✕</span>
+            <span className="text-base">📡</span>
+            <span className="font-mono text-xs flex-1">კავშირის შეფერხება — სია ვერ ჩაიტვირთა</span>
+            <button
+              onClick={handleRefresh}
+              className="font-mono text-xs px-2.5 py-1 rounded-lg transition-all active:scale-95"
+              style={{ background: 'rgba(255,45,85,0.15)', border: '1px solid rgba(255,45,85,0.4)' }}
+            >
+              ხელახლა
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -229,31 +246,6 @@ export function GamesTab({ onOpenSpace }: { onOpenSpace?: () => void }) {
         )}
       </div>
 
-      {/* Checkers error */}
-      <AnimatePresence>
-        {ckError && (
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            onClick={ckClear}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer"
-            style={{ background: 'rgba(255,45,85,0.08)', borderColor: 'rgba(255,45,85,0.3)', color: '#ff2d55' }}>
-            <span className="font-mono text-xs flex-1">{ckError}</span>
-            <span className="text-xs opacity-60">✕</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Joker error */}
-      <AnimatePresence>
-        {jkError && (
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            onClick={jkClear}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer"
-            style={{ background: 'rgba(255,45,85,0.08)', borderColor: 'rgba(255,45,85,0.3)', color: '#ff2d55' }}>
-            <span className="font-mono text-xs flex-1">{jkError}</span>
-            <span className="text-xs opacity-60">✕</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* ── Checkers card ─────────────────────────────────────────────── */}
       <div className="rounded-2xl overflow-hidden"
@@ -389,18 +381,6 @@ export function GamesTab({ onOpenSpace }: { onOpenSpace?: () => void }) {
         )}
       </div>
 
-      {/* ── Ludo error ───────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {ldError && (
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            onClick={ldClear}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer"
-            style={{ background: 'rgba(255,45,85,0.08)', borderColor: 'rgba(255,45,85,0.3)', color: '#ff2d55' }}>
-            <span className="font-mono text-xs flex-1">{ldError}</span>
-            <span className="text-xs opacity-60">✕</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* ── Ludo card ─────────────────────────────────────────────────── */}
       <div className="rounded-2xl overflow-hidden"
@@ -472,18 +452,6 @@ export function GamesTab({ onOpenSpace }: { onOpenSpace?: () => void }) {
         )}
       </div>
 
-      {/* ── UNO error ────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {unoError && (
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            onClick={unoClear}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer"
-            style={{ background: 'rgba(255,45,85,0.08)', borderColor: 'rgba(255,45,85,0.3)', color: '#ff2d55' }}>
-            <span className="font-mono text-xs flex-1">{unoError}</span>
-            <span className="text-xs opacity-60">✕</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* ── UNO card ─────────────────────────────────────────────────── */}
       <div className="rounded-2xl overflow-hidden"

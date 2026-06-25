@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
@@ -133,16 +133,23 @@ export function LoungesTab({ onOpenProfile }: { onOpenProfile: (playerId: string
   const profile = useAuthStore(s => s.profile);
   const { lounges, fetchLounges, deleteLounge } = useCommunityStore();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [activeLoungeId, setActiveLoungeId] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
+  const doLoad = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
       await fetchLounges();
+    } catch (e: any) {
+      setLoadError(e.message ?? 'Failed to load.');
+    } finally {
       setLoading(false);
-    })();
+    }
   }, [fetchLounges]);
+
+  useEffect(() => { doLoad(); }, [doLoad]);
 
   const activeLounge = activeLoungeId ? lounges.find(l => l.id === activeLoungeId) ?? null : null;
 
@@ -164,6 +171,18 @@ export function LoungesTab({ onOpenProfile }: { onOpenProfile: (playerId: string
     <div className="space-y-5">
       {loading ? (
         <Spinner color="#9b00ff" />
+      ) : loadError ? (
+        <div className="flex flex-col items-center gap-3 py-10">
+          <span className="text-2xl">📡</span>
+          <p className="font-mono text-[12px] text-white/40 text-center">{loadError}</p>
+          <button
+            onClick={doLoad}
+            className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
+            style={{ background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.35)', color: '#c084fc' }}
+          >
+            ხელახლა
+          </button>
+        </div>
       ) : (
         <>
           {specialLounges.length > 0 && (

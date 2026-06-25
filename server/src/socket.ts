@@ -1001,7 +1001,7 @@ export function attachSocketHandlers(io: AppServer): void {
       }
 
       const authEvents = new Set(['player:auth', 'player:register', 'player:login_email']);
-      const limit = authEvents.has(event) ? 3 : 20;
+      const limit = authEvents.has(event) ? 3 : 40;
       if (!rateOk(socket.id, limit)) {
         socket.emit('error', { message: 'Too many requests. Slow down.' });
         const ack = typeof args[args.length - 1] === 'function' ? args[args.length - 1] as Function : null;
