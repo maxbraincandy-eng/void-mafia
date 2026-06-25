@@ -658,14 +658,25 @@ export function VirtualSpace({ onClose }: Props) {
   const [djState, setDjState] = useState<DJState | null>(null);
   const [ytReady, setYtReady] = useState(false);
   const [localPlaying, setLocalPlaying] = useState(false);
+
+  // Sync helper so closures always have current value via ref
+  function setLP(v: boolean) { localPlayingRef.current = v; setLocalPlaying(v); }
   const [volume, setVolume] = useState(70);
   const [ripple, setRipple] = useState<{ x: number; y: number; k: number } | null>(null);
 
   const worldRef = useRef<HTMLDivElement>(null);
   const ytDivRef = useRef<HTMLDivElement>(null);
   const volRef   = useRef(70);
-  // Tracks whether DJ used search (so we emit videoId on first PLAYING event)
-  const searchPendingRef = useRef(false);
+  const searchPendingRef  = useRef(false);
+  // True once user tapped ▶ მოსმენა (or pressed Play as DJ) — auto-play subsequent songs
+  const hasOptedInRef     = useRef(false);
+  // videoId confirmed playing by onStateChange PLAYING — prevents own broadcast re-cuing
+  const currentVideoRef   = useRef('');
+  // Mirrors localPlaying state for use inside closures without stale capture
+  const localPlayingRef   = useRef(false);
+  // Mirrors playerName for use inside closures
+  const myNameRef         = useRef(playerName);
+  useEffect(() => { myNameRef.current = playerName; }, [playerName]);
 
   // ── YouTube player lifecycle ──────────────────────────────────────
 
@@ -673,16 +684,18 @@ export function VirtualSpace({ onClose }: Props) {
     if (!joined || !ytDivRef.current) return;
 
     _ytStateChangeCb = (state) => {
-      setLocalPlaying(state === 1 /* PLAYING */);
-      // Search: on first PLAYING, get the real videoId and emit to server
-      if (state === 1 && searchPendingRef.current) {
-        searchPendingRef.current = false;
-        const vid = ytGetVideoId();
-        if (vid) {
-          const pos = ytGetTime();
-          (socket as any).emit('space:dj-play', { videoId: vid, position: pos });
+      const playing = state === 1; /* YT.PlayerState.PLAYING */
+      setLP(playing);
+      if (playing) {
+        currentVideoRef.current = ytGetVideoId();
+        // Search mode: emit real videoId once confirmed playing
+        if (searchPendingRef.current) {
+          searchPendingRef.current = false;
+          const vid = ytGetVideoId();
+          if (vid) (socket as any).emit('space:dj-play', { videoId: vid, position: ytGetTime() });
         }
       }
+      if (state === 0) setLP(false); /* ENDED */
     };
 
     _createYTPlayer(ytDivRef.current, () => {
@@ -703,13 +716,25 @@ export function VirtualSpace({ onClose }: Props) {
     function onDJUpdate(state: DJState | null) {
       setDjState(state);
       if (!state?.isPlaying) {
-        setLocalPlaying(false);
         ytStop();
+        setLP(false);
+        // Reset opt-in so next DJ session requires deliberate join
+        hasOptedInRef.current = false;
         return;
       }
-      // Cue video (no autoplay — user must tap ▶ მოსმენა on iOS)
       const seek = Math.max(0, (Date.now() - state.startedAt) / 1000);
-      ytCue(state.videoId, seek);
+
+      // Already playing this exact video? Don't interrupt.
+      // This prevents own broadcast echo from stopping the DJ's playback.
+      if (state.videoId === currentVideoRef.current && localPlayingRef.current) return;
+
+      // DJ who initiated, or listener who already opted in: auto-play.
+      if (state.djName === myNameRef.current || hasOptedInRef.current) {
+        ytPlay(state.videoId, seek);
+      } else {
+        // New listener: cue silently, show ▶ მოსმენა button (iOS needs gesture)
+        ytCue(state.videoId, seek);
+      }
     }
     (socket as any).on('space:dj-update', onDJUpdate);
     return () => { (socket as any).off('space:dj-update', onDJUpdate); };
@@ -726,6 +751,7 @@ export function VirtualSpace({ onClose }: Props) {
 
   // Called from click → user gesture → iOS allows
   function handlePlayDirect(videoId: string) {
+    hasOptedInRef.current = true;     // DJ is opted in for subsequent songs
     searchPendingRef.current = false;
     ytPlay(videoId, 0);
     (socket as any).emit('space:dj-play', { videoId, position: 0 });
@@ -733,6 +759,7 @@ export function VirtualSpace({ onClose }: Props) {
 
   // Called from click → user gesture → iOS allows
   function handlePlaySearch(query: string) {
+    hasOptedInRef.current = true;     // DJ is opted in
     searchPendingRef.current = true;
     ytSearch(query);
     // videoId emitted in _ytStateChangeCb when PLAYING fires
@@ -754,13 +781,14 @@ export function VirtualSpace({ onClose }: Props) {
   // Called from button click → user gesture → iOS allows autoplay
   function handleStartListening() {
     if (!djState?.isPlaying) return;
+    hasOptedInRef.current = true;   // remember: auto-play future songs too
     const seek = Math.max(0, (Date.now() - djState.startedAt) / 1000);
     ytPlay(djState.videoId, seek);
   }
 
   function handleStopListening() {
     ytPause();
-    setLocalPlaying(false);
+    setLP(false);
   }
 
   function handleVolume(v: number) {
