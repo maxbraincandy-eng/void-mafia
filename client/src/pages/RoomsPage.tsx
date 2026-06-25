@@ -15,7 +15,6 @@ import { NewsCard } from '@/components/ui/NewsCard';
 import { LobbyChatPanel } from '@/components/social/LobbyChatPanel';
 import { emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
-import { PWAInstallBanner } from '@/components/ui/PWAInstallBanner';
 
 function SeasonBanner() {
   const [season, setSeason] = useState<Season | null>(null);
@@ -179,7 +178,6 @@ export function RoomsPage() {
         style={{ background: 'var(--vm-page-radial)' }}
       />
 
-      <PWAInstallBanner />
       <MorePanel />
       <LobbyChatPanel />
 

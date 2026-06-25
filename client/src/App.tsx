@@ -50,6 +50,7 @@ import { NotificationPrompt } from '@/components/ui/NotificationPrompt';
 import { MediaPermissionPrimer } from '@/components/ui/MediaPermissionPrimer';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
 import { ThemeProvider } from '@/components/ui/ThemeProvider';
+import { PWAInstallBanner } from '@/components/ui/PWAInstallBanner';
 
 // Version check: reload if server has newer build. Uses localStorage with 10-min TTL
 // so iOS PWA app-restore-from-memory still re-checks (sessionStorage would persist there).
@@ -370,6 +371,8 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
+      {/* Install banner — rooms tab only, outside AnimatePresence so it vanishes instantly on tab change */}
+      {page === 'rooms' && <PWAInstallBanner />}
       <AnimatePresence mode="wait">
         {page === 'rooms'       && <PageTransition key="rooms"        direction={direction}><RoomsPage /></PageTransition>}
         {page === 'games'       && <PageTransition key="games"        direction={direction}><GamesPage onOpenSpace={() => setSpaceOpen(true)} /></PageTransition>}
