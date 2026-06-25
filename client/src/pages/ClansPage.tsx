@@ -16,20 +16,36 @@ type Res<T> = { ok: true; data: T } | { ok: false; error: string };
 
 function resizeClanImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
+    // FileReader fallback for formats canvas can't encode (HEIC, etc.)
+    const readRaw = () => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error('Cannot read file.'));
+      reader.readAsDataURL(file);
+    };
+
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const maxDim = 512;
-      let w = img.width, h = img.height;
-      if (w > h) { if (w > maxDim) { h = Math.round(h * maxDim / w); w = maxDim; } }
-      else       { if (h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim; } }
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/webp', 0.75));
+      try {
+        const maxDim = 512;
+        let w = img.width, h = img.height;
+        if (w > h) { if (w > maxDim) { h = Math.round(h * maxDim / w); w = maxDim; } }
+        else       { if (h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim; } }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+        // Use JPEG — universally supported on iOS canvas (WebP encoding is not)
+        const data = canvas.toDataURL('image/jpeg', 0.8);
+        // If encoding failed (blank / too small), fall back to raw
+        if (!data || data.length < 1000) { readRaw(); return; }
+        resolve(data);
+      } catch {
+        readRaw();
+      }
     };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Failed to load image.')); };
+    img.onerror = () => { URL.revokeObjectURL(url); readRaw(); };
     img.src = url;
   });
 }
@@ -348,8 +364,8 @@ export function ClansPage() {
       setMyClan(prev => prev ? { ...prev, imageUrl: imageData } : prev);
       setSelected(prev => prev && prev.id === myClan.id ? { ...prev, imageUrl: imageData } : prev);
       setClans(prev => prev.map(c => c.id === myClan.id ? { ...c, imageUrl: imageData } : c));
-    } catch {
-      setImageError('Upload failed. Please try again.');
+    } catch (err: any) {
+      setImageError(err?.message?.includes('Cannot read') ? 'სურათის წაკითხვა ვერ მოხერხდა.' : 'ატვირთვა ვერ მოხერხდა, სცადე ხელახლა.');
     } finally {
       setImageUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';

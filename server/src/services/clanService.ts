@@ -30,7 +30,7 @@ export async function setClanImage(clanId: string, requesterId: string, imageDat
   if (!row) throw new Error('Clan not found.');
   if (row.owner_id !== requesterId) throw new Error('Only the clan owner can change the clan image.');
   if (!imageData.startsWith('data:image/')) throw new Error('Invalid image format.');
-  if (imageData.length > 2_700_000) throw new Error('Image too large. Max ~2MB.');
+  if (imageData.length > 9_000_000) throw new Error('Image too large.');
   await sql`UPDATE clans SET image_url = ${imageData} WHERE id = ${clanId}`;
 }
 

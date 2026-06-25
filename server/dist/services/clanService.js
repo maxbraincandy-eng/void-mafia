@@ -18,8 +18,8 @@ export async function setClanImage(clanId, requesterId, imageData) {
         throw new Error('Only the clan owner can change the clan image.');
     if (!imageData.startsWith('data:image/'))
         throw new Error('Invalid image format.');
-    if (imageData.length > 2700000)
-        throw new Error('Image too large. Max ~2MB.');
+    if (imageData.length > 9000000)
+        throw new Error('Image too large.');
     await sql `UPDATE clans SET image_url = ${imageData} WHERE id = ${clanId}`;
 }
 export async function createClan(ownerId, name, tag, description) {
