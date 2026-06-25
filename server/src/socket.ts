@@ -49,7 +49,7 @@ import { checkAchievements, getPlayerAchievements } from './services/achievement
 import { recordGame, getPlayerHistory, getPlayerRoleStats, getPlayersLastRolesInRoom } from './services/gameHistoryService.js';
 import {
   createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan,
-  setClanMemberRole, addClanModLog, getClanModLogs,
+  setClanMemberRole, addClanModLog, getClanModLogs, setClanImage,
 } from './services/clanService.js';
 import {
   challengeClan, acceptWar, declineWar, recordWarGame, getActiveWar, getWarHistory,
@@ -3059,6 +3059,17 @@ export function attachSocketHandlers(io: AppServer): void {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('Not authenticated.');
         await leaveClan(profileId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    (socket as any).on('clan:update_image', async ({ clanId, imageData }: { clanId: string; imageData: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        if (!imageData || typeof imageData !== 'string') throw new Error('Invalid image data.');
+        if (!imageData.startsWith('data:image/')) throw new Error('Invalid image format.');
+        await setClanImage(clanId, profileId, imageData);
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });

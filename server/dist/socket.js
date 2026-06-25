@@ -16,7 +16,7 @@ import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend
 import { checkAndAwardChallenges, getDailyQuestsForPlayer, } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
 import { recordGame, getPlayerHistory, getPlayerRoleStats, getPlayersLastRolesInRoom } from './services/gameHistoryService.js';
-import { createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan, setClanMemberRole, addClanModLog, getClanModLogs, } from './services/clanService.js';
+import { createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan, setClanMemberRole, addClanModLog, getClanModLogs, setClanImage, } from './services/clanService.js';
 import { challengeClan, acceptWar, declineWar, recordWarGame, getActiveWar, getWarHistory, } from './services/clanWarService.js';
 import { canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer, warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, getBannedPlayers, logKick, addModNote, freezeAccount, unfreezeAccount, renamePlayer, getPlayerDetail, assignReport, getDashboardDbStats, addModLog, } from './services/moderationService.js';
 import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as voiceLeave, getMembers as voiceGetMembers, getSharedChannel as voiceGetSharedChannel, removeFromChannel as voiceRemoveFromChannel, } from './services/voiceService.js';
@@ -3181,6 +3181,22 @@ export function attachSocketHandlers(io) {
                 if (!profileId)
                     throw new Error('Not authenticated.');
                 await leaveClan(profileId);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('clan:update_image', async ({ clanId, imageData }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                if (!imageData || typeof imageData !== 'string')
+                    throw new Error('Invalid image data.');
+                if (!imageData.startsWith('data:image/'))
+                    throw new Error('Invalid image format.');
+                await setClanImage(clanId, profileId, imageData);
                 cb(ok(null));
             }
             catch (e) {
