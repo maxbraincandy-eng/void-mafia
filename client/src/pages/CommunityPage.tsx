@@ -171,6 +171,7 @@ export function CommunityPage() {
               <CommunityProfilePage
                 profileId={fullProfileId}
                 onBack={() => setFullProfileId(null)}
+                onNavigate={id => setFullProfileId(id)}
               />
             </motion.div>
           ) : (

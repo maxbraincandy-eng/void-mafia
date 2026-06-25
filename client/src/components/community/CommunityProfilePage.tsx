@@ -302,14 +302,102 @@ function PostTextCard({ post, readMoreLabel, onExpand }: {
   );
 }
 
+// ── Followers / Following sheet ─────────────────────────────────────────────
+
+function FollowListSheet({
+  profileId,
+  type,
+  onClose,
+  onOpenProfile,
+}: {
+  profileId: string;
+  type: 'followers' | 'following';
+  onClose: () => void;
+  onOpenProfile: (id: string) => void;
+}) {
+  const [list, setList] = useState<CommunityProfileV2[]>([]);
+  const [loading, setLoading] = useState(true);
+  const t = useT();
+
+  useEffect(() => {
+    const event = type === 'followers' ? 'community:followers_list' : 'community:following_list';
+    emitWithAck<any, Res<CommunityProfileV2[]>>(event as any, { profileId })
+      .then(r => { if (r.ok) setList(r.data); })
+      .finally(() => setLoading(false));
+  }, [profileId, type]);
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[300] flex flex-col"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', stiffness: 340, damping: 32 }}
+        className="absolute bottom-0 left-0 right-0 flex flex-col rounded-t-2xl overflow-hidden"
+        style={{ maxHeight: '75vh', background: 'rgba(6,0,20,0.98)', border: '1px solid rgba(155,0,255,0.18)', borderBottom: 'none' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Handle */}
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.18)' }} />
+        </div>
+        {/* Title */}
+        <div className="px-4 pb-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <p className="font-display font-bold text-white text-base">
+            {type === 'followers' ? t.community.profile.followers : t.community.profile.following}
+          </p>
+        </div>
+        {/* List */}
+        <div className="flex-1 overflow-y-auto pb-8">
+          {loading && (
+            <div className="flex justify-center py-10"><Spinner /></div>
+          )}
+          {!loading && list.length === 0 && (
+            <p className="text-center font-mono text-white/25 text-sm py-10">სია ცარიელია</p>
+          )}
+          {list.map(person => (
+            <button
+              key={person.id}
+              className="w-full flex items-center gap-3 px-4 py-3 transition-all active:bg-white/5 text-left"
+              onClick={() => { onClose(); onOpenProfile(person.id); }}
+            >
+              <Avatar avatar={person.avatar} avatarUrl={person.avatarUrl ?? null} size={40} />
+              <div className="flex-1 min-w-0">
+                <p className="font-display font-bold text-white text-sm truncate">{person.username}</p>
+                <p className="font-mono text-white/35 text-xs">
+                  {t.community.profile.followers} {person.followersCount}
+                </p>
+              </div>
+              {person.isFollowedByMe && (
+                <span className="font-mono text-[10px] text-neon-cyan/60 border border-neon-cyan/20 rounded-lg px-2 py-0.5 flex-shrink-0">
+                  {t.community.profile.unfollow.replace(/^un/i, '') || 'following'}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body,
+  );
+}
+
 // ── Main community profile page ─────────────────────────────────────────────
 
 interface Props {
   profileId: string;
   onBack: () => void;
+  onNavigate?: (id: string) => void;
 }
 
-export function CommunityProfilePage({ profileId, onBack }: Props) {
+export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
   const t = useT();
   const currentUser = useAuthStore(s => s.profile);
   const { followUser, unfollowUser } = useCommunityStore();
@@ -322,6 +410,7 @@ export function CommunityProfilePage({ profileId, onBack }: Props) {
   const [followBusy, setFollowBusy]   = useState(false);
   const [tab, setTab]                 = useState<'photos' | 'posts'>('photos');
   const [lightboxPost, setLightboxPost] = useState<CommunityPostV2 | null>(null);
+  const [followSheet, setFollowSheet] = useState<'followers' | 'following' | null>(null);
 
   const isSelf     = currentUser?.id === profileId;
   const isLoggedIn = !!currentUser;
@@ -453,14 +542,20 @@ export function CommunityProfilePage({ profileId, onBack }: Props) {
             style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.08)' }}
           >
             {[
-              { label: t.community.profile.posts,     value: profile.postsCount },
-              { label: t.community.profile.followers,  value: profile.followersCount },
-              { label: t.community.profile.following,  value: profile.followingCount },
+              { label: t.community.profile.posts,      value: profile.postsCount,      onClick: undefined },
+              { label: t.community.profile.followers,  value: profile.followersCount,  onClick: () => setFollowSheet('followers') },
+              { label: t.community.profile.following,  value: profile.followingCount,  onClick: () => setFollowSheet('following') },
             ].map((s, i) => (
-              <div key={s.label} className="flex-1 py-3 text-center" style={{ borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.07)' : 'none' }}>
+              <button
+                key={s.label}
+                className="flex-1 py-3 text-center transition-all active:bg-white/5"
+                style={{ borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.07)' : 'none', cursor: s.onClick ? 'pointer' : 'default' }}
+                onClick={s.onClick}
+                disabled={!s.onClick}
+              >
                 <p className="font-display font-bold text-white" style={{ fontSize: 20, lineHeight: 1 }}>{s.value}</p>
-                <p className="font-mono uppercase tracking-wider text-white/35 mt-1" style={{ fontSize: 12 }}>{s.label}</p>
-              </div>
+                <p className="font-mono uppercase tracking-wider mt-1" style={{ fontSize: 12, color: s.onClick ? 'rgba(180,130,255,0.7)' : 'rgba(255,255,255,0.35)' }}>{s.label}</p>
+              </button>
             ))}
           </div>
 
@@ -604,6 +699,18 @@ export function CommunityProfilePage({ profileId, onBack }: Props) {
             post={lightboxPost}
             onClose={() => setLightboxPost(null)}
             isLoggedIn={isLoggedIn}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Followers / Following sheet */}
+      <AnimatePresence>
+        {followSheet && (
+          <FollowListSheet
+            profileId={profileId}
+            type={followSheet}
+            onClose={() => setFollowSheet(null)}
+            onOpenProfile={id => { setFollowSheet(null); onNavigate ? onNavigate(id) : onBack(); }}
           />
         )}
       </AnimatePresence>
