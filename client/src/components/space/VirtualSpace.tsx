@@ -26,10 +26,22 @@ const SPACE_CSS = `
 @keyframes vs-pulse  { 0%,100%{opacity:.7} 50%{opacity:1} }
 @keyframes vs-speak  { 0%,100%{transform:scale(1);opacity:.9} 50%{transform:scale(1.2);opacity:.4} }
 @keyframes vs-spin   { to{transform:rotate(360deg)} }
+@keyframes vs-spin-r { to{transform:rotate(-360deg)} }
 @keyframes vs-glow   { 0%,100%{filter:brightness(1)} 50%{filter:brightness(1.35)} }
 @keyframes vs-drift  { 0%{transform:translateY(0) translateX(0);opacity:0}
                        10%{opacity:.55}  90%{opacity:.25}
                        100%{transform:translateY(-55px) translateX(12px);opacity:0} }
+@keyframes vs-eq1    { 0%,100%{height:4px} 50%{height:14px} }
+@keyframes vs-eq2    { 0%,100%{height:10px} 50%{height:5px} }
+@keyframes vs-eq3    { 0%,100%{height:7px} 50%{height:18px} }
+@keyframes vs-eq4    { 0%,100%{height:12px} 50%{height:3px} }
+@keyframes vs-eq5    { 0%,100%{height:5px} 50%{height:11px} }
+@keyframes vs-bubble { 0%{transform:translateY(0);opacity:.7} 100%{transform:translateY(-28px);opacity:0} }
+@keyframes vs-flicker{ 0%,100%{opacity:1} 8%{opacity:.6} 10%{opacity:1} 42%{opacity:.85} 44%{opacity:1} 78%{opacity:.5} 80%{opacity:1} }
+@keyframes vs-sway   { 0%,100%{transform:rotate(-4deg) translateX(0)} 50%{transform:rotate(4deg) translateX(2px)} }
+@keyframes vs-scanline{ 0%{transform:translateY(-100%)} 100%{transform:translateY(600%)} }
+@keyframes vs-healthpulse{ 0%,100%{width:65%} 50%{width:48%} }
+@keyframes vs-waveform{ 0%,100%{d:path("M0,8 Q4,2 8,8 Q12,14 16,8 Q20,2 24,8 Q28,14 32,8 Q36,2 40,8 Q44,14 48,8")} 50%{d:path("M0,8 Q4,14 8,8 Q12,2 16,8 Q20,14 24,8 Q28,2 32,8 Q36,14 40,8 Q44,2 48,8")} }
 `;
 
 // ── Humanoid SVG avatar ───────────────────────────────────────────────
@@ -284,98 +296,191 @@ function AvatarOnMap({
   );
 }
 
-// ── Room objects (CSS-drawn) ──────────────────────────────────────────
+// ── Animated room objects ─────────────────────────────────────────────
+
+function DJBooth() {
+  return (
+    <div className="absolute pointer-events-none" style={{ left: '50%', top: '24%', transform: 'translate(-50%,-50%)' }}>
+      {/* Deck surface */}
+      <div style={{ position: 'relative', width: 90, height: 48, background: 'linear-gradient(180deg,rgba(255,0,150,.18),rgba(200,0,120,.08))', borderRadius: 10, border: '1px solid rgba(255,0,150,.55)', boxShadow: '0 0 28px rgba(255,0,150,.3),inset 0 1px 0 rgba(255,255,255,.08)' }}>
+        {/* Left turntable */}
+        <div style={{ position: 'absolute', left: 8, top: 5, width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,0,150,.08)', border: '2px solid rgba(255,0,150,.7)', boxShadow: '0 0 14px rgba(255,0,150,.4)', overflow: 'hidden', animation: 'vs-spin 2.2s linear infinite' }}>
+          <div style={{ position: 'absolute', inset: 4, borderRadius: '50%', border: '1.5px solid rgba(255,0,150,.5)' }} />
+          <div style={{ position: 'absolute', inset: 8, borderRadius: '50%', border: '1px solid rgba(255,0,150,.35)' }} />
+          <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'conic-gradient(rgba(255,0,150,.4) 0deg, transparent 60deg, rgba(255,0,150,.15) 180deg, transparent 240deg, rgba(255,0,150,.4) 360deg)' }} />
+          <div style={{ position: 'absolute', top: '50%', left: '50%', width: 5, height: 5, marginLeft: -2.5, marginTop: -2.5, borderRadius: '50%', background: 'rgba(255,200,230,.9)' }} />
+        </div>
+        {/* Right turntable */}
+        <div style={{ position: 'absolute', right: 8, top: 5, width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,0,150,.08)', border: '2px solid rgba(255,0,150,.7)', boxShadow: '0 0 14px rgba(255,0,150,.4)', overflow: 'hidden', animation: 'vs-spin-r 1.8s linear infinite' }}>
+          <div style={{ position: 'absolute', inset: 4, borderRadius: '50%', border: '1.5px solid rgba(255,0,150,.5)' }} />
+          <div style={{ position: 'absolute', inset: 8, borderRadius: '50%', border: '1px solid rgba(255,0,150,.35)' }} />
+          <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'conic-gradient(transparent 0deg, rgba(255,0,150,.4) 90deg, transparent 180deg, rgba(255,0,150,.2) 270deg, transparent 360deg)' }} />
+          <div style={{ position: 'absolute', top: '50%', left: '50%', width: 5, height: 5, marginLeft: -2.5, marginTop: -2.5, borderRadius: '50%', background: 'rgba(255,200,230,.9)' }} />
+        </div>
+        {/* Mixer faders */}
+        <div style={{ position: 'absolute', left: '50%', top: 6, transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'center' }}>
+          {[0,1,2].map(i => (
+            <div key={i} style={{ position: 'relative', width: 14, height: 2.5, background: 'rgba(255,0,150,.22)', borderRadius: 2, border: '1px solid rgba(255,0,150,.4)' }}>
+              <div style={{ position: 'absolute', top: -2, left: `${25 + i*15}%`, width: 4, height: 6, background: 'rgba(255,150,200,.9)', borderRadius: 1 }} />
+            </div>
+          ))}
+        </div>
+        {/* EQ bars */}
+        <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 2.5, alignItems: 'flex-end', height: 18 }}>
+          {['vs-eq1','vs-eq2','vs-eq3','vs-eq4','vs-eq5','vs-eq2','vs-eq4'].map((anim, i) => (
+            <div key={i} style={{ width: 3, background: i < 2 ? 'rgba(0,255,150,.85)' : i < 5 ? 'rgba(255,220,0,.85)' : 'rgba(255,60,60,.85)', borderRadius: '1.5px 1.5px 0 0', animation: `${anim} ${0.35 + i * 0.06}s ease-in-out infinite`, boxShadow: `0 0 4px currentColor` }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GamingStation() {
+  return (
+    <div className="absolute pointer-events-none" style={{ left: '79%', top: '66%', transform: 'translate(-50%,-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
+      {/* Monitor */}
+      <div style={{ width: 62, height: 42, background: 'linear-gradient(135deg,rgba(0,10,30,.9),rgba(0,20,60,.8))', border: '2px solid rgba(0,229,255,.75)', borderRadius: 5, boxShadow: '0 0 24px rgba(0,229,255,.4),inset 0 0 12px rgba(0,100,255,.15)', overflow: 'hidden', position: 'relative' }}>
+        {/* Game map */}
+        <div style={{ position: 'absolute', inset: 3, background: 'rgba(0,20,60,.6)' }}>
+          {/* Grid lines */}
+          {[25,50,75].map(p => <div key={p} style={{ position: 'absolute', left: `${p}%`, top: 0, bottom: 0, width: 1, background: 'rgba(0,229,255,.08)' }} />)}
+          {[33,66].map(p => <div key={p} style={{ position: 'absolute', top: `${p}%`, left: 0, right: 0, height: 1, background: 'rgba(0,229,255,.08)' }} />)}
+          {/* Player dot */}
+          <div style={{ position: 'absolute', left: '55%', top: '40%', width: 4, height: 4, borderRadius: '50%', background: '#00e5ff', boxShadow: '0 0 6px #00e5ff', animation: 'vs-pulse 1.2s ease-in-out infinite' }} />
+          {/* Enemy dots */}
+          <div style={{ position: 'absolute', left: '20%', top: '25%', width: 3, height: 3, borderRadius: '50%', background: '#ff3366', boxShadow: '0 0 4px #ff3366' }} />
+          <div style={{ position: 'absolute', left: '70%', top: '65%', width: 3, height: 3, borderRadius: '50%', background: '#ff3366', boxShadow: '0 0 4px #ff3366' }} />
+          {/* Health bar */}
+          <div style={{ position: 'absolute', bottom: 3, left: 2, right: 2, height: 2.5, background: 'rgba(255,255,255,.1)', borderRadius: 1.5 }}>
+            <div style={{ height: '100%', borderRadius: 1.5, background: 'linear-gradient(90deg,#00ff88,#00cc66)', animation: 'vs-healthpulse 2.5s ease-in-out infinite' }} />
+          </div>
+        </div>
+        {/* Scanline sweep */}
+        <div style={{ position: 'absolute', left: 0, right: 0, height: 6, background: 'linear-gradient(180deg,transparent,rgba(0,229,255,.18),transparent)', animation: 'vs-scanline 2.8s linear infinite', pointerEvents: 'none' }} />
+      </div>
+      {/* Stand */}
+      <div style={{ width: 4, height: 9, background: 'rgba(0,229,255,.35)' }} />
+      <div style={{ width: 26, height: 5, background: 'rgba(0,229,255,.22)', borderRadius: 3, boxShadow: '0 0 8px rgba(0,229,255,.2)' }} />
+      {/* Chair */}
+      <div style={{ position: 'absolute', bottom: -8, left: -22, width: 22, height: 24, background: 'rgba(0,80,120,.25)', borderRadius: '4px 4px 2px 2px', border: '1px solid rgba(0,229,255,.28)' }} />
+    </div>
+  );
+}
+
+function Bar() {
+  return (
+    <div className="absolute pointer-events-none" style={{ left: '90%', top: '38%', transform: 'translate(-50%,-50%)' }}>
+      {/* Counter */}
+      <div style={{ position: 'relative', width: 18, height: 64, background: 'linear-gradient(90deg,rgba(255,140,0,.32),rgba(200,80,0,.16))', borderRadius: '6px 2px 2px 6px', border: '1px solid rgba(255,140,0,.6)', boxShadow: '0 0 22px rgba(255,140,0,.22),inset 1px 0 0 rgba(255,200,100,.1)' }}>
+        {/* Top ledge */}
+        <div style={{ position: 'absolute', top: -3, left: -2, right: -4, height: 6, background: 'rgba(255,160,0,.3)', borderRadius: '4px 2px 0 0', border: '1px solid rgba(255,140,0,.5)' }} />
+      </div>
+      {/* Bottles with bubbles */}
+      <div style={{ position: 'absolute', top: 8, left: 20, display: 'flex', gap: 4 }}>
+        {[
+          { c: 'rgba(255,80,0,.85)', bc: '#ff5000' },
+          { c: 'rgba(100,220,255,.85)', bc: '#64dcff' },
+          { c: 'rgba(180,0,255,.85)', bc: '#b400ff' },
+        ].map(({ c, bc }, i) => (
+          <div key={i} style={{ position: 'relative', width: 5, height: 16, background: c, borderRadius: '2px 2px 0 0', boxShadow: `0 0 8px ${c}` }}>
+            {/* Bubble */}
+            <div style={{ position: 'absolute', top: 2, left: 1, width: 2, height: 2, borderRadius: '50%', background: bc, opacity: 0.85, animation: `vs-bubble ${1.2 + i * 0.4}s ease-in ${i * 0.3}s infinite` }} />
+          </div>
+        ))}
+      </div>
+      {/* BAR label */}
+      <div style={{ position: 'absolute', top: -22, left: '50%', transform: 'translateX(-50%)', fontFamily: 'monospace', fontSize: 8, letterSpacing: '0.22em', color: 'rgba(255,140,0,.95)', textShadow: '0 0 8px rgba(255,140,0,.9),0 0 18px rgba(255,140,0,.5)', whiteSpace: 'nowrap', animation: 'vs-pulse 3s ease-in-out infinite' }}>
+        BAR
+      </div>
+    </div>
+  );
+}
+
+function Plant({ flip }: { flip?: boolean }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', transformOrigin: 'bottom center' }}>
+      {/* Leaves */}
+      <div style={{ position: 'relative', width: 24, height: 28, transformOrigin: 'bottom center', animation: 'vs-sway 2.8s ease-in-out infinite' }}>
+        {/* Left leaf */}
+        <div style={{ position: 'absolute', bottom: 0, left: -4, width: 14, height: 22, background: 'rgba(0,200,80,.22)', border: '1px solid rgba(0,220,80,.45)', borderRadius: '80% 10% 10% 30%', transform: 'rotate(-15deg)', transformOrigin: 'bottom right', boxShadow: '0 0 8px rgba(0,200,80,.2)', animation: `vs-sway 2.1s ease-in-out infinite ${flip ? '0.5s' : '0s'}` }} />
+        {/* Right leaf */}
+        <div style={{ position: 'absolute', bottom: 0, right: -4, width: 14, height: 22, background: 'rgba(0,200,80,.22)', border: '1px solid rgba(0,220,80,.45)', borderRadius: '10% 80% 30% 10%', transform: 'rotate(15deg)', transformOrigin: 'bottom left', boxShadow: '0 0 8px rgba(0,200,80,.2)', animation: `vs-sway 2.4s ease-in-out reverse infinite ${flip ? '0s' : '0.3s'}` }} />
+        {/* Center stem */}
+        <div style={{ position: 'absolute', bottom: 0, left: '50%', marginLeft: -1, width: 2, height: 18, background: 'rgba(0,180,60,.35)' }} />
+      </div>
+      {/* Pot */}
+      <div style={{ width: 22, height: 9, background: 'rgba(40,20,10,.5)', border: '1px solid rgba(0,200,80,.3)', borderRadius: '0 0 5px 5px', boxShadow: '0 0 6px rgba(0,200,80,.12)' }} />
+    </div>
+  );
+}
 
 function RoomObjects() {
   return (
     <>
+      {/* ── Back wall neon strips ────── */}
+      <div className="absolute pointer-events-none" style={{ left: 6, top: 0, bottom: '42%', width: 2, background: 'linear-gradient(180deg,rgba(155,0,255,0),rgba(155,0,255,.7),rgba(155,0,255,0))', boxShadow: '0 0 12px rgba(155,0,255,.5)', borderRadius: 2 }} />
+      <div className="absolute pointer-events-none" style={{ right: 6, top: 0, bottom: '42%', width: 2, background: 'linear-gradient(180deg,rgba(0,229,255,0),rgba(0,229,255,.7),rgba(0,229,255,0))', boxShadow: '0 0 12px rgba(0,229,255,.5)', borderRadius: 2 }} />
+
+      {/* ── Wall / floor divider strip ────── */}
+      <div className="absolute pointer-events-none" style={{ left: 0, right: 0, top: '42%', height: 2, background: 'linear-gradient(90deg,rgba(155,0,255,.3),rgba(0,229,255,.7),rgba(255,0,150,.5),rgba(0,229,255,.7),rgba(155,0,255,.3))', boxShadow: '0 0 14px rgba(0,229,255,.4),0 0 28px rgba(155,0,255,.2)' }} />
+
+      {/* ── VOID LOUNGE neon sign ────── */}
+      <div className="absolute pointer-events-none" style={{ left: '50%', top: '8%', transform: 'translate(-50%,-50%)', fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 13, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#fff', textShadow: '0 0 8px #00e5ff,0 0 20px #00e5ff,0 0 40px #00e5ff80', animation: 'vs-flicker 6s linear infinite', whiteSpace: 'nowrap' }}>
+        VOID LOUNGE
+      </div>
+
+      {/* ── DJ BOOTH zone glow ────── */}
+      <div className="absolute pointer-events-none" style={{ left: '50%', top: '24%', transform: 'translate(-50%,-50%)', width: 180, height: 90, background: 'radial-gradient(ellipse,rgba(255,0,150,.14) 0%,transparent 70%)', borderRadius: '50%', animation: 'vs-pulse 2s ease-in-out infinite' }} />
+      {/* DJ zone label */}
+      <div className="absolute pointer-events-none" style={{ left: '50%', top: '10%', transform: 'translate(-50%,-50%)', fontFamily: 'monospace', fontSize: 8, letterSpacing: '0.22em', color: 'rgba(255,0,150,.7)', textShadow: '0 0 6px rgba(255,0,150,.6)' }}>
+        DJ BOOTH
+      </div>
+      <DJBooth />
+
       {/* ── LOUNGE zone ────── */}
-      {/* Zone glow */}
-      <div className="absolute pointer-events-none" style={{
-        left: '14%', top: '68%', transform: 'translate(-50%,-50%)',
-        width: 160, height: 90,
-        background: 'radial-gradient(ellipse, rgba(120,0,255,0.12) 0%, transparent 70%)',
-        borderRadius: '50%',
-      }} />
+      <div className="absolute pointer-events-none" style={{ left: '13%', top: '70%', transform: 'translate(-50%,-50%)', width: 170, height: 100, background: 'radial-gradient(ellipse,rgba(120,0,255,.1) 0%,transparent 70%)', borderRadius: '50%' }} />
       {/* Sofa */}
-      <div className="absolute pointer-events-none" style={{ left: '12%', top: '73%', transform: 'translate(-50%,-50%)' }}>
-        <div style={{ position: 'relative', width: 72, height: 42 }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 18, background: 'linear-gradient(180deg,rgba(120,0,255,.3),rgba(80,0,180,.15))', borderRadius: '7px 7px 0 0', border: '1px solid rgba(155,0,255,.45)', boxShadow: '0 0 12px rgba(155,0,255,.2)' }} />
-          <div style={{ position: 'absolute', top: 16, left: 7, right: 7, height: 20, background: 'rgba(100,0,200,.2)', borderRadius: '0 0 5px 5px', border: '1px solid rgba(155,0,255,.3)', borderTop: 'none' }} />
-          <div style={{ position: 'absolute', top: 0, left: 0, width: 9, height: 36, background: 'rgba(120,0,255,.25)', borderRadius: '5px 0 0 5px', border: '1px solid rgba(155,0,255,.3)' }} />
-          <div style={{ position: 'absolute', top: 0, right: 0, width: 9, height: 36, background: 'rgba(120,0,255,.25)', borderRadius: '0 5px 5px 0', border: '1px solid rgba(155,0,255,.3)' }} />
+      <div className="absolute pointer-events-none" style={{ left: '11%', top: '76%', transform: 'translate(-50%,-50%)' }}>
+        <div style={{ position: 'relative', width: 78, height: 44 }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 20, background: 'linear-gradient(180deg,rgba(120,0,255,.35),rgba(80,0,180,.18))', borderRadius: '8px 8px 0 0', border: '1px solid rgba(155,0,255,.5)', boxShadow: '0 0 16px rgba(155,0,255,.25),inset 0 1px 0 rgba(255,255,255,.06)' }} />
+          <div style={{ position: 'absolute', top: 18, left: 8, right: 8, height: 22, background: 'rgba(100,0,200,.18)', borderRadius: '0 0 6px 6px', border: '1px solid rgba(155,0,255,.28)', borderTop: 'none' }} />
+          <div style={{ position: 'absolute', top: 0, left: 0, width: 10, height: 40, background: 'rgba(120,0,255,.28)', borderRadius: '6px 0 0 6px', border: '1px solid rgba(155,0,255,.35)' }} />
+          <div style={{ position: 'absolute', top: 0, right: 0, width: 10, height: 40, background: 'rgba(120,0,255,.28)', borderRadius: '0 6px 6px 0', border: '1px solid rgba(155,0,255,.35)' }} />
+          {/* Cushion divider */}
+          <div style={{ position: 'absolute', top: 2, left: '50%', marginLeft: -0.5, width: 1, height: 16, background: 'rgba(155,0,255,.3)' }} />
         </div>
       </div>
       {/* Coffee table */}
-      <div className="absolute pointer-events-none" style={{ left: '22%', top: '76%', transform: 'translate(-50%,-50%)', width: 38, height: 18, background: 'rgba(80,0,160,.18)', borderRadius: 6, border: '1px solid rgba(155,0,255,.3)', boxShadow: '0 0 10px rgba(155,0,255,.15)' }} />
-      {/* Sign */}
-      <div className="absolute pointer-events-none" style={{ left: '14%', top: '62%', transform: 'translate(-50%,-50%)', fontFamily: 'monospace', fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(155,0,255,.85)', textShadow: '0 0 8px rgba(155,0,255,.8),0 0 18px rgba(155,0,255,.4)' }}>
+      <div className="absolute pointer-events-none" style={{ left: '22%', top: '78%', transform: 'translate(-50%,-50%)', width: 42, height: 20, background: 'rgba(80,0,160,.15)', borderRadius: 7, border: '1px solid rgba(155,0,255,.32)', boxShadow: '0 0 10px rgba(155,0,255,.12)' }}>
+        {/* Coffee steam dots */}
+        <div style={{ position: 'absolute', top: -8, left: '40%', width: 2, height: 2, borderRadius: '50%', background: 'rgba(255,255,255,.35)', animation: 'vs-bubble 1.8s ease-in infinite' }} />
+      </div>
+      <div className="absolute pointer-events-none" style={{ left: '13%', top: '63%', transform: 'translate(-50%,-50%)', fontFamily: 'monospace', fontSize: 8, letterSpacing: '0.2em', color: 'rgba(155,0,255,.7)', textShadow: '0 0 6px rgba(155,0,255,.6)' }}>
         LOUNGE
       </div>
 
       {/* ── GAMING zone ────── */}
-      <div className="absolute pointer-events-none" style={{ left: '78%', top: '68%', transform: 'translate(-50%,-50%)', width: 150, height: 90, background: 'radial-gradient(ellipse,rgba(0,200,255,.1) 0%,transparent 70%)', borderRadius: '50%' }} />
-      {/* Monitor */}
-      <div className="absolute pointer-events-none" style={{ left: '79%', top: '69%', transform: 'translate(-50%,-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
-        <div style={{ width: 52, height: 34, background: 'linear-gradient(135deg,rgba(0,200,255,.14),rgba(0,100,200,.07))', border: '1.5px solid rgba(0,229,255,.65)', borderRadius: 4, boxShadow: '0 0 20px rgba(0,229,255,.3)', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 3 }}>
-          {[40,60,50,70].map((w,i) => <div key={i} style={{ height: 2.5, width: `${w}%`, background: 'rgba(0,229,255,.55)', borderRadius: 1 }} />)}
-        </div>
-        <div style={{ width: 4, height: 9, background: 'rgba(0,229,255,.35)' }} />
-        <div style={{ width: 22, height: 4, background: 'rgba(0,229,255,.28)', borderRadius: 2 }} />
-      </div>
-      {/* Chair */}
-      <div className="absolute pointer-events-none" style={{ left: '73%', top: '75%', transform: 'translate(-50%,-50%)', width: 20, height: 22, background: 'rgba(0,200,255,.12)', borderRadius: 4, border: '1px solid rgba(0,229,255,.3)' }} />
-      {/* Sign */}
-      <div className="absolute pointer-events-none" style={{ left: '78%', top: '60%', transform: 'translate(-50%,-50%)', fontFamily: 'monospace', fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(0,229,255,.85)', textShadow: '0 0 8px rgba(0,229,255,.8),0 0 18px rgba(0,229,255,.4)' }}>
+      <div className="absolute pointer-events-none" style={{ left: '79%', top: '69%', transform: 'translate(-50%,-50%)', width: 160, height: 100, background: 'radial-gradient(ellipse,rgba(0,200,255,.09) 0%,transparent 70%)', borderRadius: '50%' }} />
+      <GamingStation />
+      <div className="absolute pointer-events-none" style={{ left: '78%', top: '57%', transform: 'translate(-50%,-50%)', fontFamily: 'monospace', fontSize: 8, letterSpacing: '0.2em', color: 'rgba(0,229,255,.7)', textShadow: '0 0 6px rgba(0,229,255,.6)' }}>
         GAMING
       </div>
 
-      {/* ── DJ BOOTH zone ────── */}
-      <div className="absolute pointer-events-none" style={{ left: '50%', top: '18%', transform: 'translate(-50%,-50%)', width: 160, height: 80, background: 'radial-gradient(ellipse,rgba(255,0,150,.1) 0%,transparent 70%)', borderRadius: '50%' }} />
-      {/* Deck */}
-      <div className="absolute pointer-events-none" style={{ left: '50%', top: '20%', transform: 'translate(-50%,-50%)', width: 74, height: 38, background: 'linear-gradient(180deg,rgba(255,0,150,.14),rgba(200,0,120,.06))', borderRadius: 8, border: '1px solid rgba(255,0,150,.45)', boxShadow: '0 0 22px rgba(255,0,150,.22)', display: 'flex', alignItems: 'center', justifyContent: 'space-around', padding: '0 8px' }}>
-        <div style={{ width: 22, height: 22, borderRadius: '50%', border: '2px solid rgba(255,0,150,.65)', background: 'rgba(255,0,150,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(255,0,150,.6)' }} />
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {[1,2,3].map(i => <div key={i} style={{ width: 12, height: 2, background: 'rgba(255,0,150,.5)', borderRadius: 1 }} />)}
-        </div>
-        <div style={{ width: 22, height: 22, borderRadius: '50%', border: '2px solid rgba(255,0,150,.65)', background: 'rgba(255,0,150,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(255,0,150,.6)' }} />
-        </div>
-      </div>
-      {/* Sign */}
-      <div className="absolute pointer-events-none" style={{ left: '50%', top: '8%', transform: 'translate(-50%,-50%)', fontFamily: 'monospace', fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(255,0,150,.85)', textShadow: '0 0 8px rgba(255,0,150,.8),0 0 18px rgba(255,0,150,.4)' }}>
-        DJ BOOTH
-      </div>
-
       {/* ── BAR zone ────── */}
-      <div className="absolute pointer-events-none" style={{ left: '88%', top: '40%', transform: 'translate(-50%,-50%)', width: 90, height: 130, background: 'radial-gradient(ellipse,rgba(255,140,0,.1) 0%,transparent 70%)', borderRadius: '50%' }} />
-      {/* Bar counter */}
-      <div className="absolute pointer-events-none" style={{ left: '91%', top: '40%', transform: 'translate(-50%,-50%)' }}>
-        <div style={{ width: 14, height: 60, background: 'linear-gradient(90deg,rgba(255,140,0,.28),rgba(200,100,0,.14))', borderRadius: '5px 0 0 5px', border: '1px solid rgba(255,140,0,.5)', boxShadow: '0 0 18px rgba(255,140,0,.18)' }} />
-        <div style={{ position: 'absolute', top: 6, left: 16, display: 'flex', gap: 3 }}>
-          {['rgba(255,80,0,.7)','rgba(100,200,255,.7)','rgba(180,0,255,.7)'].map((c,i) => (
-            <div key={i} style={{ width: 4, height: 14, background: c, borderRadius: '2px 2px 0 0', boxShadow: `0 0 6px ${c}` }} />
-          ))}
-        </div>
+      <div className="absolute pointer-events-none" style={{ left: '88%', top: '40%', transform: 'translate(-50%,-50%)', width: 90, height: 120, background: 'radial-gradient(ellipse,rgba(255,140,0,.09) 0%,transparent 70%)', borderRadius: '50%' }} />
+      <Bar />
+
+      {/* ── Corner plants (swaying) ────── */}
+      <div className="absolute pointer-events-none" style={{ left: '6%', top: '16%', transform: 'translate(-50%,-50%)' }}>
+        <Plant />
       </div>
-      {/* Sign */}
-      <div className="absolute pointer-events-none" style={{ left: '86%', top: '30%', transform: 'translate(-50%,-50%)', fontFamily: 'monospace', fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(255,140,0,.9)', textShadow: '0 0 8px rgba(255,140,0,.9),0 0 18px rgba(255,140,0,.45)' }}>
-        BAR
+      <div className="absolute pointer-events-none" style={{ left: '94%', top: '16%', transform: 'translate(-50%,-50%)' }}>
+        <Plant flip />
       </div>
 
-      {/* ── Center circle ────── */}
-      <div className="absolute pointer-events-none" style={{ left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 90, height: 90, borderRadius: '50%', border: '1px solid rgba(255,255,255,.04)', boxShadow: '0 0 30px rgba(255,255,255,.03)', background: 'radial-gradient(ellipse,rgba(255,255,255,.025) 0%,transparent 70%)' }} />
-
-      {/* ── Corner plants ────── */}
-      {[[8,18],[92,18]] .map(([px,py],i) => (
-        <div key={i} className="absolute pointer-events-none" style={{ left: `${px}%`, top: `${py}%`, transform: 'translate(-50%,-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ width: 10, height: 22, background: 'rgba(0,200,80,.14)', border: '1px solid rgba(0,200,80,.38)', borderRadius: '50% 50% 20% 20%', boxShadow: '0 0 10px rgba(0,200,80,.2)' }} />
-          <div style={{ width: 18, height: 7, background: 'rgba(0,200,80,.1)', border: '1px solid rgba(0,200,80,.28)', borderRadius: '50%', marginTop: -3, marginLeft: 0 }} />
-          <div style={{ width: 8, height: 12, background: 'rgba(30,30,30,.4)', border: '1px solid rgba(0,200,80,.25)', borderRadius: '0 0 4px 4px', marginTop: 0 }} />
-        </div>
-      ))}
+      {/* ── Center dance floor ring ────── */}
+      <div className="absolute pointer-events-none" style={{ left: '50%', top: '56%', transform: 'translate(-50%,-50%)', width: 100, height: 40, borderRadius: '50%', border: '1px solid rgba(255,255,255,.05)', background: 'radial-gradient(ellipse,rgba(255,255,255,.018) 0%,transparent 70%)' }} />
     </>
   );
 }
@@ -756,20 +861,50 @@ export function VirtualSpace({ onClose }: Props) {
             {/* Ambient particles */}
             <Particles />
 
-            {/* Floor grid SVG */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ opacity: 0.09 }}>
-              <defs>
-                <pattern id="vs-grid" width="6%" height="8%" patternUnits="objectBoundingBox">
-                  <path d="M 0 0 L 0 100% M 0 0 L 100% 0" stroke="#9b00ff" strokeWidth="0.4" fill="none" />
-                </pattern>
-                <linearGradient id="vs-topfade" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#020010" stopOpacity=".95" />
-                  <stop offset="35%" stopColor="#020010" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              <rect width="100%" height="100%" fill="url(#vs-grid)" />
-              <rect width="100%" height="100%" fill="url(#vs-topfade)" />
-            </svg>
+            {/* ── 3D perspective floor layer ────── */}
+            <div className="absolute pointer-events-none" style={{
+              left: 0, right: 0, top: '42%', bottom: 0,
+              perspective: '280px',
+              perspectiveOrigin: '50% 0%',
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                position: 'absolute', inset: 0,
+                transform: 'rotateX(38deg)',
+                transformOrigin: 'top center',
+              }}>
+                <svg width="100%" height="100%" preserveAspectRatio="none" style={{ opacity: 0.22 }}>
+                  <defs>
+                    <pattern id="vs-pgrid" width="10%" height="14%" patternUnits="objectBoundingBox">
+                      <path d="M 0 0 L 0 100% M 0 0 L 100% 0" stroke="#9b00ff" strokeWidth="0.6" fill="none" />
+                    </pattern>
+                    <linearGradient id="vs-floorgrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#9b00ff" stopOpacity=".8" />
+                      <stop offset="100%" stopColor="#00e5ff" stopOpacity=".2" />
+                    </linearGradient>
+                  </defs>
+                  <rect width="100%" height="100%" fill="url(#vs-pgrid)" stroke="none" />
+                  {/* Zone colored tiles on floor */}
+                  <rect x="0%" y="0%" width="28%" height="50%" fill="rgba(120,0,255,.04)" />
+                  <rect x="36%" y="0%" width="28%" height="30%" fill="rgba(255,0,150,.04)" />
+                  <rect x="64%" y="0%" width="36%" height="50%" fill="rgba(0,200,255,.04)" />
+                </svg>
+              </div>
+              {/* Floor fade at horizon */}
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '30%', background: 'linear-gradient(180deg,rgba(2,0,16,.85) 0%,transparent 100%)' }} />
+            </div>
+
+            {/* Back wall grid */}
+            <div className="absolute pointer-events-none" style={{ left: 0, right: 0, top: 0, height: '43%', overflow: 'hidden' }}>
+              <svg width="100%" height="100%" style={{ opacity: 0.06 }}>
+                <defs>
+                  <pattern id="vs-wgrid" width="8%" height="14%" patternUnits="objectBoundingBox">
+                    <path d="M 0 0 L 0 100% M 0 0 L 100% 0" stroke="#00e5ff" strokeWidth="0.5" fill="none" />
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#vs-wgrid)" />
+              </svg>
+            </div>
 
             {/* Vignette */}
             <div className="absolute inset-0 pointer-events-none" style={{
