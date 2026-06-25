@@ -8,7 +8,6 @@ import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
 import { VoidGamesIcon } from '@/components/ui/VoidGamesIcon';
 import { VoidLeaderboardIcon } from '@/components/ui/VoidLeaderboardIcon';
 import { PoweredBy } from '@/components/ui/PoweredBy';
-import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { FriendsPanel } from '@/components/ui/FriendsPanel';
 import { GiftGallery } from '@/components/ui/GiftGallery';
 import { ShareCardModal } from '@/components/ui/ShareCardModal';
@@ -119,7 +118,6 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
   const [newName, setNewName] = useState('');
   const [nameError, setNameError] = useState('');
   const [nameSaving, setNameSaving] = useState(false);
-  const [showRoleGuide, setShowRoleGuide] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [privacyMode, setPrivacyMode] = useState<'public' | 'secret'>('public');
   const [privacyLoading, setPrivacyLoading] = useState(false);
@@ -1404,19 +1402,13 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
         </div>
 
         {/* ── Actions ────────────────────────────────────────────────── */}
-        <div className="mt-2 mb-4 space-y-2">
-          <button onClick={() => setShowRoleGuide(true)}
-            className="w-full py-3 border border-neon-cyan/20 text-neon-cyan/70 font-display font-bold tracking-widest rounded-xl hover:bg-neon-cyan/8 transition-all text-sm flex items-center justify-center gap-2">
-            📖 Role Guide
-          </button>
+        <div className="mt-2 mb-4">
           <button onClick={logout}
             className="w-full py-3 border border-neon-red/30 text-neon-red font-display font-bold tracking-widest rounded-xl hover:bg-neon-red/10 transition-all text-sm">
             Log Out
           </button>
         </div>
       </div>
-
-      <RoleInfoModal open={showRoleGuide} onClose={() => setShowRoleGuide(false)} />
 
       {/* ── Friends full modal ──────────────────────────────────────── */}
       <AnimatePresence>

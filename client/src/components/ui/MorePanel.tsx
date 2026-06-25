@@ -129,6 +129,18 @@ function AudioToggle({ value, onChange }: { value: boolean; onChange: (v: boolea
   );
 }
 
+function LogOutButton({ onClose }: { onClose: () => void }) {
+  const logout = useAuthStore(s => s.logout);
+  return (
+    <button
+      onClick={() => { logout(); onClose(); }}
+      className="w-full py-2.5 rounded-xl border border-neon-red/25 text-neon-red/70 font-mono text-xs tracking-widest uppercase hover:bg-neon-red/10 hover:text-neon-red hover:border-neon-red/40 transition-all"
+    >
+      Log Out
+    </button>
+  );
+}
+
 interface MorePanelProps {
   isOwner?: boolean;
   isMod?: boolean;
@@ -508,8 +520,9 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
               </div>
 
               {/* Footer */}
-              <div className="px-4 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-                <div className="flex items-center justify-between">
+              <div className="px-4 pt-3 pb-4" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                <LogOutButton onClose={closeMoreMenu} />
+                <div className="flex items-center justify-between mt-3">
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-neon-green/60" style={{ boxShadow: '0 0 4px rgba(0,255,136,0.5)' }} />
                     <span className="font-mono text-[11px] text-white/18 tracking-wider uppercase">
