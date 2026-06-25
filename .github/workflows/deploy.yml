@@ -14,15 +14,13 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy server
-        run: railway up --detach
+        run: railway up --detach --service 226d60e0-8aee-42f4-83b3-2151ee30dced
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_PROJECT_ID: 08c2a0d2-1c54-4c07-8497-8130c7baa696
-          RAILWAY_SERVICE_ID: 226d60e0-8aee-42f4-83b3-2151ee30dced
 
       - name: Deploy client
-        run: railway up --detach
+        run: railway up --detach --service 958a7cd3-adc4-49ad-a955-27c6df5794d8
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_PROJECT_ID: 08c2a0d2-1c54-4c07-8497-8130c7baa696
-          RAILWAY_SERVICE_ID: 958a7cd3-adc4-49ad-a955-27c6df5794d8
