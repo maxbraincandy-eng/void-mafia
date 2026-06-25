@@ -20,14 +20,14 @@ function resizeClanImage(file: File): Promise<string> {
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const maxDim = 400;
+      const maxDim = 512;
       let w = img.width, h = img.height;
       if (w > h) { if (w > maxDim) { h = Math.round(h * maxDim / w); w = maxDim; } }
       else       { if (h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim; } }
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/webp', 0.8));
+      resolve(canvas.toDataURL('image/webp', 0.75));
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Failed to load image.')); };
     img.src = url;
