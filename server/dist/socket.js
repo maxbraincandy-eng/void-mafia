@@ -156,14 +156,17 @@ const lobbyGraceTimers = new Map();
 const _lobbyChat = [];
 const MAX_LOBBY_CHAT = 200;
 const _spaces = new Map();
+const _spaceDJ = new Map();
 const _spaceVoice = new Map(); // spaceId → Map<socketId, playerName>
 function _leaveSpace(sid, io) {
     for (const [spaceId, room] of _spaces) {
         if (room.has(sid)) {
             room.delete(sid);
             io.to(`space:${spaceId}`).emit('space:player-left', { socketId: sid });
-            if (room.size === 0)
+            if (room.size === 0) {
                 _spaces.delete(spaceId);
+                _spaceDJ.delete(spaceId);
+            }
             return;
         }
     }
@@ -6228,7 +6231,7 @@ export function attachSocketHandlers(io) {
                 room.set(socket.id, player);
                 socket.join(`space:${safeSpace}`);
                 socket.to(`space:${safeSpace}`).emit('space:player-joined', player);
-                cb?.({ ok: true, data: { players: [...room.values()], mySocketId: socket.id } });
+                cb?.({ ok: true, data: { players: [...room.values()], mySocketId: socket.id, djState: _spaceDJ.get(safeSpace) ?? null } });
             }
             catch {
                 cb?.({ ok: false, error: 'Internal error' });
@@ -6263,6 +6266,48 @@ export function attachSocketHandlers(io) {
             }
         });
         socket.on('space:leave', () => { _leaveSpace(socket.id, io); });
+        // ── Virtual Space DJ ──────────────────────────────────────────────
+        socket.on('space:dj-play', ({ videoId, position = 0 }) => {
+            const vid = String(videoId ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20);
+            if (!vid)
+                return;
+            for (const [spaceId, room] of _spaces) {
+                if (room.has(socket.id)) {
+                    const state = {
+                        videoId: vid,
+                        startedAt: Date.now() - Math.round((Number(position) || 0) * 1000),
+                        position: Number(position) || 0,
+                        isPlaying: true,
+                        djName: room.get(socket.id).name,
+                    };
+                    _spaceDJ.set(spaceId, state);
+                    io.to(`space:${spaceId}`).emit('space:dj-update', state);
+                    return;
+                }
+            }
+        });
+        socket.on('space:dj-pause', ({ position }) => {
+            for (const [spaceId, room] of _spaces) {
+                if (room.has(socket.id)) {
+                    const state = _spaceDJ.get(spaceId);
+                    if (!state)
+                        return;
+                    state.isPlaying = false;
+                    state.position = Number(position) || 0;
+                    io.to(`space:${spaceId}`).emit('space:dj-update', { ...state });
+                    return;
+                }
+            }
+        });
+        socket.on('space:dj-stop', () => {
+            for (const [spaceId, room] of _spaces) {
+                if (room.has(socket.id)) {
+                    _spaceDJ.delete(spaceId);
+                    io.to(`space:${spaceId}`).emit('space:dj-update', null);
+                    return;
+                }
+            }
+        });
         // ── Virtual Space Voice ────────────────────────────────────────────
         socket.on('space:voice-join', (_, cb) => {
             for (const [spaceId, room] of _spaces) {

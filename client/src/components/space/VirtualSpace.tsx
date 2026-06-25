@@ -3,456 +3,168 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useVirtualSpace, type SpacePlayer, type SpaceMask } from '@/hooks/useVirtualSpace';
 import { useSpaceVoice } from '@/hooks/useSpaceVoice';
 import { useAuthStore } from '@/store/authStore';
-
-// ── Grid constants ────────────────────────────────────────────────────
-
-const COLS = 10;
-const ROWS = 10;
-const TW = 48;       // tile width px (logical)
-const TH = 24;       // tile height = TW/2
-const WALL_H = 80;   // back wall pixel height
-const CW = (COLS + ROWS) * (TW / 2);          // 480 logical px
-const CH = WALL_H + (COLS + ROWS - 1) * (TH / 2) + 20; // ~320 logical px
-
-// Isometric origin = back-corner tile (col=0, row=0) top point
-const OX = ROWS * (TW / 2);  // 240
-const OY = WALL_H;            // 80
-
-// ── Isometric math ────────────────────────────────────────────────────
-
-function toIso(col: number, row: number) {
-  return {
-    sx: OX + (col - row) * (TW / 2),
-    sy: OY + (col + row) * (TH / 2),
-  };
-}
-
-function fromScreen(mx: number, my: number): { col: number; row: number } {
-  const dx = mx - OX;
-  const dy = my - OY;
-  const rawCol = (dx / (TW / 2) + dy / (TH / 2)) / 2;
-  const rawRow = (dy / (TH / 2) - dx / (TW / 2)) / 2;
-  return {
-    col: Math.max(0, Math.min(COLS - 1, Math.round(rawCol))),
-    row: Math.max(0, Math.min(ROWS - 1, Math.round(rawRow))),
-  };
-}
-
-function pctToGridPos(x: number, y: number) {
-  return {
-    col: (x / 100) * (COLS - 1),
-    row: (y / 100) * (ROWS - 1),
-  };
-}
-
-function gridToPct(col: number, row: number) {
-  return {
-    x: (col / (COLS - 1)) * 100,
-    y: (row / (ROWS - 1)) * 100,
-  };
-}
-
-// ── Furniture definitions ─────────────────────────────────────────────
-
-interface FurnitureDef {
-  id: string;
-  col: number; row: number;
-  cols: number; rows: number;
-  height: number;
-  topColor: string;
-  leftColor: string;
-  rightColor: string;
-  label?: string;
-  accentColor: string;
-}
-
-const FURNITURE: FurnitureDef[] = [
-  {
-    id: 'dj', col: 4, row: 0, cols: 2, rows: 1, height: 30,
-    topColor: 'rgba(255,0,150,0.55)', leftColor: 'rgba(160,0,80,0.75)', rightColor: 'rgba(200,0,100,0.65)',
-    accentColor: '#ff0096', label: 'DJ BOOTH',
-  },
-  {
-    id: 'bar', col: 8, row: 1, cols: 1, rows: 3, height: 34,
-    topColor: 'rgba(255,140,0,0.55)', leftColor: 'rgba(160,70,0,0.75)', rightColor: 'rgba(200,100,0,0.65)',
-    accentColor: '#ff8c00', label: 'BAR',
-  },
-  {
-    id: 'sofa', col: 0, row: 6, cols: 3, rows: 1, height: 18,
-    topColor: 'rgba(120,0,255,0.55)', leftColor: 'rgba(70,0,160,0.75)', rightColor: 'rgba(90,0,200,0.65)',
-    accentColor: '#7800ff', label: 'LOUNGE',
-  },
-  {
-    id: 'desk', col: 6, row: 7, cols: 2, rows: 1, height: 22,
-    topColor: 'rgba(0,150,255,0.55)', leftColor: 'rgba(0,80,180,0.75)', rightColor: 'rgba(0,100,220,0.65)',
-    accentColor: '#0096ff', label: 'GAMING',
-  },
-];
-
-// Blocked cells from furniture
-const BLOCKED = new Set<string>();
-for (const f of FURNITURE) {
-  for (let c = f.col; c < f.col + f.cols; c++) {
-    for (let r = f.row; r < f.row + f.rows; r++) {
-      BLOCKED.add(`${c},${r}`);
-    }
-  }
-}
-function isBlocked(col: number, row: number) {
-  return BLOCKED.has(`${col},${row}`);
-}
-
-// ── Floor tile zone coloring ──────────────────────────────────────────
-
-function floorTileColor(col: number, row: number): string {
-  if (col >= 3 && col <= 6 && row <= 2) return 'rgba(255,0,150,0.09)';
-  if (col >= 7 && row >= 0 && row <= 5) return 'rgba(255,140,0,0.07)';
-  if (col <= 3 && row >= 5) return 'rgba(120,0,255,0.10)';
-  if (col >= 5 && row >= 6) return 'rgba(0,150,255,0.09)';
-  if (col >= 3 && col <= 6 && row >= 3 && row <= 6) return 'rgba(255,255,255,0.04)';
-  return 'rgba(255,255,255,0.025)';
-}
-
-function floorTileStroke(col: number, row: number): string {
-  if (col >= 3 && col <= 6 && row <= 2) return 'rgba(255,0,150,0.18)';
-  if (col >= 7 && row >= 0 && row <= 5) return 'rgba(255,140,0,0.14)';
-  if (col <= 3 && row >= 5) return 'rgba(120,0,255,0.18)';
-  if (col >= 5 && row >= 6) return 'rgba(0,150,255,0.15)';
-  return 'rgba(155,100,255,0.10)';
-}
-
-// ── Canvas room drawing ───────────────────────────────────────────────
-
-function drawRoom(ctx: CanvasRenderingContext2D) {
-  // ── Background ────────────────────────────────────────────────────
-  const bg = ctx.createLinearGradient(0, 0, 0, CH);
-  bg.addColorStop(0, '#09031c');
-  bg.addColorStop(0.4, '#060218');
-  bg.addColorStop(1, '#010008');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, CW, CH);
-
-  // Ambient radial zones
-  const zones: [number, number, string][] = [
-    [0.5, 0.3, 'rgba(155,0,255,0.06)'],
-    [0.15, 0.75, 'rgba(120,0,255,0.05)'],
-    [0.82, 0.6, 'rgba(0,150,255,0.05)'],
-    [0.5, 0.15, 'rgba(255,0,150,0.06)'],
-  ];
-  for (const [cx, cy, color] of zones) {
-    const grad = ctx.createRadialGradient(CW * cx, CH * cy, 0, CW * cx, CH * cy, 200);
-    grad.addColorStop(0, color);
-    grad.addColorStop(1, 'transparent');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, CW, CH);
-  }
-
-  // ── Left wall panels (row axis: row=0 edge, going left) ───────────
-  for (let r = 0; r < ROWS; r++) {
-    const p0 = toIso(0, r);
-    const p1 = toIso(0, r + 1);
-    ctx.beginPath();
-    ctx.moveTo(p0.sx, p0.sy);
-    ctx.lineTo(p0.sx - TW / 2, p0.sy + TH / 2);
-    ctx.lineTo(p1.sx - TW / 2, p1.sy + TH / 2 - WALL_H);
-    ctx.lineTo(p0.sx, p0.sy - WALL_H);
-    ctx.closePath();
-    const t = r / ROWS;
-    const wg = ctx.createLinearGradient(p0.sx - TW / 2, 0, p0.sx, 0);
-    wg.addColorStop(0, `rgba(80,0,180,${0.22 - t * 0.06})`);
-    wg.addColorStop(1, `rgba(100,0,220,${0.12 - t * 0.04})`);
-    ctx.fillStyle = wg;
-    ctx.fill();
-    ctx.strokeStyle = `rgba(120,0,255,${0.28 - t * 0.08})`;
-    ctx.lineWidth = 0.5;
-    ctx.stroke();
-  }
-
-  // ── Right wall panels (col axis: col=0 edge, going right) ─────────
-  for (let c = 0; c < COLS; c++) {
-    const p0 = toIso(c, 0);
-    const p1 = toIso(c + 1, 0);
-    ctx.beginPath();
-    ctx.moveTo(p0.sx, p0.sy);
-    ctx.lineTo(p1.sx, p1.sy);
-    ctx.lineTo(p1.sx, p1.sy - WALL_H);
-    ctx.lineTo(p0.sx, p0.sy - WALL_H);
-    ctx.closePath();
-    const t = c / COLS;
-    const wg = ctx.createLinearGradient(p0.sx, 0, p1.sx, 0);
-    wg.addColorStop(0, `rgba(0,100,200,${0.12 + t * 0.04})`);
-    wg.addColorStop(1, `rgba(0,150,255,${0.18 + t * 0.06})`);
-    ctx.fillStyle = wg;
-    ctx.fill();
-    ctx.strokeStyle = `rgba(0,180,255,${0.20 + t * 0.08})`;
-    ctx.lineWidth = 0.5;
-    ctx.stroke();
-  }
-
-  // ── Wall/floor edge neon strip ────────────────────────────────────
-  ctx.beginPath();
-  const wallL = toIso(0, ROWS - 1);
-  const wallO = toIso(0, 0);
-  const wallR = toIso(COLS - 1, 0);
-  ctx.moveTo(wallL.sx - TW / 2, wallL.sy + TH / 2);
-  ctx.lineTo(wallO.sx, wallO.sy);
-  ctx.lineTo(wallR.sx + TW / 2, wallR.sy + TH / 2);
-  const stripGrad = ctx.createLinearGradient(wallL.sx, 0, wallR.sx, 0);
-  stripGrad.addColorStop(0, 'rgba(155,0,255,0.8)');
-  stripGrad.addColorStop(0.5, 'rgba(0,229,255,0.9)');
-  stripGrad.addColorStop(1, 'rgba(0,229,255,0.7)');
-  ctx.strokeStyle = stripGrad;
-  ctx.lineWidth = 1.8;
-  ctx.stroke();
-
-  // Neon corner pillars
-  ctx.beginPath();
-  ctx.moveTo(wallL.sx - TW / 2, wallL.sy + TH / 2);
-  ctx.lineTo(wallL.sx - TW / 2, wallL.sy + TH / 2 - WALL_H - 16);
-  ctx.strokeStyle = 'rgba(155,0,255,0.7)';
-  ctx.lineWidth = 2.5;
-  ctx.shadowColor = '#9b00ff';
-  ctx.shadowBlur = 10;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  ctx.beginPath();
-  ctx.moveTo(wallR.sx + TW / 2, wallR.sy + TH / 2);
-  ctx.lineTo(wallR.sx + TW / 2, wallR.sy + TH / 2 - WALL_H - 16);
-  ctx.strokeStyle = 'rgba(0,220,255,0.7)';
-  ctx.lineWidth = 2.5;
-  ctx.shadowColor = '#00dcff';
-  ctx.shadowBlur = 10;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // ── VOID LOUNGE neon sign ─────────────────────────────────────────
-  const signCenter = toIso(4.5, 0);
-  ctx.save();
-  ctx.font = 'bold 10px "Space Grotesk", monospace';
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#00e5ff';
-  ctx.shadowColor = '#00e5ff';
-  ctx.shadowBlur = 14;
-  ctx.fillText('VOID LOUNGE', signCenter.sx, signCenter.sy - WALL_H + 22);
-  ctx.shadowBlur = 0;
-  ctx.restore();
-
-  // ── Floor tiles (depth sorted back→front) ─────────────────────────
-  const tiles: { col: number; row: number }[] = [];
-  for (let c = 0; c < COLS; c++) {
-    for (let r = 0; r < ROWS; r++) {
-      tiles.push({ col: c, row: r });
-    }
-  }
-  tiles.sort((a, b) => (a.col + a.row) - (b.col + b.row));
-
-  for (const { col, row } of tiles) {
-    const { sx, sy } = toIso(col, row);
-    ctx.beginPath();
-    ctx.moveTo(sx,          sy);
-    ctx.lineTo(sx + TW / 2, sy + TH / 2);
-    ctx.lineTo(sx,          sy + TH);
-    ctx.lineTo(sx - TW / 2, sy + TH / 2);
-    ctx.closePath();
-    ctx.fillStyle = floorTileColor(col, row);
-    ctx.fill();
-    ctx.strokeStyle = floorTileStroke(col, row);
-    ctx.lineWidth = 0.4;
-    ctx.stroke();
-  }
-
-  // ── Furniture (depth sorted) ──────────────────────────────────────
-  const sorted = [...FURNITURE].sort((a, b) => (a.col + a.row) - (b.col + b.row));
-  for (const f of sorted) {
-    drawFurniture(ctx, f);
-  }
-
-  // ── Zone label overlays on floor ──────────────────────────────────
-  const labels: [number, number, string, string][] = [
-    [5,  1.5, 'DJ BOOTH', '#ff0096'],
-    [8.5, 3,  'BAR',      '#ff8c00'],
-    [1.5, 6.5,'LOUNGE',   '#7800ff'],
-    [7,   7.5,'GAMING',   '#0096ff'],
-  ];
-  ctx.save();
-  ctx.font = '7px monospace';
-  ctx.textAlign = 'center';
-  for (const [col, row, text, color] of labels) {
-    const { sx, sy } = toIso(col, row);
-    ctx.fillStyle = color + 'cc';
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 5;
-    ctx.fillText(text, sx, sy - 4);
-  }
-  ctx.shadowBlur = 0;
-  ctx.restore();
-
-  // ── Ceiling light halos ───────────────────────────────────────────
-  for (const f of FURNITURE) {
-    const cx = toIso(f.col + f.cols / 2, f.row + f.rows / 2);
-    const halo = ctx.createRadialGradient(cx.sx, cx.sy - f.height - 8, 0, cx.sx, cx.sy - f.height - 8, TW * 1.5);
-    halo.addColorStop(0, f.accentColor + '28');
-    halo.addColorStop(1, 'transparent');
-    ctx.fillStyle = halo;
-    ctx.fillRect(cx.sx - TW * 1.5, cx.sy - f.height - 8 - TW * 1.5, TW * 3, TW * 3);
-  }
-}
-
-function drawFurniture(ctx: CanvasRenderingContext2D, f: FurnitureDef) {
-  const p00 = toIso(f.col,          f.row);
-  const p10 = toIso(f.col + f.cols, f.row);
-  const p01 = toIso(f.col,          f.row + f.rows);
-  const p11 = toIso(f.col + f.cols, f.row + f.rows);
-  const H = f.height;
-
-  // Top face
-  ctx.beginPath();
-  ctx.moveTo(p00.sx, p00.sy - H);
-  ctx.lineTo(p10.sx, p10.sy - H);
-  ctx.lineTo(p11.sx, p11.sy - H);
-  ctx.lineTo(p01.sx, p01.sy - H);
-  ctx.closePath();
-  ctx.fillStyle = f.topColor;
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-  ctx.lineWidth = 0.9;
-  ctx.stroke();
-
-  // Left face
-  ctx.beginPath();
-  ctx.moveTo(p01.sx, p01.sy - H);
-  ctx.lineTo(p11.sx, p11.sy - H);
-  ctx.lineTo(p11.sx, p11.sy);
-  ctx.lineTo(p01.sx, p01.sy);
-  ctx.closePath();
-  ctx.fillStyle = f.leftColor;
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.10)';
-  ctx.lineWidth = 0.5;
-  ctx.stroke();
-
-  // Right face
-  ctx.beginPath();
-  ctx.moveTo(p10.sx, p10.sy - H);
-  ctx.lineTo(p11.sx, p11.sy - H);
-  ctx.lineTo(p11.sx, p11.sy);
-  ctx.lineTo(p10.sx, p10.sy);
-  ctx.closePath();
-  ctx.fillStyle = f.rightColor;
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.10)';
-  ctx.lineWidth = 0.5;
-  ctx.stroke();
-
-  // Accent top edge glow
-  ctx.beginPath();
-  ctx.moveTo(p00.sx, p00.sy - H);
-  ctx.lineTo(p10.sx, p10.sy - H);
-  ctx.lineTo(p11.sx, p11.sy - H);
-  ctx.lineTo(p01.sx, p01.sy - H);
-  ctx.closePath();
-  ctx.strokeStyle = f.accentColor + 'cc';
-  ctx.lineWidth = 1.2;
-  ctx.shadowColor = f.accentColor;
-  ctx.shadowBlur = 6;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-}
-
-// ── CSS keyframes ─────────────────────────────────────────────────────
-
-const SPACE_CSS = `
-@keyframes vs-pulse  { 0%,100%{opacity:.7} 50%{opacity:1} }
-@keyframes vs-speak  { 0%,100%{transform:scale(1);opacity:.9} 50%{transform:scale(1.28);opacity:.3} }
-@keyframes vs-bob    { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
-@keyframes vs-walk   { 0%,100%{transform:translateY(0) rotate(-1.5deg)} 50%{transform:translateY(-3px) rotate(1.5deg)} }
-@keyframes vs-pulse-dot { 0%,100%{transform:scale(1)} 50%{transform:scale(1.4)} }
-`;
+import { socket } from '@/lib/socket';
 
 // ── Avatar palette ────────────────────────────────────────────────────
 
-const BODY_COLORS = ['#9b00ff','#00e5ff','#ff00aa','#00ff88','#ff6600','#3b82f6','#ffcc00','#ff2255'];
-const GLOW_COLORS = ['#00e5ff','#9b00ff','#00ff88','#ff00aa','#ffcc00','#ff6600','#ff2255','#c084fc'];
+const BODY_COLORS = ['#9b00ff', '#00e5ff', '#ff00aa', '#00ff88', '#ff6600', '#3b82f6', '#ffcc00', '#ff2255'];
+const GLOW_COLORS = ['#00e5ff', '#9b00ff', '#00ff88', '#ff00aa', '#ffcc00', '#ff6600', '#ff2255', '#c084fc'];
 const MASKS: { id: SpaceMask; label: string }[] = [
-  { id: 'none', label: 'None' }, { id: 'half', label: 'Half' },
-  { id: 'full', label: 'Full' }, { id: 'visor', label: 'Visor' },
+  { id: 'none',  label: 'None'  },
+  { id: 'half',  label: 'Half'  },
+  { id: 'full',  label: 'Full'  },
+  { id: 'visor', label: 'Visor' },
 ];
+
 const LS_BODY = 'vs_bodyColor';
 const LS_GLOW = 'vs_glowColor';
 const LS_MASK = 'vs_mask';
 
-// ── Isometric robot avatar (SVG) ──────────────────────────────────────
+// ── CSS keyframes ─────────────────────────────────────────────────────
 
-function IsoAvatar({ bodyColor, glowColor, mask, size = 1, isMe }: {
-  bodyColor: string; glowColor: string; mask: SpaceMask; size?: number; isMe?: boolean;
+const SPACE_CSS = `
+@keyframes vs-float  { 0%,100%{transform:translateY(0)}  50%{transform:translateY(-4px)} }
+@keyframes vs-pulse  { 0%,100%{opacity:.7} 50%{opacity:1} }
+@keyframes vs-speak  { 0%,100%{transform:scale(1);opacity:.9} 50%{transform:scale(1.2);opacity:.4} }
+@keyframes vs-spin   { to{transform:rotate(360deg)} }
+@keyframes vs-spin-r { to{transform:rotate(-360deg)} }
+@keyframes vs-glow   { 0%,100%{filter:brightness(1)} 50%{filter:brightness(1.35)} }
+@keyframes vs-drift  { 0%{transform:translateY(0) translateX(0);opacity:0}
+                       10%{opacity:.55}  90%{opacity:.25}
+                       100%{transform:translateY(-55px) translateX(12px);opacity:0} }
+@keyframes vs-eq1    { 0%,100%{height:4px} 50%{height:14px} }
+@keyframes vs-eq2    { 0%,100%{height:10px} 50%{height:5px} }
+@keyframes vs-eq3    { 0%,100%{height:7px} 50%{height:18px} }
+@keyframes vs-eq4    { 0%,100%{height:12px} 50%{height:3px} }
+@keyframes vs-eq5    { 0%,100%{height:5px} 50%{height:11px} }
+@keyframes vs-bubble { 0%{transform:translateY(0);opacity:.7} 100%{transform:translateY(-28px);opacity:0} }
+@keyframes vs-flicker{ 0%,100%{opacity:1} 8%{opacity:.6} 10%{opacity:1} 42%{opacity:.85} 44%{opacity:1} 78%{opacity:.5} 80%{opacity:1} }
+@keyframes vs-sway   { 0%,100%{transform:rotate(-4deg) translateX(0)} 50%{transform:rotate(4deg) translateX(2px)} }
+@keyframes vs-scanline{ 0%{transform:translateY(-100%)} 100%{transform:translateY(600%)} }
+@keyframes vs-healthpulse{ 0%,100%{width:65%} 50%{width:48%} }
+`;
+
+// ── DJ State ──────────────────────────────────────────────────────────
+
+interface DJState {
+  videoId: string;
+  startedAt: number;
+  position: number;
+  isPlaying: boolean;
+  djName: string;
+}
+
+// ── YouTube IFrame API ────────────────────────────────────────────────
+
+let ytApiLoading = false;
+let ytApiReady = false;
+const ytReadyCallbacks: (() => void)[] = [];
+
+function loadYouTubeAPI(): Promise<void> {
+  return new Promise(resolve => {
+    if (ytApiReady) { resolve(); return; }
+    ytReadyCallbacks.push(resolve);
+    if (ytApiLoading) return;
+    ytApiLoading = true;
+    (window as any).onYouTubeIframeAPIReady = () => {
+      ytApiReady = true;
+      ytReadyCallbacks.forEach(cb => cb());
+      ytReadyCallbacks.length = 0;
+    };
+    const s = document.createElement('script');
+    s.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(s);
+  });
+}
+
+function extractVideoId(input: string): string | null {
+  const s = input.trim();
+  // bare ID
+  if (/^[a-zA-Z0-9_-]{11}$/.test(s)) return s;
+  try {
+    const url = new URL(s);
+    if (url.hostname.includes('youtu.be')) return url.pathname.slice(1).split(/[?&]/)[0];
+    const v = url.searchParams.get('v');
+    if (v) return v;
+  } catch { /* not a URL */ }
+  return null;
+}
+
+// ── Humanoid SVG avatar ───────────────────────────────────────────────
+
+function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walking, isMe }: {
+  bodyColor: string; glowColor: string; mask: SpaceMask;
+  size?: number; speaking?: boolean; walking?: boolean; isMe?: boolean;
 }) {
-  const w = Math.round(28 * size);
-  const h = Math.round(46 * size);
+  const w = Math.round(32 * size);
+  const h = Math.round(56 * size);
+  const bodyDark  = bodyColor + 'cc';
+  const bodyLight = bodyColor + 'ee';
+
   return (
-    <svg width={w} height={h} viewBox="0 0 28 46" fill="none"
-      style={{ filter: `drop-shadow(0 0 ${isMe ? 7 : 3}px ${bodyColor}bb) drop-shadow(0 2px 4px rgba(0,0,0,0.6))`, overflow: 'visible' }}
-    >
-      {/* Ground shadow */}
-      <ellipse cx="14" cy="44" rx="7" ry="2" fill="rgba(0,0,0,0.45)" />
-      {/* Legs */}
-      <rect x="7"  y="30" width="5" height="13" rx="2.5" fill={bodyColor + 'cc'} />
-      <rect x="16" y="30" width="5" height="13" rx="2.5" fill={bodyColor + 'cc'} />
-      {/* Body */}
-      <rect x="5" y="17" width="18" height="15" rx="3" fill={bodyColor + 'ee'} />
-      {/* Body panel highlight */}
-      <rect x="11" y="19" width="6" height="11" rx="2" fill={glowColor} opacity="0.22" />
-      {/* Chest badge */}
-      <circle cx="14" cy="22" r="2.2" fill={glowColor} opacity="0.55" />
-      <circle cx="14" cy="22" r="0.9" fill="white" opacity="0.85" />
-      {/* Arms */}
-      <rect x="0"  y="18" width="5" height="11" rx="2.5" fill={bodyColor + 'cc'} />
-      <rect x="23" y="18" width="5" height="11" rx="2.5" fill={bodyColor + 'cc'} />
-      {/* Neck */}
-      <rect x="11" y="12" width="6" height="7" rx="2" fill={bodyColor + 'ee'} />
-      {/* Head */}
-      <circle cx="14" cy="7.5" r="7.5" fill={bodyColor + 'ee'} />
-      {/* Head shine */}
-      <circle cx="11" cy="5" r="3.5" fill="white" opacity="0.06" />
-      {/* Eyes */}
-      <circle cx="11" cy="7.5" r="2.2" fill={glowColor} opacity="0.92" />
-      <circle cx="17" cy="7.5" r="2.2" fill={glowColor} opacity="0.92" />
-      <circle cx="11" cy="7.5" r="0.9" fill="white" opacity="0.95" />
-      <circle cx="17" cy="7.5" r="0.9" fill="white" opacity="0.95" />
-      {/* Eye glow rings */}
-      <circle cx="11" cy="7.5" r="3.2" fill={glowColor} opacity="0.10" />
-      <circle cx="17" cy="7.5" r="3.2" fill={glowColor} opacity="0.10" />
-      {/* Mask */}
-      {mask === 'half' && (
-        <rect x="8" y="10" width="12" height="6" rx="3" fill="rgba(0,0,0,0.65)" stroke={glowColor} strokeWidth="0.6" opacity="0.95" />
+    <div style={{ position: 'relative', width: w, height: h, flexShrink: 0 }}>
+      {speaking && (
+        <motion.div
+          animate={{ scale: [1, 1.3, 1], opacity: [0.9, 0.35, 0.9] }}
+          transition={{ duration: 0.7, repeat: Infinity, ease: 'easeInOut' }}
+          style={{
+            position: 'absolute', top: -6, left: Math.round(w / 2) - Math.round(11 * size) - 6,
+            width: Math.round(22 * size) + 12, height: Math.round(22 * size) + 12,
+            borderRadius: '50%', border: `2px solid ${glowColor}`,
+            boxShadow: `0 0 12px ${glowColor}80`, pointerEvents: 'none',
+          }}
+        />
       )}
-      {mask === 'full' && (
-        <circle cx="14" cy="7.5" r="7" fill="rgba(0,0,0,0.6)" stroke={glowColor} strokeWidth="0.7" opacity="0.95" />
-      )}
-      {mask === 'visor' && <>
-        <rect x="7" y="4" width="14" height="7" rx="3.5" fill={glowColor} opacity="0.28" />
-        <rect x="7" y="4" width="14" height="7" rx="3.5" fill="none" stroke={glowColor} strokeWidth="0.8" opacity="0.9" />
-        <line x1="7" y1="7.5" x2="21" y2="7.5" stroke={glowColor} strokeWidth="0.4" opacity="0.5" />
-      </>}
-      {/* Crown for self */}
-      {isMe && (
-        <g>
-          <polygon points="11,0 14,-1.5 17,0 16,2 14,1.5 12,2" fill={glowColor} opacity="0.9" />
-        </g>
-      )}
-    </svg>
+      <svg width={w} height={h} viewBox="0 0 32 56" fill="none"
+        style={{ filter: speaking ? `drop-shadow(0 0 8px ${glowColor}cc)` : `drop-shadow(0 0 ${isMe ? 5 : 3}px ${bodyColor}99)` }}
+      >
+        <ellipse cx="16" cy="54" rx="7" ry="2.5" fill="rgba(0,0,0,0.35)" />
+        <rect x="9" y="36" width="5" height="17" rx="2.5" fill={bodyDark}
+          style={walking ? { animation: 'vs-float 0.32s ease-in-out infinite alternate' } : {}} />
+        <rect x="18" y="36" width="5" height="17" rx="2.5" fill={bodyDark}
+          style={walking ? { animation: 'vs-float 0.32s ease-in-out 0.16s infinite alternate' } : {}} />
+        <rect x="7" y="21" width="18" height="17" rx="3.5" fill={bodyLight} />
+        <rect x="14" y="23" width="4" height="13" rx="2" fill={glowColor} opacity="0.28" />
+        <circle cx="16" cy="26" r="2.2" fill={glowColor} opacity="0.5" />
+        <circle cx="16" cy="26" r="1" fill="white" opacity="0.7" />
+        <rect x="1" y="23" width="5.5" height="13" rx="2.5" fill={bodyDark} />
+        <rect x="25.5" y="23" width="5.5" height="13" rx="2.5" fill={bodyDark} />
+        <rect x="13" y="16" width="6" height="7" rx="2" fill={bodyLight} />
+        <circle cx="16" cy="9" r="9" fill={bodyLight} />
+        <circle cx="12.5" cy="6.5" r="4" fill="white" opacity="0.07" />
+        <circle cx="12.5" cy="9" r="2.2" fill={glowColor} opacity="0.9" />
+        <circle cx="19.5" cy="9" r="2.2" fill={glowColor} opacity="0.9" />
+        <circle cx="12.5" cy="9" r="0.9" fill="white" opacity="0.95" />
+        <circle cx="19.5" cy="9" r="0.9" fill="white" opacity="0.95" />
+        <circle cx="12.5" cy="9" r="3" fill={glowColor} opacity="0.12" />
+        <circle cx="19.5" cy="9" r="3" fill={glowColor} opacity="0.12" />
+        {mask === 'half' && <>
+          <rect x="9" y="11" width="14" height="7" rx="3" fill="rgba(0,0,0,0.65)" stroke={glowColor} strokeWidth="0.6" opacity="0.95" />
+          <line x1="10" y1="14" x2="22" y2="14" stroke={glowColor} strokeWidth="0.5" opacity="0.5" />
+        </>}
+        {mask === 'full' && <>
+          <circle cx="16" cy="9" r="8.5" fill="rgba(0,0,0,0.6)" stroke={glowColor} strokeWidth="0.8" opacity="0.95" />
+          <rect x="9" y="7" width="14" height="4" rx="2" fill={glowColor} opacity="0.18" />
+        </>}
+        {mask === 'visor' && <>
+          <rect x="8" y="5.5" width="16" height="7" rx="3.5" fill={glowColor} opacity="0.28" />
+          <rect x="8" y="5.5" width="16" height="7" rx="3.5" fill="none" stroke={glowColor} strokeWidth="0.8" opacity="0.9" />
+          <line x1="8" y1="9" x2="24" y2="9" stroke={glowColor} strokeWidth="0.4" opacity="0.6" />
+        </>}
+        {isMe && (
+          <g transform="translate(12,-1)">
+            <polygon points="4,0 5.5,3 4,2.5 2.5,3" fill={glowColor} opacity="0.9" />
+            <rect x="2" y="2.5" width="4" height="1" rx="0.5" fill={glowColor} opacity="0.7" />
+          </g>
+        )}
+      </svg>
+    </div>
   );
 }
 
-// ── Player overlay (positioned over canvas using iso coords) ──────────
+// ── Avatar on map ─────────────────────────────────────────────────────
 
-function PlayerOverlay({ player, isMe, speaking, screenX, screenY }: {
-  player: SpacePlayer;
-  isMe: boolean;
-  speaking: boolean;
-  screenX: number;
-  screenY: number;
-}) {
+function AvatarOnMap({ player, isMe, speaking }: { player: SpacePlayer; isMe: boolean; speaking: boolean }) {
   const prevPos = useRef({ x: player.x, y: player.y });
   const [walking, setWalking] = useState(false);
   const walkRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -462,87 +174,59 @@ function PlayerOverlay({ player, isMe, speaking, screenX, screenY }: {
       prevPos.current = { x: player.x, y: player.y };
       setWalking(true);
       if (walkRef.current) clearTimeout(walkRef.current);
-      walkRef.current = setTimeout(() => setWalking(false), 400);
+      walkRef.current = setTimeout(() => setWalking(false), 350);
     }
     return () => { if (walkRef.current) clearTimeout(walkRef.current); };
   }, [player.x, player.y]);
 
-  const depth = Math.round(player.x + player.y);
-
   return (
-    <div
-      style={{
-        position: 'absolute',
-        left: screenX,
-        top: screenY,
-        transform: 'translate(-50%, -100%)',
-        transition: 'left 0.38s cubic-bezier(0.4,0,0.2,1), top 0.38s cubic-bezier(0.4,0,0.2,1)',
-        zIndex: depth + (isMe ? 100 : 10),
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 2,
-        pointerEvents: 'none',
-      }}
-    >
-      {/* Chat bubble */}
+    <div style={{
+      position: 'absolute', left: `${player.x}%`, top: `${player.y}%`,
+      transform: 'translate(-50%, -100%)',
+      transition: 'left 0.35s cubic-bezier(0.4,0,0.2,1), top 0.35s cubic-bezier(0.4,0,0.2,1)',
+      zIndex: isMe ? 30 : 20, pointerEvents: 'none',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+    }}>
       <AnimatePresence>
         {player.message && (
           <motion.div
             key={player.message + player.socketId}
-            initial={{ opacity: 0, y: 6, scale: 0.9 }}
+            initial={{ opacity: 0, y: 8, scale: 0.88 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.88 }}
-            transition={{ type: 'spring', stiffness: 420, damping: 28 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 28 }}
             style={{
-              background: 'rgba(6,2,20,0.92)', backdropFilter: 'blur(10px)',
-              border: '1px solid rgba(255,255,255,0.14)', borderRadius: 12,
-              padding: '5px 10px', maxWidth: 148, textAlign: 'center',
-              fontSize: 11, color: 'rgba(255,255,255,0.93)',
-              boxShadow: `0 4px 16px rgba(0,0,0,0.55), 0 0 12px ${player.glowColor}28`,
-              marginBottom: 3, wordBreak: 'break-word', lineHeight: 1.4,
+              position: 'relative', background: 'rgba(8,3,24,0.88)', backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255,255,255,0.14)', borderRadius: 14, padding: '6px 12px',
+              maxWidth: 168, textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.93)',
+              boxShadow: `0 4px 20px rgba(0,0,0,0.5), 0 0 14px ${player.glowColor}28`,
+              marginBottom: 4, wordBreak: 'break-word', lineHeight: 1.4,
             }}
           >
             {player.message}
             <div style={{
               position: 'absolute', bottom: -6, left: '50%', transform: 'translateX(-50%)',
-              width: 0, height: 0,
-              borderLeft: '5px solid transparent', borderRight: '5px solid transparent',
-              borderTop: '6px solid rgba(255,255,255,0.09)',
+              width: 0, height: 0, borderLeft: '5px solid transparent',
+              borderRight: '5px solid transparent', borderTop: '6px solid rgba(255,255,255,0.1)',
             }} />
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Speaking ring */}
-      {speaking && (
-        <div style={{
-          position: 'absolute', bottom: 12,
-          width: 38, height: 38, borderRadius: '50%',
-          border: `2px solid ${player.glowColor}`,
-          boxShadow: `0 0 12px ${player.glowColor}80`,
-          animation: 'vs-speak 0.65s ease-in-out infinite',
-          pointerEvents: 'none',
-        }} />
-      )}
-
-      {/* Avatar */}
+      <motion.div
+        animate={walking ? { rotate: [-1.5, 1.5], y: [0, -2, 0] } : { y: [0, -3, 0] }}
+        transition={walking
+          ? { duration: 0.28, repeat: Infinity, ease: 'easeInOut' }
+          : { duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        <HumanoidAvatar bodyColor={player.bodyColor} glowColor={player.glowColor} mask={player.mask} speaking={speaking} walking={walking} isMe={isMe} />
+      </motion.div>
       <div style={{
-        animation: walking ? 'vs-walk 0.28s ease-in-out infinite' : 'vs-bob 3.2s ease-in-out infinite',
-      }}>
-        <IsoAvatar bodyColor={player.bodyColor} glowColor={player.glowColor} mask={player.mask} isMe={isMe} />
-      </div>
-
-      {/* Name tag */}
-      <div style={{
-        fontSize: 9, fontFamily: 'monospace',
-        color: isMe ? player.glowColor : 'rgba(255,255,255,0.58)',
-        background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)',
-        borderRadius: 5, padding: '1px 6px',
-        border: isMe ? `1px solid ${player.glowColor}55` : '1px solid rgba(255,255,255,0.07)',
-        letterSpacing: '0.04em', maxWidth: 80,
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        boxShadow: isMe ? `0 0 6px ${player.glowColor}35` : 'none',
+        fontSize: 10, fontFamily: 'monospace',
+        color: isMe ? player.glowColor : 'rgba(255,255,255,0.65)',
+        background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', borderRadius: 6,
+        padding: '1px 7px', border: isMe ? `1px solid ${player.glowColor}55` : '1px solid rgba(255,255,255,0.08)',
+        letterSpacing: '0.04em', maxWidth: 88, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        marginTop: 2, boxShadow: isMe ? `0 0 8px ${player.glowColor}30` : 'none',
       }}>
         {isMe ? '● ' : ''}{player.name}
       </div>
@@ -550,113 +234,379 @@ function PlayerOverlay({ player, isMe, speaking, screenX, screenY }: {
   );
 }
 
-// ── Online list sidebar ───────────────────────────────────────────────
+// ── Room objects ──────────────────────────────────────────────────────
 
-function OnlineList({ players, mySocketId, speakingIds }: {
-  players: Map<string, SpacePlayer>;
-  mySocketId: string;
-  speakingIds: Set<string>;
-}) {
-  const list = [...players.values()];
-  if (list.length === 0) return null;
+function DJBoothGraphic({ active }: { active: boolean }) {
+  const spinDur = active ? '0.8s' : '2.2s';
+  const spinDurR = active ? '0.65s' : '1.8s';
   return (
-    <div style={{
-      position: 'absolute', top: 8, left: 8, zIndex: 60,
-      background: 'rgba(3,0,14,0.82)', backdropFilter: 'blur(12px)',
-      borderRadius: 10, border: '1px solid rgba(155,0,255,0.15)',
-      padding: '6px 9px', display: 'flex', flexDirection: 'column', gap: 5,
-      maxWidth: 128, pointerEvents: 'none',
-    }}>
-      <span style={{ fontFamily: 'monospace', fontSize: 8, color: 'rgba(255,255,255,0.22)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 1 }}>
-        Online · {list.length}
-      </span>
-      {list.map(p => {
-        const isMe = p.socketId === mySocketId;
-        const speaking = isMe ? speakingIds.has('local') : speakingIds.has(p.socketId);
-        return (
-          <div key={p.socketId} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <div style={{
-              width: 7, height: 7, borderRadius: '50%',
-              background: speaking ? p.glowColor : p.bodyColor,
-              boxShadow: speaking ? `0 0 7px ${p.glowColor}` : 'none',
-              flexShrink: 0,
-              animation: speaking ? 'vs-pulse-dot 0.65s ease-in-out infinite' : undefined,
-            }} />
-            <span style={{
-              fontFamily: 'monospace', fontSize: 9,
-              color: isMe ? p.glowColor : 'rgba(255,255,255,0.5)',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {p.name}{isMe ? ' ●' : ''}
-            </span>
+    <div style={{ position: 'relative', width: 90, height: 48, background: 'linear-gradient(180deg,rgba(255,0,150,.22),rgba(200,0,120,.1))', borderRadius: 10, border: `1px solid rgba(255,0,150,${active ? '.9' : '.55'})`, boxShadow: `0 0 ${active ? '40' : '28'}px rgba(255,0,150,${active ? '.5' : '.3'}),inset 0 1px 0 rgba(255,255,255,.08)` }}>
+      <div style={{ position: 'absolute', left: 8, top: 5, width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,0,150,.08)', border: '2px solid rgba(255,0,150,.7)', boxShadow: '0 0 14px rgba(255,0,150,.4)', overflow: 'hidden', animation: `vs-spin ${spinDur} linear infinite` }}>
+        <div style={{ position: 'absolute', inset: 4, borderRadius: '50%', border: '1.5px solid rgba(255,0,150,.5)' }} />
+        <div style={{ position: 'absolute', inset: 8, borderRadius: '50%', border: '1px solid rgba(255,0,150,.35)' }} />
+        <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'conic-gradient(rgba(255,0,150,.4) 0deg, transparent 60deg, rgba(255,0,150,.15) 180deg, transparent 240deg, rgba(255,0,150,.4) 360deg)' }} />
+        <div style={{ position: 'absolute', top: '50%', left: '50%', width: 5, height: 5, marginLeft: -2.5, marginTop: -2.5, borderRadius: '50%', background: 'rgba(255,200,230,.9)' }} />
+      </div>
+      <div style={{ position: 'absolute', right: 8, top: 5, width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,0,150,.08)', border: '2px solid rgba(255,0,150,.7)', boxShadow: '0 0 14px rgba(255,0,150,.4)', overflow: 'hidden', animation: `vs-spin-r ${spinDurR} linear infinite` }}>
+        <div style={{ position: 'absolute', inset: 4, borderRadius: '50%', border: '1.5px solid rgba(255,0,150,.5)' }} />
+        <div style={{ position: 'absolute', inset: 8, borderRadius: '50%', border: '1px solid rgba(255,0,150,.35)' }} />
+        <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'conic-gradient(transparent 0deg, rgba(255,0,150,.4) 90deg, transparent 180deg, rgba(255,0,150,.2) 270deg, transparent 360deg)' }} />
+        <div style={{ position: 'absolute', top: '50%', left: '50%', width: 5, height: 5, marginLeft: -2.5, marginTop: -2.5, borderRadius: '50%', background: 'rgba(255,200,230,.9)' }} />
+      </div>
+      <div style={{ position: 'absolute', left: '50%', top: 6, transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'center' }}>
+        {[0, 1, 2].map(i => (
+          <div key={i} style={{ position: 'relative', width: 14, height: 2.5, background: 'rgba(255,0,150,.22)', borderRadius: 2, border: '1px solid rgba(255,0,150,.4)' }}>
+            <div style={{ position: 'absolute', top: -2, left: `${25 + i * 15}%`, width: 4, height: 6, background: 'rgba(255,150,200,.9)', borderRadius: 1 }} />
           </div>
-        );
-      })}
+        ))}
+      </div>
+      <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 2.5, alignItems: 'flex-end', height: 18 }}>
+        {(['vs-eq1','vs-eq2','vs-eq3','vs-eq4','vs-eq5','vs-eq2','vs-eq4'] as string[]).map((anim, i) => (
+          <div key={i} style={{ width: 3, background: i < 2 ? 'rgba(0,255,150,.85)' : i < 5 ? 'rgba(255,220,0,.85)' : 'rgba(255,60,60,.85)', borderRadius: '1.5px 1.5px 0 0', animation: active ? `${anim} ${0.35 + i * 0.06}s ease-in-out infinite` : undefined, boxShadow: active ? '0 0 4px currentColor' : 'none', height: 4 }} />
+        ))}
+      </div>
     </div>
   );
 }
 
-// ── Chat drawer ───────────────────────────────────────────────────────
+function GamingStation() {
+  return (
+    <div className="absolute pointer-events-none" style={{ left: '79%', top: '65%', transform: 'translate(-50%,-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
+      <div style={{ width: 62, height: 42, background: 'linear-gradient(135deg,rgba(0,10,30,.9),rgba(0,20,60,.8))', border: '2px solid rgba(0,229,255,.75)', borderRadius: 5, boxShadow: '0 0 24px rgba(0,229,255,.4),inset 0 0 12px rgba(0,100,255,.15)', overflow: 'hidden', position: 'relative' }}>
+        <div style={{ position: 'absolute', inset: 3, background: 'rgba(0,20,60,.6)' }}>
+          {[25, 50, 75].map(p => <div key={p} style={{ position: 'absolute', left: `${p}%`, top: 0, bottom: 0, width: 1, background: 'rgba(0,229,255,.08)' }} />)}
+          {[33, 66].map(p => <div key={p} style={{ position: 'absolute', top: `${p}%`, left: 0, right: 0, height: 1, background: 'rgba(0,229,255,.08)' }} />)}
+          <div style={{ position: 'absolute', left: '55%', top: '40%', width: 4, height: 4, borderRadius: '50%', background: '#00e5ff', boxShadow: '0 0 6px #00e5ff', animation: 'vs-pulse 1.2s ease-in-out infinite' }} />
+          <div style={{ position: 'absolute', left: '20%', top: '25%', width: 3, height: 3, borderRadius: '50%', background: '#ff3366', boxShadow: '0 0 4px #ff3366' }} />
+          <div style={{ position: 'absolute', left: '70%', top: '65%', width: 3, height: 3, borderRadius: '50%', background: '#ff3366', boxShadow: '0 0 4px #ff3366' }} />
+          <div style={{ position: 'absolute', bottom: 3, left: 2, right: 2, height: 2.5, background: 'rgba(255,255,255,.1)', borderRadius: 1.5 }}>
+            <div style={{ height: '100%', borderRadius: 1.5, background: 'linear-gradient(90deg,#00ff88,#00cc66)', animation: 'vs-healthpulse 2.5s ease-in-out infinite' }} />
+          </div>
+        </div>
+        <div style={{ position: 'absolute', left: 0, right: 0, height: 6, background: 'linear-gradient(180deg,transparent,rgba(0,229,255,.18),transparent)', animation: 'vs-scanline 2.8s linear infinite', pointerEvents: 'none' }} />
+      </div>
+      <div style={{ width: 4, height: 9, background: 'rgba(0,229,255,.35)' }} />
+      <div style={{ width: 26, height: 5, background: 'rgba(0,229,255,.22)', borderRadius: 3, boxShadow: '0 0 8px rgba(0,229,255,.2)' }} />
+      <div style={{ position: 'absolute', bottom: -8, left: -22, width: 22, height: 24, background: 'rgba(0,80,120,.25)', borderRadius: '4px 4px 2px 2px', border: '1px solid rgba(0,229,255,.28)' }} />
+    </div>
+  );
+}
 
-function ChatDrawer({ history, mySocketId, open }: {
-  history: { socketId: string; name: string; bodyColor: string; glowColor: string; message: string; ts: number }[];
-  mySocketId: string;
+function Bar() {
+  return (
+    <div className="absolute pointer-events-none" style={{ left: '90%', top: '55%', transform: 'translate(-50%,-50%)' }}>
+      <div style={{ position: 'relative', width: 18, height: 64, background: 'linear-gradient(90deg,rgba(255,140,0,.32),rgba(200,80,0,.16))', borderRadius: '6px 2px 2px 6px', border: '1px solid rgba(255,140,0,.6)', boxShadow: '0 0 22px rgba(255,140,0,.22),inset 1px 0 0 rgba(255,200,100,.1)' }}>
+        <div style={{ position: 'absolute', top: -3, left: -2, right: -4, height: 6, background: 'rgba(255,160,0,.3)', borderRadius: '4px 2px 0 0', border: '1px solid rgba(255,140,0,.5)' }} />
+      </div>
+      <div style={{ position: 'absolute', top: 8, left: 20, display: 'flex', gap: 4 }}>
+        {[{ c: 'rgba(255,80,0,.85)', bc: '#ff5000' }, { c: 'rgba(100,220,255,.85)', bc: '#64dcff' }, { c: 'rgba(180,0,255,.85)', bc: '#b400ff' }].map(({ c, bc }, i) => (
+          <div key={i} style={{ position: 'relative', width: 5, height: 16, background: c, borderRadius: '2px 2px 0 0', boxShadow: `0 0 8px ${c}` }}>
+            <div style={{ position: 'absolute', top: 2, left: 1, width: 2, height: 2, borderRadius: '50%', background: bc, opacity: 0.85, animation: `vs-bubble ${1.2 + i * 0.4}s ease-in ${i * 0.3}s infinite` }} />
+          </div>
+        ))}
+      </div>
+      <div style={{ position: 'absolute', top: -22, left: '50%', transform: 'translateX(-50%)', fontFamily: 'monospace', fontSize: 8, letterSpacing: '0.22em', color: 'rgba(255,140,0,.95)', textShadow: '0 0 8px rgba(255,140,0,.9),0 0 18px rgba(255,140,0,.5)', whiteSpace: 'nowrap', animation: 'vs-pulse 3s ease-in-out infinite' }}>
+        BAR
+      </div>
+    </div>
+  );
+}
+
+function Plant({ flip }: { flip?: boolean }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', transformOrigin: 'bottom center' }}>
+      <div style={{ position: 'relative', width: 24, height: 28, transformOrigin: 'bottom center', animation: 'vs-sway 2.8s ease-in-out infinite' }}>
+        <div style={{ position: 'absolute', bottom: 0, left: -4, width: 14, height: 22, background: 'rgba(0,200,80,.22)', border: '1px solid rgba(0,220,80,.45)', borderRadius: '80% 10% 10% 30%', transform: 'rotate(-15deg)', transformOrigin: 'bottom right', boxShadow: '0 0 8px rgba(0,200,80,.2)', animation: `vs-sway 2.1s ease-in-out infinite ${flip ? '0.5s' : '0s'}` }} />
+        <div style={{ position: 'absolute', bottom: 0, right: -4, width: 14, height: 22, background: 'rgba(0,200,80,.22)', border: '1px solid rgba(0,220,80,.45)', borderRadius: '10% 80% 30% 10%', transform: 'rotate(15deg)', transformOrigin: 'bottom left', boxShadow: '0 0 8px rgba(0,200,80,.2)', animation: `vs-sway 2.4s ease-in-out reverse infinite ${flip ? '0s' : '0.3s'}` }} />
+        <div style={{ position: 'absolute', bottom: 0, left: '50%', marginLeft: -1, width: 2, height: 18, background: 'rgba(0,180,60,.35)' }} />
+      </div>
+      <div style={{ width: 22, height: 9, background: 'rgba(40,20,10,.5)', border: '1px solid rgba(0,200,80,.3)', borderRadius: '0 0 5px 5px', boxShadow: '0 0 6px rgba(0,200,80,.12)' }} />
+    </div>
+  );
+}
+
+function RoomObjects({ djActive, onDJClick }: { djActive: boolean; onDJClick: () => void }) {
+  return (
+    <>
+      <div className="absolute pointer-events-none" style={{ left: 5, top: 0, bottom: '63%', width: 2, background: 'linear-gradient(180deg,rgba(155,0,255,0) 0%,rgba(155,0,255,.85) 55%,rgba(155,0,255,0) 100%)', boxShadow: '0 0 14px rgba(155,0,255,.6)', borderRadius: 2 }} />
+      <div className="absolute pointer-events-none" style={{ right: 5, top: 0, bottom: '63%', width: 2, background: 'linear-gradient(180deg,rgba(0,229,255,0) 0%,rgba(0,229,255,.85) 55%,rgba(0,229,255,0) 100%)', boxShadow: '0 0 14px rgba(0,229,255,.6)', borderRadius: 2 }} />
+      <div className="absolute pointer-events-none" style={{ left: 0, right: 0, top: '37%', height: 2.5, background: 'linear-gradient(90deg,rgba(155,0,255,.4),rgba(0,229,255,.9),rgba(255,0,150,.7),rgba(0,229,255,.9),rgba(155,0,255,.4))', boxShadow: '0 0 16px rgba(0,229,255,.5),0 0 32px rgba(155,0,255,.25)' }} />
+      <div className="absolute pointer-events-none" style={{ left: '50%', top: '9%', transform: 'translate(-50%,-50%)', fontFamily: '"Space Grotesk",monospace', fontWeight: 900, fontSize: 14, letterSpacing: '0.3em', color: '#fff', textShadow: '0 0 6px #00e5ff,0 0 16px #00e5ff,0 0 36px rgba(0,229,255,.7),0 0 60px rgba(0,229,255,.3)', animation: 'vs-flicker 6s linear infinite', whiteSpace: 'nowrap' }}>
+        VOID LOUNGE
+      </div>
+
+      {/* DJ BOOTH — clickable */}
+      <div className="absolute pointer-events-none" style={{ left: '50%', top: '22%', transform: 'translate(-50%,-50%)', width: 180, height: 90, background: `radial-gradient(ellipse,rgba(255,0,150,${djActive ? '.28' : '.16'}) 0%,transparent 70%)`, borderRadius: '50%', animation: 'vs-pulse 2s ease-in-out infinite' }} />
+      <div className="absolute pointer-events-none" style={{ left: '50%', top: '12%', transform: 'translate(-50%,-50%)', fontFamily: 'monospace', fontSize: 8, letterSpacing: '0.22em', color: 'rgba(255,0,150,.8)', textShadow: '0 0 8px rgba(255,0,150,.7)' }}>
+        DJ BOOTH
+      </div>
+      <button
+        onClick={e => { e.stopPropagation(); onDJClick(); }}
+        className="absolute"
+        style={{ left: '50%', top: '22%', transform: 'translate(-50%,-50%)', cursor: 'pointer', background: 'transparent', border: 'none', padding: 0, zIndex: 15 }}
+        title="DJ Booth — tap to play music"
+      >
+        <DJBoothGraphic active={djActive} />
+        <div style={{ textAlign: 'center', fontFamily: 'monospace', fontSize: 8, color: 'rgba(255,0,150,.7)', letterSpacing: '0.1em', marginTop: 3 }}>
+          {djActive ? '▶ PLAYING' : '↑ TAP TO DJ'}
+        </div>
+      </button>
+
+      <div className="absolute pointer-events-none" style={{ left: '7%', top: '14%', transform: 'translate(-50%,-50%)' }}>
+        <Plant />
+      </div>
+      <div className="absolute pointer-events-none" style={{ left: '93%', top: '14%', transform: 'translate(-50%,-50%)' }}>
+        <Plant flip />
+      </div>
+
+      <div className="absolute pointer-events-none" style={{ left: '15%', top: '72%', transform: 'translate(-50%,-50%)', width: 180, height: 110, background: 'radial-gradient(ellipse,rgba(120,0,255,.12) 0%,transparent 70%)', borderRadius: '50%' }} />
+      <div className="absolute pointer-events-none" style={{ left: '15%', top: '55%', transform: 'translate(-50%,-50%)', fontFamily: 'monospace', fontSize: 8, letterSpacing: '0.2em', color: 'rgba(155,0,255,.85)', textShadow: '0 0 8px rgba(155,0,255,.7)' }}>
+        LOUNGE
+      </div>
+      <div className="absolute pointer-events-none" style={{ left: '13%', top: '74%', transform: 'translate(-50%,-50%)' }}>
+        <div style={{ position: 'relative', width: 90, height: 50 }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 22, background: 'linear-gradient(180deg,rgba(130,0,255,.4),rgba(85,0,200,.2))', borderRadius: '9px 9px 0 0', border: '1.5px solid rgba(155,0,255,.6)', boxShadow: '0 0 20px rgba(155,0,255,.3),inset 0 1px 0 rgba(255,255,255,.07)' }} />
+          <div style={{ position: 'absolute', top: 20, left: 9, right: 9, height: 26, background: 'rgba(105,0,210,.2)', borderRadius: '0 0 7px 7px', border: '1px solid rgba(155,0,255,.3)', borderTop: 'none' }} />
+          <div style={{ position: 'absolute', top: 0, left: 0, width: 12, height: 46, background: 'rgba(130,0,255,.32)', borderRadius: '7px 0 0 7px', border: '1px solid rgba(155,0,255,.4)' }} />
+          <div style={{ position: 'absolute', top: 0, right: 0, width: 12, height: 46, background: 'rgba(130,0,255,.32)', borderRadius: '0 7px 7px 0', border: '1px solid rgba(155,0,255,.4)' }} />
+          <div style={{ position: 'absolute', top: 2, left: '50%', marginLeft: -0.5, width: 1, height: 18, background: 'rgba(155,0,255,.35)' }} />
+        </div>
+      </div>
+      <div className="absolute pointer-events-none" style={{ left: '25%', top: '79%', transform: 'translate(-50%,-50%)', width: 46, height: 22, background: 'rgba(85,0,170,.18)', borderRadius: 8, border: '1px solid rgba(155,0,255,.35)', boxShadow: '0 0 12px rgba(155,0,255,.15)' }} />
+
+      <div className="absolute pointer-events-none" style={{ left: '79%', top: '68%', transform: 'translate(-50%,-50%)', width: 170, height: 110, background: 'radial-gradient(ellipse,rgba(0,200,255,.1) 0%,transparent 70%)', borderRadius: '50%' }} />
+      <div className="absolute pointer-events-none" style={{ left: '78%', top: '53%', transform: 'translate(-50%,-50%)', fontFamily: 'monospace', fontSize: 8, letterSpacing: '0.2em', color: 'rgba(0,229,255,.85)', textShadow: '0 0 8px rgba(0,229,255,.7)' }}>
+        GAMING
+      </div>
+      <GamingStation />
+
+      <div className="absolute pointer-events-none" style={{ left: '88%', top: '56%', transform: 'translate(-50%,-50%)', width: 90, height: 130, background: 'radial-gradient(ellipse,rgba(255,140,0,.1) 0%,transparent 70%)', borderRadius: '50%' }} />
+      <Bar />
+    </>
+  );
+}
+
+// ── Perspective floor ─────────────────────────────────────────────────
+
+function PerspectiveFloor() {
+  const VX = 50;
+  const VY = 37;
+  const rays = [0, 9, 18, 27, 36, 43, 50, 57, 64, 73, 82, 91, 100];
+  const hLines = [{ y: 46 }, { y: 55 }, { y: 65 }, { y: 77 }, { y: 90 }];
+
+  return (
+    <>
+      <svg className="absolute pointer-events-none" style={{ left: 0, top: 0, width: '100%', height: `${VY}%` }} preserveAspectRatio="none">
+        {[18, 42, 68, 88].map((yp, i) => (
+          <line key={i} x1="0" y1={`${yp}%`} x2="100%" y2={`${yp}%`} stroke="rgba(0,229,255,.12)" strokeWidth="0.8" />
+        ))}
+        {[16, 32, 50, 68, 84].map((xp, i) => (
+          <line key={i} x1={`${xp}%`} y1="0" x2={`${xp}%`} y2="100%" stroke="rgba(120,0,255,.09)" strokeWidth="0.8" />
+        ))}
+      </svg>
+      <svg className="absolute inset-0 pointer-events-none" style={{ width: '100%', height: '100%' }} viewBox="0 0 100 100" preserveAspectRatio="none">
+        <polygon points={`${VX},${VY} ${VX},${VY} 34,100 0,100`}   fill="rgba(120,0,255,.07)" />
+        <polygon points={`${VX},${VY} ${VX},${VY} 66,100 34,100`}  fill="rgba(255,0,150,.04)" />
+        <polygon points={`${VX},${VY} ${VX},${VY} 100,100 66,100`} fill="rgba(0,200,255,.07)" />
+        {rays.map((bx, i) => (
+          <line key={i} x1={VX} y1={VY} x2={bx} y2={100}
+            stroke={bx <= 34 ? 'rgba(120,0,255,.65)' : bx >= 66 ? 'rgba(0,229,255,.65)' : 'rgba(255,0,150,.55)'}
+            strokeWidth="0.32" />
+        ))}
+        {hLines.map(({ y }, i) => {
+          const t = (y - VY) / (100 - VY);
+          const x1 = VX * (1 - t);
+          const x2 = VX + (100 - VX) * t;
+          return (
+            <line key={i} x1={x1} y1={y} x2={x2} y2={y}
+              stroke="rgba(180,120,255,.7)" strokeWidth="0.32" opacity={0.38 + i * 0.11} />
+          );
+        })}
+      </svg>
+    </>
+  );
+}
+
+// ── Particles ─────────────────────────────────────────────────────────
+
+const PARTICLES = Array.from({ length: 22 }, (_, i) => ({
+  x: 4 + ((i * 53 + 11) % 88), y: 6 + ((i * 67 + 19) % 84),
+  color: ['#9b00ff', '#00e5ff', '#ff00aa', '#00ff88'][i % 4],
+  size: 1.5 + (i % 3) * 0.5, dur: 3 + (i % 6), del: (i * 0.55) % 4,
+}));
+
+function Particles() {
+  return (
+    <>
+      {PARTICLES.map((p, i) => (
+        <div key={i} style={{
+          position: 'absolute', left: `${p.x}%`, top: `${p.y}%`,
+          width: p.size, height: p.size, borderRadius: '50%', background: p.color,
+          opacity: 0.5, pointerEvents: 'none',
+          animation: `vs-drift ${p.dur}s ease-in-out ${p.del}s infinite`,
+          boxShadow: `0 0 ${p.size * 2}px ${p.color}`,
+        }} />
+      ))}
+    </>
+  );
+}
+
+// ── DJ Player Panel ───────────────────────────────────────────────────
+
+function DJPlayerPanel({
+  open, onClose, djState, myName,
+}: {
   open: boolean;
+  onClose: () => void;
+  djState: DJState | null;
+  myName: string;
 }) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [urlInput, setUrlInput] = useState('');
+  const [volume, setVolume] = useState(70);
+  const [error, setError] = useState('');
+  const ytRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const iAmDJ = djState?.djName === myName;
+
   useEffect(() => {
-    if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [open, history.length]);
+    if (!open) return;
+    loadYouTubeAPI().then(() => {
+      if (!containerRef.current || ytRef.current) return;
+      ytRef.current = new (window as any).YT.Player(containerRef.current, {
+        width: 1, height: 1,
+        playerVars: { autoplay: 0, controls: 0, mute: 0 },
+        events: { onReady: () => { ytRef.current?.setVolume(volume); } },
+      });
+    });
+    return () => {
+      ytRef.current?.destroy?.();
+      ytRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Sync incoming djState to player
+  useEffect(() => {
+    if (!djState || !ytRef.current) return;
+    const seek = (Date.now() - djState.startedAt) / 1000;
+    if (djState.isPlaying) {
+      ytRef.current.loadVideoById?.({ videoId: djState.videoId, startSeconds: Math.max(0, seek) });
+    } else {
+      ytRef.current.cueVideoById?.({ videoId: djState.videoId, startSeconds: Math.max(0, djState.position) });
+    }
+  }, [djState]);
+
+  function handlePlay() {
+    const vid = extractVideoId(urlInput);
+    if (!vid) { setError('ბმული ვერ მოიძებნა'); return; }
+    setError('');
+    const pos = 0;
+    (socket as any).emit('space:dj-play', { videoId: vid, position: pos });
+  }
+
+  function handlePause() {
+    const pos = ytRef.current?.getCurrentTime?.() ?? 0;
+    (socket as any).emit('space:dj-pause', { position: pos });
+  }
+
+  function handleStop() {
+    (socket as any).emit('space:dj-stop');
+  }
+
+  function handleVolumeChange(v: number) {
+    setVolume(v);
+    ytRef.current?.setVolume?.(v);
+  }
 
   return (
     <AnimatePresence>
       {open && (
         <motion.div
-          initial={{ x: '100%', opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          exit={{ x: '100%', opacity: 0 }}
-          transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+          initial={{ y: '100%', opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: '100%', opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 340, damping: 32 }}
           style={{
-            position: 'absolute', top: 0, right: 0, bottom: 0, width: 220,
-            background: 'rgba(3,0,14,0.94)', backdropFilter: 'blur(18px)',
-            borderLeft: '1px solid rgba(155,0,255,0.15)', zIndex: 70,
-            display: 'flex', flexDirection: 'column',
+            position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 80,
+            background: 'rgba(5,0,20,0.97)', backdropFilter: 'blur(24px)',
+            borderTop: '1.5px solid rgba(255,0,150,.35)',
+            borderRadius: '18px 18px 0 0',
+            boxShadow: '0 -12px 48px rgba(255,0,150,.18)',
+            padding: '16px 16px',
+            paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
           }}
+          onClick={e => e.stopPropagation()}
         >
-          <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
-            <p style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,0.28)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>
-              ჩატი · {history.length}
-            </p>
+          {/* Hidden YT iframe mount */}
+          <div ref={containerRef} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 1, height: 1 }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 16 }}>🎛</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,0,150,.9)', letterSpacing: '0.14em' }}>DJ BOOTH</span>
+              {djState?.isPlaying && (
+                <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,0,150,.6)', letterSpacing: '0.1em', animation: 'vs-pulse 1.5s ease-in-out infinite' }}>
+                  ● LIVE · {djState.djName}
+                </span>
+              )}
+            </div>
+            <button onClick={onClose} style={{ background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.1)', color: 'rgba(255,255,255,.4)', borderRadius: 10, width: 30, height: 30, fontSize: 13, cursor: 'pointer' }}>✕</button>
           </div>
-          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {history.length === 0 ? (
-              <p style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,0.14)', textAlign: 'center', paddingTop: 24 }}>
-                ჯერ გზავნილები არ არის
-              </p>
-            ) : history.map((msg, i) => {
-              const isOwn = msg.socketId === mySocketId;
-              return (
-                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
-                  <span style={{ fontFamily: 'monospace', fontSize: 9, color: isOwn ? msg.glowColor : msg.bodyColor, opacity: 0.8 }}>
-                    {isOwn ? 'მე' : msg.name}
-                  </span>
-                  <div style={{
-                    maxWidth: '92%',
-                    background: isOwn ? `${msg.glowColor}18` : 'rgba(255,255,255,0.05)',
-                    border: `1px solid ${isOwn ? msg.glowColor + '40' : 'rgba(255,255,255,0.07)'}`,
-                    borderRadius: isOwn ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-                    padding: '5px 9px', fontSize: 12, color: 'rgba(255,255,255,0.88)',
-                    wordBreak: 'break-word', lineHeight: 1.4,
-                  }}>
-                    {msg.message}
-                  </div>
-                  <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,0.18)' }}>
-                    {new Date(msg.ts).toLocaleTimeString('ka', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
+
+          {/* URL input + play — only show if I'm DJ or no one is */}
+          {(!djState?.isPlaying || iAmDJ) && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input
+                value={urlInput}
+                onChange={e => { setUrlInput(e.target.value); setError(''); }}
+                placeholder="YouTube URL ან Video ID…"
+                style={{
+                  flex: 1, background: 'rgba(255,255,255,.05)', fontFamily: 'monospace',
+                  fontSize: 12, color: 'white', outline: 'none',
+                  padding: '8px 12px', borderRadius: 10,
+                  border: `1px solid ${error ? 'rgba(255,60,60,.5)' : 'rgba(255,0,150,.25)'}`,
+                }}
+                onFocus={e => e.stopPropagation()}
+              />
+              <button onClick={handlePlay} style={{
+                padding: '8px 16px', borderRadius: 10, fontFamily: 'monospace', fontSize: 12,
+                background: 'rgba(255,0,150,.18)', border: '1px solid rgba(255,0,150,.5)',
+                color: 'rgba(255,120,180,.9)', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+              }}>▶ Play</button>
+            </div>
+          )}
+          {error && <p style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,60,60,.85)', marginBottom: 10 }}>{error}</p>}
+
+          {/* Now playing info */}
+          {djState?.isPlaying && (
+            <div style={{ background: 'rgba(255,0,150,.07)', border: '1px solid rgba(255,0,150,.2)', borderRadius: 10, padding: '8px 12px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 14 }}>🎵</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,150,200,.9)', letterSpacing: '0.08em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  ID: {djState.videoId}
+                </p>
+                <p style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.3)', marginTop: 2 }}>
+                  DJ: {djState.djName}
+                </p>
+              </div>
+              {iAmDJ && (
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <button onClick={handlePause} style={{ padding: '5px 10px', borderRadius: 8, fontFamily: 'monospace', fontSize: 11, background: 'rgba(255,200,0,.1)', border: '1px solid rgba(255,200,0,.3)', color: 'rgba(255,200,0,.9)', cursor: 'pointer' }}>⏸</button>
+                  <button onClick={handleStop} style={{ padding: '5px 10px', borderRadius: 8, fontFamily: 'monospace', fontSize: 11, background: 'rgba(255,60,60,.1)', border: '1px solid rgba(255,60,60,.3)', color: 'rgba(255,100,100,.9)', cursor: 'pointer' }}>■</button>
                 </div>
-              );
-            })}
-            <div ref={bottomRef} />
+              )}
+            </div>
+          )}
+
+          {/* Volume */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,.3)', flexShrink: 0 }}>🔈</span>
+            <input
+              type="range" min={0} max={100} value={volume}
+              onChange={e => handleVolumeChange(Number(e.target.value))}
+              style={{ flex: 1, accentColor: '#ff0096', cursor: 'pointer' }}
+            />
+            <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,.3)', flexShrink: 0, width: 24, textAlign: 'right' }}>{volume}</span>
           </div>
         </motion.div>
       )}
@@ -664,12 +614,35 @@ function ChatDrawer({ history, mySocketId, open }: {
   );
 }
 
+// ── Now Playing Bar ───────────────────────────────────────────────────
+
+function NowPlayingBar({ djState, onOpen }: { djState: DJState | null; onOpen: () => void }) {
+  if (!djState?.isPlaying) return null;
+  return (
+    <motion.button
+      initial={{ y: -40, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ y: -40, opacity: 0 }}
+      onClick={e => { e.stopPropagation(); onOpen(); }}
+      style={{
+        position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)',
+        display: 'flex', alignItems: 'center', gap: 8, zIndex: 60,
+        background: 'rgba(255,0,150,.12)', backdropFilter: 'blur(16px)',
+        border: '1px solid rgba(255,0,150,.35)', borderRadius: 20,
+        padding: '5px 14px', cursor: 'pointer',
+      }}
+    >
+      <span style={{ fontSize: 12, animation: 'vs-pulse 1.2s ease-in-out infinite' }}>🎵</span>
+      <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,150,200,.9)', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+        {djState.djName} · ▶ მოსმენა
+      </span>
+    </motion.button>
+  );
+}
+
 // ── Avatar customizer ─────────────────────────────────────────────────
 
-function AvatarCustomizer({ playerName, onJoin }: {
-  playerName: string;
-  onJoin: (b: string, g: string, m: SpaceMask) => void;
-}) {
+function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: (b: string, g: string, m: SpaceMask) => void }) {
   const [bodyColor, setBodyColor] = useState(() => localStorage.getItem(LS_BODY) ?? BODY_COLORS[0]);
   const [glowColor, setGlowColor] = useState(() => localStorage.getItem(LS_GLOW) ?? GLOW_COLORS[0]);
   const [mask, setMask] = useState<SpaceMask>(() => (localStorage.getItem(LS_MASK) as SpaceMask) ?? 'none');
@@ -682,88 +655,42 @@ function AvatarCustomizer({ playerName, onJoin }: {
   }
 
   return (
-    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col items-center gap-5 px-5 py-6"
-    >
-      {/* Preview */}
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center gap-5 px-5 py-6">
       <div className="flex flex-col items-center gap-2">
-        <div style={{
-          width: 88, height: 88,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: `radial-gradient(ellipse at 40% 35%, ${glowColor}1a, transparent 70%), rgba(6,2,20,.85)`,
-          borderRadius: '50%',
-          border: `1.5px solid ${bodyColor}55`,
-          boxShadow: `0 0 0 4px ${bodyColor}20, 0 0 32px ${glowColor}30`,
-        }}>
-          <IsoAvatar bodyColor={bodyColor} glowColor={glowColor} mask={mask} size={1.4} isMe />
+        <div style={{ width: 80, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `radial-gradient(ellipse at 40% 35%, ${glowColor}18, transparent 70%), rgba(8,3,24,.7)`, borderRadius: '50%', border: `1.5px solid ${bodyColor}55`, boxShadow: `0 0 0 4px ${bodyColor}20, 0 0 30px ${glowColor}30` }}>
+          <HumanoidAvatar bodyColor={bodyColor} glowColor={glowColor} mask={mask} size={1.3} isMe />
         </div>
-        <p style={{ fontFamily: 'monospace', fontSize: 11, color: bodyColor, textShadow: `0 0 8px ${bodyColor}80`, letterSpacing: '0.1em' }}>
-          {playerName}
-        </p>
+        <p style={{ fontFamily: 'monospace', fontSize: 11, color: bodyColor, textShadow: `0 0 8px ${bodyColor}80`, letterSpacing: '0.1em' }}>{playerName}</p>
       </div>
-
-      {/* Body color */}
       <div className="w-full">
         <p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">სხეულის ფერი</p>
         <div className="flex gap-2 flex-wrap">
           {BODY_COLORS.map(c => (
-            <button key={c} onClick={() => setBodyColor(c)} style={{
-              width: 30, height: 30, borderRadius: '50%', background: c, flexShrink: 0,
-              border: bodyColor === c ? '2.5px solid white' : '2px solid transparent',
-              boxShadow: bodyColor === c ? `0 0 12px ${c}, 0 0 0 2px ${c}40` : 'none',
-              transition: 'all .15s',
-            }} />
+            <button key={c} onClick={() => setBodyColor(c)} style={{ width: 30, height: 30, borderRadius: '50%', background: c, flexShrink: 0, border: bodyColor === c ? '2.5px solid white' : '2px solid transparent', boxShadow: bodyColor === c ? `0 0 12px ${c}, 0 0 0 2px ${c}40` : 'none', transition: 'all .15s' }} />
           ))}
         </div>
       </div>
-
-      {/* Glow color */}
       <div className="w-full">
         <p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">გლოვის ფერი</p>
         <div className="flex gap-2 flex-wrap">
           {GLOW_COLORS.map(c => (
-            <button key={c} onClick={() => setGlowColor(c)} style={{
-              width: 30, height: 30, borderRadius: '50%', background: c, flexShrink: 0,
-              border: glowColor === c ? '2.5px solid white' : '2px solid transparent',
-              boxShadow: glowColor === c ? `0 0 12px ${c}, 0 0 0 2px ${c}40` : 'none',
-              transition: 'all .15s',
-            }} />
+            <button key={c} onClick={() => setGlowColor(c)} style={{ width: 30, height: 30, borderRadius: '50%', background: c, flexShrink: 0, border: glowColor === c ? '2.5px solid white' : '2px solid transparent', boxShadow: glowColor === c ? `0 0 12px ${c}, 0 0 0 2px ${c}40` : 'none', transition: 'all .15s' }} />
           ))}
         </div>
       </div>
-
-      {/* Mask */}
       <div className="w-full">
         <p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">ნიღაბი</p>
         <div className="flex gap-2">
           {MASKS.map(m => (
-            <button key={m.id} onClick={() => setMask(m.id)}
-              className="flex-1 py-1.5 rounded-xl font-mono text-[11px] uppercase tracking-wider transition-all active:scale-95"
-              style={{
-                background: mask === m.id ? `${bodyColor}22` : 'rgba(255,255,255,0.03)',
-                border: `1px solid ${mask === m.id ? bodyColor + '80' : 'rgba(255,255,255,0.08)'}`,
-                color: mask === m.id ? bodyColor : 'rgba(255,255,255,0.3)',
-              }}
-            >
+            <button key={m.id} onClick={() => setMask(m.id)} className="flex-1 py-1.5 rounded-xl font-mono text-[11px] uppercase tracking-wider transition-all active:scale-95" style={{ background: mask === m.id ? `${bodyColor}22` : 'rgba(255,255,255,0.03)', border: `1px solid ${mask === m.id ? bodyColor + '80' : 'rgba(255,255,255,0.08)'}`, color: mask === m.id ? bodyColor : 'rgba(255,255,255,0.3)', boxShadow: mask === m.id ? `0 0 10px ${bodyColor}30` : 'none' }}>
               {m.label}
             </button>
           ))}
         </div>
       </div>
-
-      <button onClick={handleJoin}
-        className="w-full py-3.5 rounded-2xl font-display font-bold text-sm uppercase tracking-widest transition-all active:scale-95"
-        style={{
-          background: `linear-gradient(135deg, ${bodyColor}30, ${bodyColor}15)`,
-          border: `1.5px solid ${bodyColor}`,
-          color: bodyColor,
-          boxShadow: `0 0 28px ${bodyColor}40, inset 0 0 20px ${bodyColor}08`,
-          letterSpacing: '0.14em',
-        }}
-      >
+      <button onClick={handleJoin} className="w-full py-3.5 rounded-2xl font-display font-bold text-sm uppercase tracking-widest transition-all active:scale-95" style={{ background: `linear-gradient(135deg, ${bodyColor}30, ${bodyColor}15)`, border: `1.5px solid ${bodyColor}`, color: bodyColor, boxShadow: `0 0 28px ${bodyColor}40, inset 0 0 20px ${bodyColor}08`, letterSpacing: '0.14em' }}>
         Void Lounge-ში შესვლა →
       </button>
-
       <p className="font-mono text-[10px] text-white/20 text-center leading-relaxed">
         ხმოვანი ჩატი ავტომატურად ჩაირთება.<br />
         მიკროფონის ნებართვა საჭიროა.
@@ -772,11 +699,54 @@ function AvatarCustomizer({ playerName, onJoin }: {
   );
 }
 
+// ── Chat drawer ───────────────────────────────────────────────────────
+
+function ChatDrawer({ history, mySocketId, open }: {
+  history: { socketId: string; name: string; bodyColor: string; glowColor: string; message: string; ts: number }[];
+  mySocketId: string; open: boolean;
+}) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [open, history.length]);
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ x: '100%', opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: '100%', opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+          style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 220, background: 'rgba(4,0,18,0.92)', backdropFilter: 'blur(16px)', borderLeft: '1px solid rgba(155,0,255,0.15)', zIndex: 50, display: 'flex', flexDirection: 'column' }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+            <p style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>ჩატი · {history.length}</p>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {history.length === 0 && <p style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,0.15)', textAlign: 'center', paddingTop: 20 }}>ჯერ გზავნილები არ არის</p>}
+            {history.map((msg, i) => {
+              const isOwn = msg.socketId === mySocketId;
+              return (
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
+                  <span style={{ fontFamily: 'monospace', fontSize: 9, color: isOwn ? msg.glowColor : msg.bodyColor, letterSpacing: '0.05em', opacity: 0.8 }}>{isOwn ? 'მე' : msg.name}</span>
+                  <div style={{ maxWidth: '92%', background: isOwn ? `${msg.glowColor}18` : 'rgba(255,255,255,0.06)', border: `1px solid ${isOwn ? msg.glowColor + '40' : 'rgba(255,255,255,0.08)'}`, borderRadius: isOwn ? '12px 12px 4px 12px' : '12px 12px 12px 4px', padding: '5px 9px', fontSize: 12, color: 'rgba(255,255,255,0.88)', wordBreak: 'break-word', lineHeight: 1.4 }}>
+                    {msg.message}
+                  </div>
+                  <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>{new Date(msg.ts).toLocaleTimeString('ka', { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+              );
+            })}
+            <div ref={bottomRef} />
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────
 
 interface Props { onClose: () => void }
-
-interface RoomLayout { scale: number; offsetY: number }
 
 export function VirtualSpace({ onClose }: Props) {
   useEffect(() => {
@@ -795,11 +765,10 @@ export function VirtualSpace({ onClose }: Props) {
 
   const [chat, setChat] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [ripples, setRipples] = useState<{ x: number; y: number; k: number }[]>([]);
-  const [layout, setLayout] = useState<RoomLayout>({ scale: 1, offsetY: 0 });
-
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const worldRef  = useRef<HTMLDivElement>(null);
+  const [djPanelOpen, setDjPanelOpen] = useState(false);
+  const [djState, setDjState] = useState<DJState | null>(null);
+  const [ripple, setRipple] = useState<{ x: number; y: number; k: number } | null>(null);
+  const worldRef = useRef<HTMLDivElement>(null);
 
   const handleClose = useCallback(() => { leaveVoice(); leave(); onClose(); }, [leave, leaveVoice, onClose]);
 
@@ -808,76 +777,22 @@ export function VirtualSpace({ onClose }: Props) {
     if (ok) joinVoice();
   }
 
-  // Canvas resize + redraw
+  // DJ socket events
   useEffect(() => {
-    if (!joined) return;
-    const world = worldRef.current;
-    const canvas = canvasRef.current;
-    if (!world || !canvas) return;
-
-    function redraw() {
-      const { width: W, height: H } = world!.getBoundingClientRect();
-      const scale = W / CW;
-      const roomH = CH * scale;
-      const offsetY = Math.max(0, (H - roomH) * 0.38); // position room slightly above center
-
-      canvas!.width  = Math.round(W);
-      canvas!.height = Math.round(H);
-      setLayout({ scale, offsetY });
-
-      const ctx = canvas!.getContext('2d');
-      if (!ctx) return;
-
-      // Full canvas dark background
-      ctx.fillStyle = '#06021a';
-      ctx.fillRect(0, 0, W, H);
-
-      // Ambient stars in dead space
-      for (let i = 0; i < 60; i++) {
-        const px = ((i * 73 + 11) % 97) / 97 * W;
-        const py = ((i * 53 + 29) % 97) / 97 * H;
-        const r = 0.5 + (i % 3) * 0.3;
-        const alpha = 0.08 + (i % 5) * 0.04;
-        ctx.beginPath();
-        ctx.arc(px, py, r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(200,180,255,${alpha})`;
-        ctx.fill();
-      }
-
-      // Draw isometric room at offset
-      ctx.save();
-      ctx.translate(0, offsetY);
-      ctx.scale(scale, scale);
-      drawRoom(ctx);
-      ctx.restore();
+    function onDJUpdate(state: DJState | null) {
+      setDjState(state);
     }
-
-    redraw();
-    const ro = new ResizeObserver(redraw);
-    ro.observe(world);
-    return () => ro.disconnect();
-  }, [joined]);
+    (socket as any).on('space:dj-update', onDJUpdate);
+    return () => { (socket as any).off('space:dj-update', onDJUpdate); };
+  }, []);
 
   function handleWorldTap(clientX: number, clientY: number) {
-    if (!joined || !mySocketId || !worldRef.current) return;
-    const rect = worldRef.current.getBoundingClientRect();
-    const { scale, offsetY } = layout;
-
-    // Convert to room-local coords
-    const mx = (clientX - rect.left) / scale;
-    const my = (clientY - rect.top - offsetY) / scale;
-
-    const { col, row } = fromScreen(mx, my);
-    if (isBlocked(col, row)) return;
-
-    const { x, y } = gridToPct(col, row);
+    if (!joined || !mySocketId || djPanelOpen) return;
+    const rect = worldRef.current!.getBoundingClientRect();
+    const x = Math.max(5, Math.min(95, ((clientX - rect.left) / rect.width) * 100));
+    const y = Math.max(5, Math.min(92, ((clientY - rect.top) / rect.height) * 100));
     moveLocal(mySocketId, x, y);
-
-    // Ripple at iso tile center on screen
-    const { sx, sy } = toIso(col, row);
-    const screenX = sx * scale;
-    const screenY = (sy + TH / 2) * scale + offsetY;
-    setRipples(prev => [...prev.slice(-4), { x: screenX, y: screenY, k: Date.now() }]);
+    setRipple({ x, y, k: Date.now() });
   }
 
   function handleSendChat(e: React.FormEvent) {
@@ -888,187 +803,128 @@ export function VirtualSpace({ onClose }: Props) {
     setChat('');
   }
 
-  function isSpeaking(player: SpacePlayer) {
-    return player.socketId === mySocketId ? speakingIds.has('local') : speakingIds.has(player.socketId);
+  function isSpeaking(player: SpacePlayer): boolean {
+    if (player.socketId === mySocketId) return speakingIds.has('local');
+    return speakingIds.has(player.socketId);
   }
 
-  // Compute screen position for player overlay (feet anchor at tile bottom-center)
-  function playerScreenPos(p: SpacePlayer) {
-    const { col, row } = pctToGridPos(p.x, p.y);
-    const { sx, sy } = toIso(col, row);
-    return {
-      screenX: sx * layout.scale,
-      screenY: (sy + TH / 2) * layout.scale + layout.offsetY,
-    };
-  }
-
-  const voiceIcon = voiceJoined ? (muted ? '🔇' : '🎤') : voiceStatus === 'failed' ? '⚠' : '…';
+  const voiceLabel = voiceJoined
+    ? (muted ? '🔇 muted' : '🎤 live')
+    : voiceStatus === 'failed' ? '⚠ no mic'
+    : '○ connecting…';
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-[200] flex flex-col"
-      style={{ background: '#06021a' }}
+      style={{ background: '#020010' }}
     >
       {/* Header */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
-        paddingTop: `calc(10px + env(safe-area-inset-top, 0px))`,
-        background: 'rgba(3,0,14,.97)',
-        borderBottom: '1px solid rgba(155,0,255,.18)',
-        backdropFilter: 'blur(16px)',
-        flexShrink: 0,
-      }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', paddingTop: 'calc(10px + env(safe-area-inset-top, 0px))', background: 'rgba(3,0,14,.96)', borderBottom: '1px solid rgba(155,0,255,.18)', backdropFilter: 'blur(14px)', flexShrink: 0 }}>
         <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#9b00ff', boxShadow: '0 0 10px #9b00ff', animation: 'vs-pulse 2s ease-in-out infinite' }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 14, color: 'white', letterSpacing: '0.05em' }}>
-            VOID LOUNGE
-          </p>
-          <p style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,.25)', letterSpacing: '0.08em' }}>
-            {players.size} online
+          <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 14, color: 'white', letterSpacing: '0.05em' }}>VOID LOUNGE</p>
+          <p style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,.28)', letterSpacing: '0.08em' }}>
+            {players.size} online · {voiceLabel}
           </p>
         </div>
         {joined && (
-          <button
-            onClick={toggleMute}
-            className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90"
-            style={{
-              background: muted ? 'rgba(255,45,85,.12)' : 'rgba(0,229,255,.08)',
-              border: `1px solid ${muted ? 'rgba(255,45,85,.35)' : 'rgba(0,229,255,.25)'}`,
-              fontSize: 14,
-            }}
-          >
-            {voiceIcon}
+          <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background: muted ? 'rgba(255,45,85,.12)' : 'rgba(0,229,255,.08)', border: `1px solid ${muted ? 'rgba(255,45,85,.35)' : 'rgba(0,229,255,.25)'}`, fontSize: 14 }} title={muted ? 'Unmute' : 'Mute'}>
+            {muted ? '🔇' : '🎤'}
           </button>
         )}
-        <button
-          onClick={handleClose}
-          className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90"
-          style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)', color: 'rgba(255,255,255,.4)', fontSize: 14 }}
-        >
+        <button onClick={handleClose} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)', color: 'rgba(255,255,255,.45)', fontSize: 14 }}>
           ✕
         </button>
       </div>
 
-      {/* Body */}
+      {/* Content */}
       {!joined ? (
         <div className="flex-1 overflow-y-auto" style={{ background: 'rgba(4,0,18,.98)' }}>
           <AvatarCustomizer playerName={playerName} onJoin={handleJoin} />
         </div>
       ) : (
         <div className="flex-1 flex flex-col min-h-0">
-          {/* World */}
           <div
             ref={worldRef}
-            className="flex-1 relative overflow-hidden select-none"
-            style={{ cursor: 'crosshair' }}
+            className="flex-1 relative overflow-hidden select-none cursor-crosshair"
+            style={{
+              background: `
+                radial-gradient(ellipse at 15% 70%, rgba(120,0,255,.1) 0%, transparent 40%),
+                radial-gradient(ellipse at 80% 75%, rgba(0,150,255,.09) 0%, transparent 38%),
+                radial-gradient(ellipse at 85% 55%, rgba(255,120,0,.06) 0%, transparent 30%),
+                linear-gradient(180deg, rgba(9,3,26,1) 0%, rgba(9,3,24,1) 36%, rgba(2,0,10,1) 37%, rgba(1,0,7,1) 100%)
+              `,
+            }}
             onClick={e => handleWorldTap(e.clientX, e.clientY)}
             onTouchStart={e => {
               e.preventDefault();
-              handleWorldTap(e.touches[0].clientX, e.touches[0].clientY);
+              const t = e.touches[0];
+              handleWorldTap(t.clientX, t.clientY);
             }}
           >
-            {/* Isometric room canvas */}
-            <canvas
-              ref={canvasRef}
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
-            />
+            <Particles />
+            <PerspectiveFloor />
+            <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(2,0,16,.55) 100%)' }} />
+            <RoomObjects djActive={!!djState?.isPlaying} onDJClick={() => setDjPanelOpen(o => !o)} />
 
-            {/* Player overlays */}
-            {[...players.values()].map(p => {
-              const { screenX, screenY } = playerScreenPos(p);
-              return (
-                <PlayerOverlay
-                  key={p.socketId}
-                  player={p}
-                  isMe={p.socketId === mySocketId}
-                  speaking={isSpeaking(p)}
-                  screenX={screenX}
-                  screenY={screenY}
-                />
-              );
-            })}
-
-            {/* Online list */}
-            <OnlineList players={players} mySocketId={mySocketId} speakingIds={speakingIds} />
-
-            {/* Tap ripples */}
+            {/* Now playing bar */}
             <AnimatePresence>
-              {ripples.map(r => (
-                <motion.div
-                  key={r.k}
-                  initial={{ scale: 0, opacity: 0.85 }}
-                  animate={{ scale: 3.5, opacity: 0 }}
-                  transition={{ duration: 0.55, ease: 'easeOut' }}
-                  onAnimationComplete={() => setRipples(prev => prev.filter(x => x.k !== r.k))}
-                  style={{
-                    position: 'absolute',
-                    left: r.x, top: r.y,
-                    width: 22, height: 11,
-                    marginLeft: -11, marginTop: -5.5,
-                    borderRadius: '50%',
-                    border: '1.5px solid rgba(155,0,255,.75)',
-                    pointerEvents: 'none',
-                  }}
-                />
-              ))}
+              {djState?.isPlaying && !djPanelOpen && (
+                <NowPlayingBar djState={djState} onOpen={() => setDjPanelOpen(true)} />
+              )}
             </AnimatePresence>
 
-            {/* Move hint */}
-            {players.size <= 1 && (
-              <div className="absolute bottom-3 left-0 right-0 flex justify-center pointer-events-none">
+            {/* Tap ripple */}
+            <AnimatePresence>
+              {ripple && (
+                <motion.div
+                  key={ripple.k}
+                  initial={{ scale: 0, opacity: 0.85 }} animate={{ scale: 3, opacity: 0 }} transition={{ duration: 0.5 }}
+                  onAnimationComplete={() => setRipple(null)}
+                  style={{ position: 'absolute', left: `${ripple.x}%`, top: `${ripple.y}%`, width: 24, height: 24, marginLeft: -12, marginTop: -12, borderRadius: '50%', border: '1.5px solid rgba(155,0,255,.75)', pointerEvents: 'none' }}
+                />
+              )}
+            </AnimatePresence>
+
+            {/* Avatars */}
+            {[...players.values()].map(p => (
+              <AvatarOnMap key={p.socketId} player={p} isMe={p.socketId === mySocketId} speaking={isSpeaking(p)} />
+            ))}
+
+            {players.size === 1 && !djPanelOpen && (
+              <div className="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-none">
                 <p className="font-mono text-[10px] text-white/20 tracking-wider" style={{ animation: 'vs-pulse 2.5s ease-in-out infinite' }}>
-                  დააჭირე ნებისმიერ ადგილს გადასაადგილებლად
+                  ↓ დააჭირე სივრცეს გადასაადგილებლად · DJ BOOTH-ი ჩართვისთვის
                 </p>
               </div>
             )}
 
-            {/* Chat drawer */}
             <ChatDrawer history={chatHistory} mySocketId={mySocketId} open={drawerOpen} />
+
+            {/* DJ Player Panel */}
+            <DJPlayerPanel
+              open={djPanelOpen}
+              onClose={() => setDjPanelOpen(false)}
+              djState={djState}
+              myName={playerName}
+            />
           </div>
 
           {/* Bottom bar */}
           <form
             onSubmit={handleSendChat}
-            style={{
-              display: 'flex', gap: 8, padding: '8px 12px',
-              paddingBottom: `calc(8px + env(safe-area-inset-bottom, 0px))`,
-              background: 'rgba(3,0,14,.97)',
-              borderTop: '1px solid rgba(155,0,255,.14)',
-              flexShrink: 0,
-            }}
+            style={{ display: 'flex', gap: 8, padding: '8px 12px', paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))', background: 'rgba(3,0,14,.97)', borderTop: '1px solid rgba(155,0,255,.14)', flexShrink: 0 }}
           >
             <input
-              value={chat}
-              onChange={e => setChat(e.target.value)}
-              maxLength={140}
-              placeholder="გზავნილი…"
-              style={{
-                flex: 1, background: 'rgba(255,255,255,.04)', fontFamily: 'monospace',
-                fontSize: 13, color: 'white', outline: 'none',
-                padding: '8px 12px', borderRadius: 12,
-                border: '1px solid rgba(255,255,255,.10)',
-              }}
+              value={chat} onChange={e => setChat(e.target.value)} maxLength={140} placeholder="გზავნილი…"
+              style={{ flex: 1, background: 'rgba(255,255,255,.04)', fontFamily: 'monospace', fontSize: 13, color: 'white', outline: 'none', padding: '8px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.1)' }}
               onFocus={e => e.stopPropagation()}
             />
-            <button type="submit" disabled={!chat.trim()} style={{
-              padding: '8px 14px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13,
-              background: 'rgba(155,0,255,.15)', border: '1px solid rgba(155,0,255,.4)', color: '#c084fc',
-              transition: 'all .15s', flexShrink: 0,
-            }}>→</button>
-            <button type="button" onClick={() => setDrawerOpen(o => !o)} style={{
-              padding: '8px 10px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13,
-              background: drawerOpen ? 'rgba(155,0,255,.18)' : 'rgba(255,255,255,.04)',
-              border: `1px solid ${drawerOpen ? 'rgba(155,0,255,.45)' : 'rgba(255,255,255,.1)'}`,
-              color: drawerOpen ? '#c084fc' : 'rgba(255,255,255,.4)',
-              transition: 'all .15s', flexShrink: 0, position: 'relative',
-            }}>
+            <button type="submit" disabled={!chat.trim()} style={{ padding: '8px 14px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(155,0,255,.15)', border: '1px solid rgba(155,0,255,.4)', color: '#c084fc', transition: 'all .15s', flexShrink: 0 }}>→</button>
+            <button type="button" onClick={() => setDrawerOpen(o => !o)} style={{ padding: '8px 10px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: drawerOpen ? 'rgba(155,0,255,.18)' : 'rgba(255,255,255,.04)', border: `1px solid ${drawerOpen ? 'rgba(155,0,255,.45)' : 'rgba(255,255,255,.1)'}`, color: drawerOpen ? '#c084fc' : 'rgba(255,255,255,.4)', transition: 'all .15s', flexShrink: 0, position: 'relative' }}>
               ☰
-              {chatHistory.length > 0 && !drawerOpen && (
-                <span style={{ position: 'absolute', top: -3, right: -3, width: 8, height: 8, borderRadius: '50%', background: '#9b00ff', boxShadow: '0 0 6px #9b00ff' }} />
-              )}
+              {chatHistory.length > 0 && !drawerOpen && <span style={{ position: 'absolute', top: -3, right: -3, width: 8, height: 8, borderRadius: '50%', background: '#9b00ff', boxShadow: '0 0 6px #9b00ff' }} />}
             </button>
           </form>
         </div>

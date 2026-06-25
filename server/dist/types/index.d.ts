@@ -938,6 +938,13 @@ export interface ServerToClientEvents {
         from: string;
         candidate: object;
     }) => void;
+    'space:dj-update': (state: {
+        videoId: string;
+        startedAt: number;
+        position: number;
+        isPlaying: boolean;
+        djName: string;
+    } | null) => void;
 }
 export interface ClientToServerEvents {
     'player:auth': (data: {
@@ -1830,6 +1837,14 @@ export interface ClientToServerEvents {
         to: string;
         candidate: object;
     }) => void;
+    'space:dj-play': (data: {
+        videoId: string;
+        position?: number;
+    }) => void;
+    'space:dj-pause': (data: {
+        position: number;
+    }) => void;
+    'space:dj-stop': () => void;
 }
 export interface InterServerEvents {
 }

@@ -895,6 +895,8 @@ export interface ServerToClientEvents {
   'space:voice-offer':       (data: { from: string; sdp: object }) => void;
   'space:voice-answer':      (data: { from: string; sdp: object }) => void;
   'space:voice-ice':         (data: { from: string; candidate: object }) => void;
+  // DJ
+  'space:dj-update':         (state: { videoId: string; startedAt: number; position: number; isPlaying: boolean; djName: string } | null) => void;
 }
 
 export interface ClientToServerEvents {
@@ -1207,6 +1209,10 @@ export interface ClientToServerEvents {
   'space:voice-offer':  (data: { to: string; sdp: object }) => void;
   'space:voice-answer': (data: { to: string; sdp: object }) => void;
   'space:voice-ice':    (data: { to: string; candidate: object }) => void;
+  // DJ
+  'space:dj-play':  (data: { videoId: string; position?: number }) => void;
+  'space:dj-pause': (data: { position: number }) => void;
+  'space:dj-stop':  () => void;
 }
 
 export interface InterServerEvents {}
