@@ -46,7 +46,6 @@ import type { GiftReceivedNotification } from '@/types/index';
 import { CLIENT_VERSION } from './version';
 import { haptic } from '@/lib/haptics';
 import { YourTurnToast } from '@/components/ui/YourTurnToast';
-import { PWAInstallBanner } from '@/components/ui/PWAInstallBanner';
 import { NotificationPrompt } from '@/components/ui/NotificationPrompt';
 import { MediaPermissionPrimer } from '@/components/ui/MediaPermissionPrimer';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
@@ -625,7 +624,6 @@ export default function App() {
   return (
     <>
       <ThemeProvider />
-      <PWAInstallBanner />
       <AnimatePresence mode="wait">
         <Screen publicProfileId={publicProfileId} onClearPublicProfile={() => setPublicProfileId(null)} onOpenShop={() => setShopOpen(true)} />
       </AnimatePresence>
