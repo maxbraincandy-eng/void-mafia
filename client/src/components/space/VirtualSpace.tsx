@@ -300,7 +300,7 @@ function AvatarOnMap({
 
 function DJBooth() {
   return (
-    <div className="absolute pointer-events-none" style={{ left: '50%', top: '24%', transform: 'translate(-50%,-50%)' }}>
+    <div className="absolute pointer-events-none" style={{ left: '50%', top: '22%', transform: 'translate(-50%,-50%)' }}>
       {/* Deck surface */}
       <div style={{ position: 'relative', width: 90, height: 48, background: 'linear-gradient(180deg,rgba(255,0,150,.18),rgba(200,0,120,.08))', borderRadius: 10, border: '1px solid rgba(255,0,150,.55)', boxShadow: '0 0 28px rgba(255,0,150,.3),inset 0 1px 0 rgba(255,255,255,.08)' }}>
         {/* Left turntable */}
@@ -338,7 +338,7 @@ function DJBooth() {
 
 function GamingStation() {
   return (
-    <div className="absolute pointer-events-none" style={{ left: '79%', top: '66%', transform: 'translate(-50%,-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
+    <div className="absolute pointer-events-none" style={{ left: '79%', top: '65%', transform: 'translate(-50%,-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
       {/* Monitor */}
       <div style={{ width: 62, height: 42, background: 'linear-gradient(135deg,rgba(0,10,30,.9),rgba(0,20,60,.8))', border: '2px solid rgba(0,229,255,.75)', borderRadius: 5, boxShadow: '0 0 24px rgba(0,229,255,.4),inset 0 0 12px rgba(0,100,255,.15)', overflow: 'hidden', position: 'relative' }}>
         {/* Game map */}
@@ -370,7 +370,7 @@ function GamingStation() {
 
 function Bar() {
   return (
-    <div className="absolute pointer-events-none" style={{ left: '90%', top: '38%', transform: 'translate(-50%,-50%)' }}>
+    <div className="absolute pointer-events-none" style={{ left: '90%', top: '55%', transform: 'translate(-50%,-50%)' }}>
       {/* Counter */}
       <div style={{ position: 'relative', width: 18, height: 64, background: 'linear-gradient(90deg,rgba(255,140,0,.32),rgba(200,80,0,.16))', borderRadius: '6px 2px 2px 6px', border: '1px solid rgba(255,140,0,.6)', boxShadow: '0 0 22px rgba(255,140,0,.22),inset 1px 0 0 rgba(255,200,100,.1)' }}>
         {/* Top ledge */}
@@ -415,72 +415,127 @@ function Plant({ flip }: { flip?: boolean }) {
   );
 }
 
+// ── SVG one-point perspective floor ──────────────────────────────────
+
+function PerspectiveFloor() {
+  const VX = 50;   // vanishing point x (0-100 viewBox units)
+  const VY = 37;   // vanishing point y = wall/floor boundary %
+
+  const rays = [0, 9, 18, 27, 36, 43, 50, 57, 64, 73, 82, 91, 100];
+  const hLines = [{ y: 46 }, { y: 55 }, { y: 65 }, { y: 77 }, { y: 90 }];
+
+  return (
+    <>
+      {/* Back wall lines (only above VY) */}
+      <svg className="absolute pointer-events-none" style={{ left: 0, top: 0, width: '100%', height: `${VY}%` }} preserveAspectRatio="none">
+        {[18, 42, 68, 88].map((yp, i) => (
+          <line key={i} x1="0" y1={`${yp}%`} x2="100%" y2={`${yp}%`} stroke="rgba(0,229,255,.12)" strokeWidth="0.8" />
+        ))}
+        {[16, 32, 50, 68, 84].map((xp, i) => (
+          <line key={i} x1={`${xp}%`} y1="0" x2={`${xp}%`} y2="100%" stroke="rgba(120,0,255,.09)" strokeWidth="0.8" />
+        ))}
+      </svg>
+
+      {/* Perspective floor (full viewport SVG so VY maps correctly) */}
+      <svg
+        className="absolute inset-0 pointer-events-none"
+        style={{ width: '100%', height: '100%' }}
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+      >
+        {/* Zone floor colour fills */}
+        <polygon points={`${VX},${VY} ${VX},${VY} 34,100 0,100`}   fill="rgba(120,0,255,.07)" />
+        <polygon points={`${VX},${VY} ${VX},${VY} 66,100 34,100`}  fill="rgba(255,0,150,.04)" />
+        <polygon points={`${VX},${VY} ${VX},${VY} 100,100 66,100`} fill="rgba(0,200,255,.07)" />
+
+        {/* Radiating perspective lines */}
+        {rays.map((bx, i) => (
+          <line key={i}
+            x1={VX} y1={VY} x2={bx} y2={100}
+            stroke={bx <= 34 ? 'rgba(120,0,255,.65)' : bx >= 66 ? 'rgba(0,229,255,.65)' : 'rgba(255,0,150,.55)'}
+            strokeWidth="0.32"
+          />
+        ))}
+
+        {/* Horizontal perspective cross-lines (foreshortened) */}
+        {hLines.map(({ y }, i) => {
+          const t = (y - VY) / (100 - VY);
+          const x1 = VX * (1 - t);
+          const x2 = VX + (100 - VX) * t;
+          return (
+            <line key={i}
+              x1={x1} y1={y} x2={x2} y2={y}
+              stroke="rgba(180,120,255,.7)"
+              strokeWidth="0.32"
+              opacity={0.38 + i * 0.11}
+            />
+          );
+        })}
+      </svg>
+    </>
+  );
+}
+
 function RoomObjects() {
   return (
     <>
-      {/* ── Back wall neon strips ────── */}
-      <div className="absolute pointer-events-none" style={{ left: 6, top: 0, bottom: '42%', width: 2, background: 'linear-gradient(180deg,rgba(155,0,255,0),rgba(155,0,255,.7),rgba(155,0,255,0))', boxShadow: '0 0 12px rgba(155,0,255,.5)', borderRadius: 2 }} />
-      <div className="absolute pointer-events-none" style={{ right: 6, top: 0, bottom: '42%', width: 2, background: 'linear-gradient(180deg,rgba(0,229,255,0),rgba(0,229,255,.7),rgba(0,229,255,0))', boxShadow: '0 0 12px rgba(0,229,255,.5)', borderRadius: 2 }} />
+      {/* ── Back wall neon side strips ────── */}
+      <div className="absolute pointer-events-none" style={{ left: 5, top: 0, bottom: '63%', width: 2, background: 'linear-gradient(180deg,rgba(155,0,255,0) 0%,rgba(155,0,255,.85) 55%,rgba(155,0,255,0) 100%)', boxShadow: '0 0 14px rgba(155,0,255,.6)', borderRadius: 2 }} />
+      <div className="absolute pointer-events-none" style={{ right: 5, top: 0, bottom: '63%', width: 2, background: 'linear-gradient(180deg,rgba(0,229,255,0) 0%,rgba(0,229,255,.85) 55%,rgba(0,229,255,0) 100%)', boxShadow: '0 0 14px rgba(0,229,255,.6)', borderRadius: 2 }} />
 
       {/* ── Wall / floor divider strip ────── */}
-      <div className="absolute pointer-events-none" style={{ left: 0, right: 0, top: '42%', height: 2, background: 'linear-gradient(90deg,rgba(155,0,255,.3),rgba(0,229,255,.7),rgba(255,0,150,.5),rgba(0,229,255,.7),rgba(155,0,255,.3))', boxShadow: '0 0 14px rgba(0,229,255,.4),0 0 28px rgba(155,0,255,.2)' }} />
+      <div className="absolute pointer-events-none" style={{ left: 0, right: 0, top: '37%', height: 2.5, background: 'linear-gradient(90deg,rgba(155,0,255,.4),rgba(0,229,255,.9),rgba(255,0,150,.7),rgba(0,229,255,.9),rgba(155,0,255,.4))', boxShadow: '0 0 16px rgba(0,229,255,.5),0 0 32px rgba(155,0,255,.25)' }} />
 
       {/* ── VOID LOUNGE neon sign ────── */}
-      <div className="absolute pointer-events-none" style={{ left: '50%', top: '8%', transform: 'translate(-50%,-50%)', fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 13, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#fff', textShadow: '0 0 8px #00e5ff,0 0 20px #00e5ff,0 0 40px #00e5ff80', animation: 'vs-flicker 6s linear infinite', whiteSpace: 'nowrap' }}>
+      <div className="absolute pointer-events-none" style={{ left: '50%', top: '9%', transform: 'translate(-50%,-50%)', fontFamily: '"Space Grotesk",monospace', fontWeight: 900, fontSize: 14, letterSpacing: '0.3em', color: '#fff', textShadow: '0 0 6px #00e5ff,0 0 16px #00e5ff,0 0 36px rgba(0,229,255,.7),0 0 60px rgba(0,229,255,.3)', animation: 'vs-flicker 6s linear infinite', whiteSpace: 'nowrap' }}>
         VOID LOUNGE
       </div>
 
-      {/* ── DJ BOOTH zone glow ────── */}
-      <div className="absolute pointer-events-none" style={{ left: '50%', top: '24%', transform: 'translate(-50%,-50%)', width: 180, height: 90, background: 'radial-gradient(ellipse,rgba(255,0,150,.14) 0%,transparent 70%)', borderRadius: '50%', animation: 'vs-pulse 2s ease-in-out infinite' }} />
-      {/* DJ zone label */}
-      <div className="absolute pointer-events-none" style={{ left: '50%', top: '10%', transform: 'translate(-50%,-50%)', fontFamily: 'monospace', fontSize: 8, letterSpacing: '0.22em', color: 'rgba(255,0,150,.7)', textShadow: '0 0 6px rgba(255,0,150,.6)' }}>
+      {/* ── DJ BOOTH (wall-mounted, back wall center) ────── */}
+      <div className="absolute pointer-events-none" style={{ left: '50%', top: '22%', transform: 'translate(-50%,-50%)', width: 180, height: 90, background: 'radial-gradient(ellipse,rgba(255,0,150,.16) 0%,transparent 70%)', borderRadius: '50%', animation: 'vs-pulse 2s ease-in-out infinite' }} />
+      <div className="absolute pointer-events-none" style={{ left: '50%', top: '12%', transform: 'translate(-50%,-50%)', fontFamily: 'monospace', fontSize: 8, letterSpacing: '0.22em', color: 'rgba(255,0,150,.8)', textShadow: '0 0 8px rgba(255,0,150,.7)' }}>
         DJ BOOTH
       </div>
       <DJBooth />
 
-      {/* ── LOUNGE zone ────── */}
-      <div className="absolute pointer-events-none" style={{ left: '13%', top: '70%', transform: 'translate(-50%,-50%)', width: 170, height: 100, background: 'radial-gradient(ellipse,rgba(120,0,255,.1) 0%,transparent 70%)', borderRadius: '50%' }} />
-      {/* Sofa */}
-      <div className="absolute pointer-events-none" style={{ left: '11%', top: '76%', transform: 'translate(-50%,-50%)' }}>
-        <div style={{ position: 'relative', width: 78, height: 44 }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 20, background: 'linear-gradient(180deg,rgba(120,0,255,.35),rgba(80,0,180,.18))', borderRadius: '8px 8px 0 0', border: '1px solid rgba(155,0,255,.5)', boxShadow: '0 0 16px rgba(155,0,255,.25),inset 0 1px 0 rgba(255,255,255,.06)' }} />
-          <div style={{ position: 'absolute', top: 18, left: 8, right: 8, height: 22, background: 'rgba(100,0,200,.18)', borderRadius: '0 0 6px 6px', border: '1px solid rgba(155,0,255,.28)', borderTop: 'none' }} />
-          <div style={{ position: 'absolute', top: 0, left: 0, width: 10, height: 40, background: 'rgba(120,0,255,.28)', borderRadius: '6px 0 0 6px', border: '1px solid rgba(155,0,255,.35)' }} />
-          <div style={{ position: 'absolute', top: 0, right: 0, width: 10, height: 40, background: 'rgba(120,0,255,.28)', borderRadius: '0 6px 6px 0', border: '1px solid rgba(155,0,255,.35)' }} />
-          {/* Cushion divider */}
-          <div style={{ position: 'absolute', top: 2, left: '50%', marginLeft: -0.5, width: 1, height: 16, background: 'rgba(155,0,255,.3)' }} />
-        </div>
-      </div>
-      {/* Coffee table */}
-      <div className="absolute pointer-events-none" style={{ left: '22%', top: '78%', transform: 'translate(-50%,-50%)', width: 42, height: 20, background: 'rgba(80,0,160,.15)', borderRadius: 7, border: '1px solid rgba(155,0,255,.32)', boxShadow: '0 0 10px rgba(155,0,255,.12)' }}>
-        {/* Coffee steam dots */}
-        <div style={{ position: 'absolute', top: -8, left: '40%', width: 2, height: 2, borderRadius: '50%', background: 'rgba(255,255,255,.35)', animation: 'vs-bubble 1.8s ease-in infinite' }} />
-      </div>
-      <div className="absolute pointer-events-none" style={{ left: '13%', top: '63%', transform: 'translate(-50%,-50%)', fontFamily: 'monospace', fontSize: 8, letterSpacing: '0.2em', color: 'rgba(155,0,255,.7)', textShadow: '0 0 6px rgba(155,0,255,.6)' }}>
-        LOUNGE
-      </div>
-
-      {/* ── GAMING zone ────── */}
-      <div className="absolute pointer-events-none" style={{ left: '79%', top: '69%', transform: 'translate(-50%,-50%)', width: 160, height: 100, background: 'radial-gradient(ellipse,rgba(0,200,255,.09) 0%,transparent 70%)', borderRadius: '50%' }} />
-      <GamingStation />
-      <div className="absolute pointer-events-none" style={{ left: '78%', top: '57%', transform: 'translate(-50%,-50%)', fontFamily: 'monospace', fontSize: 8, letterSpacing: '0.2em', color: 'rgba(0,229,255,.7)', textShadow: '0 0 6px rgba(0,229,255,.6)' }}>
-        GAMING
-      </div>
-
-      {/* ── BAR zone ────── */}
-      <div className="absolute pointer-events-none" style={{ left: '88%', top: '40%', transform: 'translate(-50%,-50%)', width: 90, height: 120, background: 'radial-gradient(ellipse,rgba(255,140,0,.09) 0%,transparent 70%)', borderRadius: '50%' }} />
-      <Bar />
-
-      {/* ── Corner plants (swaying) ────── */}
-      <div className="absolute pointer-events-none" style={{ left: '6%', top: '16%', transform: 'translate(-50%,-50%)' }}>
+      {/* ── Corner plants (back wall corners) ────── */}
+      <div className="absolute pointer-events-none" style={{ left: '7%', top: '14%', transform: 'translate(-50%,-50%)' }}>
         <Plant />
       </div>
-      <div className="absolute pointer-events-none" style={{ left: '94%', top: '16%', transform: 'translate(-50%,-50%)' }}>
+      <div className="absolute pointer-events-none" style={{ left: '93%', top: '14%', transform: 'translate(-50%,-50%)' }}>
         <Plant flip />
       </div>
 
-      {/* ── Center dance floor ring ────── */}
-      <div className="absolute pointer-events-none" style={{ left: '50%', top: '56%', transform: 'translate(-50%,-50%)', width: 100, height: 40, borderRadius: '50%', border: '1px solid rgba(255,255,255,.05)', background: 'radial-gradient(ellipse,rgba(255,255,255,.018) 0%,transparent 70%)' }} />
+      {/* ── LOUNGE zone (floor, lower left) ────── */}
+      <div className="absolute pointer-events-none" style={{ left: '15%', top: '72%', transform: 'translate(-50%,-50%)', width: 180, height: 110, background: 'radial-gradient(ellipse,rgba(120,0,255,.12) 0%,transparent 70%)', borderRadius: '50%' }} />
+      <div className="absolute pointer-events-none" style={{ left: '15%', top: '55%', transform: 'translate(-50%,-50%)', fontFamily: 'monospace', fontSize: 8, letterSpacing: '0.2em', color: 'rgba(155,0,255,.85)', textShadow: '0 0 8px rgba(155,0,255,.7)' }}>
+        LOUNGE
+      </div>
+      {/* Sofa */}
+      <div className="absolute pointer-events-none" style={{ left: '13%', top: '74%', transform: 'translate(-50%,-50%)' }}>
+        <div style={{ position: 'relative', width: 90, height: 50 }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 22, background: 'linear-gradient(180deg,rgba(130,0,255,.4),rgba(85,0,200,.2))', borderRadius: '9px 9px 0 0', border: '1.5px solid rgba(155,0,255,.6)', boxShadow: '0 0 20px rgba(155,0,255,.3),inset 0 1px 0 rgba(255,255,255,.07)' }} />
+          <div style={{ position: 'absolute', top: 20, left: 9, right: 9, height: 26, background: 'rgba(105,0,210,.2)', borderRadius: '0 0 7px 7px', border: '1px solid rgba(155,0,255,.3)', borderTop: 'none' }} />
+          <div style={{ position: 'absolute', top: 0, left: 0, width: 12, height: 46, background: 'rgba(130,0,255,.32)', borderRadius: '7px 0 0 7px', border: '1px solid rgba(155,0,255,.4)' }} />
+          <div style={{ position: 'absolute', top: 0, right: 0, width: 12, height: 46, background: 'rgba(130,0,255,.32)', borderRadius: '0 7px 7px 0', border: '1px solid rgba(155,0,255,.4)' }} />
+          <div style={{ position: 'absolute', top: 2, left: '50%', marginLeft: -0.5, width: 1, height: 18, background: 'rgba(155,0,255,.35)' }} />
+        </div>
+      </div>
+      {/* Coffee table */}
+      <div className="absolute pointer-events-none" style={{ left: '25%', top: '79%', transform: 'translate(-50%,-50%)', width: 46, height: 22, background: 'rgba(85,0,170,.18)', borderRadius: 8, border: '1px solid rgba(155,0,255,.35)', boxShadow: '0 0 12px rgba(155,0,255,.15)' }}>
+        <div style={{ position: 'absolute', top: -10, left: '35%', width: 2, height: 2, borderRadius: '50%', background: 'rgba(255,255,255,.4)', animation: 'vs-bubble 1.9s ease-in infinite' }} />
+      </div>
+
+      {/* ── GAMING zone (floor, lower right) ────── */}
+      <div className="absolute pointer-events-none" style={{ left: '79%', top: '68%', transform: 'translate(-50%,-50%)', width: 170, height: 110, background: 'radial-gradient(ellipse,rgba(0,200,255,.1) 0%,transparent 70%)', borderRadius: '50%' }} />
+      <div className="absolute pointer-events-none" style={{ left: '78%', top: '53%', transform: 'translate(-50%,-50%)', fontFamily: 'monospace', fontSize: 8, letterSpacing: '0.2em', color: 'rgba(0,229,255,.85)', textShadow: '0 0 8px rgba(0,229,255,.7)' }}>
+        GAMING
+      </div>
+      <GamingStation />
+
+      {/* ── BAR zone (floor, right side — closer to wall) ────── */}
+      <div className="absolute pointer-events-none" style={{ left: '88%', top: '56%', transform: 'translate(-50%,-50%)', width: 90, height: 130, background: 'radial-gradient(ellipse,rgba(255,140,0,.1) 0%,transparent 70%)', borderRadius: '50%' }} />
+      <Bar />
     </>
   );
 }
@@ -844,11 +899,14 @@ export function VirtualSpace({ onClose }: Props) {
             className="flex-1 relative overflow-hidden select-none cursor-crosshair"
             style={{
               background: `
-                radial-gradient(ellipse at 25% 55%, rgba(100,0,255,.13) 0%, transparent 55%),
-                radial-gradient(ellipse at 75% 20%, rgba(0,150,255,.08) 0%, transparent 48%),
-                radial-gradient(ellipse at 55% 80%, rgba(255,0,130,.07) 0%, transparent 45%),
-                radial-gradient(ellipse at 90% 45%, rgba(255,130,0,.06) 0%, transparent 40%),
-                #020010
+                radial-gradient(ellipse at 15% 70%, rgba(120,0,255,.1) 0%, transparent 40%),
+                radial-gradient(ellipse at 80% 75%, rgba(0,150,255,.09) 0%, transparent 38%),
+                radial-gradient(ellipse at 85% 55%, rgba(255,120,0,.06) 0%, transparent 30%),
+                linear-gradient(180deg,
+                  rgba(9,3,26,1) 0%,
+                  rgba(9,3,24,1) 36%,
+                  rgba(2,0,10,1) 37%,
+                  rgba(1,0,7,1) 100%)
               `,
             }}
             onClick={e => handleWorldTap(e.clientX, e.clientY)}
@@ -861,50 +919,8 @@ export function VirtualSpace({ onClose }: Props) {
             {/* Ambient particles */}
             <Particles />
 
-            {/* ── 3D perspective floor layer ────── */}
-            <div className="absolute pointer-events-none" style={{
-              left: 0, right: 0, top: '42%', bottom: 0,
-              perspective: '280px',
-              perspectiveOrigin: '50% 0%',
-              overflow: 'hidden',
-            }}>
-              <div style={{
-                position: 'absolute', inset: 0,
-                transform: 'rotateX(38deg)',
-                transformOrigin: 'top center',
-              }}>
-                <svg width="100%" height="100%" preserveAspectRatio="none" style={{ opacity: 0.22 }}>
-                  <defs>
-                    <pattern id="vs-pgrid" width="10%" height="14%" patternUnits="objectBoundingBox">
-                      <path d="M 0 0 L 0 100% M 0 0 L 100% 0" stroke="#9b00ff" strokeWidth="0.6" fill="none" />
-                    </pattern>
-                    <linearGradient id="vs-floorgrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#9b00ff" stopOpacity=".8" />
-                      <stop offset="100%" stopColor="#00e5ff" stopOpacity=".2" />
-                    </linearGradient>
-                  </defs>
-                  <rect width="100%" height="100%" fill="url(#vs-pgrid)" stroke="none" />
-                  {/* Zone colored tiles on floor */}
-                  <rect x="0%" y="0%" width="28%" height="50%" fill="rgba(120,0,255,.04)" />
-                  <rect x="36%" y="0%" width="28%" height="30%" fill="rgba(255,0,150,.04)" />
-                  <rect x="64%" y="0%" width="36%" height="50%" fill="rgba(0,200,255,.04)" />
-                </svg>
-              </div>
-              {/* Floor fade at horizon */}
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '30%', background: 'linear-gradient(180deg,rgba(2,0,16,.85) 0%,transparent 100%)' }} />
-            </div>
-
-            {/* Back wall grid */}
-            <div className="absolute pointer-events-none" style={{ left: 0, right: 0, top: 0, height: '43%', overflow: 'hidden' }}>
-              <svg width="100%" height="100%" style={{ opacity: 0.06 }}>
-                <defs>
-                  <pattern id="vs-wgrid" width="8%" height="14%" patternUnits="objectBoundingBox">
-                    <path d="M 0 0 L 0 100% M 0 0 L 100% 0" stroke="#00e5ff" strokeWidth="0.5" fill="none" />
-                  </pattern>
-                </defs>
-                <rect width="100%" height="100%" fill="url(#vs-wgrid)" />
-              </svg>
-            </div>
+            {/* SVG perspective floor + back wall lines */}
+            <PerspectiveFloor />
 
             {/* Vignette */}
             <div className="absolute inset-0 pointer-events-none" style={{
