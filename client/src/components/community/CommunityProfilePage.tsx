@@ -6,9 +6,10 @@ import { useCommunityStore } from '@/store/communityStore';
 import { useSocialStore } from '@/store/socialStore';
 import { useT } from '@/store/langStore';
 import { emitWithAck } from '@/lib/socket';
-import type { CommunityProfileV2, CommunityPostV2, CommunityComment, Res } from '@/types/index';
+import type { CommunityProfileV2, CommunityPostV2, CommunityComment, PollResult, Res } from '@/types/index';
 import { Avatar, BadgeRow, MrMaxGlow, Spinner, timeAgo } from '@/components/community/shared';
 import { YouTubeEmbed, extractYouTubeId } from '@/components/community/YouTubeEmbed';
+import { PollDisplay } from '@/components/community/PollDisplay';
 
 // ── Post fullscreen lightbox ────────────────────────────────────────────────
 
@@ -26,6 +27,16 @@ function PostLightbox({
   const [commentsLoaded, setCommentsLoaded] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [posting, setPosting] = useState(false);
+  const [pollVoting, setPollVoting] = useState(false);
+
+  const handlePollVote = async (optionId: string) => {
+    if (pollVoting || !post.poll || !isLoggedIn) return;
+    setPollVoting(true);
+    try {
+      const r = await emitWithAck<any, Res<PollResult[]>>('community:poll_vote', { postId: post.id, optionId });
+      if (r.ok) setPost(p => p.poll ? { ...p, poll: { ...p.poll, results: r.data, myVote: optionId } } : p);
+    } finally { setPollVoting(false); }
+  };
 
   useEffect(() => {
     emitWithAck<any, Res<CommunityComment[]>>('community:post_comments', { postId: initialPost.id })
@@ -133,6 +144,13 @@ function PostLightbox({
               </p>
             )}
 
+            {/* Poll */}
+            {post.poll && (
+              <div className="mb-3">
+                <PollDisplay post={post} onVote={handlePollVote} voting={pollVoting} />
+              </div>
+            )}
+
             {/* Hashtags */}
             {post.hashtags?.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-3">
@@ -223,11 +241,23 @@ const POST_TYPE_ICONS: Record<string, string> = {
   book_rec: '📚', music_rec: '🎵', philosophy: '💭',
 };
 
-function PostTextCard({ post, readMoreLabel, onExpand }: {
+function PostTextCard({ post: initialPost, readMoreLabel, onExpand }: {
   post: CommunityPostV2;
   readMoreLabel: string;
   onExpand: () => void;
 }) {
+  const [post, setPost] = useState(initialPost);
+  const [pollVoting, setPollVoting] = useState(false);
+
+  const handleVote = async (optionId: string) => {
+    if (pollVoting || !post.poll) return;
+    setPollVoting(true);
+    try {
+      const r = await emitWithAck<any, Res<PollResult[]>>('community:poll_vote', { postId: post.id, optionId });
+      if (r.ok) setPost(p => p.poll ? { ...p, poll: { ...p.poll, results: r.data, myVote: optionId } } : p);
+    } finally { setPollVoting(false); }
+  };
+
   const icon    = POST_TYPE_ICONS[post.postType] ?? '';
   const isLong  = (post.content?.length ?? 0) > READ_MORE_THRESHOLD;
   const ytId    = extractYouTubeId(post.videoUrl ?? '') ?? extractYouTubeId(post.content ?? '');
@@ -269,9 +299,11 @@ function PostTextCard({ post, readMoreLabel, onExpand }: {
           </div>
         )}
 
-        {/* Poll preview */}
+        {/* Poll — full interactive display */}
         {post.poll && (
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginTop: 6 }}>📊 {post.poll.question}</p>
+          <div onClick={e => e.stopPropagation()} className="mt-2">
+            <PollDisplay post={post} onVote={handleVote} voting={pollVoting} />
+          </div>
         )}
 
         {/* Read more */}
