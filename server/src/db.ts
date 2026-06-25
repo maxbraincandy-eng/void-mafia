@@ -1109,6 +1109,11 @@ export async function initializeDatabase(): Promise<void> {
   await sql`ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS debate_id TEXT`;
   await sql`ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS target_player_id TEXT`;
 
+  // Email auth columns (added after initial schema — needed for email/password registration)
+  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS email TEXT`;
+  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS password_hash TEXT`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_players_email ON players(email) WHERE email IS NOT NULL`;
+
   // Profile control columns
   await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS profile_locked INTEGER NOT NULL DEFAULT 0`;
   await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS secret_mode_disabled INTEGER NOT NULL DEFAULT 0`;
