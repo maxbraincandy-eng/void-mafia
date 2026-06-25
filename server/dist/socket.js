@@ -1031,9 +1031,9 @@ export function attachSocketHandlers(io) {
                     cb({ ok: false, error: 'Unsupported image type.' });
                     return;
                 }
-                // ~200KB base64 limit (150KB raw image)
-                if (imageData.length > 270000) {
-                    cb({ ok: false, error: 'Image is too large (max 200KB).' });
+                // ~2MB base64 limit
+                if (imageData.length > 2700000) {
+                    cb({ ok: false, error: 'Image is too large (max 2MB).' });
                     return;
                 }
                 await updateAvatarUrl(profileId, imageData);
