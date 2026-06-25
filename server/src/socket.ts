@@ -5394,7 +5394,9 @@ export function attachSocketHandlers(io: AppServer): void {
         room.set(socket.id, player);
         socket.join(`space:${safeSpace}`);
         socket.to(`space:${safeSpace}`).emit('space:player-joined', player);
-        cb?.({ ok: true, data: { players: [...room.values()], mySocketId: socket.id, djState: _spaceDJ.get(safeSpace) ?? null } });
+        const existingDJ = _spaceDJ.get(safeSpace) ?? null;
+        cb?.({ ok: true, data: { players: [...room.values()], mySocketId: socket.id, djState: existingDJ } });
+        if (existingDJ) socket.emit('space:dj-update', existingDJ);
       } catch { cb?.({ ok: false, error: 'Internal error' }); }
     });
 
