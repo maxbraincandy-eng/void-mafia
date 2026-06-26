@@ -303,6 +303,7 @@ export function PostCardV2({
       {/* Action row */}
       <div className="flex items-center gap-3 pt-1 flex-wrap">
         <ReactionPicker
+          postId={post.id}
           myReaction={post.myReaction ?? null}
           reactions={post.reactions ?? (post.likedByMe ? { '❤️': post.likesCount } : {})}
           onReact={(emoji) => toggleReaction(post.id, emoji)}

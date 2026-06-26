@@ -4326,6 +4326,19 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    socket.on('community:get_reaction_users', async ({ postId }: { postId: string }, cb: any) => {
+      try {
+        const rows = await sql<{ emoji: string; username: string; avatar_url: string | null; player_id: string }[]>`
+          SELECT r.emoji, p.username, p.avatar_url, r.player_id
+          FROM community_post_reactions r
+          JOIN players p ON p.id = r.player_id
+          WHERE r.post_id = ${postId}
+          ORDER BY r.created_at ASC
+        `;
+        cb(ok(rows));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     socket.on('community:leaderboard', async (cb) => {
       try {
         const leaders = await getWeeklyLeaderboard();
