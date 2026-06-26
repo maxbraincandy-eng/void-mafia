@@ -821,6 +821,12 @@ export interface ServerToClientEvents {
     }) => void;
     'community:notification': (n: CommunityNotification) => void;
     'community:lounge_update': (lounge: CommunityLounge) => void;
+    'community:post_reacted': (data: {
+        postId: string;
+        reactions: Record<string, number>;
+        myReaction: string | null;
+    }) => void;
+    'community:leaderboard_update': (data: any[]) => void;
     'community:lounge_removed': (data: {
         loungeId: string;
     }) => void;
@@ -1669,6 +1675,20 @@ export interface ClientToServerEvents {
         note: string;
         createdAt: number;
     }>>) => void) => void;
+    'community:post_react': (data: {
+        postId: string;
+        emoji: string;
+    }, cb: Cb<{
+        reactions: Record<string, number>;
+        myReaction: string | null;
+    }>) => void;
+    'community:leaderboard': (cb: Cb<Array<{
+        playerId: string;
+        username: string;
+        avatarUrl: string | null;
+        score: number;
+        rank: number;
+    }>>) => void;
     'lounge:join': (data: {
         loungeId: string;
         asSpeaker: boolean;
@@ -2023,7 +2043,7 @@ export interface CommunityProfile {
     isFollowedByMe: boolean;
 }
 export type CommunityBadge = 'verified' | 'owner' | 'moderator' | 'creator' | 'speaker' | 'philosopher' | 'veteran' | 'top_detective' | 'mafia_master';
-export type PostType = 'text' | 'image' | 'gif' | 'video' | 'poll' | 'movie_rec' | 'series_rec' | 'book_rec' | 'music_rec' | 'philosophy';
+export type PostType = 'text' | 'image' | 'gif' | 'video' | 'poll' | 'movie_rec' | 'series_rec' | 'book_rec' | 'music_rec' | 'philosophy' | 'voice';
 export type FeedCategory = 'all' | 'following' | 'friends' | 'void_news' | 'mr_max' | 'clans' | 'trending';
 export interface PollOption {
     id: string;
@@ -2058,6 +2078,9 @@ export interface CommunityPostV2 extends CommunityPost {
     authorBadges: CommunityBadge[];
     authorBio: string;
     authorCoverUrl: string | null;
+    audioUrl?: string | null;
+    reactions?: Record<string, number>;
+    myReaction?: string | null;
 }
 export interface CommunityProfileV2 extends CommunityProfile {
     bio: string;

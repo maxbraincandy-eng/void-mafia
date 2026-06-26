@@ -5,6 +5,7 @@ import type {
   DailyThought, CommunityPost, CommunityComment, CommunityEvent, CommunityEventCategory,
   CommunityNotification, CommunityProfile, CommunityReport, Res,
   CommunityPostV2, CommunityProfileV2, CommunitySearchResult, FeedCategory, PollResult,
+  CommunityLeaderboardEntry,
 } from '@/types/index';
 
 function unwrap<T>(res: Res<T>): T {
@@ -97,6 +98,11 @@ interface CommunityStore {
   fetchFollowingList: (profileId: string) => Promise<CommunityProfileV2[]>;
   fetchPeopleList: () => Promise<void>;
   updateMyProfile: (data: { bio?: string; coverUrl?: string; favoriteRole?: string }) => Promise<CommunityProfileV2>;
+
+  leaderboard: CommunityLeaderboardEntry[];
+  leaderboardLoading: boolean;
+  toggleReaction: (postId: string, emoji: string) => Promise<void>;
+  fetchLeaderboard: () => Promise<void>;
 }
 
 export const useCommunityStore = create<CommunityStore>((set, get) => {
@@ -185,6 +191,8 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
     searchLoading: false,
     activeHashtag: null,
     peopleList: [],
+    leaderboard: [],
+    leaderboardLoading: false,
 
     fetchLounges: async () => {
       const lounges = unwrap(await emitWithAck<undefined, Res<CommunityLounge[]>>('community:lounge_list'));
@@ -435,6 +443,25 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
     updateMyProfile: async (data) => {
       const profile = unwrap(await emitWithAck<any, Res<CommunityProfileV2>>('community:update_profile', data));
       return profile;
+    },
+
+    toggleReaction: async (postId, emoji) => {
+      const r = await emitWithAck<any, Res<{ reactions: Record<string, number>; myReaction: string | null }>>('community:post_react', { postId, emoji });
+      if (r.ok) {
+        set(s => ({
+          feedV2Posts: s.feedV2Posts.map(p => p.id === postId
+            ? { ...p, reactions: r.data.reactions, myReaction: r.data.myReaction, likesCount: Object.values(r.data.reactions).reduce((a, b) => a + b, 0) }
+            : p
+          ),
+        }));
+      }
+    },
+    fetchLeaderboard: async () => {
+      set({ leaderboardLoading: true });
+      try {
+        const r = await emitWithAck<undefined, Res<CommunityLeaderboardEntry[]>>('community:leaderboard');
+        if (r.ok) set({ leaderboard: r.data });
+      } finally { set({ leaderboardLoading: false }); }
     },
   };
 });

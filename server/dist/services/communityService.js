@@ -670,12 +670,15 @@ async function buildPostV2(row, viewerId) {
         authorBadges,
         authorBio: isAnon ? '' : (row.author_bio ?? ''),
         authorCoverUrl: isAnon ? null : (row.author_cover_url ?? null),
+        audioUrl: row.audio_url ?? null,
     };
 }
 // Create post V2
 export async function createPostV2(authorId, data) {
     if (data.imageUrl && data.imageUrl.length > 680000)
         throw new Error('Image too large — please use a smaller image.');
+    if (data.audioUrl && data.audioUrl.length > 5000000)
+        throw new Error('Audio too large.');
     const id = `post_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const now = Date.now();
     const hashtags = extractHashtags(data.content);
@@ -683,8 +686,8 @@ export async function createPostV2(authorId, data) {
     const visibility = data.visibility ?? 'public';
     const isAnonymous = Boolean(data.isAnonymous);
     await sql `
-    INSERT INTO community_posts (id, author_id, content, image_url, post_type, gif_url, video_url, rec_title, rec_category, hashtags, visibility, likes_count, comments_count, saves_count, is_pinned, is_featured, hidden, is_anonymous, created_at)
-    VALUES (${id}, ${authorId}, ${data.content}, ${data.imageUrl ?? null}, ${data.postType}, ${data.gifUrl ?? null}, ${data.videoUrl ?? null}, ${data.recTitle ?? null}, ${data.recCategory ?? null}, ${hashtagsJson}, ${visibility}, 0, 0, 0, false, false, false, ${isAnonymous}, ${now})
+    INSERT INTO community_posts (id, author_id, content, image_url, post_type, gif_url, video_url, audio_url, rec_title, rec_category, hashtags, visibility, likes_count, comments_count, saves_count, is_pinned, is_featured, hidden, is_anonymous, created_at)
+    VALUES (${id}, ${authorId}, ${data.content}, ${data.imageUrl ?? null}, ${data.postType}, ${data.gifUrl ?? null}, ${data.videoUrl ?? null}, ${data.audioUrl ?? null}, ${data.recTitle ?? null}, ${data.recCategory ?? null}, ${hashtagsJson}, ${visibility}, 0, 0, 0, false, false, false, ${isAnonymous}, ${now})
   `;
     if (data.postType === 'poll' && data.poll) {
         const options = data.poll.options.map((text, i) => ({ id: `opt_${i}`, text: text.slice(0, 100) }));
@@ -1015,5 +1018,95 @@ export async function recalcReputation(playerId) {
     const result = await sql `SELECT COALESCE(SUM(likes_count), 0) AS total FROM community_posts WHERE author_id = ${playerId} AND hidden = false`;
     const rep = Number(result[0]?.total ?? 0);
     await sql `UPDATE players SET community_reputation = ${rep} WHERE id = ${playerId}`;
+}
+export async function togglePostReaction(postId, playerId, emoji) {
+    // Valid emojis
+    const VALID = ['🔥', '❤️', '😂', '💀', '🤝', '👑'];
+    if (!VALID.includes(emoji))
+        throw new Error('Invalid reaction.');
+    const [existing] = await sql `SELECT emoji FROM community_post_reactions WHERE post_id = ${postId} AND player_id = ${playerId}`;
+    if (existing) {
+        if (existing.emoji === emoji) {
+            // Same emoji → remove reaction
+            await sql `DELETE FROM community_post_reactions WHERE post_id = ${postId} AND player_id = ${playerId}`;
+            // Update likes_count based on reactions
+            const rows = await sql `SELECT emoji, COUNT(*) as cnt FROM community_post_reactions WHERE post_id = ${postId} GROUP BY emoji`;
+            const reactions = {};
+            let total = 0;
+            for (const r of rows) {
+                reactions[r.emoji] = Number(r.cnt);
+                total += Number(r.cnt);
+            }
+            await sql `UPDATE community_posts SET likes_count = ${total} WHERE id = ${postId}`;
+            return { emoji: null, reactions, myReaction: null };
+        }
+        else {
+            // Different emoji → update
+            await sql `UPDATE community_post_reactions SET emoji = ${emoji}, created_at = ${Date.now()} WHERE post_id = ${postId} AND player_id = ${playerId}`;
+        }
+    }
+    else {
+        // New reaction
+        await sql `INSERT INTO community_post_reactions (post_id, player_id, emoji, created_at) VALUES (${postId}, ${playerId}, ${emoji}, ${Date.now()})`;
+    }
+    const rows = await sql `SELECT emoji, COUNT(*) as cnt FROM community_post_reactions WHERE post_id = ${postId} GROUP BY emoji`;
+    const reactions = {};
+    let total = 0;
+    for (const r of rows) {
+        reactions[r.emoji] = Number(r.cnt);
+        total += Number(r.cnt);
+    }
+    await sql `UPDATE community_posts SET likes_count = ${total} WHERE id = ${postId}`;
+    return { emoji, reactions, myReaction: emoji };
+}
+export async function getPostReactions(postId, playerId) {
+    const rows = await sql `SELECT emoji, COUNT(*) as cnt FROM community_post_reactions WHERE post_id = ${postId} GROUP BY emoji`;
+    const reactions = {};
+    for (const r of rows) {
+        reactions[r.emoji] = Number(r.cnt);
+    }
+    let myReaction = null;
+    if (playerId) {
+        const [me] = await sql `SELECT emoji FROM community_post_reactions WHERE post_id = ${postId} AND player_id = ${playerId}`;
+        myReaction = me?.emoji ?? null;
+    }
+    return { reactions, myReaction };
+}
+export async function getWeeklyLeaderboard() {
+    const weekStart = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const rows = await sql `
+    SELECT p.id as player_id, p.username, p.avatar_url,
+           COALESCE(SUM(cp.likes_count * 2 + cp.comments_count * 3), 0) as score
+    FROM profiles p
+    JOIN community_posts cp ON cp.author_id = p.id
+    WHERE cp.created_at > ${weekStart} AND cp.deleted_at IS NULL
+    GROUP BY p.id, p.username, p.avatar_url
+    ORDER BY score DESC
+    LIMIT 20
+  `;
+    return rows.map((r, i) => ({
+        playerId: r.player_id,
+        username: r.username,
+        avatarUrl: r.avatar_url ?? null,
+        score: Number(r.score),
+        rank: i + 1,
+    }));
+}
+export async function distributeLeaderboardRewards(sql_, recordTransaction_) {
+    const leaders = await getWeeklyLeaderboard();
+    const prizes = [200, 100, 50];
+    const weekStart = Date.now();
+    for (let i = 0; i < Math.min(3, leaders.length); i++) {
+        const leader = leaders[i];
+        if (leader.score === 0)
+            continue;
+        // Check not already rewarded this week
+        const [already] = await sql_ `SELECT id FROM community_leaderboard_rewards WHERE player_id = ${leader.playerId} AND week_start > ${weekStart - 7 * 24 * 3600 * 1000}`;
+        if (already)
+            continue;
+        await recordTransaction_(leader.playerId, 'grant', prizes[i], `Community leaderboard #${i + 1} weekly reward`, {});
+        const id = Math.random().toString(36).slice(2);
+        await sql_ `INSERT INTO community_leaderboard_rewards (id, player_id, week_start, rank, coins, created_at) VALUES (${id}, ${leader.playerId}, ${weekStart}, ${i + 1}, ${prizes[i]}, ${Date.now()})`;
+    }
 }
 //# sourceMappingURL=communityService.js.map

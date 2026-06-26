@@ -144,6 +144,17 @@ function PostLightbox({
               </p>
             )}
 
+            {/* Voice post audio player */}
+            {post.audioUrl && (
+              <div style={{ marginTop: 8, marginBottom: 12, borderRadius: 12, overflow: 'hidden', background: 'rgba(155,0,255,0.06)', padding: '8px 10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 14 }}>🎙</span>
+                  <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(155,0,255,0.8)' }}>VOICE POST</span>
+                </div>
+                <audio src={post.audioUrl} controls style={{ width: '100%', height: 32 }} />
+              </div>
+            )}
+
             {/* Poll */}
             {post.poll && (
               <div className="mb-3">
@@ -303,6 +314,17 @@ function PostTextCard({ post: initialPost, readMoreLabel, onExpand }: {
         {post.poll && (
           <div onClick={e => e.stopPropagation()} className="mt-2">
             <PollDisplay post={post} onVote={handleVote} voting={pollVoting} />
+          </div>
+        )}
+
+        {/* Voice post audio player */}
+        {post.audioUrl && (
+          <div style={{ marginTop: 8, borderRadius: 12, overflow: 'hidden', background: 'rgba(155,0,255,0.06)', padding: '8px 10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 14 }}>🎙</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(155,0,255,0.8)' }}>VOICE POST</span>
+            </div>
+            <audio src={post.audioUrl} controls style={{ width: '100%', height: 32 }} />
           </div>
         )}
 

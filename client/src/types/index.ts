@@ -1002,7 +1002,7 @@ export interface CommunityReport {
 }
 
 export type CommunityBadge = 'verified' | 'owner' | 'moderator' | 'creator' | 'speaker' | 'philosopher' | 'veteran' | 'top_detective' | 'mafia_master';
-export type PostType = 'text' | 'image' | 'gif' | 'video' | 'poll' | 'movie_rec' | 'series_rec' | 'book_rec' | 'music_rec' | 'philosophy';
+export type PostType = 'text' | 'image' | 'gif' | 'video' | 'poll' | 'movie_rec' | 'series_rec' | 'book_rec' | 'music_rec' | 'philosophy' | 'voice';
 export type FeedCategory = 'all' | 'following' | 'friends' | 'void_news' | 'mr_max' | 'clans' | 'trending';
 
 export interface PollOption { id: string; text: string; }
@@ -1031,6 +1031,17 @@ export interface CommunityPostV2 extends CommunityPost {
   authorBadges: CommunityBadge[];
   authorBio: string;
   authorCoverUrl: string | null;
+  reactions?: Record<string, number>;  // emoji → count
+  myReaction?: string | null;
+  audioUrl?: string | null;
+}
+
+export interface CommunityLeaderboardEntry {
+  playerId: string;
+  username: string;
+  avatarUrl: string | null;
+  score: number;
+  rank: number;
 }
 
 export interface CommunityProfileV2 extends CommunityProfile {

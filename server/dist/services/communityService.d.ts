@@ -93,6 +93,7 @@ export declare function createPostV2(authorId: string, data: {
     imageUrl?: string | null;
     gifUrl?: string | null;
     videoUrl?: string | null;
+    audioUrl?: string | null;
     recTitle?: string | null;
     recCategory?: string | null;
     poll?: {
@@ -132,4 +133,21 @@ export declare function getOnlineMembers(): Promise<Array<{
 }>>;
 export declare function computeTrending(): Promise<void>;
 export declare function recalcReputation(playerId: string): Promise<void>;
+export declare function togglePostReaction(postId: string, playerId: string, emoji: string): Promise<{
+    emoji: string | null;
+    reactions: Record<string, number>;
+    myReaction: string | null;
+}>;
+export declare function getPostReactions(postId: string, playerId?: string): Promise<{
+    reactions: Record<string, number>;
+    myReaction: string | null;
+}>;
+export declare function getWeeklyLeaderboard(): Promise<Array<{
+    playerId: string;
+    username: string;
+    avatarUrl: string | null;
+    score: number;
+    rank: number;
+}>>;
+export declare function distributeLeaderboardRewards(sql_: any, recordTransaction_: any): Promise<void>;
 //# sourceMappingURL=communityService.d.ts.map

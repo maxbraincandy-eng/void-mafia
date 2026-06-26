@@ -849,6 +849,8 @@ export interface ServerToClientEvents {
   // Community Hub (separate from Mafia game events)
   'community:notification': (n: CommunityNotification) => void;
   'community:lounge_update': (lounge: CommunityLounge) => void;
+  'community:post_reacted': (data: { postId: string; reactions: Record<string, number>; myReaction: string | null }) => void;
+  'community:leaderboard_update': (data: any[]) => void;
   'community:lounge_removed': (data: { loungeId: string }) => void;
   'community:post_new':      (post: CommunityPost) => void;
   'community:post_updated': (post: CommunityPostV2) => void;
@@ -1155,6 +1157,8 @@ export interface ClientToServerEvents {
   'community:privacy_get': (cb: (r: Res<{ hideFollowersList: boolean; allowFriendRequests: boolean; defaultPostVisibility: string; profileMode: string }>) => void) => void;
   'community:privacy_set': (data: { hideFollowersList?: boolean; allowFriendRequests?: boolean; defaultPostVisibility?: string; profileMode?: string }, cb: (r: Res<void>) => void) => void;
   'community:mod_logs': (cb: (r: Res<Array<{ id: string; action: string; modId: string; targetId: string | null; postId: string | null; note: string; createdAt: number }>>) => void) => void;
+  'community:post_react': (data: { postId: string; emoji: string }, cb: Cb<{ reactions: Record<string, number>; myReaction: string | null }>) => void;
+  'community:leaderboard': (cb: Cb<Array<{ playerId: string; username: string; avatarUrl: string | null; score: number; rank: number }>>) => void;
   // Lounge voice signaling
   'lounge:join':           (data: { loungeId: string; asSpeaker: boolean }, cb: Cb<{ peers: Array<{ socketId: string; name: string; role: CommunityLoungeRole }>; role: CommunityLoungeRole; iceServers?: any }>) => void;
   'lounge:leave':          () => void;
@@ -1409,7 +1413,7 @@ export interface CommunityProfile {
 }
 
 export type CommunityBadge = 'verified' | 'owner' | 'moderator' | 'creator' | 'speaker' | 'philosopher' | 'veteran' | 'top_detective' | 'mafia_master';
-export type PostType = 'text' | 'image' | 'gif' | 'video' | 'poll' | 'movie_rec' | 'series_rec' | 'book_rec' | 'music_rec' | 'philosophy';
+export type PostType = 'text' | 'image' | 'gif' | 'video' | 'poll' | 'movie_rec' | 'series_rec' | 'book_rec' | 'music_rec' | 'philosophy' | 'voice';
 export type FeedCategory = 'all' | 'following' | 'friends' | 'void_news' | 'mr_max' | 'clans' | 'trending';
 
 export interface PollOption { id: string; text: string; }
@@ -1439,6 +1443,9 @@ export interface CommunityPostV2 extends CommunityPost {
   authorBadges: CommunityBadge[];
   authorBio: string;
   authorCoverUrl: string | null;
+  audioUrl?: string | null;
+  reactions?: Record<string, number>;
+  myReaction?: string | null;
 }
 
 export interface CommunityProfileV2 extends CommunityProfile {

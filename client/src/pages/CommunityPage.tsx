@@ -10,6 +10,8 @@ import { ThoughtsTab } from '@/components/community/ThoughtsTab';
 import { PeopleTab } from '@/components/community/PeopleTab';
 import { DebatesTab } from '@/components/community/DebatesTab';
 import { ActivityTab } from '@/components/community/ActivityTab';
+import { EventsTab } from '@/components/community/EventsTab';
+import { CommunityLeaderboard } from '@/components/community/CommunityLeaderboard';
 import { NotificationPanel } from '@/components/community/NotificationPanel';
 import { ModerationPanel } from '@/components/community/ModerationPanel';
 import AdminPanel from '@/components/community/AdminPanel';
@@ -18,7 +20,7 @@ import { ProfileModalV2 } from '@/components/community/ProfileModalV2';
 import { CommunitySearchPanel } from '@/components/community/CommunitySearchPanel';
 import { useSocialStore } from '@/store/socialStore';
 
-type CommunityTab = 'feed' | 'voice' | 'people' | 'games' | 'debates' | 'activity';
+type CommunityTab = 'feed' | 'voice' | 'people' | 'games' | 'debates' | 'activity' | 'events' | 'leaderboard';
 
 export function CommunityPage() {
   const t = useT();
@@ -47,6 +49,8 @@ export function CommunityPage() {
     { id: 'debates',  label: t.community.tabs.debates,  icon: '⚔️' },
     { id: 'people',   label: t.community.tabs.people,   icon: '👥' },
     { id: 'activity', label: t.community.tabs.activity, icon: '🔥' },
+    { id: 'events', label: 'ივენთები', icon: '📅' },
+    { id: 'leaderboard', label: 'ლიდერი', icon: '🏆' },
   ];
 
   return (
@@ -187,6 +191,8 @@ export function CommunityPage() {
               {tab === 'people'   && <PeopleTab onOpenProfile={setViewProfileId} />}
               {tab === 'debates'  && <DebatesTab />}
               {tab === 'activity' && <ActivityTab onOpenProfile={setViewProfileId} />}
+              {tab === 'events' && <EventsTab />}
+              {tab === 'leaderboard' && <CommunityLeaderboard />}
             </motion.div>
           )}
         </AnimatePresence>

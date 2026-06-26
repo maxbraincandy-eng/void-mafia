@@ -111,6 +111,7 @@ import {
   listPeopleDirectory, getFollowersList, getFollowingList,
   searchCommunity, upsertOnlineSeen, getOnlineMembers, computeTrending, recalcReputation,
   extractHashtags, generateAnonymousName,
+  togglePostReaction, getPostReactions, getWeeklyLeaderboard,
 } from './services/communityService.js';
 import {
   listDebates, getDebateFull, createDebate, joinDebate, postArgument, voteDebate, closeDebate,
@@ -4296,6 +4297,24 @@ export function attachSocketHandlers(io: AppServer): void {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('Not authenticated.');
         cb(ok(await toggleLike(postId, profileId)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:post_react', async ({ postId, emoji }, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(err('Not authenticated.')); return; }
+        const result = await togglePostReaction(postId, profileId, emoji);
+        cb(ok(result));
+        // Broadcast to others
+        io.emit('community:post_reacted', { postId, reactions: result.reactions, myReaction: result.myReaction });
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:leaderboard', async (cb) => {
+      try {
+        const leaders = await getWeeklyLeaderboard();
+        cb(ok(leaders));
       } catch (e: any) { cb(err(e.message)); }
     });
 

@@ -7,6 +7,7 @@ import type { CommunityPostV2, CommunityComment } from '@/types/index';
 import { Avatar, BadgeRow, MrMaxGlow, timeAgo, ModalShell, TextArea, TextInput, PillButton, Spinner } from '@/components/community/shared';
 import { PollDisplay } from '@/components/community/PollDisplay';
 import { YouTubeEmbed, extractYouTubeId } from '@/components/community/YouTubeEmbed';
+import { ReactionPicker } from './ReactionPicker';
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
 
@@ -166,7 +167,7 @@ export function PostCardV2({
   // Subscribe directly so like/save/comment updates show instantly without relying on parent re-render
   const post = useCommunityStore(s => s.feedV2Posts.find(p => p.id === initialPost.id) ?? initialPost);
   const profile = useAuthStore(s => s.profile);
-  const { toggleLike, deletePost, toggleSave, setActiveHashtag } = useCommunityStore();
+  const { toggleLike, toggleReaction, deletePost, toggleSave, setActiveHashtag } = useCommunityStore();
   const isMrMax = post.authorBadges?.includes('owner');
   const isMod = profile?.isModerator ?? false;
   const isOwn = post.authorId === profile?.id;
@@ -264,6 +265,11 @@ export function PostCardV2({
           🎬 {post.videoUrl}
         </a>
       )}
+      {post.audioUrl && (
+        <div style={{ marginTop: 8, borderRadius: 12, overflow: 'hidden' }}>
+          <audio src={post.audioUrl} controls style={{ width: '100%', height: 36 }} />
+        </div>
+      )}
 
       {/* Recommendation card */}
       {post.recTitle && (
@@ -296,15 +302,11 @@ export function PostCardV2({
 
       {/* Action row */}
       <div className="flex items-center gap-3 pt-1 flex-wrap">
-        <button
-          onClick={() => toggleLike(post.id)}
-          className="flex items-center gap-1.5 font-mono text-[11px] transition-colors active:scale-95"
-          style={{ color: post.likedByMe ? '#9b00ff' : 'rgba(255,255,255,0.4)' }}
-        >
-          <span>{post.likedByMe ? '♥' : '♡'}</span>
-          <span>{post.likesCount}</span>
-          <span className="uppercase tracking-wider">{post.likedByMe ? t.community.feed.liked : t.community.feed.like}</span>
-        </button>
+        <ReactionPicker
+          myReaction={post.myReaction ?? null}
+          reactions={post.reactions ?? (post.likedByMe ? { '❤️': post.likesCount } : {})}
+          onReact={(emoji) => toggleReaction(post.id, emoji)}
+        />
 
         <button
           onClick={() => setShowComments(v => !v)}
