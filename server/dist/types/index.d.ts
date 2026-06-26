@@ -1173,6 +1173,17 @@ export interface ClientToServerEvents {
     'mod:get_player_detail': (data: {
         targetProfileId: string;
     }, cb: Cb<ModPlayerDetail>) => void;
+    'mod:get_player_auth_info': (data: {
+        targetProfileId: string;
+    }, cb: Cb<{
+        accounts: Array<{
+            provider: string;
+            email: string | null;
+            display_name: string | null;
+            provider_user_id: string;
+            created_at: number;
+        }>;
+    }>) => void;
     'mod:add_note': (data: {
         targetProfileId: string;
         note: string;
@@ -1682,6 +1693,14 @@ export interface ClientToServerEvents {
         reactions: Record<string, number>;
         myReaction: string | null;
     }>) => void;
+    'community:get_reaction_users': (data: {
+        postId: string;
+    }, cb: Cb<Array<{
+        emoji: string;
+        username: string;
+        avatar_url: string | null;
+        player_id: string;
+    }>>) => void;
     'community:leaderboard': (cb: Cb<Array<{
         playerId: string;
         username: string;

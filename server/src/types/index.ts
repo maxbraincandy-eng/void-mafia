@@ -977,6 +977,7 @@ export interface ClientToServerEvents {
   'mod:toggle_maintenance': (data: { enabled: boolean }, cb: Cb<{ enabled: boolean }>) => void;
   'mod:get_maintenance':    (cb: Cb<{ enabled: boolean }>) => void;
   'mod:get_player_detail':  (data: { targetProfileId: string }, cb: Cb<ModPlayerDetail>) => void;
+  'mod:get_player_auth_info': (data: { targetProfileId: string }, cb: Cb<{ accounts: Array<{ provider: string; email: string | null; display_name: string | null; provider_user_id: string; created_at: number }> }>) => void;
   'mod:add_note':           (data: { targetProfileId: string; note: string }, cb: Cb<null>) => void;
   'mod:freeze_account':     (data: { targetProfileId: string; reason: string }, cb: Cb<null>) => void;
   'mod:unfreeze_account':   (data: { targetProfileId: string }, cb: Cb<null>) => void;
@@ -1158,6 +1159,7 @@ export interface ClientToServerEvents {
   'community:privacy_set': (data: { hideFollowersList?: boolean; allowFriendRequests?: boolean; defaultPostVisibility?: string; profileMode?: string }, cb: (r: Res<void>) => void) => void;
   'community:mod_logs': (cb: (r: Res<Array<{ id: string; action: string; modId: string; targetId: string | null; postId: string | null; note: string; createdAt: number }>>) => void) => void;
   'community:post_react': (data: { postId: string; emoji: string }, cb: Cb<{ reactions: Record<string, number>; myReaction: string | null }>) => void;
+  'community:get_reaction_users': (data: { postId: string }, cb: Cb<Array<{ emoji: string; username: string; avatar_url: string | null; player_id: string }>>) => void;
   'community:leaderboard': (cb: Cb<Array<{ playerId: string; username: string; avatarUrl: string | null; score: number; rank: number }>>) => void;
   // Lounge voice signaling
   'lounge:join':           (data: { loungeId: string; asSpeaker: boolean }, cb: Cb<{ peers: Array<{ socketId: string; name: string; role: CommunityLoungeRole }>; role: CommunityLoungeRole; iceServers?: any }>) => void;

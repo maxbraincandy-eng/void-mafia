@@ -2866,6 +2866,24 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
+        // ── Mod: Get Player Auth Info (owner only) ─────────────────────────
+        socket.on('mod:get_player_auth_info', async ({ targetProfileId }, cb) => {
+            try {
+                const modProfileId = socket.data.profileId;
+                const mod = modProfileId ? await getPlayer(modProfileId) : null;
+                if (!mod || mod.moderatorLevel !== 'owner')
+                    throw new Error('Owner only.');
+                const accounts = await sql `
+          SELECT provider, email, display_name, provider_user_id, created_at
+          FROM auth_accounts WHERE user_id = ${targetProfileId}
+          ORDER BY created_at ASC
+        `;
+                cb(ok({ accounts }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
         // ── Mod: Add Note ─────────────────────────────────────────────────
         socket.on('mod:add_note', async ({ targetProfileId, note }, cb) => {
             try {
@@ -4756,6 +4774,21 @@ export function attachSocketHandlers(io) {
                 cb(ok(result));
                 // Broadcast to others
                 io.emit('community:post_reacted', { postId, reactions: result.reactions, myReaction: result.myReaction });
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('community:get_reaction_users', async ({ postId }, cb) => {
+            try {
+                const rows = await sql `
+          SELECT r.emoji, p.username, p.avatar_url, r.player_id
+          FROM community_post_reactions r
+          JOIN players p ON p.id = r.player_id
+          WHERE r.post_id = ${postId}
+          ORDER BY r.created_at ASC
+        `;
+                cb(ok(rows));
             }
             catch (e) {
                 cb(err(e.message));
