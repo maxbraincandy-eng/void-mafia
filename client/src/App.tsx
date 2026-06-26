@@ -13,7 +13,7 @@ import { CommunityPage } from '@/pages/CommunityPage';
 import { ProfilePage } from '@/pages/ProfilePage';
 import { ClansPage } from '@/pages/ClansPage';
 import { LeaderboardPage } from '@/pages/LeaderboardPage';
-import { ModDashboardPage } from '@/pages/ModDashboardPage';
+import { ModPanel } from '@/pages/ModDashboardPage';
 import { EconomyAdminPage } from '@/pages/EconomyAdminPage';
 import { ReplaysPage } from '@/pages/ReplaysPage';
 import { PublicProfilePage } from '@/pages/PublicProfilePage';
@@ -325,6 +325,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const unoMatch      = useUnoStore(s => s.match);
   const inGame = !!(checkersMatch || ludoMatch || jokerMatch || wwwMatch || unoMatch);
   const [spaceOpen, setSpaceOpen] = useState(false);
+  const [modOpen, setModOpen] = useState(false);
 
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
@@ -351,7 +352,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
-    if (swipeLocked.current || inGame || page === 'community' || page === 'mod' || page === 'economy') return;
+    if (swipeLocked.current || inGame || page === 'community' || page === 'economy') return;
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     const dy = e.changedTouches[0].clientY - touchStartY.current;
     if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx) * 0.7) return;
@@ -381,8 +382,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
         {page === 'replays'     && <PageTransition key={`replays-${initialReplayId ?? ''}`} direction={direction}><ReplaysPage initialReplayId={initialReplayId} /></PageTransition>}
         {page === 'leaderboard' && <PageTransition key="leaderboard"  direction={direction}><LeaderboardPage onBack={() => navigate('rooms')} /></PageTransition>}
         {page === 'profile'     && <PageTransition key="profile"      direction={direction}><ProfilePage onViewReplay={navigateToReplay} /></PageTransition>}
-        {page === 'mod' && isMod   && <PageTransition key="mod"       direction={direction}><ModDashboardPage /></PageTransition>}
-        {page === 'economy' && isOwner && <PageTransition key="economy" direction={direction}><EconomyAdminPage /></PageTransition>}
+{page === 'economy' && isOwner && <PageTransition key="economy" direction={direction}><EconomyAdminPage /></PageTransition>}
       </AnimatePresence>
       {!inGame && <BottomNav active={page} isMod={isMod} onChange={tab => navigate(tab)} onMoreClick={openMoreMenu} />}
 
@@ -402,8 +402,9 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
         onClansClick={() => navigate('clans')}
         onLeaderboardClick={() => navigate('leaderboard')}
         onMessagesClick={openDmList}
-        onModClick={() => { setDirection(1); setPage('mod'); }}
+        onModClick={() => setModOpen(true)}
       />
+      {isMod && <ModPanel open={modOpen} onClose={() => setModOpen(false)} />}
       <YourTurnToast />
     </div>
   );

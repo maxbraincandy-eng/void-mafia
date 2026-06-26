@@ -17,7 +17,7 @@ import { PlayerActionMenu } from '@/components/ui/PlayerActionMenu';
 import { SendGiftModal } from '@/components/ui/SendGiftModal';
 import { socket } from '@/lib/socket';
 import type { PlayerPublic } from '@/types/index';
-import { ModDashboardPage } from '@/pages/ModDashboardPage';
+import { ModPanel } from '@/pages/ModDashboardPage';
 import { useVoiceChat, registerVoiceGestureRetry } from '@/hooks/useVoiceChat';
 import { useGameSounds } from '@/hooks/useSoundFX';
 
@@ -1009,28 +1009,7 @@ export function LobbyPage() {
       />
 
       {/* Mod panel overlay */}
-      <AnimatePresence>
-        {showModPanel && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[400] overflow-y-auto"
-            style={{ background: 'rgba(6,3,18,0.97)' }}
-          >
-            <div className="relative">
-              <button
-                onClick={() => setShowModPanel(false)}
-                className="fixed top-4 right-4 z-[401] w-9 h-9 rounded-full flex items-center justify-center font-mono text-white/50 hover:text-white/90 transition-colors"
-                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}
-              >
-                ✕
-              </button>
-              <ModDashboardPage />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <ModPanel open={showModPanel} onClose={() => setShowModPanel(false)} />
 
       {/* Invite friends modal */}
       <AnimatePresence>

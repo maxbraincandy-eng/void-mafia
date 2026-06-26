@@ -40,7 +40,7 @@ import { DynamicEventBanner } from '@/components/game/DynamicEventBanner';
 import { useT } from '@/store/langStore';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
-import { ModDashboardPage } from '@/pages/ModDashboardPage';
+import { ModPanel } from '@/pages/ModDashboardPage';
 import { PlanningNightPanel } from '@/components/game/PlanningNightPanel';
 import { DonCheckPanel } from '@/components/game/DonCheckPanel';
 import { MafiaKillPanel } from '@/components/game/MafiaKillPanel';
@@ -2057,28 +2057,7 @@ export function GamePage() {
       <TutorialOverlay />
 
       {/* Mod panel overlay */}
-      <AnimatePresence>
-        {showModPanel && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[400] overflow-y-auto"
-            style={{ background: 'rgba(6,3,18,0.97)' }}
-          >
-            <div className="relative">
-              <button
-                onClick={() => setShowModPanel(false)}
-                className="fixed top-4 right-4 z-[401] w-9 h-9 rounded-full flex items-center justify-center font-mono text-white/50 hover:text-white/90 transition-colors"
-                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}
-              >
-                ✕
-              </button>
-              <ModDashboardPage />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <ModPanel open={showModPanel} onClose={() => setShowModPanel(false)} />
 
       {/* Player action menu */}
       <AnimatePresence>

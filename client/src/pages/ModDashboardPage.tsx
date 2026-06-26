@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socket } from '@/lib/socket';
 import {
@@ -70,7 +71,7 @@ interface ActionState {
   roomId?: string;
 }
 
-export function ModDashboardPage() {
+export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const addToast = useGameStore(s => s.addToast);
   const profile = useAuthStore(s => s.profile);
   const rank = modRank(profile?.moderatorLevel);
@@ -372,42 +373,81 @@ export function ModDashboardPage() {
     open: 'text-neon-red', reviewing: 'text-neon-pink', resolved: 'text-neon-green', rejected: 'text-white/25',
   };
 
-  return (
-    <div className="min-h-screen bg-void scanlines pb-24 relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-64 h-64 bg-neon-green/8 rounded-full blur-[100px] pointer-events-none" />
-
-      <div className="relative z-10 max-w-lg mx-auto px-4 pt-8">
-        {/* Header */}
-        <div className="mb-5 flex items-center gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-display text-2xl font-bold text-neon-green tracking-widest">MOD CONTROL</h1>
-              <ModBadge level="admin" size="sm" />
+  return createPortal(
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            key="mod-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[250]"
+            style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(3px)' }}
+            onClick={onClose}
+          />
+          <motion.div
+            key="mod-panel"
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 30, stiffness: 280, mass: 0.85 }}
+            className="fixed top-0 right-0 bottom-0 z-[251] w-full max-w-sm flex flex-col"
+            style={{
+              background: 'rgba(4,1,14,0.88)',
+              backdropFilter: 'blur(28px) saturate(1.3)',
+              WebkitBackdropFilter: 'blur(28px) saturate(1.3)',
+              borderLeft: '1px solid rgba(0,229,255,0.1)',
+              boxShadow: '-8px 0 40px rgba(0,0,0,0.5)',
+            }}
+          >
+            {/* Header */}
+            <div
+              className="flex-shrink-0 flex items-center justify-between px-4 pb-3"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingTop: 'max(24px, env(safe-area-inset-top))' }}
+            >
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="font-display text-lg font-bold text-neon-green tracking-widest">MOD CONTROL</h1>
+                  <ModBadge level={profile?.moderatorLevel ?? 'moderator'} size="sm" />
+                </div>
+                {maintenance && (
+                  <span className="text-[11px] font-mono text-orange-400 animate-pulse">⚠ Maintenance mode</span>
+                )}
+              </div>
+              <button
+                onClick={onClose}
+                className="w-9 h-9 flex items-center justify-center rounded-xl text-white/30 hover:text-white transition-all"
+                style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+              >
+                ✕
+              </button>
             </div>
-            <p className="text-white/25 font-mono text-xs">Moderator Dashboard</p>
-          </div>
-          {maintenance && (
-            <span className="ml-auto text-[12px] font-mono uppercase border border-orange-400/40 text-orange-400 px-2 py-0.5 rounded-lg animate-pulse">Maintenance</span>
-          )}
-        </div>
 
-        {/* Tabs - scrollable, filtered by rank */}
-        <div className="flex gap-1 mb-5 bg-void-50/40 rounded-xl p-1 overflow-x-auto no-scrollbar">
-          {TABS.filter(t => can(t.minRank)).map(t => (
-            <button key={t.id} onClick={() => switchTab(t.id)}
-              className={`flex-shrink-0 px-3 py-2 rounded-lg font-mono text-xs transition-all whitespace-nowrap ${
-                tab === t.id ? 'bg-neon-green/15 text-neon-green border border-neon-green/25' : 'text-white/30 hover:text-white/60'
-              }`}>
-              {t.label}
-            </button>
-          ))}
-        </div>
+            {/* Tabs */}
+            <div className="flex-shrink-0 flex gap-1 px-3 pt-3 pb-2 overflow-x-auto no-scrollbar"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+              {TABS.filter(t => can(t.minRank)).map(t => (
+                <button key={t.id} onClick={() => switchTab(t.id)}
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-xl font-mono text-xs transition-all whitespace-nowrap border ${
+                    tab === t.id
+                      ? 'text-neon-green border-neon-green/30'
+                      : 'text-white/25 hover:text-white/50 border-transparent'
+                  }`}
+                  style={tab === t.id ? { background: 'rgba(0,229,100,0.08)' } : {}}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
 
-        {loading && (
-          <div className="text-center py-8">
-            <div className="w-6 h-6 border-2 border-neon-green border-t-transparent rounded-full animate-spin mx-auto" />
-          </div>
-        )}
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-10 pt-4 space-y-4">
+              {loading && (
+                <div className="text-center py-8">
+                  <div className="w-6 h-6 border-2 border-neon-green border-t-transparent rounded-full animate-spin mx-auto" />
+                </div>
+              )}
 
         {/* ── Dashboard ─────────────────────────────────────────── */}
         {!loading && tab === 'dashboard' && (
@@ -857,9 +897,10 @@ export function ModDashboardPage() {
             ))}
           </div>
         )}
-      </div>
+            </div>
+          </motion.div>
 
-      {/* ── Player Detail Overlay ────────────────────────────────── */}
+          {/* ── Player Detail Overlay ────────────────────────────────── */}
       <AnimatePresence>
         {tab === 'players' && playerDetail && (
           <>
@@ -993,16 +1034,19 @@ export function ModDashboardPage() {
       </AnimatePresence>
 
       {/* ── Confirm Modal ─────────────────────────────────────────── */}
-      <ConfirmModal
-        open={!!confirm}
-        title={confirm?.title ?? ''}
-        message={confirm?.msg ?? ''}
-        confirmLabel="Confirm"
-        dangerous
-        onConfirm={confirm?.onConfirm ?? (() => {})}
-        onCancel={() => setConfirm(null)}
-      />
-    </div>
+          <ConfirmModal
+            open={!!confirm}
+            title={confirm?.title ?? ''}
+            message={confirm?.msg ?? ''}
+            confirmLabel="Confirm"
+            dangerous
+            onConfirm={confirm?.onConfirm ?? (() => {})}
+            onCancel={() => setConfirm(null)}
+          />
+        </>
+      )}
+    </AnimatePresence>,
+    document.body
   );
 }
 
