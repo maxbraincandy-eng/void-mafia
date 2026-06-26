@@ -908,14 +908,14 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
               key="backdrop"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               transition={{ duration: 0.18 }}
-              className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm"
+              className="fixed inset-0 z-[252] bg-black/60 backdrop-blur-sm"
               onClick={() => setPlayerDetail(null)}
             />
             <motion.div
               key="panel"
               initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 28, stiffness: 240, mass: 0.8 }}
-              className="fixed top-0 right-0 bottom-0 z-[201] w-[92vw] max-w-sm overflow-y-auto overscroll-contain"
+              className="fixed top-0 right-0 bottom-0 z-[253] w-[92vw] max-w-sm overflow-y-auto overscroll-contain"
               style={{ background: 'rgba(8,8,14,0.98)', borderLeft: '1px solid rgba(255,255,255,0.07)' }}
             >
               {/* Close strip */}
