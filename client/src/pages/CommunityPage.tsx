@@ -44,13 +44,13 @@ export function CommunityPage() {
   }, [profile, fetchUnreadCount]);
 
   const TABS: { id: CommunityTab; label: string; icon: string }[] = [
-    { id: 'feed',     label: t.community.tabs.feed,     icon: '🌌' },
-    { id: 'voice',    label: t.community.tabs.voice,    icon: '🎤' },
-    { id: 'debates',  label: t.community.tabs.debates,  icon: '⚔️' },
-    { id: 'people',   label: t.community.tabs.people,   icon: '👥' },
-    { id: 'activity', label: t.community.tabs.activity, icon: '🔥' },
-    { id: 'events', label: 'ივენთები', icon: '📅' },
-    { id: 'leaderboard', label: 'ლიდერი', icon: '🏆' },
+    { id: 'feed',        label: t.community.tabs.feed,     icon: '🌌' },
+    { id: 'people',      label: t.community.tabs.people,   icon: '👥' },
+    { id: 'events',      label: 'ივენთები',               icon: '📅' },
+    { id: 'leaderboard', label: 'ლიდერი',                 icon: '🏆' },
+    { id: 'voice',       label: t.community.tabs.voice,    icon: '🎤' },
+    { id: 'debates',     label: t.community.tabs.debates,  icon: '⚔️' },
+    { id: 'activity',    label: t.community.tabs.activity, icon: '🔥' },
   ];
 
   return (

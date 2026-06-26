@@ -1177,7 +1177,7 @@ export async function getWeeklyLeaderboard(): Promise<Array<{ playerId: string; 
   const rows = await sql`
     SELECT p.id as player_id, p.username, p.avatar_url,
            COALESCE(SUM(cp.likes_count * 2 + cp.comments_count * 3), 0) as score
-    FROM profiles p
+    FROM players p
     JOIN community_posts cp ON cp.author_id = p.id
     WHERE cp.created_at > ${weekStart} AND cp.deleted_at IS NULL
     GROUP BY p.id, p.username, p.avatar_url
