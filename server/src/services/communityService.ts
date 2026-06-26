@@ -667,6 +667,16 @@ async function buildPostV2(row: any, viewerId: string): Promise<CommunityPostV2>
   const isAnon = Boolean(row.is_anonymous);
   const authorBadges = isAnon ? [] : await getPlayerBadges(row.author_id);
 
+  // Reactions
+  const reactionRows = await sql<{ emoji: string; count: string }[]>`SELECT emoji, COUNT(*) as count FROM community_post_reactions WHERE post_id = ${row.id} GROUP BY emoji`;
+  const reactions: Record<string, number> = {};
+  reactionRows.forEach(r => { reactions[r.emoji] = Number(r.count); });
+  let myReaction: string | null = null;
+  if (viewerId) {
+    const myR = await sql<{ emoji: string }[]>`SELECT emoji FROM community_post_reactions WHERE post_id = ${row.id} AND player_id = ${viewerId} LIMIT 1`;
+    myReaction = myR[0]?.emoji ?? null;
+  }
+
   let hashtags: string[] = [];
   try { hashtags = JSON.parse(row.hashtags ?? '[]'); } catch { hashtags = []; }
 
@@ -726,6 +736,8 @@ async function buildPostV2(row: any, viewerId: string): Promise<CommunityPostV2>
     authorBio: isAnon ? '' : (row.author_bio ?? ''),
     authorCoverUrl: isAnon ? null : (row.author_cover_url ?? null),
     audioUrl: row.audio_url ?? null,
+    reactions,
+    myReaction,
   };
 }
 
