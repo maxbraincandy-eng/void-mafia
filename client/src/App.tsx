@@ -311,7 +311,7 @@ function PageTransition({ children, direction }: { children: React.ReactNode; di
 }
 
 function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
-  const [page, setPage] = useState<NavTab>('rooms');
+  const [page, setPage] = useState<NavTab>('community');
   const [direction, setDirection] = useState<1 | -1>(1);
   const [initialReplayId, setInitialReplayId] = useState<string | undefined>(undefined);
   const profile = useAuthStore(s => s.profile);
