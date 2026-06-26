@@ -2,14 +2,16 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useT } from '@/store/langStore';
 import { useCommunityStore } from '@/store/communityStore';
+import { useAuthStore } from '@/store/authStore';
 import type { FeedCategory } from '@/types/index';
 import { Spinner, EmptyState } from '@/components/community/shared';
 import { PostCardV2 } from '@/components/community/PostCardV2';
 import { PostComposerV2 } from '@/components/community/PostComposerV2';
 import { SkeletonPost } from '@/components/ui/Skeleton';
 
-export function FeedTabV2({ onOpenProfile }: { onOpenProfile: (playerId: string) => void }) {
+export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (playerId: string) => void; onOpenMyProfile?: () => void }) {
   const t = useT();
+  const profile = useAuthStore(s => s.profile);
   const { feedV2Posts, feedV2HasMore, feedCategory, activeHashtag, setFeedCategory, fetchFeedV2, setActiveHashtag } = useCommunityStore();
 
   // Start loading only if there's no cached data to show — avoids skeleton flash on re-navigation
@@ -26,7 +28,6 @@ export function FeedTabV2({ onOpenProfile }: { onOpenProfile: (playerId: string)
   const CATS: { id: FeedCategory; label: string }[] = [
     { id: 'all',       label: t.community.feedCategories.all },
     { id: 'following', label: t.community.feedCategories.following },
-    { id: 'friends',   label: t.community.feedCategories.friends },
     { id: 'trending',  label: t.community.feedCategories.trending },
   ];
 
@@ -111,6 +112,21 @@ export function FeedTabV2({ onOpenProfile }: { onOpenProfile: (playerId: string)
             </button>
           );
         })}
+        {/* My Profile pseudo-tab */}
+        <button
+          onClick={() => onOpenMyProfile?.()}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full font-mono text-[12px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 active:scale-95"
+          style={{
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            color: 'rgba(255,255,255,0.4)',
+          }}
+        >
+          {profile?.avatar && (
+            <span style={{ fontSize: 13, lineHeight: 1 }}>{profile.avatar}</span>
+          )}
+          ჩემი
+        </button>
       </div>
 
       {loading ? (

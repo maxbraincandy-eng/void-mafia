@@ -186,7 +186,7 @@ export function CommunityPage() {
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.15 }}
             >
-              {tab === 'feed'     && <FeedTabV2 onOpenProfile={setViewProfileId} />}
+              {tab === 'feed'     && <FeedTabV2 onOpenProfile={setViewProfileId} onOpenMyProfile={() => profile && setFullProfileId(profile.id)} />}
               {tab === 'voice'    && <LoungesTab onOpenProfile={setViewProfileId} />}
               {tab === 'people'   && <PeopleTab onOpenProfile={setViewProfileId} />}
               {tab === 'debates'  && <DebatesTab />}
