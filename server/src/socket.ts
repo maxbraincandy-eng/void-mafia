@@ -2813,6 +2813,21 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    // ── Mod: Get Player Auth Info (owner only) ─────────────────────────
+    socket.on('mod:get_player_auth_info', async ({ targetProfileId }: { targetProfileId: string }, cb: any) => {
+      try {
+        const modProfileId = socket.data.profileId;
+        const mod = modProfileId ? await getPlayer(modProfileId) : null;
+        if (!mod || mod.moderatorLevel !== 'owner') throw new Error('Owner only.');
+        const accounts = await sql<{ provider: string; email: string | null; display_name: string | null; provider_user_id: string; created_at: number }[]>`
+          SELECT provider, email, display_name, provider_user_id, created_at
+          FROM auth_accounts WHERE user_id = ${targetProfileId}
+          ORDER BY created_at ASC
+        `;
+        cb(ok({ accounts }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     // ── Mod: Add Note ─────────────────────────────────────────────────
     socket.on('mod:add_note', async ({ targetProfileId, note }: { targetProfileId: string; note: string }, cb: any) => {
       try {

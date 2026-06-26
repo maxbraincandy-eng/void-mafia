@@ -1075,6 +1075,8 @@ function PlayerDetailPanel({
   const addToast = useGameStore(s => s.addToast);
   const [mlPending, setMlPending] = useState<string | null | 'revoke' | false>(false);
   const [voiceToolBusy, setVoiceToolBusy] = useState<string | null>(null);
+  const [authInfo, setAuthInfo] = useState<{ provider: string; email: string | null; display_name: string | null; provider_user_id: string; created_at: number }[] | null>(null);
+  const [authInfoLoading, setAuthInfoLoading] = useState(false);
 
   const copyFriendCode = () => {
     if (!p.friendCode) return;
@@ -1297,6 +1299,44 @@ function PlayerDetailPanel({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Auth Info (owner only) */}
+      {can(3) && (
+        <div className="glass-panel border border-neon-cyan/10 rounded-xl p-3">
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-mono text-xs text-neon-cyan font-bold uppercase tracking-widest">Auth Accounts</p>
+            {!authInfo && (
+              <button
+                disabled={authInfoLoading}
+                onClick={() => {
+                  setAuthInfoLoading(true);
+                  socket.emit('mod:get_player_auth_info' as any, { targetProfileId: p.id }, (res: Res<{ accounts: { provider: string; email: string | null; display_name: string | null; provider_user_id: string; created_at: number }[] }>) => {
+                    setAuthInfoLoading(false);
+                    if (res.ok) setAuthInfo(res.data.accounts);
+                    else addToast(res.error, 'error');
+                  });
+                }}
+                className="px-2.5 py-1 text-[11px] font-mono rounded-lg border border-neon-cyan/25 text-neon-cyan/60 hover:text-neon-cyan hover:bg-neon-cyan/10 transition-all disabled:opacity-40"
+              >
+                {authInfoLoading ? '…' : 'reveal'}
+              </button>
+            )}
+          </div>
+          {authInfo && authInfo.length === 0 && (
+            <p className="text-white/25 font-mono text-xs">No linked auth accounts found.</p>
+          )}
+          {authInfo && authInfo.map((a, i) => (
+            <div key={i} className="mb-2 last:mb-0 border border-white/5 rounded-lg p-2 space-y-0.5">
+              <div className="flex items-center gap-2">
+                <span className="text-neon-cyan font-mono text-xs font-bold uppercase">{a.provider}</span>
+                {a.display_name && <span className="text-white/50 font-mono text-xs">{a.display_name}</span>}
+              </div>
+              {a.email && <p className="text-white/70 font-mono text-[12px]">{a.email}</p>}
+              <p className="text-white/20 font-mono text-[10px] break-all">id: {a.provider_user_id}</p>
+            </div>
+          ))}
         </div>
       )}
 
