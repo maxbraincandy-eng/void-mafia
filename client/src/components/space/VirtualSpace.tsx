@@ -961,3 +961,7 @@ function startTV(id: string) {
 )}
 
 
+useEffect(() => {
+  setTvVideo('dQw4w9WgXcQ'); // ეს ჩართავს ტესტ ვიდეოს
+}, []);
+
