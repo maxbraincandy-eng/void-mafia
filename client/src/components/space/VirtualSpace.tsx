@@ -256,6 +256,17 @@ function DJBoothGraphic({ active }: { active: boolean }) {
   );
 }
 
+function TVGraphic({ active }: { active: boolean }) {
+  return (
+    <div style={{ position: 'absolute', top: '65%', left: '70%', opacity: active ? 1 : 0.6 }}>
+      {/* აქ შეგიძლია ჩაამატო ტელევიზორის SVG ან პიქსელ არტი, რომელიც ჰგავს მონიტორს */}
+      <div style={{ width: 60, height: 40, border: '2px solid #0ff', borderRadius: 4 }} />
+      <div style={{ fontSize: 10, color: '#0ff', marginTop: 4 }}>{active ? 'TV LIVE' : 'TV'}</div>
+    </div>
+  );
+}
+
+
 function GamingStation() {
   return (
     <div className="absolute pointer-events-none" style={{ left: '79%', top: '65%', transform: 'translate(-50%,-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
@@ -434,6 +445,11 @@ function DJPlayerPanel({
     }
     setInput('');
   }
+
+
+  {/* ... არსებული DJBoothGraphic-ის ქვეშ ... */}
+<TVGraphic active={tvActive} />
+
 
   return (
     <AnimatePresence>
