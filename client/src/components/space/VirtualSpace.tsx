@@ -17,6 +17,9 @@ const LS_BODY = 'vs_bodyColor';
 const LS_GLOW = 'vs_glowColor';
 const LS_MASK = 'vs_mask';
 
+@keyframes vs-dance  { 0%,100%{transform:translateY(0) rotate(0)} 25%{transform:translateY(-6px) rotate(-8deg)} 75%{transform:translateY(-6px) rotate(8deg)} }
+
+
 // ── CSS keyframes ─────────────────────────────────────────────────────
 
 const SPACE_CSS = `
@@ -128,16 +131,18 @@ function extractVideoId(input: string): string | null {
 
 // ── Humanoid avatar ───────────────────────────────────────────────────
 
-function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walking, isMe }: {
+function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walking, dancing, isMe }: {
   bodyColor: string; glowColor: string; mask: SpaceMask;
-  size?: number; speaking?: boolean; walking?: boolean; isMe?: boolean;
+  size?: number; speaking?: boolean; walking?: boolean; dancing?: boolean; isMe?: boolean;
 }) {
+
   const w = Math.round(32 * size);
   const h = Math.round(56 * size);
   const bd = bodyColor + 'cc';
   const bl = bodyColor + 'ee';
   return (
-    <div style={{ position: 'relative', width: w, height: h, flexShrink: 0 }}>
+   <div style={{ position: 'relative', width: w, height: h, flexShrink: 0, animation: dancing ? 'vs-dance 0.5s ease-in-out infinite' : 'none' }}>
+
       {speaking && (
         <motion.div
           animate={{ scale: [1, 1.3, 1], opacity: [0.9, 0.35, 0.9] }}
@@ -175,9 +180,12 @@ function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walkin
   );
 }
 
+
+
 // ── Avatar on map ─────────────────────────────────────────────────────
 
-function AvatarOnMap({ player, isMe, speaking }: { player: SpacePlayer; isMe: boolean; speaking: boolean }) {
+function AvatarOnMap({ player, isMe, speaking, dancing }: { player: SpacePlayer; isMe: boolean; speaking: boolean; dancing?: boolean }) {
+
   const prev = useRef({ x: player.x, y: player.y });
   const [walking, setWalking] = useState(false);
   const wt = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -207,7 +215,8 @@ function AvatarOnMap({ player, isMe, speaking }: { player: SpacePlayer; isMe: bo
         animate={walking ? { rotate: [-1.5, 1.5], y: [0, -2, 0] } : { y: [0, -3, 0] }}
         transition={walking ? { duration: 0.28, repeat: Infinity, ease: 'easeInOut' } : { duration: 3, repeat: Infinity, ease: 'easeInOut' }}
       >
-        <HumanoidAvatar bodyColor={player.bodyColor} glowColor={player.glowColor} mask={player.mask} speaking={speaking} walking={walking} isMe={isMe} />
+        <HumanoidAvatar bodyColor={player.bodyColor} glowColor={player.glowColor} mask={player.mask} speaking={speaking} walking={walking} dancing={dancing} isMe={isMe} />
+
       </motion.div>
       <div style={{ fontSize: 10, fontFamily: 'monospace', color: isMe ? player.glowColor : 'rgba(255,255,255,0.65)', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', borderRadius: 6, padding: '1px 7px', border: isMe ? `1px solid ${player.glowColor}55` : '1px solid rgba(255,255,255,0.08)', letterSpacing: '0.04em', maxWidth: 88, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2, boxShadow: isMe ? `0 0 8px ${player.glowColor}30` : 'none' }}>
         {isMe ? '● ' : ''}{player.name}
@@ -675,6 +684,10 @@ export function VirtualSpace({ onClose }: Props) {
   const [ytReady, setYtReady] = useState(false);
   const [localPlaying, setLocalPlaying] = useState(false);
 
+  const [isDancing, setIsDancing] = useState(false);
+const toggleDance = () => setIsDancing(!isDancing);
+
+
   // Sync helper so closures always have current value via ref
   function setLP(v: boolean) { localPlayingRef.current = v; setLocalPlaying(v); }
   const [volume, setVolume] = useState(70);
@@ -912,8 +925,9 @@ export function VirtualSpace({ onClose }: Props) {
 
             {/* Avatars */}
             {[...players.values()].map(p=>(
-              <AvatarOnMap key={p.socketId} player={p} isMe={p.socketId===mySocketId} speaking={isSpeaking(p)}/>
-            ))}
+  <AvatarOnMap key={p.socketId} player={p} isMe={p.socketId===mySocketId} speaking={isSpeaking(p)} dancing={p.socketId===mySocketId ? isDancing : false} />
+))}
+
 
             {players.size===1 && !djPanelOpen && (
               <div className="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-none">
@@ -945,8 +959,14 @@ export function VirtualSpace({ onClose }: Props) {
             />
             <button type="submit" disabled={!chat.trim()} style={{ padding:'8px 14px',borderRadius:12,fontFamily:'monospace',fontSize:13,background:'rgba(155,0,255,.15)',border:'1px solid rgba(155,0,255,.4)',color:'#c084fc',transition:'all .15s',flexShrink:0 }}>→</button>
             <button type="button" onClick={()=>setDrawerOpen(o=>!o)} style={{ padding:'8px 10px',borderRadius:12,fontFamily:'monospace',fontSize:13,background:drawerOpen?'rgba(155,0,255,.18)':'rgba(255,255,255,.04)',border:`1px solid ${drawerOpen?'rgba(155,0,255,.45)':'rgba(255,255,255,.1)'}`,color:drawerOpen?'#c084fc':'rgba(255,255,255,.4)',transition:'all .15s',flexShrink:0,position:'relative' }}>
+
+              
               ☰
               {chatHistory.length>0&&!drawerOpen&&<span style={{position:'absolute',top:-3,right:-3,width:8,height:8,borderRadius:'50%',background:'#9b00ff',boxShadow:'0 0 6px #9b00ff'}}/>}
+              <button type="button" onClick={toggleDance} style={{ padding:'8px 10px',borderRadius:12,fontFamily:'monospace',fontSize:14,background:isDancing?'rgba(255,0,150,.2)':'rgba(255,255,255,.04)',border:`1px solid ${isDancing?'rgba(255,0,150,.5)':'rgba(255,255,255,.1)'}`,transition:'all .15s',flexShrink:0 }} title="ცეკვა">
+  💃
+</button>
+
             </button>
           </form>
         </div>
