@@ -950,16 +950,11 @@ const toggleDance = () => setIsDancing(!isDancing);
               style={{ flex:1,background:'rgba(255,255,255,.04)',fontFamily:'monospace',fontSize:13,color:'white',outline:'none',padding:'8px 12px',borderRadius:12,border:'1px solid rgba(255,255,255,.1)' }}
               onFocus={e=>e.stopPropagation()}
             />
+            <button type="button" onClick={toggleDance} style={{ padding:'8px 10px',borderRadius:12,fontFamily:'monospace',fontSize:15,lineHeight:1,background:isDancing?'rgba(255,0,150,.2)':'rgba(255,255,255,.04)',border:`1px solid ${isDancing?'rgba(255,0,150,.5)':'rgba(255,255,255,.1)'}`,transition:'all .15s',flexShrink:0 }} title="ცეკვა">💃</button>
             <button type="submit" disabled={!chat.trim()} style={{ padding:'8px 14px',borderRadius:12,fontFamily:'monospace',fontSize:13,background:'rgba(155,0,255,.15)',border:'1px solid rgba(155,0,255,.4)',color:'#c084fc',transition:'all .15s',flexShrink:0 }}>→</button>
             <button type="button" onClick={()=>setDrawerOpen(o=>!o)} style={{ padding:'8px 10px',borderRadius:12,fontFamily:'monospace',fontSize:13,background:drawerOpen?'rgba(155,0,255,.18)':'rgba(255,255,255,.04)',border:`1px solid ${drawerOpen?'rgba(155,0,255,.45)':'rgba(255,255,255,.1)'}`,color:drawerOpen?'#c084fc':'rgba(255,255,255,.4)',transition:'all .15s',flexShrink:0,position:'relative' }}>
-
-              
               ☰
               {chatHistory.length>0&&!drawerOpen&&<span style={{position:'absolute',top:-3,right:-3,width:8,height:8,borderRadius:'50%',background:'#9b00ff',boxShadow:'0 0 6px #9b00ff'}}/>}
-              <button type="button" onClick={toggleDance} style={{ padding:'8px 10px',borderRadius:12,fontFamily:'monospace',fontSize:14,background:isDancing?'rgba(255,0,150,.2)':'rgba(255,255,255,.04)',border:`1px solid ${isDancing?'rgba(255,0,150,.5)':'rgba(255,255,255,.1)'}`,transition:'all .15s',flexShrink:0 }} title="ცეკვა">
-  💃
-</button>
-
             </button>
           </form>
         </div>
