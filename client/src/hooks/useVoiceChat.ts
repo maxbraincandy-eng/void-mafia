@@ -578,6 +578,14 @@ export function useVoiceChat() {
     _session?.setSpeakerOnly(speakerSocketId);
   }, []);
 
+  /**
+   * Restore remote audio playback after a local state change (alive/dead/
+   * spectator) without reconnecting. No-op if there is no active session.
+   */
+  const recoverRemoteAudio = useCallback(() => {
+    _session?.recoverRemoteAudio();
+  }, []);
+
   return {
     ...state,
     joinVoice,
@@ -589,6 +597,7 @@ export function useVoiceChat() {
     getLocalStream,
     resetConnection,
     setSpeakerOnly,
+    recoverRemoteAudio,
   };
 }
 

@@ -287,6 +287,40 @@ export function GamePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id]);
 
+  // ── Voice continuity for dead players & spectators ──────────────────────
+  // Becoming dead or a spectator must NEVER make a player lose the ability to
+  // hear the room. Dying in the room channel is already seamless (the server
+  // only force-mutes them, keeping the session and all subscriptions alive).
+  // The gap is when the session gets torn down — e.g. a dead faction player is
+  // force-left from the Mafia/Yakuza channel at night-end, or an ICE failure
+  // drops the connection. The phase-transition effect deliberately skips
+  // dead/spectators, so without this guard they would be stranded with no
+  // voice. Here we re-establish a listen-only room connection whenever a
+  // dead/spectator player has no active session — no reconnect loop for alive
+  // players, who keep their full session.
+  useEffect(() => {
+    if (!room?.id) return;
+    if (amAlive && !amSpectator) return;        // alive players: handled by phase effect
+    if (voice.channel) return;                   // already connected to a channel — keep it
+    if (voice.isRefreshing) return;              // a refresh/reconnect is already in flight
+    if (voice.status === 'connecting' || voice.status === 'requesting') return;
+    // Dead or spectator with no active voice session → restore room listen-only.
+    voice.joinVoiceListenOnly('room');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.id, amAlive, amSpectator, voice.channel, voice.status, voice.isRefreshing]);
+
+  // On a local state change (alive ↔ dead ↔ spectator), restore remote audio
+  // playback without reconnecting — guards against the browser pausing or
+  // dropping remote audio elements across the transition.
+  const prevAliveSpec = useRef({ amAlive, amSpectator });
+  useEffect(() => {
+    const prev = prevAliveSpec.current;
+    if (prev.amAlive === amAlive && prev.amSpectator === amSpectator) return;
+    prevAliveSpec.current = { amAlive, amSpectator };
+    if (voice.channel) voice.recoverRemoteAudio();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [amAlive, amSpectator]);
+
   // Track unread chat messages
   const chatLen = room?.chat.length ?? 0;
   const prevChatLen = useRef(chatLen);

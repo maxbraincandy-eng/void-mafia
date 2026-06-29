@@ -643,6 +643,37 @@ export class WebRTCSession {
   }
 
   /**
+   * Re-attach and resume every remote audio element WITHOUT tearing down peers.
+   *
+   * Called after a local player-state change (alive → dead → spectator) to
+   * guarantee remote playback continues. A state change must never silence
+   * other players: this re-binds any audio element that lost its srcObject and
+   * replays anything the browser paused, all without recreating the session,
+   * the PeerConnections, or the remote subscriptions.
+   *
+   * Note: this intentionally does NOT touch el.muted, so a deliberate
+   * setSpeakerOnly() isolation (speech phases) is preserved.
+   */
+  recoverRemoteAudio(): void {
+    for (const [peerId, stream] of this.remoteStreams.entries()) {
+      // Drop any remote tracks that actually ended; keep live ones.
+      const liveTracks = stream.getTracks().filter(t => t.readyState !== 'ended');
+      if (liveTracks.length === 0) continue;
+
+      let audio = this.audioEls.get(peerId);
+      if (!audio) {
+        // Audio element was lost — rebuild it from the surviving stream.
+        this.attachRemoteAudio(peerId, stream);
+        continue;
+      }
+      // Re-bind the stream if the browser cleared it (iOS background quirk).
+      if (audio.srcObject !== stream) audio.srcObject = stream;
+      if (audio.paused && !audio.ended) audio.play().catch(() => {});
+    }
+    log('recoverRemoteAudio: re-attached', this.remoteStreams.size, 'remote stream(s)');
+  }
+
+  /**
    * Mute all remote audio except the given socketId.
    * Pass null to unmute everyone (normal phase).
    */

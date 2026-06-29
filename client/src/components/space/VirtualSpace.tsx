@@ -17,12 +17,10 @@ const LS_BODY = 'vs_bodyColor';
 const LS_GLOW = 'vs_glowColor';
 const LS_MASK = 'vs_mask';
 
-@keyframes vs-dance  { 0%,100%{transform:translateY(0) rotate(0)} 25%{transform:translateY(-6px) rotate(-8deg)} 75%{transform:translateY(-6px) rotate(8deg)} }
-
-
 // ── CSS keyframes ─────────────────────────────────────────────────────
 
 const SPACE_CSS = `
+@keyframes vs-dance  { 0%,100%{transform:translateY(0) rotate(0)} 25%{transform:translateY(-6px) rotate(-8deg)} 75%{transform:translateY(-6px) rotate(8deg)} }
 @keyframes vs-float  { 0%,100%{transform:translateY(0)}  50%{transform:translateY(-4px)} }
 @keyframes vs-pulse  { 0%,100%{opacity:.7} 50%{opacity:1} }
 @keyframes vs-spin   { to{transform:rotate(360deg)} }

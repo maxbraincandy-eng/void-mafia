@@ -6662,7 +6662,12 @@ function enforceVoicePhaseRules(io, room) {
         const roomMembers = [...voiceGetMembers(roomId, 'room')];
         for (const member of roomMembers) {
             const player = room.players.get(member.playerId);
-            if (player?.team === 'mafia') {
+            // Only ALIVE faction players move to their private channel. Dead faction
+            // players (and spectators) stay in the room channel as listen-only so
+            // they keep hearing — they never join the faction channel, so moving
+            // them would strand them with no voice for the rest of the match.
+            const isActiveFaction = player?.isAlive && !player?.isSpectator;
+            if (isActiveFaction && player?.team === 'mafia') {
                 io.to(member.socketId).emit('voice:force-leave', { channel: 'room', reason: 'Use the Mafia channel during night.' });
                 const removed = voiceRemoveFromChannel(member.socketId, 'room');
                 if (removed) {
@@ -6671,7 +6676,7 @@ function enforceVoicePhaseRules(io, room) {
                     }
                 }
             }
-            else if (player?.team === 'yakuza') {
+            else if (isActiveFaction && player?.team === 'yakuza') {
                 io.to(member.socketId).emit('voice:force-leave', { channel: 'room', reason: 'Use the Yakuza channel during night.' });
                 const removed = voiceRemoveFromChannel(member.socketId, 'room');
                 if (removed) {
