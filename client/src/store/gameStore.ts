@@ -86,6 +86,7 @@ interface GameStore {
   dismissVoteBreakdown: () => void;
   dismissXPGain: () => void;
   dismissModNotice: () => void;
+  dismissFriendRequest: (fromId: string) => void;
   rematch: () => Promise<void>;
   addToast: (text: string, type?: Toast['type']) => void;
   clearError: () => void;
@@ -387,8 +388,26 @@ export const useGameStore = create<GameStore>((set, get) => {
   });
 
   (socket as any).on('friend:request_received', (req: FriendRequest) => {
-    set(s => ({ pendingFriendRequests: [...s.pendingFriendRequests, req] }));
-    get().addToast(`Friend request from ${req.fromUsername}`, 'info');
+    // Drives the app-wide blocking overlay (FriendRequestOverlay). Dedupe by sender.
+    set(s => s.pendingFriendRequests.some(r => r.fromId === req.fromId)
+      ? s
+      : { pendingFriendRequests: [...s.pendingFriendRequests, req] });
+  });
+
+  // Surface any requests that arrived while we were offline (after auth settles).
+  socket.on('connect', () => {
+    setTimeout(() => {
+      emitWithAck<undefined, Res<FriendRequest[]>>('friend:requests')
+        .then(res => {
+          if (!res?.ok || !Array.isArray(res.data)) return;
+          set(s => {
+            const seen = new Set(s.pendingFriendRequests.map(r => r.fromId));
+            const merged = [...s.pendingFriendRequests, ...res.data.filter(r => !seen.has(r.fromId))];
+            return { pendingFriendRequests: merged };
+          });
+        })
+        .catch(() => {});
+    }, 2500);
   });
 
   (socket as any).on('game:notification', ({ title, body }: { title: string; body: string }) => {
@@ -668,6 +687,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     rematch: withLoading(async () => {
       await emit('game:rematch');
     }),
+
+    dismissFriendRequest: (fromId: string) => {
+      set(s => ({ pendingFriendRequests: s.pendingFriendRequests.filter(r => r.fromId !== fromId) }));
+    },
 
     addToast: (text: string, type: Toast['type'] = 'info') => {
       const id = `t_${++toastCounter}`;

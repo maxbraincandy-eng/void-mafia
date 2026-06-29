@@ -1900,13 +1900,13 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                   <button disabled={followState !== 'idle'} onClick={() => {
                       const tid = selectedPlayer.profileId!;
                       setFollowState('busy');
-                      (socket as any).emit('community:follow', { targetId: tid }, (res: any) => {
-                        // success OR "already following" → treat as followed
+                      (socket as any).emit('friend:request', { toProfileId: tid }, () => {
+                        // ok OR already-sent/already-friends → mark as sent
                         setFollowState('done');
                       });
                     }}
                     style={{ padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: followState==='done' ? 'rgba(0,255,136,.12)' : 'rgba(155,0,255,.14)', border: `1px solid ${followState==='done' ? 'rgba(0,255,136,.4)' : 'rgba(155,0,255,.4)'}`, color: followState==='done' ? '#00ff88' : '#c084fc' }}>
-                    {followState === 'busy' ? '…' : followState === 'done' ? '✓ Following' : '➕ Follow'}
+                    {followState === 'busy' ? '…' : followState === 'done' ? '✓ მოთხოვნა გაიგზავნა' : '➕ მეგობრობის მოთხოვნა'}
                   </button>
                   {/* These open as glass overlays ON TOP of the lounge — they no longer eject you. */}
                   <button onClick={() => { const tid = selectedPlayer.profileId!; setSelectedPlayer(null); openDmWith(tid); }}

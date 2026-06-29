@@ -27,6 +27,7 @@ import { GamesPage } from '@/pages/GamesPage';
 import { MorePanel } from '@/components/ui/MorePanel';
 import { PlayerProfileModal } from '@/components/ui/PlayerProfileModal';
 import { DmPanel } from '@/components/social/DmPanel';
+import { FriendRequestOverlay } from '@/components/social/FriendRequestOverlay';
 import { GiftReceivedAnimation } from '@/components/ui/GiftReceivedAnimation';
 import { CoinShopModal } from '@/components/ui/CoinShopModal';
 import { ShopSuccessModal } from '@/components/ui/ShopSuccessModal';
@@ -720,6 +721,7 @@ export default function App() {
       {/* Global social overlays — rendered outside Screen so they work from any page/game view */}
       <PlayerProfileModal playerId={profilePopupId} onClose={closeProfile} />
       <DmPanel />
+      <FriendRequestOverlay />
       <DmToastNotification />
       <RoomInviteToast />
       <ModAlertPanel />
