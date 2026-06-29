@@ -6382,7 +6382,7 @@ export function attachSocketHandlers(io) {
                 socket.join(`space:${safeSpace}`);
                 socket.to(`space:${safeSpace}`).emit('space:player-joined', player);
                 const existingDJ = _spaceDJ.get(safeSpace) ?? null;
-                const existingTV = _spaceTV.get(safeSpace) ?? null;
+                const existingTV = _tvPublic(safeSpace);
                 const spacePublic = { ..._publicSpaceMeta(meta, room.size), canControlTv: _canControlTv(safeSpace, socket.data.profileId ?? null) };
                 cb?.({ ok: true, data: { players: [...room.values()], mySocketId: socket.id, djState: existingDJ, tvState: existingTV, space: spacePublic } });
                 if (existingDJ)
@@ -6602,19 +6602,110 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Cinema TV / Watch Party ────────────────────────────────────────
-        function _tvBroadcast(spaceId) {
-            io.to(`space:${spaceId}`).emit('tv:update', _spaceTV.get(spaceId) ?? null);
+        function _skipNeeded(spaceId) {
+            return Math.max(1, Math.floor(_spaceOnlineCount(spaceId) / 2) + 1);
         }
+        function _tvPublic(spaceId) {
+            const s = _spaceTV.get(spaceId);
+            if (!s)
+                return null;
+            return {
+                videoId: s.videoId, title: s.title, startedAt: s.startedAt, position: s.position,
+                isPlaying: s.isPlaying, byName: s.byName,
+                queue: s.queue.map(q => ({ videoId: q.videoId, title: q.title })),
+                skipVotes: s.skipVoters.size, skipNeeded: _skipNeeded(spaceId),
+            };
+        }
+        function _tvBroadcast(spaceId) {
+            io.to(`space:${spaceId}`).emit('tv:update', _tvPublic(spaceId));
+        }
+        // Auto-pause the DJ music when the TV takes over the room's audio.
+        function _pauseDj(spaceId) {
+            const dj = _spaceDJ.get(spaceId);
+            if (dj && dj.isPlaying) {
+                dj.isPlaying = false;
+                io.to(`space:${spaceId}`).emit('space:dj-update', { ...dj });
+            }
+        }
+        function _startVideo(spaceId, vid, title, byName) {
+            const prev = _spaceTV.get(spaceId);
+            _spaceTV.set(spaceId, {
+                videoId: vid, title: String(title ?? '').slice(0, 120),
+                startedAt: Date.now(), position: 0, isPlaying: true, byName,
+                queue: prev ? prev.queue : [], skipVoters: new Set(),
+            });
+            _pauseDj(spaceId);
+            _tvBroadcast(spaceId);
+        }
+        function _tvAdvance(spaceId) {
+            const s = _spaceTV.get(spaceId);
+            if (!s)
+                return;
+            const next = s.queue.shift();
+            if (next)
+                _startVideo(spaceId, next.videoId, next.title, 'Up Next');
+            else {
+                _spaceTV.delete(spaceId);
+                _tvBroadcast(spaceId);
+            }
+        }
+        const sanitizeVid = (v) => String(v ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20);
         socket.on('tv:set', ({ videoId, title }) => {
             const spaceId = _spaceOfSocket(socket.id);
             if (!spaceId || !_canControlTv(spaceId, socket.data.profileId ?? null))
                 return;
-            const vid = String(videoId ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20);
+            const vid = sanitizeVid(videoId);
             if (!vid)
                 return;
             const byName = _spaces.get(spaceId)?.get(socket.id)?.name ?? 'Someone';
-            _spaceTV.set(spaceId, { videoId: vid, title: String(title ?? '').slice(0, 120), startedAt: Date.now(), position: 0, isPlaying: true, byName });
-            _tvBroadcast(spaceId);
+            _startVideo(spaceId, vid, title, byName);
+        });
+        // Anyone present may add to the shared queue (collaborative playlist).
+        socket.on('tv:enqueue', ({ videoId, title }) => {
+            const spaceId = _spaceOfSocket(socket.id);
+            if (!spaceId)
+                return;
+            const vid = sanitizeVid(videoId);
+            if (!vid)
+                return;
+            const cur = _spaceTV.get(spaceId);
+            if (!cur) {
+                const byName = _spaces.get(spaceId)?.get(socket.id)?.name ?? 'Someone';
+                _startVideo(spaceId, vid, title, byName);
+            }
+            else {
+                if (cur.queue.length < 30)
+                    cur.queue.push({ videoId: vid, title: String(title ?? '').slice(0, 120) });
+                _tvBroadcast(spaceId);
+            }
+        });
+        socket.on('tv:next', () => {
+            const spaceId = _spaceOfSocket(socket.id);
+            if (!spaceId || !_canControlTv(spaceId, socket.data.profileId ?? null))
+                return;
+            _tvAdvance(spaceId);
+        });
+        socket.on('tv:vote_skip', () => {
+            const spaceId = _spaceOfSocket(socket.id);
+            if (!spaceId)
+                return;
+            const s = _spaceTV.get(spaceId);
+            if (!s)
+                return;
+            s.skipVoters.add(socket.id);
+            if (s.skipVoters.size >= _skipNeeded(spaceId))
+                _tvAdvance(spaceId);
+            else
+                _tvBroadcast(spaceId);
+        });
+        // A client whose player reached the end reports it; first valid report advances.
+        socket.on('tv:ended', ({ videoId }) => {
+            const spaceId = _spaceOfSocket(socket.id);
+            if (!spaceId)
+                return;
+            const s = _spaceTV.get(spaceId);
+            if (s && s.videoId === sanitizeVid(videoId))
+                _tvAdvance(spaceId);
         });
         socket.on('tv:play', ({ position }) => {
             const spaceId = _spaceOfSocket(socket.id);
@@ -6627,6 +6718,7 @@ export function attachSocketHandlers(io) {
             state.isPlaying = true;
             state.position = pos;
             state.startedAt = Date.now() - Math.round(pos * 1000);
+            _pauseDj(spaceId);
             _tvBroadcast(spaceId);
         });
         socket.on('tv:pause', ({ position }) => {

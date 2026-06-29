@@ -278,7 +278,7 @@ interface SpaceMeta {
   persistent: boolean; // seeded lounges survive being empty; user-created ones don't
 }
 // Shared cinema TV (watch party) — one synced video stream per space.
-interface SpaceTVState { videoId: string; title: string; startedAt: number; position: number; isPlaying: boolean; byName: string; }
+interface SpaceTVState { videoId: string; title: string; startedAt: number; position: number; isPlaying: boolean; byName: string; queue: { videoId: string; title: string }[]; skipVoters: Set<string>; }
 const _spaces   = new Map<string, Map<string, SpacePlayer>>();
 const _spaceDJ  = new Map<string, SpaceDJState>();
 const _spaceTV  = new Map<string, SpaceTVState>();
@@ -5533,7 +5533,7 @@ export function attachSocketHandlers(io: AppServer): void {
         socket.join(`space:${safeSpace}`);
         socket.to(`space:${safeSpace}`).emit('space:player-joined', player);
         const existingDJ = _spaceDJ.get(safeSpace) ?? null;
-        const existingTV = _spaceTV.get(safeSpace) ?? null;
+        const existingTV = _tvPublic(safeSpace);
         const spacePublic = { ..._publicSpaceMeta(meta, room.size), canControlTv: _canControlTv(safeSpace, socket.data.profileId ?? null) };
         cb?.({ ok: true, data: { players: [...room.values()], mySocketId: socket.id, djState: existingDJ, tvState: existingTV, space: spacePublic } });
         if (existingDJ) socket.emit('space:dj-update', existingDJ);
@@ -5721,17 +5721,91 @@ export function attachSocketHandlers(io: AppServer): void {
     });
 
     // ── Cinema TV / Watch Party ────────────────────────────────────────
-    function _tvBroadcast(spaceId: string) {
-      io.to(`space:${spaceId}`).emit('tv:update', _spaceTV.get(spaceId) ?? null);
+    function _skipNeeded(spaceId: string): number {
+      return Math.max(1, Math.floor(_spaceOnlineCount(spaceId) / 2) + 1);
     }
+    function _tvPublic(spaceId: string): any {
+      const s = _spaceTV.get(spaceId);
+      if (!s) return null;
+      return {
+        videoId: s.videoId, title: s.title, startedAt: s.startedAt, position: s.position,
+        isPlaying: s.isPlaying, byName: s.byName,
+        queue: s.queue.map(q => ({ videoId: q.videoId, title: q.title })),
+        skipVotes: s.skipVoters.size, skipNeeded: _skipNeeded(spaceId),
+      };
+    }
+    function _tvBroadcast(spaceId: string) {
+      io.to(`space:${spaceId}`).emit('tv:update', _tvPublic(spaceId));
+    }
+    // Auto-pause the DJ music when the TV takes over the room's audio.
+    function _pauseDj(spaceId: string) {
+      const dj = _spaceDJ.get(spaceId);
+      if (dj && dj.isPlaying) {
+        dj.isPlaying = false;
+        io.to(`space:${spaceId}`).emit('space:dj-update', { ...dj });
+      }
+    }
+    function _startVideo(spaceId: string, vid: string, title: string, byName: string) {
+      const prev = _spaceTV.get(spaceId);
+      _spaceTV.set(spaceId, {
+        videoId: vid, title: String(title ?? '').slice(0, 120),
+        startedAt: Date.now(), position: 0, isPlaying: true, byName,
+        queue: prev ? prev.queue : [], skipVoters: new Set(),
+      });
+      _pauseDj(spaceId);
+      _tvBroadcast(spaceId);
+    }
+    function _tvAdvance(spaceId: string) {
+      const s = _spaceTV.get(spaceId);
+      if (!s) return;
+      const next = s.queue.shift();
+      if (next) _startVideo(spaceId, next.videoId, next.title, 'Up Next');
+      else { _spaceTV.delete(spaceId); _tvBroadcast(spaceId); }
+    }
+    const sanitizeVid = (v: any) => String(v ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20);
+
     socket.on('tv:set', ({ videoId, title }: any) => {
       const spaceId = _spaceOfSocket(socket.id);
       if (!spaceId || !_canControlTv(spaceId, socket.data.profileId ?? null)) return;
-      const vid = String(videoId ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20);
+      const vid = sanitizeVid(videoId);
       if (!vid) return;
       const byName = _spaces.get(spaceId)?.get(socket.id)?.name ?? 'Someone';
-      _spaceTV.set(spaceId, { videoId: vid, title: String(title ?? '').slice(0, 120), startedAt: Date.now(), position: 0, isPlaying: true, byName });
-      _tvBroadcast(spaceId);
+      _startVideo(spaceId, vid, title, byName);
+    });
+    // Anyone present may add to the shared queue (collaborative playlist).
+    socket.on('tv:enqueue', ({ videoId, title }: any) => {
+      const spaceId = _spaceOfSocket(socket.id);
+      if (!spaceId) return;
+      const vid = sanitizeVid(videoId);
+      if (!vid) return;
+      const cur = _spaceTV.get(spaceId);
+      if (!cur) {
+        const byName = _spaces.get(spaceId)?.get(socket.id)?.name ?? 'Someone';
+        _startVideo(spaceId, vid, title, byName);
+      } else {
+        if (cur.queue.length < 30) cur.queue.push({ videoId: vid, title: String(title ?? '').slice(0, 120) });
+        _tvBroadcast(spaceId);
+      }
+    });
+    socket.on('tv:next', () => {
+      const spaceId = _spaceOfSocket(socket.id);
+      if (!spaceId || !_canControlTv(spaceId, socket.data.profileId ?? null)) return;
+      _tvAdvance(spaceId);
+    });
+    socket.on('tv:vote_skip', () => {
+      const spaceId = _spaceOfSocket(socket.id);
+      if (!spaceId) return;
+      const s = _spaceTV.get(spaceId); if (!s) return;
+      s.skipVoters.add(socket.id);
+      if (s.skipVoters.size >= _skipNeeded(spaceId)) _tvAdvance(spaceId);
+      else _tvBroadcast(spaceId);
+    });
+    // A client whose player reached the end reports it; first valid report advances.
+    socket.on('tv:ended', ({ videoId }: any) => {
+      const spaceId = _spaceOfSocket(socket.id);
+      if (!spaceId) return;
+      const s = _spaceTV.get(spaceId);
+      if (s && s.videoId === sanitizeVid(videoId)) _tvAdvance(spaceId);
     });
     socket.on('tv:play', ({ position }: any) => {
       const spaceId = _spaceOfSocket(socket.id);
@@ -5741,6 +5815,7 @@ export function attachSocketHandlers(io: AppServer): void {
       state.isPlaying = true;
       state.position = pos;
       state.startedAt = Date.now() - Math.round(pos * 1000);
+      _pauseDj(spaceId);
       _tvBroadcast(spaceId);
     });
     socket.on('tv:pause', ({ position }: any) => {

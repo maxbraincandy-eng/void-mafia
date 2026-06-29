@@ -155,7 +155,8 @@ function tvGetTitleP(): string { return _ytTv?.getVideoData?.()?.title ?? ''; }
 // Distance (in world units) within which the TV loads & spatial audio is audible.
 const TV_NEAR_RADIUS = 42;
 
-interface TVState { videoId: string; title: string; startedAt: number; position: number; isPlaying: boolean; byName: string; }
+interface TVQueueItem { videoId: string; title: string }
+interface TVState { videoId: string; title: string; startedAt: number; position: number; isPlaying: boolean; byName: string; queue: TVQueueItem[]; skipVotes: number; skipNeeded: number }
 function tvComputedPos(s: TVState): number {
   return s.isPlaying ? Math.max(0, (Date.now() - s.startedAt) / 1000) : Math.max(0, s.position);
 }
@@ -980,6 +981,11 @@ function CinemaTV({ tvState, canControl, myDist, viewerCount, tvX = 50, tvY = 17
             const vid = tvGetVidP();
             if (vid) (socket as any).emit('tv:set', { videoId: vid, title: tvGetTitleP() });
           }
+          // Video ended → tell the server so it auto-advances the queue.
+          if (st === 0) {
+            const cur = stateRef.current;
+            if (cur?.videoId) (socket as any).emit('tv:ended', { videoId: cur.videoId });
+          }
         };
         _createTvPlayer(screenRef.current, () => {
           readyRef.current = true;
@@ -1057,9 +1063,11 @@ function CinemaTV({ tvState, canControl, myDist, viewerCount, tvX = 50, tvY = 17
         <AnimatePresence>
           {hasVideo && (
             <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', marginBottom: 5 }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', marginBottom: 5, flexWrap: 'wrap' }}>
               <span style={{ fontFamily: 'monospace', fontSize: 9, color: accent, letterSpacing: '0.08em' }}>🎬 NOW PLAYING</span>
               <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.4)' }}>· 👁 {viewerCount}</span>
+              {!!tvState?.queue?.length && <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.4)' }}>· 📋 {tvState.queue.length}</span>}
+              {(tvState?.skipVotes ?? 0) > 0 && <span style={{ fontFamily: 'monospace', fontSize: 9, color: '#ff9f43' }}>· ⏭ {tvState!.skipVotes}/{tvState!.skipNeeded}</span>}
             </motion.div>
           )}
         </AnimatePresence>
@@ -1084,30 +1092,48 @@ function CinemaTV({ tvState, canControl, myDist, viewerCount, tvX = 50, tvY = 17
               <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.7)' }}>დააჭირე ყურებისთვის</span>
             </div>
           )}
-          {/* Tap target (real, above the iframe). Always tappable so a gesture can
-              unblock autoplay; for controllers it also opens the control panel. */}
+          {/* Tap target — opens the watch-party panel for everyone (queue / skip;
+              controllers also get transport). Also unblocks autoplay via gesture. */}
           <button
-            onClick={() => { if (canControl) setPanelOpen(true); }}
-            style={{ position: 'absolute', inset: 0, background: 'transparent', border: 'none', cursor: canControl ? 'pointer' : 'default', pointerEvents: (canControl || needsTap) ? 'auto' : 'none' }}
+            onClick={() => setPanelOpen(true)}
+            onTouchStart={(e) => { e.stopPropagation(); }}
+            onPointerDown={(e) => { e.stopPropagation(); }}
+            style={{ position: 'absolute', inset: 0, background: 'transparent', border: 'none', cursor: 'pointer', pointerEvents: 'auto' }}
             aria-label="TV"
           />
         </div>
         {localTitle && (
           <p style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.5)', textAlign: 'center', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{localTitle}</p>
         )}
+        {/* Skip pill — everyone can vote-skip; controllers skip instantly */}
+        {hasVideo && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 5, pointerEvents: 'auto' }}>
+            <button
+              onClick={() => (socket as any).emit(canControl ? 'tv:next' : 'tv:vote_skip')}
+              onTouchStart={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              style={{ fontFamily: 'monospace', fontSize: 10, padding: '4px 12px', borderRadius: 20, background: 'rgba(255,159,67,.12)', border: '1px solid rgba(255,159,67,.4)', color: '#ff9f43', cursor: 'pointer' }}>
+              ⏭ {canControl ? 'Skip' : `Vote skip ${tvState ? `${tvState.skipVotes}/${tvState.skipNeeded}` : ''}`}
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Controller panel */}
+      {/* Watch-party panel (open for everyone) */}
       <AnimatePresence>
-        {panelOpen && canControl && (
+        {panelOpen && (
           <TVControlPanel
             tvState={tvState}
+            canControl={canControl}
             onClose={() => setPanelOpen(false)}
             onSetLink={setByLink}
             onSearch={doSearch}
+            onEnqueueLink={(raw) => { const v = extractVideoId(raw); if (!v) return false; (socket as any).emit('tv:enqueue', { videoId: v, title: '' }); return true; }}
             onTogglePlay={togglePlay}
             onSeek={(p) => (socket as any).emit('tv:seek', { position: p })}
             onStop={stop}
+            onNext={() => (socket as any).emit('tv:next')}
+            onVoteSkip={() => (socket as any).emit('tv:vote_skip')}
             getTime={() => (playerReady ? tvGetTimeP() : (tvState ? tvComputedPos(tvState) : 0))}
             getDuration={() => _ytTv?.getDuration?.() ?? 0}
           />
@@ -1117,35 +1143,38 @@ function CinemaTV({ tvState, canControl, myDist, viewerCount, tvX = 50, tvY = 17
   );
 }
 
-function TVControlPanel({ tvState, onClose, onSetLink, onSearch, onTogglePlay, onSeek, onStop, getTime, getDuration }: {
+function TVControlPanel({ tvState, canControl, onClose, onSetLink, onSearch, onEnqueueLink, onTogglePlay, onSeek, onStop, onNext, onVoteSkip, getTime, getDuration }: {
   tvState: TVState | null;
+  canControl: boolean;
   onClose: () => void;
   onSetLink: (raw: string) => boolean;
   onSearch: (q: string) => void;
+  onEnqueueLink: (raw: string) => boolean;
   onTogglePlay: () => void;
   onSeek: (p: number) => void;
   onStop: () => void;
+  onNext: () => void;
+  onVoteSkip: () => void;
   getTime: () => number;
   getDuration: () => number;
 }) {
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<'link' | 'search'>('link');
   const [err, setErr] = useState(false);
-  const [tick, setTick] = useState(0);
+  const [, setTick] = useState(0);
   useEffect(() => { const t = setInterval(() => setTick(x => x + 1), 1000); return () => clearInterval(t); }, []);
   const accent = '#00e5ff';
   const dur = getDuration();
   const cur = getTime();
-  void tick;
 
-  const submit = () => {
-    const v = input.trim();
-    if (!v) return;
-    if (mode === 'link') {
-      if (onSetLink(v)) { setInput(''); setErr(false); } else setErr(true);
-    } else {
-      onSearch(v); setInput('');
-    }
+  const playNow = () => {
+    const v = input.trim(); if (!v) return;
+    if (mode === 'search') { onSearch(v); setInput(''); return; }
+    if (onSetLink(v)) { setInput(''); setErr(false); } else setErr(true);
+  };
+  const queueIt = () => {
+    const v = input.trim(); if (!v) return;
+    if (onEnqueueLink(v)) { setInput(''); setErr(false); } else setErr(true);
   };
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
@@ -1157,43 +1186,74 @@ function TVControlPanel({ tvState, onClose, onSetLink, onSearch, onTogglePlay, o
         initial={{ y: '100%', opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: '100%', opacity: 0 }}
         transition={{ type: 'spring', stiffness: 340, damping: 32 }}
         onClick={e => e.stopPropagation()}
-        style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 71, background: 'rgba(4,0,18,.98)', backdropFilter: 'blur(24px)', borderTop: `1.5px solid ${accent}55`, borderRadius: '18px 18px 0 0', padding: '16px 16px calc(16px + env(safe-area-inset-bottom,0px))' }}
+        style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 71, maxHeight: '80%', overflowY: 'auto', background: 'rgba(4,0,18,.98)', backdropFilter: 'blur(24px)', borderTop: `1.5px solid ${accent}55`, borderRadius: '18px 18px 0 0', padding: '16px 16px calc(16px + env(safe-area-inset-bottom,0px))' }}
       >
         <div style={{ width: 36, height: 3, background: 'rgba(255,255,255,.15)', borderRadius: 2, margin: '0 auto 16px' }} />
-        <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 14, color: 'white', marginBottom: 12 }}>🎬 Cinema TV</p>
+        <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 14, color: 'white', marginBottom: 12 }}>🎬 Watch Party</p>
 
-        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-          {(['link', 'search'] as const).map(m => (
-            <button key={m} onClick={() => { setMode(m); setErr(false); }}
-              style={{ flex: 1, padding: '7px', borderRadius: 10, fontFamily: 'monospace', fontSize: 11, background: mode === m ? `${accent}22` : 'rgba(255,255,255,.04)', border: `1px solid ${mode === m ? accent : 'rgba(255,255,255,.1)'}`, color: mode === m ? accent : 'rgba(255,255,255,.4)' }}>
-              {m === 'link' ? '🔗 ბმული' : '🔍 ძებნა'}
-            </button>
-          ))}
-        </div>
+        {/* link / search toggle (search plays now — controllers only) */}
+        {canControl && (
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            {(['link', 'search'] as const).map(m => (
+              <button key={m} onClick={() => { setMode(m); setErr(false); }}
+                style={{ flex: 1, padding: '7px', borderRadius: 10, fontFamily: 'monospace', fontSize: 11, background: mode === m ? `${accent}22` : 'rgba(255,255,255,.04)', border: `1px solid ${mode === m ? accent : 'rgba(255,255,255,.1)'}`, color: mode === m ? accent : 'rgba(255,255,255,.4)' }}>
+                {m === 'link' ? '🔗 ბმული' : '🔍 ძებნა'}
+              </button>
+            ))}
+          </div>
+        )}
 
+        <input value={input} onChange={e => { setInput(e.target.value); setErr(false); }}
+          onKeyDown={e => { if (e.key === 'Enter') (canControl ? playNow : queueIt)(); }}
+          placeholder={mode === 'search' ? 'მოძებნე...' : 'YouTube ბმული ან ID'}
+          style={{ width: '100%', background: 'rgba(255,255,255,.04)', fontFamily: 'monospace', fontSize: 13, color: 'white', outline: 'none', padding: '9px 12px', borderRadius: 12, border: `1px solid ${err ? 'rgba(255,45,85,.5)' : 'rgba(255,255,255,.1)'}`, marginBottom: 8 }} />
         <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-          <input value={input} onChange={e => { setInput(e.target.value); setErr(false); }}
-            onKeyDown={e => { if (e.key === 'Enter') submit(); }}
-            placeholder={mode === 'link' ? 'YouTube ბმული ან ID' : 'მოძებნე...'}
-            style={{ flex: 1, background: 'rgba(255,255,255,.04)', fontFamily: 'monospace', fontSize: 13, color: 'white', outline: 'none', padding: '9px 12px', borderRadius: 12, border: `1px solid ${err ? 'rgba(255,45,85,.5)' : 'rgba(255,255,255,.1)'}` }} />
-          <button onClick={submit} style={{ padding: '9px 16px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: `${accent}1f`, border: `1px solid ${accent}55`, color: accent }}>{mode === 'link' ? 'Set' : 'Go'}</button>
+          {canControl && (
+            <button onClick={playNow} style={{ flex: 1, padding: '9px', borderRadius: 12, fontFamily: 'monospace', fontSize: 12, background: `${accent}1f`, border: `1px solid ${accent}55`, color: accent }}>▶ ახლა</button>
+          )}
+          {mode === 'link' && (
+            <button onClick={queueIt} style={{ flex: 1, padding: '9px', borderRadius: 12, fontFamily: 'monospace', fontSize: 12, background: 'rgba(155,0,255,.14)', border: '1px solid rgba(155,0,255,.4)', color: '#c084fc' }}>+ რიგში</button>
+          )}
         </div>
+
+        {/* Up-next queue */}
+        {!!tvState?.queue?.length && (
+          <div style={{ marginBottom: 14 }}>
+            <p style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>📋 რიგი · {tvState.queue.length}</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 120, overflowY: 'auto' }}>
+              {tvState.queue.map((q, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px', borderRadius: 9, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}>
+                  <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,.3)' }}>{i + 1}</span>
+                  <span style={{ flex: 1, fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,.7)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{q.title || q.videoId}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {tvState && (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,.4)', flexShrink: 0 }}>{fmt(cur)}</span>
-              <input type="range" min={0} max={Math.max(1, dur)} value={Math.min(cur, dur || cur)}
-                onChange={e => onSeek(Number(e.target.value))}
-                style={{ flex: 1, accentColor: accent }} />
-              <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,.4)', flexShrink: 0 }}>{dur ? fmt(dur) : '--:--'}</span>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={onTogglePlay} style={{ flex: 1, padding: '10px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: `${accent}1f`, border: `1px solid ${accent}55`, color: accent }}>
-                {tvState.isPlaying ? '⏸ Pause' : '▶ Play'}
+            {canControl ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,.4)', flexShrink: 0 }}>{fmt(cur)}</span>
+                  <input type="range" min={0} max={Math.max(1, dur)} value={Math.min(cur, dur || cur)}
+                    onChange={e => onSeek(Number(e.target.value))} style={{ flex: 1, accentColor: accent }} />
+                  <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,.4)', flexShrink: 0 }}>{dur ? fmt(dur) : '--:--'}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={onTogglePlay} style={{ flex: 1, padding: '10px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: `${accent}1f`, border: `1px solid ${accent}55`, color: accent }}>
+                    {tvState.isPlaying ? '⏸ Pause' : '▶ Play'}
+                  </button>
+                  <button onClick={onNext} style={{ padding: '10px 14px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,159,67,.14)', border: '1px solid rgba(255,159,67,.4)', color: '#ff9f43' }}>⏭ Skip</button>
+                  <button onClick={onStop} style={{ padding: '10px 14px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,45,85,.12)', border: '1px solid rgba(255,45,85,.35)', color: '#ff2d55' }}>⏹</button>
+                </div>
+              </>
+            ) : (
+              <button onClick={onVoteSkip} style={{ width: '100%', padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,159,67,.14)', border: '1px solid rgba(255,159,67,.4)', color: '#ff9f43' }}>
+                ⏭ ხმა გამოტოვებას · {tvState.skipVotes}/{tvState.skipNeeded}
               </button>
-              <button onClick={onStop} style={{ padding: '10px 16px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,45,85,.12)', border: '1px solid rgba(255,45,85,.35)', color: '#ff2d55' }}>⏹ Stop</button>
-            </div>
+            )}
           </>
         )}
       </motion.div>

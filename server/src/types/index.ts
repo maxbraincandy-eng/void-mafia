@@ -906,7 +906,7 @@ export interface ServerToClientEvents {
   // DJ
   'space:dj-update':         (state: { videoId: string; startedAt: number; position: number; isPlaying: boolean; djName: string } | null) => void;
   // Cinema TV / Watch Party
-  'tv:update':               (state: { videoId: string; title: string; startedAt: number; position: number; isPlaying: boolean; byName: string } | null) => void;
+  'tv:update':               (state: { videoId: string; title: string; startedAt: number; position: number; isPlaying: boolean; byName: string; queue: { videoId: string; title: string }[]; skipVotes: number; skipNeeded: number } | null) => void;
 }
 
 export interface ClientToServerEvents {
@@ -1239,6 +1239,10 @@ export interface ClientToServerEvents {
   'space:dj-stop':  () => void;
   // Cinema TV / Watch Party
   'tv:set':   (data: { videoId: string; title?: string }) => void;
+  'tv:enqueue': (data: { videoId: string; title?: string }) => void;
+  'tv:next':  () => void;
+  'tv:vote_skip': () => void;
+  'tv:ended': (data: { videoId: string }) => void;
   'tv:play':  (data: { position: number }) => void;
   'tv:pause': (data: { position: number }) => void;
   'tv:seek':  (data: { position: number }) => void;

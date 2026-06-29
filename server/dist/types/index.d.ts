@@ -987,6 +987,12 @@ export interface ServerToClientEvents {
         position: number;
         isPlaying: boolean;
         byName: string;
+        queue: {
+            videoId: string;
+            title: string;
+        }[];
+        skipVotes: number;
+        skipNeeded: number;
     } | null) => void;
 }
 export interface ClientToServerEvents {
@@ -1955,6 +1961,15 @@ export interface ClientToServerEvents {
     'tv:set': (data: {
         videoId: string;
         title?: string;
+    }) => void;
+    'tv:enqueue': (data: {
+        videoId: string;
+        title?: string;
+    }) => void;
+    'tv:next': () => void;
+    'tv:vote_skip': () => void;
+    'tv:ended': (data: {
+        videoId: string;
     }) => void;
     'tv:play': (data: {
         position: number;
