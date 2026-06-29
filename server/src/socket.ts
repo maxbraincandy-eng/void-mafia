@@ -5645,6 +5645,24 @@ export function attachSocketHandlers(io: AppServer): void {
       }
     });
 
+    // ── Expressions: reactions, gestures, typing (broadcast to the whole space) ──
+    socket.on('space:react', ({ emoji }: any) => {
+      const e = String(emoji ?? '').slice(0, 8);
+      if (!e) return;
+      const spaceId = _spaceOfSocket(socket.id);
+      if (spaceId) io.to(`space:${spaceId}`).emit('space:player-reacted', { socketId: socket.id, emoji: e });
+    });
+    socket.on('space:gesture', ({ gesture }: any) => {
+      const g = String(gesture ?? '');
+      if (!['wave', 'clap', 'point', 'dance'].includes(g)) return;
+      const spaceId = _spaceOfSocket(socket.id);
+      if (spaceId) io.to(`space:${spaceId}`).emit('space:player-gesture', { socketId: socket.id, gesture: g });
+    });
+    socket.on('space:typing', ({ typing }: any) => {
+      const spaceId = _spaceOfSocket(socket.id);
+      if (spaceId) socket.to(`space:${spaceId}`).emit('space:player-typing', { socketId: socket.id, typing: !!typing });
+    });
+
     socket.on('space:chat', ({ message }: any) => {
       if (typeof message !== 'string') return;
       const msg = message.trim().slice(0, 200);

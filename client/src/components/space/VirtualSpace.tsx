@@ -959,9 +959,10 @@ function CinemaTV({ tvState, canControl, myDist, viewerCount, tvX = 50, tvY = 17
     }
   };
 
-  // ── Lazy player lifecycle: only mount the iframe when near the TV ──────
+  // ── Player lifecycle: when ANYONE is playing a video, it plays for EVERYONE
+  // in the space (forced watch-party broadcast) — no need to walk to the TV. ──
   useEffect(() => {
-    if (near && hasVideo) {
+    if (hasVideo) {
       if (farTimerRef.current) { clearTimeout(farTimerRef.current); farTimerRef.current = null; }
       if (!_ytTv && screenRef.current) {
         _ytTvStateCb = (st: number) => {
@@ -975,14 +976,13 @@ function CinemaTV({ tvState, canControl, myDist, viewerCount, tvX = 50, tvY = 17
         _createTvPlayer(screenRef.current, () => {
           readyRef.current = true;
           setPlayerReady(true);
-          tvSetVolP(0);
           applyState();
         });
       } else if (_ytTv && readyRef.current) {
         applyState();
       }
-    } else if (!near && _ytTv && !pendingSearchRef.current) {
-      // Walked away — tear the player down after a short grace (saves GPU/battery).
+    } else if (!hasVideo && _ytTv && !pendingSearchRef.current) {
+      // No active video — tear the player down shortly after.
       if (!farTimerRef.current) {
         farTimerRef.current = setTimeout(() => {
           farTimerRef.current = null;
@@ -990,26 +990,27 @@ function CinemaTV({ tvState, canControl, myDist, viewerCount, tvX = 50, tvY = 17
           readyRef.current = false;
           curVidRef.current = '';
           setPlayerReady(false);
-        }, 1800);
+        }, 800);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [near, hasVideo, tvState?.videoId, tvState?.isPlaying, tvState?.startedAt, tvState?.position]);
+  }, [hasVideo, tvState?.videoId, tvState?.isPlaying, tvState?.startedAt, tvState?.position]);
 
-  // ── Spatial audio: volume falls off with distance; voice chat untouched ─
+  // ── Audio: everyone in the room hears it. Proximity only softens it a
+  // little (60–100%) — it never mutes, so you hear it from anywhere. ──────
   useEffect(() => {
     if (!_ytTv || !readyRef.current) return;
-    const vol = near ? Math.max(0, Math.min(100, 100 * (1 - myDist / TV_NEAR_RADIUS))) : 0;
-    tvSetVolP(vol);
-  }, [myDist, near, playerReady]);
+    const t = Math.max(0, Math.min(1, 1 - myDist / (TV_NEAR_RADIUS * 1.6)));
+    tvSetVolP(Math.round(60 + 40 * t));
+  }, [myDist, playerReady]);
 
   // ── Drift correction while playing ─────────────────────────────────────
   useEffect(() => {
-    if (!near || !tvState?.isPlaying) return;
+    if (!tvState?.isPlaying) return;
     const t = setInterval(applyState, 4000);
     return () => clearInterval(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [near, tvState?.isPlaying, tvState?.videoId]);
+  }, [tvState?.isPlaying, tvState?.videoId]);
 
   useEffect(() => () => {
     if (farTimerRef.current) clearTimeout(farTimerRef.current);
@@ -1057,19 +1058,19 @@ function CinemaTV({ tvState, canControl, myDist, viewerCount, tvX = 50, tvY = 17
 
         {/* Screen */}
         <div style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9', borderRadius: 10, overflow: 'hidden', background: '#000', border: `2px solid ${hasVideo ? accent + '99' : 'rgba(255,255,255,.12)'}`, boxShadow: hasVideo ? `0 0 28px ${accent}45, inset 0 0 30px rgba(0,0,0,.6)` : '0 6px 24px rgba(0,0,0,.5)', transition: 'border-color .3s, box-shadow .3s' }}>
-          {/* Player mounts here when near */}
+          {/* Player (mounts for everyone whenever a video is active) */}
           <div ref={screenRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: fade ? 0 : 1, transition: 'opacity .3s', pointerEvents: 'none' }} />
-          {/* Off / far state */}
-          {(!hasVideo || !near) && (
+          {/* Off state */}
+          {!hasVideo && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, background: 'radial-gradient(ellipse at 50% 40%, rgba(0,40,60,.5), #000)', pointerEvents: 'none' }}>
               <span style={{ fontSize: 22, opacity: 0.5 }}>📺</span>
               <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.35)' }}>
-                {!hasVideo ? (canControl ? 'TAP TO START' : 'OFF') : 'მიუახლოვდი →'}
+                {canControl ? 'TAP TO START' : 'OFF'}
               </span>
             </div>
           )}
           {/* Autoplay blocked — tap to start watching */}
-          {needsTap && near && hasVideo && (
+          {needsTap && hasVideo && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, background: 'rgba(0,0,0,.55)', pointerEvents: 'none' }}>
               <span style={{ fontSize: 26 }}>▶</span>
               <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.7)' }}>დააჭირე ყურებისთვის</span>
@@ -1303,7 +1304,21 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const myNameRef        = useRef(playerName);
   const joinTimeRef      = useRef(0);        // timestamp of join gesture (set BEFORE await)
   const pendingPlayRef   = useRef<{videoId: string; seek: number} | null>(null); // queued if player not ready yet
+  const djGestureArmedRef = useRef(false);
   useEffect(() => { myNameRef.current = playerName; }, [playerName]);
+
+  // If the browser blocks DJ autoplay, resume on the next tap anywhere — no
+  // button to press, it just starts as soon as the listener touches the screen.
+  function armDjGesturePlay(videoId: string, startedAt: number) {
+    if (djGestureArmedRef.current) return;
+    djGestureArmedRef.current = true;
+    const retry = () => {
+      djGestureArmedRef.current = false;
+      if (_yt) ytPlay(videoId, Math.max(0, (Date.now() - startedAt) / 1000));
+    };
+    document.addEventListener('touchstart', retry, { once: true, passive: true });
+    document.addEventListener('click', retry, { once: true });
+  }
 
   // ── YouTube player — init on mount so it's ready before join ────────
 
@@ -1359,25 +1374,17 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
       // Same video already playing locally — don't interrupt (prevents echo for DJ)
       if (state.videoId === currentVideoRef.current && localPlayingRef.current) return;
 
-      // Decide whether to auto-play:
-      // - DJ who initiated the track
-      // - Listener who already opted in (tapped ▶ მოსმენა before)
-      // - Listener who JUST joined: still within iOS Safari's user-activation window
-      //   (~5s) from when they tapped "Void Lounge-ში შესვლა →". Parent-page
-      //   activation propagates to child iframes in iOS 14+, so ytPlay() works.
-      const justJoined = joinTimeRef.current > 0 && (Date.now() - joinTimeRef.current) < 6000;
-      const shouldPlay = state.djName === myNameRef.current || hasOptedInRef.current || justJoined;
-
-      if (shouldPlay) {
-        hasOptedInRef.current = true;
-        if (!_yt) {
-          // Player still initialising — queue it; fired in onReady callback
-          pendingPlayRef.current = { videoId: state.videoId, seek };
-        } else {
-          ytPlay(state.videoId, seek);
-        }
+      // Forced broadcast: when anyone DJs, the music auto-plays for EVERYONE in
+      // the room — no "listen" button, no approval. (If the OS blocks autoplay,
+      // armDjGesturePlay resumes it on the listener's next tap.)
+      hasOptedInRef.current = true;
+      if (!_yt) {
+        // Player still initialising — queue it; fired in onReady callback
+        pendingPlayRef.current = { videoId: state.videoId, seek };
       } else {
-        ytCue(state.videoId, seek);
+        ytPlay(state.videoId, seek);
+        const vid = state.videoId, startedAt = state.startedAt;
+        setTimeout(() => { if (!localPlayingRef.current) armDjGesturePlay(vid, startedAt); }, 900);
       }
     }
     (socket as any).on('space:dj-update', onDJUpdate);

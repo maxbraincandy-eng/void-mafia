@@ -6523,6 +6523,28 @@ export function attachSocketHandlers(io) {
                 }
             }
         });
+        // ── Expressions: reactions, gestures, typing (broadcast to the whole space) ──
+        socket.on('space:react', ({ emoji }) => {
+            const e = String(emoji ?? '').slice(0, 8);
+            if (!e)
+                return;
+            const spaceId = _spaceOfSocket(socket.id);
+            if (spaceId)
+                io.to(`space:${spaceId}`).emit('space:player-reacted', { socketId: socket.id, emoji: e });
+        });
+        socket.on('space:gesture', ({ gesture }) => {
+            const g = String(gesture ?? '');
+            if (!['wave', 'clap', 'point', 'dance'].includes(g))
+                return;
+            const spaceId = _spaceOfSocket(socket.id);
+            if (spaceId)
+                io.to(`space:${spaceId}`).emit('space:player-gesture', { socketId: socket.id, gesture: g });
+        });
+        socket.on('space:typing', ({ typing }) => {
+            const spaceId = _spaceOfSocket(socket.id);
+            if (spaceId)
+                socket.to(`space:${spaceId}`).emit('space:player-typing', { socketId: socket.id, typing: !!typing });
+        });
         socket.on('space:chat', ({ message }) => {
             if (typeof message !== 'string')
                 return;

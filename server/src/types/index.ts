@@ -893,6 +893,9 @@ export interface ServerToClientEvents {
   'space:message':       (data: { socketId: string; message: string }) => void;
   'space:player-sat':    (data: { socketId: string; seatId: string; x: number; y: number }) => void;
   'space:player-stood':  (data: { socketId: string }) => void;
+  'space:player-reacted':(data: { socketId: string; emoji: string }) => void;
+  'space:player-gesture':(data: { socketId: string; gesture: string }) => void;
+  'space:player-typing': (data: { socketId: string; typing: boolean }) => void;
   'space:invited':       (data: { spaceId: string; code: string; name: string; icon: string; fromName: string }) => void;
   // Virtual Space Voice
   'space:voice-peer-joined': (data: { socketId: string; name: string }) => void;

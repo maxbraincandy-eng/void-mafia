@@ -935,6 +935,18 @@ export interface ServerToClientEvents {
     'space:player-stood': (data: {
         socketId: string;
     }) => void;
+    'space:player-reacted': (data: {
+        socketId: string;
+        emoji: string;
+    }) => void;
+    'space:player-gesture': (data: {
+        socketId: string;
+        gesture: string;
+    }) => void;
+    'space:player-typing': (data: {
+        socketId: string;
+        typing: boolean;
+    }) => void;
     'space:invited': (data: {
         spaceId: string;
         code: string;
