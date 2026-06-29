@@ -453,11 +453,6 @@ function DJPlayerPanel({
     setInput('');
   }
 
-
-  {/* ... არსებული DJBoothGraphic-ის ქვეშ ... */}
-<TVGraphic active={tvActive} />
-
-
   return (
     <AnimatePresence>
       {open && (
@@ -974,28 +969,4 @@ const toggleDance = () => setIsDancing(!isDancing);
     </motion.div>
   );
 }
-
-// დაამატე ეს შენს VirtualSpace კომპონენტში
-const [tvVideo, setTvVideo] = useState('');
-
-// ფუნქცია, რომელიც გაუშვებს ვიდეოს
-function startTV(id: string) {
-  setTvVideo(id);
-}
-
-// და შემდეგ UI-ში (RoomObjects-ის შიგნით ან ქვემოთ):
-{tvVideo && (
-  <div style={{ position: 'absolute', top: '10%', left: '50%', transform: 'translateX(-50%)' }}>
-    <iframe 
-      width="300" height="170" 
-      src={`https://www.youtube.com/embed/${tvVideo}?autoplay=1`} 
-      frameBorder="0" allow="autoplay"
-    />
-  </div>
-)}
-
-
-useEffect(() => {
-  setTvVideo('dQw4w9WgXcQ'); // ეს ჩართავს ტესტ ვიდეოს
-}, []);
 
