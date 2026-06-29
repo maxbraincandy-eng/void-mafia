@@ -912,6 +912,7 @@ export interface ServerToClientEvents {
         mask: string;
         hat?: string;
         pet?: string;
+        form?: string;
         profileId?: string | null;
         x: number;
         y: number;
@@ -1902,6 +1903,7 @@ export interface ClientToServerEvents {
         mask: string;
         hat?: string;
         pet?: string;
+        form?: string;
     }, cb: (res: any) => void) => void;
     'space:move': (data: {
         x: number;

@@ -246,12 +246,44 @@ function renderHat(hat: string | undefined, glow: string, body: string) {
     default:       return null;
   }
 }
-const PET_EMOJI: Record<string, string> = { cat: '🐱', bot: '🤖', ghost: '👻', star: '⭐' };
+const PET_EMOJI: Record<string, string> = { cat: '🐱', bot: '🤖', ghost: '👻', star: '⭐', fish: '🐟', fish2: '🐠', egg: '🥚', chick: '🐥', moon: '🌓', car: '🚗' };
 
-function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walking, gesture, sitting, hat, pet, isMe }: {
+// Sleek sedan avatar (side profile) with a 3-pointed Mercedes-style star.
+function CarBody({ bodyColor, glowColor }: { bodyColor: string; glowColor: string }) {
+  const bd = bodyColor + 'ee';
+  const win = glowColor + '55';
+  return (
+    <g>
+      <ellipse cx="16" cy="50" rx="13" ry="2.5" fill="rgba(0,0,0,0.35)" />
+      {/* lower body */}
+      <path d="M2 44 Q3 40 7 39 L11 33 Q12 31 15 31 L23 31 Q26 31 27 34 L30 40 Q31 42 30 45 L29 47 L3 47 Q2 46 2 44 Z" fill={bd} stroke={glowColor} strokeWidth="0.5" />
+      {/* cabin / windows */}
+      <path d="M11.5 33.5 L14.5 33 L14.5 38 L9 38 Z" fill={win} />
+      <path d="M16 33 L22.5 33.5 L25 38 L16 38 Z" fill={win} />
+      {/* headlight / taillight */}
+      <rect x="28.5" y="40" width="2" height="2.4" rx="1" fill="#fff6cc" />
+      <rect x="2" y="41" width="1.8" height="2" rx="0.9" fill="#ff3b3b" />
+      {/* wheels */}
+      <circle cx="9" cy="47" r="4" fill="#0b0b14" stroke={glowColor} strokeWidth="0.8" />
+      <circle cx="9" cy="47" r="1.6" fill="#2a2a3a" />
+      <circle cx="23" cy="47" r="4" fill="#0b0b14" stroke={glowColor} strokeWidth="0.8" />
+      <circle cx="23" cy="47" r="1.6" fill="#2a2a3a" />
+      {/* Mercedes 3-point star on the door */}
+      <circle cx="16" cy="42" r="3.2" fill="none" stroke="#e8eaf0" strokeWidth="0.7" />
+      <g stroke="#e8eaf0" strokeWidth="0.7" strokeLinecap="round">
+        <line x1="16" y1="42" x2="16" y2="39" />
+        <line x1="16" y1="42" x2="13.4" y2="43.6" />
+        <line x1="16" y1="42" x2="18.6" y2="43.6" />
+      </g>
+    </g>
+  );
+}
+
+function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walking, gesture, sitting, hat, pet, form, isMe }: {
   bodyColor: string; glowColor: string; mask: SpaceMask;
-  size?: number; speaking?: boolean; walking?: boolean; gesture?: string | null; sitting?: boolean; hat?: string; pet?: string; isMe?: boolean;
+  size?: number; speaking?: boolean; walking?: boolean; gesture?: string | null; sitting?: boolean; hat?: string; pet?: string; form?: string; isMe?: boolean;
 }) {
+  const isCar = form === 'car';
 
   const w = Math.round(32 * size);
   const h = Math.round(56 * size);
@@ -282,6 +314,7 @@ function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walkin
       <svg width={w} height={h} viewBox="0 0 32 56" fill="none"
         style={{ overflow: 'visible', filter: speaking ? `drop-shadow(0 0 8px ${glowColor}cc)` : `drop-shadow(0 0 ${isMe ? 5 : 3}px ${bodyColor}99)` }}
       >
+        {isCar ? <CarBody bodyColor={bodyColor} glowColor={glowColor} /> : <>
         <ellipse cx="16" cy="54" rx="7" ry="2.5" fill="rgba(0,0,0,0.35)" />
         {sitting ? (
           <>
@@ -317,6 +350,7 @@ function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walkin
         {mask === 'visor' && <><rect x="8" y="5.5" width="16" height="7" rx="3.5" fill={glowColor} opacity="0.28" /><rect x="8" y="5.5" width="16" height="7" rx="3.5" fill="none" stroke={glowColor} strokeWidth="0.8" opacity="0.9" /><line x1="8" y1="9" x2="24" y2="9" stroke={glowColor} strokeWidth="0.4" opacity="0.6" /></>}
         {(!hat || hat === 'none') && isMe && <g transform="translate(12,-1)"><polygon points="4,0 5.5,3 4,2.5 2.5,3" fill={glowColor} opacity="0.9" /><rect x="2" y="2.5" width="4" height="1" rx="0.5" fill={glowColor} opacity="0.7" /></g>}
         {renderHat(hat, glowColor, bodyColor)}
+        </>}
       </svg>
     </div>
   );
@@ -369,7 +403,7 @@ function AvatarOnMap({ player, isMe, speaking, onTap }: { player: SpacePlayer; i
         onTouchStart={onTap && !isMe ? (e) => e.stopPropagation() : undefined}
         onPointerDown={onTap && !isMe ? (e) => e.stopPropagation() : undefined}
       >
-        <HumanoidAvatar bodyColor={player.bodyColor} glowColor={player.glowColor} mask={player.mask} speaking={speaking} walking={walking} gesture={player.gesture} sitting={!!player.seat} hat={player.hat} pet={player.pet} isMe={isMe} />
+        <HumanoidAvatar bodyColor={player.bodyColor} glowColor={player.glowColor} mask={player.mask} speaking={speaking} walking={walking} gesture={player.gesture} sitting={!!player.seat} hat={player.hat} pet={player.pet} form={player.form} isMe={isMe} />
 
       </motion.div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontFamily: 'monospace', color: isMe ? player.glowColor : 'rgba(255,255,255,0.65)', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', borderRadius: 6, padding: '1px 7px', border: isMe ? `1px solid ${player.glowColor}55` : '1px solid rgba(255,255,255,0.08)', letterSpacing: '0.04em', maxWidth: 96, marginTop: 2, boxShadow: isMe ? `0 0 8px ${player.glowColor}30` : 'none' }}>
@@ -805,21 +839,26 @@ const HATS: { id: string; label: string }[] = [
 ];
 const PETS: { id: string; label: string }[] = [
   { id: 'none', label: 'არა' }, { id: 'cat', label: '🐱' }, { id: 'bot', label: '🤖' }, { id: 'ghost', label: '👻' }, { id: 'star', label: '⭐' },
+  { id: 'fish', label: '🐟' }, { id: 'fish2', label: '🐠' }, { id: 'egg', label: '🥚' }, { id: 'chick', label: '🐥' }, { id: 'moon', label: '🌓' }, { id: 'car', label: '🚗' },
 ];
-const LS_HAT = 'vs_hat', LS_PET = 'vs_pet';
+const FORMS: { id: string; label: string }[] = [
+  { id: 'human', label: '🧍 ადამიანი' }, { id: 'car', label: '🚘 მანქანა' },
+];
+const LS_HAT = 'vs_hat', LS_PET = 'vs_pet', LS_FORM = 'vs_form';
 
-function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: (b: string, g: string, m: SpaceMask, hat: string, pet: string) => void }) {
+function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: (b: string, g: string, m: SpaceMask, hat: string, pet: string, form: string) => void }) {
   const [bodyColor, setBodyColor] = useState(() => localStorage.getItem(LS_BODY) ?? BODY_COLORS[0]);
   const [glowColor, setGlowColor] = useState(() => localStorage.getItem(LS_GLOW) ?? GLOW_COLORS[0]);
   const [mask, setMask] = useState<SpaceMask>(() => (localStorage.getItem(LS_MASK) as SpaceMask) ?? 'none');
   const [hat, setHat] = useState(() => localStorage.getItem(LS_HAT) ?? 'none');
   const [pet, setPet] = useState(() => localStorage.getItem(LS_PET) ?? 'none');
-  function go() { localStorage.setItem(LS_BODY,bodyColor); localStorage.setItem(LS_GLOW,glowColor); localStorage.setItem(LS_MASK,mask); localStorage.setItem(LS_HAT,hat); localStorage.setItem(LS_PET,pet); onJoin(bodyColor,glowColor,mask,hat,pet); }
+  const [form, setForm] = useState(() => localStorage.getItem(LS_FORM) ?? 'human');
+  function go() { localStorage.setItem(LS_BODY,bodyColor); localStorage.setItem(LS_GLOW,glowColor); localStorage.setItem(LS_MASK,mask); localStorage.setItem(LS_HAT,hat); localStorage.setItem(LS_PET,pet); localStorage.setItem(LS_FORM,form); onJoin(bodyColor,glowColor,mask,hat,pet,form); }
   return (
     <motion.div initial={{opacity:0,y:16}} animate={{opacity:1,y:0}} className="flex flex-col items-center gap-5 px-5 py-6">
       <div className="flex flex-col items-center gap-2">
         <div style={{ width:80,height:80,display:'flex',alignItems:'center',justifyContent:'center',background:`radial-gradient(ellipse at 40% 35%, ${glowColor}18, transparent 70%), rgba(8,3,24,.7)`,borderRadius:'50%',border:`1.5px solid ${bodyColor}55`,boxShadow:`0 0 0 4px ${bodyColor}20, 0 0 30px ${glowColor}30` }}>
-          <HumanoidAvatar bodyColor={bodyColor} glowColor={glowColor} mask={mask} hat={hat} pet={pet} size={1.3} isMe />
+          <HumanoidAvatar bodyColor={bodyColor} glowColor={glowColor} mask={mask} hat={hat} pet={pet} form={form} size={1.3} isMe />
         </div>
         <p style={{ fontFamily:'monospace',fontSize:11,color:bodyColor,textShadow:`0 0 8px ${bodyColor}80`,letterSpacing:'0.1em' }}>{playerName}</p>
       </div>
@@ -831,6 +870,9 @@ function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: 
       </div>
       <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">ნიღაბი</p>
         <div className="flex gap-2">{MASKS.map(m=><button key={m.id} onClick={()=>setMask(m.id)} className="flex-1 py-1.5 rounded-xl font-mono text-[11px] uppercase tracking-wider transition-all active:scale-95" style={{ background:mask===m.id?`${bodyColor}22`:'rgba(255,255,255,0.03)',border:`1px solid ${mask===m.id?bodyColor+'80':'rgba(255,255,255,0.08)'}`,color:mask===m.id?bodyColor:'rgba(255,255,255,0.3)',boxShadow:mask===m.id?`0 0 10px ${bodyColor}30`:'none' }}>{m.label}</button>)}</div>
+      </div>
+      <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">ფორმა</p>
+        <div className="flex gap-2">{FORMS.map(o=><button key={o.id} onClick={()=>setForm(o.id)} className="flex-1 py-1.5 rounded-xl font-mono text-[11px] transition-all active:scale-95" style={{ background:form===o.id?`${glowColor}22`:'rgba(255,255,255,0.03)',border:`1px solid ${form===o.id?glowColor+'80':'rgba(255,255,255,0.08)'}`,color:form===o.id?glowColor:'rgba(255,255,255,0.4)' }}>{o.label}</button>)}</div>
       </div>
       <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">ქუდი</p>
         <div className="flex gap-2 flex-wrap">{HATS.map(o=><button key={o.id} onClick={()=>setHat(o.id)} className="py-1.5 px-3 rounded-xl font-mono text-[13px] transition-all active:scale-95" style={{ background:hat===o.id?`${glowColor}22`:'rgba(255,255,255,0.03)',border:`1px solid ${hat===o.id?glowColor+'80':'rgba(255,255,255,0.08)'}`,color:hat===o.id?glowColor:'rgba(255,255,255,0.4)' }}>{o.label}</button>)}</div>
@@ -1370,6 +1412,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const openProfile = useSocialStore(s => s.openProfile);
   const openDmWith = useSocialStore(s => s.openDmWith);
   const [selectedPlayer, setSelectedPlayer] = useState<SpacePlayer | null>(null);
+  const [followState, setFollowState] = useState<'idle' | 'busy' | 'done'>('idle');
   const [socialProfileId, setSocialProfileId] = useState<string | null>(null);
   const openDmList = useSocialStore(s => s.openDmList);
 
@@ -1547,11 +1590,11 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
     }
   }, [launchingGame, ckCreate, jkCreate, ldCreate, wwCreate, unoCreate, playerName, handleClose]);
 
-  async function handleJoin(bodyColor: string, glowColor: string, mask: SpaceMask, hat: string, pet: string) {
+  async function handleJoin(bodyColor: string, glowColor: string, mask: SpaceMask, hat: string, pet: string, form: string) {
     // Capture the user gesture timestamp BEFORE await so onDJUpdate's
     // justJoined check is accurate when music is playing in the room.
     joinTimeRef.current = Date.now();
-    const ok = await join(selectedSpace?.id ?? 'main', playerName, bodyColor, glowColor, mask, hat, pet);
+    const ok = await join(selectedSpace?.id ?? 'main', playerName, bodyColor, glowColor, mask, hat, pet, form);
     if (ok) joinVoice();
   }
 
@@ -1776,7 +1819,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
 
             {/* Avatars */}
             {[...players.values()].map(p=>(
-  <AvatarOnMap key={p.socketId} player={p} isMe={p.socketId===mySocketId} speaking={isSpeaking(p)} onTap={()=>setSelectedPlayer(p)} />
+  <AvatarOnMap key={p.socketId} player={p} isMe={p.socketId===mySocketId} speaking={isSpeaking(p)} onTap={()=>{ setSelectedPlayer(p); setFollowState('idle'); }} />
 ))}
 
 
@@ -1843,7 +1886,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           <div onClick={e => e.stopPropagation()}
             style={{ width: 'min(300px, 100%)', background: 'rgba(8,3,22,.99)', border: `1px solid ${selectedPlayer.glowColor}55`, borderRadius: 20, padding: '20px', textAlign: 'center' }}>
             <div style={{ width: 64, height: 64, margin: '0 auto 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `radial-gradient(ellipse at 40% 35%, ${selectedPlayer.glowColor}22, transparent 70%)`, borderRadius: '50%', border: `1.5px solid ${selectedPlayer.bodyColor}66` }}>
-              <HumanoidAvatar bodyColor={selectedPlayer.bodyColor} glowColor={selectedPlayer.glowColor} mask={selectedPlayer.mask} hat={selectedPlayer.hat} pet={selectedPlayer.pet} size={1.05} />
+              <HumanoidAvatar bodyColor={selectedPlayer.bodyColor} glowColor={selectedPlayer.glowColor} mask={selectedPlayer.mask} hat={selectedPlayer.hat} pet={selectedPlayer.pet} form={selectedPlayer.form} size={1.05} />
             </div>
             <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: 'white', marginBottom: 16 }}>{selectedPlayer.name}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1854,8 +1897,17 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                 style={{ padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(0,229,255,.12)', border: '1px solid rgba(0,229,255,.35)', color: '#00e5ff' }}>🚶 გადასვლა</button>
               {selectedPlayer.profileId && profile?.id !== selectedPlayer.profileId && (
                 <>
-                  <button onClick={() => { const tid = selectedPlayer.profileId!; (socket as any).emit('community:follow', { targetId: tid }, () => {}); setSelectedPlayer(null); }}
-                    style={{ padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(155,0,255,.14)', border: '1px solid rgba(155,0,255,.4)', color: '#c084fc' }}>➕ Follow</button>
+                  <button disabled={followState !== 'idle'} onClick={() => {
+                      const tid = selectedPlayer.profileId!;
+                      setFollowState('busy');
+                      (socket as any).emit('community:follow', { targetId: tid }, (res: any) => {
+                        // success OR "already following" → treat as followed
+                        setFollowState('done');
+                      });
+                    }}
+                    style={{ padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: followState==='done' ? 'rgba(0,255,136,.12)' : 'rgba(155,0,255,.14)', border: `1px solid ${followState==='done' ? 'rgba(0,255,136,.4)' : 'rgba(155,0,255,.4)'}`, color: followState==='done' ? '#00ff88' : '#c084fc' }}>
+                    {followState === 'busy' ? '…' : followState === 'done' ? '✓ Following' : '➕ Follow'}
+                  </button>
                   {/* These open as glass overlays ON TOP of the lounge — they no longer eject you. */}
                   <button onClick={() => { const tid = selectedPlayer.profileId!; setSelectedPlayer(null); openDmWith(tid); }}
                     style={{ padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(0,255,136,.12)', border: '1px solid rgba(0,255,136,.35)', color: '#00ff88' }}>💬 Message</button>

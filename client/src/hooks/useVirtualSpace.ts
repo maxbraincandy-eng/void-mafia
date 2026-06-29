@@ -11,6 +11,7 @@ export interface SpacePlayer {
   mask: SpaceMask;
   hat?: string;
   pet?: string;
+  form?: string;
   profileId?: string | null;
   x: number;
   y: number;
@@ -85,11 +86,12 @@ export function useVirtualSpace() {
     mask: SpaceMask,
     hat = 'none',
     pet = 'none',
+    form = 'human',
   ) => {
     return new Promise<boolean>((resolve) => {
       (socket as any).emit(
         'space:join',
-        { spaceId: spaceId || 'main', name, bodyColor, glowColor, mask, hat, pet },
+        { spaceId: spaceId || 'main', name, bodyColor, glowColor, mask, hat, pet, form },
         (res: any) => {
           if (!res?.ok) { resolve(false); return; }
           const players = new Map<string, SpacePlayer>();

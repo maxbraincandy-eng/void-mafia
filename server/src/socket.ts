@@ -269,7 +269,7 @@ const _lobbyChat: LobbyMsg[] = [];
 const MAX_LOBBY_CHAT = 200;
 
 // ── Virtual Space state ───────────────────────────────────────────────
-interface SpacePlayer { socketId: string; name: string; bodyColor: string; glowColor: string; mask: string; hat: string; pet: string; profileId: string | null; x: number; y: number; seat?: string | null; }
+interface SpacePlayer { socketId: string; name: string; bodyColor: string; glowColor: string; mask: string; hat: string; pet: string; form: string; profileId: string | null; x: number; y: number; seat?: string | null; }
 interface SpaceDJState { videoId: string; startedAt: number; position: number; isPlaying: boolean; djName: string; }
 interface SpaceMeta {
   id: string; name: string; icon: string; theme: string; layout: string;
@@ -5509,7 +5509,7 @@ export function attachSocketHandlers(io: AppServer): void {
     // ── Disconnect ──────────────────────────────────────────────────
     // ── Virtual Space ─────────────────────────────────────────────────
 
-    socket.on('space:join', ({ spaceId = 'main', name, bodyColor, glowColor, mask, hat, pet }: any, cb: Function) => {
+    socket.on('space:join', ({ spaceId = 'main', name, bodyColor, glowColor, mask, hat, pet, form }: any, cb: Function) => {
       try {
         if (!name || !bodyColor) return cb?.({ ok: false, error: 'Missing fields' });
         const safeName  = String(name).slice(0, 24);
@@ -5517,7 +5517,8 @@ export function attachSocketHandlers(io: AppServer): void {
         const safeGlow  = /^#[0-9a-fA-F]{6}$/.test(glowColor ?? '') ? glowColor : '#00e5ff';
         const safeMask  = ['none','half','full','visor'].includes(mask) ? mask : 'none';
         const safeHat   = ['none','cap','crown','halo','party','cat','beanie'].includes(hat) ? hat : 'none';
-        const safePet   = ['none','cat','bot','ghost','star'].includes(pet) ? pet : 'none';
+        const safePet   = ['none','cat','bot','ghost','star','fish','fish2','egg','chick','moon','car'].includes(pet) ? pet : 'none';
+        const safeForm  = ['human','car'].includes(form) ? form : 'human';
         const safeSpace = String(spaceId).slice(0, 32).replace(/[^a-zA-Z0-9_-]/g, '') || 'main';
         const meta = _spaceMeta.get(safeSpace);
         // Only 'main' may be joined without pre-existing metadata; everything
@@ -5530,7 +5531,7 @@ export function attachSocketHandlers(io: AppServer): void {
         }
         const x = 15 + Math.random() * 70;
         const y = 20 + Math.random() * 60;
-        const player: SpacePlayer = { socketId: socket.id, name: safeName, bodyColor: safeBody, glowColor: safeGlow, mask: safeMask, hat: safeHat, pet: safePet, profileId: socket.data.profileId ?? null, x, y, seat: null };
+        const player: SpacePlayer = { socketId: socket.id, name: safeName, bodyColor: safeBody, glowColor: safeGlow, mask: safeMask, hat: safeHat, pet: safePet, form: safeForm, profileId: socket.data.profileId ?? null, x, y, seat: null };
         room.set(socket.id, player);
         socket.join(`space:${safeSpace}`);
         socket.to(`space:${safeSpace}`).emit('space:player-joined', player);
