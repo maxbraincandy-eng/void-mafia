@@ -900,6 +900,8 @@ export interface ServerToClientEvents {
   'space:voice-ice':         (data: { from: string; candidate: object }) => void;
   // DJ
   'space:dj-update':         (state: { videoId: string; startedAt: number; position: number; isPlaying: boolean; djName: string } | null) => void;
+  // Cinema TV / Watch Party
+  'tv:update':               (state: { videoId: string; title: string; startedAt: number; position: number; isPlaying: boolean; byName: string } | null) => void;
 }
 
 export interface ClientToServerEvents {
@@ -1224,6 +1226,12 @@ export interface ClientToServerEvents {
   'space:dj-play':  (data: { videoId: string; position?: number }) => void;
   'space:dj-pause': (data: { position: number }) => void;
   'space:dj-stop':  () => void;
+  // Cinema TV / Watch Party
+  'tv:set':   (data: { videoId: string; title?: string }) => void;
+  'tv:play':  (data: { position: number }) => void;
+  'tv:pause': (data: { position: number }) => void;
+  'tv:seek':  (data: { position: number }) => void;
+  'tv:stop':  () => void;
 }
 
 export interface InterServerEvents {}

@@ -157,6 +157,7 @@ const _lobbyChat = [];
 const MAX_LOBBY_CHAT = 200;
 const _spaces = new Map();
 const _spaceDJ = new Map();
+const _spaceTV = new Map();
 const _spaceVoice = new Map(); // spaceId → Map<socketId, playerName>
 const _spaceMeta = new Map();
 // Seed the always-on public lounge.
@@ -187,6 +188,19 @@ function _findSpaceByCode(code) {
 function _spaceOnlineCount(spaceId) {
     return _spaces.get(spaceId)?.size ?? 0;
 }
+function _spaceOfSocket(socketId) {
+    for (const [spaceId, room] of _spaces)
+        if (room.has(socketId))
+            return spaceId;
+    return null;
+}
+function _canControlTv(spaceId, profileId) {
+    const meta = _spaceMeta.get(spaceId);
+    if (!meta)
+        return false;
+    // Owned spaces: only the owner. Ownerless public lounges (main): anyone present.
+    return !meta.ownerId || meta.ownerId === profileId;
+}
 function _publicSpaceMeta(m, online) {
     return {
         id: m.id, name: m.name, icon: m.icon, theme: m.theme,
@@ -202,6 +216,7 @@ function _leaveSpace(sid, io) {
             if (room.size === 0) {
                 _spaces.delete(spaceId);
                 _spaceDJ.delete(spaceId);
+                _spaceTV.delete(spaceId);
                 // Tear down user-created spaces when empty; keep seeded lounges alive.
                 const meta = _spaceMeta.get(spaceId);
                 if (meta && !meta.persistent)
@@ -6354,9 +6369,13 @@ export function attachSocketHandlers(io) {
                 socket.join(`space:${safeSpace}`);
                 socket.to(`space:${safeSpace}`).emit('space:player-joined', player);
                 const existingDJ = _spaceDJ.get(safeSpace) ?? null;
-                cb?.({ ok: true, data: { players: [...room.values()], mySocketId: socket.id, djState: existingDJ, space: _publicSpaceMeta(meta, room.size) } });
+                const existingTV = _spaceTV.get(safeSpace) ?? null;
+                const spacePublic = { ..._publicSpaceMeta(meta, room.size), canControlTv: _canControlTv(safeSpace, socket.data.profileId ?? null) };
+                cb?.({ ok: true, data: { players: [...room.values()], mySocketId: socket.id, djState: existingDJ, tvState: existingTV, space: spacePublic } });
                 if (existingDJ)
                     socket.emit('space:dj-update', existingDJ);
+                if (existingTV)
+                    socket.emit('tv:update', existingTV);
             }
             catch {
                 cb?.({ ok: false, error: 'Internal error' });
@@ -6507,6 +6526,65 @@ export function attachSocketHandlers(io) {
                     return;
                 }
             }
+        });
+        // ── Cinema TV / Watch Party ────────────────────────────────────────
+        function _tvBroadcast(spaceId) {
+            io.to(`space:${spaceId}`).emit('tv:update', _spaceTV.get(spaceId) ?? null);
+        }
+        socket.on('tv:set', ({ videoId, title }) => {
+            const spaceId = _spaceOfSocket(socket.id);
+            if (!spaceId || !_canControlTv(spaceId, socket.data.profileId ?? null))
+                return;
+            const vid = String(videoId ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20);
+            if (!vid)
+                return;
+            const byName = _spaces.get(spaceId)?.get(socket.id)?.name ?? 'Someone';
+            _spaceTV.set(spaceId, { videoId: vid, title: String(title ?? '').slice(0, 120), startedAt: Date.now(), position: 0, isPlaying: true, byName });
+            _tvBroadcast(spaceId);
+        });
+        socket.on('tv:play', ({ position }) => {
+            const spaceId = _spaceOfSocket(socket.id);
+            if (!spaceId || !_canControlTv(spaceId, socket.data.profileId ?? null))
+                return;
+            const state = _spaceTV.get(spaceId);
+            if (!state)
+                return;
+            const pos = Math.max(0, Number(position) || 0);
+            state.isPlaying = true;
+            state.position = pos;
+            state.startedAt = Date.now() - Math.round(pos * 1000);
+            _tvBroadcast(spaceId);
+        });
+        socket.on('tv:pause', ({ position }) => {
+            const spaceId = _spaceOfSocket(socket.id);
+            if (!spaceId || !_canControlTv(spaceId, socket.data.profileId ?? null))
+                return;
+            const state = _spaceTV.get(spaceId);
+            if (!state)
+                return;
+            state.isPlaying = false;
+            state.position = Math.max(0, Number(position) || 0);
+            _tvBroadcast(spaceId);
+        });
+        socket.on('tv:seek', ({ position }) => {
+            const spaceId = _spaceOfSocket(socket.id);
+            if (!spaceId || !_canControlTv(spaceId, socket.data.profileId ?? null))
+                return;
+            const state = _spaceTV.get(spaceId);
+            if (!state)
+                return;
+            const pos = Math.max(0, Number(position) || 0);
+            state.position = pos;
+            if (state.isPlaying)
+                state.startedAt = Date.now() - Math.round(pos * 1000);
+            _tvBroadcast(spaceId);
+        });
+        socket.on('tv:stop', () => {
+            const spaceId = _spaceOfSocket(socket.id);
+            if (!spaceId || !_canControlTv(spaceId, socket.data.profileId ?? null))
+                return;
+            _spaceTV.delete(spaceId);
+            _tvBroadcast(spaceId);
         });
         // ── Virtual Space Voice ────────────────────────────────────────────
         socket.on('space:voice-join', (_, cb) => {

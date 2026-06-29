@@ -34,6 +34,7 @@ export interface SpaceMeta {
   code: string;
   online: number;
   persistent: boolean;
+  canControlTv?: boolean;
 }
 
 interface VirtualSpaceState {

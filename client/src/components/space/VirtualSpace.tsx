@@ -114,6 +114,44 @@ function ytSetVol(v: number) { _yt?.setVolume?.(v); }
 function ytGetTime(): number { return _yt?.getCurrentTime?.() ?? 0; }
 function ytGetVideoId(): string { return _yt?.getVideoData?.()?.video_id ?? ''; }
 
+// ── Cinema TV player (separate visible instance — never touches the DJ) ──
+let _ytTv: any = null;
+let _ytTvStateCb: ((s: number) => void) | null = null;
+function _createTvPlayer(div: HTMLElement, onReady: () => void) {
+  if (_ytTv) { onReady(); return; }
+  _loadYTApi().then(() => {
+    _ytTv = new (window as any).YT.Player(div, {
+      width: '100%', height: '100%',
+      playerVars: { autoplay: 0, controls: 0, rel: 0, playsinline: 1, modestbranding: 1, fs: 0, disablekb: 1, iv_load_policy: 3 },
+      events: {
+        onReady: () => onReady(),
+        onStateChange: (e: { data: number }) => _ytTvStateCb?.(e.data),
+      },
+    });
+  });
+}
+function _destroyTvPlayer() { try { _ytTv?.destroy?.(); } catch { /* ignore */ } _ytTv = null; _ytTvStateCb = null; }
+function tvLoad(videoId: string, startSeconds: number) { _ytTv?.loadVideoById?.({ videoId, startSeconds: Math.max(0, startSeconds) }); }
+function tvCue(videoId: string, startSeconds: number) { _ytTv?.cueVideoById?.({ videoId, startSeconds: Math.max(0, startSeconds) }); }
+function tvSearchLoad(query: string) { _ytTv?.loadPlaylist?.({ listType: 'search', list: query, index: 0, startSeconds: 0 }); }
+function tvPlayP() { _ytTv?.playVideo?.(); }
+function tvPauseP() { _ytTv?.pauseVideo?.(); }
+function tvSeekP(s: number) { _ytTv?.seekTo?.(Math.max(0, s), true); }
+function tvSetVolP(v: number) { _ytTv?.setVolume?.(Math.max(0, Math.min(100, Math.round(v)))); }
+function tvGetTimeP(): number { return _ytTv?.getCurrentTime?.() ?? 0; }
+function tvGetVidP(): string { return _ytTv?.getVideoData?.()?.video_id ?? ''; }
+function tvGetTitleP(): string { return _ytTv?.getVideoData?.()?.title ?? ''; }
+
+// World position of the cinema TV (same 0-100 coordinate space as avatars).
+const TV_X = 50, TV_Y = 13;
+// Distance (in world units) within which the TV loads & spatial audio is audible.
+const TV_NEAR_RADIUS = 42;
+
+interface TVState { videoId: string; title: string; startedAt: number; position: number; isPlaying: boolean; byName: string; }
+function tvComputedPos(s: TVState): number {
+  return s.isPlaying ? Math.max(0, (Date.now() - s.startedAt) / 1000) : Math.max(0, s.position);
+}
+
 // ── URL / ID helper ───────────────────────────────────────────────────
 
 function extractVideoId(input: string): string | null {
@@ -263,17 +301,6 @@ function DJBoothGraphic({ active }: { active: boolean }) {
     </div>
   );
 }
-
-function TVGraphic({ active }: { active: boolean }) {
-  return (
-    <div style={{ position: 'absolute', top: '65%', left: '70%', opacity: active ? 1 : 0.6 }}>
-      {/* აქ შეგიძლია ჩაამატო ტელევიზორის SVG ან პიქსელ არტი, რომელიც ჰგავს მონიტორს */}
-      <div style={{ width: 60, height: 40, border: '2px solid #0ff', borderRadius: 4 }} />
-      <div style={{ fontSize: 10, color: '#0ff', marginTop: 4 }}>{active ? 'TV LIVE' : 'TV'}</div>
-    </div>
-  );
-}
-
 
 function GamingStation() {
   return (
@@ -654,6 +681,277 @@ function ChatDrawer({ history, mySocketId, open }: {
   );
 }
 
+// ── Cinema TV (synced watch party) ────────────────────────────────────
+
+function CinemaTV({ tvState, canControl, myDist, viewerCount }: {
+  tvState: TVState | null;
+  canControl: boolean;
+  myDist: number;
+  viewerCount: number;
+}) {
+  const screenRef = useRef<HTMLDivElement>(null);
+  const readyRef = useRef(false);
+  const curVidRef = useRef('');
+  const pendingSearchRef = useRef(false);
+  const farTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [playerReady, setPlayerReady] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [fade, setFade] = useState(false);
+
+  const near = myDist <= TV_NEAR_RADIUS;
+  const hasVideo = !!tvState?.videoId;
+
+  // Keep latest tvState in a ref for callbacks/intervals.
+  const stateRef = useRef<TVState | null>(tvState);
+  useEffect(() => { stateRef.current = tvState; }, [tvState]);
+
+  // Apply the current server state to the local player (load/seek/play/pause).
+  const applyState = () => {
+    const s = stateRef.current;
+    if (!_ytTv || !readyRef.current || !s) return;
+    const pos = tvComputedPos(s);
+    if (s.videoId !== curVidRef.current) {
+      curVidRef.current = s.videoId;
+      setFade(true);
+      setTimeout(() => setFade(false), 320);
+      if (s.isPlaying) tvLoad(s.videoId, pos); else tvCue(s.videoId, pos);
+      return;
+    }
+    const drift = Math.abs(tvGetTimeP() - pos);
+    if (s.isPlaying) {
+      if (drift > 1.6) tvSeekP(pos);
+      tvPlayP();
+    } else {
+      tvPauseP();
+      if (drift > 1.6) tvSeekP(pos);
+    }
+  };
+
+  // ── Lazy player lifecycle: only mount the iframe when near the TV ──────
+  useEffect(() => {
+    if (near && hasVideo) {
+      if (farTimerRef.current) { clearTimeout(farTimerRef.current); farTimerRef.current = null; }
+      if (!_ytTv && screenRef.current) {
+        _ytTvStateCb = (st: number) => {
+          if (st === 1 && pendingSearchRef.current) {
+            // Search result started playing on the controller's player → publish it.
+            pendingSearchRef.current = false;
+            const vid = tvGetVidP();
+            if (vid) (socket as any).emit('tv:set', { videoId: vid, title: tvGetTitleP() });
+          }
+        };
+        _createTvPlayer(screenRef.current, () => {
+          readyRef.current = true;
+          setPlayerReady(true);
+          tvSetVolP(0);
+          applyState();
+        });
+      } else if (_ytTv && readyRef.current) {
+        applyState();
+      }
+    } else if (!near && _ytTv && !pendingSearchRef.current) {
+      // Walked away — tear the player down after a short grace (saves GPU/battery).
+      if (!farTimerRef.current) {
+        farTimerRef.current = setTimeout(() => {
+          farTimerRef.current = null;
+          _destroyTvPlayer();
+          readyRef.current = false;
+          curVidRef.current = '';
+          setPlayerReady(false);
+        }, 1800);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [near, hasVideo, tvState?.videoId, tvState?.isPlaying, tvState?.startedAt, tvState?.position]);
+
+  // ── Spatial audio: volume falls off with distance; voice chat untouched ─
+  useEffect(() => {
+    if (!_ytTv || !readyRef.current) return;
+    const vol = near ? Math.max(0, Math.min(100, 100 * (1 - myDist / TV_NEAR_RADIUS))) : 0;
+    tvSetVolP(vol);
+  }, [myDist, near, playerReady]);
+
+  // ── Drift correction while playing ─────────────────────────────────────
+  useEffect(() => {
+    if (!near || !tvState?.isPlaying) return;
+    const t = setInterval(applyState, 4000);
+    return () => clearInterval(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [near, tvState?.isPlaying, tvState?.videoId]);
+
+  useEffect(() => () => {
+    if (farTimerRef.current) clearTimeout(farTimerRef.current);
+    _destroyTvPlayer();
+    readyRef.current = false;
+  }, []);
+
+  // ── Controller actions ─────────────────────────────────────────────────
+  const setByLink = (raw: string) => {
+    const vid = extractVideoId(raw);
+    if (!vid) return false;
+    pendingSearchRef.current = false;
+    (socket as any).emit('tv:set', { videoId: vid, title: '' });
+    return true;
+  };
+  const doSearch = (q: string) => {
+    if (!_ytTv || !readyRef.current) return;
+    pendingSearchRef.current = true;
+    tvSearchLoad(q); // resolves to tv:set when the result starts playing
+  };
+  const togglePlay = () => {
+    const s = stateRef.current; if (!s) return;
+    if (s.isPlaying) (socket as any).emit('tv:pause', { position: tvGetTimeP() });
+    else (socket as any).emit('tv:play', { position: tvGetTimeP() || s.position });
+  };
+  const stop = () => (socket as any).emit('tv:stop');
+
+  const accent = '#00e5ff';
+  const localTitle = tvState?.title || (playerReady ? tvGetTitleP() : '');
+
+  return (
+    <>
+      {/* TV object on the wall */}
+      <div style={{ position: 'absolute', left: `${TV_X}%`, top: `${TV_Y}%`, transform: 'translate(-50%, -50%)', zIndex: 12, width: 'min(46vw, 280px)', pointerEvents: 'none' }}>
+        {/* Now Playing banner */}
+        <AnimatePresence>
+          {hasVideo && (
+            <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', marginBottom: 5 }}>
+              <span style={{ fontFamily: 'monospace', fontSize: 9, color: accent, letterSpacing: '0.08em' }}>🎬 NOW PLAYING</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.4)' }}>· 👁 {viewerCount}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Screen */}
+        <div style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9', borderRadius: 10, overflow: 'hidden', background: '#000', border: `2px solid ${hasVideo ? accent + '99' : 'rgba(255,255,255,.12)'}`, boxShadow: hasVideo ? `0 0 28px ${accent}45, inset 0 0 30px rgba(0,0,0,.6)` : '0 6px 24px rgba(0,0,0,.5)', transition: 'border-color .3s, box-shadow .3s' }}>
+          {/* Player mounts here when near */}
+          <div ref={screenRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: fade ? 0 : 1, transition: 'opacity .3s', pointerEvents: 'none' }} />
+          {/* Off / far state */}
+          {(!hasVideo || !near) && (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, background: 'radial-gradient(ellipse at 50% 40%, rgba(0,40,60,.5), #000)', pointerEvents: 'none' }}>
+              <span style={{ fontSize: 22, opacity: 0.5 }}>📺</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.35)' }}>
+                {!hasVideo ? (canControl ? 'TAP TO START' : 'OFF') : 'მიუახლოვდი →'}
+              </span>
+            </div>
+          )}
+          {/* Tap target (real, above the iframe) */}
+          <button
+            onClick={() => { if (canControl) setPanelOpen(true); }}
+            style={{ position: 'absolute', inset: 0, background: 'transparent', border: 'none', cursor: canControl ? 'pointer' : 'default', pointerEvents: canControl ? 'auto' : 'none' }}
+            aria-label="TV"
+          />
+        </div>
+        {localTitle && (
+          <p style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.5)', textAlign: 'center', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{localTitle}</p>
+        )}
+      </div>
+
+      {/* Controller panel */}
+      <AnimatePresence>
+        {panelOpen && canControl && (
+          <TVControlPanel
+            tvState={tvState}
+            onClose={() => setPanelOpen(false)}
+            onSetLink={setByLink}
+            onSearch={doSearch}
+            onTogglePlay={togglePlay}
+            onSeek={(p) => (socket as any).emit('tv:seek', { position: p })}
+            onStop={stop}
+            getTime={() => (playerReady ? tvGetTimeP() : (tvState ? tvComputedPos(tvState) : 0))}
+            getDuration={() => _ytTv?.getDuration?.() ?? 0}
+          />
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
+
+function TVControlPanel({ tvState, onClose, onSetLink, onSearch, onTogglePlay, onSeek, onStop, getTime, getDuration }: {
+  tvState: TVState | null;
+  onClose: () => void;
+  onSetLink: (raw: string) => boolean;
+  onSearch: (q: string) => void;
+  onTogglePlay: () => void;
+  onSeek: (p: number) => void;
+  onStop: () => void;
+  getTime: () => number;
+  getDuration: () => number;
+}) {
+  const [input, setInput] = useState('');
+  const [mode, setMode] = useState<'link' | 'search'>('link');
+  const [err, setErr] = useState(false);
+  const [tick, setTick] = useState(0);
+  useEffect(() => { const t = setInterval(() => setTick(x => x + 1), 1000); return () => clearInterval(t); }, []);
+  const accent = '#00e5ff';
+  const dur = getDuration();
+  const cur = getTime();
+  void tick;
+
+  const submit = () => {
+    const v = input.trim();
+    if (!v) return;
+    if (mode === 'link') {
+      if (onSetLink(v)) { setInput(''); setErr(false); } else setErr(true);
+    } else {
+      onSearch(v); setInput('');
+    }
+  };
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+  return (
+    <>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
+        style={{ position: 'absolute', inset: 0, zIndex: 70, background: 'rgba(0,0,0,.5)', backdropFilter: 'blur(4px)' }} />
+      <motion.div
+        initial={{ y: '100%', opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: '100%', opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 340, damping: 32 }}
+        onClick={e => e.stopPropagation()}
+        style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 71, background: 'rgba(4,0,18,.98)', backdropFilter: 'blur(24px)', borderTop: `1.5px solid ${accent}55`, borderRadius: '18px 18px 0 0', padding: '16px 16px calc(16px + env(safe-area-inset-bottom,0px))' }}
+      >
+        <div style={{ width: 36, height: 3, background: 'rgba(255,255,255,.15)', borderRadius: 2, margin: '0 auto 16px' }} />
+        <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 14, color: 'white', marginBottom: 12 }}>🎬 Cinema TV</p>
+
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+          {(['link', 'search'] as const).map(m => (
+            <button key={m} onClick={() => { setMode(m); setErr(false); }}
+              style={{ flex: 1, padding: '7px', borderRadius: 10, fontFamily: 'monospace', fontSize: 11, background: mode === m ? `${accent}22` : 'rgba(255,255,255,.04)', border: `1px solid ${mode === m ? accent : 'rgba(255,255,255,.1)'}`, color: mode === m ? accent : 'rgba(255,255,255,.4)' }}>
+              {m === 'link' ? '🔗 ბმული' : '🔍 ძებნა'}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          <input value={input} onChange={e => { setInput(e.target.value); setErr(false); }}
+            onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+            placeholder={mode === 'link' ? 'YouTube ბმული ან ID' : 'მოძებნე...'}
+            style={{ flex: 1, background: 'rgba(255,255,255,.04)', fontFamily: 'monospace', fontSize: 13, color: 'white', outline: 'none', padding: '9px 12px', borderRadius: 12, border: `1px solid ${err ? 'rgba(255,45,85,.5)' : 'rgba(255,255,255,.1)'}` }} />
+          <button onClick={submit} style={{ padding: '9px 16px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: `${accent}1f`, border: `1px solid ${accent}55`, color: accent }}>{mode === 'link' ? 'Set' : 'Go'}</button>
+        </div>
+
+        {tvState && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,.4)', flexShrink: 0 }}>{fmt(cur)}</span>
+              <input type="range" min={0} max={Math.max(1, dur)} value={Math.min(cur, dur || cur)}
+                onChange={e => onSeek(Number(e.target.value))}
+                style={{ flex: 1, accentColor: accent }} />
+              <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,.4)', flexShrink: 0 }}>{dur ? fmt(dur) : '--:--'}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={onTogglePlay} style={{ flex: 1, padding: '10px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: `${accent}1f`, border: `1px solid ${accent}55`, color: accent }}>
+                {tvState.isPlaying ? '⏸ Pause' : '▶ Play'}
+              </button>
+              <button onClick={onStop} style={{ padding: '10px 16px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,45,85,.12)', border: '1px solid rgba(255,45,85,.35)', color: '#ff2d55' }}>⏹ Stop</button>
+            </div>
+          </>
+        )}
+      </motion.div>
+    </>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────
 
 interface Props { onClose: () => void; initialSpaceCode?: string | null }
@@ -692,6 +990,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [djPanelOpen, setDjPanelOpen] = useState(false);
   const [djState, setDjState] = useState<DJState | null>(null);
+  const [tvState, setTvState] = useState<TVState | null>(null);
   const [ytReady, setYtReady] = useState(false);
   const [localPlaying, setLocalPlaying] = useState(false);
 
@@ -795,6 +1094,15 @@ const toggleDance = () => setIsDancing(!isDancing);
     return () => { (socket as any).off('space:dj-update', onDJUpdate); };
   }, []);
 
+  // ── Cinema TV state ────────────────────────────────────────────────
+  useEffect(() => {
+    function onTvUpdate(state: TVState | null) { setTvState(state); }
+    (socket as any).on('tv:update', onTvUpdate);
+    return () => { (socket as any).off('tv:update', onTvUpdate); };
+  }, []);
+  // Clear TV when leaving the space.
+  useEffect(() => { if (!joined) setTvState(null); }, [joined]);
+
   // ── Handlers ──────────────────────────────────────────────────────
 
   const handleClose = useCallback(() => { leaveVoice(); leave(); onClose(); }, [leave, leaveVoice, onClose]);
@@ -878,6 +1186,11 @@ const toggleDance = () => setIsDancing(!isDancing);
 
   const voiceLabel = voiceJoined ? (muted ? '🔇 muted' : '🎤 live') : voiceStatus === 'failed' ? '⚠ no mic' : '○ connecting…';
 
+  // Distance from my avatar to the cinema TV + how many players are watching.
+  const me = players.get(mySocketId);
+  const myTvDist = me ? Math.hypot(me.x - TV_X, me.y - TV_Y) : 999;
+  const tvViewers = [...players.values()].filter(p => Math.hypot(p.x - TV_X, p.y - TV_Y) <= TV_NEAR_RADIUS).length;
+
   return (
     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-[200] flex flex-col" style={{background:'#020010'}}>
       {/* Header */}
@@ -948,6 +1261,9 @@ const toggleDance = () => setIsDancing(!isDancing);
             <PerspectiveFloor/>
             <div className="absolute inset-0 pointer-events-none" style={{background:'radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(2,0,16,.55) 100%)'}}/>
             <RoomObjects djActive={!!djState?.isPlaying} onDJClick={()=>setDjPanelOpen(o=>!o)}/>
+
+            {/* Cinema TV — synced watch party */}
+            <CinemaTV tvState={tvState} canControl={space?.canControlTv ?? false} myDist={myTvDist} viewerCount={tvViewers} />
 
             {/* Now playing bar */}
             <AnimatePresence>
