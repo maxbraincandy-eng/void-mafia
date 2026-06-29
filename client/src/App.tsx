@@ -325,7 +325,28 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const unoMatch      = useUnoStore(s => s.match);
   const inGame = !!(checkersMatch || ludoMatch || jokerMatch || wwwMatch || unoMatch);
   const [spaceOpen, setSpaceOpen] = useState(false);
+  const [spaceCode, setSpaceCode] = useState<string | null>(null);
+  const [spaceInvite, setSpaceInvite] = useState<{ spaceId: string; code: string; name: string; icon: string; fromName: string } | null>(null);
   const [modOpen, setModOpen] = useState(false);
+
+  // Deep link: voidmafia.one/lounge/CODE → open that space directly.
+  useEffect(() => {
+    const m = window.location.pathname.match(/^\/lounge\/([A-Za-z0-9-]+)/);
+    if (m) {
+      setSpaceCode(m[1].toUpperCase());
+      setSpaceOpen(true);
+      window.history.replaceState({}, '', '/');
+    }
+  }, []);
+
+  // Incoming space invite → toast with Accept/Decline.
+  useEffect(() => {
+    const onInvited = (data: { spaceId: string; code: string; name: string; icon: string; fromName: string }) => {
+      setSpaceInvite(data);
+    };
+    (socket as any).on('space:invited', onInvited);
+    return () => { (socket as any).off('space:invited', onInvited); };
+  }, []);
 
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
@@ -392,7 +413,29 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       <AnimatePresence>{ludoMatch     && <LudoGame />}</AnimatePresence>
       <AnimatePresence>{wwwMatch      && <WWWGame />}</AnimatePresence>
       <AnimatePresence>{unoMatch      && <UnoGame />}</AnimatePresence>
-      <AnimatePresence>{spaceOpen    && <VirtualSpace onClose={() => setSpaceOpen(false)} />}</AnimatePresence>
+      <AnimatePresence>{spaceOpen    && <VirtualSpace initialSpaceCode={spaceCode} onClose={() => { setSpaceOpen(false); setSpaceCode(null); }} />}</AnimatePresence>
+
+      {/* Space invite toast */}
+      <AnimatePresence>
+        {spaceInvite && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+            style={{ position: 'fixed', top: 'calc(12px + env(safe-area-inset-top,0px))', left: '50%', transform: 'translateX(-50%)', zIndex: 400, width: 'min(380px, calc(100vw - 24px))', background: 'rgba(8,3,22,.98)', backdropFilter: 'blur(20px)', border: '1px solid rgba(155,0,255,.4)', borderRadius: 16, padding: '12px 14px', boxShadow: '0 10px 40px rgba(0,0,0,.6)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ fontSize: 24 }}>{spaceInvite.icon}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'white' }}><b>{spaceInvite.fromName}</b> გიწვევს</p>
+                <p style={{ fontFamily: 'monospace', fontSize: 11, color: '#c084fc' }}>{spaceInvite.name}</p>
+              </div>
+              <button onClick={() => { setSpaceCode(spaceInvite.code); setSpaceOpen(true); setSpaceInvite(null); }}
+                style={{ padding: '7px 12px', borderRadius: 10, fontFamily: 'monospace', fontSize: 12, background: 'rgba(0,255,136,.14)', border: '1px solid rgba(0,255,136,.35)', color: '#00ff88' }}>Join</button>
+              <button onClick={() => setSpaceInvite(null)}
+                style={{ padding: '7px 10px', borderRadius: 10, fontFamily: 'monospace', fontSize: 12, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.12)', color: 'rgba(255,255,255,.5)' }}>✕</button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <MorePanel
         isOwner={isOwner}
         isMod={isMod}

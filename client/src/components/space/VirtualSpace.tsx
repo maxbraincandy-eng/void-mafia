@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useVirtualSpace, type SpacePlayer, type SpaceMask } from '@/hooks/useVirtualSpace';
+import { useVirtualSpace, type SpacePlayer, type SpaceMask, type SpaceMeta as SpaceMetaT } from '@/hooks/useVirtualSpace';
+import { SpacesLobby, SpaceInvitePanel } from './SpacesLobby';
 import { useSpaceVoice } from '@/hooks/useSpaceVoice';
 import { useAuthStore } from '@/store/authStore';
 import { socket } from '@/lib/socket';
@@ -655,9 +656,9 @@ function ChatDrawer({ history, mySocketId, open }: {
 
 // ── Main component ────────────────────────────────────────────────────
 
-interface Props { onClose: () => void }
+interface Props { onClose: () => void; initialSpaceCode?: string | null }
 
-export function VirtualSpace({ onClose }: Props) {
+export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   useEffect(() => {
     const el = document.getElementById('vs-styles') ?? (() => { const s=document.createElement('style'); s.id='vs-styles'; document.head.appendChild(s); return s; })();
     el.textContent = SPACE_CSS;
@@ -667,8 +668,25 @@ export function VirtualSpace({ onClose }: Props) {
   const profile = useAuthStore(s => s.profile);
   const playerName = profile?.username ?? 'Player';
 
-  const { joined, mySocketId, players, chatHistory, join, leave, moveLocal, sendChat } = useVirtualSpace();
+  const { joined, mySocketId, players, chatHistory, space, join, leave, moveLocal, sendChat, listSpaces, createSpace, resolveSpace, inviteToSpace } = useVirtualSpace();
   const { joined: voiceJoined, muted, speakingIds, status: voiceStatus, joinVoice, leaveVoice, toggleMute } = useSpaceVoice();
+
+  // ── Space selection flow: lobby → customize → in-space ────────────────
+  const [view, setView] = useState<'lobby' | 'customize'>('lobby');
+  const [selectedSpace, setSelectedSpace] = useState<SpaceMetaT | null>(null);
+  const [showInvite, setShowInvite] = useState(false);
+  const [resolvingDeepLink, setResolvingDeepLink] = useState(false);
+
+  // Deep link / invite: resolve a code straight into the customizer.
+  useEffect(() => {
+    if (!initialSpaceCode) return;
+    setResolvingDeepLink(true);
+    resolveSpace(initialSpaceCode).then(res => {
+      if (res.ok && res.space) { setSelectedSpace(res.space); setView('customize'); }
+      setResolvingDeepLink(false);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSpaceCode]);
 
   const [chat, setChat] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -785,7 +803,7 @@ const toggleDance = () => setIsDancing(!isDancing);
     // Capture the user gesture timestamp BEFORE await so onDJUpdate's
     // justJoined check is accurate when music is playing in the room.
     joinTimeRef.current = Date.now();
-    const ok = await join(playerName, bodyColor, glowColor, mask);
+    const ok = await join(selectedSpace?.id ?? 'main', playerName, bodyColor, glowColor, mask);
     if (ok) joinVoice();
   }
 
@@ -866,9 +884,18 @@ const toggleDance = () => setIsDancing(!isDancing);
       <div style={{ display:'flex',alignItems:'center',gap:12,padding:'10px 16px',paddingTop:'calc(10px + env(safe-area-inset-top,0px))',background:'rgba(3,0,14,.96)',borderBottom:'1px solid rgba(155,0,255,.18)',backdropFilter:'blur(14px)',flexShrink:0 }}>
         <div style={{ width:8,height:8,borderRadius:'50%',background:'#9b00ff',boxShadow:'0 0 10px #9b00ff',animation:'vs-pulse 2s ease-in-out infinite' }}/>
         <div style={{ flex:1,minWidth:0 }}>
-          <p style={{ fontFamily:'"Space Grotesk",sans-serif',fontWeight:700,fontSize:14,color:'white',letterSpacing:'0.05em' }}>VOID LOUNGE</p>
-          <p style={{ fontFamily:'monospace',fontSize:10,color:'rgba(255,255,255,.28)',letterSpacing:'0.08em' }}>{players.size} online · {voiceLabel}</p>
+          <p style={{ fontFamily:'"Space Grotesk",sans-serif',fontWeight:700,fontSize:14,color:'white',letterSpacing:'0.05em' }}>
+            {joined && space ? `${space.icon} ${space.name}`.toUpperCase() : 'VOID LOUNGE'}
+          </p>
+          <p style={{ fontFamily:'monospace',fontSize:10,color:'rgba(255,255,255,.28)',letterSpacing:'0.08em' }}>
+            {joined ? `${players.size} online · ${voiceLabel}` : 'სოციალური სივრცე'}
+          </p>
         </div>
+        {joined && (
+          <button onClick={()=>setShowInvite(true)} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(155,0,255,.1)',border:'1px solid rgba(155,0,255,.3)',fontSize:14 }} title="მოწვევა">
+            ✦
+          </button>
+        )}
         {joined && (
           <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:muted?'rgba(255,45,85,.12)':'rgba(0,229,255,.08)',border:`1px solid ${muted?'rgba(255,45,85,.35)':'rgba(0,229,255,.25)'}`,fontSize:14 }}>
             {muted ? '🔇' : '🎤'}
@@ -879,7 +906,34 @@ const toggleDance = () => setIsDancing(!isDancing);
 
       {/* Content */}
       {!joined ? (
-        <div className="flex-1 overflow-y-auto" style={{background:'rgba(4,0,18,.98)'}}><AvatarCustomizer playerName={playerName} onJoin={handleJoin}/></div>
+        view === 'lobby' && !resolvingDeepLink ? (
+          <div className="flex-1 overflow-y-auto" style={{background:'rgba(4,0,18,.98)'}}>
+            <SpacesLobby
+              listSpaces={listSpaces}
+              createSpace={createSpace}
+              resolveSpace={resolveSpace}
+              onEnter={(sp) => { setSelectedSpace(sp); setView('customize'); }}
+            />
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto" style={{background:'rgba(4,0,18,.98)'}}>
+            {resolvingDeepLink ? (
+              <div className="flex items-center justify-center h-full">
+                <div style={{ width:24,height:24,border:'2px solid rgba(155,0,255,.4)',borderTopColor:'#9b00ff',borderRadius:'50%',animation:'vs-spin .7s linear infinite' }}/>
+              </div>
+            ) : (
+              <>
+                <div className="px-5 pt-4">
+                  <button onClick={()=>{ setSelectedSpace(null); setView('lobby'); }} className="font-mono text-[11px] text-white/40 hover:text-white/70 transition-all">← Spaces</button>
+                  {selectedSpace && (
+                    <p className="font-mono text-[12px] mt-2" style={{ color:'#c084fc' }}>{selectedSpace.icon} {selectedSpace.name}</p>
+                  )}
+                </div>
+                <AvatarCustomizer playerName={playerName} onJoin={handleJoin}/>
+              </>
+            )}
+          </div>
+        )
       ) : (
         <div className="flex-1 flex flex-col min-h-0">
           <div
@@ -959,6 +1013,13 @@ const toggleDance = () => setIsDancing(!isDancing);
           </form>
         </div>
       )}
+      {/* Invite panel */}
+      <AnimatePresence>
+        {showInvite && joined && space && (
+          <SpaceInvitePanel space={space} inviteToSpace={inviteToSpace} onClose={()=>setShowInvite(false)} />
+        )}
+      </AnimatePresence>
+
       {/* Hidden YouTube player — always mounted, initialises before join */}
       <div ref={ytDivRef} style={{position:'fixed',opacity:0,pointerEvents:'none',width:1,height:1,left:-10,top:-10,zIndex:-1}}/>
     </motion.div>

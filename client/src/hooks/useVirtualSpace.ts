@@ -23,11 +23,25 @@ export interface SpaceChatMsg {
   ts: number;
 }
 
+export interface SpaceMeta {
+  id: string;
+  name: string;
+  icon: string;
+  theme: string;
+  maxPlayers: number;
+  isPublic: boolean;
+  ownerName: string;
+  code: string;
+  online: number;
+  persistent: boolean;
+}
+
 interface VirtualSpaceState {
   joined: boolean;
   mySocketId: string;
   players: Map<string, SpacePlayer>;
   chatHistory: SpaceChatMsg[];
+  space: SpaceMeta | null;
 }
 
 export function useVirtualSpace() {
@@ -36,6 +50,7 @@ export function useVirtualSpace() {
     mySocketId: '',
     players: new Map(),
     chatHistory: [],
+    space: null,
   });
 
   const moveTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -43,6 +58,7 @@ export function useVirtualSpace() {
   const msgTimers   = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const join = useCallback(async (
+    spaceId: string,
     name: string,
     bodyColor: string,
     glowColor: string,
@@ -51,15 +67,44 @@ export function useVirtualSpace() {
     return new Promise<boolean>((resolve) => {
       (socket as any).emit(
         'space:join',
-        { spaceId: 'main', name, bodyColor, glowColor, mask },
+        { spaceId: spaceId || 'main', name, bodyColor, glowColor, mask },
         (res: any) => {
           if (!res?.ok) { resolve(false); return; }
           const players = new Map<string, SpacePlayer>();
           for (const p of res.data.players) players.set(p.socketId, p);
-          setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [] });
+          setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null });
           resolve(true);
         },
       );
+    });
+  }, []);
+
+  // ── Space management ──────────────────────────────────────────────────
+  const listSpaces = useCallback(() => {
+    return new Promise<SpaceMeta[]>((resolve) => {
+      (socket as any).emit('space:list', (res: any) => resolve(res?.ok ? res.data : []));
+    });
+  }, []);
+
+  const createSpace = useCallback((opts: { name: string; icon: string; theme: string; maxPlayers: number; isPublic: boolean }) => {
+    return new Promise<SpaceMeta | null>((resolve) => {
+      (socket as any).emit('space:create', opts, (res: any) => resolve(res?.ok ? res.data.space : null));
+    });
+  }, []);
+
+  const resolveSpace = useCallback((code: string) => {
+    return new Promise<{ ok: boolean; space?: SpaceMeta; error?: string }>((resolve) => {
+      (socket as any).emit('space:resolve', { code }, (res: any) => {
+        resolve(res?.ok ? { ok: true, space: res.data.space } : { ok: false, error: res?.error ?? 'Not found' });
+      });
+    });
+  }, []);
+
+  const inviteToSpace = useCallback((targetProfileId: string) => {
+    return new Promise<{ ok: boolean; error?: string }>((resolve) => {
+      (socket as any).emit('space:invite', { targetProfileId }, (res: any) => {
+        resolve(res?.ok ? { ok: true } : { ok: false, error: res?.error ?? 'Failed' });
+      });
     });
   }, []);
 
@@ -68,7 +113,7 @@ export function useVirtualSpace() {
     for (const t of msgTimers.current.values()) clearTimeout(t);
     msgTimers.current.clear();
     if (moveTimer.current) { clearTimeout(moveTimer.current); moveTimer.current = null; }
-    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [] });
+    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null });
   }, []);
 
   const moveLocal = useCallback((myId: string, x: number, y: number) => {
@@ -183,5 +228,5 @@ export function useVirtualSpace() {
     };
   }, []);
 
-  return { ...state, join, leave, moveLocal, sendChat };
+  return { ...state, join, leave, moveLocal, sendChat, listSpaces, createSpace, resolveSpace, inviteToSpace };
 }

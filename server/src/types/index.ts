@@ -891,6 +891,7 @@ export interface ServerToClientEvents {
   'space:player-moved':  (data: { socketId: string; x: number; y: number }) => void;
   'space:player-left':   (data: { socketId: string }) => void;
   'space:message':       (data: { socketId: string; message: string }) => void;
+  'space:invited':       (data: { spaceId: string; code: string; name: string; icon: string; fromName: string }) => void;
   // Virtual Space Voice
   'space:voice-peer-joined': (data: { socketId: string; name: string }) => void;
   'space:voice-peer-left':   (data: { socketId: string }) => void;
@@ -1209,6 +1210,10 @@ export interface ClientToServerEvents {
   'space:move':  (data: { x: number; y: number }) => void;
   'space:chat':  (data: { message: string }) => void;
   'space:leave': () => void;
+  'space:create':  (data: { name: string; icon: string; theme: string; maxPlayers: number; isPublic: boolean }, cb: (res: any) => void) => void;
+  'space:list':    (cb: (res: any) => void) => void;
+  'space:resolve': (data: { code: string }, cb: (res: any) => void) => void;
+  'space:invite':  (data: { targetProfileId: string }, cb: (res: any) => void) => void;
   // Virtual Space Voice
   'space:voice-join':   (data: Record<string, never>, cb: (res: any) => void) => void;
   'space:voice-leave':  () => void;

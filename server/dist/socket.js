@@ -158,6 +158,42 @@ const MAX_LOBBY_CHAT = 200;
 const _spaces = new Map();
 const _spaceDJ = new Map();
 const _spaceVoice = new Map(); // spaceId → Map<socketId, playerName>
+const _spaceMeta = new Map();
+// Seed the always-on public lounge.
+_spaceMeta.set('main', {
+    id: 'main', name: 'Void Lounge', icon: '🌌', theme: 'void',
+    maxPlayers: 50, isPublic: true, ownerId: null, ownerName: 'Void Mafia',
+    code: 'VOIDLOUNGE', createdAt: Date.now(), persistent: true,
+});
+const SPACE_THEMES = ['void', 'neon', 'cyber', 'sunset', 'mono'];
+const SPACE_ICONS = ['🌌', '🎮', '🎬', '🎧', '🔥', '💎', '🛸', '🌃', '⚡', '🃏', '👾', '🎲'];
+function _genSpaceCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I
+    const pick = (n) => Array.from({ length: n }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    let code = '';
+    do {
+        code = `${pick(4)}-${pick(4)}`;
+    } while ([..._spaceMeta.values()].some(m => m.code === code));
+    return code;
+}
+function _findSpaceByCode(code) {
+    const norm = code.trim().toUpperCase().replace(/\s/g, '');
+    for (const m of _spaceMeta.values()) {
+        if (m.code.toUpperCase() === norm || m.id.toUpperCase() === norm)
+            return m;
+    }
+    return null;
+}
+function _spaceOnlineCount(spaceId) {
+    return _spaces.get(spaceId)?.size ?? 0;
+}
+function _publicSpaceMeta(m, online) {
+    return {
+        id: m.id, name: m.name, icon: m.icon, theme: m.theme,
+        maxPlayers: m.maxPlayers, isPublic: m.isPublic,
+        ownerName: m.ownerName, code: m.code, online, persistent: m.persistent,
+    };
+}
 function _leaveSpace(sid, io) {
     for (const [spaceId, room] of _spaces) {
         if (room.has(sid)) {
@@ -166,6 +202,10 @@ function _leaveSpace(sid, io) {
             if (room.size === 0) {
                 _spaces.delete(spaceId);
                 _spaceDJ.delete(spaceId);
+                // Tear down user-created spaces when empty; keep seeded lounges alive.
+                const meta = _spaceMeta.get(spaceId);
+                if (meta && !meta.persistent)
+                    _spaceMeta.delete(spaceId);
             }
             return;
         }
@@ -6296,9 +6336,17 @@ export function attachSocketHandlers(io) {
                 const safeGlow = /^#[0-9a-fA-F]{6}$/.test(glowColor ?? '') ? glowColor : '#00e5ff';
                 const safeMask = ['none', 'half', 'full', 'visor'].includes(mask) ? mask : 'none';
                 const safeSpace = String(spaceId).slice(0, 32).replace(/[^a-zA-Z0-9_-]/g, '') || 'main';
+                const meta = _spaceMeta.get(safeSpace);
+                // Only 'main' may be joined without pre-existing metadata; everything
+                // else must have been created (so private codes/capacity are enforced).
+                if (!meta)
+                    return cb?.({ ok: false, error: 'ეს Space აღარ არსებობს.' });
+                const room = _spaces.get(safeSpace) ?? new Map();
                 if (!_spaces.has(safeSpace))
-                    _spaces.set(safeSpace, new Map());
-                const room = _spaces.get(safeSpace);
+                    _spaces.set(safeSpace, room);
+                if (!room.has(socket.id) && room.size >= meta.maxPlayers) {
+                    return cb?.({ ok: false, error: 'Space სავსეა.' });
+                }
                 const x = 15 + Math.random() * 70;
                 const y = 20 + Math.random() * 60;
                 const player = { socketId: socket.id, name: safeName, bodyColor: safeBody, glowColor: safeGlow, mask: safeMask, x, y };
@@ -6306,9 +6354,84 @@ export function attachSocketHandlers(io) {
                 socket.join(`space:${safeSpace}`);
                 socket.to(`space:${safeSpace}`).emit('space:player-joined', player);
                 const existingDJ = _spaceDJ.get(safeSpace) ?? null;
-                cb?.({ ok: true, data: { players: [...room.values()], mySocketId: socket.id, djState: existingDJ } });
+                cb?.({ ok: true, data: { players: [...room.values()], mySocketId: socket.id, djState: existingDJ, space: _publicSpaceMeta(meta, room.size) } });
                 if (existingDJ)
                     socket.emit('space:dj-update', existingDJ);
+            }
+            catch {
+                cb?.({ ok: false, error: 'Internal error' });
+            }
+        });
+        socket.on('space:create', ({ name, icon, theme, maxPlayers, isPublic }, cb) => {
+            try {
+                const safeName = String(name ?? '').trim().slice(0, 28) || 'Void Space';
+                const safeIcon = SPACE_ICONS.includes(icon) ? icon : '🌌';
+                const safeTheme = SPACE_THEMES.includes(theme) ? theme : 'void';
+                const cap = Math.max(2, Math.min(50, Number(maxPlayers) || 12));
+                const id = 'sp_' + _genSpaceCode().replace('-', '').toLowerCase();
+                const meta = {
+                    id, name: safeName, icon: safeIcon, theme: safeTheme,
+                    maxPlayers: cap, isPublic: isPublic !== false,
+                    ownerId: socket.data.profileId ?? null,
+                    ownerName: String(name && socket.data.profileId ? '' : '') || 'You',
+                    code: _genSpaceCode(), createdAt: Date.now(), persistent: false,
+                };
+                // Resolve a friendly owner name from the connected profile if available.
+                if (socket.data.profileId) {
+                    getPlayer(socket.data.profileId).then(p => { if (p)
+                        meta.ownerName = p.username; }).catch(() => { });
+                }
+                _spaceMeta.set(id, meta);
+                cb?.({ ok: true, data: { space: _publicSpaceMeta(meta, 0) } });
+            }
+            catch {
+                cb?.({ ok: false, error: 'Internal error' });
+            }
+        });
+        socket.on('space:list', (cb) => {
+            try {
+                const list = [..._spaceMeta.values()]
+                    .filter(m => m.isPublic)
+                    .map(m => _publicSpaceMeta(m, _spaceOnlineCount(m.id)))
+                    .sort((a, b) => (b.persistent ? 1 : 0) - (a.persistent ? 1 : 0) || b.online - a.online);
+                cb?.({ ok: true, data: list });
+            }
+            catch {
+                cb?.({ ok: false, error: 'Internal error' });
+            }
+        });
+        socket.on('space:resolve', ({ code }, cb) => {
+            try {
+                const meta = _findSpaceByCode(String(code ?? ''));
+                if (!meta)
+                    return cb?.({ ok: false, error: 'კოდი ვერ მოიძებნა.' });
+                cb?.({ ok: true, data: { space: _publicSpaceMeta(meta, _spaceOnlineCount(meta.id)) } });
+            }
+            catch {
+                cb?.({ ok: false, error: 'Internal error' });
+            }
+        });
+        socket.on('space:invite', ({ targetProfileId }, cb) => {
+            try {
+                // Locate the space the inviter is currently in.
+                let mySpaceId = null;
+                for (const [sid, room] of _spaces) {
+                    if (room.has(socket.id)) {
+                        mySpaceId = sid;
+                        break;
+                    }
+                }
+                if (!mySpaceId)
+                    return cb?.({ ok: false, error: 'You are not in a space.' });
+                const meta = _spaceMeta.get(mySpaceId);
+                if (!meta)
+                    return cb?.({ ok: false, error: 'Space not found.' });
+                const targetSock = findSocketByProfile(io, String(targetProfileId));
+                if (!targetSock)
+                    return cb?.({ ok: false, error: 'მოთამაშე ოფლაინია.' });
+                const fromName = _spaces.get(mySpaceId)?.get(socket.id)?.name ?? 'Someone';
+                targetSock.emit('space:invited', { spaceId: meta.id, code: meta.code, name: meta.name, icon: meta.icon, fromName });
+                cb?.({ ok: true });
             }
             catch {
                 cb?.({ ok: false, error: 'Internal error' });
