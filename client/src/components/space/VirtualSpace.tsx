@@ -1140,7 +1140,7 @@ function TVControlPanel({ tvState, onClose, onSetLink, onSearch, onTogglePlay, o
 
 // ── Expression picker (reactions + gestures) ──────────────────────────
 
-const REACT_EMOJIS = ['😂', '❤️', '🔥', '👍', '😮', '😢', '🎉', '👏'];
+const REACT_EMOJIS = ['😂', '🤍', '🔥', '👍', '😮', '😢', '🎉', '👏'];
 const GESTURES: { id: string; emoji: string; label: string }[] = [
   { id: 'wave',  emoji: '👋', label: 'wave' },
   { id: 'clap',  emoji: '👏', label: 'clap' },
