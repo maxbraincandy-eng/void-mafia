@@ -9,6 +9,9 @@ export interface SpacePlayer {
   bodyColor: string;
   glowColor: string;
   mask: SpaceMask;
+  hat?: string;
+  pet?: string;
+  profileId?: string | null;
   x: number;
   y: number;
   message?: string;
@@ -80,11 +83,13 @@ export function useVirtualSpace() {
     bodyColor: string,
     glowColor: string,
     mask: SpaceMask,
+    hat = 'none',
+    pet = 'none',
   ) => {
     return new Promise<boolean>((resolve) => {
       (socket as any).emit(
         'space:join',
-        { spaceId: spaceId || 'main', name, bodyColor, glowColor, mask },
+        { spaceId: spaceId || 'main', name, bodyColor, glowColor, mask, hat, pet },
         (res: any) => {
           if (!res?.ok) { resolve(false); return; }
           const players = new Map<string, SpacePlayer>();

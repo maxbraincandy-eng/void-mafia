@@ -5,6 +5,7 @@ import { useVirtualSpace, type SpacePlayer, type SpaceMask, type SpaceMeta as Sp
 import { SpacesLobby, SpaceInvitePanel } from './SpacesLobby';
 import { useSpaceVoice } from '@/hooks/useSpaceVoice';
 import { useAuthStore } from '@/store/authStore';
+import { useSocialStore } from '@/store/socialStore';
 import { useCheckersStore } from '@/store/checkersStore';
 import { useJokerStore } from '@/store/jokerStore';
 import { useLudoStore } from '@/store/ludoStore';
@@ -233,9 +234,22 @@ function gestureAnim(g: string | null | undefined, sitting?: boolean): string {
   return 'none';
 }
 
-function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walking, gesture, sitting, isMe }: {
+function renderHat(hat: string | undefined, glow: string, body: string) {
+  switch (hat) {
+    case 'cap':    return <><path d="M6 3 Q16 -4 26 3 L26 5 L6 5 Z" fill={glow} /><rect x="6" y="4.5" width="13" height="2" rx="1" fill={glow} opacity="0.7" /></>;
+    case 'beanie': return <><path d="M6 4 Q16 -6 26 4 Z" fill={glow} /><rect x="5" y="3.5" width="22" height="2.5" rx="1.2" fill={body} /><circle cx="16" cy="-5" r="2" fill={glow} /></>;
+    case 'crown':  return <path d="M8 4 L8 -2 L12 1 L16 -4 L20 1 L24 -2 L24 4 Z" fill="#ffcc00" stroke="#ffaa00" strokeWidth="0.4" />;
+    case 'halo':   return <ellipse cx="16" cy="-4" rx="7" ry="2.2" fill="none" stroke="#ffe98a" strokeWidth="1.6" style={{ filter: 'drop-shadow(0 0 4px #ffe98a)' }} />;
+    case 'party':  return <><path d="M16 -8 L11 4 L21 4 Z" fill={glow} stroke="#fff" strokeWidth="0.3" /><circle cx="16" cy="-8" r="1.4" fill="#fff" /></>;
+    case 'cat':    return <><path d="M8 3 L6 -4 L13 0 Z" fill={body} /><path d="M24 3 L26 -4 L19 0 Z" fill={body} /><path d="M9 1.5 L8 -2 L11.5 0 Z" fill={glow} opacity="0.5" /><path d="M23 1.5 L24 -2 L20.5 0 Z" fill={glow} opacity="0.5" /></>;
+    default:       return null;
+  }
+}
+const PET_EMOJI: Record<string, string> = { cat: '🐱', bot: '🤖', ghost: '👻', star: '⭐' };
+
+function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walking, gesture, sitting, hat, pet, isMe }: {
   bodyColor: string; glowColor: string; mask: SpaceMask;
-  size?: number; speaking?: boolean; walking?: boolean; gesture?: string | null; sitting?: boolean; isMe?: boolean;
+  size?: number; speaking?: boolean; walking?: boolean; gesture?: string | null; sitting?: boolean; hat?: string; pet?: string; isMe?: boolean;
 }) {
 
   const w = Math.round(32 * size);
@@ -245,6 +259,12 @@ function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walkin
   const isWalking = walking && !sitting;
   return (
    <div style={{ position: 'relative', width: w, height: h, flexShrink: 0, transform: sitting ? 'translateY(5px)' : undefined, transition: 'transform .25s ease', animation: gestureAnim(gesture, sitting) }}>
+
+      {pet && pet !== 'none' && PET_EMOJI[pet] && (
+        <div style={{ position: 'absolute', bottom: 2, left: -Math.round(14 * size), fontSize: Math.round(13 * size), animation: 'vs-float 1.6s ease-in-out infinite', pointerEvents: 'none' }}>
+          {PET_EMOJI[pet]}
+        </div>
+      )}
 
       {gesture && GESTURE_EMOJI[gesture] && (
         <div style={{ position: 'absolute', top: -18, left: '50%', transform: 'translateX(-50%)', fontSize: 16, animation: 'vs-clap 0.4s ease-in-out infinite', pointerEvents: 'none', zIndex: 5 }}>
@@ -259,7 +279,7 @@ function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walkin
         />
       )}
       <svg width={w} height={h} viewBox="0 0 32 56" fill="none"
-        style={{ filter: speaking ? `drop-shadow(0 0 8px ${glowColor}cc)` : `drop-shadow(0 0 ${isMe ? 5 : 3}px ${bodyColor}99)` }}
+        style={{ overflow: 'visible', filter: speaking ? `drop-shadow(0 0 8px ${glowColor}cc)` : `drop-shadow(0 0 ${isMe ? 5 : 3}px ${bodyColor}99)` }}
       >
         <ellipse cx="16" cy="54" rx="7" ry="2.5" fill="rgba(0,0,0,0.35)" />
         {sitting ? (
@@ -294,7 +314,8 @@ function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walkin
         {mask === 'half' && <><rect x="9" y="11" width="14" height="7" rx="3" fill="rgba(0,0,0,0.65)" stroke={glowColor} strokeWidth="0.6" opacity="0.95" /><line x1="10" y1="14" x2="22" y2="14" stroke={glowColor} strokeWidth="0.5" opacity="0.5" /></>}
         {mask === 'full' && <><circle cx="16" cy="9" r="8.5" fill="rgba(0,0,0,0.6)" stroke={glowColor} strokeWidth="0.8" opacity="0.95" /><rect x="9" y="7" width="14" height="4" rx="2" fill={glowColor} opacity="0.18" /></>}
         {mask === 'visor' && <><rect x="8" y="5.5" width="16" height="7" rx="3.5" fill={glowColor} opacity="0.28" /><rect x="8" y="5.5" width="16" height="7" rx="3.5" fill="none" stroke={glowColor} strokeWidth="0.8" opacity="0.9" /><line x1="8" y1="9" x2="24" y2="9" stroke={glowColor} strokeWidth="0.4" opacity="0.6" /></>}
-        {isMe && <g transform="translate(12,-1)"><polygon points="4,0 5.5,3 4,2.5 2.5,3" fill={glowColor} opacity="0.9" /><rect x="2" y="2.5" width="4" height="1" rx="0.5" fill={glowColor} opacity="0.7" /></g>}
+        {(!hat || hat === 'none') && isMe && <g transform="translate(12,-1)"><polygon points="4,0 5.5,3 4,2.5 2.5,3" fill={glowColor} opacity="0.9" /><rect x="2" y="2.5" width="4" height="1" rx="0.5" fill={glowColor} opacity="0.7" /></g>}
+        {renderHat(hat, glowColor, bodyColor)}
       </svg>
     </div>
   );
@@ -304,7 +325,7 @@ function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walkin
 
 // ── Avatar on map ─────────────────────────────────────────────────────
 
-function AvatarOnMap({ player, isMe, speaking }: { player: SpacePlayer; isMe: boolean; speaking: boolean }) {
+function AvatarOnMap({ player, isMe, speaking, onTap }: { player: SpacePlayer; isMe: boolean; speaking: boolean; onTap?: () => void }) {
 
   const prev = useRef({ x: player.x, y: player.y });
   const [walking, setWalking] = useState(false);
@@ -342,8 +363,12 @@ function AvatarOnMap({ player, isMe, speaking }: { player: SpacePlayer; isMe: bo
       <motion.div
         animate={player.seat ? { y: 0 } : walking ? { rotate: [-1.5, 1.5], y: [0, -2, 0] } : { y: [0, -3, 0] }}
         transition={player.seat ? { duration: 0.2 } : walking ? { duration: 0.28, repeat: Infinity, ease: 'easeInOut' } : { duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+        style={{ pointerEvents: onTap && !isMe ? 'auto' : 'none', cursor: onTap && !isMe ? 'pointer' : 'default' }}
+        onClick={onTap && !isMe ? (e) => { e.stopPropagation(); onTap(); } : undefined}
+        onTouchStart={onTap && !isMe ? (e) => e.stopPropagation() : undefined}
+        onPointerDown={onTap && !isMe ? (e) => e.stopPropagation() : undefined}
       >
-        <HumanoidAvatar bodyColor={player.bodyColor} glowColor={player.glowColor} mask={player.mask} speaking={speaking} walking={walking} gesture={player.gesture} sitting={!!player.seat} isMe={isMe} />
+        <HumanoidAvatar bodyColor={player.bodyColor} glowColor={player.glowColor} mask={player.mask} speaking={speaking} walking={walking} gesture={player.gesture} sitting={!!player.seat} hat={player.hat} pet={player.pet} isMe={isMe} />
 
       </motion.div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontFamily: 'monospace', color: isMe ? player.glowColor : 'rgba(255,255,255,0.65)', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', borderRadius: 6, padding: '1px 7px', border: isMe ? `1px solid ${player.glowColor}55` : '1px solid rgba(255,255,255,0.08)', letterSpacing: '0.04em', maxWidth: 96, marginTop: 2, boxShadow: isMe ? `0 0 8px ${player.glowColor}30` : 'none' }}>
@@ -773,16 +798,27 @@ function NowPlayingBar({ djState, localPlaying, onOpen, onStartListening }: {
 
 // ── Avatar customizer ─────────────────────────────────────────────────
 
-function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: (b: string, g: string, m: SpaceMask) => void }) {
+const HATS: { id: string; label: string }[] = [
+  { id: 'none', label: 'არა' }, { id: 'cap', label: '🧢' }, { id: 'crown', label: '👑' },
+  { id: 'halo', label: '😇' }, { id: 'party', label: '🎉' }, { id: 'cat', label: '🐱' }, { id: 'beanie', label: '🎩' },
+];
+const PETS: { id: string; label: string }[] = [
+  { id: 'none', label: 'არა' }, { id: 'cat', label: '🐱' }, { id: 'bot', label: '🤖' }, { id: 'ghost', label: '👻' }, { id: 'star', label: '⭐' },
+];
+const LS_HAT = 'vs_hat', LS_PET = 'vs_pet';
+
+function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: (b: string, g: string, m: SpaceMask, hat: string, pet: string) => void }) {
   const [bodyColor, setBodyColor] = useState(() => localStorage.getItem(LS_BODY) ?? BODY_COLORS[0]);
   const [glowColor, setGlowColor] = useState(() => localStorage.getItem(LS_GLOW) ?? GLOW_COLORS[0]);
   const [mask, setMask] = useState<SpaceMask>(() => (localStorage.getItem(LS_MASK) as SpaceMask) ?? 'none');
-  function go() { localStorage.setItem(LS_BODY,bodyColor); localStorage.setItem(LS_GLOW,glowColor); localStorage.setItem(LS_MASK,mask); onJoin(bodyColor,glowColor,mask); }
+  const [hat, setHat] = useState(() => localStorage.getItem(LS_HAT) ?? 'none');
+  const [pet, setPet] = useState(() => localStorage.getItem(LS_PET) ?? 'none');
+  function go() { localStorage.setItem(LS_BODY,bodyColor); localStorage.setItem(LS_GLOW,glowColor); localStorage.setItem(LS_MASK,mask); localStorage.setItem(LS_HAT,hat); localStorage.setItem(LS_PET,pet); onJoin(bodyColor,glowColor,mask,hat,pet); }
   return (
     <motion.div initial={{opacity:0,y:16}} animate={{opacity:1,y:0}} className="flex flex-col items-center gap-5 px-5 py-6">
       <div className="flex flex-col items-center gap-2">
         <div style={{ width:80,height:80,display:'flex',alignItems:'center',justifyContent:'center',background:`radial-gradient(ellipse at 40% 35%, ${glowColor}18, transparent 70%), rgba(8,3,24,.7)`,borderRadius:'50%',border:`1.5px solid ${bodyColor}55`,boxShadow:`0 0 0 4px ${bodyColor}20, 0 0 30px ${glowColor}30` }}>
-          <HumanoidAvatar bodyColor={bodyColor} glowColor={glowColor} mask={mask} size={1.3} isMe />
+          <HumanoidAvatar bodyColor={bodyColor} glowColor={glowColor} mask={mask} hat={hat} pet={pet} size={1.3} isMe />
         </div>
         <p style={{ fontFamily:'monospace',fontSize:11,color:bodyColor,textShadow:`0 0 8px ${bodyColor}80`,letterSpacing:'0.1em' }}>{playerName}</p>
       </div>
@@ -794,6 +830,12 @@ function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: 
       </div>
       <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">ნიღაბი</p>
         <div className="flex gap-2">{MASKS.map(m=><button key={m.id} onClick={()=>setMask(m.id)} className="flex-1 py-1.5 rounded-xl font-mono text-[11px] uppercase tracking-wider transition-all active:scale-95" style={{ background:mask===m.id?`${bodyColor}22`:'rgba(255,255,255,0.03)',border:`1px solid ${mask===m.id?bodyColor+'80':'rgba(255,255,255,0.08)'}`,color:mask===m.id?bodyColor:'rgba(255,255,255,0.3)',boxShadow:mask===m.id?`0 0 10px ${bodyColor}30`:'none' }}>{m.label}</button>)}</div>
+      </div>
+      <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">ქუდი</p>
+        <div className="flex gap-2 flex-wrap">{HATS.map(o=><button key={o.id} onClick={()=>setHat(o.id)} className="py-1.5 px-3 rounded-xl font-mono text-[13px] transition-all active:scale-95" style={{ background:hat===o.id?`${glowColor}22`:'rgba(255,255,255,0.03)',border:`1px solid ${hat===o.id?glowColor+'80':'rgba(255,255,255,0.08)'}`,color:hat===o.id?glowColor:'rgba(255,255,255,0.4)' }}>{o.label}</button>)}</div>
+      </div>
+      <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">თანამგზავრი</p>
+        <div className="flex gap-2 flex-wrap">{PETS.map(o=><button key={o.id} onClick={()=>setPet(o.id)} className="py-1.5 px-3 rounded-xl font-mono text-[13px] transition-all active:scale-95" style={{ background:pet===o.id?`${glowColor}22`:'rgba(255,255,255,0.03)',border:`1px solid ${pet===o.id?glowColor+'80':'rgba(255,255,255,0.08)'}`,color:pet===o.id?glowColor:'rgba(255,255,255,0.4)' }}>{o.label}</button>)}</div>
       </div>
       <button onClick={go} className="w-full py-3.5 rounded-2xl font-display font-bold text-sm uppercase tracking-widest transition-all active:scale-95" style={{ background:`linear-gradient(135deg, ${bodyColor}30, ${bodyColor}15)`,border:`1.5px solid ${bodyColor}`,color:bodyColor,boxShadow:`0 0 28px ${bodyColor}40, inset 0 0 20px ${bodyColor}08`,letterSpacing:'0.14em' }}>
         Void Lounge-ში შესვლა →
@@ -1324,6 +1366,9 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
 
   const profile = useAuthStore(s => s.profile);
   const playerName = profile?.username ?? 'Player';
+  const openProfile = useSocialStore(s => s.openProfile);
+  const openDmWith = useSocialStore(s => s.openDmWith);
+  const [selectedPlayer, setSelectedPlayer] = useState<SpacePlayer | null>(null);
 
   const { joined, mySocketId, players, chatHistory, space, reactions, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace } = useVirtualSpace();
   const { joined: voiceJoined, muted, speakingIds, status: voiceStatus, joinVoice, leaveVoice, toggleMute } = useSpaceVoice();
@@ -1499,11 +1544,11 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
     }
   }, [launchingGame, ckCreate, jkCreate, ldCreate, wwCreate, unoCreate, playerName, handleClose]);
 
-  async function handleJoin(bodyColor: string, glowColor: string, mask: SpaceMask) {
+  async function handleJoin(bodyColor: string, glowColor: string, mask: SpaceMask, hat: string, pet: string) {
     // Capture the user gesture timestamp BEFORE await so onDJUpdate's
     // justJoined check is accurate when music is playing in the room.
     joinTimeRef.current = Date.now();
-    const ok = await join(selectedSpace?.id ?? 'main', playerName, bodyColor, glowColor, mask);
+    const ok = await join(selectedSpace?.id ?? 'main', playerName, bodyColor, glowColor, mask, hat, pet);
     if (ok) joinVoice();
   }
 
@@ -1723,7 +1768,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
 
             {/* Avatars */}
             {[...players.values()].map(p=>(
-  <AvatarOnMap key={p.socketId} player={p} isMe={p.socketId===mySocketId} speaking={isSpeaking(p)} />
+  <AvatarOnMap key={p.socketId} player={p} isMe={p.socketId===mySocketId} speaking={isSpeaking(p)} onTap={()=>setSelectedPlayer(p)} />
 ))}
 
 
@@ -1782,6 +1827,40 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           <SpaceInvitePanel space={space} inviteToSpace={inviteToSpace} onClose={()=>setShowInvite(false)} />
         )}
       </AnimatePresence>
+
+      {/* Player popup — tap someone's avatar */}
+      {selectedPlayer && createPortal(
+        <div onClick={() => setSelectedPlayer(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ width: 'min(300px, 100%)', background: 'rgba(8,3,22,.99)', border: `1px solid ${selectedPlayer.glowColor}55`, borderRadius: 20, padding: '20px', textAlign: 'center' }}>
+            <div style={{ width: 64, height: 64, margin: '0 auto 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `radial-gradient(ellipse at 40% 35%, ${selectedPlayer.glowColor}22, transparent 70%)`, borderRadius: '50%', border: `1.5px solid ${selectedPlayer.bodyColor}66` }}>
+              <HumanoidAvatar bodyColor={selectedPlayer.bodyColor} glowColor={selectedPlayer.glowColor} mask={selectedPlayer.mask} hat={selectedPlayer.hat} pet={selectedPlayer.pet} size={1.05} />
+            </div>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: 'white', marginBottom: 16 }}>{selectedPlayer.name}</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button onClick={() => {
+                  if (me && selectedPlayer) { const a = 6 - Math.random()*12; moveLocal(mySocketId, Math.max(5,Math.min(95,selectedPlayer.x + a)), Math.max(5,Math.min(92,selectedPlayer.y + 4))); }
+                  setSelectedPlayer(null);
+                }}
+                style={{ padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(0,229,255,.12)', border: '1px solid rgba(0,229,255,.35)', color: '#00e5ff' }}>🚶 გადასვლა</button>
+              {selectedPlayer.profileId && profile?.id !== selectedPlayer.profileId && (
+                <>
+                  <button onClick={() => { const tid = selectedPlayer.profileId!; (socket as any).emit('community:follow', { targetId: tid }, () => {}); setSelectedPlayer(null); }}
+                    style={{ padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(155,0,255,.14)', border: '1px solid rgba(155,0,255,.4)', color: '#c084fc' }}>➕ Follow</button>
+                  <button onClick={() => { const tid = selectedPlayer.profileId!; setSelectedPlayer(null); handleClose(); openDmWith(tid); }}
+                    style={{ padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(0,255,136,.12)', border: '1px solid rgba(0,255,136,.35)', color: '#00ff88' }}>💬 Message</button>
+                  <button onClick={() => { const tid = selectedPlayer.profileId!; setSelectedPlayer(null); handleClose(); openProfile(tid); }}
+                    style={{ padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.14)', color: 'rgba(255,255,255,.7)' }}>👤 პროფილი</button>
+                </>
+              )}
+              <button onClick={() => setSelectedPlayer(null)}
+                style={{ padding: '9px', borderRadius: 12, fontFamily: 'monospace', fontSize: 12, background: 'transparent', border: 'none', color: 'rgba(255,255,255,.35)' }}>დახურვა</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Gaming zone — Quick Play */}
       {showGames && createPortal(

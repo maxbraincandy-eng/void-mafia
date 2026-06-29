@@ -910,6 +910,9 @@ export interface ServerToClientEvents {
         bodyColor: string;
         glowColor: string;
         mask: string;
+        hat?: string;
+        pet?: string;
+        profileId?: string | null;
         x: number;
         y: number;
         seat?: string | null;
@@ -1897,6 +1900,8 @@ export interface ClientToServerEvents {
         bodyColor: string;
         glowColor: string;
         mask: string;
+        hat?: string;
+        pet?: string;
     }, cb: (res: any) => void) => void;
     'space:move': (data: {
         x: number;

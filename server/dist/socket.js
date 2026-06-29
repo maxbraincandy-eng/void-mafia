@@ -6355,7 +6355,7 @@ export function attachSocketHandlers(io) {
         registerUnoHandlers(io, socket);
         // ── Disconnect ──────────────────────────────────────────────────
         // ── Virtual Space ─────────────────────────────────────────────────
-        socket.on('space:join', ({ spaceId = 'main', name, bodyColor, glowColor, mask }, cb) => {
+        socket.on('space:join', ({ spaceId = 'main', name, bodyColor, glowColor, mask, hat, pet }, cb) => {
             try {
                 if (!name || !bodyColor)
                     return cb?.({ ok: false, error: 'Missing fields' });
@@ -6363,6 +6363,8 @@ export function attachSocketHandlers(io) {
                 const safeBody = /^#[0-9a-fA-F]{6}$/.test(bodyColor) ? bodyColor : '#9b00ff';
                 const safeGlow = /^#[0-9a-fA-F]{6}$/.test(glowColor ?? '') ? glowColor : '#00e5ff';
                 const safeMask = ['none', 'half', 'full', 'visor'].includes(mask) ? mask : 'none';
+                const safeHat = ['none', 'cap', 'crown', 'halo', 'party', 'cat', 'beanie'].includes(hat) ? hat : 'none';
+                const safePet = ['none', 'cat', 'bot', 'ghost', 'star'].includes(pet) ? pet : 'none';
                 const safeSpace = String(spaceId).slice(0, 32).replace(/[^a-zA-Z0-9_-]/g, '') || 'main';
                 const meta = _spaceMeta.get(safeSpace);
                 // Only 'main' may be joined without pre-existing metadata; everything
@@ -6377,7 +6379,7 @@ export function attachSocketHandlers(io) {
                 }
                 const x = 15 + Math.random() * 70;
                 const y = 20 + Math.random() * 60;
-                const player = { socketId: socket.id, name: safeName, bodyColor: safeBody, glowColor: safeGlow, mask: safeMask, x, y, seat: null };
+                const player = { socketId: socket.id, name: safeName, bodyColor: safeBody, glowColor: safeGlow, mask: safeMask, hat: safeHat, pet: safePet, profileId: socket.data.profileId ?? null, x, y, seat: null };
                 room.set(socket.id, player);
                 socket.join(`space:${safeSpace}`);
                 socket.to(`space:${safeSpace}`).emit('space:player-joined', player);

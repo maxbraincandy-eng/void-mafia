@@ -887,7 +887,7 @@ export interface ServerToClientEvents {
   'community:post_featured':  (data: { postId: string; featured: boolean }) => void;
   'room:invite_received': (data: { inviterName: string; inviterAvatar: string; roomCode: string; playerCount: number; maxPlayers: number }) => void;
   // Virtual Space
-  'space:player-joined': (player: { socketId: string; name: string; bodyColor: string; glowColor: string; mask: string; x: number; y: number; seat?: string | null }) => void;
+  'space:player-joined': (player: { socketId: string; name: string; bodyColor: string; glowColor: string; mask: string; hat?: string; pet?: string; profileId?: string | null; x: number; y: number; seat?: string | null }) => void;
   'space:player-moved':  (data: { socketId: string; x: number; y: number }) => void;
   'space:player-left':   (data: { socketId: string }) => void;
   'space:message':       (data: { socketId: string; message: string }) => void;
@@ -1214,7 +1214,7 @@ export interface ClientToServerEvents {
   'admin:audit_logs':     (data: Record<string, never>, cb: (r: Res<any[]>) => void) => void;
   'admin:deleted_content': (data: { type: 'posts' | 'comments' | 'debates' }, cb: (r: Res<any[]>) => void) => void;
   // Virtual Space
-  'space:join':  (data: { spaceId: string; name: string; bodyColor: string; glowColor: string; mask: string }, cb: (res: any) => void) => void;
+  'space:join':  (data: { spaceId: string; name: string; bodyColor: string; glowColor: string; mask: string; hat?: string; pet?: string }, cb: (res: any) => void) => void;
   'space:move':  (data: { x: number; y: number }) => void;
   'space:chat':  (data: { message: string }) => void;
   'space:leave': () => void;
