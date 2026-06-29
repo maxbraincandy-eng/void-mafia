@@ -162,11 +162,12 @@ const _spaceVoice = new Map(); // spaceId → Map<socketId, playerName>
 const _spaceMeta = new Map();
 // Seed the always-on public lounge.
 _spaceMeta.set('main', {
-    id: 'main', name: 'Void Lounge', icon: '🌌', theme: 'void',
+    id: 'main', name: 'Void Lounge', icon: '🌌', theme: 'void', layout: 'lounge',
     maxPlayers: 50, isPublic: true, ownerId: null, ownerName: 'Void Mafia',
     code: 'VOIDLOUNGE', createdAt: Date.now(), persistent: true,
 });
 const SPACE_THEMES = ['void', 'neon', 'cyber', 'sunset', 'mono'];
+const SPACE_LAYOUTS = ['lounge', 'home'];
 const SPACE_ICONS = ['🌌', '🎮', '🎬', '🎧', '🔥', '💎', '🛸', '🌃', '⚡', '🃏', '👾', '🎲'];
 function _genSpaceCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I
@@ -203,7 +204,7 @@ function _canControlTv(spaceId, profileId) {
 }
 function _publicSpaceMeta(m, online) {
     return {
-        id: m.id, name: m.name, icon: m.icon, theme: m.theme,
+        id: m.id, name: m.name, icon: m.icon, theme: m.theme, layout: m.layout,
         maxPlayers: m.maxPlayers, isPublic: m.isPublic,
         ownerName: m.ownerName, code: m.code, online, persistent: m.persistent,
     };
@@ -6381,15 +6382,16 @@ export function attachSocketHandlers(io) {
                 cb?.({ ok: false, error: 'Internal error' });
             }
         });
-        socket.on('space:create', ({ name, icon, theme, maxPlayers, isPublic }, cb) => {
+        socket.on('space:create', ({ name, icon, theme, layout, maxPlayers, isPublic }, cb) => {
             try {
                 const safeName = String(name ?? '').trim().slice(0, 28) || 'Void Space';
                 const safeIcon = SPACE_ICONS.includes(icon) ? icon : '🌌';
                 const safeTheme = SPACE_THEMES.includes(theme) ? theme : 'void';
+                const safeLayout = SPACE_LAYOUTS.includes(layout) ? layout : 'lounge';
                 const cap = Math.max(2, Math.min(50, Number(maxPlayers) || 12));
                 const id = 'sp_' + _genSpaceCode().replace('-', '').toLowerCase();
                 const meta = {
-                    id, name: safeName, icon: safeIcon, theme: safeTheme,
+                    id, name: safeName, icon: safeIcon, theme: safeTheme, layout: safeLayout,
                     maxPlayers: cap, isPublic: isPublic !== false,
                     ownerId: socket.data.profileId ?? null,
                     ownerName: String(name && socket.data.profileId ? '' : '') || 'You',

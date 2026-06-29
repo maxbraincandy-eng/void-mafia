@@ -146,8 +146,6 @@ function tvGetTimeP(): number { return _ytTv?.getCurrentTime?.() ?? 0; }
 function tvGetVidP(): string { return _ytTv?.getVideoData?.()?.video_id ?? ''; }
 function tvGetTitleP(): string { return _ytTv?.getVideoData?.()?.title ?? ''; }
 
-// World position of the cinema TV (same 0-100 coordinate space as avatars).
-const TV_X = 50, TV_Y = 17;
 // Distance (in world units) within which the TV loads & spatial audio is audible.
 const TV_NEAR_RADIUS = 42;
 
@@ -156,18 +154,40 @@ function tvComputedPos(s: TVState): number {
   return s.isPlaying ? Math.max(0, (Date.now() - s.startedAt) / 1000) : Math.max(0, s.position);
 }
 
-// ── Cinema seating ──────────────────────────────────────────────────────
+// ── Room layouts ────────────────────────────────────────────────────────
 type SeatType = 'couch' | 'chair' | 'pouf';
 interface SeatDef { id: string; type: SeatType; x: number; y: number; }
-// Arranged in front of the TV (TV at 50,13) facing the screen.
-const CINEMA_SEATS: SeatDef[] = [
-  { id: 'couchL', type: 'couch', x: 40, y: 32 },
-  { id: 'couchR', type: 'couch', x: 60, y: 32 },
-  { id: 'chairL', type: 'chair', x: 26, y: 41 },
-  { id: 'chairR', type: 'chair', x: 74, y: 41 },
-  { id: 'poufL',  type: 'pouf',  x: 45, y: 46 },
-  { id: 'poufR',  type: 'pouf',  x: 55, y: 46 },
-];
+interface RoomLayout { tv: { x: number; y: number }; seats: SeatDef[]; decor: 'lounge' | 'home' }
+
+const ROOM_LAYOUTS: Record<string, RoomLayout> = {
+  // Neon club lounge — couches + poufs facing a big wall screen.
+  lounge: {
+    tv: { x: 50, y: 17 },
+    decor: 'lounge',
+    seats: [
+      { id: 'couchL', type: 'couch', x: 40, y: 32 },
+      { id: 'couchR', type: 'couch', x: 60, y: 32 },
+      { id: 'chairL', type: 'chair', x: 26, y: 41 },
+      { id: 'chairR', type: 'chair', x: 74, y: 41 },
+      { id: 'poufL',  type: 'pouf',  x: 45, y: 46 },
+      { id: 'poufR',  type: 'pouf',  x: 55, y: 46 },
+    ],
+  },
+  // Cosy home cinema — TV, four chairs in a row, and an open dance/move floor.
+  home: {
+    tv: { x: 50, y: 18 },
+    decor: 'home',
+    seats: [
+      { id: 'c1', type: 'chair', x: 33, y: 40 },
+      { id: 'c2', type: 'chair', x: 44, y: 40 },
+      { id: 'c3', type: 'chair', x: 56, y: 40 },
+      { id: 'c4', type: 'chair', x: 67, y: 40 },
+    ],
+  },
+};
+function getLayout(id: string | undefined): RoomLayout {
+  return ROOM_LAYOUTS[id ?? 'lounge'] ?? ROOM_LAYOUTS.lounge;
+}
 
 // ── URL / ID helper ───────────────────────────────────────────────────
 
@@ -408,18 +428,19 @@ function Plant({ flip }: { flip?: boolean }) {
   );
 }
 
-function RoomObjects({ djActive, onDJClick }: { djActive: boolean; onDJClick: () => void }) {
+function RoomObjects({ djActive, onDJClick, decor }: { djActive: boolean; onDJClick: () => void; decor: 'lounge' | 'home' }) {
+  const home = decor === 'home';
   return (
     <>
-      {/* Wall strips */}
-      <div className="absolute pointer-events-none" style={{ left:5,top:0,bottom:'63%',width:2,background:'linear-gradient(180deg,rgba(155,0,255,0) 0%,rgba(155,0,255,.85) 55%,rgba(155,0,255,0) 100%)',boxShadow:'0 0 14px rgba(155,0,255,.6)',borderRadius:2 }}/>
-      <div className="absolute pointer-events-none" style={{ right:5,top:0,bottom:'63%',width:2,background:'linear-gradient(180deg,rgba(0,229,255,0) 0%,rgba(0,229,255,.85) 55%,rgba(0,229,255,0) 100%)',boxShadow:'0 0 14px rgba(0,229,255,.6)',borderRadius:2 }}/>
+      {/* Wall strips — warm amber for home, neon for lounge */}
+      <div className="absolute pointer-events-none" style={{ left:5,top:0,bottom:'63%',width:2,background:home?'linear-gradient(180deg,rgba(255,170,80,0) 0%,rgba(255,170,80,.7) 55%,rgba(255,170,80,0) 100%)':'linear-gradient(180deg,rgba(155,0,255,0) 0%,rgba(155,0,255,.85) 55%,rgba(155,0,255,0) 100%)',boxShadow:home?'0 0 14px rgba(255,170,80,.4)':'0 0 14px rgba(155,0,255,.6)',borderRadius:2 }}/>
+      <div className="absolute pointer-events-none" style={{ right:5,top:0,bottom:'63%',width:2,background:home?'linear-gradient(180deg,rgba(255,140,90,0) 0%,rgba(255,140,90,.7) 55%,rgba(255,140,90,0) 100%)':'linear-gradient(180deg,rgba(0,229,255,0) 0%,rgba(0,229,255,.85) 55%,rgba(0,229,255,0) 100%)',boxShadow:home?'0 0 14px rgba(255,140,90,.4)':'0 0 14px rgba(0,229,255,.6)',borderRadius:2 }}/>
       {/* Wall/floor divider */}
-      <div className="absolute pointer-events-none" style={{ left:0,right:0,top:'37%',height:2.5,background:'linear-gradient(90deg,rgba(155,0,255,.4),rgba(0,229,255,.9),rgba(255,0,150,.7),rgba(0,229,255,.9),rgba(155,0,255,.4))',boxShadow:'0 0 16px rgba(0,229,255,.5),0 0 32px rgba(155,0,255,.25)' }}/>
-      {/* VOID LOUNGE sign */}
-      <div className="absolute pointer-events-none" style={{ left:'50%',top:'9%',transform:'translate(-50%,-50%)',fontFamily:'"Space Grotesk",monospace',fontWeight:900,fontSize:14,letterSpacing:'0.3em',color:'#fff',textShadow:'0 0 6px #00e5ff,0 0 16px #00e5ff,0 0 36px rgba(0,229,255,.7),0 0 60px rgba(0,229,255,.3)',animation:'vs-flicker 6s linear infinite',whiteSpace:'nowrap' }}>VOID LOUNGE</div>
+      <div className="absolute pointer-events-none" style={{ left:0,right:0,top:'37%',height:2.5,background:home?'linear-gradient(90deg,rgba(255,170,80,.3),rgba(255,200,120,.8),rgba(255,150,90,.6),rgba(255,200,120,.8),rgba(255,170,80,.3))':'linear-gradient(90deg,rgba(155,0,255,.4),rgba(0,229,255,.9),rgba(255,0,150,.7),rgba(0,229,255,.9),rgba(155,0,255,.4))',boxShadow:home?'0 0 16px rgba(255,180,100,.4)':'0 0 16px rgba(0,229,255,.5),0 0 32px rgba(155,0,255,.25)' }}/>
+      {/* Sign */}
+      <div className="absolute pointer-events-none" style={{ left:'50%',top:'9%',transform:'translate(-50%,-50%)',fontFamily:'"Space Grotesk",monospace',fontWeight:900,fontSize:13,letterSpacing:'0.28em',color:'#fff',textShadow:home?'0 0 6px #ffb060,0 0 16px #ff9040,0 0 36px rgba(255,160,80,.6)':'0 0 6px #00e5ff,0 0 16px #00e5ff,0 0 36px rgba(0,229,255,.7),0 0 60px rgba(0,229,255,.3)',animation:'vs-flicker 6s linear infinite',whiteSpace:'nowrap' }}>{home?'HOME CINEMA':'VOID LOUNGE'}</div>
 
-      {/* DJ BOOTH — clickable (moved to the right wall so the big TV owns the top centre) */}
+      {/* DJ BOOTH — clickable (right wall) */}
       <div className="absolute pointer-events-none" style={{ left:'85%',top:'50%',transform:'translate(-50%,-50%)',width:140,height:80,background:`radial-gradient(ellipse,rgba(255,0,150,${djActive?'.28':'.16'}) 0%,transparent 70%)`,borderRadius:'50%',animation:'vs-pulse 2s ease-in-out infinite' }}/>
       <div className="absolute pointer-events-none" style={{ left:'85%',top:'41%',transform:'translate(-50%,-50%)',fontFamily:'monospace',fontSize:8,letterSpacing:'0.22em',color:'rgba(255,0,150,.8)',textShadow:'0 0 8px rgba(255,0,150,.7)' }}>DJ BOOTH</div>
       <button onClick={e=>{e.stopPropagation();onDJClick();}} style={{ position:'absolute',left:'85%',top:'50%',transform:'translate(-50%,-50%)',cursor:'pointer',background:'transparent',border:'none',padding:0,zIndex:15,display:'flex',flexDirection:'column',alignItems:'center',gap:3 }} title="DJ Booth">
@@ -427,32 +448,54 @@ function RoomObjects({ djActive, onDJClick }: { djActive: boolean; onDJClick: ()
         <span style={{ fontFamily:'monospace',fontSize:8,color:`rgba(255,0,150,${djActive?'.9':'.55'})`,letterSpacing:'0.1em' }}>{djActive?'▶ PLAYING':'↑ TAP TO DJ'}</span>
       </button>
 
-      {/* Plants */}
+      {/* Plants (both layouts) */}
       <div className="absolute pointer-events-none" style={{ left:'7%',top:'14%',transform:'translate(-50%,-50%)' }}><Plant/></div>
       <div className="absolute pointer-events-none" style={{ left:'93%',top:'14%',transform:'translate(-50%,-50%)' }}><Plant flip/></div>
 
-      {/* Lounge */}
-      <div className="absolute pointer-events-none" style={{ left:'15%',top:'72%',transform:'translate(-50%,-50%)',width:180,height:110,background:'radial-gradient(ellipse,rgba(120,0,255,.12) 0%,transparent 70%)',borderRadius:'50%' }}/>
-      <div className="absolute pointer-events-none" style={{ left:'15%',top:'55%',transform:'translate(-50%,-50%)',fontFamily:'monospace',fontSize:8,letterSpacing:'0.2em',color:'rgba(155,0,255,.85)',textShadow:'0 0 8px rgba(155,0,255,.7)' }}>LOUNGE</div>
-      <div className="absolute pointer-events-none" style={{ left:'13%',top:'74%',transform:'translate(-50%,-50%)' }}>
-        <div style={{ position:'relative',width:90,height:50 }}>
-          <div style={{ position:'absolute',top:0,left:0,right:0,height:22,background:'linear-gradient(180deg,rgba(130,0,255,.4),rgba(85,0,200,.2))',borderRadius:'9px 9px 0 0',border:'1.5px solid rgba(155,0,255,.6)',boxShadow:'0 0 20px rgba(155,0,255,.3),inset 0 1px 0 rgba(255,255,255,.07)' }}/>
-          <div style={{ position:'absolute',top:20,left:9,right:9,height:26,background:'rgba(105,0,210,.2)',borderRadius:'0 0 7px 7px',border:'1px solid rgba(155,0,255,.3)',borderTop:'none' }}/>
-          <div style={{ position:'absolute',top:0,left:0,width:12,height:46,background:'rgba(130,0,255,.32)',borderRadius:'7px 0 0 7px',border:'1px solid rgba(155,0,255,.4)' }}/>
-          <div style={{ position:'absolute',top:0,right:0,width:12,height:46,background:'rgba(130,0,255,.32)',borderRadius:'0 7px 7px 0',border:'1px solid rgba(155,0,255,.4)' }}/>
-          <div style={{ position:'absolute',top:2,left:'50%',marginLeft:-0.5,width:1,height:18,background:'rgba(155,0,255,.35)' }}/>
-        </div>
-      </div>
-      <div className="absolute pointer-events-none" style={{ left:'25%',top:'79%',transform:'translate(-50%,-50%)',width:46,height:22,background:'rgba(85,0,170,.18)',borderRadius:8,border:'1px solid rgba(155,0,255,.35)',boxShadow:'0 0 12px rgba(155,0,255,.15)' }}/>
+      {home ? (
+        <>
+          {/* warm room glow */}
+          <div className="absolute pointer-events-none" style={{ left:'50%',top:'55%',transform:'translate(-50%,-50%)',width:'80%',height:'55%',background:'radial-gradient(ellipse,rgba(255,160,80,.10) 0%,transparent 70%)',borderRadius:'50%' }}/>
+          {/* round rug / dance + move floor */}
+          <div className="absolute pointer-events-none" style={{ left:'50%',top:'66%',transform:'translate(-50%,-50%)',width:'52%',maxWidth:300,aspectRatio:'1.7 / 1',borderRadius:'50%',background:'radial-gradient(ellipse, rgba(255,150,70,.16) 0%, rgba(180,90,40,.08) 55%, transparent 75%)',border:'1.5px dashed rgba(255,170,90,.35)',boxShadow:'inset 0 0 30px rgba(255,140,60,.12)' }}/>
+          <div className="absolute pointer-events-none" style={{ left:'50%',top:'58%',transform:'translate(-50%,-50%)',fontFamily:'monospace',fontSize:8,letterSpacing:'0.24em',color:'rgba(255,180,100,.8)',textShadow:'0 0 8px rgba(255,150,70,.6)' }}>🪩 DANCE FLOOR</div>
+          {/* floor lamp (left) */}
+          <div className="absolute pointer-events-none" style={{ left:'12%',top:'60%',transform:'translate(-50%,-50%)',display:'flex',flexDirection:'column',alignItems:'center' }}>
+            <div style={{ width:20,height:12,background:'radial-gradient(ellipse,rgba(255,210,140,.9),rgba(255,170,80,.3))',borderRadius:'10px 10px 3px 3px',boxShadow:'0 0 22px rgba(255,190,110,.7)' }}/>
+            <div style={{ width:2,height:30,background:'rgba(120,90,60,.6)' }}/>
+            <div style={{ width:14,height:4,background:'rgba(120,90,60,.5)',borderRadius:2 }}/>
+          </div>
+          {/* side table with plant (right) */}
+          <div className="absolute pointer-events-none" style={{ left:'88%',top:'70%',transform:'translate(-50%,-50%)' }}>
+            <div style={{ width:30,height:14,background:'rgba(90,60,40,.5)',border:'1px solid rgba(255,170,90,.3)',borderRadius:6 }}/>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Lounge */}
+          <div className="absolute pointer-events-none" style={{ left:'15%',top:'72%',transform:'translate(-50%,-50%)',width:180,height:110,background:'radial-gradient(ellipse,rgba(120,0,255,.12) 0%,transparent 70%)',borderRadius:'50%' }}/>
+          <div className="absolute pointer-events-none" style={{ left:'15%',top:'55%',transform:'translate(-50%,-50%)',fontFamily:'monospace',fontSize:8,letterSpacing:'0.2em',color:'rgba(155,0,255,.85)',textShadow:'0 0 8px rgba(155,0,255,.7)' }}>LOUNGE</div>
+          <div className="absolute pointer-events-none" style={{ left:'13%',top:'74%',transform:'translate(-50%,-50%)' }}>
+            <div style={{ position:'relative',width:90,height:50 }}>
+              <div style={{ position:'absolute',top:0,left:0,right:0,height:22,background:'linear-gradient(180deg,rgba(130,0,255,.4),rgba(85,0,200,.2))',borderRadius:'9px 9px 0 0',border:'1.5px solid rgba(155,0,255,.6)',boxShadow:'0 0 20px rgba(155,0,255,.3),inset 0 1px 0 rgba(255,255,255,.07)' }}/>
+              <div style={{ position:'absolute',top:20,left:9,right:9,height:26,background:'rgba(105,0,210,.2)',borderRadius:'0 0 7px 7px',border:'1px solid rgba(155,0,255,.3)',borderTop:'none' }}/>
+              <div style={{ position:'absolute',top:0,left:0,width:12,height:46,background:'rgba(130,0,255,.32)',borderRadius:'7px 0 0 7px',border:'1px solid rgba(155,0,255,.4)' }}/>
+              <div style={{ position:'absolute',top:0,right:0,width:12,height:46,background:'rgba(130,0,255,.32)',borderRadius:'0 7px 7px 0',border:'1px solid rgba(155,0,255,.4)' }}/>
+              <div style={{ position:'absolute',top:2,left:'50%',marginLeft:-0.5,width:1,height:18,background:'rgba(155,0,255,.35)' }}/>
+            </div>
+          </div>
+          <div className="absolute pointer-events-none" style={{ left:'25%',top:'79%',transform:'translate(-50%,-50%)',width:46,height:22,background:'rgba(85,0,170,.18)',borderRadius:8,border:'1px solid rgba(155,0,255,.35)',boxShadow:'0 0 12px rgba(155,0,255,.15)' }}/>
 
-      {/* Gaming */}
-      <div className="absolute pointer-events-none" style={{ left:'79%',top:'68%',transform:'translate(-50%,-50%)',width:170,height:110,background:'radial-gradient(ellipse,rgba(0,200,255,.1) 0%,transparent 70%)',borderRadius:'50%' }}/>
-      <div className="absolute pointer-events-none" style={{ left:'78%',top:'53%',transform:'translate(-50%,-50%)',fontFamily:'monospace',fontSize:8,letterSpacing:'0.2em',color:'rgba(0,229,255,.85)',textShadow:'0 0 8px rgba(0,229,255,.7)' }}>GAMING</div>
-      <GamingStation/>
+          {/* Gaming */}
+          <div className="absolute pointer-events-none" style={{ left:'79%',top:'68%',transform:'translate(-50%,-50%)',width:170,height:110,background:'radial-gradient(ellipse,rgba(0,200,255,.1) 0%,transparent 70%)',borderRadius:'50%' }}/>
+          <div className="absolute pointer-events-none" style={{ left:'78%',top:'53%',transform:'translate(-50%,-50%)',fontFamily:'monospace',fontSize:8,letterSpacing:'0.2em',color:'rgba(0,229,255,.85)',textShadow:'0 0 8px rgba(0,229,255,.7)' }}>GAMING</div>
+          <GamingStation/>
 
-      {/* Bar */}
-      <div className="absolute pointer-events-none" style={{ left:'88%',top:'56%',transform:'translate(-50%,-50%)',width:90,height:130,background:'radial-gradient(ellipse,rgba(255,140,0,.1) 0%,transparent 70%)',borderRadius:'50%' }}/>
-      <Bar/>
+          {/* Bar */}
+          <div className="absolute pointer-events-none" style={{ left:'88%',top:'56%',transform:'translate(-50%,-50%)',width:90,height:130,background:'radial-gradient(ellipse,rgba(255,140,0,.1) 0%,transparent 70%)',borderRadius:'50%' }}/>
+          <Bar/>
+        </>
+      )}
     </>
   );
 }
@@ -749,9 +792,13 @@ function CinemaSeat({ seat, occupant, isMine, onTap }: {
   return (
     <button
       onClick={(e) => { e.stopPropagation(); if (!taken) onTap(); }}
+      // Stop the tap from reaching the world's tap-to-walk handler (touchstart fires
+      // first on mobile and would queue a move that stands you right back up).
+      onTouchStart={(e) => { e.stopPropagation(); }}
+      onPointerDown={(e) => { e.stopPropagation(); }}
       style={{
         position: 'absolute', left: `${seat.x}%`, top: `${seat.y}%`,
-        transform: 'translate(-50%, -42%)', zIndex: 13,
+        transform: 'translate(-50%, -42%)', zIndex: 16,
         background: 'transparent', border: 'none', padding: 0,
         cursor: taken ? 'default' : 'pointer', pointerEvents: 'auto',
         width: dims.w, height: dims.h + 10,
@@ -787,11 +834,13 @@ function CinemaSeat({ seat, occupant, isMine, onTap }: {
 
 // ── Cinema TV (synced watch party) ────────────────────────────────────
 
-function CinemaTV({ tvState, canControl, myDist, viewerCount }: {
+function CinemaTV({ tvState, canControl, myDist, viewerCount, tvX = 50, tvY = 17 }: {
   tvState: TVState | null;
   canControl: boolean;
   myDist: number;
   viewerCount: number;
+  tvX?: number;
+  tvY?: number;
 }) {
   const screenRef = useRef<HTMLDivElement>(null);
   const readyRef = useRef(false);
@@ -940,7 +989,7 @@ function CinemaTV({ tvState, canControl, myDist, viewerCount }: {
   return (
     <>
       {/* TV object on the wall */}
-      <div style={{ position: 'absolute', left: `${TV_X}%`, top: `${TV_Y}%`, transform: 'translate(-50%, -50%)', zIndex: 12, width: 'min(82vw, 460px)', pointerEvents: 'none' }}>
+      <div style={{ position: 'absolute', left: `${tvX}%`, top: `${tvY}%`, transform: 'translate(-50%, -50%)', zIndex: 12, width: 'min(82vw, 460px)', pointerEvents: 'none' }}>
         {/* Now Playing banner */}
         <AnimatePresence>
           {hasVideo && (
@@ -1373,10 +1422,13 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
 
   const voiceLabel = voiceJoined ? (muted ? '🔇 muted' : '🎤 live') : voiceStatus === 'failed' ? '⚠ no mic' : '○ connecting…';
 
+  // Active room layout (TV position, seats, decor).
+  const layout = getLayout(space?.layout);
+
   // Distance from my avatar to the cinema TV + how many players are watching.
   const me = players.get(mySocketId);
-  const myTvDist = me ? Math.hypot(me.x - TV_X, me.y - TV_Y) : 999;
-  const tvViewers = [...players.values()].filter(p => Math.hypot(p.x - TV_X, p.y - TV_Y) <= TV_NEAR_RADIUS).length;
+  const myTvDist = me ? Math.hypot(me.x - layout.tv.x, me.y - layout.tv.y) : 999;
+  const tvViewers = [...players.values()].filter(p => Math.hypot(p.x - layout.tv.x, p.y - layout.tv.y) <= TV_NEAR_RADIUS).length;
   const mySeat = me?.seat ?? null;
   // seatId → occupant for rendering occupancy.
   const seatOccupants = new Map<string, SpacePlayer>();
@@ -1464,13 +1516,13 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             <Particles/>
             <PerspectiveFloor/>
             <div className="absolute inset-0 pointer-events-none" style={{background:'radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(2,0,16,.55) 100%)'}}/>
-            <RoomObjects djActive={!!djState?.isPlaying} onDJClick={()=>setDjPanelOpen(o=>!o)}/>
+            <RoomObjects djActive={!!djState?.isPlaying} onDJClick={()=>setDjPanelOpen(o=>!o)} decor={layout.decor}/>
 
             {/* Cinema TV — synced watch party */}
-            <CinemaTV tvState={tvState} canControl={space?.canControlTv ?? false} myDist={myTvDist} viewerCount={tvViewers} />
+            <CinemaTV tvState={tvState} canControl={space?.canControlTv ?? false} myDist={myTvDist} viewerCount={tvViewers} tvX={layout.tv.x} tvY={layout.tv.y} />
 
             {/* Cinema seats */}
-            {CINEMA_SEATS.map(seat => (
+            {layout.seats.map(seat => (
               <CinemaSeat
                 key={seat.id}
                 seat={seat}

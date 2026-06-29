@@ -1906,6 +1906,7 @@ export interface ClientToServerEvents {
         name: string;
         icon: string;
         theme: string;
+        layout?: string;
         maxPlayers: number;
         isPublic: boolean;
     }, cb: (res: any) => void) => void;

@@ -272,7 +272,7 @@ const MAX_LOBBY_CHAT = 200;
 interface SpacePlayer { socketId: string; name: string; bodyColor: string; glowColor: string; mask: string; x: number; y: number; seat?: string | null; }
 interface SpaceDJState { videoId: string; startedAt: number; position: number; isPlaying: boolean; djName: string; }
 interface SpaceMeta {
-  id: string; name: string; icon: string; theme: string;
+  id: string; name: string; icon: string; theme: string; layout: string;
   maxPlayers: number; isPublic: boolean;
   ownerId: string | null; ownerName: string; code: string; createdAt: number;
   persistent: boolean; // seeded lounges survive being empty; user-created ones don't
@@ -287,12 +287,13 @@ const _spaceMeta = new Map<string, SpaceMeta>();
 
 // Seed the always-on public lounge.
 _spaceMeta.set('main', {
-  id: 'main', name: 'Void Lounge', icon: '🌌', theme: 'void',
+  id: 'main', name: 'Void Lounge', icon: '🌌', theme: 'void', layout: 'lounge',
   maxPlayers: 50, isPublic: true, ownerId: null, ownerName: 'Void Mafia',
   code: 'VOIDLOUNGE', createdAt: Date.now(), persistent: true,
 });
 
 const SPACE_THEMES = ['void', 'neon', 'cyber', 'sunset', 'mono'];
+const SPACE_LAYOUTS = ['lounge', 'home'];
 const SPACE_ICONS  = ['🌌','🎮','🎬','🎧','🔥','💎','🛸','🌃','⚡','🃏','👾','🎲'];
 
 function _genSpaceCode(): string {
@@ -324,7 +325,7 @@ function _canControlTv(spaceId: string, profileId: string | null): boolean {
 }
 function _publicSpaceMeta(m: SpaceMeta, online: number) {
   return {
-    id: m.id, name: m.name, icon: m.icon, theme: m.theme,
+    id: m.id, name: m.name, icon: m.icon, theme: m.theme, layout: m.layout,
     maxPlayers: m.maxPlayers, isPublic: m.isPublic,
     ownerName: m.ownerName, code: m.code, online, persistent: m.persistent,
   };
@@ -5531,15 +5532,16 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch { cb?.({ ok: false, error: 'Internal error' }); }
     });
 
-    socket.on('space:create', ({ name, icon, theme, maxPlayers, isPublic }: any, cb: Function) => {
+    socket.on('space:create', ({ name, icon, theme, layout, maxPlayers, isPublic }: any, cb: Function) => {
       try {
         const safeName = String(name ?? '').trim().slice(0, 28) || 'Void Space';
         const safeIcon = SPACE_ICONS.includes(icon) ? icon : '🌌';
         const safeTheme = SPACE_THEMES.includes(theme) ? theme : 'void';
+        const safeLayout = SPACE_LAYOUTS.includes(layout) ? layout : 'lounge';
         const cap = Math.max(2, Math.min(50, Number(maxPlayers) || 12));
         const id = 'sp_' + _genSpaceCode().replace('-', '').toLowerCase();
         const meta: SpaceMeta = {
-          id, name: safeName, icon: safeIcon, theme: safeTheme,
+          id, name: safeName, icon: safeIcon, theme: safeTheme, layout: safeLayout,
           maxPlayers: cap, isPublic: isPublic !== false,
           ownerId: socket.data.profileId ?? null,
           ownerName: String(name && socket.data.profileId ? '' : '') || 'You',

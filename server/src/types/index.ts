@@ -1219,7 +1219,7 @@ export interface ClientToServerEvents {
   'space:react':   (data: { emoji: string }) => void;
   'space:gesture': (data: { gesture: string }) => void;
   'space:typing':  (data: { typing: boolean }) => void;
-  'space:create':  (data: { name: string; icon: string; theme: string; maxPlayers: number; isPublic: boolean }, cb: (res: any) => void) => void;
+  'space:create':  (data: { name: string; icon: string; theme: string; layout?: string; maxPlayers: number; isPublic: boolean }, cb: (res: any) => void) => void;
   'space:list':    (cb: (res: any) => void) => void;
   'space:resolve': (data: { code: string }, cb: (res: any) => void) => void;
   'space:invite':  (data: { targetProfileId: string }, cb: (res: any) => void) => void;

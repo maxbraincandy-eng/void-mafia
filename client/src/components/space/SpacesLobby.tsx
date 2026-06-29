@@ -15,6 +15,11 @@ const SPACE_THEMES: { id: string; label: string; accent: string }[] = [
 ];
 const themeAccent = (theme: string) => SPACE_THEMES.find(t => t.id === theme)?.accent ?? '#9b00ff';
 
+const ROOM_LAYOUTS: { id: string; label: string; desc: string; emoji: string; preview: string }[] = [
+  { id: 'lounge', label: 'Lounge', desc: 'ნეონ კლუბი · დივნები', emoji: '🛋️', preview: 'linear-gradient(135deg, rgba(155,0,255,.35), rgba(0,229,255,.2))' },
+  { id: 'home',   label: 'Home',   desc: 'ტელევიზორი · 4 სკამი · ცეკვა', emoji: '🏠', preview: 'linear-gradient(135deg, rgba(255,160,80,.35), rgba(255,90,60,.2))' },
+];
+
 // ── Lobby ───────────────────────────────────────────────────────────────
 
 interface LobbyProps {
@@ -145,6 +150,7 @@ function CreateSpaceModal({ createSpace, onClose, onCreated }: {
   const [name, setName] = useState('');
   const [icon, setIcon] = useState(SPACE_ICONS[0]);
   const [theme, setTheme] = useState('void');
+  const [layout, setLayout] = useState('lounge');
   const [maxPlayers, setMaxPlayers] = useState(12);
   const [isPublic, setIsPublic] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -152,7 +158,7 @@ function CreateSpaceModal({ createSpace, onClose, onCreated }: {
 
   const create = async () => {
     setBusy(true);
-    const sp = await createSpace({ name: name.trim() || 'Void Space', icon, theme, maxPlayers, isPublic });
+    const sp = await createSpace({ name: name.trim() || 'Void Space', icon, theme, layout, maxPlayers, isPublic });
     setBusy(false);
     if (sp) onCreated(sp);
   };
@@ -206,6 +212,21 @@ function CreateSpaceModal({ createSpace, onClose, onCreated }: {
               className="flex-1 py-2 rounded-xl font-mono text-[11px] transition-all active:scale-95"
               style={{ background: theme === t.id ? `${t.accent}22` : 'rgba(255,255,255,.03)', border: `1px solid ${theme === t.id ? t.accent : 'rgba(255,255,255,.08)'}`, color: theme === t.id ? t.accent : 'rgba(255,255,255,.4)' }}>
               {t.label}
+            </button>
+          ))}
+        </div>
+
+        <label className="font-mono text-[10px] uppercase tracking-widest text-white/30">ოთახი</label>
+        <div className="flex gap-2 mt-1.5 mb-4">
+          {ROOM_LAYOUTS.map(l => (
+            <button key={l.id} onClick={() => setLayout(l.id)}
+              className="flex-1 rounded-xl transition-all active:scale-95 overflow-hidden text-left"
+              style={{ background: layout === l.id ? `${accent}1f` : 'rgba(255,255,255,.03)', border: `1px solid ${layout === l.id ? accent : 'rgba(255,255,255,.08)'}` }}>
+              <div style={{ height: 46, background: l.preview, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{l.emoji}</div>
+              <div style={{ padding: '5px 8px' }}>
+                <p className="font-mono text-[11px]" style={{ color: layout === l.id ? accent : 'rgba(255,255,255,.6)' }}>{l.label}</p>
+                <p className="font-mono text-[8px] text-white/30">{l.desc}</p>
+              </div>
             </button>
           ))}
         </div>

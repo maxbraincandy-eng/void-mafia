@@ -44,6 +44,7 @@ export interface SpaceMeta {
   online: number;
   persistent: boolean;
   canControlTv?: boolean;
+  layout?: string;
 }
 
 interface VirtualSpaceState {
@@ -102,7 +103,7 @@ export function useVirtualSpace() {
     });
   }, []);
 
-  const createSpace = useCallback((opts: { name: string; icon: string; theme: string; maxPlayers: number; isPublic: boolean }) => {
+  const createSpace = useCallback((opts: { name: string; icon: string; theme: string; layout: string; maxPlayers: number; isPublic: boolean }) => {
     return new Promise<SpaceMeta | null>((resolve) => {
       (socket as any).emit('space:create', opts, (res: any) => resolve(res?.ok ? res.data.space : null));
     });
@@ -133,6 +134,10 @@ export function useVirtualSpace() {
   }, []);
 
   const sit = useCallback((myId: string, seatId: string, x: number, y: number) => {
+    // Cancel any queued move — otherwise its debounced space:move fires after
+    // space:sit and the server stands us back up.
+    if (moveTimer.current) { clearTimeout(moveTimer.current); moveTimer.current = null; }
+    pendingMove.current = null;
     setState(prev => {
       const next = new Map(prev.players);
       const me = next.get(myId);
