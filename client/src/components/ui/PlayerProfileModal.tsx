@@ -367,7 +367,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+          className="fixed inset-0 z-[260] bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
           onClick={onClose}
         >
           <motion.div

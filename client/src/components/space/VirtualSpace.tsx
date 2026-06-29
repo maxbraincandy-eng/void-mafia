@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVirtualSpace, type SpacePlayer, type SpaceMask, type SpaceMeta as SpaceMetaT } from '@/hooks/useVirtualSpace';
 import { SpacesLobby, SpaceInvitePanel } from './SpacesLobby';
+import { ProfileModalV2 } from '@/components/community/ProfileModalV2';
 import { useSpaceVoice } from '@/hooks/useSpaceVoice';
 import { useAuthStore } from '@/store/authStore';
 import { useSocialStore } from '@/store/socialStore';
@@ -1369,6 +1370,8 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const openProfile = useSocialStore(s => s.openProfile);
   const openDmWith = useSocialStore(s => s.openDmWith);
   const [selectedPlayer, setSelectedPlayer] = useState<SpacePlayer | null>(null);
+  const [socialProfileId, setSocialProfileId] = useState<string | null>(null);
+  const openDmList = useSocialStore(s => s.openDmList);
 
   const { joined, mySocketId, players, chatHistory, space, reactions, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace } = useVirtualSpace();
   const { joined: voiceJoined, muted, speakingIds, status: voiceStatus, joinVoice, leaveVoice, toggleMute } = useSpaceVoice();
@@ -1657,6 +1660,11 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           </p>
         </div>
         {joined && (
+          <button onClick={openDmList} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(0,229,255,.08)',border:'1px solid rgba(0,229,255,.25)',fontSize:13 }} title="Messages">
+            💬
+          </button>
+        )}
+        {joined && (
           <button onClick={()=>setShowInvite(true)} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(155,0,255,.1)',border:'1px solid rgba(155,0,255,.3)',fontSize:14 }} title="მოწვევა">
             ✦
           </button>
@@ -1848,10 +1856,15 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                 <>
                   <button onClick={() => { const tid = selectedPlayer.profileId!; (socket as any).emit('community:follow', { targetId: tid }, () => {}); setSelectedPlayer(null); }}
                     style={{ padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(155,0,255,.14)', border: '1px solid rgba(155,0,255,.4)', color: '#c084fc' }}>➕ Follow</button>
-                  <button onClick={() => { const tid = selectedPlayer.profileId!; setSelectedPlayer(null); handleClose(); openDmWith(tid); }}
+                  {/* These open as glass overlays ON TOP of the lounge — they no longer eject you. */}
+                  <button onClick={() => { const tid = selectedPlayer.profileId!; setSelectedPlayer(null); openDmWith(tid); }}
                     style={{ padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(0,255,136,.12)', border: '1px solid rgba(0,255,136,.35)', color: '#00ff88' }}>💬 Message</button>
-                  <button onClick={() => { const tid = selectedPlayer.profileId!; setSelectedPlayer(null); handleClose(); openProfile(tid); }}
-                    style={{ padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.14)', color: 'rgba(255,255,255,.7)' }}>👤 პროფილი</button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => { const tid = selectedPlayer.profileId!; setSelectedPlayer(null); setSocialProfileId(tid); }}
+                      style={{ flex: 1, padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 12, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.14)', color: 'rgba(255,255,255,.7)' }}>👤 Social</button>
+                    <button onClick={() => { const tid = selectedPlayer.profileId!; setSelectedPlayer(null); openProfile(tid); }}
+                      style={{ flex: 1, padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 12, background: 'rgba(255,159,67,.12)', border: '1px solid rgba(255,159,67,.35)', color: '#ff9f43' }}>🎮 Mafia</button>
+                  </div>
                 </>
               )}
               <button onClick={() => setSelectedPlayer(null)}
@@ -1860,6 +1873,11 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           </div>
         </div>,
         document.body
+      )}
+
+      {/* Social profile overlay (community profile with followers/following) */}
+      {socialProfileId && (
+        <ProfileModalV2 profileId={socialProfileId} onClose={() => setSocialProfileId(null)} />
       )}
 
       {/* Gaming zone — Quick Play */}
