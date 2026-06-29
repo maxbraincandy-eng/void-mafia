@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { SpaceMeta } from '@/hooks/useVirtualSpace';
 import { emitWithAck } from '@/lib/socket';
@@ -156,23 +157,21 @@ function CreateSpaceModal({ createSpace, onClose, onCreated }: {
     if (sp) onCreated(sp);
   };
 
-  return (
-    <>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        onClick={onClose}
-        style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(6px)' }} />
+  return createPortal(
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <motion.div
-        initial={{ opacity: 0, y: 30, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 30, scale: 0.96 }}
+        onClick={e => e.stopPropagation()}
+        initial={{ opacity: 0, y: 20, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.96 }}
         transition={{ type: 'spring', stiffness: 360, damping: 30 }}
         style={{
-          position: 'fixed', left: '50%', bottom: 0, transform: 'translateX(-50%)', zIndex: 301,
-          width: 'min(440px, 100vw)', maxHeight: '88vh', overflowY: 'auto',
-          background: 'rgba(8,3,22,.98)', backdropFilter: 'blur(28px)',
-          borderTop: `1.5px solid ${accent}55`, borderRadius: '22px 22px 0 0',
-          padding: '20px 20px calc(24px + env(safe-area-inset-bottom,0px))',
+          width: 'min(420px, 100%)', maxHeight: '85vh', overflowY: 'auto',
+          background: 'rgba(8,3,22,.99)', backdropFilter: 'blur(28px)',
+          border: `1.5px solid ${accent}55`, borderRadius: 22,
+          padding: '20px',
         }}
       >
-        <div style={{ width: 36, height: 3, background: 'rgba(255,255,255,.15)', borderRadius: 2, margin: '0 auto 18px' }} />
         <p className="font-display font-bold text-white mb-4" style={{ fontSize: 16 }}>ახალი Space</p>
 
         {/* Preview */}
@@ -231,7 +230,8 @@ function CreateSpaceModal({ createSpace, onClose, onCreated }: {
           {busy ? '...' : 'შექმნა →'}
         </button>
       </motion.div>
-    </>
+    </motion.div>,
+    document.body
   );
 }
 
@@ -265,23 +265,21 @@ export function SpaceInvitePanel({ space, inviteToSpace, onClose }: {
   const online = (friends ?? []).filter(f => f.isOnline);
   const offline = (friends ?? []).filter(f => !f.isOnline);
 
-  return (
-    <>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        onClick={onClose}
-        style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(6px)' }} />
+  return createPortal(
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <motion.div
-        initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 30 }}
+        onClick={e => e.stopPropagation()}
+        initial={{ opacity: 0, y: 20, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.96 }}
         transition={{ type: 'spring', stiffness: 360, damping: 30 }}
         style={{
-          position: 'fixed', left: '50%', bottom: 0, transform: 'translateX(-50%)', zIndex: 301,
-          width: 'min(440px, 100vw)', maxHeight: '82vh', overflowY: 'auto',
-          background: 'rgba(8,3,22,.98)', backdropFilter: 'blur(28px)',
-          borderTop: '1.5px solid rgba(155,0,255,.4)', borderRadius: '22px 22px 0 0',
-          padding: '20px 20px calc(24px + env(safe-area-inset-bottom,0px))',
+          width: 'min(420px, 100%)', maxHeight: '85vh', overflowY: 'auto',
+          background: 'rgba(8,3,22,.99)', backdropFilter: 'blur(28px)',
+          border: '1.5px solid rgba(155,0,255,.4)', borderRadius: 22,
+          padding: '20px',
         }}
       >
-        <div style={{ width: 36, height: 3, background: 'rgba(255,255,255,.15)', borderRadius: 2, margin: '0 auto 18px' }} />
         <p className="font-display font-bold text-white mb-1" style={{ fontSize: 16 }}>მოწვევა · {space.icon} {space.name}</p>
         <p className="font-mono text-[11px] text-white/35 mb-4">გააზიარე კოდი ან მოიწვიე მეგობარი</p>
 
@@ -327,6 +325,7 @@ export function SpaceInvitePanel({ space, inviteToSpace, onClose }: {
           })}
         </div>
       </motion.div>
-    </>
+    </motion.div>,
+    document.body
   );
 }

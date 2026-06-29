@@ -147,7 +147,7 @@ function tvGetVidP(): string { return _ytTv?.getVideoData?.()?.video_id ?? ''; }
 function tvGetTitleP(): string { return _ytTv?.getVideoData?.()?.title ?? ''; }
 
 // World position of the cinema TV (same 0-100 coordinate space as avatars).
-const TV_X = 50, TV_Y = 13;
+const TV_X = 50, TV_Y = 17;
 // Distance (in world units) within which the TV loads & spatial audio is audible.
 const TV_NEAR_RADIUS = 42;
 
@@ -419,10 +419,10 @@ function RoomObjects({ djActive, onDJClick }: { djActive: boolean; onDJClick: ()
       {/* VOID LOUNGE sign */}
       <div className="absolute pointer-events-none" style={{ left:'50%',top:'9%',transform:'translate(-50%,-50%)',fontFamily:'"Space Grotesk",monospace',fontWeight:900,fontSize:14,letterSpacing:'0.3em',color:'#fff',textShadow:'0 0 6px #00e5ff,0 0 16px #00e5ff,0 0 36px rgba(0,229,255,.7),0 0 60px rgba(0,229,255,.3)',animation:'vs-flicker 6s linear infinite',whiteSpace:'nowrap' }}>VOID LOUNGE</div>
 
-      {/* DJ BOOTH — clickable */}
-      <div className="absolute pointer-events-none" style={{ left:'50%',top:'22%',transform:'translate(-50%,-50%)',width:180,height:90,background:`radial-gradient(ellipse,rgba(255,0,150,${djActive?'.28':'.16'}) 0%,transparent 70%)`,borderRadius:'50%',animation:'vs-pulse 2s ease-in-out infinite' }}/>
-      <div className="absolute pointer-events-none" style={{ left:'50%',top:'12%',transform:'translate(-50%,-50%)',fontFamily:'monospace',fontSize:8,letterSpacing:'0.22em',color:'rgba(255,0,150,.8)',textShadow:'0 0 8px rgba(255,0,150,.7)' }}>DJ BOOTH</div>
-      <button onClick={e=>{e.stopPropagation();onDJClick();}} style={{ position:'absolute',left:'50%',top:'22%',transform:'translate(-50%,-50%)',cursor:'pointer',background:'transparent',border:'none',padding:0,zIndex:15,display:'flex',flexDirection:'column',alignItems:'center',gap:3 }} title="DJ Booth">
+      {/* DJ BOOTH — clickable (moved to the right wall so the big TV owns the top centre) */}
+      <div className="absolute pointer-events-none" style={{ left:'85%',top:'50%',transform:'translate(-50%,-50%)',width:140,height:80,background:`radial-gradient(ellipse,rgba(255,0,150,${djActive?'.28':'.16'}) 0%,transparent 70%)`,borderRadius:'50%',animation:'vs-pulse 2s ease-in-out infinite' }}/>
+      <div className="absolute pointer-events-none" style={{ left:'85%',top:'41%',transform:'translate(-50%,-50%)',fontFamily:'monospace',fontSize:8,letterSpacing:'0.22em',color:'rgba(255,0,150,.8)',textShadow:'0 0 8px rgba(255,0,150,.7)' }}>DJ BOOTH</div>
+      <button onClick={e=>{e.stopPropagation();onDJClick();}} style={{ position:'absolute',left:'85%',top:'50%',transform:'translate(-50%,-50%)',cursor:'pointer',background:'transparent',border:'none',padding:0,zIndex:15,display:'flex',flexDirection:'column',alignItems:'center',gap:3 }} title="DJ Booth">
         <DJBoothGraphic active={djActive} />
         <span style={{ fontFamily:'monospace',fontSize:8,color:`rgba(255,0,150,${djActive?'.9':'.55'})`,letterSpacing:'0.1em' }}>{djActive?'▶ PLAYING':'↑ TAP TO DJ'}</span>
       </button>
@@ -809,6 +809,24 @@ function CinemaTV({ tvState, canControl, myDist, viewerCount }: {
   const stateRef = useRef<TVState | null>(tvState);
   useEffect(() => { stateRef.current = tvState; }, [tvState]);
 
+  // Autoplay is blocked without a user gesture — when the browser refuses to
+  // start playback, arm a one-time gesture listener so the next tap resumes it.
+  const gestureArmedRef = useRef(false);
+  const [needsTap, setNeedsTap] = useState(false);
+  const armGesturePlay = () => {
+    if (gestureArmedRef.current) return;
+    gestureArmedRef.current = true;
+    setNeedsTap(true);
+    const retry = () => {
+      gestureArmedRef.current = false;
+      setNeedsTap(false);
+      const s = stateRef.current;
+      if (_ytTv && readyRef.current && s?.isPlaying) { tvSeekP(tvComputedPos(s)); tvPlayP(); }
+    };
+    document.addEventListener('touchstart', retry, { once: true, passive: true });
+    document.addEventListener('click', retry, { once: true });
+  };
+
   // Apply the current server state to the local player (load/seek/play/pause).
   const applyState = () => {
     const s = stateRef.current;
@@ -819,15 +837,22 @@ function CinemaTV({ tvState, canControl, myDist, viewerCount }: {
       setFade(true);
       setTimeout(() => setFade(false), 320);
       if (s.isPlaying) tvLoad(s.videoId, pos); else tvCue(s.videoId, pos);
-      return;
-    }
-    const drift = Math.abs(tvGetTimeP() - pos);
-    if (s.isPlaying) {
-      if (drift > 1.6) tvSeekP(pos);
-      tvPlayP();
     } else {
-      tvPauseP();
-      if (drift > 1.6) tvSeekP(pos);
+      const drift = Math.abs(tvGetTimeP() - pos);
+      if (s.isPlaying) {
+        if (drift > 1.6) tvSeekP(pos);
+        tvPlayP();
+      } else {
+        tvPauseP();
+        if (drift > 1.6) tvSeekP(pos);
+      }
+    }
+    // Verify playback actually started; if blocked by autoplay policy, arm a gesture.
+    if (s.isPlaying) {
+      setTimeout(() => {
+        const st = _ytTv?.getPlayerState?.();
+        if (st !== 1 && st !== 3) armGesturePlay(); // not PLAYING/BUFFERING
+      }, 800);
     }
   };
 
@@ -915,7 +940,7 @@ function CinemaTV({ tvState, canControl, myDist, viewerCount }: {
   return (
     <>
       {/* TV object on the wall */}
-      <div style={{ position: 'absolute', left: `${TV_X}%`, top: `${TV_Y}%`, transform: 'translate(-50%, -50%)', zIndex: 12, width: 'min(46vw, 280px)', pointerEvents: 'none' }}>
+      <div style={{ position: 'absolute', left: `${TV_X}%`, top: `${TV_Y}%`, transform: 'translate(-50%, -50%)', zIndex: 12, width: 'min(82vw, 460px)', pointerEvents: 'none' }}>
         {/* Now Playing banner */}
         <AnimatePresence>
           {hasVideo && (
@@ -940,10 +965,18 @@ function CinemaTV({ tvState, canControl, myDist, viewerCount }: {
               </span>
             </div>
           )}
-          {/* Tap target (real, above the iframe) */}
+          {/* Autoplay blocked — tap to start watching */}
+          {needsTap && near && hasVideo && (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, background: 'rgba(0,0,0,.55)', pointerEvents: 'none' }}>
+              <span style={{ fontSize: 26 }}>▶</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.7)' }}>დააჭირე ყურებისთვის</span>
+            </div>
+          )}
+          {/* Tap target (real, above the iframe). Always tappable so a gesture can
+              unblock autoplay; for controllers it also opens the control panel. */}
           <button
             onClick={() => { if (canControl) setPanelOpen(true); }}
-            style={{ position: 'absolute', inset: 0, background: 'transparent', border: 'none', cursor: canControl ? 'pointer' : 'default', pointerEvents: canControl ? 'auto' : 'none' }}
+            style={{ position: 'absolute', inset: 0, background: 'transparent', border: 'none', cursor: canControl ? 'pointer' : 'default', pointerEvents: (canControl || needsTap) ? 'auto' : 'none' }}
             aria-label="TV"
           />
         </div>

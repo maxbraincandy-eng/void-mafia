@@ -420,7 +420,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
         {spaceInvite && (
           <motion.div
             initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
-            style={{ position: 'fixed', top: 'calc(12px + env(safe-area-inset-top,0px))', left: '50%', transform: 'translateX(-50%)', zIndex: 400, width: 'min(380px, calc(100vw - 24px))', background: 'rgba(8,3,22,.98)', backdropFilter: 'blur(20px)', border: '1px solid rgba(155,0,255,.4)', borderRadius: 16, padding: '12px 14px', boxShadow: '0 10px 40px rgba(0,0,0,.6)' }}
+            style={{ position: 'fixed', top: 'calc(12px + env(safe-area-inset-top,0px))', left: 0, right: 0, marginLeft: 'auto', marginRight: 'auto', zIndex: 400, width: 'min(380px, calc(100vw - 24px))', background: 'rgba(8,3,22,.98)', backdropFilter: 'blur(20px)', border: '1px solid rgba(155,0,255,.4)', borderRadius: 16, padding: '12px 14px', boxShadow: '0 10px 40px rgba(0,0,0,.6)' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ fontSize: 24 }}>{spaceInvite.icon}</div>
