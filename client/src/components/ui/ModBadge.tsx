@@ -15,9 +15,13 @@ const LABEL: Record<ModeratorLevel, string> = {
 export function ModBadge({ level, size = 'xs' }: Props) {
   if (!level) return null;
   const label = LABEL[level];
+  const isOwner = level === 'owner';
+  const colorClasses = isOwner
+    ? 'bg-neon-red/10 border-neon-red/30 text-neon-red text-glow-red'
+    : 'bg-neon-green/10 border-neon-green/30 text-neon-green text-glow-green';
   return (
     <span className={`inline-flex items-center px-1.5 py-0.5 rounded font-mono font-bold tracking-wider border
-      bg-neon-green/10 border-neon-green/30 text-neon-green text-glow-green
+      ${colorClasses}
       ${size === 'xs' ? 'text-[12px]' : 'text-xs'}`}
     >
       {label}
