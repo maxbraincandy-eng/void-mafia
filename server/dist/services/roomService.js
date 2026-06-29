@@ -410,7 +410,6 @@ export function toPublicRoom(room, viewerPlayerId) {
     const isMafia = viewer?.team === 'mafia';
     const isCultLeader = viewer?.role === 'cult_leader';
     const isYakuza = viewer?.team === 'yakuza';
-    const isViewerSpectatorOrQueued = viewer ? (viewer.isSpectator || viewer.isQueuedNextRound) : false;
     const mapToPublic = (p) => ({
         id: p.id,
         socketId: p.socketId,
@@ -421,8 +420,10 @@ export function toPublicRoom(room, viewerPlayerId) {
         isAlive: p.isAlive,
         isConnected: p.isConnected,
         isReady: p.isReady,
-        role: (p.id === viewerPlayerId || isGameOver || isViewerSpectatorOrQueued) ? p.role : null,
-        team: (p.id === viewerPlayerId || isGameOver || isViewerSpectatorOrQueued) ? p.team : null,
+        // Roles are revealed only to the player themselves and once the game is over.
+        // Spectators and next-round queued players must NOT see anyone's role mid-game.
+        role: (p.id === viewerPlayerId || isGameOver) ? p.role : null,
+        team: (p.id === viewerPlayerId || isGameOver) ? p.team : null,
         // Mafia sees fellow mafia roles
         ...(isMafia && p.team === 'mafia' ? { role: p.role, team: p.team } : {}),
         // Cult leader sees all cult members
