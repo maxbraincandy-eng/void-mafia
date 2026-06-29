@@ -37,6 +37,10 @@ const SPACE_CSS = `
 @keyframes vs-bubble  { 0%{transform:translateY(0);opacity:.7} 100%{transform:translateY(-28px);opacity:0} }
 @keyframes vs-flicker { 0%,100%{opacity:1} 8%{opacity:.6} 10%{opacity:1} 42%{opacity:.85} 44%{opacity:1} 78%{opacity:.5} 80%{opacity:1} }
 @keyframes vs-sway    { 0%,100%{transform:rotate(-4deg) translateX(0)} 50%{transform:rotate(4deg) translateX(2px)} }
+@keyframes vs-clap    { 0%,100%{transform:scale(1)} 50%{transform:scale(1.06) translateY(-1px)} }
+@keyframes vs-point   { 0%,100%{transform:translateX(0) rotate(0)} 50%{transform:translateX(3px) rotate(5deg)} }
+@keyframes vs-react   { 0%{transform:translateY(0) scale(.4);opacity:0} 18%{transform:translateY(-10px) scale(1.15);opacity:1} 75%{opacity:.95} 100%{transform:translateY(-52px) scale(1);opacity:0} }
+@keyframes vs-typing  { 0%,60%,100%{transform:translateY(0);opacity:.4} 30%{transform:translateY(-3px);opacity:1} }
 @keyframes vs-scanline{ 0%{transform:translateY(-100%)} 100%{transform:translateY(600%)} }
 @keyframes vs-hpulse  { 0%,100%{width:65%} 50%{width:48%} }
 `;
@@ -181,9 +185,19 @@ function extractVideoId(input: string): string | null {
 
 // ── Humanoid avatar ───────────────────────────────────────────────────
 
-function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walking, dancing, sitting, isMe }: {
+const GESTURE_EMOJI: Record<string, string> = { wave: '👋', clap: '👏', point: '👉', dance: '💃' };
+function gestureAnim(g: string | null | undefined, sitting?: boolean): string {
+  if (!g || sitting) return 'none';
+  if (g === 'dance') return 'vs-dance 0.5s ease-in-out infinite';
+  if (g === 'wave')  return 'vs-sway 0.5s ease-in-out 4';
+  if (g === 'clap')  return 'vs-clap 0.3s ease-in-out 6';
+  if (g === 'point') return 'vs-point 0.5s ease-in-out 3';
+  return 'none';
+}
+
+function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walking, gesture, sitting, isMe }: {
   bodyColor: string; glowColor: string; mask: SpaceMask;
-  size?: number; speaking?: boolean; walking?: boolean; dancing?: boolean; sitting?: boolean; isMe?: boolean;
+  size?: number; speaking?: boolean; walking?: boolean; gesture?: string | null; sitting?: boolean; isMe?: boolean;
 }) {
 
   const w = Math.round(32 * size);
@@ -192,8 +206,13 @@ function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walkin
   const bl = bodyColor + 'ee';
   const isWalking = walking && !sitting;
   return (
-   <div style={{ position: 'relative', width: w, height: h, flexShrink: 0, transform: sitting ? 'translateY(5px)' : undefined, transition: 'transform .25s ease', animation: dancing && !sitting ? 'vs-dance 0.5s ease-in-out infinite' : 'none' }}>
+   <div style={{ position: 'relative', width: w, height: h, flexShrink: 0, transform: sitting ? 'translateY(5px)' : undefined, transition: 'transform .25s ease', animation: gestureAnim(gesture, sitting) }}>
 
+      {gesture && GESTURE_EMOJI[gesture] && (
+        <div style={{ position: 'absolute', top: -18, left: '50%', transform: 'translateX(-50%)', fontSize: 16, animation: 'vs-clap 0.4s ease-in-out infinite', pointerEvents: 'none', zIndex: 5 }}>
+          {GESTURE_EMOJI[gesture]}
+        </div>
+      )}
       {speaking && (
         <motion.div
           animate={{ scale: [1, 1.3, 1], opacity: [0.9, 0.35, 0.9] }}
@@ -247,7 +266,7 @@ function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walkin
 
 // ── Avatar on map ─────────────────────────────────────────────────────
 
-function AvatarOnMap({ player, isMe, speaking, dancing }: { player: SpacePlayer; isMe: boolean; speaking: boolean; dancing?: boolean }) {
+function AvatarOnMap({ player, isMe, speaking }: { player: SpacePlayer; isMe: boolean; speaking: boolean }) {
 
   const prev = useRef({ x: player.x, y: player.y });
   const [walking, setWalking] = useState(false);
@@ -265,24 +284,33 @@ function AvatarOnMap({ player, isMe, speaking, dancing }: { player: SpacePlayer;
   return (
     <div style={{ position: 'absolute', left: `${player.x}%`, top: `${player.y}%`, transform: 'translate(-50%, -100%)', transition: 'left 0.35s cubic-bezier(0.4,0,0.2,1), top 0.35s cubic-bezier(0.4,0,0.2,1)', zIndex: isMe ? 30 : 20, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
       <AnimatePresence>
-        {player.message && (
+        {player.message ? (
           <motion.div key={player.message + player.socketId} initial={{ opacity: 0, y: 8, scale: 0.88 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.88 }} transition={{ type: 'spring', stiffness: 400, damping: 28 }}
             style={{ position: 'relative', background: 'rgba(8,3,24,0.88)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 14, padding: '6px 12px', maxWidth: 168, textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.93)', boxShadow: `0 4px 20px rgba(0,0,0,0.5), 0 0 14px ${player.glowColor}28`, marginBottom: 4, wordBreak: 'break-word', lineHeight: 1.4 }}
           >
             {player.message}
             <div style={{ position: 'absolute', bottom: -6, left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '6px solid rgba(255,255,255,0.1)' }} />
           </motion.div>
-        )}
+        ) : player.typing && !isMe ? (
+          <motion.div key="typing" initial={{ opacity: 0, y: 6, scale: 0.85 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.85 }}
+            style={{ display: 'flex', gap: 3, alignItems: 'center', background: 'rgba(8,3,24,0.85)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '5px 9px', marginBottom: 4 }}
+          >
+            {[0, 1, 2].map(i => (
+              <span key={i} style={{ width: 4, height: 4, borderRadius: '50%', background: player.glowColor, animation: `vs-typing 1.2s ease-in-out ${i * 0.18}s infinite` }} />
+            ))}
+          </motion.div>
+        ) : null}
       </AnimatePresence>
       <motion.div
         animate={player.seat ? { y: 0 } : walking ? { rotate: [-1.5, 1.5], y: [0, -2, 0] } : { y: [0, -3, 0] }}
         transition={player.seat ? { duration: 0.2 } : walking ? { duration: 0.28, repeat: Infinity, ease: 'easeInOut' } : { duration: 3, repeat: Infinity, ease: 'easeInOut' }}
       >
-        <HumanoidAvatar bodyColor={player.bodyColor} glowColor={player.glowColor} mask={player.mask} speaking={speaking} walking={walking} dancing={dancing} sitting={!!player.seat} isMe={isMe} />
+        <HumanoidAvatar bodyColor={player.bodyColor} glowColor={player.glowColor} mask={player.mask} speaking={speaking} walking={walking} gesture={player.gesture} sitting={!!player.seat} isMe={isMe} />
 
       </motion.div>
-      <div style={{ fontSize: 10, fontFamily: 'monospace', color: isMe ? player.glowColor : 'rgba(255,255,255,0.65)', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', borderRadius: 6, padding: '1px 7px', border: isMe ? `1px solid ${player.glowColor}55` : '1px solid rgba(255,255,255,0.08)', letterSpacing: '0.04em', maxWidth: 88, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2, boxShadow: isMe ? `0 0 8px ${player.glowColor}30` : 'none' }}>
-        {isMe ? '● ' : ''}{player.name}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontFamily: 'monospace', color: isMe ? player.glowColor : 'rgba(255,255,255,0.65)', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', borderRadius: 6, padding: '1px 7px', border: isMe ? `1px solid ${player.glowColor}55` : '1px solid rgba(255,255,255,0.08)', letterSpacing: '0.04em', maxWidth: 96, marginTop: 2, boxShadow: isMe ? `0 0 8px ${player.glowColor}30` : 'none' }}>
+        <span style={{ width: 5, height: 5, borderRadius: '50%', background: speaking ? player.glowColor : '#00ff88', boxShadow: `0 0 5px ${speaking ? player.glowColor : '#00ff88'}`, flexShrink: 0, animation: speaking ? 'vs-pulse 0.8s ease-in-out infinite' : undefined }} />
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{player.name}</span>
       </div>
     </div>
   );
@@ -1028,6 +1056,56 @@ function TVControlPanel({ tvState, onClose, onSetLink, onSearch, onTogglePlay, o
   );
 }
 
+// ── Expression picker (reactions + gestures) ──────────────────────────
+
+const REACT_EMOJIS = ['😂', '❤️', '🔥', '👍', '😮', '😢', '🎉', '👏'];
+const GESTURES: { id: string; emoji: string; label: string }[] = [
+  { id: 'wave',  emoji: '👋', label: 'wave' },
+  { id: 'clap',  emoji: '👏', label: 'clap' },
+  { id: 'point', emoji: '👉', label: 'point' },
+  { id: 'dance', emoji: '💃', label: 'dance' },
+];
+
+function ExpressionPicker({ onReact, onGesture, onClose }: {
+  onReact: (emoji: string) => void;
+  onGesture: (g: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60 }} />
+      <motion.div
+        initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+        onClick={e => e.stopPropagation()}
+        style={{ position: 'absolute', left: 12, right: 12, bottom: 'calc(60px + env(safe-area-inset-bottom,0px))', zIndex: 61, background: 'rgba(8,3,22,.98)', backdropFilter: 'blur(22px)', border: '1px solid rgba(155,0,255,.3)', borderRadius: 18, padding: '12px 14px', boxShadow: '0 10px 40px rgba(0,0,0,.6)' }}
+      >
+        <p style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 7 }}>რეაქცია</p>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+          {REACT_EMOJIS.map(e => (
+            <button key={e} onClick={() => onReact(e)}
+              style={{ width: 38, height: 38, borderRadius: 12, fontSize: 20, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', transition: 'all .12s' }}
+              onMouseEnter={ev => (ev.currentTarget.style.transform = 'scale(1.18)')}
+              onMouseLeave={ev => (ev.currentTarget.style.transform = 'scale(1)')}>
+              {e}
+            </button>
+          ))}
+        </div>
+        <p style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 7 }}>ჟესტი</p>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {GESTURES.map(g => (
+            <button key={g.id} onClick={() => onGesture(g.id)}
+              style={{ flex: 1, padding: '9px 0', borderRadius: 12, background: 'rgba(255,0,150,.08)', border: '1px solid rgba(255,0,150,.25)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <span style={{ fontSize: 18 }}>{g.emoji}</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 8, color: 'rgba(255,255,255,.4)' }}>{g.label}</span>
+            </button>
+          ))}
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────
 
 interface Props { onClose: () => void; initialSpaceCode?: string | null }
@@ -1042,7 +1120,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const profile = useAuthStore(s => s.profile);
   const playerName = profile?.username ?? 'Player';
 
-  const { joined, mySocketId, players, chatHistory, space, join, leave, moveLocal, sendChat, sit, stand, listSpaces, createSpace, resolveSpace, inviteToSpace } = useVirtualSpace();
+  const { joined, mySocketId, players, chatHistory, space, reactions, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace } = useVirtualSpace();
   const { joined: voiceJoined, muted, speakingIds, status: voiceStatus, joinVoice, leaveVoice, toggleMute } = useSpaceVoice();
 
   // ── Space selection flow: lobby → customize → in-space ────────────────
@@ -1070,8 +1148,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const [ytReady, setYtReady] = useState(false);
   const [localPlaying, setLocalPlaying] = useState(false);
 
-  const [isDancing, setIsDancing] = useState(false);
-const toggleDance = () => setIsDancing(!isDancing);
+  const [showExpr, setShowExpr] = useState(false);
 
 
   // Sync helper so closures always have current value via ref
@@ -1254,6 +1331,7 @@ const toggleDance = () => setIsDancing(!isDancing);
     if (!msg) return;
     sendChat(msg);
     setChat('');
+    setTyping(false);
   }
 
   function isSpeaking(p: SpacePlayer): boolean {
@@ -1369,6 +1447,17 @@ const toggleDance = () => setIsDancing(!isDancing);
               />
             ))}
 
+            {/* Floating emoji reactions */}
+            {reactions.map(r => {
+              const p = players.get(r.socketId);
+              if (!p) return null;
+              return (
+                <div key={r.id} style={{ position: 'absolute', left: `${p.x}%`, top: `${p.y}%`, transform: 'translate(-50%, -180%)', zIndex: 40, pointerEvents: 'none', fontSize: 26, animation: 'vs-react 2.3s ease-out forwards' }}>
+                  {r.emoji}
+                </div>
+              );
+            })}
+
             {/* Now playing bar */}
             <AnimatePresence>
               {djState?.isPlaying && !djPanelOpen && (
@@ -1392,7 +1481,7 @@ const toggleDance = () => setIsDancing(!isDancing);
 
             {/* Avatars */}
             {[...players.values()].map(p=>(
-  <AvatarOnMap key={p.socketId} player={p} isMe={p.socketId===mySocketId} speaking={isSpeaking(p)} dancing={p.socketId===mySocketId ? isDancing : false} />
+  <AvatarOnMap key={p.socketId} player={p} isMe={p.socketId===mySocketId} speaking={isSpeaking(p)} />
 ))}
 
 
@@ -1418,13 +1507,25 @@ const toggleDance = () => setIsDancing(!isDancing);
             />
           </div>
 
+          {/* Expression picker */}
+          <AnimatePresence>
+            {showExpr && (
+              <ExpressionPicker
+                onReact={(e)=>{ react(mySocketId, e); setShowExpr(false); }}
+                onGesture={(g)=>{ gesture(mySocketId, g); setShowExpr(false); }}
+                onClose={()=>setShowExpr(false)}
+              />
+            )}
+          </AnimatePresence>
+
           {/* Bottom bar */}
           <form onSubmit={handleSendChat} style={{ display:'flex',gap:8,padding:'8px 12px',paddingBottom:'calc(8px + env(safe-area-inset-bottom,0px))',background:'rgba(3,0,14,.97)',borderTop:'1px solid rgba(155,0,255,.14)',flexShrink:0 }}>
-            <input value={chat} onChange={e=>setChat(e.target.value)} maxLength={140} placeholder="გზავნილი…"
+            <input value={chat} onChange={e=>{ setChat(e.target.value); if(e.target.value.trim()) setTyping(true); else setTyping(false); }} maxLength={140} placeholder="გზავნილი…"
               style={{ flex:1,background:'rgba(255,255,255,.04)',fontFamily:'monospace',fontSize:13,color:'white',outline:'none',padding:'8px 12px',borderRadius:12,border:'1px solid rgba(255,255,255,.1)' }}
               onFocus={e=>e.stopPropagation()}
+              onBlur={()=>setTyping(false)}
             />
-            <button type="button" onClick={toggleDance} style={{ padding:'8px 10px',borderRadius:12,fontFamily:'monospace',fontSize:15,lineHeight:1,background:isDancing?'rgba(255,0,150,.2)':'rgba(255,255,255,.04)',border:`1px solid ${isDancing?'rgba(255,0,150,.5)':'rgba(255,255,255,.1)'}`,transition:'all .15s',flexShrink:0 }} title="ცეკვა">💃</button>
+            <button type="button" onClick={()=>setShowExpr(o=>!o)} style={{ padding:'8px 10px',borderRadius:12,fontFamily:'monospace',fontSize:15,lineHeight:1,background:showExpr?'rgba(255,0,150,.2)':'rgba(255,255,255,.04)',border:`1px solid ${showExpr?'rgba(255,0,150,.5)':'rgba(255,255,255,.1)'}`,transition:'all .15s',flexShrink:0 }} title="გამოხატვა">😊</button>
             <button type="submit" disabled={!chat.trim()} style={{ padding:'8px 14px',borderRadius:12,fontFamily:'monospace',fontSize:13,background:'rgba(155,0,255,.15)',border:'1px solid rgba(155,0,255,.4)',color:'#c084fc',transition:'all .15s',flexShrink:0 }}>→</button>
             <button type="button" onClick={()=>setDrawerOpen(o=>!o)} style={{ padding:'8px 10px',borderRadius:12,fontFamily:'monospace',fontSize:13,background:drawerOpen?'rgba(155,0,255,.18)':'rgba(255,255,255,.04)',border:`1px solid ${drawerOpen?'rgba(155,0,255,.45)':'rgba(255,255,255,.1)'}`,color:drawerOpen?'#c084fc':'rgba(255,255,255,.4)',transition:'all .15s',flexShrink:0,position:'relative' }}>
               ☰

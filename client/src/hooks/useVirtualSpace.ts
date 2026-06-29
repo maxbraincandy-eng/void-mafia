@@ -13,6 +13,14 @@ export interface SpacePlayer {
   y: number;
   message?: string;
   seat?: string | null;
+  gesture?: string | null;
+  typing?: boolean;
+}
+
+export interface ReactionFloat {
+  id: number;
+  socketId: string;
+  emoji: string;
 }
 
 export interface SpaceChatMsg {
@@ -44,6 +52,7 @@ interface VirtualSpaceState {
   players: Map<string, SpacePlayer>;
   chatHistory: SpaceChatMsg[];
   space: SpaceMeta | null;
+  reactions: ReactionFloat[];
 }
 
 export function useVirtualSpace() {
@@ -53,11 +62,16 @@ export function useVirtualSpace() {
     players: new Map(),
     chatHistory: [],
     space: null,
+    reactions: [],
   });
 
   const moveTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingMove = useRef<{ x: number; y: number } | null>(null);
   const msgTimers   = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const gestureTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const reactionId  = useRef(0);
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typingState = useRef(false);
 
   const join = useCallback(async (
     spaceId: string,
@@ -74,7 +88,7 @@ export function useVirtualSpace() {
           if (!res?.ok) { resolve(false); return; }
           const players = new Map<string, SpacePlayer>();
           for (const p of res.data.players) players.set(p.socketId, p);
-          setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null });
+          setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [] });
           resolve(true);
         },
       );
@@ -115,7 +129,7 @@ export function useVirtualSpace() {
     for (const t of msgTimers.current.values()) clearTimeout(t);
     msgTimers.current.clear();
     if (moveTimer.current) { clearTimeout(moveTimer.current); moveTimer.current = null; }
-    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null });
+    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [] });
   }, []);
 
   const sit = useCallback((myId: string, seatId: string, x: number, y: number) => {
@@ -161,6 +175,62 @@ export function useVirtualSpace() {
   const sendChat = useCallback((message: string) => {
     (socket as any).emit('space:chat', { message });
   }, []);
+
+  // ── Expressions ───────────────────────────────────────────────────────
+  const react = useCallback((myId: string, emoji: string) => {
+    (socket as any).emit('space:react', { emoji });
+    spawnReaction(myId, emoji);
+  }, []);
+
+  const gesture = useCallback((myId: string, g: string) => {
+    (socket as any).emit('space:gesture', { gesture: g });
+    applyGesture(myId, g);
+  }, []);
+
+  const setTyping = useCallback((typing: boolean) => {
+    if (typing) {
+      if (!typingState.current) { typingState.current = true; (socket as any).emit('space:typing', { typing: true }); }
+      if (typingTimer.current) clearTimeout(typingTimer.current);
+      typingTimer.current = setTimeout(() => {
+        typingState.current = false;
+        (socket as any).emit('space:typing', { typing: false });
+      }, 2500);
+    } else {
+      if (typingTimer.current) { clearTimeout(typingTimer.current); typingTimer.current = null; }
+      if (typingState.current) { typingState.current = false; (socket as any).emit('space:typing', { typing: false }); }
+    }
+  }, []);
+
+  function spawnReaction(socketId: string, emoji: string) {
+    const id = ++reactionId.current;
+    setState(prev => ({ ...prev, reactions: [...prev.reactions, { id, socketId, emoji }] }));
+    setTimeout(() => {
+      setState(prev => ({ ...prev, reactions: prev.reactions.filter(r => r.id !== id) }));
+    }, 2400);
+  }
+
+  function applyGesture(socketId: string, g: string) {
+    const old = gestureTimers.current.get(socketId);
+    if (old) clearTimeout(old);
+    setState(prev => {
+      const p = prev.players.get(socketId);
+      if (!p) return prev;
+      const next = new Map(prev.players);
+      next.set(socketId, { ...p, gesture: g });
+      return { ...prev, players: next };
+    });
+    const timer = setTimeout(() => {
+      gestureTimers.current.delete(socketId);
+      setState(prev => {
+        const p = prev.players.get(socketId);
+        if (!p) return prev;
+        const next = new Map(prev.players);
+        next.set(socketId, { ...p, gesture: null });
+        return { ...prev, players: next };
+      });
+    }, g === 'dance' ? 5000 : 2200);
+    gestureTimers.current.set(socketId, timer);
+  }
 
   function addChatMsg(socketId: string, message: string, player: SpacePlayer | undefined) {
     if (!player) return;
@@ -257,12 +327,34 @@ export function useVirtualSpace() {
       });
     }
 
+    function onReacted({ socketId, emoji }: { socketId: string; emoji: string }) {
+      // Other players' reactions (mine were already spawned optimistically).
+      if (socketId === socket.id) return;
+      spawnReaction(socketId, emoji);
+    }
+    function onGesture({ socketId, gesture: g }: { socketId: string; gesture: string }) {
+      if (socketId === socket.id) return;
+      applyGesture(socketId, g);
+    }
+    function onTyping({ socketId, typing }: { socketId: string; typing: boolean }) {
+      setState(prev => {
+        const p = prev.players.get(socketId);
+        if (!p) return prev;
+        const next = new Map(prev.players);
+        next.set(socketId, { ...p, typing });
+        return { ...prev, players: next };
+      });
+    }
+
     (socket as any).on('space:player-joined', onJoined);
     (socket as any).on('space:player-moved',  onMoved);
     (socket as any).on('space:player-left',   onLeft);
     (socket as any).on('space:message',       onMessage);
     (socket as any).on('space:player-sat',    onSat);
     (socket as any).on('space:player-stood',  onStood);
+    (socket as any).on('space:player-reacted', onReacted);
+    (socket as any).on('space:player-gesture', onGesture);
+    (socket as any).on('space:player-typing',  onTyping);
     return () => {
       (socket as any).off('space:player-joined', onJoined);
       (socket as any).off('space:player-moved',  onMoved);
@@ -270,8 +362,11 @@ export function useVirtualSpace() {
       (socket as any).off('space:message',       onMessage);
       (socket as any).off('space:player-sat',    onSat);
       (socket as any).off('space:player-stood',  onStood);
+      (socket as any).off('space:player-reacted', onReacted);
+      (socket as any).off('space:player-gesture', onGesture);
+      (socket as any).off('space:player-typing',  onTyping);
     };
   }, []);
 
-  return { ...state, join, leave, moveLocal, sendChat, sit, stand, listSpaces, createSpace, resolveSpace, inviteToSpace };
+  return { ...state, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace };
 }

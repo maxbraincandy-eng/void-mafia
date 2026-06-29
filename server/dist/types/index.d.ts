@@ -1893,6 +1893,15 @@ export interface ClientToServerEvents {
         y: number;
     }) => void;
     'space:stand': () => void;
+    'space:react': (data: {
+        emoji: string;
+    }) => void;
+    'space:gesture': (data: {
+        gesture: string;
+    }) => void;
+    'space:typing': (data: {
+        typing: boolean;
+    }) => void;
     'space:create': (data: {
         name: string;
         icon: string;
