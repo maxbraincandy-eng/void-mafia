@@ -293,7 +293,7 @@ _spaceMeta.set('main', {
 });
 
 const SPACE_THEMES = ['void', 'neon', 'cyber', 'sunset', 'mono'];
-const SPACE_LAYOUTS = ['lounge', 'home'];
+const SPACE_LAYOUTS = ['lounge', 'home', 'penthouse'];
 const SPACE_ICONS  = ['🌌','🎮','🎬','🎧','🔥','💎','🛸','🌃','⚡','🃏','👾','🎲'];
 
 function _genSpaceCode(): string {

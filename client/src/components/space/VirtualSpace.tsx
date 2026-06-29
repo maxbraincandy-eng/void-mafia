@@ -158,7 +158,7 @@ function tvComputedPos(s: TVState): number {
 // ── Room layouts ────────────────────────────────────────────────────────
 type SeatType = 'couch' | 'chair' | 'pouf';
 interface SeatDef { id: string; type: SeatType; x: number; y: number; }
-interface RoomLayout { tv: { x: number; y: number }; seats: SeatDef[]; decor: 'lounge' | 'home' }
+interface RoomLayout { tv: { x: number; y: number }; seats: SeatDef[]; decor: 'lounge' | 'home' | 'penthouse' }
 
 const ROOM_LAYOUTS: Record<string, RoomLayout> = {
   // Neon club lounge — couches + poufs facing a big wall screen.
@@ -183,6 +183,17 @@ const ROOM_LAYOUTS: Record<string, RoomLayout> = {
       { id: 'c2', type: 'chair', x: 44, y: 40 },
       { id: 'c3', type: 'chair', x: 56, y: 40 },
       { id: 'c4', type: 'chair', x: 67, y: 40 },
+    ],
+  },
+  // Night penthouse — skyline window, wall TV, modern sectional + chairs, rug.
+  penthouse: {
+    tv: { x: 50, y: 21 },
+    decor: 'penthouse',
+    seats: [
+      { id: 'sofaL', type: 'couch', x: 38, y: 44 },
+      { id: 'sofaR', type: 'couch', x: 62, y: 44 },
+      { id: 'armL',  type: 'chair', x: 22, y: 54 },
+      { id: 'armR',  type: 'chair', x: 78, y: 54 },
     ],
   },
 };
@@ -429,17 +440,23 @@ function Plant({ flip }: { flip?: boolean }) {
   );
 }
 
-function RoomObjects({ djActive, onDJClick, decor }: { djActive: boolean; onDJClick: () => void; decor: 'lounge' | 'home' }) {
+function RoomObjects({ djActive, onDJClick, decor }: { djActive: boolean; onDJClick: () => void; decor: 'lounge' | 'home' | 'penthouse' }) {
   const home = decor === 'home';
+  const pent = decor === 'penthouse';
+  const PAL = decor === 'home'
+    ? { l: '255,170,80', r: '255,140,90', sign: 'HOME CINEMA', signCss: '0 0 6px #ffb060,0 0 16px #ff9040,0 0 36px rgba(255,160,80,.6)', div: 'linear-gradient(90deg,rgba(255,170,80,.3),rgba(255,200,120,.8),rgba(255,150,90,.6),rgba(255,200,120,.8),rgba(255,170,80,.3))', divGlow: '0 0 16px rgba(255,180,100,.4)' }
+    : decor === 'penthouse'
+    ? { l: '90,170,255', r: '150,120,255', sign: 'SKY PENTHOUSE', signCss: '0 0 6px #8ab8ff,0 0 16px #6aa0ff,0 0 36px rgba(120,150,255,.6)', div: 'linear-gradient(90deg,rgba(90,170,255,.3),rgba(150,200,255,.85),rgba(120,140,255,.6),rgba(150,200,255,.85),rgba(90,170,255,.3))', divGlow: '0 0 16px rgba(120,170,255,.45)' }
+    : { l: '155,0,255', r: '0,229,255', sign: 'VOID LOUNGE', signCss: '0 0 6px #00e5ff,0 0 16px #00e5ff,0 0 36px rgba(0,229,255,.7),0 0 60px rgba(0,229,255,.3)', div: 'linear-gradient(90deg,rgba(155,0,255,.4),rgba(0,229,255,.9),rgba(255,0,150,.7),rgba(0,229,255,.9),rgba(155,0,255,.4))', divGlow: '0 0 16px rgba(0,229,255,.5),0 0 32px rgba(155,0,255,.25)' };
   return (
     <>
-      {/* Wall strips — warm amber for home, neon for lounge */}
-      <div className="absolute pointer-events-none" style={{ left:5,top:0,bottom:'63%',width:2,background:home?'linear-gradient(180deg,rgba(255,170,80,0) 0%,rgba(255,170,80,.7) 55%,rgba(255,170,80,0) 100%)':'linear-gradient(180deg,rgba(155,0,255,0) 0%,rgba(155,0,255,.85) 55%,rgba(155,0,255,0) 100%)',boxShadow:home?'0 0 14px rgba(255,170,80,.4)':'0 0 14px rgba(155,0,255,.6)',borderRadius:2 }}/>
-      <div className="absolute pointer-events-none" style={{ right:5,top:0,bottom:'63%',width:2,background:home?'linear-gradient(180deg,rgba(255,140,90,0) 0%,rgba(255,140,90,.7) 55%,rgba(255,140,90,0) 100%)':'linear-gradient(180deg,rgba(0,229,255,0) 0%,rgba(0,229,255,.85) 55%,rgba(0,229,255,0) 100%)',boxShadow:home?'0 0 14px rgba(255,140,90,.4)':'0 0 14px rgba(0,229,255,.6)',borderRadius:2 }}/>
+      {/* Wall strips */}
+      <div className="absolute pointer-events-none" style={{ left:5,top:0,bottom:'63%',width:2,background:`linear-gradient(180deg,rgba(${PAL.l},0) 0%,rgba(${PAL.l},.8) 55%,rgba(${PAL.l},0) 100%)`,boxShadow:`0 0 14px rgba(${PAL.l},.5)`,borderRadius:2 }}/>
+      <div className="absolute pointer-events-none" style={{ right:5,top:0,bottom:'63%',width:2,background:`linear-gradient(180deg,rgba(${PAL.r},0) 0%,rgba(${PAL.r},.8) 55%,rgba(${PAL.r},0) 100%)`,boxShadow:`0 0 14px rgba(${PAL.r},.5)`,borderRadius:2 }}/>
       {/* Wall/floor divider */}
-      <div className="absolute pointer-events-none" style={{ left:0,right:0,top:'37%',height:2.5,background:home?'linear-gradient(90deg,rgba(255,170,80,.3),rgba(255,200,120,.8),rgba(255,150,90,.6),rgba(255,200,120,.8),rgba(255,170,80,.3))':'linear-gradient(90deg,rgba(155,0,255,.4),rgba(0,229,255,.9),rgba(255,0,150,.7),rgba(0,229,255,.9),rgba(155,0,255,.4))',boxShadow:home?'0 0 16px rgba(255,180,100,.4)':'0 0 16px rgba(0,229,255,.5),0 0 32px rgba(155,0,255,.25)' }}/>
+      <div className="absolute pointer-events-none" style={{ left:0,right:0,top:'37%',height:2.5,background:PAL.div,boxShadow:PAL.divGlow }}/>
       {/* Sign */}
-      <div className="absolute pointer-events-none" style={{ left:'50%',top:'9%',transform:'translate(-50%,-50%)',fontFamily:'"Space Grotesk",monospace',fontWeight:900,fontSize:13,letterSpacing:'0.28em',color:'#fff',textShadow:home?'0 0 6px #ffb060,0 0 16px #ff9040,0 0 36px rgba(255,160,80,.6)':'0 0 6px #00e5ff,0 0 16px #00e5ff,0 0 36px rgba(0,229,255,.7),0 0 60px rgba(0,229,255,.3)',animation:'vs-flicker 6s linear infinite',whiteSpace:'nowrap' }}>{home?'HOME CINEMA':'VOID LOUNGE'}</div>
+      <div className="absolute pointer-events-none" style={{ left:'50%',top:'9%',transform:'translate(-50%,-50%)',fontFamily:'"Space Grotesk",monospace',fontWeight:900,fontSize:13,letterSpacing:'0.28em',color:'#fff',textShadow:PAL.signCss,animation:'vs-flicker 6s linear infinite',whiteSpace:'nowrap' }}>{PAL.sign}</div>
 
       {/* DJ BOOTH — clickable (right wall) */}
       <div className="absolute pointer-events-none" style={{ left:'85%',top:'50%',transform:'translate(-50%,-50%)',width:140,height:80,background:`radial-gradient(ellipse,rgba(255,0,150,${djActive?'.28':'.16'}) 0%,transparent 70%)`,borderRadius:'50%',animation:'vs-pulse 2s ease-in-out infinite' }}/>
@@ -453,7 +470,43 @@ function RoomObjects({ djActive, onDJClick, decor }: { djActive: boolean; onDJCl
       <div className="absolute pointer-events-none" style={{ left:'7%',top:'14%',transform:'translate(-50%,-50%)' }}><Plant/></div>
       <div className="absolute pointer-events-none" style={{ left:'93%',top:'14%',transform:'translate(-50%,-50%)' }}><Plant flip/></div>
 
-      {home ? (
+      {pent ? (
+        <>
+          {/* Panoramic night skyline window across the top wall */}
+          <div className="absolute pointer-events-none" style={{ left:'50%',top:'21%',transform:'translate(-50%,-50%)',width:'88%',height:'30%',borderRadius:10,overflow:'hidden',background:'linear-gradient(180deg,#04060f 0%,#0a1330 45%,#13203f 100%)',border:'2px solid rgba(120,160,255,.35)',boxShadow:'0 0 30px rgba(80,140,255,.25), inset 0 0 40px rgba(0,0,0,.5)' }}>
+            {/* moon */}
+            <div style={{ position:'absolute',top:'14%',right:'12%',width:18,height:18,borderRadius:'50%',background:'radial-gradient(circle at 35% 35%,#fffbe8,#d9e2ff)',boxShadow:'0 0 18px rgba(220,230,255,.8)' }}/>
+            {/* stars */}
+            {[[15,18],[28,30],[42,14],[58,26],[70,16],[82,34],[36,40],[64,42]].map(([l,t],i)=>(
+              <div key={i} style={{ position:'absolute',left:`${l}%`,top:`${t}%`,width:2,height:2,borderRadius:'50%',background:'#cfe0ff',boxShadow:'0 0 4px #cfe0ff',animation:`vs-pulse ${2+(i%3)}s ease-in-out infinite` }}/>
+            ))}
+            {/* skyline silhouette */}
+            <div style={{ position:'absolute',left:0,right:0,bottom:0,height:'52%',display:'flex',alignItems:'flex-end',gap:3,padding:'0 6px' }}>
+              {[40,62,48,80,55,92,50,70,44,86,58,74,46].map((h,i)=>(
+                <div key={i} style={{ flex:1,height:`${h}%`,background:'linear-gradient(180deg,rgba(20,30,60,.95),rgba(10,16,36,1))',borderTop:'1px solid rgba(120,160,255,.2)',position:'relative' }}>
+                  {/* lit windows */}
+                  {(i%2===0) && <div style={{ position:'absolute',top:'20%',left:'30%',width:2,height:2,background:'rgba(255,210,120,.85)',boxShadow:'0 0 3px rgba(255,200,100,.7)' }}/>}
+                  {(i%3===0) && <div style={{ position:'absolute',top:'45%',left:'55%',width:2,height:2,background:'rgba(150,200,255,.85)' }}/>}
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* cool ambient glow */}
+          <div className="absolute pointer-events-none" style={{ left:'50%',top:'62%',transform:'translate(-50%,-50%)',width:'85%',height:'60%',background:'radial-gradient(ellipse,rgba(90,140,255,.10) 0%,transparent 70%)',borderRadius:'50%' }}/>
+          {/* coffee table */}
+          <div className="absolute pointer-events-none" style={{ left:'50%',top:'52%',transform:'translate(-50%,-50%)',width:64,height:20,background:'linear-gradient(180deg,rgba(40,55,95,.7),rgba(20,28,55,.8))',borderRadius:8,border:'1px solid rgba(120,160,255,.3)',boxShadow:'0 6px 14px rgba(0,0,0,.4)' }}/>
+          {/* large rug = dance / move floor (fills lower area) */}
+          <div className="absolute pointer-events-none" style={{ left:'50%',top:'72%',transform:'translate(-50%,-50%)',width:'64%',maxWidth:360,aspectRatio:'1.8 / 1',borderRadius:'50%',background:'radial-gradient(ellipse, rgba(90,140,255,.16) 0%, rgba(40,60,140,.08) 55%, transparent 75%)',border:'1.5px dashed rgba(130,170,255,.35)',boxShadow:'inset 0 0 34px rgba(80,130,255,.12)' }}/>
+          <div className="absolute pointer-events-none" style={{ left:'50%',top:'63%',transform:'translate(-50%,-50%)',fontFamily:'monospace',fontSize:8,letterSpacing:'0.24em',color:'rgba(150,190,255,.85)',textShadow:'0 0 8px rgba(100,150,255,.6)' }}>🪩 DANCE FLOOR</div>
+          {/* tall plant left + floor lamp right */}
+          <div className="absolute pointer-events-none" style={{ left:'9%',top:'56%',transform:'translate(-50%,-50%)' }}><Plant/></div>
+          <div className="absolute pointer-events-none" style={{ left:'91%',top:'60%',transform:'translate(-50%,-50%)',display:'flex',flexDirection:'column',alignItems:'center' }}>
+            <div style={{ width:18,height:11,background:'radial-gradient(ellipse,rgba(200,220,255,.9),rgba(120,160,255,.3))',borderRadius:'9px 9px 3px 3px',boxShadow:'0 0 20px rgba(150,190,255,.7)' }}/>
+            <div style={{ width:2,height:34,background:'rgba(80,100,150,.6)' }}/>
+            <div style={{ width:14,height:4,background:'rgba(80,100,150,.5)',borderRadius:2 }}/>
+          </div>
+        </>
+      ) : home ? (
         <>
           {/* warm room glow */}
           <div className="absolute pointer-events-none" style={{ left:'50%',top:'55%',transform:'translate(-50%,-50%)',width:'80%',height:'55%',background:'radial-gradient(ellipse,rgba(255,160,80,.10) 0%,transparent 70%)',borderRadius:'50%' }}/>

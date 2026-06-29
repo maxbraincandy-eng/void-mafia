@@ -16,8 +16,9 @@ const SPACE_THEMES: { id: string; label: string; accent: string }[] = [
 const themeAccent = (theme: string) => SPACE_THEMES.find(t => t.id === theme)?.accent ?? '#9b00ff';
 
 const ROOM_LAYOUTS: { id: string; label: string; desc: string; emoji: string; preview: string }[] = [
-  { id: 'lounge', label: 'Lounge', desc: 'ნეონ კლუბი · დივნები', emoji: '🛋️', preview: 'linear-gradient(135deg, rgba(155,0,255,.35), rgba(0,229,255,.2))' },
-  { id: 'home',   label: 'Home',   desc: 'ტელევიზორი · 4 სკამი · ცეკვა', emoji: '🏠', preview: 'linear-gradient(135deg, rgba(255,160,80,.35), rgba(255,90,60,.2))' },
+  { id: 'lounge',    label: 'Lounge',    desc: 'ნეონ კლუბი · დივნები', emoji: '🛋️', preview: 'linear-gradient(135deg, rgba(155,0,255,.35), rgba(0,229,255,.2))' },
+  { id: 'home',      label: 'Home',      desc: 'ტელევიზორი · 4 სკამი · ცეკვა', emoji: '🏠', preview: 'linear-gradient(135deg, rgba(255,160,80,.35), rgba(255,90,60,.2))' },
+  { id: 'penthouse', label: 'Penthouse', desc: 'ღამის ქალაქი · დივანი · ცეკვა', emoji: '🌃', preview: 'linear-gradient(135deg, rgba(90,140,255,.35), rgba(20,28,60,.4))' },
 ];
 
 // ── Lobby ───────────────────────────────────────────────────────────────

@@ -167,7 +167,7 @@ _spaceMeta.set('main', {
     code: 'VOIDLOUNGE', createdAt: Date.now(), persistent: true,
 });
 const SPACE_THEMES = ['void', 'neon', 'cyber', 'sunset', 'mono'];
-const SPACE_LAYOUTS = ['lounge', 'home'];
+const SPACE_LAYOUTS = ['lounge', 'home', 'penthouse'];
 const SPACE_ICONS = ['🌌', '🎮', '🎬', '🎧', '🔥', '💎', '🛸', '🌃', '⚡', '🃏', '👾', '🎲'];
 function _genSpaceCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I
