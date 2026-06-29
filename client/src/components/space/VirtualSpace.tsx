@@ -1231,6 +1231,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const [localPlaying, setLocalPlaying] = useState(false);
 
   const [showExpr, setShowExpr] = useState(false);
+  const [confirmExit, setConfirmExit] = useState(false);
 
 
   // Sync helper so closures always have current value via ref
@@ -1464,7 +1465,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             {muted ? '🔇' : '🎤'}
           </button>
         )}
-        <button onClick={handleClose} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.1)',color:'rgba(255,255,255,.45)',fontSize:14 }}>✕</button>
+        <button onClick={() => { if (joined) setConfirmExit(true); else handleClose(); }} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.1)',color:'rgba(255,255,255,.45)',fontSize:14 }}>✕</button>
       </div>
 
       {/* Content */}
@@ -1623,6 +1624,33 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
       <AnimatePresence>
         {showInvite && joined && space && (
           <SpaceInvitePanel space={space} inviteToSpace={inviteToSpace} onClose={()=>setShowInvite(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Exit confirmation */}
+      <AnimatePresence>
+        {confirmExit && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setConfirmExit(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+            <motion.div onClick={e => e.stopPropagation()}
+              initial={{ opacity: 0, y: 16, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 16, scale: 0.95 }}
+              transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+              style={{ width: 'min(320px, 100%)', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(155,0,255,.3)', borderRadius: 20, padding: '22px 20px', textAlign: 'center' }}>
+              <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: 'white', marginBottom: 6 }}>დარწმუნებული ხარ?</p>
+              <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,.45)', marginBottom: 18 }}>Are you sure you want to exit?</p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setConfirmExit(false)}
+                  style={{ flex: 1, padding: '11px', borderRadius: 14, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.12)', color: 'rgba(255,255,255,.6)' }}>
+                  No
+                </button>
+                <button onClick={() => { setConfirmExit(false); handleClose(); }}
+                  style={{ flex: 1, padding: '11px', borderRadius: 14, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,45,85,.16)', border: '1px solid rgba(255,45,85,.4)', color: '#ff2d55' }}>
+                  Yes
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
