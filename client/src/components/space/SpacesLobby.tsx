@@ -270,7 +270,7 @@ export function SpaceInvitePanel({ space, inviteToSpace, onClose }: {
   const link = `voidmafia.one/lounge/${space.code}`;
 
   useEffect(() => {
-    emitWithAck<void, Res<Friend[]>>('friend:list').then(res => {
+    emitWithAck<void, Res<Friend[]>>('friend:invitable_list').then(res => {
       setFriends(res.ok ? (res.data ?? []) : []);
     }).catch(() => setFriends([]));
   }, []);

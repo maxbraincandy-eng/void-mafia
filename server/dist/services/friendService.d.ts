@@ -11,6 +11,11 @@ export declare function acceptFriend(requestFrom: string, accepterId: string): P
 export declare function declineFriend(requestFrom: string, declinerId: string): Promise<void>;
 export declare function removeFriend(playerId: string, friendId: string): Promise<void>;
 export declare function getFriends(playerId: string): Promise<Friend[]>;
+/**
+ * People this player can invite: accepted friends PLUS everyone they follow
+ * or who follows them in the community. Deduplicated, with online status.
+ */
+export declare function getInvitablePeople(playerId: string): Promise<Friend[]>;
 export declare function getPendingRequests(playerId: string): Promise<FriendRequest[]>;
 export declare function getFriendshipStatus(userId: string, otherId: string): Promise<string>;
 //# sourceMappingURL=friendService.d.ts.map

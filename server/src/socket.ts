@@ -40,7 +40,7 @@ import {
 } from './services/playerService.js';
 import {
   markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend,
-  removeFriend, getFriends, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount,
+  removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount,
 } from './services/friendService.js';
 import {
   checkAndAwardChallenges, getDailyQuestsForPlayer,
@@ -3580,6 +3580,15 @@ export function attachSocketHandlers(io: AppServer): void {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('Not authenticated.');
         cb(ok(await getFriends(profileId)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // Invitable pool = friends + community follows (following + followers).
+    socket.on('friend:invitable_list', async (cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        cb(ok(await getInvitablePeople(profileId)));
       } catch (e: any) { cb(err(e.message)); }
     });
 

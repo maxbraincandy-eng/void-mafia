@@ -105,6 +105,32 @@ export async function getFriends(playerId) {
         playerStatus: getPlayerStatus(r.id),
     }));
 }
+/**
+ * People this player can invite: accepted friends PLUS everyone they follow
+ * or who follows them in the community. Deduplicated, with online status.
+ */
+export async function getInvitablePeople(playerId) {
+    const rows = await sql `
+    SELECT DISTINCT p.id, p.username, p.avatar, p.avatar_url, p.public_id, p.level
+    FROM players p
+    WHERE p.id <> ${playerId} AND p.id IN (
+      SELECT CASE WHEN from_id = ${playerId} THEN to_id ELSE from_id END
+        FROM friendships
+        WHERE (from_id = ${playerId} OR to_id = ${playerId}) AND status = 'accepted'
+      UNION
+      SELECT following_id FROM follows WHERE follower_id = ${playerId}
+      UNION
+      SELECT follower_id  FROM follows WHERE following_id = ${playerId}
+    )
+  `;
+    return rows.map((r) => ({
+        profileId: r.id, username: r.username, avatar: r.avatar,
+        avatarUrl: r.avatar_url ?? null,
+        publicId: r.public_id != null ? Number(r.public_id) : null,
+        level: Number(r.level ?? 1), isOnline: onlineProfiles.has(r.id), status: 'accepted',
+        playerStatus: getPlayerStatus(r.id),
+    }));
+}
 export async function getPendingRequests(playerId) {
     const rows = await sql `
     SELECT f.id, f.from_id, p.username, p.avatar, p.avatar_url, f.created_at

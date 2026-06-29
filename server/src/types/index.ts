@@ -1008,6 +1008,7 @@ export interface ClientToServerEvents {
   'friend:decline':        (data: { fromProfileId: string }, cb: Cb<null>) => void;
   'friend:remove':         (data: { profileId: string }, cb: Cb<null>) => void;
   'friend:list':           (cb: Cb<Friend[]>) => void;
+  'friend:invitable_list': (cb: Cb<Friend[]>) => void;
   'friend:requests':       (cb: Cb<FriendRequest[]>) => void;
   // Friend code lookup
   'player:find_by_code':   (data: { friendCode: string }, cb: Cb<PlayerProfilePublic>) => void;

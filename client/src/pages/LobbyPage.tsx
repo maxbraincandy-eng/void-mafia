@@ -115,7 +115,8 @@ export function LobbyPage() {
   }, [profileIdsKey, room?.code]);
 
   const loadFriends = useCallback(() => {
-    socket.emit('friend:list' as any, (res: any) => {
+    // Invite pool = friends + community follows (following + followers).
+    socket.emit('friend:invitable_list' as any, (res: any) => {
       if (res?.data) setFriends(res.data);
     });
   }, []);
