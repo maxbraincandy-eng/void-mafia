@@ -287,7 +287,7 @@ const _spaceMeta = new Map<string, SpaceMeta>();
 
 // Seed the always-on public lounge.
 _spaceMeta.set('main', {
-  id: 'main', name: 'Void Lounge', icon: '🌌', theme: 'void', layout: 'lounge',
+  id: 'main', name: 'Void Lounge', icon: '🌌', theme: 'void', layout: 'penthouse',
   maxPlayers: 50, isPublic: true, ownerId: null, ownerName: 'Void Mafia',
   code: 'VOIDLOUNGE', createdAt: Date.now(), persistent: true,
 });
