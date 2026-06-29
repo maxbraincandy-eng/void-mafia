@@ -6364,7 +6364,7 @@ export function attachSocketHandlers(io) {
                 }
                 const x = 15 + Math.random() * 70;
                 const y = 20 + Math.random() * 60;
-                const player = { socketId: socket.id, name: safeName, bodyColor: safeBody, glowColor: safeGlow, mask: safeMask, x, y };
+                const player = { socketId: socket.id, name: safeName, bodyColor: safeBody, glowColor: safeGlow, mask: safeMask, x, y, seat: null };
                 room.set(socket.id, player);
                 socket.join(`space:${safeSpace}`);
                 socket.to(`space:${safeSpace}`).emit('space:player-joined', player);
@@ -6466,7 +6466,45 @@ export function attachSocketHandlers(io) {
                 if (player) {
                     player.x = cx;
                     player.y = cy;
+                    // Walking off a seat stands you up.
+                    if (player.seat) {
+                        player.seat = null;
+                        io.to(`space:${spaceId}`).emit('space:player-stood', { socketId: socket.id });
+                    }
                     socket.to(`space:${spaceId}`).emit('space:player-moved', { socketId: socket.id, x: cx, y: cy });
+                    return;
+                }
+            }
+        });
+        // ── Cinema seating ─────────────────────────────────────────────────
+        socket.on('space:sit', ({ seatId, x, y }) => {
+            const sid = String(seatId ?? '').slice(0, 24);
+            if (!sid)
+                return;
+            for (const [spaceId, room] of _spaces) {
+                const player = room.get(socket.id);
+                if (player) {
+                    // Reject if the seat is already taken by someone else.
+                    for (const other of room.values()) {
+                        if (other.socketId !== socket.id && other.seat === sid)
+                            return;
+                    }
+                    player.seat = sid;
+                    if (typeof x === 'number')
+                        player.x = Math.max(2, Math.min(98, x));
+                    if (typeof y === 'number')
+                        player.y = Math.max(2, Math.min(96, y));
+                    io.to(`space:${spaceId}`).emit('space:player-sat', { socketId: socket.id, seatId: sid, x: player.x, y: player.y });
+                    return;
+                }
+            }
+        });
+        socket.on('space:stand', () => {
+            for (const [spaceId, room] of _spaces) {
+                const player = room.get(socket.id);
+                if (player && player.seat) {
+                    player.seat = null;
+                    io.to(`space:${spaceId}`).emit('space:player-stood', { socketId: socket.id });
                     return;
                 }
             }

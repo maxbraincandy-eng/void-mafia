@@ -12,6 +12,7 @@ export interface SpacePlayer {
   x: number;
   y: number;
   message?: string;
+  seat?: string | null;
 }
 
 export interface SpaceChatMsg {
@@ -117,11 +118,32 @@ export function useVirtualSpace() {
     setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null });
   }, []);
 
+  const sit = useCallback((myId: string, seatId: string, x: number, y: number) => {
+    setState(prev => {
+      const next = new Map(prev.players);
+      const me = next.get(myId);
+      if (me) next.set(myId, { ...me, seat: seatId, x, y });
+      return { ...prev, players: next };
+    });
+    (socket as any).emit('space:sit', { seatId, x, y });
+  }, []);
+
+  const stand = useCallback((myId: string) => {
+    setState(prev => {
+      const next = new Map(prev.players);
+      const me = next.get(myId);
+      if (me) next.set(myId, { ...me, seat: null });
+      return { ...prev, players: next };
+    });
+    (socket as any).emit('space:stand');
+  }, []);
+
   const moveLocal = useCallback((myId: string, x: number, y: number) => {
     setState(prev => {
       const next = new Map(prev.players);
       const me = next.get(myId);
-      if (me) next.set(myId, { ...me, x, y });
+      // Moving stands you up (matches server behaviour).
+      if (me) next.set(myId, { ...me, x, y, seat: null });
       return { ...prev, players: next };
     });
     pendingMove.current = { x, y };
@@ -216,18 +238,40 @@ export function useVirtualSpace() {
     function onMessage({ socketId, message }: { socketId: string; message: string }) {
       setPlayerMessage(socketId, message);
     }
+    function onSat({ socketId, seatId, x, y }: { socketId: string; seatId: string; x: number; y: number }) {
+      setState(prev => {
+        const p = prev.players.get(socketId);
+        if (!p) return prev;
+        const next = new Map(prev.players);
+        next.set(socketId, { ...p, seat: seatId, x, y });
+        return { ...prev, players: next };
+      });
+    }
+    function onStood({ socketId }: { socketId: string }) {
+      setState(prev => {
+        const p = prev.players.get(socketId);
+        if (!p || !p.seat) return prev;
+        const next = new Map(prev.players);
+        next.set(socketId, { ...p, seat: null });
+        return { ...prev, players: next };
+      });
+    }
 
     (socket as any).on('space:player-joined', onJoined);
     (socket as any).on('space:player-moved',  onMoved);
     (socket as any).on('space:player-left',   onLeft);
     (socket as any).on('space:message',       onMessage);
+    (socket as any).on('space:player-sat',    onSat);
+    (socket as any).on('space:player-stood',  onStood);
     return () => {
       (socket as any).off('space:player-joined', onJoined);
       (socket as any).off('space:player-moved',  onMoved);
       (socket as any).off('space:player-left',   onLeft);
       (socket as any).off('space:message',       onMessage);
+      (socket as any).off('space:player-sat',    onSat);
+      (socket as any).off('space:player-stood',  onStood);
     };
   }, []);
 
-  return { ...state, join, leave, moveLocal, sendChat, listSpaces, createSpace, resolveSpace, inviteToSpace };
+  return { ...state, join, leave, moveLocal, sendChat, sit, stand, listSpaces, createSpace, resolveSpace, inviteToSpace };
 }

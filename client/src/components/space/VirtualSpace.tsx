@@ -152,6 +152,19 @@ function tvComputedPos(s: TVState): number {
   return s.isPlaying ? Math.max(0, (Date.now() - s.startedAt) / 1000) : Math.max(0, s.position);
 }
 
+// ── Cinema seating ──────────────────────────────────────────────────────
+type SeatType = 'couch' | 'chair' | 'pouf';
+interface SeatDef { id: string; type: SeatType; x: number; y: number; }
+// Arranged in front of the TV (TV at 50,13) facing the screen.
+const CINEMA_SEATS: SeatDef[] = [
+  { id: 'couchL', type: 'couch', x: 40, y: 32 },
+  { id: 'couchR', type: 'couch', x: 60, y: 32 },
+  { id: 'chairL', type: 'chair', x: 26, y: 41 },
+  { id: 'chairR', type: 'chair', x: 74, y: 41 },
+  { id: 'poufL',  type: 'pouf',  x: 45, y: 46 },
+  { id: 'poufR',  type: 'pouf',  x: 55, y: 46 },
+];
+
 // ── URL / ID helper ───────────────────────────────────────────────────
 
 function extractVideoId(input: string): string | null {
@@ -168,17 +181,18 @@ function extractVideoId(input: string): string | null {
 
 // ── Humanoid avatar ───────────────────────────────────────────────────
 
-function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walking, dancing, isMe }: {
+function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walking, dancing, sitting, isMe }: {
   bodyColor: string; glowColor: string; mask: SpaceMask;
-  size?: number; speaking?: boolean; walking?: boolean; dancing?: boolean; isMe?: boolean;
+  size?: number; speaking?: boolean; walking?: boolean; dancing?: boolean; sitting?: boolean; isMe?: boolean;
 }) {
 
   const w = Math.round(32 * size);
   const h = Math.round(56 * size);
   const bd = bodyColor + 'cc';
   const bl = bodyColor + 'ee';
+  const isWalking = walking && !sitting;
   return (
-   <div style={{ position: 'relative', width: w, height: h, flexShrink: 0, animation: dancing ? 'vs-dance 0.5s ease-in-out infinite' : 'none' }}>
+   <div style={{ position: 'relative', width: w, height: h, flexShrink: 0, transform: sitting ? 'translateY(5px)' : undefined, transition: 'transform .25s ease', animation: dancing && !sitting ? 'vs-dance 0.5s ease-in-out infinite' : 'none' }}>
 
       {speaking && (
         <motion.div
@@ -191,8 +205,20 @@ function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walkin
         style={{ filter: speaking ? `drop-shadow(0 0 8px ${glowColor}cc)` : `drop-shadow(0 0 ${isMe ? 5 : 3}px ${bodyColor}99)` }}
       >
         <ellipse cx="16" cy="54" rx="7" ry="2.5" fill="rgba(0,0,0,0.35)" />
-        <rect x="9" y="36" width="5" height="17" rx="2.5" fill={bd} style={walking ? { animation: 'vs-float 0.32s ease-in-out infinite alternate' } : {}} />
-        <rect x="18" y="36" width="5" height="17" rx="2.5" fill={bd} style={walking ? { animation: 'vs-float 0.32s ease-in-out 0.16s infinite alternate' } : {}} />
+        {sitting ? (
+          <>
+            {/* seated legs — thighs forward, shins down */}
+            <rect x="7"  y="38" width="11" height="5" rx="2.5" fill={bd} />
+            <rect x="20" y="38" width="11" height="5" rx="2.5" fill={bd} />
+            <rect x="13.5" y="42" width="5" height="11" rx="2.5" fill={bd} />
+            <rect x="25.5" y="42" width="5" height="11" rx="2.5" fill={bd} />
+          </>
+        ) : (
+          <>
+            <rect x="9" y="36" width="5" height="17" rx="2.5" fill={bd} style={isWalking ? { animation: 'vs-float 0.32s ease-in-out infinite alternate' } : {}} />
+            <rect x="18" y="36" width="5" height="17" rx="2.5" fill={bd} style={isWalking ? { animation: 'vs-float 0.32s ease-in-out 0.16s infinite alternate' } : {}} />
+          </>
+        )}
         <rect x="7" y="21" width="18" height="17" rx="3.5" fill={bl} />
         <rect x="14" y="23" width="4" height="13" rx="2" fill={glowColor} opacity="0.28" />
         <circle cx="16" cy="26" r="2.2" fill={glowColor} opacity="0.5" />
@@ -249,10 +275,10 @@ function AvatarOnMap({ player, isMe, speaking, dancing }: { player: SpacePlayer;
         )}
       </AnimatePresence>
       <motion.div
-        animate={walking ? { rotate: [-1.5, 1.5], y: [0, -2, 0] } : { y: [0, -3, 0] }}
-        transition={walking ? { duration: 0.28, repeat: Infinity, ease: 'easeInOut' } : { duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+        animate={player.seat ? { y: 0 } : walking ? { rotate: [-1.5, 1.5], y: [0, -2, 0] } : { y: [0, -3, 0] }}
+        transition={player.seat ? { duration: 0.2 } : walking ? { duration: 0.28, repeat: Infinity, ease: 'easeInOut' } : { duration: 3, repeat: Infinity, ease: 'easeInOut' }}
       >
-        <HumanoidAvatar bodyColor={player.bodyColor} glowColor={player.glowColor} mask={player.mask} speaking={speaking} walking={walking} dancing={dancing} isMe={isMe} />
+        <HumanoidAvatar bodyColor={player.bodyColor} glowColor={player.glowColor} mask={player.mask} speaking={speaking} walking={walking} dancing={dancing} sitting={!!player.seat} isMe={isMe} />
 
       </motion.div>
       <div style={{ fontSize: 10, fontFamily: 'monospace', color: isMe ? player.glowColor : 'rgba(255,255,255,0.65)', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', borderRadius: 6, padding: '1px 7px', border: isMe ? `1px solid ${player.glowColor}55` : '1px solid rgba(255,255,255,0.08)', letterSpacing: '0.04em', maxWidth: 88, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2, boxShadow: isMe ? `0 0 8px ${player.glowColor}30` : 'none' }}>
@@ -681,6 +707,56 @@ function ChatDrawer({ history, mySocketId, open }: {
   );
 }
 
+// ── Cinema seat (couch / chair / pouf) ─────────────────────────────────
+
+function CinemaSeat({ seat, occupant, isMine, onTap }: {
+  seat: SeatDef;
+  occupant: SpacePlayer | undefined;
+  isMine: boolean;
+  onTap: () => void;
+}) {
+  const taken = !!occupant && !isMine;
+  const accent = isMine ? (occupant?.glowColor ?? '#00e5ff') : '#5b3a8a';
+  const dims = seat.type === 'couch' ? { w: 64, h: 22 } : seat.type === 'chair' ? { w: 38, h: 22 } : { w: 26, h: 16 };
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); if (!taken) onTap(); }}
+      style={{
+        position: 'absolute', left: `${seat.x}%`, top: `${seat.y}%`,
+        transform: 'translate(-50%, -42%)', zIndex: 13,
+        background: 'transparent', border: 'none', padding: 0,
+        cursor: taken ? 'default' : 'pointer', pointerEvents: 'auto',
+        width: dims.w, height: dims.h + 10,
+      }}
+      aria-label={`seat ${seat.id}`}
+    >
+      {/* seat base */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)',
+        width: dims.w, height: dims.h, borderRadius: seat.type === 'pouf' ? '50%' : '10px 10px 6px 6px',
+        background: `linear-gradient(180deg, ${accent}33, rgba(10,4,24,.85))`,
+        border: `1.5px solid ${isMine ? accent + 'cc' : taken ? 'rgba(255,255,255,.12)' : accent + '55'}`,
+        boxShadow: isMine ? `0 0 16px ${accent}66` : taken ? 'none' : `0 0 8px ${accent}22`,
+        transition: 'all .2s',
+      }} />
+      {/* backrest for couch/chair */}
+      {seat.type !== 'pouf' && (
+        <div style={{
+          position: 'absolute', bottom: dims.h - 5, left: '50%', transform: 'translateX(-50%)',
+          width: dims.w - 6, height: 9, borderRadius: '8px 8px 0 0',
+          background: `linear-gradient(180deg, ${accent}44, ${accent}1f)`,
+          border: `1.5px solid ${isMine ? accent + 'aa' : taken ? 'rgba(255,255,255,.1)' : accent + '44'}`,
+          borderBottom: 'none',
+        }} />
+      )}
+      {/* free-seat hint */}
+      {!occupant && (
+        <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', fontSize: 9, fontFamily: 'monospace', color: `${accent}cc`, whiteSpace: 'nowrap', opacity: 0.7 }}>დაჯექი</div>
+      )}
+    </button>
+  );
+}
+
 // ── Cinema TV (synced watch party) ────────────────────────────────────
 
 function CinemaTV({ tvState, canControl, myDist, viewerCount }: {
@@ -966,7 +1042,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const profile = useAuthStore(s => s.profile);
   const playerName = profile?.username ?? 'Player';
 
-  const { joined, mySocketId, players, chatHistory, space, join, leave, moveLocal, sendChat, listSpaces, createSpace, resolveSpace, inviteToSpace } = useVirtualSpace();
+  const { joined, mySocketId, players, chatHistory, space, join, leave, moveLocal, sendChat, sit, stand, listSpaces, createSpace, resolveSpace, inviteToSpace } = useVirtualSpace();
   const { joined: voiceJoined, muted, speakingIds, status: voiceStatus, joinVoice, leaveVoice, toggleMute } = useSpaceVoice();
 
   // ── Space selection flow: lobby → customize → in-space ────────────────
@@ -1190,6 +1266,17 @@ const toggleDance = () => setIsDancing(!isDancing);
   const me = players.get(mySocketId);
   const myTvDist = me ? Math.hypot(me.x - TV_X, me.y - TV_Y) : 999;
   const tvViewers = [...players.values()].filter(p => Math.hypot(p.x - TV_X, p.y - TV_Y) <= TV_NEAR_RADIUS).length;
+  const mySeat = me?.seat ?? null;
+  // seatId → occupant for rendering occupancy.
+  const seatOccupants = new Map<string, SpacePlayer>();
+  for (const p of players.values()) if (p.seat) seatOccupants.set(p.seat, p);
+
+  const handleSeatTap = (seat: SeatDef) => {
+    if (!me) return;
+    if (me.seat === seat.id) { stand(mySocketId); return; }
+    if (seatOccupants.has(seat.id)) return; // taken
+    sit(mySocketId, seat.id, seat.x, seat.y);
+  };
 
   return (
     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-[200] flex flex-col" style={{background:'#020010'}}>
@@ -1252,7 +1339,13 @@ const toggleDance = () => setIsDancing(!isDancing);
           <div
             ref={worldRef}
             className="flex-1 relative overflow-hidden select-none cursor-crosshair"
-            style={{ background:`radial-gradient(ellipse at 15% 70%, rgba(120,0,255,.1) 0%, transparent 40%),radial-gradient(ellipse at 80% 75%, rgba(0,150,255,.09) 0%, transparent 38%),radial-gradient(ellipse at 85% 55%, rgba(255,120,0,.06) 0%, transparent 30%),linear-gradient(180deg,rgba(9,3,26,1) 0%,rgba(9,3,24,1) 36%,rgba(2,0,10,1) 37%,rgba(1,0,7,1) 100%)` }}
+            style={{
+              background:`radial-gradient(ellipse at 15% 70%, rgba(120,0,255,.1) 0%, transparent 40%),radial-gradient(ellipse at 80% 75%, rgba(0,150,255,.09) 0%, transparent 38%),radial-gradient(ellipse at 85% 55%, rgba(255,120,0,.06) 0%, transparent 30%),linear-gradient(180deg,rgba(9,3,26,1) 0%,rgba(9,3,24,1) 36%,rgba(2,0,10,1) 37%,rgba(1,0,7,1) 100%)`,
+              // Camera nudge: lean toward the screen while seated.
+              transform: mySeat ? 'scale(1.09)' : 'none',
+              transformOrigin: '50% 26%',
+              transition: 'transform .55s cubic-bezier(0.4,0,0.2,1)',
+            }}
             onClick={e=>handleWorldTap(e.clientX,e.clientY)}
             onTouchStart={e=>{e.preventDefault();const t=e.touches[0];handleWorldTap(t.clientX,t.clientY);}}
           >
@@ -1264,6 +1357,17 @@ const toggleDance = () => setIsDancing(!isDancing);
 
             {/* Cinema TV — synced watch party */}
             <CinemaTV tvState={tvState} canControl={space?.canControlTv ?? false} myDist={myTvDist} viewerCount={tvViewers} />
+
+            {/* Cinema seats */}
+            {CINEMA_SEATS.map(seat => (
+              <CinemaSeat
+                key={seat.id}
+                seat={seat}
+                occupant={seatOccupants.get(seat.id)}
+                isMine={mySeat === seat.id}
+                onTap={() => handleSeatTap(seat)}
+              />
+            ))}
 
             {/* Now playing bar */}
             <AnimatePresence>

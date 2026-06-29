@@ -887,10 +887,12 @@ export interface ServerToClientEvents {
   'community:post_featured':  (data: { postId: string; featured: boolean }) => void;
   'room:invite_received': (data: { inviterName: string; inviterAvatar: string; roomCode: string; playerCount: number; maxPlayers: number }) => void;
   // Virtual Space
-  'space:player-joined': (player: { socketId: string; name: string; bodyColor: string; glowColor: string; mask: string; x: number; y: number }) => void;
+  'space:player-joined': (player: { socketId: string; name: string; bodyColor: string; glowColor: string; mask: string; x: number; y: number; seat?: string | null }) => void;
   'space:player-moved':  (data: { socketId: string; x: number; y: number }) => void;
   'space:player-left':   (data: { socketId: string }) => void;
   'space:message':       (data: { socketId: string; message: string }) => void;
+  'space:player-sat':    (data: { socketId: string; seatId: string; x: number; y: number }) => void;
+  'space:player-stood':  (data: { socketId: string }) => void;
   'space:invited':       (data: { spaceId: string; code: string; name: string; icon: string; fromName: string }) => void;
   // Virtual Space Voice
   'space:voice-peer-joined': (data: { socketId: string; name: string }) => void;
@@ -1212,6 +1214,8 @@ export interface ClientToServerEvents {
   'space:move':  (data: { x: number; y: number }) => void;
   'space:chat':  (data: { message: string }) => void;
   'space:leave': () => void;
+  'space:sit':   (data: { seatId: string; x: number; y: number }) => void;
+  'space:stand': () => void;
   'space:create':  (data: { name: string; icon: string; theme: string; maxPlayers: number; isPublic: boolean }, cb: (res: any) => void) => void;
   'space:list':    (cb: (res: any) => void) => void;
   'space:resolve': (data: { code: string }, cb: (res: any) => void) => void;

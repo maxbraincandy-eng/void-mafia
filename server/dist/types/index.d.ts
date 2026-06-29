@@ -912,6 +912,7 @@ export interface ServerToClientEvents {
         mask: string;
         x: number;
         y: number;
+        seat?: string | null;
     }) => void;
     'space:player-moved': (data: {
         socketId: string;
@@ -924,6 +925,15 @@ export interface ServerToClientEvents {
     'space:message': (data: {
         socketId: string;
         message: string;
+    }) => void;
+    'space:player-sat': (data: {
+        socketId: string;
+        seatId: string;
+        x: number;
+        y: number;
+    }) => void;
+    'space:player-stood': (data: {
+        socketId: string;
     }) => void;
     'space:invited': (data: {
         spaceId: string;
@@ -1877,6 +1887,12 @@ export interface ClientToServerEvents {
         message: string;
     }) => void;
     'space:leave': () => void;
+    'space:sit': (data: {
+        seatId: string;
+        x: number;
+        y: number;
+    }) => void;
+    'space:stand': () => void;
     'space:create': (data: {
         name: string;
         icon: string;
