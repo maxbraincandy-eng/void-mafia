@@ -5,6 +5,11 @@ import { useVirtualSpace, type SpacePlayer, type SpaceMask, type SpaceMeta as Sp
 import { SpacesLobby, SpaceInvitePanel } from './SpacesLobby';
 import { useSpaceVoice } from '@/hooks/useSpaceVoice';
 import { useAuthStore } from '@/store/authStore';
+import { useCheckersStore } from '@/store/checkersStore';
+import { useJokerStore } from '@/store/jokerStore';
+import { useLudoStore } from '@/store/ludoStore';
+import { useWWWStore } from '@/store/wwwStore';
+import { useUnoStore } from '@/store/unoStore';
 import { socket } from '@/lib/socket';
 
 // ── Avatar palette ────────────────────────────────────────────────────
@@ -440,7 +445,7 @@ function Plant({ flip }: { flip?: boolean }) {
   );
 }
 
-function RoomObjects({ djActive, onDJClick, decor }: { djActive: boolean; onDJClick: () => void; decor: 'lounge' | 'home' | 'penthouse' }) {
+function RoomObjects({ djActive, onDJClick, onGamesClick, decor }: { djActive: boolean; onDJClick: () => void; onGamesClick: () => void; decor: 'lounge' | 'home' | 'penthouse' }) {
   const home = decor === 'home';
   const pent = decor === 'penthouse';
   const PAL = decor === 'home'
@@ -540,10 +545,13 @@ function RoomObjects({ djActive, onDJClick, decor }: { djActive: boolean; onDJCl
           </div>
           <div className="absolute pointer-events-none" style={{ left:'25%',top:'79%',transform:'translate(-50%,-50%)',width:46,height:22,background:'rgba(85,0,170,.18)',borderRadius:8,border:'1px solid rgba(155,0,255,.35)',boxShadow:'0 0 12px rgba(155,0,255,.15)' }}/>
 
-          {/* Gaming */}
+          {/* Gaming — clickable: opens the Quick Play panel */}
           <div className="absolute pointer-events-none" style={{ left:'79%',top:'68%',transform:'translate(-50%,-50%)',width:170,height:110,background:'radial-gradient(ellipse,rgba(0,200,255,.1) 0%,transparent 70%)',borderRadius:'50%' }}/>
           <div className="absolute pointer-events-none" style={{ left:'78%',top:'53%',transform:'translate(-50%,-50%)',fontFamily:'monospace',fontSize:8,letterSpacing:'0.2em',color:'rgba(0,229,255,.85)',textShadow:'0 0 8px rgba(0,229,255,.7)' }}>GAMING</div>
           <GamingStation/>
+          <button onClick={e=>{e.stopPropagation();onGamesClick();}} style={{ position:'absolute',left:'79%',top:'66%',transform:'translate(-50%,-50%)',width:90,height:80,cursor:'pointer',background:'transparent',border:'none',padding:0,zIndex:15,display:'flex',flexDirection:'column',justifyContent:'flex-end',alignItems:'center' }} title="Games">
+            <span style={{ fontFamily:'monospace',fontSize:8,color:'rgba(0,229,255,.75)',letterSpacing:'0.1em' }}>↑ TAP TO PLAY</span>
+          </button>
 
           {/* Bar */}
           <div className="absolute pointer-events-none" style={{ left:'88%',top:'56%',transform:'translate(-50%,-50%)',width:90,height:130,background:'radial-gradient(ellipse,rgba(255,140,0,.1) 0%,transparent 70%)',borderRadius:'50%' }}/>
@@ -1287,6 +1295,16 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
 
   const [showExpr, setShowExpr] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
+  const [showGames, setShowGames] = useState(false);
+  const [launchingGame, setLaunchingGame] = useState<string | null>(null);
+
+  // Gaming zone → spin up one of the casual games. The game overlay renders on
+  // top, so we close the space (leave voice) and drop into the match.
+  const ckCreate = useCheckersStore(s => s.createMatch);
+  const jkCreate = useJokerStore(s => s.createMatch);
+  const ldCreate = useLudoStore(s => s.createMatch);
+  const wwCreate = useWWWStore(s => s.createMatch);
+  const unoCreate = useUnoStore(s => s.createMatch);
 
 
   // Sync helper so closures always have current value via ref
@@ -1403,6 +1421,23 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   // ── Handlers ──────────────────────────────────────────────────────
 
   const handleClose = useCallback(() => { leaveVoice(); leave(); onClose(); }, [leave, leaveVoice, onClose]);
+
+  const launchGame = useCallback(async (gameId: string) => {
+    if (launchingGame) return;
+    setLaunchingGame(gameId);
+    try {
+      if (gameId === 'checkers') await ckCreate(playerName);
+      else if (gameId === 'joker') await jkCreate(playerName);
+      else if (gameId === 'ludo') await ldCreate(playerName, 4);
+      else if (gameId === 'www') await wwCreate(playerName);
+      else if (gameId === 'uno') await unoCreate(playerName, 4);
+      // Match created → its overlay mounts above; leave the space and drop in.
+      setShowGames(false);
+      handleClose();
+    } catch {
+      setLaunchingGame(null);
+    }
+  }, [launchingGame, ckCreate, jkCreate, ldCreate, wwCreate, unoCreate, playerName, handleClose]);
 
   async function handleJoin(bodyColor: string, glowColor: string, mask: SpaceMask) {
     // Capture the user gesture timestamp BEFORE await so onDJUpdate's
@@ -1578,7 +1613,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             <Particles/>
             <PerspectiveFloor/>
             <div className="absolute inset-0 pointer-events-none" style={{background:'radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(2,0,16,.55) 100%)'}}/>
-            <RoomObjects djActive={!!djState?.isPlaying} onDJClick={()=>setDjPanelOpen(o=>!o)} decor={layout.decor}/>
+            <RoomObjects djActive={!!djState?.isPlaying} onDJClick={()=>setDjPanelOpen(o=>!o)} onGamesClick={()=>setShowGames(true)} decor={layout.decor}/>
 
             {/* Cinema TV — synced watch party */}
             <CinemaTV tvState={tvState} canControl={space?.canControlTv ?? false} myDist={myTvDist} viewerCount={tvViewers} tvX={layout.tv.x} tvY={layout.tv.y} />
@@ -1687,6 +1722,38 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           <SpaceInvitePanel space={space} inviteToSpace={inviteToSpace} onClose={()=>setShowInvite(false)} />
         )}
       </AnimatePresence>
+
+      {/* Gaming zone — Quick Play */}
+      {showGames && createPortal(
+        <div onClick={() => !launchingGame && setShowGames(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 18 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ width: 'min(360px, 100%)', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(0,229,255,.3)', borderRadius: 20, padding: '18px 18px 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: 'white' }}>🎮 Quick Play</p>
+              <button onClick={() => !launchingGame && setShowGames(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.4)', fontSize: 16, cursor: 'pointer' }}>✕</button>
+            </div>
+            <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,.4)', marginBottom: 14 }}>აირჩიე თამაში — შეიქმნება ოთახი და მოიწვევ მეგობრებს</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[
+                { id: 'uno', label: 'UNO', emoji: '🎴', accent: '#ff2d55' },
+                { id: 'checkers', label: 'Checkers', emoji: '⚪', accent: '#00e5ff' },
+                { id: 'joker', label: 'Joker', emoji: '🃏', accent: '#ffcc00' },
+                { id: 'ludo', label: 'Ludo', emoji: '🎲', accent: '#00ff88' },
+                { id: 'www', label: 'Who Wants', emoji: '❓', accent: '#9b00ff' },
+              ].map(g => (
+                <button key={g.id} disabled={!!launchingGame} onClick={() => launchGame(g.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 14, background: `${g.accent}14`, border: `1px solid ${g.accent}44`, cursor: 'pointer', opacity: launchingGame && launchingGame !== g.id ? 0.4 : 1, transition: 'all .15s' }}>
+                  <span style={{ fontSize: 22 }}>{g.emoji}</span>
+                  <span style={{ flex: 1, textAlign: 'left', fontFamily: 'monospace', fontSize: 14, color: 'white' }}>{g.label}</span>
+                  <span style={{ fontFamily: 'monospace', fontSize: 11, color: g.accent }}>{launchingGame === g.id ? '…' : 'Play →'}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Exit confirmation — portal to body so it can't be clipped/mis-stacked */}
       {confirmExit && createPortal(
