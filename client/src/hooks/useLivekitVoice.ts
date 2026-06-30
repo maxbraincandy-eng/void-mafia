@@ -19,11 +19,26 @@ import { useGameStore } from '@/store/gameStore';
 import {
   joinLiveKitVoice, leaveLiveKitVoice, setLiveKitDead,
   toggleLiveKitMic, setLiveKitMic, subscribeLiveKit, getLiveKitState,
-  type LiveKitVoiceState,
+  fetchLiveKitEnabled, type LiveKitVoiceState,
 } from '@/services/livekitVoice';
 
 // Phases where there is no active voice room (no auto-join).
 const INACTIVE_PHASES = new Set(['lobby', 'game_over']);
+
+/**
+ * True once the server reports LiveKit is configured (LIVEKIT_* env present).
+ * Lets the game UI mount the LiveKit voice path from runtime config alone —
+ * no VITE flag / client rebuild needed.
+ */
+export function useLiveKitEnabled(): boolean {
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    fetchLiveKitEnabled().then(e => { if (mounted) setEnabled(e); });
+    return () => { mounted = false; };
+  }, []);
+  return enabled;
+}
 
 export function useLivekitVoice() {
   const [state, setState] = useState<LiveKitVoiceState>(getLiveKitState);

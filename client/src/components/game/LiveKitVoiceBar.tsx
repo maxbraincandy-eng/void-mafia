@@ -1,10 +1,10 @@
 /**
  * LiveKitVoiceBar — minimal mic UI driven by the LiveKit game hook.
  *
- * This is the OPT-IN LiveKit voice path. It is mounted in GamePage only when
- * `VITE_USE_LIVEKIT` is set, so it never runs alongside the legacy WebRTC mesh
- * (which would double-capture the mic). The hook auto-joins the voice room
- * (gameRoomId === livekitRoomId), auto-mutes on death, and leaves on exit.
+ * This is the LiveKit voice path. GamePage mounts it only when the server
+ * reports LiveKit is configured (LIVEKIT_* env present), so it never runs
+ * alongside the legacy WebRTC mesh when LiveKit is off. The hook auto-joins the
+ * voice room (gameRoomId === livekitRoomId), auto-mutes on death, leaves on exit.
  */
 import { useLivekitVoice } from '@/hooks/useLivekitVoice';
 

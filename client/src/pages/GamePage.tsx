@@ -22,6 +22,7 @@ import { RoomMoreMenu } from '@/components/ui/RoomMoreMenu';
 import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { LiveKitVoiceBar } from '@/components/game/LiveKitVoiceBar';
+import { useLiveKitEnabled } from '@/hooks/useLivekitVoice';
 import { useVoiceChat, VoiceChannel, registerVoiceGestureRetry } from '@/hooks/useVoiceChat';
 import { useGameSounds, SFX } from '@/hooks/useSoundFX';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -205,6 +206,7 @@ export function GamePage() {
   }));
 
   const voice = useVoiceChat();
+  const livekitEnabled = useLiveKitEnabled();
   useGameSounds();
   const t = useT();
 
@@ -550,8 +552,8 @@ export function GamePage() {
         onToggleCamera={voice.toggleCamera}
         onReset={voice.resetConnection}
       />
-      {/* Opt-in LiveKit voice (set VITE_USE_LIVEKIT + server LIVEKIT_* env). */}
-      {import.meta.env.VITE_USE_LIVEKIT && (
+      {/* LiveKit voice — auto-enabled when the server has LIVEKIT_* env set. */}
+      {livekitEnabled && (
         <div className="mt-3"><LiveKitVoiceBar /></div>
       )}
       {isInVoice && voice.peers.length > 0 && (

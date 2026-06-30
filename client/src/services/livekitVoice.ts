@@ -101,6 +101,19 @@ function wireRoom(r: Room) {
   r.on(RoomEvent.Disconnected, () => { /* status handled by ConnectionStateChanged */ });
 }
 
+// Cache the server's LiveKit-enabled flag so the UI can mount the voice path
+// from runtime config alone (just the 3 LIVEKIT_* env vars — no client rebuild).
+let _enabledCache: boolean | null = null;
+export async function fetchLiveKitEnabled(): Promise<boolean> {
+  if (_enabledCache !== null) return _enabledCache;
+  try {
+    const res = await fetch(`${SERVER_URL}/livekit/status`);
+    const json = await res.json();
+    _enabledCache = !!json?.enabled;
+  } catch { _enabledCache = false; }
+  return _enabledCache;
+}
+
 async function fetchToken(identity: string, roomId: string, canPublish: boolean): Promise<{ token: string; url: string }> {
   const qs = new URLSearchParams({ identity, room: roomId, canPublish: canPublish ? '1' : '0' });
   const res = await fetch(`${SERVER_URL}/livekit/token?${qs.toString()}`);
