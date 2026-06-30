@@ -7,6 +7,7 @@ import { ProfileModalV2 } from '@/components/community/ProfileModalV2';
 import { useSpaceVoice } from '@/hooks/useSpaceVoice';
 import { useAuthStore } from '@/store/authStore';
 import { useNameColor } from '@/store/nameColorStore';
+import { useCommunityStore } from '@/store/communityStore';
 import { SPACE_THEME_DEFS, getSpaceTheme, itemIdForTheme } from '@/constants/spaceThemes';
 import { RARITY_COLOR, nameColorGlow } from '@/constants/cosmetics';
 import { useSocialStore } from '@/store/socialStore';
@@ -863,6 +864,62 @@ const PREMIUM_HATS: Premium = { party: { id: 'sp_hat_party', price: 500 }, crown
 const PREMIUM_PETS: Premium = { fish2: { id: 'sp_pet_fish2', price: 400 }, chick: { id: 'sp_pet_chick', price: 400 }, bot: { id: 'sp_pet_bot', price: 600 }, star: { id: 'sp_pet_star', price: 600 } };
 const PREMIUM_FORMS: Premium = { car: { id: 'sp_form_car', price: 1500 } };
 
+// ── Photobooth — compose a neon group "photo" of present avatars on a canvas ──
+function lightenHex(hex: string, amt = 0.45): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const r = Math.round((n >> 16 & 255) + (255 - (n >> 16 & 255)) * amt);
+  const g = Math.round((n >> 8 & 255) + (255 - (n >> 8 & 255)) * amt);
+  const b = Math.round((n & 255) + (255 - (n & 255)) * amt);
+  return `rgb(${r},${g},${b})`;
+}
+function renderPhotobooth(list: SpacePlayer[], spaceName: string, accent: string): string {
+  const W = 680, H = 460;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d')!;
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#0a0520'); bg.addColorStop(0.5, '#0d0a24'); bg.addColorStop(1, '#05030f');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  const rg = ctx.createRadialGradient(W / 2, -40, 20, W / 2, -40, 420);
+  rg.addColorStop(0, accent + '44'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = accent + '66'; ctx.lineWidth = 3; ctx.strokeRect(10, 10, W - 20, H - 20);
+  ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
+  ctx.font = 'bold 26px "Space Grotesk", sans-serif';
+  ctx.fillText('📸 ' + (spaceName || 'VOID LOUNGE'), W / 2, 54);
+
+  const people = list.slice(0, 8);
+  const rows = people.length <= 4 ? 1 : 2;
+  const perRow = Math.ceil(people.length / rows);
+  const r = people.length <= 4 ? 48 : 42;
+  const areaTop = 96;
+  people.forEach((p, i) => {
+    const row = Math.floor(i / perRow), col = i % perRow;
+    const rowCount = row === rows - 1 ? people.length - perRow * (rows - 1) : perRow;
+    const gap = W / (rowCount + 1);
+    const x = gap * (col + 1);
+    const y = rows === 1 ? 230 : areaTop + r + 8 + row * 150;
+    ctx.save();
+    ctx.shadowColor = p.glowColor; ctx.shadowBlur = 22;
+    const og = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, 2, x, y, r);
+    og.addColorStop(0, lightenHex(p.bodyColor)); og.addColorStop(1, p.bodyColor);
+    ctx.fillStyle = og; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = p.glowColor; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = `bold ${Math.round(r * 0.66)}px "Space Grotesk", sans-serif`;
+    ctx.fillText((p.name || '?').slice(0, 1).toUpperCase(), x, y + r * 0.34);
+    ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = '14px monospace';
+    ctx.fillText((p.name || '').slice(0, 12), x, y + r + 22);
+  });
+
+  ctx.fillStyle = accent; ctx.font = '13px monospace';
+  ctx.fillText(`${people.length} in the lounge`, W / 2, H - 44);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.font = '12px monospace';
+  ctx.fillText('voidmafia.one', W / 2, H - 24);
+  return c.toDataURL('image/jpeg', 0.82);
+}
+
 function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: (b: string, g: string, m: SpaceMask, hat: string, pet: string, form: string) => void }) {
   const authProfile = useAuthStore(s => s.profile);
   const owned = authProfile?.cosmetics?.unlockedItems ?? [];
@@ -1475,6 +1532,10 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const [duelBanner, setDuelBanner] = useState<{ text: string; result: boolean } | null>(null);
   const [koOpen, setKoOpen] = useState(false);
   const [koList, setKoList] = useState<{ id: string; username: string; avatar: string; avatarUrl: string | null; knockouts: number }[] | null>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [photoSharing, setPhotoSharing] = useState(false);
+  const [photoMsg, setPhotoMsg] = useState('');
+  const createPostV2 = useCommunityStore(s => s.createPostV2);
   const [followState, setFollowState] = useState<'idle' | 'busy' | 'done'>('idle');
   const [socialProfileId, setSocialProfileId] = useState<string | null>(null);
   const openDmList = useSocialStore(s => s.openDmList);
@@ -1792,6 +1853,29 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
     emitWithAck<undefined, Res<typeof koList>>('space:ko_leaderboard').then(r => { if (r.ok) setKoList(r.data as any); }).catch(() => {});
   }, []);
 
+  const takePhoto = useCallback(() => {
+    try {
+      const list = [...players.values()];
+      if (!list.length) return;
+      setPhotoMsg('');
+      setPhoto(renderPhotobooth(list, space?.name ?? 'VOID LOUNGE', themeDef.accent));
+    } catch { /* canvas unsupported */ }
+  }, [players, space?.name, themeDef.accent]);
+
+  const sharePhoto = useCallback(async () => {
+    if (!photo || photoSharing) return;
+    setPhotoSharing(true); setPhotoMsg('');
+    try {
+      await createPostV2({ postType: 'image', content: `📸 ${space?.name ?? 'VOID LOUNGE'}`, imageUrl: photo, visibility: 'public' });
+      setPhotoMsg('გაზიარდა ფიდში! 🎉');
+      setTimeout(() => { setPhoto(null); setPhotoMsg(''); }, 1400);
+    } catch (e: any) {
+      setPhotoMsg(e?.message ?? 'ვერ გაიზიარა');
+    } finally {
+      setPhotoSharing(false);
+    }
+  }, [photo, photoSharing, createPostV2, space?.name]);
+
   // Distance from my avatar to the cinema TV + how many players are watching.
   const me = players.get(mySocketId);
   const myTvDist = me ? Math.hypot(me.x - layout.tv.x, me.y - layout.tv.y) : 999;
@@ -1834,6 +1918,11 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
         {joined && (
           <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:muted?'rgba(255,45,85,.12)':'rgba(0,229,255,.08)',border:`1px solid ${muted?'rgba(255,45,85,.35)':'rgba(0,229,255,.25)'}`,fontSize:14 }}>
             {muted ? '🔇' : '🎤'}
+          </button>
+        )}
+        {joined && (
+          <button onClick={takePhoto} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(0,229,255,.1)',border:'1px solid rgba(0,229,255,.3)',fontSize:14 }} title="Photobooth">
+            📸
           </button>
         )}
         {joined && (
@@ -2153,6 +2242,25 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             <p className="text-center font-mono text-[10px] text-white/20 leading-relaxed pt-3 px-2">
               Locked themes can be bought from the Coin Shop → Spaces tab. Everyone in the room sees the active theme.
             </p>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Photobooth preview */}
+      {photo && createPortal(
+        <div onClick={() => !photoSharing && setPhoto(null)} style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,.8)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: 'min(420px,100%)', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(0,229,255,.3)', borderRadius: 20, padding: 16 }}>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#fff', marginBottom: 10, textAlign: 'center' }}>📸 Photobooth</p>
+            <img src={photo} alt="group photo" style={{ width: '100%', borderRadius: 12, display: 'block' }} />
+            {photoMsg && <p style={{ fontFamily: 'monospace', fontSize: 12, color: '#00ff88', textAlign: 'center', marginTop: 8 }}>{photoMsg}</p>}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button onClick={() => setPhoto(null)} disabled={photoSharing}
+                style={{ flex: 1, padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.14)', color: 'rgba(255,255,255,.6)' }}>დახურვა</button>
+              <button onClick={sharePhoto} disabled={photoSharing}
+                style={{ flex: 2, padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(0,229,255,.14)', border: '1px solid rgba(0,229,255,.4)', color: '#00e5ff' }}>
+                {photoSharing ? '…' : '📢 ფიდში გაზიარება'}</button>
+            </div>
           </div>
         </div>,
         document.body
