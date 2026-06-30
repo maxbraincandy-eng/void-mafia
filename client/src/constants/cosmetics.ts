@@ -179,8 +179,10 @@ export function getNameColorById(id: string | null): string | null {
   return NAME_COLORS.find(n => n.id === id)?.color ?? null;
 }
 
-// Very dark name colors (e.g. Void Black) need a light halo to stay legible on
+// Very dark name colors (e.g. Void Black) need a bright halo to stay legible on
 // the dark UI. Returns a textShadow for low-luminance colors, else undefined.
+// The tight white layers outline the glyphs so the black text reads clearly;
+// the wider violet layers add a premium glow.
 export function nameColorGlow(hex: string | null | undefined): string | undefined {
   if (!hex || hex.length < 7) return undefined;
   const r = parseInt(hex.slice(1, 3), 16);
@@ -188,8 +190,18 @@ export function nameColorGlow(hex: string | null | undefined): string | undefine
   const b = parseInt(hex.slice(5, 7), 16);
   if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) return undefined;
   const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  if (lum < 0.22) return '0 0 6px rgba(190,190,255,0.75), 0 0 2px rgba(255,255,255,0.55)';
+  if (lum < 0.22) {
+    return '0 0 1px rgba(255,255,255,0.95), 0 0 2px rgba(210,210,255,0.95), 0 0 6px rgba(150,120,255,0.9), 0 0 12px rgba(120,90,255,0.55)';
+  }
   return undefined;
+}
+
+// A UI-safe display color for a name color. Dark colors (Void Black) are nearly
+// invisible as text/buttons on the dark UI, so substitute a light accent.
+// (Reuses nameColorGlow as the "is this color dark?" test.)
+export function nameColorUI(hex: string | null | undefined): string {
+  if (!hex) return 'rgba(255,255,255,0.6)';
+  return nameColorGlow(hex) ? '#bfb0ff' : hex;
 }
 
 // Coin prices for purchasable name colors (keep in sync with server coinService PURCHASABLE_COSMETICS).

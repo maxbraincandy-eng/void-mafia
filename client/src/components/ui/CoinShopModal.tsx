@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PROFILE_BACKGROUNDS, NAME_COLORS, NAME_COLOR_PRICES, RARITY_COLOR, RARITY_LABEL } from '@/constants/cosmetics';
+import { PROFILE_BACKGROUNDS, NAME_COLORS, NAME_COLOR_PRICES, RARITY_COLOR, RARITY_LABEL, nameColorGlow, nameColorUI } from '@/constants/cosmetics';
 import { SPACE_THEME_DEFS, itemIdForTheme } from '@/constants/spaceThemes';
 import { emitWithAck } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
@@ -404,7 +404,10 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                     style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
                     <span className="font-mono text-[12px] text-white/25 uppercase tracking-widest">Preview</span>
                     <span className="font-display font-bold text-base"
-                      style={{ color: NAME_COLORS.find(n => n.id === equippedNameColor)?.color ?? 'rgba(255,255,255,0.85)' }}>
+                      style={{
+                        color: NAME_COLORS.find(n => n.id === equippedNameColor)?.color ?? 'rgba(255,255,255,0.85)',
+                        textShadow: nameColorGlow(NAME_COLORS.find(n => n.id === equippedNameColor)?.color ?? null),
+                      }}>
                       {profile?.username ?? 'You'}
                     </span>
                   </div>
@@ -427,14 +430,14 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                       <div key={nc.id}
                         className="flex items-center gap-3 rounded-xl p-3 border transition-all"
                         style={isEquipped
-                          ? { borderColor: `${nc.color}80`, background: `${nc.color}12`, boxShadow: `0 0 16px ${nc.color}22` }
+                          ? { borderColor: `${nameColorUI(nc.color)}80`, background: `${nameColorUI(nc.color)}12`, boxShadow: `0 0 16px ${nameColorUI(nc.color)}22` }
                           : isOwned
-                          ? { borderColor: `${nc.color}30`, background: `${nc.color}08` }
+                          ? { borderColor: `${nameColorUI(nc.color)}30`, background: `${nameColorUI(nc.color)}08` }
                           : { borderColor: 'rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)' }}
                       >
-                        <div className="w-10 h-10 rounded-full shrink-0 border border-white/10" style={{ background: nc.color, boxShadow: `0 0 10px ${nc.color}66` }} />
+                        <div className="w-10 h-10 rounded-full shrink-0 border border-white/10" style={{ background: nc.color, boxShadow: `0 0 10px ${nameColorUI(nc.color)}66` }} />
                         <div className="flex-1 min-w-0">
-                          <p className="font-display font-bold text-sm truncate" style={{ color: nc.color }}>{nc.name}</p>
+                          <p className="font-display font-bold text-sm truncate" style={{ color: nameColorUI(nc.color) }}>{nc.name}</p>
                           <p className="font-mono text-[12px] uppercase tracking-wider" style={{ color: RARITY_COLOR[nc.rarity] }}>
                             {RARITY_LABEL[nc.rarity]}
                           </p>
@@ -445,7 +448,7 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                           )}
                         </div>
                         {isEquipped ? (
-                          <div className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[12px] border" style={{ color: nc.color, borderColor: `${nc.color}40` }}>
+                          <div className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[12px] border" style={{ color: nameColorUI(nc.color), borderColor: `${nameColorUI(nc.color)}40` }}>
                             Equipped
                           </div>
                         ) : isOwned ? (
@@ -453,7 +456,7 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                             disabled={!!busyNc}
                             onClick={() => handleEquipNameColor(nc.id)}
                             className="shrink-0 px-2.5 py-1.5 rounded-lg font-mono text-[12px] font-bold transition-all disabled:opacity-40"
-                            style={{ background: `${nc.color}1a`, color: nc.color, border: `1px solid ${nc.color}40` }}
+                            style={{ background: `${nameColorUI(nc.color)}1a`, color: nameColorUI(nc.color), border: `1px solid ${nameColorUI(nc.color)}40` }}
                           >
                             {isBusy ? '...' : 'Equip'}
                           </button>
