@@ -904,6 +904,10 @@ export interface ServerToClientEvents {
   'space:meta-update': (patch: { theme?: string }) => void;
   'space:hit': (data: { targetSocketId: string; bySocketId: string; byName: string; hp: number; weapon: string }) => void;
   'space:knockout': (data: { byName: string }) => void;
+  'space:duel_invite': (data: { fromSocketId: string; fromName: string }) => void;
+  'space:duel_start': (data: { aSocketId: string; aName: string; bSocketId: string; bName: string }) => void;
+  'space:duel_end': (data: { winnerName: string; loserName: string }) => void;
+  'space:duel_declined': (data: { byName: string }) => void;
   'space:player-moved':  (data: { socketId: string; x: number; y: number }) => void;
   'space:player-left':   (data: { socketId: string }) => void;
   'space:message':       (data: { socketId: string; message: string }) => void;
@@ -1247,6 +1251,9 @@ export interface ClientToServerEvents {
   'space:invite':  (data: { targetProfileId: string }, cb: (res: any) => void) => void;
   'space:set_theme': (data: { theme: string }, cb: (res: any) => void) => void;
   'space:hit': (data: { targetSocketId: string; weapon?: string }, cb: (res: any) => void) => void;
+  'space:ko_leaderboard': (cb: (res: any) => void) => void;
+  'space:duel_challenge': (data: { targetSocketId: string }, cb: (res: any) => void) => void;
+  'space:duel_respond': (data: { fromSocketId: string; accept: boolean }, cb: (res: any) => void) => void;
   // Virtual Space Voice
   'space:voice-join':   (data: Record<string, never>, cb: (res: any) => void) => void;
   'space:voice-leave':  () => void;

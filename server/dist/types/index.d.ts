@@ -957,6 +957,23 @@ export interface ServerToClientEvents {
     'space:knockout': (data: {
         byName: string;
     }) => void;
+    'space:duel_invite': (data: {
+        fromSocketId: string;
+        fromName: string;
+    }) => void;
+    'space:duel_start': (data: {
+        aSocketId: string;
+        aName: string;
+        bSocketId: string;
+        bName: string;
+    }) => void;
+    'space:duel_end': (data: {
+        winnerName: string;
+        loserName: string;
+    }) => void;
+    'space:duel_declined': (data: {
+        byName: string;
+    }) => void;
     'space:player-moved': (data: {
         socketId: string;
         x: number;
@@ -1996,6 +2013,14 @@ export interface ClientToServerEvents {
     'space:hit': (data: {
         targetSocketId: string;
         weapon?: string;
+    }, cb: (res: any) => void) => void;
+    'space:ko_leaderboard': (cb: (res: any) => void) => void;
+    'space:duel_challenge': (data: {
+        targetSocketId: string;
+    }, cb: (res: any) => void) => void;
+    'space:duel_respond': (data: {
+        fromSocketId: string;
+        accept: boolean;
     }, cb: (res: any) => void) => void;
     'space:voice-join': (data: Record<string, never>, cb: (res: any) => void) => void;
     'space:voice-leave': () => void;

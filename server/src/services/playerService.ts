@@ -289,6 +289,30 @@ let _leaderboardCache: PlayerProfilePublic[] | null = null;
 let _leaderboardCachedAt = 0;
 const LEADERBOARD_TTL = 60_000;
 
+// ── Virtual Space knockout leaderboard ────────────────────────────────
+export async function incrementSpaceKnockouts(profileId: string): Promise<void> {
+  await sql`UPDATE players SET space_knockouts = space_knockouts + 1 WHERE id = ${profileId}`;
+}
+
+export interface KnockoutLeader {
+  id: string; username: string; avatar: string; avatarUrl: string | null;
+  publicId: number | null; knockouts: number;
+}
+export async function getKnockoutLeaderboard(): Promise<KnockoutLeader[]> {
+  const rows = await sql`
+    SELECT id, username, avatar, avatar_url, public_id, space_knockouts
+    FROM players
+    WHERE space_knockouts > 0
+    ORDER BY space_knockouts DESC, last_seen_at DESC
+    LIMIT 20
+  ` as any[];
+  return rows.map((r: any) => ({
+    id: r.id, username: r.username, avatar: r.avatar, avatarUrl: r.avatar_url ?? null,
+    publicId: r.public_id != null ? Number(r.public_id) : null,
+    knockouts: Number(r.space_knockouts ?? 0),
+  }));
+}
+
 export async function getLeaderboard(): Promise<PlayerProfilePublic[]> {
   if (_leaderboardCache && Date.now() - _leaderboardCachedAt < LEADERBOARD_TTL) {
     return _leaderboardCache;

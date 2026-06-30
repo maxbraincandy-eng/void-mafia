@@ -1471,11 +1471,15 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const openDmWith = useSocialStore(s => s.openDmWith);
   const [selectedPlayer, setSelectedPlayer] = useState<SpacePlayer | null>(null);
   const [weapon, setWeapon] = useState<'fist' | 'tomato' | 'snowball'>('fist');
+  const [duelInvite, setDuelInvite] = useState<{ fromSocketId: string; fromName: string } | null>(null);
+  const [duelBanner, setDuelBanner] = useState<{ text: string; result: boolean } | null>(null);
+  const [koOpen, setKoOpen] = useState(false);
+  const [koList, setKoList] = useState<{ id: string; username: string; avatar: string; avatarUrl: string | null; knockouts: number }[] | null>(null);
   const [followState, setFollowState] = useState<'idle' | 'busy' | 'done'>('idle');
   const [socialProfileId, setSocialProfileId] = useState<string | null>(null);
   const openDmList = useSocialStore(s => s.openDmList);
 
-  const { joined, mySocketId, players, chatHistory, space, reactions, projectiles, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, knockout, clearKnockout } = useVirtualSpace();
+  const { joined, mySocketId, players, chatHistory, space, reactions, projectiles, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, knockout, clearKnockout, challengeDuel, respondDuel } = useVirtualSpace();
   const { joined: voiceJoined, muted, speakingIds, status: voiceStatus, joinVoice, leaveVoice, toggleMute } = useSpaceVoice();
 
   // ── Space selection flow: lobby → customize → in-space ────────────────
@@ -1756,6 +1760,38 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
     if (knockout) { leaveVoice(); setSelectedPlayer(null); }
   }, [knockout, leaveVoice]);
 
+  // Duel lifecycle (friendly 1v1 — no wagering).
+  useEffect(() => {
+    const onInvite = (d: { fromSocketId: string; fromName: string }) => setDuelInvite(d);
+    const onStart = (d: { aName: string; bName: string }) => {
+      setDuelInvite(null);
+      setDuelBanner({ text: `⚔️ ${d.aName} vs ${d.bName}`, result: false });
+    };
+    const onEnd = (d: { winnerName: string; loserName: string }) => {
+      setDuelBanner({ text: `🏆 ${d.winnerName} გაიმარჯვა!`, result: true });
+      setTimeout(() => setDuelBanner(null), 4000);
+    };
+    const onDeclined = (d: { byName: string }) => {
+      setDuelBanner({ text: `${d.byName}-მ უარყო დუელი`, result: true });
+      setTimeout(() => setDuelBanner(null), 2500);
+    };
+    (socket as any).on('space:duel_invite', onInvite);
+    (socket as any).on('space:duel_start', onStart);
+    (socket as any).on('space:duel_end', onEnd);
+    (socket as any).on('space:duel_declined', onDeclined);
+    return () => {
+      (socket as any).off('space:duel_invite', onInvite);
+      (socket as any).off('space:duel_start', onStart);
+      (socket as any).off('space:duel_end', onEnd);
+      (socket as any).off('space:duel_declined', onDeclined);
+    };
+  }, []);
+
+  const openKoBoard = useCallback(() => {
+    setKoOpen(true); setKoList(null);
+    emitWithAck<undefined, Res<typeof koList>>('space:ko_leaderboard').then(r => { if (r.ok) setKoList(r.data as any); }).catch(() => {});
+  }, []);
+
   // Distance from my avatar to the cinema TV + how many players are watching.
   const me = players.get(mySocketId);
   const myTvDist = me ? Math.hypot(me.x - layout.tv.x, me.y - layout.tv.y) : 999;
@@ -1798,6 +1834,11 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
         {joined && (
           <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:muted?'rgba(255,45,85,.12)':'rgba(0,229,255,.08)',border:`1px solid ${muted?'rgba(255,45,85,.35)':'rgba(0,229,255,.25)'}`,fontSize:14 }}>
             {muted ? '🔇' : '🎤'}
+          </button>
+        )}
+        {joined && (
+          <button onClick={openKoBoard} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(255,180,0,.1)',border:'1px solid rgba(255,180,0,.3)',fontSize:14 }} title="KO რეიტინგი">
+            🏆
           </button>
         )}
         {joined && canChangeTheme && (
@@ -2026,6 +2067,11 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                     onMouseDown={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.95)'; }}
                     onMouseUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
                   >{weapon === 'tomato' ? '🍅 სროლა' : weapon === 'snowball' ? '❄️ სროლა' : '👊 დარტყმა'}</button>
+                  <button
+                    disabled={!here}
+                    onClick={() => { if (players.has(selectedPlayer.socketId)) { challengeDuel(selectedPlayer.socketId); setSelectedPlayer(null); } }}
+                    style={{ width: '100%', marginTop: 8, padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(255,180,0,.12)', border: '1px solid rgba(255,180,0,.4)', color: '#facc15', opacity: here ? 1 : 0.4 }}
+                  >⚔️ დუელზე გამოწვევა</button>
                 </div>
               );
             })()}
@@ -2107,6 +2153,70 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             <p className="text-center font-mono text-[10px] text-white/20 leading-relaxed pt-3 px-2">
               Locked themes can be bought from the Coin Shop → Spaces tab. Everyone in the room sees the active theme.
             </p>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Duel banner (top center) */}
+      <AnimatePresence>
+        {duelBanner && (
+          <motion.div initial={{ y: -30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -30, opacity: 0 }}
+            style={{ position: 'absolute', top: 60, left: '50%', transform: 'translateX(-50%)', zIndex: 120, padding: '8px 18px', borderRadius: 14, fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', background: duelBanner.result ? 'rgba(250,204,21,.16)' : 'rgba(255,45,85,.16)', border: `1px solid ${duelBanner.result ? 'rgba(250,204,21,.5)' : 'rgba(255,45,85,.5)'}`, color: duelBanner.result ? '#facc15' : '#ff6b81', backdropFilter: 'blur(8px)', boxShadow: '0 4px 20px rgba(0,0,0,.5)' }}>
+            {duelBanner.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Duel invite overlay */}
+      {duelInvite && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            style={{ width: 'min(320px,100%)', textAlign: 'center', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(255,180,0,.45)', borderRadius: 20, padding: '26px 22px' }}>
+            <div style={{ fontSize: 44, marginBottom: 6 }}>⚔️</div>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 6 }}>დუელის გამოწვევა</p>
+            <p style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(255,255,255,.55)', marginBottom: 18 }}>
+              <span style={{ color: '#facc15' }}>{duelInvite.fromName}</span> გიწვევს დუელზე. მიიღებ?
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => { respondDuel(duelInvite.fromSocketId, false); setDuelInvite(null); }}
+                style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.14)', color: 'rgba(255,255,255,.6)' }}>უარი</button>
+              <button onClick={() => { respondDuel(duelInvite.fromSocketId, true); setDuelInvite(null); }}
+                style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(0,255,136,.14)', border: '1px solid rgba(0,255,136,.45)', color: '#00ff88' }}>⚔️ მიღება</button>
+            </div>
+          </motion.div>
+        </div>,
+        document.body
+      )}
+
+      {/* KO leaderboard panel */}
+      {koOpen && createPortal(
+        <div onClick={() => setKoOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 1250, background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: 'min(340px,100%)', maxHeight: '76vh', overflowY: 'auto', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(255,180,0,.3)', borderRadius: 20, padding: 20 }}>
+            <div className="flex items-center justify-between mb-3">
+              <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#facc15' }}>🏆 KO რეიტინგი</p>
+              <button onClick={() => setKoOpen(false)} className="w-7 h-7 rounded-lg flex items-center justify-center text-white/35" style={{ background: 'rgba(255,255,255,.05)' }}>✕</button>
+            </div>
+            {koList === null ? (
+              <p className="text-center font-mono text-[12px] text-white/30 py-6">…</p>
+            ) : koList.length === 0 ? (
+              <p className="text-center font-mono text-[12px] text-white/30 py-6">ჯერ არავის ჩაურტყამს. იყავი პირველი! 👊</p>
+            ) : (
+              <div className="space-y-1.5">
+                {koList.map((u, i) => (
+                  <div key={u.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}>
+                    <span style={{ width: 22, textAlign: 'right', fontFamily: 'monospace', fontSize: 13, color: i === 0 ? '#facc15' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : 'rgba(255,255,255,.3)' }}>
+                      {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
+                    </span>
+                    <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-sm flex-shrink-0" style={{ background: 'linear-gradient(135deg,rgba(255,0,128,.5),rgba(138,43,226,.5))' }}>
+                      {u.avatarUrl ? <img src={u.avatarUrl} alt={u.username} className="w-full h-full object-cover" /> : u.avatar}
+                    </div>
+                    <span className="flex-1 min-w-0 truncate font-mono text-[13px] text-white/80">{u.username}</span>
+                    <span className="font-mono text-[13px] font-bold" style={{ color: '#ff6b81' }}>{u.knockouts} KO</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>,
         document.body

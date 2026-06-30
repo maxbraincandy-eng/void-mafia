@@ -11,7 +11,7 @@ import { registerWWWHandlers, handleWWWDisconnect } from './www.js';
 import { registerUnoHandlers, handleUnoDisconnect } from './uno.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
-import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, getNameColors, grantStarterCosmetics, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
+import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, getNameColors, grantStarterCosmetics, incrementSpaceKnockouts, getKnockoutLeaderboard, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
 import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount, setLoungePresence, clearLoungePresence, getFriendIds, } from './services/friendService.js';
 import { checkAndAwardChallenges, getDailyQuestsForPlayer, } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
@@ -159,6 +159,13 @@ const _clanChat = new Map(); // clanId → messages
 const MAX_CLAN_CHAT = 200;
 const SPACE_MAX_HP = 10;
 const _spaceHitAt = new Map(); // attackerSocketId → last hit ms (cooldown)
+const _duelOpponent = new Map(); // socketId → opponent socketId (active 1v1 duel)
+function _clearDuel(socketId) {
+    const opp = _duelOpponent.get(socketId);
+    if (opp)
+        _duelOpponent.delete(opp);
+    _duelOpponent.delete(socketId);
+}
 const _spaces = new Map();
 const _spaceDJ = new Map();
 const _spaceTV = new Map();
@@ -247,6 +254,7 @@ function _leaveSpace(sid, io) {
             const pid = room.get(sid)?.profileId;
             if (pid)
                 clearLoungePresence(pid);
+            _clearDuel(sid);
             room.delete(sid);
             io.to(`space:${spaceId}`).emit('space:player-left', { socketId: sid });
             if (room.size === 0) {
@@ -6716,6 +6724,13 @@ export function attachSocketHandlers(io) {
                     room.delete(targetSocketId);
                     if (target.profileId)
                         clearLoungePresence(target.profileId);
+                    if (attacker.profileId)
+                        incrementSpaceKnockouts(attacker.profileId).catch(() => { });
+                    // If this KO settled an active duel between the two, announce it.
+                    if (_duelOpponent.get(targetSocketId) === socket.id) {
+                        io.to(`space:${spaceId}`).emit('space:duel_end', { winnerName: attacker.name, loserName: target.name });
+                    }
+                    _clearDuel(targetSocketId);
                     const vsock = io.sockets.sockets.get(targetSocketId);
                     if (vsock)
                         vsock.leave(`space:${spaceId}`);
@@ -6724,6 +6739,63 @@ export function attachSocketHandlers(io) {
                     // knocked-out avatar disappears for all of them.
                     io.to(`space:${spaceId}`).emit('space:player-left', { socketId: targetSocketId });
                 }
+                cb?.({ ok: true });
+            }
+            catch {
+                cb?.({ ok: false });
+            }
+        });
+        // KO leaderboard (bragging rights only — no coins/wagering).
+        socket.on('space:ko_leaderboard', async (cb) => {
+            try {
+                cb(ok(await getKnockoutLeaderboard()));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Duels (friendly 1v1) ──────────────────────────────────────────
+        socket.on('space:duel_challenge', ({ targetSocketId }, cb) => {
+            try {
+                const spaceId = _spaceOfSocket(socket.id);
+                if (!spaceId || targetSocketId === socket.id)
+                    return cb?.({ ok: false });
+                const room = _spaces.get(spaceId);
+                const me = room?.get(socket.id);
+                const target = room?.get(targetSocketId);
+                if (!me || !target)
+                    return cb?.({ ok: false, error: 'Player not here.' });
+                if (_duelOpponent.has(socket.id) || _duelOpponent.has(targetSocketId)) {
+                    return cb?.({ ok: false, error: 'Already in a duel.' });
+                }
+                io.to(targetSocketId).emit('space:duel_invite', { fromSocketId: socket.id, fromName: me.name });
+                cb?.({ ok: true });
+            }
+            catch {
+                cb?.({ ok: false });
+            }
+        });
+        socket.on('space:duel_respond', ({ fromSocketId, accept }, cb) => {
+            try {
+                const spaceId = _spaceOfSocket(socket.id);
+                if (!spaceId)
+                    return cb?.({ ok: false });
+                const room = _spaces.get(spaceId);
+                const me = room?.get(socket.id);
+                const challenger = room?.get(fromSocketId);
+                if (!me || !challenger)
+                    return cb?.({ ok: false });
+                if (!accept) {
+                    io.to(fromSocketId).emit('space:duel_declined', { byName: me.name });
+                    return cb?.({ ok: true });
+                }
+                if (_duelOpponent.has(socket.id) || _duelOpponent.has(fromSocketId))
+                    return cb?.({ ok: false });
+                _duelOpponent.set(socket.id, fromSocketId);
+                _duelOpponent.set(fromSocketId, socket.id);
+                io.to(`space:${spaceId}`).emit('space:duel_start', {
+                    aSocketId: fromSocketId, aName: challenger.name, bSocketId: socket.id, bName: me.name,
+                });
                 cb?.({ ok: true });
             }
             catch {

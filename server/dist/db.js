@@ -340,6 +340,8 @@ export async function initializeDatabase() {
     await sql `ALTER TABLE players ADD COLUMN IF NOT EXISTS account_frozen INTEGER NOT NULL DEFAULT 0`;
     // ── Economy system ─────────────────────────────────────────────────────
     await sql `ALTER TABLE players ADD COLUMN IF NOT EXISTS coins INTEGER NOT NULL DEFAULT 0`;
+    // Virtual Space combat: lifetime knockouts dealt (KO leaderboard).
+    await sql `ALTER TABLE players ADD COLUMN IF NOT EXISTS space_knockouts INTEGER NOT NULL DEFAULT 0`;
     await sql `
     CREATE TABLE IF NOT EXISTS coin_transactions (
       id            TEXT PRIMARY KEY,

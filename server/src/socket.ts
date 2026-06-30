@@ -34,6 +34,7 @@ import {
   getActiveBan, getActiveMute, findSocketByProfile,
   registerWithEmail, authenticateWithEmail,
   addXP, getCosmetics, equipCosmetic, getNameColors, grantStarterCosmetics,
+  incrementSpaceKnockouts, getKnockoutLeaderboard,
   getLeaderboard, getPlayersFast,
   getPlayerByFriendCode, setGrantedModLevel,
   updateAvatarUrl, updateUsername,
@@ -278,6 +279,12 @@ const MAX_CLAN_CHAT = 200;
 interface SpacePlayer { socketId: string; name: string; bodyColor: string; glowColor: string; mask: string; hat: string; pet: string; form: string; profileId: string | null; x: number; y: number; seat?: string | null; hp: number; }
 const SPACE_MAX_HP = 10;
 const _spaceHitAt = new Map<string, number>(); // attackerSocketId → last hit ms (cooldown)
+const _duelOpponent = new Map<string, string>(); // socketId → opponent socketId (active 1v1 duel)
+function _clearDuel(socketId: string) {
+  const opp = _duelOpponent.get(socketId);
+  if (opp) _duelOpponent.delete(opp);
+  _duelOpponent.delete(socketId);
+}
 interface SpaceDJState { videoId: string; startedAt: number; position: number; isPlaying: boolean; djName: string; }
 interface SpaceMeta {
   id: string; name: string; icon: string; theme: string; layout: string;
@@ -368,6 +375,7 @@ function _leaveSpace(sid: string, io: AppServer): void {
     if (room.has(sid)) {
       const pid = room.get(sid)?.profileId;
       if (pid) clearLoungePresence(pid);
+      _clearDuel(sid);
       room.delete(sid);
       io.to(`space:${spaceId}`).emit('space:player-left', { socketId: sid });
       if (room.size === 0) {
@@ -5815,6 +5823,12 @@ export function attachSocketHandlers(io: AppServer): void {
         if (target.hp <= 0) {
           room.delete(targetSocketId);
           if (target.profileId) clearLoungePresence(target.profileId);
+          if (attacker.profileId) incrementSpaceKnockouts(attacker.profileId).catch(() => {});
+          // If this KO settled an active duel between the two, announce it.
+          if (_duelOpponent.get(targetSocketId) === socket.id) {
+            io.to(`space:${spaceId}`).emit('space:duel_end', { winnerName: attacker.name, loserName: target.name });
+          }
+          _clearDuel(targetSocketId);
           const vsock = io.sockets.sockets.get(targetSocketId);
           if (vsock) vsock.leave(`space:${spaceId}`);
           io.to(targetSocketId).emit('space:knockout', { byName: attacker.name });
@@ -5822,6 +5836,50 @@ export function attachSocketHandlers(io: AppServer): void {
           // knocked-out avatar disappears for all of them.
           io.to(`space:${spaceId}`).emit('space:player-left', { socketId: targetSocketId });
         }
+        cb?.({ ok: true });
+      } catch { cb?.({ ok: false }); }
+    });
+
+    // KO leaderboard (bragging rights only — no coins/wagering).
+    socket.on('space:ko_leaderboard' as any, async (cb: any) => {
+      try { cb(ok(await getKnockoutLeaderboard())); } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Duels (friendly 1v1) ──────────────────────────────────────────
+    socket.on('space:duel_challenge' as any, ({ targetSocketId }: any, cb: Function) => {
+      try {
+        const spaceId = _spaceOfSocket(socket.id);
+        if (!spaceId || targetSocketId === socket.id) return cb?.({ ok: false });
+        const room = _spaces.get(spaceId);
+        const me = room?.get(socket.id);
+        const target = room?.get(targetSocketId);
+        if (!me || !target) return cb?.({ ok: false, error: 'Player not here.' });
+        if (_duelOpponent.has(socket.id) || _duelOpponent.has(targetSocketId)) {
+          return cb?.({ ok: false, error: 'Already in a duel.' });
+        }
+        io.to(targetSocketId).emit('space:duel_invite', { fromSocketId: socket.id, fromName: me.name });
+        cb?.({ ok: true });
+      } catch { cb?.({ ok: false }); }
+    });
+
+    socket.on('space:duel_respond' as any, ({ fromSocketId, accept }: any, cb: Function) => {
+      try {
+        const spaceId = _spaceOfSocket(socket.id);
+        if (!spaceId) return cb?.({ ok: false });
+        const room = _spaces.get(spaceId);
+        const me = room?.get(socket.id);
+        const challenger = room?.get(fromSocketId);
+        if (!me || !challenger) return cb?.({ ok: false });
+        if (!accept) {
+          io.to(fromSocketId).emit('space:duel_declined', { byName: me.name });
+          return cb?.({ ok: true });
+        }
+        if (_duelOpponent.has(socket.id) || _duelOpponent.has(fromSocketId)) return cb?.({ ok: false });
+        _duelOpponent.set(socket.id, fromSocketId);
+        _duelOpponent.set(fromSocketId, socket.id);
+        io.to(`space:${spaceId}`).emit('space:duel_start', {
+          aSocketId: fromSocketId, aName: challenger.name, bSocketId: socket.id, bName: me.name,
+        });
         cb?.({ ok: true });
       } catch { cb?.({ ok: false }); }
     });

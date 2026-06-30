@@ -122,6 +122,14 @@ export function useVirtualSpace() {
     (socket as any).emit('space:hit', { targetSocketId, weapon }, () => {});
   }, []);
 
+  const challengeDuel = useCallback((targetSocketId: string) => {
+    (socket as any).emit('space:duel_challenge', { targetSocketId }, () => {});
+  }, []);
+
+  const respondDuel = useCallback((fromSocketId: string, accept: boolean) => {
+    (socket as any).emit('space:duel_respond', { fromSocketId, accept }, () => {});
+  }, []);
+
   const clearKnockout = useCallback(() => {
     setState(prev => ({ ...prev, knockout: null }));
   }, []);
@@ -442,5 +450,5 @@ export function useVirtualSpace() {
     };
   }, []);
 
-  return { ...state, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, clearKnockout };
+  return { ...state, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, clearKnockout, challengeDuel, respondDuel };
 }

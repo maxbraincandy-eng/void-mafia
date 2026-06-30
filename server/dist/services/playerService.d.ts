@@ -8,6 +8,16 @@ export declare function getOrCreatePlayer(uid: string, username: string): Promis
 export declare function getPlayer(uid: string): Promise<PlayerProfile | null>;
 export declare function getPlayerByPublicId(publicId: number): Promise<PlayerProfile | null>;
 export declare function getAllPlayers(): Promise<PlayerProfile[]>;
+export declare function incrementSpaceKnockouts(profileId: string): Promise<void>;
+export interface KnockoutLeader {
+    id: string;
+    username: string;
+    avatar: string;
+    avatarUrl: string | null;
+    publicId: number | null;
+    knockouts: number;
+}
+export declare function getKnockoutLeaderboard(): Promise<KnockoutLeader[]>;
 export declare function getLeaderboard(): Promise<PlayerProfilePublic[]>;
 export declare function getPlayersFast(): Promise<PlayerProfilePublic[]>;
 export declare function toPublicProfile(p: PlayerProfile): PlayerProfilePublic;

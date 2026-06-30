@@ -271,6 +271,24 @@ export async function getAllPlayers() {
 let _leaderboardCache = null;
 let _leaderboardCachedAt = 0;
 const LEADERBOARD_TTL = 60000;
+// ── Virtual Space knockout leaderboard ────────────────────────────────
+export async function incrementSpaceKnockouts(profileId) {
+    await sql `UPDATE players SET space_knockouts = space_knockouts + 1 WHERE id = ${profileId}`;
+}
+export async function getKnockoutLeaderboard() {
+    const rows = await sql `
+    SELECT id, username, avatar, avatar_url, public_id, space_knockouts
+    FROM players
+    WHERE space_knockouts > 0
+    ORDER BY space_knockouts DESC, last_seen_at DESC
+    LIMIT 20
+  `;
+    return rows.map((r) => ({
+        id: r.id, username: r.username, avatar: r.avatar, avatarUrl: r.avatar_url ?? null,
+        publicId: r.public_id != null ? Number(r.public_id) : null,
+        knockouts: Number(r.space_knockouts ?? 0),
+    }));
+}
 export async function getLeaderboard() {
     if (_leaderboardCache && Date.now() - _leaderboardCachedAt < LEADERBOARD_TTL) {
         return _leaderboardCache;
