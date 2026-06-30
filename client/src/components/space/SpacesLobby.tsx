@@ -25,7 +25,7 @@ const ROOM_LAYOUTS: { id: string; label: string; desc: string; emoji: string; pr
 
 interface LobbyProps {
   listSpaces: () => Promise<SpaceMeta[]>;
-  createSpace: (o: { name: string; icon: string; theme: string; maxPlayers: number; isPublic: boolean }) => Promise<SpaceMeta | null>;
+  createSpace: (o: { name: string; icon: string; theme: string; layout: string; maxPlayers: number; isPublic: boolean }) => Promise<SpaceMeta | null>;
   resolveSpace: (code: string) => Promise<{ ok: boolean; space?: SpaceMeta; error?: string }>;
   onEnter: (space: SpaceMeta) => void;
 }

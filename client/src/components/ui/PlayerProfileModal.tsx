@@ -11,8 +11,12 @@ import { CoinHistoryModal } from '@/components/ui/CoinHistoryModal';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { useGameStore } from '@/store/gameStore';
-import type { Res, PublicProfileFull, FriendshipStatus, PlayerRoleStats, ModeratorLevel, WarnCategory, ClanRole } from '@/types/index';
-import { getFrameById, getTitleById, getWallpaperById, getBorderById } from '@/constants/cosmetics';
+import type { Res, PublicProfileFull, FriendshipStatus, PlayerRoleStats, ModeratorLevel, WarnCategory, ClanRole, CommunityPostV2, CommunityProfileV2 } from '@/types/index';
+import {
+  getFrameById, getTitleById, getWallpaperById, getBorderById,
+  FRAMES, TITLES, BORDERS, WALLPAPERS, ROLE_SKINS, NAME_COLORS,
+  RARITY_COLOR, RARITY_LABEL, type CosmeticRarity,
+} from '@/constants/cosmetics';
 import type { ProfileCardData } from '@/components/ui/ProfileCard';
 import { MAX_LEVEL, xpForLevel, xpForNextLevel, levelColor } from '@/lib/level';
 
@@ -145,6 +149,185 @@ interface Props {
   onClose: () => void;
 }
 
+type ProfileTab = 'overview' | 'posts' | 'items';
+
+// ── Cosmetics showcase ────────────────────────────────────────────────
+type ShowcaseItem = { id: string; name: string; rarity: CosmeticRarity; swatch: [string, string] };
+
+function CosmeticsShowcase({ cosmetics }: { cosmetics: import('@/types/index').PlayerCosmetics | undefined }) {
+  const unlocked = new Set(cosmetics?.unlockedItems ?? []);
+  const equipped = new Set(
+    [cosmetics?.equippedFrame, cosmetics?.equippedTitle, cosmetics?.equippedBorder,
+     cosmetics?.equippedWallpaper, cosmetics?.equippedRoleSkin, cosmetics?.equippedNameColor]
+      .filter(Boolean) as string[]
+  );
+
+  const sections: { label: string; items: ShowcaseItem[] }[] = [
+    { label: 'Frames',    items: FRAMES.map(f => ({ id: f.id, name: f.name, rarity: f.rarity, swatch: f.colors })) },
+    { label: 'Borders',   items: BORDERS.map(b => ({ id: b.id, name: b.name, rarity: b.rarity, swatch: b.colors })) },
+    { label: 'Titles',    items: TITLES.map(t => ({ id: t.id, name: t.name, rarity: t.rarity, swatch: [t.color, t.color] })) },
+    { label: 'Wallpapers',items: WALLPAPERS.map(w => ({ id: w.id, name: w.name, rarity: w.rarity, swatch: [w.accent, w.accent] })) },
+    { label: 'Role Skins',items: ROLE_SKINS.map(s => ({ id: s.id, name: s.name, rarity: s.rarity, swatch: [s.c1, s.c2] })) },
+    { label: 'Name Colors',items: NAME_COLORS.map(n => ({ id: n.id, name: n.name, rarity: n.rarity, swatch: [n.color, n.color] })) },
+  ];
+
+  const ownedCount = [...unlocked].length;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="font-mono text-[12px] text-white/30 uppercase tracking-wider">Collection</p>
+        <span className="font-mono text-[12px] text-white/25">{ownedCount} unlocked</span>
+      </div>
+      {sections.map(sec => {
+        const owned = sec.items.filter(it => unlocked.has(it.id));
+        return (
+          <div key={sec.label}>
+            <div className="flex items-center gap-2 mb-1.5">
+              <p className="font-mono text-[12px] text-white/40 uppercase tracking-wider">{sec.label}</p>
+              <span className="font-mono text-[11px] text-white/20">{owned.length}/{sec.items.length}</span>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {sec.items.map(it => {
+                const has = unlocked.has(it.id);
+                const isOn = equipped.has(it.id);
+                const rc = RARITY_COLOR[it.rarity];
+                return (
+                  <div
+                    key={it.id}
+                    className="rounded-xl px-2 py-2 flex flex-col items-center gap-1 relative"
+                    style={{
+                      background: has ? `${rc}10` : 'rgba(255,255,255,0.02)',
+                      border: `1px solid ${has ? `${rc}40` : 'rgba(255,255,255,0.05)'}`,
+                      opacity: has ? 1 : 0.4,
+                    }}
+                    title={`${it.name} · ${RARITY_LABEL[it.rarity]}${has ? '' : ' (locked)'}`}
+                  >
+                    {isOn && (
+                      <span className="absolute -top-1 -right-1 text-[10px] px-1 rounded-full font-mono font-bold"
+                        style={{ background: rc, color: '#03000d' }}>ON</span>
+                    )}
+                    <span
+                      className="w-6 h-6 rounded-full flex-shrink-0"
+                      style={{ background: `linear-gradient(135deg, ${it.swatch[0]}, ${it.swatch[1]})`, boxShadow: has ? `0 0 8px ${rc}55` : 'none' }}
+                    />
+                    <span className="font-mono text-[10px] text-center leading-tight" style={{ color: has ? `${rc}dd` : 'rgba(255,255,255,0.3)' }}>
+                      {has ? it.name : '🔒'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── User posts list (read-only) ───────────────────────────────────────
+function UserPostsList({ authorId }: { authorId: string }) {
+  const [posts, setPosts] = useState<CommunityPostV2[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    emitWithAck<{ authorId: string; before?: number }, Res<CommunityPostV2[]>>('community:user_posts', { authorId })
+      .then(res => { if (alive && res.ok) setPosts(res.data); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [authorId]);
+
+  if (loading) {
+    return (
+      <div className="space-y-2">
+        {[0,1,2].map(i => <div key={i} className="h-16 rounded-xl animate-pulse" style={{ background: 'rgba(255,255,255,0.04)' }} />)}
+      </div>
+    );
+  }
+  if (posts.length === 0) {
+    return <p className="text-center font-mono text-[12px] text-white/25 py-8">No posts yet</p>;
+  }
+  return (
+    <div className="space-y-2">
+      {posts.map(p => (
+        <div key={p.id} className="rounded-xl border border-white/8 bg-white/3 px-3 py-2.5">
+          {p.content && <p className="text-white/80 text-[13px] leading-snug whitespace-pre-wrap break-words">{p.content}</p>}
+          {(p.imageUrl || p.gifUrl) && (
+            <img src={(p.imageUrl ?? p.gifUrl)!} alt="" className="mt-2 rounded-lg w-full max-h-48 object-cover" />
+          )}
+          {p.recTitle && (
+            <p className="mt-1 font-mono text-[12px] text-neon-cyan/80">★ {p.recTitle}</p>
+          )}
+          <div className="flex items-center gap-3 mt-2 font-mono text-[11px] text-white/30">
+            <span>♥ {p.likesCount}</span>
+            <span>💬 {p.commentsCount}</span>
+            <span className="ml-auto">{formatDate(p.createdAt)}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Followers / Following list overlay ────────────────────────────────
+function FollowListOverlay({ profileId, mode, onClose }: { profileId: string; mode: 'followers' | 'following'; onClose: () => void }) {
+  const [list, setList] = useState<CommunityProfileV2[]>([]);
+  const [loading, setLoading] = useState(true);
+  const ev = mode === 'followers' ? 'community:followers_list' : 'community:following_list';
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    emitWithAck<{ profileId: string }, Res<CommunityProfileV2[]>>(ev, { profileId })
+      .then(res => { if (alive && res.ok) setList(res.data); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [profileId, ev]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[270] bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+        className="w-full max-w-xs glass-panel border border-neon-purple/30 rounded-2xl overflow-hidden flex flex-col"
+        style={{ maxHeight: '70vh' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/8">
+          <span className="font-display font-bold text-white text-sm capitalize">{mode}</span>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full text-white/30 hover:text-white/70 text-[13px]">✕</button>
+        </div>
+        <div className="overflow-y-auto flex-1 p-3 space-y-1.5">
+          {loading ? (
+            [0,1,2,3].map(i => <div key={i} className="h-11 rounded-xl animate-pulse" style={{ background: 'rgba(255,255,255,0.04)' }} />)
+          ) : list.length === 0 ? (
+            <p className="text-center font-mono text-[12px] text-white/25 py-6">No {mode} yet</p>
+          ) : (
+            list.map(u => (
+              <div key={u.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl bg-white/3 border border-white/6">
+                <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center text-base flex-shrink-0"
+                  style={{ background: 'linear-gradient(135deg,rgba(255,0,128,0.5),rgba(138,43,226,0.5))' }}>
+                  {u.avatarUrl ? <img src={u.avatarUrl} alt={u.username} className="w-full h-full object-cover" /> : u.avatar}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-mono text-[13px] text-white/80 truncate">{u.username}</p>
+                  <p className="font-mono text-[11px] text-white/30">Lv.{u.level}{u.clanTag ? ` · [${u.clanTag}]` : ''}</p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function formatDate(ts: number | null | undefined) {
   if (!ts) return '—';
   const d = new Date(ts);
@@ -215,6 +398,9 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
   const [carouselLoading, setCarouselLoading] = useState(false);
   const [aggGifts, setAggGifts] = useState<AggGift[]>([]);
   const [giftViewerIdx, setGiftViewerIdx] = useState<number | null>(null);
+  const [tab, setTab] = useState<ProfileTab>('overview');
+  const [v2, setV2] = useState<CommunityProfileV2 | null>(null);
+  const [followList, setFollowList] = useState<null | 'followers' | 'following'>(null);
 
   const myProfile = useAuthStore(s => s.profile);
   const myProfileId = myProfile?.id;
@@ -239,12 +425,18 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
   const isSelf = !!playerId && playerId === myProfileId;
 
   useEffect(() => {
-    if (!playerId) { setData(null); setCarouselGifts([]); return; }
+    if (!playerId) { setData(null); setCarouselGifts([]); setV2(null); return; }
     setLoading(true);
     setData(null);
+    setV2(null);
+    setTab('overview');
     emitWithAck<{ profileId: string }, Res<PublicProfileFull>>('player:public_profile', { profileId: playerId })
       .then(res => { if (res.ok) setData(res.data); })
       .finally(() => setLoading(false));
+    // Social counts (followers / following / posts) — best-effort, non-blocking
+    emitWithAck<{ profileId: string }, Res<CommunityProfileV2 | null>>('community:profile', { profileId: playerId })
+      .then(res => { if (res.ok && res.data) setV2(res.data); })
+      .catch(() => {});
   }, [playerId]);
 
   useEffect(() => {
@@ -527,6 +719,68 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                     </div>
 
                     <div className="px-5 pb-3 space-y-3">
+                      {/* ── Social counts ──────────────────────── */}
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <button
+                          onClick={() => v2 && setFollowList('followers')}
+                          disabled={!v2}
+                          className="glass-panel border border-white/6 rounded-xl py-1.5 text-center transition-all active:scale-95 disabled:opacity-60"
+                        >
+                          <p className="font-display font-bold text-sm text-white">{v2?.followersCount ?? '—'}</p>
+                          <p className="text-white/30 text-[11px] font-mono">Followers</p>
+                        </button>
+                        <button
+                          onClick={() => v2 && setFollowList('following')}
+                          disabled={!v2}
+                          className="glass-panel border border-white/6 rounded-xl py-1.5 text-center transition-all active:scale-95 disabled:opacity-60"
+                        >
+                          <p className="font-display font-bold text-sm text-white">{v2?.followingCount ?? '—'}</p>
+                          <p className="text-white/30 text-[11px] font-mono">Following</p>
+                        </button>
+                        <div className="glass-panel border border-white/6 rounded-xl py-1.5 text-center">
+                          <p className="font-display font-bold text-sm text-white">{v2?.postsCount ?? '—'}</p>
+                          <p className="text-white/30 text-[11px] font-mono">Posts</p>
+                        </div>
+                      </div>
+
+                      {/* ── Bio ────────────────────────────────── */}
+                      {v2?.bio && (
+                        <p className="text-white/55 text-[13px] leading-snug text-center px-1">{v2.bio}</p>
+                      )}
+
+                      {/* ── Tab bar ────────────────────────────── */}
+                      <div className="flex gap-1.5">
+                        {([
+                          { id: 'overview', label: 'Overview' },
+                          { id: 'posts',    label: 'Posts' },
+                          { id: 'items',    label: 'Items' },
+                        ] as { id: ProfileTab; label: string }[]).map(tb => {
+                          const active = tab === tb.id;
+                          return (
+                            <button
+                              key={tb.id}
+                              onClick={() => setTab(tb.id)}
+                              className="flex-1 py-1.5 rounded-xl font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
+                              style={{
+                                background: active ? 'linear-gradient(135deg, rgba(155,0,255,0.28), rgba(0,245,255,0.16))' : 'rgba(255,255,255,0.03)',
+                                border: `1px solid ${active ? 'rgba(155,0,255,0.45)' : 'rgba(255,255,255,0.08)'}`,
+                                color: active ? '#fff' : 'rgba(255,255,255,0.4)',
+                              }}
+                            >
+                              {tb.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* ════════ POSTS TAB ════════ */}
+                      {tab === 'posts' && <UserPostsList authorId={profile.id} />}
+
+                      {/* ════════ ITEMS TAB ════════ */}
+                      {tab === 'items' && <CosmeticsShowcase cosmetics={profile.cosmetics} />}
+
+                      {/* ════════ OVERVIEW TAB ════════ */}
+                      {tab === 'overview' && (<>
                       {/* ── Clan ───────────────────────────────── */}
                       {clan ? (
                         <div className="rounded-xl border border-neon-cyan/20 bg-neon-cyan/5 px-3 py-2.5">
@@ -634,6 +888,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                           </div>
                         </div>
                       )}
+                      </>)}
 
                       {/* ── DM + Gift buttons (hidden for self) ── */}
                       {!isSelf && (
@@ -950,7 +1205,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       )}
 
                       {/* ── Gift Gallery ─────────────────────────── */}
-                      {data && (
+                      {tab === 'overview' && data && (
                         <div className="rounded-xl border border-white/8 bg-white/3 px-3 py-2.5">
                           <p className="font-mono text-[12px] text-white/30 uppercase tracking-wider mb-2">
                             🎁 Gifts
@@ -1041,6 +1296,12 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
           startIdx={giftViewerIdx}
           onClose={() => setGiftViewerIdx(null)}
         />
+      )}
+    </AnimatePresence>
+
+    <AnimatePresence>
+      {followList && playerId && (
+        <FollowListOverlay profileId={playerId} mode={followList} onClose={() => setFollowList(null)} />
       )}
     </AnimatePresence>
     </>
