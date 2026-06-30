@@ -7,6 +7,7 @@ import { useT } from '@/store/langStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { onSettingsChange } from '@/lib/audioEngine';
 import { SettingsPanel } from '@/pages/SettingsPanel';
+import { ProfileEditPanel } from '@/components/ui/ProfileEditPanel';
 import { CoinHistoryModal } from '@/components/ui/CoinHistoryModal';
 import { HowToPlayModal } from '@/components/ui/HowToPlayModal';
 import { AchievementsModal } from '@/components/ui/AchievementsModal';
@@ -168,6 +169,7 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
   const toggleMusic = (v: boolean) => { updateSettings({ musicEnabled: v }); onSettingsChange(); };
 
   const [showSettings, setShowSettings] = useState(false);
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
   const [showCoinHistory, setShowCoinHistory] = useState(false);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [showAchievements, setShowAchievements] = useState(false);
@@ -180,6 +182,14 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
     {
       title: 'ნავიგაცია',
       items: [
+        {
+          icon: '✏️',
+          label: 'პროფილის რედაქტირება',
+          description: 'სახელი და სურათი',
+          iconBg: 'linear-gradient(135deg, rgba(155,0,255,0.28), rgba(0,229,255,0.1))',
+          iconGlow: 'rgba(155,0,255,0.2)',
+          onClick: open(() => setShowProfileEdit(true)),
+        },
         {
           icon: <VoidClansIcon size={22} color="#ef4444" />,
           label: 'კლანები',
@@ -538,6 +548,7 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
       </AnimatePresence>
 
       <SettingsPanel open={showSettings} onClose={() => setShowSettings(false)} />
+      {showProfileEdit && <ProfileEditPanel onClose={() => setShowProfileEdit(false)} />}
       <CoinHistoryModal open={showCoinHistory} onClose={() => setShowCoinHistory(false)} />
       <HowToPlayModal open={showHowToPlay} onClose={() => setShowHowToPlay(false)} />
       <AchievementsModal open={showAchievements} onClose={() => setShowAchievements(false)} profileId={profileId} />
