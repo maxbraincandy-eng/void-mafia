@@ -30,6 +30,7 @@ import { PlayerProfileModal } from '@/components/ui/PlayerProfileModal';
 import { DmPanel } from '@/components/social/DmPanel';
 import { FriendRequestOverlay } from '@/components/social/FriendRequestOverlay';
 import { GameInviteOverlay } from '@/components/social/GameInviteOverlay';
+import { FriendActiveToast } from '@/components/social/FriendActiveToast';
 import { GiftReceivedAnimation } from '@/components/ui/GiftReceivedAnimation';
 import { CoinShopModal } from '@/components/ui/CoinShopModal';
 import { ShopSuccessModal } from '@/components/ui/ShopSuccessModal';
@@ -751,6 +752,7 @@ export default function App() {
       <DmPanel />
       <FriendRequestOverlay />
       <GameInviteOverlay />
+      <FriendActiveToast />
       <DmToastNotification />
       <RoomInviteToast />
       <ModAlertPanel />

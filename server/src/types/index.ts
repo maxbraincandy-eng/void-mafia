@@ -895,6 +895,7 @@ export interface ServerToClientEvents {
   'community:post_featured':  (data: { postId: string; featured: boolean }) => void;
   'room:invite_received': (data: { inviterName: string; inviterAvatar: string; roomCode: string; playerCount: number; maxPlayers: number }) => void;
   'game:invite_received': (data: { game: string; code: string; fromName: string; fromAvatar: string }) => void;
+  'presence:friend_active': (data: { kind: 'game' | 'lounge'; code: string; label: string; fromName: string; fromId: string }) => void;
   // Virtual Space
   'space:player-joined': (player: { socketId: string; name: string; bodyColor: string; glowColor: string; mask: string; hat?: string; pet?: string; form?: string; profileId?: string | null; x: number; y: number; seat?: string | null }) => void;
   'space:player-moved':  (data: { socketId: string; x: number; y: number }) => void;

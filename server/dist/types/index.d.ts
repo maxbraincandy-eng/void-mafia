@@ -916,6 +916,13 @@ export interface ServerToClientEvents {
         fromName: string;
         fromAvatar: string;
     }) => void;
+    'presence:friend_active': (data: {
+        kind: 'game' | 'lounge';
+        code: string;
+        label: string;
+        fromName: string;
+        fromId: string;
+    }) => void;
     'space:player-joined': (player: {
         socketId: string;
         name: string;

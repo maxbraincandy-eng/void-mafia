@@ -41,7 +41,7 @@ import {
 import {
   markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend,
   removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount,
-  setLoungePresence, clearLoungePresence,
+  setLoungePresence, clearLoungePresence, getFriendIds,
 } from './services/friendService.js';
 import {
   checkAndAwardChallenges, getDailyQuestsForPlayer,
@@ -452,6 +452,34 @@ const ReportSchema = z.object({
   ]),
   details: z.string().max(500).default(''),
 });
+
+// ── Smart presence notifications ──────────────────────────────────────
+// Tell a player's friends when they start something worth joining (created a
+// Mafia room, entered a Lounge). Online friends get a real-time toast; offline
+// friends get a push. Rate-limited per actor so it can't spam.
+const _activeNotifyAt = new Map<string, number>();
+async function notifyFriendsActive(
+  io: AppServer,
+  actorId: string,
+  payload: { kind: 'game' | 'lounge'; code: string; label: string; fromName: string },
+): Promise<void> {
+  try {
+    const now = Date.now();
+    if (now - (_activeNotifyAt.get(actorId) ?? 0) < 5 * 60_000) return; // ≤1 ping / 5 min
+    _activeNotifyAt.set(actorId, now);
+    const friendIds = await getFriendIds(actorId);
+    if (!friendIds.length) return;
+    const title = payload.kind === 'lounge' ? '🎬 Lounge' : '🎮 Mafia';
+    const body = payload.kind === 'lounge'
+      ? `${payload.fromName} ახლა ${payload.label}-შია`
+      : `${payload.fromName}-მა შექმნა ოთახი`;
+    for (const fid of friendIds) {
+      const sock = findSocketByProfile(io as any, fid);
+      if (sock) sock.emit('presence:friend_active', { ...payload, fromId: actorId });
+      else sendPushToUser(fid, { title, body }).catch(() => {});
+    }
+  } catch { /* best-effort */ }
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function broadcastRoom(io: AppServer, room: Room): void {
@@ -1342,6 +1370,10 @@ export function attachSocketHandlers(io: AppServer): void {
         const hostPlayer = room.players.get(room.hostId)!;
         broadcastSystemMsg(io, room, `${hostPlayer.name} created the room.`);
         cb(ok(toPublicRoom(room, room.hostId)));
+        // Ping friends that a joinable room is up (public rooms only).
+        if (profileId && !room.settings.isPrivate) {
+          notifyFriendsActive(io, profileId, { kind: 'game', code: room.code, label: 'Mafia', fromName: hostPlayer.name });
+        }
       } catch (e: any) {
         cb(err(e.message ?? 'Failed to create room.'));
       }
@@ -5554,7 +5586,10 @@ export function attachSocketHandlers(io: AppServer): void {
         const player: SpacePlayer = { socketId: socket.id, name: safeName, bodyColor: safeBody, glowColor: safeGlow, mask: safeMask, hat: safeHat, pet: safePet, form: safeForm, profileId: socket.data.profileId ?? null, x, y, seat: null };
         room.set(socket.id, player);
         socket.join(`space:${safeSpace}`);
-        if (socket.data.profileId) setLoungePresence(socket.data.profileId, { spaceId: safeSpace, name: meta.name, code: meta.code });
+        if (socket.data.profileId) {
+          setLoungePresence(socket.data.profileId, { spaceId: safeSpace, name: meta.name, code: meta.code });
+          if (meta.isPublic) notifyFriendsActive(io, socket.data.profileId, { kind: 'lounge', code: meta.code, label: meta.name, fromName: safeName });
+        }
         socket.to(`space:${safeSpace}`).emit('space:player-joined', player);
         const existingDJ = _spaceDJ.get(safeSpace) ?? null;
         const existingTV = _tvPublic(safeSpace);

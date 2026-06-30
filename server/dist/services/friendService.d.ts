@@ -23,6 +23,7 @@ export declare function getFriends(playerId: string): Promise<Friend[]>;
  * or who follows them in the community. Deduplicated, with online status.
  */
 export declare function getInvitablePeople(playerId: string): Promise<Friend[]>;
+export declare function getFriendIds(playerId: string): Promise<string[]>;
 export declare function getPendingRequests(playerId: string): Promise<FriendRequest[]>;
 export declare function getFriendshipStatus(userId: string, otherId: string): Promise<string>;
 //# sourceMappingURL=friendService.d.ts.map

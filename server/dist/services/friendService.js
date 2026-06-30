@@ -153,6 +153,15 @@ export async function getInvitablePeople(playerId) {
         playerStatus: getPlayerStatus(r.id), presence: getPlayerPresence(r.id),
     }));
 }
+// Just the accepted-friend profile ids (lightweight — for notifications).
+export async function getFriendIds(playerId) {
+    const rows = await sql `
+    SELECT CASE WHEN from_id = ${playerId} THEN to_id ELSE from_id END AS fid
+    FROM friendships
+    WHERE (from_id = ${playerId} OR to_id = ${playerId}) AND status = 'accepted'
+  `;
+    return rows.map((r) => r.fid);
+}
 export async function getPendingRequests(playerId) {
     const rows = await sql `
     SELECT f.id, f.from_id, p.username, p.avatar, p.avatar_url, f.created_at
