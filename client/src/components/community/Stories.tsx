@@ -74,13 +74,15 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
   const [gi, setGi] = useState(startIndex);
   const [si, setSi] = useState(0);
   const [tick, setTick] = useState(0); // remount progress bar on advance
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [paused, setPaused] = useState(false); // press & hold (Instagram-style)
   // Viewers sheet (own stories only): swipe up to reveal who viewed.
   const [sheetOpen, setSheetOpen] = useState(false);
   const [viewers, setViewers] = useState<StoryViewerRow[] | null>(null);
   const [viewersBusy, setViewersBusy] = useState(false);
-  // Touch tracking for swipe up (open viewers) / swipe down (close).
+  // Touch tracking for swipe up (open viewers) / swipe down (close) / hold-to-pause.
   const touch = useRef<{ x: number; y: number } | null>(null);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressClick = useRef(false); // swallow the tap that ends a hold
 
   const group = groups[gi];
   const story = group?.stories[si];
@@ -116,17 +118,17 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
       .finally(() => setViewersBusy(false));
   }, [isMine, story]);
 
-  // Auto-advance + mark seen + record the view (others' stories only).
+  // Mark seen + record the view (others' stories only). Auto-advance is driven
+  // by the progress bar's animationend, so press-and-hold pausing the animation
+  // (animationPlayState) pauses advancing too — no JS/CSS desync.
   useEffect(() => {
     if (!story) return;
+    setPaused(false); // a fresh story is never paused
     markSeen(story.id);
     if (!isMine) {
       emitWithAck('community:story_view', { storyId: story.id }).catch(() => {});
     }
-    if (timer.current) clearTimeout(timer.current);
-    if (!sheetOpen) timer.current = setTimeout(advance, 5000);
-    return () => { if (timer.current) clearTimeout(timer.current); };
-  }, [story?.id, tick, sheetOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [story?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!group || !story) return null;
 
@@ -138,9 +140,23 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
 
   const onTouchStart = (e: React.TouchEvent) => {
     const t = e.touches[0]; touch.current = { x: t.clientX, y: t.clientY };
+    suppressClick.current = false;
+    if (sheetOpen) return;
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    holdTimer.current = setTimeout(() => setPaused(true), 200); // press & hold → pause
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    const start = touch.current; if (!start) return;
+    const t = e.touches[0];
+    // A real drag (swipe/scroll) is not a hold — cancel the pending pause.
+    if (Math.abs(t.clientX - start.x) > 10 || Math.abs(t.clientY - start.y) > 10) {
+      if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; }
+    }
   };
   const onTouchEnd = (e: React.TouchEvent) => {
     const start = touch.current; touch.current = null;
+    if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; }
+    if (paused) { setPaused(false); suppressClick.current = true; } // release hold → resume, swallow the tap
     if (!start) return;
     const t = e.changedTouches[0];
     const dx = t.clientX - start.x, dy = t.clientY - start.y;
@@ -154,15 +170,19 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
       style={{ position: 'fixed', inset: 0, zIndex: 1400, background: '#000', display: 'flex', flexDirection: 'column' }}>
       {/* Progress bars */}
       <div style={{ display: 'flex', gap: 4, padding: '10px 12px 6px' }}>
-        {group.stories.map((s, idx) => (
-          <div key={s.id} style={{ flex: 1, height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.25)', overflow: 'hidden' }}>
-            <div style={{
-              height: '100%', borderRadius: 2, background: '#fff',
-              width: idx < si ? '100%' : idx === si ? '100%' : '0%',
-              animation: idx === si && !sheetOpen ? `vm-story-progress 5s linear forwards` : undefined,
-            }} />
-          </div>
-        ))}
+        {group.stories.map((s, idx) => {
+          const active = idx === si && !sheetOpen;
+          return (
+            <div key={s.id} style={{ flex: 1, height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.25)', overflow: 'hidden' }}>
+              <div onAnimationEnd={active ? advance : undefined} style={{
+                height: '100%', borderRadius: 2, background: '#fff',
+                width: idx < si ? '100%' : idx === si ? '100%' : '0%',
+                animation: active ? `vm-story-progress 5s linear forwards` : undefined,
+                animationPlayState: active && paused ? 'paused' : 'running',
+              }} />
+            </div>
+          );
+        })}
       </div>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 14px 10px' }}>
@@ -182,11 +202,11 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
         <button onClick={onClose} style={{ fontSize: 20, color: 'rgba(255,255,255,0.85)', lineHeight: 1 }}>✕</button>
       </div>
       {/* Image + tap zones (image half-collapses when the viewers sheet is open) */}
-      <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
+      <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
         style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', transition: 'flex-basis .25s ease, height .25s ease', flex: sheetOpen ? '0 0 42%' : 1 }}>
         <img key={story.id} src={story.imageUrl} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-        {!sheetOpen && <button onClick={back} style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '32%', background: 'transparent', border: 'none' }} aria-label="prev" />}
-        {!sheetOpen && <button onClick={advance} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '40%', background: 'transparent', border: 'none' }} aria-label="next" />}
+        {!sheetOpen && <button onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } back(); }} style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '32%', background: 'transparent', border: 'none' }} aria-label="prev" />}
+        {!sheetOpen && <button onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } advance(); }} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '40%', background: 'transparent', border: 'none' }} aria-label="next" />}
         {story.caption && !sheetOpen && (
           <div style={{ position: 'absolute', left: 16, right: 16, bottom: 24, textAlign: 'center', fontFamily: 'monospace', fontSize: 14, color: '#fff', textShadow: '0 1px 6px rgba(0,0,0,0.9)', background: 'rgba(0,0,0,0.35)', padding: '8px 12px', borderRadius: 12, backdropFilter: 'blur(4px)' }}>
             {story.caption}
