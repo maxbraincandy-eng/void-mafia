@@ -687,6 +687,18 @@ export async function initializeDatabase() {
     )
   `;
     await sql `CREATE INDEX IF NOT EXISTS idx_community_posts_created ON community_posts(created_at DESC)`;
+    // Ephemeral 24h stories
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_stories (
+      id          TEXT PRIMARY KEY,
+      author_id   TEXT NOT NULL,
+      image_url   TEXT NOT NULL,
+      caption     TEXT NOT NULL DEFAULT '',
+      created_at  BIGINT NOT NULL,
+      expires_at  BIGINT NOT NULL
+    )
+  `;
+    await sql `CREATE INDEX IF NOT EXISTS idx_community_stories_expires ON community_stories(expires_at)`;
     await sql `
     CREATE TABLE IF NOT EXISTS community_post_likes (
       post_id    TEXT NOT NULL,

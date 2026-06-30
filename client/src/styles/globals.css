@@ -487,6 +487,12 @@ html.theme-transitioning body {
   90%, 95%                     { opacity: 0.5; }
 }
 
+/* Stories: active progress bar fill */
+@keyframes vm-story-progress {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+
 @keyframes cyberGlitch {
   0%, 84%, 91%, 100%  { opacity: 0; transform: none; }
   85%  { opacity: 1; transform: translateX( 3px) skewX( 3deg); }

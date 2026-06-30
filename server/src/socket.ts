@@ -109,6 +109,7 @@ import {
   assignBadge, revokeBadge, setShowcaseAchievement, clearShowcaseSlot,
   getPrivacySettings, setPrivacySettings,
   createPostV2, listFeedV2, getUserPosts, votePoll, togglePostSave, getSavedPosts,
+  createStory, listActiveStories, deleteStory,
   pinPost, featurePost, hidePost, logCommunityModAction, getCommunityModLogs,
   listPeopleDirectory, getFollowersList, getFollowingList,
   searchCommunity, upsertOnlineSeen, getOnlineMembers, computeTrending, recalcReputation,
@@ -4861,6 +4862,32 @@ export function attachSocketHandlers(io: AppServer): void {
         const viewerId = socket.data.profileId ?? '';
         const posts = await getUserPosts(authorId, viewerId, { before });
         cb(ok(posts));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Stories (24h ephemeral) ───────────────────────────────────────
+    socket.on('community:stories_list' as any, async (cb: any) => {
+      try { cb(ok(await listActiveStories())); } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:story_create' as any, async ({ imageUrl, caption }: { imageUrl: string; caption?: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const ban = await getActiveBan(profileId);
+        if (ban) throw new Error('You are banned.');
+        const story = await createStory(profileId, imageUrl, caption ?? '');
+        cb(ok(story));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:story_delete' as any, async ({ id }: { id: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const player = await getPlayer(profileId);
+        await deleteStory(id, profileId, !!player?.isModerator);
+        cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });
 

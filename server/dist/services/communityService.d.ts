@@ -110,6 +110,23 @@ export declare function listFeedV2(viewerId: string, options: {
     hashtag?: string;
     limit?: number;
 }): Promise<CommunityPostV2[]>;
+export interface StoryItem {
+    id: string;
+    imageUrl: string;
+    caption: string;
+    createdAt: number;
+}
+export interface StoryGroup {
+    authorId: string;
+    username: string;
+    avatar: string;
+    avatarUrl: string | null;
+    publicId: number | null;
+    stories: StoryItem[];
+}
+export declare function createStory(authorId: string, imageUrl: string, caption: string): Promise<StoryItem>;
+export declare function listActiveStories(): Promise<StoryGroup[]>;
+export declare function deleteStory(id: string, requesterId: string, isMod: boolean): Promise<void>;
 export declare function getUserPosts(authorId: string, viewerId: string, options?: {
     before?: number;
     limit?: number;

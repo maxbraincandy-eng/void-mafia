@@ -815,6 +815,55 @@ export async function listFeedV2(viewerId, options) {
     }
     return Promise.all(rows.map(r => buildPostV2(r, viewerId)));
 }
+// ── Ephemeral 24h Stories ─────────────────────────────────────────────
+const STORY_TTL_MS = 24 * 60 * 60 * 1000;
+export async function createStory(authorId, imageUrl, caption) {
+    if (!imageUrl || !imageUrl.startsWith('data:image/'))
+        throw new Error('Invalid image.');
+    if (imageUrl.length > 680000)
+        throw new Error('Image too large — please use a smaller image.');
+    const id = `story_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const now = Date.now();
+    const cap = (caption ?? '').slice(0, 200);
+    await sql `
+    INSERT INTO community_stories (id, author_id, image_url, caption, created_at, expires_at)
+    VALUES (${id}, ${authorId}, ${imageUrl}, ${cap}, ${now}, ${now + STORY_TTL_MS})
+  `;
+    return { id, imageUrl, caption: cap, createdAt: now };
+}
+export async function listActiveStories() {
+    const now = Date.now();
+    try {
+        await sql `DELETE FROM community_stories WHERE expires_at < ${now}`;
+    }
+    catch { /* best effort */ }
+    const rows = await sql `
+    SELECT s.id, s.author_id, s.image_url, s.caption, s.created_at,
+           p.username, p.avatar, p.avatar_url, p.public_id
+    FROM community_stories s JOIN players p ON p.id = s.author_id
+    WHERE s.expires_at > ${now}
+    ORDER BY s.created_at ASC
+  `;
+    const map = new Map();
+    for (const r of rows) {
+        let g = map.get(r.author_id);
+        if (!g) {
+            g = { authorId: r.author_id, username: r.username, avatar: r.avatar, avatarUrl: r.avatar_url ?? null,
+                publicId: r.public_id != null ? Number(r.public_id) : null, stories: [] };
+            map.set(r.author_id, g);
+        }
+        g.stories.push({ id: r.id, imageUrl: r.image_url, caption: r.caption ?? '', createdAt: Number(r.created_at) });
+    }
+    return [...map.values()];
+}
+export async function deleteStory(id, requesterId, isMod) {
+    const [row] = await sql `SELECT author_id FROM community_stories WHERE id = ${id}`;
+    if (!row)
+        return;
+    if (row.author_id !== requesterId && !isMod)
+        throw new Error('Not allowed.');
+    await sql `DELETE FROM community_stories WHERE id = ${id}`;
+}
 // Fetch posts by a single author (for community profile page)
 export async function getUserPosts(authorId, viewerId, options = {}) {
     const limit = Math.min(options.limit ?? 40, 80);

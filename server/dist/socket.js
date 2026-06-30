@@ -29,7 +29,7 @@ import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
 import { getActiveSeason, getSeasonLeaderboard, getMySeasonHistory } from './services/seasonService.js';
 import { startReplay, recordEvent, finishReplay, listReplays, getReplay, getMyReplays, } from './services/replayService.js';
-import { listNews, createNews, deleteNews, listRecommends, createRecommend, deleteRecommend, listThoughts, createThought, deleteThought, listFeed, createPost, deletePost, toggleLike, getComments, addComment, deleteComment, reportPost, listCommunityReports, resolveCommunityReport, follow, unfollow, listEvents, createEvent, joinEvent, leaveEvent, createNotification, notifyAllPlayers, listNotifications, getUnreadNotificationCount, markNotificationsRead, listLoungeRows, getLoungeRow, rowToLounge, createLounge, deleteLounge, setLoungeLive, communityBanPlayer, communityUnbanPlayer, getActiveCommunityBan, updateCommunityProfile, getCommunityProfileV2, assignBadge, revokeBadge, setShowcaseAchievement, clearShowcaseSlot, getPrivacySettings, setPrivacySettings, createPostV2, listFeedV2, getUserPosts, votePoll, togglePostSave, getSavedPosts, pinPost, featurePost, hidePost, logCommunityModAction, getCommunityModLogs, listPeopleDirectory, getFollowersList, getFollowingList, searchCommunity, upsertOnlineSeen, getOnlineMembers, generateAnonymousName, togglePostReaction, getWeeklyLeaderboard, } from './services/communityService.js';
+import { listNews, createNews, deleteNews, listRecommends, createRecommend, deleteRecommend, listThoughts, createThought, deleteThought, listFeed, createPost, deletePost, toggleLike, getComments, addComment, deleteComment, reportPost, listCommunityReports, resolveCommunityReport, follow, unfollow, listEvents, createEvent, joinEvent, leaveEvent, createNotification, notifyAllPlayers, listNotifications, getUnreadNotificationCount, markNotificationsRead, listLoungeRows, getLoungeRow, rowToLounge, createLounge, deleteLounge, setLoungeLive, communityBanPlayer, communityUnbanPlayer, getActiveCommunityBan, updateCommunityProfile, getCommunityProfileV2, assignBadge, revokeBadge, setShowcaseAchievement, clearShowcaseSlot, getPrivacySettings, setPrivacySettings, createPostV2, listFeedV2, getUserPosts, votePoll, togglePostSave, getSavedPosts, createStory, listActiveStories, deleteStory, pinPost, featurePost, hidePost, logCommunityModAction, getCommunityModLogs, listPeopleDirectory, getFollowersList, getFollowingList, searchCommunity, upsertOnlineSeen, getOnlineMembers, generateAnonymousName, togglePostReaction, getWeeklyLeaderboard, } from './services/communityService.js';
 import { listDebates, getDebateFull, createDebate, joinDebate, postArgument, voteDebate, closeDebate, startDebate, advancePhase as advanceDebatePhase, skipPhase, raiseHand, lowerHand, getRaisedHands, promoteSpeaker, PHASE_DURATION_SECONDS, } from './services/debateService.js';
 import { voiceJoin as debateVoiceJoin, voiceLeave as debateVoiceLeave } from './services/debateVoiceService.js';
 import { recordActivity, getFriendActivityFeed } from './services/activityService.js';
@@ -5432,6 +5432,43 @@ export function attachSocketHandlers(io) {
                 const viewerId = socket.data.profileId ?? '';
                 const posts = await getUserPosts(authorId, viewerId, { before });
                 cb(ok(posts));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Stories (24h ephemeral) ───────────────────────────────────────
+        socket.on('community:stories_list', async (cb) => {
+            try {
+                cb(ok(await listActiveStories()));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('community:story_create', async ({ imageUrl, caption }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const ban = await getActiveBan(profileId);
+                if (ban)
+                    throw new Error('You are banned.');
+                const story = await createStory(profileId, imageUrl, caption ?? '');
+                cb(ok(story));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('community:story_delete', async ({ id }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const player = await getPlayer(profileId);
+                await deleteStory(id, profileId, !!player?.isModerator);
+                cb(ok(null));
             }
             catch (e) {
                 cb(err(e.message));
