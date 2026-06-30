@@ -115,6 +115,7 @@ export interface StoryItem {
     imageUrl: string;
     caption: string;
     createdAt: number;
+    viewCount?: number;
 }
 export interface StoryGroup {
     authorId: string;
@@ -124,8 +125,18 @@ export interface StoryGroup {
     publicId: number | null;
     stories: StoryItem[];
 }
+export interface StoryViewer {
+    id: string;
+    username: string;
+    avatar: string;
+    avatarUrl: string | null;
+    publicId: number | null;
+    viewedAt: number;
+}
 export declare function createStory(authorId: string, imageUrl: string, caption: string): Promise<StoryItem>;
-export declare function listActiveStories(): Promise<StoryGroup[]>;
+export declare function listActiveStories(viewerId?: string): Promise<StoryGroup[]>;
+export declare function recordStoryView(storyId: string, viewerId: string): Promise<void>;
+export declare function getStoryViewers(storyId: string, requesterId: string): Promise<StoryViewer[]>;
 export declare function deleteStory(id: string, requesterId: string, isMod: boolean): Promise<void>;
 export declare function getUserPosts(authorId: string, viewerId: string, options?: {
     before?: number;

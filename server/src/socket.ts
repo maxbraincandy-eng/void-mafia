@@ -110,7 +110,7 @@ import {
   assignBadge, revokeBadge, setShowcaseAchievement, clearShowcaseSlot,
   getPrivacySettings, setPrivacySettings,
   createPostV2, listFeedV2, getUserPosts, votePoll, togglePostSave, getSavedPosts,
-  createStory, listActiveStories, deleteStory,
+  createStory, listActiveStories, deleteStory, recordStoryView, getStoryViewers,
   pinPost, featurePost, hidePost, logCommunityModAction, getCommunityModLogs,
   listPeopleDirectory, getFollowersList, getFollowingList,
   searchCommunity, upsertOnlineSeen, getOnlineMembers, computeTrending, recalcReputation,
@@ -4935,7 +4935,24 @@ export function attachSocketHandlers(io: AppServer): void {
 
     // ── Stories (24h ephemeral) ───────────────────────────────────────
     socket.on('community:stories_list' as any, async (cb: any) => {
-      try { cb(ok(await listActiveStories())); } catch (e: any) { cb(err(e.message)); }
+      try { cb(ok(await listActiveStories(socket.data.profileId ?? undefined))); } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:story_view' as any, async ({ storyId }: { storyId: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb?.(ok(null)); return; }
+        await recordStoryView(storyId, profileId);
+        cb?.(ok(null));
+      } catch (e: any) { cb?.(err(e.message)); }
+    });
+
+    socket.on('community:story_viewers' as any, async ({ storyId }: { storyId: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        cb(ok(await getStoryViewers(storyId, profileId)));
+      } catch (e: any) { cb(err(e.message)); }
     });
 
     socket.on('community:story_create' as any, async ({ imageUrl, caption }: { imageUrl: string; caption?: string }, cb: any) => {

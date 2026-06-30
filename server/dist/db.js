@@ -699,6 +699,16 @@ export async function initializeDatabase() {
     )
   `;
     await sql `CREATE INDEX IF NOT EXISTS idx_community_stories_expires ON community_stories(expires_at)`;
+    // Story views (who saw a story) — author can see the viewer list.
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_story_views (
+      story_id  TEXT NOT NULL,
+      viewer_id TEXT NOT NULL,
+      viewed_at BIGINT NOT NULL,
+      PRIMARY KEY (story_id, viewer_id)
+    )
+  `;
+    await sql `CREATE INDEX IF NOT EXISTS idx_story_views_story ON community_story_views(story_id)`;
     await sql `
     CREATE TABLE IF NOT EXISTS community_post_likes (
       post_id    TEXT NOT NULL,

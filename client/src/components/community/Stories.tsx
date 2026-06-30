@@ -5,10 +5,14 @@ import { emitWithAck } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
 import type { Res } from '@/types/index';
 
-export interface StoryItem { id: string; imageUrl: string; caption: string; createdAt: number; }
+export interface StoryItem { id: string; imageUrl: string; caption: string; createdAt: number; viewCount?: number; }
 export interface StoryGroup {
   authorId: string; username: string; avatar: string; avatarUrl: string | null;
   publicId: number | null; stories: StoryItem[];
+}
+export interface StoryViewerRow {
+  id: string; username: string; avatar: string; avatarUrl: string | null;
+  publicId: number | null; viewedAt: number;
 }
 
 const SEEN_KEY = 'vm_seen_stories';
@@ -71,9 +75,16 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
   const [si, setSi] = useState(0);
   const [tick, setTick] = useState(0); // remount progress bar on advance
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Viewers sheet (own stories only): swipe up to reveal who viewed.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [viewers, setViewers] = useState<StoryViewerRow[] | null>(null);
+  const [viewersBusy, setViewersBusy] = useState(false);
+  // Touch tracking for swipe up (open viewers) / swipe down (close).
+  const touch = useRef<{ x: number; y: number } | null>(null);
 
   const group = groups[gi];
   const story = group?.stories[si];
+  const isMine = group?.authorId === myId;
 
   const advance = useCallback(() => {
     setSi(prevSi => {
@@ -91,22 +102,51 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
     else if (gi > 0) { const pg = groups[gi - 1]; setGi(gi - 1); setSi(Math.max(0, pg.stories.length - 1)); setTick(t => t + 1); }
   }, [si, gi, groups]);
 
-  // Auto-advance + mark seen
+  // Close the viewers sheet and resume the story.
+  const closeSheet = useCallback(() => { setSheetOpen(false); setTick(t => t + 1); }, []);
+
+  // Open the viewers sheet for the current (own) story.
+  const openSheet = useCallback(() => {
+    if (!isMine || !story) return;
+    setSheetOpen(true);
+    setViewers(null); setViewersBusy(true);
+    emitWithAck<{ storyId: string }, Res<StoryViewerRow[]>>('community:story_viewers', { storyId: story.id })
+      .then(r => { setViewers((r as any).ok ? (r as any).data : []); })
+      .catch(() => setViewers([]))
+      .finally(() => setViewersBusy(false));
+  }, [isMine, story]);
+
+  // Auto-advance + mark seen + record the view (others' stories only).
   useEffect(() => {
     if (!story) return;
     markSeen(story.id);
+    if (!isMine) {
+      emitWithAck('community:story_view', { storyId: story.id }).catch(() => {});
+    }
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(advance, 5000);
+    if (!sheetOpen) timer.current = setTimeout(advance, 5000);
     return () => { if (timer.current) clearTimeout(timer.current); };
-  }, [story?.id, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [story?.id, tick, sheetOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!group || !story) return null;
-  const isMine = group.authorId === myId;
 
   const handleDelete = async () => {
     try { await emitWithAck('community:story_delete', { id: story.id }); } catch { /* ignore */ }
     onDeleted();
     onClose();
+  };
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0]; touch.current = { x: t.clientX, y: t.clientY };
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const start = touch.current; touch.current = null;
+    if (!start) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x, dy = t.clientY - start.y;
+    if (Math.abs(dy) < 60 || Math.abs(dx) > Math.abs(dy)) return; // not a vertical swipe
+    if (dy > 0) { onClose(); }              // swipe down → close (all users)
+    else if (isMine) { openSheet(); }       // swipe up → viewers (own story)
   };
 
   return createPortal(
@@ -119,35 +159,69 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
             <div style={{
               height: '100%', borderRadius: 2, background: '#fff',
               width: idx < si ? '100%' : idx === si ? '100%' : '0%',
-              animation: idx === si ? `vm-story-progress 5s linear forwards` : undefined,
+              animation: idx === si && !sheetOpen ? `vm-story-progress 5s linear forwards` : undefined,
             }} />
           </div>
         ))}
       </div>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 14px 10px' }}>
-        <button onClick={() => { onOpenProfile(group.authorId); onClose(); }} className="flex items-center gap-2">
-          <Avatar avatar={group.avatar} avatarUrl={group.avatarUrl} size={32} />
-          <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#fff', fontWeight: 600 }}>{group.username}</span>
-        </button>
-        <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{timeAgo(story.createdAt)}</span>
+        {sheetOpen ? (
+          <button onClick={closeSheet} style={{ fontSize: 20, color: '#fff', lineHeight: 1 }} aria-label="back">‹ უკან</button>
+        ) : (
+          <button onClick={() => { onOpenProfile(group.authorId); onClose(); }} className="flex items-center gap-2">
+            <Avatar avatar={group.avatar} avatarUrl={group.avatarUrl} size={32} />
+            <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#fff', fontWeight: 600 }}>{group.username}</span>
+          </button>
+        )}
+        {!sheetOpen && <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{timeAgo(story.createdAt)}</span>}
         <div style={{ flex: 1 }} />
-        {isMine && (
+        {isMine && !sheetOpen && (
           <button onClick={handleDelete} style={{ fontSize: 16, color: 'rgba(255,255,255,0.7)' }} title="წაშლა">🗑</button>
         )}
         <button onClick={onClose} style={{ fontSize: 20, color: 'rgba(255,255,255,0.85)', lineHeight: 1 }}>✕</button>
       </div>
-      {/* Image + tap zones */}
-      <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+      {/* Image + tap zones (image half-collapses when the viewers sheet is open) */}
+      <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
+        style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', transition: 'flex-basis .25s ease, height .25s ease', flex: sheetOpen ? '0 0 42%' : 1 }}>
         <img key={story.id} src={story.imageUrl} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-        <button onClick={back} style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '32%', background: 'transparent', border: 'none' }} aria-label="prev" />
-        <button onClick={advance} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '40%', background: 'transparent', border: 'none' }} aria-label="next" />
-        {story.caption && (
+        {!sheetOpen && <button onClick={back} style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '32%', background: 'transparent', border: 'none' }} aria-label="prev" />}
+        {!sheetOpen && <button onClick={advance} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '40%', background: 'transparent', border: 'none' }} aria-label="next" />}
+        {story.caption && !sheetOpen && (
           <div style={{ position: 'absolute', left: 16, right: 16, bottom: 24, textAlign: 'center', fontFamily: 'monospace', fontSize: 14, color: '#fff', textShadow: '0 1px 6px rgba(0,0,0,0.9)', background: 'rgba(0,0,0,0.35)', padding: '8px 12px', borderRadius: 12, backdropFilter: 'blur(4px)' }}>
             {story.caption}
           </div>
         )}
       </div>
+      {/* Footer: viewers eye (own stories) — tap or swipe up to expand */}
+      {isMine && !sheetOpen && (
+        <button onClick={openSheet} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 14px 16px', color: 'rgba(255,255,255,0.85)', background: 'transparent', border: 'none' }}>
+          <span style={{ fontSize: 16 }}>👁</span>
+          <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{story.viewCount ?? 0}</span>
+          <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>▲ ვინ ნახა</span>
+        </button>
+      )}
+      {/* Viewers half-sheet */}
+      {sheetOpen && (
+        <div style={{ flex: 1, overflowY: 'auto', background: 'rgba(8,4,22,0.98)', borderTop: '1px solid rgba(155,0,255,.25)', padding: '14px 16px 24px' }}>
+          <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 13, color: '#fff', marginBottom: 12 }}>
+            👁 ნახა {viewers ? viewers.length : ''}
+          </p>
+          {viewersBusy && <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>…</p>}
+          {!viewersBusy && viewers && viewers.length === 0 && (
+            <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>ჯერ არავის უნახავს</p>
+          )}
+          {!viewersBusy && viewers && viewers.map(v => (
+            <button key={v.id} onClick={() => { onOpenProfile(v.id); onClose(); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '8px 4px', background: 'transparent', border: 'none' }}>
+              <Avatar avatar={v.avatar} avatarUrl={v.avatarUrl} size={36} />
+              <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#fff' }}>{v.username}</span>
+              <div style={{ flex: 1 }} />
+              <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{timeAgo(v.viewedAt)}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </motion.div>,
     document.body
   );

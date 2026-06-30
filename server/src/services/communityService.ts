@@ -887,11 +887,12 @@ export async function listFeedV2(viewerId: string, options: { category: FeedCate
 
 // ── Ephemeral 24h Stories ─────────────────────────────────────────────
 const STORY_TTL_MS = 24 * 60 * 60 * 1000;
-export interface StoryItem { id: string; imageUrl: string; caption: string; createdAt: number; }
+export interface StoryItem { id: string; imageUrl: string; caption: string; createdAt: number; viewCount?: number; }
 export interface StoryGroup {
   authorId: string; username: string; avatar: string; avatarUrl: string | null;
   publicId: number | null; stories: StoryItem[];
 }
+export interface StoryViewer { id: string; username: string; avatar: string; avatarUrl: string | null; publicId: number | null; viewedAt: number; }
 
 export async function createStory(authorId: string, imageUrl: string, caption: string): Promise<StoryItem> {
   if (!imageUrl || !imageUrl.startsWith('data:image/')) throw new Error('Invalid image.');
@@ -906,12 +907,13 @@ export async function createStory(authorId: string, imageUrl: string, caption: s
   return { id, imageUrl, caption: cap, createdAt: now };
 }
 
-export async function listActiveStories(): Promise<StoryGroup[]> {
+export async function listActiveStories(viewerId?: string): Promise<StoryGroup[]> {
   const now = Date.now();
   try { await sql`DELETE FROM community_stories WHERE expires_at < ${now}`; } catch { /* best effort */ }
   const rows = await sql`
     SELECT s.id, s.author_id, s.image_url, s.caption, s.created_at,
-           p.username, p.avatar, p.avatar_url, p.public_id
+           p.username, p.avatar, p.avatar_url, p.public_id,
+           (SELECT COUNT(*) FROM community_story_views v WHERE v.story_id = s.id) AS view_count
     FROM community_stories s JOIN players p ON p.id = s.author_id
     WHERE s.expires_at > ${now}
     ORDER BY s.created_at ASC
@@ -924,9 +926,37 @@ export async function listActiveStories(): Promise<StoryGroup[]> {
             publicId: r.public_id != null ? Number(r.public_id) : null, stories: [] };
       map.set(r.author_id, g);
     }
-    g.stories.push({ id: r.id, imageUrl: r.image_url, caption: r.caption ?? '', createdAt: Number(r.created_at) });
+    // View counts are only exposed to the story's author.
+    const viewCount = viewerId && r.author_id === viewerId ? Number(r.view_count ?? 0) : undefined;
+    g.stories.push({ id: r.id, imageUrl: r.image_url, caption: r.caption ?? '', createdAt: Number(r.created_at), viewCount });
   }
   return [...map.values()];
+}
+
+export async function recordStoryView(storyId: string, viewerId: string): Promise<void> {
+  const [s] = await sql`SELECT author_id FROM community_stories WHERE id = ${storyId}` as any[];
+  if (!s || s.author_id === viewerId) return; // no self-views
+  await sql`
+    INSERT INTO community_story_views (story_id, viewer_id, viewed_at)
+    VALUES (${storyId}, ${viewerId}, ${Date.now()})
+    ON CONFLICT (story_id, viewer_id) DO NOTHING
+  `;
+}
+
+export async function getStoryViewers(storyId: string, requesterId: string): Promise<StoryViewer[]> {
+  const [s] = await sql`SELECT author_id FROM community_stories WHERE id = ${storyId}` as any[];
+  if (!s) return [];
+  if (s.author_id !== requesterId) throw new Error('Only the author can see viewers.');
+  const rows = await sql`
+    SELECT v.viewed_at, p.id, p.username, p.avatar, p.avatar_url, p.public_id
+    FROM community_story_views v JOIN players p ON p.id = v.viewer_id
+    WHERE v.story_id = ${storyId}
+    ORDER BY v.viewed_at DESC
+  ` as any[];
+  return rows.map((r: any) => ({
+    id: r.id, username: r.username, avatar: r.avatar, avatarUrl: r.avatar_url ?? null,
+    publicId: r.public_id != null ? Number(r.public_id) : null, viewedAt: Number(r.viewed_at),
+  }));
 }
 
 export async function deleteStory(id: string, requesterId: string, isMod: boolean): Promise<void> {
@@ -934,6 +964,7 @@ export async function deleteStory(id: string, requesterId: string, isMod: boolea
   if (!row) return;
   if (row.author_id !== requesterId && !isMod) throw new Error('Not allowed.');
   await sql`DELETE FROM community_stories WHERE id = ${id}`;
+  await sql`DELETE FROM community_story_views WHERE story_id = ${id}`;
 }
 
 // Fetch posts by a single author (for community profile page)
