@@ -1895,47 +1895,47 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   return (
     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-[200] flex flex-col" style={{background:'#020010'}}>
       {/* Header */}
-      <div style={{ display:'flex',alignItems:'center',gap:12,padding:'10px 16px',paddingTop:'calc(10px + env(safe-area-inset-top,0px))',background:'rgba(3,0,14,.96)',borderBottom:'1px solid rgba(155,0,255,.18)',backdropFilter:'blur(14px)',flexShrink:0 }}>
-        <div style={{ width:8,height:8,borderRadius:'50%',background:'#9b00ff',boxShadow:'0 0 10px #9b00ff',animation:'vs-pulse 2s ease-in-out infinite' }}/>
+      <div style={{ display:'flex',alignItems:'center',gap:6,padding:'10px 12px',paddingTop:'calc(10px + env(safe-area-inset-top,0px))',background:'rgba(3,0,14,.96)',borderBottom:'1px solid rgba(155,0,255,.18)',backdropFilter:'blur(14px)',flexShrink:0 }}>
+        <div style={{ width:8,height:8,borderRadius:'50%',background:'#9b00ff',boxShadow:'0 0 10px #9b00ff',animation:'vs-pulse 2s ease-in-out infinite',flexShrink:0 }}/>
         <div style={{ flex:1,minWidth:0 }}>
-          <p style={{ fontFamily:'"Space Grotesk",sans-serif',fontWeight:700,fontSize:14,color:'white',letterSpacing:'0.05em' }}>
+          <p style={{ fontFamily:'"Space Grotesk",sans-serif',fontWeight:700,fontSize:14,color:'white',letterSpacing:'0.05em',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis' }}>
             {joined && space ? `${space.icon} ${space.name}`.toUpperCase() : 'VOID LOUNGE'}
           </p>
-          <p style={{ fontFamily:'monospace',fontSize:10,color:'rgba(255,255,255,.28)',letterSpacing:'0.08em' }}>
+          <p style={{ fontFamily:'monospace',fontSize:10,color:'rgba(255,255,255,.28)',letterSpacing:'0.08em',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis' }}>
             {joined ? `${players.size} online · ${voiceLabel}` : 'სოციალური სივრცე'}
           </p>
         </div>
         {joined && (
-          <button onClick={openDmList} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(0,229,255,.08)',border:'1px solid rgba(0,229,255,.25)',fontSize:13 }} title="Messages">
+          <button onClick={openDmList} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(0,229,255,.08)',border:'1px solid rgba(0,229,255,.25)',fontSize:13 }} title="Messages">
             💬
           </button>
         )}
         {joined && (
-          <button onClick={()=>setShowInvite(true)} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(155,0,255,.1)',border:'1px solid rgba(155,0,255,.3)',fontSize:14 }} title="მოწვევა">
+          <button onClick={()=>setShowInvite(true)} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(155,0,255,.1)',border:'1px solid rgba(155,0,255,.3)',fontSize:14 }} title="მოწვევა">
             ✦
           </button>
         )}
         {joined && (
-          <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:muted?'rgba(255,45,85,.12)':'rgba(0,229,255,.08)',border:`1px solid ${muted?'rgba(255,45,85,.35)':'rgba(0,229,255,.25)'}`,fontSize:14 }}>
+          <button onClick={toggleMute} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:muted?'rgba(255,45,85,.12)':'rgba(0,229,255,.08)',border:`1px solid ${muted?'rgba(255,45,85,.35)':'rgba(0,229,255,.25)'}`,fontSize:14 }}>
             {muted ? '🔇' : '🎤'}
           </button>
         )}
         {joined && (
-          <button onClick={takePhoto} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(0,229,255,.1)',border:'1px solid rgba(0,229,255,.3)',fontSize:14 }} title="Photobooth">
+          <button onClick={takePhoto} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(0,229,255,.1)',border:'1px solid rgba(0,229,255,.3)',fontSize:14 }} title="Photobooth">
             📸
           </button>
         )}
         {joined && (
-          <button onClick={openKoBoard} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(255,180,0,.1)',border:'1px solid rgba(255,180,0,.3)',fontSize:14 }} title="KO რეიტინგი">
+          <button onClick={openKoBoard} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(255,180,0,.1)',border:'1px solid rgba(255,180,0,.3)',fontSize:14 }} title="KO რეიტინგი">
             🏆
           </button>
         )}
         {joined && canChangeTheme && (
-          <button onClick={()=>setThemePickerOpen(true)} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:`${themeDef.accent}14`,border:`1px solid ${themeDef.accent}40`,fontSize:14 }} title="თემა">
+          <button onClick={()=>setThemePickerOpen(true)} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:`${themeDef.accent}14`,border:`1px solid ${themeDef.accent}40`,fontSize:14 }} title="თემა">
             🎨
           </button>
         )}
-        <button onClick={() => { if (joined) setConfirmExit(true); else handleClose(); }} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.1)',color:'rgba(255,255,255,.45)',fontSize:14 }}>✕</button>
+        <button onClick={() => { if (joined) setConfirmExit(true); else handleClose(); }} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.1)',color:'rgba(255,255,255,.45)',fontSize:14 }}>✕</button>
       </div>
 
       {/* Content */}
