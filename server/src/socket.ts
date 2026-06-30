@@ -43,7 +43,7 @@ import {
   markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend,
   removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount,
   setLoungePresence, clearLoungePresence, getFriendIds,
-  setInvisible, isInvisible,
+  setInvisible, isInvisible, setGhost, isGhost,
 } from './services/friendService.js';
 import {
   checkAndAwardChallenges, getDailyQuestsForPlayer,
@@ -2965,6 +2965,28 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    // ── Owner stealth: Ghost Mode (extends Invisible) ─────────────────
+    socket.on('mod:set_ghost' as any, async ({ enabled }: { enabled: boolean }, cb: any) => {
+      try {
+        const pid = socket.data.profileId;
+        const mod = pid ? await getPlayer(pid) : null;
+        if (!mod || mod.moderatorLevel !== 'owner') throw new Error('Owner only.');
+        setGhost(pid!, !!enabled);            // enabling also forces invisible on
+        broadcastOnlineCount(io);
+        await addModLog('broadcast', pid!, mod.username, 'system', 'system', null, `Ghost Mode: ${enabled ? 'ON' : 'OFF'}`);
+        cb(ok({ ghost: isGhost(pid!), invisible: isInvisible(pid!) }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mod:get_ghost' as any, async (cb: any) => {
+      try {
+        const pid = socket.data.profileId;
+        const mod = pid ? await getPlayer(pid) : null;
+        if (!mod || mod.moderatorLevel !== 'owner') throw new Error('Owner only.');
+        cb(ok({ ghost: isGhost(pid!), invisible: isInvisible(pid!) }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     // ── Mod: Player Detail ────────────────────────────────────────────
     socket.on('mod:get_player_detail', async ({ targetProfileId }: { targetProfileId: string }, cb: any) => {
       try {
@@ -5799,6 +5821,33 @@ export function attachSocketHandlers(io: AppServer): void {
         if (existingDJ) socket.emit('space:dj-update', existingDJ);
         if (existingTV) socket.emit('tv:update', existingTV);
       } catch { cb?.({ ok: false, error: 'Internal error' }); }
+    });
+
+    // Ghost observe a Virtual Space: receive its state + live updates without
+    // spawning an avatar, joining the participant map, touching presence, or
+    // notifying anyone. Owner + ghost mode only.
+    socket.on('space:ghost_join' as any, async ({ spaceId = 'main' }: any, cb: Function) => {
+      try {
+        const pid = socket.data.profileId;
+        const mod = pid ? await getPlayer(pid) : null;
+        if (!mod || mod.moderatorLevel !== 'owner' || !isGhost(pid!)) return cb?.({ ok: false, error: 'Ghost mode (owner) only.' });
+        const safeSpace = String(spaceId).slice(0, 48).replace(/[^a-zA-Z0-9_-]/g, '') || 'main';
+        const meta = _spaceMeta.get(safeSpace);
+        if (!meta) return cb?.({ ok: false, error: 'Space not found.' });
+        socket.join(`space:${safeSpace}`); // receive broadcasts only — not a member
+        const room = _spaces.get(safeSpace);
+        const players = room ? [...room.values()] : [];
+        const existingDJ = _spaceDJ.get(safeSpace) ?? null;
+        const existingTV = _tvPublic(safeSpace);
+        cb?.({ ok: true, data: { players, mySocketId: socket.id, djState: existingDJ, tvState: existingTV,
+          space: { ..._publicSpaceMeta(meta, room?.size ?? 0), canControlTv: _canControlTv(safeSpace, pid ?? null) } } });
+        if (existingDJ) socket.emit('space:dj-update', existingDJ);
+        if (existingTV) socket.emit('tv:update', existingTV);
+      } catch { cb?.({ ok: false, error: 'Internal error' }); }
+    });
+
+    socket.on('space:ghost_leave' as any, () => {
+      for (const r of socket.rooms) if (typeof r === 'string' && r.startsWith('space:')) socket.leave(r);
     });
 
     socket.on('space:create', async ({ name, icon, theme, layout, maxPlayers, isPublic }: any, cb: Function) => {

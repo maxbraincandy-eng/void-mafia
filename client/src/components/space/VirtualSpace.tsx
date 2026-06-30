@@ -1540,7 +1540,14 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const [socialProfileId, setSocialProfileId] = useState<string | null>(null);
   const openDmList = useSocialStore(s => s.openDmList);
 
-  const { joined, mySocketId, players, chatHistory, space, reactions, projectiles, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, knockout, clearKnockout, challengeDuel, respondDuel } = useVirtualSpace();
+  const { joined, ghost, mySocketId, players, chatHistory, space, reactions, projectiles, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, knockout, clearKnockout, challengeDuel, respondDuel, ghostJoin, ghostLeave } = useVirtualSpace();
+  // Owner Ghost Mode: when on, the owner observes spaces without spawning.
+  const [ghostMode, setGhostMode] = useState(false);
+  useEffect(() => {
+    if (profile?.moderatorLevel === 'owner') {
+      (socket as any).emit('mod:get_ghost', (res: any) => { if (res?.ok) setGhostMode(!!res.data.ghost); });
+    }
+  }, [profile?.moderatorLevel]);
   const { joined: voiceJoined, muted, speakingIds, status: voiceStatus, joinVoice, leaveVoice, toggleMute } = useSpaceVoice();
 
   // ── Space selection flow: lobby → customize → in-space ────────────────
@@ -1564,10 +1571,14 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
         const pet = localStorage.getItem(LS_PET) ?? 'none';
         const form = localStorage.getItem(LS_FORM) ?? 'human';
         joinTimeRef.current = Date.now();
-        join(res.space.id, playerName, body, glow, mask, hat, pet, form).then(ok => {
-          if (ok) joinVoice();
-          setResolvingDeepLink(false);
-        });
+        if (ghostMode) {
+          ghostJoin(res.space.id).finally(() => setResolvingDeepLink(false)); // observe only — no voice
+        } else {
+          join(res.space.id, playerName, body, glow, mask, hat, pet, form).then(ok => {
+            if (ok) joinVoice();
+            setResolvingDeepLink(false);
+          });
+        }
       } else {
         setResolvingDeepLink(false); // not found → fall back to the lobby
       }
@@ -1710,7 +1721,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
 
   // ── Handlers ──────────────────────────────────────────────────────
 
-  const handleClose = useCallback(() => { leaveVoice(); leave(); onClose(); }, [leave, leaveVoice, onClose]);
+  const handleClose = useCallback(() => { leaveVoice(); if (ghost) ghostLeave(); else leave(); onClose(); }, [leave, leaveVoice, onClose, ghost, ghostLeave]);
 
   const launchGame = useCallback(async (gameId: string) => {
     if (launchingGame) return;
@@ -1736,6 +1747,12 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
     const ok = await join(selectedSpace?.id ?? 'main', playerName, bodyColor, glowColor, mask, hat, pet, form);
     if (ok) joinVoice();
   }
+
+  // Owner ghost-observe: skip the customizer and enter without spawning/voice.
+  const handleGhostEnter = useCallback(() => {
+    joinTimeRef.current = Date.now();
+    ghostJoin(selectedSpace?.id ?? 'main');
+  }, [ghostJoin, selectedSpace]);
 
   // Called from click → user gesture → iOS allows
   function handlePlayDirect(videoId: string) {
@@ -1786,6 +1803,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   }
 
   function handleWorldTap(clientX: number, clientY: number) {
+    if (ghost) return; // ghost observers have no avatar to move
     if (!joined || !mySocketId || djPanelOpen) return;
     const rect = worldRef.current!.getBoundingClientRect();
     const x = Math.max(5, Math.min(95, ((clientX - rect.left) / rect.width) * 100));
@@ -1915,10 +1933,15 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             ✦
           </button>
         )}
-        {joined && (
+        {joined && !ghost && (
           <button onClick={toggleMute} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:muted?'rgba(255,45,85,.12)':'rgba(0,229,255,.08)',border:`1px solid ${muted?'rgba(255,45,85,.35)':'rgba(0,229,255,.25)'}`,fontSize:14 }}>
             {muted ? '🔇' : '🎤'}
           </button>
+        )}
+        {ghost && (
+          <span className="shrink-0 flex items-center gap-1 px-2 h-8 rounded-xl font-mono text-[10px] font-bold tracking-widest" style={{ background:'rgba(155,0,255,.14)', border:'1px solid rgba(155,0,255,.45)', color:'#c084fc' }}>
+            👻 GHOST
+          </span>
         )}
         {joined && (
           <button onClick={takePhoto} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(0,229,255,.1)',border:'1px solid rgba(0,229,255,.3)',fontSize:14 }} title="Photobooth">
@@ -1963,7 +1986,22 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                     <p className="font-mono text-[12px] mt-2" style={{ color:'#c084fc' }}>{selectedSpace.icon} {selectedSpace.name}</p>
                   )}
                 </div>
-                <AvatarCustomizer playerName={playerName} onJoin={handleJoin}/>
+                {ghostMode ? (
+                  <div className="flex flex-col items-center justify-center gap-4 px-6 py-12 text-center">
+                    <div style={{ fontSize: 52 }}>👻</div>
+                    <p className="font-display font-bold text-white text-base">Ghost Observe</p>
+                    <p className="font-mono text-[12px] text-white/40 leading-relaxed max-w-[260px]">
+                      Enter invisibly to moderate — no avatar, no voice, no notification. Nobody will know you're watching.
+                    </p>
+                    <button onClick={handleGhostEnter}
+                      className="px-6 py-3 rounded-xl font-mono text-sm font-bold transition-all active:scale-95"
+                      style={{ background: 'rgba(155,0,255,.18)', border: '1px solid rgba(155,0,255,.45)', color: '#c084fc' }}>
+                      👻 Enter as Ghost
+                    </button>
+                  </div>
+                ) : (
+                  <AvatarCustomizer playerName={playerName} onJoin={handleJoin}/>
+                )}
               </>
             )}
           </div>
@@ -2099,6 +2137,9 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
 
           {/* Bottom bar */}
           <form onSubmit={handleSendChat} style={{ display:'flex',gap:8,padding:'8px 12px',paddingBottom:'calc(8px + env(safe-area-inset-bottom,0px))',background:'rgba(3,0,14,.97)',borderTop:'1px solid rgba(155,0,255,.14)',flexShrink:0 }}>
+            {ghost ? (
+              <div style={{ flex:1,display:'flex',alignItems:'center',gap:6,fontFamily:'monospace',fontSize:12,color:'#c084fc',paddingLeft:4 }}>👻 Observing — read only</div>
+            ) : (<>
             <input value={chat} onChange={e=>{ setChat(e.target.value); if(e.target.value.trim()) setTyping(true); else setTyping(false); }} maxLength={140} placeholder="გზავნილი…"
               style={{ flex:1,background:'rgba(255,255,255,.04)',fontFamily:'monospace',fontSize:13,color:'white',outline:'none',padding:'8px 12px',borderRadius:12,border:'1px solid rgba(255,255,255,.1)' }}
               onFocus={e=>e.stopPropagation()}
@@ -2106,6 +2147,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             />
             <button type="button" onClick={()=>setShowExpr(o=>!o)} style={{ padding:'8px 10px',borderRadius:12,fontFamily:'monospace',fontSize:15,lineHeight:1,background:showExpr?'rgba(255,0,150,.2)':'rgba(255,255,255,.04)',border:`1px solid ${showExpr?'rgba(255,0,150,.5)':'rgba(255,255,255,.1)'}`,transition:'all .15s',flexShrink:0 }} title="გამოხატვა">😊</button>
             <button type="submit" disabled={!chat.trim()} style={{ padding:'8px 14px',borderRadius:12,fontFamily:'monospace',fontSize:13,background:'rgba(155,0,255,.15)',border:'1px solid rgba(155,0,255,.4)',color:'#c084fc',transition:'all .15s',flexShrink:0 }}>→</button>
+            </>)}
             <button type="button" onClick={()=>setDrawerOpen(o=>!o)} style={{ padding:'8px 10px',borderRadius:12,fontFamily:'monospace',fontSize:13,background:drawerOpen?'rgba(155,0,255,.18)':'rgba(255,255,255,.04)',border:`1px solid ${drawerOpen?'rgba(155,0,255,.45)':'rgba(255,255,255,.1)'}`,color:drawerOpen?'#c084fc':'rgba(255,255,255,.4)',transition:'all .15s',flexShrink:0,position:'relative' }}>
               ☰
               {chatHistory.length>0&&!drawerOpen&&<span style={{position:'absolute',top:-3,right:-3,width:8,height:8,borderRadius:'50%',background:'#9b00ff',boxShadow:'0 0 6px #9b00ff'}}/>}

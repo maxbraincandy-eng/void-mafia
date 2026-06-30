@@ -70,6 +70,7 @@ interface VirtualSpaceState {
   reactions: ReactionFloat[];
   projectiles: Projectile[];
   knockout: { byName: string } | null;
+  ghost: boolean;
 }
 
 export function useVirtualSpace() {
@@ -81,7 +82,7 @@ export function useVirtualSpace() {
     space: null,
     reactions: [],
     projectiles: [],
-    knockout: null,
+    knockout: null, ghost: false,
   });
 
   const moveTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -111,7 +112,7 @@ export function useVirtualSpace() {
           if (!res?.ok) { resolve(false); return; }
           const players = new Map<string, SpacePlayer>();
           for (const p of res.data.players) players.set(p.socketId, p);
-          setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null });
+          setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: false });
           resolve(true);
         },
       );
@@ -177,7 +178,26 @@ export function useVirtualSpace() {
     for (const t of msgTimers.current.values()) clearTimeout(t);
     msgTimers.current.clear();
     if (moveTimer.current) { clearTimeout(moveTimer.current); moveTimer.current = null; }
-    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null });
+    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null, ghost: false });
+  }, []);
+
+  // Ghost observe — enter a space as an invisible owner (no avatar, no voice,
+  // not a participant). Server returns the current occupants + TV/DJ state.
+  const ghostJoin = useCallback((spaceId: string) => {
+    return new Promise<boolean>((resolve) => {
+      (socket as any).emit('space:ghost_join', { spaceId: spaceId || 'main' }, (res: any) => {
+        if (!res?.ok) { resolve(false); return; }
+        const players = new Map<string, SpacePlayer>();
+        for (const p of res.data.players) players.set(p.socketId, p);
+        setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: true });
+        resolve(true);
+      });
+    });
+  }, []);
+
+  const ghostLeave = useCallback(() => {
+    (socket as any).emit('space:ghost_leave');
+    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null, ghost: false });
   }, []);
 
   const sit = useCallback((myId: string, seatId: string, x: number, y: number) => {
@@ -450,5 +470,5 @@ export function useVirtualSpace() {
     };
   }, []);
 
-  return { ...state, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, clearKnockout, challengeDuel, respondDuel };
+  return { ...state, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, clearKnockout, challengeDuel, respondDuel, ghostJoin, ghostLeave };
 }

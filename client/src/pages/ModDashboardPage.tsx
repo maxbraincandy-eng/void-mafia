@@ -90,6 +90,7 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
   const [logs, setLogs] = useState<ModLog[]>([]);
   const [maintenance, setMaintenance] = useState(false);
   const [invisible, setInvisible] = useState(false);
+  const [ghost, setGhost] = useState(false);
 
   // UI state
   const [expandedRoom, setExpandedRoom] = useState<string | null>(null);
@@ -211,8 +212,8 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
   };
 
   const loadStealth = () => {
-    socket.emit('mod:get_invisible' as any, (res: Res<{ enabled: boolean }>) => {
-      if (res.ok) setInvisible(res.data.enabled);
+    socket.emit('mod:get_ghost' as any, (res: Res<{ ghost: boolean; invisible: boolean }>) => {
+      if (res.ok) { setGhost(res.data.ghost); setInvisible(res.data.invisible); }
     });
   };
   const toggleInvisible = (newVal: boolean) => {
@@ -221,12 +222,18 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
       else addToast((res as any).error ?? 'Failed', 'error');
     });
   };
+  const toggleGhost = (newVal: boolean) => {
+    socket.emit('mod:set_ghost' as any, { enabled: newVal }, (res: Res<{ ghost: boolean; invisible: boolean }>) => {
+      if (res.ok) { setGhost(res.data.ghost); setInvisible(res.data.invisible); addToast(`Ghost Mode ${res.data.ghost ? 'ON' : 'OFF'}`, 'success'); }
+      else addToast((res as any).error ?? 'Failed', 'error');
+    });
+  };
 
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
 
-  // Owner: load invisible state on open so the stealth indicator is accurate.
+  // Owner: load stealth state on open so the indicators are accurate.
   useEffect(() => {
-    if (rank >= 3) socket.emit('mod:get_invisible' as any, (res: Res<{ enabled: boolean }>) => { if (res.ok) setInvisible(res.data.enabled); });
+    if (rank >= 3) socket.emit('mod:get_ghost' as any, (res: Res<{ ghost: boolean; invisible: boolean }>) => { if (res.ok) { setGhost(res.data.ghost); setInvisible(res.data.invisible); } });
   }, [rank]);
 
   // Auto-refresh rooms tab
@@ -431,7 +438,11 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
                 <div className="flex items-center gap-2">
                   <h1 className="font-display text-lg font-bold text-neon-green tracking-widest">MOD CONTROL</h1>
                   <ModBadge level={profile?.moderatorLevel ?? 'moderator'} size="sm" />
-                  {invisible && (
+                  {ghost ? (
+                    <span className="flex items-center gap-1 px-1.5 py-0.5 rounded border border-neon-cyan/40 bg-neon-cyan/10 font-mono text-[9px] font-bold tracking-widest text-neon-cyan">
+                      <span className="w-1 h-1 rounded-full bg-neon-cyan animate-pulse" />GHOST
+                    </span>
+                  ) : invisible && (
                     <span className="flex items-center gap-1 px-1.5 py-0.5 rounded border border-neon-purple/40 bg-neon-purple/10 font-mono text-[9px] font-bold tracking-widest text-neon-purple">
                       <span className="w-1 h-1 rounded-full bg-neon-purple animate-pulse" />INVISIBLE
                     </span>
@@ -944,6 +955,30 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
                 <div className="mt-3 flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-neon-purple/40 bg-neon-purple/10 w-fit">
                   <span className="w-1.5 h-1.5 rounded-full bg-neon-purple animate-pulse" />
                   <span className="font-mono text-[11px] font-bold tracking-widest text-neon-purple">INVISIBLE</span>
+                </div>
+              )}
+            </div>
+
+            <div className="glass-panel border border-white/5 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="font-mono text-sm text-white font-bold">👻 Ghost Mode</p>
+                  <p className="text-white/30 font-mono text-xs">Observe spaces without spawning</p>
+                </div>
+                <button onClick={() => toggleGhost(!ghost)}
+                  className={`relative w-12 h-6 rounded-full transition-colors ${ghost ? 'bg-neon-cyan/50' : 'bg-white/10'}`}>
+                  <div className={`absolute top-1 w-4 h-4 rounded-full transition-transform ${ghost ? 'left-7 bg-neon-cyan' : 'left-1 bg-white/30'}`} />
+                </button>
+              </div>
+              <p className="text-white/30 font-mono text-[11px] leading-relaxed">
+                Extends Invisible (auto-enabled). Open a Virtual Space to observe with no avatar, no voice
+                (mic forced off), no join notification, and no effect on the player count. Game rooms are
+                observed via the Rooms tab the same way. Every action stays audit-logged.
+              </p>
+              {ghost && (
+                <div className="mt-3 flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-neon-cyan/40 bg-neon-cyan/10 w-fit">
+                  <span className="w-1.5 h-1.5 rounded-full bg-neon-cyan animate-pulse" />
+                  <span className="font-mono text-[11px] font-bold tracking-widest text-neon-cyan">GHOST</span>
                 </div>
               )}
             </div>

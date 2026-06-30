@@ -1,6 +1,8 @@
 import type { Friend, FriendRequest, PlayerStatus, PlayerPresence } from '../types/index.js';
 export declare function setInvisible(profileId: string, on: boolean): void;
 export declare function isInvisible(profileId: string): boolean;
+export declare function setGhost(profileId: string, on: boolean): void;
+export declare function isGhost(profileId: string): boolean;
 export declare function setLoungePresence(profileId: string, info: {
     spaceId: string;
     name: string;

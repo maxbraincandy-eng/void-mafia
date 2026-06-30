@@ -15,6 +15,18 @@ export function setInvisible(profileId, on) {
         invisibleProfiles.delete(profileId);
 }
 export function isInvisible(profileId) { return invisibleProfiles.has(profileId); }
+// Ghost Mode extends Invisible: owner observes rooms/spaces without spawning a
+// participant. Enabling ghost forces invisible on.
+const ghostProfiles = new Set();
+export function setGhost(profileId, on) {
+    if (on) {
+        ghostProfiles.add(profileId);
+        invisibleProfiles.add(profileId);
+    }
+    else
+        ghostProfiles.delete(profileId);
+}
+export function isGhost(profileId) { return ghostProfiles.has(profileId); }
 // Lounge presence — set by the socket layer when a player joins/leaves a space.
 const loungePresence = new Map();
 export function setLoungePresence(profileId, info) { loungePresence.set(profileId, info); }
