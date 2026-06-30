@@ -5721,8 +5721,14 @@ export function attachSocketHandlers(io: AppServer): void {
         room.set(socket.id, player);
         socket.join(`space:${safeSpace}`);
         if (socket.data.profileId) {
-          setLoungePresence(socket.data.profileId, { spaceId: safeSpace, name: meta.name, code: meta.code });
-          if (meta.isPublic) notifyFriendsActive(io, socket.data.profileId, { kind: 'lounge', code: meta.code, label: meta.name, fromName: safeName });
+          // Only public spaces are exposed to friends (presence strip + push).
+          // Private and clan lounges stay hidden — no visibility, no join code.
+          if (meta.isPublic) {
+            setLoungePresence(socket.data.profileId, { spaceId: safeSpace, name: meta.name, code: meta.code });
+            notifyFriendsActive(io, socket.data.profileId, { kind: 'lounge', code: meta.code, label: meta.name, fromName: safeName });
+          } else {
+            clearLoungePresence(socket.data.profileId);
+          }
         }
         socket.to(`space:${safeSpace}`).emit('space:player-joined', player);
         const existingDJ = _spaceDJ.get(safeSpace) ?? null;

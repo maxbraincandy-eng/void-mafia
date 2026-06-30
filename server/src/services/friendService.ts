@@ -34,6 +34,8 @@ export function getPlayerStatus(profileId: string): PlayerStatus {
 export function getPlayerPresence(profileId: string): PlayerPresence | null {
   if (!onlineProfiles.has(profileId)) return null;
   for (const room of getAllRooms()) {
+    // Private rooms must never be exposed to friends — no visibility, no join.
+    if (room.settings.isPrivate) continue;
     for (const [, player] of room.players) {
       if (player.profileId === profileId && player.isConnected && !player.isSpectator) {
         return { kind: 'game', label: 'Mafia', code: room.code };
