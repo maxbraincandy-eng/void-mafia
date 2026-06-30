@@ -216,6 +216,14 @@ export const SFX = {
     ], 0.40, 26);
   },
 
+  // Wet, soft splat — a thrown tomato / snowball landing
+  splat() {
+    sfxPlay([
+      { freq: 95,  type: 'triangle', dur: 0.09, vol: 0.70, attack: 0.004, release: 0.08 },
+      { freq: 55,  type: 'sine',     dur: 0.13, vol: 0.55, attack: 0.006, release: 0.12 },
+    ], 0.34, 16);
+  },
+
   // Deep felt-mallet resonance — notification
   ping() {
     sfxPlay([

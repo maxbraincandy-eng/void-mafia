@@ -949,8 +949,10 @@ export interface ServerToClientEvents {
     }) => void;
     'space:hit': (data: {
         targetSocketId: string;
+        bySocketId: string;
         byName: string;
         hp: number;
+        weapon: string;
     }) => void;
     'space:knockout': (data: {
         byName: string;
@@ -1993,6 +1995,7 @@ export interface ClientToServerEvents {
     }, cb: (res: any) => void) => void;
     'space:hit': (data: {
         targetSocketId: string;
+        weapon?: string;
     }, cb: (res: any) => void) => void;
     'space:voice-join': (data: Record<string, never>, cb: (res: any) => void) => void;
     'space:voice-leave': () => void;

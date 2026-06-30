@@ -902,7 +902,7 @@ export interface ServerToClientEvents {
   // Virtual Space
   'space:player-joined': (player: { socketId: string; name: string; bodyColor: string; glowColor: string; mask: string; hat?: string; pet?: string; form?: string; profileId?: string | null; x: number; y: number; seat?: string | null; hp?: number }) => void;
   'space:meta-update': (patch: { theme?: string }) => void;
-  'space:hit': (data: { targetSocketId: string; byName: string; hp: number }) => void;
+  'space:hit': (data: { targetSocketId: string; bySocketId: string; byName: string; hp: number; weapon: string }) => void;
   'space:knockout': (data: { byName: string }) => void;
   'space:player-moved':  (data: { socketId: string; x: number; y: number }) => void;
   'space:player-left':   (data: { socketId: string }) => void;
@@ -1246,7 +1246,7 @@ export interface ClientToServerEvents {
   'space:resolve': (data: { code: string }, cb: (res: any) => void) => void;
   'space:invite':  (data: { targetProfileId: string }, cb: (res: any) => void) => void;
   'space:set_theme': (data: { theme: string }, cb: (res: any) => void) => void;
-  'space:hit': (data: { targetSocketId: string }, cb: (res: any) => void) => void;
+  'space:hit': (data: { targetSocketId: string; weapon?: string }, cb: (res: any) => void) => void;
   // Virtual Space Voice
   'space:voice-join':   (data: Record<string, never>, cb: (res: any) => void) => void;
   'space:voice-leave':  () => void;

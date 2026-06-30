@@ -371,17 +371,6 @@ function AvatarOnMap({ player, isMe, speaking, onTap }: { player: SpacePlayer; i
   const nameColor = useNameColor(player.profileId);
   const wt = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hp = player.hp ?? 10;
-  const prevHp = useRef(hp);
-  const [hitFx, setHitFx] = useState(false);
-  useEffect(() => {
-    if (hp < prevHp.current) {
-      setHitFx(true);
-      const t = setTimeout(() => setHitFx(false), 420);
-      prevHp.current = hp;
-      return () => clearTimeout(t);
-    }
-    prevHp.current = hp;
-  }, [hp]);
   useEffect(() => {
     if (prev.current.x !== player.x || prev.current.y !== player.y) {
       prev.current = { x: player.x, y: player.y };
@@ -421,13 +410,6 @@ function AvatarOnMap({ player, isMe, speaking, onTap }: { player: SpacePlayer; i
         onPointerDown={onTap && !isMe ? (e) => e.stopPropagation() : undefined}
       >
         <HumanoidAvatar bodyColor={player.bodyColor} glowColor={player.glowColor} mask={player.mask} speaking={speaking} walking={walking} gesture={player.gesture} sitting={!!player.seat} hat={player.hat} pet={player.pet} form={player.form} isMe={isMe} />
-        {/* Hit burst */}
-        <AnimatePresence>
-          {hitFx && (
-            <motion.div key="hitfx" initial={{ opacity: 0, scale: 0.4, y: 0 }} animate={{ opacity: 1, scale: 1.25, y: -10 }} exit={{ opacity: 0, scale: 0.6 }} transition={{ duration: 0.4 }}
-              style={{ position: 'absolute', top: -4, left: '50%', transform: 'translateX(-50%)', fontSize: 22, pointerEvents: 'none', filter: 'drop-shadow(0 0 6px rgba(255,60,80,0.9))' }}>💥</motion.div>
-          )}
-        </AnimatePresence>
       </motion.div>
       {/* Health bar — appears once a player has taken damage */}
       {hp < 10 && (
@@ -1488,11 +1470,12 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const openProfile = useSocialStore(s => s.openProfile);
   const openDmWith = useSocialStore(s => s.openDmWith);
   const [selectedPlayer, setSelectedPlayer] = useState<SpacePlayer | null>(null);
+  const [weapon, setWeapon] = useState<'fist' | 'tomato' | 'snowball'>('fist');
   const [followState, setFollowState] = useState<'idle' | 'busy' | 'done'>('idle');
   const [socialProfileId, setSocialProfileId] = useState<string | null>(null);
   const openDmList = useSocialStore(s => s.openDmList);
 
-  const { joined, mySocketId, players, chatHistory, space, reactions, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, knockout, clearKnockout } = useVirtualSpace();
+  const { joined, mySocketId, players, chatHistory, space, reactions, projectiles, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, knockout, clearKnockout } = useVirtualSpace();
   const { joined: voiceJoined, muted, speakingIds, status: voiceStatus, joinVoice, leaveVoice, toggleMute } = useSpaceVoice();
 
   // ── Space selection flow: lobby → customize → in-space ────────────────
@@ -1901,6 +1884,29 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
               );
             })}
 
+            {/* Flying projectiles (throwables / punches) + splat on impact */}
+            {projectiles.map(pr => {
+              const fly = pr.weapon === 'tomato' ? '🍅' : pr.weapon === 'snowball' ? '❄️' : '👊';
+              const splat = pr.weapon === 'tomato' ? '🍅' : pr.weapon === 'snowball' ? '❄️' : '💥';
+              const glow = pr.weapon === 'tomato' ? 'rgba(255,60,60,0.9)' : pr.weapon === 'snowball' ? 'rgba(160,220,255,0.95)' : 'rgba(255,200,60,0.9)';
+              return (
+                <div key={pr.id}>
+                  <motion.div
+                    initial={{ left: `${pr.fromX}%`, top: `${pr.fromY}%`, opacity: 0, scale: 0.6 }}
+                    animate={{ left: `${pr.toX}%`, top: `${pr.toY}%`, opacity: [0, 1, 1, 1], scale: 1, rotate: pr.weapon === 'tomato' ? 540 : pr.weapon === 'snowball' ? 360 : 0 }}
+                    transition={{ duration: 0.4, ease: 'easeOut' }}
+                    style={{ position: 'absolute', transform: 'translate(-50%, -120%)', zIndex: 45, pointerEvents: 'none', fontSize: 20, filter: `drop-shadow(0 0 5px ${glow})` }}
+                  >{fly}</motion.div>
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.3 }}
+                    animate={{ opacity: [0, 1, 0], scale: [0.3, 1.4, 1.1] }}
+                    transition={{ duration: 0.42, delay: 0.38, ease: 'easeOut' }}
+                    style={{ position: 'absolute', left: `${pr.toX}%`, top: `${pr.toY}%`, transform: 'translate(-50%, -120%)', zIndex: 46, pointerEvents: 'none', fontSize: 26, filter: `drop-shadow(0 0 8px ${glow})` }}
+                  >{splat}</motion.div>
+                </div>
+              );
+            })}
+
             {/* Now playing bar */}
             <AnimatePresence>
               {djState?.isPlaying && !djPanelOpen && (
@@ -2006,13 +2012,20 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                     </div>
                     <span style={{ fontFamily: 'monospace', fontSize: 11, color: col }}>{liveHp}/10</span>
                   </div>
+                  {/* Weapon picker */}
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                    {([['fist','👊'],['tomato','🍅'],['snowball','❄️']] as const).map(([w, ic]) => (
+                      <button key={w} onClick={() => setWeapon(w)}
+                        style={{ flex: 1, padding: '8px', borderRadius: 10, fontSize: 18, background: weapon === w ? 'rgba(255,45,85,.2)' : 'rgba(255,255,255,.04)', border: `1px solid ${weapon === w ? 'rgba(255,45,85,.5)' : 'rgba(255,255,255,.1)'}`, transition: 'transform .08s' }}>{ic}</button>
+                    ))}
+                  </div>
                   <button
                     disabled={!here}
-                    onClick={() => { if (players.has(selectedPlayer.socketId)) hit(selectedPlayer.socketId); }}
+                    onClick={() => { if (players.has(selectedPlayer.socketId)) hit(selectedPlayer.socketId, weapon); }}
                     style={{ width: '100%', padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 14, fontWeight: 700, background: 'rgba(255,45,85,.16)', border: '1px solid rgba(255,45,85,.45)', color: '#ff6b81', opacity: here ? 1 : 0.4, transition: 'transform .08s' }}
                     onMouseDown={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.95)'; }}
                     onMouseUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
-                  >👊 დარტყმა</button>
+                  >{weapon === 'tomato' ? '🍅 სროლა' : weapon === 'snowball' ? '❄️ სროლა' : '👊 დარტყმა'}</button>
                 </div>
               );
             })()}

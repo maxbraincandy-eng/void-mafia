@@ -29,6 +29,14 @@ export interface ReactionFloat {
   emoji: string;
 }
 
+export type Weapon = 'fist' | 'tomato' | 'snowball';
+export interface Projectile {
+  id: number;
+  fromX: number; fromY: number;
+  toX: number; toY: number;
+  weapon: Weapon;
+}
+
 export interface SpaceChatMsg {
   socketId: string;
   name: string;
@@ -60,6 +68,7 @@ interface VirtualSpaceState {
   chatHistory: SpaceChatMsg[];
   space: SpaceMeta | null;
   reactions: ReactionFloat[];
+  projectiles: Projectile[];
   knockout: { byName: string } | null;
 }
 
@@ -71,6 +80,7 @@ export function useVirtualSpace() {
     chatHistory: [],
     space: null,
     reactions: [],
+    projectiles: [],
     knockout: null,
   });
 
@@ -79,6 +89,7 @@ export function useVirtualSpace() {
   const msgTimers   = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const gestureTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const reactionId  = useRef(0);
+  const projId      = useRef(0);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingState = useRef(false);
 
@@ -100,15 +111,15 @@ export function useVirtualSpace() {
           if (!res?.ok) { resolve(false); return; }
           const players = new Map<string, SpacePlayer>();
           for (const p of res.data.players) players.set(p.socketId, p);
-          setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], knockout: null });
+          setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null });
           resolve(true);
         },
       );
     });
   }, []);
 
-  const hit = useCallback((targetSocketId: string) => {
-    (socket as any).emit('space:hit', { targetSocketId }, () => {});
+  const hit = useCallback((targetSocketId: string, weapon: Weapon = 'fist') => {
+    (socket as any).emit('space:hit', { targetSocketId, weapon }, () => {});
   }, []);
 
   const clearKnockout = useCallback(() => {
@@ -158,7 +169,7 @@ export function useVirtualSpace() {
     for (const t of msgTimers.current.values()) clearTimeout(t);
     msgTimers.current.clear();
     if (moveTimer.current) { clearTimeout(moveTimer.current); moveTimer.current = null; }
-    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], knockout: null });
+    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null });
   }, []);
 
   const sit = useCallback((myId: string, seatId: string, x: number, y: number) => {
@@ -381,14 +392,21 @@ export function useVirtualSpace() {
     function onMetaUpdate(patch: { theme?: string }) {
       setState(prev => prev.space ? { ...prev, space: { ...prev.space, ...patch } } : prev);
     }
-    function onHit({ targetSocketId, hp }: { targetSocketId: string; byName: string; hp: number }) {
-      SFX.punch();
+    function onHit({ targetSocketId, hp, weapon, bySocketId }: { targetSocketId: string; byName: string; hp: number; weapon?: Weapon; bySocketId?: string }) {
+      if (weapon === 'tomato' || weapon === 'snowball') SFX.splat(); else SFX.punch();
       setState(prev => {
-        const p = prev.players.get(targetSocketId);
-        if (!p) return prev;
+        const t = prev.players.get(targetSocketId);
         const next = new Map(prev.players);
-        next.set(targetSocketId, { ...p, hp });
-        return { ...prev, players: next };
+        if (t) next.set(targetSocketId, { ...t, hp });
+        // Spawn a flying projectile from attacker → target (auto-expires).
+        let projectiles = prev.projectiles;
+        const from = bySocketId ? prev.players.get(bySocketId) : null;
+        if (from && t) {
+          const id = ++projId.current;
+          projectiles = [...prev.projectiles, { id, fromX: from.x, fromY: from.y, toX: t.x, toY: t.y, weapon: weapon ?? 'fist' }];
+          setTimeout(() => setState(p2 => ({ ...p2, projectiles: p2.projectiles.filter(pr => pr.id !== id) })), 800);
+        }
+        return { ...prev, players: next, projectiles };
       });
     }
     function onKnockout({ byName }: { byName: string }) {

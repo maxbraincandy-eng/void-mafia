@@ -6692,7 +6692,7 @@ export function attachSocketHandlers(io) {
         });
         // Playful combat: hit another player in the same space. 10 hits knocks
         // them out of the space (they must re-enter). HP resets on re-join.
-        socket.on('space:hit', ({ targetSocketId }, cb) => {
+        socket.on('space:hit', ({ targetSocketId, weapon }, cb) => {
             try {
                 const spaceId = _spaceOfSocket(socket.id);
                 if (!spaceId)
@@ -6709,8 +6709,9 @@ export function attachSocketHandlers(io) {
                 if (now - (_spaceHitAt.get(socket.id) ?? 0) < 250)
                     return cb?.({ ok: false });
                 _spaceHitAt.set(socket.id, now);
+                const safeWeapon = ['fist', 'tomato', 'snowball'].includes(weapon) ? weapon : 'fist';
                 target.hp = Math.max(0, (target.hp ?? SPACE_MAX_HP) - 1);
-                io.to(`space:${spaceId}`).emit('space:hit', { targetSocketId, byName: attacker.name, hp: target.hp });
+                io.to(`space:${spaceId}`).emit('space:hit', { targetSocketId, bySocketId: socket.id, byName: attacker.name, hp: target.hp, weapon: safeWeapon });
                 if (target.hp <= 0) {
                     room.delete(targetSocketId);
                     if (target.profileId)
