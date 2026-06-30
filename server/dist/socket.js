@@ -211,6 +211,20 @@ function _publicSpaceMeta(m, online) {
         ownerName: m.ownerName, code: m.code, online, persistent: m.persistent,
     };
 }
+// Lazily seed a persistent, members-only lounge space for a clan.
+function _ensureClanSpace(clanId, clanName) {
+    const id = `clan_${clanId}`;
+    let meta = _spaceMeta.get(id);
+    if (!meta) {
+        meta = {
+            id, name: `${clanName} Lounge`, icon: '⚔', theme: 'void', layout: 'penthouse',
+            maxPlayers: 30, isPublic: false, ownerId: null, ownerName: clanName,
+            code: _genSpaceCode(), createdAt: Date.now(), persistent: true,
+        };
+        _spaceMeta.set(id, meta);
+    }
+    return meta;
+}
 // Does this player own a given purchasable space theme? ('void' is always free.)
 async function _ownsSpaceTheme(profileId, theme) {
     if (theme === 'void')
@@ -3260,6 +3274,22 @@ export function attachSocketHandlers(io) {
                 if (!profileId)
                     return cb(ok(null));
                 cb(ok(await getClanByPlayer(profileId)));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // Enter (or lazily create) the caller's clan lounge — returns its join code.
+        socket.on('clan:lounge_enter', async (cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const membership = await getClanMembershipByPlayer(profileId);
+                if (!membership)
+                    throw new Error('You are not in a clan.');
+                const meta = _ensureClanSpace(membership.id, membership.name);
+                cb(ok({ code: meta.code }));
             }
             catch (e) {
                 cb(err(e.message));
@@ -6539,7 +6569,7 @@ export function attachSocketHandlers(io) {
         registerUnoHandlers(io, socket);
         // ── Disconnect ──────────────────────────────────────────────────
         // ── Virtual Space ─────────────────────────────────────────────────
-        socket.on('space:join', ({ spaceId = 'main', name, bodyColor, glowColor, mask, hat, pet, form }, cb) => {
+        socket.on('space:join', async ({ spaceId = 'main', name, bodyColor, glowColor, mask, hat, pet, form }, cb) => {
             try {
                 if (!name || !bodyColor)
                     return cb?.({ ok: false, error: 'Missing fields' });
@@ -6550,12 +6580,20 @@ export function attachSocketHandlers(io) {
                 const safeHat = ['none', 'cap', 'crown', 'halo', 'party', 'cat', 'beanie'].includes(hat) ? hat : 'none';
                 const safePet = ['none', 'cat', 'bot', 'ghost', 'star', 'fish', 'fish2', 'egg', 'chick', 'moon', 'car'].includes(pet) ? pet : 'none';
                 const safeForm = ['human', 'car'].includes(form) ? form : 'human';
-                const safeSpace = String(spaceId).slice(0, 32).replace(/[^a-zA-Z0-9_-]/g, '') || 'main';
+                const safeSpace = String(spaceId).slice(0, 48).replace(/[^a-zA-Z0-9_-]/g, '') || 'main'; // 48: fits clan_<uuid>
                 const meta = _spaceMeta.get(safeSpace);
                 // Only 'main' may be joined without pre-existing metadata; everything
                 // else must have been created (so private codes/capacity are enforced).
                 if (!meta)
                     return cb?.({ ok: false, error: 'ეს Space აღარ არსებობს.' });
+                // Clan lounges are members-only.
+                if (safeSpace.startsWith('clan_')) {
+                    const clanId = safeSpace.slice(5);
+                    const membership = socket.data.profileId ? await getClanMembershipByPlayer(socket.data.profileId) : null;
+                    if (!membership || membership.id !== clanId) {
+                        return cb?.({ ok: false, error: 'Clan members only.' });
+                    }
+                }
                 const room = _spaces.get(safeSpace) ?? new Map();
                 if (!_spaces.has(safeSpace))
                     _spaces.set(safeSpace, room);

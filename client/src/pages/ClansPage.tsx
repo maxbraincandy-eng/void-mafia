@@ -190,6 +190,22 @@ export function ClansPage() {
   const myClanRole = useAuthStore(s => s.myClanRole);
   const refreshClanMembership = useAuthStore(s => s.refreshClanMembership);
   const { openProfile } = useSocialStore();
+  const requestJoinLounge = useSocialStore(s => s.requestJoinLounge);
+  const [loungeBusy, setLoungeBusy] = useState(false);
+
+  const enterClanLounge = useCallback(async () => {
+    if (loungeBusy) return;
+    setLoungeBusy(true);
+    try {
+      const res = await emitWithAck<undefined, Res<{ code: string }>>('clan:lounge_enter');
+      if (res.ok) requestJoinLounge(res.data.code);
+      else setError(res.error ?? 'Could not open clan lounge.');
+    } catch {
+      setError('Connection error — try again.');
+    } finally {
+      setLoungeBusy(false);
+    }
+  }, [loungeBusy, requestJoinLounge]);
   const [clans, setClans]               = useState<ClanPublic[]>([]);
   const [myClan, setMyClan]             = useState<ClanPublic | null>(null);
   const [members, setMembers]           = useState<ClanMember[]>([]);
@@ -464,13 +480,23 @@ export function ClansPage() {
               <p className="font-mono text-[12px] text-white/40">{myClan.memberCount} members · <WinRate wins={myClan.wins} losses={myClan.losses} /> win rate</p>
               {imageError && <p className="font-mono text-[12px] text-red-400/70 mt-0.5">{imageError}</p>}
             </div>
-            <button
-              onClick={() => setChatOpen(true)}
-              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
-              style={{ background: 'rgba(0,229,255,0.1)', border: '1px solid rgba(0,229,255,0.3)', color: 'rgba(0,229,255,0.85)' }}
-            >
-              💬 Chat
-            </button>
+            <div className="flex flex-col gap-1.5 flex-shrink-0">
+              <button
+                onClick={enterClanLounge}
+                disabled={loungeBusy}
+                className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50"
+                style={{ background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.35)', color: 'rgba(180,80,255,0.9)' }}
+              >
+                {loungeBusy ? '…' : '🛋 Lounge'}
+              </button>
+              <button
+                onClick={() => setChatOpen(true)}
+                className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
+                style={{ background: 'rgba(0,229,255,0.1)', border: '1px solid rgba(0,229,255,0.3)', color: 'rgba(0,229,255,0.85)' }}
+              >
+                💬 Chat
+              </button>
+            </div>
           </motion.div>
         )}
 
