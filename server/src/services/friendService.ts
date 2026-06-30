@@ -6,6 +6,16 @@ import { getAllRooms } from './roomService.js';
 // ── Online status tracking (in-memory, ephemeral) ─────────────────────
 const onlineProfiles = new Set<string>();
 
+// ── Invisible Mode (owner stealth) ────────────────────────────────────
+// Owners in this set are still internally online (onlineProfiles), but are
+// masked from every presence-display surface: online count, friend presence,
+// status, currently-playing. Toggled only by the owner-only mod handler.
+const invisibleProfiles = new Set<string>();
+export function setInvisible(profileId: string, on: boolean): void {
+  if (on) invisibleProfiles.add(profileId); else invisibleProfiles.delete(profileId);
+}
+export function isInvisible(profileId: string): boolean { return invisibleProfiles.has(profileId); }
+
 // Lounge presence — set by the socket layer when a player joins/leaves a space.
 const loungePresence = new Map<string, { spaceId: string; name: string; code: string }>();
 export function setLoungePresence(profileId: string, info: { spaceId: string; name: string; code: string }): void { loungePresence.set(profileId, info); }
@@ -13,11 +23,16 @@ export function clearLoungePresence(profileId: string): void { loungePresence.de
 
 export function markOnline(profileId: string): void { onlineProfiles.add(profileId); }
 export function markOffline(profileId: string): void { onlineProfiles.delete(profileId); loungePresence.delete(profileId); }
-export function isOnline(profileId: string): boolean { return onlineProfiles.has(profileId); }
-export function getOnlineCount(): number { return onlineProfiles.size; }
+// Invisible owners read as offline to everyone (internally still online).
+export function isOnline(profileId: string): boolean { return onlineProfiles.has(profileId) && !invisibleProfiles.has(profileId); }
+export function getOnlineCount(): number {
+  let n = 0;
+  for (const p of onlineProfiles) if (!invisibleProfiles.has(p)) n++;
+  return n;
+}
 
 export function getPlayerStatus(profileId: string): PlayerStatus {
-  if (!onlineProfiles.has(profileId)) return 'offline';
+  if (!onlineProfiles.has(profileId) || invisibleProfiles.has(profileId)) return 'offline';
   const rooms = getAllRooms();
   for (const room of rooms) {
     for (const [, player] of room.players) {
@@ -32,7 +47,7 @@ export function getPlayerStatus(profileId: string): PlayerStatus {
 
 // Full presence (with a join target) for showing "in Mafia / in Lounge X" + Join.
 export function getPlayerPresence(profileId: string): PlayerPresence | null {
-  if (!onlineProfiles.has(profileId)) return null;
+  if (!onlineProfiles.has(profileId) || invisibleProfiles.has(profileId)) return null;
   for (const room of getAllRooms()) {
     // Private rooms must never be exposed to friends — no visibility, no join.
     if (room.settings.isPrivate) continue;
@@ -53,7 +68,7 @@ export function getActiveStatusMap(): Map<string, 'in_game' | 'spectating'> {
   const map = new Map<string, 'in_game' | 'spectating'>();
   for (const room of getAllRooms()) {
     for (const [, player] of room.players) {
-      if (!player.isConnected || !player.profileId) continue;
+      if (!player.isConnected || !player.profileId || invisibleProfiles.has(player.profileId)) continue;
       if (player.isSpectator) {
         if (!map.has(player.profileId)) map.set(player.profileId, 'spectating');
       } else {
@@ -126,7 +141,7 @@ export async function getFriends(playerId: string): Promise<Friend[]> {
     profileId: r.id, username: r.username, avatar: r.avatar,
     avatarUrl: r.avatar_url ?? null,
     publicId: r.public_id != null ? Number(r.public_id) : null,
-    level: Number(r.level ?? 1), isOnline: onlineProfiles.has(r.id), status: 'accepted' as const,
+    level: Number(r.level ?? 1), isOnline: isOnline(r.id), status: 'accepted' as const,
     playerStatus: getPlayerStatus(r.id), presence: getPlayerPresence(r.id),
   }));
 }
@@ -153,7 +168,7 @@ export async function getInvitablePeople(playerId: string): Promise<Friend[]> {
     profileId: r.id, username: r.username, avatar: r.avatar,
     avatarUrl: r.avatar_url ?? null,
     publicId: r.public_id != null ? Number(r.public_id) : null,
-    level: Number(r.level ?? 1), isOnline: onlineProfiles.has(r.id), status: 'accepted' as const,
+    level: Number(r.level ?? 1), isOnline: isOnline(r.id), status: 'accepted' as const,
     playerStatus: getPlayerStatus(r.id), presence: getPlayerPresence(r.id),
   }));
 }

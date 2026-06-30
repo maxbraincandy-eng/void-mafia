@@ -34,7 +34,7 @@ function modRank(level: ModeratorLevel | null | undefined): number {
 }
 
 // ── Tab types ─────────────────────────────────────────────────────────
-type Tab = 'dashboard' | 'rooms' | 'reports' | 'players' | 'broadcast' | 'logs';
+type Tab = 'dashboard' | 'rooms' | 'reports' | 'players' | 'broadcast' | 'logs' | 'stealth';
 type ActionType = 'ban' | 'mute' | 'warn' | 'kick' | 'unban' | 'unmute' | 'terminate' | 'close_room' | 'freeze' | 'unfreeze' | 'rename' | 'system_msg' | 'force_phase';
 
 const TABS: { id: Tab; label: string; minRank: number }[] = [
@@ -44,6 +44,7 @@ const TABS: { id: Tab; label: string; minRank: number }[] = [
   { id: 'players',   label: 'Players',   minRank: 0 },
   { id: 'broadcast', label: 'Broadcast', minRank: 1 },  // senior_mod+
   { id: 'logs',      label: 'Logs',      minRank: 2 },  // admin+
+  { id: 'stealth',   label: 'Stealth',   minRank: 3 },  // owner only
 ];
 
 const PHASE_COLORS: Record<string, string> = {
@@ -88,6 +89,7 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
   const [players, setPlayers] = useState<PlayerProfilePublic[]>([]);
   const [logs, setLogs] = useState<ModLog[]>([]);
   const [maintenance, setMaintenance] = useState(false);
+  const [invisible, setInvisible] = useState(false);
 
   // UI state
   const [expandedRoom, setExpandedRoom] = useState<string | null>(null);
@@ -205,9 +207,27 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
     else if (t === 'reports') loadReports();
     else if (t === 'players') loadPlayers();
     else if (t === 'logs') loadLogs();
+    else if (t === 'stealth') loadStealth();
+  };
+
+  const loadStealth = () => {
+    socket.emit('mod:get_invisible' as any, (res: Res<{ enabled: boolean }>) => {
+      if (res.ok) setInvisible(res.data.enabled);
+    });
+  };
+  const toggleInvisible = (newVal: boolean) => {
+    socket.emit('mod:set_invisible' as any, { enabled: newVal }, (res: Res<{ enabled: boolean }>) => {
+      if (res.ok) { setInvisible(res.data.enabled); addToast(`Invisible Mode ${res.data.enabled ? 'ON' : 'OFF'}`, 'success'); }
+      else addToast((res as any).error ?? 'Failed', 'error');
+    });
   };
 
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
+
+  // Owner: load invisible state on open so the stealth indicator is accurate.
+  useEffect(() => {
+    if (rank >= 3) socket.emit('mod:get_invisible' as any, (res: Res<{ enabled: boolean }>) => { if (res.ok) setInvisible(res.data.enabled); });
+  }, [rank]);
 
   // Auto-refresh rooms tab
   useEffect(() => {
@@ -411,6 +431,11 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
                 <div className="flex items-center gap-2">
                   <h1 className="font-display text-lg font-bold text-neon-green tracking-widest">MOD CONTROL</h1>
                   <ModBadge level={profile?.moderatorLevel ?? 'moderator'} size="sm" />
+                  {invisible && (
+                    <span className="flex items-center gap-1 px-1.5 py-0.5 rounded border border-neon-purple/40 bg-neon-purple/10 font-mono text-[9px] font-bold tracking-widest text-neon-purple">
+                      <span className="w-1 h-1 rounded-full bg-neon-purple animate-pulse" />INVISIBLE
+                    </span>
+                  )}
                 </div>
                 {maintenance && (
                   <span className="text-[11px] font-mono text-orange-400 animate-pulse">⚠ Maintenance mode</span>
@@ -895,6 +920,33 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
                 {l.reason && <p className="text-white/25 text-xs font-mono italic mt-0.5 line-clamp-1">"{l.reason}"</p>}
               </div>
             ))}
+          </div>
+        )}
+
+        {tab === 'stealth' && (
+          <div className="space-y-4">
+            <div className="glass-panel border border-white/5 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="font-mono text-sm text-white font-bold">👻 Invisible Mode</p>
+                  <p className="text-white/30 font-mono text-xs">Appear offline to everyone</p>
+                </div>
+                <button onClick={() => toggleInvisible(!invisible)}
+                  className={`relative w-12 h-6 rounded-full transition-colors ${invisible ? 'bg-neon-purple/50' : 'bg-white/10'}`}>
+                  <div className={`absolute top-1 w-4 h-4 rounded-full transition-transform ${invisible ? 'left-7 bg-neon-purple' : 'left-1 bg-white/30'}`} />
+                </button>
+              </div>
+              <p className="text-white/30 font-mono text-[11px] leading-relaxed">
+                Hidden from the online count, friends' presence, "currently playing", and friend pings.
+                You stay fully functional — only what other users see changes. All your actions are still audit-logged.
+              </p>
+              {invisible && (
+                <div className="mt-3 flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-neon-purple/40 bg-neon-purple/10 w-fit">
+                  <span className="w-1.5 h-1.5 rounded-full bg-neon-purple animate-pulse" />
+                  <span className="font-mono text-[11px] font-bold tracking-widest text-neon-purple">INVISIBLE</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
             </div>

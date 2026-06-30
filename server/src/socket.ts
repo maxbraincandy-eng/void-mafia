@@ -43,6 +43,7 @@ import {
   markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend,
   removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount,
   setLoungePresence, clearLoungePresence, getFriendIds,
+  setInvisible, isInvisible,
 } from './services/friendService.js';
 import {
   checkAndAwardChallenges, getDailyQuestsForPlayer,
@@ -504,6 +505,7 @@ async function notifyFriendsActive(
   payload: { kind: 'game' | 'lounge'; code: string; label: string; fromName: string },
 ): Promise<void> {
   try {
+    if (isInvisible(actorId)) return; // invisible owners never ping friends
     const now = Date.now();
     if (now - (_activeNotifyAt.get(actorId) ?? 0) < 5 * 60_000) return; // ≤1 ping / 5 min
     _activeNotifyAt.set(actorId, now);
@@ -2938,6 +2940,28 @@ export function attachSocketHandlers(io: AppServer): void {
         const mod = modProfileId ? await getPlayer(modProfileId) : null;
         if (!mod || !canDo(mod, 'view_reports')) throw new Error('Insufficient permissions.');
         cb(ok({ enabled: maintenanceMode }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Owner stealth: Invisible Mode ─────────────────────────────────
+    socket.on('mod:set_invisible' as any, async ({ enabled }: { enabled: boolean }, cb: any) => {
+      try {
+        const pid = socket.data.profileId;
+        const mod = pid ? await getPlayer(pid) : null;
+        if (!mod || mod.moderatorLevel !== 'owner') throw new Error('Owner only.');
+        setInvisible(pid!, !!enabled);
+        broadcastOnlineCount(io); // others' online count drops/rises accordingly
+        await addModLog('broadcast', pid!, mod.username, 'system', 'system', null, `Invisible Mode: ${enabled ? 'ON' : 'OFF'}`);
+        cb(ok({ enabled: !!enabled }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mod:get_invisible' as any, async (cb: any) => {
+      try {
+        const pid = socket.data.profileId;
+        const mod = pid ? await getPlayer(pid) : null;
+        if (!mod || mod.moderatorLevel !== 'owner') throw new Error('Owner only.');
+        cb(ok({ enabled: isInvisible(pid!) }));
       } catch (e: any) { cb(err(e.message)); }
     });
 

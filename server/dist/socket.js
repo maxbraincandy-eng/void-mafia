@@ -12,7 +12,7 @@ import { registerUnoHandlers, handleUnoDisconnect } from './uno.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
 import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, getNameColors, grantStarterCosmetics, incrementSpaceKnockouts, getKnockoutLeaderboard, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
-import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount, setLoungePresence, clearLoungePresence, getFriendIds, } from './services/friendService.js';
+import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount, setLoungePresence, clearLoungePresence, getFriendIds, setInvisible, isInvisible, } from './services/friendService.js';
 import { checkAndAwardChallenges, getDailyQuestsForPlayer, } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
 import { recordGame, getPlayerHistory, getPlayerRoleStats, getPlayersLastRolesInRoom } from './services/gameHistoryService.js';
@@ -375,6 +375,8 @@ const ReportSchema = z.object({
 const _activeNotifyAt = new Map();
 async function notifyFriendsActive(io, actorId, payload) {
     try {
+        if (isInvisible(actorId))
+            return; // invisible owners never ping friends
         const now = Date.now();
         if (now - (_activeNotifyAt.get(actorId) ?? 0) < 5 * 60000)
             return; // ≤1 ping / 5 min
@@ -2978,6 +2980,34 @@ export function attachSocketHandlers(io) {
                 if (!mod || !canDo(mod, 'view_reports'))
                     throw new Error('Insufficient permissions.');
                 cb(ok({ enabled: maintenanceMode }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Owner stealth: Invisible Mode ─────────────────────────────────
+        socket.on('mod:set_invisible', async ({ enabled }, cb) => {
+            try {
+                const pid = socket.data.profileId;
+                const mod = pid ? await getPlayer(pid) : null;
+                if (!mod || mod.moderatorLevel !== 'owner')
+                    throw new Error('Owner only.');
+                setInvisible(pid, !!enabled);
+                broadcastOnlineCount(io); // others' online count drops/rises accordingly
+                await addModLog('broadcast', pid, mod.username, 'system', 'system', null, `Invisible Mode: ${enabled ? 'ON' : 'OFF'}`);
+                cb(ok({ enabled: !!enabled }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('mod:get_invisible', async (cb) => {
+            try {
+                const pid = socket.data.profileId;
+                const mod = pid ? await getPlayer(pid) : null;
+                if (!mod || mod.moderatorLevel !== 'owner')
+                    throw new Error('Owner only.');
+                cb(ok({ enabled: isInvisible(pid) }));
             }
             catch (e) {
                 cb(err(e.message));
