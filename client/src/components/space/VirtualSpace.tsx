@@ -370,6 +370,18 @@ function AvatarOnMap({ player, isMe, speaking, onTap }: { player: SpacePlayer; i
   const [walking, setWalking] = useState(false);
   const nameColor = useNameColor(player.profileId);
   const wt = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hp = player.hp ?? 10;
+  const prevHp = useRef(hp);
+  const [hitFx, setHitFx] = useState(false);
+  useEffect(() => {
+    if (hp < prevHp.current) {
+      setHitFx(true);
+      const t = setTimeout(() => setHitFx(false), 420);
+      prevHp.current = hp;
+      return () => clearTimeout(t);
+    }
+    prevHp.current = hp;
+  }, [hp]);
   useEffect(() => {
     if (prev.current.x !== player.x || prev.current.y !== player.y) {
       prev.current = { x: player.x, y: player.y };
@@ -403,14 +415,26 @@ function AvatarOnMap({ player, isMe, speaking, onTap }: { player: SpacePlayer; i
       <motion.div
         animate={player.seat ? { y: 0 } : walking ? { rotate: [-1.5, 1.5], y: [0, -2, 0] } : { y: [0, -3, 0] }}
         transition={player.seat ? { duration: 0.2 } : walking ? { duration: 0.28, repeat: Infinity, ease: 'easeInOut' } : { duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-        style={{ pointerEvents: onTap && !isMe ? 'auto' : 'none', cursor: onTap && !isMe ? 'pointer' : 'default' }}
+        style={{ position: 'relative', pointerEvents: onTap && !isMe ? 'auto' : 'none', cursor: onTap && !isMe ? 'pointer' : 'default' }}
         onClick={onTap && !isMe ? (e) => { e.stopPropagation(); onTap(); } : undefined}
         onTouchStart={onTap && !isMe ? (e) => e.stopPropagation() : undefined}
         onPointerDown={onTap && !isMe ? (e) => e.stopPropagation() : undefined}
       >
         <HumanoidAvatar bodyColor={player.bodyColor} glowColor={player.glowColor} mask={player.mask} speaking={speaking} walking={walking} gesture={player.gesture} sitting={!!player.seat} hat={player.hat} pet={player.pet} form={player.form} isMe={isMe} />
-
+        {/* Hit burst */}
+        <AnimatePresence>
+          {hitFx && (
+            <motion.div key="hitfx" initial={{ opacity: 0, scale: 0.4, y: 0 }} animate={{ opacity: 1, scale: 1.25, y: -10 }} exit={{ opacity: 0, scale: 0.6 }} transition={{ duration: 0.4 }}
+              style={{ position: 'absolute', top: -4, left: '50%', transform: 'translateX(-50%)', fontSize: 22, pointerEvents: 'none', filter: 'drop-shadow(0 0 6px rgba(255,60,80,0.9))' }}>💥</motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
+      {/* Health bar — appears once a player has taken damage */}
+      {hp < 10 && (
+        <div style={{ width: 46, height: 4, borderRadius: 3, background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.12)', marginTop: 3, overflow: 'hidden' }}>
+          <div style={{ width: `${hp * 10}%`, height: '100%', borderRadius: 3, transition: 'width 0.25s ease, background 0.25s', background: hp > 6 ? '#00ff88' : hp > 3 ? '#facc15' : '#ff2d55', boxShadow: `0 0 6px ${hp > 6 ? '#00ff88' : hp > 3 ? '#facc15' : '#ff2d55'}99` }} />
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontFamily: 'monospace', color: nameColor ?? (isMe ? player.glowColor : 'rgba(255,255,255,0.65)'), textShadow: nameColor ? nameColorGlow(nameColor) : undefined, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', borderRadius: 6, padding: '1px 7px', border: isMe ? `1px solid ${player.glowColor}55` : '1px solid rgba(255,255,255,0.08)', letterSpacing: '0.04em', maxWidth: 96, marginTop: 2, boxShadow: isMe ? `0 0 8px ${player.glowColor}30` : 'none' }}>
         <span style={{ width: 5, height: 5, borderRadius: '50%', background: speaking ? player.glowColor : '#00ff88', boxShadow: `0 0 5px ${speaking ? player.glowColor : '#00ff88'}`, flexShrink: 0, animation: speaking ? 'vs-pulse 0.8s ease-in-out infinite' : undefined }} />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{player.name}</span>
@@ -1465,7 +1489,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const [socialProfileId, setSocialProfileId] = useState<string | null>(null);
   const openDmList = useSocialStore(s => s.openDmList);
 
-  const { joined, mySocketId, players, chatHistory, space, reactions, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme } = useVirtualSpace();
+  const { joined, mySocketId, players, chatHistory, space, reactions, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, knockout, clearKnockout } = useVirtualSpace();
   const { joined: voiceJoined, muted, speakingIds, status: voiceStatus, joinVoice, leaveVoice, toggleMute } = useSpaceVoice();
 
   // ── Space selection flow: lobby → customize → in-space ────────────────
@@ -1740,6 +1764,12 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const [themePickerOpen, setThemePickerOpen] = useState(false);
   const canChangeTheme = space?.canControlTv ?? false;
 
+  // Knocked out of the space — drop voice & close transient UI; the knockout
+  // overlay then prompts a re-entry.
+  useEffect(() => {
+    if (knockout) { leaveVoice(); setSelectedPlayer(null); }
+  }, [knockout, leaveVoice]);
+
   // Distance from my avatar to the cinema TV + how many players are watching.
   const me = players.get(mySocketId);
   const myTvDist = me ? Math.hypot(me.x - layout.tv.x, me.y - layout.tv.y) : 999;
@@ -1960,7 +1990,29 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             <div style={{ width: 64, height: 64, margin: '0 auto 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `radial-gradient(ellipse at 40% 35%, ${selectedPlayer.glowColor}22, transparent 70%)`, borderRadius: '50%', border: `1.5px solid ${selectedPlayer.bodyColor}66` }}>
               <HumanoidAvatar bodyColor={selectedPlayer.bodyColor} glowColor={selectedPlayer.glowColor} mask={selectedPlayer.mask} hat={selectedPlayer.hat} pet={selectedPlayer.pet} form={selectedPlayer.form} size={1.05} />
             </div>
-            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: 'white', marginBottom: 16 }}>{selectedPlayer.name}</p>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: 'white', marginBottom: 10 }}>{selectedPlayer.name}</p>
+            {(() => {
+              const liveHp = players.get(selectedPlayer.socketId)?.hp ?? selectedPlayer.hp ?? 10;
+              const here = players.has(selectedPlayer.socketId);
+              const col = liveHp > 6 ? '#00ff88' : liveHp > 3 ? '#facc15' : '#ff2d55';
+              return (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 8 }}>
+                    <div style={{ width: 120, height: 7, borderRadius: 4, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', overflow: 'hidden' }}>
+                      <div style={{ width: `${liveHp * 10}%`, height: '100%', background: col, boxShadow: `0 0 8px ${col}aa`, transition: 'width 0.25s ease' }} />
+                    </div>
+                    <span style={{ fontFamily: 'monospace', fontSize: 11, color: col }}>{liveHp}/10</span>
+                  </div>
+                  <button
+                    disabled={!here}
+                    onClick={() => { if (players.has(selectedPlayer.socketId)) hit(selectedPlayer.socketId); }}
+                    style={{ width: '100%', padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 14, fontWeight: 700, background: 'rgba(255,45,85,.16)', border: '1px solid rgba(255,45,85,.45)', color: '#ff6b81', opacity: here ? 1 : 0.4, transition: 'transform .08s' }}
+                    onMouseDown={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.95)'; }}
+                    onMouseUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
+                  >👊 დარტყმა</button>
+                </div>
+              );
+            })()}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <button onClick={() => {
                   if (me && selectedPlayer) { const a = 6 - Math.random()*12; moveLocal(mySocketId, Math.max(5,Math.min(95,selectedPlayer.x + a)), Math.max(5,Math.min(92,selectedPlayer.y + 4))); }
@@ -2040,6 +2092,25 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
               Locked themes can be bought from the Coin Shop → Spaces tab. Everyone in the room sees the active theme.
             </p>
           </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Knockout overlay — shown to a player who hit 0 HP and was ejected */}
+      {knockout && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(0,0,0,.8)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            style={{ width: 'min(320px,100%)', textAlign: 'center', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(255,45,85,.45)', borderRadius: 20, padding: '28px 22px', boxShadow: '0 0 50px rgba(255,45,85,.25)' }}>
+            <div style={{ fontSize: 48, marginBottom: 8 }}>💥</div>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 18, color: '#fff', marginBottom: 6 }}>ნოკაუტი!</p>
+            <p style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(255,255,255,.55)', marginBottom: 18, lineHeight: 1.5 }}>
+              <span style={{ color: '#ff6b81' }}>{knockout.byName}</span>-მ გაგაგდო Space-დან. ხელახლა შემოდი სათამაშოდ.
+            </p>
+            <button onClick={clearKnockout}
+              style={{ width: '100%', padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 14, fontWeight: 700, background: 'rgba(155,0,255,.18)', border: '1px solid rgba(155,0,255,.45)', color: '#c084fc' }}>
+              ↩ ხელახლა შესვლა
+            </button>
+          </motion.div>
         </div>,
         document.body
       )}

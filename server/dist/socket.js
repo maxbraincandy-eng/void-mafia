@@ -157,6 +157,8 @@ const _lobbyChat = [];
 const MAX_LOBBY_CHAT = 200;
 const _clanChat = new Map(); // clanId → messages
 const MAX_CLAN_CHAT = 200;
+const SPACE_MAX_HP = 10;
+const _spaceHitAt = new Map(); // attackerSocketId → last hit ms (cooldown)
 const _spaces = new Map();
 const _spaceDJ = new Map();
 const _spaceTV = new Map();
@@ -6602,7 +6604,7 @@ export function attachSocketHandlers(io) {
                 }
                 const x = 15 + Math.random() * 70;
                 const y = 20 + Math.random() * 60;
-                const player = { socketId: socket.id, name: safeName, bodyColor: safeBody, glowColor: safeGlow, mask: safeMask, hat: safeHat, pet: safePet, form: safeForm, profileId: socket.data.profileId ?? null, x, y, seat: null };
+                const player = { socketId: socket.id, name: safeName, bodyColor: safeBody, glowColor: safeGlow, mask: safeMask, hat: safeHat, pet: safePet, form: safeForm, profileId: socket.data.profileId ?? null, x, y, seat: null, hp: SPACE_MAX_HP };
                 room.set(socket.id, player);
                 socket.join(`space:${safeSpace}`);
                 if (socket.data.profileId) {
@@ -6686,6 +6688,45 @@ export function attachSocketHandlers(io) {
             }
             catch {
                 cb?.({ ok: false, error: 'Internal error' });
+            }
+        });
+        // Playful combat: hit another player in the same space. 10 hits knocks
+        // them out of the space (they must re-enter). HP resets on re-join.
+        socket.on('space:hit', ({ targetSocketId }, cb) => {
+            try {
+                const spaceId = _spaceOfSocket(socket.id);
+                if (!spaceId)
+                    return cb?.({ ok: false });
+                if (targetSocketId === socket.id)
+                    return cb?.({ ok: false });
+                const room = _spaces.get(spaceId);
+                const attacker = room?.get(socket.id);
+                const target = room?.get(targetSocketId);
+                if (!room || !attacker || !target)
+                    return cb?.({ ok: false });
+                // Light cooldown so each punch is a discrete tap, not a scripted insta-KO.
+                const now = Date.now();
+                if (now - (_spaceHitAt.get(socket.id) ?? 0) < 250)
+                    return cb?.({ ok: false });
+                _spaceHitAt.set(socket.id, now);
+                target.hp = Math.max(0, (target.hp ?? SPACE_MAX_HP) - 1);
+                io.to(`space:${spaceId}`).emit('space:hit', { targetSocketId, byName: attacker.name, hp: target.hp });
+                if (target.hp <= 0) {
+                    room.delete(targetSocketId);
+                    if (target.profileId)
+                        clearLoungePresence(target.profileId);
+                    const vsock = io.sockets.sockets.get(targetSocketId);
+                    if (vsock)
+                        vsock.leave(`space:${spaceId}`);
+                    io.to(targetSocketId).emit('space:knockout', { byName: attacker.name });
+                    // Notify everyone still in the room (incl. the attacker) so the
+                    // knocked-out avatar disappears for all of them.
+                    io.to(`space:${spaceId}`).emit('space:player-left', { socketId: targetSocketId });
+                }
+                cb?.({ ok: true });
+            }
+            catch {
+                cb?.({ ok: false });
             }
         });
         socket.on('space:list', (cb) => {

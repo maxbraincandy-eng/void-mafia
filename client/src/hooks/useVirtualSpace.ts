@@ -19,6 +19,7 @@ export interface SpacePlayer {
   seat?: string | null;
   gesture?: string | null;
   typing?: boolean;
+  hp?: number;
 }
 
 export interface ReactionFloat {
@@ -58,6 +59,7 @@ interface VirtualSpaceState {
   chatHistory: SpaceChatMsg[];
   space: SpaceMeta | null;
   reactions: ReactionFloat[];
+  knockout: { byName: string } | null;
 }
 
 export function useVirtualSpace() {
@@ -68,6 +70,7 @@ export function useVirtualSpace() {
     chatHistory: [],
     space: null,
     reactions: [],
+    knockout: null,
   });
 
   const moveTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -96,11 +99,19 @@ export function useVirtualSpace() {
           if (!res?.ok) { resolve(false); return; }
           const players = new Map<string, SpacePlayer>();
           for (const p of res.data.players) players.set(p.socketId, p);
-          setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [] });
+          setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], knockout: null });
           resolve(true);
         },
       );
     });
+  }, []);
+
+  const hit = useCallback((targetSocketId: string) => {
+    (socket as any).emit('space:hit', { targetSocketId }, () => {});
+  }, []);
+
+  const clearKnockout = useCallback(() => {
+    setState(prev => ({ ...prev, knockout: null }));
   }, []);
 
   const setSpaceTheme = useCallback((theme: string) => {
@@ -146,7 +157,7 @@ export function useVirtualSpace() {
     for (const t of msgTimers.current.values()) clearTimeout(t);
     msgTimers.current.clear();
     if (moveTimer.current) { clearTimeout(moveTimer.current); moveTimer.current = null; }
-    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [] });
+    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], knockout: null });
   }, []);
 
   const sit = useCallback((myId: string, seatId: string, x: number, y: number) => {
@@ -369,6 +380,19 @@ export function useVirtualSpace() {
     function onMetaUpdate(patch: { theme?: string }) {
       setState(prev => prev.space ? { ...prev, space: { ...prev.space, ...patch } } : prev);
     }
+    function onHit({ targetSocketId, hp }: { targetSocketId: string; byName: string; hp: number }) {
+      setState(prev => {
+        const p = prev.players.get(targetSocketId);
+        if (!p) return prev;
+        const next = new Map(prev.players);
+        next.set(targetSocketId, { ...p, hp });
+        return { ...prev, players: next };
+      });
+    }
+    function onKnockout({ byName }: { byName: string }) {
+      // I was knocked out — drop out of the space; must re-enter.
+      setState(prev => ({ ...prev, joined: false, players: new Map(), reactions: [], knockout: { byName } }));
+    }
 
     (socket as any).on('space:player-joined', onJoined);
     (socket as any).on('space:player-moved',  onMoved);
@@ -380,6 +404,8 @@ export function useVirtualSpace() {
     (socket as any).on('space:player-gesture', onGesture);
     (socket as any).on('space:player-typing',  onTyping);
     (socket as any).on('space:meta-update',     onMetaUpdate);
+    (socket as any).on('space:hit',             onHit);
+    (socket as any).on('space:knockout',        onKnockout);
     return () => {
       (socket as any).off('space:player-joined', onJoined);
       (socket as any).off('space:player-moved',  onMoved);
@@ -391,8 +417,10 @@ export function useVirtualSpace() {
       (socket as any).off('space:player-gesture', onGesture);
       (socket as any).off('space:player-typing',  onTyping);
       (socket as any).off('space:meta-update',     onMetaUpdate);
+      (socket as any).off('space:hit',             onHit);
+      (socket as any).off('space:knockout',        onKnockout);
     };
   }, []);
 
-  return { ...state, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme };
+  return { ...state, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, clearKnockout };
 }

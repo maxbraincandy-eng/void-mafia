@@ -942,9 +942,18 @@ export interface ServerToClientEvents {
         x: number;
         y: number;
         seat?: string | null;
+        hp?: number;
     }) => void;
     'space:meta-update': (patch: {
         theme?: string;
+    }) => void;
+    'space:hit': (data: {
+        targetSocketId: string;
+        byName: string;
+        hp: number;
+    }) => void;
+    'space:knockout': (data: {
+        byName: string;
     }) => void;
     'space:player-moved': (data: {
         socketId: string;
@@ -1981,6 +1990,9 @@ export interface ClientToServerEvents {
     }, cb: (res: any) => void) => void;
     'space:set_theme': (data: {
         theme: string;
+    }, cb: (res: any) => void) => void;
+    'space:hit': (data: {
+        targetSocketId: string;
     }, cb: (res: any) => void) => void;
     'space:voice-join': (data: Record<string, never>, cb: (res: any) => void) => void;
     'space:voice-leave': () => void;
