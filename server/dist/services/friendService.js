@@ -3,8 +3,12 @@ import { generateId } from '../utils/helpers.js';
 import { getAllRooms } from './roomService.js';
 // ── Online status tracking (in-memory, ephemeral) ─────────────────────
 const onlineProfiles = new Set();
+// Lounge presence — set by the socket layer when a player joins/leaves a space.
+const loungePresence = new Map();
+export function setLoungePresence(profileId, info) { loungePresence.set(profileId, info); }
+export function clearLoungePresence(profileId) { loungePresence.delete(profileId); }
 export function markOnline(profileId) { onlineProfiles.add(profileId); }
-export function markOffline(profileId) { onlineProfiles.delete(profileId); }
+export function markOffline(profileId) { onlineProfiles.delete(profileId); loungePresence.delete(profileId); }
 export function isOnline(profileId) { return onlineProfiles.has(profileId); }
 export function getOnlineCount() { return onlineProfiles.size; }
 export function getPlayerStatus(profileId) {
@@ -18,7 +22,25 @@ export function getPlayerStatus(profileId) {
             }
         }
     }
+    if (loungePresence.has(profileId))
+        return 'in_lounge';
     return 'online';
+}
+// Full presence (with a join target) for showing "in Mafia / in Lounge X" + Join.
+export function getPlayerPresence(profileId) {
+    if (!onlineProfiles.has(profileId))
+        return null;
+    for (const room of getAllRooms()) {
+        for (const [, player] of room.players) {
+            if (player.profileId === profileId && player.isConnected && !player.isSpectator) {
+                return { kind: 'game', label: 'Mafia', code: room.code };
+            }
+        }
+    }
+    const lounge = loungePresence.get(profileId);
+    if (lounge)
+        return { kind: 'lounge', label: lounge.name, code: lounge.code };
+    return null;
 }
 // Single pass over all rooms — avoids O(profiles × rooms × players) when
 // resolving status for a large player list (e.g. the mod dashboard).
@@ -102,7 +124,7 @@ export async function getFriends(playerId) {
         avatarUrl: r.avatar_url ?? null,
         publicId: r.public_id != null ? Number(r.public_id) : null,
         level: Number(r.level ?? 1), isOnline: onlineProfiles.has(r.id), status: 'accepted',
-        playerStatus: getPlayerStatus(r.id),
+        playerStatus: getPlayerStatus(r.id), presence: getPlayerPresence(r.id),
     }));
 }
 /**
@@ -128,7 +150,7 @@ export async function getInvitablePeople(playerId) {
         avatarUrl: r.avatar_url ?? null,
         publicId: r.public_id != null ? Number(r.public_id) : null,
         level: Number(r.level ?? 1), isOnline: onlineProfiles.has(r.id), status: 'accepted',
-        playerStatus: getPlayerStatus(r.id),
+        playerStatus: getPlayerStatus(r.id), presence: getPlayerPresence(r.id),
     }));
 }
 export async function getPendingRequests(playerId) {

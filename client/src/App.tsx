@@ -354,6 +354,16 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
     return () => { (socket as any).off('space:invited', onInvited); };
   }, []);
 
+  // Presence "Join" → open the requested lounge by code from anywhere.
+  const loungeJoinCode = useSocialStore(s => s.loungeJoinCode);
+  const clearLoungeJoin = useSocialStore(s => s.clearLoungeJoin);
+  useEffect(() => {
+    if (!loungeJoinCode) return;
+    setSpaceCode(loungeJoinCode.toUpperCase());
+    setSpaceOpen(true);
+    clearLoungeJoin();
+  }, [loungeJoinCode, clearLoungeJoin]);
+
   // Auto-dismiss the invite after 15 seconds if unanswered.
   useEffect(() => {
     if (!spaceInvite) return;

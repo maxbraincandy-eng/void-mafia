@@ -36,6 +36,11 @@ interface SocialStore {
   openDmList: () => void;
   closeDm: () => void;
 
+  // Request the app to open a Virtual Space by code (presence "Join" from anywhere).
+  loungeJoinCode: string | null;
+  requestJoinLounge: (code: string) => void;
+  clearLoungeJoin: () => void;
+
   onlineCount: number;
   unreadDmCount: number;
   setUnreadDmCount: (n: number) => void;
@@ -138,6 +143,9 @@ export const useSocialStore = create<SocialStore>((set, get) => {
     activeDmUserId: null,
     openDmWith: (userId) => set({ dmPanelOpen: true, activeDmUserId: userId, profilePopupId: null, unreadDmCount: 0, dmToast: null }),
     openDmList: () => set({ dmPanelOpen: true, activeDmUserId: null, unreadDmCount: 0, dmToast: null }),
+    loungeJoinCode: null,
+    requestJoinLounge: (code: string) => set({ loungeJoinCode: code }),
+    clearLoungeJoin: () => set({ loungeJoinCode: null }),
     closeDm: () => set({ dmPanelOpen: false, activeDmUserId: null }),
 
     onlineCount: 0,

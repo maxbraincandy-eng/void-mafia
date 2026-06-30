@@ -60,8 +60,9 @@ export function FriendsPanel() {
     setFriends(f => f.filter(x => x.profileId !== profileId));
   };
 
-  const online = friends.filter(f => f.isOnline || f.playerStatus === 'online' || f.playerStatus === 'in_game');
-  const offline = friends.filter(f => !f.isOnline && f.playerStatus !== 'online' && f.playerStatus !== 'in_game');
+  const ONLINE_STATUSES = ['online', 'in_game', 'in_lounge', 'spectating'];
+  const online = friends.filter(f => f.isOnline || ONLINE_STATUSES.includes(f.playerStatus ?? ''));
+  const offline = friends.filter(f => !f.isOnline && !ONLINE_STATUSES.includes(f.playerStatus ?? ''));
 
   return (
     <div className="space-y-4">
@@ -175,7 +176,19 @@ export function FriendsPanel() {
 }
 
 function FriendRow({ friend, onRemove }: { friend: Friend; onRemove: (id: string) => void }) {
-  const { openProfile, openDmWith } = useSocialStore();
+  const { openProfile, openDmWith, requestJoinLounge, closeDm } = useSocialStore();
+  const joinPresence = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const p = friend.presence;
+    if (!p) return;
+    closeDm();
+    if (p.kind === 'lounge') {
+      requestJoinLounge(p.code);
+    } else {
+      const name = useAuthStore.getState().profile?.username ?? 'Player';
+      useGameStore.getState().joinRoom(p.code, name).catch(() => {});
+    }
+  };
   return (
     <div
       onClick={() => openProfile(friend.profileId)}
@@ -209,7 +222,11 @@ function FriendRow({ friend, onRemove }: { friend: Friend; onRemove: (id: string
         <p className="text-sm text-white font-semibold truncate leading-tight">{friend.username}</p>
         <p className={`text-[12px] font-mono ${lvlColor(friend.level)}`}>
           {friend.playerStatus === 'in_game' ? (
-            <span style={{ color: '#00f5ff' }}>In Game</span>
+            <span style={{ color: '#00f5ff' }}>🎮 In Game</span>
+          ) : friend.playerStatus === 'in_lounge' ? (
+            <span style={{ color: '#c084fc' }}>🎬 {friend.presence?.label ?? 'In Lounge'}</span>
+          ) : friend.playerStatus === 'spectating' ? (
+            <span style={{ color: '#facc15' }}>👁 Watching</span>
           ) : friend.playerStatus === 'online' || friend.isOnline ? (
             <span style={{ color: '#00ff88' }}>Online</span>
           ) : (
@@ -217,6 +234,16 @@ function FriendRow({ friend, onRemove }: { friend: Friend; onRemove: (id: string
           )}
         </p>
       </div>
+      {friend.presence && (
+        <button
+          onClick={joinPresence}
+          className="text-[11px] font-mono px-2.5 py-1 rounded-lg transition-all active:scale-95 flex-shrink-0"
+          style={{ background: friend.presence.kind === 'lounge' ? 'rgba(155,0,255,.16)' : 'rgba(0,245,255,.14)', border: `1px solid ${friend.presence.kind === 'lounge' ? 'rgba(155,0,255,.4)' : 'rgba(0,245,255,.4)'}`, color: friend.presence.kind === 'lounge' ? '#c084fc' : '#00f5ff' }}
+          title="Join"
+        >
+          → Join
+        </button>
+      )}
       <button
         onClick={e => { e.stopPropagation(); openDmWith(friend.profileId); }}
         className="opacity-0 group-hover:opacity-100 text-white/20 hover:text-neon-purple/70 transition-all text-xs px-1"

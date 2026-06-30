@@ -1,13 +1,18 @@
 import { sql } from '../db.js';
 import { generateId } from '../utils/helpers.js';
-import type { Friend, FriendRequest, PlayerStatus } from '../types/index.js';
+import type { Friend, FriendRequest, PlayerStatus, PlayerPresence } from '../types/index.js';
 import { getAllRooms } from './roomService.js';
 
 // ── Online status tracking (in-memory, ephemeral) ─────────────────────
 const onlineProfiles = new Set<string>();
 
+// Lounge presence — set by the socket layer when a player joins/leaves a space.
+const loungePresence = new Map<string, { spaceId: string; name: string; code: string }>();
+export function setLoungePresence(profileId: string, info: { spaceId: string; name: string; code: string }): void { loungePresence.set(profileId, info); }
+export function clearLoungePresence(profileId: string): void { loungePresence.delete(profileId); }
+
 export function markOnline(profileId: string): void { onlineProfiles.add(profileId); }
-export function markOffline(profileId: string): void { onlineProfiles.delete(profileId); }
+export function markOffline(profileId: string): void { onlineProfiles.delete(profileId); loungePresence.delete(profileId); }
 export function isOnline(profileId: string): boolean { return onlineProfiles.has(profileId); }
 export function getOnlineCount(): number { return onlineProfiles.size; }
 
@@ -21,7 +26,23 @@ export function getPlayerStatus(profileId: string): PlayerStatus {
       }
     }
   }
+  if (loungePresence.has(profileId)) return 'in_lounge';
   return 'online';
+}
+
+// Full presence (with a join target) for showing "in Mafia / in Lounge X" + Join.
+export function getPlayerPresence(profileId: string): PlayerPresence | null {
+  if (!onlineProfiles.has(profileId)) return null;
+  for (const room of getAllRooms()) {
+    for (const [, player] of room.players) {
+      if (player.profileId === profileId && player.isConnected && !player.isSpectator) {
+        return { kind: 'game', label: 'Mafia', code: room.code };
+      }
+    }
+  }
+  const lounge = loungePresence.get(profileId);
+  if (lounge) return { kind: 'lounge', label: lounge.name, code: lounge.code };
+  return null;
 }
 
 // Single pass over all rooms — avoids O(profiles × rooms × players) when
@@ -104,7 +125,7 @@ export async function getFriends(playerId: string): Promise<Friend[]> {
     avatarUrl: r.avatar_url ?? null,
     publicId: r.public_id != null ? Number(r.public_id) : null,
     level: Number(r.level ?? 1), isOnline: onlineProfiles.has(r.id), status: 'accepted' as const,
-    playerStatus: getPlayerStatus(r.id),
+    playerStatus: getPlayerStatus(r.id), presence: getPlayerPresence(r.id),
   }));
 }
 
@@ -131,7 +152,7 @@ export async function getInvitablePeople(playerId: string): Promise<Friend[]> {
     avatarUrl: r.avatar_url ?? null,
     publicId: r.public_id != null ? Number(r.public_id) : null,
     level: Number(r.level ?? 1), isOnline: onlineProfiles.has(r.id), status: 'accepted' as const,
-    playerStatus: getPlayerStatus(r.id),
+    playerStatus: getPlayerStatus(r.id), presence: getPlayerPresence(r.id),
   }));
 }
 

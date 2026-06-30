@@ -109,7 +109,14 @@ export interface XPGain {
 }
 
 // ── Friend ────────────────────────────────────────────────────────────
-export type PlayerStatus = 'online' | 'in_game' | 'spectating' | 'offline';
+export type PlayerStatus = 'online' | 'in_game' | 'spectating' | 'in_lounge' | 'offline';
+
+// Where a friend currently is, and how to jump to them.
+export interface PlayerPresence {
+  kind: 'game' | 'lounge';
+  label: string;   // e.g. "Mafia" or the space name
+  code: string;    // room code or space code (for Join)
+}
 
 export interface Friend {
   profileId: string;
@@ -121,6 +128,7 @@ export interface Friend {
   isOnline: boolean;
   status: 'accepted';
   playerStatus: PlayerStatus;
+  presence?: PlayerPresence | null;
 }
 
 export interface FriendRequest {

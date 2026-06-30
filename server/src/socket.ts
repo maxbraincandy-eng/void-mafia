@@ -41,6 +41,7 @@ import {
 import {
   markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend,
   removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount,
+  setLoungePresence, clearLoungePresence,
 } from './services/friendService.js';
 import {
   checkAndAwardChallenges, getDailyQuestsForPlayer,
@@ -334,6 +335,8 @@ function _publicSpaceMeta(m: SpaceMeta, online: number) {
 function _leaveSpace(sid: string, io: AppServer): void {
   for (const [spaceId, room] of _spaces) {
     if (room.has(sid)) {
+      const pid = room.get(sid)?.profileId;
+      if (pid) clearLoungePresence(pid);
       room.delete(sid);
       io.to(`space:${spaceId}`).emit('space:player-left', { socketId: sid });
       if (room.size === 0) {
@@ -5551,6 +5554,7 @@ export function attachSocketHandlers(io: AppServer): void {
         const player: SpacePlayer = { socketId: socket.id, name: safeName, bodyColor: safeBody, glowColor: safeGlow, mask: safeMask, hat: safeHat, pet: safePet, form: safeForm, profileId: socket.data.profileId ?? null, x, y, seat: null };
         room.set(socket.id, player);
         socket.join(`space:${safeSpace}`);
+        if (socket.data.profileId) setLoungePresence(socket.data.profileId, { spaceId: safeSpace, name: meta.name, code: meta.code });
         socket.to(`space:${safeSpace}`).emit('space:player-joined', player);
         const existingDJ = _spaceDJ.get(safeSpace) ?? null;
         const existingTV = _tvPublic(safeSpace);

@@ -1,9 +1,16 @@
-import type { Friend, FriendRequest, PlayerStatus } from '../types/index.js';
+import type { Friend, FriendRequest, PlayerStatus, PlayerPresence } from '../types/index.js';
+export declare function setLoungePresence(profileId: string, info: {
+    spaceId: string;
+    name: string;
+    code: string;
+}): void;
+export declare function clearLoungePresence(profileId: string): void;
 export declare function markOnline(profileId: string): void;
 export declare function markOffline(profileId: string): void;
 export declare function isOnline(profileId: string): boolean;
 export declare function getOnlineCount(): number;
 export declare function getPlayerStatus(profileId: string): PlayerStatus;
+export declare function getPlayerPresence(profileId: string): PlayerPresence | null;
 export declare function getActiveStatusMap(): Map<string, 'in_game' | 'spectating'>;
 export declare function getSpectatingCount(): number;
 export declare function sendFriendRequest(fromId: string, toId: string): Promise<void>;
