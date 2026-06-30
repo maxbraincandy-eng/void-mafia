@@ -26,7 +26,8 @@ function timeAgo(ts: number): string {
   return `${Math.floor(d / 3_600_000)}სთ`;
 }
 
-// Resize an image file to a story-sized JPEG data URL.
+// Resize an image file to a story-sized JPEG data URL, guaranteed under the
+// server's ~680KB cap (steps quality down for busy photos).
 function resizeStoryImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -34,14 +35,19 @@ function resizeStoryImage(file: File): Promise<string> {
     img.onload = () => {
       URL.revokeObjectURL(url);
       try {
-        const maxDim = 900;
+        const maxDim = 720;
         let w = img.width, h = img.height;
+        if (!w || !h) { reject(new Error('Invalid image.')); return; }
         if (w > h) { if (w > maxDim) { h = Math.round(h * maxDim / w); w = maxDim; } }
         else { if (h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim; } }
         const c = document.createElement('canvas');
         c.width = w; c.height = h;
         c.getContext('2d')!.drawImage(img, 0, 0, w, h);
-        resolve(c.toDataURL('image/jpeg', 0.78));
+        let q = 0.8;
+        let data = c.toDataURL('image/jpeg', q);
+        while (data.length > 600_000 && q > 0.4) { q -= 0.1; data = c.toDataURL('image/jpeg', q); }
+        if (!data || data.length < 200) { reject(new Error('Cannot process image.')); return; }
+        resolve(data);
       } catch { reject(new Error('Cannot process image.')); }
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Cannot read image.')); };
@@ -148,18 +154,20 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
 }
 
 // ── Composer ──────────────────────────────────────────────────────────
-function StoryComposer({ onClose, onPosted }: { onClose: () => void; onPosted: () => void }) {
-  const [img, setImg] = useState<string | null>(null);
+// `image` is already selected+resized by the strip (file picking happens in
+// the strip's direct tap so iOS reliably opens the picker). The composer just
+// previews, captions, and posts — with a "change photo" picker as a fallback.
+function StoryComposer({ image, onClose, onPosted }: { image: string; onClose: () => void; onPosted: () => void }) {
+  const [img, setImg] = useState<string | null>(image);
   const [caption, setCaption] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { fileRef.current?.click(); }, []);
-
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (!f) { onClose(); return; }
+    if (!f) return; // cancelled — keep current image
+    setErr('');
     try { setImg(await resizeStoryImage(f)); } catch { setErr('სურათი ვერ ჩაიტვირთა'); }
   };
 
@@ -204,8 +212,22 @@ export function StoriesStrip({ onOpenProfile }: { onOpenProfile: (id: string) =>
   const profile = useAuthStore(s => s.profile);
   const [groups, setGroups] = useState<StoryGroup[]>([]);
   const [viewer, setViewer] = useState<number | null>(null);
-  const [composer, setComposer] = useState(false);
+  const [composerImg, setComposerImg] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
   const [seen, setSeen] = useState<Set<string>>(() => loadSeen());
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // File picking happens here, inside the direct tap on "+ შენი Story", so iOS
+  // Safari reliably opens the picker (a deferred .click() would be blocked).
+  const onPickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
+    if (!f) return;
+    setPicking(true);
+    try { setComposerImg(await resizeStoryImage(f)); }
+    catch { /* ignore — bad image */ }
+    finally { setPicking(false); }
+  };
 
   const fetchStories = useCallback(() => {
     emitWithAck<undefined, Res<StoryGroup[]>>('community:stories_list')
@@ -228,11 +250,12 @@ export function StoriesStrip({ onOpenProfile }: { onOpenProfile: (id: string) =>
 
   return (
     <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
-      {/* Add own story */}
-      <button onClick={() => setComposer(true)} className="flex flex-col items-center gap-1 flex-shrink-0" style={{ width: 60 }}>
+      {/* Add own story — file picker fires inside this direct tap */}
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickFile} />
+      <button onClick={() => fileRef.current?.click()} className="flex flex-col items-center gap-1 flex-shrink-0" style={{ width: 60 }}>
         <div style={{ position: 'relative', width: 56, height: 56, borderRadius: '50%', padding: 2, border: '1.5px dashed rgba(255,255,255,0.18)' }}>
           {profile && <Avatar avatar={profile.avatar} avatarUrl={profile.avatarUrl ?? null} size={50} />}
-          <span style={{ position: 'absolute', bottom: -2, right: -2, width: 20, height: 20, borderRadius: '50%', background: '#9b00ff', color: '#fff', fontSize: 14, lineHeight: '18px', textAlign: 'center', border: '2px solid #06040f' }}>+</span>
+          <span style={{ position: 'absolute', bottom: -2, right: -2, width: 20, height: 20, borderRadius: '50%', background: '#9b00ff', color: '#fff', fontSize: 14, lineHeight: '18px', textAlign: 'center', border: '2px solid #06040f' }}>{picking ? '…' : '+'}</span>
         </div>
         <span className="font-mono text-[10px] text-white/45 truncate" style={{ maxWidth: 58 }}>შენი Story</span>
       </button>
@@ -263,7 +286,7 @@ export function StoriesStrip({ onOpenProfile }: { onOpenProfile: (id: string) =>
           />
         )}
       </AnimatePresence>
-      {composer && <StoryComposer onClose={() => setComposer(false)} onPosted={fetchStories} />}
+      {composerImg && <StoryComposer image={composerImg} onClose={() => setComposerImg(null)} onPosted={fetchStories} />}
     </div>
   );
 }
