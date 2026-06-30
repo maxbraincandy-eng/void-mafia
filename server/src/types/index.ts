@@ -752,6 +752,10 @@ export interface DashboardStats {
   activeRooms: number;
   openReports: number;
   recentBans: number;
+  peakOnline: number;
+  newUsersToday: number;
+  avgMatchSeconds: number;
+  voiceUsers: number;
 }
 
 export interface BannedPlayerEntry {

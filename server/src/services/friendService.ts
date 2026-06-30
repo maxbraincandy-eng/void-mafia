@@ -30,7 +30,13 @@ const loungePresence = new Map<string, { spaceId: string; name: string; code: st
 export function setLoungePresence(profileId: string, info: { spaceId: string; name: string; code: string }): void { loungePresence.set(profileId, info); }
 export function clearLoungePresence(profileId: string): void { loungePresence.delete(profileId); }
 
-export function markOnline(profileId: string): void { onlineProfiles.add(profileId); }
+let _peakOnline = 0;
+export function getPeakOnline(): number { return _peakOnline; }
+export function markOnline(profileId: string): void {
+  onlineProfiles.add(profileId);
+  const c = getOnlineCount();
+  if (c > _peakOnline) _peakOnline = c;
+}
 export function markOffline(profileId: string): void { onlineProfiles.delete(profileId); loungePresence.delete(profileId); }
 // Invisible owners read as offline to everyone (internally still online).
 export function isOnline(profileId: string): boolean { return onlineProfiles.has(profileId) && !invisibleProfiles.has(profileId); }

@@ -12,7 +12,7 @@ import { registerUnoHandlers, handleUnoDisconnect } from './uno.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
 import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, getNameColors, grantStarterCosmetics, incrementSpaceKnockouts, getKnockoutLeaderboard, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
-import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount, setLoungePresence, clearLoungePresence, getFriendIds, setInvisible, isInvisible, setGhost, isGhost, } from './services/friendService.js';
+import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount, setLoungePresence, clearLoungePresence, getFriendIds, setInvisible, isInvisible, setGhost, isGhost, getPeakOnline, } from './services/friendService.js';
 import { checkAndAwardChallenges, getDailyQuestsForPlayer, } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
 import { recordGame, getPlayerHistory, getPlayerRoleStats, getPlayersLastRolesInRoom } from './services/gameHistoryService.js';
@@ -2792,14 +2792,21 @@ export function attachSocketHandlers(io) {
                 const mod = modProfileId ? await getPlayer(modProfileId) : null;
                 if (!mod || !canDo(mod, 'view_reports'))
                     throw new Error('Insufficient permissions.');
-                const { openReports, recentBans } = await getDashboardDbStats();
+                const { openReports, recentBans, newUsersToday, avgMatchSeconds } = await getDashboardDbStats();
                 const rooms = getAllRooms();
+                let voiceUsers = 0;
+                for (const [, voices] of _spaceVoice)
+                    voiceUsers += voices.size;
                 cb(ok({
                     onlinePlayers: getOnlineCount(),
                     spectatingPlayers: getSpectatingCount(),
                     activeRooms: rooms.length,
                     openReports,
                     recentBans,
+                    peakOnline: getPeakOnline(),
+                    newUsersToday,
+                    avgMatchSeconds,
+                    voiceUsers,
                 }));
             }
             catch (e) {

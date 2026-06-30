@@ -9,6 +9,7 @@ export declare function setLoungePresence(profileId: string, info: {
     code: string;
 }): void;
 export declare function clearLoungePresence(profileId: string): void;
+export declare function getPeakOnline(): number;
 export declare function markOnline(profileId: string): void;
 export declare function markOffline(profileId: string): void;
 export declare function isOnline(profileId: string): boolean;

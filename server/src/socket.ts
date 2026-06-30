@@ -43,7 +43,7 @@ import {
   markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend,
   removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount,
   setLoungePresence, clearLoungePresence, getFriendIds,
-  setInvisible, isInvisible, setGhost, isGhost,
+  setInvisible, isInvisible, setGhost, isGhost, getPeakOnline,
 } from './services/friendService.js';
 import {
   checkAndAwardChallenges, getDailyQuestsForPlayer,
@@ -2784,14 +2784,20 @@ export function attachSocketHandlers(io: AppServer): void {
         const modProfileId = socket.data.profileId;
         const mod = modProfileId ? await getPlayer(modProfileId) : null;
         if (!mod || !canDo(mod, 'view_reports')) throw new Error('Insufficient permissions.');
-        const { openReports, recentBans } = await getDashboardDbStats();
+        const { openReports, recentBans, newUsersToday, avgMatchSeconds } = await getDashboardDbStats();
         const rooms = getAllRooms();
+        let voiceUsers = 0;
+        for (const [, voices] of _spaceVoice) voiceUsers += voices.size;
         cb(ok({
           onlinePlayers: getOnlineCount(),
           spectatingPlayers: getSpectatingCount(),
           activeRooms: rooms.length,
           openReports,
           recentBans,
+          peakOnline: getPeakOnline(),
+          newUsersToday,
+          avgMatchSeconds,
+          voiceUsers,
         }));
       } catch (e: any) { cb(err(e.message)); }
     });

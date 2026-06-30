@@ -261,11 +261,21 @@ export async function assignReport(reportId: string, modId: string): Promise<voi
 }
 
 // ── Dashboard Stats ───────────────────────────────────────────────────
-export async function getDashboardDbStats(): Promise<{ openReports: number; recentBans: number }> {
-  const since24h = Date.now() - 86_400_000;
-  const [[openRow], [banRow]] = await Promise.all([
+export async function getDashboardDbStats(): Promise<{ openReports: number; recentBans: number; newUsersToday: number; avgMatchSeconds: number }> {
+  const now = Date.now();
+  const since24h = now - 86_400_000;
+  const startOfToday = now - (now % 86_400_000); // UTC midnight
+  const since30d = now - 30 * 86_400_000;
+  const [[openRow], [banRow], [newRow], [durRow]] = await Promise.all([
     sql`SELECT COUNT(*) as cnt FROM reports WHERE status = 'open'` as Promise<any[]>,
     sql`SELECT COUNT(*) as cnt FROM mod_logs WHERE action_type = 'ban' AND created_at > ${since24h}` as Promise<any[]>,
+    sql`SELECT COUNT(*) as cnt FROM players WHERE joined_at >= ${startOfToday}` as Promise<any[]>,
+    sql`SELECT AVG(ended_at - started_at) as avg FROM game_history WHERE ended_at > started_at AND ended_at > ${since30d}` as Promise<any[]>,
   ]);
-  return { openReports: Number(openRow?.cnt ?? 0), recentBans: Number(banRow?.cnt ?? 0) };
+  return {
+    openReports: Number(openRow?.cnt ?? 0),
+    recentBans: Number(banRow?.cnt ?? 0),
+    newUsersToday: Number(newRow?.cnt ?? 0),
+    avgMatchSeconds: durRow?.avg != null ? Math.round(Number(durRow.avg) / 1000) : 0,
+  };
 }

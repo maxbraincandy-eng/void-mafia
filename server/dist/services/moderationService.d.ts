@@ -23,5 +23,7 @@ export declare function assignReport(reportId: string, modId: string): Promise<v
 export declare function getDashboardDbStats(): Promise<{
     openReports: number;
     recentBans: number;
+    newUsersToday: number;
+    avgMatchSeconds: number;
 }>;
 //# sourceMappingURL=moderationService.d.ts.map

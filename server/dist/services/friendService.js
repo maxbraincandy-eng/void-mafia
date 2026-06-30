@@ -31,7 +31,14 @@ export function isGhost(profileId) { return ghostProfiles.has(profileId); }
 const loungePresence = new Map();
 export function setLoungePresence(profileId, info) { loungePresence.set(profileId, info); }
 export function clearLoungePresence(profileId) { loungePresence.delete(profileId); }
-export function markOnline(profileId) { onlineProfiles.add(profileId); }
+let _peakOnline = 0;
+export function getPeakOnline() { return _peakOnline; }
+export function markOnline(profileId) {
+    onlineProfiles.add(profileId);
+    const c = getOnlineCount();
+    if (c > _peakOnline)
+        _peakOnline = c;
+}
 export function markOffline(profileId) { onlineProfiles.delete(profileId); loungePresence.delete(profileId); }
 // Invisible owners read as offline to everyone (internally still online).
 export function isOnline(profileId) { return onlineProfiles.has(profileId) && !invisibleProfiles.has(profileId); }

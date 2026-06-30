@@ -512,6 +512,10 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
                   { label: 'Active Rooms', value: stats.activeRooms, color: 'text-neon-cyan' },
                   { label: 'Open Reports', value: stats.openReports, color: stats.openReports > 0 ? 'text-neon-red' : 'text-white/40' },
                   { label: 'Bans (24h)', value: stats.recentBans, color: 'text-neon-pink' },
+                  { label: 'Peak Online', value: stats.peakOnline ?? 0, color: 'text-neon-green/80' },
+                  { label: 'New Today', value: stats.newUsersToday ?? 0, color: 'text-neon-cyan/80' },
+                  { label: 'In Voice', value: stats.voiceUsers ?? 0, color: 'text-yellow-300' },
+                  { label: 'Avg Match', value: stats.avgMatchSeconds ? fmtDuration(stats.avgMatchSeconds) : '—', color: 'text-white/60' },
                 ].map(s => (
                   <div key={s.label} onClick={s.onClick}
                     className={`glass-panel border border-white/5 rounded-xl p-4 text-center ${s.onClick ? 'cursor-pointer hover:border-white/15 active:bg-white/5 transition-all' : ''}`}>

@@ -235,11 +235,21 @@ export async function assignReport(reportId, modId) {
 }
 // ── Dashboard Stats ───────────────────────────────────────────────────
 export async function getDashboardDbStats() {
-    const since24h = Date.now() - 86400000;
-    const [[openRow], [banRow]] = await Promise.all([
+    const now = Date.now();
+    const since24h = now - 86400000;
+    const startOfToday = now - (now % 86400000); // UTC midnight
+    const since30d = now - 30 * 86400000;
+    const [[openRow], [banRow], [newRow], [durRow]] = await Promise.all([
         sql `SELECT COUNT(*) as cnt FROM reports WHERE status = 'open'`,
         sql `SELECT COUNT(*) as cnt FROM mod_logs WHERE action_type = 'ban' AND created_at > ${since24h}`,
+        sql `SELECT COUNT(*) as cnt FROM players WHERE joined_at >= ${startOfToday}`,
+        sql `SELECT AVG(ended_at - started_at) as avg FROM game_history WHERE ended_at > started_at AND ended_at > ${since30d}`,
     ]);
-    return { openReports: Number(openRow?.cnt ?? 0), recentBans: Number(banRow?.cnt ?? 0) };
+    return {
+        openReports: Number(openRow?.cnt ?? 0),
+        recentBans: Number(banRow?.cnt ?? 0),
+        newUsersToday: Number(newRow?.cnt ?? 0),
+        avgMatchSeconds: durRow?.avg != null ? Math.round(Number(durRow.avg) / 1000) : 0,
+    };
 }
 //# sourceMappingURL=moderationService.js.map
