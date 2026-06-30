@@ -208,6 +208,14 @@ export const SFX = {
     ], 0.22, 8);
   },
 
+  // Sharp low thwack — a punch landing (Virtual Space combat)
+  punch() {
+    sfxPlay([
+      { freq: 68,  type: 'sine',     dur: 0.11, vol: 0.90, attack: 0.003, release: 0.10 },
+      { freq: 150, type: 'triangle', dur: 0.05, vol: 0.50, attack: 0.002, release: 0.045 },
+    ], 0.40, 26);
+  },
+
   // Deep felt-mallet resonance — notification
   ping() {
     sfxPlay([

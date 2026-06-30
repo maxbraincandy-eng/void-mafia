@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { socket } from '@/lib/socket';
+import { SFX } from '@/lib/audioEngine';
 
 export type SpaceMask = 'none' | 'half' | 'full' | 'visor';
 
@@ -381,6 +382,7 @@ export function useVirtualSpace() {
       setState(prev => prev.space ? { ...prev, space: { ...prev.space, ...patch } } : prev);
     }
     function onHit({ targetSocketId, hp }: { targetSocketId: string; byName: string; hp: number }) {
+      SFX.punch();
       setState(prev => {
         const p = prev.players.get(targetSocketId);
         if (!p) return prev;
