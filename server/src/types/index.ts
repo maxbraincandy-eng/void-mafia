@@ -843,6 +843,7 @@ export interface ServerToClientEvents {
   'lfg:update':          (list: LfgEntry[]) => void;
   // Maintenance mode
   'maintenance:status':  (data: { enabled: boolean }) => void;
+  'system:announce':     (data: { id: string; message: string; style: 'banner' | 'popup' }) => void;
   // Economy
   'coins:updated':       (data: { coins: number }) => void;
   'gift:received':       (data: { gift: any; senderName: string; senderAvatar: string; message: string }) => void;

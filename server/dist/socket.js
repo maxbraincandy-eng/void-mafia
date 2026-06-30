@@ -1045,6 +1045,8 @@ export function attachSocketHandlers(io) {
                 enforceSessionUniqueness(io, parsed.uid, socket.id);
                 markOnline(parsed.uid);
                 broadcastOnlineCount(io);
+                if (maintenanceMode)
+                    socket.emit('maintenance:status', { enabled: true }); // surface banner to fresh connections
                 await grantStarterCosmetics(parsed.uid);
                 if (parsed.referralCode) {
                     applyReferral(parsed.uid, parsed.referralCode).catch(() => { });
@@ -2951,6 +2953,25 @@ export function attachSocketHandlers(io) {
                 }
                 io.emit('mod:notification', { type: 'broadcast', message: `[BROADCAST] ${text}` });
                 await addModLog('broadcast', modProfileId, mod.username, 'all', 'all', null, text);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Mod: Global Announcement (banner / popup to EVERY connected user) ──
+        socket.on('mod:announce', async ({ message, style }, cb) => {
+            try {
+                const modProfileId = socket.data.profileId;
+                const mod = modProfileId ? await getPlayer(modProfileId) : null;
+                if (!mod || !canDo(mod, 'ban_short'))
+                    throw new Error('Insufficient permissions.');
+                const text = message.trim().slice(0, 300);
+                if (!text)
+                    throw new Error('Message cannot be empty.');
+                const safeStyle = style === 'popup' ? 'popup' : 'banner';
+                io.emit('system:announce', { id: randomUUID(), message: text, style: safeStyle });
+                await addModLog('broadcast', modProfileId, mod.username, 'all', 'all', null, `Announce (${safeStyle}): ${text}`);
                 cb(ok(null));
             }
             catch (e) {

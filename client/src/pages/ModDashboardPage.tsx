@@ -98,6 +98,7 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
   const [reportFilter, setReportFilter] = useState<'all' | 'open' | 'reviewing' | 'resolved' | 'rejected'>('open');
   const [logFilter, setLogFilter] = useState('');
   const [broadcastMsg, setBroadcastMsg] = useState('');
+  const [announceMsg, setAnnounceMsg] = useState('');
   const [systemMsg, setSystemMsg] = useState('');
   const [selectedRoomForMsg, setSelectedRoomForMsg] = useState<string>('');
   const [selectedPhaseRoom, setSelectedPhaseRoom] = useState<string>('');
@@ -359,6 +360,21 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
         setConfirm(null);
         socket.emit('mod:broadcast' as any, { message: broadcastMsg }, (res: Res<null>) => {
           if (res.ok) { addToast('Broadcast sent', 'success'); setBroadcastMsg(''); }
+          else addToast(res.error, 'error');
+        });
+      },
+    });
+  };
+
+  const sendAnnounce = (style: 'banner' | 'popup') => {
+    if (!announceMsg.trim()) { addToast('Message required', 'error'); return; }
+    setConfirm({
+      title: `Global ${style === 'popup' ? 'Popup' : 'Banner'}`,
+      msg: `Send a ${style} to EVERY connected user: "${announceMsg}"?`,
+      onConfirm: () => {
+        setConfirm(null);
+        socket.emit('mod:announce' as any, { message: announceMsg, style }, (res: Res<null>) => {
+          if (res.ok) { addToast(`${style === 'popup' ? 'Popup' : 'Banner'} sent to all users`, 'success'); setAnnounceMsg(''); }
           else addToast(res.error, 'error');
         });
       },
@@ -900,6 +916,28 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
                 className="w-full py-2 border border-neon-green/30 bg-neon-green/10 text-neon-green font-mono text-sm rounded-xl hover:bg-neon-green/20 disabled:opacity-40 transition-all">
                 Send Broadcast
               </button>
+            </div>
+
+            {/* Global announcement to EVERY user */}
+            <div className="glass-panel border border-white/5 rounded-xl p-4 space-y-3">
+              <div>
+                <p className="font-mono text-sm text-white font-bold">📢 Global Announcement</p>
+                <p className="text-white/30 font-mono text-xs">Shown to every connected user (in any screen)</p>
+              </div>
+              <textarea value={announceMsg} onChange={e => setAnnounceMsg(e.target.value)}
+                placeholder="Announcement to all users…"
+                rows={3}
+                className="w-full bg-void-50/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono placeholder-white/25 focus:outline-none focus:border-neon-purple/40 resize-none" />
+              <div className="flex gap-2">
+                <button onClick={() => sendAnnounce('banner')} disabled={!announceMsg.trim()}
+                  className="flex-1 py-2 border border-neon-purple/30 bg-neon-purple/10 text-neon-purple font-mono text-sm rounded-xl hover:bg-neon-purple/20 disabled:opacity-40 transition-all">
+                  Banner
+                </button>
+                <button onClick={() => sendAnnounce('popup')} disabled={!announceMsg.trim()}
+                  className="flex-1 py-2 border border-neon-cyan/30 bg-neon-cyan/10 text-neon-cyan font-mono text-sm rounded-xl hover:bg-neon-cyan/20 disabled:opacity-40 transition-all">
+                  Popup
+                </button>
+              </div>
             </div>
           </div>
         )}

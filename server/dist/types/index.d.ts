@@ -801,6 +801,11 @@ export interface ServerToClientEvents {
     'maintenance:status': (data: {
         enabled: boolean;
     }) => void;
+    'system:announce': (data: {
+        id: string;
+        message: string;
+        style: 'banner' | 'popup';
+    }) => void;
     'coins:updated': (data: {
         coins: number;
     }) => void;
