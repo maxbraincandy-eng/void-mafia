@@ -11,7 +11,7 @@ import { registerWWWHandlers, handleWWWDisconnect } from './www.js';
 import { registerUnoHandlers, handleUnoDisconnect } from './uno.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
-import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, grantStarterCosmetics, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
+import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, getNameColors, grantStarterCosmetics, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
 import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount, setLoungePresence, clearLoungePresence, getFriendIds, } from './services/friendService.js';
 import { checkAndAwardChallenges, getDailyQuestsForPlayer, } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
@@ -3899,6 +3899,15 @@ export function attachSocketHandlers(io) {
         socket.on('cosmetics:get', async ({ profileId }, cb) => {
             try {
                 cb(ok(await getCosmetics(profileId)));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // Batch-resolve equipped name colors for a list of profiles (for app-wide name coloring)
+        socket.on('cosmetics:name_colors', async ({ profileIds }, cb) => {
+            try {
+                cb(ok(await getNameColors(profileIds ?? [])));
             }
             catch (e) {
                 cb(err(e.message));

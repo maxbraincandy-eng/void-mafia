@@ -1349,6 +1349,9 @@ export interface ClientToServerEvents {
     'cosmetics:get': (data: {
         profileId: string;
     }, cb: Cb<PlayerCosmetics>) => void;
+    'cosmetics:name_colors': (data: {
+        profileIds: string[];
+    }, cb: Cb<Record<string, string>>) => void;
     'cosmetics:buy_item': (data: {
         itemId: string;
     }, cb: Cb<{

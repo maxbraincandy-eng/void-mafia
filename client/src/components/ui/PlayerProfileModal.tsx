@@ -13,7 +13,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useGameStore } from '@/store/gameStore';
 import type { Res, PublicProfileFull, FriendshipStatus, PlayerRoleStats, ModeratorLevel, WarnCategory, ClanRole, CommunityPostV2, CommunityProfileV2 } from '@/types/index';
 import {
-  getFrameById, getTitleById, getWallpaperById, getBorderById,
+  getFrameById, getTitleById, getWallpaperById, getBorderById, getNameColorById,
   FRAMES, TITLES, BORDERS, WALLPAPERS, ROLE_SKINS, NAME_COLORS,
   RARITY_COLOR, RARITY_LABEL, type CosmeticRarity,
 } from '@/constants/cosmetics';
@@ -667,7 +667,10 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
 
                       {/* Name + badges — centered */}
                       <div className="text-center mt-5">
-                        <h3 className={`font-display font-bold text-[17px] leading-tight ${profile.isModerator ? 'text-neon-green' : 'text-white'}`}>
+                        <h3
+                          className={`font-display font-bold text-[17px] leading-tight ${profile.isModerator ? 'text-neon-green' : 'text-white'}`}
+                          style={{ color: getNameColorById(profile.cosmetics?.equippedNameColor ?? null) ?? undefined }}
+                        >
                           {profile.username}
                         </h3>
                         <div className="flex items-center justify-center gap-1.5 flex-wrap mt-1 mb-0.5">

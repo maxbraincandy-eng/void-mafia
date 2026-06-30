@@ -179,6 +179,17 @@ export function getNameColorById(id: string | null): string | null {
   return NAME_COLORS.find(n => n.id === id)?.color ?? null;
 }
 
+// Coin prices for purchasable name colors (keep in sync with server coinService PURCHASABLE_COSMETICS).
+// nc_cyan / nc_purple are not listed — they are free level unlocks (level 3).
+export const NAME_COLOR_PRICES: Record<string, number> = {
+  nc_pink:   400,
+  nc_green:  400,
+  nc_orange: 800,
+  nc_red:    800,
+  nc_gold:   1500,
+  nc_white:  2500,
+};
+
 // Items unlocked at start (no level required)
 export const STARTER_ITEMS = ['frame_bronze', 'title_void_citizen', 'skin_classic', 'bg_void'];
 

@@ -33,7 +33,7 @@ import {
   getOrCreatePlayer, getPlayer, getAllPlayers, toPublicProfile, addGameResult,
   getActiveBan, getActiveMute, findSocketByProfile,
   registerWithEmail, authenticateWithEmail,
-  addXP, getCosmetics, equipCosmetic, grantStarterCosmetics,
+  addXP, getCosmetics, equipCosmetic, getNameColors, grantStarterCosmetics,
   getLeaderboard, getPlayersFast,
   getPlayerByFriendCode, setGrantedModLevel,
   updateAvatarUrl, updateUsername,
@@ -3695,6 +3695,13 @@ export function attachSocketHandlers(io: AppServer): void {
     socket.on('cosmetics:get', async ({ profileId }, cb) => {
       try {
         cb(ok(await getCosmetics(profileId)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // Batch-resolve equipped name colors for a list of profiles (for app-wide name coloring)
+    socket.on('cosmetics:name_colors', async ({ profileIds }, cb) => {
+      try {
+        cb(ok(await getNameColors(profileIds ?? [])));
       } catch (e: any) { cb(err(e.message)); }
     });
 

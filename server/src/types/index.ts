@@ -1035,6 +1035,7 @@ export interface ClientToServerEvents {
   // Cosmetics
   'cosmetics:equip':       (data: { type: 'name_color' | 'frame' | 'wallpaper' | 'border'; itemId: string | null }, cb: Cb<PlayerCosmetics>) => void;
   'cosmetics:get':         (data: { profileId: string }, cb: Cb<PlayerCosmetics>) => void;
+  'cosmetics:name_colors': (data: { profileIds: string[] }, cb: Cb<Record<string, string>>) => void;
   'cosmetics:buy_item':    (data: { itemId: string }, cb: Cb<{ cosmetics: PlayerCosmetics; newBalance: number }>) => void;
   // Public profile popup
   'player:public_profile': (data: { profileId: string }, cb: Cb<any>) => void;

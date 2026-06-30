@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { useGameStore, hasPendingSession } from '@/store/gameStore';
 import clsx from 'clsx';
 import { useAuthStore } from '@/store/authStore';
+import { useNameColorStore } from '@/store/nameColorStore';
 import { useSocialStore } from '@/store/socialStore';
 import type { DmToast as DmToastData } from '@/store/socialStore';
 import { LoginPage } from '@/pages/LoginPage';
@@ -345,6 +346,12 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       window.history.replaceState({}, '', '/');
     }
   }, []);
+
+  // Seed my own equipped name color into the app-wide resolver so it shows
+  // everywhere immediately (no fetch flash) and updates when I re-equip.
+  useEffect(() => {
+    if (profile?.id) useNameColorStore.getState().setLocal(profile.id, profile.cosmetics?.equippedNameColor ?? null);
+  }, [profile?.id, profile?.cosmetics?.equippedNameColor]);
 
   // Incoming space invite → strict centered overlay (Accept / Reject).
   useEffect(() => {

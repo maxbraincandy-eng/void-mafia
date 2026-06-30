@@ -563,6 +563,22 @@ export async function getCosmetics(profileId: string): Promise<PlayerCosmetics> 
   }
 }
 
+// Batch-resolve equipped name-color ids for many players in one query.
+// Returns only entries that have a non-null equippedNameColor.
+export async function getNameColors(profileIds: string[]): Promise<Record<string, string>> {
+  const ids = Array.from(new Set(profileIds.filter(Boolean))).slice(0, 200);
+  if (ids.length === 0) return {};
+  const rows = await sql`SELECT id, cosmetics FROM players WHERE id = ANY(${ids})` as any[];
+  const out: Record<string, string> = {};
+  for (const row of rows) {
+    try {
+      const c = JSON.parse(row?.cosmetics ?? '{}');
+      if (c?.equippedNameColor) out[row.id] = c.equippedNameColor;
+    } catch { /* ignore malformed cosmetics */ }
+  }
+  return out;
+}
+
 export async function equipCosmetic(
   profileId: string,
   type: 'name_color' | 'frame' | 'title' | 'role_skin' | 'wallpaper' | 'border',

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PROFILE_BACKGROUNDS, RARITY_COLOR, RARITY_LABEL } from '@/constants/cosmetics';
+import { PROFILE_BACKGROUNDS, NAME_COLORS, NAME_COLOR_PRICES, RARITY_COLOR, RARITY_LABEL } from '@/constants/cosmetics';
 import { emitWithAck } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
+import { useNameColorStore } from '@/store/nameColorStore';
 import type { PlayerCosmetics, Res } from '@/types/index';
 
 interface CoinPackage {
@@ -29,7 +30,7 @@ interface Props {
 }
 
 export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCoinsChange }: Props) {
-  const [shopTab, setShopTab] = useState<'coins' | 'backgrounds'>('coins');
+  const [shopTab, setShopTab] = useState<'coins' | 'backgrounds' | 'names'>('coins');
   const [packages, setPackages] = useState<CoinPackage[]>([]);
   const [loading, setLoading] = useState(false);
   const [buying, setBuying] = useState<string | null>(null);
@@ -37,8 +38,12 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
   // Backgrounds tab state
   const [buyingBg, setBuyingBg] = useState<string | null>(null);
   const [bgMsg, setBgMsg] = useState<string | null>(null);
+  // Name colors tab state
+  const [busyNc, setBusyNc] = useState<string | null>(null);
+  const [ncMsg, setNcMsg] = useState<string | null>(null);
   const profile = useAuthStore(s => s.profile);
   const unlockedItems = profile?.cosmetics?.unlockedItems ?? [];
+  const equippedNameColor = profile?.cosmetics?.equippedNameColor ?? null;
 
   useEffect(() => {
     if (!open) return;
@@ -94,6 +99,48 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
     } finally {
       setBuyingBg(null);
       setTimeout(() => setBgMsg(null), 5000);
+    }
+  };
+
+  const handleBuyNameColor = async (itemId: string) => {
+    if (busyNc) return;
+    setBusyNc(itemId);
+    setNcMsg(null);
+    try {
+      const res = await emitWithAck<{ itemId: string }, Res<{ cosmetics: PlayerCosmetics; newBalance: number }>>(
+        'cosmetics:buy_item' as any, { itemId },
+      );
+      if (res.ok) {
+        useAuthStore.setState(s => s.profile ? { profile: { ...s.profile!, cosmetics: res.data.cosmetics } } : s);
+        onCoinsChange?.(res.data.newBalance);
+        setNcMsg('Purchased! Tap "Equip" to wear it.');
+      } else {
+        setNcMsg((res as any).error ?? 'Purchase failed.');
+      }
+    } finally {
+      setBusyNc(null);
+      setTimeout(() => setNcMsg(null), 5000);
+    }
+  };
+
+  const handleEquipNameColor = async (itemId: string | null) => {
+    if (busyNc) return;
+    setBusyNc(itemId ?? '__off');
+    setNcMsg(null);
+    try {
+      const res = await emitWithAck<{ type: string; itemId: string | null }, Res<PlayerCosmetics>>(
+        'cosmetics:equip' as any, { type: 'name_color', itemId },
+      );
+      if (res.ok) {
+        useAuthStore.setState(s => s.profile ? { profile: { ...s.profile!, cosmetics: res.data } } : s);
+        if (profile?.id) useNameColorStore.getState().setLocal(profile.id, itemId);
+        setNcMsg(itemId ? 'Equipped!' : 'Name color removed.');
+      } else {
+        setNcMsg((res as any).error ?? 'Could not equip.');
+      }
+    } finally {
+      setBusyNc(null);
+      setTimeout(() => setNcMsg(null), 4000);
     }
   };
 
@@ -155,6 +202,7 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                   {[
                     { id: 'coins', label: 'Buy Coins' },
                     { id: 'backgrounds', label: 'Backgrounds' },
+                    { id: 'names', label: 'Name Colors' },
                   ].map(t => (
                     <button key={t.id}
                       onClick={() => setShopTab(t.id as any)}
@@ -315,6 +363,93 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                   })}
                   <p className="text-center font-mono text-[12px] text-white/15 leading-relaxed pt-2 px-2">
                     Profile backgrounds are permanent unlocks. Equip from Profile &gt; Wallpapers tab.
+                  </p>
+                </div>
+                )}
+
+                {/* ── Name Colors tab ── */}
+                {shopTab === 'names' && (
+                <div className="space-y-2">
+                  <p className="font-mono text-[12px] text-white/30 tracking-widest text-center pb-1">
+                    Your name color shows everywhere — feed, chat, lounge &amp; games
+                  </p>
+                  {/* Live preview */}
+                  <div className="flex items-center justify-center gap-2 py-2 mb-1 rounded-xl"
+                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <span className="font-mono text-[12px] text-white/25 uppercase tracking-widest">Preview</span>
+                    <span className="font-display font-bold text-base"
+                      style={{ color: NAME_COLORS.find(n => n.id === equippedNameColor)?.color ?? 'rgba(255,255,255,0.85)' }}>
+                      {profile?.username ?? 'You'}
+                    </span>
+                  </div>
+                  {ncMsg && <p className="text-center font-mono text-xs text-neon-green/70 py-1">{ncMsg}</p>}
+                  {equippedNameColor && (
+                    <button
+                      onClick={() => handleEquipNameColor(null)}
+                      disabled={!!busyNc}
+                      className="w-full py-1.5 rounded-lg font-mono text-[12px] text-white/40 hover:text-white/60 border border-white/10 transition-all disabled:opacity-40"
+                    >
+                      {busyNc === '__off' ? '...' : 'Remove name color'}
+                    </button>
+                  )}
+                  {NAME_COLORS.map(nc => {
+                    const isOwned = unlockedItems.includes(nc.id);
+                    const isEquipped = equippedNameColor === nc.id;
+                    const price = NAME_COLOR_PRICES[nc.id];
+                    const isBusy = busyNc === nc.id;
+                    return (
+                      <div key={nc.id}
+                        className="flex items-center gap-3 rounded-xl p-3 border transition-all"
+                        style={isEquipped
+                          ? { borderColor: `${nc.color}80`, background: `${nc.color}12`, boxShadow: `0 0 16px ${nc.color}22` }
+                          : isOwned
+                          ? { borderColor: `${nc.color}30`, background: `${nc.color}08` }
+                          : { borderColor: 'rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)' }}
+                      >
+                        <div className="w-10 h-10 rounded-full shrink-0 border border-white/10" style={{ background: nc.color, boxShadow: `0 0 10px ${nc.color}66` }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-display font-bold text-sm truncate" style={{ color: nc.color }}>{nc.name}</p>
+                          <p className="font-mono text-[12px] uppercase tracking-wider" style={{ color: RARITY_COLOR[nc.rarity] }}>
+                            {RARITY_LABEL[nc.rarity]}
+                          </p>
+                          {!isOwned && (
+                            <p className="font-mono text-[12px] text-amber-400/70 font-bold">
+                              {price != null ? `${price} coins` : 'Level unlock'}
+                            </p>
+                          )}
+                        </div>
+                        {isEquipped ? (
+                          <div className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[12px] border" style={{ color: nc.color, borderColor: `${nc.color}40` }}>
+                            Equipped
+                          </div>
+                        ) : isOwned ? (
+                          <button
+                            disabled={!!busyNc}
+                            onClick={() => handleEquipNameColor(nc.id)}
+                            className="shrink-0 px-2.5 py-1.5 rounded-lg font-mono text-[12px] font-bold transition-all disabled:opacity-40"
+                            style={{ background: `${nc.color}1a`, color: nc.color, border: `1px solid ${nc.color}40` }}
+                          >
+                            {isBusy ? '...' : 'Equip'}
+                          </button>
+                        ) : price != null ? (
+                          <button
+                            disabled={!!busyNc}
+                            onClick={() => handleBuyNameColor(nc.id)}
+                            className="shrink-0 px-2.5 py-1.5 rounded-lg font-mono text-[12px] font-bold transition-all disabled:opacity-40"
+                            style={{ background: 'rgba(255,180,0,0.1)', color: 'rgba(255,180,0,0.85)', border: '1px solid rgba(255,180,0,0.25)' }}
+                          >
+                            {isBusy ? '...' : 'Buy'}
+                          </button>
+                        ) : (
+                          <div className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[12px] text-white/25 border border-white/10">
+                            Locked
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <p className="text-center font-mono text-[12px] text-white/15 leading-relaxed pt-2 px-2">
+                    Name colors are permanent unlocks. Cyan &amp; Purple unlock at level 3.
                   </p>
                 </div>
                 )}

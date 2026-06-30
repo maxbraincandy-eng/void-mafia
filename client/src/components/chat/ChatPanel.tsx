@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
 import { useT } from '@/store/langStore';
 import { ChatMessage, ChatChannel } from '@/types/index';
+import { PlayerName } from '@/components/ui/PlayerName';
 
 const SPECTATOR_REACTIONS = ['👀', '🔥', '💀', '😮', '👏', '❓', '😂', '🤫'];
 
@@ -33,7 +34,7 @@ function MessageBubble({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
         animate={{ opacity: 1, scale: 1 }}
         className={clsx('flex items-center gap-1.5', isMe ? 'justify-end' : 'justify-start')}
       >
-        <span className="text-[12px] font-mono text-neon-purple/50">{msg.senderName}</span>
+        <PlayerName profileId={msg.senderId === 'system' ? null : msg.senderId} name={msg.senderName} className="text-[12px] font-mono text-neon-purple/50" />
         <span className="text-lg">{msg.text}</span>
       </motion.div>
     );
@@ -54,7 +55,8 @@ function MessageBubble({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
     >
       <div className="flex items-baseline gap-1.5">
         <span className={clsx('text-xs font-mono', accentColor)}>
-          {msg.seat ? `#${msg.seat} ` : ''}{msg.senderName}
+          {msg.seat ? `#${msg.seat} ` : ''}
+          <PlayerName profileId={msg.senderId === 'system' ? null : msg.senderId} name={msg.senderName} />
           {msg.isMod && <span className="ml-1 text-[12px] font-bold text-neon-green border border-neon-green/30 px-1 rounded bg-neon-green/10">MOD</span>}
         </span>
         <span className="text-[12px] font-mono text-white/15">

@@ -537,6 +537,24 @@ export async function getCosmetics(profileId) {
         return { equippedNameColor: null, equippedFrame: null, equippedTitle: null, equippedRoleSkin: null, equippedWallpaper: null, equippedBorder: null, unlockedItems: [] };
     }
 }
+// Batch-resolve equipped name-color ids for many players in one query.
+// Returns only entries that have a non-null equippedNameColor.
+export async function getNameColors(profileIds) {
+    const ids = Array.from(new Set(profileIds.filter(Boolean))).slice(0, 200);
+    if (ids.length === 0)
+        return {};
+    const rows = await sql `SELECT id, cosmetics FROM players WHERE id = ANY(${ids})`;
+    const out = {};
+    for (const row of rows) {
+        try {
+            const c = JSON.parse(row?.cosmetics ?? '{}');
+            if (c?.equippedNameColor)
+                out[row.id] = c.equippedNameColor;
+        }
+        catch { /* ignore malformed cosmetics */ }
+    }
+    return out;
+}
 export async function equipCosmetic(profileId, type, itemId) {
     const cosmetics = await getCosmetics(profileId);
     if (itemId && !cosmetics.unlockedItems.includes(itemId))

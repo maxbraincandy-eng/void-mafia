@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { PlayerPublic, Phase } from '@/types/index';
+import { PlayerName } from '@/components/ui/PlayerName';
 import { useSocialStore } from '@/store/socialStore';
 import { useT } from '@/store/langStore';
 
@@ -226,12 +227,15 @@ function PlayerRow({
           >
             {player.seat}
           </span>
-          <span className={clsx(
-            'font-semibold text-sm truncate',
-            dead ? 'text-white/35 line-through' : isMe ? 'text-neon-purple/90' : 'text-white',
-          )}>
-            {player.name}
-          </span>
+          <PlayerName
+            profileId={player.profileId}
+            name={player.name}
+            enabled={!dead}
+            className={clsx(
+              'font-semibold text-sm truncate',
+              dead ? 'text-white/35 line-through' : isMe ? 'text-neon-purple/90' : 'text-white',
+            )}
+          />
           {isMe && (
             <span className="flex-shrink-0 text-[12px] font-mono text-neon-purple/55 bg-neon-purple/10 px-1.5 py-0.5 rounded-full">
               {t.common.you.replace(/[()]/g, '')}

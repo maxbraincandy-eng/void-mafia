@@ -4,6 +4,7 @@ import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { emitWithAck } from '@/lib/socket';
 import type { LobbyMessage, Res } from '@/types/index';
+import { getNameColorById } from '@/constants/cosmetics';
 
 function AvatarBubble({ avatar, avatarUrl, size = 28 }: { avatar: string; avatarUrl?: string | null; size?: number }) {
   if (avatarUrl) {
@@ -173,7 +174,7 @@ export function LobbyChatPanel() {
                       <div className={`flex items-center gap-1.5 ${isMe ? 'flex-row-reverse' : ''}`}>
                         <span
                           className="text-[12px] font-mono font-semibold"
-                          style={{ color: msg.nameColor ?? 'rgba(255,255,255,0.4)' }}
+                          style={{ color: getNameColorById(msg.nameColor ?? null) ?? 'rgba(255,255,255,0.4)' }}
                         >{msg.username}</span>
                         <span className="text-[12px] font-mono text-neon-cyan/30">Lv{msg.level}</span>
                         <span className="text-[12px] font-mono text-white/18">{fmt(msg.createdAt)}</span>

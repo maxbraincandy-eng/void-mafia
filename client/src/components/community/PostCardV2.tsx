@@ -8,6 +8,7 @@ import { Avatar, BadgeRow, MrMaxGlow, timeAgo, ModalShell, TextArea, TextInput, 
 import { PollDisplay } from '@/components/community/PollDisplay';
 import { YouTubeEmbed, extractYouTubeId } from '@/components/community/YouTubeEmbed';
 import { ReactionPicker } from './ReactionPicker';
+import { PlayerName } from '@/components/ui/PlayerName';
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
 
@@ -60,8 +61,8 @@ function CommentsSection({ postId, onOpenProfile, myProfileId }: { postId: strin
               </button>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <button onClick={() => onOpenProfile(c.authorId)} className="font-mono text-[12px] text-white/50 hover:text-white/70 transition-colors">
-                    {c.authorName}
+                  <button onClick={() => onOpenProfile(c.authorId)} className="hover:opacity-80 transition-opacity">
+                    <PlayerName profileId={c.authorId} name={c.authorName} className="font-mono text-[12px] text-white/50" />
                   </button>
                   <span className="font-mono text-[12px] text-white/20">· {timeAgo(c.createdAt)}</span>
                   {c.authorId === myProfileId && (
@@ -208,7 +209,7 @@ export function PostCardV2({
               {isMrMax ? (
                 <MrMaxGlow><p className="font-mono text-xs text-yellow-300 font-bold truncate">{post.authorName}</p></MrMaxGlow>
               ) : (
-                <p className="font-mono text-xs text-white/80 truncate">{post.authorName}</p>
+                <PlayerName profileId={post.authorId} name={post.authorName} className="font-mono text-xs text-white/80 truncate" />
               )}
               {post.authorBadges?.length > 0 && <BadgeRow badges={post.authorBadges} />}
             </div>
