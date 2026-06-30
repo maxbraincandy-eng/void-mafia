@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import { useGameStore, hasPendingSession } from '@/store/gameStore';
 import clsx from 'clsx';
 import { useAuthStore } from '@/store/authStore';
@@ -340,7 +341,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
     }
   }, []);
 
-  // Incoming space invite → toast with Accept/Decline.
+  // Incoming space invite → strict centered overlay (Accept / Reject).
   useEffect(() => {
     const onInvited = (data: { spaceId: string; code: string; name: string; icon: string; fromName: string }) => {
       setSpaceInvite(data);
@@ -348,6 +349,13 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
     (socket as any).on('space:invited', onInvited);
     return () => { (socket as any).off('space:invited', onInvited); };
   }, []);
+
+  // Auto-dismiss the invite after 15 seconds if unanswered.
+  useEffect(() => {
+    if (!spaceInvite) return;
+    const t = setTimeout(() => setSpaceInvite(null), 15000);
+    return () => clearTimeout(t);
+  }, [spaceInvite]);
 
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
@@ -416,27 +424,33 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       <AnimatePresence>{unoMatch      && <UnoGame />}</AnimatePresence>
       <AnimatePresence>{spaceOpen    && <VirtualSpace initialSpaceCode={spaceCode} onClose={() => { setSpaceOpen(false); setSpaceCode(null); }} />}</AnimatePresence>
 
-      {/* Space invite toast */}
-      <AnimatePresence>
-        {spaceInvite && (
+      {/* Space invite — strict centered overlay (auto-dismiss after 15s) */}
+      {spaceInvite && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 2900, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <motion.div
-            initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
-            style={{ position: 'fixed', top: 'calc(12px + env(safe-area-inset-top,0px))', left: 0, right: 0, marginLeft: 'auto', marginRight: 'auto', zIndex: 400, width: 'min(380px, calc(100vw - 24px))', background: 'rgba(8,3,22,.98)', backdropFilter: 'blur(20px)', border: '1px solid rgba(155,0,255,.4)', borderRadius: 16, padding: '12px 14px', boxShadow: '0 10px 40px rgba(0,0,0,.6)' }}
+            initial={{ opacity: 0, y: 20, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ type: 'spring', stiffness: 360, damping: 26 }}
+            style={{ width: 'min(340px, 100%)', background: 'rgba(10,4,26,0.99)', border: '1px solid rgba(155,0,255,0.4)', borderRadius: 22, padding: '24px 20px', textAlign: 'center', boxShadow: '0 24px 70px rgba(0,0,0,0.7), 0 0 40px rgba(155,0,255,0.15)', overflow: 'hidden', position: 'relative' }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ fontSize: 24 }}>{spaceInvite.icon}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'white' }}><b>{spaceInvite.fromName}</b> გიწვევს</p>
-                <p style={{ fontFamily: 'monospace', fontSize: 11, color: '#c084fc' }}>{spaceInvite.name}</p>
-              </div>
-              <button onClick={() => { setSpaceCode(spaceInvite.code); setSpaceOpen(true); setSpaceInvite(null); }}
-                style={{ padding: '7px 12px', borderRadius: 10, fontFamily: 'monospace', fontSize: 12, background: 'rgba(0,255,136,.14)', border: '1px solid rgba(0,255,136,.35)', color: '#00ff88' }}>Join</button>
+            {/* 15s countdown bar */}
+            <motion.div initial={{ width: '100%' }} animate={{ width: '0%' }} transition={{ duration: 15, ease: 'linear' }}
+              style={{ position: 'absolute', top: 0, left: 0, height: 3, background: 'linear-gradient(90deg,#9b00ff,#00e5ff)' }} />
+            <div style={{ fontSize: 40, marginBottom: 6 }}>{spaceInvite.icon}</div>
+            <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>✦ Space Invite</p>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: 'white', lineHeight: 1.3 }}>
+              <b>{spaceInvite.fromName}</b> გიწვევს
+            </p>
+            <p style={{ fontFamily: 'monospace', fontSize: 13, color: '#c084fc', marginBottom: 20 }}>{spaceInvite.name}</p>
+            <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setSpaceInvite(null)}
-                style={{ padding: '7px 10px', borderRadius: 10, fontFamily: 'monospace', fontSize: 12, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.12)', color: 'rgba(255,255,255,.5)' }}>✕</button>
+                style={{ flex: 1, padding: '13px', borderRadius: 14, fontFamily: 'monospace', fontSize: 14, background: 'rgba(255,45,85,0.12)', border: '1px solid rgba(255,45,85,0.4)', color: '#ff2d55', cursor: 'pointer' }}>✕ Reject</button>
+              <button onClick={() => { const inv = spaceInvite; setSpaceInvite(null); setSpaceCode(inv.code); setSpaceOpen(true); }}
+                style={{ flex: 1, padding: '13px', borderRadius: 14, fontFamily: 'monospace', fontSize: 14, fontWeight: 700, background: 'rgba(0,255,136,0.16)', border: '1px solid rgba(0,255,136,0.45)', color: '#00ff88', cursor: 'pointer' }}>✓ Accept</button>
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
+        </div>,
+        document.body
+      )}
       <MorePanel
         isOwner={isOwner}
         isMod={isMod}

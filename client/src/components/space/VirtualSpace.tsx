@@ -1425,13 +1425,28 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const [showInvite, setShowInvite] = useState(false);
   const [resolvingDeepLink, setResolvingDeepLink] = useState(false);
 
-  // Deep link / invite: resolve a code straight into the customizer.
+  // Deep link / invite: resolve the code and teleport straight in (auto-join
+  // with the saved avatar), so accepting an invite drops you right into the space.
   useEffect(() => {
     if (!initialSpaceCode) return;
     setResolvingDeepLink(true);
     resolveSpace(initialSpaceCode).then(res => {
-      if (res.ok && res.space) { setSelectedSpace(res.space); setView('customize'); }
-      setResolvingDeepLink(false);
+      if (res.ok && res.space) {
+        setSelectedSpace(res.space);
+        const body = localStorage.getItem(LS_BODY) ?? BODY_COLORS[0];
+        const glow = localStorage.getItem(LS_GLOW) ?? GLOW_COLORS[0];
+        const mask = (localStorage.getItem(LS_MASK) as SpaceMask) ?? 'none';
+        const hat = localStorage.getItem(LS_HAT) ?? 'none';
+        const pet = localStorage.getItem(LS_PET) ?? 'none';
+        const form = localStorage.getItem(LS_FORM) ?? 'human';
+        joinTimeRef.current = Date.now();
+        join(res.space.id, playerName, body, glow, mask, hat, pet, form).then(ok => {
+          if (ok) joinVoice();
+          setResolvingDeepLink(false);
+        });
+      } else {
+        setResolvingDeepLink(false); // not found → fall back to the lobby
+      }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSpaceCode]);
