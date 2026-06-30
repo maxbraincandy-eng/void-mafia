@@ -215,6 +215,15 @@ const PURCHASABLE_COSMETICS: Record<string, { name: string; price: number }> = {
   bg_aurora:    { name: 'Aurora', price: 1000 },
   bg_gold:      { name: 'Gold Rush', price: 2000 },
   bg_crimson:   { name: 'Crimson King', price: 2000 },
+  // Virtual Space avatar cosmetics (hats / pets / forms)
+  sp_hat_party:  { name: 'Party Hat', price: 500 },
+  sp_hat_crown:  { name: 'Crown', price: 800 },
+  sp_hat_halo:   { name: 'Halo', price: 800 },
+  sp_pet_fish2:  { name: 'Tropical Fish', price: 400 },
+  sp_pet_chick:  { name: 'Chick', price: 400 },
+  sp_pet_bot:    { name: 'Bot Companion', price: 600 },
+  sp_pet_star:   { name: 'Star Companion', price: 600 },
+  sp_form_car:   { name: 'Sedan Avatar', price: 1500 },
 };
 
 export async function purchaseCosmeticItem(

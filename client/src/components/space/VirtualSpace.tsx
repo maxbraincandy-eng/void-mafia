@@ -12,7 +12,8 @@ import { useJokerStore } from '@/store/jokerStore';
 import { useLudoStore } from '@/store/ludoStore';
 import { useWWWStore } from '@/store/wwwStore';
 import { useUnoStore } from '@/store/unoStore';
-import { socket } from '@/lib/socket';
+import { socket, emitWithAck } from '@/lib/socket';
+import type { Res, PlayerCosmetics } from '@/types/index';
 
 // ── Avatar palette ────────────────────────────────────────────────────
 
@@ -846,7 +847,19 @@ const FORMS: { id: string; label: string }[] = [
 ];
 const LS_HAT = 'vs_hat', LS_PET = 'vs_pet', LS_FORM = 'vs_form';
 
+// Premium space cosmetics: option id → { itemId (server catalog), price }. Others are free.
+type Premium = Record<string, { id: string; price: number }>;
+const PREMIUM_HATS: Premium = { party: { id: 'sp_hat_party', price: 500 }, crown: { id: 'sp_hat_crown', price: 800 }, halo: { id: 'sp_hat_halo', price: 800 } };
+const PREMIUM_PETS: Premium = { fish2: { id: 'sp_pet_fish2', price: 400 }, chick: { id: 'sp_pet_chick', price: 400 }, bot: { id: 'sp_pet_bot', price: 600 }, star: { id: 'sp_pet_star', price: 600 } };
+const PREMIUM_FORMS: Premium = { car: { id: 'sp_form_car', price: 1500 } };
+
 function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: (b: string, g: string, m: SpaceMask, hat: string, pet: string, form: string) => void }) {
+  const authProfile = useAuthStore(s => s.profile);
+  const owned = authProfile?.cosmetics?.unlockedItems ?? [];
+  const [coins, setCoins] = useState<number | null>(null);
+  const [buying, setBuying] = useState<string | null>(null);
+  const [shopMsg, setShopMsg] = useState('');
+  useEffect(() => { emitWithAck<undefined, Res<{ coins: number }>>('coins:balance').then(r => { if (r.ok) setCoins(r.data.coins); }).catch(() => {}); }, []);
   const [bodyColor, setBodyColor] = useState(() => localStorage.getItem(LS_BODY) ?? BODY_COLORS[0]);
   const [glowColor, setGlowColor] = useState(() => localStorage.getItem(LS_GLOW) ?? GLOW_COLORS[0]);
   const [mask, setMask] = useState<SpaceMask>(() => (localStorage.getItem(LS_MASK) as SpaceMask) ?? 'none');
@@ -854,6 +867,36 @@ function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: 
   const [pet, setPet] = useState(() => localStorage.getItem(LS_PET) ?? 'none');
   const [form, setForm] = useState(() => localStorage.getItem(LS_FORM) ?? 'human');
   function go() { localStorage.setItem(LS_BODY,bodyColor); localStorage.setItem(LS_GLOW,glowColor); localStorage.setItem(LS_MASK,mask); localStorage.setItem(LS_HAT,hat); localStorage.setItem(LS_PET,pet); localStorage.setItem(LS_FORM,form); onJoin(bodyColor,glowColor,mask,hat,pet,form); }
+
+  // Pick an option; if it's a locked premium item, buy it with coins first.
+  async function pick(optId: string, prem: Premium, setter: (v: string) => void) {
+    const it = prem[optId];
+    if (!it || owned.includes(it.id)) { setter(optId); return; }
+    if (buying) return;
+    setBuying(it.id); setShopMsg('');
+    const res = await emitWithAck<{ itemId: string }, Res<{ cosmetics: PlayerCosmetics; newBalance: number }>>('cosmetics:buy_item', { itemId: it.id }).catch(() => null);
+    setBuying(null);
+    if (res?.ok) {
+      useAuthStore.setState(s => s.profile ? { profile: { ...s.profile, cosmetics: res.data.cosmetics } } : s);
+      setCoins(res.data.newBalance);
+      setter(optId);
+    } else { setShopMsg((res as any)?.error ?? 'შეძენა ვერ მოხერხდა'); setTimeout(() => setShopMsg(''), 3000); }
+  }
+
+  // Renders an option button with a 🔒+price overlay if it's a locked premium item.
+  const optBtn = (o: { id: string; label: string }, prem: Premium, selected: string, setter: (v: string) => void, cls: string) => {
+    const it = prem[o.id];
+    const locked = it && !owned.includes(it.id);
+    const isSel = selected === o.id;
+    return (
+      <button key={o.id} onClick={() => pick(o.id, prem, setter)} className={cls + ' transition-all active:scale-95'}
+        style={{ position: 'relative', background: isSel ? `${glowColor}22` : 'rgba(255,255,255,0.03)', border: `1px solid ${isSel ? glowColor + '80' : 'rgba(255,255,255,0.08)'}`, color: isSel ? glowColor : 'rgba(255,255,255,0.4)' }}>
+        {o.label}
+        {locked && <span style={{ display: 'block', fontSize: 8, color: '#facc15', marginTop: 1 }}>{buying === it.id ? '…' : `🔒${it.price}`}</span>}
+      </button>
+    );
+  };
+
   return (
     <motion.div initial={{opacity:0,y:16}} animate={{opacity:1,y:0}} className="flex flex-col items-center gap-5 px-5 py-6">
       <div className="flex flex-col items-center gap-2">
@@ -861,6 +904,8 @@ function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: 
           <HumanoidAvatar bodyColor={bodyColor} glowColor={glowColor} mask={mask} hat={hat} pet={pet} form={form} size={1.3} isMe />
         </div>
         <p style={{ fontFamily:'monospace',fontSize:11,color:bodyColor,textShadow:`0 0 8px ${bodyColor}80`,letterSpacing:'0.1em' }}>{playerName}</p>
+        {coins !== null && <p style={{ fontFamily:'monospace',fontSize:11,color:'#facc15' }}>🪙 {coins.toLocaleString()}</p>}
+        {shopMsg && <p style={{ fontFamily:'monospace',fontSize:10,color:'#ff2d55' }}>{shopMsg}</p>}
       </div>
       <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">სხეულის ფერი</p>
         <div className="flex gap-2 flex-wrap">{BODY_COLORS.map(c=><button key={c} onClick={()=>setBodyColor(c)} style={{ width:30,height:30,borderRadius:'50%',background:c,flexShrink:0,border:bodyColor===c?'2.5px solid white':'2px solid transparent',boxShadow:bodyColor===c?`0 0 12px ${c}, 0 0 0 2px ${c}40`:'none',transition:'all .15s' }}/>)}</div>
@@ -872,13 +917,13 @@ function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: 
         <div className="flex gap-2">{MASKS.map(m=><button key={m.id} onClick={()=>setMask(m.id)} className="flex-1 py-1.5 rounded-xl font-mono text-[11px] uppercase tracking-wider transition-all active:scale-95" style={{ background:mask===m.id?`${bodyColor}22`:'rgba(255,255,255,0.03)',border:`1px solid ${mask===m.id?bodyColor+'80':'rgba(255,255,255,0.08)'}`,color:mask===m.id?bodyColor:'rgba(255,255,255,0.3)',boxShadow:mask===m.id?`0 0 10px ${bodyColor}30`:'none' }}>{m.label}</button>)}</div>
       </div>
       <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">ფორმა</p>
-        <div className="flex gap-2">{FORMS.map(o=><button key={o.id} onClick={()=>setForm(o.id)} className="flex-1 py-1.5 rounded-xl font-mono text-[11px] transition-all active:scale-95" style={{ background:form===o.id?`${glowColor}22`:'rgba(255,255,255,0.03)',border:`1px solid ${form===o.id?glowColor+'80':'rgba(255,255,255,0.08)'}`,color:form===o.id?glowColor:'rgba(255,255,255,0.4)' }}>{o.label}</button>)}</div>
+        <div className="flex gap-2">{FORMS.map(o=>optBtn(o, PREMIUM_FORMS, form, setForm, 'flex-1 py-1.5 rounded-xl font-mono text-[11px]'))}</div>
       </div>
       <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">ქუდი</p>
-        <div className="flex gap-2 flex-wrap">{HATS.map(o=><button key={o.id} onClick={()=>setHat(o.id)} className="py-1.5 px-3 rounded-xl font-mono text-[13px] transition-all active:scale-95" style={{ background:hat===o.id?`${glowColor}22`:'rgba(255,255,255,0.03)',border:`1px solid ${hat===o.id?glowColor+'80':'rgba(255,255,255,0.08)'}`,color:hat===o.id?glowColor:'rgba(255,255,255,0.4)' }}>{o.label}</button>)}</div>
+        <div className="flex gap-2 flex-wrap">{HATS.map(o=>optBtn(o, PREMIUM_HATS, hat, setHat, 'py-1.5 px-3 rounded-xl font-mono text-[13px]'))}</div>
       </div>
       <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">თანამგზავრი</p>
-        <div className="flex gap-2 flex-wrap">{PETS.map(o=><button key={o.id} onClick={()=>setPet(o.id)} className="py-1.5 px-3 rounded-xl font-mono text-[13px] transition-all active:scale-95" style={{ background:pet===o.id?`${glowColor}22`:'rgba(255,255,255,0.03)',border:`1px solid ${pet===o.id?glowColor+'80':'rgba(255,255,255,0.08)'}`,color:pet===o.id?glowColor:'rgba(255,255,255,0.4)' }}>{o.label}</button>)}</div>
+        <div className="flex gap-2 flex-wrap">{PETS.map(o=>optBtn(o, PREMIUM_PETS, pet, setPet, 'py-1.5 px-3 rounded-xl font-mono text-[13px]'))}</div>
       </div>
       <button onClick={go} className="w-full py-3.5 rounded-2xl font-display font-bold text-sm uppercase tracking-widest transition-all active:scale-95" style={{ background:`linear-gradient(135deg, ${bodyColor}30, ${bodyColor}15)`,border:`1.5px solid ${bodyColor}`,color:bodyColor,boxShadow:`0 0 28px ${bodyColor}40, inset 0 0 20px ${bodyColor}08`,letterSpacing:'0.14em' }}>
         Void Lounge-ში შესვლა →
