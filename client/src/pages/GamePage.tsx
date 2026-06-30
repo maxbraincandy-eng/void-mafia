@@ -21,6 +21,7 @@ import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { RoomMoreMenu } from '@/components/ui/RoomMoreMenu';
 import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
+import { LiveKitVoiceBar } from '@/components/game/LiveKitVoiceBar';
 import { useVoiceChat, VoiceChannel, registerVoiceGestureRetry } from '@/hooks/useVoiceChat';
 import { useGameSounds, SFX } from '@/hooks/useSoundFX';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -549,6 +550,10 @@ export function GamePage() {
         onToggleCamera={voice.toggleCamera}
         onReset={voice.resetConnection}
       />
+      {/* Opt-in LiveKit voice (set VITE_USE_LIVEKIT + server LIVEKIT_* env). */}
+      {import.meta.env.VITE_USE_LIVEKIT && (
+        <div className="mt-3"><LiveKitVoiceBar /></div>
+      )}
       {isInVoice && voice.peers.length > 0 && (
         <div className="mt-3">
           <p className="text-xs font-display uppercase tracking-widest text-white/30 mb-2">

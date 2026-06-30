@@ -17,6 +17,7 @@
     "dotenv": "^16.4.7",
     "express": "^4.19.2",
     "express-session": "^1.19.0",
+    "livekit-server-sdk": "^2.16.0",
     "openai": "^6.44.0",
     "passport": "^0.7.0",
     "passport-apple": "^2.0.2",
