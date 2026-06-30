@@ -19,7 +19,7 @@ import { useGameStore } from '@/store/gameStore';
 import {
   joinLiveKitVoice, leaveLiveKitVoice, setLiveKitDead,
   toggleLiveKitMic, setLiveKitMic, subscribeLiveKit, getLiveKitState,
-  fetchLiveKitEnabled, type LiveKitVoiceState,
+  fetchLiveKitEnabled, startLiveKitAudio, type LiveKitVoiceState,
 } from '@/services/livekitVoice';
 
 // Phases where there is no active voice room (no auto-join).
@@ -84,6 +84,7 @@ export function useLivekitVoice() {
   const toggleMic = useCallback(() => { toggleLiveKitMic().catch(() => {}); }, []);
   const setMic = useCallback((on: boolean) => { setLiveKitMic(on).catch(() => {}); }, []);
   const leave = useCallback(() => { leaveLiveKitVoice().catch(() => {}); }, []);
+  const unlockAudio = useCallback(() => { startLiveKitAudio().catch(() => {}); }, []);
 
   return {
     ...state,
@@ -92,5 +93,6 @@ export function useLivekitVoice() {
     toggleMic,
     setMic,
     leave,
+    unlockAudio,
   };
 }

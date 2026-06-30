@@ -29,11 +29,13 @@ export interface LiveKitVoiceState {
   /** Server forced listen-only (dead player) — mic cannot be turned on. */
   dead: boolean;
   participants: number;
+  /** Browser blocked remote audio autoplay (mobile) — needs a tap to unlock. */
+  audioBlocked: boolean;
   error: string | null;
 }
 
 const INITIAL: LiveKitVoiceState = {
-  status: 'disconnected', room: null, micEnabled: false, dead: false, participants: 0, error: null,
+  status: 'disconnected', room: null, micEnabled: false, dead: false, participants: 0, audioBlocked: false, error: null,
 };
 
 // ── Module-level singleton ─────────────────────────────────────────────
@@ -99,6 +101,17 @@ function wireRoom(r: Room) {
   r.on(RoomEvent.ParticipantConnected, updateCount);
   r.on(RoomEvent.ParticipantDisconnected, updateCount);
   r.on(RoomEvent.Disconnected, () => { /* status handled by ConnectionStateChanged */ });
+  // Mobile browsers (esp. iOS) block remote-audio autoplay until a user gesture.
+  r.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+    patch({ audioBlocked: !r.canPlaybackAudio });
+  });
+}
+
+/** Unlock remote audio playback. MUST be called from a user gesture (tap). */
+export async function startLiveKitAudio(): Promise<void> {
+  if (!room) return;
+  try { await room.startAudio(); patch({ audioBlocked: !room.canPlaybackAudio }); }
+  catch { /* still blocked — user can retry */ }
 }
 
 // Cache the server's LiveKit-enabled flag so the UI can mount the voice path
@@ -155,7 +168,7 @@ export async function joinLiveKitVoice(identity: string, roomId: string, opts: J
     if (seq !== joinSeq) { r.disconnect(); return; }
 
     room = r;
-    patch({ status: mapStatus(r.state), participants: r.numParticipants });
+    patch({ status: mapStatus(r.state), participants: r.numParticipants, audioBlocked: !r.canPlaybackAudio });
 
     // Alive players publish their mic on by default; dead players stay muted.
     if (alive) {

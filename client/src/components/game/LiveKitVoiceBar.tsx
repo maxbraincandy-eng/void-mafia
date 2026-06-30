@@ -31,6 +31,14 @@ export function LiveKitVoiceBar() {
         {voice.connected && ` · ${voice.participants}`}
       </span>
       <div style={{ flex: 1 }} />
+      {voice.audioBlocked && voice.connected && (
+        <button
+          onClick={voice.unlockAudio}
+          style={{ fontFamily: 'monospace', fontSize: 13, padding: '6px 12px', borderRadius: 10, border: '1px solid rgba(245,197,66,0.5)', background: 'rgba(245,197,66,0.18)', color: '#f5c542' }}
+        >
+          🔊 ხმის ჩართვა
+        </button>
+      )}
       {voice.dead ? (
         <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#ff6b6b' }} title="მკვდარი ხართ — მხოლოდ მოსმენა">🔇 listen-only</span>
       ) : (
