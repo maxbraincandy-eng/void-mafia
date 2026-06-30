@@ -21,9 +21,11 @@ export default {
         glass: 'rgba(255,255,255,0.04)',
       },
       fontFamily: {
-        sans:    ['Inter', 'system-ui', 'sans-serif'],
-        mono:    ['"Share Tech Mono"', '"JetBrains Mono"', 'monospace'],
-        display: ['Rajdhani', 'sans-serif'],
+        // Latin glyphs use the cyber faces; Georgian glyphs (which those faces
+        // don't cover) fall through to Noto Sans Georgian per-glyph.
+        sans:    ['Inter', '"Noto Sans Georgian"', 'system-ui', 'sans-serif'],
+        mono:    ['"Share Tech Mono"', '"JetBrains Mono"', '"Noto Sans Georgian"', 'monospace'],
+        display: ['Rajdhani', '"Noto Sans Georgian"', 'sans-serif'],
       },
       backgroundImage: {
         'neon-grid': `

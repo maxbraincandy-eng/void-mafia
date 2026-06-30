@@ -241,6 +241,22 @@
     /* iOS momentum scrolling needs to be on individual scroll containers */
   }
 
+  /* ── Georgian legibility on the dark cyber UI ──────────────────────────
+     The Latin display/mono faces (Rajdhani, Share Tech Mono) carry no
+     Georgian glyphs, so Georgian used to fall back to a thin system font and
+     got lost on the dark background. The font stacks now resolve Georgian to
+     Noto Sans Georgian; here we give body/label text a touch more weight and
+     tracking plus a subtle shadow so Georgian characters read clearly and
+     pop. (Share Tech Mono ships a single weight, so bumping .font-mono leaves
+     Latin labels visually unchanged while Georgian renders at a clean medium.) */
+  html { text-rendering: optimizeLegibility; }
+  body {
+    font-weight: 500;
+    letter-spacing: 0.012em;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  }
+  .font-mono { font-weight: 500; }
+
   /* Prevent overflow on truly unbreakable strings (URLs, long hashes).
      Do NOT use 'anywhere' or 'word-break: break-word' globally — they
      cause Georgian/CJK characters to wrap one-per-line in narrow flex items. */
