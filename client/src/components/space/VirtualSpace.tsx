@@ -1548,7 +1548,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
       (socket as any).emit('mod:get_ghost', (res: any) => { if (res?.ok) setGhostMode(!!res.data.ghost); });
     }
   }, [profile?.moderatorLevel]);
-  const { joined: voiceJoined, muted, speakingIds, status: voiceStatus, joinVoice, leaveVoice, toggleMute } = useSpaceVoice();
+  const { joined: voiceJoined, muted, speakingIds, status: voiceStatus, joinVoice, joinVoiceGhost, leaveVoice, toggleMute } = useSpaceVoice();
 
   // ── Space selection flow: lobby → customize → in-space ────────────────
   const [view, setView] = useState<'lobby' | 'customize'>('lobby');
@@ -1572,7 +1572,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
         const form = localStorage.getItem(LS_FORM) ?? 'human';
         joinTimeRef.current = Date.now();
         if (ghostMode) {
-          ghostJoin(res.space.id).finally(() => setResolvingDeepLink(false)); // observe only — no voice
+          ghostJoin(res.space.id).then(ok => { if (ok) joinVoiceGhost(); }).finally(() => setResolvingDeepLink(false)); // observe + listen-only
         } else {
           join(res.space.id, playerName, body, glow, mask, hat, pet, form).then(ok => {
             if (ok) joinVoice();
@@ -1751,8 +1751,8 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   // Owner ghost-observe: skip the customizer and enter without spawning/voice.
   const handleGhostEnter = useCallback(() => {
     joinTimeRef.current = Date.now();
-    ghostJoin(selectedSpace?.id ?? 'main');
-  }, [ghostJoin, selectedSpace]);
+    ghostJoin(selectedSpace?.id ?? 'main').then(ok => { if (ok) joinVoiceGhost(); }); // listen-only voice
+  }, [ghostJoin, selectedSpace, joinVoiceGhost]);
 
   // Called from click → user gesture → iOS allows
   function handlePlayDirect(videoId: string) {

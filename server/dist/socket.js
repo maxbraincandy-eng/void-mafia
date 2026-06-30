@@ -7308,6 +7308,34 @@ export function attachSocketHandlers(io) {
             }
             cb?.({ ok: false, error: 'Not in a space' });
         });
+        // Ghost listen-only voice: owner receives others' audio without being
+        // added to the voice roster (hidden, no count) and never transmits.
+        socket.on('space:voice-ghost_join', async (cb) => {
+            try {
+                const pid = socket.data.profileId;
+                const mod = pid ? await getPlayer(pid) : null;
+                if (!mod || mod.moderatorLevel !== 'owner' || !isGhost(pid))
+                    return cb?.({ ok: false, error: 'Ghost mode (owner) only.' });
+                let spaceId = null;
+                for (const r of socket.rooms)
+                    if (typeof r === 'string' && r.startsWith('space:')) {
+                        spaceId = r.slice(6);
+                        break;
+                    }
+                if (!spaceId)
+                    return cb?.({ ok: false, error: 'Not observing a space.' });
+                const voices = _spaceVoice.get(spaceId);
+                const peers = voices ? [...voices.entries()].map(([sid, nm]) => ({ socketId: sid, name: nm })) : [];
+                const iceConfig = buildIceConfig();
+                // Intentionally NOT added to _spaceVoice and no peer-joined broadcast —
+                // the ghost just offers to current peers (and to future joiners via the
+                // space-room peer-joined broadcast it already receives).
+                cb?.({ ok: true, data: { peers, iceServers: iceConfig.iceServers, iceTransportPolicy: iceConfig.iceTransportPolicy } });
+            }
+            catch {
+                cb?.({ ok: false, error: 'Internal error' });
+            }
+        });
         socket.on('space:voice-leave', () => { _leaveSpaceVoice(socket.id, io); });
         socket.on('space:voice-offer', ({ to, sdp }) => {
             if (typeof to !== 'string' || !sdp)

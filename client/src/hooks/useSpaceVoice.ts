@@ -99,10 +99,53 @@ async function _join(): Promise<void> {
   });
 }
 
+// Ghost listen-only: receive everyone's audio, never transmit, stay off the
+// voice roster. Offers to current peers + (via peer-joined) future joiners.
+let _ghostVoice = false;
+async function _joinGhost(): Promise<void> {
+  if (_session || _joining) return;
+  _joining = true;
+  _ghostVoice = true;
+  const session = new WebRTCSession();
+  _session = session;
+  session.subscribe(event => {
+    if (!_session || _session !== session) return;
+    if (event.type === 'state') _patch({ status: event.state });
+    else if (event.type === 'speaking') {
+      const next = new Set(_state.speakingIds);
+      if (event.isSpeaking) next.add(event.socketId); else next.delete(event.socketId);
+      _patch({ speakingIds: next });
+    } else if (event.type === 'error') _patch({ error: event.message });
+  });
+  try {
+    await session.requestMedia(true, false, false);
+  } catch {
+    // No mic? Still observe — we only ever receive.
+  }
+  session.setMuted(true);        // hard mute — owner never transmits while ghosting
+  _patch({ muted: true });
+  (socket as any).emit('space:voice-ghost_join', async (res: any) => {
+    _joining = false;
+    if (!_session || _session !== session) return;
+    if (!res?.ok) { session.destroy(); _session = null; _ghostVoice = false; _patch({ status: 'failed', error: res?.error ?? 'Voice failed.' }); return; }
+    const { peers, iceServers, iceTransportPolicy } = res.data;
+    if (iceServers) session.setIceConfig({ iceServers, iceTransportPolicy, iceCandidatePoolSize: 10 } as any);
+    _patch({ joined: true, error: null });
+    for (const { socketId, name } of (peers as Array<{ socketId: string; name: string }>)) {
+      session.createPeerConnection(socketId, name, (candidate) => (socket as any).emit('space:voice-ice', { to: socketId, candidate }));
+      try {
+        const offer = await session.createOffer(socketId);
+        (socket as any).emit('space:voice-offer', { to: socketId, sdp: offer });
+      } catch (e: any) { log('ghost voice offer failed for', socketId, ':', e?.message); }
+    }
+  });
+}
+
 function _leave(): void {
   if (!_session && !_joining) return;
   (socket as any).emit('space:voice-leave');
   _session?.destroy();
+  _ghostVoice = false;
   _reset();
 }
 
@@ -115,6 +158,11 @@ function _leave(): void {
   s.createPeerConnection(socketId, name, (candidate) => {
     (socket as any).emit('space:voice-ice', { to: socketId, candidate });
   });
+  // A ghost isn't in the new peer's roster, so it must initiate the offer
+  // itself to receive that peer's audio.
+  if (_ghostVoice) {
+    s.createOffer(socketId).then(offer => (socket as any).emit('space:voice-offer', { to: socketId, sdp: offer })).catch(() => {});
+  }
 });
 
 (socket as any).on('space:voice-offer', async ({ from, sdp }: { from: string; sdp: RTCSessionDescriptionInit }) => {
@@ -163,6 +211,7 @@ export function useSpaceVoice() {
   }, []);
 
   const joinVoice  = useCallback(() => { _join(); }, []);
+  const joinVoiceGhost = useCallback(() => { _joinGhost(); }, []);
   const leaveVoice = useCallback(() => { _leave(); }, []);
   const toggleMute = useCallback(() => {
     if (!_session) return;
@@ -171,7 +220,7 @@ export function useSpaceVoice() {
     _patch({ muted: nowMuted });
   }, []);
 
-  return { ...state, joinVoice, leaveVoice, toggleMute };
+  return { ...state, joinVoice, joinVoiceGhost, leaveVoice, toggleMute };
 }
 
 export function leaveSpaceVoice(): void { _leave(); }
