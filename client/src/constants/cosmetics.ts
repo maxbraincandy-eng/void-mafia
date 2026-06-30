@@ -208,7 +208,7 @@ export function nameColorUI(hex: string | null | undefined): string {
 // nc_cyan / nc_purple are not listed — they are free level unlocks (level 3).
 export const NAME_COLOR_PRICES: Record<string, number> = {
   nc_pink:       800,
-  nc_gold:       1500,
+  nc_gold:       200,
   nc_white:      2500,
   nc_void_black: 20000,
 };

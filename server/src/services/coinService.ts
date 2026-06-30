@@ -226,7 +226,7 @@ const PURCHASABLE_COSMETICS: Record<string, { name: string; price: number }> = {
   sp_form_car:   { name: 'Sedan Avatar', price: 1500 },
   // Name colors (display-name colors, applied app-wide; keep in sync with NAME_COLORS)
   nc_pink:       { name: 'Neon Pink', price: 800 },
-  nc_gold:       { name: 'Gold', price: 1500 },
+  nc_gold:       { name: 'Gold', price: 200 },
   nc_white:      { name: 'Pure White', price: 2500 },
   nc_void_black: { name: 'Void Black', price: 20000 },
   // Virtual Space visual themes (keep in sync with client SPACE_THEME_DEFS)
