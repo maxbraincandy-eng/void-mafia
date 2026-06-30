@@ -43,7 +43,7 @@ import {
   markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend,
   removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount,
   setLoungePresence, clearLoungePresence, getFriendIds,
-  setInvisible, isInvisible, setGhost, isGhost, getPeakOnline,
+  setInvisible, isInvisible, setGhost, isGhost, getPeakOnline, getOnlineCountRaw,
 } from './services/friendService.js';
 import {
   checkAndAwardChallenges, getDailyQuestsForPlayer,
@@ -2789,7 +2789,7 @@ export function attachSocketHandlers(io: AppServer): void {
         let voiceUsers = 0;
         for (const [, voices] of _spaceVoice) voiceUsers += voices.size;
         cb(ok({
-          onlinePlayers: getOnlineCount(),
+          onlinePlayers: getOnlineCountRaw(), // mod dashboard shows true online (incl. invisible owners)
           spectatingPlayers: getSpectatingCount(),
           activeRooms: rooms.length,
           openReports,

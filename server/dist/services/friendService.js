@@ -49,6 +49,10 @@ export function getOnlineCount() {
             n++;
     return n;
 }
+// RAW (unmasked) — for owner/mod tools only, which must see the true online
+// state including invisible owners. Never used for user-facing surfaces.
+export function isOnlineRaw(profileId) { return onlineProfiles.has(profileId); }
+export function getOnlineCountRaw() { return onlineProfiles.size; }
 export function getPlayerStatus(profileId) {
     if (!onlineProfiles.has(profileId) || invisibleProfiles.has(profileId))
         return 'offline';
@@ -85,11 +89,12 @@ export function getPlayerPresence(profileId) {
 }
 // Single pass over all rooms — avoids O(profiles × rooms × players) when
 // resolving status for a large player list (e.g. the mod dashboard).
-export function getActiveStatusMap() {
+// RAW status map (includes invisible owners) — for owner/mod tools.
+export function getActiveStatusMapRaw() {
     const map = new Map();
     for (const room of getAllRooms()) {
         for (const [, player] of room.players) {
-            if (!player.isConnected || !player.profileId || invisibleProfiles.has(player.profileId))
+            if (!player.isConnected || !player.profileId)
                 continue;
             if (player.isSpectator) {
                 if (!map.has(player.profileId))
@@ -100,6 +105,14 @@ export function getActiveStatusMap() {
             }
         }
     }
+    return map;
+}
+// Masked version (hides invisible owners) — for user-facing surfaces.
+export function getActiveStatusMap() {
+    const map = getActiveStatusMapRaw();
+    for (const id of [...map.keys()])
+        if (invisibleProfiles.has(id))
+            map.delete(id);
     return map;
 }
 export function getSpectatingCount() {

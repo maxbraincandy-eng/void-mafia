@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import { createHash } from 'crypto';
 import { nameToAvatar } from '../utils/helpers.js';
 import { sql } from '../db.js';
-import { isOnline, getPlayerStatus, getActiveStatusMap } from './friendService.js';
+import { isOnline, getPlayerStatus, getActiveStatusMap, isOnlineRaw, getActiveStatusMapRaw } from './friendService.js';
 // ── Moderator config from env ─────────────────────────────────────────
 const parseIds = (s) => s.split(',').map(n => n.trim()).filter(Boolean);
 const parseName = (s) => s.split(',').map(n => n.trim().toLowerCase()).filter(Boolean);
@@ -350,7 +350,9 @@ export async function getPlayersFast() {
     ORDER BY last_seen_at DESC
     LIMIT 1000
   `;
-    const statusMap = getActiveStatusMap();
+    // Owner/mod tool: use RAW (unmasked) online state so invisible owners are
+    // still visible to staff. (Invisible Mode only hides from regular users.)
+    const statusMap = getActiveStatusMapRaw();
     return rows.map((r) => ({
         id: r.id,
         username: r.username,
@@ -379,8 +381,8 @@ export async function getPlayersFast() {
             return { equippedNameColor: null, equippedFrame: null, unlockedItems: [] };
         } })(),
         friendCode: r.friend_code ?? '',
-        isOnline: isOnline(r.id),
-        playerStatus: isOnline(r.id) ? (statusMap.get(r.id) ?? 'online') : 'offline',
+        isOnline: isOnlineRaw(r.id),
+        playerStatus: isOnlineRaw(r.id) ? (statusMap.get(r.id) ?? 'online') : 'offline',
     }));
 }
 export function toPublicProfile(p) {
