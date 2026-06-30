@@ -1001,7 +1001,7 @@ export function attachSocketHandlers(io) {
         // Rate-limit + payload size check on every incoming event
         socket.use(([event, ...args], next) => {
             // Image upload events are exempt — they have their own size checks in their handlers
-            const largePayloadEvents = new Set(['player:update_avatar', 'community:post_create_v2', 'community:profile_update', 'clan:update_image']);
+            const largePayloadEvents = new Set(['player:update_avatar', 'community:post_create_v2', 'community:profile_update', 'clan:update_image', 'community:story_create']);
             // 4. Payload size limit — reject anything over 16 KB
             const payload = args[0];
             if (!largePayloadEvents.has(event) && payload !== null && payload !== undefined && typeof payload === 'object') {
