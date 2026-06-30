@@ -95,7 +95,7 @@ const THEME_VARS: Record<string, Record<string, string>> = {
       }
     }
   } catch {}
-  applyVarsToDOM('void-neon');
+  applyVarsToDOM('minimal-glass'); // default for first open (no saved choice)
 })();
 
 function applyVarsToDOM(mode: string) {
@@ -111,7 +111,7 @@ function applyVarsToDOM(mode: string) {
 }
 
 export function ThemeProvider() {
-  const themeMode = useSettingsStore(s => s.themeMode) ?? 'void-neon';
+  const themeMode = useSettingsStore(s => s.themeMode) ?? 'minimal-glass';
 
   applyVarsToDOM(themeMode);
 

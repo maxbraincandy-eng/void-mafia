@@ -56,7 +56,7 @@ const DEFAULTS: Settings = {
   notifyDMs: true,
   reduceAnimations: false,
   largeText: false,
-  themeMode: 'void-neon',
+  themeMode: 'minimal-glass',
 };
 
 export const useSettingsStore = create<SettingsStore>()(
@@ -77,7 +77,7 @@ export const useSettingsStore = create<SettingsStore>()(
           return { ...DEFAULTS, ...stored, musicEnabled: false };
         }
         if (fromVersion < 4) {
-          return { ...DEFAULTS, ...stored, themeMode: stored?.themeMode ?? 'void-neon' };
+          return { ...DEFAULTS, ...stored, themeMode: stored?.themeMode ?? 'minimal-glass' };
         }
         return stored as SettingsStore;
       },
