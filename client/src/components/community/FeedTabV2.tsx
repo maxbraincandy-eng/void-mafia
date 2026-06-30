@@ -7,6 +7,7 @@ import type { FeedCategory } from '@/types/index';
 import { Spinner, EmptyState } from '@/components/community/shared';
 import { PostCardV2 } from '@/components/community/PostCardV2';
 import { PostComposerV2 } from '@/components/community/PostComposerV2';
+import { FriendsPresenceStrip } from '@/components/community/FriendsPresenceStrip';
 import { SkeletonPost } from '@/components/ui/Skeleton';
 
 export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (playerId: string) => void; onOpenMyProfile?: () => void }) {
@@ -128,6 +129,9 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
           ჩემი
         </button>
       </div>
+
+      {/* Online friends presence strip */}
+      <FriendsPresenceStrip onOpenProfile={onOpenProfile} />
 
       {loading ? (
         <div className="space-y-3 pt-2">
