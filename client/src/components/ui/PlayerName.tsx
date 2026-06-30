@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { useNameColor } from '@/store/nameColorStore';
+import { nameColorGlow } from '@/constants/cosmetics';
 
 /**
  * Renders a player's display name, applying their equipped name color
@@ -19,8 +20,9 @@ export function PlayerName({
   children?: ReactNode;
 }) {
   const color = useNameColor(enabled ? profileId : null);
+  const glow = enabled && color ? nameColorGlow(color) : undefined;
   return (
-    <span className={className} style={{ ...style, ...(enabled && color ? { color } : null) }}>
+    <span className={className} style={{ ...style, ...(enabled && color ? { color } : null), ...(glow ? { textShadow: glow } : null) }}>
       {children ?? name}
     </span>
   );

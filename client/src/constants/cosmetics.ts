@@ -1,4 +1,4 @@
-export type CosmeticRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+export type CosmeticRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'exclusive';
 
 export interface FrameDef {
   id: string;
@@ -67,6 +67,7 @@ export const RARITY_COLOR: Record<CosmeticRarity, string> = {
   rare:      '#9b00ff',
   epic:      '#ff00cc',
   legendary: '#facc15',
+  exclusive: '#b388ff',
 };
 
 export const RARITY_LABEL: Record<CosmeticRarity, string> = {
@@ -75,6 +76,7 @@ export const RARITY_LABEL: Record<CosmeticRarity, string> = {
   rare:      'Rare',
   epic:      'Epic',
   legendary: 'Legendary',
+  exclusive: 'Exclusive',
 };
 
 export function getFrameById(id: string | null): FrameDef | null {
@@ -154,14 +156,12 @@ export const BORDERS: BorderDef[] = [
 ];
 
 export const NAME_COLORS: { id: string; name: string; rarity: CosmeticRarity; color: string }[] = [
-  { id: 'nc_cyan',    name: 'Neon Cyan',    rarity: 'common',    color: '#00e5ff' },
-  { id: 'nc_purple',  name: 'Neon Purple',  rarity: 'common',    color: '#9b00ff' },
-  { id: 'nc_pink',    name: 'Neon Pink',    rarity: 'uncommon',  color: '#ff00cc' },
-  { id: 'nc_green',   name: 'Neon Green',   rarity: 'uncommon',  color: '#00ff88' },
-  { id: 'nc_orange',  name: 'Flame Orange', rarity: 'rare',      color: '#ff6b00' },
-  { id: 'nc_red',     name: 'Blood Red',    rarity: 'rare',      color: '#ff2d55' },
-  { id: 'nc_gold',    name: 'Gold',         rarity: 'epic',      color: '#facc15' },
-  { id: 'nc_white',   name: 'Pure White',   rarity: 'legendary', color: '#ffffff' },
+  { id: 'nc_cyan',       name: 'Neon Cyan',   rarity: 'common',    color: '#00e5ff' },
+  { id: 'nc_purple',     name: 'Neon Purple', rarity: 'common',    color: '#9b00ff' },
+  { id: 'nc_pink',       name: 'Neon Pink',   rarity: 'rare',      color: '#ff00cc' },
+  { id: 'nc_gold',       name: 'Gold',        rarity: 'epic',      color: '#facc15' },
+  { id: 'nc_white',      name: 'Pure White',  rarity: 'legendary', color: '#ffffff' },
+  { id: 'nc_void_black', name: 'Void Black',  rarity: 'exclusive', color: '#0d0d14' },
 ];
 
 export function getWallpaperById(id: string | null): WallpaperDef | null {
@@ -179,15 +179,26 @@ export function getNameColorById(id: string | null): string | null {
   return NAME_COLORS.find(n => n.id === id)?.color ?? null;
 }
 
+// Very dark name colors (e.g. Void Black) need a light halo to stay legible on
+// the dark UI. Returns a textShadow for low-luminance colors, else undefined.
+export function nameColorGlow(hex: string | null | undefined): string | undefined {
+  if (!hex || hex.length < 7) return undefined;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) return undefined;
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  if (lum < 0.22) return '0 0 6px rgba(190,190,255,0.75), 0 0 2px rgba(255,255,255,0.55)';
+  return undefined;
+}
+
 // Coin prices for purchasable name colors (keep in sync with server coinService PURCHASABLE_COSMETICS).
 // nc_cyan / nc_purple are not listed — they are free level unlocks (level 3).
 export const NAME_COLOR_PRICES: Record<string, number> = {
-  nc_pink:   400,
-  nc_green:  400,
-  nc_orange: 800,
-  nc_red:    800,
-  nc_gold:   1500,
-  nc_white:  2500,
+  nc_pink:       800,
+  nc_gold:       1500,
+  nc_white:      2500,
+  nc_void_black: 20000,
 };
 
 // Items unlocked at start (no level required)
@@ -198,8 +209,8 @@ export const LEVEL_UNLOCK_MAP: Record<number, string[]> = {
   1:  ['title_void_citizen', 'skin_classic'],
   2:  ['title_night_owl'],
   3:  ['title_city_sheriff', 'skin_neon', 'nc_cyan', 'nc_purple', 'wp_void'],
-  5:  ['title_silent_killer', 'skin_golden_don', 'frame_cyber_don', 'nc_pink', 'nc_green', 'border_flame', 'wp_neon'],
-  7:  ['title_the_betrayer', 'skin_cyber_sheriff', 'nc_orange', 'border_glitch', 'wp_blood'],
-  8:  ['title_clan_boss', 'skin_cult', 'frame_blood_moon', 'nc_red', 'border_pulse', 'wp_cyber', 'wp_gold'],
+  5:  ['title_silent_killer', 'skin_golden_don', 'frame_cyber_don', 'border_flame', 'wp_neon'],
+  7:  ['title_the_betrayer', 'skin_cyber_sheriff', 'border_glitch', 'wp_blood'],
+  8:  ['title_clan_boss', 'skin_cult', 'frame_blood_moon', 'border_pulse', 'wp_cyber', 'wp_gold'],
   10: ['title_godfather', 'skin_shogun', 'frame_legendary', 'nc_gold', 'nc_white', 'border_void', 'border_gold', 'wp_cult', 'wp_yakuza'],
 };

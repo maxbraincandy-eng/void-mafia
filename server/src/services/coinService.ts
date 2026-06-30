@@ -225,12 +225,10 @@ const PURCHASABLE_COSMETICS: Record<string, { name: string; price: number }> = {
   sp_pet_star:   { name: 'Star Companion', price: 600 },
   sp_form_car:   { name: 'Sedan Avatar', price: 1500 },
   // Name colors (display-name colors, applied app-wide; keep in sync with NAME_COLORS)
-  nc_pink:   { name: 'Neon Pink', price: 400 },
-  nc_green:  { name: 'Neon Green', price: 400 },
-  nc_orange: { name: 'Flame Orange', price: 800 },
-  nc_red:    { name: 'Blood Red', price: 800 },
-  nc_gold:   { name: 'Gold', price: 1500 },
-  nc_white:  { name: 'Pure White', price: 2500 },
+  nc_pink:       { name: 'Neon Pink', price: 800 },
+  nc_gold:       { name: 'Gold', price: 1500 },
+  nc_white:      { name: 'Pure White', price: 2500 },
+  nc_void_black: { name: 'Void Black', price: 20000 },
   // Virtual Space visual themes (keep in sync with client SPACE_THEME_DEFS)
   sp_theme_neon:   { name: 'Neon Theme', price: 600 },
   sp_theme_cyber:  { name: 'Cyber Theme', price: 800 },

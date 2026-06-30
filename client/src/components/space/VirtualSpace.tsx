@@ -8,7 +8,7 @@ import { useSpaceVoice } from '@/hooks/useSpaceVoice';
 import { useAuthStore } from '@/store/authStore';
 import { useNameColor } from '@/store/nameColorStore';
 import { SPACE_THEME_DEFS, getSpaceTheme, itemIdForTheme } from '@/constants/spaceThemes';
-import { RARITY_COLOR } from '@/constants/cosmetics';
+import { RARITY_COLOR, nameColorGlow } from '@/constants/cosmetics';
 import { useSocialStore } from '@/store/socialStore';
 import { useCheckersStore } from '@/store/checkersStore';
 import { useJokerStore } from '@/store/jokerStore';
@@ -411,7 +411,7 @@ function AvatarOnMap({ player, isMe, speaking, onTap }: { player: SpacePlayer; i
         <HumanoidAvatar bodyColor={player.bodyColor} glowColor={player.glowColor} mask={player.mask} speaking={speaking} walking={walking} gesture={player.gesture} sitting={!!player.seat} hat={player.hat} pet={player.pet} form={player.form} isMe={isMe} />
 
       </motion.div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontFamily: 'monospace', color: nameColor ?? (isMe ? player.glowColor : 'rgba(255,255,255,0.65)'), background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', borderRadius: 6, padding: '1px 7px', border: isMe ? `1px solid ${player.glowColor}55` : '1px solid rgba(255,255,255,0.08)', letterSpacing: '0.04em', maxWidth: 96, marginTop: 2, boxShadow: isMe ? `0 0 8px ${player.glowColor}30` : 'none' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontFamily: 'monospace', color: nameColor ?? (isMe ? player.glowColor : 'rgba(255,255,255,0.65)'), textShadow: nameColor ? nameColorGlow(nameColor) : undefined, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', borderRadius: 6, padding: '1px 7px', border: isMe ? `1px solid ${player.glowColor}55` : '1px solid rgba(255,255,255,0.08)', letterSpacing: '0.04em', maxWidth: 96, marginTop: 2, boxShadow: isMe ? `0 0 8px ${player.glowColor}30` : 'none' }}>
         <span style={{ width: 5, height: 5, borderRadius: '50%', background: speaking ? player.glowColor : '#00ff88', boxShadow: `0 0 5px ${speaking ? player.glowColor : '#00ff88'}`, flexShrink: 0, animation: speaking ? 'vs-pulse 0.8s ease-in-out infinite' : undefined }} />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{player.name}</span>
       </div>
