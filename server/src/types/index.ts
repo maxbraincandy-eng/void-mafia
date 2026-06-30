@@ -836,6 +836,9 @@ export interface ServerToClientEvents {
   // Lobby chat
   'lobby:message':       (msg: LobbyMessage) => void;
   'lobby:msg_deleted':   (data: { msgId: string }) => void;
+  // Clan chat
+  'clan:message':        (msg: LobbyMessage & { clanId: string }) => void;
+  'clan:msg_deleted':    (data: { msgId: string }) => void;
   // LFG
   'lfg:update':          (list: LfgEntry[]) => void;
   // Maintenance mode

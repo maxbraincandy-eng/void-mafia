@@ -269,6 +269,11 @@ interface LobbyMsg {
 const _lobbyChat: LobbyMsg[] = [];
 const MAX_LOBBY_CHAT = 200;
 
+// ── Per-clan chat (in-memory, ephemeral) ──────────────────────────────
+interface ClanChatMsg extends LobbyMsg { clanId: string; }
+const _clanChat = new Map<string, ClanChatMsg[]>(); // clanId → messages
+const MAX_CLAN_CHAT = 200;
+
 // ── Virtual Space state ───────────────────────────────────────────────
 interface SpacePlayer { socketId: string; name: string; bodyColor: string; glowColor: string; mask: string; hat: string; pet: string; form: string; profileId: string | null; x: number; y: number; seat?: string | null; }
 interface SpaceDJState { videoId: string; startedAt: number; position: number; isPlaying: boolean; djName: string; }
@@ -3904,6 +3909,84 @@ export function attachSocketHandlers(io: AppServer): void {
         const idx = _lobbyChat.findIndex(m => m.id === msgId);
         if (idx !== -1) _lobbyChat.splice(idx, 1);
         io.emit('lobby:msg_deleted', { msgId });
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Clan Chat ─────────────────────────────────────────────────────
+    // Members join their clan's chat room to receive live messages; history
+    // is returned on join. The clan is always derived from the sender's own
+    // membership, so a player can only ever read/write their own clan's chat.
+    socket.on('clan:chat_join' as any, async (cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const membership = await getClanMembershipByPlayer(profileId);
+        if (!membership) throw new Error('You are not in a clan.');
+        socket.join(`clanchat:${membership.id}`);
+        cb(ok((_clanChat.get(membership.id) ?? []).slice(-50)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('clan:chat_leave' as any, async (cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        const membership = profileId ? await getClanMembershipByPlayer(profileId) : null;
+        if (membership) socket.leave(`clanchat:${membership.id}`);
+        cb?.(ok(null));
+      } catch (e: any) { cb?.(err(e.message)); }
+    });
+
+    socket.on('clan:chat_send' as any, async ({ text }: { text: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const trimmed = (text ?? '').trim().slice(0, 300);
+        if (!trimmed) throw new Error('Empty message.');
+        const [ban, mute, player, membership] = await Promise.all([
+          getActiveBan(profileId),
+          getActiveMute(profileId),
+          getPlayer(profileId),
+          getClanMembershipByPlayer(profileId),
+        ]);
+        if (ban) throw new Error('You are banned.');
+        if (mute) throw new Error('You are muted.');
+        if (!player) throw new Error('Player not found.');
+        if (!membership) throw new Error('You are not in a clan.');
+        const msg: ClanChatMsg = {
+          id: randomUUID(), clanId: membership.id, profileId,
+          username: player.username, avatar: player.avatar, avatarUrl: player.avatarUrl ?? null,
+          text: trimmed, level: player.level,
+          nameColor: player.cosmetics?.equippedNameColor ?? null, createdAt: Date.now(),
+        };
+        const arr = _clanChat.get(membership.id) ?? [];
+        arr.push(msg);
+        if (arr.length > MAX_CLAN_CHAT) arr.shift();
+        _clanChat.set(membership.id, arr);
+        // Ensure the sender is subscribed even if they didn't explicitly join.
+        socket.join(`clanchat:${membership.id}`);
+        io.to(`clanchat:${membership.id}`).emit('clan:message', msg);
+        cb(ok(msg));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('clan:chat_delete' as any, async ({ msgId }: { msgId: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const [player, membership] = await Promise.all([
+          getPlayer(profileId), getClanMembershipByPlayer(profileId),
+        ]);
+        if (!membership) throw new Error('You are not in a clan.');
+        const arr = _clanChat.get(membership.id) ?? [];
+        const idx = arr.findIndex(m => m.id === msgId);
+        if (idx === -1) { cb(ok(null)); return; }
+        const target = arr[idx];
+        const isLeader = membership.memberRole === 'owner' || membership.memberRole === 'admin';
+        const canDelete = target.profileId === profileId || isLeader || !!player?.isModerator;
+        if (!canDelete) throw new Error('Not allowed.');
+        arr.splice(idx, 1);
+        io.to(`clanchat:${membership.id}`).emit('clan:msg_deleted', { msgId });
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });

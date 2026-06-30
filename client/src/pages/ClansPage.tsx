@@ -9,6 +9,7 @@ import { PoweredBy } from '@/components/ui/PoweredBy';
 import { ClanRoleBadge } from '@/components/ui/ClanRoleBadge';
 import { socket } from '@/lib/socket';
 import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
+import { ClanChatPanel } from '@/components/clan/ClanChatPanel';
 
 type Res<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -205,6 +206,8 @@ export function ClansPage() {
   const [imageError, setImageError]     = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Clan chat ────────────────────────────────────────────────────
+  const [chatOpen, setChatOpen] = useState(false);
   // ── Wars state ───────────────────────────────────────────────────
   const [showWars, setShowWars]         = useState(false);
   const [activeWar, setActiveWar]       = useState<ClanWar | null>(null);
@@ -461,7 +464,13 @@ export function ClansPage() {
               <p className="font-mono text-[12px] text-white/40">{myClan.memberCount} members · <WinRate wins={myClan.wins} losses={myClan.losses} /> win rate</p>
               {imageError && <p className="font-mono text-[12px] text-red-400/70 mt-0.5">{imageError}</p>}
             </div>
-            <span className="font-mono text-[12px] text-neon-purple/60 uppercase tracking-wider">your clan</span>
+            <button
+              onClick={() => setChatOpen(true)}
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
+              style={{ background: 'rgba(0,229,255,0.1)', border: '1px solid rgba(0,229,255,0.3)', color: 'rgba(0,229,255,0.85)' }}
+            >
+              💬 Chat
+            </button>
           </motion.div>
         )}
 
@@ -500,7 +509,9 @@ export function ClansPage() {
                   borderColor: myClan?.id === clan.id ? 'rgba(155,0,255,0.25)' : 'rgba(255,255,255,0.06)',
                 }}
               >
-                <span className="font-mono text-[12px] text-white/20 w-4 text-right flex-shrink-0">{idx + 1}</span>
+                <span className="font-mono text-[13px] w-5 text-right flex-shrink-0" style={{ color: idx === 0 ? '#facc15' : idx === 1 ? '#c0c0c0' : idx === 2 ? '#cd7f32' : 'rgba(255,255,255,0.2)' }}>
+                  {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
+                </span>
                 <div
                   className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center font-display font-bold text-xs flex-shrink-0"
                   style={{ background: 'rgba(155,0,255,0.15)', border: '1px solid rgba(155,0,255,0.25)', color: 'rgba(180,80,255,0.9)' }}
@@ -936,6 +947,15 @@ export function ClansPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {myClan && (
+        <ClanChatPanel
+          open={chatOpen}
+          onClose={() => setChatOpen(false)}
+          clanName={myClan.name}
+          isLeader={canManageRoles}
+        />
+      )}
     </div>
   );
 }

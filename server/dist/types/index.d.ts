@@ -791,6 +791,12 @@ export interface ServerToClientEvents {
     'lobby:msg_deleted': (data: {
         msgId: string;
     }) => void;
+    'clan:message': (msg: LobbyMessage & {
+        clanId: string;
+    }) => void;
+    'clan:msg_deleted': (data: {
+        msgId: string;
+    }) => void;
     'lfg:update': (list: LfgEntry[]) => void;
     'maintenance:status': (data: {
         enabled: boolean;
