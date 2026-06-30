@@ -904,6 +904,12 @@ export interface ServerToClientEvents {
         playerCount: number;
         maxPlayers: number;
     }) => void;
+    'game:invite_received': (data: {
+        game: string;
+        code: string;
+        fromName: string;
+        fromAvatar: string;
+    }) => void;
     'space:player-joined': (player: {
         socketId: string;
         name: string;
@@ -1302,6 +1308,11 @@ export interface ClientToServerEvents {
     }, cb: Cb<null>) => void;
     'friend:list': (cb: Cb<Friend[]>) => void;
     'friend:invitable_list': (cb: Cb<Friend[]>) => void;
+    'game:invite': (data: {
+        targetProfileId: string;
+        game: string;
+        code: string;
+    }, cb: Cb<null>) => void;
     'friend:requests': (cb: Cb<FriendRequest[]>) => void;
     'player:find_by_code': (data: {
         friendCode: string;

@@ -29,6 +29,7 @@ import { MorePanel } from '@/components/ui/MorePanel';
 import { PlayerProfileModal } from '@/components/ui/PlayerProfileModal';
 import { DmPanel } from '@/components/social/DmPanel';
 import { FriendRequestOverlay } from '@/components/social/FriendRequestOverlay';
+import { GameInviteOverlay } from '@/components/social/GameInviteOverlay';
 import { GiftReceivedAnimation } from '@/components/ui/GiftReceivedAnimation';
 import { CoinShopModal } from '@/components/ui/CoinShopModal';
 import { ShopSuccessModal } from '@/components/ui/ShopSuccessModal';
@@ -219,8 +220,11 @@ function RoomInviteToast() {
 
   const handleJoin = () => {
     if (!inviteToast) return;
-    socket.emit('room:join' as any, { code: inviteToast.roomCode }, () => {});
+    const code = inviteToast.roomCode;
+    const name = useAuthStore.getState().profile?.username ?? 'Player';
     clearInviteToast();
+    // Use the store's joinRoom so the room state is actually set (entering the room).
+    useGameStore.getState().joinRoom(code, name).catch(() => {});
   };
 
   return (
@@ -736,6 +740,7 @@ export default function App() {
       <PlayerProfileModal playerId={profilePopupId} onClose={closeProfile} />
       <DmPanel />
       <FriendRequestOverlay />
+      <GameInviteOverlay />
       <DmToastNotification />
       <RoomInviteToast />
       <ModAlertPanel />

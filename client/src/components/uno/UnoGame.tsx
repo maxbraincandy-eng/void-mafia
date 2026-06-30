@@ -5,6 +5,7 @@ import { useUnoVoice } from '@/hooks/useUnoVoice';
 import { UnoCardComponent, UnoCardBack, ColorChip } from './UnoCard';
 import type { UnoPublicState, UnoCard, GameColor, UnoPlayerPublic } from '@/types/uno';
 import { haptic } from '@/lib/haptics';
+import { GameInviteButton } from '@/components/social/GameInviteButton';
 
 const UNO_ACCENT = '#a855f7';
 
@@ -277,6 +278,9 @@ function WaitingScreen({
         >
           {copied ? '✓ დაკოპირდა' : '⎘ კოდის კოპირება'}
         </button>
+        <div className="mt-3 flex justify-center">
+          <GameInviteButton game="uno" code={match.code} />
+        </div>
       </div>
 
       <div className="w-full space-y-2">

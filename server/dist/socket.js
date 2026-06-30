@@ -3647,6 +3647,28 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
+        // ── Generic game invite (Checkers / Ludo / UNO / Joker / WWW) ──────────
+        socket.on('game:invite', async ({ targetProfileId, game, code }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                if (!['checkers', 'ludo', 'uno', 'joker', 'www'].includes(game) || !code)
+                    throw new Error('Invalid invite.');
+                const targetSock = findSocketByProfile(io, String(targetProfileId));
+                if (!targetSock)
+                    throw new Error('მოთამაშე ოფლაინია.');
+                const me = await getPlayer(profileId);
+                targetSock.emit('game:invite_received', {
+                    game, code: String(code).toUpperCase().slice(0, 12),
+                    fromName: me?.username ?? 'Someone', fromAvatar: me?.avatar ?? '🎮',
+                });
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
         socket.on('player:find_by_code', async ({ friendCode }, cb) => {
             try {
                 const player = await getPlayerByFriendCode(friendCode);

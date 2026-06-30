@@ -7,6 +7,7 @@ import { CheckersPTTButton } from './CheckersPTTButton';
 import { useCheckersVoice } from '@/hooks/useCheckersVoice';
 import { anyCapture } from '@/lib/checkersLogic';
 import { socket } from '@/lib/socket';
+import { GameInviteButton } from '@/components/social/GameInviteButton';
 import type { PieceColor } from '@/types/checkers';
 
 export function CheckersGame() {
@@ -361,6 +362,7 @@ function WaitingState({ code }: { code: string }) {
         <span>{code}</span>
         <span className="text-xs opacity-60">{copied ? '✓' : '⎘'}</span>
       </button>
+      <GameInviteButton game="checkers" code={code} />
       <p className="font-mono text-[12px] text-white/25">{t.games.checkers.shareCode}</p>
     </div>
   );

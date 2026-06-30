@@ -7,6 +7,7 @@ import { useLudoAnimation } from './useLudoAnimation';
 import { play, sfxDiceRoll, sfxCapture, sfxPieceHome, sfxVictory, vibrate, isSoundOn, setSoundOn } from './ludoSounds';
 import { useLudoVoice } from '@/hooks/useLudoVoice';
 import { LudoPTTButton } from './LudoPTTButton';
+import { GameInviteButton } from '@/components/social/GameInviteButton';
 import type { LudoColor, LudoMatchPublic } from '@/types/ludo';
 
 // ── Ambient particles ──────────────────────────────────────────────────
@@ -535,6 +536,9 @@ export function LudoGame() {
                 ⏳ {t.games.ludo.waitingForHost ?? 'Waiting for host to start...'}
               </motion.p>
             )}
+            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'center' }}>
+              <GameInviteButton game="ludo" code={match.code} />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
