@@ -7,6 +7,8 @@ import { ProfileModalV2 } from '@/components/community/ProfileModalV2';
 import { useSpaceVoice } from '@/hooks/useSpaceVoice';
 import { useAuthStore } from '@/store/authStore';
 import { useNameColor } from '@/store/nameColorStore';
+import { SPACE_THEME_DEFS, getSpaceTheme, itemIdForTheme } from '@/constants/spaceThemes';
+import { RARITY_COLOR } from '@/constants/cosmetics';
 import { useSocialStore } from '@/store/socialStore';
 import { useCheckersStore } from '@/store/checkersStore';
 import { useJokerStore } from '@/store/jokerStore';
@@ -1463,7 +1465,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const [socialProfileId, setSocialProfileId] = useState<string | null>(null);
   const openDmList = useSocialStore(s => s.openDmList);
 
-  const { joined, mySocketId, players, chatHistory, space, reactions, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace } = useVirtualSpace();
+  const { joined, mySocketId, players, chatHistory, space, reactions, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme } = useVirtualSpace();
   const { joined: voiceJoined, muted, speakingIds, status: voiceStatus, joinVoice, leaveVoice, toggleMute } = useSpaceVoice();
 
   // ── Space selection flow: lobby → customize → in-space ────────────────
@@ -1734,6 +1736,9 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
 
   // Active room layout (TV position, seats, decor).
   const layout = getLayout(space?.layout);
+  const themeDef = getSpaceTheme(space?.theme);
+  const [themePickerOpen, setThemePickerOpen] = useState(false);
+  const canChangeTheme = space?.canControlTv ?? false;
 
   // Distance from my avatar to the cinema TV + how many players are watching.
   const me = players.get(mySocketId);
@@ -1779,6 +1784,11 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             {muted ? '🔇' : '🎤'}
           </button>
         )}
+        {joined && canChangeTheme && (
+          <button onClick={()=>setThemePickerOpen(true)} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:`${themeDef.accent}14`,border:`1px solid ${themeDef.accent}40`,fontSize:14 }} title="თემა">
+            🎨
+          </button>
+        )}
         <button onClick={() => { if (joined) setConfirmExit(true); else handleClose(); }} className="w-8 h-8 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.1)',color:'rgba(255,255,255,.45)',fontSize:14 }}>✕</button>
       </div>
 
@@ -1818,7 +1828,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             ref={worldRef}
             className="flex-1 relative overflow-hidden select-none cursor-crosshair"
             style={{
-              background:`radial-gradient(ellipse at 15% 70%, rgba(120,0,255,.1) 0%, transparent 40%),radial-gradient(ellipse at 80% 75%, rgba(0,150,255,.09) 0%, transparent 38%),radial-gradient(ellipse at 85% 55%, rgba(255,120,0,.06) 0%, transparent 30%),linear-gradient(180deg,rgba(9,3,26,1) 0%,rgba(9,3,24,1) 36%,rgba(2,0,10,1) 37%,rgba(1,0,7,1) 100%)`,
+              background: themeDef.bg,
               // Camera nudge: lean toward the screen while seated.
               transform: mySeat ? 'scale(1.09)' : 'none',
               transformOrigin: '50% 26%',
@@ -1984,6 +1994,51 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
               <button onClick={() => setSelectedPlayer(null)}
                 style={{ padding: '9px', borderRadius: 12, fontFamily: 'monospace', fontSize: 12, background: 'transparent', border: 'none', color: 'rgba(255,255,255,.35)' }}>დახურვა</button>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Space theme picker (owner / main lounge) */}
+      {themePickerOpen && createPortal(
+        <div onClick={() => setThemePickerOpen(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ width: 'min(460px,100%)', maxHeight: '80vh', overflowY: 'auto', background: 'rgba(8,3,22,.99)', borderTop: `1.5px solid ${themeDef.accent}55`, borderRadius: '22px 22px 0 0', padding: 20 }}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="font-display font-bold text-white" style={{ fontSize: 15 }}>🎨 Space Theme</p>
+              <button onClick={() => setThemePickerOpen(false)} className="w-7 h-7 rounded-lg flex items-center justify-center text-white/35" style={{ background: 'rgba(255,255,255,.05)' }}>✕</button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {SPACE_THEME_DEFS.map(th => {
+                const owned = th.price === 0 || (profile?.cosmetics?.unlockedItems ?? []).includes(itemIdForTheme(th.id));
+                const active = (space?.theme ?? 'void') === th.id;
+                return (
+                  <button key={th.id}
+                    onClick={async () => {
+                      if (!owned) { setThemePickerOpen(false); return; }
+                      const ok = await setSpaceTheme(th.id);
+                      if (ok) setThemePickerOpen(false);
+                    }}
+                    className="text-left rounded-2xl overflow-hidden transition-all active:scale-95"
+                    style={{ border: `1px solid ${active ? th.accent : owned ? `${th.accent}40` : 'rgba(255,255,255,.08)'}`, opacity: owned ? 1 : 0.65 }}>
+                    <div style={{ height: 54, background: th.bg }} />
+                    <div style={{ padding: '7px 9px', background: active ? `${th.accent}1a` : 'rgba(255,255,255,.02)' }}>
+                      <div className="flex items-center justify-between">
+                        <p className="font-mono text-[12px]" style={{ color: active ? th.accent : 'rgba(255,255,255,.7)' }}>{th.name}</p>
+                        {active && <span style={{ fontSize: 9, color: th.accent }}>● active</span>}
+                      </div>
+                      <p className="font-mono text-[10px]" style={{ color: RARITY_COLOR[th.rarity] }}>
+                        {owned ? (th.price === 0 ? 'Default' : 'Owned') : `🔒 ${th.price} coins`}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-center font-mono text-[10px] text-white/20 leading-relaxed pt-3 px-2">
+              Locked themes can be bought from the Coin Shop → Spaces tab. Everyone in the room sees the active theme.
+            </p>
           </div>
         </div>,
         document.body

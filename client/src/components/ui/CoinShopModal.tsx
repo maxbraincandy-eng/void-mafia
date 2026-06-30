@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PROFILE_BACKGROUNDS, NAME_COLORS, NAME_COLOR_PRICES, RARITY_COLOR, RARITY_LABEL } from '@/constants/cosmetics';
+import { SPACE_THEME_DEFS, itemIdForTheme } from '@/constants/spaceThemes';
 import { emitWithAck } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
 import { useNameColorStore } from '@/store/nameColorStore';
@@ -30,7 +31,7 @@ interface Props {
 }
 
 export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCoinsChange }: Props) {
-  const [shopTab, setShopTab] = useState<'coins' | 'backgrounds' | 'names'>('coins');
+  const [shopTab, setShopTab] = useState<'coins' | 'backgrounds' | 'names' | 'spaces'>('coins');
   const [packages, setPackages] = useState<CoinPackage[]>([]);
   const [loading, setLoading] = useState(false);
   const [buying, setBuying] = useState<string | null>(null);
@@ -41,6 +42,9 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
   // Name colors tab state
   const [busyNc, setBusyNc] = useState<string | null>(null);
   const [ncMsg, setNcMsg] = useState<string | null>(null);
+  // Space themes tab state
+  const [busySp, setBusySp] = useState<string | null>(null);
+  const [spMsg, setSpMsg] = useState<string | null>(null);
   const profile = useAuthStore(s => s.profile);
   const unlockedItems = profile?.cosmetics?.unlockedItems ?? [];
   const equippedNameColor = profile?.cosmetics?.equippedNameColor ?? null;
@@ -120,6 +124,27 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
     } finally {
       setBusyNc(null);
       setTimeout(() => setNcMsg(null), 5000);
+    }
+  };
+
+  const handleBuySpaceTheme = async (itemId: string) => {
+    if (busySp) return;
+    setBusySp(itemId);
+    setSpMsg(null);
+    try {
+      const res = await emitWithAck<{ itemId: string }, Res<{ cosmetics: PlayerCosmetics; newBalance: number }>>(
+        'cosmetics:buy_item' as any, { itemId },
+      );
+      if (res.ok) {
+        useAuthStore.setState(s => s.profile ? { profile: { ...s.profile!, cosmetics: res.data.cosmetics } } : s);
+        onCoinsChange?.(res.data.newBalance);
+        setSpMsg('Purchased! Apply it from a space via the 🎨 button.');
+      } else {
+        setSpMsg((res as any).error ?? 'Purchase failed.');
+      }
+    } finally {
+      setBusySp(null);
+      setTimeout(() => setSpMsg(null), 5000);
     }
   };
 
@@ -203,6 +228,7 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                     { id: 'coins', label: 'Buy Coins' },
                     { id: 'backgrounds', label: 'Backgrounds' },
                     { id: 'names', label: 'Name Colors' },
+                    { id: 'spaces', label: 'Spaces' },
                   ].map(t => (
                     <button key={t.id}
                       onClick={() => setShopTab(t.id as any)}
@@ -450,6 +476,57 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                   })}
                   <p className="text-center font-mono text-[12px] text-white/15 leading-relaxed pt-2 px-2">
                     Name colors are permanent unlocks. Cyan &amp; Purple unlock at level 3.
+                  </p>
+                </div>
+                )}
+
+                {/* ── Space Themes tab ── */}
+                {shopTab === 'spaces' && (
+                <div className="space-y-2">
+                  <p className="font-mono text-[12px] text-white/30 tracking-widest text-center pb-1">
+                    Visual themes for the VOID LOUNGE &amp; your spaces
+                  </p>
+                  {spMsg && <p className="text-center font-mono text-xs text-neon-green/70 py-1">{spMsg}</p>}
+                  {SPACE_THEME_DEFS.map(th => {
+                    const itemId = itemIdForTheme(th.id);
+                    const isOwned = th.price === 0 || unlockedItems.includes(itemId);
+                    const isBusy = busySp === itemId;
+                    return (
+                      <div key={th.id}
+                        className="flex items-center gap-3 rounded-xl p-3 border transition-all"
+                        style={isOwned
+                          ? { borderColor: `${th.accent}30`, background: `${th.accent}08` }
+                          : { borderColor: 'rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)' }}
+                      >
+                        <div className="w-14 h-12 rounded-lg shrink-0 border border-white/10" style={{ background: th.bg }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-display font-bold text-sm truncate" style={{ color: th.accent }}>{th.name}</p>
+                          <p className="font-mono text-[12px] uppercase tracking-wider" style={{ color: RARITY_COLOR[th.rarity] }}>
+                            {RARITY_LABEL[th.rarity]}
+                          </p>
+                          {!isOwned && (
+                            <p className="font-mono text-[12px] text-amber-400/70 font-bold">{th.price} coins</p>
+                          )}
+                        </div>
+                        {isOwned ? (
+                          <div className="shrink-0 px-2.5 py-1 rounded-lg font-mono text-[12px]" style={{ color: th.accent, border: `1px solid ${th.accent}40` }}>
+                            {th.price === 0 ? 'Default' : 'Owned'}
+                          </div>
+                        ) : (
+                          <button
+                            disabled={!!busySp}
+                            onClick={() => handleBuySpaceTheme(itemId)}
+                            className="shrink-0 px-2.5 py-1.5 rounded-lg font-mono text-[12px] font-bold transition-all disabled:opacity-40"
+                            style={{ background: 'rgba(255,180,0,0.1)', color: 'rgba(255,180,0,0.85)', border: '1px solid rgba(255,180,0,0.25)' }}
+                          >
+                            {isBusy ? '...' : 'Buy'}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <p className="text-center font-mono text-[12px] text-white/15 leading-relaxed pt-2 px-2">
+                    Apply a theme inside any space you own via the 🎨 button. Everyone in the room sees it.
                   </p>
                 </div>
                 )}

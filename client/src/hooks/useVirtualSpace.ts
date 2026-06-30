@@ -103,6 +103,15 @@ export function useVirtualSpace() {
     });
   }, []);
 
+  const setSpaceTheme = useCallback((theme: string) => {
+    return new Promise<boolean>((resolve) => {
+      (socket as any).emit('space:set_theme', { theme }, (res: any) => {
+        if (res?.ok) setState(prev => prev.space ? { ...prev, space: { ...prev.space, theme } } : prev);
+        resolve(!!res?.ok);
+      });
+    });
+  }, []);
+
   // ── Space management ──────────────────────────────────────────────────
   const listSpaces = useCallback(() => {
     return new Promise<SpaceMeta[]>((resolve) => {
@@ -357,6 +366,9 @@ export function useVirtualSpace() {
         return { ...prev, players: next };
       });
     }
+    function onMetaUpdate(patch: { theme?: string }) {
+      setState(prev => prev.space ? { ...prev, space: { ...prev.space, ...patch } } : prev);
+    }
 
     (socket as any).on('space:player-joined', onJoined);
     (socket as any).on('space:player-moved',  onMoved);
@@ -367,6 +379,7 @@ export function useVirtualSpace() {
     (socket as any).on('space:player-reacted', onReacted);
     (socket as any).on('space:player-gesture', onGesture);
     (socket as any).on('space:player-typing',  onTyping);
+    (socket as any).on('space:meta-update',     onMetaUpdate);
     return () => {
       (socket as any).off('space:player-joined', onJoined);
       (socket as any).off('space:player-moved',  onMoved);
@@ -377,8 +390,9 @@ export function useVirtualSpace() {
       (socket as any).off('space:player-reacted', onReacted);
       (socket as any).off('space:player-gesture', onGesture);
       (socket as any).off('space:player-typing',  onTyping);
+      (socket as any).off('space:meta-update',     onMetaUpdate);
     };
   }, []);
 
-  return { ...state, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace };
+  return { ...state, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme };
 }

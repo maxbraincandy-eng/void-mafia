@@ -4,16 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { SpaceMeta } from '@/hooks/useVirtualSpace';
 import { emitWithAck } from '@/lib/socket';
 import type { Friend, Res } from '@/types/index';
+import { useAuthStore } from '@/store/authStore';
+import { SPACE_THEME_DEFS, itemIdForTheme, spaceThemeAccent } from '@/constants/spaceThemes';
 
 const SPACE_ICONS  = ['🌌','🎮','🎬','🎧','🔥','💎','🛸','🌃','⚡','🃏','👾','🎲'];
-const SPACE_THEMES: { id: string; label: string; accent: string }[] = [
-  { id: 'void',   label: 'Void',   accent: '#9b00ff' },
-  { id: 'neon',   label: 'Neon',   accent: '#00e5ff' },
-  { id: 'cyber',  label: 'Cyber',  accent: '#00ff88' },
-  { id: 'sunset', label: 'Sunset', accent: '#ff6600' },
-  { id: 'mono',   label: 'Mono',   accent: '#c0c0c0' },
-];
-const themeAccent = (theme: string) => SPACE_THEMES.find(t => t.id === theme)?.accent ?? '#9b00ff';
+const themeAccent = (theme: string) => spaceThemeAccent(theme);
 
 const ROOM_LAYOUTS: { id: string; label: string; desc: string; emoji: string; preview: string }[] = [
   { id: 'lounge',    label: 'Lounge',    desc: 'ნეონ კლუბი · დივნები', emoji: '🛋️', preview: 'linear-gradient(135deg, rgba(155,0,255,.35), rgba(0,229,255,.2))' },
@@ -155,6 +150,7 @@ function CreateSpaceModal({ createSpace, onClose, onCreated }: {
   const [maxPlayers, setMaxPlayers] = useState(12);
   const [isPublic, setIsPublic] = useState(true);
   const [busy, setBusy] = useState(false);
+  const unlockedItems = useAuthStore(s => s.profile?.cosmetics?.unlockedItems ?? []);
   const accent = themeAccent(theme);
 
   const create = async () => {
@@ -207,14 +203,18 @@ function CreateSpaceModal({ createSpace, onClose, onCreated }: {
         </div>
 
         <label className="font-mono text-[10px] uppercase tracking-widest text-white/30">თემა</label>
-        <div className="flex gap-2 mt-1.5 mb-4">
-          {SPACE_THEMES.map(t => (
-            <button key={t.id} onClick={() => setTheme(t.id)}
-              className="flex-1 py-2 rounded-xl font-mono text-[11px] transition-all active:scale-95"
-              style={{ background: theme === t.id ? `${t.accent}22` : 'rgba(255,255,255,.03)', border: `1px solid ${theme === t.id ? t.accent : 'rgba(255,255,255,.08)'}`, color: theme === t.id ? t.accent : 'rgba(255,255,255,.4)' }}>
-              {t.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap gap-2 mt-1.5 mb-4">
+          {SPACE_THEME_DEFS.map(t => {
+            const owned = t.price === 0 || unlockedItems.includes(itemIdForTheme(t.id));
+            return (
+              <button key={t.id} onClick={() => owned && setTheme(t.id)} disabled={!owned}
+                className="py-2 px-2.5 rounded-xl font-mono text-[11px] transition-all active:scale-95"
+                style={{ background: theme === t.id ? `${t.accent}22` : 'rgba(255,255,255,.03)', border: `1px solid ${theme === t.id ? t.accent : 'rgba(255,255,255,.08)'}`, color: theme === t.id ? t.accent : owned ? 'rgba(255,255,255,.4)' : 'rgba(255,255,255,.25)', opacity: owned ? 1 : 0.6 }}
+                title={owned ? t.name : `${t.name} — buy in Coin Shop (${t.price} coins)`}>
+                {owned ? t.name : `🔒 ${t.name}`}
+              </button>
+            );
+          })}
         </div>
 
         <label className="font-mono text-[10px] uppercase tracking-widest text-white/30">ოთახი</label>

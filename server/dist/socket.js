@@ -166,7 +166,7 @@ _spaceMeta.set('main', {
     maxPlayers: 50, isPublic: true, ownerId: null, ownerName: 'Void Mafia',
     code: 'VOIDLOUNGE', createdAt: Date.now(), persistent: true,
 });
-const SPACE_THEMES = ['void', 'neon', 'cyber', 'sunset', 'mono'];
+const SPACE_THEMES = ['void', 'neon', 'cyber', 'sunset', 'mono', 'blood', 'gold'];
 const SPACE_LAYOUTS = ['lounge', 'home', 'penthouse'];
 const SPACE_ICONS = ['🌌', '🎮', '🎬', '🎧', '🔥', '💎', '🛸', '🌃', '⚡', '🃏', '👾', '🎲'];
 function _genSpaceCode() {
@@ -208,6 +208,20 @@ function _publicSpaceMeta(m, online) {
         maxPlayers: m.maxPlayers, isPublic: m.isPublic,
         ownerName: m.ownerName, code: m.code, online, persistent: m.persistent,
     };
+}
+// Does this player own a given purchasable space theme? ('void' is always free.)
+async function _ownsSpaceTheme(profileId, theme) {
+    if (theme === 'void')
+        return true;
+    if (!profileId)
+        return false;
+    try {
+        const c = await getCosmetics(profileId);
+        return c.unlockedItems.includes(`sp_theme_${theme}`);
+    }
+    catch {
+        return false;
+    }
 }
 function _leaveSpace(sid, io) {
     for (const [spaceId, room] of _spaces) {
@@ -6468,11 +6482,15 @@ export function attachSocketHandlers(io) {
                 cb?.({ ok: false, error: 'Internal error' });
             }
         });
-        socket.on('space:create', ({ name, icon, theme, layout, maxPlayers, isPublic }, cb) => {
+        socket.on('space:create', async ({ name, icon, theme, layout, maxPlayers, isPublic }, cb) => {
             try {
                 const safeName = String(name ?? '').trim().slice(0, 28) || 'Void Space';
                 const safeIcon = SPACE_ICONS.includes(icon) ? icon : '🌌';
-                const safeTheme = SPACE_THEMES.includes(theme) ? theme : 'void';
+                let safeTheme = SPACE_THEMES.includes(theme) ? theme : 'void';
+                // Premium themes require the matching unlock; fall back to void otherwise.
+                if (safeTheme !== 'void' && !(await _ownsSpaceTheme(socket.data.profileId ?? null, safeTheme))) {
+                    safeTheme = 'void';
+                }
                 const safeLayout = SPACE_LAYOUTS.includes(layout) ? layout : 'lounge';
                 const cap = Math.max(2, Math.min(50, Number(maxPlayers) || 12));
                 const id = 'sp_' + _genSpaceCode().replace('-', '').toLowerCase();
@@ -6490,6 +6508,33 @@ export function attachSocketHandlers(io) {
                 }
                 _spaceMeta.set(id, meta);
                 cb?.({ ok: true, data: { space: _publicSpaceMeta(meta, 0) } });
+            }
+            catch {
+                cb?.({ ok: false, error: 'Internal error' });
+            }
+        });
+        // Change the visual theme of the space the caller is in (owner, or anyone
+        // in the ownerless main lounge — same rule as TV control). Premium themes
+        // require the changer to own the matching unlock.
+        socket.on('space:set_theme', async ({ theme }, cb) => {
+            try {
+                const spaceId = _spaceOfSocket(socket.id);
+                if (!spaceId)
+                    return cb?.({ ok: false, error: 'Not in a space.' });
+                const meta = _spaceMeta.get(spaceId);
+                if (!meta)
+                    return cb?.({ ok: false, error: 'Space not found.' });
+                if (!_canControlTv(spaceId, socket.data.profileId ?? null)) {
+                    return cb?.({ ok: false, error: 'Only the owner can change the theme.' });
+                }
+                if (!SPACE_THEMES.includes(theme))
+                    return cb?.({ ok: false, error: 'Unknown theme.' });
+                if (!(await _ownsSpaceTheme(socket.data.profileId ?? null, theme))) {
+                    return cb?.({ ok: false, error: 'You don\'t own this theme yet.' });
+                }
+                meta.theme = theme;
+                io.to(`space:${spaceId}`).emit('space:meta-update', { theme });
+                cb?.({ ok: true, data: { theme } });
             }
             catch {
                 cb?.({ ok: false, error: 'Internal error' });

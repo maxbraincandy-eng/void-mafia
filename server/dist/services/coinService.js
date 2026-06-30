@@ -92,6 +92,13 @@ const PURCHASABLE_COSMETICS = {
     nc_red: { name: 'Blood Red', price: 800 },
     nc_gold: { name: 'Gold', price: 1500 },
     nc_white: { name: 'Pure White', price: 2500 },
+    // Virtual Space visual themes (keep in sync with client SPACE_THEME_DEFS)
+    sp_theme_neon: { name: 'Neon Theme', price: 600 },
+    sp_theme_cyber: { name: 'Cyber Theme', price: 800 },
+    sp_theme_sunset: { name: 'Sunset Theme', price: 800 },
+    sp_theme_mono: { name: 'Mono Theme', price: 600 },
+    sp_theme_blood: { name: 'Blood Moon Theme', price: 1200 },
+    sp_theme_gold: { name: 'Golden Throne Theme', price: 2000 },
 };
 export async function purchaseCosmeticItem(playerId, itemId) {
     const item = PURCHASABLE_COSMETICS[itemId];

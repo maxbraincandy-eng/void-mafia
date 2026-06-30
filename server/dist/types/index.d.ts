@@ -937,6 +937,9 @@ export interface ServerToClientEvents {
         y: number;
         seat?: string | null;
     }) => void;
+    'space:meta-update': (patch: {
+        theme?: string;
+    }) => void;
     'space:player-moved': (data: {
         socketId: string;
         x: number;
@@ -1969,6 +1972,9 @@ export interface ClientToServerEvents {
     }, cb: (res: any) => void) => void;
     'space:invite': (data: {
         targetProfileId: string;
+    }, cb: (res: any) => void) => void;
+    'space:set_theme': (data: {
+        theme: string;
     }, cb: (res: any) => void) => void;
     'space:voice-join': (data: Record<string, never>, cb: (res: any) => void) => void;
     'space:voice-leave': () => void;
