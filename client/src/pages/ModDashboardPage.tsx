@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socket } from '@/lib/socket';
@@ -34,7 +34,7 @@ function modRank(level: ModeratorLevel | null | undefined): number {
 }
 
 // ── Tab types ─────────────────────────────────────────────────────────
-type Tab = 'dashboard' | 'rooms' | 'reports' | 'players' | 'broadcast' | 'logs' | 'stealth';
+type Tab = 'dashboard' | 'rooms' | 'reports' | 'players' | 'broadcast' | 'logs' | 'stealth' | 'terminal';
 type ActionType = 'ban' | 'mute' | 'warn' | 'kick' | 'unban' | 'unmute' | 'terminate' | 'close_room' | 'freeze' | 'unfreeze' | 'rename' | 'system_msg' | 'force_phase';
 
 const TABS: { id: Tab; label: string; minRank: number }[] = [
@@ -45,6 +45,7 @@ const TABS: { id: Tab; label: string; minRank: number }[] = [
   { id: 'broadcast', label: 'Broadcast', minRank: 1 },  // senior_mod+
   { id: 'logs',      label: 'Logs',      minRank: 2 },  // admin+
   { id: 'stealth',   label: 'Stealth',   minRank: 3 },  // owner only
+  { id: 'terminal',  label: 'Terminal',  minRank: 3 },  // owner only
 ];
 
 const PHASE_COLORS: Record<string, string> = {
@@ -210,6 +211,7 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
     else if (t === 'players') loadPlayers();
     else if (t === 'logs') loadLogs();
     else if (t === 'stealth') loadStealth();
+    else if (t === 'terminal') loadTerminal();
   };
 
   const loadStealth = () => {
@@ -228,6 +230,115 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
       if (res.ok) { setGhost(res.data.ghost); setInvisible(res.data.invisible); addToast(`Ghost Mode ${res.data.ghost ? 'ON' : 'OFF'}`, 'success'); }
       else addToast((res as any).error ?? 'Failed', 'error');
     });
+  };
+
+  // ── Void Terminal (owner console) — maps to existing handlers only ──
+  const [termLines, setTermLines] = useState<{ kind: 'in' | 'out' | 'err' | 'sys'; text: string }[]>([]);
+  const [termInput, setTermInput] = useState('');
+  const termPlayersRef = useRef<PlayerProfilePublic[]>([]);
+  const termScrollRef = useRef<HTMLDivElement>(null);
+  const tprint = (text: string, kind: 'out' | 'err' | 'sys' = 'out') => setTermLines(l => [...l.slice(-200), { kind, text }]);
+  useEffect(() => { const el = termScrollRef.current; if (el) el.scrollTop = el.scrollHeight; }, [termLines]);
+
+  const loadTerminal = () => {
+    socket.emit('mod:get_players' as any, (res: Res<PlayerProfilePublic[]>) => { if (res.ok) termPlayersRef.current = res.data; });
+    if (termLines.length === 0) {
+      tprint('VOID OS // owner console', 'sys');
+      tprint('type `help` for commands', 'sys');
+    }
+  };
+  const resolveTarget = (token: string): PlayerProfilePublic | null => {
+    if (!token) return null;
+    const list = termPlayersRef.current;
+    if (/^\d+$/.test(token)) return list.find(p => p.publicId === Number(token)) ?? null;
+    const lc = token.toLowerCase();
+    return list.find(p => p.username.toLowerCase() === lc) ?? null;
+  };
+  const runCommand = (raw: string) => {
+    const line = raw.trim();
+    if (!line) return;
+    setTermLines(l => [...l.slice(-200), { kind: 'in', text: `> ${line}` }]);
+    const parts = line.split(/\s+/);
+    const cmd = parts[0].toLowerCase();
+    const emit = (ev: string, arg: any, okMsg: (d: any) => string) =>
+      socket.emit(ev as any, arg, (res: Res<any>) => res.ok ? tprint(okMsg(res.data)) : tprint(res.error ?? 'error', 'err'));
+    const onoff = (v: string) => v === 'on' || v === 'true' || v === '1';
+    const needTarget = (tok: string): PlayerProfilePublic | null => {
+      const t = resolveTarget(tok);
+      if (!t) tprint(`player not found: ${tok}`, 'err');
+      return t;
+    };
+    switch (cmd) {
+      case 'help':
+        tprint('commands:', 'sys');
+        ['help', 'online', 'analytics', 'announce <banner|popup> <msg>', 'maintenance <on|off>',
+         'invisible <on|off>', 'ghost <on|off>', 'inspect <id|name>', 'warn <id|name> <reason>',
+         'kick <id|name> [reason]', 'ban <id|name> <minutes> <reason>', 'givecoins <id|name> <amount>', 'clear']
+          .forEach(c => tprint('  ' + c));
+        break;
+      case 'clear': setTermLines([]); break;
+      case 'online':
+      case 'analytics':
+        socket.emit('mod:get_dashboard' as any, (res: Res<DashboardStats>) => {
+          if (!res.ok) { tprint(res.error ?? 'error', 'err'); return; }
+          const d = res.data;
+          if (cmd === 'online') tprint(`online: ${d.onlinePlayers} · peak: ${d.peakOnline ?? 0} · in-voice: ${d.voiceUsers ?? 0}`);
+          else tprint(`online ${d.onlinePlayers} | peak ${d.peakOnline ?? 0} | rooms ${d.activeRooms} | spectating ${d.spectatingPlayers} | voice ${d.voiceUsers ?? 0} | new today ${d.newUsersToday ?? 0} | avg match ${d.avgMatchSeconds ? fmtDuration(d.avgMatchSeconds) : '—'} | open reports ${d.openReports} | bans24h ${d.recentBans}`);
+        });
+        break;
+      case 'announce': {
+        const style = parts[1] === 'popup' ? 'popup' : 'banner';
+        const msg = parts.slice(2).join(' ');
+        if (!msg) { tprint('usage: announce <banner|popup> <message>', 'err'); break; }
+        emit('mod:announce', { message: msg, style }, () => `announced (${style}) to all users`);
+        break;
+      }
+      case 'maintenance':
+        emit('mod:toggle_maintenance', { enabled: onoff(parts[1]) }, (d) => `maintenance ${d.enabled ? 'ON' : 'OFF'}`);
+        break;
+      case 'invisible':
+        emit('mod:set_invisible', { enabled: onoff(parts[1]) }, (d) => `invisible ${d.enabled ? 'ON' : 'OFF'}`);
+        break;
+      case 'ghost':
+        emit('mod:set_ghost', { enabled: onoff(parts[1]) }, (d) => `ghost ${d.ghost ? 'ON' : 'OFF'} (invisible ${d.invisible ? 'ON' : 'OFF'})`);
+        break;
+      case 'inspect': {
+        const t = needTarget(parts[1]); if (!t) break;
+        socket.emit('mod:get_player_detail' as any, { targetProfileId: t.id }, (res: Res<ModPlayerDetail>) => {
+          if (!res.ok) { tprint(res.error ?? 'error', 'err'); return; }
+          const d = res.data;
+          tprint(`#${d.profile.publicId} ${d.profile.username} · L${d.profile.level} · games ${d.profile.stats.gamesPlayed} W${d.profile.stats.wins} · reports ${d.reportCount} · warns ${d.warnings.length}${d.ban ? ' · BANNED' : ''}${d.mute ? ' · MUTED' : ''}${d.accountFrozen ? ' · FROZEN' : ''}`);
+        });
+        break;
+      }
+      case 'warn': {
+        const t = needTarget(parts[1]); if (!t) break;
+        const reason = parts.slice(2).join(' ') || 'Console warning';
+        emit('mod:warn', { targetProfileId: t.id, reason, category: 'other' }, () => `warned ${t.username}`);
+        break;
+      }
+      case 'kick': {
+        const t = needTarget(parts[1]); if (!t) break;
+        emit('mod:kick_player', { targetProfileId: t.id, reason: parts.slice(2).join(' ') || 'Console kick' }, () => `kicked ${t.username}`);
+        break;
+      }
+      case 'ban': {
+        const t = needTarget(parts[1]); if (!t) break;
+        const mins = Number(parts[2]);
+        if (!mins || mins <= 0) { tprint('usage: ban <id|name> <minutes> <reason>', 'err'); break; }
+        emit('mod:ban', { targetProfileId: t.id, duration: mins * 60, reason: parts.slice(3).join(' ') || 'Console ban' }, () => `banned ${t.username} for ${mins}m`);
+        break;
+      }
+      case 'givecoins': {
+        const t = needTarget(parts[1]); if (!t) break;
+        const amt = Number(parts[2]);
+        if (!amt) { tprint('usage: givecoins <id|name> <amount>', 'err'); break; }
+        emit('owner:coins_grant', { targetProfileId: t.id, amount: amt, description: 'Owner console grant' }, (d) => `gave ${amt} coins to ${t.username} (balance ${d.newBalance})`);
+        break;
+      }
+      default:
+        tprint(`unknown command: ${cmd} — try \`help\``, 'err');
+    }
   };
 
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
@@ -1024,6 +1135,26 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {tab === 'terminal' && (
+          <div className="flex flex-col" style={{ height: 'calc(100vh - 200px)' }}>
+            <div ref={termScrollRef} className="flex-1 overflow-y-auto rounded-xl p-3 font-mono text-[12px] leading-relaxed"
+              style={{ background: 'rgba(0,8,4,0.9)', border: '1px solid rgba(0,255,136,0.2)' }}>
+              {termLines.map((l, i) => (
+                <div key={i} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color:
+                  l.kind === 'in' ? 'rgba(0,229,255,0.85)' : l.kind === 'err' ? '#ff6b81' : l.kind === 'sys' ? 'rgba(255,255,255,0.4)' : 'rgba(0,255,136,0.85)' }}>
+                  {l.text}
+                </div>
+              ))}
+            </div>
+            <form onSubmit={e => { e.preventDefault(); runCommand(termInput); setTermInput(''); }} className="flex gap-2 mt-2">
+              <span className="font-mono text-neon-green/70 self-center">›</span>
+              <input value={termInput} onChange={e => setTermInput(e.target.value)} autoCapitalize="off" autoCorrect="off" spellCheck={false}
+                placeholder="command… (help)"
+                className="flex-1 bg-void-50/80 border border-neon-green/20 rounded-xl px-3 py-2 text-sm text-neon-green/90 font-mono placeholder-white/20 focus:outline-none focus:border-neon-green/50" />
+            </form>
           </div>
         )}
             </div>
