@@ -884,6 +884,9 @@ const PREMIUM_FORMS: Premium = { car: { id: 'sp_form_car', price: 1500 } };
 function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: (b: string, g: string, m: SpaceMask, hat: string, pet: string, form: string) => void }) {
   const authProfile = useAuthStore(s => s.profile);
   const owned = authProfile?.cosmetics?.unlockedItems ?? [];
+  // Staff (moderators / admins / owners) get the car avatar for free.
+  const isStaff = !!authProfile?.isModerator;
+  const hasItem = (id: string) => owned.includes(id) || (id === 'sp_form_car' && isStaff);
   const [coins, setCoins] = useState<number | null>(null);
   const [buying, setBuying] = useState<string | null>(null);
   const [shopMsg, setShopMsg] = useState('');
@@ -899,7 +902,7 @@ function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: 
   // Pick an option; if it's a locked premium item, buy it with coins first.
   async function pick(optId: string, prem: Premium, setter: (v: string) => void) {
     const it = prem[optId];
-    if (!it || owned.includes(it.id)) { setter(optId); return; }
+    if (!it || hasItem(it.id)) { setter(optId); return; }
     if (buying) return;
     setBuying(it.id); setShopMsg('');
     const res = await emitWithAck<{ itemId: string }, Res<{ cosmetics: PlayerCosmetics; newBalance: number }>>('cosmetics:buy_item', { itemId: it.id }).catch(() => null);
@@ -914,7 +917,7 @@ function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: 
   // Renders an option button with a 🔒+price overlay if it's a locked premium item.
   const optBtn = (o: { id: string; label: string }, prem: Premium, selected: string, setter: (v: string) => void, cls: string) => {
     const it = prem[o.id];
-    const locked = it && !owned.includes(it.id);
+    const locked = it && !hasItem(it.id);
     const isSel = selected === o.id;
     return (
       <button key={o.id} onClick={() => pick(o.id, prem, setter)} className={cls + ' transition-all active:scale-95'}
