@@ -904,7 +904,7 @@ export async function deleteStory(id, requesterId, isMod) {
     await sql `DELETE FROM community_story_reactions WHERE story_id = ${id}`;
 }
 // ── Story reactions ─────────────────────────────────────────────────────
-export const STORY_REACTIONS = ['🤍', '🔥', '👍', '⭐', '🤯', '😂'];
+export const STORY_REACTIONS = ['💜', '🔥', '👍', '⭐', '🤯', '😂'];
 async function tallyStoryReactions(storyId) {
     const rows = await sql `SELECT reaction, COUNT(*) as cnt FROM community_story_reactions WHERE story_id = ${storyId} GROUP BY reaction`;
     const out = {};

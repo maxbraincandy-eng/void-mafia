@@ -16,7 +16,7 @@ export interface StoryViewerRow {
 }
 
 // Must match STORY_REACTIONS on the server.
-const STORY_EMOJIS = ['🤍', '🔥', '👍', '⭐', '🤯', '😂'] as const;
+const STORY_EMOJIS = ['💜', '🔥', '👍', '⭐', '🤯', '😂'] as const;
 type StoryReactionData = { reactions: Record<string, number>; myReaction: string | null };
 
 const SEEN_KEY = 'vm_seen_stories';
@@ -305,17 +305,20 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
                 boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
               }}
             >
-              {STORY_EMOJIS.map((e, i) => (
-                <motion.button key={e} onClick={() => react(e)}
-                  initial={{ scale: 0, y: 12 }} animate={{ scale: 1, y: 0 }}
-                  transition={{ delay: 0.03 * i, type: 'spring', stiffness: 500, damping: 18 }}
-                  whileTap={{ scale: 1.5 }}
+              {/* Plain buttons — always rendered at full scale. (A previous
+                  framer-motion staggered scale-from-0 entrance could get stuck
+                  mid-spring, leaving some emojis invisible.) Selected state and
+                  tap pop use a pure CSS transform + transition, which can't jam. */}
+              {STORY_EMOJIS.map((e) => (
+                <button key={e} onClick={() => react(e)}
+                  className="vm-story-emoji"
                   style={{
                     background: 'transparent', border: 'none', fontSize: 33, lineHeight: 1, padding: 4, cursor: 'pointer',
-                    transform: myReaction === e ? 'scale(1.18)' : undefined,
+                    transform: myReaction === e ? 'scale(1.18)' : 'scale(1)',
+                    transition: 'transform 0.14s ease',
                     filter: myReaction === e ? 'drop-shadow(0 0 7px rgba(155,0,255,0.85))' : undefined,
                   }}
-                >{e}</motion.button>
+                >{e}</button>
               ))}
             </motion.div>
           </>

@@ -493,6 +493,11 @@ html.theme-transitioning body {
   to   { width: 100%; }
 }
 
+/* Stories: reaction-picker emoji — quick pop on press (CSS only, can't jam) */
+.vm-story-emoji:active {
+  transform: scale(1.4) !important;
+}
+
 @keyframes cyberGlitch {
   0%, 84%, 91%, 100%  { opacity: 0; transform: none; }
   85%  { opacity: 1; transform: translateX( 3px) skewX( 3deg); }

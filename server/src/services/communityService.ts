@@ -976,7 +976,7 @@ export async function deleteStory(id: string, requesterId: string, isMod: boolea
 }
 
 // ── Story reactions ─────────────────────────────────────────────────────
-export const STORY_REACTIONS = ['🤍', '🔥', '👍', '⭐', '🤯', '😂'] as const;
+export const STORY_REACTIONS = ['💜', '🔥', '👍', '⭐', '🤯', '😂'] as const;
 
 export interface StoryReactionResult {
   reactions: Record<string, number>; // emoji → count
