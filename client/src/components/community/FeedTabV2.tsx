@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useT } from '@/store/langStore';
 import { useCommunityStore } from '@/store/communityStore';
@@ -67,12 +67,40 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
   // `loadingRef` is a synchronous lock (React state is async, so two observer
   // callbacks in the same tick could both pass a `loadingMore` check).
   const loadingRef = useRef(false);
+  // Scroll position captured before a load-more, restored after the new posts
+  // render. Posts are appended BELOW the viewport, so scrollTop-from-top must not
+  // change — but Android snaps the container to the new bottom, so we pin it.
+  const restoreScrollRef = useRef<number | null>(null);
   const loadMore = useCallback(async () => {
     if (!feedV2HasMore || loadingRef.current) return;
     loadingRef.current = true;
     setLoadingMore(true);
+    const scroller = document.getElementById('root');
+    restoreScrollRef.current = scroller ? scroller.scrollTop : null;
     try { await fetchFeedV2(false); } finally { loadingRef.current = false; setLoadingMore(false); }
   }, [feedV2HasMore, fetchFeedV2]);
+
+  // After the appended posts render, correct ONLY the Android "snap to bottom":
+  // if the container ended up at the new bottom (which can't be reached by a
+  // normal gesture right after inserting a page of tall posts), pin it back to
+  // where the load was triggered. Normal iOS momentum (which leaves the user
+  // mid-list, not at the very bottom) is left untouched. useLayoutEffect runs
+  // before paint (no flash); the rAF catches a late re-jump (e.g. image load).
+  useLayoutEffect(() => {
+    const top = restoreScrollRef.current;
+    if (top == null) return;
+    restoreScrollRef.current = null;
+    const scroller = document.getElementById('root');
+    if (!scroller) return;
+    const pin = () => {
+      const maxTop = scroller.scrollHeight - scroller.clientHeight;
+      if (scroller.scrollTop >= maxTop - 4 && scroller.scrollTop > top + 4) {
+        scroller.scrollTop = top;
+      }
+    };
+    pin();
+    requestAnimationFrame(pin);
+  }, [feedV2Posts.length]);
   const loadMoreRef = useRef(loadMore);
   loadMoreRef.current = loadMore;
 
