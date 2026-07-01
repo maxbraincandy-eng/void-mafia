@@ -190,12 +190,26 @@ export declare function getPostReactions(postId: string, playerId?: string): Pro
     reactions: Record<string, number>;
     myReaction: string | null;
 }>;
-export declare function getWeeklyLeaderboard(): Promise<Array<{
+export declare const WEEK_MS: number;
+/** Start (ms, UTC) of the Monday-00:00 week that `t` falls in. */
+export declare function weekStartMs(t: number): number;
+/** Weekly leaderboard scored over a FIXED week window (resets every Monday). */
+export declare function getWeeklyLeaderboard(startMs?: number, endMs?: number): Promise<Array<{
     playerId: string;
     username: string;
     avatarUrl: string | null;
     score: number;
     rank: number;
 }>>;
-export declare function distributeLeaderboardRewards(sql_: any, recordTransaction_: any): Promise<void>;
+/**
+ * Pay out the most recently COMPLETED week's top 3 (500/400/300 coins) exactly
+ * once. Idempotent per week (a settled row guards re-payment) so it's safe to
+ * run on every startup and on an hourly timer — it also back-pays a week that
+ * was missed while the server was down. `grant` is injected to avoid a circular
+ * import with coinService.
+ */
+export declare function settleWeeklyLeaderboard(grant: (playerId: string, amount: number, description: string) => Promise<void>): Promise<{
+    paid: number;
+    weekStart: number;
+} | null>;
 //# sourceMappingURL=communityService.d.ts.map

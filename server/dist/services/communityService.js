@@ -1224,14 +1224,23 @@ export async function getPostReactions(postId, playerId) {
     }
     return { reactions, myReaction };
 }
-export async function getWeeklyLeaderboard() {
-    const weekStart = Date.now() - 7 * 24 * 60 * 60 * 1000;
+export const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+/** Start (ms, UTC) of the Monday-00:00 week that `t` falls in. */
+export function weekStartMs(t) {
+    const d = new Date(t);
+    const daysSinceMonday = (d.getUTCDay() + 6) % 7; // Mon=0 … Sun=6
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - daysSinceMonday, 0, 0, 0, 0);
+}
+/** Weekly leaderboard scored over a FIXED week window (resets every Monday). */
+export async function getWeeklyLeaderboard(startMs, endMs) {
+    const start = startMs ?? weekStartMs(Date.now());
+    const end = endMs ?? start + WEEK_MS;
     const rows = await sql `
     SELECT p.id as player_id, p.username, p.avatar_url,
            COALESCE(SUM(cp.likes_count * 2 + cp.comments_count * 3), 0) as score
     FROM players p
     JOIN community_posts cp ON cp.author_id = p.id
-    WHERE cp.created_at > ${weekStart} AND cp.deleted_at IS NULL
+    WHERE cp.created_at >= ${start} AND cp.created_at < ${end} AND cp.deleted_at IS NULL
     GROUP BY p.id, p.username, p.avatar_url
     ORDER BY score DESC
     LIMIT 20
@@ -1244,21 +1253,37 @@ export async function getWeeklyLeaderboard() {
         rank: i + 1,
     }));
 }
-export async function distributeLeaderboardRewards(sql_, recordTransaction_) {
-    const leaders = await getWeeklyLeaderboard();
-    const prizes = [200, 100, 50];
-    const weekStart = Date.now();
+const LEADERBOARD_PRIZES = [500, 400, 300]; // #1, #2, #3
+/**
+ * Pay out the most recently COMPLETED week's top 3 (500/400/300 coins) exactly
+ * once. Idempotent per week (a settled row guards re-payment) so it's safe to
+ * run on every startup and on an hourly timer — it also back-pays a week that
+ * was missed while the server was down. `grant` is injected to avoid a circular
+ * import with coinService.
+ */
+export async function settleWeeklyLeaderboard(grant) {
+    const prevWeek = weekStartMs(Date.now()) - WEEK_MS; // the just-finished week
+    const [already] = await sql `SELECT id FROM community_leaderboard_rewards WHERE week_start = ${prevWeek} LIMIT 1`;
+    if (already)
+        return null; // already settled
+    const leaders = await getWeeklyLeaderboard(prevWeek, prevWeek + WEEK_MS);
+    let paid = 0;
     for (let i = 0; i < Math.min(3, leaders.length); i++) {
         const leader = leaders[i];
-        if (leader.score === 0)
+        if (leader.score <= 0)
             continue;
-        // Check not already rewarded this week
-        const [already] = await sql_ `SELECT id FROM community_leaderboard_rewards WHERE player_id = ${leader.playerId} AND week_start > ${weekStart - 7 * 24 * 3600 * 1000}`;
-        if (already)
-            continue;
-        await recordTransaction_(leader.playerId, 'grant', prizes[i], `Community leaderboard #${i + 1} weekly reward`, {});
-        const id = Math.random().toString(36).slice(2);
-        await sql_ `INSERT INTO community_leaderboard_rewards (id, player_id, week_start, rank, coins, created_at) VALUES (${id}, ${leader.playerId}, ${weekStart}, ${i + 1}, ${prizes[i]}, ${Date.now()})`;
+        await grant(leader.playerId, LEADERBOARD_PRIZES[i], `Weekly leaderboard #${i + 1} reward`);
+        await sql `INSERT INTO community_leaderboard_rewards (id, player_id, week_start, rank, coins, created_at)
+              VALUES (${generateId()}, ${leader.playerId}, ${prevWeek}, ${i + 1}, ${LEADERBOARD_PRIZES[i]}, ${Date.now()})`;
+        await createNotification(leader.playerId, 'leaderboard_reward', '🏆 Weekly leaderboard reward', `You finished #${i + 1} last week and earned ${LEADERBOARD_PRIZES[i]} coins!`, null).catch(() => { });
+        paid++;
     }
+    // Mark the week settled even with no qualifying winners, so we don't recompute forever.
+    if (paid === 0) {
+        await sql `INSERT INTO community_leaderboard_rewards (id, player_id, week_start, rank, coins, created_at)
+              VALUES (${generateId()}, ${'__settled__'}, ${prevWeek}, ${0}, ${0}, ${Date.now()})`;
+    }
+    console.log(`[Leaderboard] settled week ${new Date(prevWeek).toISOString()} — paid ${paid} winner(s).`);
+    return { paid, weekStart: prevWeek };
 }
 //# sourceMappingURL=communityService.js.map

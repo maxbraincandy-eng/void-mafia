@@ -18,8 +18,8 @@ import { getPlayerAchievements } from './services/achievementService.js';
 import { sql, initializeDatabase } from './db.js';
 import { configurePassport, createAuthRouter } from './auth.js';
 import { initPushService, getVapidPublicKey } from './pushService.js';
-import { creditPurchasedCoins } from './services/coinService.js';
-import { computeTrending } from './services/communityService.js';
+import { creditPurchasedCoins, grantCoins } from './services/coinService.js';
+import { computeTrending, settleWeeklyLeaderboard } from './services/communityService.js';
 import { createHermesRouter } from './routes/hermes.js';
 import { createLiveKitRouter } from './routes/livekitRoutes.js';
 // ── Stripe setup ──────────────────────────────────────────────────────
@@ -36,7 +36,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
-const CLIENT_BUILD = '2026-06-26-v199';
+const CLIENT_BUILD = '2026-06-26-v200';
 console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
@@ -392,6 +392,14 @@ async function tryInitDb(attempt = 1) {
         console.log('[Startup] Database ready.');
         initPushService().catch(e => console.warn('[Push] init failed:', e.message));
         setInterval(() => { computeTrending().catch(e => console.error('[Trending] compute failed:', e)); }, 10 * 60 * 1000);
+        // Weekly leaderboard payout (top 3: 500/400/300). Runs on startup (back-pays
+        // a missed week) and hourly (settles as soon as a new week begins). Idempotent.
+        const runSettle = () => settleWeeklyLeaderboard((pid, amt, desc) => grantCoins('system', pid, amt, desc).then(() => { }))
+            .then(r => { if (r)
+            console.log(`[Leaderboard] payout done: ${r.paid} winner(s) for week ${new Date(r.weekStart).toISOString()}`); })
+            .catch(e => console.error('[Leaderboard] settle failed:', e.message));
+        runSettle();
+        setInterval(runSettle, 60 * 60 * 1000);
     }
     catch (err) {
         console.error(`[Startup] DB init attempt ${attempt} failed: ${err.message}`);

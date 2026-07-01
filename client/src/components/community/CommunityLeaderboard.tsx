@@ -11,7 +11,7 @@ const RANK_CONFIG: Record<number, { label: string; color: string; bgColor: strin
     color: '#ffd700',
     bgColor: 'rgba(255,215,0,0.08)',
     borderColor: 'rgba(255,215,0,0.35)',
-    coinPrize: 200,
+    coinPrize: 500,
     glow: '0 0 24px rgba(255,215,0,0.25)',
   },
   2: {
@@ -19,7 +19,7 @@ const RANK_CONFIG: Record<number, { label: string; color: string; bgColor: strin
     color: '#c0c0c0',
     bgColor: 'rgba(192,192,192,0.06)',
     borderColor: 'rgba(192,192,192,0.25)',
-    coinPrize: 100,
+    coinPrize: 400,
     glow: '0 0 16px rgba(192,192,192,0.15)',
   },
   3: {
@@ -27,7 +27,7 @@ const RANK_CONFIG: Record<number, { label: string; color: string; bgColor: strin
     color: '#cd7f32',
     bgColor: 'rgba(205,127,50,0.07)',
     borderColor: 'rgba(205,127,50,0.3)',
-    coinPrize: 50,
+    coinPrize: 300,
     glow: '0 0 16px rgba(205,127,50,0.2)',
   },
 };
