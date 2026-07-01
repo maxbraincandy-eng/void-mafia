@@ -881,7 +881,7 @@ export async function getStoryViewers(storyId, requesterId) {
     JOIN players p ON p.id = v.viewer_id
     LEFT JOIN community_story_reactions rx ON rx.story_id = v.story_id AND rx.reactor_id = v.viewer_id
     WHERE v.story_id = ${storyId}
-    ORDER BY v.viewed_at DESC
+    ORDER BY (rx.reaction IS NOT NULL) DESC, v.viewed_at DESC
   `;
     return rows.map((r) => ({
         id: r.id, username: r.username, avatar: r.avatar, avatarUrl: r.avatar_url ?? null,
