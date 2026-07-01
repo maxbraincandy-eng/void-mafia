@@ -2168,11 +2168,10 @@ export function attachSocketHandlers(io) {
                 const foulEndsAt = Date.now() + 6000;
                 room.activeFoul = { playerId: presser.id, endsAt: foulEndsAt };
                 broadcastSystemMsg(io, room, `⚠️ ${presser.name}: ფოლი #${presser.foulCount}/3`);
-                // Give presser voice access for 6 seconds
-                const presserMember = voiceGetMembers(room.id, 'room').find(m => m.playerId === presser.id);
-                if (presserMember) {
-                    io.to(presserMember.socketId).emit('voice:force-unmute');
-                }
+                // Give the presser voice access for the foul window. enforceVoicePhaseRules
+                // re-applies the speech rules for BOTH mesh and LiveKit users, and its
+                // foul check unmutes the presser (activeFoul is set above).
+                enforceVoicePhaseRules(io, room);
                 // Expire the foul after 6 seconds and re-mute presser
                 const foulRoomId = room.id;
                 setTimeout(() => {
@@ -2182,10 +2181,8 @@ export function attachSocketHandlers(io) {
                     if (liveRoom.activeFoul?.playerId === presser.id && liveRoom.activeFoul.endsAt === foulEndsAt) {
                         liveRoom.activeFoul = null;
                         if (liveRoom.phase === 'speech') {
-                            const member = voiceGetMembers(liveRoom.id, 'room').find(m => m.playerId === presser.id);
-                            if (member) {
-                                io.to(member.socketId).emit('voice:force-mute', { reason: 'Foul window expired.' });
-                            }
+                            // Foul window over — re-mute the presser (mesh + LiveKit).
+                            enforceVoicePhaseRules(io, liveRoom);
                             broadcastRoom(io, liveRoom);
                         }
                     }
