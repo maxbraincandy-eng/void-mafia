@@ -714,8 +714,15 @@ export function WWWGame() {
   // enabled; spectators are listen-only.
   const { enabled: livekitEnabled, resolved: livekitResolved } = useLiveKitGate();
   const lkSpectator = !!match && (match.players[myId]?.isSpectator ?? false);
+  // Voice isolation: during the private discussion each team gets its OWN LiveKit
+  // room (A and B can't hear each other; the host sits in the shared room). In
+  // every other phase everyone shares one room so the host presents & reveals.
+  const lkMyTeam = match ? (match.players[myId]?.teamId ?? null) : null;
+  const lkRoomId = match?.id
+    ? (match.status === 'discussion' && lkMyTeam ? `www_${match.id}_${lkMyTeam}` : `www_${match.id}`)
+    : null;
   const lkVoice = useLivekitRoomVoice({
-    roomId: match?.id ? `www_${match.id}` : null,
+    roomId: lkRoomId,
     identity: myId || null,
     active: livekitEnabled && !!match?.id && match?.status !== 'finished',
     listenOnly: lkSpectator,
@@ -919,12 +926,19 @@ export function WWWGame() {
               {match.chat.length === 0 && (
                 <p className="font-mono text-xs text-white/20 text-center py-4">ჩათი ცარიელია</p>
               )}
-              {match.chat.map((msg, i) => (
-                <div key={i} className="flex gap-2 text-xs font-mono">
-                  <span style={{ color: ACCENT }}>{msg.nickname}:</span>
-                  <span className="text-white/70 flex-1">{msg.text}</span>
-                </div>
-              ))}
+              {match.chat.map((msg, i) => {
+                const ch = msg.channel ?? 'broadcast';
+                const team = ch === 'team_a' || ch === 'team_b' ? match.teams.find(t => t.id === ch) : null;
+                const nameColor = team ? team.color : ACCENT;
+                const tag = ch === 'broadcast' ? '📢' : team ? `● ${team.name}` : '';
+                return (
+                  <div key={i} className="flex gap-2 text-xs font-mono items-baseline">
+                    {tag && <span style={{ color: nameColor, fontSize: 10, flexShrink: 0 }}>{tag}</span>}
+                    <span style={{ color: nameColor }}>{msg.nickname}:</span>
+                    <span className="text-white/70 flex-1">{msg.text}</span>
+                  </div>
+                );
+              })}
             </div>
             <div className="flex gap-2 px-4 py-3 border-t" style={{ borderColor: 'rgba(168,85,247,0.1)' }}>
               <input

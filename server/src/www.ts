@@ -195,7 +195,20 @@ export function registerWWWHandlers(io: AppServer, socket: AppSocket): void {
     try {
       const m = sendChat(String(data?.matchId), userId(), String(data?.nickname ?? 'Player').slice(0, 24), String(data?.text ?? ''));
       if (!m) return;
-      io.to(WWW_ROOM(m.id)).emit('www:chat' as any, m.chat[m.chat.length - 1]);
+      const msg = m.chat[m.chat.length - 1]!;
+      // Route per viewer for isolation: host gets every message; a team member
+      // gets broadcasts + only their own team's channel.
+      const room = io.sockets.adapter.rooms.get(WWW_ROOM(m.id));
+      if (!room) return;
+      for (const sid of room) {
+        const s = io.sockets.sockets.get(sid);
+        if (!s) continue;
+        const vid = s.data.profileId ?? s.id;
+        const vTeam = m.players[vid]?.teamId;
+        if (vid === m.hostId || msg.channel === 'broadcast' || msg.channel === vTeam) {
+          s.emit('www:chat' as any, msg);
+        }
+      }
     } catch { /* ignore */ }
   });
 

@@ -41,6 +41,8 @@ export interface WWWChatMsg {
     nickname: string;
     text: string;
     ts: number;
+    /** Isolation channel: 'broadcast' (host → all) | 'team_a' | 'team_b'. */
+    channel: string;
 }
 export interface WWWMatch {
     id: string;

@@ -59,11 +59,16 @@ export function toPublic(m, viewerId) {
     // result is shown or the game ends.
     const revealed = m.status === 'round_result' || m.status === 'finished';
     const isHost = viewerId != null && viewerId === m.hostId;
+    const viewerTeam = viewerId != null ? m.players[viewerId]?.teamId : undefined;
     let answers = m.answers;
     if (!revealed && !isHost) {
-        const viewerTeam = viewerId != null ? m.players[viewerId]?.teamId : undefined;
         answers = viewerTeam && m.answers[viewerTeam] ? { [viewerTeam]: m.answers[viewerTeam] } : {};
     }
+    // Chat isolation: host sees every channel; a team member sees broadcasts +
+    // only their own team's channel; a spectator sees broadcasts.
+    const chat = (isHost
+        ? m.chat
+        : m.chat.filter(c => c.channel === 'broadcast' || (viewerTeam != null && c.channel === viewerTeam))).slice(-60);
     return {
         id: m.id, code: m.code, status: m.status, hostId: m.hostId,
         players: m.players, settings: m.settings, teams: m.teams,
@@ -72,7 +77,7 @@ export function toPublic(m, viewerId) {
         totalQuestions: m.questions.length,
         answers, scores: m.scores,
         timerEndsAt: m.timerEndsAt, voiceSessionId: m.voiceSessionId,
-        chat: m.chat.slice(-60),
+        chat,
     };
 }
 const TEAM_COLORS = ['#ff2244', '#0090ff', '#22c55e', '#f59e0b'];
@@ -357,7 +362,11 @@ export function sendChat(matchId, userId, nickname, text) {
     const m = matches.get(matchId);
     if (!m)
         return null;
-    m.chat.push({ userId, nickname, text: text.slice(0, 300), ts: Date.now() });
+    // Channel: the host (and team-less spectators) broadcast to everyone; a team
+    // member's message stays inside that team's isolated channel.
+    const player = m.players[userId];
+    const channel = userId === m.hostId || !player?.teamId ? 'broadcast' : player.teamId;
+    m.chat.push({ userId, nickname, text: text.slice(0, 300), ts: Date.now(), channel });
     if (m.chat.length > 200)
         m.chat = m.chat.slice(-200);
     return m;
