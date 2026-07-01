@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@/store/langStore';
@@ -46,15 +46,22 @@ export function CommunityPage() {
 
   // Reveal a compact floating nav once the header/tabs scroll out of view, so
   // profile + tabs stay reachable without scrolling all the way back up.
+  // The scroll container is #root (html/body are locked for iOS bounce), so an
+  // IntersectionObserver on a sentinel is used instead of window scroll.
   const [scrolled, setScrolled] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 120);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-    return () => window.removeEventListener('scroll', onScroll);
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([entry]) => setScrolled(!entry.isIntersecting), { threshold: 0 });
+    io.observe(el);
+    return () => io.disconnect();
   }, []);
 
-  const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+  const scrollTop = () => {
+    const root = document.getElementById('root');
+    (root ?? window).scrollTo({ top: 0, behavior: 'smooth' });
+  };
   const selectTab = (id: CommunityTab) => { setTab(id); scrollTop(); };
 
   const TABS: { id: CommunityTab; label: string; icon: string }[] = [
@@ -179,6 +186,9 @@ export function CommunityPage() {
         <div className="pb-1 mb-5 -mx-1 px-1">
           {renderTabs(false)}
         </div>
+
+        {/* Sentinel: when it scrolls out of view, the floating nav appears. */}
+        <div ref={sentinelRef} style={{ height: 1 }} />
 
         <AnimatePresence mode="wait">
           {fullProfileId ? (
