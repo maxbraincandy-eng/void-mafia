@@ -78,6 +78,7 @@ export function startGame(room: Room): void {
         defenseQueue: [],
         currentDefenseIdx: 0,
         doubleEliminationVotes: {},
+        executeQueue: [],
       }
     : null;
 }
@@ -172,7 +173,8 @@ export function setPhase(room: Room, phase: Phase): void {
     case 'final_words': {
       const fwEvent = tryTriggerEvent(room, 'final_words');
       if (fwEvent) setRoomEvent(room, fwEvent);
-      const duration = room.activeEvent?.key === 'extended_final_words' ? 45 : 30;
+      // Don mode spec: the dead player gets a 1-minute final speech.
+      const duration = room.settings.donMode ? 60 : (room.activeEvent?.key === 'extended_final_words' ? 45 : 30);
       room.timer = duration;
       room.maxTimer = duration;
       break;
@@ -216,8 +218,9 @@ export function setPhase(room: Room, phase: Phase): void {
     }
     case 'tie_defense': {
       if (room.donModeState) room.donModeState.currentDefenseIdx = 0;
-      room.timer = 60;
-      room.maxTimer = 60;
+      // Don mode spec: tied players get 30s each for a final defense.
+      room.timer = 30;
+      room.maxTimer = 30;
       break;
     }
     case 'revote': {
@@ -453,6 +456,15 @@ export function advancePhase(room: Room): Phase {
         return 'game_over';
       }
 
+      // Don mode Execute-Both: chain to the next executed player's final speech.
+      if (room.donModeState?.executeQueue.length) {
+        const nextId = room.donModeState.executeQueue.shift()!;
+        room.deathSpeakerId = nextId;
+        room.finalWordsReason = 'vote_elimination';
+        setPhase(room, 'final_words');
+        return 'final_words';
+      }
+
       if (reason === 'night_kill' || reason === 'foul_death') {
         room.day++;
         if (room.settings.donMode) {
@@ -519,8 +531,8 @@ export function advancePhase(room: Room): Phase {
       }
       if (validIdx < room.donModeState.defenseQueue.length) {
         room.donModeState.currentDefenseIdx = validIdx;
-        room.timer = 60;
-        room.maxTimer = 60;
+        room.timer = 30; // spec: 30s per tied candidate
+        room.maxTimer = 30;
         return 'tie_defense';
       }
       // All done → revote
@@ -570,14 +582,18 @@ export function advancePhase(room: Room): Phase {
         const votes = Object.values(room.donModeState.doubleEliminationVotes);
         const yesCount = votes.filter(v => v).length;
         const noCount = votes.filter(v => !v).length;
-        if (yesCount > noCount) {
-          // Eliminate both tied players — no final words
-          for (const id of room.donModeState.tieCandidates) {
-            const p = room.players.get(id);
-            if (p && p.isAlive) { p.isAlive = false; p.deathType = 'vote'; }
-          }
-        }
+        const executed = room.donModeState.tieCandidates.filter(id => room.players.get(id)?.isAlive);
         room.donModeState.tieCandidates = [];
+        // Execute Both wins (yes > no): each executed player gets a 1-min final
+        // speech (spec), sequentially, then the game continues to the night.
+        // Release Both (no >= yes): both remain in the game.
+        if (yesCount > noCount && executed.length > 0) {
+          room.donModeState.executeQueue = executed.slice(1);
+          room.deathSpeakerId = executed[0]!;
+          room.finalWordsReason = 'vote_elimination';
+          setPhase(room, 'final_words');
+          return 'final_words';
+        }
         if (checkWin(room)) {
           setPhase(room, 'game_over');
           return 'game_over';
@@ -957,6 +973,8 @@ export function submitDoubleEliminationVote(room: Room, voter: Player, yes: bool
   if (room.phase !== 'double_elim_vote') throw new Error('Not Double Elimination Vote phase.');
   if (!voter.isAlive || voter.isSpectator) throw new Error('Must be an active player.');
   if (!room.donModeState) throw new Error('Don Mode is not active.');
+  // Spec: players on the tribunal (the tied candidates) cannot vote in this runoff.
+  if (room.donModeState.tieCandidates.includes(voter.id)) throw new Error('Tribunal candidates cannot vote in the runoff.');
   if (voter.hasActedThisPhase) throw new Error('Already voted.');
 
   room.donModeState.doubleEliminationVotes[voter.id] = yes;

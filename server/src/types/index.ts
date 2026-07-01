@@ -388,6 +388,8 @@ export interface DonModeState {
   defenseQueue: string[];
   currentDefenseIdx: number;
   doubleEliminationVotes: Record<string, boolean>;
+  /** Execute-Both winners still awaiting their 1-min final speech (spec). */
+  executeQueue: string[];
 }
 
 export interface DonModeStatePublic {

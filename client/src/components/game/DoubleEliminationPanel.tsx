@@ -16,7 +16,9 @@ export function DoubleEliminationPanel() {
     .map(id => room.players.find(p => p.id === id))
     .filter(Boolean);
 
-  const totalVoters = room.players.filter(p => p.isAlive && !p.isSpectator).length;
+  // Spec: players on the tribunal (the tied candidates) cannot vote in the runoff.
+  const amCandidate = !!me && dm.tieCandidates.includes(me.id);
+  const totalVoters = room.players.filter(p => p.isAlive && !p.isSpectator && !dm.tieCandidates.includes(p.id)).length;
   const yesVotes = dm.doubleElimYes;
   const noVotes = dm.doubleElimNo;
 
@@ -69,7 +71,13 @@ export function DoubleEliminationPanel() {
         </div>
       </div>
 
-      {amAlive && !amSpectator && !voted && (
+      {amCandidate && (
+        <div className="rounded-xl border border-neon-red/20 px-4 py-3" style={{ background: 'rgba(30,0,8,0.5)' }}>
+          <p className="text-xs font-mono text-neon-red/60">ⓘ თქვენ ტრიბუნალზე ხართ — ამ კენჭისყრაში ხმას ვერ მისცემთ.</p>
+        </div>
+      )}
+
+      {amAlive && !amSpectator && !amCandidate && !voted && (
         <div className="flex gap-3">
           <button
             onClick={() => handleVote(true)}
