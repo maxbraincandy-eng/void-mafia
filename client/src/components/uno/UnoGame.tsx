@@ -2,6 +2,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUnoStore } from '@/store/unoStore';
 import { useUnoVoice } from '@/hooks/useUnoVoice';
+import { useAuthStore } from '@/store/authStore';
+import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
+import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
 import { UnoCardComponent, UnoCardBack, ColorChip } from './UnoCard';
 import type { UnoPublicState, UnoCard, GameColor, UnoPlayerPublic } from '@/types/uno';
 import { haptic } from '@/lib/haptics';
@@ -494,15 +497,28 @@ export function UnoGame() {
   const [pendingWildCard, setPendingWildCard] = useState<UnoCard | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 
-  // Auto-join voice when match is entered
+  // LiveKit voice (each match == one LiveKit room). Replaces the mesh PTT when
+  // enabled; non-players are listen-only.
+  const lkProfile = useAuthStore(s => s.profile);
+  const { enabled: livekitEnabled, resolved: livekitResolved } = useLiveKitGate();
+  const lkIsPlayer = !!match && match.players.some(p => p.userId === match.myUserId);
+  const lkVoice = useLivekitRoomVoice({
+    roomId: match?.id ? `uno_${match.id}` : null,
+    identity: lkProfile?.id ?? null,
+    active: livekitEnabled && !!match?.id && match?.status !== 'finished',
+    listenOnly: !lkIsPlayer,
+  });
+
+  // Auto-join the legacy mesh voice — skipped when LiveKit owns voice.
   useEffect(() => {
     if (!match) return;
+    if (!livekitResolved || livekitEnabled) return;
     const isPlayer = match.players.some(p => p.userId === match.myUserId);
     if (isPlayer) voice.joinVoice(match.id);
     else voice.joinListen(match.id);
     return () => { voice.leave(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [match?.id]);
+  }, [match?.id, livekitResolved, livekitEnabled]);
 
   // Leave voice when finished
   useEffect(() => {
@@ -638,7 +654,10 @@ export function UnoGame() {
         </div>
 
         {/* Voice status + PTT */}
-        {voice.joined && (
+        {livekitEnabled && (
+          <div style={{ flex: 1, minWidth: 150 }}><LiveKitVoiceBarView voice={lkVoice} /></div>
+        )}
+        {!livekitEnabled && voice.joined && (
           <button
             onPointerDown={() => voice.startTalk(match.id)}
             onPointerUp={() => voice.stopTalk(match.id)}

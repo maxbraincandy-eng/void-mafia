@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useWWWStore } from '@/store/wwwStore';
 import { useAuthStore } from '@/store/authStore';
 import { useWWWVoice } from '@/hooks/useWWWVoice';
+import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
+import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
 import type { WWWMatchPublic, WWWTeam, WWWAnswer } from '@/types/www';
 
 const ACCENT = '#a855f7';
@@ -674,15 +676,27 @@ export function WWWGame() {
 
   const voice = useWWWVoice();
 
+  // LiveKit voice (each match == one LiveKit room). Replaces the mesh voice when
+  // enabled; spectators are listen-only.
+  const { enabled: livekitEnabled, resolved: livekitResolved } = useLiveKitGate();
+  const lkSpectator = !!match && (match.players[myId]?.isSpectator ?? false);
+  const lkVoice = useLivekitRoomVoice({
+    roomId: match?.id ? `www_${match.id}` : null,
+    identity: myId || null,
+    active: livekitEnabled && !!match?.id && match?.status !== 'finished',
+    listenOnly: lkSpectator,
+  });
+
   const [chatOpen, setChatOpen] = useState(false);
   const [chatText, setChatText] = useState('');
   const [answerText, setAnswerText] = useState('');
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Auto-join voice on match mount
+  // Auto-join the legacy mesh voice — skipped when LiveKit owns voice.
   useEffect(() => {
     if (!match) return;
+    if (!livekitResolved || livekitEnabled) return;
     const myPlayer = match.players[myId];
     if (myPlayer?.isSpectator) {
       voice.joinListen(match.id);
@@ -692,9 +706,8 @@ export function WWWGame() {
     return () => {
       voice.leave();
     };
-    // Only re-fire when match.id changes (not voice, which is stable refs)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [match?.id]);
+  }, [match?.id, livekitResolved, livekitEnabled]);
 
   // Timer countdown
   useEffect(() => {
@@ -808,8 +821,10 @@ export function WWWGame() {
         ))}
       </div>
 
-      {/* Voice status */}
-      {voice.joined && (
+      {/* Voice status — LiveKit bar when enabled, else the legacy mesh status */}
+      {livekitEnabled ? (
+        <div className="px-4 pb-1 flex-shrink-0"><LiveKitVoiceBarView voice={lkVoice} /></div>
+      ) : voice.joined && (
         <div className="px-4 pb-1 flex-shrink-0">
           <VoiceStatusBar status={voice.status} peers={voice.peers} />
         </div>

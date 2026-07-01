@@ -7,6 +7,9 @@ import { useLudoAnimation } from './useLudoAnimation';
 import { play, sfxDiceRoll, sfxCapture, sfxPieceHome, sfxVictory, vibrate, isSoundOn, setSoundOn } from './ludoSounds';
 import { useLudoVoice } from '@/hooks/useLudoVoice';
 import { LudoPTTButton } from './LudoPTTButton';
+import { useAuthStore } from '@/store/authStore';
+import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
+import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
 import { GameInviteButton } from '@/components/social/GameInviteButton';
 import type { LudoColor, LudoMatchPublic } from '@/types/ludo';
 
@@ -369,13 +372,26 @@ export function LudoGame() {
     ? (match?.players[ludoMyColor as 'red'|'blue'|'green'|'yellow']?.name ?? 'Player')
     : 'Player';
 
-  // Auto-join voice on match entry
+  // LiveKit voice (each match == one LiveKit room). Replaces the mesh PTT when
+  // enabled; spectators are listen-only.
+  const lkProfile = useAuthStore(s => s.profile);
+  const { enabled: livekitEnabled, resolved: livekitResolved } = useLiveKitGate();
+  const lkVoice = useLivekitRoomVoice({
+    roomId: ludoMatchId ? `ludo_${ludoMatchId}` : null,
+    identity: lkProfile?.id ?? null,
+    active: livekitEnabled && !!ludoMatchId && !isMatchFinished,
+    listenOnly: !ludoIsPlayer,
+  });
+
+  // Auto-join the legacy mesh voice — skipped when LiveKit owns voice.
   useEffect(() => {
     if (!ludoMatchId) return;
+    if (!livekitResolved) return;
+    if (livekitEnabled) return;
     if (ludoIsPlayer) joinVoice(ludoMatchId, ludoMyName);
     else joinListen(ludoMatchId, ludoMyName);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ludoMatchId]);
+  }, [ludoMatchId, livekitResolved, livekitEnabled]);
 
   useEffect(() => { if (isMatchFinished) leaveVoice(); }, [isMatchFinished, leaveVoice]);
   useEffect(() => () => leaveVoice(), [leaveVoice]);
@@ -645,10 +661,12 @@ export function LudoGame() {
             </AnimatePresence>
           </div>
 
-          {/* PTT */}
-          {isPlayer && !isFinished && (
+          {/* Voice — LiveKit bar when enabled, else the legacy mesh PTT */}
+          {livekitEnabled ? (
+            <div style={{ width: '100%', maxWidth: 340 }}><LiveKitVoiceBarView voice={lkVoice} /></div>
+          ) : (isPlayer && !isFinished && (
             <LudoPTTButton matchId={match.id} myName={match.players[bottomColor]?.name ?? 'Player'} />
-          )}
+          ))}
 
           {/* Consecutive sixes + chat */}
           <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
