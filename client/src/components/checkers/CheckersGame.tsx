@@ -5,6 +5,9 @@ import { useCheckersStore } from '@/store/checkersStore';
 import { CheckersBoard } from './CheckersBoard';
 import { CheckersPTTButton } from './CheckersPTTButton';
 import { useCheckersVoice } from '@/hooks/useCheckersVoice';
+import { useAuthStore } from '@/store/authStore';
+import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
+import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
 import { anyCapture } from '@/lib/checkersLogic';
 import { socket } from '@/lib/socket';
 import { GameInviteButton } from '@/components/social/GameInviteButton';
@@ -32,13 +35,27 @@ export function CheckersGame() {
   const checkersMyColor = match?.myColor;
   const checkersIsPlayer = checkersMyColor === 'red' || checkersMyColor === 'black';
 
-  // Auto-join voice on match entry
+  // LiveKit voice for checkers (each match == one LiveKit room). When enabled it
+  // REPLACES the legacy mesh PTT here; spectators join listen-only.
+  const profile = useAuthStore(s => s.profile);
+  const { enabled: livekitEnabled, resolved: livekitResolved } = useLiveKitGate();
+  const ckVoice = useLivekitRoomVoice({
+    roomId: checkersMatchId ? `ck_${checkersMatchId}` : null,
+    identity: profile?.id ?? null,
+    active: livekitEnabled && !!checkersMatchId && !isFinished,
+    listenOnly: !checkersIsPlayer,
+  });
+
+  // Auto-join the legacy mesh voice on match entry — skipped when LiveKit owns
+  // voice (guarded, and waits for the enabled status to resolve to avoid a race).
   useEffect(() => {
     if (!checkersMatchId) return;
+    if (!livekitResolved) return;
+    if (livekitEnabled) return;
     if (checkersIsPlayer) joinVoice(checkersMatchId);
     else joinListen(checkersMatchId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkersMatchId]);
+  }, [checkersMatchId, livekitResolved, livekitEnabled]);
 
   // Clean up voice on match end or unmount
   useEffect(() => {
@@ -170,12 +187,17 @@ export function CheckersGame() {
           />
         </div>
 
-        {/* PTT button — only for players in an active match */}
-        {isPlayer && match.status === 'active' && (
+        {/* Voice — LiveKit (open mic, all in the match) when enabled, else the
+            legacy mesh push-to-talk for players in an active match. */}
+        {livekitEnabled ? (
+          <div className="flex-shrink-0 px-3 pb-1">
+            <LiveKitVoiceBarView voice={ckVoice} />
+          </div>
+        ) : (isPlayer && match.status === 'active' && (
           <div className="flex-shrink-0 flex justify-center pb-1">
             <CheckersPTTButton matchId={match.id} />
           </div>
-        )}
+        ))}
 
         {/* Board */}
         <div className="flex-1 flex items-center justify-center px-3 pb-2 min-h-0">
