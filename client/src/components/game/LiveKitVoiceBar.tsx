@@ -1,12 +1,12 @@
 /**
- * LiveKitVoiceBar — minimal mic UI driven by the LiveKit game hook.
+ * LiveKitVoiceBar — minimal mic UI for LiveKit voice.
  *
- * This is the LiveKit voice path. GamePage mounts it only when the server
- * reports LiveKit is configured (LIVEKIT_* env present), so it never runs
- * alongside the legacy WebRTC mesh when LiveKit is off. The hook auto-joins the
- * voice room (gameRoomId === livekitRoomId), auto-mutes on death, leaves on exit.
+ * `LiveKitVoiceBar` is the game wrapper (binds useLivekitVoice). The Virtual
+ * Space renders `LiveKitVoiceBarView` directly with its own room binding. Both
+ * are mounted only when the server reports LiveKit configured, so they never
+ * run alongside the legacy WebRTC mesh when LiveKit is off.
  */
-import { useLivekitVoice } from '@/hooks/useLivekitVoice';
+import { useLivekitVoice, type LivekitVoice } from '@/hooks/useLivekitVoice';
 
 const STATUS_LABEL: Record<string, string> = {
   disconnected: 'ხმა გათიშულია',
@@ -15,9 +15,13 @@ const STATUS_LABEL: Record<string, string> = {
   reconnecting: 'ხელახლა კავშირი…',
 };
 
+/** Game wrapper — binds the Mafia game voice. */
 export function LiveKitVoiceBar() {
-  const voice = useLivekitVoice();
+  return <LiveKitVoiceBarView voice={useLivekitVoice()} />;
+}
 
+/** Presentational bar — render with any LiveKit voice binding. */
+export function LiveKitVoiceBarView({ voice }: { voice: LivekitVoice }) {
   const dot =
     voice.status === 'connected' ? '#22d36b'
     : voice.status === 'reconnecting' || voice.status === 'connecting' ? '#f5c542'

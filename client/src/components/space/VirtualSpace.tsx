@@ -5,6 +5,8 @@ import { useVirtualSpace, type SpacePlayer, type SpaceMask, type SpaceMeta as Sp
 import { SpacesLobby, SpaceInvitePanel } from './SpacesLobby';
 import { ProfileModalV2 } from '@/components/community/ProfileModalV2';
 import { useSpaceVoice } from '@/hooks/useSpaceVoice';
+import { useLivekitRoomVoice, useLiveKitEnabled } from '@/hooks/useLivekitVoice';
+import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
 import { useAuthStore } from '@/store/authStore';
 import { useNameColor } from '@/store/nameColorStore';
 import { useCommunityStore } from '@/store/communityStore';
@@ -1550,6 +1552,20 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   }, [profile?.moderatorLevel]);
   const { joined: voiceJoined, muted, speakingIds, status: voiceStatus, joinVoice, joinVoiceGhost, leaveVoice, toggleMute } = useSpaceVoice();
 
+  // LiveKit voice for the Virtual Space: each space maps to a LiveKit room of
+  // the same id. When LiveKit is enabled it REPLACES the legacy mesh voice here
+  // (the mesh join calls below are guarded on livekitRef) so the mic isn't
+  // double-captured. Ghosts join listen-only.
+  const livekitEnabled = useLiveKitEnabled();
+  const spaceVoice = useLivekitRoomVoice({
+    roomId: joined && space ? space.id : null,
+    identity: profile?.id ?? null,
+    active: livekitEnabled && joined && !!space,
+    listenOnly: ghost,
+  });
+  const livekitRef = useRef(false);
+  useEffect(() => { livekitRef.current = livekitEnabled; }, [livekitEnabled]);
+
   // ── Space selection flow: lobby → customize → in-space ────────────────
   const [view, setView] = useState<'lobby' | 'customize'>('lobby');
   const [selectedSpace, setSelectedSpace] = useState<SpaceMetaT | null>(null);
@@ -1572,10 +1588,10 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
         const form = localStorage.getItem(LS_FORM) ?? 'human';
         joinTimeRef.current = Date.now();
         if (ghostMode) {
-          ghostJoin(res.space.id).then(ok => { if (ok) joinVoiceGhost(); }).finally(() => setResolvingDeepLink(false)); // observe + listen-only
+          ghostJoin(res.space.id).then(ok => { if (ok && !livekitRef.current) joinVoiceGhost(); }).finally(() => setResolvingDeepLink(false)); // observe + listen-only
         } else {
           join(res.space.id, playerName, body, glow, mask, hat, pet, form).then(ok => {
-            if (ok) joinVoice();
+            if (ok && !livekitRef.current) joinVoice();
             setResolvingDeepLink(false);
           });
         }
@@ -1745,13 +1761,13 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
     // justJoined check is accurate when music is playing in the room.
     joinTimeRef.current = Date.now();
     const ok = await join(selectedSpace?.id ?? 'main', playerName, bodyColor, glowColor, mask, hat, pet, form);
-    if (ok) joinVoice();
+    if (ok && !livekitRef.current) joinVoice();
   }
 
   // Owner ghost-observe: skip the customizer and enter without spawning/voice.
   const handleGhostEnter = useCallback(() => {
     joinTimeRef.current = Date.now();
-    ghostJoin(selectedSpace?.id ?? 'main').then(ok => { if (ok) joinVoiceGhost(); }); // listen-only voice
+    ghostJoin(selectedSpace?.id ?? 'main').then(ok => { if (ok && !livekitRef.current) joinVoiceGhost(); }); // listen-only voice
   }, [ghostJoin, selectedSpace, joinVoiceGhost]);
 
   // Called from click → user gesture → iOS allows
@@ -1920,7 +1936,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             {joined && space ? `${space.icon} ${space.name}`.toUpperCase() : 'VOID LOUNGE'}
           </p>
           <p style={{ fontFamily:'monospace',fontSize:10,color:'rgba(255,255,255,.28)',letterSpacing:'0.08em',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis' }}>
-            {joined ? `${players.size} online · ${voiceLabel}` : 'სოციალური სივრცე'}
+            {joined ? (livekitEnabled ? `${players.size} online` : `${players.size} online · ${voiceLabel}`) : 'სოციალური სივრცე'}
           </p>
         </div>
         {joined && (
@@ -1933,7 +1949,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             ✦
           </button>
         )}
-        {joined && !ghost && (
+        {joined && !ghost && !livekitEnabled && (
           <button onClick={toggleMute} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:muted?'rgba(255,45,85,.12)':'rgba(0,229,255,.08)',border:`1px solid ${muted?'rgba(255,45,85,.35)':'rgba(0,229,255,.25)'}`,fontSize:14 }}>
             {muted ? '🔇' : '🎤'}
           </button>
@@ -1960,6 +1976,11 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
         )}
         <button onClick={() => { if (joined) setConfirmExit(true); else handleClose(); }} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.1)',color:'rgba(255,255,255,.45)',fontSize:14 }}>✕</button>
       </div>
+
+      {/* LiveKit voice — replaces the mesh in the space when configured. */}
+      {livekitEnabled && joined && (
+        <div className="px-3 pb-2 shrink-0"><LiveKitVoiceBarView voice={spaceVoice} /></div>
+      )}
 
       {/* Content */}
       {!joined ? (

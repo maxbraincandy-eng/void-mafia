@@ -40,49 +40,53 @@ export function useLiveKitEnabled(): boolean {
   return enabled;
 }
 
-export function useLivekitVoice() {
-  const [state, setState] = useState<LiveKitVoiceState>(getLiveKitState);
+export interface LivekitRoomVoiceOpts {
+  /** LiveKit room name (== game/space id). Null when there's no room yet. */
+  roomId: string | null;
+  /** Local participant identity (profile/player id). */
+  identity: string | null;
+  /** Should the user be in voice right now. */
+  active: boolean;
+  /** Listen-only (dead player / ghost) — mic force-muted & locked. */
+  listenOnly?: boolean;
+}
 
-  const roomId = useGameStore(s => s.room?.id ?? null);
-  const phase = useGameStore(s => s.room?.phase ?? null);
-  const myPlayerId = useGameStore(s => s.myPlayerId);
-  // amAlive() is a selector; recompute it from the reactive players list so the
-  // effect re-runs when the local player's isAlive flips in room:update.
-  const isAlive = useGameStore(s => {
-    if (!s.room || !s.myPlayerId) return true;
-    const me = s.room.players.find(p => p.id === s.myPlayerId)
-      ?? s.room.nextRoundQueue?.find(p => p.id === s.myPlayerId);
-    return me?.isAlive ?? true;
-  });
+/**
+ * Generic LiveKit voice binding shared by the Mafia game and the Virtual Space.
+ * Joins `roomId` as `identity` while `active`, force-mutes when `listenOnly`,
+ * and leaves on teardown. One LiveKit room at a time (module singleton), so
+ * switching screens cleanly hands the connection over.
+ */
+export function useLivekitRoomVoice({ roomId, identity, active, listenOnly = false }: LivekitRoomVoiceOpts) {
+  const [state, setState] = useState<LiveKitVoiceState>(getLiveKitState);
 
   // Mirror the module-level voice state into React.
   useEffect(() => subscribeLiveKit(setState), []);
 
-  const active = !!roomId && !!myPlayerId && !!phase && !INACTIVE_PHASES.has(phase);
+  const on = active && !!roomId && !!identity;
 
-  // Auto-join / leave: each game room maps to a LiveKit room of the same id.
+  // Auto-join / leave: room id maps 1:1 to a LiveKit room of the same name.
   useEffect(() => {
-    if (active && roomId && myPlayerId) {
-      joinLiveKitVoice(myPlayerId, roomId, { alive: isAlive }).catch(() => {});
+    if (on && roomId && identity) {
+      joinLiveKitVoice(identity, roomId, { alive: !listenOnly }).catch(() => {});
     } else {
       leaveLiveKitVoice().catch(() => {});
     }
-    // Intentionally not depending on isAlive here — death is handled below so a
-    // mid-game death doesn't tear down and rebuild the whole connection.
-    // eslint-disable-line react-hooks/exhaustive-deps
-  }, [active, roomId, myPlayerId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // listenOnly handled in the next effect so a mid-session death/ghost toggle
+    // doesn't tear down and rebuild the whole connection.
+  }, [on, roomId, identity]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Death → force listen-only; revive/next game → allow speaking again.
+  // Listen-only toggle (death / ghost) without reconnecting.
   useEffect(() => {
-    if (!active) return;
-    setLiveKitDead(!isAlive).catch(() => {});
-  }, [active, isAlive]);
+    if (!on) return;
+    setLiveKitDead(listenOnly).catch(() => {});
+  }, [on, listenOnly]);
 
-  // Leave on unmount of the whole app/game tree.
+  // Leave on unmount.
   useEffect(() => () => { leaveLiveKitVoice().catch(() => {}); }, []);
 
   const toggleMic = useCallback(() => { toggleLiveKitMic().catch(() => {}); }, []);
-  const setMic = useCallback((on: boolean) => { setLiveKitMic(on).catch(() => {}); }, []);
+  const setMic = useCallback((m: boolean) => { setLiveKitMic(m).catch(() => {}); }, []);
   const leave = useCallback(() => { leaveLiveKitVoice().catch(() => {}); }, []);
   const unlockAudio = useCallback(() => { startLiveKitAudio().catch(() => {}); }, []);
 
@@ -95,4 +99,24 @@ export function useLivekitVoice() {
     leave,
     unlockAudio,
   };
+}
+
+export type LivekitVoice = ReturnType<typeof useLivekitRoomVoice>;
+
+/** Mafia game binding: each game room == one LiveKit room; death → listen-only. */
+export function useLivekitVoice(): LivekitVoice {
+  const roomId = useGameStore(s => s.room?.id ?? null);
+  const phase = useGameStore(s => s.room?.phase ?? null);
+  const myPlayerId = useGameStore(s => s.myPlayerId);
+  // Recompute alive from the reactive players list so a death in room:update
+  // re-runs the listen-only effect.
+  const isAlive = useGameStore(s => {
+    if (!s.room || !s.myPlayerId) return true;
+    const me = s.room.players.find(p => p.id === s.myPlayerId)
+      ?? s.room.nextRoundQueue?.find(p => p.id === s.myPlayerId);
+    return me?.isAlive ?? true;
+  });
+
+  const active = !!phase && !INACTIVE_PHASES.has(phase);
+  return useLivekitRoomVoice({ roomId, identity: myPlayerId, active, listenOnly: !isAlive });
 }
