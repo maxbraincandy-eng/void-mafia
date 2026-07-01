@@ -876,14 +876,17 @@ export async function getStoryViewers(storyId, requesterId) {
     if (s.author_id !== requesterId)
         throw new Error('Only the author can see viewers.');
     const rows = await sql `
-    SELECT v.viewed_at, p.id, p.username, p.avatar, p.avatar_url, p.public_id
-    FROM community_story_views v JOIN players p ON p.id = v.viewer_id
+    SELECT v.viewed_at, p.id, p.username, p.avatar, p.avatar_url, p.public_id, rx.reaction
+    FROM community_story_views v
+    JOIN players p ON p.id = v.viewer_id
+    LEFT JOIN community_story_reactions rx ON rx.story_id = v.story_id AND rx.reactor_id = v.viewer_id
     WHERE v.story_id = ${storyId}
     ORDER BY v.viewed_at DESC
   `;
     return rows.map((r) => ({
         id: r.id, username: r.username, avatar: r.avatar, avatarUrl: r.avatar_url ?? null,
         publicId: r.public_id != null ? Number(r.public_id) : null, viewedAt: Number(r.viewed_at),
+        reaction: r.reaction ?? null,
     }));
 }
 export async function deleteStory(id, requesterId, isMod) {

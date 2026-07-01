@@ -12,7 +12,7 @@ export interface StoryGroup {
 }
 export interface StoryViewerRow {
   id: string; username: string; avatar: string; avatarUrl: string | null;
-  publicId: number | null; viewedAt: number;
+  publicId: number | null; viewedAt: number; reaction?: string | null;
 }
 
 // Must match STORY_REACTIONS on the server.
@@ -287,6 +287,7 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
               style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '8px 4px', background: 'transparent', border: 'none' }}>
               <Avatar avatar={v.avatar} avatarUrl={v.avatarUrl} size={36} />
               <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#fff' }}>{v.username}</span>
+              {v.reaction && <span style={{ fontSize: 15, lineHeight: 1 }}>{v.reaction}</span>}
               <div style={{ flex: 1 }} />
               <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{timeAgo(v.viewedAt)}</span>
             </button>

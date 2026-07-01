@@ -132,6 +132,7 @@ export interface StoryViewer {
     avatarUrl: string | null;
     publicId: number | null;
     viewedAt: number;
+    reaction: string | null;
 }
 export declare function createStory(authorId: string, imageUrl: string, caption: string): Promise<StoryItem>;
 export declare function listActiveStories(viewerId?: string): Promise<StoryGroup[]>;

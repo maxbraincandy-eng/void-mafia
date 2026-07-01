@@ -892,7 +892,7 @@ export interface StoryGroup {
   authorId: string; username: string; avatar: string; avatarUrl: string | null;
   publicId: number | null; stories: StoryItem[];
 }
-export interface StoryViewer { id: string; username: string; avatar: string; avatarUrl: string | null; publicId: number | null; viewedAt: number; }
+export interface StoryViewer { id: string; username: string; avatar: string; avatarUrl: string | null; publicId: number | null; viewedAt: number; reaction: string | null; }
 
 export async function createStory(authorId: string, imageUrl: string, caption: string): Promise<StoryItem> {
   if (!imageUrl || !imageUrl.startsWith('data:image/')) throw new Error('Invalid image.');
@@ -948,14 +948,17 @@ export async function getStoryViewers(storyId: string, requesterId: string): Pro
   if (!s) return [];
   if (s.author_id !== requesterId) throw new Error('Only the author can see viewers.');
   const rows = await sql`
-    SELECT v.viewed_at, p.id, p.username, p.avatar, p.avatar_url, p.public_id
-    FROM community_story_views v JOIN players p ON p.id = v.viewer_id
+    SELECT v.viewed_at, p.id, p.username, p.avatar, p.avatar_url, p.public_id, rx.reaction
+    FROM community_story_views v
+    JOIN players p ON p.id = v.viewer_id
+    LEFT JOIN community_story_reactions rx ON rx.story_id = v.story_id AND rx.reactor_id = v.viewer_id
     WHERE v.story_id = ${storyId}
     ORDER BY v.viewed_at DESC
   ` as any[];
   return rows.map((r: any) => ({
     id: r.id, username: r.username, avatar: r.avatar, avatarUrl: r.avatar_url ?? null,
     publicId: r.public_id != null ? Number(r.public_id) : null, viewedAt: Number(r.viewed_at),
+    reaction: r.reaction ?? null,
   }));
 }
 
