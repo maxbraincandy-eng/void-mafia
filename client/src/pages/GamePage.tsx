@@ -21,8 +21,8 @@ import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { RoomMoreMenu } from '@/components/ui/RoomMoreMenu';
 import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
-import { LiveKitVoiceBar } from '@/components/game/LiveKitVoiceBar';
-import { useLiveKitEnabled } from '@/hooks/useLivekitVoice';
+import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
+import { useLiveKitGate, useLivekitVoice } from '@/hooks/useLivekitVoice';
 import { useVoiceChat, VoiceChannel, registerVoiceGestureRetry } from '@/hooks/useVoiceChat';
 import { useGameSounds, SFX } from '@/hooks/useSoundFX';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -206,7 +206,8 @@ export function GamePage() {
   }));
 
   const voice = useVoiceChat();
-  const livekitEnabled = useLiveKitEnabled();
+  const { enabled: livekitEnabled, resolved: livekitResolved } = useLiveKitGate();
+  const lkVoice = useLivekitVoice(); // LiveKit game binding (audio/video/phase mutes)
   useGameSounds();
   const t = useT();
 
@@ -239,6 +240,7 @@ export function GamePage() {
   // Auto-join Mafia voice when night starts; rejoin room channel when night ends.
   const prevPhaseForVoice = useRef<string | null>(null);
   useEffect(() => {
+    if (livekitEnabled) return; // LiveKit handles voice — no mesh channel switching
     const cur = room?.phase ?? null;
     if (!cur || cur === prevPhaseForVoice.current) return;
     const prev = prevPhaseForVoice.current;
@@ -280,7 +282,9 @@ export function GamePage() {
   const autoJoined = useRef(false);
   useEffect(() => {
     if (!room?.id || autoJoined.current || voice.channel) return;
+    if (!livekitResolved) return;        // wait until we know which voice system
     autoJoined.current = true;
+    if (livekitEnabled) return;          // LiveKit auto-joins — skip mesh
     if (amSpectator) {
       voice.joinVoiceListenOnly('room');
     } else {
@@ -288,7 +292,7 @@ export function GamePage() {
       registerVoiceGestureRetry(() => voice.joinVoice(voiceChannel, false, false));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room?.id]);
+  }, [room?.id, livekitResolved, livekitEnabled]);
 
   // ── Voice continuity for dead players & spectators ──────────────────────
   // Becoming dead or a spectator must NEVER make a player lose the ability to
@@ -302,6 +306,7 @@ export function GamePage() {
   // dead/spectator player has no active session — no reconnect loop for alive
   // players, who keep their full session.
   useEffect(() => {
+    if (livekitEnabled) return;                  // LiveKit keeps dead/spectator listen-only
     if (!room?.id) return;
     if (amAlive && !amSpectator) return;        // alive players: handled by phase effect
     if (voice.channel) return;                   // already connected to a channel — keep it
@@ -310,7 +315,7 @@ export function GamePage() {
     // Dead or spectator with no active voice session → restore room listen-only.
     voice.joinVoiceListenOnly('room');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room?.id, amAlive, amSpectator, voice.channel, voice.status, voice.isRefreshing]);
+  }, [room?.id, amAlive, amSpectator, voice.channel, voice.status, voice.isRefreshing, livekitEnabled]);
 
   // On a local state change (alive ↔ dead ↔ spectator), restore remote audio
   // playback without reconnecting — guards against the browser pausing or
@@ -420,9 +425,26 @@ export function GamePage() {
   // Mic is locked when server force-muted this player (speech phase non-speaker, or night for non-mafia)
   const micLocked = voice.forceMuted;
 
-  // Per-tile voice state — drives in-frame mic/camera controls & speaking rings
-  const speakingSocketIds = new Set(voice.peers.filter(p => p.isSpeaking).map(p => p.socketId));
-  const tileVoice = {
+  // Per-tile voice state — drives in-frame mic/camera controls & speaking rings.
+  // When LiveKit is active it backs the tiles (so the in-tile mic/camera buttons
+  // and remote video work through LiveKit, not the disconnected mesh).
+  const speakingSocketIds = livekitEnabled
+    ? lkVoice.speakingSocketIds
+    : new Set(voice.peers.filter(p => p.isSpeaking).map(p => p.socketId));
+  const tileVoice = livekitEnabled ? {
+    speakingSocketIds,
+    localSocketId: myPlayer?.socketId ?? null,
+    inVoice: lkVoice.connected,
+    isMuted: lkVoice.isMuted,
+    cameraOn: lkVoice.cameraOn,
+    isLocalSpeaking: lkVoice.isLocalSpeaking,
+    localStream: lkVoice.localVideoStream,
+    remoteStreams: lkVoice.remoteVideoStreams,
+    micLocked: lkVoice.dead || lkVoice.forceMuted,
+    onToggleMute: lkVoice.toggleMic,
+    onToggleCamera: lkVoice.toggleCamera,
+    onJoin: () => {}, // LiveKit auto-joins
+  } : {
     speakingSocketIds,
     localSocketId: myPlayer?.socketId ?? null,
     inVoice: voice.channel !== null,
@@ -530,6 +552,7 @@ export function GamePage() {
           </p>
         </div>
       )}
+      {!livekitEnabled && (
       <VoiceControls
         channel={voice.channel}
         status={voice.status}
@@ -552,9 +575,10 @@ export function GamePage() {
         onToggleCamera={voice.toggleCamera}
         onReset={voice.resetConnection}
       />
+      )}
       {/* LiveKit voice — auto-enabled when the server has LIVEKIT_* env set. */}
       {livekitEnabled && (
-        <div className="mt-3"><LiveKitVoiceBar /></div>
+        <div className="mt-3"><LiveKitVoiceBarView voice={lkVoice} /></div>
       )}
       {isInVoice && voice.peers.length > 0 && (
         <div className="mt-3">

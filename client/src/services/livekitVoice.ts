@@ -32,14 +32,18 @@ export interface LiveKitVoiceState {
   forceMuted: boolean;
   /** Human-readable reason for the phase force-mute. */
   forceMuteReason: string | null;
+  /** Local camera is publishing. */
+  cameraOn: boolean;
   participants: number;
   /** Browser blocked remote audio autoplay (mobile) — needs a tap to unlock. */
   audioBlocked: boolean;
+  /** Bumped on any video / active-speaker change so React re-reads the getters. */
+  rev: number;
   error: string | null;
 }
 
 const INITIAL: LiveKitVoiceState = {
-  status: 'disconnected', room: null, micEnabled: false, dead: false, forceMuted: false, forceMuteReason: null, participants: 0, audioBlocked: false, error: null,
+  status: 'disconnected', room: null, micEnabled: false, dead: false, forceMuted: false, forceMuteReason: null, cameraOn: false, participants: 0, audioBlocked: false, rev: 0, error: null,
 };
 
 // ── Module-level singleton ─────────────────────────────────────────────
@@ -49,6 +53,15 @@ let currentRoomId: string | null = null;
 let joinSeq = 0; // guards against races between rapid join/leave
 const listeners = new Set<(s: LiveKitVoiceState) => void>();
 const audioEls = new Map<string, HTMLAudioElement>();
+// Remote camera video, keyed by participant identity (== player id).
+let remoteVideo = new Map<string, MediaStream>();
+let localVideoStream: MediaStream | null = null;
+let speakingIdentities = new Set<string>();
+
+/** Remote camera streams keyed by participant identity (player id). */
+export function getLiveKitRemoteVideo(): Map<string, MediaStream> { return remoteVideo; }
+export function getLiveKitLocalVideo(): MediaStream | null { return localVideoStream; }
+export function getLiveKitSpeaking(): Set<string> { return speakingIdentities; }
 
 function patch(p: Partial<LiveKitVoiceState>) {
   state = { ...state, ...p };
@@ -71,43 +84,67 @@ function mapStatus(cs: ConnectionState): LiveKitStatus {
   }
 }
 
-function attachTrack(track: RemoteTrack, id: string) {
-  if (track.kind !== Track.Kind.Audio) return;
-  const el = track.attach() as HTMLAudioElement;
-  el.autoplay = true;
-  (el as any).playsInline = true;
-  el.style.display = 'none';
-  document.body.appendChild(el);
-  audioEls.set(id, el);
+function attachTrack(track: RemoteTrack, p: RemoteParticipant, sid: string) {
+  if (track.kind === Track.Kind.Audio) {
+    const el = track.attach() as HTMLAudioElement;
+    el.autoplay = true;
+    (el as any).playsInline = true;
+    el.style.display = 'none';
+    document.body.appendChild(el);
+    audioEls.set(p.identity + ':' + sid, el);
+  } else if (track.kind === Track.Kind.Video) {
+    // Expose remote camera as a MediaStream for the UI's <video> tiles.
+    remoteVideo.set(p.identity, new MediaStream([track.mediaStreamTrack]));
+    bumpRev();
+  }
 }
 
-function detachTrack(id: string) {
-  const el = audioEls.get(id);
-  if (el) { el.remove(); audioEls.delete(id); }
+function detachTrack(track: RemoteTrack, p: RemoteParticipant, sid: string) {
+  if (track.kind === Track.Kind.Audio) {
+    const el = audioEls.get(p.identity + ':' + sid);
+    if (el) { el.remove(); audioEls.delete(p.identity + ':' + sid); }
+  } else if (track.kind === Track.Kind.Video) {
+    remoteVideo.delete(p.identity);
+    bumpRev();
+  }
 }
 
-function clearAudio() {
+function clearMedia() {
   audioEls.forEach(el => el.remove());
   audioEls.clear();
+  remoteVideo = new Map();
+  localVideoStream = null;
+  speakingIdentities = new Set();
 }
+
+let _rev = 0;
+function bumpRev() { patch({ rev: ++_rev }); }
 
 function wireRoom(r: Room) {
   r.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, pub: RemoteTrackPublication, p: RemoteParticipant) => {
-    attachTrack(track, p.identity + ':' + pub.trackSid);
+    attachTrack(track, p, pub.trackSid);
   });
-  r.on(RoomEvent.TrackUnsubscribed, (_t: RemoteTrack, pub: RemoteTrackPublication, p: RemoteParticipant) => {
-    detachTrack(p.identity + ':' + pub.trackSid);
+  r.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, pub: RemoteTrackPublication, p: RemoteParticipant) => {
+    detachTrack(track, p, pub.trackSid);
   });
   r.on(RoomEvent.ConnectionStateChanged, (cs: ConnectionState) => {
     patch({ status: mapStatus(cs) });
   });
   const updateCount = () => patch({ participants: r.numParticipants });
   r.on(RoomEvent.ParticipantConnected, updateCount);
-  r.on(RoomEvent.ParticipantDisconnected, updateCount);
+  r.on(RoomEvent.ParticipantDisconnected, (p: RemoteParticipant) => {
+    remoteVideo.delete(p.identity);
+    updateCount();
+  });
   r.on(RoomEvent.Disconnected, () => { /* status handled by ConnectionStateChanged */ });
   // Mobile browsers (esp. iOS) block remote-audio autoplay until a user gesture.
   r.on(RoomEvent.AudioPlaybackStatusChanged, () => {
     patch({ audioBlocked: !r.canPlaybackAudio });
+  });
+  // Speaking rings.
+  r.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+    speakingIdentities = new Set(speakers.map(s => s.identity));
+    bumpRev();
   });
 }
 
@@ -220,6 +257,23 @@ export async function toggleLiveKitMic(): Promise<void> {
   await setLiveKitMic(!state.micEnabled);
 }
 
+/** Enable/disable the local camera (publishes video to the room). */
+export async function setLiveKitCamera(enabled: boolean): Promise<void> {
+  if (!room) return;
+  await room.localParticipant.setCameraEnabled(enabled);
+  if (enabled) {
+    const track = room.localParticipant.getTrackPublication(Track.Source.Camera)?.videoTrack?.mediaStreamTrack;
+    localVideoStream = track ? new MediaStream([track]) : null;
+  } else {
+    localVideoStream = null;
+  }
+  patch({ cameraOn: enabled, rev: ++_rev });
+}
+
+export async function toggleLiveKitCamera(): Promise<void> {
+  await setLiveKitCamera(!state.cameraOn);
+}
+
 /**
  * Mark the local player dead → force-mute and lock the mic (can still hear).
  * Pass false to revert (e.g. revive / next game).
@@ -238,7 +292,7 @@ export async function leaveLiveKitVoice(): Promise<void> {
   currentRoomId = null;
   const r = room;
   room = null;
-  clearAudio();
+  clearMedia();
   if (r) { try { await r.disconnect(); } catch { /* ignore */ } }
   patch({ ...INITIAL });
 }

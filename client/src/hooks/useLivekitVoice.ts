@@ -14,14 +14,18 @@
  *   const voice = useLivekitVoice();
  *   <button onClick={voice.toggleMic}>{voice.micEnabled ? '🎙' : '🔇'}</button>
  */
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useGameStore } from '@/store/gameStore';
 import { socket } from '@/lib/socket';
+import type { PlayerPublic } from '@/types/index';
 import {
   joinLiveKitVoice, leaveLiveKitVoice, setLiveKitDead, setLiveKitForceMuted,
   toggleLiveKitMic, setLiveKitMic, subscribeLiveKit, getLiveKitState,
+  toggleLiveKitCamera, getLiveKitRemoteVideo, getLiveKitLocalVideo, getLiveKitSpeaking,
   fetchLiveKitEnabled, getLiveKitEnabledCached, startLiveKitAudio, type LiveKitVoiceState,
 } from '@/services/livekitVoice';
+
+const EMPTY_PLAYERS: PlayerPublic[] = [];
 
 // Phases where the game hook itself doesn't auto-join (lobby is handled by
 // LobbyPage's own binding; game_over ends voice).
@@ -114,7 +118,7 @@ export function useLivekitRoomVoice({ roomId, identity, active, listenOnly = fal
 export type LivekitVoice = ReturnType<typeof useLivekitRoomVoice>;
 
 /** Mafia game binding: each game room == one LiveKit room; death → listen-only. */
-export function useLivekitVoice(): LivekitVoice {
+export function useLivekitVoice() {
   const roomId = useGameStore(s => s.room?.id ?? null);
   const phase = useGameStore(s => s.room?.phase ?? null);
   const myPlayerId = useGameStore(s => s.myPlayerId);
@@ -146,5 +150,37 @@ export function useLivekitVoice(): LivekitVoice {
     if (active && voice.connected) socket.emit('voice:livekit_sync');
   }, [active, voice.connected]);
 
-  return voice;
+  // Map LiveKit participant identities (== player id) to socketIds so the game's
+  // existing video tiles / speaking rings (keyed by socketId) work with LiveKit.
+  const players = useGameStore(s => s.room?.players ?? EMPTY_PLAYERS);
+  // voice.rev changes on any video / active-speaker update → recompute the maps.
+  const rev = voice.rev;
+  const { remoteVideoStreams, speakingSocketIds, isLocalSpeaking } = useMemo(() => {
+    const idToSocket = new Map<string, string>();
+    for (const p of players) idToSocket.set(p.id, p.socketId);
+    const streams: Record<string, MediaStream> = {};
+    getLiveKitRemoteVideo().forEach((stream, identity) => {
+      const sock = idToSocket.get(identity);
+      if (sock) streams[sock] = stream;
+    });
+    const speaking = new Set<string>();
+    getLiveKitSpeaking().forEach(identity => {
+      const sock = idToSocket.get(identity);
+      if (sock) speaking.add(sock);
+    });
+    const mySock = myPlayerId ? idToSocket.get(myPlayerId) ?? null : null;
+    return { remoteVideoStreams: streams, speakingSocketIds: speaking, isLocalSpeaking: !!mySock && speaking.has(mySock) };
+  }, [players, rev, myPlayerId]);
+
+  return {
+    ...voice,
+    /** Effective muted (user mute, phase force-mute, or dead). */
+    isMuted: !voice.micEnabled || voice.forceMuted || voice.dead,
+    isLocalSpeaking,
+    speakingSocketIds,
+    /** Remote camera streams keyed by socketId (for the player tiles). */
+    remoteVideoStreams,
+    localVideoStream: getLiveKitLocalVideo(),
+    toggleCamera: () => { toggleLiveKitCamera().catch(() => {}); },
+  };
 }

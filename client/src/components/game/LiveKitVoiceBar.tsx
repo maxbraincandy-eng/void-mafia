@@ -21,7 +21,7 @@ export function LiveKitVoiceBar() {
 }
 
 /** Presentational bar — render with any LiveKit voice binding. */
-export function LiveKitVoiceBarView({ voice }: { voice: LivekitVoice }) {
+export function LiveKitVoiceBarView({ voice }: { voice: LivekitVoice & { cameraOn?: boolean; toggleCamera?: () => void } }) {
   const dot =
     voice.status === 'connected' ? '#22d36b'
     : voice.status === 'reconnecting' || voice.status === 'connecting' ? '#f5c542'
@@ -41,6 +41,22 @@ export function LiveKitVoiceBarView({ voice }: { voice: LivekitVoice }) {
           style={{ fontFamily: 'monospace', fontSize: 13, padding: '6px 12px', borderRadius: 10, border: '1px solid rgba(245,197,66,0.5)', background: 'rgba(245,197,66,0.18)', color: '#f5c542' }}
         >
           🔊 ხმის ჩართვა
+        </button>
+      )}
+      {voice.toggleCamera && (
+        <button
+          onClick={voice.toggleCamera}
+          disabled={!voice.connected}
+          title={voice.cameraOn ? 'კამერა გამორთვა' : 'კამერა ჩართვა'}
+          style={{
+            fontFamily: 'monospace', fontSize: 13, padding: '6px 10px', borderRadius: 10,
+            border: '1px solid rgba(255,255,255,0.15)',
+            background: voice.cameraOn ? 'rgba(0,229,255,0.18)' : 'rgba(255,255,255,0.05)',
+            color: voice.cameraOn ? '#00e5ff' : 'rgba(255,255,255,0.6)',
+            opacity: voice.connected ? 1 : 0.4,
+          }}
+        >
+          {voice.cameraOn ? '📹' : '📷'}
         </button>
       )}
       {voice.dead ? (
