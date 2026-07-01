@@ -868,6 +868,7 @@ export interface ServerToClientEvents {
   'community:notification': (n: CommunityNotification) => void;
   'community:lounge_update': (lounge: CommunityLounge) => void;
   'community:post_reacted': (data: { postId: string; reactions: Record<string, number>; myReaction: string | null }) => void;
+  'community:story_reacted': (data: { storyId: string; reactions: Record<string, number> }) => void;
   'community:leaderboard_update': (data: any[]) => void;
   'community:lounge_removed': (data: { loungeId: string }) => void;
   'community:post_new':      (post: CommunityPost) => void;

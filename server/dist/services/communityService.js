@@ -894,6 +894,53 @@ export async function deleteStory(id, requesterId, isMod) {
         throw new Error('Not allowed.');
     await sql `DELETE FROM community_stories WHERE id = ${id}`;
     await sql `DELETE FROM community_story_views WHERE story_id = ${id}`;
+    await sql `DELETE FROM community_story_reactions WHERE story_id = ${id}`;
+}
+// ── Story reactions ─────────────────────────────────────────────────────
+export const STORY_REACTIONS = ['🤍', '🔥', '👍', '⭐', '🤯', '😂'];
+async function tallyStoryReactions(storyId) {
+    const rows = await sql `SELECT reaction, COUNT(*) as cnt FROM community_story_reactions WHERE story_id = ${storyId} GROUP BY reaction`;
+    const out = {};
+    for (const r of rows)
+        out[r.reaction] = Number(r.cnt);
+    return out;
+}
+/**
+ * Toggle a reaction on a story. One reaction per user (composite PK):
+ * same emoji → remove, different → switch, none → add. Returns fresh counts.
+ */
+export async function toggleStoryReaction(storyId, reactorId, reaction) {
+    if (!STORY_REACTIONS.includes(reaction))
+        throw new Error('Invalid reaction.');
+    const [existing] = await sql `SELECT reaction FROM community_story_reactions WHERE story_id = ${storyId} AND reactor_id = ${reactorId}`;
+    let myReaction = reaction;
+    if (existing) {
+        if (existing.reaction === reaction) {
+            await sql `DELETE FROM community_story_reactions WHERE story_id = ${storyId} AND reactor_id = ${reactorId}`;
+            myReaction = null;
+        }
+        else {
+            await sql `UPDATE community_story_reactions SET reaction = ${reaction}, created_at = ${Date.now()} WHERE story_id = ${storyId} AND reactor_id = ${reactorId}`;
+        }
+    }
+    else {
+        // ON CONFLICT guards against a race double-tap resolving to a duplicate insert.
+        await sql `
+      INSERT INTO community_story_reactions (story_id, reactor_id, reaction, created_at)
+      VALUES (${storyId}, ${reactorId}, ${reaction}, ${Date.now()})
+      ON CONFLICT (story_id, reactor_id) DO UPDATE SET reaction = ${reaction}, created_at = ${Date.now()}
+    `;
+    }
+    return { reactions: await tallyStoryReactions(storyId), myReaction };
+}
+export async function getStoryReactions(storyId, viewerId) {
+    const reactions = await tallyStoryReactions(storyId);
+    let myReaction = null;
+    if (viewerId) {
+        const [me] = await sql `SELECT reaction FROM community_story_reactions WHERE story_id = ${storyId} AND reactor_id = ${viewerId}`;
+        myReaction = me?.reaction ?? null;
+    }
+    return { reactions, myReaction };
 }
 // Fetch posts by a single author (for community profile page)
 export async function getUserPosts(authorId, viewerId, options = {}) {

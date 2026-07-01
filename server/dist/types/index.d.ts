@@ -849,6 +849,10 @@ export interface ServerToClientEvents {
         reactions: Record<string, number>;
         myReaction: string | null;
     }) => void;
+    'community:story_reacted': (data: {
+        storyId: string;
+        reactions: Record<string, number>;
+    }) => void;
     'community:leaderboard_update': (data: any[]) => void;
     'community:lounge_removed': (data: {
         loungeId: string;

@@ -29,7 +29,7 @@ import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
 import { getActiveSeason, getSeasonLeaderboard, getMySeasonHistory } from './services/seasonService.js';
 import { startReplay, recordEvent, finishReplay, listReplays, getReplay, getMyReplays, } from './services/replayService.js';
-import { listNews, createNews, deleteNews, listRecommends, createRecommend, deleteRecommend, listThoughts, createThought, deleteThought, listFeed, createPost, deletePost, toggleLike, getComments, addComment, deleteComment, reportPost, listCommunityReports, resolveCommunityReport, follow, unfollow, listEvents, createEvent, joinEvent, leaveEvent, createNotification, notifyAllPlayers, listNotifications, getUnreadNotificationCount, markNotificationsRead, listLoungeRows, getLoungeRow, rowToLounge, createLounge, deleteLounge, setLoungeLive, communityBanPlayer, communityUnbanPlayer, getActiveCommunityBan, updateCommunityProfile, getCommunityProfileV2, assignBadge, revokeBadge, setShowcaseAchievement, clearShowcaseSlot, getPrivacySettings, setPrivacySettings, createPostV2, listFeedV2, getUserPosts, votePoll, togglePostSave, getSavedPosts, createStory, listActiveStories, deleteStory, recordStoryView, getStoryViewers, pinPost, featurePost, hidePost, logCommunityModAction, getCommunityModLogs, listPeopleDirectory, getFollowersList, getFollowingList, searchCommunity, upsertOnlineSeen, getOnlineMembers, generateAnonymousName, togglePostReaction, getWeeklyLeaderboard, } from './services/communityService.js';
+import { listNews, createNews, deleteNews, listRecommends, createRecommend, deleteRecommend, listThoughts, createThought, deleteThought, listFeed, createPost, deletePost, toggleLike, getComments, addComment, deleteComment, reportPost, listCommunityReports, resolveCommunityReport, follow, unfollow, listEvents, createEvent, joinEvent, leaveEvent, createNotification, notifyAllPlayers, listNotifications, getUnreadNotificationCount, markNotificationsRead, listLoungeRows, getLoungeRow, rowToLounge, createLounge, deleteLounge, setLoungeLive, communityBanPlayer, communityUnbanPlayer, getActiveCommunityBan, updateCommunityProfile, getCommunityProfileV2, assignBadge, revokeBadge, setShowcaseAchievement, clearShowcaseSlot, getPrivacySettings, setPrivacySettings, createPostV2, listFeedV2, getUserPosts, votePoll, togglePostSave, getSavedPosts, createStory, listActiveStories, deleteStory, recordStoryView, getStoryViewers, toggleStoryReaction, getStoryReactions, pinPost, featurePost, hidePost, logCommunityModAction, getCommunityModLogs, listPeopleDirectory, getFollowersList, getFollowingList, searchCommunity, upsertOnlineSeen, getOnlineMembers, generateAnonymousName, togglePostReaction, getWeeklyLeaderboard, } from './services/communityService.js';
 import { listDebates, getDebateFull, createDebate, joinDebate, postArgument, voteDebate, closeDebate, startDebate, advancePhase as advanceDebatePhase, skipPhase, raiseHand, lowerHand, getRaisedHands, promoteSpeaker, PHASE_DURATION_SECONDS, } from './services/debateService.js';
 import { voiceJoin as debateVoiceJoin, voiceLeave as debateVoiceLeave } from './services/debateVoiceService.js';
 import { recordActivity, getFriendActivityFeed } from './services/activityService.js';
@@ -5567,6 +5567,29 @@ export function attachSocketHandlers(io) {
                 if (!profileId)
                     throw new Error('Not authenticated.');
                 cb(ok(await getStoryViewers(storyId, profileId)));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // Toggle a reaction (one per user per story) and broadcast fresh counts.
+        socket.on('community:story_react', async ({ storyId, reaction }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const result = await toggleStoryReaction(storyId, profileId, reaction);
+                cb?.(ok(result)); // caller gets counts + their own reaction
+                // Real-time: push updated counts to everyone (socket.io broadcast).
+                io.emit('community:story_reacted', { storyId, reactions: result.reactions });
+            }
+            catch (e) {
+                cb?.(err(e.message));
+            }
+        });
+        socket.on('community:story_reactions', async ({ storyId }, cb) => {
+            try {
+                cb(ok(await getStoryReactions(storyId, socket.data.profileId ?? undefined)));
             }
             catch (e) {
                 cb(err(e.message));

@@ -965,6 +965,59 @@ export async function deleteStory(id: string, requesterId: string, isMod: boolea
   if (row.author_id !== requesterId && !isMod) throw new Error('Not allowed.');
   await sql`DELETE FROM community_stories WHERE id = ${id}`;
   await sql`DELETE FROM community_story_views WHERE story_id = ${id}`;
+  await sql`DELETE FROM community_story_reactions WHERE story_id = ${id}`;
+}
+
+// ── Story reactions ─────────────────────────────────────────────────────
+export const STORY_REACTIONS = ['🤍', '🔥', '👍', '⭐', '🤯', '😂'] as const;
+
+export interface StoryReactionResult {
+  reactions: Record<string, number>; // emoji → count
+  myReaction: string | null;
+}
+
+async function tallyStoryReactions(storyId: string): Promise<Record<string, number>> {
+  const rows = await sql`SELECT reaction, COUNT(*) as cnt FROM community_story_reactions WHERE story_id = ${storyId} GROUP BY reaction` as any[];
+  const out: Record<string, number> = {};
+  for (const r of rows) out[r.reaction] = Number(r.cnt);
+  return out;
+}
+
+/**
+ * Toggle a reaction on a story. One reaction per user (composite PK):
+ * same emoji → remove, different → switch, none → add. Returns fresh counts.
+ */
+export async function toggleStoryReaction(storyId: string, reactorId: string, reaction: string): Promise<StoryReactionResult> {
+  if (!STORY_REACTIONS.includes(reaction as any)) throw new Error('Invalid reaction.');
+  const [existing] = await sql`SELECT reaction FROM community_story_reactions WHERE story_id = ${storyId} AND reactor_id = ${reactorId}` as any[];
+
+  let myReaction: string | null = reaction;
+  if (existing) {
+    if (existing.reaction === reaction) {
+      await sql`DELETE FROM community_story_reactions WHERE story_id = ${storyId} AND reactor_id = ${reactorId}`;
+      myReaction = null;
+    } else {
+      await sql`UPDATE community_story_reactions SET reaction = ${reaction}, created_at = ${Date.now()} WHERE story_id = ${storyId} AND reactor_id = ${reactorId}`;
+    }
+  } else {
+    // ON CONFLICT guards against a race double-tap resolving to a duplicate insert.
+    await sql`
+      INSERT INTO community_story_reactions (story_id, reactor_id, reaction, created_at)
+      VALUES (${storyId}, ${reactorId}, ${reaction}, ${Date.now()})
+      ON CONFLICT (story_id, reactor_id) DO UPDATE SET reaction = ${reaction}, created_at = ${Date.now()}
+    `;
+  }
+  return { reactions: await tallyStoryReactions(storyId), myReaction };
+}
+
+export async function getStoryReactions(storyId: string, viewerId?: string): Promise<StoryReactionResult> {
+  const reactions = await tallyStoryReactions(storyId);
+  let myReaction: string | null = null;
+  if (viewerId) {
+    const [me] = await sql`SELECT reaction FROM community_story_reactions WHERE story_id = ${storyId} AND reactor_id = ${viewerId}` as any[];
+    myReaction = me?.reaction ?? null;
+  }
+  return { reactions, myReaction };
 }
 
 // Fetch posts by a single author (for community profile page)

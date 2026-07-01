@@ -138,6 +138,17 @@ export declare function listActiveStories(viewerId?: string): Promise<StoryGroup
 export declare function recordStoryView(storyId: string, viewerId: string): Promise<void>;
 export declare function getStoryViewers(storyId: string, requesterId: string): Promise<StoryViewer[]>;
 export declare function deleteStory(id: string, requesterId: string, isMod: boolean): Promise<void>;
+export declare const STORY_REACTIONS: readonly ["🤍", "🔥", "👍", "⭐", "🤯", "😂"];
+export interface StoryReactionResult {
+    reactions: Record<string, number>;
+    myReaction: string | null;
+}
+/**
+ * Toggle a reaction on a story. One reaction per user (composite PK):
+ * same emoji → remove, different → switch, none → add. Returns fresh counts.
+ */
+export declare function toggleStoryReaction(storyId: string, reactorId: string, reaction: string): Promise<StoryReactionResult>;
+export declare function getStoryReactions(storyId: string, viewerId?: string): Promise<StoryReactionResult>;
 export declare function getUserPosts(authorId: string, viewerId: string, options?: {
     before?: number;
     limit?: number;

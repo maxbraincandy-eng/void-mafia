@@ -709,6 +709,17 @@ export async function initializeDatabase() {
     )
   `;
     await sql `CREATE INDEX IF NOT EXISTS idx_story_views_story ON community_story_views(story_id)`;
+    // Story reactions — one reaction per user per story (composite PK prevents spam).
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_story_reactions (
+      story_id    TEXT NOT NULL,
+      reactor_id  TEXT NOT NULL,
+      reaction    TEXT NOT NULL,
+      created_at  BIGINT NOT NULL,
+      PRIMARY KEY (story_id, reactor_id)
+    )
+  `;
+    await sql `CREATE INDEX IF NOT EXISTS idx_story_reactions_story ON community_story_reactions(story_id)`;
     await sql `
     CREATE TABLE IF NOT EXISTS community_post_likes (
       post_id    TEXT NOT NULL,

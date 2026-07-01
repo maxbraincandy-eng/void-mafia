@@ -111,6 +111,7 @@ import {
   getPrivacySettings, setPrivacySettings,
   createPostV2, listFeedV2, getUserPosts, votePoll, togglePostSave, getSavedPosts,
   createStory, listActiveStories, deleteStory, recordStoryView, getStoryViewers,
+  toggleStoryReaction, getStoryReactions,
   pinPost, featurePost, hidePost, logCommunityModAction, getCommunityModLogs,
   listPeopleDirectory, getFollowersList, getFollowingList,
   searchCommunity, upsertOnlineSeen, getOnlineMembers, computeTrending, recalcReputation,
@@ -4964,6 +4965,24 @@ export function attachSocketHandlers(io: AppServer): void {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('Not authenticated.');
         cb(ok(await getStoryViewers(storyId, profileId)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // Toggle a reaction (one per user per story) and broadcast fresh counts.
+    socket.on('community:story_react' as any, async ({ storyId, reaction }: { storyId: string; reaction: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const result = await toggleStoryReaction(storyId, profileId, reaction);
+        cb?.(ok(result)); // caller gets counts + their own reaction
+        // Real-time: push updated counts to everyone (socket.io broadcast).
+        io.emit('community:story_reacted', { storyId, reactions: result.reactions });
+      } catch (e: any) { cb?.(err(e.message)); }
+    });
+
+    socket.on('community:story_reactions' as any, async ({ storyId }: { storyId: string }, cb: any) => {
+      try {
+        cb(ok(await getStoryReactions(storyId, socket.data.profileId ?? undefined)));
       } catch (e: any) { cb(err(e.message)); }
     });
 
