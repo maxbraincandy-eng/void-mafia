@@ -86,6 +86,10 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
   // Reactions on the current story.
   const [reactions, setReactions] = useState<Record<string, number>>({});
   const [myReaction, setMyReaction] = useState<string | null>(null);
+  // Instagram-style reaction picker (swipe up on others' stories) + float burst.
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [floats, setFloats] = useState<{ id: number; emoji: string; left: number; dy: number; dur: number }[]>([]);
+  const floatId = useRef(0);
   // Touch tracking for swipe up (open viewers) / swipe down (close) / hold-to-pause.
   const touch = useRef<{ x: number; y: number } | null>(null);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -152,12 +156,26 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
     return () => { socket.off('community:story_reacted', onReacted); };
   }, [story?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Float a little burst of the reacted emoji up the screen (Instagram-style).
+  const burst = (emoji: string) => {
+    const items = Array.from({ length: 5 }, () => ({
+      id: floatId.current++, emoji,
+      left: 22 + Math.random() * 56, dy: -220 - Math.random() * 140, dur: 1.1 + Math.random() * 0.6,
+    }));
+    setFloats(f => [...f, ...items]);
+    const ids = new Set(items.map(i => i.id));
+    setTimeout(() => setFloats(f => f.filter(x => !ids.has(x.id))), 1800);
+  };
+
   const react = (emoji: string) => {
     if (!story) return;
+    const adding = myReaction !== emoji; // toggling off shouldn't burst
     setMyReaction(prev => (prev === emoji ? null : emoji)); // optimistic
     emitWithAck<{ storyId: string; reaction: string }, Res<StoryReactionData>>('community:story_react', { storyId: story.id, reaction: emoji })
       .then(r => { if ((r as any).ok) { setReactions((r as any).data.reactions ?? {}); setMyReaction((r as any).data.myReaction ?? null); } })
       .catch(() => {});
+    if (adding) burst(emoji);
+    setPickerOpen(false);
   };
 
   if (!group || !story) return null;
@@ -191,8 +209,9 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
     const t = e.changedTouches[0];
     const dx = t.clientX - start.x, dy = t.clientY - start.y;
     if (Math.abs(dy) < 60 || Math.abs(dx) > Math.abs(dy)) return; // not a vertical swipe
-    if (dy > 0) { onClose(); }              // swipe down → close (all users)
-    else if (isMine) { openSheet(); }       // swipe up → viewers (own story)
+    if (dy > 0) { onClose(); }               // swipe down → close (all users)
+    else if (isMine) { openSheet(); }        // swipe up → viewers (own story)
+    else { setPickerOpen(true); }            // swipe up → reaction picker (others' story)
   };
 
   return createPortal(
@@ -208,7 +227,7 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
                 height: '100%', borderRadius: 2, background: '#fff',
                 width: idx < si ? '100%' : idx === si ? '100%' : '0%',
                 animation: active ? `vm-story-progress 5s linear forwards` : undefined,
-                animationPlayState: active && paused ? 'paused' : 'running',
+                animationPlayState: active && (paused || pickerOpen) ? 'paused' : 'running',
               }} />
             </div>
           );
@@ -251,27 +270,57 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
           <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>▲ ვინ ნახა</span>
         </button>
       )}
-      {/* Footer: reaction bar (others' stories) — tap an emoji to react */}
-      {!isMine && !sheetOpen && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 8px 16px' }}>
-          {STORY_EMOJIS.map(e => {
-            const cnt = reactions[e] ?? 0;
-            const active = myReaction === e;
-            return (
-              <button key={e} onClick={() => react(e)}
-                style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, minWidth: 42, padding: '6px 4px', borderRadius: 12,
-                  background: active ? 'rgba(155,0,255,0.28)' : 'rgba(255,255,255,0.05)',
-                  border: `1px solid ${active ? 'rgba(155,0,255,0.6)' : 'rgba(255,255,255,0.1)'}`,
-                  transform: active ? 'scale(1.06)' : 'none', transition: 'all .12s',
-                }}>
-                <span style={{ fontSize: 20, lineHeight: 1 }}>{e}</span>
-                <span style={{ fontFamily: 'monospace', fontSize: 10, color: cnt > 0 ? 'rgba(255,255,255,0.75)' : 'transparent', minHeight: 12 }}>{cnt > 0 ? cnt : '·'}</span>
-              </button>
-            );
-          })}
-        </div>
+      {/* Footer hint (others' stories): swipe up (or tap) to open reactions */}
+      {!isMine && !sheetOpen && !pickerOpen && (
+        <button onClick={() => setPickerOpen(true)}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 14px 18px', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.55)' }}>
+          <span style={{ fontSize: 15 }}>{myReaction ?? '😍'}</span>
+          <span style={{ fontFamily: 'monospace', fontSize: 11 }}>▲ რეაქცია</span>
+        </button>
       )}
+
+      {/* Floating emoji burst (rises + fades on react) */}
+      {floats.map(f => (
+        <motion.div key={f.id}
+          initial={{ y: 0, opacity: 0, scale: 0.4 }}
+          animate={{ y: f.dy, opacity: [0, 1, 1, 0], scale: [0.4, 1.25, 1] }}
+          transition={{ duration: f.dur, ease: 'easeOut' }}
+          style={{ position: 'absolute', bottom: 70, left: `${f.left}%`, fontSize: 34, pointerEvents: 'none', zIndex: 6 }}
+        >{f.emoji}</motion.div>
+      ))}
+
+      {/* Instagram-style reaction picker — slides up on swipe/tap, timer paused */}
+      <AnimatePresence>
+        {pickerOpen && !isMine && !sheetOpen && (
+          <>
+            <div onClick={() => setPickerOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 4 }} />
+            <motion.div
+              initial={{ y: 90, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 90, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 30 }}
+              style={{
+                position: 'absolute', bottom: 26, left: 14, right: 14, zIndex: 5,
+                display: 'flex', justifyContent: 'space-around', alignItems: 'center',
+                background: 'rgba(18,8,38,0.72)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
+                border: '1px solid rgba(255,255,255,0.14)', borderRadius: 44, padding: '10px 6px',
+                boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
+              }}
+            >
+              {STORY_EMOJIS.map((e, i) => (
+                <motion.button key={e} onClick={() => react(e)}
+                  initial={{ scale: 0, y: 12 }} animate={{ scale: 1, y: 0 }}
+                  transition={{ delay: 0.03 * i, type: 'spring', stiffness: 500, damping: 18 }}
+                  whileTap={{ scale: 1.5 }}
+                  style={{
+                    background: 'transparent', border: 'none', fontSize: 33, lineHeight: 1, padding: 4, cursor: 'pointer',
+                    transform: myReaction === e ? 'scale(1.18)' : undefined,
+                    filter: myReaction === e ? 'drop-shadow(0 0 7px rgba(155,0,255,0.85))' : undefined,
+                  }}
+                >{e}</motion.button>
+              ))}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
       {/* Viewers half-sheet */}
       {sheetOpen && (
         <div style={{ flex: 1, overflowY: 'auto', background: 'rgba(8,4,22,0.98)', borderTop: '1px solid rgba(155,0,255,.25)', padding: '14px 16px 24px' }}>
