@@ -383,12 +383,27 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
     setFeedCategory: (cat) => set({ feedCategory: cat, feedV2Posts: [], feedV2HasMore: true }),
     fetchFeedV2: async (refresh = false) => {
       const { feedV2Posts, feedCategory, activeHashtag } = get();
-      const before = refresh ? undefined : (feedV2Posts.length > 0 ? feedV2Posts[feedV2Posts.length - 1].createdAt : undefined);
+      // Cursor = the OLDEST loaded NON-PINNED post's timestamp. Pinned posts
+      // float to the top of every page (ORDER BY is_pinned DESC) so their old
+      // timestamps must NOT anchor the cursor (that would skip everything newer
+      // than the pinned post); the chronological stream is the non-pinned posts.
+      // Pinned posts re-returned on later pages are deduped out below.
+      const nonPinned = feedV2Posts.filter(p => !p.isPinned);
+      const before = refresh || nonPinned.length === 0
+        ? undefined
+        : Math.min(...nonPinned.map(p => p.createdAt));
       const posts = unwrap(await emitWithAck<any, Res<CommunityPostV2[]>>('community:feed_v2', { before, category: feedCategory, hashtag: activeHashtag }));
-      set(s => ({
-        feedV2Posts: refresh ? posts : [...s.feedV2Posts, ...posts],
-        feedV2HasMore: posts.length >= 20,
-      }));
+      set(s => {
+        if (refresh) return { feedV2Posts: posts, feedV2HasMore: posts.length >= 20 };
+        // Dedupe against what we already have; stop paging once nothing new comes
+        // back so infinite scroll terminates cleanly instead of looping.
+        const seen = new Set(s.feedV2Posts.map(p => p.id));
+        const fresh = posts.filter(p => !seen.has(p.id));
+        return {
+          feedV2Posts: [...s.feedV2Posts, ...fresh],
+          feedV2HasMore: posts.length >= 20 && fresh.length > 0,
+        };
+      });
     },
     createPostV2: async (data) => {
       const post = unwrap(await emitWithAck<any, Res<CommunityPostV2>>('community:post_create_v2', data));
