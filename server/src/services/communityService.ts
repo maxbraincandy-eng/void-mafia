@@ -930,7 +930,11 @@ export async function listActiveStories(viewerId?: string): Promise<StoryGroup[]
     const viewCount = viewerId && r.author_id === viewerId ? Number(r.view_count ?? 0) : undefined;
     g.stories.push({ id: r.id, imageUrl: r.image_url, caption: r.caption ?? '', createdAt: Number(r.created_at), viewCount });
   }
-  return [...map.values()];
+  // Order authors by their most-recent story (Instagram-style): whoever posted
+  // the newest story appears far-left; older storytellers follow to the right.
+  // Stories within each group stay oldest→newest so they play in order.
+  const newest = (g: StoryGroup) => g.stories.reduce((m, s) => Math.max(m, s.createdAt), 0);
+  return [...map.values()].sort((a, b) => newest(b) - newest(a));
 }
 
 export async function recordStoryView(storyId: string, viewerId: string): Promise<void> {
