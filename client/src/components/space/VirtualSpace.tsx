@@ -8,7 +8,6 @@ import { useSpaceVoice } from '@/hooks/useSpaceVoice';
 import { useLivekitRoomVoice, useLiveKitEnabled } from '@/hooks/useLivekitVoice';
 import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
 import { useAuthStore } from '@/store/authStore';
-import { STAR_HAT_PNG } from '@/assets/starHat';
 import { useNameColor } from '@/store/nameColorStore';
 import { useCommunityStore } from '@/store/communityStore';
 import { SPACE_THEME_DEFS, getSpaceTheme, itemIdForTheme } from '@/constants/spaceThemes';
@@ -243,11 +242,31 @@ function gestureAnim(g: string | null | undefined, sitting?: boolean): string {
   return 'none';
 }
 
+// Faceted silver 8-pointed star (matches the uploaded PNG): 8 points, long/short
+// alternating, each split into a light + dark facet for the metallic look.
+// Pure vector so it renders in every context (unlike a raster <image>).
+const STAR_FACETS = (() => {
+  const cx = 16, cy = -1.5, Rl = 8.6, Rs = 5.4, ri = 2.5;
+  const P = (ang: number, r: number): [number, number] => [cx + r * Math.cos(ang), cy + r * Math.sin(ang)];
+  const facets: { pts: string; light: boolean }[] = [];
+  for (let i = 0; i < 8; i++) {
+    const a = -Math.PI / 2 + i * (Math.PI / 4);
+    const tip = P(a, i % 2 === 0 ? Rl : Rs);
+    const vL = P(a - Math.PI / 8, ri);
+    const vR = P(a + Math.PI / 8, ri);
+    const f = (n: number) => n.toFixed(2);
+    facets.push({ pts: `${cx},${cy} ${f(vL[0])},${f(vL[1])} ${f(tip[0])},${f(tip[1])}`, light: true });
+    facets.push({ pts: `${cx},${cy} ${f(tip[0])},${f(tip[1])} ${f(vR[0])},${f(vR[1])}`, light: false });
+  }
+  return facets;
+})();
+
 function renderHat(hat: string | undefined, glow: string, body: string) {
   switch (hat) {
     case 'cap':    return <><path d="M6 3 Q16 -4 26 3 L26 5 L6 5 Z" fill={glow} /><rect x="6" y="4.5" width="13" height="2" rx="1" fill={glow} opacity="0.7" /></>;
-    // The exact uploaded silver-star PNG, sitting just above the head.
-    case 'star':   return <image href={STAR_HAT_PNG} x="6" y="-12" width="20" height="20" preserveAspectRatio="xMidYMid meet" style={{ filter: 'drop-shadow(0 0 2px #ffffff88)' }} />;
+    case 'star':   return <g style={{ filter: 'drop-shadow(0 0 2.5px #ffffffbb)' }}>
+      {STAR_FACETS.map((f, i) => <polygon key={i} points={f.pts} fill={f.light ? '#ecedf6' : '#b7b7d0'} stroke="#ffffff" strokeWidth="0.25" strokeLinejoin="round" />)}
+    </g>;
     case 'beanie': return <><path d="M6 4 Q16 -6 26 4 Z" fill={glow} /><rect x="5" y="3.5" width="22" height="2.5" rx="1.2" fill={body} /><circle cx="16" cy="-5" r="2" fill={glow} /></>;
     case 'crown':  return <path d="M8 4 L8 -2 L12 1 L16 -4 L20 1 L24 -2 L24 4 Z" fill="#ffcc00" stroke="#ffaa00" strokeWidth="0.4" />;
     case 'halo':   return <ellipse cx="16" cy="-4" rx="7" ry="2.2" fill="none" stroke="#ffe98a" strokeWidth="1.6" style={{ filter: 'drop-shadow(0 0 4px #ffe98a)' }} />;
