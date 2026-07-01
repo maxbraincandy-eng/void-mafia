@@ -1022,6 +1022,7 @@ export interface ClientToServerEvents {
   // Voice signaling (replaces webrtc:*)
   'voice:join':          (data: { channel: VoiceChannel }, cb: Cb<{ peers: Array<{ socketId: string; name: string }> }>) => void;
   'voice:leave':         () => void;
+  'voice:livekit_sync':  () => void;
   'voice:offer':         (data: { to: string; sdp: object }, cb: Cb<null>) => void;
   'voice:answer':        (data: { to: string; sdp: object }, cb: Cb<null>) => void;
   'voice:ice-candidate': (data: { to: string; candidate: object }) => void;

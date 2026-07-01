@@ -3581,6 +3581,21 @@ export function attachSocketHandlers(io: AppServer): void {
       handleVoiceLeave(io, socket.id);
     });
 
+    // ── Voice: LiveKit rule sync ────────────────────────────────────────
+    // LiveKit clients emit this after connecting (and on reconnect) to pull the
+    // current phase voice permission, since they aren't mesh members and only
+    // get pushed updates on phase transitions.
+    socket.on('voice:livekit_sync', () => {
+      try {
+        const room = getRoomFromSocket(socket);
+        const player = socket.data.playerId ? room.players.get(socket.data.playerId) : null;
+        if (!player) return;
+        const d = liveKitMainDecision(room, player);
+        if (d.transmit) socket.emit('voice:force-unmute');
+        else socket.emit('voice:force-mute', { reason: d.reason ?? 'Listen only.' });
+      } catch { /* not in a room */ }
+    });
+
     // ── Voice: Relay Offer ──────────────────────────────────────────
     socket.on('voice:offer', ({ to, sdp }, cb) => {
       const channel = voiceGetSharedChannel(socket.id, to);
@@ -6584,7 +6599,76 @@ function forceLeaveVoiceChannel(io: AppServer, roomId: string, channel: VoiceCha
   }
 }
 
+// Per-player transmit permission for the LiveKit MAIN room, mirroring the
+// mesh phase rules below. LiveKit uses one room per game, so night faction
+// voice isn't available there — everyone is muted at night (mafia use team chat).
+function liveKitMainDecision(room: Room, player: Player): { transmit: boolean; reason?: string } {
+  if (!player.isAlive || player.isSpectator) return { transmit: false, reason: 'Listen only.' };
+  const phase = room.phase;
+  const silentDay = room.activeEvent?.key === 'silent_day';
+  switch (phase) {
+    case 'night':
+      return { transmit: false, reason: 'Voice muted during night phase.' };
+    case 'role_reveal':
+      return { transmit: false, reason: 'Voice disabled during role reveal.' };
+    case 'voting':
+      return { transmit: false, reason: 'Silent during voting.' };
+    case 'don_check':
+    case 'mafia_kill':
+    case 'revote':
+    case 'double_elim_vote':
+      return { transmit: false, reason: 'Silent phase.' };
+    case 'speech': {
+      if (silentDay) return { transmit: false, reason: 'Silent Day — voice is disabled today.' };
+      const speakerId = room.speechOrder[room.currentSpeakerIdx] ?? null;
+      const foulPlayerId = (room.activeFoul && Date.now() < room.activeFoul.endsAt) ? room.activeFoul.playerId : null;
+      if (player.id === speakerId || player.id === foulPlayerId) return { transmit: true };
+      return { transmit: false, reason: 'Only the current speaker may transmit.' };
+    }
+    case 'trial_defense': {
+      const tds = room.trialDefenseState;
+      const candidateId = tds ? tds.candidateIds[tds.currentCandidateIdx] : null;
+      if (player.id === candidateId) return { transmit: true };
+      return { transmit: false, reason: 'Only the defense candidate may speak.' };
+    }
+    case 'planning_night':
+      if (player.team === 'mafia') return { transmit: true };
+      return { transmit: false, reason: 'Planning Night — Mafia team is planning.' };
+    case 'tie_defense': {
+      const dms = room.donModeState;
+      const speakerId = dms ? dms.defenseQueue[dms.currentDefenseIdx] : null;
+      if (player.id === speakerId) return { transmit: true };
+      return { transmit: false, reason: 'Only the defending player may speak.' };
+    }
+    case 'final_words':
+      if (player.id === room.deathSpeakerId) return { transmit: true };
+      return { transmit: false, reason: 'Final words — only the eliminated player may speak.' };
+    case 'day':
+      if (silentDay) return { transmit: false, reason: 'Silent Day — voice is disabled today.' };
+      return { transmit: true };
+    default:
+      return { transmit: true }; // lobby / game_over / other → alive may talk
+  }
+}
+
+// Broadcast the same phase voice rules to LiveKit users. They aren't tracked as
+// mesh voice members, so the mesh loop below never reaches them; this pushes the
+// per-player force-mute/unmute to every room player NOT on the legacy mesh.
+function enforceLiveKitVoiceRules(io: AppServer, room: Room): void {
+  const meshPlayerIds = new Set<string>();
+  for (const ch of ['room', 'mafia', 'yakuza'] as VoiceChannel[]) {
+    for (const m of voiceGetMembers(room.id, ch)) meshPlayerIds.add(m.playerId);
+  }
+  for (const player of room.players.values()) {
+    if (!player.socketId || meshPlayerIds.has(player.id)) continue;
+    const d = liveKitMainDecision(room, player);
+    if (d.transmit) io.to(player.socketId).emit('voice:force-unmute');
+    else io.to(player.socketId).emit('voice:force-mute', { reason: d.reason ?? 'Listen only.' });
+  }
+}
+
 function enforceVoicePhaseRules(io: AppServer, room: Room): void {
+  enforceLiveKitVoiceRules(io, room);
   const { id: roomId, phase } = room;
 
   if (phase === 'night') {

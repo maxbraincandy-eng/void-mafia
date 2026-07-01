@@ -1335,6 +1335,7 @@ export interface ClientToServerEvents {
         }>;
     }>) => void;
     'voice:leave': () => void;
+    'voice:livekit_sync': () => void;
     'voice:offer': (data: {
         to: string;
         sdp: object;

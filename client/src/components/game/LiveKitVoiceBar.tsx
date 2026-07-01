@@ -45,6 +45,8 @@ export function LiveKitVoiceBarView({ voice }: { voice: LivekitVoice }) {
       )}
       {voice.dead ? (
         <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#ff6b6b' }} title="მკვდარი ხართ — მხოლოდ მოსმენა">🔇 listen-only</span>
+      ) : voice.forceMuted ? (
+        <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#f5c542' }} title={voice.forceMuteReason ?? 'დადუმებული'}>🔒 დადუმებული</span>
       ) : (
         <button
           onClick={voice.toggleMic}

@@ -28,6 +28,10 @@ export interface LiveKitVoiceState {
   micEnabled: boolean;
   /** Server forced listen-only (dead player) — mic cannot be turned on. */
   dead: boolean;
+  /** Phase rule forced the mic off (e.g. not your speaking turn). */
+  forceMuted: boolean;
+  /** Human-readable reason for the phase force-mute. */
+  forceMuteReason: string | null;
   participants: number;
   /** Browser blocked remote audio autoplay (mobile) — needs a tap to unlock. */
   audioBlocked: boolean;
@@ -35,7 +39,7 @@ export interface LiveKitVoiceState {
 }
 
 const INITIAL: LiveKitVoiceState = {
-  status: 'disconnected', room: null, micEnabled: false, dead: false, participants: 0, audioBlocked: false, error: null,
+  status: 'disconnected', room: null, micEnabled: false, dead: false, forceMuted: false, forceMuteReason: null, participants: 0, audioBlocked: false, error: null,
 };
 
 // ── Module-level singleton ─────────────────────────────────────────────
@@ -186,12 +190,30 @@ export async function joinLiveKitVoice(identity: string, roomId: string, opts: J
   }
 }
 
-/** Toggle / set the local mic. Ignored while dead (listen-only). */
+/** Toggle / set the local mic. Ignored while dead or phase-force-muted. */
 export async function setLiveKitMic(enabled: boolean): Promise<void> {
   if (!room) return;
-  if (state.dead && enabled) return; // dead players cannot un-mute
+  if ((state.dead || state.forceMuted) && enabled) return; // locked — cannot un-mute
   await room.localParticipant.setMicrophoneEnabled(enabled);
   patch({ micEnabled: enabled });
+}
+
+/**
+ * Apply a server phase rule: force-mute (lock mic off) or force-unmute (allow
+ * speaking again). Mirrors the Mafia phase voice logic so LiveKit users are
+ * only heard when it's their turn. Dead players stay listen-only regardless.
+ */
+export async function setLiveKitForceMuted(muted: boolean, reason?: string | null): Promise<void> {
+  patch({ forceMuted: muted, forceMuteReason: muted ? (reason ?? null) : null });
+  if (!room) return;
+  if (muted) {
+    await room.localParticipant.setMicrophoneEnabled(false);
+    patch({ micEnabled: false });
+  } else if (!state.dead) {
+    // Turn comes around → go live automatically (matches the game's design).
+    await room.localParticipant.setMicrophoneEnabled(true);
+    patch({ micEnabled: true });
+  }
 }
 
 export async function toggleLiveKitMic(): Promise<void> {

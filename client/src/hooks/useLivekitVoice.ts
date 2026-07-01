@@ -16,8 +16,9 @@
  */
 import { useEffect, useState, useCallback } from 'react';
 import { useGameStore } from '@/store/gameStore';
+import { socket } from '@/lib/socket';
 import {
-  joinLiveKitVoice, leaveLiveKitVoice, setLiveKitDead,
+  joinLiveKitVoice, leaveLiveKitVoice, setLiveKitDead, setLiveKitForceMuted,
   toggleLiveKitMic, setLiveKitMic, subscribeLiveKit, getLiveKitState,
   fetchLiveKitEnabled, getLiveKitEnabledCached, startLiveKitAudio, type LiveKitVoiceState,
 } from '@/services/livekitVoice';
@@ -127,5 +128,23 @@ export function useLivekitVoice(): LivekitVoice {
   });
 
   const active = !!phase && !INACTIVE_PHASES.has(phase);
-  return useLivekitRoomVoice({ roomId, identity: myPlayerId, active, listenOnly: !isAlive });
+  const voice = useLivekitRoomVoice({ roomId, identity: myPlayerId, active, listenOnly: !isAlive });
+
+  // Honor the server's phase voice rules so a player is only heard on their
+  // turn. The server pushes voice:force-mute / voice:force-unmute per phase.
+  useEffect(() => {
+    if (!active) return;
+    const onMute = (p?: { reason?: string }) => { setLiveKitForceMuted(true, p?.reason).catch(() => {}); };
+    const onUnmute = () => { setLiveKitForceMuted(false).catch(() => {}); };
+    socket.on('voice:force-mute', onMute);
+    socket.on('voice:force-unmute', onUnmute);
+    return () => { socket.off('voice:force-mute', onMute); socket.off('voice:force-unmute', onUnmute); };
+  }, [active]);
+
+  // Pull the current rule once connected (covers joining / reconnecting mid-phase).
+  useEffect(() => {
+    if (active && voice.connected) socket.emit('voice:livekit_sync');
+  }, [active, voice.connected]);
+
+  return voice;
 }
