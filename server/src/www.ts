@@ -5,7 +5,7 @@ import { Server, Socket } from 'socket.io';
 import { ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData, ok, err } from './types/index.js';
 import {
   createMatch, getMatch, getMatchByCode, getMatchIdForUser, listMatches,
-  joinMatch, spectateMatch, leaveMatch, assignCaptain, setRole, startMatch,
+  joinMatch, spectateMatch, leaveMatch, assignCaptain, setRole, setQuestionCount, startMatch,
   advanceToDiscussion, submitAnswer, judgeAnswer, nextQuestion, sendChat,
   disconnectUser, toPublic, autoAdvanceToJudging, type WWWMatch,
 } from './services/wwwService.js';
@@ -132,6 +132,16 @@ export function registerWWWHandlers(io: AppServer, socket: AppSocket): void {
     try {
       const m = setRole(String(data?.matchId), userId(), data?.role);
       if (!m) return cb(err('Cannot change role'));
+      broadcast(io, m);
+      cb(ok(null));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  // ── set question count (lobby: 10 / 15) ───────────────────────────────
+  socket.on('www:set_questions' as any, (data: { matchId: string; count: number }, cb: (r: any) => void) => {
+    try {
+      const m = setQuestionCount(String(data?.matchId), userId(), Number(data?.count));
+      if (!m) return cb(err('Cannot set question count'));
       broadcast(io, m);
       cb(ok(null));
     } catch (e: any) { cb(err(e.message)); }

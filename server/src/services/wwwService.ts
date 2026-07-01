@@ -136,6 +136,31 @@ const QUESTIONS: WWWQuestion[] = [
   { id:'q33', category:'ზოგადი ცოდნა', difficulty:'easy', questionText:'ჩინეთის დიდი კედლის სიგრძე (დაახ.)?', correctAnswer:'21 000 კმ', explanation:'ყველა განშტოებებით.' },
   { id:'q34', category:'ზოგადი ცოდნა', difficulty:'easy', questionText:'FIFA World Cup რამდენ წელიწადში ერთხელ ჩატარდება?', correctAnswer:'4 წელიწადში', explanation:'1930 წლიდან.' },
   { id:'q35', category:'ზოგადი ცოდნა', difficulty:'medium', questionText:'სად არის ათენის ცნობილი პართენონი?', correctAnswer:'ათენი, საბერძნეთი (აკროპოლისი)', explanation:'ძვ.წ. 438 წ. ათენას საპატივად.' },
+  { id:'q36', category:'ისტორია', difficulty:'medium', questionText:'რომელი ქართველი მეფის დროს იყო საქართველოს "ოქროს ხანა"?', correctAnswer:'დავით IV აღმაშენებელი / თამარ მეფე', explanation:'XI-XIII სს. — გაერთიანება და აღმავლობა.' },
+  { id:'q37', category:'ისტორია', difficulty:'easy', questionText:'რომელ წელს დაემხო ბერლინის კედელი?', correctAnswer:'1989', explanation:'9 ნოემბერი, 1989.' },
+  { id:'q38', category:'ისტორია', difficulty:'medium', questionText:'ვინ იყო ძველი ეგვიპტის ბოლო ფარაონი (დედოფალი)?', correctAnswer:'კლეოპატრა VII', explanation:'ძვ.წ. 30 წ.' },
+  { id:'q39', category:'ისტორია', difficulty:'hard', questionText:'რომელ ქალაქში დაიდო "მაგნა კარტა" 1215 წელს?', correctAnswer:'რანიმიდი (ინგლისი)', explanation:'მეფე ჯონმა ხელი მოაწერა.' },
+  { id:'q40', category:'მეცნიერება', difficulty:'easy', questionText:'რამდენი პლანეტაა მზის სისტემაში?', correctAnswer:'8', explanation:'პლუტონი 2006 წლიდან ჯუჯა პლანეტაა.' },
+  { id:'q41', category:'მეცნიერება', difficulty:'medium', questionText:'ფარდობითობის თეორია ვინ შექმნა?', correctAnswer:'ალბერტ აინშტაინი', explanation:'სპეც. 1905, ზოგადი 1915.' },
+  { id:'q42', category:'მეცნიერება', difficulty:'easy', questionText:'ადამიანის სხეულში ყველაზე დიდი ორგანო?', correctAnswer:'კანი', explanation:'ფართობით ~2 კვ.მ.' },
+  { id:'q43', category:'მეცნიერება', difficulty:'medium', questionText:'რომელი გაზი შთანთქავს მცენარეს ფოტოსინთეზისას?', correctAnswer:'ნახშირორჟანგი (CO₂)', explanation:'გამოყოფს ჟანგბადს.' },
+  { id:'q44', category:'მეცნიერება', difficulty:'hard', questionText:'რომელია ყველაზე მსუბუქი ქიმიური ელემენტი?', correctAnswer:'წყალბადი', explanation:'ატომური ნომერი 1.' },
+  { id:'q45', category:'გეოგრაფია', difficulty:'easy', questionText:'საქართველოს დედაქალაქი?', correctAnswer:'თბილისი', explanation:'დაარსდა V საუკუნეში.' },
+  { id:'q46', category:'გეოგრაფია', difficulty:'medium', questionText:'რომელი ოკეანე ყველაზე დიდია?', correctAnswer:'წყნარი ოკეანე', explanation:'დედამიწის ~1/3.' },
+  { id:'q47', category:'გეოგრაფია', difficulty:'medium', questionText:'რომელი ქვეყანა აქვს ყველაზე მეტ მოსახლეობას?', correctAnswer:'ინდოეთი', explanation:'2023 წლიდან ჩინეთს გაუსწრო.' },
+  { id:'q48', category:'გეოგრაფია', difficulty:'hard', questionText:'რომელ კონტინენტზეა უდაბნო სახარა?', correctAnswer:'აფრიკა', explanation:'ყველაზე დიდი ცხელი უდაბნო.' },
+  { id:'q49', category:'ლიტერატურა', difficulty:'medium', questionText:'"დანაშაული და სასჯელი" ვინ დაწერა?', correctAnswer:'ფიოდორ დოსტოევსკი', explanation:'1866 წ.' },
+  { id:'q50', category:'ლიტერატურა', difficulty:'medium', questionText:'"1984" (ანტიუტოპია) ვინ დაწერა?', correctAnswer:'ჯორჯ ორუელი', explanation:'1949 წ.' },
+  { id:'q51', category:'ლიტერატურა', difficulty:'hard', questionText:'ილია ჭავჭავაძის "მგზავრის წერილები" რომელ მდინარეზე იწყება?', correctAnswer:'თერგი', explanation:'დარიალის ხეობა.' },
+  { id:'q52', category:'ხელოვნება', difficulty:'easy', questionText:'"მონა ლიზა" ვინ დახატა?', correctAnswer:'ლეონარდო და ვინჩი', explanation:'ლუვრში ინახება.' },
+  { id:'q53', category:'ხელოვნება', difficulty:'medium', questionText:'"ვარსკვლავური ღამე" ვის ეკუთვნის?', correctAnswer:'ვინსენტ ვან გოგი', explanation:'1889 წ.' },
+  { id:'q54', category:'ხელოვნება', difficulty:'medium', questionText:'ცნობილი ქართველი მხატვარი, "პრიმიტივიზმის" ოსტატი?', correctAnswer:'ნიკო ფიროსმანი', explanation:'XIX-XX სს.' },
+  { id:'q55', category:'სპორტი', difficulty:'easy', questionText:'რამდენი მოთამაშეა ფეხბურთის გუნდში მოედანზე?', correctAnswer:'11', explanation:'მეკარის ჩათვლით.' },
+  { id:'q56', category:'სპორტი', difficulty:'medium', questionText:'შახმატში რომელი ფიგურა დგას მეფის გვერდით საწყის პოზიციაზე?', correctAnswer:'ლაზიერი (ეზო) / ვეზირი', explanation:'მეფის გვერდით — ვეზირი (დედოფალი).' },
+  { id:'q57', category:'მუსიკა', difficulty:'medium', questionText:'"მეცხრე სიმფონია" (ოდა სიხარულს) ვინ შექმნა?', correctAnswer:'ლუდვიგ ვან ბეთჰოვენი', explanation:'1824 წ.' },
+  { id:'q58', category:'ლოგიკა', difficulty:'medium', questionText:'რიცხვთა მწკრივი: 2, 4, 8, 16, ... — შემდეგი?', correctAnswer:'32', explanation:'ორზე გამრავლება.' },
+  { id:'q59', category:'ლოგიკა', difficulty:'hard', questionText:'ექიმმა 3 აბი მოგცა, ყოველ ნახევარ საათში ერთი. რამდენ ხანში დალევ ყველას?', correctAnswer:'1 საათი', explanation:'0, 30, 60 წუთი.' },
+  { id:'q60', category:'ზოგადი ცოდნა', difficulty:'easy', questionText:'ცისარტყელას რამდენი ფერი აქვს?', correctAnswer:'7', explanation:'წითელი-ნარინჯისფერი-ყვითელი-მწვანე-ცისფერი-ლურჯი-იისფერი.' },
 ];
 
 // ── In-memory state ────────────────────────────────────────────────────────
@@ -341,6 +366,14 @@ export function setRole(matchId: string, userId: string, role: 'team_a' | 'team_
   return m;
 }
 
+/** Host picks the game length in the lobby: 10 or 15 questions. */
+export function setQuestionCount(matchId: string, hostId: string, count: number): WWWMatch | null {
+  const m = matches.get(matchId);
+  if (!m || m.hostId !== hostId || m.status !== 'waiting') return null;
+  m.settings.questionsCount = count === 15 ? 15 : 10;
+  return m;
+}
+
 export function startMatch(matchId: string, hostId: string): WWWMatch | null {
   const m = matches.get(matchId);
   if (!m || m.hostId !== hostId || m.status !== 'waiting') return null;
@@ -353,9 +386,10 @@ export function startMatch(matchId: string, hostId: string): WWWMatch | null {
       if (m.players[team.captainId]) m.players[team.captainId]!.isCaptain = true;
     }
   }
-  // Enough questions for a first-to-WWW_WIN_SCORE race (a close game can run
-  // ~2×WIN_SCORE rounds), capped by the pool size.
-  m.questions = shuffle([...QUESTIONS]).slice(0, Math.min(2 * WWW_WIN_SCORE + 5, QUESTIONS.length));
+  // Fixed-length game: the host-chosen number of questions (10 or 15), drawn
+  // randomly from the (large) pool so rounds rarely repeat.
+  const count = m.settings.questionsCount === 15 ? 15 : 10;
+  m.questions = shuffle([...QUESTIONS]).slice(0, Math.min(count, QUESTIONS.length));
   m.currentQuestionIndex = 0;
   m.answers = {};
   m.status = 'question';
@@ -401,12 +435,6 @@ export function judgeAnswer(matchId: string, hostId: string, teamId: string, isC
   answer.isCorrect = isCorrect;
   // Score increment only happens once (guarded above)
   if (isCorrect) m.scores[teamId] = (m.scores[teamId] ?? 0) + 1;
-  // Victory: first team to WWW_WIN_SCORE points ends the game immediately.
-  if ((m.scores[teamId] ?? 0) >= WWW_WIN_SCORE) {
-    m.status = 'finished';
-    m.timerEndsAt = null;
-    return m;
-  }
   // Check if all submitted answers are judged
   const judged = Object.values(m.answers).filter(a => a.isCorrect !== undefined).length;
   const total = Object.values(m.answers).length;

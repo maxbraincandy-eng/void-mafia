@@ -104,6 +104,8 @@ export declare function assignCaptain(matchId: string, hostId: string, teamId: s
 /** Lobby role assignment: a participant picks Team A, Team B, or spectator.
  *  The host stays the moderator (cannot join a team). */
 export declare function setRole(matchId: string, userId: string, role: 'team_a' | 'team_b' | 'spectator'): WWWMatch | null;
+/** Host picks the game length in the lobby: 10 or 15 questions. */
+export declare function setQuestionCount(matchId: string, hostId: string, count: number): WWWMatch | null;
 export declare function startMatch(matchId: string, hostId: string): WWWMatch | null;
 export declare function advanceToDiscussion(matchId: string, hostId: string): WWWMatch | null;
 export declare function submitAnswer(matchId: string, userId: string, answerText: string): WWWMatch | null;

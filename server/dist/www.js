@@ -1,5 +1,5 @@
 import { ok, err } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, spectateMatch, leaveMatch, assignCaptain, setRole, startMatch, advanceToDiscussion, submitAnswer, judgeAnswer, nextQuestion, sendChat, disconnectUser, toPublic, autoAdvanceToJudging, } from './services/wwwService.js';
+import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, spectateMatch, leaveMatch, assignCaptain, setRole, setQuestionCount, startMatch, advanceToDiscussion, submitAnswer, judgeAnswer, nextQuestion, sendChat, disconnectUser, toPublic, autoAdvanceToJudging, } from './services/wwwService.js';
 import { voiceJoin, voiceLeave, voiceGetMatchId } from './services/wwwVoiceService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
 const WWW_ROOM = (id) => `www:${id}`;
@@ -143,6 +143,19 @@ export function registerWWWHandlers(io, socket) {
             const m = setRole(String(data?.matchId), userId(), data?.role);
             if (!m)
                 return cb(err('Cannot change role'));
+            broadcast(io, m);
+            cb(ok(null));
+        }
+        catch (e) {
+            cb(err(e.message));
+        }
+    });
+    // ── set question count (lobby: 10 / 15) ───────────────────────────────
+    socket.on('www:set_questions', (data, cb) => {
+        try {
+            const m = setQuestionCount(String(data?.matchId), userId(), Number(data?.count));
+            if (!m)
+                return cb(err('Cannot set question count'));
             broadcast(io, m);
             cb(ok(null));
         }

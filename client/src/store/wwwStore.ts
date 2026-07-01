@@ -19,6 +19,7 @@ interface WWWStore {
   leaveMatch: () => Promise<void>;
   startMatch: () => Promise<void>;
   setRole: (role: 'team_a' | 'team_b' | 'spectator') => Promise<void>;
+  setQuestionCount: (count: number) => Promise<void>;
   advanceDiscussion: () => Promise<void>;
   submitAnswer: (answerText: string) => Promise<void>;
   judgeAnswer: (teamId: string, isCorrect: boolean) => Promise<void>;
@@ -77,6 +78,15 @@ export const useWWWStore = create<WWWStore>((set, get) => ({
     if (!match) return;
     try {
       const res = await emitWithAck<any, any>('www:set_role', { matchId: match.id, role });
+      if (!(res as any).ok) set({ error: (res as any).error });
+    } catch (e: any) { set({ error: e.message }); }
+  },
+
+  setQuestionCount: async (count: number) => {
+    const { match } = get();
+    if (!match) return;
+    try {
+      const res = await emitWithAck<any, any>('www:set_questions', { matchId: match.id, count });
       if (!(res as any).ok) set({ error: (res as any).error });
     } catch (e: any) { set({ error: e.message }); }
   },

@@ -200,10 +200,11 @@ function TeamPanel({
 
 // ── WaitingScreen ─────────────────────────────────────────────────────────────
 function WaitingScreen({
-  match, isHost, myId, onStart, onSetRole,
+  match, isHost, myId, onStart, onSetRole, onSetQuestions,
 }: {
   match: WWWMatchPublic; isHost: boolean; myId: string; onStart: () => void;
   onSetRole: (role: 'team_a' | 'team_b' | 'spectator') => void;
+  onSetQuestions: (count: number) => void;
 }) {
   const connectedPlayers = Object.values(match.players).filter(p => !p.isSpectator);
   const host = match.players[match.hostId];
@@ -283,6 +284,35 @@ function WaitingScreen({
       </div>
 
       <div className="text-center font-mono text-[12px] text-white/30">{connectedPlayers.length} მონაწილე</div>
+
+      {/* Game length — host picks 10 or 15 questions */}
+      {isHost && (
+        <div className="rounded-2xl px-4 py-3" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <p className="font-mono text-[11px] uppercase tracking-widest text-white/35 mb-2 text-center">კითხვების რაოდენობა</p>
+          <div className="flex gap-2">
+            {[10, 15].map(n => {
+              const on = (match.settings.questionsCount ?? 10) === n;
+              return (
+                <button
+                  key={n}
+                  onClick={() => onSetQuestions(n)}
+                  className="flex-1 py-2.5 rounded-xl font-mono text-sm font-bold transition-all active:scale-95"
+                  style={{
+                    background: on ? 'rgba(168,85,247,0.22)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${on ? ACCENT + '60' : 'rgba(255,255,255,0.1)'}`,
+                    color: on ? ACCENT : 'rgba(255,255,255,0.5)',
+                  }}
+                >
+                  {n} კითხვა
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {!isHost && (
+        <p className="text-center font-mono text-[11px] text-white/25">{match.settings.questionsCount ?? 10} კითხვიანი თამაში</p>
+      )}
 
       {isHost ? (
         <>
@@ -700,7 +730,7 @@ function FinishedScreen({ match, onLeave }: { match: WWWMatchPublic; onLeave: ()
 // ── Main WWWGame component ─────────────────────────────────────────────────────
 export function WWWGame() {
   const {
-    match, leaveMatch, startMatch, setRole, advanceDiscussion,
+    match, leaveMatch, startMatch, setRole, setQuestionCount, advanceDiscussion,
     submitAnswer, judgeAnswer, nextQuestion, sendChat,
     error, clearError,
   } = useWWWStore();
@@ -874,7 +904,7 @@ export function WWWGame() {
       {/* Main content */}
       <div className="flex-1 overflow-y-auto px-4 pb-4">
         {match.status === 'waiting' && (
-          <WaitingScreen match={match} isHost={isHost} myId={myId} onStart={startMatch} onSetRole={setRole} />
+          <WaitingScreen match={match} isHost={isHost} myId={myId} onStart={startMatch} onSetRole={setRole} onSetQuestions={setQuestionCount} />
         )}
         {match.status === 'question' && (
           <QuestionScreen match={match} isHost={isHost} onAdvance={advanceDiscussion} />
