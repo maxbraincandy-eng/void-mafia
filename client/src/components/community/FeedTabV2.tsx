@@ -64,21 +64,37 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
   // still in its loading state (sentinel absent → bottomRef.current null) and,
   // since its deps didn't change when posts rendered, it never re-attached, so
   // load-more never fired. loadMore is read through a ref to avoid stale state.
+  // `loadingRef` is a synchronous lock (React state is async, so two observer
+  // callbacks in the same tick could both pass a `loadingMore` check).
+  const loadingRef = useRef(false);
   const loadMore = useCallback(async () => {
-    if (!feedV2HasMore || loadingMore) return;
+    if (!feedV2HasMore || loadingRef.current) return;
+    loadingRef.current = true;
     setLoadingMore(true);
-    try { await fetchFeedV2(false); } finally { setLoadingMore(false); }
-  }, [feedV2HasMore, loadingMore, fetchFeedV2]);
+    try { await fetchFeedV2(false); } finally { loadingRef.current = false; setLoadingMore(false); }
+  }, [feedV2HasMore, fetchFeedV2]);
   const loadMoreRef = useRef(loadMore);
   loadMoreRef.current = loadMore;
 
+  // Load exactly ONE page each time the sentinel comes into view, and require it
+  // to leave and re-enter before loading the next. Android fires the observer
+  // continuously during momentum scroll (iOS only on settle), so without this
+  // gate a single fling would load every remaining page at once and dump the
+  // user at the oldest post, skipping everything in between.
+  const canLoadRef = useRef(true);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const bottomRef = useCallback((node: HTMLDivElement | null) => {
     observerRef.current?.disconnect();
     if (!node) return;
     observerRef.current = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) loadMoreRef.current(); },
-      { threshold: 0, rootMargin: '300px' }, // pre-load before hitting the very bottom
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          if (canLoadRef.current) { canLoadRef.current = false; loadMoreRef.current(); }
+        } else {
+          canLoadRef.current = true; // left the trigger zone → arm the next load
+        }
+      },
+      { threshold: 0, rootMargin: '150px' },
     );
     observerRef.current.observe(node);
   }, []);
