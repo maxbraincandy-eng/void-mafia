@@ -76,25 +76,29 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
   const loadMoreRef = useRef(loadMore);
   loadMoreRef.current = loadMore;
 
-  // Load exactly ONE page each time the sentinel comes into view, and require it
-  // to leave and re-enter before loading the next. Android fires the observer
-  // continuously during momentum scroll (iOS only on settle), so without this
-  // gate a single fling would load every remaining page at once and dump the
-  // user at the oldest post, skipping everything in between.
-  const canLoadRef = useRef(true);
+  // Load at most ONE page per TIME WINDOW. Android fires the observer
+  // continuously during momentum scroll (iOS only on settle): a single hard
+  // fling makes the sentinel exit and re-enter repeatedly (each appended page
+  // pushes it out, momentum brings it back), so a mere enter/exit gate still
+  // loads page after page and dumps the user at the oldest post. A fixed
+  // re-arm delay after each load caps it to one page per fling regardless of
+  // how many times the sentinel is crossed.
+  const armedRef = useRef(true);
+  const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const bottomRef = useCallback((node: HTMLDivElement | null) => {
     observerRef.current?.disconnect();
     if (!node) return;
     observerRef.current = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
-          if (canLoadRef.current) { canLoadRef.current = false; loadMoreRef.current(); }
-        } else {
-          canLoadRef.current = true; // left the trigger zone → arm the next load
+        if (entry.isIntersecting && armedRef.current) {
+          armedRef.current = false;
+          loadMoreRef.current();
+          if (armTimer.current) clearTimeout(armTimer.current);
+          armTimer.current = setTimeout(() => { armedRef.current = true; }, 900);
         }
       },
-      { threshold: 0, rootMargin: '150px' },
+      { threshold: 0, rootMargin: '120px' },
     );
     observerRef.current.observe(node);
   }, []);
@@ -181,11 +185,11 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
       ) : feedV2Posts.length === 0 ? (
         <EmptyState text={t.community.feed.empty} />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3" style={{ overflowAnchor: 'none' }}>
           {feedV2Posts.map(post => (
             <PostCardV2 key={post.id} post={post} onOpenProfile={onOpenProfile} />
           ))}
-          <div ref={bottomRef} className="h-4" />
+          <div ref={bottomRef} className="h-4" style={{ overflowAnchor: 'none' }} />
           {loadingMore && <Spinner color="#9b00ff" />}
         </div>
       )}
