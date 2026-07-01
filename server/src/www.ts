@@ -35,6 +35,29 @@ function broadcastList(io: AppServer): void {
   io.emit('www:list_update' as any, listMatches());
 }
 
+// One discussion timer per match. Re-arming clears the previous timer, and the
+// callback is guarded by the round's `timerEndsAt` token so a leftover timer
+// from an earlier round can never cut a new discussion short (the bug where a
+// fresh question auto-skipped, or one team's answer was force-judged without
+// waiting for the other).
+const discussionTimers = new Map<string, ReturnType<typeof setTimeout>>();
+function clearDiscussionTimer(matchId: string): void {
+  const t = discussionTimers.get(matchId);
+  if (t) { clearTimeout(t); discussionTimers.delete(matchId); }
+}
+function scheduleAutoJudge(io: AppServer, m: WWWMatch): void {
+  clearDiscussionTimer(m.id);
+  const roundToken = m.timerEndsAt; // identifies THIS discussion round
+  const t = setTimeout(() => {
+    discussionTimers.delete(m.id);
+    const cur = getMatch(m.id);
+    if (!cur || cur.status !== 'discussion' || cur.timerEndsAt !== roundToken) return; // stale / round changed
+    const updated = autoAdvanceToJudging(m.id);
+    if (updated) broadcast(io, updated);
+  }, Math.max(0, m.settings.discussionSeconds * 1000));
+  discussionTimers.set(m.id, t);
+}
+
 export function registerWWWHandlers(io: AppServer, socket: AppSocket): void {
   const userId = (): string => socket.data.profileId ?? socket.id;
 
@@ -87,6 +110,7 @@ export function registerWWWHandlers(io: AppServer, socket: AppSocket): void {
       const matchId = String(data?.matchId);
       const m = leaveMatch(matchId, userId());
       socket.leave(WWW_ROOM(matchId));
+      if (!m) clearDiscussionTimer(matchId); // match gone → drop its timer
       if (m) broadcast(io, m);
       broadcastList(io);
       cb(ok(null));
@@ -131,12 +155,8 @@ export function registerWWWHandlers(io: AppServer, socket: AppSocket): void {
       if (!m) return cb(err('Cannot advance'));
       broadcast(io, m);
       cb(ok(null));
-      // Auto-advance to judging when timer expires
-      const delay = m.settings.discussionSeconds * 1000;
-      setTimeout(() => {
-        const updated = autoAdvanceToJudging(m.id);
-        if (updated) broadcast(io, updated);
-      }, delay);
+      // Auto-advance to judging when the 60s timer expires (single guarded timer).
+      scheduleAutoJudge(io, m);
     } catch (e: any) { cb(err(e.message)); }
   });
 
