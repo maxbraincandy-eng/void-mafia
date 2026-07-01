@@ -8,6 +8,7 @@ import { useSpaceVoice } from '@/hooks/useSpaceVoice';
 import { useLivekitRoomVoice, useLiveKitEnabled } from '@/hooks/useLivekitVoice';
 import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
 import { useAuthStore } from '@/store/authStore';
+import { STAR_HAT_PNG } from '@/assets/starHat';
 import { useNameColor } from '@/store/nameColorStore';
 import { useCommunityStore } from '@/store/communityStore';
 import { SPACE_THEME_DEFS, getSpaceTheme, itemIdForTheme } from '@/constants/spaceThemes';
@@ -326,6 +327,19 @@ function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walkin
         <div style={{ position: 'absolute', bottom: 2, left: -Math.round(14 * size), fontSize: Math.round(13 * size), animation: 'vs-float 1.6s ease-in-out infinite', pointerEvents: 'none' }}>
           {PET_EMOJI[pet]}
         </div>
+      )}
+
+      {/* Exact silver-star PNG hat (HTML <img> overlay — raster renders reliably
+          everywhere, unlike an SVG <image> inside the animated avatar). */}
+      {hat === 'star2' && (
+        <img src={STAR_HAT_PNG} alt="" style={{ position: 'absolute', top: -Math.round(9 * size), left: '50%', transform: 'translateX(-50%)', width: Math.round(20 * size), height: Math.round(20 * size), pointerEvents: 'none', zIndex: 4, filter: 'drop-shadow(0 0 3px #ffffffaa)' }} />
+      )}
+      {/* Twin silver-star pet — floats on BOTH sides of the avatar. */}
+      {pet === 'starduo' && (
+        <>
+          <img src={STAR_HAT_PNG} alt="" style={{ position: 'absolute', top: '34%', left: -Math.round(15 * size), width: Math.round(12 * size), height: Math.round(12 * size), pointerEvents: 'none', animation: 'vs-float 1.7s ease-in-out infinite', filter: 'drop-shadow(0 0 2px #ffffff99)' }} />
+          <img src={STAR_HAT_PNG} alt="" style={{ position: 'absolute', top: '34%', right: -Math.round(15 * size), width: Math.round(12 * size), height: Math.round(12 * size), pointerEvents: 'none', animation: 'vs-float 1.7s ease-in-out 0.35s infinite', filter: 'drop-shadow(0 0 2px #ffffff99)' }} />
+        </>
       )}
 
       {gesture && GESTURE_EMOJI[gesture] && (
@@ -872,10 +886,11 @@ function NowPlayingBar({ djState, localPlaying, onOpen, onStartListening }: {
 const HATS: { id: string; label: string }[] = [
   { id: 'none', label: 'არა' }, { id: 'cap', label: '🧢' }, { id: 'crown', label: '👑' },
   { id: 'halo', label: '😇' }, { id: 'party', label: '🎉' }, { id: 'cat', label: '🐱' }, { id: 'beanie', label: '🎩' },
-  { id: 'star', label: '🌟' },
+  { id: 'star', label: '🌟' }, { id: 'star2', label: '✨' },
 ];
 const PETS: { id: string; label: string }[] = [
   { id: 'none', label: 'არა' }, { id: 'cat', label: '🐱' }, { id: 'bot', label: '🤖' }, { id: 'ghost', label: '👻' }, { id: 'star', label: '⭐' },
+  { id: 'starduo', label: '💫' },
   { id: 'fish', label: '🐟' }, { id: 'fish2', label: '🐠' }, { id: 'egg', label: '🥚' }, { id: 'chick', label: '🐥' }, { id: 'moon', label: '🌓' }, { id: 'car', label: '🚗' },
 ];
 const FORMS: { id: string; label: string }[] = [

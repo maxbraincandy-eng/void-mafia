@@ -6805,8 +6805,8 @@ export function attachSocketHandlers(io) {
                 const safeBody = /^#[0-9a-fA-F]{6}$/.test(bodyColor) ? bodyColor : '#9b00ff';
                 const safeGlow = /^#[0-9a-fA-F]{6}$/.test(glowColor ?? '') ? glowColor : '#00e5ff';
                 const safeMask = ['none', 'half', 'full', 'visor'].includes(mask) ? mask : 'none';
-                const safeHat = ['none', 'cap', 'crown', 'halo', 'party', 'cat', 'beanie', 'star'].includes(hat) ? hat : 'none';
-                const safePet = ['none', 'cat', 'bot', 'ghost', 'star', 'fish', 'fish2', 'egg', 'chick', 'moon', 'car'].includes(pet) ? pet : 'none';
+                const safeHat = ['none', 'cap', 'crown', 'halo', 'party', 'cat', 'beanie', 'star', 'star2'].includes(hat) ? hat : 'none';
+                const safePet = ['none', 'cat', 'bot', 'ghost', 'star', 'starduo', 'fish', 'fish2', 'egg', 'chick', 'moon', 'car'].includes(pet) ? pet : 'none';
                 const safeForm = ['human', 'car'].includes(form) ? form : 'human';
                 const safeSpace = String(spaceId).slice(0, 48).replace(/[^a-zA-Z0-9_-]/g, '') || 'main'; // 48: fits clan_<uuid>
                 const meta = _spaceMeta.get(safeSpace);
