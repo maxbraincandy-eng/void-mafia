@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
-import { emitWithAck } from '@/lib/socket';
+import { emitWithAck, socket } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
 import type { Res } from '@/types/index';
 
@@ -309,6 +309,7 @@ export function StoriesStrip({ onOpenProfile }: { onOpenProfile: (id: string) =>
   const [composerImg, setComposerImg] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   const [seen, setSeen] = useState<Set<string>>(() => loadSeen());
+  const [storyNotif, setStoryNotif] = useState(false); // red dot: someone reacted to my story
   const fileRef = useRef<HTMLInputElement>(null);
 
   // File picking happens here, inside the direct tap on "+ შენი Story", so iOS
@@ -336,6 +337,28 @@ export function StoriesStrip({ onOpenProfile }: { onOpenProfile: (id: string) =>
     return () => window.removeEventListener('vm:auth-ready', onReady);
   }, [fetchStories]);
 
+  // Red-dot state: unread story-reaction notifications for my own story.
+  useEffect(() => {
+    const refresh = () => emitWithAck<undefined, Res<number>>('community:story_notif_unread')
+      .then(r => { if ((r as any).ok) setStoryNotif((r as any).data > 0); })
+      .catch(() => {});
+    refresh();
+    const onNotif = () => setStoryNotif(true);              // live push when someone reacts
+    const onReady = () => refresh();
+    socket.on('community:story_notif', onNotif);
+    window.addEventListener('vm:auth-ready', onReady);
+    return () => { socket.off('community:story_notif', onNotif); window.removeEventListener('vm:auth-ready', onReady); };
+  }, []);
+
+  // Opening my own story (or its reaction/viewer list) clears the dot.
+  const openStory = (i: number) => {
+    setViewer(i);
+    if (groups[i]?.authorId === profile?.id && storyNotif) {
+      setStoryNotif(false);
+      emitWithAck('community:story_notif_read').catch(() => {});
+    }
+  };
+
   const markSeen = useCallback((id: string) => {
     setSeen(prev => { if (prev.has(id)) return prev; const n = new Set(prev); n.add(id); saveSeen(n); return n; });
   }, []);
@@ -356,12 +379,16 @@ export function StoriesStrip({ onOpenProfile }: { onOpenProfile: (id: string) =>
 
       {groups.map((g, i) => {
         const fresh = !groupSeen(g);
+        const mine = g.authorId === profile?.id;
         return (
-          <button key={g.authorId} onClick={() => setViewer(i)} className="flex flex-col items-center gap-1 flex-shrink-0" style={{ width: 60 }}>
-            <div style={{ width: 56, height: 56, borderRadius: '50%', padding: 2, background: fresh ? 'linear-gradient(135deg,#9b00ff,#00e5ff,#ff00cc)' : 'rgba(255,255,255,0.12)' }}>
+          <button key={g.authorId} onClick={() => openStory(i)} className="flex flex-col items-center gap-1 flex-shrink-0" style={{ width: 60 }}>
+            <div style={{ position: 'relative', width: 56, height: 56, borderRadius: '50%', padding: 2, background: fresh ? 'linear-gradient(135deg,#9b00ff,#00e5ff,#ff00cc)' : 'rgba(255,255,255,0.12)' }}>
               <div style={{ width: '100%', height: '100%', borderRadius: '50%', padding: 2, background: '#06040f' }}>
                 <Avatar avatar={g.avatar} avatarUrl={g.avatarUrl} size={48} />
               </div>
+              {mine && storyNotif && (
+                <span style={{ position: 'absolute', top: 0, right: 0, width: 14, height: 14, borderRadius: '50%', background: '#ff2d55', border: '2px solid #06040f', boxShadow: '0 0 6px rgba(255,45,85,0.8)' }} />
+              )}
             </div>
             <span className="font-mono text-[10px] text-white/55 truncate" style={{ maxWidth: 58 }}>{g.username}</span>
           </button>

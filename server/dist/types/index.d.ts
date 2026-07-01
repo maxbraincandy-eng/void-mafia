@@ -853,6 +853,9 @@ export interface ServerToClientEvents {
         storyId: string;
         reactions: Record<string, number>;
     }) => void;
+    'community:story_notif': (data: {
+        storyId: string;
+    }) => void;
     'community:leaderboard_update': (data: any[]) => void;
     'community:lounge_removed': (data: {
         loungeId: string;

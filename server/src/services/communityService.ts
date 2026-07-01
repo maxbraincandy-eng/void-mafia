@@ -974,6 +974,10 @@ export const STORY_REACTIONS = ['🤍', '🔥', '👍', '⭐', '🤯', '😂'] a
 export interface StoryReactionResult {
   reactions: Record<string, number>; // emoji → count
   myReaction: string | null;
+  /** True when this call added a brand-new reaction (→ notify the owner). */
+  added: boolean;
+  /** Story owner id (for the notification), null if the story is gone. */
+  authorId: string | null;
 }
 
 async function tallyStoryReactions(storyId: string): Promise<Record<string, number>> {
@@ -989,9 +993,12 @@ async function tallyStoryReactions(storyId: string): Promise<Record<string, numb
  */
 export async function toggleStoryReaction(storyId: string, reactorId: string, reaction: string): Promise<StoryReactionResult> {
   if (!STORY_REACTIONS.includes(reaction as any)) throw new Error('Invalid reaction.');
+  const [story] = await sql`SELECT author_id FROM community_stories WHERE id = ${storyId}` as any[];
+  const authorId: string | null = story?.author_id ?? null;
   const [existing] = await sql`SELECT reaction FROM community_story_reactions WHERE story_id = ${storyId} AND reactor_id = ${reactorId}` as any[];
 
   let myReaction: string | null = reaction;
+  let added = false;
   if (existing) {
     if (existing.reaction === reaction) {
       await sql`DELETE FROM community_story_reactions WHERE story_id = ${storyId} AND reactor_id = ${reactorId}`;
@@ -1006,11 +1013,24 @@ export async function toggleStoryReaction(storyId: string, reactorId: string, re
       VALUES (${storyId}, ${reactorId}, ${reaction}, ${Date.now()})
       ON CONFLICT (story_id, reactor_id) DO UPDATE SET reaction = ${reaction}, created_at = ${Date.now()}
     `;
+    added = true; // brand-new reaction → owner gets a notification
   }
-  return { reactions: await tallyStoryReactions(storyId), myReaction };
+  return { reactions: await tallyStoryReactions(storyId), myReaction, added, authorId };
 }
 
-export async function getStoryReactions(storyId: string, viewerId?: string): Promise<StoryReactionResult> {
+// Unread notification helpers scoped to story reactions (drives the red dot).
+export async function getUnreadStoryReactionCount(playerId: string): Promise<number> {
+  const [row] = await sql`SELECT COUNT(*) as c FROM community_notifications
+                          WHERE player_id = ${playerId} AND type = 'story_reaction' AND read = false` as any[];
+  return Number(row?.c ?? 0);
+}
+
+export async function markStoryReactionNotificationsRead(playerId: string): Promise<void> {
+  await sql`UPDATE community_notifications SET read = true
+            WHERE player_id = ${playerId} AND type = 'story_reaction' AND read = false`;
+}
+
+export async function getStoryReactions(storyId: string, viewerId?: string): Promise<{ reactions: Record<string, number>; myReaction: string | null }> {
   const reactions = await tallyStoryReactions(storyId);
   let myReaction: string | null = null;
   if (viewerId) {

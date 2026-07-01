@@ -142,13 +142,22 @@ export declare const STORY_REACTIONS: readonly ["🤍", "🔥", "👍", "⭐", "
 export interface StoryReactionResult {
     reactions: Record<string, number>;
     myReaction: string | null;
+    /** True when this call added a brand-new reaction (→ notify the owner). */
+    added: boolean;
+    /** Story owner id (for the notification), null if the story is gone. */
+    authorId: string | null;
 }
 /**
  * Toggle a reaction on a story. One reaction per user (composite PK):
  * same emoji → remove, different → switch, none → add. Returns fresh counts.
  */
 export declare function toggleStoryReaction(storyId: string, reactorId: string, reaction: string): Promise<StoryReactionResult>;
-export declare function getStoryReactions(storyId: string, viewerId?: string): Promise<StoryReactionResult>;
+export declare function getUnreadStoryReactionCount(playerId: string): Promise<number>;
+export declare function markStoryReactionNotificationsRead(playerId: string): Promise<void>;
+export declare function getStoryReactions(storyId: string, viewerId?: string): Promise<{
+    reactions: Record<string, number>;
+    myReaction: string | null;
+}>;
 export declare function getUserPosts(authorId: string, viewerId: string, options?: {
     before?: number;
     limit?: number;

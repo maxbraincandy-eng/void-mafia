@@ -112,6 +112,7 @@ import {
   createPostV2, listFeedV2, getUserPosts, votePoll, togglePostSave, getSavedPosts,
   createStory, listActiveStories, deleteStory, recordStoryView, getStoryViewers,
   toggleStoryReaction, getStoryReactions,
+  getUnreadStoryReactionCount, markStoryReactionNotificationsRead,
   pinPost, featurePost, hidePost, logCommunityModAction, getCommunityModLogs,
   listPeopleDirectory, getFollowersList, getFollowingList,
   searchCommunity, upsertOnlineSeen, getOnlineMembers, computeTrending, recalcReputation,
@@ -4977,6 +4978,20 @@ export function attachSocketHandlers(io: AppServer): void {
         cb?.(ok(result)); // caller gets counts + their own reaction
         // Real-time: push updated counts to everyone (socket.io broadcast).
         io.emit('community:story_reacted', { storyId, reactions: result.reactions });
+
+        // New reaction on someone else's story → notify the owner (unread) + live red dot.
+        if (result.added && result.authorId && result.authorId !== profileId) {
+          const reactor = await getPlayer(profileId);
+          const notif = await createNotification(
+            result.authorId, 'story_reaction', 'New story reaction',
+            `${reactor?.username ?? 'Someone'} reacted ${reaction} to your story.`, `story:${storyId}`,
+          );
+          const ownerSock = findSocketByProfile(io as any, result.authorId);
+          if (ownerSock) {
+            ownerSock.emit('community:notification', notif);
+            ownerSock.emit('community:story_notif', { storyId }); // drives the story-icon red dot live
+          }
+        }
       } catch (e: any) { cb?.(err(e.message)); }
     });
 
@@ -4984,6 +4999,23 @@ export function attachSocketHandlers(io: AppServer): void {
       try {
         cb(ok(await getStoryReactions(storyId, socket.data.profileId ?? undefined)));
       } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // Red-dot state for the owner's own story icon (story-reaction notifications).
+    socket.on('community:story_notif_unread' as any, async (cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        cb(ok(profileId ? await getUnreadStoryReactionCount(profileId) : 0));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // Mark read when the owner opens their story / the reaction list → red dot disappears.
+    socket.on('community:story_notif_read' as any, async (cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (profileId) await markStoryReactionNotificationsRead(profileId);
+        cb?.(ok(null));
+      } catch (e: any) { cb?.(err(e.message)); }
     });
 
     socket.on('community:story_create' as any, async ({ imageUrl, caption }: { imageUrl: string; caption?: string }, cb: any) => {
