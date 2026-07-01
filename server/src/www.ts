@@ -5,7 +5,7 @@ import { Server, Socket } from 'socket.io';
 import { ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData, ok, err } from './types/index.js';
 import {
   createMatch, getMatch, getMatchByCode, getMatchIdForUser, listMatches,
-  joinMatch, spectateMatch, leaveMatch, assignCaptain, startMatch,
+  joinMatch, spectateMatch, leaveMatch, assignCaptain, setRole, startMatch,
   advanceToDiscussion, submitAnswer, judgeAnswer, nextQuestion, sendChat,
   disconnectUser, toPublic, autoAdvanceToJudging, type WWWMatch,
 } from './services/wwwService.js';
@@ -98,6 +98,16 @@ export function registerWWWHandlers(io: AppServer, socket: AppSocket): void {
     try {
       const m = assignCaptain(String(data?.matchId), userId(), String(data?.teamId), String(data?.targetUserId));
       if (!m) return cb(err('Cannot assign captain'));
+      broadcast(io, m);
+      cb(ok(null));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  // ── set role (lobby: pick Team A / Team B / spectator) ────────────────
+  socket.on('www:set_role' as any, (data: { matchId: string; role: 'team_a' | 'team_b' | 'spectator' }, cb: (r: any) => void) => {
+    try {
+      const m = setRole(String(data?.matchId), userId(), data?.role);
+      if (!m) return cb(err('Cannot change role'));
       broadcast(io, m);
       cb(ok(null));
     } catch (e: any) { cb(err(e.message)); }

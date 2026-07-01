@@ -99,6 +99,9 @@ export declare function joinMatch(matchId: string, userId: string, nickname: str
 export declare function spectateMatch(matchId: string, userId: string, nickname: string): WWWMatch | null;
 export declare function leaveMatch(matchId: string, userId: string): WWWMatch | null;
 export declare function assignCaptain(matchId: string, hostId: string, teamId: string, newCaptainId: string): WWWMatch | null;
+/** Lobby role assignment: a participant picks Team A, Team B, or spectator.
+ *  The host stays the moderator (cannot join a team). */
+export declare function setRole(matchId: string, userId: string, role: 'team_a' | 'team_b' | 'spectator'): WWWMatch | null;
 export declare function startMatch(matchId: string, hostId: string): WWWMatch | null;
 export declare function advanceToDiscussion(matchId: string, hostId: string): WWWMatch | null;
 export declare function submitAnswer(matchId: string, userId: string, answerText: string): WWWMatch | null;

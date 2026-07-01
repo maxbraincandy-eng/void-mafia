@@ -200,11 +200,15 @@ function TeamPanel({
 
 // ── WaitingScreen ─────────────────────────────────────────────────────────────
 function WaitingScreen({
-  match, isHost, myId, onStart,
+  match, isHost, myId, onStart, onSetRole,
 }: {
   match: WWWMatchPublic; isHost: boolean; myId: string; onStart: () => void;
+  onSetRole: (role: 'team_a' | 'team_b' | 'spectator') => void;
 }) {
   const connectedPlayers = Object.values(match.players).filter(p => !p.isSpectator);
+  const host = match.players[match.hostId];
+  const myTeam = match.players[myId]?.teamId ?? null;
+  const bothTeamsReady = match.teams.every(t => t.playerIds.length > 0);
   return (
     <div className="space-y-4 pt-2">
       {/* Join code */}
@@ -217,55 +221,85 @@ function WaitingScreen({
         <p className="font-mono text-[12px] text-white/25 mt-2">გაუზიარე მეგობრებს</p>
       </div>
 
-      {/* Teams */}
-      <div className="flex gap-3">
-        {match.teams.map(team => (
-          <div
-            key={team.id}
-            className="flex-1 rounded-2xl overflow-hidden"
-            style={{ background: 'rgba(8,4,20,0.95)', border: `1px solid ${team.color}25` }}
-          >
-            <div
-              className="px-3 py-2 flex items-center gap-2 border-b"
-              style={{ background: `${team.color}0d`, borderColor: `${team.color}18` }}
-            >
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: team.color }} />
-              <span className="font-mono text-xs font-bold" style={{ color: team.color }}>{team.name}</span>
-            </div>
-            <div className="px-3 py-2 space-y-1">
-              {team.playerIds.length === 0 ? (
-                <p className="font-mono text-[12px] text-white/20">— ჯერ არავინ —</p>
-              ) : team.playerIds.map(uid => (
-                <div key={uid} className="flex items-center gap-2">
-                  <span className={`w-1.5 h-1.5 rounded-full ${match.players[uid]?.connected ? 'bg-green-400' : 'bg-white/20'}`} />
-                  <span className="font-mono text-[12px] text-white/65">{match.players[uid]?.nickname ?? uid}</span>
-                  {team.captainId === uid && (
-                    <span
-                      className="font-mono text-[12px] px-1.5 rounded-full"
-                      style={{ background: `${team.color}20`, color: team.color }}
-                    >კაპ</span>
-                  )}
-                  {uid === myId && <span className="font-mono text-[12px] text-white/25">(შენ)</span>}
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
+      {/* Host / moderator */}
+      <div className="rounded-2xl px-4 py-3 flex items-center gap-2.5" style={{ background: 'rgba(168,85,247,0.08)', border: `1px solid ${ACCENT}30` }}>
+        <span style={{ fontSize: 18 }}>🎙️</span>
+        <div className="min-w-0">
+          <p className="font-mono text-[11px] uppercase tracking-widest" style={{ color: ACCENT }}>წამყვანი</p>
+          <p className="font-mono text-[13px] text-white/75 truncate">{host?.nickname ?? '—'}{match.hostId === myId ? ' (შენ)' : ''}</p>
+        </div>
       </div>
 
-      <div className="text-center font-mono text-[12px] text-white/30">{connectedPlayers.length} მოთამაშე</div>
+      {/* Role picker hint */}
+      {!isHost && (
+        <p className="text-center font-mono text-[12px] text-white/40">აირჩიე გუნდი 👇</p>
+      )}
+
+      {/* Teams */}
+      <div className="flex gap-3">
+        {match.teams.map(team => {
+          const mine = myTeam === team.id;
+          return (
+            <div
+              key={team.id}
+              className="flex-1 rounded-2xl overflow-hidden flex flex-col"
+              style={{ background: 'rgba(8,4,20,0.95)', border: `1px solid ${mine ? team.color + '70' : team.color + '25'}` }}
+            >
+              <div
+                className="px-3 py-2 flex items-center gap-2 border-b"
+                style={{ background: `${team.color}0d`, borderColor: `${team.color}18` }}
+              >
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: team.color }} />
+                <span className="font-mono text-xs font-bold" style={{ color: team.color }}>{team.name}</span>
+                <span className="ml-auto font-mono text-[11px]" style={{ color: team.color }}>{team.playerIds.length}</span>
+              </div>
+              <div className="px-3 py-2 space-y-1 flex-1">
+                {team.playerIds.length === 0 ? (
+                  <p className="font-mono text-[12px] text-white/20">— ჯერ არავინ —</p>
+                ) : team.playerIds.map(uid => (
+                  <div key={uid} className="flex items-center gap-2">
+                    <span className={`w-1.5 h-1.5 rounded-full ${match.players[uid]?.connected ? 'bg-green-400' : 'bg-white/20'}`} />
+                    <span className="font-mono text-[12px] text-white/65 truncate">{match.players[uid]?.nickname ?? uid}</span>
+                    {team.captainId === uid && (
+                      <span className="font-mono text-[11px] px-1.5 rounded-full flex-shrink-0" style={{ background: `${team.color}20`, color: team.color }}>კაპ</span>
+                    )}
+                    {uid === myId && <span className="font-mono text-[11px] text-white/25 flex-shrink-0">(შენ)</span>}
+                  </div>
+                ))}
+              </div>
+              {/* Join button — participants (not the host) pick a team */}
+              {!isHost && !mine && (
+                <button
+                  onClick={() => onSetRole(team.id as 'team_a' | 'team_b')}
+                  className="m-2 py-2 rounded-xl font-mono text-[12px] font-bold transition-all active:scale-95"
+                  style={{ background: `${team.color}1e`, border: `1px solid ${team.color}55`, color: team.color }}
+                >
+                  შემოგვიერთდი
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="text-center font-mono text-[12px] text-white/30">{connectedPlayers.length} მონაწილე</div>
 
       {isHost ? (
-        <button
-          onClick={onStart}
-          disabled={connectedPlayers.length < 1}
-          className="w-full py-4 rounded-2xl font-display font-bold text-[15px] transition-all active:scale-95 disabled:opacity-40"
-          style={{ background: 'rgba(168,85,247,0.18)', border: `1px solid ${ACCENT}45`, color: ACCENT }}
-        >
-          თამაშის დაწყება ▶
-        </button>
+        <>
+          <button
+            onClick={onStart}
+            disabled={!bothTeamsReady}
+            className="w-full py-4 rounded-2xl font-display font-bold text-[15px] transition-all active:scale-95 disabled:opacity-40"
+            style={{ background: 'rgba(168,85,247,0.18)', border: `1px solid ${ACCENT}45`, color: ACCENT }}
+          >
+            თამაშის დაწყება ▶
+          </button>
+          {!bothTeamsReady && (
+            <p className="text-center font-mono text-[11px] text-white/30">ორივე გუნდში სჭირდება მინიმუმ 1 მონაწილე</p>
+          )}
+        </>
       ) : (
-        <div className="text-center font-mono text-xs text-white/30 py-4">ლოდინი… ჰოსტი დაიწყებს თამაშს</div>
+        <div className="text-center font-mono text-xs text-white/30 py-2">ლოდინი… წამყვანი დაიწყებს თამაშს</div>
       )}
     </div>
   );
@@ -666,7 +700,7 @@ function FinishedScreen({ match, onLeave }: { match: WWWMatchPublic; onLeave: ()
 // ── Main WWWGame component ─────────────────────────────────────────────────────
 export function WWWGame() {
   const {
-    match, leaveMatch, startMatch, advanceDiscussion,
+    match, leaveMatch, startMatch, setRole, advanceDiscussion,
     submitAnswer, judgeAnswer, nextQuestion, sendChat,
     error, clearError,
   } = useWWWStore();
@@ -833,7 +867,7 @@ export function WWWGame() {
       {/* Main content */}
       <div className="flex-1 overflow-y-auto px-4 pb-4">
         {match.status === 'waiting' && (
-          <WaitingScreen match={match} isHost={isHost} myId={myId} onStart={startMatch} />
+          <WaitingScreen match={match} isHost={isHost} myId={myId} onStart={startMatch} onSetRole={setRole} />
         )}
         {match.status === 'question' && (
           <QuestionScreen match={match} isHost={isHost} onAdvance={advanceDiscussion} />

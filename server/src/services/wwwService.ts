@@ -189,13 +189,15 @@ export function createMatch(hostId: string, nickname: string, opts: Partial<WWWS
     discussionSeconds: 60, spectatorsAllowed: true, ...opts,
   };
   const teams: WWWTeam[] = [
-    { id: 'team_a', name: TEAM_NAMES[0]!, color: TEAM_COLORS[0]!, captainId: hostId, playerIds: [hostId] },
+    { id: 'team_a', name: TEAM_NAMES[0]!, color: TEAM_COLORS[0]!, captainId: null, playerIds: [] },
     { id: 'team_b', name: TEAM_NAMES[1]!, color: TEAM_COLORS[1]!, captainId: null, playerIds: [] },
   ];
   const scores: Record<string, number> = { team_a: 0, team_b: 0 };
   const m: WWWMatch = {
     id, code: code6(), status: 'waiting', hostId,
-    players: { [hostId]: { userId: hostId, nickname, teamId: 'team_a', isCaptain: true, isSpectator: false, connected: true } },
+    // The creator is the HOST / moderator — not on any team (teamId null,
+    // not a spectator). Participants pick Team A or Team B in the lobby.
+    players: { [hostId]: { userId: hostId, nickname, teamId: null, isCaptain: false, isSpectator: false, connected: true } },
     settings, teams, questions: [],
     currentQuestionIndex: 0, answers: {}, scores,
     timerEndsAt: null, voiceSessionId: randomBytes(6).toString('hex'),
@@ -295,9 +297,47 @@ export function assignCaptain(matchId: string, hostId: string, teamId: string, n
   return m;
 }
 
+/** Lobby role assignment: a participant picks Team A, Team B, or spectator.
+ *  The host stays the moderator (cannot join a team). */
+export function setRole(matchId: string, userId: string, role: 'team_a' | 'team_b' | 'spectator'): WWWMatch | null {
+  const m = matches.get(matchId);
+  if (!m || m.status !== 'waiting') return null;
+  if (userId === m.hostId) return null; // the host is the moderator, not a team member
+  const player = m.players[userId];
+  if (!player) return null;
+
+  // Remove from the current team (reassign captaincy if they were the captain).
+  if (player.teamId) {
+    const cur = m.teams.find(t => t.id === player.teamId);
+    if (cur) {
+      cur.playerIds = cur.playerIds.filter(id => id !== userId);
+      if (cur.captainId === userId) {
+        cur.captainId = cur.playerIds[0] ?? null;
+        if (cur.captainId && m.players[cur.captainId]) m.players[cur.captainId]!.isCaptain = true;
+      }
+    }
+  }
+  player.isCaptain = false;
+
+  if (role === 'spectator') {
+    player.teamId = null;
+    player.isSpectator = true;
+    return m;
+  }
+  const team = m.teams.find(t => t.id === role);
+  if (!team) return null;
+  player.teamId = role;
+  player.isSpectator = false;
+  team.playerIds.push(userId);
+  if (!team.captainId) { team.captainId = userId; player.isCaptain = true; }
+  return m;
+}
+
 export function startMatch(matchId: string, hostId: string): WWWMatch | null {
   const m = matches.get(matchId);
   if (!m || m.hostId !== hostId || m.status !== 'waiting') return null;
+  // Both teams need at least one player (host is the moderator, not a team).
+  if (m.teams.some(t => t.playerIds.length === 0)) return null;
   // Ensure each team has a captain
   for (const team of m.teams) {
     if (team.playerIds.length > 0 && !team.captainId) {
