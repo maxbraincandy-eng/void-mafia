@@ -8,6 +8,7 @@ import { useSpaceVoice } from '@/hooks/useSpaceVoice';
 import { useLivekitRoomVoice, useLiveKitEnabled } from '@/hooks/useLivekitVoice';
 import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
 import { useAuthStore } from '@/store/authStore';
+import { STAR_HAT_PNG } from '@/assets/starHat';
 import { useNameColor } from '@/store/nameColorStore';
 import { useCommunityStore } from '@/store/communityStore';
 import { SPACE_THEME_DEFS, getSpaceTheme, itemIdForTheme } from '@/constants/spaceThemes';
@@ -242,22 +243,11 @@ function gestureAnim(g: string | null | undefined, sitting?: boolean): string {
   return 'none';
 }
 
-// Silver 8-pointed star hat (matches the uploaded PNG). 16 vertices alternating
-// long/short points, computed once, sitting just above the head.
-const STAR_HAT_POINTS = (() => {
-  const cx = 16, cy = -3, R = 7, r = 2.9, pts: string[] = [];
-  for (let i = 0; i < 16; i++) {
-    const ang = -Math.PI / 2 + (i * Math.PI) / 8;
-    const rad = i % 2 === 0 ? R : r;
-    pts.push(`${(cx + rad * Math.cos(ang)).toFixed(2)},${(cy + rad * Math.sin(ang)).toFixed(2)}`);
-  }
-  return pts.join(' ');
-})();
-
 function renderHat(hat: string | undefined, glow: string, body: string) {
   switch (hat) {
     case 'cap':    return <><path d="M6 3 Q16 -4 26 3 L26 5 L6 5 Z" fill={glow} /><rect x="6" y="4.5" width="13" height="2" rx="1" fill={glow} opacity="0.7" /></>;
-    case 'star':   return <polygon points={STAR_HAT_POINTS} fill="#d8d8e6" stroke="#ffffff" strokeWidth="0.4" style={{ filter: 'drop-shadow(0 0 3px #ffffffcc)' }} />;
+    // The exact uploaded silver-star PNG, sitting just above the head.
+    case 'star':   return <image href={STAR_HAT_PNG} x="6" y="-12" width="20" height="20" preserveAspectRatio="xMidYMid meet" style={{ filter: 'drop-shadow(0 0 2px #ffffff88)' }} />;
     case 'beanie': return <><path d="M6 4 Q16 -6 26 4 Z" fill={glow} /><rect x="5" y="3.5" width="22" height="2.5" rx="1.2" fill={body} /><circle cx="16" cy="-5" r="2" fill={glow} /></>;
     case 'crown':  return <path d="M8 4 L8 -2 L12 1 L16 -4 L20 1 L24 -2 L24 4 Z" fill="#ffcc00" stroke="#ffaa00" strokeWidth="0.4" />;
     case 'halo':   return <ellipse cx="16" cy="-4" rx="7" ry="2.2" fill="none" stroke="#ffe98a" strokeWidth="1.6" style={{ filter: 'drop-shadow(0 0 4px #ffe98a)' }} />;
