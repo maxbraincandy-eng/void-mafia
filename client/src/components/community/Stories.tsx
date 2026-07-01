@@ -15,6 +15,10 @@ export interface StoryViewerRow {
   publicId: number | null; viewedAt: number;
 }
 
+// Must match STORY_REACTIONS on the server.
+const STORY_EMOJIS = ['🤍', '🔥', '👍', '⭐', '🤯', '😂'] as const;
+type StoryReactionData = { reactions: Record<string, number>; myReaction: string | null };
+
 const SEEN_KEY = 'vm_seen_stories';
 function loadSeen(): Set<string> {
   try { return new Set(JSON.parse(localStorage.getItem(SEEN_KEY) ?? '[]')); } catch { return new Set(); }
@@ -79,6 +83,9 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
   const [sheetOpen, setSheetOpen] = useState(false);
   const [viewers, setViewers] = useState<StoryViewerRow[] | null>(null);
   const [viewersBusy, setViewersBusy] = useState(false);
+  // Reactions on the current story.
+  const [reactions, setReactions] = useState<Record<string, number>>({});
+  const [myReaction, setMyReaction] = useState<string | null>(null);
   // Touch tracking for swipe up (open viewers) / swipe down (close) / hold-to-pause.
   const touch = useRef<{ x: number; y: number } | null>(null);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -129,6 +136,29 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
       emitWithAck('community:story_view', { storyId: story.id }).catch(() => {});
     }
   }, [story?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load reactions for the current story + live-update on others' reactions.
+  useEffect(() => {
+    if (!story) return;
+    const sid = story.id;
+    setReactions({}); setMyReaction(null);
+    emitWithAck<{ storyId: string }, Res<StoryReactionData>>('community:story_reactions', { storyId: sid })
+      .then(r => { if ((r as any).ok) { setReactions((r as any).data.reactions ?? {}); setMyReaction((r as any).data.myReaction ?? null); } })
+      .catch(() => {});
+    const onReacted = (d: { storyId: string; reactions: Record<string, number> }) => {
+      if (d.storyId === sid) setReactions(d.reactions ?? {});
+    };
+    socket.on('community:story_reacted', onReacted);
+    return () => { socket.off('community:story_reacted', onReacted); };
+  }, [story?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const react = (emoji: string) => {
+    if (!story) return;
+    setMyReaction(prev => (prev === emoji ? null : emoji)); // optimistic
+    emitWithAck<{ storyId: string; reaction: string }, Res<StoryReactionData>>('community:story_react', { storyId: story.id, reaction: emoji })
+      .then(r => { if ((r as any).ok) { setReactions((r as any).data.reactions ?? {}); setMyReaction((r as any).data.myReaction ?? null); } })
+      .catch(() => {});
+  };
 
   if (!group || !story) return null;
 
@@ -220,6 +250,27 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
           <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{story.viewCount ?? 0}</span>
           <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>▲ ვინ ნახა</span>
         </button>
+      )}
+      {/* Footer: reaction bar (others' stories) — tap an emoji to react */}
+      {!isMine && !sheetOpen && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 8px 16px' }}>
+          {STORY_EMOJIS.map(e => {
+            const cnt = reactions[e] ?? 0;
+            const active = myReaction === e;
+            return (
+              <button key={e} onClick={() => react(e)}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, minWidth: 42, padding: '6px 4px', borderRadius: 12,
+                  background: active ? 'rgba(155,0,255,0.28)' : 'rgba(255,255,255,0.05)',
+                  border: `1px solid ${active ? 'rgba(155,0,255,0.6)' : 'rgba(255,255,255,0.1)'}`,
+                  transform: active ? 'scale(1.06)' : 'none', transition: 'all .12s',
+                }}>
+                <span style={{ fontSize: 20, lineHeight: 1 }}>{e}</span>
+                <span style={{ fontFamily: 'monospace', fontSize: 10, color: cnt > 0 ? 'rgba(255,255,255,0.75)' : 'transparent', minHeight: 12 }}>{cnt > 0 ? cnt : '·'}</span>
+              </button>
+            );
+          })}
+        </div>
       )}
       {/* Viewers half-sheet */}
       {sheetOpen && (
