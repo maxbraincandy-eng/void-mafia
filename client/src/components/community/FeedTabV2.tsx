@@ -67,37 +67,43 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
   // `loadingRef` is a synchronous lock (React state is async, so two observer
   // callbacks in the same tick could both pass a `loadingMore` check).
   const loadingRef = useRef(false);
-  // Scroll position captured before a load-more, restored after the new posts
-  // render. Posts are appended BELOW the viewport, so scrollTop-from-top must not
-  // change — but Android snaps the container to the new bottom, so we pin it.
-  const restoreScrollRef = useRef<number | null>(null);
+  // Continuously record the user's real scroll position on #root. When posts are
+  // appended, Android snaps the container to the new bottom (posts insert BELOW
+  // the viewport, so scrollTop should NOT change). We restore to the LAST real
+  // position — recorded live, so it stays correct during a SLOW scroll (a value
+  // captured at fetch-start would already be stale by the time posts render).
+  // Scroll events fire async, so at useLayoutEffect time (right after the DOM
+  // mutation) this ref still holds the pre-jump value.
+  const lastScrollTopRef = useRef(0);
+  const pinPendingRef = useRef(false);
+  useEffect(() => {
+    const scroller = document.getElementById('root');
+    if (!scroller) return;
+    const onScroll = () => { lastScrollTopRef.current = scroller.scrollTop; };
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => scroller.removeEventListener('scroll', onScroll);
+  }, []);
+
   const loadMore = useCallback(async () => {
     if (!feedV2HasMore || loadingRef.current) return;
     loadingRef.current = true;
+    pinPendingRef.current = true;
     setLoadingMore(true);
-    const scroller = document.getElementById('root');
-    restoreScrollRef.current = scroller ? scroller.scrollTop : null;
     try { await fetchFeedV2(false); } finally { loadingRef.current = false; setLoadingMore(false); }
   }, [feedV2HasMore, fetchFeedV2]);
 
-  // After the appended posts render, correct ONLY the Android "snap to bottom":
-  // if the container ended up at the new bottom (which can't be reached by a
-  // normal gesture right after inserting a page of tall posts), pin it back to
-  // where the load was triggered. Normal iOS momentum (which leaves the user
-  // mid-list, not at the very bottom) is left untouched. useLayoutEffect runs
-  // before paint (no flash); the rAF catches a late re-jump (e.g. image load).
+  // Once the appended posts render, undo any scroll jump by restoring the last
+  // real position. useLayoutEffect runs after the DOM mutation but before paint
+  // (no visible flash); the rAF catches a late re-jump (e.g. an image loading).
+  // If nothing jumped (iOS), the values match within tolerance → no-op.
   useLayoutEffect(() => {
-    const top = restoreScrollRef.current;
-    if (top == null) return;
-    restoreScrollRef.current = null;
+    if (!pinPendingRef.current) return;
+    pinPendingRef.current = false;
     const scroller = document.getElementById('root');
     if (!scroller) return;
-    const pin = () => {
-      const maxTop = scroller.scrollHeight - scroller.clientHeight;
-      if (scroller.scrollTop >= maxTop - 4 && scroller.scrollTop > top + 4) {
-        scroller.scrollTop = top;
-      }
-    };
+    const want = lastScrollTopRef.current;
+    const pin = () => { if (Math.abs(scroller.scrollTop - want) > 24) scroller.scrollTop = want; };
     pin();
     requestAnimationFrame(pin);
   }, [feedV2Posts.length]);
@@ -213,11 +219,11 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
       ) : feedV2Posts.length === 0 ? (
         <EmptyState text={t.community.feed.empty} />
       ) : (
-        <div className="space-y-3" style={{ overflowAnchor: 'none' }}>
+        <div className="space-y-3">
           {feedV2Posts.map(post => (
             <PostCardV2 key={post.id} post={post} onOpenProfile={onOpenProfile} />
           ))}
-          <div ref={bottomRef} className="h-4" style={{ overflowAnchor: 'none' }} />
+          <div ref={bottomRef} className="h-4" />
           {loadingMore && <Spinner color="#9b00ff" />}
         </div>
       )}
