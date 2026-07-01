@@ -21,7 +21,6 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
 
   // Track cached length without making it a useCallback dep (avoids infinite reload loop)
   const cachedLenRef = useRef(feedV2Posts.length);
@@ -60,19 +59,29 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
     return () => window.removeEventListener('vm:auth-ready', onAuthReady);
   }, [loadError, doLoad]);
 
-  // Infinite scroll
-  useEffect(() => {
-    const el = bottomRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(async ([entry]) => {
-      if (entry.isIntersecting && feedV2HasMore && !loadingMore) {
-        setLoadingMore(true);
-        try { await fetchFeedV2(false); } finally { setLoadingMore(false); }
-      }
-    }, { threshold: 0.1 });
-    observer.observe(el);
-    return () => observer.disconnect();
+  // Infinite scroll. The observer is bound via a CALLBACK REF so it attaches
+  // exactly when the sentinel mounts — a plain useEffect ran while the list was
+  // still in its loading state (sentinel absent → bottomRef.current null) and,
+  // since its deps didn't change when posts rendered, it never re-attached, so
+  // load-more never fired. loadMore is read through a ref to avoid stale state.
+  const loadMore = useCallback(async () => {
+    if (!feedV2HasMore || loadingMore) return;
+    setLoadingMore(true);
+    try { await fetchFeedV2(false); } finally { setLoadingMore(false); }
   }, [feedV2HasMore, loadingMore, fetchFeedV2]);
+  const loadMoreRef = useRef(loadMore);
+  loadMoreRef.current = loadMore;
+
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const bottomRef = useCallback((node: HTMLDivElement | null) => {
+    observerRef.current?.disconnect();
+    if (!node) return;
+    observerRef.current = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) loadMoreRef.current(); },
+      { threshold: 0, rootMargin: '300px' }, // pre-load before hitting the very bottom
+    );
+    observerRef.current.observe(node);
+  }, []);
 
   return (
     <div className="space-y-4">
