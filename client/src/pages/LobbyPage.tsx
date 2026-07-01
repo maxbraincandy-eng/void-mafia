@@ -19,6 +19,8 @@ import { socket } from '@/lib/socket';
 import type { PlayerPublic } from '@/types/index';
 import { ModPanel } from '@/pages/ModDashboardPage';
 import { useVoiceChat, registerVoiceGestureRetry } from '@/hooks/useVoiceChat';
+import { useLivekitRoomVoice, useLiveKitGate } from '@/hooks/useLivekitVoice';
+import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
 import { useGameSounds } from '@/hooks/useSoundFX';
 
 const SURFACE = 'rounded-2xl border border-white/[0.06]';
@@ -73,6 +75,17 @@ export function LobbyPage() {
 
   const amSpectator = myPlayer?.isSpectator ?? false;
 
+  // LiveKit voice in the lobby: the room maps to a LiveKit room of the same id.
+  // When enabled it REPLACES the legacy mesh here (mesh auto-join and controls
+  // are guarded on livekitEnabled) so the mic is never double-captured.
+  const { enabled: livekitEnabled, resolved: livekitResolved } = useLiveKitGate();
+  const lobbyVoice = useLivekitRoomVoice({
+    roomId: room?.id ?? null,
+    identity: myPlayer?.id ?? null,
+    active: livekitEnabled && !!room,
+    listenOnly: amSpectator,
+  });
+
   // Track unread lobby chat messages (mobile floating bubble badge)
   const chatLen = room?.chat.length ?? 0;
   const prevChatLen = useRef(chatLen);
@@ -89,6 +102,8 @@ export function LobbyPage() {
 
   useEffect(() => {
     if (!room?.id || autoJoined.current || voice.channel) return;
+    if (!livekitResolved) return;          // wait until we know which voice to use
+    if (livekitEnabled) { autoJoined.current = true; return; } // LiveKit owns voice — skip mesh
     autoJoined.current = true;
     if (amSpectator) {
       voice.joinVoiceListenOnly('room');
@@ -99,7 +114,7 @@ export function LobbyPage() {
       registerVoiceGestureRetry(() => voice.joinVoice('room', false, false));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room?.id, amSpectator]);
+  }, [room?.id, amSpectator, livekitResolved, livekitEnabled]);
 
   const profileIds = room?.players
     ? [...room.players.values()].filter(p => !p.isSpectator && p.profileId).map(p => p.profileId!)
@@ -567,7 +582,7 @@ export function LobbyPage() {
                   loading={isLoading}
                   onClick={() => {
                     toggleReady();
-                    if (!voice.channel) voice.joinVoice('room').catch(() => {});
+                    if (!livekitEnabled && !voice.channel) voice.joinVoice('room').catch(() => {});
                   }}
                 >
                   {myPlayer?.isReady ? '✓ Ready' : t.lobby.ready}
@@ -820,6 +835,9 @@ export function LobbyPage() {
             </AnimatePresence>
 
             {/* ── Voice ───────────────────────────────────────── */}
+            {livekitEnabled ? (
+              <LiveKitVoiceBarView voice={lobbyVoice} />
+            ) : (
             <VoiceControls
               channel={voice.channel}
               status={voice.status}
@@ -842,6 +860,7 @@ export function LobbyPage() {
               onToggleCamera={voice.toggleCamera}
               onReset={voice.resetConnection}
             />
+            )}
             {voice.channel && voice.peers.length > 0 && (
               <div className="px-1">
                 <VoiceParticipants

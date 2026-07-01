@@ -117,6 +117,8 @@ export async function startLiveKitAudio(): Promise<void> {
 // Cache the server's LiveKit-enabled flag so the UI can mount the voice path
 // from runtime config alone (just the 3 LIVEKIT_* env vars — no client rebuild).
 let _enabledCache: boolean | null = null;
+/** Synchronous cached enabled flag (null until the first probe resolves). */
+export function getLiveKitEnabledCached(): boolean | null { return _enabledCache; }
 export async function fetchLiveKitEnabled(): Promise<boolean> {
   if (_enabledCache !== null) return _enabledCache;
   try {

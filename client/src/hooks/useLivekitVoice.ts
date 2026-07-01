@@ -19,25 +19,34 @@ import { useGameStore } from '@/store/gameStore';
 import {
   joinLiveKitVoice, leaveLiveKitVoice, setLiveKitDead,
   toggleLiveKitMic, setLiveKitMic, subscribeLiveKit, getLiveKitState,
-  fetchLiveKitEnabled, startLiveKitAudio, type LiveKitVoiceState,
+  fetchLiveKitEnabled, getLiveKitEnabledCached, startLiveKitAudio, type LiveKitVoiceState,
 } from '@/services/livekitVoice';
 
-// Phases where there is no active voice room (no auto-join).
+// Phases where the game hook itself doesn't auto-join (lobby is handled by
+// LobbyPage's own binding; game_over ends voice).
 const INACTIVE_PHASES = new Set(['lobby', 'game_over']);
 
 /**
- * True once the server reports LiveKit is configured (LIVEKIT_* env present).
- * Lets the game UI mount the LiveKit voice path from runtime config alone —
- * no VITE flag / client rebuild needed.
+ * LiveKit availability gate. `resolved` is false only during the very first
+ * status probe; callers that must decide mesh-vs-LiveKit (to avoid double mic
+ * capture) should wait for `resolved` before falling back to the legacy mesh.
  */
-export function useLiveKitEnabled(): boolean {
-  const [enabled, setEnabled] = useState(false);
+export function useLiveKitGate(): { enabled: boolean; resolved: boolean } {
+  const [gate, setGate] = useState<{ enabled: boolean; resolved: boolean }>(() => {
+    const cached = getLiveKitEnabledCached();
+    return cached === null ? { enabled: false, resolved: false } : { enabled: cached, resolved: true };
+  });
   useEffect(() => {
     let mounted = true;
-    fetchLiveKitEnabled().then(e => { if (mounted) setEnabled(e); });
+    fetchLiveKitEnabled().then(e => { if (mounted) setGate({ enabled: e, resolved: true }); });
     return () => { mounted = false; };
   }, []);
-  return enabled;
+  return gate;
+}
+
+/** True once the server reports LiveKit configured (LIVEKIT_* env present). */
+export function useLiveKitEnabled(): boolean {
+  return useLiveKitGate().enabled;
 }
 
 export interface LivekitRoomVoiceOpts {
