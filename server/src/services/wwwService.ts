@@ -150,16 +150,30 @@ function shuffle<T>(arr: T[]): T[] {
   return arr;
 }
 
-export function toPublic(m: WWWMatch): WWWMatchPublic {
+/** First team to this many points wins. */
+export const WWW_WIN_SCORE = 10;
+
+export function toPublic(m: WWWMatch, viewerId?: string): WWWMatchPublic {
   const q = m.questions[m.currentQuestionIndex] ?? null;
   const showQuestion = m.status !== 'waiting' && m.status !== 'finished';
+  // Isolation protocol: while teams are still thinking/being judged, only the
+  // host sees every submitted answer; a team member sees ONLY their own team's
+  // answer (never the opponent's). Answers are revealed to all once the round
+  // result is shown or the game ends.
+  const revealed = m.status === 'round_result' || m.status === 'finished';
+  const isHost = viewerId != null && viewerId === m.hostId;
+  let answers = m.answers;
+  if (!revealed && !isHost) {
+    const viewerTeam = viewerId != null ? m.players[viewerId]?.teamId : undefined;
+    answers = viewerTeam && m.answers[viewerTeam] ? { [viewerTeam]: m.answers[viewerTeam]! } : {};
+  }
   return {
     id: m.id, code: m.code, status: m.status, hostId: m.hostId,
     players: m.players, settings: m.settings, teams: m.teams,
     currentQuestion: showQuestion ? q : null,
     currentQuestionIndex: m.currentQuestionIndex,
     totalQuestions: m.questions.length,
-    answers: m.answers, scores: m.scores,
+    answers, scores: m.scores,
     timerEndsAt: m.timerEndsAt, voiceSessionId: m.voiceSessionId,
     chat: m.chat.slice(-60),
   };
@@ -291,7 +305,9 @@ export function startMatch(matchId: string, hostId: string): WWWMatch | null {
       if (m.players[team.captainId]) m.players[team.captainId]!.isCaptain = true;
     }
   }
-  m.questions = shuffle([...QUESTIONS]).slice(0, Math.min(m.settings.questionsCount, QUESTIONS.length));
+  // Enough questions for a first-to-WWW_WIN_SCORE race (a close game can run
+  // ~2×WIN_SCORE rounds), capped by the pool size.
+  m.questions = shuffle([...QUESTIONS]).slice(0, Math.min(2 * WWW_WIN_SCORE + 5, QUESTIONS.length));
   m.currentQuestionIndex = 0;
   m.answers = {};
   m.status = 'question';
@@ -337,6 +353,12 @@ export function judgeAnswer(matchId: string, hostId: string, teamId: string, isC
   answer.isCorrect = isCorrect;
   // Score increment only happens once (guarded above)
   if (isCorrect) m.scores[teamId] = (m.scores[teamId] ?? 0) + 1;
+  // Victory: first team to WWW_WIN_SCORE points ends the game immediately.
+  if ((m.scores[teamId] ?? 0) >= WWW_WIN_SCORE) {
+    m.status = 'finished';
+    m.timerEndsAt = null;
+    return m;
+  }
   // Check if all submitted answers are judged
   const judged = Object.values(m.answers).filter(a => a.isCorrect !== undefined).length;
   const total = Object.values(m.answers).length;

@@ -84,7 +84,9 @@ export interface WWWListItem {
     hostNickname: string;
     questionsCount: number;
 }
-export declare function toPublic(m: WWWMatch): WWWMatchPublic;
+/** First team to this many points wins. */
+export declare const WWW_WIN_SCORE = 10;
+export declare function toPublic(m: WWWMatch, viewerId?: string): WWWMatchPublic;
 export declare function createMatch(hostId: string, nickname: string, opts?: Partial<WWWSettings>): WWWMatch;
 export declare function getMatch(id: string): WWWMatch | null;
 export declare function getMatchByCode(code: string): WWWMatch | null;

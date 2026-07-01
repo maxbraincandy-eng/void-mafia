@@ -7,7 +7,7 @@ import {
   createMatch, getMatch, getMatchByCode, getMatchIdForUser, listMatches,
   joinMatch, spectateMatch, leaveMatch, assignCaptain, startMatch,
   advanceToDiscussion, submitAnswer, judgeAnswer, nextQuestion, sendChat,
-  disconnectUser, toPublic, autoAdvanceToJudging,
+  disconnectUser, toPublic, autoAdvanceToJudging, type WWWMatch,
 } from './services/wwwService.js';
 import { voiceJoin, voiceLeave, voiceGetMatchId } from './services/wwwVoiceService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
@@ -17,8 +17,18 @@ type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerE
 
 const WWW_ROOM = (id: string) => `www:${id}`;
 
-function broadcast(io: AppServer, matchId: string, match: ReturnType<typeof toPublic>): void {
-  io.to(WWW_ROOM(matchId)).emit('www:state' as any, match);
+// Per-viewer broadcast so the isolation protocol holds: each socket receives a
+// state filtered for its own user (host sees all answers; a team sees only its
+// own until reveal). Single-node Socket.IO → the room's sockets are local.
+function broadcast(io: AppServer, m: WWWMatch): void {
+  const room = io.sockets.adapter.rooms.get(WWW_ROOM(m.id));
+  if (!room) return;
+  for (const sid of room) {
+    const s = io.sockets.sockets.get(sid);
+    if (!s) continue;
+    const viewerId = s.data.profileId ?? s.id;
+    s.emit('www:state' as any, toPublic(m, viewerId));
+  }
 }
 
 function broadcastList(io: AppServer): void {
@@ -40,7 +50,7 @@ export function registerWWWHandlers(io: AppServer, socket: AppSocket): void {
       const match = createMatch(userId(), nickname, data?.opts ?? {});
       socket.join(WWW_ROOM(match.id));
       broadcastList(io);
-      cb(ok(toPublic(match)));
+      cb(ok(toPublic(match, userId())));
     } catch (e: any) { cb(err(e.message)); }
   });
 
@@ -54,9 +64,9 @@ export function registerWWWHandlers(io: AppServer, socket: AppSocket): void {
       const result = joinMatch(m.id, userId(), nickname);
       if (!result) return cb(err('Cannot join — match already started or full'));
       socket.join(WWW_ROOM(m.id));
-      if (result.isNew) broadcast(io, m.id, toPublic(result.match));
+      if (result.isNew) broadcast(io, result.match);
       broadcastList(io);
-      cb(ok(toPublic(result.match)));
+      cb(ok(toPublic(result.match, userId())));
     } catch (e: any) { cb(err(e.message)); }
   });
 
@@ -67,7 +77,7 @@ export function registerWWWHandlers(io: AppServer, socket: AppSocket): void {
       const m = spectateMatch(String(data?.matchId), userId(), nickname);
       if (!m) return cb(err('Cannot spectate'));
       socket.join(WWW_ROOM(m.id));
-      cb(ok(toPublic(m)));
+      cb(ok(toPublic(m, userId())));
     } catch (e: any) { cb(err(e.message)); }
   });
 
@@ -77,7 +87,7 @@ export function registerWWWHandlers(io: AppServer, socket: AppSocket): void {
       const matchId = String(data?.matchId);
       const m = leaveMatch(matchId, userId());
       socket.leave(WWW_ROOM(matchId));
-      if (m) broadcast(io, matchId, toPublic(m));
+      if (m) broadcast(io, m);
       broadcastList(io);
       cb(ok(null));
     } catch (e: any) { cb(err(e.message)); }
@@ -88,7 +98,7 @@ export function registerWWWHandlers(io: AppServer, socket: AppSocket): void {
     try {
       const m = assignCaptain(String(data?.matchId), userId(), String(data?.teamId), String(data?.targetUserId));
       if (!m) return cb(err('Cannot assign captain'));
-      broadcast(io, m.id, toPublic(m));
+      broadcast(io, m);
       cb(ok(null));
     } catch (e: any) { cb(err(e.message)); }
   });
@@ -98,7 +108,7 @@ export function registerWWWHandlers(io: AppServer, socket: AppSocket): void {
     try {
       const m = startMatch(String(data?.matchId), userId());
       if (!m) return cb(err('Cannot start match'));
-      broadcast(io, m.id, toPublic(m));
+      broadcast(io, m);
       broadcastList(io);
       cb(ok(null));
     } catch (e: any) { cb(err(e.message)); }
@@ -109,13 +119,13 @@ export function registerWWWHandlers(io: AppServer, socket: AppSocket): void {
     try {
       const m = advanceToDiscussion(String(data?.matchId), userId());
       if (!m) return cb(err('Cannot advance'));
-      broadcast(io, m.id, toPublic(m));
+      broadcast(io, m);
       cb(ok(null));
       // Auto-advance to judging when timer expires
       const delay = m.settings.discussionSeconds * 1000;
       setTimeout(() => {
         const updated = autoAdvanceToJudging(m.id);
-        if (updated) broadcast(io, m.id, toPublic(updated));
+        if (updated) broadcast(io, updated);
       }, delay);
     } catch (e: any) { cb(err(e.message)); }
   });
@@ -125,7 +135,7 @@ export function registerWWWHandlers(io: AppServer, socket: AppSocket): void {
     try {
       const m = submitAnswer(String(data?.matchId), userId(), String(data?.answerText ?? ''));
       if (!m) return cb(err('Cannot submit answer'));
-      broadcast(io, m.id, toPublic(m));
+      broadcast(io, m);
       cb(ok(null));
     } catch (e: any) { cb(err(e.message)); }
   });
@@ -135,7 +145,7 @@ export function registerWWWHandlers(io: AppServer, socket: AppSocket): void {
     try {
       const m = judgeAnswer(String(data?.matchId), userId(), String(data?.teamId), !!data?.isCorrect);
       if (!m) return cb(err('Cannot judge'));
-      broadcast(io, m.id, toPublic(m));
+      broadcast(io, m);
       cb(ok(null));
     } catch (e: any) { cb(err(e.message)); }
   });
@@ -145,7 +155,7 @@ export function registerWWWHandlers(io: AppServer, socket: AppSocket): void {
     try {
       const m = nextQuestion(String(data?.matchId), userId());
       if (!m) return cb(err('Cannot advance'));
-      broadcast(io, m.id, toPublic(m));
+      broadcast(io, m);
       cb(ok(null));
     } catch (e: any) { cb(err(e.message)); }
   });
@@ -236,6 +246,6 @@ export function handleWWWDisconnect(io: AppServer, socketId: string): void {
   const matchId = disconnectUser(socketId);
   if (matchId) {
     const m = getMatch(matchId);
-    if (m) broadcast(io, matchId, toPublic(m));
+    if (m) broadcast(io, m);
   }
 }
