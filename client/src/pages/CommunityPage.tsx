@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
@@ -43,6 +44,19 @@ export function CommunityPage() {
     if (profile) fetchUnreadCount();
   }, [profile, fetchUnreadCount]);
 
+  // Reveal a compact floating nav once the header/tabs scroll out of view, so
+  // profile + tabs stay reachable without scrolling all the way back up.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 120);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+  const selectTab = (id: CommunityTab) => { setTab(id); scrollTop(); };
+
   const TABS: { id: CommunityTab; label: string; icon: string }[] = [
     { id: 'feed',        label: t.community.tabs.feed,     icon: '🌌' },
     { id: 'people',      label: t.community.tabs.people,   icon: '👥' },
@@ -52,6 +66,28 @@ export function CommunityPage() {
     { id: 'debates',     label: t.community.tabs.debates,  icon: '⚔️' },
     { id: 'activity',    label: t.community.tabs.activity, icon: '🔥' },
   ];
+
+  const renderTabs = (compact: boolean) => (
+    <div className="flex gap-1.5 overflow-x-auto scrollbar-none" style={{ overflowX: 'auto' }}>
+      {TABS.map(tb => {
+        const active = tab === tb.id;
+        return (
+          <button
+            key={tb.id}
+            onClick={() => selectTab(tb.id)}
+            className={`flex items-center gap-1.5 rounded-full font-mono uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 active:scale-95 ${compact ? 'px-3 py-1.5 text-[11px]' : 'px-3.5 py-2 text-[12px]'}`}
+            style={{
+              background: active ? 'var(--vm-tab-active-bg)' : 'var(--vm-tab-inactive-bg)',
+              border: `1px solid ${active ? 'var(--vm-tab-active-border)' : 'var(--vm-tab-inactive-border)'}`,
+              color: active ? 'var(--vm-tab-active-color)' : 'var(--vm-tab-inactive-color)',
+            }}
+          >
+            <span>{tb.icon}</span>{tb.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div className="min-h-screen pb-20 relative overflow-hidden" style={{ background: 'var(--bg-main)' }}>
@@ -140,27 +176,8 @@ export function CommunityPage() {
         </div>
 
         {/* Tab bar */}
-        <div
-          className="flex gap-1.5 overflow-x-auto pb-1 mb-5 -mx-1 px-1 scrollbar-none"
-          style={{ overflowX: 'auto' }}
-        >
-          {TABS.map(tb => {
-            const active = tab === tb.id;
-            return (
-              <button
-                key={tb.id}
-                onClick={() => setTab(tb.id)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full font-mono text-[12px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 active:scale-95"
-                style={{
-                  background: active ? 'var(--vm-tab-active-bg)' : 'var(--vm-tab-inactive-bg)',
-                  border: `1px solid ${active ? 'var(--vm-tab-active-border)' : 'var(--vm-tab-inactive-border)'}`,
-                  color: active ? 'var(--vm-tab-active-color)' : 'var(--vm-tab-inactive-color)',
-                }}
-              >
-                <span>{tb.icon}</span>{tb.label}
-              </button>
-            );
-          })}
+        <div className="pb-1 mb-5 -mx-1 px-1">
+          {renderTabs(false)}
         </div>
 
         <AnimatePresence mode="wait">
@@ -197,6 +214,46 @@ export function CommunityPage() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Floating compact nav — slides in when the header scrolls away so the
+          profile + tabs stay reachable. Portaled to <body> so it stays fixed to
+          the viewport regardless of the page-transition transform. */}
+      {createPortal(
+        <AnimatePresence>
+          {scrolled && !fullProfileId && (
+            <motion.div
+              initial={{ y: -64, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -64, opacity: 0 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="fixed top-0 left-0 right-0 z-40"
+              style={{ background: 'rgba(8,4,22,0.82)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(155,0,255,0.18)', paddingTop: 'env(safe-area-inset-top)' }}
+            >
+              <div className="max-w-lg mx-auto px-3 flex items-center gap-2" style={{ height: 52 }}>
+                <button
+                  onClick={() => profile && setFullProfileId(profile.id)}
+                  className="flex-shrink-0 active:scale-90 transition-transform"
+                  title={t.community.tabs.feed}
+                >
+                  {profile?.avatarUrl
+                    ? <img src={profile.avatarUrl} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(255,255,255,0.15)' }} />
+                    : <div style={{ width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, background: 'linear-gradient(135deg,rgba(255,0,128,.5),rgba(138,43,226,.5))' }}>{profile?.avatar ?? '👤'}</div>}
+                </button>
+                <div className="flex-1 min-w-0">{renderTabs(true)}</div>
+                <button
+                  onClick={scrollTop}
+                  className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center active:scale-90 transition-all"
+                  style={{ background: 'var(--vm-btn-icon-bg)', border: '1px solid var(--vm-btn-icon-border)', color: 'rgba(255,255,255,0.6)' }}
+                  title="Up"
+                >
+                  ↑
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
 
       <AnimatePresence>
         {showNotifications && <NotificationPanel onClose={() => setShowNotifications(false)} />}
