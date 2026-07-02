@@ -2439,7 +2439,6 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           AnimatePresence never mounts, which is why the modal wasn't showing. */}
       {duelResult && duelResult.sticky && createPortal(
           <motion.div key="duel-win-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={dismissDuelResult}
             style={{ position: 'fixed', inset: 0, zIndex: 1400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: 'rgba(0,0,0,.72)', backdropFilter: 'blur(6px)' }}>
             <motion.div onClick={e => e.stopPropagation()}
               initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }}
