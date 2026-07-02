@@ -69,7 +69,7 @@ export interface ActiveDuel {
   maxHp: number;
 }
 export interface DuelInvite { fromSocketId: string; fromName: string }
-export interface DuelResult { text: string; win: boolean; sticky?: boolean }
+export interface DuelResult { text: string; win: boolean; sticky?: boolean; winner?: string; loser?: string; forfeit?: boolean }
 
 interface VirtualSpaceState {
   joined: boolean;
@@ -501,9 +501,9 @@ export function useVirtualSpace() {
         }
         return { ...prev, players: next, activeDuel: null, duelInvite: null };
       });
-      // Winner announcement stays until the player closes it with ✕.
+      // Winner/loser card stays until the player closes it with ✕.
       if (duelResultTimer.current) { clearTimeout(duelResultTimer.current); duelResultTimer.current = null; }
-      setState(prev => ({ ...prev, duelResult: { text: d.winnerName, win: true, sticky: true } }));
+      setState(prev => ({ ...prev, duelResult: { text: d.winnerName, win: true, sticky: true, winner: d.winnerName, loser: d.loserName, forfeit: d.forfeit } }));
     }
     function onDuelDeclined(d: { byName: string; expired?: boolean }) {
       flashDuelResult(d.expired ? `${d.byName}-მ ვერ მოასწრო პასუხი` : `${d.byName}-მ უარყო დუელი`, false, 2600);

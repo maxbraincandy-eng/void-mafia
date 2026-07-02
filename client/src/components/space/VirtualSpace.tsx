@@ -2441,16 +2441,32 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             onClick={dismissDuelResult}
             style={{ position: 'fixed', inset: 0, zIndex: 1400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: 'rgba(0,0,0,.72)', backdropFilter: 'blur(6px)' }}>
             <motion.div onClick={e => e.stopPropagation()}
-              initial={{ scale: 0.8, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 24 }}
-              style={{ position: 'relative', width: 'min(320px,90vw)', textAlign: 'center', padding: '30px 22px 24px', borderRadius: 22, background: 'linear-gradient(160deg, rgba(40,28,4,.98), rgba(16,8,26,.99))', border: '1px solid rgba(250,204,21,.5)', boxShadow: '0 16px 60px rgba(0,0,0,.7), 0 0 40px rgba(250,204,21,.2)' }}>
+              initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }}
+              style={{ position: 'relative', width: 'min(320px,100%)', textAlign: 'center', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(250,204,21,.5)', borderRadius: 20, padding: '26px 22px', boxShadow: '0 16px 60px rgba(0,0,0,.7), 0 0 40px rgba(250,204,21,.18)' }}>
+              {/* Close — top-left */}
               <button onClick={dismissDuelResult}
-                style={{ position: 'absolute', top: 10, right: 10, width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', color: 'rgba(255,255,255,.6)', fontSize: 16 }}>✕</button>
-              <motion.div initial={{ scale: 0.4, rotate: -12 }} animate={{ scale: 1, rotate: 0 }} transition={{ delay: 0.1, type: 'spring', stiffness: 260, damping: 14 }}
-                style={{ fontSize: 62, filter: 'drop-shadow(0 0 18px rgba(250,204,21,.8))' }}>🏆</motion.div>
-              <p style={{ fontFamily: 'monospace', fontSize: 11, letterSpacing: '.25em', color: 'rgba(250,204,21,.6)', textTransform: 'uppercase', marginTop: 8 }}>დუელი დასრულდა</p>
-              <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 800, fontSize: 22, color: '#facc15', marginTop: 6, wordBreak: 'break-word' }}>{duelResult.text}</p>
-              <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#fff', marginTop: 2 }}>გაიმარჯვა! 🎉</p>
+                style={{ position: 'absolute', top: 12, left: 12, width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', color: 'rgba(255,255,255,.6)', fontSize: 15, lineHeight: 1 }}>✕</button>
+              <motion.div initial={{ scale: 0.4, rotate: -12 }} animate={{ scale: 1, rotate: 0 }} transition={{ delay: 0.08, type: 'spring', stiffness: 260, damping: 14 }}
+                style={{ fontSize: 48, filter: 'drop-shadow(0 0 16px rgba(250,204,21,.8))', marginBottom: 4 }}>🏆</motion.div>
+              <p style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: '.25em', color: 'rgba(250,204,21,.6)', textTransform: 'uppercase', marginBottom: 14 }}>
+                დუელი დასრულდა{duelResult.forfeit ? ' (გამოსვლა)' : ''}
+              </p>
+              {/* Winner */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 14, marginBottom: 8, background: 'rgba(250,204,21,.1)', border: '1px solid rgba(250,204,21,.4)' }}>
+                <span style={{ fontSize: 22 }}>🥇</span>
+                <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                  <p style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: '.15em', color: 'rgba(250,204,21,.6)', textTransform: 'uppercase' }}>გამარჯვებული</p>
+                  <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 800, fontSize: 16, color: '#facc15', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{duelResult.winner ?? duelResult.text}</p>
+                </div>
+              </div>
+              {/* Loser */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 14, background: 'rgba(255,45,85,.08)', border: '1px solid rgba(255,45,85,.3)' }}>
+                <span style={{ fontSize: 22, filter: 'grayscale(.3)' }}>💀</span>
+                <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                  <p style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: '.15em', color: 'rgba(255,107,129,.6)', textTransform: 'uppercase' }}>დამარცხებული</p>
+                  <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#ff6b81', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{duelResult.loser ?? '—'}</p>
+                </div>
+              </div>
               <button onClick={dismissDuelResult}
                 style={{ marginTop: 18, width: '100%', padding: '12px', borderRadius: 14, fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 14, color: '#0a0410', background: 'linear-gradient(135deg,#facc15,#fbbf24)', border: 'none' }}>
                 გასაგებია
