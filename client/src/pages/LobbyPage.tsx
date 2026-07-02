@@ -756,30 +756,48 @@ export function LobbyPage() {
                       <p className="text-[12px] font-mono text-white/28 uppercase tracking-widest mb-3">
                         Host Privileges
                       </p>
-                      <button
-                        onClick={() => updateSettings({ hostSkipPrivilege: !room.settings.hostSkipPrivilege })}
-                        className="w-full flex items-center justify-between gap-3 py-1"
-                      >
-                        <div className="text-left">
-                          <p className="text-[13px] font-mono text-white/70">⏭ Skip speech turns</p>
-                          <p className="text-[12px] font-mono text-white/30 mt-0.5">
-                            {room.settings.hostSkipPrivilege
-                              ? 'Host can skip any player\'s speech minute'
-                              : 'Only the speaker can pass their own turn'}
-                          </p>
+                      {myLevel < 13 ? (
+                        <div className="py-1 opacity-60">
+                          <div className="w-full flex items-center justify-between gap-3">
+                            <div className="text-left">
+                              <p className="text-[13px] font-mono text-white/40">🔒 ⏭ Skip speech turns</p>
+                              <p className="text-[12px] font-mono text-white/25 mt-0.5">
+                                მოითხოვს LVL 13-ს ({13 - myLevel} დონე დარჩა)
+                              </p>
+                            </div>
+                            <div className="relative rounded-full flex-shrink-0 bg-white/10"
+                              style={{ height: '22px', minWidth: '40px' }}>
+                              <span className="absolute top-0.5 left-0.5 rounded-full bg-white/40"
+                                style={{ width: '18px', height: '18px' }} />
+                            </div>
+                          </div>
                         </div>
-                        <div className={clsx(
-                          'relative w-10 h-5.5 rounded-full flex-shrink-0 transition-colors duration-200',
-                          room.settings.hostSkipPrivilege ? 'bg-neon-cyan/70' : 'bg-white/10',
-                        )}
-                          style={{ height: '22px', minWidth: '40px' }}
+                      ) : (
+                        <button
+                          onClick={() => updateSettings({ hostSkipPrivilege: !room.settings.hostSkipPrivilege })}
+                          className="w-full flex items-center justify-between gap-3 py-1"
                         >
-                          <span className={clsx(
-                            'absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all duration-200',
-                            room.settings.hostSkipPrivilege ? 'left-5' : 'left-0.5',
-                          )} style={{ width: '18px', height: '18px' }} />
-                        </div>
-                      </button>
+                          <div className="text-left">
+                            <p className="text-[13px] font-mono text-white/70">⏭ Skip speech turns</p>
+                            <p className="text-[12px] font-mono text-white/30 mt-0.5">
+                              {room.settings.hostSkipPrivilege
+                                ? 'Host can skip any player\'s speech minute'
+                                : 'Only the speaker can pass their own turn'}
+                            </p>
+                          </div>
+                          <div className={clsx(
+                            'relative w-10 h-5.5 rounded-full flex-shrink-0 transition-colors duration-200',
+                            room.settings.hostSkipPrivilege ? 'bg-neon-cyan/70' : 'bg-white/10',
+                          )}
+                            style={{ height: '22px', minWidth: '40px' }}
+                          >
+                            <span className={clsx(
+                              'absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all duration-200',
+                              room.settings.hostSkipPrivilege ? 'left-5' : 'left-0.5',
+                            )} style={{ width: '18px', height: '18px' }} />
+                          </div>
+                        </button>
+                      )}
                     </div>
 
                     {/* ── Ranked Mode ─────────────────────────────── */}

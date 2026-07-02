@@ -1442,7 +1442,7 @@ export function GamePage() {
             }}
           />
           <div className="px-2 py-1 md:px-4 md:py-3">
-          <div className="max-w-7xl mx-auto flex items-center gap-1.5 md:gap-4">
+          <div className="max-w-7xl mx-auto flex items-center gap-1.5 md:gap-4 flex-nowrap overflow-x-auto scrollbar-none">
             {/* More menu button — far-left first control */}
             <button
               onClick={() => setShowMoreMenu(true)}
@@ -1483,7 +1483,7 @@ export function GamePage() {
               <span className="text-[12px] font-mono text-white/30">{t.game.alive}</span>
             </div>
 
-            <div className="ml-auto flex items-center gap-1.5 md:gap-3">
+            <div className="ml-auto flex items-center gap-1.5 md:gap-3 flex-shrink-0">
               {/* Room code */}
               <div className="hidden sm:block text-right">
                 {room.name && (
