@@ -964,18 +964,6 @@ export function LobbyPage() {
                             <span className="absolute top-0.5 rounded-full bg-white/70" style={{ width: '18px', height: '18px', left: room.settings.ranked ? '20px' : '2px' }} />
                           </div>
                         </div>
-                      ) : myLevel < 5 ? (
-                        <div className="py-1 flex items-center justify-between gap-3">
-                          <div className="text-left">
-                            <p className="text-[13px] font-mono text-white/40">⚔️ Ranked Match {room.settings.ranked ? '(ჩართული)' : ''}</p>
-                            <p className="text-[12px] font-mono text-white/25 mt-0.5">
-                              შესაცვლელად საჭიროა LVL 5 ({5 - myLevel} დონე დარჩა)
-                            </p>
-                          </div>
-                          <div className={clsx('relative rounded-full flex-shrink-0 opacity-70', room.settings.ranked ? 'bg-neon-purple/50' : 'bg-white/10')} style={{ height: '22px', minWidth: '40px' }}>
-                            <span className="absolute top-0.5 rounded-full bg-white/70" style={{ width: '18px', height: '18px', left: room.settings.ranked ? '20px' : '2px' }} />
-                          </div>
-                        </div>
                       ) : (
                         <button
                           onClick={() => updateSettings({ ranked: !room.settings.ranked })}
