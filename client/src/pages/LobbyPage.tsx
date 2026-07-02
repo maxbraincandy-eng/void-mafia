@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
@@ -632,15 +633,25 @@ export function LobbyPage() {
                 </div>
               )}
 
-              {/* Non-host leave */}
-              {!amHost && !amSpectator && (
-                <button
-                  onClick={handleLeave}
-                  disabled={isLoading}
-                  className="w-full py-1.5 rounded-xl text-[11px] font-mono text-white/18 hover:text-neon-red/50 transition-colors disabled:opacity-30"
-                >
-                  Leave room
-                </button>
+              {/* Non-host: view settings + leave */}
+              {!amHost && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowSettings(true)}
+                    className="flex-1 py-2 rounded-xl border border-white/[0.08] bg-white/[0.02] text-[11px] font-mono text-white/45 hover:text-white/70 hover:border-white/16 transition-all"
+                  >
+                    👁 Settings
+                  </button>
+                  {!amSpectator && (
+                    <button
+                      onClick={handleLeave}
+                      disabled={isLoading}
+                      className="px-4 py-2 rounded-xl border border-white/[0.06] text-[11px] font-mono text-white/18 hover:text-neon-red/50 hover:border-neon-red/20 transition-colors disabled:opacity-30"
+                    >
+                      Leave
+                    </button>
+                  )}
+                </div>
               )}
 
               {/* Owner bot tools — row 2 */}
@@ -722,29 +733,74 @@ export function LobbyPage() {
               )}
             </AnimatePresence>
 
-            {/* ── Settings panel ──────────────────────────────── */}
+            {/* ── Settings overlay (pop-up; everyone can view, host edits) ── */}
+            {createPortal(
             <AnimatePresence>
-              {showSettings && amHost && (
+              {showSettings && (
                 <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden"
+                  key="settings-overlay"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowSettings(false)}
+                  className="fixed inset-0 z-[1300] flex items-stretch justify-center sm:items-center sm:p-4"
+                  style={{ background: 'rgba(2,1,10,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
                 >
-                  <div className="pt-1 space-y-3">
+                  <motion.div
+                    initial={{ opacity: 0, y: 28, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 28, scale: 0.98 }}
+                    transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+                    onClick={e => e.stopPropagation()}
+                    className="relative w-full h-full sm:h-auto sm:max-w-lg sm:max-h-[88vh] flex flex-col overflow-hidden rounded-none sm:rounded-2xl border border-white/10"
+                    style={{ background: 'rgba(8,5,22,0.98)', boxShadow: '0 20px 80px rgba(0,0,0,0.6)' }}
+                  >
+                    {/* Header with X (top-right) */}
+                    <div className="flex items-center justify-between gap-3 px-4 py-3 flex-shrink-0 border-b border-white/8" style={{ background: 'rgba(12,7,30,0.92)' }}>
+                      <div className="min-w-0">
+                        <h3 className="font-display font-bold text-sm tracking-[0.2em] uppercase text-white/85">⚙ პარამეტრები</h3>
+                        <p className="text-[11px] font-mono text-white/30 truncate">
+                          {amHost ? 'ცვლილებები ავტომატურად ინახება' : 'ნახვის რეჟიმი'}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setShowSettings(false)}
+                        className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-white/50 hover:text-white hover:bg-white/8 transition-all active:scale-90"
+                        title="დახურვა"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                          <line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {/* Read-only banner for non-hosts */}
+                    {!amHost && (
+                      <div className="flex items-center gap-2 px-4 py-2 flex-shrink-0" style={{ background: 'rgba(155,0,255,0.08)', borderBottom: '1px solid rgba(155,0,255,0.15)' }}>
+                        <span className="text-sm">🔒</span>
+                        <span className="text-[11px] font-mono text-neon-purple/80">ცვლილების უფლება მხოლოდ ჰოსტს აქვს</span>
+                      </div>
+                    )}
+
+                    {/* Scrollable body */}
+                    <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" style={{ WebkitOverflowScrolling: 'touch' }}>
                     <div className={`${SURFACE} p-4`} style={SURFACE_BG}>
                       <label className="block text-[12px] font-mono text-white/28 uppercase tracking-widest mb-2.5">
                         {t.lobby.passwordSection}
                       </label>
-                      <input
-                        type="text"
-                        maxLength={64}
-                        placeholder={t.lobby.passwordOpen}
-                        value={room.settings.password ?? ''}
-                        onChange={e => updateSettings({ password: e.target.value })}
-                        className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-3 py-2 text-sm font-mono text-white/65 placeholder-white/15 focus:outline-none focus:border-neon-cyan/28 transition-colors"
-                      />
-                      {room.settings.password && (
+                      {amHost ? (
+                        <input
+                          type="text"
+                          maxLength={64}
+                          placeholder={t.lobby.passwordOpen}
+                          value={room.settings.password ?? ''}
+                          onChange={e => updateSettings({ password: e.target.value })}
+                          className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-3 py-2 text-sm font-mono text-white/65 placeholder-white/15 focus:outline-none focus:border-neon-cyan/28 transition-colors"
+                        />
+                      ) : (
+                        <p className="text-sm font-mono text-white/45">{room.settings.password ? '🔒 დაცული ოთახი' : t.lobby.passwordOpen}</p>
+                      )}
+                      {room.settings.password && amHost && (
                         <p className="text-[12px] font-mono text-white/28 mt-2">
                           {t.lobby.passwordHint}
                         </p>
@@ -756,7 +812,14 @@ export function LobbyPage() {
                       <p className="text-[12px] font-mono text-white/28 uppercase tracking-widest mb-3">
                         Host Privileges
                       </p>
-                      {myLevel < 13 ? (
+                      {!amHost ? (
+                        <div className="w-full flex items-center justify-between gap-3 py-1 opacity-70">
+                          <p className="text-[13px] font-mono text-white/55">⏭ Skip speech turns</p>
+                          <div className={clsx('relative rounded-full flex-shrink-0', room.settings.hostSkipPrivilege ? 'bg-neon-cyan/50' : 'bg-white/10')} style={{ height: '22px', minWidth: '40px' }}>
+                            <span className="absolute top-0.5 rounded-full bg-white/70" style={{ width: '18px', height: '18px', left: room.settings.hostSkipPrivilege ? '20px' : '2px' }} />
+                          </div>
+                        </div>
+                      ) : myLevel < 13 ? (
                         <div className="py-1 opacity-60">
                           <div className="w-full flex items-center justify-between gap-3">
                             <div className="text-left">
@@ -805,7 +868,14 @@ export function LobbyPage() {
                       <p className="text-[12px] font-mono text-white/28 uppercase tracking-widest mb-3">
                         Ranked Mode
                       </p>
-                      {myLevel < 5 ? (
+                      {!amHost ? (
+                        <div className="w-full flex items-center justify-between gap-3 py-1 opacity-70">
+                          <p className="text-[13px] font-mono text-white/55">⚔️ Ranked Match</p>
+                          <div className={clsx('relative rounded-full flex-shrink-0', room.settings.ranked ? 'bg-neon-purple/50' : 'bg-white/10')} style={{ height: '22px', minWidth: '40px' }}>
+                            <span className="absolute top-0.5 rounded-full bg-white/70" style={{ width: '18px', height: '18px', left: room.settings.ranked ? '20px' : '2px' }} />
+                          </div>
+                        </div>
+                      ) : myLevel < 5 ? (
                         <div className="py-1">
                           <p className="text-[13px] font-mono text-white/40">⚔️ Ranked</p>
                           <p className="text-[12px] font-mono text-white/25 mt-0.5">
@@ -845,12 +915,14 @@ export function LobbyPage() {
                       playerCount={playerCount}
                       onUpdate={updateSettings}
                       isLoading={isLoading}
+                      readOnly={!amHost}
                     />
-
-                  </div>
+                    </div>
+                  </motion.div>
                 </motion.div>
               )}
-            </AnimatePresence>
+            </AnimatePresence>,
+            document.body)}
 
             {/* ── Voice ───────────────────────────────────────── */}
             {livekitEnabled ? (

@@ -1,8 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
-import { GameSettings, RoleKey, DynamicEventSettings } from '@/types/index';
-import { Button } from '@/components/ui/Button';
+import { GameSettings, DynamicEventSettings } from '@/types/index';
 import { DEFAULT_DYNAMIC_EVENTS } from '@/types/index';
 
 // ── Role metadata ──────────────────────────────────────────────────────
@@ -122,7 +121,7 @@ function BalanceBar({ roles, playerCount }: { roles: GameSettings['roles']; play
             : `Valid: ${b.mafia ? `${b.mafia}M · ` : ''}${b.totalTown}T${b.neutral ? ` · ${b.neutral}N` : ''}${b.cult ? ` · ${b.cult}C` : ''}${b.yakuza ? ` · ${b.yakuza}Y` : ''}${b.citizens ? ` · ${b.citizens}★` : ''}`;
 
   return (
-    <div className="mb-5">
+    <div className="mb-1">
       {/* Bar */}
       <div className="relative h-3 rounded-full overflow-hidden bg-white/5 mb-2 flex">
         {total === 0 || b.isAutoMode ? (
@@ -168,12 +167,13 @@ function BalanceBar({ roles, playerCount }: { roles: GameSettings['roles']; play
 }
 
 function RoleCard({
-  role, count, onInc, onDec,
+  role, count, onInc, onDec, readOnly,
 }: {
   role: RoleMeta;
   count: number;
   onInc: () => void;
   onDec: () => void;
+  readOnly?: boolean;
 }) {
   const [showTip, setShowTip] = useState(false);
   const active = count > 0;
@@ -186,8 +186,9 @@ function RoleCard({
           'rounded-xl border p-2.5 transition-all duration-200',
           active
             ? 'border-white/20 bg-white/6'
-            : 'border-white/6 bg-white/2 opacity-60',
+            : 'border-white/6 bg-white/2 opacity-55',
         )}
+        style={active ? { boxShadow: 'inset 0 0 0 1px rgba(0,255,136,0.12)' } : undefined}
       >
         {/* Header row */}
         <div className="flex items-center gap-1.5 mb-2">
@@ -203,35 +204,44 @@ function RoleCard({
           <span className={clsx('text-[11px] font-semibold truncate flex-1', active ? 'text-white' : 'text-white/40')}>
             {role.name}
           </span>
+          {active && <span className="w-1.5 h-1.5 rounded-full bg-neon-green/70 flex-shrink-0" style={{ boxShadow: '0 0 5px rgba(0,255,136,0.8)' }} />}
         </div>
 
-        {/* Counter */}
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={onDec}
-            disabled={count === 0}
-            className="w-6 h-6 rounded-lg border border-white/10 text-white/50 hover:text-white hover:border-white/30 disabled:opacity-20 transition-all flex items-center justify-center text-sm font-bold"
-          >
-            −
-          </button>
-          <motion.span
-            key={count}
-            initial={{ scale: 1.3, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className={clsx('text-sm font-bold font-mono w-5 text-center', active ? 'text-white' : 'text-white/25')}
-          >
-            {count}
-          </motion.span>
-          <button
-            type="button"
-            onClick={onInc}
-            disabled={count >= role.max}
-            className="w-6 h-6 rounded-lg border border-white/10 text-white/50 hover:text-white hover:border-white/30 disabled:opacity-20 transition-all flex items-center justify-center text-sm font-bold"
-          >
-            +
-          </button>
-        </div>
+        {/* Counter (host) or static badge (read-only) */}
+        {readOnly ? (
+          <div className="flex items-center justify-center">
+            <span className={clsx('text-sm font-bold font-mono', active ? 'text-neon-green/90' : 'text-white/25')}>
+              {active ? `×${count}` : 'off'}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={onDec}
+              disabled={count === 0}
+              className="w-6 h-6 rounded-lg border border-white/10 text-white/50 hover:text-white hover:border-white/30 disabled:opacity-20 transition-all flex items-center justify-center text-sm font-bold"
+            >
+              −
+            </button>
+            <motion.span
+              key={count}
+              initial={{ scale: 1.3, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className={clsx('text-sm font-bold font-mono w-5 text-center', active ? 'text-white' : 'text-white/25')}
+            >
+              {count}
+            </motion.span>
+            <button
+              type="button"
+              onClick={onInc}
+              disabled={count >= role.max}
+              className="w-6 h-6 rounded-lg border border-white/10 text-white/50 hover:text-white hover:border-white/30 disabled:opacity-20 transition-all flex items-center justify-center text-sm font-bold"
+            >
+              +
+            </button>
+          </div>
+        )}
       </motion.div>
 
       {/* Tooltip */}
@@ -254,11 +264,12 @@ function RoleCard({
 
 function SliderRow({
   label, value, min, max, step = 5, unit = 's',
-  onChange,
+  onChange, readOnly,
 }: {
   label: string; value: number; min: number; max: number;
   step?: number; unit?: string;
   onChange: (v: number) => void;
+  readOnly?: boolean;
 }) {
   const pct = ((value - min) / (max - min)) * 100;
   return (
@@ -272,13 +283,30 @@ function SliderRow({
           className="absolute left-0 top-0 h-full rounded-full bg-neon-cyan/60 transition-all"
           style={{ width: `${pct}%` }}
         />
-        <input
-          type="range"
-          min={min} max={max} step={step} value={value}
-          onChange={e => onChange(Number(e.target.value))}
-          className="absolute inset-0 w-full opacity-0 cursor-pointer h-full"
-        />
+        {!readOnly && (
+          <input
+            type="range"
+            min={min} max={max} step={step} value={value}
+            onChange={e => onChange(Number(e.target.value))}
+            className="absolute inset-0 w-full opacity-0 cursor-pointer h-full"
+          />
+        )}
       </div>
+    </div>
+  );
+}
+
+/** A simple pill toggle used across the rules/mode sections. */
+function Toggle({ on, activeClass = 'bg-neon-cyan/60' }: { on: boolean; activeClass?: string }) {
+  return (
+    <div className={clsx(
+      'w-9 h-5 rounded-full flex items-center transition-colors relative flex-shrink-0',
+      on ? activeClass : 'bg-white/10',
+    )}>
+      <div className={clsx(
+        'absolute w-3.5 h-3.5 rounded-full bg-white transition-transform shadow-sm',
+        on ? 'translate-x-4' : 'translate-x-1',
+      )} />
     </div>
   );
 }
@@ -289,6 +317,8 @@ interface Props {
   playerCount: number;
   onUpdate: (s: Partial<GameSettings>) => Promise<void>;
   isLoading?: boolean;
+  /** Non-host viewers see a live, read-only mirror — no edits allowed. */
+  readOnly?: boolean;
 }
 
 const DE_EVENT_LABELS: Array<{ key: keyof DynamicEventSettings['allowed']; label: string; icon: string }> = [
@@ -303,32 +333,42 @@ const DE_EVENT_LABELS: Array<{ key: keyof DynamicEventSettings['allowed']; label
   { key: 'extendedFinalWords', label: 'Extended Final Words', icon: '⏳' },
 ];
 
-export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: Props) {
+export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading, readOnly }: Props) {
   const [local, setLocal] = useState<GameSettings>({ ...settings, roles: { ...settings.roles } });
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  // Latest local, so rapid consecutive edits never build on stale state.
+  const localRef = useRef(local);
+  localRef.current = local;
+  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const de: DynamicEventSettings = local.dynamicEvents ?? DEFAULT_DYNAMIC_EVENTS;
+  // Read-only viewers always mirror the live room settings; the host edits `local`.
+  const view = readOnly ? settings : local;
+  const de: DynamicEventSettings = view.dynamicEvents ?? DEFAULT_DYNAMIC_EVENTS;
+
+  // Edits apply optimistically to local state and auto-save (debounced) — no manual save.
+  const apply = (next: GameSettings) => {
+    if (readOnly) return;
+    setLocal(next);
+    localRef.current = next;
+    if (commitTimer.current) clearTimeout(commitTimer.current);
+    commitTimer.current = setTimeout(() => { onUpdate(next); }, 250);
+  };
 
   const updateDE = (patch: Partial<DynamicEventSettings>) => {
-    setSaved(false);
-    setLocal(s => ({ ...s, dynamicEvents: { ...(s.dynamicEvents ?? DEFAULT_DYNAMIC_EVENTS), ...patch } }));
+    const cur = localRef.current;
+    apply({ ...cur, dynamicEvents: { ...(cur.dynamicEvents ?? DEFAULT_DYNAMIC_EVENTS), ...patch } });
   };
 
   const setRole = (key: keyof GameSettings['roles'], delta: number) => {
-    setSaved(false);
-    setLocal(s => {
-      const current = (s.roles[key] ?? 0) as number;
-      const meta = ROLE_GROUPS.flatMap(g => g.roles).find(r => r.key === key);
-      const clamped = Math.max(0, Math.min(meta?.max ?? 99, current + delta));
-      return { ...s, roles: { ...s.roles, [key]: clamped } };
-    });
+    const cur = localRef.current;
+    const current = (cur.roles[key] ?? 0) as number;
+    const meta = ROLE_GROUPS.flatMap(g => g.roles).find(r => r.key === key);
+    const clamped = Math.max(0, Math.min(meta?.max ?? 99, current + delta));
+    apply({ ...cur, roles: { ...cur.roles, [key]: clamped } });
   };
 
   const handleAutoSetup = () => {
-    setSaved(false);
-    setLocal(s => ({
-      ...s,
+    apply({
+      ...localRef.current,
       roles: {
         mafia: 0, don: 0, sheriff: 0, doctor: 0,
         bodyguard: 0, spy: 0, vigilante: 0, escort: 0,
@@ -336,17 +376,10 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
         veteran: 0, tracker: 0, arsonist: 0, mayor: 0,
         yakuza: 0, shogun: 0,
       },
-    }));
+    });
   };
 
-  const balance = useMemo(() => computeBalance(local.roles, playerCount), [local.roles, playerCount]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    await onUpdate(local);
-    setSaving(false);
-    setSaved(true);
-  };
+  const disabled = readOnly || isLoading;
 
   return (
     <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
@@ -357,15 +390,17 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
           <h4 className="text-xs font-display font-bold text-white/50 uppercase tracking-widest">
             Balance
           </h4>
-          <button
-            type="button"
-            onClick={handleAutoSetup}
-            className="px-3 py-1 rounded-lg text-[12px] font-mono font-bold border border-neon-cyan/30 text-neon-cyan/70 hover:border-neon-cyan/60 hover:text-neon-cyan hover:bg-neon-cyan/5 transition-all uppercase tracking-wider"
-          >
-            ⚡ Auto Setup
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={handleAutoSetup}
+              className="px-3 py-1 rounded-lg text-[12px] font-mono font-bold border border-neon-cyan/30 text-neon-cyan/70 hover:border-neon-cyan/60 hover:text-neon-cyan hover:bg-neon-cyan/5 transition-all uppercase tracking-wider"
+            >
+              ⚡ Auto Setup
+            </button>
+          )}
         </div>
-        <BalanceBar roles={local.roles} playerCount={playerCount} />
+        <BalanceBar roles={view.roles} playerCount={playerCount} />
       </div>
 
       {/* ── Role cards by team ─────────────────────────────────────────── */}
@@ -379,7 +414,8 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
               <RoleCard
                 key={role.key}
                 role={role}
-                count={(local.roles[role.key] ?? 0) as number}
+                readOnly={readOnly}
+                count={(view.roles[role.key] ?? 0) as number}
                 onInc={() => setRole(role.key, +1)}
                 onDec={() => setRole(role.key, -1)}
               />
@@ -391,10 +427,10 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
       {/* ── Timer settings ─────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-white/8 bg-void-50/60 p-4 space-y-4">
         <h4 className="text-xs font-display font-bold text-white/50 uppercase tracking-widest">Timers</h4>
-        <SliderRow label="🌙 Night"   value={local.nightDuration}  min={15}  max={180} onChange={v => setLocal(s => ({ ...s, nightDuration:  v }))} />
-        <SliderRow label="☀️ Day"    value={local.dayDuration}    min={30}  max={600} onChange={v => setLocal(s => ({ ...s, dayDuration:    v }))} />
-        <SliderRow label="🎤 Speech" value={local.speechDuration}  min={15}  max={180} onChange={v => setLocal(s => ({ ...s, speechDuration: v }))} />
-        <SliderRow label="⚖️ Vote"   value={local.voteDuration}   min={15}  max={120} onChange={v => setLocal(s => ({ ...s, voteDuration:   v }))} />
+        <SliderRow readOnly={readOnly} label="🌙 Night"   value={view.nightDuration}  min={15}  max={180} onChange={v => apply({ ...localRef.current, nightDuration:  v })} />
+        <SliderRow readOnly={readOnly} label="☀️ Day"    value={view.dayDuration}    min={30}  max={600} onChange={v => apply({ ...localRef.current, dayDuration:    v })} />
+        <SliderRow readOnly={readOnly} label="🎤 Speech" value={view.speechDuration}  min={15}  max={180} onChange={v => apply({ ...localRef.current, speechDuration: v })} />
+        <SliderRow readOnly={readOnly} label="⚖️ Vote"   value={view.voteDuration}   min={15}  max={120} onChange={v => apply({ ...localRef.current, voteDuration:   v })} />
       </div>
 
       {/* ── Other options ──────────────────────────────────────────────── */}
@@ -402,32 +438,25 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
         <h4 className="text-xs font-display font-bold text-white/50 uppercase tracking-widest">Rules</h4>
 
         {[
-          { id: 'selfHeal',  label: '💊 Doctor can self-heal',        value: local.allowDoctorSelfHeal,
-            toggle: () => setLocal(s => ({ ...s, allowDoctorSelfHeal: !s.allowDoctorSelfHeal })) },
-          { id: 'private',   label: '🔒 Private room (invite only)',   value: local.isPrivate,
-            toggle: () => setLocal(s => ({ ...s, isPrivate: !s.isPrivate })) },
-          { id: 'startNight', label: '🌙 Start game at night (skip day discussion)', value: local.startWithNight,
-            toggle: () => setLocal(s => ({ ...s, startWithNight: !s.startWithNight })) },
-          { id: 'rotating', label: '🔄 Rotating circle — each day shifts the opener by one seat', value: local.rotatingSpeech ?? true,
-            toggle: () => setLocal(s => ({ ...s, rotatingSpeech: !s.rotatingSpeech })) },
-          { id: 'mafiaCanSelfKill', label: '🔪 Mafia can kill themselves at night', value: local.mafiaCanSelfKill ?? false,
-            toggle: () => setLocal(s => ({ ...s, mafiaCanSelfKill: !s.mafiaCanSelfKill })) },
+          { id: 'selfHeal',  label: '💊 Doctor can self-heal',        value: view.allowDoctorSelfHeal,
+            toggle: () => apply({ ...localRef.current, allowDoctorSelfHeal: !localRef.current.allowDoctorSelfHeal }) },
+          { id: 'private',   label: '🔒 Private room (invite only)',   value: view.isPrivate,
+            toggle: () => apply({ ...localRef.current, isPrivate: !localRef.current.isPrivate }) },
+          { id: 'startNight', label: '🌙 Start game at night (skip day discussion)', value: view.startWithNight,
+            toggle: () => apply({ ...localRef.current, startWithNight: !localRef.current.startWithNight }) },
+          { id: 'rotating', label: '🔄 Rotating circle — each day shifts the opener by one seat', value: view.rotatingSpeech ?? true,
+            toggle: () => apply({ ...localRef.current, rotatingSpeech: !(localRef.current.rotatingSpeech ?? true) }) },
+          { id: 'mafiaCanSelfKill', label: '🔪 Mafia can kill themselves at night', value: view.mafiaCanSelfKill ?? false,
+            toggle: () => apply({ ...localRef.current, mafiaCanSelfKill: !(localRef.current.mafiaCanSelfKill ?? false) }) },
         ].map(opt => (
           <button
             key={opt.id}
             type="button"
             onClick={opt.toggle}
-            className="w-full flex items-center gap-3 text-left"
+            disabled={disabled}
+            className="w-full flex items-center gap-3 text-left disabled:cursor-default"
           >
-            <div className={clsx(
-              'w-9 h-5 rounded-full flex items-center transition-colors relative flex-shrink-0',
-              opt.value ? 'bg-neon-cyan/60' : 'bg-white/10',
-            )}>
-              <div className={clsx(
-                'absolute w-3.5 h-3.5 rounded-full bg-white transition-transform shadow-sm',
-                opt.value ? 'translate-x-4' : 'translate-x-1',
-              )} />
-            </div>
+            <Toggle on={!!opt.value} />
             <span className="text-xs font-mono text-white/60">{opt.label}</span>
           </button>
         ))}
@@ -439,10 +468,11 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
               <button
                 key={rule}
                 type="button"
-                onClick={() => { setSaved(false); setLocal(s => ({ ...s, tieVoteRule: rule })); }}
+                disabled={disabled}
+                onClick={() => apply({ ...localRef.current, tieVoteRule: rule })}
                 className={clsx(
                   'flex-1 py-1.5 rounded-lg text-[12px] font-mono border transition-all',
-                  local.tieVoteRule === rule
+                  view.tieVoteRule === rule
                     ? 'border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan'
                     : 'border-white/8 text-white/30 hover:text-white/60',
                 )}
@@ -460,10 +490,11 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
               <button
                 key={n}
                 type="button"
-                onClick={() => { setSaved(false); setLocal(s => ({ ...s, minPlayers: n })); }}
+                disabled={disabled}
+                onClick={() => apply({ ...localRef.current, minPlayers: n })}
                 className={clsx(
                   'flex-1 py-1.5 rounded-lg text-[12px] font-mono border transition-all',
-                  local.minPlayers === n
+                  view.minPlayers === n
                     ? 'border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan'
                     : 'border-white/8 text-white/30 hover:text-white/60',
                 )}
@@ -491,28 +522,17 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
         {/* Trial Defense toggle */}
         <button
           type="button"
-          onClick={() => {
-            setSaved(false);
-            setLocal(s => ({
-              ...s,
-              trialDefense: {
-                enabled: !(s.trialDefense?.enabled ?? false),
-                secondsPerCandidate: s.trialDefense?.secondsPerCandidate ?? 30,
-              },
-            }));
-          }}
-          disabled={isLoading}
-          className="w-full flex items-center gap-3 text-left"
+          onClick={() => apply({
+            ...localRef.current,
+            trialDefense: {
+              enabled: !(localRef.current.trialDefense?.enabled ?? false),
+              secondsPerCandidate: localRef.current.trialDefense?.secondsPerCandidate ?? 30,
+            },
+          })}
+          disabled={disabled}
+          className="w-full flex items-center gap-3 text-left disabled:cursor-default"
         >
-          <div className={clsx(
-            'w-9 h-5 rounded-full flex items-center transition-colors relative flex-shrink-0',
-            (local.trialDefense?.enabled) ? 'bg-neon-cyan/60' : 'bg-white/10',
-          )}>
-            <div className={clsx(
-              'absolute w-3.5 h-3.5 rounded-full bg-white transition-transform shadow-sm',
-              (local.trialDefense?.enabled) ? 'translate-x-4' : 'translate-x-1',
-            )} />
-          </div>
+          <Toggle on={!!view.trialDefense?.enabled} />
           <div>
             <span className="text-xs font-mono text-white/60">🛡 Enable Trial Defense Time</span>
             <span className="block text-[12px] font-mono text-white/28 mt-0.5">
@@ -522,7 +542,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
         </button>
 
         {/* Defense duration selector */}
-        {(local.trialDefense?.enabled) && (
+        {(view.trialDefense?.enabled) && (
           <div>
             <label className="text-[11px] font-mono text-white/40 block mb-1.5">
               Defense Time per Candidate · დაცვის დრო
@@ -532,17 +552,14 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
                 <button
                   key={secs}
                   type="button"
-                  disabled={isLoading}
-                  onClick={() => {
-                    setSaved(false);
-                    setLocal(s => ({
-                      ...s,
-                      trialDefense: { enabled: true, secondsPerCandidate: secs },
-                    }));
-                  }}
+                  disabled={disabled}
+                  onClick={() => apply({
+                    ...localRef.current,
+                    trialDefense: { enabled: true, secondsPerCandidate: secs },
+                  })}
                   className={clsx(
                     'flex-1 py-1.5 rounded-lg text-[12px] font-mono border transition-all',
-                    (local.trialDefense?.secondsPerCandidate ?? 30) === secs
+                    (view.trialDefense?.secondsPerCandidate ?? 30) === secs
                       ? 'border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan'
                       : 'border-white/8 text-white/30 hover:text-white/60',
                   )}
@@ -569,7 +586,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
           <button
             type="button"
             onClick={() => updateDE({ enabled: !de.enabled })}
-            disabled={isLoading}
+            disabled={disabled}
             className={clsx(
               'relative w-10 h-5 rounded-full border transition-all flex-shrink-0',
               de.enabled ? 'border-neon-cyan/50 bg-neon-cyan/15' : 'border-white/[0.12] bg-white/[0.03]',
@@ -592,7 +609,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
                     key={f}
                     type="button"
                     onClick={() => updateDE({ frequency: f })}
-                    disabled={isLoading}
+                    disabled={disabled}
                     className={clsx(
                       'flex-1 py-1.5 rounded-lg border text-[12px] font-mono tracking-widest uppercase transition-all',
                       de.frequency === f
@@ -619,7 +636,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
                       key={key}
                       type="button"
                       onClick={() => updateDE({ allowed: { ...de.allowed, [key]: !on } })}
-                      disabled={isLoading}
+                      disabled={disabled}
                       className={clsx(
                         'flex items-center gap-2.5 px-3 py-2 rounded-lg border text-left transition-all',
                         on ? 'border-white/[0.08] bg-white/[0.025]' : 'border-white/[0.04] opacity-45',
@@ -647,29 +664,26 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
               🃏 Don Card Mode
             </h4>
             <p className="text-[12px] font-mono text-white/30 mt-0.5">
-              Classic 10/12-player Don-table rules
+              Classic 10-player Don-table rules
             </p>
           </div>
           <button
             type="button"
-            onClick={() => {
-              setSaved(false);
-              setLocal(s => ({ ...s, donMode: !s.donMode }));
-            }}
-            disabled={isLoading}
+            onClick={() => apply({ ...localRef.current, donMode: !localRef.current.donMode })}
+            disabled={disabled}
             className={clsx(
               'relative w-10 h-5 rounded-full border transition-all flex-shrink-0',
-              local.donMode ? 'border-neon-purple/50 bg-neon-purple/20' : 'border-white/[0.12] bg-white/[0.03]',
+              view.donMode ? 'border-neon-purple/50 bg-neon-purple/20' : 'border-white/[0.12] bg-white/[0.03]',
             )}
           >
             <span className={clsx(
               'absolute top-0.5 w-4 h-4 rounded-full transition-all',
-              local.donMode ? 'left-5 bg-neon-purple' : 'left-0.5 bg-white/20',
+              view.donMode ? 'left-5 bg-neon-purple' : 'left-0.5 bg-white/20',
             )} />
           </button>
         </div>
 
-        {local.donMode && (
+        {view.donMode && (
           <div className="space-y-2">
             <div className="rounded-xl border border-neon-purple/15 px-3 py-2.5" style={{ background: 'rgba(10,0,20,0.4)' }}>
               <p className="text-[11px] font-mono text-white/40 leading-relaxed">
@@ -688,16 +702,6 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
           </div>
         )}
       </div>
-
-      {/* ── Save ──────────────────────────────────────────────────────── */}
-      <Button
-        fullWidth
-        variant={saved ? 'neon-green' : 'neon-purple'}
-        loading={saving || isLoading}
-        onClick={handleSave}
-      >
-        {saved ? '✓ Saved' : 'Save Settings'}
-      </Button>
     </motion.div>
   );
 }
