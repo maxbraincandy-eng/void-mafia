@@ -409,10 +409,11 @@ export function DmPanel() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  // Android: the on-screen keyboard shrinks only the *visual* viewport, so a
-  // bottom-anchored panel stays hidden behind it. Track the visual viewport
-  // height and pin the panel to it while the keyboard is open.
-  const [vvHeight, setVvHeight] = useState<number | null>(null);
+  // Android keyboard: the primary fix is `interactive-widget=resizes-content`
+  // in the viewport meta (layout viewport shrinks with the keyboard). This
+  // visual-viewport fallback only kicks in on old browsers where the layout
+  // viewport does NOT shrink; it pins the panel to the visible rect.
+  const [vvBox, setVvBox] = useState<{ top: number; height: number } | null>(null);
   // Current game room code — powers the "invite to game" card.
   const myRoomCode = useGameStore(s => s.room?.code ?? null);
 
@@ -726,15 +727,17 @@ export function DmPanel() {
     return () => { (socket as any).off('dm:reaction', onReaction); };
   }, [dmPanelOpen, activeConvId]);
 
-  // Track the visual viewport while the panel is open (Android keyboard fix).
+  // Track the visual viewport while the panel is open (legacy-Android fallback).
   useEffect(() => {
-    if (!dmPanelOpen) { setVvHeight(null); return; }
+    if (!dmPanelOpen) { setVvBox(null); return; }
     const vv = window.visualViewport;
     if (!vv) return;
     const onResize = () => {
-      // Keyboard is "open" when the visual viewport is notably shorter.
+      // With interactive-widget=resizes-content the layout viewport shrinks
+      // together with the visual one → diff ≈ 0 and this stays inert. Only
+      // legacy browsers (layout ≠ visual) trip the 120px threshold.
       const shrunk = window.innerHeight - vv.height > 120;
-      setVvHeight(shrunk ? Math.round(vv.height) : null);
+      setVvBox(shrunk ? { top: Math.round(vv.offsetTop), height: Math.round(vv.height) } : null);
     };
     vv.addEventListener('resize', onResize);
     vv.addEventListener('scroll', onResize);
@@ -742,14 +745,20 @@ export function DmPanel() {
     return () => {
       vv.removeEventListener('resize', onResize);
       vv.removeEventListener('scroll', onResize);
-      setVvHeight(null);
+      setVvBox(null);
     };
   }, [dmPanelOpen]);
 
-  // Scroll to bottom on new messages / typing bubble / keyboard open
+  // Scroll to bottom on new messages / typing bubble / keyboard open.
+  // Instant jump + delayed retries: images/GIFs finish layout late and would
+  // otherwise leave the view stuck mid-conversation.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, otherTyping, vvHeight]);
+    const jump = () => bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+    jump();
+    const t1 = setTimeout(jump, 150);
+    const t2 = setTimeout(jump, 450);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [messages, otherTyping, vvBox]);
 
   const notifyTyping = () => {
     if (!activeConvId) return;
@@ -827,9 +836,9 @@ export function DmPanel() {
             style={{
               background: 'rgb(10,6,22)',
               borderLeft: '1px solid rgba(138,43,226,0.2)',
-              // Keyboard open (Android): pin the panel to the visible area so
-              // the input bar sits right above the keyboard.
-              ...(vvHeight ? { height: vvHeight, bottom: 'auto' } : {}),
+              // Legacy-Android fallback: pin the panel to the visible rect
+              // (top offset + height) so the input sits above the keyboard.
+              ...(vvBox ? { top: vvBox.top, height: vvBox.height, bottom: 'auto' } : {}),
             }}
             onClick={e => e.stopPropagation()}
           >
