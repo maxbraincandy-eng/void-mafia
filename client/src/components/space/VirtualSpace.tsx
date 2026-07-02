@@ -1568,8 +1568,6 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const openDmWith = useSocialStore(s => s.openDmWith);
   const [selectedPlayer, setSelectedPlayer] = useState<SpacePlayer | null>(null);
   const [weapon, setWeapon] = useState<'fist' | 'tomato' | 'snowball'>('fist');
-  const [duelInvite, setDuelInvite] = useState<{ fromSocketId: string; fromName: string } | null>(null);
-  const [duelBanner, setDuelBanner] = useState<{ text: string; result: boolean } | null>(null);
   const [koOpen, setKoOpen] = useState(false);
   const [koList, setKoList] = useState<{ id: string; username: string; avatar: string; avatarUrl: string | null; knockouts: number }[] | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
@@ -1580,7 +1578,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const [socialProfileId, setSocialProfileId] = useState<string | null>(null);
   const openDmList = useSocialStore(s => s.openDmList);
 
-  const { joined, ghost, mySocketId, players, chatHistory, space, reactions, projectiles, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, knockout, clearKnockout, challengeDuel, respondDuel, ghostJoin, ghostLeave } = useVirtualSpace();
+  const { joined, ghost, mySocketId, players, chatHistory, space, reactions, projectiles, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, knockout, clearKnockout, challengeDuel, respondDuel, duelInvite, activeDuel, duelResult, dismissDuelInvite, ghostJoin, ghostLeave } = useVirtualSpace();
   // Owner Ghost Mode: when on, the owner observes spaces without spawning.
   const [ghostMode, setGhostMode] = useState(false);
   useEffect(() => {
@@ -1893,32 +1891,8 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
     if (knockout) { leaveVoice(); setSelectedPlayer(null); }
   }, [knockout, leaveVoice]);
 
-  // Duel lifecycle (friendly 1v1 — no wagering).
-  useEffect(() => {
-    const onInvite = (d: { fromSocketId: string; fromName: string }) => setDuelInvite(d);
-    const onStart = (d: { aName: string; bName: string }) => {
-      setDuelInvite(null);
-      setDuelBanner({ text: `⚔️ ${d.aName} vs ${d.bName}`, result: false });
-    };
-    const onEnd = (d: { winnerName: string; loserName: string }) => {
-      setDuelBanner({ text: `🏆 ${d.winnerName} გაიმარჯვა!`, result: true });
-      setTimeout(() => setDuelBanner(null), 4000);
-    };
-    const onDeclined = (d: { byName: string }) => {
-      setDuelBanner({ text: `${d.byName}-მ უარყო დუელი`, result: true });
-      setTimeout(() => setDuelBanner(null), 2500);
-    };
-    (socket as any).on('space:duel_invite', onInvite);
-    (socket as any).on('space:duel_start', onStart);
-    (socket as any).on('space:duel_end', onEnd);
-    (socket as any).on('space:duel_declined', onDeclined);
-    return () => {
-      (socket as any).off('space:duel_invite', onInvite);
-      (socket as any).off('space:duel_start', onStart);
-      (socket as any).off('space:duel_end', onEnd);
-      (socket as any).off('space:duel_declined', onDeclined);
-    };
-  }, []);
+  // Duel lifecycle is now fully handled inside useVirtualSpace (duelInvite /
+  // activeDuel / duelResult), so the whole flow stays in one place.
 
   const openKoBoard = useCallback(() => {
     setKoOpen(true); setKoList(null);
@@ -2257,11 +2231,19 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                     onMouseDown={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.95)'; }}
                     onMouseUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
                   >{weapon === 'tomato' ? '🍅 სროლა' : weapon === 'snowball' ? '❄️ სროლა' : '👊 დარტყმა'}</button>
-                  <button
-                    disabled={!here}
-                    onClick={() => { if (players.has(selectedPlayer.socketId)) { challengeDuel(selectedPlayer.socketId); setSelectedPlayer(null); } }}
-                    style={{ width: '100%', marginTop: 8, padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(255,180,0,.12)', border: '1px solid rgba(255,180,0,.4)', color: '#facc15', opacity: here ? 1 : 0.4 }}
-                  >⚔️ დუელზე გამოწვევა</button>
+                  {activeDuel
+                    ? (
+                      (activeDuel.aSocketId === selectedPlayer.socketId || activeDuel.bSocketId === selectedPlayer.socketId)
+                        ? <p style={{ marginTop: 8, textAlign: 'center', fontFamily: 'monospace', fontSize: 12, color: '#facc15' }}>⚔️ დუელი მიმდინარეობს — დაარტყი!</p>
+                        : null
+                    )
+                    : (
+                      <button
+                        disabled={!here}
+                        onClick={() => { if (players.has(selectedPlayer.socketId)) { challengeDuel(selectedPlayer.socketId); setSelectedPlayer(null); } }}
+                        style={{ width: '100%', marginTop: 8, padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(255,180,0,.12)', border: '1px solid rgba(255,180,0,.4)', color: '#facc15', opacity: here ? 1 : 0.4 }}
+                      >⚔️ დუელზე გამოწვევა</button>
+                    )}
                 </div>
               );
             })()}
@@ -2367,20 +2349,48 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
         document.body
       )}
 
-      {/* Duel banner (top center) */}
+      {/* Active-duel HUD (when I'm one of the two fighters) — live HP bars */}
+      {activeDuel && (activeDuel.aSocketId === mySocketId || activeDuel.bSocketId === mySocketId) && (() => {
+        const meFirst = activeDuel.bSocketId === mySocketId;
+        const me = { sid: meFirst ? activeDuel.bSocketId : activeDuel.aSocketId, name: meFirst ? activeDuel.bName : activeDuel.aName };
+        const foe = { sid: meFirst ? activeDuel.aSocketId : activeDuel.bSocketId, name: meFirst ? activeDuel.aName : activeDuel.bName };
+        const hpOf = (sid: string) => Math.max(0, Math.min(activeDuel.maxHp, players.get(sid)?.hp ?? activeDuel.maxHp));
+        const bar = (name: string, hp: number, mine: boolean) => (
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: mine ? '#00e5ff' : '#ff6b81', textAlign: mine ? 'left' : 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</p>
+            <div style={{ display: 'flex', gap: 3, marginTop: 3, flexDirection: mine ? 'row' : 'row-reverse' }}>
+              {Array.from({ length: activeDuel.maxHp }).map((_, i) => (
+                <div key={i} style={{ flex: 1, height: 6, borderRadius: 3, background: i < hp ? (mine ? '#00e5ff' : '#ff6b81') : 'rgba(255,255,255,.12)', boxShadow: i < hp ? `0 0 6px ${mine ? '#00e5ff' : '#ff6b81'}99` : 'none' }} />
+              ))}
+            </div>
+          </div>
+        );
+        return createPortal(
+          <motion.div key="duel-hud" initial={{ y: -24, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+            style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top,0px) + 54px)', left: '50%', transform: 'translateX(-50%)', zIndex: 130, width: 'min(360px,92vw)', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderRadius: 16, background: 'rgba(10,4,26,.95)', border: '1px solid rgba(255,180,0,.4)', backdropFilter: 'blur(10px)', boxShadow: '0 6px 26px rgba(0,0,0,.55)' }}>
+            {bar(me.name, hpOf(me.sid), true)}
+            <span style={{ fontSize: 18, flexShrink: 0, filter: 'drop-shadow(0 0 6px rgba(255,180,0,.7))' }}>⚔️</span>
+            {bar(foe.name, hpOf(foe.sid), false)}
+          </motion.div>,
+          document.body
+        );
+      })()}
+
+      {/* Duel result banner (winner / declined / invite-sent) */}
       <AnimatePresence>
-        {duelBanner && (
-          <motion.div key="duel-banner" initial={{ y: -30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -30, opacity: 0 }}
-            style={{ position: 'absolute', top: 60, left: '50%', transform: 'translateX(-50%)', zIndex: 120, padding: '8px 18px', borderRadius: 14, fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', background: duelBanner.result ? 'rgba(250,204,21,.16)' : 'rgba(255,45,85,.16)', border: `1px solid ${duelBanner.result ? 'rgba(250,204,21,.5)' : 'rgba(255,45,85,.5)'}`, color: duelBanner.result ? '#facc15' : '#ff6b81', backdropFilter: 'blur(8px)', boxShadow: '0 4px 20px rgba(0,0,0,.5)' }}>
-            {duelBanner.text}
-          </motion.div>
+        {duelResult && createPortal(
+          <motion.div key="duel-result" initial={{ y: -30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -30, opacity: 0 }}
+            style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top,0px) + 110px)', left: '50%', transform: 'translateX(-50%)', zIndex: 130, padding: '8px 18px', borderRadius: 14, fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', background: duelResult.win ? 'rgba(250,204,21,.16)' : 'rgba(155,0,255,.16)', border: `1px solid ${duelResult.win ? 'rgba(250,204,21,.5)' : 'rgba(155,0,255,.5)'}`, color: duelResult.win ? '#facc15' : '#c084fc', backdropFilter: 'blur(8px)', boxShadow: '0 4px 20px rgba(0,0,0,.5)' }}>
+            {duelResult.text}
+          </motion.div>,
+          document.body
         )}
       </AnimatePresence>
 
       {/* Duel invite overlay */}
       {duelInvite && createPortal(
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+        <div onClick={dismissDuelInvite} style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <motion.div onClick={e => e.stopPropagation()} initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
             style={{ width: 'min(320px,100%)', textAlign: 'center', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(255,180,0,.45)', borderRadius: 20, padding: '26px 22px' }}>
             <div style={{ fontSize: 44, marginBottom: 6 }}>⚔️</div>
             <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 6 }}>დუელის გამოწვევა</p>
@@ -2388,9 +2398,9 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
               <span style={{ color: '#facc15' }}>{duelInvite.fromName}</span> გიწვევს დუელზე. მიიღებ?
             </p>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => { respondDuel(duelInvite.fromSocketId, false); setDuelInvite(null); }}
+              <button onClick={() => respondDuel(duelInvite.fromSocketId, false)}
                 style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.14)', color: 'rgba(255,255,255,.6)' }}>უარი</button>
-              <button onClick={() => { respondDuel(duelInvite.fromSocketId, true); setDuelInvite(null); }}
+              <button onClick={() => respondDuel(duelInvite.fromSocketId, true)}
                 style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(0,255,136,.14)', border: '1px solid rgba(0,255,136,.45)', color: '#00ff88' }}>⚔️ მიღება</button>
             </div>
           </motion.div>

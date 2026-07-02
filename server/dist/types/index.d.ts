@@ -1003,6 +1003,7 @@ export interface ServerToClientEvents {
         byName: string;
         hp: number;
         weapon: string;
+        silent?: boolean;
     }) => void;
     'space:knockout': (data: {
         byName: string;
@@ -1014,15 +1015,20 @@ export interface ServerToClientEvents {
     'space:duel_start': (data: {
         aSocketId: string;
         aName: string;
+        aHp: number;
         bSocketId: string;
         bName: string;
+        bHp: number;
+        maxHp: number;
     }) => void;
     'space:duel_end': (data: {
         winnerName: string;
         loserName: string;
+        forfeit?: boolean;
     }) => void;
     'space:duel_declined': (data: {
         byName: string;
+        expired?: boolean;
     }) => void;
     'space:player-moved': (data: {
         socketId: string;

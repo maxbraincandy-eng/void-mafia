@@ -4,6 +4,8 @@ import { SFX } from '@/lib/audioEngine';
 
 export type SpaceMask = 'none' | 'half' | 'full' | 'visor';
 
+const SPACE_MAX_HP = 10; // must match the server's SPACE_MAX_HP
+
 export interface SpacePlayer {
   socketId: string;
   name: string;
@@ -61,6 +63,14 @@ export interface SpaceMeta {
   layout?: string;
 }
 
+export interface ActiveDuel {
+  aSocketId: string; aName: string;
+  bSocketId: string; bName: string;
+  maxHp: number;
+}
+export interface DuelInvite { fromSocketId: string; fromName: string }
+export interface DuelResult { text: string; win: boolean }
+
 interface VirtualSpaceState {
   joined: boolean;
   mySocketId: string;
@@ -71,6 +81,9 @@ interface VirtualSpaceState {
   projectiles: Projectile[];
   knockout: { byName: string } | null;
   ghost: boolean;
+  duelInvite: DuelInvite | null;
+  activeDuel: ActiveDuel | null;
+  duelResult: DuelResult | null;
 }
 
 export function useVirtualSpace() {
@@ -83,6 +96,7 @@ export function useVirtualSpace() {
     reactions: [],
     projectiles: [],
     knockout: null, ghost: false,
+    duelInvite: null, activeDuel: null, duelResult: null,
   });
 
   const moveTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -93,6 +107,15 @@ export function useVirtualSpace() {
   const projId      = useRef(0);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingState = useRef(false);
+  const duelResultTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flashDuelResult = useCallback((text: string, win: boolean, ms: number) => {
+    if (duelResultTimer.current) clearTimeout(duelResultTimer.current);
+    setState(prev => ({ ...prev, duelResult: { text, win } }));
+    duelResultTimer.current = setTimeout(() => setState(prev => ({ ...prev, duelResult: null })), ms);
+  }, []);
+
+  const dismissDuelInvite = useCallback(() => setState(prev => ({ ...prev, duelInvite: null })), []);
 
   const join = useCallback(async (
     spaceId: string,
@@ -112,7 +135,7 @@ export function useVirtualSpace() {
           if (!res?.ok) { resolve(false); return; }
           const players = new Map<string, SpacePlayer>();
           for (const p of res.data.players) players.set(p.socketId, p);
-          setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: false });
+          setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null });
           resolve(true);
         },
       );
@@ -124,10 +147,14 @@ export function useVirtualSpace() {
   }, []);
 
   const challengeDuel = useCallback((targetSocketId: string) => {
-    (socket as any).emit('space:duel_challenge', { targetSocketId }, () => {});
-  }, []);
+    (socket as any).emit('space:duel_challenge', { targetSocketId }, (res: any) => {
+      if (res?.ok) flashDuelResult('⚔️ მოწვევა გაიგზავნა', false, 2200);
+      else flashDuelResult(res?.error === 'Already in a duel.' ? 'უკვე მიმდინარეობს დუელი' : 'დუელი ვერ გაიგზავნა', false, 2200);
+    });
+  }, [flashDuelResult]);
 
   const respondDuel = useCallback((fromSocketId: string, accept: boolean) => {
+    setState(prev => ({ ...prev, duelInvite: null }));
     (socket as any).emit('space:duel_respond', { fromSocketId, accept }, () => {});
   }, []);
 
@@ -178,7 +205,7 @@ export function useVirtualSpace() {
     for (const t of msgTimers.current.values()) clearTimeout(t);
     msgTimers.current.clear();
     if (moveTimer.current) { clearTimeout(moveTimer.current); moveTimer.current = null; }
-    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null, ghost: false });
+    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null });
   }, []);
 
   // Ghost observe — enter a space as an invisible owner (no avatar, no voice,
@@ -189,7 +216,7 @@ export function useVirtualSpace() {
         if (!res?.ok) { resolve(false); return; }
         const players = new Map<string, SpacePlayer>();
         for (const p of res.data.players) players.set(p.socketId, p);
-        setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: true });
+        setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: true, duelInvite: null, activeDuel: null, duelResult: null });
         resolve(true);
       });
     });
@@ -197,7 +224,7 @@ export function useVirtualSpace() {
 
   const ghostLeave = useCallback(() => {
     (socket as any).emit('space:ghost_leave');
-    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null, ghost: false });
+    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null });
   }, []);
 
   const sit = useCallback((myId: string, seatId: string, x: number, y: number) => {
@@ -439,7 +466,41 @@ export function useVirtualSpace() {
     }
     function onKnockout({ byName }: { byName: string }) {
       // I was knocked out — drop out of the space; must re-enter.
-      setState(prev => ({ ...prev, joined: false, players: new Map(), reactions: [], knockout: { byName } }));
+      setState(prev => ({ ...prev, joined: false, players: new Map(), reactions: [], knockout: { byName }, duelInvite: null, activeDuel: null }));
+    }
+
+    // ── Duels ──────────────────────────────────────────────────────────
+    function onDuelInvite(d: DuelInvite) {
+      setState(prev => (prev.activeDuel ? prev : { ...prev, duelInvite: d }));
+    }
+    function onDuelStart(d: { aSocketId: string; aName: string; aHp: number; bSocketId: string; bName: string; bHp: number; maxHp: number }) {
+      SFX.punch();
+      setState(prev => {
+        const next = new Map(prev.players);
+        const a = next.get(d.aSocketId); if (a) next.set(d.aSocketId, { ...a, hp: d.aHp });
+        const b = next.get(d.bSocketId); if (b) next.set(d.bSocketId, { ...b, hp: d.bHp });
+        return {
+          ...prev, players: next, duelInvite: null, duelResult: null,
+          activeDuel: { aSocketId: d.aSocketId, aName: d.aName, bSocketId: d.bSocketId, bName: d.bName, maxHp: d.maxHp },
+        };
+      });
+    }
+    function onDuelEnd(d: { winnerName: string; loserName: string; forfeit?: boolean }) {
+      setState(prev => {
+        // Restore both fighters to full HP visually.
+        let next = prev.players;
+        if (prev.activeDuel) {
+          next = new Map(prev.players);
+          for (const sid of [prev.activeDuel.aSocketId, prev.activeDuel.bSocketId]) {
+            const p = next.get(sid); if (p) next.set(sid, { ...p, hp: SPACE_MAX_HP });
+          }
+        }
+        return { ...prev, players: next, activeDuel: null, duelInvite: null };
+      });
+      flashDuelResult(d.forfeit ? `🏆 ${d.winnerName} გაიმარჯვა (გამოსვლა)` : `🏆 ${d.winnerName} გაიმარჯვა!`, true, 4000);
+    }
+    function onDuelDeclined(d: { byName: string; expired?: boolean }) {
+      flashDuelResult(d.expired ? `${d.byName}-მ ვერ მოასწრო პასუხი` : `${d.byName}-მ უარყო დუელი`, false, 2600);
     }
 
     (socket as any).on('space:player-joined', onJoined);
@@ -454,6 +515,10 @@ export function useVirtualSpace() {
     (socket as any).on('space:meta-update',     onMetaUpdate);
     (socket as any).on('space:hit',             onHit);
     (socket as any).on('space:knockout',        onKnockout);
+    (socket as any).on('space:duel_invite',     onDuelInvite);
+    (socket as any).on('space:duel_start',      onDuelStart);
+    (socket as any).on('space:duel_end',        onDuelEnd);
+    (socket as any).on('space:duel_declined',   onDuelDeclined);
     return () => {
       (socket as any).off('space:player-joined', onJoined);
       (socket as any).off('space:player-moved',  onMoved);
@@ -467,8 +532,14 @@ export function useVirtualSpace() {
       (socket as any).off('space:meta-update',     onMetaUpdate);
       (socket as any).off('space:hit',             onHit);
       (socket as any).off('space:knockout',        onKnockout);
+      (socket as any).off('space:duel_invite',     onDuelInvite);
+      (socket as any).off('space:duel_start',      onDuelStart);
+      (socket as any).off('space:duel_end',        onDuelEnd);
+      (socket as any).off('space:duel_declined',   onDuelDeclined);
+      if (duelResultTimer.current) clearTimeout(duelResultTimer.current);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { ...state, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, clearKnockout, challengeDuel, respondDuel, ghostJoin, ghostLeave };
+  return { ...state, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, clearKnockout, challengeDuel, respondDuel, dismissDuelInvite, ghostJoin, ghostLeave };
 }
