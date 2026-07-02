@@ -99,8 +99,9 @@ export const useSocialStore = create<SocialStore>((set, get) => {
     const viewingThisChat = dmPanelOpen && activeDmUserId === payload.message.senderId;
     if (!viewingThisChat) {
       const rawText = payload.message.text ?? '';
-      const isVoice = rawText.startsWith('data:audio');
-      const preview = isVoice ? '🎙 Voice message'
+      const preview = rawText.startsWith('data:audio') ? '🎙 ხმოვანი მესიჯი'
+        : rawText.startsWith('data:image/gif') ? '✨ GIF'
+        : rawText.startsWith('data:image') ? '🖼 სურათი'
         : rawText.length > 80 ? rawText.slice(0, 77) + '…'
         : rawText;
       const toast: DmToast | null = payload.senderUsername

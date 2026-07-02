@@ -803,6 +803,10 @@ export interface ServerToClientEvents {
         conversationId: string;
         message: any;
     }) => void;
+    'dm:typing': (data: {
+        conversationId: string;
+        fromUserId: string;
+    }) => void;
     'lobby:message': (msg: LobbyMessage) => void;
     'lobby:msg_deleted': (data: {
         msgId: string;
@@ -1470,6 +1474,13 @@ export interface ClientToServerEvents {
         audioData: string;
         duration: number;
     }, cb: Cb<any>) => void;
+    'dm:image': (data: {
+        conversationId: string;
+        imageData: string;
+    }, cb: Cb<any>) => void;
+    'dm:typing': (data: {
+        conversationId: string;
+    }) => void;
     'player:update_avatar': (data: {
         imageData: string;
     }, cb: (res: any) => void) => void;

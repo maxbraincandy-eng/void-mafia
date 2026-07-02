@@ -77,7 +77,7 @@ import { sql } from './db.js';
 import bcrypt from 'bcryptjs';
 import { sendPushToUser } from './pushService.js';
 import {
-  getOrCreateConversation, listConversations, sendMessage, sendVoiceDm, getMessages, markRead, getTotalUnread,
+  getOrCreateConversation, listConversations, sendMessage, sendVoiceDm, sendImageDm, getMessages, markRead, getTotalUnread,
 } from './services/dmService.js';
 import {
   getCoins, claimDailyReward, grantCoins, deductCoins, refundGift,
@@ -1140,7 +1140,7 @@ export function attachSocketHandlers(io: AppServer): void {
     // Rate-limit + payload size check on every incoming event
     socket.use(([event, ...args], next) => {
       // Image upload events are exempt — they have their own size checks in their handlers
-      const largePayloadEvents = new Set(['player:update_avatar', 'community:post_create_v2', 'community:profile_update', 'clan:update_image', 'community:story_create']);
+      const largePayloadEvents = new Set(['player:update_avatar', 'community:post_create_v2', 'community:profile_update', 'clan:update_image', 'community:story_create', 'dm:voice', 'dm:image']);
       // 4. Payload size limit — reject anything over 16 KB
       const payload = args[0];
       if (!largePayloadEvents.has(event) && payload !== null && payload !== undefined && typeof payload === 'object') {
@@ -3984,6 +3984,50 @@ export function attachSocketHandlers(io: AppServer): void {
         }
         cb(ok(msg));
       } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('dm:image', async (data: { conversationId: string; imageData: string }, cb: any) => {
+      try {
+        const senderId = socket.data.profileId;
+        if (!senderId) throw new Error('Not authenticated.');
+        if (!data.imageData?.startsWith('data:image/')) throw new Error('Invalid image data.');
+        if (data.imageData.length > 950_000) throw new Error('სურათი ძალიან დიდია — სცადე პატარა.');
+        const [conv] = await sql`SELECT * FROM conversations WHERE id = ${data.conversationId}` as any[];
+        if (!conv) throw new Error('Conversation not found.');
+        if (conv.participant1 !== senderId && conv.participant2 !== senderId) throw new Error('Not a participant.');
+        const receiverId = conv.participant1 === senderId ? conv.participant2 : conv.participant1;
+        const msg = await sendImageDm(data.conversationId, senderId, data.imageData);
+        const recipientSocket = findSocketByProfile(io, receiverId);
+        const senderProfile = await getPlayer(senderId);
+        if (recipientSocket) {
+          recipientSocket.emit('dm:new_message', {
+            conversationId: data.conversationId,
+            message: msg,
+            senderUsername: senderProfile?.username ?? 'Unknown',
+            senderAvatar: senderProfile?.avatar ?? '?',
+          });
+        } else {
+          sendPushToUser(receiverId, {
+            title: `🖼 ${senderProfile?.username ?? 'Someone'}`,
+            body: 'Sent you a photo',
+          }).catch(() => {});
+        }
+        cb(ok(msg));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // Lightweight typing relay — no persistence, only to the online peer.
+    socket.on('dm:typing', async ({ conversationId }: { conversationId: string }) => {
+      try {
+        const senderId = socket.data.profileId;
+        if (!senderId) return;
+        const [conv] = await sql`SELECT participant1, participant2 FROM conversations WHERE id = ${conversationId}` as any[];
+        if (!conv) return;
+        if (conv.participant1 !== senderId && conv.participant2 !== senderId) return;
+        const receiverId = conv.participant1 === senderId ? conv.participant2 : conv.participant1;
+        const recipientSocket = findSocketByProfile(io, receiverId);
+        if (recipientSocket) recipientSocket.emit('dm:typing', { conversationId, fromUserId: senderId });
+      } catch { /* best effort */ }
     });
 
     socket.on('dm:list', async (cb: any) => {

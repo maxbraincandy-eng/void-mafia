@@ -667,7 +667,7 @@ export interface DirectMessage {
   conversationId: string;
   senderId: string;
   text: string;
-  type?: 'text' | 'voice';
+  type?: 'text' | 'voice' | 'image';
   audioDuration?: number;
   createdAt: number;
   readAt: number | null;

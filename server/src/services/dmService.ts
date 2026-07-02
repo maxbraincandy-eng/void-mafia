@@ -21,7 +21,7 @@ export interface DirectMessage {
   conversationId: string;
   senderId: string;
   text: string;
-  type?: 'text' | 'voice';
+  type?: 'text' | 'voice' | 'image';
   audioDuration?: number;
   createdAt: number;
   readAt: number | null;
@@ -137,6 +137,26 @@ export async function sendVoiceDm(
   return { id, conversationId, senderId, text: audioData, type: 'voice', audioDuration, createdAt: now, readAt: null };
 }
 
+export async function sendImageDm(
+  conversationId: string, senderId: string, imageData: string,
+): Promise<DirectMessage> {
+  const id = generateId();
+  const now = Date.now();
+  await sql`
+    INSERT INTO direct_messages (id, conversation_id, sender_id, text, type, created_at)
+    VALUES (${id}, ${conversationId}, ${senderId}, ${imageData}, 'image', ${now})
+  `;
+  const [conv] = await sql`SELECT * FROM conversations WHERE id = ${conversationId}` as any[];
+  const isParticipant1 = conv.participant1 === senderId;
+  const preview = imageData.startsWith('data:image/gif') ? 'GIF' : '🖼 Photo';
+  if (isParticipant1) {
+    await sql`UPDATE conversations SET last_message = ${preview}, last_message_at = ${now}, unread_by2 = 1 WHERE id = ${conversationId}`;
+  } else {
+    await sql`UPDATE conversations SET last_message = ${preview}, last_message_at = ${now}, unread_by1 = 1 WHERE id = ${conversationId}`;
+  }
+  return { id, conversationId, senderId, text: imageData, type: 'image', createdAt: now, readAt: null };
+}
+
 export async function getMessages(conversationId: string, limit = 50): Promise<DirectMessage[]> {
   const rows = await sql`
     SELECT * FROM direct_messages WHERE conversation_id = ${conversationId}
@@ -145,7 +165,7 @@ export async function getMessages(conversationId: string, limit = 50): Promise<D
   return rows.reverse().map((r: any) => ({
     id: r.id, conversationId: r.conversation_id, senderId: r.sender_id,
     text: r.text,
-    type: (r.type === 'voice' ? 'voice' : 'text') as 'text' | 'voice',
+    type: (r.type === 'voice' ? 'voice' : r.type === 'image' ? 'image' : 'text') as 'text' | 'voice' | 'image',
     audioDuration: r.audio_duration ? Number(r.audio_duration) : undefined,
     createdAt: Number(r.created_at),
     readAt: r.read_at ? Number(r.read_at) : null,
