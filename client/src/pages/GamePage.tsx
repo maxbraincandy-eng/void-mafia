@@ -219,6 +219,8 @@ export function GamePage() {
 
   const amSpectator = myPlayer?.isSpectator ?? false;
   const amQueuedNextRound = myPlayer?.isQueuedNextRound ?? false;
+  // Don-mode წამყვანი: roleless moderator with pause/skip controls.
+  const amDonModerator = !!room?.settings.donMode && !!myPlayer && room.donModeratorId === myPlayer.id;
 
   // Auto-switch to spectator tab on join
   useEffect(() => {
@@ -1568,7 +1570,7 @@ export function GamePage() {
               </button>
 
               {/* Pause button (host only, when hostSkipPrivilege enabled) */}
-              {amHost && room.settings.hostSkipPrivilege && phase !== 'role_reveal' && phase !== 'game_over' && phase !== 'lobby' && (
+              {(amHost && room.settings.hostSkipPrivilege || amDonModerator) && phase !== 'role_reveal' && phase !== 'game_over' && phase !== 'lobby' && (
                 <button
                   onClick={() => pauseTimer()}
                   disabled={isLoading}
@@ -1591,7 +1593,7 @@ export function GamePage() {
                 </span>
               )}
 
-              {amHost && room.settings.hostSkipPrivilege && phase !== 'role_reveal' && phase !== 'game_over' && phase !== 'lobby' && (
+              {(amHost && room.settings.hostSkipPrivilege || amDonModerator) && phase !== 'role_reveal' && phase !== 'game_over' && phase !== 'lobby' && (
                 <Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>
                   <span className="hidden sm:inline">{t.game.header.skip} </span>⏭
                 </Button>

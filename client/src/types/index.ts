@@ -282,6 +282,8 @@ export interface GameSettings {
   spectatorQueue?: SpectatorQueueSettings;
   ranked?: boolean;
   donMode?: boolean;
+  /** Don mode: play with a non-playing game moderator (წამყვანი). */
+  donModerator?: boolean;
   planningNightDuration?: number;
   roles: {
     mafia: number;
@@ -355,6 +357,7 @@ export interface RoomPublic {
   clanRoom: boolean;
   activeEvent: ActiveEvent | null;
   donModeState: DonModeStatePublic | null;
+  donModeratorId: string | null;
 }
 
 export interface RoomListItem {

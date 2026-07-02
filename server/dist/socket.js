@@ -1873,6 +1873,42 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
+        // ── Don Mode: claim / release the წამყვანი (moderator) seat ──────
+        socket.on('room:don_moderator', ({ claim }, cb) => {
+            try {
+                const room = getRoomFromSocket(socket);
+                const player = getPlayerOrError(socket, room);
+                if (!room.settings.donMode)
+                    throw new Error('Don რეჟიმი არ არის ჩართული.');
+                if (!room.settings.donModerator)
+                    throw new Error('წამყვანით თამაში გამორთულია.');
+                if (room.phase !== 'lobby')
+                    throw new Error('წამყვანის არჩევა მხოლოდ ლობიშია შესაძლებელი.');
+                if (claim) {
+                    if (room.donModeratorId && room.donModeratorId !== player.id) {
+                        throw new Error('წამყვანის ადგილი უკვე დაკავებულია.');
+                    }
+                    room.donModeratorId = player.id;
+                    broadcastSystemMsg(io, room, `♛ ${player.name} გახდა თამაშის წამყვანი.`);
+                }
+                else {
+                    // The moderator themselves or the host can vacate the seat.
+                    if (room.donModeratorId !== player.id && !player.isHost) {
+                        throw new Error('მხოლოდ წამყვანს ან ჰოსტს შეუძლია ადგილის გათავისუფლება.');
+                    }
+                    if (room.donModeratorId) {
+                        const prev = room.players.get(room.donModeratorId);
+                        broadcastSystemMsg(io, room, `♛ წამყვანის ადგილი გათავისუფლდა${prev ? ` (${prev.name})` : ''}.`);
+                    }
+                    room.donModeratorId = null;
+                }
+                broadcastRoom(io, room);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
         // ── Mafia Kill Vote (Don Mode) ──────────────────────────────────
         socket.on('game:mafia_kill_vote', async ({ targetId }, cb) => {
             try {
@@ -2045,12 +2081,14 @@ export function attachSocketHandlers(io) {
             try {
                 const room = getRoomFromSocket(socket);
                 const host = getPlayerOrError(socket, room);
-                if (!host.isHost)
+                const isDonModerator = room.settings.donMode && room.donModeratorId === host.id;
+                if (!host.isHost && !isDonModerator)
                     throw new Error('Only the host can skip phases.');
                 if (room.phase === 'lobby' || room.phase === 'game_over')
                     throw new Error('Cannot skip this phase.');
                 // During speech phase: host can only skip another player's turn if hostSkipPrivilege is enabled.
-                if (room.phase === 'speech') {
+                // The Don-mode წამყვანი moderates every turn by design.
+                if (room.phase === 'speech' && !isDonModerator) {
                     const currentSpeakerId = room.speechOrder[room.currentSpeakerIdx ?? 0] ?? null;
                     const isOwnTurn = host.id === currentSpeakerId;
                     if (!isOwnTurn && !room.settings.hostSkipPrivilege) {
@@ -2270,7 +2308,8 @@ export function attachSocketHandlers(io) {
             try {
                 const room = getRoomFromSocket(socket);
                 const host = getPlayerOrError(socket, room);
-                if (!host.isHost)
+                const isDonModerator = room.settings.donMode && room.donModeratorId === host.id;
+                if (!host.isHost && !isDonModerator)
                     throw new Error('Only the host can pause.');
                 if (room.phase === 'lobby' || room.phase === 'game_over')
                     throw new Error('Cannot pause now.');

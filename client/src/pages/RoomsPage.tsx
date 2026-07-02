@@ -71,18 +71,21 @@ const SURFACE = 'rounded-2xl border border-white/[0.06]';
 const SURFACE_BG = { background: 'var(--vm-surface-bg)' } as const;
 
 export function RoomsPage() {
-  type Preset = 'quick' | 'classic' | 'hardcore';
+  type GameStyle = 'classic' | 'don';
 
-  const PRESET_SETTINGS: Record<Preset, { nightDuration: number; dayDuration: number; voteDuration: number; speechDuration: number }> = {
-    quick:    { nightDuration: 25, dayDuration: 60,  voteDuration: 25,  speechDuration: 20 },
-    classic:  { nightDuration: 45, dayDuration: 90,  voteDuration: 45,  speechDuration: 40 },
-    hardcore: { nightDuration: 60, dayDuration: 120, voteDuration: 60,  speechDuration: 60 },
+  // Base timers (the former "classic" pace). Don mode's engine drives its own
+  // phase timings (60s speeches, 30s checks) on top of these.
+  const BASE_TIMERS = { nightDuration: 45, dayDuration: 90, voteDuration: 45, speechDuration: 40 };
+
+  const STYLE_META: Record<GameStyle, { icon: string; label: string; desc: string }> = {
+    classic: { icon: '🎩', label: 'კლასიკური', desc: 'როლების თავისუფალი არჩევანი' },
+    don:     { icon: '♛',  label: 'დონი',       desc: '10 მოთამაშე · დონის წესები' },
   };
 
   const [mode, setMode] = useState<'browse' | 'create' | 'join'>('browse');
   const [rooms, setRooms] = useState<RoomListItem[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
-  const [preset, setPreset] = useState<Preset>('classic');
+  const [style, setStyle] = useState<GameStyle>('classic');
   const [isPrivate, setIsPrivate] = useState(false);
   const [roomName, setRoomName] = useState('');
   const [code, setCode] = useState('');
@@ -129,7 +132,12 @@ export function RoomsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createRoom(username, { ...PRESET_SETTINGS[preset], isPrivate }, false, roomName);
+    await createRoom(username, {
+      ...BASE_TIMERS,
+      isPrivate,
+      donMode: style === 'don',
+      ...(style === 'don' ? { minPlayers: 10 } : {}),
+    }, false, roomName);
   };
 
   const handleJoin = async (e: React.FormEvent) => {
@@ -419,23 +427,34 @@ export function RoomsPage() {
                 ))}
               </div>
 
-              {/* Preset selector */}
-              <p className="text-[12px] font-mono text-white/28 uppercase tracking-widest mb-2 mt-1">Game Pace</p>
-              <div className="grid grid-cols-3 gap-2 mb-5">
-                {(['quick', 'classic', 'hardcore'] as Preset[]).map(id => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setPreset(id)}
-                    className={`py-3 px-2 rounded-xl border text-center transition-all capitalize ${
-                      preset === id
-                        ? 'border-white/20 bg-white/[0.04] text-white/70'
-                        : 'border-white/[0.06] text-white/28 hover:border-white/12 hover:text-white/45'
-                    }`}
-                  >
-                    <p className="text-xs font-mono font-bold">{id}</p>
-                  </button>
-                ))}
+              {/* Style selector — classic vs Don-table rules */}
+              <p className="text-[12px] font-mono text-white/28 uppercase tracking-widest mb-2 mt-1">სტილი</p>
+              <div className="grid grid-cols-2 gap-2 mb-5">
+                {(['classic', 'don'] as GameStyle[]).map(id => {
+                  const m = STYLE_META[id];
+                  const selected = style === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setStyle(id)}
+                      className="py-3 px-3 rounded-xl border text-left transition-all"
+                      style={selected
+                        ? id === 'don'
+                          ? { borderColor: 'rgba(155,0,255,0.55)', background: 'rgba(155,0,255,0.1)', boxShadow: '0 0 14px rgba(155,0,255,0.2)' }
+                          : { borderColor: 'rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.04)' }
+                        : { borderColor: 'rgba(255,255,255,0.06)' }}
+                    >
+                      <p className="text-xs font-mono font-bold flex items-center gap-1.5"
+                        style={{ color: selected ? (id === 'don' ? '#c084fc' : 'rgba(255,255,255,0.75)') : 'rgba(255,255,255,0.3)' }}>
+                        <span>{m.icon}</span>{m.label}
+                      </p>
+                      <p className="text-[12px] font-mono mt-0.5" style={{ color: selected ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.22)' }}>
+                        {m.desc}
+                      </p>
+                    </button>
+                  );
+                })}
               </div>
 
               <form onSubmit={handleCreate}>

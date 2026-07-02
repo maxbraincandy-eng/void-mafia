@@ -656,52 +656,6 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading, re
         )}
       </div>
 
-      {/* ── Don Card Mode ─────────────────────────────────────────────── */}
-      <div className="rounded-2xl border p-4 space-y-3" style={{ borderColor: 'rgba(155,0,255,0.25)', background: 'rgba(20,0,40,0.5)' }}>
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h4 className="text-xs font-display font-bold uppercase tracking-widest" style={{ color: 'rgba(200,130,255,0.8)' }}>
-              🃏 Don Card Mode
-            </h4>
-            <p className="text-[12px] font-mono text-white/30 mt-0.5">
-              Classic 10-player Don-table rules
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => apply({ ...localRef.current, donMode: !localRef.current.donMode })}
-            disabled={disabled}
-            className={clsx(
-              'relative w-10 h-5 rounded-full border transition-all flex-shrink-0',
-              view.donMode ? 'border-neon-purple/50 bg-neon-purple/20' : 'border-white/[0.12] bg-white/[0.03]',
-            )}
-          >
-            <span className={clsx(
-              'absolute top-0.5 w-4 h-4 rounded-full transition-all',
-              view.donMode ? 'left-5 bg-neon-purple' : 'left-0.5 bg-white/20',
-            )} />
-          </button>
-        </div>
-
-        {view.donMode && (
-          <div className="space-y-2">
-            <div className="rounded-xl border border-neon-purple/15 px-3 py-2.5" style={{ background: 'rgba(10,0,20,0.4)' }}>
-              <p className="text-[11px] font-mono text-white/40 leading-relaxed">
-                🃏 <strong className="text-white/60">Don Mode</strong> მოითხოვს <strong className="text-neon-purple/80">ზუსტად 10 მოთამაშეს</strong>.<br />
-                ავტომატური როლები: 1 Don + 2 Mafia + 1 Sheriff + 6 Citizens.
-              </p>
-            </div>
-            <div className="space-y-1 text-[11px] font-mono text-white/30 pl-1">
-              <p>• Planning Night (60s) — ქილი არ შედგება</p>
-              <p>• ინდივიდუალური სიტყვები (Speech, 60s)</p>
-              <p>• Don Check — შერიფის ამოცნობა</p>
-              <p>• Mafia Kill — სამივე ხმა ერთ სამიზნეზე</p>
-              <p>• Sheriff Check — მაფიის ამოცნობა (Don წმინდაა)</p>
-              <p>• ფრე → Tie Defense → Revote → ორმაგი ელიმინაცია</p>
-            </div>
-          </div>
-        )}
-      </div>
     </motion.div>
   );
 }

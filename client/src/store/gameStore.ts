@@ -62,6 +62,7 @@ interface GameStore {
   toggleReady: () => Promise<void>;
   kickPlayer: (playerId: string) => Promise<void>;
   transferHost: (playerId: string) => Promise<void>;
+  claimDonModerator: (claim: boolean) => Promise<void>;
   updateSettings: (settings: Partial<GameSettings>) => Promise<void>;
   startGame: () => Promise<void>;
   submitNightAction: (targetId: string) => Promise<void>;
@@ -608,6 +609,10 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     transferHost: withLoading(async (playerId: string) => {
       await emit('room:transfer_host', { playerId });
+    }),
+
+    claimDonModerator: withLoading(async (claim: boolean) => {
+      await emit('room:don_moderator', { claim });
     }),
 
     updateSettings: withLoading(async (settings: Partial<GameSettings>) => {

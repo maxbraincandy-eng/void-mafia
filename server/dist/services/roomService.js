@@ -149,6 +149,7 @@ export function createRoom(hostSocketId, hostName, profileId, settings, clanId, 
         gameTimeline: [],
         voiceSessionId: generateVoiceSessionId(),
         donModeState: null,
+        donModeratorId: null,
     };
     rooms.set(id, room);
     return room;
@@ -349,6 +350,9 @@ export function removePlayer(room, playerId) {
     const player = room.players.get(playerId);
     if (!player)
         return;
+    // Vacate the Don-mode moderator seat if its holder leaves.
+    if (room.donModeratorId === playerId)
+        room.donModeratorId = null;
     if (room.phase === 'lobby') {
         room.players.delete(playerId);
         reassignSeats(room);
@@ -507,6 +511,7 @@ export function toPublicRoom(room, viewerPlayerId) {
                 sheriffCheckDone: room.donModeState.sheriffCheckDone,
             }
             : null,
+        donModeratorId: room.donModeratorId ?? null,
     };
 }
 export function toRoomListItem(room) {

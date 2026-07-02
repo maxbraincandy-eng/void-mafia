@@ -4,19 +4,24 @@ import { tryTriggerEvent, setRoomEvent, clearRoomEvent } from './dynamicEventSer
 // ── Start Game ────────────────────────────────────────────────────────
 export function startGame(room) {
     const allPlayers = [...room.players.values()];
-    const activePlayers = allPlayers.filter(p => !p.isSpectator);
+    // Don mode with a წამყვანი: the moderator does not receive a role and is
+    // excluded from the 10-player deck (spectates with skip privileges).
+    const modId = room.settings.donMode && room.settings.donModerator
+        ? room.donModeratorId : null;
+    const moderator = modId ? room.players.get(modId) ?? null : null;
+    const activePlayers = allPlayers.filter(p => !p.isSpectator && p.id !== modId);
     const count = activePlayers.length;
     if (count < room.settings.minPlayers) {
         throw new Error(`Need at least ${room.settings.minPlayers} players to start.`);
     }
-    // Don Mode player count validation — spec: exactly 10 players.
+    // Don Mode player count validation — spec: exactly 10 players (excl. moderator).
     if (room.settings.donMode) {
         if (count !== 10) {
-            throw new Error('დონის კარტი მოითხოვს ზუსტად 10 მოთამაშეს');
+            throw new Error('დონის კარტი მოითხოვს ზუსტად 10 მოთამაშეს' + (moderator ? ' (წამყვანის გარდა)' : ''));
         }
     }
     for (const p of allPlayers) {
-        if (p.isSpectator) {
+        if (p.isSpectator || p.id === modId) {
             p.isAlive = false;
             p.role = null;
             p.team = null;

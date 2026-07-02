@@ -306,6 +306,8 @@ export interface GameSettings {
     ranked?: boolean;
     /** Don Card mode — classic 10/12-player Don-table rules */
     donMode?: boolean;
+    /** Don mode: play with a non-playing game moderator (წამყვანი). */
+    donModerator?: boolean;
     /** Planning night duration in seconds (Don Mode only). Default: 60 */
     planningNightDuration?: number;
     roles: {
@@ -389,6 +391,8 @@ export interface Room {
     /** UUID refreshed on every game start + lobby reset; clients drop stale WebRTC signals if this doesn't match. */
     voiceSessionId: string;
     donModeState: DonModeState | null;
+    /** Don mode: player claiming the non-playing წამყვანი (moderator) seat. */
+    donModeratorId: string | null;
 }
 export interface PlayerPublic {
     id: string;
@@ -466,6 +470,7 @@ export interface RoomPublic {
     clanRoom: boolean;
     activeEvent: ActiveEvent | null;
     donModeState: DonModeStatePublic | null;
+    donModeratorId: string | null;
 }
 export interface RoomListItem {
     id: string;
@@ -1183,6 +1188,9 @@ export interface ClientToServerEvents {
     }, cb: Cb<null>) => void;
     'game:sheriff_check': (data: {
         targetId: string | null;
+    }, cb: Cb<null>) => void;
+    'room:don_moderator': (data: {
+        claim: boolean;
     }, cb: Cb<null>) => void;
     'game:mafia_kill_vote': (data: {
         targetId: string;

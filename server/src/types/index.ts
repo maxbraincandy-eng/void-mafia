@@ -429,6 +429,8 @@ export interface GameSettings {
   ranked?: boolean;
   /** Don Card mode — classic 10/12-player Don-table rules */
   donMode?: boolean;
+  /** Don mode: play with a non-playing game moderator (წამყვანი). */
+  donModerator?: boolean;
   /** Planning night duration in seconds (Don Mode only). Default: 60 */
   planningNightDuration?: number;
   roles: {
@@ -503,6 +505,8 @@ export interface Room {
   /** UUID refreshed on every game start + lobby reset; clients drop stale WebRTC signals if this doesn't match. */
   voiceSessionId: string;
   donModeState: DonModeState | null;
+  /** Don mode: player claiming the non-playing წამყვანი (moderator) seat. */
+  donModeratorId: string | null;
 }
 
 // ── Public Types (sent to clients) ────────────────────────────────────
@@ -570,6 +574,7 @@ export interface RoomPublic {
   clanRoom: boolean;
   activeEvent: ActiveEvent | null;
   donModeState: DonModeStatePublic | null;
+  donModeratorId: string | null;
 }
 
 export interface RoomListItem {
@@ -982,6 +987,7 @@ export interface ClientToServerEvents {
   // Don Mode
   'game:don_check':          (data: { targetId: string | null }, cb: Cb<null>) => void;
   'game:sheriff_check':      (data: { targetId: string | null }, cb: Cb<null>) => void;
+  'room:don_moderator':      (data: { claim: boolean }, cb: Cb<null>) => void;
   'game:mafia_kill_vote':    (data: { targetId: string }, cb: Cb<null>) => void;
   'game:double_elim_vote':   (data: { yes: boolean }, cb: Cb<null>) => void;
   'leaderboard:get':         (cb: Cb<PlayerProfilePublic[]>) => void;

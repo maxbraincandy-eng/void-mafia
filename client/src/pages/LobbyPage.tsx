@@ -31,6 +31,7 @@ export function LobbyPage() {
   const {
     room, myPlayer, amHost, toggleReady, kickPlayer, startGame,
     updateSettings, leaveRoom, transferHost, isLoading, autoStartCountdown,
+    claimDonModerator,
   } = useGameStore(s => ({
     room: s.room,
     myPlayer: s.myPlayer(),
@@ -43,6 +44,7 @@ export function LobbyPage() {
     transferHost: s.transferHost,
     isLoading: s.isLoading,
     autoStartCountdown: s.autoStartCountdown,
+    claimDonModerator: s.claimDonModerator,
   }));
 
   const { openProfile, openDmList, unreadDmCount } = useSocialStore();
@@ -568,6 +570,64 @@ export function LobbyPage() {
               )}
             </motion.div>
 
+            {/* ── Don Mode lobby section ─────────────────────── */}
+            {room.settings.donMode && (() => {
+              const modPlayer = room.donModeratorId
+                ? room.players.find(p => p.id === room.donModeratorId) ?? null
+                : null;
+              const iAmModerator = myPlayer?.id === room.donModeratorId;
+              return (
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-2xl border p-4 space-y-3"
+                  style={{ borderColor: 'rgba(155,0,255,0.35)', background: 'linear-gradient(160deg, rgba(30,6,55,0.75), rgba(10,4,24,0.9))', boxShadow: '0 0 24px rgba(155,0,255,0.1)' }}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-xl" style={{ filter: 'drop-shadow(0 0 8px rgba(192,132,252,0.8))' }}>♛</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-display font-bold text-sm tracking-[0.18em] uppercase" style={{ color: '#c084fc' }}>დონის რეჟიმი</p>
+                      <p className="font-mono text-[11px] text-white/35">
+                        ზუსტად 10 მოთამაშე{room.settings.donModerator ? ' + წამყვანი' : ''} · 1 დონი · 2 მაფია · 1 შერიფი · 6 მოქალაქე
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* წამყვანის slot — appears when the host enables moderator play */}
+                  {room.settings.donModerator && (
+                    modPlayer ? (
+                      <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
+                        style={{ background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(192,132,252,0.4)' }}>
+                        <Avatar name={modPlayer.name} size="sm" src={modPlayer.avatarUrl ?? undefined} />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-mono text-[12px] font-bold text-white/85 truncate">♛ {modPlayer.name}</p>
+                          <p className="font-mono text-[10px]" style={{ color: 'rgba(192,132,252,0.7)' }}>თამაშის წამყვანი</p>
+                        </div>
+                        {(iAmModerator || amHost) && (
+                          <button
+                            onClick={() => claimDonModerator(false)}
+                            disabled={isLoading}
+                            className="px-2.5 py-1.5 rounded-lg font-mono text-[11px] text-white/40 border border-white/10 hover:text-red-400/70 hover:border-red-400/30 transition-all disabled:opacity-40"
+                          >
+                            ✕ მოხსნა
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => claimDonModerator(true)}
+                        disabled={isLoading || amSpectator}
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-mono text-[12.5px] font-bold transition-all active:scale-[0.98] disabled:opacity-40"
+                        style={{ background: 'rgba(155,0,255,0.15)', border: '1.5px dashed rgba(192,132,252,0.5)', color: '#c084fc' }}
+                      >
+                        ♛ გახდი თამაშის წამყვანი
+                      </button>
+                    )
+                  )}
+                </motion.div>
+              );
+            })()}
+
             {/* ── Action bar ─────────────────────────────────── */}
             <motion.div
               initial={{ opacity: 0, y: 6 }}
@@ -915,13 +975,58 @@ export function LobbyPage() {
                       )}
                     </div>
 
-                    <RolePickerPanel
-                      settings={room.settings}
-                      playerCount={playerCount}
-                      onUpdate={updateSettings}
-                      isLoading={isLoading}
-                      readOnly={!amHost}
-                    />
+                    {room.settings.donMode ? (
+                      /* ── Don Mode settings — fixed deck, only the წამყვანი choice ── */
+                      <div className="rounded-2xl border p-4 space-y-3" style={{ borderColor: 'rgba(155,0,255,0.3)', background: 'rgba(20,0,40,0.5)' }}>
+                        <div>
+                          <h4 className="text-xs font-display font-bold uppercase tracking-widest" style={{ color: 'rgba(200,130,255,0.85)' }}>
+                            ♛ დონის რეჟიმი
+                          </h4>
+                          <p className="text-[12px] font-mono text-white/30 mt-0.5">
+                            როლები ფიქსირებულია: 1 Don + 2 Mafia + 1 Sheriff + 6 Citizens
+                          </p>
+                        </div>
+
+                        {/* წამყვანით / წამყვანის გარეშე */}
+                        <button
+                          onClick={() => amHost && updateSettings({ donModerator: !room.settings.donModerator })}
+                          disabled={!amHost || isLoading}
+                          className="w-full flex items-center justify-between gap-3 py-1 disabled:cursor-default"
+                        >
+                          <div className="text-left">
+                            <p className={clsx('text-[13px] font-mono', amHost ? 'text-white/70' : 'text-white/45')}>♛ წამყვანით თამაში</p>
+                            <p className="text-[12px] font-mono text-white/30 mt-0.5">
+                              {room.settings.donModerator
+                                ? 'ლობიში ჩნდება წამყვანის ველი — მასზე დაჭერით მოთამაშე წამყვანი ხდება'
+                                : 'თამაში წამყვანის გარეშე — ფაზებს ძრავი მართავს'}
+                            </p>
+                          </div>
+                          <div className={clsx(
+                            'relative rounded-full flex-shrink-0 transition-colors duration-200',
+                            room.settings.donModerator ? 'bg-neon-purple/70' : 'bg-white/10',
+                          )} style={{ height: '22px', minWidth: '40px' }}>
+                            <span className="absolute top-0.5 rounded-full bg-white transition-all duration-200"
+                              style={{ width: '18px', height: '18px', left: room.settings.donModerator ? '20px' : '2px' }} />
+                          </div>
+                        </button>
+
+                        <div className="space-y-1 text-[11px] font-mono text-white/30 pl-1 pt-1 border-t border-white/[0.06]">
+                          <p>• Planning Night (60s) — ქილი არ შედგება</p>
+                          <p>• ინდივიდუალური სიტყვები (60s)</p>
+                          <p>• Don Check → Mafia Kill (ბრმა) → Sheriff Check</p>
+                          <p>• ფრე → Tie Defense → Revote → ორმაგი ელიმინაცია</p>
+                          <p>• წამყვანი როლს არ იღებს — მართავს ფაზებს/პაუზას</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <RolePickerPanel
+                        settings={room.settings}
+                        playerCount={playerCount}
+                        onUpdate={updateSettings}
+                        isLoading={isLoading}
+                        readOnly={!amHost}
+                      />
+                    )}
                     </div>
                   </motion.div>
                 </motion.div>
