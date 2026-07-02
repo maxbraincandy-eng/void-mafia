@@ -1312,7 +1312,9 @@ export function attachSocketHandlers(io) {
                     if (clanMembership)
                         clanId = clanMembership.id;
                 }
-                const room = createRoom(socket.id, username, profileId, parsed.settings, clanId, parsed.roomName);
+                // Don mode is temporarily disabled — only classic tables can be created.
+                const reqSettings = { ...parsed.settings, donMode: false };
+                const room = createRoom(socket.id, username, profileId, reqSettings, clanId, parsed.roomName);
                 const hostInRoom = [...room.players.values()][0];
                 if (hostInRoom && playerProfile?.avatarUrl)
                     hostInRoom.avatarUrl = playerProfile.avatarUrl;

@@ -427,30 +427,32 @@ export function RoomsPage() {
                 ))}
               </div>
 
-              {/* Style selector — classic vs Don-table rules */}
+              {/* Style selector — Don is temporarily disabled, classic only */}
               <p className="text-[12px] font-mono text-white/28 uppercase tracking-widest mb-2 mt-1">სტილი</p>
               <div className="grid grid-cols-2 gap-2 mb-5">
                 {(['classic', 'don'] as GameStyle[]).map(id => {
                   const m = STYLE_META[id];
-                  const selected = style === id;
+                  const donDisabled = id === 'don';
+                  const selected = style === id && !donDisabled;
                   return (
                     <button
                       key={id}
                       type="button"
-                      onClick={() => setStyle(id)}
-                      className="py-3 px-3 rounded-xl border text-left transition-all"
-                      style={selected
-                        ? id === 'don'
-                          ? { borderColor: 'rgba(155,0,255,0.55)', background: 'rgba(155,0,255,0.1)', boxShadow: '0 0 14px rgba(155,0,255,0.2)' }
-                          : { borderColor: 'rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.04)' }
-                        : { borderColor: 'rgba(255,255,255,0.06)' }}
+                      disabled={donDisabled}
+                      onClick={() => !donDisabled && setStyle(id)}
+                      className="py-3 px-3 rounded-xl border text-left transition-all disabled:cursor-not-allowed"
+                      style={donDisabled
+                        ? { borderColor: 'rgba(255,255,255,0.05)', opacity: 0.5 }
+                        : selected
+                          ? { borderColor: 'rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.04)' }
+                          : { borderColor: 'rgba(255,255,255,0.06)' }}
                     >
                       <p className="text-xs font-mono font-bold flex items-center gap-1.5"
-                        style={{ color: selected ? (id === 'don' ? '#c084fc' : 'rgba(255,255,255,0.75)') : 'rgba(255,255,255,0.3)' }}>
-                        <span>{m.icon}</span>{m.label}
+                        style={{ color: donDisabled ? 'rgba(255,255,255,0.3)' : selected ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.3)' }}>
+                        <span>{m.icon}</span>{m.label}{donDisabled && ' 🔒'}
                       </p>
-                      <p className="text-[12px] font-mono mt-0.5" style={{ color: selected ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.22)' }}>
-                        {m.desc}
+                      <p className="text-[12px] font-mono mt-0.5" style={{ color: donDisabled ? 'rgba(255,180,80,0.55)' : selected ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.22)' }}>
+                        {donDisabled ? 'დროებით არ მუშაობს' : m.desc}
                       </p>
                     </button>
                   );
