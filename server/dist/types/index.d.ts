@@ -807,6 +807,16 @@ export interface ServerToClientEvents {
         conversationId: string;
         fromUserId: string;
     }) => void;
+    'dm:read': (data: {
+        conversationId: string;
+        readerId: string;
+    }) => void;
+    'dm:reaction': (data: {
+        conversationId: string;
+        messageId: string;
+        reactorId: string;
+        emoji: string | null;
+    }) => void;
     'lobby:message': (msg: LobbyMessage) => void;
     'lobby:msg_deleted': (data: {
         msgId: string;
@@ -1457,6 +1467,8 @@ export interface ClientToServerEvents {
     'dm:send': (data: {
         conversationId: string;
         text: string;
+        type?: 'text' | 'sticker' | 'invite';
+        replyToId?: string | null;
     }, cb: Cb<any>) => void;
     'dm:list': (data: Record<string, never>, cb: Cb<any[]>) => void;
     'dm:messages': (data: {
@@ -1477,10 +1489,18 @@ export interface ClientToServerEvents {
     'dm:image': (data: {
         conversationId: string;
         imageData: string;
+        viewOnce?: boolean;
     }, cb: Cb<any>) => void;
     'dm:typing': (data: {
         conversationId: string;
     }) => void;
+    'dm:react': (data: {
+        messageId: string;
+        emoji: string;
+    }, cb: Cb<any>) => void;
+    'dm:viewonce_open': (data: {
+        messageId: string;
+    }, cb: Cb<any>) => void;
     'player:update_avatar': (data: {
         imageData: string;
     }, cb: (res: any) => void) => void;

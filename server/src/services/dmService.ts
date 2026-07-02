@@ -16,13 +16,20 @@ export interface Conversation {
   unreadCount?: number;
 }
 
+export type DmType = 'text' | 'voice' | 'image' | 'sticker' | 'invite';
+
 export interface DirectMessage {
   id: string;
   conversationId: string;
   senderId: string;
   text: string;
-  type?: 'text' | 'voice' | 'image';
+  type?: DmType;
   audioDuration?: number;
+  replyToId?: string | null;
+  viewOnce?: boolean;
+  viewedAt?: number | null;
+  /** reactorId → emoji */
+  reactions?: Record<string, string>;
   createdAt: number;
   readAt: number | null;
 }
@@ -96,25 +103,29 @@ export async function listConversations(userId: string): Promise<any[]> {
 
 export async function sendMessage(
   conversationId: string, senderId: string, text: string, receiverId: string,
+  opts?: { type?: 'text' | 'sticker' | 'invite'; replyToId?: string | null },
 ): Promise<DirectMessage> {
   if (text.length > 500) throw new Error('Message too long (max 500 characters).');
   const id = generateId();
   const now = Date.now();
+  const type = opts?.type ?? 'text';
+  const replyToId = opts?.replyToId ?? null;
   await sql`
-    INSERT INTO direct_messages (id, conversation_id, sender_id, text, created_at)
-    VALUES (${id}, ${conversationId}, ${senderId}, ${text}, ${now})
+    INSERT INTO direct_messages (id, conversation_id, sender_id, text, type, reply_to_id, created_at)
+    VALUES (${id}, ${conversationId}, ${senderId}, ${text}, ${type}, ${replyToId}, ${now})
   `;
 
   // Determine which unread flag to set
   const [conv] = await sql`SELECT * FROM conversations WHERE id = ${conversationId}` as any[];
   const isParticipant1 = conv.participant1 === senderId;
+  const preview = type === 'sticker' ? '🎭 სტიკერი' : type === 'invite' ? '🎮 მოწვევა თამაშში' : text;
   if (isParticipant1) {
-    await sql`UPDATE conversations SET last_message = ${text}, last_message_at = ${now}, unread_by2 = 1 WHERE id = ${conversationId}`;
+    await sql`UPDATE conversations SET last_message = ${preview}, last_message_at = ${now}, unread_by2 = 1 WHERE id = ${conversationId}`;
   } else {
-    await sql`UPDATE conversations SET last_message = ${text}, last_message_at = ${now}, unread_by1 = 1 WHERE id = ${conversationId}`;
+    await sql`UPDATE conversations SET last_message = ${preview}, last_message_at = ${now}, unread_by1 = 1 WHERE id = ${conversationId}`;
   }
 
-  return { id, conversationId, senderId, text, createdAt: now, readAt: null };
+  return { id, conversationId, senderId, text, type, replyToId, createdAt: now, readAt: null };
 }
 
 export async function sendVoiceDm(
@@ -138,48 +149,109 @@ export async function sendVoiceDm(
 }
 
 export async function sendImageDm(
-  conversationId: string, senderId: string, imageData: string,
+  conversationId: string, senderId: string, imageData: string, viewOnce = false,
 ): Promise<DirectMessage> {
   const id = generateId();
   const now = Date.now();
   await sql`
-    INSERT INTO direct_messages (id, conversation_id, sender_id, text, type, created_at)
-    VALUES (${id}, ${conversationId}, ${senderId}, ${imageData}, 'image', ${now})
+    INSERT INTO direct_messages (id, conversation_id, sender_id, text, type, view_once, created_at)
+    VALUES (${id}, ${conversationId}, ${senderId}, ${imageData}, 'image', ${viewOnce}, ${now})
   `;
   const [conv] = await sql`SELECT * FROM conversations WHERE id = ${conversationId}` as any[];
   const isParticipant1 = conv.participant1 === senderId;
-  const preview = imageData.startsWith('data:image/gif') ? 'GIF' : '🖼 Photo';
+  const preview = viewOnce ? '📸 ერთჯერადი ფოტო' : imageData.startsWith('data:image/gif') ? '✨ GIF' : '🖼 სურათი';
   if (isParticipant1) {
     await sql`UPDATE conversations SET last_message = ${preview}, last_message_at = ${now}, unread_by2 = 1 WHERE id = ${conversationId}`;
   } else {
     await sql`UPDATE conversations SET last_message = ${preview}, last_message_at = ${now}, unread_by1 = 1 WHERE id = ${conversationId}`;
   }
-  return { id, conversationId, senderId, text: imageData, type: 'image', createdAt: now, readAt: null };
+  return { id, conversationId, senderId, text: imageData, type: 'image', viewOnce, viewedAt: null, createdAt: now, readAt: null };
 }
 
-export async function getMessages(conversationId: string, limit = 50): Promise<DirectMessage[]> {
+/** Toggle a reaction on a DM (one per user per message; same emoji removes). */
+export async function toggleDmReaction(messageId: string, reactorId: string, emoji: string): Promise<{ conversationId: string; emoji: string | null }> {
+  const [msg] = await sql`SELECT conversation_id FROM direct_messages WHERE id = ${messageId}` as any[];
+  if (!msg) throw new Error('Message not found.');
+  const [conv] = await sql`SELECT participant1, participant2 FROM conversations WHERE id = ${msg.conversation_id}` as any[];
+  if (!conv || (conv.participant1 !== reactorId && conv.participant2 !== reactorId)) throw new Error('Not a participant.');
+
+  const [existing] = await sql`SELECT emoji FROM dm_reactions WHERE message_id = ${messageId} AND reactor_id = ${reactorId}` as any[];
+  if (existing?.emoji === emoji) {
+    await sql`DELETE FROM dm_reactions WHERE message_id = ${messageId} AND reactor_id = ${reactorId}`;
+    return { conversationId: msg.conversation_id, emoji: null };
+  }
+  await sql`
+    INSERT INTO dm_reactions (message_id, reactor_id, emoji, created_at)
+    VALUES (${messageId}, ${reactorId}, ${emoji}, ${Date.now()})
+    ON CONFLICT (message_id, reactor_id) DO UPDATE SET emoji = ${emoji}, created_at = ${Date.now()}
+  `;
+  return { conversationId: msg.conversation_id, emoji };
+}
+
+/** Recipient opened a view-once photo — burn it. Returns true when this open consumed it. */
+export async function markViewOnceViewed(messageId: string, viewerId: string): Promise<boolean> {
+  const [msg] = await sql`SELECT conversation_id, sender_id, view_once, viewed_at FROM direct_messages WHERE id = ${messageId}` as any[];
+  if (!msg || !(msg.view_once === true || msg.view_once === 1)) return false;
+  if (msg.sender_id === viewerId) return false; // sender can't consume it
+  if (msg.viewed_at) return false;              // already burned
+  const [conv] = await sql`SELECT participant1, participant2 FROM conversations WHERE id = ${msg.conversation_id}` as any[];
+  if (!conv || (conv.participant1 !== viewerId && conv.participant2 !== viewerId)) return false;
+  await sql`UPDATE direct_messages SET viewed_at = ${Date.now()} WHERE id = ${messageId}`;
+  return true;
+}
+
+const DM_TYPES: DmType[] = ['text', 'voice', 'image', 'sticker', 'invite'];
+
+export async function getMessages(conversationId: string, viewerId?: string, limit = 50): Promise<DirectMessage[]> {
   const rows = await sql`
     SELECT * FROM direct_messages WHERE conversation_id = ${conversationId}
     ORDER BY created_at DESC LIMIT ${limit}
   ` as any[];
-  return rows.reverse().map((r: any) => ({
-    id: r.id, conversationId: r.conversation_id, senderId: r.sender_id,
-    text: r.text,
-    type: (r.type === 'voice' ? 'voice' : r.type === 'image' ? 'image' : 'text') as 'text' | 'voice' | 'image',
-    audioDuration: r.audio_duration ? Number(r.audio_duration) : undefined,
-    createdAt: Number(r.created_at),
-    readAt: r.read_at ? Number(r.read_at) : null,
-  }));
+  const ids = rows.map((r: any) => r.id);
+  const reactionRows = ids.length
+    ? await sql`SELECT message_id, reactor_id, emoji FROM dm_reactions WHERE message_id = ANY(${ids})` as any[]
+    : [];
+  const reactionsByMsg = new Map<string, Record<string, string>>();
+  for (const rr of reactionRows) {
+    const m = reactionsByMsg.get(rr.message_id) ?? {};
+    m[rr.reactor_id] = rr.emoji;
+    reactionsByMsg.set(rr.message_id, m);
+  }
+  return rows.reverse().map((r: any) => {
+    const viewOnce = r.view_once === true || r.view_once === 1;
+    const viewedAt = r.viewed_at ? Number(r.viewed_at) : null;
+    // View-once media is burned after viewing, and never re-served to the sender.
+    const masked = viewOnce && (viewedAt !== null || (viewerId != null && r.sender_id === viewerId));
+    return {
+      id: r.id, conversationId: r.conversation_id, senderId: r.sender_id,
+      text: masked ? '' : r.text,
+      type: (DM_TYPES.includes(r.type) ? r.type : 'text') as DmType,
+      audioDuration: r.audio_duration ? Number(r.audio_duration) : undefined,
+      replyToId: r.reply_to_id ?? null,
+      viewOnce,
+      viewedAt,
+      reactions: reactionsByMsg.get(r.id),
+      createdAt: Number(r.created_at),
+      readAt: r.read_at ? Number(r.read_at) : null,
+    };
+  });
 }
 
-export async function markRead(conversationId: string, userId: string): Promise<void> {
+/** Marks the conversation read AND stamps read_at on the peer's unread
+ *  messages (drives the ✓✓ seen ticks). Returns the peer's id. */
+export async function markRead(conversationId: string, userId: string): Promise<string | null> {
   const [conv] = await sql`SELECT * FROM conversations WHERE id = ${conversationId}` as any[];
-  if (!conv) return;
+  if (!conv) return null;
   if (conv.participant1 === userId) {
     await sql`UPDATE conversations SET unread_by1 = 0 WHERE id = ${conversationId}`;
   } else {
     await sql`UPDATE conversations SET unread_by2 = 0 WHERE id = ${conversationId}`;
   }
+  await sql`
+    UPDATE direct_messages SET read_at = ${Date.now()}
+    WHERE conversation_id = ${conversationId} AND sender_id != ${userId} AND read_at IS NULL
+  `;
+  return conv.participant1 === userId ? conv.participant2 : conv.participant1;
 }
 
 export async function getTotalUnread(userId: string): Promise<number> {

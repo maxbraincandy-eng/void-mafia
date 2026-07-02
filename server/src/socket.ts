@@ -78,6 +78,7 @@ import bcrypt from 'bcryptjs';
 import { sendPushToUser } from './pushService.js';
 import {
   getOrCreateConversation, listConversations, sendMessage, sendVoiceDm, sendImageDm, getMessages, markRead, getTotalUnread,
+  toggleDmReaction, markViewOnceViewed,
 } from './services/dmService.js';
 import {
   getCoins, claimDailyReward, grantCoins, deductCoins, refundGift,
@@ -1127,6 +1128,14 @@ function notifyRoleblocked(io: AppServer, room: Room): void {
 // ── DB-ready gate ─────────────────────────────────────────────────────
 let _dbReady = false;
 export function setDbReady(v: boolean) { _dbReady = v; }
+
+// ── DM constants ──────────────────────────────────────────────────────
+// Void-themed sticker pack (keys must match the client's DM_STICKERS).
+const DM_STICKER_KEYS = new Set([
+  'don', 'gun', 'night', 'eye', 'skull', 'joker',
+  'rose', 'whiskey', 'smoke', 'shades', 'chess', 'heart',
+]);
+const DM_REACTION_EMOJIS = new Set(['❤️', '🔥', '😂', '👍', '😮', '😢']);
 
 // ── Main ──────────────────────────────────────────────────────────────
 export function attachSocketHandlers(io: AppServer): void {
@@ -3911,7 +3920,7 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!myProfileId) throw new Error('Not authenticated.');
         if (myProfileId === targetProfileId) throw new Error('Cannot message yourself.');
         const conv = await getOrCreateConversation(myProfileId, targetProfileId);
-        const messages = await getMessages(conv.id);
+        const messages = await getMessages(conv.id, myProfileId);
         await markRead(conv.id, myProfileId);
         const otherProfile = await getPlayer(targetProfileId);
         cb(ok({
@@ -3925,16 +3934,19 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
-    socket.on('dm:send', async ({ conversationId, text }: { conversationId: string; text: string }, cb: any) => {
+    socket.on('dm:send', async ({ conversationId, text, type, replyToId }: { conversationId: string; text: string; type?: 'text' | 'sticker' | 'invite'; replyToId?: string | null }, cb: any) => {
       try {
         const senderId = socket.data.profileId;
         if (!senderId) throw new Error('Not authenticated.');
         if (!text?.trim()) throw new Error('Message cannot be empty.');
+        const msgType = type === 'sticker' || type === 'invite' ? type : 'text';
+        if (msgType === 'sticker' && !DM_STICKER_KEYS.has(text.trim())) throw new Error('Unknown sticker.');
+        if (msgType === 'invite' && !/^[A-F0-9]{6}$/i.test(text.trim())) throw new Error('Invalid room code.');
         const [conv] = await sql`SELECT * FROM conversations WHERE id = ${conversationId}` as any[];
         if (!conv) throw new Error('Conversation not found.');
         const receiverId = conv.participant1 === senderId ? conv.participant2 : conv.participant1;
         if (conv.participant1 !== senderId && conv.participant2 !== senderId) throw new Error('Not a participant.');
-        const msg = await sendMessage(conversationId, senderId, text.trim(), receiverId);
+        const msg = await sendMessage(conversationId, senderId, text.trim(), receiverId, { type: msgType, replyToId: replyToId ?? null });
         // Notify recipient in real time with sender info for toast
         const recipientSocket = findSocketByProfile(io, receiverId);
         const senderProfile = await getPlayer(senderId);
@@ -3986,7 +3998,7 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
-    socket.on('dm:image', async (data: { conversationId: string; imageData: string }, cb: any) => {
+    socket.on('dm:image', async (data: { conversationId: string; imageData: string; viewOnce?: boolean }, cb: any) => {
       try {
         const senderId = socket.data.profileId;
         if (!senderId) throw new Error('Not authenticated.');
@@ -3996,7 +4008,7 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!conv) throw new Error('Conversation not found.');
         if (conv.participant1 !== senderId && conv.participant2 !== senderId) throw new Error('Not a participant.');
         const receiverId = conv.participant1 === senderId ? conv.participant2 : conv.participant1;
-        const msg = await sendImageDm(data.conversationId, senderId, data.imageData);
+        const msg = await sendImageDm(data.conversationId, senderId, data.imageData, data.viewOnce === true);
         const recipientSocket = findSocketByProfile(io, receiverId);
         const senderProfile = await getPlayer(senderId);
         if (recipientSocket) {
@@ -4047,8 +4059,12 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!conv || (conv.participant1 !== profileId && conv.participant2 !== profileId)) {
           throw new Error('Not a participant.');
         }
-        const messages = await getMessages(conversationId);
-        await markRead(conversationId, profileId);
+        const messages = await getMessages(conversationId, profileId);
+        const peerId = await markRead(conversationId, profileId);
+        if (peerId) {
+          const peerSocket = findSocketByProfile(io, peerId);
+          if (peerSocket) peerSocket.emit('dm:read', { conversationId, readerId: profileId });
+        }
         cb(ok(messages));
       } catch (e: any) { cb(err(e.message)); }
     });
@@ -4057,8 +4073,40 @@ export function attachSocketHandlers(io: AppServer): void {
       try {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('Not authenticated.');
-        await markRead(conversationId, profileId);
+        const peerId = await markRead(conversationId, profileId);
+        // Live seen-receipt (✓✓) for the peer's open chat.
+        if (peerId) {
+          const peerSocket = findSocketByProfile(io, peerId);
+          if (peerSocket) peerSocket.emit('dm:read', { conversationId, readerId: profileId });
+        }
         cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── DM reactions (❤️🔥😂👍😮😢 — one per user per message) ─────────
+    socket.on('dm:react', async ({ messageId, emoji }: { messageId: string; emoji: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        if (!DM_REACTION_EMOJIS.has(emoji)) throw new Error('Invalid reaction.');
+        const { conversationId, emoji: finalEmoji } = await toggleDmReaction(messageId, profileId, emoji);
+        // Notify both participants for live chip updates.
+        const [conv] = await sql`SELECT participant1, participant2 FROM conversations WHERE id = ${conversationId}` as any[];
+        for (const pid of [conv.participant1, conv.participant2]) {
+          const s = findSocketByProfile(io, pid);
+          if (s) s.emit('dm:reaction', { conversationId, messageId, reactorId: profileId, emoji: finalEmoji });
+        }
+        cb(ok({ emoji: finalEmoji }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── View-once photo opened — burn it ──────────────────────────────
+    socket.on('dm:viewonce_open', async ({ messageId }: { messageId: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const burned = await markViewOnceViewed(messageId, profileId);
+        cb(ok({ burned }));
       } catch (e: any) { cb(err(e.message)); }
     });
 

@@ -286,6 +286,18 @@ export async function initializeDatabase() {
     await sql `ALTER TABLE players ADD COLUMN IF NOT EXISTS public_id INTEGER`;
     await sql `ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'text'`;
     await sql `ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS audio_duration REAL`;
+    await sql `ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS reply_to_id TEXT`;
+    await sql `ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS view_once BOOLEAN DEFAULT FALSE`;
+    await sql `ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS viewed_at BIGINT`;
+    await sql `
+    CREATE TABLE IF NOT EXISTS dm_reactions (
+      message_id TEXT NOT NULL,
+      reactor_id TEXT NOT NULL,
+      emoji      TEXT NOT NULL,
+      created_at BIGINT NOT NULL,
+      PRIMARY KEY (message_id, reactor_id)
+    )
+  `;
     // Backfill public_id for rows that don't have one yet (earliest player = #1).
     await sql `
     UPDATE players p

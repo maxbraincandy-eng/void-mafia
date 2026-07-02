@@ -847,6 +847,8 @@ export interface ServerToClientEvents {
   // Direct messages
   'dm:new_message':      (data: { conversationId: string; message: any }) => void;
   'dm:typing':           (data: { conversationId: string; fromUserId: string }) => void;
+  'dm:read':             (data: { conversationId: string; readerId: string }) => void;
+  'dm:reaction':         (data: { conversationId: string; messageId: string; reactorId: string; emoji: string | null }) => void;
   // Lobby chat
   'lobby:message':       (msg: LobbyMessage) => void;
   'lobby:msg_deleted':   (data: { msgId: string }) => void;
@@ -1081,15 +1083,17 @@ export interface ClientToServerEvents {
   'lfg:list':              (data: Record<string, never>, cb: Cb<LfgEntry[]>) => void;
   // Direct messages
   'dm:start':              (data: { profileId: string }, cb: Cb<any>) => void;
-  'dm:send':               (data: { conversationId: string; text: string }, cb: Cb<any>) => void;
+  'dm:send':               (data: { conversationId: string; text: string; type?: 'text' | 'sticker' | 'invite'; replyToId?: string | null }, cb: Cb<any>) => void;
   'dm:list':               (data: Record<string, never>, cb: Cb<any[]>) => void;
   'dm:messages':           (data: { conversationId: string }, cb: Cb<any[]>) => void;
   'dm:mark_read':          (data: { conversationId: string }, cb: Cb<null>) => void;
   'dm:unread_count':       (data: Record<string, never>, cb: Cb<number>) => void;
   'dm:delete':             (data: { conversationId: string }, cb: Cb<null>) => void;
   'dm:voice':              (data: { conversationId: string; audioData: string; duration: number }, cb: Cb<any>) => void;
-  'dm:image':              (data: { conversationId: string; imageData: string }, cb: Cb<any>) => void;
+  'dm:image':              (data: { conversationId: string; imageData: string; viewOnce?: boolean }, cb: Cb<any>) => void;
   'dm:typing':             (data: { conversationId: string }) => void;
+  'dm:react':              (data: { messageId: string; emoji: string }, cb: Cb<any>) => void;
+  'dm:viewonce_open':      (data: { messageId: string }, cb: Cb<any>) => void;
   // Avatar
   'player:update_avatar':  (data: { imageData: string }, cb: (res: any) => void) => void;
   'player:remove_avatar':  (cb: (res: any) => void) => void;

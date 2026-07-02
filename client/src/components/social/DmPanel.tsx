@@ -3,10 +3,31 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { socket, emitWithAck } from '@/lib/socket';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
+import { useGameStore } from '@/store/gameStore';
 import type { DmConversation, DirectMessage, Res } from '@/types/index';
 
 const MAX_VOICE_SECONDS = 30;
 const GROUP_WINDOW_MS = 4 * 60 * 1000; // messages within 4min from same sender stack together
+
+// Quick-reaction set (mirrors the server's DM_REACTION_EMOJIS whitelist)
+const REACTION_EMOJIS = ['❤️', '🔥', '😂', '👍', '😮', '😢'] as const;
+
+// Void-themed sticker pack (keys mirror the server whitelist)
+const DM_STICKERS: { key: string; emoji: string; label: string }[] = [
+  { key: 'don',     emoji: '🎩', label: 'დონი' },
+  { key: 'gun',     emoji: '🔫', label: 'ქილი' },
+  { key: 'night',   emoji: '🌃', label: 'ღამე' },
+  { key: 'eye',     emoji: '👁️', label: 'შერიფი' },
+  { key: 'skull',   emoji: '💀', label: 'GG' },
+  { key: 'joker',   emoji: '🃏', label: 'ჯოკერი' },
+  { key: 'rose',    emoji: '🌹', label: 'ვარდი' },
+  { key: 'whiskey', emoji: '🥃', label: 'ვისკი' },
+  { key: 'smoke',   emoji: '🚬', label: 'ბოსი' },
+  { key: 'shades',  emoji: '🕶️', label: 'მაგარი' },
+  { key: 'chess',   emoji: '♟️', label: 'სვლა' },
+  { key: 'heart',   emoji: '🖤', label: 'void' },
+];
+const stickerByKey = (k: string) => DM_STICKERS.find(s => s.key === k);
 
 // My-message gradient (Instagram-ish purple → magenta)
 const MY_BUBBLE_BG = 'linear-gradient(135deg, #6d28d9 0%, #9333ea 55%, #c026d3 100%)';
@@ -133,6 +154,9 @@ async function prepareDmImage(file: File): Promise<string> {
 function previewOf(msg: DirectMessage): string {
   const t = msg.text ?? '';
   if (msg.type === 'voice' || t.startsWith('data:audio')) return '🎙 ხმოვანი მესიჯი';
+  if (msg.type === 'sticker') return `${stickerByKey(t)?.emoji ?? '🎭'} სტიკერი`;
+  if (msg.type === 'invite') return '🎮 მოწვევა თამაშში';
+  if (msg.viewOnce) return '📸 ერთჯერადი ფოტო';
   if (t.startsWith('data:image/gif')) return '✨ GIF';
   if (msg.type === 'image' || t.startsWith('data:image')) return '🖼 სურათი';
   return t;
@@ -140,12 +164,22 @@ function previewOf(msg: DirectMessage): string {
 
 // ── Voice Message Bubble ─────────────────────────────────────────────
 
+const VOICE_RATES = [1, 1.5, 2] as const;
+
 function VoiceMessageBubble({ msg, isMe }: { msg: DirectMessage; isMe: boolean }) {
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [rate, setRate] = useState<number>(1);
   const audioRef   = useRef<HTMLAudioElement | null>(null);
   const blobUrlRef = useRef<string | null>(null);
+
+  const cycleRate = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = VOICE_RATES[(VOICE_RATES.indexOf(rate as any) + 1) % VOICE_RATES.length]!;
+    setRate(next);
+    if (audioRef.current) audioRef.current.playbackRate = next;
+  };
 
   useEffect(() => () => {
     audioRef.current?.pause();
@@ -178,6 +212,7 @@ function VoiceMessageBubble({ msg, isMe }: { msg: DirectMessage; isMe: boolean }
       };
       audio.onended = () => { setPlaying(false); setProgress(0); };
       audio.onerror = () => { setPlaying(false); setLoading(false); };
+      audio.playbackRate = rate;
       audioRef.current = audio;
       setLoading(false);
     }
@@ -225,7 +260,16 @@ function VoiceMessageBubble({ msg, isMe }: { msg: DirectMessage; isMe: boolean }
             );
           })}
         </div>
-        <p className="text-[11px] font-mono" style={{ color: isMe ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.35)' }}>{formatDuration(dur)}</p>
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] font-mono" style={{ color: isMe ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.35)' }}>{formatDuration(dur)}</p>
+          <button
+            onClick={cycleRate}
+            className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold active:scale-90 transition-transform"
+            style={{ background: isMe ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)', color: isMe ? '#fff' : 'rgba(255,255,255,0.6)' }}
+          >
+            {rate}×
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -350,11 +394,21 @@ export function DmPanel() {
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [viewImage, setViewImage] = useState<string | null>(null);
   const [otherTyping, setOtherTyping] = useState(false);
+  const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
+  const [pickerFor, setPickerFor] = useState<string | null>(null);
+  const [showAttach, setShowAttach] = useState(false);
+  const [showStickers, setShowStickers] = useState(false);
+  const [viewOnceOpen, setViewOnceOpen] = useState<DirectMessage | null>(null);
+  const viewOnceArmed = useRef(false); // next picked photo is view-once
   const typingHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTypingSentRef = useRef(0);
+  const lastTapRef = useRef<{ id: string; t: number } | null>(null);
+  const gestureRef = useRef<{ id: string; x: number; y: number; long: ReturnType<typeof setTimeout> | null; swiped: boolean } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Current game room code — powers the "invite to game" card.
+  const myRoomCode = useGameStore(s => s.room?.code ?? null);
 
   // Non-memoized: closes over the current activeConvId on every render.
   // The hook stores this in a ref (onSendRef.current = onSend, sync) so
@@ -386,16 +440,20 @@ export function DmPanel() {
   const handleImagePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     e.target.value = '';
+    const viewOnce = viewOnceArmed.current;
+    viewOnceArmed.current = false;
     if (!f || !activeConvId) return;
     setSending(true);
     setVoiceError(null);
     try {
       const imageData = await prepareDmImage(f);
-      const res = await emitWithAck<{ conversationId: string; imageData: string }, Res<DirectMessage>>(
-        'dm:image', { conversationId: activeConvId, imageData }
+      const res = await emitWithAck<{ conversationId: string; imageData: string; viewOnce: boolean }, Res<DirectMessage>>(
+        'dm:image', { conversationId: activeConvId, imageData, viewOnce }
       );
       if (res.ok) {
-        setMessages(prev => [...prev, res.data]);
+        // Sender never re-opens a view-once photo — mask it locally right away.
+        const mine = viewOnce ? { ...res.data, text: '' } : res.data;
+        setMessages(prev => [...prev, mine]);
         setConversations(prev => prev.map(c =>
           c.id === activeConvId ? { ...c, lastMessage: previewOf(res.data), lastMessageAt: res.data.createdAt } : c
         ));
@@ -405,6 +463,65 @@ export function DmPanel() {
     } catch (err2: any) {
       setVoiceError(err2?.message ?? 'ვერ გაიგზავნა');
     } finally { setSending(false); }
+  };
+
+  // ── Reactions ─────────────────────────────────────────────────────
+  const sendReaction = (messageId: string, emoji: string) => {
+    setPickerFor(null);
+    if (!myProfileId) return;
+    setMessages(prev => prev.map(m => {
+      if (m.id !== messageId) return m;
+      const r = { ...(m.reactions ?? {}) };
+      if (r[myProfileId] === emoji) delete r[myProfileId]; else r[myProfileId] = emoji;
+      return { ...m, reactions: r };
+    }));
+    navigator.vibrate?.(30);
+    emitWithAck('dm:react', { messageId, emoji }).catch(() => {});
+  };
+
+  // Double-tap a bubble → ❤️ (Instagram style)
+  const handleBubbleTap = (msg: DirectMessage) => {
+    const now = Date.now();
+    const last = lastTapRef.current;
+    lastTapRef.current = { id: msg.id, t: now };
+    if (last && last.id === msg.id && now - last.t < 320) {
+      sendReaction(msg.id, '❤️');
+      lastTapRef.current = null;
+    }
+  };
+
+  // ── Stickers / invites ────────────────────────────────────────────
+  const sendSpecial = async (type: 'sticker' | 'invite', payload: string) => {
+    if (!activeConvId || sending) return;
+    setShowStickers(false);
+    setShowAttach(false);
+    setSending(true);
+    try {
+      const res = await emitWithAck<{ conversationId: string; text: string; type: string }, Res<DirectMessage>>(
+        'dm:send', { conversationId: activeConvId, text: payload, type }
+      );
+      if (res.ok) {
+        setMessages(prev => [...prev, res.data]);
+        setConversations(prev => prev.map(c =>
+          c.id === activeConvId ? { ...c, lastMessage: previewOf(res.data), lastMessageAt: res.data.createdAt } : c
+        ));
+      }
+    } catch { /* ignore */ }
+    finally { setSending(false); }
+  };
+
+  // ── View-once open (burn on view) ─────────────────────────────────
+  const openViewOnce = (msg: DirectMessage) => {
+    if (!msg.text) return;
+    setViewOnceOpen(msg);
+    emitWithAck('dm:viewonce_open', { messageId: msg.id }).catch(() => {});
+  };
+  const closeViewOnce = () => {
+    if (viewOnceOpen) {
+      const id = viewOnceOpen.id;
+      setMessages(prev => prev.map(m => m.id === id ? { ...m, text: '', viewedAt: Date.now() } : m));
+    }
+    setViewOnceOpen(null);
   };
 
   const refreshUnreadCount = useCallback(async () => {
@@ -554,6 +671,35 @@ export function DmPanel() {
     };
   }, [dmPanelOpen, activeConvId]);
 
+  // Live seen-receipts (peer read my messages → ✓✓)
+  useEffect(() => {
+    if (!dmPanelOpen) return;
+    const onRead = ({ conversationId: convId }: { conversationId: string; readerId: string }) => {
+      if (convId !== activeConvId) return;
+      setMessages(prev => prev.map(m =>
+        m.senderId === myProfileId && !m.readAt ? { ...m, readAt: Date.now() } : m
+      ));
+    };
+    (socket as any).on('dm:read', onRead);
+    return () => { (socket as any).off('dm:read', onRead); };
+  }, [dmPanelOpen, activeConvId, myProfileId]);
+
+  // Live reaction updates (both sides)
+  useEffect(() => {
+    if (!dmPanelOpen) return;
+    const onReaction = ({ conversationId: convId, messageId, reactorId, emoji }: { conversationId: string; messageId: string; reactorId: string; emoji: string | null }) => {
+      if (convId !== activeConvId) return;
+      setMessages(prev => prev.map(m => {
+        if (m.id !== messageId) return m;
+        const r = { ...(m.reactions ?? {}) };
+        if (emoji === null) delete r[reactorId]; else r[reactorId] = emoji;
+        return { ...m, reactions: r };
+      }));
+    };
+    (socket as any).on('dm:reaction', onReaction);
+    return () => { (socket as any).off('dm:reaction', onReaction); };
+  }, [dmPanelOpen, activeConvId]);
+
   // Scroll to bottom on new messages / typing bubble
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -571,10 +717,12 @@ export function DmPanel() {
     if (!text.trim() || !activeConvId || sending) return;
     setSending(true);
     const t = text.trim();
+    const rTo = replyTo?.id ?? null;
     setText('');
+    setReplyTo(null);
     try {
-      const res = await emitWithAck<{ conversationId: string; text: string }, Res<DirectMessage>>(
-        'dm:send', { conversationId: activeConvId, text: t }
+      const res = await emitWithAck<{ conversationId: string; text: string; replyToId: string | null }, Res<DirectMessage>>(
+        'dm:send', { conversationId: activeConvId, text: t, replyToId: rTo }
       );
       if (res.ok) {
         setMessages(prev => [...prev, res.data]);
@@ -597,6 +745,11 @@ export function DmPanel() {
     setMessages([]);
     setMsgError(null);
     setOtherTyping(false);
+    setReplyTo(null);
+    setPickerFor(null);
+    setShowAttach(false);
+    setShowStickers(false);
+    setViewOnceOpen(null);
     loadConversations();
   };
 
@@ -796,7 +949,7 @@ export function DmPanel() {
             ) : (
               /* Chat view */
               <>
-                <div className="flex-1 overflow-y-auto px-3 py-3 min-h-0">
+                <div className="flex-1 overflow-y-auto px-3 py-3 min-h-0" onClick={() => { setPickerFor(null); setShowAttach(false); }}>
                   {loadingMsgs ? (
                     <div className="flex justify-center py-10">
                       <div className="w-5 h-5 border-2 border-neon-purple/40 border-t-neon-purple rounded-full animate-spin" />
@@ -838,6 +991,10 @@ export function DmPanel() {
                         || prev.senderId !== msg.senderId
                         || msg.createdAt - prev.createdAt >= GROUP_WINDOW_MS;
                       const isImage = msg.type === 'image' || msg.text.startsWith('data:image');
+                      const quoted = msg.replyToId ? messages.find(m => m.id === msg.replyToId) : null;
+                      const rxList = msg.reactions ? Object.values(msg.reactions) : [];
+                      const rxCounts = rxList.reduce<Record<string, number>>((a, e) => { a[e] = (a[e] ?? 0) + 1; return a; }, {});
+                      const burned = msg.viewOnce && !msg.text;
                       return (
                         <div key={msg.id}>
                           {newDay && (
@@ -864,36 +1021,154 @@ export function DmPanel() {
                                 )}
                               </div>
                             )}
-                            {msg.type === 'voice' ? (
-                              <VoiceMessageBubble msg={msg} isMe={isMe} />
-                            ) : isImage ? (
-                              <button
-                                onClick={() => setViewImage(msg.text)}
-                                className="overflow-hidden rounded-[16px] active:scale-[0.98] transition-transform"
-                                style={{ border: '1px solid rgba(255,255,255,0.08)' }}
-                              >
-                                <img src={msg.text} alt="" className="block max-w-[210px] max-h-[260px] object-cover" loading="lazy" />
-                              </button>
-                            ) : (
-                              <div
-                                className={[
-                                  'max-w-[76%] px-3.5 py-2 text-[13.5px] leading-snug break-words rounded-[18px]',
-                                  isMe
-                                    ? (groupEnd ? 'rounded-br-[5px]' : '') + (groupStart ? '' : ' rounded-tr-[5px]')
-                                    : (groupEnd ? 'rounded-bl-[5px]' : '') + (groupStart ? '' : ' rounded-tl-[5px]'),
-                                ].join(' ')}
-                                style={isMe
-                                  ? { background: MY_BUBBLE_BG, color: '#fff' }
-                                  : { background: THEIR_BUBBLE_BG, color: 'rgba(255,255,255,0.88)' }}
-                              >
-                                {msg.text}
-                              </div>
-                            )}
+                            {/* Bubble wrapper — double-tap ❤️, long-press picker, swipe-right reply */}
+                            <div
+                              className="relative"
+                              onClick={e => { e.stopPropagation(); handleBubbleTap(msg); }}
+                              onContextMenu={e => { e.preventDefault(); setPickerFor(msg.id); }}
+                              onTouchStart={e => {
+                                const t = e.touches[0];
+                                gestureRef.current = {
+                                  id: msg.id, x: t.clientX, y: t.clientY, swiped: false,
+                                  long: setTimeout(() => { setPickerFor(msg.id); navigator.vibrate?.(40); }, 450),
+                                };
+                              }}
+                              onTouchMove={e => {
+                                const g = gestureRef.current;
+                                if (!g || g.id !== msg.id) return;
+                                const t = e.touches[0];
+                                const dx = t.clientX - g.x, dy = t.clientY - g.y;
+                                if ((Math.abs(dx) > 10 || Math.abs(dy) > 10) && g.long) { clearTimeout(g.long); g.long = null; }
+                                if (!g.swiped && dx > 56 && Math.abs(dy) < 40) {
+                                  g.swiped = true;
+                                  setReplyTo(msg);
+                                  navigator.vibrate?.(30);
+                                }
+                              }}
+                              onTouchEnd={() => {
+                                const g = gestureRef.current;
+                                if (g?.long) clearTimeout(g.long);
+                                gestureRef.current = null;
+                              }}
+                            >
+                              {/* Reaction picker popover */}
+                              <AnimatePresence>
+                                {pickerFor === msg.id && (
+                                  <motion.div
+                                    initial={{ opacity: 0, scale: 0.8, y: 6 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.8, y: 6 }}
+                                    className={`absolute -top-11 z-30 flex gap-0.5 px-2 py-1.5 rounded-full ${isMe ? 'right-0' : 'left-0'}`}
+                                    style={{ background: 'rgba(22,13,44,0.98)', border: '1px solid rgba(255,255,255,0.14)', boxShadow: '0 6px 24px rgba(0,0,0,0.5)' }}
+                                    onClick={e => e.stopPropagation()}
+                                  >
+                                    {REACTION_EMOJIS.map(em => (
+                                      <button key={em} onClick={() => sendReaction(msg.id, em)}
+                                        className="text-lg leading-none px-1 active:scale-125 transition-transform">
+                                        {em}
+                                      </button>
+                                    ))}
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+
+                              {msg.type === 'voice' ? (
+                                <VoiceMessageBubble msg={msg} isMe={isMe} />
+                              ) : msg.type === 'sticker' ? (
+                                <div className="flex flex-col items-center px-2 py-1">
+                                  <span style={{ fontSize: 54, lineHeight: 1.1, filter: 'drop-shadow(0 0 12px rgba(155,0,255,0.55))' }}>
+                                    {stickerByKey(msg.text)?.emoji ?? '🎭'}
+                                  </span>
+                                  <span className="text-[10px] font-mono text-white/30 mt-1">{stickerByKey(msg.text)?.label ?? ''}</span>
+                                </div>
+                              ) : msg.type === 'invite' ? (
+                                <div className="rounded-[16px] p-3 w-[220px]"
+                                  style={isMe ? { background: MY_BUBBLE_BG } : { background: THEIR_BUBBLE_BG, border: '1px solid rgba(255,255,255,0.1)' }}>
+                                  <div className="flex items-center gap-2.5 mb-2.5">
+                                    <span className="text-2xl">🎮</span>
+                                    <div className="min-w-0">
+                                      <p className="text-[12.5px] font-display font-bold text-white leading-tight">მოწვევა თამაშში</p>
+                                      <p className="text-[11px] font-mono" style={{ color: 'rgba(255,255,255,0.55)' }}>ოთახი · {msg.text}</p>
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={e => { e.stopPropagation(); window.location.href = '/join/' + msg.text; }}
+                                    className="w-full py-2 rounded-xl text-[12px] font-mono font-bold active:scale-[0.98] transition-transform"
+                                    style={{ background: 'rgba(255,255,255,0.18)', color: '#fff', border: '1px solid rgba(255,255,255,0.22)' }}
+                                  >
+                                    შესვლა →
+                                  </button>
+                                </div>
+                              ) : msg.viewOnce ? (
+                                <button
+                                  disabled={!!burned || isMe}
+                                  onClick={e => { e.stopPropagation(); openViewOnce(msg); }}
+                                  className="flex items-center gap-2.5 px-4 py-3 rounded-[18px] disabled:opacity-100"
+                                  style={isMe ? { background: MY_BUBBLE_BG } : { background: THEIR_BUBBLE_BG, border: burned ? '1px solid rgba(255,255,255,0.06)' : '1px dashed rgba(192,132,252,0.5)' }}
+                                >
+                                  <span className="text-lg">{burned ? '🫥' : '📸'}</span>
+                                  <span className="text-[12.5px] font-mono" style={{ color: burned ? 'rgba(255,255,255,0.35)' : '#fff' }}>
+                                    {burned ? 'ნანახია' : isMe ? 'ერთჯერადი ფოტო' : 'ერთჯერადი — გახსენი'}
+                                  </span>
+                                </button>
+                              ) : isImage ? (
+                                <button
+                                  onClick={e => { e.stopPropagation(); handleBubbleTap(msg); setViewImage(msg.text); }}
+                                  className="overflow-hidden rounded-[16px] active:scale-[0.98] transition-transform"
+                                  style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+                                >
+                                  <img src={msg.text} alt="" className="block max-w-[210px] max-h-[260px] object-cover" loading="lazy" />
+                                </button>
+                              ) : (
+                                <div
+                                  className={[
+                                    'max-w-full px-3.5 py-2 text-[13.5px] leading-snug break-words rounded-[18px]',
+                                    isMe
+                                      ? (groupEnd ? 'rounded-br-[5px]' : '') + (groupStart ? '' : ' rounded-tr-[5px]')
+                                      : (groupEnd ? 'rounded-bl-[5px]' : '') + (groupStart ? '' : ' rounded-tl-[5px]'),
+                                  ].join(' ')}
+                                  style={isMe
+                                    ? { background: MY_BUBBLE_BG, color: '#fff' }
+                                    : { background: THEIR_BUBBLE_BG, color: 'rgba(255,255,255,0.88)' }}
+                                >
+                                  {/* Quoted reply preview */}
+                                  {msg.replyToId && (
+                                    <div className="mb-1.5 pl-2 py-1 pr-2 rounded-lg text-[11px] font-mono truncate max-w-[220px]"
+                                      style={{
+                                        borderLeft: '2.5px solid rgba(255,255,255,0.5)',
+                                        background: 'rgba(0,0,0,0.22)',
+                                        color: isMe ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.5)',
+                                      }}>
+                                      {quoted ? previewOf(quoted) : '…'}
+                                    </div>
+                                  )}
+                                  {msg.text}
+                                </div>
+                              )}
+
+                              {/* Reaction chips */}
+                              {Object.keys(rxCounts).length > 0 && (
+                                <div className={`absolute -bottom-3 flex gap-0.5 ${isMe ? 'right-1' : 'left-1'}`}>
+                                  {Object.entries(rxCounts).map(([em, n]) => (
+                                    <span key={em}
+                                      className="flex items-center px-1.5 py-0.5 rounded-full text-[11px] leading-none"
+                                      style={{ background: 'rgba(24,14,46,0.97)', border: '1px solid rgba(155,0,255,0.35)', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
+                                      {em}{n > 1 && <span className="text-[9px] font-mono text-white/60 ml-0.5">{n}</span>}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
                           {groupEnd && (
-                            <p className={`text-[10px] font-mono mt-0.5 ${isMe ? 'text-right pr-1' : 'text-left pl-9'}`}
+                            <p className={`text-[10px] font-mono ${Object.keys(rxCounts).length ? 'mt-3.5' : 'mt-0.5'} ${isMe ? 'text-right pr-1' : 'text-left pl-9'}`}
                                style={{ color: 'rgba(255,255,255,0.2)' }}>
                               {formatTime(msg.createdAt)}
+                              {isMe && (
+                                <span className="ml-1" style={{ color: msg.readAt ? '#c084fc' : 'rgba(255,255,255,0.25)' }}>
+                                  {msg.readAt ? '✓✓' : '✓'}
+                                </span>
+                              )}
                             </p>
                           )}
                         </div>
@@ -953,6 +1228,101 @@ export function DmPanel() {
                       >
                         ⚠ {voiceError}
                       </motion.p>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Reply-to bar */}
+                  <AnimatePresence>
+                    {replyTo && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="flex items-center gap-2 mb-1.5 px-3 py-2 rounded-xl"
+                          style={{ background: 'rgba(138,43,226,0.1)', borderLeft: '3px solid rgba(192,132,252,0.7)' }}>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] font-mono text-neon-purple/70 mb-0.5">
+                              ↩ პასუხი · {replyTo.senderId === myProfileId ? 'შენ' : activeUsername}
+                            </p>
+                            <p className="text-[11.5px] font-mono text-white/55 truncate">{previewOf(replyTo)}</p>
+                          </div>
+                          <button onClick={() => setReplyTo(null)}
+                            className="w-6 h-6 rounded-full flex items-center justify-center text-white/40 hover:text-white/70 shrink-0">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Attach popover: photo / view-once / game invite */}
+                  <AnimatePresence>
+                    {showAttach && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                        className="mb-1.5 rounded-2xl overflow-hidden"
+                        style={{ background: 'rgba(20,12,40,0.98)', border: '1px solid rgba(138,43,226,0.3)' }}
+                      >
+                        <button
+                          onClick={() => { viewOnceArmed.current = false; setShowAttach(false); fileRef.current?.click(); }}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-white/5"
+                        >
+                          <span className="text-lg">🖼</span>
+                          <span className="text-[13px] font-mono text-white/80">ფოტო ან GIF</span>
+                        </button>
+                        <button
+                          onClick={() => { viewOnceArmed.current = true; setShowAttach(false); fileRef.current?.click(); }}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-white/5 border-t border-white/[0.05]"
+                        >
+                          <span className="text-lg">📸</span>
+                          <div>
+                            <span className="text-[13px] font-mono text-white/80 block">ერთჯერადი ფოტო</span>
+                            <span className="text-[10px] font-mono text-white/30">ნახვის შემდეგ ქრება</span>
+                          </div>
+                        </button>
+                        {myRoomCode && (
+                          <button
+                            onClick={() => sendSpecial('invite', myRoomCode)}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-white/5 border-t border-white/[0.05]"
+                          >
+                            <span className="text-lg">🎮</span>
+                            <div>
+                              <span className="text-[13px] font-mono text-white/80 block">თამაშში მოწვევა</span>
+                              <span className="text-[10px] font-mono text-white/30">ოთახი · {myRoomCode}</span>
+                            </div>
+                          </button>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Sticker sheet */}
+                  <AnimatePresence>
+                    {showStickers && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        className="mb-1.5 rounded-2xl p-3 grid grid-cols-4 gap-1.5"
+                        style={{ background: 'rgba(20,12,40,0.98)', border: '1px solid rgba(138,43,226,0.3)' }}
+                      >
+                        {DM_STICKERS.map(s => (
+                          <button
+                            key={s.key}
+                            onClick={() => sendSpecial('sticker', s.key)}
+                            className="flex flex-col items-center gap-1 py-2 rounded-xl active:bg-white/8 active:scale-95 transition-all"
+                          >
+                            <span style={{ fontSize: 30, lineHeight: 1, filter: 'drop-shadow(0 0 8px rgba(155,0,255,0.4))' }}>{s.emoji}</span>
+                            <span className="text-[9px] font-mono text-white/35">{s.label}</span>
+                          </button>
+                        ))}
+                      </motion.div>
                     )}
                   </AnimatePresence>
 
@@ -1018,19 +1388,35 @@ export function DmPanel() {
                         exit={{ opacity: 0, y: 6 }}
                         className="flex items-center gap-1.5"
                       >
-                        {/* Attach image / GIF */}
+                        {/* Attach menu (photo / view-once / invite) */}
                         <button
-                          onClick={() => fileRef.current?.click()}
+                          onClick={() => { setShowAttach(v => !v); setShowStickers(false); }}
                           disabled={sending}
                           className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all active:scale-90 disabled:opacity-40"
-                          style={{ background: 'rgba(138,43,226,0.13)', border: '1px solid rgba(138,43,226,0.28)', color: '#c084fc' }}
-                          title="სურათი / GIF"
+                          style={{
+                            background: showAttach ? 'rgba(138,43,226,0.3)' : 'rgba(138,43,226,0.13)',
+                            border: '1px solid rgba(138,43,226,0.28)', color: '#c084fc',
+                            transform: showAttach ? 'rotate(45deg)' : undefined,
+                          }}
+                          title="მიმაგრება"
                         >
-                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="3" y="3" width="18" height="18" rx="4" />
-                            <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none" />
-                            <path d="M21 15l-5-5L5 21" />
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round">
+                            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                           </svg>
+                        </button>
+
+                        {/* Stickers */}
+                        <button
+                          onClick={() => { setShowStickers(v => !v); setShowAttach(false); }}
+                          disabled={sending}
+                          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-lg transition-all active:scale-90 disabled:opacity-40"
+                          style={{
+                            background: showStickers ? 'rgba(138,43,226,0.3)' : 'rgba(138,43,226,0.13)',
+                            border: '1px solid rgba(138,43,226,0.28)',
+                          }}
+                          title="სტიკერები"
+                        >
+                          🎭
                         </button>
 
                         <input
@@ -1115,6 +1501,37 @@ export function DmPanel() {
                     </svg>
                   </button>
                   <img src={viewImage} alt="" className="max-w-full max-h-full object-contain" onClick={e => e.stopPropagation()} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* View-once fullscreen — closing burns the photo */}
+            <AnimatePresence>
+              {viewOnceOpen && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 z-20 flex flex-col items-center justify-center"
+                  style={{ background: 'rgba(0,0,0,0.97)' }}
+                  onClick={closeViewOnce}
+                >
+                  <div className="absolute top-3 left-0 right-0 flex items-center justify-between px-3 z-10">
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-mono text-white/60"
+                      style={{ background: 'rgba(255,255,255,0.08)' }}>
+                      📸 ერთჯერადი — დახურვის შემდეგ გაქრება
+                    </span>
+                    <button
+                      onClick={closeViewOnce}
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-white/70"
+                      style={{ background: 'rgba(255,255,255,0.1)' }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    </button>
+                  </div>
+                  <img src={viewOnceOpen.text} alt="" className="max-w-full max-h-full object-contain" onClick={e => e.stopPropagation()} />
                 </motion.div>
               )}
             </AnimatePresence>

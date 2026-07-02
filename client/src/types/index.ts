@@ -667,8 +667,13 @@ export interface DirectMessage {
   conversationId: string;
   senderId: string;
   text: string;
-  type?: 'text' | 'voice' | 'image';
+  type?: 'text' | 'voice' | 'image' | 'sticker' | 'invite';
   audioDuration?: number;
+  replyToId?: string | null;
+  viewOnce?: boolean;
+  viewedAt?: number | null;
+  /** reactorId → emoji */
+  reactions?: Record<string, string>;
   createdAt: number;
   readAt: number | null;
 }

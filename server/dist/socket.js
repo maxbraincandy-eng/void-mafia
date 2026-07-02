@@ -23,7 +23,7 @@ import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as 
 import { sql } from './db.js';
 import bcrypt from 'bcryptjs';
 import { sendPushToUser } from './pushService.js';
-import { getOrCreateConversation, listConversations, sendMessage, sendVoiceDm, sendImageDm, getMessages, markRead, getTotalUnread, } from './services/dmService.js';
+import { getOrCreateConversation, listConversations, sendMessage, sendVoiceDm, sendImageDm, getMessages, markRead, getTotalUnread, toggleDmReaction, markViewOnceViewed, } from './services/dmService.js';
 import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, getGiftsSent, getGiftTimeline, getGiftStats, getPinnedGifts, pinGift, unpinGift, hideGift, unhideGift, getHiddenGifts, purchaseCosmeticItem, } from './services/coinService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
@@ -1002,6 +1002,13 @@ function notifyRoleblocked(io, room) {
 // ── DB-ready gate ─────────────────────────────────────────────────────
 let _dbReady = false;
 export function setDbReady(v) { _dbReady = v; }
+// ── DM constants ──────────────────────────────────────────────────────
+// Void-themed sticker pack (keys must match the client's DM_STICKERS).
+const DM_STICKER_KEYS = new Set([
+    'don', 'gun', 'night', 'eye', 'skull', 'joker',
+    'rose', 'whiskey', 'smoke', 'shades', 'chess', 'heart',
+]);
+const DM_REACTION_EMOJIS = new Set(['❤️', '🔥', '😂', '👍', '😮', '😢']);
 // ── Main ──────────────────────────────────────────────────────────────
 export function attachSocketHandlers(io) {
     io.on('connection', (socket) => {
@@ -4151,7 +4158,7 @@ export function attachSocketHandlers(io) {
                 if (myProfileId === targetProfileId)
                     throw new Error('Cannot message yourself.');
                 const conv = await getOrCreateConversation(myProfileId, targetProfileId);
-                const messages = await getMessages(conv.id);
+                const messages = await getMessages(conv.id, myProfileId);
                 await markRead(conv.id, myProfileId);
                 const otherProfile = await getPlayer(targetProfileId);
                 cb(ok({
@@ -4167,20 +4174,25 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
-        socket.on('dm:send', async ({ conversationId, text }, cb) => {
+        socket.on('dm:send', async ({ conversationId, text, type, replyToId }, cb) => {
             try {
                 const senderId = socket.data.profileId;
                 if (!senderId)
                     throw new Error('Not authenticated.');
                 if (!text?.trim())
                     throw new Error('Message cannot be empty.');
+                const msgType = type === 'sticker' || type === 'invite' ? type : 'text';
+                if (msgType === 'sticker' && !DM_STICKER_KEYS.has(text.trim()))
+                    throw new Error('Unknown sticker.');
+                if (msgType === 'invite' && !/^[A-F0-9]{6}$/i.test(text.trim()))
+                    throw new Error('Invalid room code.');
                 const [conv] = await sql `SELECT * FROM conversations WHERE id = ${conversationId}`;
                 if (!conv)
                     throw new Error('Conversation not found.');
                 const receiverId = conv.participant1 === senderId ? conv.participant2 : conv.participant1;
                 if (conv.participant1 !== senderId && conv.participant2 !== senderId)
                     throw new Error('Not a participant.');
-                const msg = await sendMessage(conversationId, senderId, text.trim(), receiverId);
+                const msg = await sendMessage(conversationId, senderId, text.trim(), receiverId, { type: msgType, replyToId: replyToId ?? null });
                 // Notify recipient in real time with sender info for toast
                 const recipientSocket = findSocketByProfile(io, receiverId);
                 const senderProfile = await getPlayer(senderId);
@@ -4258,7 +4270,7 @@ export function attachSocketHandlers(io) {
                 if (conv.participant1 !== senderId && conv.participant2 !== senderId)
                     throw new Error('Not a participant.');
                 const receiverId = conv.participant1 === senderId ? conv.participant2 : conv.participant1;
-                const msg = await sendImageDm(data.conversationId, senderId, data.imageData);
+                const msg = await sendImageDm(data.conversationId, senderId, data.imageData, data.viewOnce === true);
                 const recipientSocket = findSocketByProfile(io, receiverId);
                 const senderProfile = await getPlayer(senderId);
                 if (recipientSocket) {
@@ -4320,8 +4332,13 @@ export function attachSocketHandlers(io) {
                 if (!conv || (conv.participant1 !== profileId && conv.participant2 !== profileId)) {
                     throw new Error('Not a participant.');
                 }
-                const messages = await getMessages(conversationId);
-                await markRead(conversationId, profileId);
+                const messages = await getMessages(conversationId, profileId);
+                const peerId = await markRead(conversationId, profileId);
+                if (peerId) {
+                    const peerSocket = findSocketByProfile(io, peerId);
+                    if (peerSocket)
+                        peerSocket.emit('dm:read', { conversationId, readerId: profileId });
+                }
                 cb(ok(messages));
             }
             catch (e) {
@@ -4333,8 +4350,49 @@ export function attachSocketHandlers(io) {
                 const profileId = socket.data.profileId;
                 if (!profileId)
                     throw new Error('Not authenticated.');
-                await markRead(conversationId, profileId);
+                const peerId = await markRead(conversationId, profileId);
+                // Live seen-receipt (✓✓) for the peer's open chat.
+                if (peerId) {
+                    const peerSocket = findSocketByProfile(io, peerId);
+                    if (peerSocket)
+                        peerSocket.emit('dm:read', { conversationId, readerId: profileId });
+                }
                 cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── DM reactions (❤️🔥😂👍😮😢 — one per user per message) ─────────
+        socket.on('dm:react', async ({ messageId, emoji }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                if (!DM_REACTION_EMOJIS.has(emoji))
+                    throw new Error('Invalid reaction.');
+                const { conversationId, emoji: finalEmoji } = await toggleDmReaction(messageId, profileId, emoji);
+                // Notify both participants for live chip updates.
+                const [conv] = await sql `SELECT participant1, participant2 FROM conversations WHERE id = ${conversationId}`;
+                for (const pid of [conv.participant1, conv.participant2]) {
+                    const s = findSocketByProfile(io, pid);
+                    if (s)
+                        s.emit('dm:reaction', { conversationId, messageId, reactorId: profileId, emoji: finalEmoji });
+                }
+                cb(ok({ emoji: finalEmoji }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── View-once photo opened — burn it ──────────────────────────────
+        socket.on('dm:viewonce_open', async ({ messageId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const burned = await markViewOnceViewed(messageId, profileId);
+                cb(ok({ burned }));
             }
             catch (e) {
                 cb(err(e.message));
