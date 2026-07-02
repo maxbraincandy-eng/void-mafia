@@ -2370,7 +2370,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
       {/* Duel banner (top center) */}
       <AnimatePresence>
         {duelBanner && (
-          <motion.div initial={{ y: -30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -30, opacity: 0 }}
+          <motion.div key="duel-banner" initial={{ y: -30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -30, opacity: 0 }}
             style={{ position: 'absolute', top: 60, left: '50%', transform: 'translateX(-50%)', zIndex: 120, padding: '8px 18px', borderRadius: 14, fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', background: duelBanner.result ? 'rgba(250,204,21,.16)' : 'rgba(255,45,85,.16)', border: `1px solid ${duelBanner.result ? 'rgba(250,204,21,.5)' : 'rgba(255,45,85,.5)'}`, color: duelBanner.result ? '#facc15' : '#ff6b81', backdropFilter: 'blur(8px)', boxShadow: '0 4px 20px rgba(0,0,0,.5)' }}>
             {duelBanner.text}
           </motion.div>
