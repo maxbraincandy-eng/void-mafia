@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { socket } from '@/lib/socket';
+import { socket, emitWithAck } from '@/lib/socket';
+import { SFX } from '@/lib/audioEngine';
 import type { LobbyMessage } from '@/types/index';
 
 export interface ModAlert {
@@ -75,13 +76,28 @@ export const useSocialStore = create<SocialStore>((set, get) => {
     set({ onlineCount: count });
   });
 
+  // Initialize the unread-DM badge as soon as the player is authenticated —
+  // messages received while offline previously showed no badge until the DM
+  // panel was opened. `player:profile` fires exactly once auth completes
+  // (login, register, token restore, reconnect).
+  const syncUnread = () => {
+    emitWithAck<void, { ok: boolean; data?: number }>('dm:unread_count')
+      .then(res => { if (res?.ok && typeof res.data === 'number') set({ unreadDmCount: res.data }); })
+      .catch(() => {});
+  };
+  socket.on('player:profile', () => { syncUnread(); });
+
   socket.on('dm:new_message', (payload: {
     conversationId: string;
     message: { senderId: string; text: string };
     senderUsername?: string;
     senderAvatar?: string;
   }) => {
-    if (!get().dmPanelOpen) {
+    // Notify unless the user is already looking at THIS sender's conversation —
+    // a message from someone else should toast even with the DM panel open.
+    const { dmPanelOpen, activeDmUserId } = get();
+    const viewingThisChat = dmPanelOpen && activeDmUserId === payload.message.senderId;
+    if (!viewingThisChat) {
       const rawText = payload.message.text ?? '';
       const isVoice = rawText.startsWith('data:audio');
       const preview = isVoice ? '🎙 Voice message'
@@ -99,6 +115,8 @@ export const useSocialStore = create<SocialStore>((set, get) => {
         unreadDmCount: s.unreadDmCount + 1,
         ...(toast ? { dmToast: toast } : {}),
       }));
+      try { SFX.dmPing(); } catch { /* audio not unlocked yet */ }
+      navigator.vibrate?.([40, 60, 40]);
     }
   });
 

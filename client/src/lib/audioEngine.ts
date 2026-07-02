@@ -289,6 +289,14 @@ export const SFX = {
     ], 0.30, [15, 20, 30]);
   },
 
+  // Soft ascending two-note chime — incoming private message
+  dmPing() {
+    sfxPlay([
+      { freq: 520, type: 'sine', dur: 0.10, vol: 0.42, attack: 0.010, release: 0.09 },
+      { freq: 780, type: 'sine', dur: 0.14, vol: 0.38, at: 0.11, attack: 0.012, release: 0.12 },
+    ], 0.26, [12, 18, 12]);
+  },
+
   // Urgent low pulse pair — time pressure
   timerWarning() {
     sfxPlay([

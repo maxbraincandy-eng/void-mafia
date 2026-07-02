@@ -165,9 +165,12 @@ function DmToastNotification() {
               </div>
               {/* Text */}
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 mb-0.5">
+                <div className="flex items-center justify-between gap-1.5 mb-0.5">
                   <span className="text-[12px] font-mono uppercase tracking-widest" style={{ color: 'rgba(192,132,252,0.55)' }}>
-                    💬 New message
+                    💬 ახალი მესიჯი
+                  </span>
+                  <span className="text-[10px] font-mono" style={{ color: 'rgba(0,229,255,0.5)' }}>
+                    გახსნა →
                   </span>
                 </div>
                 <p className="font-display text-sm font-bold text-white/90 truncate leading-tight">

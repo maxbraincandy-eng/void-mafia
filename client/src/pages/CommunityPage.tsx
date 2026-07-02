@@ -129,17 +129,26 @@ export function CommunityPage() {
             </button>
             <button
               onClick={openDmList}
-              className="relative w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90"
-              style={{ background: 'var(--vm-btn-icon-bg)', border: '1px solid var(--vm-btn-icon-border)' }}
+              className="relative w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-90"
+              style={{
+                background: unreadDmCount > 0
+                  ? 'linear-gradient(135deg, rgba(155,0,255,0.28), rgba(0,229,255,0.18))'
+                  : 'linear-gradient(135deg, rgba(155,0,255,0.14), rgba(0,229,255,0.08))',
+                border: unreadDmCount > 0 ? '1px solid rgba(200,130,255,0.55)' : '1px solid rgba(155,0,255,0.3)',
+                boxShadow: unreadDmCount > 0 ? '0 0 14px rgba(155,0,255,0.35)' : '0 0 8px rgba(155,0,255,0.12)',
+              }}
               title="Direct Messages"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style={{ color: unreadDmCount > 0 ? 'rgba(230,200,255,0.95)' : 'rgba(210,170,255,0.75)' }}>
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                <circle cx="8.5" cy="11.5" r="0.5" fill="currentColor" />
+                <circle cx="12" cy="11.5" r="0.5" fill="currentColor" />
+                <circle cx="15.5" cy="11.5" r="0.5" fill="currentColor" />
               </svg>
               {unreadDmCount > 0 && (
                 <span
-                  className="absolute -top-1 -right-1 min-w-[14px] h-3.5 rounded-full bg-neon-pink text-void text-[9px] font-bold flex items-center justify-center px-0.5 leading-none"
-                  style={{ boxShadow: '0 0 6px rgba(255,0,204,0.6)' }}
+                  className="absolute -top-1 -right-1 min-w-[17px] h-[17px] rounded-full bg-neon-pink text-[11px] font-bold text-white flex items-center justify-center px-1 leading-none animate-pulse"
+                  style={{ boxShadow: '0 0 10px rgba(255,0,204,0.8)', border: '1.5px solid rgba(8,4,22,0.9)' }}
                 >
                   {unreadDmCount > 9 ? '9+' : unreadDmCount}
                 </span>
