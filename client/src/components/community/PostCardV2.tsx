@@ -622,7 +622,7 @@ export function PostCardV2({
           onClick={() => setShowReport(true)}
           className="ml-auto font-mono text-[11px] text-white/25 hover:text-white/50 uppercase tracking-wider transition-colors"
         >
-          ⚠️ რაპორტი
+          რეპორტი
         </button>
       </div>
 
