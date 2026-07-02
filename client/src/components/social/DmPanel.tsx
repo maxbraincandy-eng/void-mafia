@@ -409,6 +409,10 @@ export function DmPanel() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Android: the on-screen keyboard shrinks only the *visual* viewport, so a
+  // bottom-anchored panel stays hidden behind it. Track the visual viewport
+  // height and pin the panel to it while the keyboard is open.
+  const [vvHeight, setVvHeight] = useState<number | null>(null);
   // Current game room code — powers the "invite to game" card.
   const myRoomCode = useGameStore(s => s.room?.code ?? null);
 
@@ -722,10 +726,30 @@ export function DmPanel() {
     return () => { (socket as any).off('dm:reaction', onReaction); };
   }, [dmPanelOpen, activeConvId]);
 
-  // Scroll to bottom on new messages / typing bubble
+  // Track the visual viewport while the panel is open (Android keyboard fix).
+  useEffect(() => {
+    if (!dmPanelOpen) { setVvHeight(null); return; }
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      // Keyboard is "open" when the visual viewport is notably shorter.
+      const shrunk = window.innerHeight - vv.height > 120;
+      setVvHeight(shrunk ? Math.round(vv.height) : null);
+    };
+    vv.addEventListener('resize', onResize);
+    vv.addEventListener('scroll', onResize);
+    onResize();
+    return () => {
+      vv.removeEventListener('resize', onResize);
+      vv.removeEventListener('scroll', onResize);
+      setVvHeight(null);
+    };
+  }, [dmPanelOpen]);
+
+  // Scroll to bottom on new messages / typing bubble / keyboard open
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, otherTyping]);
+  }, [messages, otherTyping, vvHeight]);
 
   const notifyTyping = () => {
     if (!activeConvId) return;
@@ -800,7 +824,13 @@ export function DmPanel() {
             exit={{ x: '100%' }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             className="absolute right-0 top-0 bottom-0 w-full sm:max-w-sm flex flex-col safe-top-only"
-            style={{ background: 'rgb(10,6,22)', borderLeft: '1px solid rgba(138,43,226,0.2)' }}
+            style={{
+              background: 'rgb(10,6,22)',
+              borderLeft: '1px solid rgba(138,43,226,0.2)',
+              // Keyboard open (Android): pin the panel to the visible area so
+              // the input bar sits right above the keyboard.
+              ...(vvHeight ? { height: vvHeight, bottom: 'auto' } : {}),
+            }}
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
@@ -1027,7 +1057,7 @@ export function DmPanel() {
                               </span>
                             </div>
                           )}
-                          <div className={`flex items-end gap-1.5 ${isMe ? 'justify-end' : 'justify-start'} ${groupStart ? 'mt-2' : 'mt-[3px]'}`}>
+                          <div className={`flex items-end gap-1.5 ${isMe ? 'justify-end' : 'justify-start'} ${groupStart ? 'mt-2.5' : 'mt-1'} ${Object.keys(rxCounts).length > 0 ? 'mb-4' : ''}`}>
                             {/* Peer avatar — once per group, bottom-aligned (Messenger style) */}
                             {!isMe && (
                               <div className="w-6 shrink-0">
@@ -1183,7 +1213,7 @@ export function DmPanel() {
                             </div>
                           </div>
                           {groupEnd && (
-                            <p className={`text-[10px] font-mono ${Object.keys(rxCounts).length ? 'mt-3.5' : 'mt-0.5'} ${isMe ? 'text-right pr-1' : 'text-left pl-9'}`}
+                            <p className={`text-[10px] font-mono ${Object.keys(rxCounts).length ? '-mt-2.5' : 'mt-0.5'} ${isMe ? 'text-right pr-1' : 'text-left pl-9'}`}
                                style={{ color: 'rgba(255,255,255,0.2)' }}>
                               {formatTime(msg.createdAt)}
                               {isMe && (
