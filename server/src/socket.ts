@@ -288,7 +288,7 @@ const _spaceHitAt = new Map<string, number>(); // attackerSocketId → last hit 
 const _duelOpponent = new Map<string, string>();          // socketId → opponent socketId (active 1v1 duel)
 const _duelPending  = new Map<string, string>();          // targetSocketId → challengerSocketId (unanswered invite)
 const _duelPendingTimer = new Map<string, NodeJS.Timeout>(); // targetSocketId → auto-expire timer
-const DUEL_HP = 5;                                        // fresh HP for both fighters when a duel starts
+const DUEL_HP = 36;                                       // fresh HP for both fighters when a duel starts
 function _clearDuel(socketId: string) {
   const opp = _duelOpponent.get(socketId);
   if (opp) _duelOpponent.delete(opp);

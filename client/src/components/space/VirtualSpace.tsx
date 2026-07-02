@@ -2349,29 +2349,57 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
         document.body
       )}
 
-      {/* Active-duel HUD (when I'm one of the two fighters) — live HP bars */}
+      {/* Active-duel HUD + floating attack panel (I'm one of the fighters) */}
       {activeDuel && (activeDuel.aSocketId === mySocketId || activeDuel.bSocketId === mySocketId) && (() => {
         const meFirst = activeDuel.bSocketId === mySocketId;
         const me = { sid: meFirst ? activeDuel.bSocketId : activeDuel.aSocketId, name: meFirst ? activeDuel.bName : activeDuel.aName };
         const foe = { sid: meFirst ? activeDuel.aSocketId : activeDuel.bSocketId, name: meFirst ? activeDuel.aName : activeDuel.bName };
         const hpOf = (sid: string) => Math.max(0, Math.min(activeDuel.maxHp, players.get(sid)?.hp ?? activeDuel.maxHp));
-        const bar = (name: string, hp: number, mine: boolean) => (
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: mine ? '#00e5ff' : '#ff6b81', textAlign: mine ? 'left' : 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</p>
-            <div style={{ display: 'flex', gap: 3, marginTop: 3, flexDirection: mine ? 'row' : 'row-reverse' }}>
-              {Array.from({ length: activeDuel.maxHp }).map((_, i) => (
-                <div key={i} style={{ flex: 1, height: 6, borderRadius: 3, background: i < hp ? (mine ? '#00e5ff' : '#ff6b81') : 'rgba(255,255,255,.12)', boxShadow: i < hp ? `0 0 6px ${mine ? '#00e5ff' : '#ff6b81'}99` : 'none' }} />
-              ))}
+        const foeHere = players.has(foe.sid);
+        // Smooth fill bar (36 HP → segments would be too thin).
+        const bar = (name: string, hp: number, mine: boolean) => {
+          const pct = (hp / activeDuel.maxHp) * 100;
+          const col = mine ? '#00e5ff' : '#ff6b81';
+          return (
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', justifyContent: mine ? 'space-between' : 'row-reverse', flexDirection: mine ? 'row' : 'row-reverse', gap: 4 }}>
+                <p style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: col, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</p>
+                <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,.5)', flexShrink: 0 }}>{hp}</span>
+              </div>
+              <div style={{ height: 7, borderRadius: 4, marginTop: 3, background: 'rgba(255,255,255,.1)', overflow: 'hidden', display: 'flex', flexDirection: mine ? 'row' : 'row-reverse' }}>
+                <div style={{ width: `${pct}%`, height: '100%', background: col, boxShadow: `0 0 8px ${col}aa`, transition: 'width .18s ease' }} />
+              </div>
             </div>
-          </div>
-        );
+          );
+        };
         return createPortal(
-          <motion.div key="duel-hud" initial={{ y: -24, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-            style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top,0px) + 54px)', left: '50%', transform: 'translateX(-50%)', zIndex: 130, width: 'min(360px,92vw)', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderRadius: 16, background: 'rgba(10,4,26,.95)', border: '1px solid rgba(255,180,0,.4)', backdropFilter: 'blur(10px)', boxShadow: '0 6px 26px rgba(0,0,0,.55)' }}>
-            {bar(me.name, hpOf(me.sid), true)}
-            <span style={{ fontSize: 18, flexShrink: 0, filter: 'drop-shadow(0 0 6px rgba(255,180,0,.7))' }}>⚔️</span>
-            {bar(foe.name, hpOf(foe.sid), false)}
-          </motion.div>,
+          <div key="duel-hud-wrap">
+            {/* Top HP bars */}
+            <motion.div initial={{ y: -24, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+              style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top,0px) + 54px)', left: '50%', transform: 'translateX(-50%)', zIndex: 130, width: 'min(360px,92vw)', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderRadius: 16, background: 'rgba(10,4,26,.95)', border: '1px solid rgba(255,180,0,.4)', backdropFilter: 'blur(10px)', boxShadow: '0 6px 26px rgba(0,0,0,.55)' }}>
+              {bar(me.name, hpOf(me.sid), true)}
+              <span style={{ fontSize: 18, flexShrink: 0, filter: 'drop-shadow(0 0 6px rgba(255,180,0,.7))' }}>⚔️</span>
+              {bar(foe.name, hpOf(foe.sid), false)}
+            </motion.div>
+
+            {/* Floating attack panel — no need to open the player menu */}
+            <motion.div initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+              style={{ position: 'fixed', left: '50%', transform: 'translateX(-50%)', bottom: 'calc(env(safe-area-inset-bottom,0px) + 84px)', zIndex: 130, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 999, background: 'rgba(10,4,26,.96)', border: '1px solid rgba(255,45,85,.4)', backdropFilter: 'blur(10px)', boxShadow: '0 8px 30px rgba(0,0,0,.6)' }}>
+              {([['fist','👊'],['tomato','🍅'],['snowball','❄️']] as const).map(([w, ic]) => (
+                <button key={w} onClick={() => setWeapon(w)}
+                  style={{ width: 38, height: 38, borderRadius: '50%', fontSize: 18, background: weapon === w ? 'rgba(255,45,85,.25)' : 'rgba(255,255,255,.05)', border: `1px solid ${weapon === w ? 'rgba(255,45,85,.6)' : 'rgba(255,255,255,.12)'}`, transition: 'transform .08s' }}>{ic}</button>
+              ))}
+              <button
+                disabled={!foeHere}
+                onClick={() => { if (players.has(foe.sid)) { hit(foe.sid, weapon); navigator.vibrate?.(30); } }}
+                style={{ padding: '11px 22px', borderRadius: 999, fontFamily: '"Space Grotesk",monospace', fontSize: 15, fontWeight: 800, letterSpacing: '.04em', color: '#fff', background: 'linear-gradient(135deg,#ff2d55,#ff6b81)', border: '1px solid rgba(255,45,85,.7)', boxShadow: '0 4px 16px rgba(255,45,85,.45)', opacity: foeHere ? 1 : 0.4, transition: 'transform .08s' }}
+                onPointerDown={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.92)'; }}
+                onPointerUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
+              >
+                {weapon === 'tomato' ? '🍅 სროლა' : weapon === 'snowball' ? '❄️ სროლა' : '👊 დარტყმა'}
+              </button>
+            </motion.div>
+          </div>,
           document.body
         );
       })()}
