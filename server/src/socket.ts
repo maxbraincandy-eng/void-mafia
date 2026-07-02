@@ -7,7 +7,7 @@ import {
   ReportReason, NightSummary, LiveRoomInfo, LiveRoomPlayer,
 } from './types/index.js';
 import {
-  createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, addSpectatorPlayer, removePlayer,
+  createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, addSpectatorPlayer, removePlayer, reseatForDonModerator,
   getPlayerBySocket, toPublicRoom, getAlivePlayers, getHostPlayer,
   toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom,
   setPlayerAvatarUrl, enqueueForNextRound, dequeueFromNextRound, promoteQueuedPlayers,
@@ -1995,6 +1995,8 @@ export function attachSocketHandlers(io: AppServer): void {
           }
           room.donModeratorId = null;
         }
+        // Keep the playing seats numbered 1..N with the moderator last.
+        reseatForDonModerator(room);
         broadcastRoom(io, room);
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
@@ -2155,8 +2157,8 @@ export function attachSocketHandlers(io: AppServer): void {
         if (room.phase === 'lobby' || room.phase === 'game_over') throw new Error('Cannot skip this phase.');
 
         // During speech phase: host can only skip another player's turn if hostSkipPrivilege is enabled.
-        // The Don-mode წამყვანი moderates every turn by design.
-        if (room.phase === 'speech' && !isDonModerator) {
+        // Don mode: the host and the წამყვანი moderate every turn by design.
+        if (room.phase === 'speech' && !isDonModerator && !room.settings.donMode) {
           const currentSpeakerId = room.speechOrder[room.currentSpeakerIdx ?? 0] ?? null;
           const isOwnTurn = host.id === currentSpeakerId;
           if (!isOwnTurn && !room.settings.hostSkipPrivilege) {

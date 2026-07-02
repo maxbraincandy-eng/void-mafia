@@ -1570,7 +1570,7 @@ export function GamePage() {
               </button>
 
               {/* Pause button (host only, when hostSkipPrivilege enabled) */}
-              {(amHost && room.settings.hostSkipPrivilege || amDonModerator) && phase !== 'role_reveal' && phase !== 'game_over' && phase !== 'lobby' && (
+              {(amHost && (room.settings.hostSkipPrivilege || room.settings.donMode) || amDonModerator) && phase !== 'role_reveal' && phase !== 'game_over' && phase !== 'lobby' && (
                 <button
                   onClick={() => pauseTimer()}
                   disabled={isLoading}
@@ -1593,7 +1593,7 @@ export function GamePage() {
                 </span>
               )}
 
-              {(amHost && room.settings.hostSkipPrivilege || amDonModerator) && phase !== 'role_reveal' && phase !== 'game_over' && phase !== 'lobby' && (
+              {(amHost && (room.settings.hostSkipPrivilege || room.settings.donMode) || amDonModerator) && phase !== 'role_reveal' && phase !== 'game_over' && phase !== 'lobby' && (
                 <Button size="sm" variant="ghost" loading={isLoading} onClick={skipPhase}>
                   <span className="hidden sm:inline">{t.game.header.skip} </span>⏭
                 </Button>
@@ -1620,7 +1620,7 @@ export function GamePage() {
         {/* ── Mobile phase action bar (flex-shrink-0 direct child of root flex-col) ── */}
         {!amSpectator && (() => {
           const isCurrentSpeaker = room.currentSpeakerId === myPlayer?.id;
-          const canHostSkipSpeaker = amHost && !isCurrentSpeaker && (room.settings.hostSkipPrivilege ?? false);
+          const canHostSkipSpeaker = (amHost || amDonModerator) && !isCurrentSpeaker && ((room.settings.hostSkipPrivilege ?? false) || !!room.settings.donMode);
           const showDaySkip  = phase === 'day'    && amAlive;
           const showSkipTime = phase === 'speech' && ((isCurrentSpeaker && amAlive) || canHostSkipSpeaker);
           const showFoul     = phase === 'speech' && amAlive && !isCurrentSpeaker;
@@ -1644,7 +1644,7 @@ export function GamePage() {
               )}
               {showSkipTime && (
                 <button
-                  onClick={() => { if (amHost && !isCurrentSpeaker) skipPhase(); else speechPass(); navigator.vibrate?.(50); }}
+                  onClick={() => { if ((amHost || amDonModerator) && !isCurrentSpeaker) skipPhase(); else speechPass(); navigator.vibrate?.(50); }}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium text-white/75 border border-white/15 active:scale-95 transition-all"
                   style={{ background: 'rgba(255,255,255,0.07)' }}
                 >

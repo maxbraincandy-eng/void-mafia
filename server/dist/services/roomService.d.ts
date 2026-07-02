@@ -30,6 +30,8 @@ export declare function getHostPlayer(room: Room): Player | undefined;
 export declare function getAlivePlayers(room: Room): Player[];
 export declare function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic;
 export declare function toRoomListItem(room: Room): RoomListItem;
+/** Renumber after the წამყვანი seat changes hands (claim/release). */
+export declare function reseatForDonModerator(room: Room): void;
 export declare function getAllRooms(): Room[];
 export declare function setPlayerAvatarUrl(room: Room, profileId: string, avatarUrl: string | null): void;
 export declare function rematchRoom(room: Room): void;

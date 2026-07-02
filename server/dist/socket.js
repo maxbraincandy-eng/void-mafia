@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { ok, err, } from './types/index.js';
-import { createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, addSpectatorPlayer, removePlayer, getPlayerBySocket, toPublicRoom, getHostPlayer, toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom, setPlayerAvatarUrl, enqueueForNextRound, dequeueFromNextRound, promoteQueuedPlayers, } from './services/roomService.js';
+import { createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, addSpectatorPlayer, removePlayer, reseatForDonModerator, getPlayerBySocket, toPublicRoom, getHostPlayer, toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom, setPlayerAvatarUrl, enqueueForNextRound, dequeueFromNextRound, promoteQueuedPlayers, } from './services/roomService.js';
 import { startGame, setPhase, advancePhase, submitNightAction, submitVote, submitNomination, checkWin, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult, getTrackResult, resolveVotes, submitDonCheck, submitSheriffCheck, submitMafiaKillVote, submitDoubleEliminationVote, allMafiaKillVotesSubmitted, allDoubleElimVotesSubmitted, } from './services/gameService.js';
 import { createPlayerMessage, createSystemMessage, addMessage, validateChat, } from './services/chatService.js';
 import { registerCheckersHandlers, handleCheckersDisconnect } from './checkers.js';
@@ -1902,6 +1902,8 @@ export function attachSocketHandlers(io) {
                     }
                     room.donModeratorId = null;
                 }
+                // Keep the playing seats numbered 1..N with the moderator last.
+                reseatForDonModerator(room);
                 broadcastRoom(io, room);
                 cb(ok(null));
             }
@@ -2087,8 +2089,8 @@ export function attachSocketHandlers(io) {
                 if (room.phase === 'lobby' || room.phase === 'game_over')
                     throw new Error('Cannot skip this phase.');
                 // During speech phase: host can only skip another player's turn if hostSkipPrivilege is enabled.
-                // The Don-mode წამყვანი moderates every turn by design.
-                if (room.phase === 'speech' && !isDonModerator) {
+                // Don mode: the host and the წამყვანი moderate every turn by design.
+                if (room.phase === 'speech' && !isDonModerator && !room.settings.donMode) {
                     const currentSpeakerId = room.speechOrder[room.currentSpeakerIdx ?? 0] ?? null;
                     const isOwnTurn = host.id === currentSpeakerId;
                     if (!isOwnTurn && !room.settings.hostSkipPrivilege) {

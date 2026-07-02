@@ -553,8 +553,20 @@ function getNextSeat(room) {
     return seat;
 }
 function reassignSeats(room) {
-    const sorted = [...room.players.values()].sort((a, b) => a.joinedAt - b.joinedAt);
+    // The Don-mode წამყვანი sits outside the player order: they always take the
+    // last seat so the playing 10 stay numbered 1..10 without gaps.
+    const sorted = [...room.players.values()].sort((a, b) => {
+        const aMod = a.id === room.donModeratorId ? 1 : 0;
+        const bMod = b.id === room.donModeratorId ? 1 : 0;
+        if (aMod !== bMod)
+            return aMod - bMod;
+        return a.joinedAt - b.joinedAt;
+    });
     sorted.forEach((p, i) => { p.seat = i + 1; });
+}
+/** Renumber after the წამყვანი seat changes hands (claim/release). */
+export function reseatForDonModerator(room) {
+    reassignSeats(room);
 }
 export function getAllRooms() {
     return [...rooms.values()];
