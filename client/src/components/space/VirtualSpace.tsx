@@ -1578,7 +1578,15 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const [socialProfileId, setSocialProfileId] = useState<string | null>(null);
   const openDmList = useSocialStore(s => s.openDmList);
 
-  const { joined, ghost, mySocketId, players, chatHistory, space, reactions, projectiles, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, knockout, clearKnockout, challengeDuel, respondDuel, duelInvite, activeDuel, duelResult, dismissDuelInvite, ghostJoin, ghostLeave } = useVirtualSpace();
+  const { joined, ghost, mySocketId, players, chatHistory, space, reactions, projectiles, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, knockout, clearKnockout, challengeDuel, respondDuel, duelInvite, activeDuel, duelResult, dismissDuelInvite, dismissDuelResult, ghostJoin, ghostLeave } = useVirtualSpace();
+  // Local punch-emoji bursts above the floating attack button.
+  const [punchFx, setPunchFx] = useState<{ id: number; emoji: string; dx: number }[]>([]);
+  const punchIdRef = useRef(0);
+  const spawnPunchFx = (emoji: string) => {
+    const id = ++punchIdRef.current;
+    setPunchFx(f => [...f, { id, emoji, dx: (Math.random() - 0.5) * 60 }]);
+    setTimeout(() => setPunchFx(f => f.filter(x => x.id !== id)), 850);
+  };
   // Owner Ghost Mode: when on, the owner observes spaces without spawning.
   const [ghostMode, setGhostMode] = useState(false);
   useEffect(() => {
@@ -2206,16 +2214,19 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             </div>
             <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: 'white', marginBottom: 10 }}>{selectedPlayer.name}</p>
             {(() => {
-              const liveHp = players.get(selectedPlayer.socketId)?.hp ?? selectedPlayer.hp ?? 10;
+              const inThisDuel = !!activeDuel && (activeDuel.aSocketId === selectedPlayer.socketId || activeDuel.bSocketId === selectedPlayer.socketId);
+              const maxHp = inThisDuel ? activeDuel!.maxHp : 10;
+              const liveHp = Math.min(maxHp, players.get(selectedPlayer.socketId)?.hp ?? selectedPlayer.hp ?? maxHp);
               const here = players.has(selectedPlayer.socketId);
-              const col = liveHp > 6 ? '#00ff88' : liveHp > 3 ? '#facc15' : '#ff2d55';
+              const frac = maxHp > 0 ? liveHp / maxHp : 0;
+              const col = frac > 0.6 ? '#00ff88' : frac > 0.3 ? '#facc15' : '#ff2d55';
               return (
                 <div style={{ marginBottom: 14 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 8 }}>
                     <div style={{ width: 120, height: 7, borderRadius: 4, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', overflow: 'hidden' }}>
-                      <div style={{ width: `${liveHp * 10}%`, height: '100%', background: col, boxShadow: `0 0 8px ${col}aa`, transition: 'width 0.25s ease' }} />
+                      <div style={{ width: `${frac * 100}%`, height: '100%', background: col, boxShadow: `0 0 8px ${col}aa`, transition: 'width 0.25s ease' }} />
                     </div>
-                    <span style={{ fontFamily: 'monospace', fontSize: 11, color: col }}>{liveHp}/10</span>
+                    <span style={{ fontFamily: 'monospace', fontSize: 11, color: col }}>{liveHp}/{maxHp}</span>
                   </div>
                   {/* Weapon picker */}
                   <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
@@ -2385,18 +2396,36 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             {/* Floating attack panel — no need to open the player menu */}
             <motion.div initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
               style={{ position: 'fixed', left: '50%', transform: 'translateX(-50%)', bottom: 'calc(env(safe-area-inset-bottom,0px) + 84px)', zIndex: 130, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 999, background: 'rgba(10,4,26,.96)', border: '1px solid rgba(255,45,85,.4)', backdropFilter: 'blur(10px)', boxShadow: '0 8px 30px rgba(0,0,0,.6)' }}>
+              {/* Rising punch/throw emoji burst */}
+              <AnimatePresence>
+                {punchFx.map(fx => (
+                  <motion.span key={fx.id}
+                    initial={{ opacity: 0, y: 0, scale: 0.5 }}
+                    animate={{ opacity: [0, 1, 1, 0], y: -110, scale: [0.5, 1.5, 1.2] }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.85, ease: 'easeOut' }}
+                    style={{ position: 'absolute', left: `calc(50% + ${fx.dx}px)`, bottom: 46, fontSize: 40, pointerEvents: 'none', filter: 'drop-shadow(0 0 10px rgba(255,45,85,.7))' }}
+                  >{fx.emoji}</motion.span>
+                ))}
+              </AnimatePresence>
               {([['fist','👊'],['tomato','🍅'],['snowball','❄️']] as const).map(([w, ic]) => (
                 <button key={w} onClick={() => setWeapon(w)}
                   style={{ width: 38, height: 38, borderRadius: '50%', fontSize: 18, background: weapon === w ? 'rgba(255,45,85,.25)' : 'rgba(255,255,255,.05)', border: `1px solid ${weapon === w ? 'rgba(255,45,85,.6)' : 'rgba(255,255,255,.12)'}`, transition: 'transform .08s' }}>{ic}</button>
               ))}
               <button
                 disabled={!foeHere}
-                onClick={() => { if (players.has(foe.sid)) { hit(foe.sid, weapon); navigator.vibrate?.(30); } }}
+                onClick={() => {
+                  if (players.has(foe.sid)) {
+                    hit(foe.sid, weapon);
+                    spawnPunchFx(weapon === 'tomato' ? '🍅' : weapon === 'snowball' ? '❄️' : '🤜');
+                    navigator.vibrate?.(30);
+                  }
+                }}
                 style={{ padding: '11px 22px', borderRadius: 999, fontFamily: '"Space Grotesk",monospace', fontSize: 15, fontWeight: 800, letterSpacing: '.04em', color: '#fff', background: 'linear-gradient(135deg,#ff2d55,#ff6b81)', border: '1px solid rgba(255,45,85,.7)', boxShadow: '0 4px 16px rgba(255,45,85,.45)', opacity: foeHere ? 1 : 0.4, transition: 'transform .08s' }}
                 onPointerDown={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.92)'; }}
                 onPointerUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
               >
-                {weapon === 'tomato' ? '🍅 სროლა' : weapon === 'snowball' ? '❄️ სროლა' : '👊 დარტყმა'}
+                {weapon === 'tomato' ? '🍅 სროლა' : weapon === 'snowball' ? '❄️ სროლა' : '🤜 დარტყმა'}
               </button>
             </motion.div>
           </div>,
@@ -2404,11 +2433,25 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
         );
       })()}
 
-      {/* Duel result banner (winner / declined / invite-sent) */}
+      {/* Duel result — winner = sticky toast card with ✕; others = auto banner */}
       <AnimatePresence>
-        {duelResult && createPortal(
-          <motion.div key="duel-result" initial={{ y: -30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -30, opacity: 0 }}
-            style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top,0px) + 110px)', left: '50%', transform: 'translateX(-50%)', zIndex: 130, padding: '8px 18px', borderRadius: 14, fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', background: duelResult.win ? 'rgba(250,204,21,.16)' : 'rgba(155,0,255,.16)', border: `1px solid ${duelResult.win ? 'rgba(250,204,21,.5)' : 'rgba(155,0,255,.5)'}`, color: duelResult.win ? '#facc15' : '#c084fc', backdropFilter: 'blur(8px)', boxShadow: '0 4px 20px rgba(0,0,0,.5)' }}>
+        {duelResult && duelResult.sticky && createPortal(
+          <motion.div key="duel-win" initial={{ y: -30, opacity: 0, scale: 0.9 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: -20, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+            style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top,0px) + 92px)', left: '50%', transform: 'translateX(-50%)', zIndex: 140, width: 'min(320px,90vw)', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px 14px 18px', borderRadius: 18, background: 'linear-gradient(135deg, rgba(40,28,4,.98), rgba(20,10,30,.98))', border: '1px solid rgba(250,204,21,.5)', backdropFilter: 'blur(12px)', boxShadow: '0 10px 40px rgba(0,0,0,.6), 0 0 30px rgba(250,204,21,.15)' }}>
+            <span style={{ fontSize: 34, filter: 'drop-shadow(0 0 12px rgba(250,204,21,.8))' }}>🏆</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: '.2em', color: 'rgba(250,204,21,.6)', textTransform: 'uppercase' }}>დუელი დასრულდა</p>
+              <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 800, fontSize: 16, color: '#facc15', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{duelResult.text} გაიმარჯვა!</p>
+            </div>
+            <button onClick={dismissDuelResult}
+              style={{ flexShrink: 0, width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', color: 'rgba(255,255,255,.6)', fontSize: 15 }}>✕</button>
+          </motion.div>,
+          document.body
+        )}
+        {duelResult && !duelResult.sticky && createPortal(
+          <motion.div key="duel-note" initial={{ y: -30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -30, opacity: 0 }}
+            style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top,0px) + 110px)', left: '50%', transform: 'translateX(-50%)', zIndex: 130, padding: '8px 18px', borderRadius: 14, fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', background: 'rgba(155,0,255,.16)', border: '1px solid rgba(155,0,255,.5)', color: '#c084fc', backdropFilter: 'blur(8px)', boxShadow: '0 4px 20px rgba(0,0,0,.5)' }}>
             {duelResult.text}
           </motion.div>,
           document.body

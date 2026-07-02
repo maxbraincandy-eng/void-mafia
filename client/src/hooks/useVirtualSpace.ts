@@ -69,7 +69,7 @@ export interface ActiveDuel {
   maxHp: number;
 }
 export interface DuelInvite { fromSocketId: string; fromName: string }
-export interface DuelResult { text: string; win: boolean }
+export interface DuelResult { text: string; win: boolean; sticky?: boolean }
 
 interface VirtualSpaceState {
   joined: boolean;
@@ -116,6 +116,10 @@ export function useVirtualSpace() {
   }, []);
 
   const dismissDuelInvite = useCallback(() => setState(prev => ({ ...prev, duelInvite: null })), []);
+  const dismissDuelResult = useCallback(() => {
+    if (duelResultTimer.current) { clearTimeout(duelResultTimer.current); duelResultTimer.current = null; }
+    setState(prev => ({ ...prev, duelResult: null }));
+  }, []);
 
   const join = useCallback(async (
     spaceId: string,
@@ -497,7 +501,9 @@ export function useVirtualSpace() {
         }
         return { ...prev, players: next, activeDuel: null, duelInvite: null };
       });
-      flashDuelResult(d.forfeit ? `🏆 ${d.winnerName} გაიმარჯვა (გამოსვლა)` : `🏆 ${d.winnerName} გაიმარჯვა!`, true, 4000);
+      // Winner announcement stays until the player closes it with ✕.
+      if (duelResultTimer.current) { clearTimeout(duelResultTimer.current); duelResultTimer.current = null; }
+      setState(prev => ({ ...prev, duelResult: { text: d.winnerName, win: true, sticky: true } }));
     }
     function onDuelDeclined(d: { byName: string; expired?: boolean }) {
       flashDuelResult(d.expired ? `${d.byName}-მ ვერ მოასწრო პასუხი` : `${d.byName}-მ უარყო დუელი`, false, 2600);
@@ -541,5 +547,5 @@ export function useVirtualSpace() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { ...state, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, clearKnockout, challengeDuel, respondDuel, dismissDuelInvite, ghostJoin, ghostLeave };
+  return { ...state, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, clearKnockout, challengeDuel, respondDuel, dismissDuelInvite, dismissDuelResult, ghostJoin, ghostLeave };
 }
