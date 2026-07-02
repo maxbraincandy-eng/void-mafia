@@ -4,6 +4,7 @@ import { socket, emitWithAck } from '@/lib/socket';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { useGameStore } from '@/store/gameStore';
+import { GifPicker } from '@/components/community/GifPicker';
 import type { DmConversation, DirectMessage, Res } from '@/types/index';
 
 const MAX_VOICE_SECONDS = 30;
@@ -398,6 +399,7 @@ export function DmPanel() {
   const [pickerFor, setPickerFor] = useState<string | null>(null);
   const [showAttach, setShowAttach] = useState(false);
   const [showStickers, setShowStickers] = useState(false);
+  const [showGifPicker, setShowGifPicker] = useState(false);
   const [viewOnceOpen, setViewOnceOpen] = useState<DirectMessage | null>(null);
   const viewOnceArmed = useRef(false); // next picked photo is view-once
   const typingHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -504,6 +506,26 @@ export function DmPanel() {
         setMessages(prev => [...prev, res.data]);
         setConversations(prev => prev.map(c =>
           c.id === activeConvId ? { ...c, lastMessage: previewOf(res.data), lastMessageAt: res.data.createdAt } : c
+        ));
+      }
+    } catch { /* ignore */ }
+    finally { setSending(false); }
+  };
+
+  // ── Tenor GIF send (CDN url via dm:image) ─────────────────────────
+  const sendGifUrl = async (url: string) => {
+    if (!activeConvId) return;
+    setShowGifPicker(false);
+    setShowAttach(false);
+    setSending(true);
+    try {
+      const res = await emitWithAck<{ conversationId: string; imageData: string; viewOnce: boolean }, Res<DirectMessage>>(
+        'dm:image', { conversationId: activeConvId, imageData: url, viewOnce: false }
+      );
+      if (res.ok) {
+        setMessages(prev => [...prev, res.data]);
+        setConversations(prev => prev.map(c =>
+          c.id === activeConvId ? { ...c, lastMessage: '✨ GIF', lastMessageAt: res.data.createdAt } : c
         ));
       }
     } catch { /* ignore */ }
@@ -1277,6 +1299,16 @@ export function DmPanel() {
                           <span className="text-[13px] font-mono text-white/80">ფოტო ან GIF</span>
                         </button>
                         <button
+                          onClick={() => { setShowAttach(false); setShowGifPicker(true); }}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-white/5 border-t border-white/[0.05]"
+                        >
+                          <span className="text-lg">🎞</span>
+                          <div>
+                            <span className="text-[13px] font-mono text-white/80 block">GIF (Tenor)</span>
+                            <span className="text-[10px] font-mono text-white/30">ძებნა და გაგზავნა</span>
+                          </div>
+                        </button>
+                        <button
                           onClick={() => { viewOnceArmed.current = true; setShowAttach(false); fileRef.current?.click(); }}
                           className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-white/5 border-t border-white/[0.05]"
                         >
@@ -1503,6 +1535,11 @@ export function DmPanel() {
                   <img src={viewImage} alt="" className="max-w-full max-h-full object-contain" onClick={e => e.stopPropagation()} />
                 </motion.div>
               )}
+            </AnimatePresence>
+
+            {/* Tenor GIF picker */}
+            <AnimatePresence>
+              {showGifPicker && <GifPicker onSelect={sendGifUrl} onClose={() => setShowGifPicker(false)} />}
             </AnimatePresence>
 
             {/* View-once fullscreen — closing burns the photo */}

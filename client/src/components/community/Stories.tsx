@@ -88,6 +88,8 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
   const [myReaction, setMyReaction] = useState<string | null>(null);
   // Instagram-style reaction picker (swipe up on others' stories) + float burst.
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Delete confirmation (own story) — pauses the story while open.
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [floats, setFloats] = useState<{ id: number; emoji: string; left: number; dy: number; dur: number }[]>([]);
   const floatId = useRef(0);
   // Touch tracking for swipe up (open viewers) / swipe down (close) / hold-to-pause.
@@ -181,6 +183,7 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
   if (!group || !story) return null;
 
   const handleDelete = async () => {
+    setConfirmDelete(false);
     try { await emitWithAck('community:story_delete', { id: story.id }); } catch { /* ignore */ }
     onDeleted();
     onClose();
@@ -227,7 +230,7 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
                 height: '100%', borderRadius: 2, background: '#fff',
                 width: idx < si ? '100%' : idx === si ? '100%' : '0%',
                 animation: active ? `vm-story-progress 5s linear forwards` : undefined,
-                animationPlayState: active && (paused || pickerOpen) ? 'paused' : 'running',
+                animationPlayState: active && (paused || pickerOpen || confirmDelete) ? 'paused' : 'running',
               }} />
             </div>
           );
@@ -246,7 +249,7 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
         {!sheetOpen && <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{timeAgo(story.createdAt)}</span>}
         <div style={{ flex: 1 }} />
         {isMine && !sheetOpen && (
-          <button onClick={handleDelete} style={{ fontSize: 16, color: 'rgba(255,255,255,0.7)' }} title="წაშლა">🗑</button>
+          <button onClick={() => setConfirmDelete(true)} style={{ fontSize: 16, color: 'rgba(255,255,255,0.7)' }} title="წაშლა">🗑</button>
         )}
         <button onClick={onClose} style={{ fontSize: 20, color: 'rgba(255,255,255,0.85)', lineHeight: 1 }}>✕</button>
       </div>
@@ -324,6 +327,41 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
           </>
         )}
       </AnimatePresence>
+      {/* Delete confirm (own story) */}
+      <AnimatePresence>
+        {confirmDelete && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            style={{ position: 'absolute', inset: 0, zIndex: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}
+            onClick={() => setConfirmDelete(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 12 }}
+              onClick={e => e.stopPropagation()}
+              style={{ width: 'min(320px, 86vw)', borderRadius: 20, padding: '22px 18px', background: 'rgba(14,8,30,0.98)', border: '1px solid rgba(155,0,255,0.3)', boxShadow: '0 16px 60px rgba(0,0,0,0.6)' }}
+            >
+              <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#fff', textAlign: 'center', marginBottom: 18, lineHeight: 1.5 }}>
+                დარწმუნებული ხარ რომ გინდა წაშალო?
+              </p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={handleDelete}
+                  style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontFamily: 'monospace', fontWeight: 700, fontSize: 13, background: 'rgba(255,45,85,0.85)', border: '1px solid rgba(255,45,85,0.9)', color: '#fff' }}
+                >
+                  კი
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontFamily: 'monospace', fontWeight: 700, fontSize: 13, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }}
+                >
+                  არა
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Viewers half-sheet */}
       {sheetOpen && (
         <div style={{ flex: 1, overflowY: 'auto', background: 'rgba(8,4,22,0.98)', borderTop: '1px solid rgba(155,0,255,.25)', padding: '14px 16px 24px' }}>

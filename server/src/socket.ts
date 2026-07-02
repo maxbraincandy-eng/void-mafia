@@ -100,6 +100,7 @@ import {
   listRecommends, createRecommend, deleteRecommend,
   listThoughts, createThought, deleteThought,
   listFeed, createPost, deletePost, toggleLike, getComments, addComment, deleteComment, reportPost,
+  toggleCommentLike, editPost, notifyMentions,
   listCommunityReports, resolveCommunityReport,
   follow, unfollow, getCommunityProfile,
   listEvents, createEvent, joinEvent, leaveEvent,
@@ -4002,7 +4003,13 @@ export function attachSocketHandlers(io: AppServer): void {
       try {
         const senderId = socket.data.profileId;
         if (!senderId) throw new Error('Not authenticated.');
-        if (!data.imageData?.startsWith('data:image/')) throw new Error('Invalid image data.');
+        const isTenor = (() => {
+          try {
+            const u = new URL(data.imageData ?? '');
+            return u.protocol === 'https:' && (u.hostname === 'tenor.com' || u.hostname.endsWith('.tenor.com'));
+          } catch { return false; }
+        })();
+        if (!data.imageData?.startsWith('data:image/') && !isTenor) throw new Error('Invalid image data.');
         if (data.imageData.length > 950_000) throw new Error('სურათი ძალიან დიდია — სცადე პატარა.');
         const [conv] = await sql`SELECT * FROM conversations WHERE id = ${data.conversationId}` as any[];
         if (!conv) throw new Error('Conversation not found.');
@@ -4829,17 +4836,76 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
-    socket.on('community:post_comment', async ({ postId, content }, cb) => {
+    socket.on('community:post_comment', async ({ postId, content, parentId, gifUrl }: any, cb) => {
       try {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('Not authenticated.');
         await requireNotCommunityBanned(profileId);
-        cb(ok(await addComment(postId, profileId, content)));
+        const comment = await addComment(postId, profileId, content ?? '', { parentId: parentId ?? null, gifUrl: gifUrl ?? null });
+
+        // Notifications: post author, replied-to comment author, @mentions.
+        (async () => {
+          try {
+            const me = await getPlayer(profileId);
+            const myName = me?.username ?? 'ვიღაც';
+            const preview = (content ?? '').trim().slice(0, 80) || '🎞 GIF';
+            const notifiedIds = new Set<string>([profileId]);
+            const pushLive = (targetId: string, notif: any) => {
+              const s = findSocketByProfile(io, targetId);
+              if (s) s.emit('community:notification', notif);
+            };
+            if (parentId) {
+              const [parent] = await sql`SELECT author_id FROM community_post_comments WHERE id = ${parentId}` as any[];
+              if (parent && !notifiedIds.has(parent.author_id)) {
+                notifiedIds.add(parent.author_id);
+                const n = await createNotification(parent.author_id, 'comment_reply', `💬 ${myName} გიპასუხა`, preview, null);
+                pushLive(parent.author_id, n);
+              }
+            }
+            const [post] = await sql`SELECT author_id, is_anonymous FROM community_posts WHERE id = ${postId}` as any[];
+            if (post && !post.is_anonymous && !notifiedIds.has(post.author_id)) {
+              notifiedIds.add(post.author_id);
+              const n = await createNotification(post.author_id, 'comment', `💬 ${myName}-მა დააკომენტარა შენს პოსტს`, preview, null);
+              pushLive(post.author_id, n);
+            }
+            const mentioned = await notifyMentions(content ?? '', profileId, myName, 'comment');
+            for (const mid of mentioned) {
+              if (!notifiedIds.has(mid)) {
+                const s = findSocketByProfile(io, mid);
+                if (s) s.emit('community:notifications_refresh' as any, {});
+              }
+            }
+          } catch { /* notifications are best-effort */ }
+        })();
+
+        cb(ok(comment));
       } catch (e: any) { cb(err(e.message)); }
     });
 
     socket.on('community:post_comments', async ({ postId }, cb) => {
-      try { cb(ok(await getComments(postId))); } catch (e: any) { cb(err(e.message)); }
+      try { cb(ok(await getComments(postId, socket.data.profileId ?? undefined))); } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:comment_like', async ({ commentId }: any, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        cb(ok(await toggleCommentLike(commentId, profileId)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:post_edit', async ({ postId, content }: any, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        await requireNotCommunityBanned(profileId);
+        const post = await editPost(postId, profileId, content);
+        io.emit('community:post_updated' as any, post);
+        // Mentions added in the edit also notify.
+        const me = await getPlayer(profileId);
+        notifyMentions(content ?? '', profileId, me?.username ?? 'ვიღაც', 'post').catch(() => {});
+        cb(ok(post));
+      } catch (e: any) { cb(err(e.message)); }
     });
 
     socket.on('community:comment_delete', async ({ commentId }, cb) => {
@@ -5186,6 +5252,12 @@ export function attachSocketHandlers(io: AppServer): void {
         const post = await createPostV2(profileId, data);
         io.emit('community:post_new', post as any);
         recordActivity(profileId, 'posted', post.id, { postType: data.postType, preview: data.content?.slice(0, 80) ?? '' }).catch(() => {});
+        // @mention notifications (skip for anonymous posts — don't leak the author).
+        if (!(data as any).isAnonymous) {
+          getPlayer(profileId).then(me =>
+            notifyMentions(data.content ?? '', profileId, me?.username ?? 'ვიღაც', 'post')
+          ).catch(() => {});
+        }
         cb(ok(post));
       } catch (e: any) { cb(err(e.message)); }
     });

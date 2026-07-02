@@ -13,8 +13,6 @@ interface Props {
   onClose: () => void;
 }
 
-const TENOR_KEY = import.meta.env.VITE_TENOR_API_KEY ?? 'LIVDSRZULELA';
-
 export function GifPicker({ onSelect, onClose }: Props) {
   const [query, setQuery] = useState('');
   const [gifs, setGifs] = useState<GifResult[]>([]);
@@ -24,18 +22,10 @@ export function GifPicker({ onSelect, onClose }: Props) {
   const search = async (q: string) => {
     setLoading(true);
     try {
-      // Tenor v1 works with the LIVDSRZULELA demo key
-      const endpoint = q.trim()
-        ? `https://api.tenor.com/v1/search?q=${encodeURIComponent(q.trim())}&key=${TENOR_KEY}&limit=20&contentfilter=medium`
-        : `https://api.tenor.com/v1/trending?key=${TENOR_KEY}&limit=20&contentfilter=medium`;
-      const res = await fetch(endpoint);
+      // Server-side Tenor proxy — the API key never reaches the browser.
+      const res = await fetch(`/api/gif/search?q=${encodeURIComponent(q.trim())}&limit=24`);
       const data = await res.json();
-      const results: GifResult[] = (data.results ?? []).map((r: any) => ({
-        id: r.id,
-        url: r.media?.[0]?.gif?.url ?? '',
-        preview: r.media?.[0]?.tinygif?.url ?? r.media?.[0]?.gif?.url ?? '',
-      })).filter((r: GifResult) => r.url);
-      setGifs(results);
+      setGifs(((data.gifs ?? []) as GifResult[]).filter(g => g.url));
     } catch { setGifs([]); }
     finally { setLoading(false); }
   };

@@ -180,29 +180,61 @@ function rowToComment(r) {
         authorAvatar: r.author_avatar ?? '🙂', authorAvatarUrl: r.author_avatar_url ?? null,
         authorPublicId: r.author_public_id != null ? Number(r.author_public_id) : null,
         content: r.content, createdAt: Number(r.created_at),
+        parentId: r.parent_id ?? null,
+        gifUrl: r.gif_url ?? null,
+        likes: Number(r.likes_count ?? 0),
+        likedByMe: r.liked_by_me === true || r.liked_by_me === 1,
     };
 }
-export async function getComments(postId) {
+export async function getComments(postId, viewerId) {
     const rows = await sql `
     SELECT c.*, p.username as author_name, p.avatar as author_avatar,
-           p.avatar_url as author_avatar_url, p.public_id as author_public_id
+           p.avatar_url as author_avatar_url, p.public_id as author_public_id,
+           (CASE WHEN ${viewerId ?? ''} != '' AND EXISTS (
+              SELECT 1 FROM community_comment_likes cl
+              WHERE cl.comment_id = c.id AND cl.player_id = ${viewerId ?? ''}
+            ) THEN true ELSE false END) as liked_by_me
     FROM community_post_comments c JOIN players p ON p.id = c.author_id
     WHERE c.post_id = ${postId} ORDER BY c.created_at ASC LIMIT 200
   `;
     return rows.map(rowToComment);
 }
-export async function addComment(postId, authorId, content) {
+/** GIF comments carry a Tenor CDN url — never arbitrary/data URLs. */
+function isValidCommentGif(url) {
+    if (url.length > 500)
+        return false;
+    try {
+        const u = new URL(url);
+        return u.protocol === 'https:' && (u.hostname === 'tenor.com' || u.hostname.endsWith('.tenor.com'));
+    }
+    catch {
+        return false;
+    }
+}
+export async function addComment(postId, authorId, content, opts) {
     const cleanContent = content.trim().slice(0, 500);
-    if (!cleanContent)
+    const gifUrl = opts?.gifUrl?.trim() || null;
+    if (gifUrl && !isValidCommentGif(gifUrl))
+        throw new Error('Invalid GIF.');
+    if (!cleanContent && !gifUrl)
         throw new Error('Comment cannot be empty.');
     const [post] = await sql `SELECT id FROM community_posts WHERE id = ${postId}`;
     if (!post)
         throw new Error('Post not found.');
+    let parentId = opts?.parentId ?? null;
+    if (parentId) {
+        const [parent] = await sql `SELECT id, parent_id FROM community_post_comments WHERE id = ${parentId} AND post_id = ${postId}`;
+        if (!parent)
+            throw new Error('Parent comment not found.');
+        // One level of threading: replying to a reply attaches to the root comment.
+        if (parent.parent_id)
+            parentId = parent.parent_id;
+    }
     const id = generateId();
     const now = Date.now();
     await sql `
-    INSERT INTO community_post_comments (id, post_id, author_id, content, created_at)
-    VALUES (${id}, ${postId}, ${authorId}, ${cleanContent}, ${now})
+    INSERT INTO community_post_comments (id, post_id, author_id, content, parent_id, gif_url, created_at)
+    VALUES (${id}, ${postId}, ${authorId}, ${cleanContent}, ${parentId}, ${gifUrl}, ${now})
   `;
     await sql `UPDATE community_posts SET comments_count = comments_count + 1 WHERE id = ${postId}`;
     const [row] = await sql `
@@ -211,6 +243,39 @@ export async function addComment(postId, authorId, content) {
     FROM community_post_comments c JOIN players p ON p.id = c.author_id WHERE c.id = ${id}
   `;
     return rowToComment(row);
+}
+/** Toggle ❤️ on a comment. Returns the new state + count. */
+export async function toggleCommentLike(commentId, playerId) {
+    const [comment] = await sql `SELECT id FROM community_post_comments WHERE id = ${commentId}`;
+    if (!comment)
+        throw new Error('Comment not found.');
+    const [existing] = await sql `SELECT 1 as x FROM community_comment_likes WHERE comment_id = ${commentId} AND player_id = ${playerId}`;
+    if (existing) {
+        await sql `DELETE FROM community_comment_likes WHERE comment_id = ${commentId} AND player_id = ${playerId}`;
+        await sql `UPDATE community_post_comments SET likes_count = GREATEST(0, likes_count - 1) WHERE id = ${commentId}`;
+    }
+    else {
+        await sql `INSERT INTO community_comment_likes (comment_id, player_id, created_at) VALUES (${commentId}, ${playerId}, ${Date.now()}) ON CONFLICT DO NOTHING`;
+        await sql `UPDATE community_post_comments SET likes_count = likes_count + 1 WHERE id = ${commentId}`;
+    }
+    const [row] = await sql `SELECT likes_count FROM community_post_comments WHERE id = ${commentId}`;
+    return { liked: !existing, likes: Number(row?.likes_count ?? 0) };
+}
+/** Parse @username mentions and notify each mentioned player (excluding the actor). */
+export async function notifyMentions(text, actorId, actorName, context) {
+    const usernames = [...new Set([...text.matchAll(/@([a-zA-Z0-9_.Ⴀ-ჿ-]{2,24})/g)].map(m => m[1]))].slice(0, 8);
+    if (!usernames.length)
+        return [];
+    const notified = [];
+    for (const uname of usernames) {
+        const [p] = await sql `SELECT id FROM players WHERE LOWER(username) = ${uname.toLowerCase()} LIMIT 1`;
+        if (!p || p.id === actorId)
+            continue;
+        const where = context === 'post' ? 'პოსტში' : 'კომენტარში';
+        await createNotification(p.id, 'mention', `@${actorName} მოგიხსენია`, `${actorName}-მა მოგიხსენია ${where}: ${text.slice(0, 80)}`, null);
+        notified.push(p.id);
+    }
+    return notified;
 }
 export async function deleteComment(commentId, requesterId) {
     const [row] = await sql `SELECT author_id, post_id FROM community_post_comments WHERE id = ${commentId}`;
@@ -682,6 +747,7 @@ async function buildPostV2(row, viewerId) {
         audioUrl: row.audio_url ?? null,
         reactions,
         myReaction,
+        editedAt: row.edited_at ? Number(row.edited_at) : null,
     };
 }
 // Create post V2
@@ -715,6 +781,29 @@ export async function createPostV2(authorId, data) {
     WHERE p.id = ${id} LIMIT 1
   `;
     return buildPostV2(rows[0], authorId);
+}
+/** Edit a post's text (author only). Re-extracts hashtags and stamps edited_at. */
+export async function editPost(postId, requesterId, newContent) {
+    const content = newContent.trim().slice(0, 2000);
+    if (!content)
+        throw new Error('Post cannot be empty.');
+    const [post] = await sql `SELECT author_id, is_anonymous FROM community_posts WHERE id = ${postId} AND deleted_at IS NULL`;
+    if (!post)
+        throw new Error('Post not found.');
+    if (post.author_id !== requesterId)
+        throw new Error('მხოლოდ ავტორს შეუძლია რედაქტირება.');
+    const hashtags = extractHashtags(content);
+    await sql `UPDATE community_posts SET content = ${content}, hashtags = ${JSON.stringify(hashtags)}, edited_at = ${Date.now()} WHERE id = ${postId}`;
+    await sql `DELETE FROM community_post_hashtags WHERE post_id = ${postId}`;
+    for (const tag of hashtags) {
+        await sql `INSERT INTO community_post_hashtags (post_id, hashtag) VALUES (${postId}, ${tag}) ON CONFLICT DO NOTHING`;
+    }
+    const rows = await sql `
+    SELECT p.*, pl.username AS author_name, pl.avatar AS author_avatar, pl.avatar_url AS author_avatar_url, pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url
+    FROM community_posts p JOIN players pl ON pl.id = p.author_id
+    WHERE p.id = ${postId} LIMIT 1
+  `;
+    return buildPostV2(rows[0], requesterId);
 }
 // List feed V2
 export async function listFeedV2(viewerId, options) {

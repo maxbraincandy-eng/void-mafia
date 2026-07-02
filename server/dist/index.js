@@ -22,6 +22,7 @@ import { creditPurchasedCoins, grantCoins } from './services/coinService.js';
 import { computeTrending, settleWeeklyLeaderboard } from './services/communityService.js';
 import { createHermesRouter } from './routes/hermes.js';
 import { createLiveKitRouter } from './routes/livekitRoutes.js';
+import { createGifRouter } from './routes/gifRoutes.js';
 // ── Stripe setup ──────────────────────────────────────────────────────
 const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY ?? '';
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET ?? '';
@@ -36,7 +37,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
-const CLIENT_BUILD = '2026-06-26-v235';
+const CLIENT_BUILD = '2026-06-26-v236';
 console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
@@ -94,6 +95,7 @@ app.use('/api/auth', createAuthRouter());
 app.use(express.json());
 app.use('/api/hermes', createHermesRouter());
 app.use('/livekit', createLiveKitRouter());
+app.use('/api/gif', createGifRouter());
 // ── Lightweight health endpoint (no DB dependency) ────────────────────
 // Railway healthcheck hits this — must always respond 200 instantly.
 const BUILD_TIME = new Date().toISOString();

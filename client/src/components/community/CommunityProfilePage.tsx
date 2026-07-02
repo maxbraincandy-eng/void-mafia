@@ -462,7 +462,8 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
   const [loading, setLoading]         = useState(true);
   const [postsLoading, setPostsLoading] = useState(true);
   const [followBusy, setFollowBusy]   = useState(false);
-  const [tab, setTab]                 = useState<'photos' | 'posts'>('photos');
+  const [tab, setTab]                 = useState<'photos' | 'posts' | 'saved'>('photos');
+  const [saved, setSaved]             = useState<CommunityPostV2[] | null>(null);
   const [lightboxPost, setLightboxPost] = useState<CommunityPostV2 | null>(null);
   const [followSheet, setFollowSheet] = useState<'followers' | 'following' | null>(null);
 
@@ -514,6 +515,14 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
   const mediaPosts = posts.filter(p => p.imageUrl || p.gifUrl || p.videoUrl);
   const textPosts  = posts.filter(p => !p.imageUrl && !p.gifUrl && !p.videoUrl);
   const isMrMax    = profile?.badges?.includes('owner');
+
+  // Saved posts (own profile only) — fetched lazily when the tab opens.
+  useEffect(() => {
+    if (tab !== 'saved' || !isSelf || saved !== null) return;
+    emitWithAck<any, Res<CommunityPostV2[]>>('community:post_saves', {}).then(r => {
+      setSaved(r.ok ? r.data : []);
+    }).catch(() => setSaved([]));
+  }, [tab, isSelf, saved]);
 
   return (
     <div className="relative">
@@ -657,6 +666,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
             {([
               { id: 'photos' as const, label: t.community.profile.photos ?? 'სურათები', icon: '▦', count: mediaPosts.length },
               { id: 'posts'  as const, label: t.community.profile.posts,                 icon: '≡', count: textPosts.length },
+              ...(isSelf ? [{ id: 'saved' as const, label: 'შენახულები', icon: '🔖', count: saved?.length ?? 0 }] : []),
             ]).map(tb => (
               <button
                 key={tb.id}
@@ -724,6 +734,23 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
                       );
                     })}
                   </div>
+                )}
+              </motion.div>
+            ) : tab === 'saved' ? (
+              <motion.div key="saved" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="flex flex-col gap-2.5">
+                {saved === null ? (
+                  <div className="py-12 flex justify-center"><Spinner color="#9b00ff" /></div>
+                ) : saved.length === 0 ? (
+                  <p className="font-mono text-white/25 text-center py-12" style={{ fontSize: 13 }}>🔖 შენახული პოსტები არ გაქვს</p>
+                ) : (
+                  saved.map(p => (
+                    <PostTextCard
+                      key={p.id}
+                      post={p}
+                      readMoreLabel={t.community.profile.readMore ?? 'სრულად ნახვა'}
+                      onExpand={() => setLightboxPost(p)}
+                    />
+                  ))
                 )}
               </motion.div>
             ) : (

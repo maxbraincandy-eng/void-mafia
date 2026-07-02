@@ -286,6 +286,18 @@ export async function initializeDatabase() {
     await sql `ALTER TABLE players ADD COLUMN IF NOT EXISTS public_id INTEGER`;
     await sql `ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'text'`;
     await sql `ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS audio_duration REAL`;
+    await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS edited_at BIGINT`;
+    await sql `ALTER TABLE community_post_comments ADD COLUMN IF NOT EXISTS parent_id TEXT`;
+    await sql `ALTER TABLE community_post_comments ADD COLUMN IF NOT EXISTS gif_url TEXT`;
+    await sql `ALTER TABLE community_post_comments ADD COLUMN IF NOT EXISTS likes_count INTEGER DEFAULT 0`;
+    await sql `
+    CREATE TABLE IF NOT EXISTS community_comment_likes (
+      comment_id TEXT NOT NULL,
+      player_id  TEXT NOT NULL,
+      created_at BIGINT NOT NULL,
+      PRIMARY KEY (comment_id, player_id)
+    )
+  `;
     await sql `ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS reply_to_id TEXT`;
     await sql `ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS view_once BOOLEAN DEFAULT FALSE`;
     await sql `ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS viewed_at BIGINT`;

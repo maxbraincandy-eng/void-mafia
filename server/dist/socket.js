@@ -29,7 +29,7 @@ import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
 import { getActiveSeason, getSeasonLeaderboard, getMySeasonHistory } from './services/seasonService.js';
 import { startReplay, recordEvent, finishReplay, listReplays, getReplay, getMyReplays, } from './services/replayService.js';
-import { listNews, createNews, deleteNews, listRecommends, createRecommend, deleteRecommend, listThoughts, createThought, deleteThought, listFeed, createPost, deletePost, toggleLike, getComments, addComment, deleteComment, reportPost, listCommunityReports, resolveCommunityReport, follow, unfollow, listEvents, createEvent, joinEvent, leaveEvent, createNotification, notifyAllPlayers, listNotifications, getUnreadNotificationCount, markNotificationsRead, listLoungeRows, getLoungeRow, rowToLounge, createLounge, deleteLounge, setLoungeLive, communityBanPlayer, communityUnbanPlayer, getActiveCommunityBan, updateCommunityProfile, getCommunityProfileV2, assignBadge, revokeBadge, setShowcaseAchievement, clearShowcaseSlot, getPrivacySettings, setPrivacySettings, createPostV2, listFeedV2, getUserPosts, votePoll, togglePostSave, getSavedPosts, createStory, listActiveStories, deleteStory, recordStoryView, getStoryViewers, toggleStoryReaction, getStoryReactions, getUnreadStoryReactionCount, markStoryReactionNotificationsRead, pinPost, featurePost, hidePost, logCommunityModAction, getCommunityModLogs, listPeopleDirectory, getFollowersList, getFollowingList, searchCommunity, upsertOnlineSeen, getOnlineMembers, generateAnonymousName, togglePostReaction, getWeeklyLeaderboard, } from './services/communityService.js';
+import { listNews, createNews, deleteNews, listRecommends, createRecommend, deleteRecommend, listThoughts, createThought, deleteThought, listFeed, createPost, deletePost, toggleLike, getComments, addComment, deleteComment, reportPost, toggleCommentLike, editPost, notifyMentions, listCommunityReports, resolveCommunityReport, follow, unfollow, listEvents, createEvent, joinEvent, leaveEvent, createNotification, notifyAllPlayers, listNotifications, getUnreadNotificationCount, markNotificationsRead, listLoungeRows, getLoungeRow, rowToLounge, createLounge, deleteLounge, setLoungeLive, communityBanPlayer, communityUnbanPlayer, getActiveCommunityBan, updateCommunityProfile, getCommunityProfileV2, assignBadge, revokeBadge, setShowcaseAchievement, clearShowcaseSlot, getPrivacySettings, setPrivacySettings, createPostV2, listFeedV2, getUserPosts, votePoll, togglePostSave, getSavedPosts, createStory, listActiveStories, deleteStory, recordStoryView, getStoryViewers, toggleStoryReaction, getStoryReactions, getUnreadStoryReactionCount, markStoryReactionNotificationsRead, pinPost, featurePost, hidePost, logCommunityModAction, getCommunityModLogs, listPeopleDirectory, getFollowersList, getFollowingList, searchCommunity, upsertOnlineSeen, getOnlineMembers, generateAnonymousName, togglePostReaction, getWeeklyLeaderboard, } from './services/communityService.js';
 import { listDebates, getDebateFull, createDebate, joinDebate, postArgument, voteDebate, closeDebate, startDebate, advancePhase as advanceDebatePhase, skipPhase, raiseHand, lowerHand, getRaisedHands, promoteSpeaker, PHASE_DURATION_SECONDS, } from './services/debateService.js';
 import { voiceJoin as debateVoiceJoin, voiceLeave as debateVoiceLeave } from './services/debateVoiceService.js';
 import { recordActivity, getFriendActivityFeed } from './services/activityService.js';
@@ -4260,7 +4260,16 @@ export function attachSocketHandlers(io) {
                 const senderId = socket.data.profileId;
                 if (!senderId)
                     throw new Error('Not authenticated.');
-                if (!data.imageData?.startsWith('data:image/'))
+                const isTenor = (() => {
+                    try {
+                        const u = new URL(data.imageData ?? '');
+                        return u.protocol === 'https:' && (u.hostname === 'tenor.com' || u.hostname.endsWith('.tenor.com'));
+                    }
+                    catch {
+                        return false;
+                    }
+                })();
+                if (!data.imageData?.startsWith('data:image/') && !isTenor)
                     throw new Error('Invalid image data.');
                 if (data.imageData.length > 950000)
                     throw new Error('სურათი ძალიან დიდია — სცადე პატარა.');
@@ -5360,13 +5369,51 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
-        socket.on('community:post_comment', async ({ postId, content }, cb) => {
+        socket.on('community:post_comment', async ({ postId, content, parentId, gifUrl }, cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId)
                     throw new Error('Not authenticated.');
                 await requireNotCommunityBanned(profileId);
-                cb(ok(await addComment(postId, profileId, content)));
+                const comment = await addComment(postId, profileId, content ?? '', { parentId: parentId ?? null, gifUrl: gifUrl ?? null });
+                // Notifications: post author, replied-to comment author, @mentions.
+                (async () => {
+                    try {
+                        const me = await getPlayer(profileId);
+                        const myName = me?.username ?? 'ვიღაც';
+                        const preview = (content ?? '').trim().slice(0, 80) || '🎞 GIF';
+                        const notifiedIds = new Set([profileId]);
+                        const pushLive = (targetId, notif) => {
+                            const s = findSocketByProfile(io, targetId);
+                            if (s)
+                                s.emit('community:notification', notif);
+                        };
+                        if (parentId) {
+                            const [parent] = await sql `SELECT author_id FROM community_post_comments WHERE id = ${parentId}`;
+                            if (parent && !notifiedIds.has(parent.author_id)) {
+                                notifiedIds.add(parent.author_id);
+                                const n = await createNotification(parent.author_id, 'comment_reply', `💬 ${myName} გიპასუხა`, preview, null);
+                                pushLive(parent.author_id, n);
+                            }
+                        }
+                        const [post] = await sql `SELECT author_id, is_anonymous FROM community_posts WHERE id = ${postId}`;
+                        if (post && !post.is_anonymous && !notifiedIds.has(post.author_id)) {
+                            notifiedIds.add(post.author_id);
+                            const n = await createNotification(post.author_id, 'comment', `💬 ${myName}-მა დააკომენტარა შენს პოსტს`, preview, null);
+                            pushLive(post.author_id, n);
+                        }
+                        const mentioned = await notifyMentions(content ?? '', profileId, myName, 'comment');
+                        for (const mid of mentioned) {
+                            if (!notifiedIds.has(mid)) {
+                                const s = findSocketByProfile(io, mid);
+                                if (s)
+                                    s.emit('community:notifications_refresh', {});
+                            }
+                        }
+                    }
+                    catch { /* notifications are best-effort */ }
+                })();
+                cb(ok(comment));
             }
             catch (e) {
                 cb(err(e.message));
@@ -5374,7 +5421,35 @@ export function attachSocketHandlers(io) {
         });
         socket.on('community:post_comments', async ({ postId }, cb) => {
             try {
-                cb(ok(await getComments(postId)));
+                cb(ok(await getComments(postId, socket.data.profileId ?? undefined)));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('community:comment_like', async ({ commentId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                cb(ok(await toggleCommentLike(commentId, profileId)));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('community:post_edit', async ({ postId, content }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                await requireNotCommunityBanned(profileId);
+                const post = await editPost(postId, profileId, content);
+                io.emit('community:post_updated', post);
+                // Mentions added in the edit also notify.
+                const me = await getPlayer(profileId);
+                notifyMentions(content ?? '', profileId, me?.username ?? 'ვიღაც', 'post').catch(() => { });
+                cb(ok(post));
             }
             catch (e) {
                 cb(err(e.message));
@@ -5833,6 +5908,10 @@ export function attachSocketHandlers(io) {
                 const post = await createPostV2(profileId, data);
                 io.emit('community:post_new', post);
                 recordActivity(profileId, 'posted', post.id, { postType: data.postType, preview: data.content?.slice(0, 80) ?? '' }).catch(() => { });
+                // @mention notifications (skip for anonymous posts — don't leak the author).
+                if (!data.isAnonymous) {
+                    getPlayer(profileId).then(me => notifyMentions(data.content ?? '', profileId, me?.username ?? 'ვიღაც', 'post')).catch(() => { });
+                }
                 cb(ok(post));
             }
             catch (e) {

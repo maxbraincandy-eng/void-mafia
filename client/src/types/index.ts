@@ -964,6 +964,10 @@ export interface CommunityComment {
   authorPublicId: number | null;
   content: string;
   createdAt: number;
+  parentId?: string | null;
+  gifUrl?: string | null;
+  likes?: number;
+  likedByMe?: boolean;
 }
 
 export type CommunityEventCategory = 'movie_night' | 'philosophy_night' | 'void_radio' | 'live_discussion' | 'other';
@@ -1052,6 +1056,7 @@ export interface CommunityPostV2 extends CommunityPost {
   reactions?: Record<string, number>;  // emoji → count
   myReaction?: string | null;
   audioUrl?: string | null;
+  editedAt?: number | null;
 }
 
 export interface CommunityLeaderboardEntry {

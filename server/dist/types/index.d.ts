@@ -1693,7 +1693,19 @@ export interface ClientToServerEvents {
     'community:post_comment': (data: {
         postId: string;
         content: string;
+        parentId?: string | null;
+        gifUrl?: string | null;
     }, cb: Cb<CommunityComment>) => void;
+    'community:comment_like': (data: {
+        commentId: string;
+    }, cb: Cb<{
+        liked: boolean;
+        likes: number;
+    }>) => void;
+    'community:post_edit': (data: {
+        postId: string;
+        content: string;
+    }, cb: Cb<any>) => void;
     'community:post_comments': (data: {
         postId: string;
     }, cb: Cb<CommunityComment[]>) => void;
@@ -2269,6 +2281,10 @@ export interface CommunityComment {
     authorPublicId: number | null;
     content: string;
     createdAt: number;
+    parentId?: string | null;
+    gifUrl?: string | null;
+    likes?: number;
+    likedByMe?: boolean;
 }
 export type CommunityEventCategory = 'movie_night' | 'philosophy_night' | 'void_radio' | 'live_discussion' | 'other';
 export interface CommunityEvent {
@@ -2346,6 +2362,7 @@ export interface CommunityPostV2 extends CommunityPost {
     audioUrl?: string | null;
     reactions?: Record<string, number>;
     myReaction?: string | null;
+    editedAt?: number | null;
 }
 export interface CommunityProfileV2 extends CommunityProfile {
     bio: string;

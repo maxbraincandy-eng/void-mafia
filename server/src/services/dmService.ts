@@ -159,7 +159,9 @@ export async function sendImageDm(
   `;
   const [conv] = await sql`SELECT * FROM conversations WHERE id = ${conversationId}` as any[];
   const isParticipant1 = conv.participant1 === senderId;
-  const preview = viewOnce ? '📸 ერთჯერადი ფოტო' : imageData.startsWith('data:image/gif') ? '✨ GIF' : '🖼 სურათი';
+  const preview = viewOnce ? '📸 ერთჯერადი ფოტო'
+    : (imageData.startsWith('data:image/gif') || imageData.includes('tenor.com')) ? '✨ GIF'
+    : '🖼 სურათი';
   if (isParticipant1) {
     await sql`UPDATE conversations SET last_message = ${preview}, last_message_at = ${now}, unread_by2 = 1 WHERE id = ${conversationId}`;
   } else {

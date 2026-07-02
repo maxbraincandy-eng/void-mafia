@@ -15,8 +15,18 @@ export declare function toggleLike(postId: string, playerId: string): Promise<{
     likesCount: number;
     likedByMe: boolean;
 }>;
-export declare function getComments(postId: string): Promise<CommunityComment[]>;
-export declare function addComment(postId: string, authorId: string, content: string): Promise<CommunityComment>;
+export declare function getComments(postId: string, viewerId?: string): Promise<CommunityComment[]>;
+export declare function addComment(postId: string, authorId: string, content: string, opts?: {
+    parentId?: string | null;
+    gifUrl?: string | null;
+}): Promise<CommunityComment>;
+/** Toggle ❤️ on a comment. Returns the new state + count. */
+export declare function toggleCommentLike(commentId: string, playerId: string): Promise<{
+    liked: boolean;
+    likes: number;
+}>;
+/** Parse @username mentions and notify each mentioned player (excluding the actor). */
+export declare function notifyMentions(text: string, actorId: string, actorName: string, context: 'post' | 'comment'): Promise<string[]>;
 export declare function deleteComment(commentId: string, requesterId: string): Promise<void>;
 export declare function reportPost(postId: string, reporterId: string, reason: string): Promise<void>;
 export declare function listCommunityReports(): Promise<any[]>;
@@ -104,6 +114,8 @@ export declare function createPostV2(authorId: string, data: {
     visibility?: 'public' | 'friends_only';
     isAnonymous?: boolean;
 }): Promise<CommunityPostV2>;
+/** Edit a post's text (author only). Re-extracts hashtags and stamps edited_at. */
+export declare function editPost(postId: string, requesterId: string, newContent: string): Promise<CommunityPostV2>;
 export declare function listFeedV2(viewerId: string, options: {
     category: FeedCategory;
     before?: number;

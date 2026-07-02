@@ -52,7 +52,9 @@ interface CommunityStore {
   deletePost: (id: string) => Promise<void>;
   toggleLike: (postId: string) => Promise<void>;
   fetchComments: (postId: string) => Promise<CommunityComment[]>;
-  addComment: (postId: string, content: string) => Promise<CommunityComment>;
+  addComment: (postId: string, content: string, opts?: { parentId?: string | null; gifUrl?: string | null }) => Promise<CommunityComment>;
+  likeComment: (commentId: string) => Promise<{ liked: boolean; likes: number }>;
+  editPost: (postId: string, content: string) => Promise<void>;
   deleteComment: (postId: string, commentId: string) => Promise<void>;
   reportPost: (postId: string, reason: string) => Promise<void>;
 
@@ -302,13 +304,25 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
     fetchComments: async (postId) => {
       return unwrap(await emitWithAck<any, Res<CommunityComment[]>>('community:post_comments', { postId }));
     },
-    addComment: async (postId, content) => {
-      const comment = unwrap(await emitWithAck<any, Res<CommunityComment>>('community:post_comment', { postId, content }));
+    addComment: async (postId, content, opts) => {
+      const comment = unwrap(await emitWithAck<any, Res<CommunityComment>>('community:post_comment', {
+        postId, content, parentId: opts?.parentId ?? null, gifUrl: opts?.gifUrl ?? null,
+      }));
       set(s => ({
         feedPosts: s.feedPosts.map(p => p.id === postId ? { ...p, commentsCount: p.commentsCount + 1 } : p),
         feedV2Posts: s.feedV2Posts.map(p => p.id === postId ? { ...p, commentsCount: p.commentsCount + 1 } : p),
       }));
       return comment;
+    },
+    likeComment: async (commentId) => {
+      return unwrap(await emitWithAck<any, Res<{ liked: boolean; likes: number }>>('community:comment_like', { commentId }));
+    },
+    editPost: async (postId, content) => {
+      const post = unwrap(await emitWithAck<any, Res<CommunityPostV2>>('community:post_edit', { postId, content }));
+      set(s => ({
+        feedV2Posts: s.feedV2Posts.map(p => p.id === postId ? { ...p, ...post } : p),
+        savedPosts: s.savedPosts.map(p => p.id === postId ? { ...p, ...post } : p),
+      }));
     },
     deleteComment: async (postId, commentId) => {
       await emitWithAck<any, Res<null>>('community:comment_delete', { commentId });
@@ -417,13 +431,14 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
       return results;
     },
     toggleSave: async (postId) => {
-      const { savedByMe } = unwrap(await emitWithAck<any, Res<{ savedByMe: boolean; savesCount: number }>>('community:post_save', { postId }));
+      // Server acks { saved } (community:post_save handler).
+      const { saved } = unwrap(await emitWithAck<any, Res<{ saved: boolean }>>('community:post_save', { postId }));
       set(s => ({
-        feedV2Posts: s.feedV2Posts.map(p => p.id === postId ? { ...p, savedByMe: savedByMe } : p),
+        feedV2Posts: s.feedV2Posts.map(p => p.id === postId ? { ...p, savedByMe: saved } : p),
       }));
     },
     fetchSavedPosts: async () => {
-      const posts = unwrap(await emitWithAck<undefined, Res<CommunityPostV2[]>>('community:saved_posts'));
+      const posts = unwrap(await emitWithAck<any, Res<CommunityPostV2[]>>('community:post_saves', {}));
       set({ savedPosts: posts });
     },
     setActiveHashtag: (tag) => set({ activeHashtag: tag, feedV2Posts: [], feedV2HasMore: true }),
