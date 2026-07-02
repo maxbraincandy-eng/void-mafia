@@ -2434,9 +2434,10 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
         );
       })()}
 
-      {/* Duel result — winner = sticky toast card with ✕; others = auto banner */}
-      <AnimatePresence>
-        {duelResult && duelResult.sticky && createPortal(
+      {/* Duel result — winner = sticky modal with ✕; others = auto banner.
+          NOTE: rendered outside AnimatePresence — a createPortal child inside
+          AnimatePresence never mounts, which is why the modal wasn't showing. */}
+      {duelResult && duelResult.sticky && createPortal(
           <motion.div key="duel-win-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={dismissDuelResult}
             style={{ position: 'fixed', inset: 0, zIndex: 1400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: 'rgba(0,0,0,.72)', backdropFilter: 'blur(6px)' }}>
@@ -2482,7 +2483,6 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           </motion.div>,
           document.body
         )}
-      </AnimatePresence>
 
       {/* Duel invite overlay */}
       {duelInvite && createPortal(
