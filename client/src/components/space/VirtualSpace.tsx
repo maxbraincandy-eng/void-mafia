@@ -2387,15 +2387,16 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           <div key="duel-hud-wrap">
             {/* Top HP bars */}
             <motion.div initial={{ y: -24, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-              style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top,0px) + 54px)', left: '50%', transform: 'translateX(-50%)', zIndex: 130, width: 'min(360px,92vw)', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderRadius: 16, background: 'rgba(10,4,26,.95)', border: '1px solid rgba(255,180,0,.4)', backdropFilter: 'blur(10px)', boxShadow: '0 6px 26px rgba(0,0,0,.55)' }}>
+              style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top,0px) + 54px)', left: '50%', transform: 'translateX(-50%)', zIndex: 1200, width: 'min(360px,92vw)', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderRadius: 16, background: 'rgba(10,4,26,.95)', border: '1px solid rgba(255,180,0,.4)', backdropFilter: 'blur(10px)', boxShadow: '0 6px 26px rgba(0,0,0,.55)' }}>
               {bar(me.name, hpOf(me.sid), true)}
               <span style={{ fontSize: 18, flexShrink: 0, filter: 'drop-shadow(0 0 6px rgba(255,180,0,.7))' }}>⚔️</span>
               {bar(foe.name, hpOf(foe.sid), false)}
             </motion.div>
 
-            {/* Floating attack panel — no need to open the player menu */}
+            {/* Floating attack panel — width-constrained so it never runs off
+                the screen edge; pinned above the chat bar. */}
             <motion.div initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-              style={{ position: 'fixed', left: '50%', transform: 'translateX(-50%)', bottom: 'calc(env(safe-area-inset-bottom,0px) + 84px)', zIndex: 130, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 999, background: 'rgba(10,4,26,.96)', border: '1px solid rgba(255,45,85,.4)', backdropFilter: 'blur(10px)', boxShadow: '0 8px 30px rgba(0,0,0,.6)' }}>
+              style={{ position: 'fixed', left: 8, right: 8, marginLeft: 'auto', marginRight: 'auto', width: 'fit-content', maxWidth: 'calc(100vw - 16px)', boxSizing: 'border-box', bottom: 'calc(env(safe-area-inset-bottom,0px) + 96px)', zIndex: 1200, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', borderRadius: 999, background: 'rgba(10,4,26,.97)', border: '1px solid rgba(255,45,85,.45)', boxShadow: '0 8px 30px rgba(0,0,0,.6)' }}>
               {/* Rising punch/throw emoji burst */}
               <AnimatePresence>
                 {punchFx.map(fx => (
@@ -2410,7 +2411,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
               </AnimatePresence>
               {([['fist','👊'],['tomato','🍅'],['snowball','❄️']] as const).map(([w, ic]) => (
                 <button key={w} onClick={() => setWeapon(w)}
-                  style={{ width: 38, height: 38, borderRadius: '50%', fontSize: 18, background: weapon === w ? 'rgba(255,45,85,.25)' : 'rgba(255,255,255,.05)', border: `1px solid ${weapon === w ? 'rgba(255,45,85,.6)' : 'rgba(255,255,255,.12)'}`, transition: 'transform .08s' }}>{ic}</button>
+                  style={{ flexShrink: 0, width: 34, height: 34, borderRadius: '50%', fontSize: 16, background: weapon === w ? 'rgba(255,45,85,.25)' : 'rgba(255,255,255,.05)', border: `1px solid ${weapon === w ? 'rgba(255,45,85,.6)' : 'rgba(255,255,255,.12)'}`, transition: 'transform .08s' }}>{ic}</button>
               ))}
               <button
                 disabled={!foeHere}
@@ -2421,7 +2422,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                     navigator.vibrate?.(30);
                   }
                 }}
-                style={{ padding: '11px 22px', borderRadius: 999, fontFamily: '"Space Grotesk",monospace', fontSize: 15, fontWeight: 800, letterSpacing: '.04em', color: '#fff', background: 'linear-gradient(135deg,#ff2d55,#ff6b81)', border: '1px solid rgba(255,45,85,.7)', boxShadow: '0 4px 16px rgba(255,45,85,.45)', opacity: foeHere ? 1 : 0.4, transition: 'transform .08s' }}
+                style={{ flexShrink: 1, minWidth: 0, whiteSpace: 'nowrap', padding: '11px 18px', borderRadius: 999, fontFamily: '"Space Grotesk",monospace', fontSize: 14, fontWeight: 800, letterSpacing: '.02em', color: '#fff', background: 'linear-gradient(135deg,#ff2d55,#ff6b81)', border: '1px solid rgba(255,45,85,.7)', boxShadow: '0 4px 16px rgba(255,45,85,.45)', opacity: foeHere ? 1 : 0.4, transition: 'transform .08s' }}
                 onPointerDown={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.92)'; }}
                 onPointerUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
               >
@@ -2436,16 +2437,25 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
       {/* Duel result — winner = sticky toast card with ✕; others = auto banner */}
       <AnimatePresence>
         {duelResult && duelResult.sticky && createPortal(
-          <motion.div key="duel-win" initial={{ y: -30, opacity: 0, scale: 0.9 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: -20, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 320, damping: 26 }}
-            style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top,0px) + 92px)', left: '50%', transform: 'translateX(-50%)', zIndex: 140, width: 'min(320px,90vw)', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px 14px 18px', borderRadius: 18, background: 'linear-gradient(135deg, rgba(40,28,4,.98), rgba(20,10,30,.98))', border: '1px solid rgba(250,204,21,.5)', backdropFilter: 'blur(12px)', boxShadow: '0 10px 40px rgba(0,0,0,.6), 0 0 30px rgba(250,204,21,.15)' }}>
-            <span style={{ fontSize: 34, filter: 'drop-shadow(0 0 12px rgba(250,204,21,.8))' }}>🏆</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: '.2em', color: 'rgba(250,204,21,.6)', textTransform: 'uppercase' }}>დუელი დასრულდა</p>
-              <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 800, fontSize: 16, color: '#facc15', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{duelResult.text} გაიმარჯვა!</p>
-            </div>
-            <button onClick={dismissDuelResult}
-              style={{ flexShrink: 0, width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', color: 'rgba(255,255,255,.6)', fontSize: 15 }}>✕</button>
+          <motion.div key="duel-win-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={dismissDuelResult}
+            style={{ position: 'fixed', inset: 0, zIndex: 1400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: 'rgba(0,0,0,.72)', backdropFilter: 'blur(6px)' }}>
+            <motion.div onClick={e => e.stopPropagation()}
+              initial={{ scale: 0.8, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+              style={{ position: 'relative', width: 'min(320px,90vw)', textAlign: 'center', padding: '30px 22px 24px', borderRadius: 22, background: 'linear-gradient(160deg, rgba(40,28,4,.98), rgba(16,8,26,.99))', border: '1px solid rgba(250,204,21,.5)', boxShadow: '0 16px 60px rgba(0,0,0,.7), 0 0 40px rgba(250,204,21,.2)' }}>
+              <button onClick={dismissDuelResult}
+                style={{ position: 'absolute', top: 10, right: 10, width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', color: 'rgba(255,255,255,.6)', fontSize: 16 }}>✕</button>
+              <motion.div initial={{ scale: 0.4, rotate: -12 }} animate={{ scale: 1, rotate: 0 }} transition={{ delay: 0.1, type: 'spring', stiffness: 260, damping: 14 }}
+                style={{ fontSize: 62, filter: 'drop-shadow(0 0 18px rgba(250,204,21,.8))' }}>🏆</motion.div>
+              <p style={{ fontFamily: 'monospace', fontSize: 11, letterSpacing: '.25em', color: 'rgba(250,204,21,.6)', textTransform: 'uppercase', marginTop: 8 }}>დუელი დასრულდა</p>
+              <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 800, fontSize: 22, color: '#facc15', marginTop: 6, wordBreak: 'break-word' }}>{duelResult.text}</p>
+              <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#fff', marginTop: 2 }}>გაიმარჯვა! 🎉</p>
+              <button onClick={dismissDuelResult}
+                style={{ marginTop: 18, width: '100%', padding: '12px', borderRadius: 14, fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 14, color: '#0a0410', background: 'linear-gradient(135deg,#facc15,#fbbf24)', border: 'none' }}>
+                გასაგებია
+              </button>
+            </motion.div>
           </motion.div>,
           document.body
         )}
