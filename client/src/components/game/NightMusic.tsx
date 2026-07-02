@@ -52,6 +52,7 @@ export function NightMusic({ phase, enabled, videoId, myRole, amAlive, amSpectat
   const fadeTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const verifyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mutedRef = useRef(false);
+  const unlockedRef = useRef(false);
   const [needsTap, setNeedsTap] = useState(false);
   const [muted, setMuted] = useState(false);
   const [audible, setAudible] = useState(false);
@@ -167,6 +168,42 @@ export function NightMusic({ phase, enabled, videoId, myRole, amAlive, amSpectat
   // old track until this night ends; the new one applies next night.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNight, eligible]);
+
+  // Gesture-capture unlock: the first REAL tap anywhere in the game runs a
+  // brief unmuted-at-zero-volume play inside the gesture handler. That marks
+  // this iframe as user-activated on iOS/Android, so the night-start unmute
+  // then succeeds silently — no "tap to play" prompt in practice.
+  useEffect(() => {
+    if (!eligible || !inGame) return;
+    const unlock = () => {
+      const p = playerRef.current;
+      if (!p || !readyRef.current || unlockedRef.current) return;
+      try {
+        unlockedRef.current = true;
+        const nightNow = !!activeVideoRef.current;
+        p.setVolume(nightNow ? VOLUME : 0);
+        if (!mutedRef.current) p.unMute();
+        p.playVideo();
+        if (!nightNow) {
+          setTimeout(() => {
+            try {
+              if (!activeVideoRef.current) { p.pauseVideo(); p.setVolume(VOLUME); }
+              else p.setVolume(VOLUME);
+            } catch { /* ignore */ }
+          }, 250);
+        } else {
+          setNeedsTap(false);
+          setAudible(true);
+        }
+      } catch { unlockedRef.current = false; }
+    };
+    document.addEventListener('pointerdown', unlock, true);
+    document.addEventListener('touchend', unlock, true);
+    return () => {
+      document.removeEventListener('pointerdown', unlock, true);
+      document.removeEventListener('touchend', unlock, true);
+    };
+  }, [eligible, inGame]);
 
   // Full cleanup on unmount (leaving the game screen).
   useEffect(() => () => {
