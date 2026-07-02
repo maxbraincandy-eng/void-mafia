@@ -130,9 +130,19 @@ export function useLivekitVoice() {
       ?? s.room.nextRoundQueue?.find(p => p.id === s.myPlayerId);
     return me?.isAlive ?? true;
   });
+  const myTeam = useGameStore(s => {
+    if (!s.room || !s.myPlayerId) return null;
+    const me = s.room.players.find(p => p.id === s.myPlayerId);
+    return me?.team ?? null;
+  });
 
   const active = !!phase && !INACTIVE_PHASES.has(phase);
-  const voice = useLivekitRoomVoice({ roomId, identity: myPlayerId, active, listenOnly: !isAlive });
+  // Don-mode Planning Night: the Mafia team plans in a PRIVATE LiveKit sub-room
+  // so the town neither hears them nor sees their speaking rings. Everyone else
+  // stays in the shared room (and is force-muted by the server this phase).
+  const mafiaPlanning = phase === 'planning_night' && myTeam === 'mafia' && isAlive;
+  const effectiveRoomId = roomId && mafiaPlanning ? `${roomId}::mafia` : roomId;
+  const voice = useLivekitRoomVoice({ roomId: effectiveRoomId, identity: myPlayerId, active, listenOnly: !isAlive });
 
   // Honor the server's phase voice rules so a player is only heard on their
   // turn. The server pushes voice:force-mute / voice:force-unmute per phase.
