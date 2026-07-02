@@ -36,7 +36,7 @@ export function TieDefensePanel() {
             </div>
             <p className="text-white/35 text-xs font-mono">
               {isMyDefense
-                ? 'შენ ხარ ახლა! გამოიყენე 60 წამი თავის გასამართლებლად.'
+                ? 'შენ ხარ ახლა! გამოიყენე 30 წამი თავის გასამართლებლად.'
                 : `${currentDefender.name} განმარტავს. ყურადღებით მოუსმინე.`}
             </p>
           </div>

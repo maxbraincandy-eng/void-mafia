@@ -100,10 +100,13 @@ interface GameStore {
   clearBots: () => Promise<void>;
   // Don Mode
   donCheckResult: { targetId: string; targetName: string; isSheriff: boolean } | null;
+  sheriffCheckResult: { targetId: string; targetName: string; suspicious: boolean } | null;
   submitDonCheck: (targetId: string | null) => Promise<void>;
+  submitSheriffCheck: (targetId: string | null) => Promise<void>;
   submitMafiaKillVote: (targetId: string) => Promise<void>;
   submitDoubleElimVote: (yes: boolean) => Promise<void>;
   dismissDonCheckResult: () => void;
+  dismissSheriffCheckResult: () => void;
 }
 
 let toastCounter = 0;
@@ -317,6 +320,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     set({ donCheckResult: data });
   });
 
+  (socket as any).on('game:sheriff_check_result', (data: { targetId: string; targetName: string; suspicious: boolean }) => {
+    set({ sheriffCheckResult: data });
+  });
+
   (socket as any).on('game:yakuza_ally', ({ allyRole, allyName }: { allyRole: string; allyId: string | null; allyName: string | null }) => {
     if (allyName) {
       const roleLabel = allyRole === 'shogun' ? 'Shogun' : 'Yakuza';
@@ -525,6 +532,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     connectionFailed: false,
     error: null,
     donCheckResult: null,
+    sheriffCheckResult: null,
 
     myPlayer: () => {
       const { room, myPlayerId } = get();
@@ -746,6 +754,10 @@ export const useGameStore = create<GameStore>((set, get) => {
       await emit('game:don_check', { targetId });
     }),
 
+    submitSheriffCheck: withLoading(async (targetId: string | null) => {
+      await emit('game:sheriff_check', { targetId });
+    }),
+
     submitMafiaKillVote: withLoading(async (targetId: string) => {
       await emit('game:mafia_kill_vote', { targetId });
     }),
@@ -755,5 +767,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     }),
 
     dismissDonCheckResult: () => set({ donCheckResult: null }),
+
+    dismissSheriffCheckResult: () => set({ sheriffCheckResult: null }),
   };
 });

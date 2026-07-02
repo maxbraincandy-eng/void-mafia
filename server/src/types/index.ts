@@ -13,6 +13,7 @@ export type Phase =
   | 'planning_night'   // mafia meets before Day 0 — no kill, strategy only
   | 'don_check'        // Don checks one player for Sheriff role
   | 'mafia_kill'       // each mafia member votes independently; kill requires unanimity
+  | 'sheriff_check'    // Sheriff investigates one player (Don reads innocent) before resolution
   | 'tie_defense'      // tied vote candidates each get a defense speech
   | 'revote'           // re-vote between the original tied candidates
   | 'double_elim_vote' // city votes yes/no on eliminating both tied players
@@ -382,6 +383,10 @@ export interface DonModeState {
   donCheckTargetId: string | null;
   donCheckResult: boolean | null;
   donCheckDone: boolean;
+  /** Sheriff's own night investigation (Don reads innocent, Mafia read guilty). */
+  sheriffCheckTargetId: string | null;
+  sheriffCheckResult: boolean | null;
+  sheriffCheckDone: boolean;
   /** mafiaPlayerId → targetId — kept server-side only, never sent to clients */
   mafiaKillVotes: Record<string, string>;
   tieCandidates: string[];
@@ -399,6 +404,7 @@ export interface DonModeStatePublic {
   doubleElimYes: number;
   doubleElimNo: number;
   donCheckDone: boolean;
+  sheriffCheckDone: boolean;
 }
 
 export interface GameSettings {
@@ -806,6 +812,7 @@ export interface ServerToClientEvents {
   'game:roleblocked':   () => void;
   'game:yakuza_ally':   (data: { allyRole: string; allyId: string | null; allyName: string | null }) => void;
   'game:don_check_result': (data: { targetId: string; targetName: string; isSheriff: boolean }) => void;
+  'game:sheriff_check_result': (data: { targetId: string; targetName: string; suspicious: boolean }) => void;
   'mod:notification':   (data: { type: string; message: string; targetName?: string }) => void;
   'warning:received':   (data: { reason: string; moderatorName: string }) => void;
   'ban:received':       (data: { reason: string; expiresAt: number }) => void;
@@ -971,6 +978,7 @@ export interface ClientToServerEvents {
   'dev:clear_bots':          (cb: Cb<null>) => void;
   // Don Mode
   'game:don_check':          (data: { targetId: string | null }, cb: Cb<null>) => void;
+  'game:sheriff_check':      (data: { targetId: string | null }, cb: Cb<null>) => void;
   'game:mafia_kill_vote':    (data: { targetId: string }, cb: Cb<null>) => void;
   'game:double_elim_vote':   (data: { yes: boolean }, cb: Cb<null>) => void;
   'leaderboard:get':         (cb: Cb<PlayerProfilePublic[]>) => void;

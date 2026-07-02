@@ -16,7 +16,7 @@ import {
   startGame, setPhase, advancePhase, submitNightAction, submitVote, submitNomination,
   checkWin, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult,
   getTrackResult, resolveVotes,
-  submitDonCheck, submitMafiaKillVote, submitDoubleEliminationVote,
+  submitDonCheck, submitSheriffCheck, submitMafiaKillVote, submitDoubleEliminationVote,
   allMafiaKillVotesSubmitted, allDoubleElimVotesSubmitted,
 } from './services/gameService.js';
 import {
@@ -637,6 +637,7 @@ function startPhaseTimer(io: AppServer, room: Room): void {
       const wasNight = room.phase === 'night';
       const wasSpeech = room.phase === 'speech';
       const wasMafiaKill = room.phase === 'mafia_kill';
+      const wasSheriffCheck = room.phase === 'sheriff_check';
       const wasDonCheck = room.phase === 'don_check';
       const wasDoubleElimVote = room.phase === 'double_elim_vote';
       if (room.phase === 'voting' || room.phase === 'revote') announceVoteResult(io, room);
@@ -645,7 +646,10 @@ function startPhaseTimer(io: AppServer, room: Room): void {
       if (nextPhase !== 'game_over') {
         recordEvent(room.id, { t: Date.now() - room.startedAt, type: 'phase_change', data: { phase: nextPhase, round: room.day } });
       }
-      if (wasNight || wasMafiaKill) { announceNightResult(io, room); notifySpies(io, room); notifyTrackers(io, room); notifyCultConversions(io, room); notifyRoleblocked(io, room); }
+      // Don-mode night resolves after the Sheriff's check (or after mafia_kill when
+      // there is no living Sheriff to skip through). Only announce once resolved.
+      const resolvedDonNight = wasSheriffCheck || (wasMafiaKill && nextPhase !== 'sheriff_check');
+      if (wasNight || resolvedDonNight) { announceNightResult(io, room); notifySpies(io, room); notifyTrackers(io, room); notifyCultConversions(io, room); notifyRoleblocked(io, room); }
       if (wasSpeech && nextPhase !== 'speech') announceSpeechEnd(io, room, nextPhase);
       if (wasDonCheck) broadcastSystemMsg(io, room, 'Don has completed the night check. Mafia selecting target...');
       if (wasDoubleElimVote) {
@@ -669,6 +673,13 @@ function startPhaseTimer(io: AppServer, room: Room): void {
         for (const p of room.players.values()) {
           if (p.team === 'mafia' && p.socketId && p.isAlive) {
             io.to(p.socketId).emit('game:notification', { title: '🔫 Mafia Selection', body: 'All mafia must choose the same target to kill.' });
+          }
+        }
+      }
+      if (nextPhase === 'sheriff_check') {
+        for (const p of room.players.values()) {
+          if (p.role === 'sheriff' && p.socketId && p.isAlive) {
+            io.to(p.socketId).emit('game:notification', { title: '🔎 Sheriff Check', body: 'Choose a player to investigate.' });
           }
         }
       }
@@ -1959,7 +1970,9 @@ export function attachSocketHandlers(io: AppServer): void {
           timerService.stop(room.id);
           room.timer = 0;
           advancePhase(room);
-          announceNightResult(io, room);
+          // The kill isn't resolved until after the Sheriff's check. Only announce
+          // the night result once we've actually resolved (i.e. skipped past sheriff_check).
+          if (room.phase !== ('sheriff_check' as Phase)) announceNightResult(io, room);
           if (room.phase !== 'game_over') {
             broadcastRoom(io, room);
             enforceVoicePhaseRules(io, room);
@@ -1969,6 +1982,40 @@ export function attachSocketHandlers(io: AppServer): void {
             broadcastRoom(io, room);
           }
         } else {
+          broadcastRoom(io, room);
+        }
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Sheriff Check (Don Mode night) ──────────────────────────────
+    socket.on('game:sheriff_check', async ({ targetId }: { targetId: string | null }, cb: any) => {
+      try {
+        const room = getRoomFromSocket(socket);
+        const actor = getPlayerOrError(socket, room);
+        submitSheriffCheck(room, actor, targetId ?? null);
+
+        // Send the investigation result privately to the Sheriff.
+        if (targetId && room.donModeState?.sheriffCheckResult !== null) {
+          const suspicious = room.donModeState!.sheriffCheckResult!;
+          const targetName = room.players.get(targetId)?.name ?? '?';
+          io.to(socket.id).emit('game:sheriff_check_result', { targetId, targetName, suspicious });
+          broadcastSystemMsg(io, room, '🔎 შერიფმა შეამოწმა მოთამაშე.');
+        } else {
+          broadcastSystemMsg(io, room, '🔎 შერიფმა გამოტოვა შემოწმება.');
+        }
+
+        // Sheriff acted — resolve the night now.
+        timerService.stop(room.id);
+        room.timer = 0;
+        advancePhase(room);
+        announceNightResult(io, room);
+        if (room.phase !== 'game_over') {
+          broadcastRoom(io, room);
+          enforceVoicePhaseRules(io, room);
+          startPhaseTimer(io, room);
+        } else {
+          await emitGameOver(io, room);
           broadcastRoom(io, room);
         }
         cb(ok(null));
@@ -6663,6 +6710,7 @@ function liveKitMainDecision(room: Room, player: Player): { transmit: boolean; r
       return { transmit: false, reason: 'Silent during voting.' };
     case 'don_check':
     case 'mafia_kill':
+    case 'sheriff_check':
     case 'revote':
     case 'double_elim_vote':
       return { transmit: false, reason: 'Silent phase.' };
@@ -6838,7 +6886,7 @@ function enforceVoicePhaseRules(io: AppServer, room: Room): void {
     return;
   }
 
-  if (phase === 'don_check' || phase === 'mafia_kill' || phase === 'revote' || phase === 'double_elim_vote') {
+  if (phase === 'don_check' || phase === 'mafia_kill' || phase === 'sheriff_check' || phase === 'revote' || phase === 'double_elim_vote') {
     for (const member of voiceGetMembers(roomId, 'room')) {
       io.to(member.socketId).emit('voice:force-mute', { reason: 'Silent phase.' });
     }

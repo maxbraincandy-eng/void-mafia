@@ -15,10 +15,10 @@ export function startGame(room: Room): void {
     throw new Error(`Need at least ${room.settings.minPlayers} players to start.`);
   }
 
-  // Don Mode player count validation
+  // Don Mode player count validation — spec: exactly 10 players.
   if (room.settings.donMode) {
-    if (count !== 10 && count !== 12) {
-      throw new Error('Don Mode requires exactly 10 or 12 players.');
+    if (count !== 10) {
+      throw new Error('დონის კარტი მოითხოვს ზუსტად 10 მოთამაშეს');
     }
   }
 
@@ -73,6 +73,9 @@ export function startGame(room: Room): void {
         donCheckTargetId: null,
         donCheckResult: null,
         donCheckDone: false,
+        sheriffCheckTargetId: null,
+        sheriffCheckResult: null,
+        sheriffCheckDone: false,
         mafiaKillVotes: {},
         tieCandidates: [],
         defenseQueue: [],
@@ -150,8 +153,10 @@ export function setPhase(room: Room, phase: Phase): void {
       room.speechOrder = rotated.map(p => p.id);
       room.speechStartSeat = rotated[0]?.seat ?? 0;
       room.currentSpeakerIdx = 0;
-      room.timer = room.settings.speechDuration;
-      room.maxTimer = room.settings.speechDuration;
+      // Don mode spec: each individual speech is exactly 1 minute.
+      const speechDur = room.settings.donMode ? 60 : room.settings.speechDuration;
+      room.timer = speechDur;
+      room.maxTimer = speechDur;
       break;
     }
     case 'trial_defense': {
@@ -214,6 +219,16 @@ export function setPhase(room: Room, phase: Phase): void {
       room.mafiaKillTarget = null;
       room.timer = room.settings.nightDuration;
       room.maxTimer = room.settings.nightDuration;
+      break;
+    }
+    case 'sheriff_check': {
+      if (room.donModeState) {
+        room.donModeState.sheriffCheckTargetId = null;
+        room.donModeState.sheriffCheckResult = null;
+        room.donModeState.sheriffCheckDone = false;
+      }
+      room.timer = 30;
+      room.maxTimer = 30;
       break;
     }
     case 'tie_defense': {
@@ -318,8 +333,9 @@ export function advancePhase(room: Room): Phase {
       }
       if (nextIdx < room.speechOrder.length) {
         room.currentSpeakerIdx = nextIdx;
-        room.timer = room.settings.speechDuration;
-        room.maxTimer = room.settings.speechDuration;
+        const spDur = room.settings.donMode ? 60 : room.settings.speechDuration;
+        room.timer = spDur;
+        room.maxTimer = spDur;
         return 'speech';
       }
       // All speakers done
@@ -345,8 +361,7 @@ export function advancePhase(room: Room): Phase {
       }
       // No nominations — skip to night or don_check
       if (room.settings.donMode) {
-        setPhase(room, 'don_check');
-        return 'don_check';
+        return enterDonNight(room);
       }
       setPhase(room, 'night');
       return 'night';
@@ -420,8 +435,7 @@ export function advancePhase(room: Room): Phase {
         return 'game_over';
       }
       if (room.settings.donMode) {
-        setPhase(room, 'don_check');
-        return 'don_check';
+        return enterDonNight(room);
       }
       setPhase(room, 'night');
       return 'night';
@@ -476,8 +490,7 @@ export function advancePhase(room: Room): Phase {
       }
       // vote_elimination
       if (room.settings.donMode) {
-        setPhase(room, 'don_check'); // Don Mode: night begins
-        return 'don_check';
+        return enterDonNight(room); // Don Mode: night begins
       }
       setPhase(room, 'night');
       return 'night';
@@ -498,23 +511,14 @@ export function advancePhase(room: Room): Phase {
     }
 
     case 'mafia_kill': {
-      resolveDonModeKill(room);
-      if (checkWin(room)) {
-        setPhase(room, 'game_over');
-        return 'game_over';
-      }
-      if (room.killedLastNight.length > 0) {
-        const primary = room.killedLastNight[0]!;
-        const dying = room.players.get(primary.id);
-        if (dying) { dying.isAlive = true; dying.deathType = null; }
-        room.deathSpeakerId = primary.id;
-        room.finalWordsReason = 'night_kill';
-        setPhase(room, 'final_words');
-        return 'final_words';
-      }
-      room.day++;
-      setPhase(room, 'speech');
-      return 'speech';
+      // Kill target is locked in, but the Sheriff still investigates before the
+      // night is resolved/announced (spec night order: Don → kill → Sheriff → resolve).
+      return enterSheriffCheck(room);
+    }
+
+    case 'sheriff_check': {
+      // Sheriff has acted (or timed out) — now resolve the mafia kill.
+      return resolveDonNight(room);
     }
 
     case 'tie_defense': {
@@ -546,8 +550,7 @@ export function advancePhase(room: Room): Phase {
 
     case 'revote': {
       if (!room.donModeState) {
-        setPhase(room, 'don_check');
-        return 'don_check';
+        return enterDonNight(room);
       }
       // Detect winner or tie
       const revoteResult = resolveDonModeRevote(room);
@@ -573,8 +576,7 @@ export function advancePhase(room: Room): Phase {
       }
       // No elimination
       room.donModeState.tieCandidates = [];
-      setPhase(room, 'don_check');
-      return 'don_check';
+      return enterDonNight(room);
     }
 
     case 'double_elim_vote': {
@@ -599,8 +601,7 @@ export function advancePhase(room: Room): Phase {
           return 'game_over';
         }
       }
-      setPhase(room, 'don_check');
-      return 'don_check';
+      return enterDonNight(room);
     }
 
     default:
@@ -681,6 +682,49 @@ function resolveDonModeKill(room: Room): void {
   target.isAlive = false;
   target.deathType = 'night';
   room.killedLastNight = [{ id: targetId, name: target.name, lastWill: target.lastWill ?? null }];
+}
+
+/** Begin a Don-mode night: the Don's sheriff-check comes first — but if the Don
+ *  is dead, skip straight to the mafia kill selection. */
+function enterDonNight(room: Room): Phase {
+  const donAlive = [...room.players.values()].some(
+    p => p.isAlive && !p.isSpectator && p.role === 'don',
+  );
+  if (donAlive) { setPhase(room, 'don_check'); return 'don_check'; }
+  setPhase(room, 'mafia_kill');
+  return 'mafia_kill';
+}
+
+/** After the mafia kill selection, the Sheriff investigates — unless there is no
+ *  living Sheriff, in which case the night is resolved immediately. */
+function enterSheriffCheck(room: Room): Phase {
+  const sheriffAlive = [...room.players.values()].some(
+    p => p.isAlive && !p.isSpectator && p.role === 'sheriff',
+  );
+  if (sheriffAlive) { setPhase(room, 'sheriff_check'); return 'sheriff_check'; }
+  return resolveDonNight(room);
+}
+
+/** Resolve the Don-mode night: apply the (unanimous) mafia kill, check for a win,
+ *  then move to the victim's 1-minute last word or straight into the next day. */
+function resolveDonNight(room: Room): Phase {
+  resolveDonModeKill(room);
+  if (checkWin(room)) {
+    setPhase(room, 'game_over');
+    return 'game_over';
+  }
+  if (room.killedLastNight.length > 0) {
+    const primary = room.killedLastNight[0]!;
+    const dying = room.players.get(primary.id);
+    if (dying) { dying.isAlive = true; dying.deathType = null; }
+    room.deathSpeakerId = primary.id;
+    room.finalWordsReason = 'night_kill';
+    setPhase(room, 'final_words');
+    return 'final_words';
+  }
+  room.day++;
+  setPhase(room, 'speech');
+  return 'speech';
 }
 
 // ── Night Resolution ──────────────────────────────────────────────────
@@ -952,6 +996,27 @@ export function submitDonCheck(room: Room, actor: Player, targetId: string | nul
     room.donModeState.donCheckResult = target.role === 'sheriff';
   } else {
     room.donModeState.donCheckResult = null; // skipped
+  }
+}
+
+export function submitSheriffCheck(room: Room, actor: Player, targetId: string | null): void {
+  if (room.phase !== 'sheriff_check') throw new Error('Not Sheriff Check phase.');
+  if (actor.role !== 'sheriff') throw new Error('Only the Sheriff can perform this check.');
+  if (!actor.isAlive) throw new Error('You are eliminated.');
+  if (!room.donModeState) throw new Error('Don Mode is not active.');
+  if (room.donModeState.sheriffCheckDone) throw new Error('Sheriff check already performed this night.');
+
+  room.donModeState.sheriffCheckTargetId = targetId;
+  room.donModeState.sheriffCheckDone = true;
+
+  if (targetId) {
+    const target = room.players.get(targetId);
+    if (!target || !target.isAlive) throw new Error('Target not found or eliminated.');
+    if (target.id === actor.id) throw new Error('Cannot check yourself.');
+    // The Don reads innocent; regular Mafia read guilty (isSuspiciousToSheriff).
+    room.donModeState.sheriffCheckResult = isSuspiciousToSheriff(target.role!);
+  } else {
+    room.donModeState.sheriffCheckResult = null; // skipped
   }
 }
 

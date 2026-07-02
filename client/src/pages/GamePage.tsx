@@ -45,6 +45,7 @@ import { useAuthStore } from '@/store/authStore';
 import { ModPanel } from '@/pages/ModDashboardPage';
 import { PlanningNightPanel } from '@/components/game/PlanningNightPanel';
 import { DonCheckPanel } from '@/components/game/DonCheckPanel';
+import { SheriffCheckPanel } from '@/components/game/SheriffCheckPanel';
 import { MafiaKillPanel } from '@/components/game/MafiaKillPanel';
 import { TieDefensePanel } from '@/components/game/TieDefensePanel';
 import { DoubleEliminationPanel } from '@/components/game/DoubleEliminationPanel';
@@ -67,6 +68,7 @@ const PHASE_COLORS: Record<Phase, string> = {
   planning_night:  'text-neon-purple',
   don_check:       'text-neon-purple',
   mafia_kill:      'text-neon-purple',
+  sheriff_check:   'text-neon-cyan',
   tie_defense:     'text-neon-red',
   revote:          'text-neon-red',
   double_elim_vote:'text-neon-red',
@@ -86,6 +88,7 @@ const PHASE_STRIP: Record<Phase, string> = {
   planning_night:  '#4a00aa',
   don_check:       '#6600cc',
   mafia_kill:      '#550099',
+  sheriff_check:   '#2b6fd6',
   tie_defense:     '#cc2244',
   revote:          '#ff2d55',
   double_elim_vote:'#dd1144',
@@ -102,6 +105,7 @@ const PHASE_GLOW: Partial<Record<Phase, string>> = {
   planning_night:  '0 0 12px rgba(74,0,170,0.8)',
   don_check:       '0 0 12px rgba(102,0,204,0.8)',
   mafia_kill:      '0 0 12px rgba(85,0,153,0.8)',
+  sheriff_check:   '0 0 12px rgba(43,111,214,0.8)',
   tie_defense:     '0 0 12px rgba(255,45,85,0.7)',
   revote:          '0 0 12px rgba(255,45,85,0.7)',
   double_elim_vote:'0 0 12px rgba(221,17,68,0.7)',
@@ -154,11 +158,11 @@ export function GamePage() {
     room, myPlayer, myRole, amHost, amAlive,
     nightResult, investigationResult, spyReport, gameOverResult,
     voteEliminationResult, cultConversionNotice, nightSummary, newAchievements,
-    voteBreakdown, donCheckResult,
+    voteBreakdown, donCheckResult, sheriffCheckResult,
     skipPhase, speechPass, daySkipVote, issueFoul, skipDefense, leaveRoom, terminateGame,
     dismissNightResult, dismissInvestigation, dismissSpyReport, dismissGameOver,
     dismissVoteElimination, dismissCultConversion, dismissNightSummary, dismissNewAchievements,
-    dismissVoteBreakdown, dismissDonCheckResult,
+    dismissVoteBreakdown, dismissDonCheckResult, dismissSheriffCheckResult,
     pauseTimer, submitVote, nominate,
     isLoading, addToast,
     joinQueue, leaveQueue, queuePosition,
@@ -178,6 +182,7 @@ export function GamePage() {
     newAchievements: s.newAchievements,
     voteBreakdown: s.voteBreakdown,
     donCheckResult: s.donCheckResult,
+    sheriffCheckResult: s.sheriffCheckResult,
     skipPhase: s.skipPhase,
     speechPass: s.speechPass,
     daySkipVote: s.daySkipVote,
@@ -195,6 +200,7 @@ export function GamePage() {
     dismissNewAchievements: s.dismissNewAchievements,
     dismissVoteBreakdown: s.dismissVoteBreakdown,
     dismissDonCheckResult: s.dismissDonCheckResult,
+    dismissSheriffCheckResult: s.dismissSheriffCheckResult,
     pauseTimer: s.pauseTimer,
     submitVote: s.submitVote,
     nominate: s.nominate,
@@ -1044,6 +1050,7 @@ export function GamePage() {
         {phase === 'planning_night' && <PlanningNightPanel />}
         {phase === 'don_check' && !amSpectator && <DonCheckPanel />}
         {phase === 'mafia_kill' && !amSpectator && <MafiaKillPanel />}
+        {phase === 'sheriff_check' && !amSpectator && <SheriffCheckPanel />}
         {phase === 'tie_defense' && <TieDefensePanel />}
         {phase === 'revote' && (
           <div className="space-y-4">
@@ -1081,7 +1088,7 @@ export function GamePage() {
         {(phase === 'voting' || phase === 'trial_defense' || phase === 'tie_defense' || phase === 'revote' || phase === 'double_elim_vote') && (
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[180px] rounded-full blur-[90px]" style={{ background: 'rgba(220,0,50,0.06)' }} />
         )}
-        {(phase === 'planning_night' || phase === 'don_check' || phase === 'mafia_kill') && (
+        {(phase === 'planning_night' || phase === 'don_check' || phase === 'mafia_kill' || phase === 'sheriff_check') && (
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[200px] rounded-full blur-[100px]" style={{ background: 'rgba(85,0,153,0.07)' }} />
         )}
       </div>
@@ -1361,7 +1368,7 @@ export function GamePage() {
               onClick={e => e.stopPropagation()}
             >
               <p className="text-xs font-mono uppercase tracking-widest text-white/40 mb-4">დონ-ჩეკი • პირადი შედეგი</p>
-              <div className="text-5xl mb-4">{donCheckResult.isSheriff ? '🚨' : '✅'}</div>
+              <div className="text-5xl mb-4">{donCheckResult.isSheriff ? '👍' : '👎'}</div>
               <h2
                 className="font-display text-3xl font-bold tracking-widest uppercase mb-2"
                 style={{ color: donCheckResult.isSheriff ? '#3b82f6' : '#00ff88' }}
@@ -1373,6 +1380,44 @@ export function GamePage() {
                 {donCheckResult.isSheriff ? 'არის შერიფი.' : 'შერიფი არ არის.'}
               </p>
               <Button variant="secondary" className="mt-6" onClick={dismissDonCheckResult} fullWidth>
+                გასაგებია
+              </Button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Sheriff Check result overlay (private to Sheriff) */}
+      <AnimatePresence>
+        {sheriffCheckResult && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            onClick={dismissSheriffCheckResult}
+          >
+            <motion.div
+              initial={{ scale: 0.85, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.85, y: 20 }}
+              className="glass-card border p-8 text-center max-w-sm w-full"
+              style={{ borderColor: sheriffCheckResult.suspicious ? 'rgba(255,45,85,0.4)' : 'rgba(0,255,136,0.3)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <p className="text-xs font-mono uppercase tracking-widest text-white/40 mb-4">შერიფის შემოწმება • პირადი შედეგი</p>
+              <div className="text-5xl mb-4">{sheriffCheckResult.suspicious ? '🔴' : '🟢'}</div>
+              <h2
+                className="font-display text-3xl font-bold tracking-widest uppercase mb-2"
+                style={{ color: sheriffCheckResult.suspicious ? '#ff2d55' : '#00ff88' }}
+              >
+                {sheriffCheckResult.suspicious ? 'მაფიაა!' : 'წმინდაა'}
+              </h2>
+              <p className="text-white/70 text-sm">
+                <strong className="text-white">{sheriffCheckResult.targetName}</strong>{' '}
+                {sheriffCheckResult.suspicious ? 'ეკუთვნის მაფიას.' : 'მაფია არ არის.'}
+              </p>
+              <Button variant="secondary" className="mt-6" onClick={dismissSheriffCheckResult} fullWidth>
                 გასაგებია
               </Button>
             </motion.div>

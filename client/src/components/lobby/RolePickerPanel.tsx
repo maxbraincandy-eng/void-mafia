@@ -673,15 +673,16 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading }: 
           <div className="space-y-2">
             <div className="rounded-xl border border-neon-purple/15 px-3 py-2.5" style={{ background: 'rgba(10,0,20,0.4)' }}>
               <p className="text-[11px] font-mono text-white/40 leading-relaxed">
-                🃏 <strong className="text-white/60">Don Mode</strong> მოითხოვს <strong className="text-neon-purple/80">10 ან 12 მოთამაშეს</strong>.<br />
-                ავტომატური როლები: 1 Don + 2 Mafia + 1 Sheriff + Citizens.
+                🃏 <strong className="text-white/60">Don Mode</strong> მოითხოვს <strong className="text-neon-purple/80">ზუსტად 10 მოთამაშეს</strong>.<br />
+                ავტომატური როლები: 1 Don + 2 Mafia + 1 Sheriff + 6 Citizens.
               </p>
             </div>
             <div className="space-y-1 text-[11px] font-mono text-white/30 pl-1">
               <p>• Planning Night (60s) — ქილი არ შედგება</p>
-              <p>• ინდივიდუალური სიტყვები (Speech)</p>
+              <p>• ინდივიდუალური სიტყვები (Speech, 60s)</p>
               <p>• Don Check — შერიფის ამოცნობა</p>
               <p>• Mafia Kill — სამივე ხმა ერთ სამიზნეზე</p>
+              <p>• Sheriff Check — მაფიის ამოცნობა (Don წმინდაა)</p>
               <p>• ფრე → Tie Defense → Revote → ორმაგი ელიმინაცია</p>
             </div>
           </div>

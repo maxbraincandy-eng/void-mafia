@@ -1,4 +1,4 @@
-export type Phase = 'lobby' | 'role_reveal' | 'night' | 'morning' | 'day' | 'speech' | 'trial_defense' | 'voting' | 'final_words' | 'game_over' | 'planning_night' | 'don_check' | 'mafia_kill' | 'tie_defense' | 'revote' | 'double_elim_vote';
+export type Phase = 'lobby' | 'role_reveal' | 'night' | 'morning' | 'day' | 'speech' | 'trial_defense' | 'voting' | 'final_words' | 'game_over' | 'planning_night' | 'don_check' | 'mafia_kill' | 'sheriff_check' | 'tie_defense' | 'revote' | 'double_elim_vote';
 export type RoleKey = 'mafia' | 'citizen' | 'sheriff' | 'doctor' | 'don' | 'maniac' | 'jester' | 'bodyguard' | 'spy' | 'escort' | 'vigilante' | 'cult_leader' | 'cultist' | 'veteran' | 'tracker' | 'arsonist' | 'mayor' | 'yakuza' | 'shogun';
 export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
@@ -259,6 +259,10 @@ export interface DonModeState {
     donCheckTargetId: string | null;
     donCheckResult: boolean | null;
     donCheckDone: boolean;
+    /** Sheriff's own night investigation (Don reads innocent, Mafia read guilty). */
+    sheriffCheckTargetId: string | null;
+    sheriffCheckResult: boolean | null;
+    sheriffCheckDone: boolean;
     /** mafiaPlayerId → targetId — kept server-side only, never sent to clients */
     mafiaKillVotes: Record<string, string>;
     tieCandidates: string[];
@@ -275,6 +279,7 @@ export interface DonModeStatePublic {
     doubleElimYes: number;
     doubleElimNo: number;
     donCheckDone: boolean;
+    sheriffCheckDone: boolean;
 }
 export interface GameSettings {
     nightDuration: number;
@@ -711,6 +716,11 @@ export interface ServerToClientEvents {
         targetId: string;
         targetName: string;
         isSheriff: boolean;
+    }) => void;
+    'game:sheriff_check_result': (data: {
+        targetId: string;
+        targetName: string;
+        suspicious: boolean;
     }) => void;
     'mod:notification': (data: {
         type: string;
@@ -1155,6 +1165,9 @@ export interface ClientToServerEvents {
     }, cb: Cb<null>) => void;
     'dev:clear_bots': (cb: Cb<null>) => void;
     'game:don_check': (data: {
+        targetId: string | null;
+    }, cb: Cb<null>) => void;
+    'game:sheriff_check': (data: {
         targetId: string | null;
     }, cb: Cb<null>) => void;
     'game:mafia_kill_vote': (data: {

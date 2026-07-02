@@ -15,6 +15,7 @@ export type Phase =
   | 'planning_night'
   | 'don_check'
   | 'mafia_kill'
+  | 'sheriff_check'
   | 'tie_defense'
   | 'revote'
   | 'double_elim_vote';
@@ -258,6 +259,7 @@ export interface DonModeStatePublic {
   doubleElimYes: number;
   doubleElimNo: number;
   donCheckDone: boolean;
+  sheriffCheckDone: boolean;
 }
 
 export interface GameSettings {

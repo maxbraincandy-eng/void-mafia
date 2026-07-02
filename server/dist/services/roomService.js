@@ -503,6 +503,7 @@ export function toPublicRoom(room, viewerPlayerId) {
                 doubleElimYes: Object.values(room.donModeState.doubleEliminationVotes).filter(v => v).length,
                 doubleElimNo: Object.values(room.donModeState.doubleEliminationVotes).filter(v => !v).length,
                 donCheckDone: room.donModeState.donCheckDone,
+                sheriffCheckDone: room.donModeState.sheriffCheckDone,
             }
             : null,
     };

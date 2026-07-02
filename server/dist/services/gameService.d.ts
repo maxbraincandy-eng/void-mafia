@@ -15,6 +15,7 @@ export declare function getTrackResult(room: Room, actor: Player): {
 } | null;
 /** Submit actions for Don Mode special phases */
 export declare function submitDonCheck(room: Room, actor: Player, targetId: string | null): void;
+export declare function submitSheriffCheck(room: Room, actor: Player, targetId: string | null): void;
 export declare function submitMafiaKillVote(room: Room, actor: Player, targetId: string): void;
 export declare function submitDoubleEliminationVote(room: Room, voter: Player, yes: boolean): void;
 export declare function allMafiaKillVotesSubmitted(room: Room): boolean;
