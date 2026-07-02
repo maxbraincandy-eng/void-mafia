@@ -284,6 +284,9 @@ export interface GameSettings {
   donMode?: boolean;
   /** Don mode: play with a non-playing game moderator (წამყვანი). */
   donModerator?: boolean;
+  /** Night music: YouTube audio for idle citizens during the night phase. */
+  nightMusicEnabled?: boolean;
+  nightMusicVideoId?: string | null;
   planningNightDuration?: number;
   roles: {
     mafia: number;

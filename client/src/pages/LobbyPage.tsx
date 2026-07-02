@@ -12,6 +12,7 @@ import { ChatPanel } from '@/components/chat/ChatPanel';
 import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { RolePickerPanel } from '@/components/lobby/RolePickerPanel';
+import { extractYouTubeId } from '@/components/community/YouTubeEmbed';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { RoomMoreMenu } from '@/components/ui/RoomMoreMenu';
 import { PlayerActionMenu } from '@/components/ui/PlayerActionMenu';
@@ -52,6 +53,34 @@ export function LobbyPage() {
   const isOwner = useAuthStore(s => s.profile?.moderatorLevel === 'owner');
   const myLevel = useAuthStore(s => s.profile?.level ?? 1);
   const { fillBots, clearBots } = useGameStore(s => ({ fillBots: s.fillBots, clearBots: s.clearBots }));
+
+  // ── Night music (settings card) ─────────────────────────────────────
+  const [nmInput, setNmInput] = useState('');
+  const [nmError, setNmError] = useState(false);
+  const [nmPreview, setNmPreview] = useState<{ title: string; thumb: string } | null>(null);
+  const nmVideoId = room?.settings.nightMusicVideoId ?? null;
+  useEffect(() => {
+    setNmPreview(null);
+    if (!nmVideoId) return;
+    let cancelled = false;
+    fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent('https://youtu.be/' + nmVideoId)}&format=json`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (!cancelled && d) setNmPreview({ title: d.title ?? '', thumb: d.thumbnail_url ?? '' }); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [nmVideoId]);
+  const handleNmInput = (raw: string) => {
+    setNmInput(raw);
+    if (!raw.trim()) { setNmError(false); return; }
+    const id = extractYouTubeId(raw.trim());
+    if (id) {
+      setNmError(false);
+      if (id !== nmVideoId) updateSettings({ nightMusicVideoId: id, nightMusicEnabled: true });
+      setNmInput('');
+    } else {
+      setNmError(true);
+    }
+  };
 
   const handleLeave = () => { voice.leaveVoice(); leaveRoom(); };
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -972,6 +1001,69 @@ export function LobbyPage() {
                             )} style={{ width: '18px', height: '18px' }} />
                           </div>
                         </button>
+                      )}
+                    </div>
+
+                    {/* ── Night Music ──────────────────────────────── */}
+                    <div className={`${SURFACE} p-4`} style={SURFACE_BG}>
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <div>
+                          <p className="text-[12px] font-mono text-white/28 uppercase tracking-widest">🎵 ღამის მუსიკა</p>
+                          <p className="text-[11px] font-mono text-white/30 mt-1">
+                            ჩააგდე YouTube ლინკი — ღამის ფაზისას მოქალაქეებს ჩაერთვებათ
+                          </p>
+                        </div>
+                        {/* Enable toggle (host only, needs a link) */}
+                        <button
+                          onClick={() => amHost && nmVideoId && updateSettings({ nightMusicEnabled: !room.settings.nightMusicEnabled })}
+                          disabled={!amHost || !nmVideoId || isLoading}
+                          className="disabled:opacity-50 flex-shrink-0"
+                        >
+                          <div className={clsx(
+                            'relative rounded-full transition-colors duration-200',
+                            room.settings.nightMusicEnabled && nmVideoId ? 'bg-neon-cyan/70' : 'bg-white/10',
+                          )} style={{ height: '22px', minWidth: '40px' }}>
+                            <span className="absolute top-0.5 rounded-full bg-white transition-all duration-200"
+                              style={{ width: '18px', height: '18px', left: room.settings.nightMusicEnabled && nmVideoId ? '20px' : '2px' }} />
+                          </div>
+                        </button>
+                      </div>
+
+                      {amHost && (
+                        <input
+                          type="text"
+                          value={nmInput}
+                          onChange={e => handleNmInput(e.target.value)}
+                          placeholder="YouTube ლინკი..."
+                          className="w-full bg-white/[0.03] border rounded-lg px-3 py-2 text-sm font-mono text-white/65 placeholder-white/15 focus:outline-none transition-colors"
+                          style={{ borderColor: nmError ? 'rgba(255,45,85,0.5)' : 'rgba(255,255,255,0.07)' }}
+                        />
+                      )}
+                      {nmError && (
+                        <p className="text-[11px] font-mono mt-1.5" style={{ color: '#ff2d55' }}>არასწორი YouTube ლინკი</p>
+                      )}
+
+                      {/* Current track preview */}
+                      {nmVideoId && (
+                        <div className="flex items-center gap-2.5 mt-2.5 px-2.5 py-2 rounded-lg"
+                          style={{ background: 'rgba(0,229,255,0.05)', border: '1px solid rgba(0,229,255,0.15)' }}>
+                          {nmPreview?.thumb
+                            ? <img src={nmPreview.thumb} alt="" className="w-10 h-7 rounded object-cover flex-shrink-0" />
+                            : <span className="text-base flex-shrink-0">🎵</span>}
+                          <p className="flex-1 min-w-0 font-mono text-[11px] text-white/55 truncate">
+                            {nmPreview?.title || `ID: ${nmVideoId} ✓`}
+                          </p>
+                          {amHost && (
+                            <button
+                              onClick={() => updateSettings({ nightMusicVideoId: null, nightMusicEnabled: false })}
+                              disabled={isLoading}
+                              className="flex-shrink-0 font-mono text-[12px] text-white/30 hover:text-red-400/70 transition-colors"
+                              title="წაშლა"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
 

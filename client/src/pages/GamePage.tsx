@@ -46,6 +46,7 @@ import { ModPanel } from '@/pages/ModDashboardPage';
 import { PlanningNightPanel } from '@/components/game/PlanningNightPanel';
 import { DonCheckPanel } from '@/components/game/DonCheckPanel';
 import { SheriffCheckPanel } from '@/components/game/SheriffCheckPanel';
+import { NightMusic } from '@/components/game/NightMusic';
 import { MafiaKillPanel } from '@/components/game/MafiaKillPanel';
 import { TieDefensePanel } from '@/components/game/TieDefensePanel';
 import { DoubleEliminationPanel } from '@/components/game/DoubleEliminationPanel';
@@ -1429,6 +1430,16 @@ export function GamePage() {
 
       {/* ── Phase atmosphere (ambient tinted background per phase) ── */}
       <PhaseAtmosphere phase={phase} />
+
+      {/* Night music — YouTube audio for idle citizens/dead/spectators */}
+      <NightMusic
+        phase={phase}
+        enabled={!!room.settings.nightMusicEnabled}
+        videoId={room.settings.nightMusicVideoId ?? null}
+        myRole={myRole?.key ?? null}
+        amAlive={amAlive}
+        amSpectator={amSpectator}
+      />
 
       {/* ── Main layout ─────────────────────────────────────────────── */}
       <div className="relative z-10 h-[100dvh] flex flex-col">
