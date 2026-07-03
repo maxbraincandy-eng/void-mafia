@@ -290,6 +290,13 @@ export async function initializeDatabase() {
     await sql `ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS view_once BOOLEAN DEFAULT FALSE`;
     await sql `ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS viewed_at BIGINT`;
     await sql `
+    CREATE TABLE IF NOT EXISTS space_furniture (
+      space_id   TEXT PRIMARY KEY,
+      items      TEXT NOT NULL DEFAULT '[]',
+      updated_at BIGINT NOT NULL
+    )
+  `;
+    await sql `
     CREATE TABLE IF NOT EXISTS dm_reactions (
       message_id TEXT NOT NULL,
       reactor_id TEXT NOT NULL,

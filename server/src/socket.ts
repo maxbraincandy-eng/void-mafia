@@ -325,6 +325,49 @@ _spaceMeta.set('main', {
   code: 'VOIDLOUNGE', createdAt: Date.now(), persistent: true,
 });
 
+// ── Space furniture (owner-built lounges) ─────────────────────────────
+interface SpaceFurnitureItem { id: string; kind: string; x: number; y: number; scale: number; flip: boolean }
+const SPACE_FURNITURE_KINDS = new Set([
+  'sofa', 'chair', 'plant', 'lamp', 'bar', 'billiard', 'arcade', 'speaker',
+  'piano', 'disco', 'art', 'candle', 'chess', 'fountain', 'statue', 'rug',
+  'jukebox', 'neon_heart',
+]);
+const SPACE_FURNITURE_MAX = 40;
+const _spaceFurniture = new Map<string, SpaceFurnitureItem[]>();        // spaceId → items (cache)
+const _spaceFurnitureLoaded = new Set<string>();                        // spaceIds already loaded from DB
+const _spaceFurnitureSaveTimer = new Map<string, NodeJS.Timeout>();     // debounced persistence
+
+async function _loadSpaceFurniture(spaceId: string): Promise<SpaceFurnitureItem[]> {
+  if (_spaceFurnitureLoaded.has(spaceId)) return _spaceFurniture.get(spaceId) ?? [];
+  _spaceFurnitureLoaded.add(spaceId);
+  try {
+    const [row] = await sql`SELECT items FROM space_furniture WHERE space_id = ${spaceId}` as any[];
+    const items: SpaceFurnitureItem[] = row?.items ? JSON.parse(row.items) : [];
+    _spaceFurniture.set(spaceId, Array.isArray(items) ? items.slice(0, SPACE_FURNITURE_MAX) : []);
+  } catch { _spaceFurniture.set(spaceId, []); }
+  return _spaceFurniture.get(spaceId) ?? [];
+}
+
+function _saveSpaceFurniture(spaceId: string): void {
+  const t = _spaceFurnitureSaveTimer.get(spaceId);
+  if (t) clearTimeout(t);
+  _spaceFurnitureSaveTimer.set(spaceId, setTimeout(() => {
+    _spaceFurnitureSaveTimer.delete(spaceId);
+    const items = JSON.stringify(_spaceFurniture.get(spaceId) ?? []);
+    sql`
+      INSERT INTO space_furniture (space_id, items, updated_at)
+      VALUES (${spaceId}, ${items}, ${Date.now()})
+      ON CONFLICT (space_id) DO UPDATE SET items = ${items}, updated_at = ${Date.now()}
+    `.catch(() => {});
+  }, 800));
+}
+
+/** Editing rights: owned spaces → the owner; ownerless lounges (main/clan) → staff. */
+function _canEditSpace(meta: SpaceMeta, profileId: string | null, isStaff: boolean): boolean {
+  if (meta.ownerId) return meta.ownerId === profileId;
+  return isStaff;
+}
+
 const SPACE_THEMES = ['void', 'neon', 'cyber', 'sunset', 'mono', 'blood', 'gold'];
 const SPACE_LAYOUTS = ['lounge', 'home', 'penthouse'];
 const SPACE_ICONS  = ['🌌','🎮','🎬','🎧','🔥','💎','🛸','🌃','⚡','🃏','👾','🎲'];
@@ -6186,8 +6229,19 @@ export function attachSocketHandlers(io: AppServer): void {
         socket.to(`space:${safeSpace}`).emit('space:player-joined', player);
         const existingDJ = _spaceDJ.get(safeSpace) ?? null;
         const existingTV = _tvPublic(safeSpace);
-        const spacePublic = { ..._publicSpaceMeta(meta, room.size), canControlTv: _canControlTv(safeSpace, socket.data.profileId ?? null) };
-        cb?.({ ok: true, data: { players: [...room.values()], mySocketId: socket.id, djState: existingDJ, tvState: existingTV, space: spacePublic } });
+        // Furniture + per-viewer edit rights (owner of owned spaces; staff for main/clan).
+        const furniture = await _loadSpaceFurniture(safeSpace);
+        let canEdit = false;
+        if (socket.data.profileId) {
+          if (meta.ownerId) canEdit = meta.ownerId === socket.data.profileId;
+          else {
+            const prof = await getPlayer(socket.data.profileId).catch(() => null);
+            canEdit = !!prof?.isModerator;
+          }
+        }
+        (socket.data as any).spaceCanEdit = canEdit;
+        const spacePublic = { ..._publicSpaceMeta(meta, room.size), canControlTv: _canControlTv(safeSpace, socket.data.profileId ?? null), canEdit };
+        cb?.({ ok: true, data: { players: [...room.values()], mySocketId: socket.id, djState: existingDJ, tvState: existingTV, space: spacePublic, furniture } });
         if (existingDJ) socket.emit('space:dj-update', existingDJ);
         if (existingTV) socket.emit('tv:update', existingTV);
       } catch { cb?.({ ok: false, error: 'Internal error' }); }
@@ -6321,6 +6375,64 @@ export function attachSocketHandlers(io: AppServer): void {
     // KO leaderboard (bragging rights only — no coins/wagering).
     socket.on('space:ko_leaderboard' as any, async (cb: any) => {
       try { cb(ok(await getKnockoutLeaderboard())); } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Space furniture editor (owner-built lounges) ───────────────────
+    const furnitureGuard = (): { spaceId: string; items: SpaceFurnitureItem[] } | null => {
+      const spaceId = _spaceOfSocket(socket.id);
+      if (!spaceId) return null;
+      const meta = _spaceMeta.get(spaceId);
+      if (!meta) return null;
+      if (!(socket.data as any).spaceCanEdit) return null;
+      return { spaceId, items: _spaceFurniture.get(spaceId) ?? [] };
+    };
+    const furnitureBroadcast = (spaceId: string) => {
+      io.to(`space:${spaceId}`).emit('space:furniture' as any, { items: _spaceFurniture.get(spaceId) ?? [] });
+      _saveSpaceFurniture(spaceId);
+    };
+
+    socket.on('space:furniture_add' as any, ({ kind, x, y }: any, cb: Function) => {
+      try {
+        const ctx = furnitureGuard();
+        if (!ctx) return cb?.({ ok: false, error: 'რედაქტირების უფლება არ გაქვს.' });
+        if (!SPACE_FURNITURE_KINDS.has(String(kind))) return cb?.({ ok: false, error: 'Unknown item.' });
+        if (ctx.items.length >= SPACE_FURNITURE_MAX) return cb?.({ ok: false, error: `მაქს. ${SPACE_FURNITURE_MAX} ნივთი.` });
+        const item: SpaceFurnitureItem = {
+          id: 'f_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          kind: String(kind),
+          x: Math.max(2, Math.min(98, Number(x) || 50)),
+          y: Math.max(2, Math.min(95, Number(y) || 55)),
+          scale: 1, flip: false,
+        };
+        _spaceFurniture.set(ctx.spaceId, [...ctx.items, item]);
+        furnitureBroadcast(ctx.spaceId);
+        cb?.({ ok: true, data: item });
+      } catch { cb?.({ ok: false }); }
+    });
+
+    socket.on('space:furniture_update' as any, ({ id, x, y, scale, flip }: any, cb: Function) => {
+      try {
+        const ctx = furnitureGuard();
+        if (!ctx) return cb?.({ ok: false });
+        const item = ctx.items.find(f => f.id === id);
+        if (!item) return cb?.({ ok: false });
+        if (x !== undefined) item.x = Math.max(2, Math.min(98, Number(x) || item.x));
+        if (y !== undefined) item.y = Math.max(2, Math.min(95, Number(y) || item.y));
+        if (scale !== undefined) item.scale = Math.max(0.5, Math.min(2.4, Number(scale) || 1));
+        if (flip !== undefined) item.flip = !!flip;
+        furnitureBroadcast(ctx.spaceId);
+        cb?.({ ok: true });
+      } catch { cb?.({ ok: false }); }
+    });
+
+    socket.on('space:furniture_remove' as any, ({ id }: any, cb: Function) => {
+      try {
+        const ctx = furnitureGuard();
+        if (!ctx) return cb?.({ ok: false });
+        _spaceFurniture.set(ctx.spaceId, ctx.items.filter(f => f.id !== id));
+        furnitureBroadcast(ctx.spaceId);
+        cb?.({ ok: true });
+      } catch { cb?.({ ok: false }); }
     });
 
     // ── Duels (friendly 1v1 — first to 0 HP loses, nobody is kicked) ────

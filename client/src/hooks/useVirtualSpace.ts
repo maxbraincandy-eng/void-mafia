@@ -60,8 +60,11 @@ export interface SpaceMeta {
   online: number;
   persistent: boolean;
   canControlTv?: boolean;
+  canEdit?: boolean;
   layout?: string;
 }
+
+export interface SpaceFurnitureItem { id: string; kind: string; x: number; y: number; scale: number; flip: boolean }
 
 export interface ActiveDuel {
   aSocketId: string; aName: string;
@@ -84,6 +87,7 @@ interface VirtualSpaceState {
   duelInvite: DuelInvite | null;
   activeDuel: ActiveDuel | null;
   duelResult: DuelResult | null;
+  furniture: SpaceFurnitureItem[];
 }
 
 export function useVirtualSpace() {
@@ -97,6 +101,7 @@ export function useVirtualSpace() {
     projectiles: [],
     knockout: null, ghost: false,
     duelInvite: null, activeDuel: null, duelResult: null,
+    furniture: [],
   });
 
   const moveTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -139,7 +144,7 @@ export function useVirtualSpace() {
           if (!res?.ok) { resolve(false); return; }
           const players = new Map<string, SpacePlayer>();
           for (const p of res.data.players) players.set(p.socketId, p);
-          setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null });
+          setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null, furniture: res.data.furniture ?? [] });
           resolve(true);
         },
       );
@@ -160,6 +165,22 @@ export function useVirtualSpace() {
   const respondDuel = useCallback((fromSocketId: string, accept: boolean) => {
     setState(prev => ({ ...prev, duelInvite: null }));
     (socket as any).emit('space:duel_respond', { fromSocketId, accept }, () => {});
+  }, []);
+
+  // ── Furniture editor (owner) ──────────────────────────────────────
+  const furnitureAdd = useCallback((kind: string, x: number, y: number) => {
+    return new Promise<{ ok: boolean; error?: string }>((resolve) => {
+      (socket as any).emit('space:furniture_add', { kind, x, y }, (res: any) => resolve(res ?? { ok: false }));
+    });
+  }, []);
+  const furnitureUpdate = useCallback((id: string, patch: { x?: number; y?: number; scale?: number; flip?: boolean }) => {
+    // Optimistic local move so dragging feels instant; server broadcast reconciles.
+    setState(prev => ({ ...prev, furniture: prev.furniture.map(f => f.id === id ? { ...f, ...patch } : f) }));
+    (socket as any).emit('space:furniture_update', { id, ...patch }, () => {});
+  }, []);
+  const furnitureRemove = useCallback((id: string) => {
+    setState(prev => ({ ...prev, furniture: prev.furniture.filter(f => f.id !== id) }));
+    (socket as any).emit('space:furniture_remove', { id }, () => {});
   }, []);
 
   const clearKnockout = useCallback(() => {
@@ -209,7 +230,7 @@ export function useVirtualSpace() {
     for (const t of msgTimers.current.values()) clearTimeout(t);
     msgTimers.current.clear();
     if (moveTimer.current) { clearTimeout(moveTimer.current); moveTimer.current = null; }
-    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null });
+    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null, furniture: [] });
   }, []);
 
   // Ghost observe — enter a space as an invisible owner (no avatar, no voice,
@@ -220,7 +241,7 @@ export function useVirtualSpace() {
         if (!res?.ok) { resolve(false); return; }
         const players = new Map<string, SpacePlayer>();
         for (const p of res.data.players) players.set(p.socketId, p);
-        setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: true, duelInvite: null, activeDuel: null, duelResult: null });
+        setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: true, duelInvite: null, activeDuel: null, duelResult: null, furniture: [] });
         resolve(true);
       });
     });
@@ -228,7 +249,7 @@ export function useVirtualSpace() {
 
   const ghostLeave = useCallback(() => {
     (socket as any).emit('space:ghost_leave');
-    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null });
+    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null, furniture: [] });
   }, []);
 
   const sit = useCallback((myId: string, seatId: string, x: number, y: number) => {
@@ -473,6 +494,10 @@ export function useVirtualSpace() {
       setState(prev => ({ ...prev, joined: false, players: new Map(), reactions: [], knockout: { byName }, duelInvite: null, activeDuel: null }));
     }
 
+    function onFurniture({ items }: { items: SpaceFurnitureItem[] }) {
+      setState(prev => ({ ...prev, furniture: items ?? [] }));
+    }
+
     // ── Duels ──────────────────────────────────────────────────────────
     function onDuelInvite(d: DuelInvite) {
       setState(prev => (prev.activeDuel ? prev : { ...prev, duelInvite: d }));
@@ -521,6 +546,7 @@ export function useVirtualSpace() {
     (socket as any).on('space:meta-update',     onMetaUpdate);
     (socket as any).on('space:hit',             onHit);
     (socket as any).on('space:knockout',        onKnockout);
+    (socket as any).on('space:furniture',       onFurniture);
     (socket as any).on('space:duel_invite',     onDuelInvite);
     (socket as any).on('space:duel_start',      onDuelStart);
     (socket as any).on('space:duel_end',        onDuelEnd);
@@ -538,6 +564,7 @@ export function useVirtualSpace() {
       (socket as any).off('space:meta-update',     onMetaUpdate);
       (socket as any).off('space:hit',             onHit);
       (socket as any).off('space:knockout',        onKnockout);
+      (socket as any).off('space:furniture',       onFurniture);
       (socket as any).off('space:duel_invite',     onDuelInvite);
       (socket as any).off('space:duel_start',      onDuelStart);
       (socket as any).off('space:duel_end',        onDuelEnd);
@@ -547,5 +574,5 @@ export function useVirtualSpace() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { ...state, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, clearKnockout, challengeDuel, respondDuel, dismissDuelInvite, dismissDuelResult, ghostJoin, ghostLeave };
+  return { ...state, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, clearKnockout, challengeDuel, respondDuel, dismissDuelInvite, dismissDuelResult, furnitureAdd, furnitureUpdate, furnitureRemove, ghostJoin, ghostLeave };
 }

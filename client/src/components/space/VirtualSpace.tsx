@@ -903,6 +903,29 @@ const PREMIUM_HATS: Premium = { party: { id: 'sp_hat_party', price: 500 }, crown
 const PREMIUM_PETS: Premium = { fish2: { id: 'sp_pet_fish2', price: 400 }, chick: { id: 'sp_pet_chick', price: 400 }, bot: { id: 'sp_pet_bot', price: 600 }, star: { id: 'sp_pet_star', price: 600 } };
 const PREMIUM_FORMS: Premium = { car: { id: 'sp_form_car', price: 1500 } };
 
+// ── Furniture catalog (owner-built lounges) — keys mirror the server list ──
+const FURNITURE_CATALOG: { kind: string; emoji: string; label: string }[] = [
+  { kind: 'sofa',       emoji: '🛋️', label: 'დივანი' },
+  { kind: 'chair',      emoji: '🪑', label: 'სკამი' },
+  { kind: 'plant',      emoji: '🪴', label: 'მცენარე' },
+  { kind: 'lamp',       emoji: '🛢️', label: 'მაგიდა' },
+  { kind: 'bar',        emoji: '🍸', label: 'ბარი' },
+  { kind: 'billiard',   emoji: '🎱', label: 'ბილიარდი' },
+  { kind: 'arcade',     emoji: '🕹️', label: 'არკადა' },
+  { kind: 'speaker',    emoji: '🔊', label: 'დინამიკი' },
+  { kind: 'piano',      emoji: '🎹', label: 'პიანინო' },
+  { kind: 'disco',      emoji: '🪩', label: 'დისკო' },
+  { kind: 'art',        emoji: '🖼️', label: 'ნახატი' },
+  { kind: 'candle',     emoji: '🕯️', label: 'სანთელი' },
+  { kind: 'chess',      emoji: '♟️', label: 'ჭადრაკი' },
+  { kind: 'fountain',   emoji: '⛲', label: 'შადრევანი' },
+  { kind: 'statue',     emoji: '🗿', label: 'ქანდაკება' },
+  { kind: 'rug',        emoji: '🟪', label: 'ხალიჩა' },
+  { kind: 'jukebox',    emoji: '📻', label: 'ჯუკბოქსი' },
+  { kind: 'neon_heart', emoji: '🖤', label: 'ნეონი' },
+];
+const FURNITURE_EMOJI: Record<string, string> = Object.fromEntries(FURNITURE_CATALOG.map(f => [f.kind, f.emoji]));
+
 function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: (b: string, g: string, m: SpaceMask, hat: string, pet: string, form: string) => void }) {
   const authProfile = useAuthStore(s => s.profile);
   const owned = authProfile?.cosmetics?.unlockedItems ?? [];
@@ -1517,7 +1540,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const [socialProfileId, setSocialProfileId] = useState<string | null>(null);
   const openDmList = useSocialStore(s => s.openDmList);
 
-  const { joined, ghost, mySocketId, players, chatHistory, space, reactions, projectiles, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, knockout, clearKnockout, challengeDuel, respondDuel, duelInvite, activeDuel, duelResult, dismissDuelInvite, dismissDuelResult, ghostJoin, ghostLeave } = useVirtualSpace();
+  const { joined, ghost, mySocketId, players, chatHistory, space, reactions, projectiles, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, knockout, clearKnockout, challengeDuel, respondDuel, duelInvite, activeDuel, duelResult, dismissDuelInvite, dismissDuelResult, furniture, furnitureAdd, furnitureUpdate, furnitureRemove, ghostJoin, ghostLeave } = useVirtualSpace();
   // Local punch-emoji bursts above the floating attack button.
   const [punchFx, setPunchFx] = useState<{ id: number; emoji: string; dx: number }[]>([]);
   const punchIdRef = useRef(0);
@@ -1525,6 +1548,36 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
     const id = ++punchIdRef.current;
     setPunchFx(f => [...f, { id, emoji, dx: (Math.random() - 0.5) * 60 }]);
     setTimeout(() => setPunchFx(f => f.filter(x => x.id !== id)), 850);
+  };
+
+  // ── Furniture editor (owner) ─────────────────────────────────────────
+  const canEditSpace = space?.canEdit ?? false;
+  const [editMode, setEditMode] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [selectedFurn, setSelectedFurn] = useState<string | null>(null);
+  const [furnMsg, setFurnMsg] = useState('');
+  const furnDrag = useRef<{ id: string; moved: boolean; lastSent: number } | null>(null);
+  useEffect(() => { if (!joined) { setEditMode(false); setPaletteOpen(false); setSelectedFurn(null); } }, [joined]);
+
+  const furnPointerMove = (e: React.PointerEvent) => {
+    const d = furnDrag.current;
+    if (!d || !worldRef.current) return;
+    const rect = worldRef.current.getBoundingClientRect();
+    const x = Math.max(2, Math.min(98, ((e.clientX - rect.left) / rect.width) * 100));
+    const y = Math.max(2, Math.min(95, ((e.clientY - rect.top) / rect.height) * 100));
+    d.moved = true;
+    const now = Date.now();
+    if (now - d.lastSent > 90) { d.lastSent = now; furnitureUpdate(d.id, { x, y }); }
+  };
+  const furnPointerUp = (e: React.PointerEvent) => {
+    const d = furnDrag.current;
+    furnDrag.current = null;
+    if (!d || !worldRef.current) return;
+    const rect = worldRef.current.getBoundingClientRect();
+    const x = Math.max(2, Math.min(98, ((e.clientX - rect.left) / rect.width) * 100));
+    const y = Math.max(2, Math.min(95, ((e.clientY - rect.top) / rect.height) * 100));
+    if (d.moved) furnitureUpdate(d.id, { x, y });
+    else setSelectedFurn(prev => prev === d.id ? null : d.id); // plain tap toggles selection
   };
   // Owner Ghost Mode: when on, the owner observes spaces without spawning.
   const [ghostMode, setGhostMode] = useState(false);
@@ -1802,6 +1855,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   }
 
   function handleWorldTap(clientX: number, clientY: number) {
+    if (editMode) return; // furniture editing — taps place/drag items, not the avatar
     if (ghost) return; // ghost observers have no avatar to move
     if (!joined || !mySocketId || djPanelOpen) return;
     const rect = worldRef.current!.getBoundingClientRect();
@@ -1900,6 +1954,13 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             🏆
           </button>
         )}
+        {joined && canEditSpace && (
+          <button onClick={() => { setEditMode(m => { const n = !m; if (!n) { setPaletteOpen(false); setSelectedFurn(null); } return n; }); }}
+            className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90"
+            style={{ background: editMode ? 'rgba(0,255,136,.18)' : 'rgba(0,255,136,.08)', border: `1px solid ${editMode ? 'rgba(0,255,136,.6)' : 'rgba(0,255,136,.3)'}`, fontSize: 14 }} title="სივრცის რედაქტორი">
+            🛠️
+          </button>
+        )}
         {joined && canChangeTheme && (
           <button onClick={()=>setThemePickerOpen(true)} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:`${themeDef.accent}14`,border:`1px solid ${themeDef.accent}40`,fontSize:14 }} title="თემა">
             🎨
@@ -1978,6 +2039,31 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             <PerspectiveFloor/>
             <div className="absolute inset-0 pointer-events-none" style={{background:'radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(2,0,16,.55) 100%)'}}/>
             <RoomObjects djActive={!!djState?.isPlaying} onDJClick={()=>setDjPanelOpen(o=>!o)} onGamesClick={()=>setShowGames(true)} decor={layout.decor}/>
+
+            {/* Owner-placed furniture */}
+            {furniture.map(f => (
+              <div
+                key={f.id}
+                onPointerDown={editMode ? (e) => { e.stopPropagation(); (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); furnDrag.current = { id: f.id, moved: false, lastSent: 0 }; } : undefined}
+                onPointerMove={editMode ? furnPointerMove : undefined}
+                onPointerUp={editMode ? (e) => { e.stopPropagation(); furnPointerUp(e); } : undefined}
+                onClick={editMode ? (e) => e.stopPropagation() : undefined}
+                onTouchStart={editMode ? (e) => e.stopPropagation() : undefined}
+                style={{
+                  position: 'absolute', left: `${f.x}%`, top: `${f.y}%`,
+                  transform: `translate(-50%,-50%) ${f.flip ? 'scaleX(-1)' : ''}`,
+                  fontSize: Math.round(34 * (f.scale ?? 1)), lineHeight: 1,
+                  pointerEvents: editMode ? 'auto' : 'none',
+                  cursor: editMode ? 'grab' : 'default',
+                  filter: `drop-shadow(0 4px 10px rgba(0,0,0,.5)) drop-shadow(0 0 10px ${themeDef.accent}33)`,
+                  zIndex: 3, touchAction: 'none', userSelect: 'none',
+                  outline: editMode && selectedFurn === f.id ? `2px dashed ${themeDef.accent}` : 'none',
+                  outlineOffset: 4, borderRadius: 8,
+                }}
+              >
+                {FURNITURE_EMOJI[f.kind] ?? '❓'}
+              </div>
+            ))}
 
             {/* Cinema TV — synced watch party */}
             <CinemaTV tvState={tvState} canControl={space?.canControlTv ?? false} myDist={myTvDist} viewerCount={tvViewers} tvX={layout.tv.x} tvY={layout.tv.y} />
@@ -2248,6 +2334,63 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
               Locked themes can be bought from the Coin Shop → Spaces tab. Everyone in the room sees the active theme.
             </p>
           </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Furniture editor UI ─────────────────────────────────────── */}
+      {editMode && createPortal(
+        <div key="furn-editor">
+          {/* Edit-mode banner + actions */}
+          <div style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top,0px) + 54px)', left: '50%', transform: 'translateX(-50%)', zIndex: 1200, display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 999, background: 'rgba(4,20,10,.96)', border: '1px solid rgba(0,255,136,.45)', boxShadow: '0 6px 24px rgba(0,0,0,.55)' }}>
+            <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#00ff88', whiteSpace: 'nowrap' }}>🛠️ რედაქტორი · {furniture.length}/40</span>
+            <button onClick={() => { setPaletteOpen(o => !o); setSelectedFurn(null); }}
+              style={{ padding: '7px 12px', borderRadius: 999, fontFamily: 'monospace', fontSize: 12, fontWeight: 700, background: paletteOpen ? 'rgba(0,255,136,.25)' : 'rgba(0,255,136,.12)', border: '1px solid rgba(0,255,136,.5)', color: '#00ff88' }}>➕ ავეჯი</button>
+            <button onClick={() => { setEditMode(false); setPaletteOpen(false); setSelectedFurn(null); }}
+              style={{ padding: '7px 12px', borderRadius: 999, fontFamily: 'monospace', fontSize: 12, fontWeight: 700, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.2)', color: '#fff' }}>✓ მზადაა</button>
+          </div>
+          {furnMsg && (
+            <p style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top,0px) + 100px)', left: '50%', transform: 'translateX(-50%)', zIndex: 1200, fontFamily: 'monospace', fontSize: 11, color: '#ff6b81', background: 'rgba(10,4,26,.9)', padding: '5px 12px', borderRadius: 10 }}>{furnMsg}</p>
+          )}
+
+          {/* Selected item controls */}
+          {selectedFurn && (() => {
+            const f = furniture.find(x => x.id === selectedFurn);
+            if (!f) return null;
+            const btn = { padding: '9px 12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 14, background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.16)', color: '#fff' } as const;
+            return (
+              <div style={{ position: 'fixed', left: '50%', transform: 'translateX(-50%)', bottom: 'calc(env(safe-area-inset-bottom,0px) + 96px)', zIndex: 1200, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', borderRadius: 16, background: 'rgba(4,20,10,.97)', border: '1px solid rgba(0,255,136,.45)', boxShadow: '0 8px 30px rgba(0,0,0,.6)' }}>
+                <span style={{ fontSize: 20 }}>{FURNITURE_EMOJI[f.kind] ?? '❓'}</span>
+                <button style={btn} onClick={() => furnitureUpdate(f.id, { scale: Math.max(0.5, +(f.scale - 0.2).toFixed(2)) })}>➖</button>
+                <button style={btn} onClick={() => furnitureUpdate(f.id, { scale: Math.min(2.4, +(f.scale + 0.2).toFixed(2)) })}>➕</button>
+                <button style={btn} onClick={() => furnitureUpdate(f.id, { flip: !f.flip })}>↔️</button>
+                <button style={{ ...btn, background: 'rgba(255,45,85,.15)', border: '1px solid rgba(255,45,85,.5)', color: '#ff6b81' }}
+                  onClick={() => { furnitureRemove(f.id); setSelectedFurn(null); }}>🗑</button>
+                <button style={btn} onClick={() => setSelectedFurn(null)}>✕</button>
+              </div>
+            );
+          })()}
+
+          {/* Item palette — bottom sheet */}
+          {paletteOpen && (
+            <div style={{ position: 'fixed', left: 8, right: 8, bottom: 'calc(env(safe-area-inset-bottom,0px) + 96px)', zIndex: 1200, maxWidth: 480, margin: '0 auto', padding: 12, borderRadius: 20, background: 'rgba(4,14,8,.97)', border: '1px solid rgba(0,255,136,.4)', boxShadow: '0 10px 40px rgba(0,0,0,.6)' }}>
+              <p style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: '.2em', color: 'rgba(0,255,136,.6)', textTransform: 'uppercase', marginBottom: 8 }}>აირჩიე ნივთი — დაემატება ცენტრში, გადაათრიე ადგილზე</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                {FURNITURE_CATALOG.map(item => (
+                  <button key={item.kind}
+                    onClick={async () => {
+                      setFurnMsg('');
+                      const r = await furnitureAdd(item.kind, 46 + Math.random() * 8, 52 + Math.random() * 8);
+                      if (!r.ok) setFurnMsg(r.error ?? 'ვერ დაემატა');
+                    }}
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '8px 2px', borderRadius: 12, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)' }}>
+                    <span style={{ fontSize: 22, lineHeight: 1 }}>{item.emoji}</span>
+                    <span style={{ fontFamily: 'monospace', fontSize: 8, color: 'rgba(255,255,255,.5)' }}>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>,
         document.body
       )}
