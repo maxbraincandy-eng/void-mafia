@@ -271,7 +271,7 @@ export function NotificationPanel({
               <NotifRow
                 key={n.id}
                 n={n}
-                onTapPost={handleTapPost}
+                onTapPost={onOpenPost ? handleTapPost : undefined}
                 onTapProfile={handleTapProfile}
               />
             ))
