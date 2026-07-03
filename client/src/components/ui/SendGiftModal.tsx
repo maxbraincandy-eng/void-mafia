@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { emitWithAck, socket } from '@/lib/socket';
 import type { GiftCatalogItem, GiftRarity, Res } from '@/types/index';
@@ -115,7 +116,7 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
   const rarityGlow = selected ? RARITY_GLOW[selected.rarity] ?? RARITY_GLOW.common : undefined;
   const rarityBorder = selected ? RARITY_BORDER[selected.rarity] ?? RARITY_BORDER.common : 'rgba(255,255,255,0.07)';
 
-  return (
+  return createPortal(
     <motion.div
       className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm px-3 pb-4 sm:pb-0"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -367,6 +368,7 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
           )}
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }
