@@ -88,7 +88,7 @@ import {
   sendGift, getPlayerGifts, getGiftDetail,
   getGiftsSent, getGiftTimeline, getGiftStats,
   getPinnedGifts, pinGift, unpinGift, hideGift, unhideGift, getHiddenGifts,
-  purchaseCosmeticItem,
+  purchaseCosmeticItem, checkProfileCompletionBonus,
 } from './services/coinService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
@@ -1505,6 +1505,11 @@ export function attachSocketHandlers(io: AppServer): void {
         }
 
         cb({ ok: true, data: toPublicProfile(profile!) });
+
+        // Check profile completion bonus (avatar + banner = 300 coins)
+        checkProfileCompletionBonus(profileId).then(r => {
+          if (r.awarded) socket.emit('coin:bonus' as any, { type: 'profile_complete', coins: 300, newBalance: r.newBalance });
+        }).catch(() => {});
       } catch (e: any) {
         cb({ ok: false, error: e.message ?? 'Upload failed.' });
       }
@@ -5487,6 +5492,13 @@ export function attachSocketHandlers(io: AppServer): void {
         await updateCommunityProfile(profileId, data);
         const profile = await getCommunityProfileV2(profileId, profileId);
         cb(ok(profile!));
+
+        // Check profile completion bonus (avatar + banner = 300 coins)
+        if (data.coverUrl) {
+          checkProfileCompletionBonus(profileId).then(r => {
+            if (r.awarded) socket.emit('coin:bonus' as any, { type: 'profile_complete', coins: 300, newBalance: r.newBalance });
+          }).catch(() => {});
+        }
       } catch (e: any) { cb(err(e.message)); }
     });
 

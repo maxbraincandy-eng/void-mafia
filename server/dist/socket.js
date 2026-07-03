@@ -24,7 +24,7 @@ import { sql } from './db.js';
 import bcrypt from 'bcryptjs';
 import { sendPushToUser } from './pushService.js';
 import { getOrCreateConversation, listConversations, sendMessage, sendVoiceDm, sendImageDm, getMessages, markRead, getTotalUnread, toggleDmReaction, markViewOnceViewed, } from './services/dmService.js';
-import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, getGiftsSent, getGiftTimeline, getGiftStats, getPinnedGifts, pinGift, unpinGift, hideGift, unhideGift, getHiddenGifts, purchaseCosmeticItem, } from './services/coinService.js';
+import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, getGiftsSent, getGiftTimeline, getGiftStats, getPinnedGifts, pinGift, unpinGift, hideGift, unhideGift, getHiddenGifts, purchaseCosmeticItem, checkProfileCompletionBonus, } from './services/coinService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
 import { getActiveSeason, getSeasonLeaderboard, getMySeasonHistory } from './services/seasonService.js';
@@ -1411,6 +1411,11 @@ export function attachSocketHandlers(io) {
                     broadcastRoom(io, room);
                 }
                 cb({ ok: true, data: toPublicProfile(profile) });
+                // Check profile completion bonus (avatar + banner = 300 coins)
+                checkProfileCompletionBonus(profileId).then(r => {
+                    if (r.awarded)
+                        socket.emit('coin:bonus', { type: 'profile_complete', coins: 300, newBalance: r.newBalance });
+                }).catch(() => { });
             }
             catch (e) {
                 cb({ ok: false, error: e.message ?? 'Upload failed.' });
@@ -6157,6 +6162,13 @@ export function attachSocketHandlers(io) {
                 await updateCommunityProfile(profileId, data);
                 const profile = await getCommunityProfileV2(profileId, profileId);
                 cb(ok(profile));
+                // Check profile completion bonus (avatar + banner = 300 coins)
+                if (data.coverUrl) {
+                    checkProfileCompletionBonus(profileId).then(r => {
+                        if (r.awarded)
+                            socket.emit('coin:bonus', { type: 'profile_complete', coins: 300, newBalance: r.newBalance });
+                    }).catch(() => { });
+                }
             }
             catch (e) {
                 cb(err(e.message));

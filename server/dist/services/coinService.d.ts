@@ -164,6 +164,10 @@ export declare function unpinGift(playerId: string, giftId: string): Promise<voi
 export declare function hideGift(recipientId: string, giftId: string): Promise<void>;
 export declare function unhideGift(recipientId: string, giftId: string): Promise<void>;
 export declare function getHiddenGifts(recipientId: string): Promise<PlayerGift[]>;
+export declare function checkProfileCompletionBonus(playerId: string): Promise<{
+    awarded: boolean;
+    newBalance?: number;
+}>;
 export declare function currentSeasonTag(): string | null;
 export declare function creditPurchasedCoins(profileId: string, amount: number, description: string): Promise<{
     newBalance: number;

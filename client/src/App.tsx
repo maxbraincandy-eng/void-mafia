@@ -760,6 +760,16 @@ export default function App() {
     return () => { socket.off('gifts:received' as any, handler); };
   }, []);
 
+  useEffect(() => {
+    const handler = (data: { type: string; coins: number }) => {
+      if (data.type === 'profile_complete') {
+        useGameStore.getState().addToast(`🎉 +${data.coins} ქოინი! პროფილის სრულად შევსების ბონუსი`, 'success');
+      }
+    };
+    socket.on('coin:bonus' as any, handler);
+    return () => { socket.off('coin:bonus' as any, handler); };
+  }, []);
+
   return (
     <>
       <ThemeProvider />

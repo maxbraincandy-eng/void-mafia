@@ -791,6 +791,29 @@ export async function getHiddenGifts(recipientId: string): Promise<PlayerGift[]>
   }));
 }
 
+const PROFILE_COMPLETE_BONUS = 300;
+
+export async function checkProfileCompletionBonus(playerId: string): Promise<{ awarded: boolean; newBalance?: number }> {
+  const [player] = await sql`
+    SELECT avatar_url, community_cover_url FROM players WHERE id = ${playerId}
+  ` as any[];
+  if (!player) return { awarded: false };
+  if (!player.avatar_url || !player.community_cover_url) return { awarded: false };
+
+  const [already] = await sql`
+    SELECT 1 FROM coin_transactions
+    WHERE player_id = ${playerId} AND description = 'Profile completion bonus (avatar + banner)'
+    LIMIT 1
+  ` as any[];
+  if (already) return { awarded: false };
+
+  const { balanceAfter } = await recordTransaction(
+    playerId, 'grant', PROFILE_COMPLETE_BONUS,
+    'Profile completion bonus (avatar + banner)',
+  );
+  return { awarded: true, newBalance: balanceAfter };
+}
+
 export function currentSeasonTag(): string | null {
   const now = new Date();
   const month = now.getMonth() + 1; // 1-12
