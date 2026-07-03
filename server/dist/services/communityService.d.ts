@@ -181,6 +181,7 @@ export declare function getStoryReactions(storyId: string, viewerId?: string): P
     reactions: Record<string, number>;
     myReaction: string | null;
 }>;
+export declare function getPostById(postId: string, viewerId: string): Promise<CommunityPostV2 | null>;
 export declare function getUserPosts(authorId: string, viewerId: string, options?: {
     before?: number;
     limit?: number;

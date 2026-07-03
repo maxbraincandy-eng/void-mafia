@@ -19,6 +19,7 @@ import AdminPanel from '@/components/community/AdminPanel';
 import { CommunityProfilePage } from '@/components/community/CommunityProfilePage';
 import { ProfileModalV2 } from '@/components/community/ProfileModalV2';
 import { CommunitySearchPanel } from '@/components/community/CommunitySearchPanel';
+import { PostDetailModal } from '@/components/community/PostDetailModal';
 import { useSocialStore } from '@/store/socialStore';
 
 type CommunityTab = 'feed' | 'voice' | 'people' | 'games' | 'debates' | 'activity' | 'events' | 'leaderboard';
@@ -36,6 +37,7 @@ export function CommunityPage() {
   const [showSearch, setShowSearch] = useState(false);
   const [viewProfileId, setViewProfileId] = useState<string | null>(null);  // quick popup
   const [fullProfileId, setFullProfileId] = useState<string | null>(null); // full-page profile
+  const [viewPostId, setViewPostId] = useState<string | null>(null); // post detail modal
   const unreadCount = useCommunityStore(s => s.unreadCount);
   const fetchUnreadCount = useCommunityStore(s => s.fetchUnreadCount);
   const { openDmList, unreadDmCount } = useSocialStore(s => ({ openDmList: s.openDmList, unreadDmCount: s.unreadDmCount }));
@@ -278,6 +280,7 @@ export function CommunityPage() {
         {showNotifications && (
           <NotificationPanel
             onClose={() => setShowNotifications(false)}
+            onOpenPost={id => { setShowNotifications(false); setViewPostId(id); }}
             onOpenProfile={id => { setShowNotifications(false); setViewProfileId(id); }}
           />
         )}
@@ -314,6 +317,13 @@ export function CommunityPage() {
           />
         )}
       </AnimatePresence>
+      {viewPostId && (
+        <PostDetailModal
+          postId={viewPostId}
+          onClose={() => setViewPostId(null)}
+          onOpenProfile={id => { setViewPostId(null); setViewProfileId(id); }}
+        />
+      )}
     </div>
   );
 }

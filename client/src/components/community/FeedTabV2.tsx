@@ -29,7 +29,6 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
   const CATS: { id: FeedCategory; label: string }[] = [
     { id: 'all',       label: t.community.feedCategories.all },
     { id: 'following', label: t.community.feedCategories.following },
-    { id: 'trending',  label: t.community.feedCategories.trending },
   ];
 
   const doLoad = useCallback(async () => {
@@ -158,39 +157,52 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
         </div>
       )}
 
-      {/* Category bar */}
+      {/* Category bar: ყველა → ჩემი პროფილი → გამოწერილი */}
       <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
-        {CATS.map(cat => {
-          const active = feedCategory === cat.id;
-          return (
-            <button
-              key={cat.id}
-              onClick={() => setFeedCategory(cat.id)}
-              className="px-3 py-1.5 rounded-full font-mono text-[12px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 active:scale-95"
-              style={{
-                background: active ? 'linear-gradient(135deg, rgba(155,0,255,0.28), rgba(0,245,255,0.16))' : 'rgba(255,255,255,0.03)',
-                border: `1px solid ${active ? 'rgba(155,0,255,0.45)' : 'rgba(255,255,255,0.08)'}`,
-                color: active ? '#fff' : 'rgba(255,255,255,0.4)',
-              }}
-            >
-              {cat.label}
-            </button>
-          );
-        })}
-        {/* My Profile pseudo-tab */}
+        {/* ყველა */}
+        <button
+          onClick={() => setFeedCategory('all')}
+          className="px-3 py-1.5 rounded-full font-mono text-[12px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 active:scale-95"
+          style={{
+            background: feedCategory === 'all' ? 'linear-gradient(135deg, rgba(155,0,255,0.28), rgba(0,245,255,0.16))' : 'rgba(255,255,255,0.03)',
+            border: `1px solid ${feedCategory === 'all' ? 'rgba(155,0,255,0.45)' : 'rgba(255,255,255,0.08)'}`,
+            color: feedCategory === 'all' ? '#fff' : 'rgba(255,255,255,0.4)',
+          }}
+        >
+          {t.community.feedCategories.all}
+        </button>
+
+        {/* ჩემი პროფილი — neon glow */}
         <button
           onClick={() => onOpenMyProfile?.()}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full font-mono text-[12px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 active:scale-95"
           style={{
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            color: 'rgba(255,255,255,0.4)',
+            background: 'linear-gradient(135deg, rgba(0,245,255,0.12), rgba(155,0,255,0.12))',
+            border: '1px solid rgba(0,245,255,0.35)',
+            color: '#00f5ff',
+            textShadow: '0 0 8px rgba(0,245,255,0.6), 0 0 16px rgba(0,245,255,0.3)',
+            boxShadow: '0 0 10px rgba(0,245,255,0.15), inset 0 0 8px rgba(0,245,255,0.05)',
           }}
         >
-          {profile?.avatar && (
+          {profile?.avatarUrl ? (
+            <img src={profile.avatarUrl} alt="" style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(0,245,255,0.4)' }} />
+          ) : profile?.avatar ? (
             <span style={{ fontSize: 13, lineHeight: 1 }}>{profile.avatar}</span>
-          )}
-          ჩემი
+          ) : null}
+          ჩემი პროფილი
+        </button>
+
+        {/* გამოწერილი */}
+        <button
+          onClick={() => setFeedCategory('following')}
+          className="px-3 py-1.5 rounded-full font-mono text-[12px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 active:scale-95"
+          style={{
+            background: feedCategory === 'following' ? 'linear-gradient(135deg, rgba(155,0,255,0.28), rgba(0,245,255,0.16))' : 'rgba(255,255,255,0.03)',
+            border: `1px solid ${feedCategory === 'following' ? 'rgba(155,0,255,0.45)' : 'rgba(255,255,255,0.08)'}`,
+            color: feedCategory === 'following' ? '#fff' : 'rgba(255,255,255,0.4)',
+          }}
+        >
+          {t.community.feedCategories.following}
         </button>
       </div>
 

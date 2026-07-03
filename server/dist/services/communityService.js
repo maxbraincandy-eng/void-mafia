@@ -1108,6 +1108,20 @@ export async function getStoryReactions(storyId, viewerId) {
     }
     return { reactions, myReaction };
 }
+// Fetch a single post by ID
+export async function getPostById(postId, viewerId) {
+    const rows = await sql `
+    SELECT p.*, pl.username AS author_name, pl.avatar AS author_avatar, pl.avatar_url AS author_avatar_url,
+           pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url
+    FROM community_posts p
+    JOIN players pl ON pl.id = p.author_id
+    WHERE p.id = ${postId} AND p.hidden = false
+    LIMIT 1
+  `;
+    if (rows.length === 0)
+        return null;
+    return buildPostV2(rows[0], viewerId);
+}
 // Fetch posts by a single author (for community profile page)
 export async function getUserPosts(authorId, viewerId, options = {}) {
     const limit = Math.min(options.limit ?? 40, 80);

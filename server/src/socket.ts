@@ -120,7 +120,7 @@ import {
   listPeopleDirectory, getFollowersList, getFollowingList,
   searchCommunity, upsertOnlineSeen, getOnlineMembers, computeTrending, recalcReputation,
   extractHashtags, generateAnonymousName,
-  togglePostReaction, getPostReactions, getWeeklyLeaderboard,
+  togglePostReaction, getPostReactions, getWeeklyLeaderboard, getPostById,
 } from './services/communityService.js';
 import {
   listDebates, getDebateFull, createDebate, joinDebate, postArgument, voteDebate, closeDebate,
@@ -5529,6 +5529,15 @@ export function attachSocketHandlers(io: AppServer): void {
         const viewerId = socket.data.profileId ?? '';
         const posts = await getUserPosts(authorId, viewerId, { before });
         cb(ok(posts));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:post_get' as any, async (data: any, cb: any) => {
+      try {
+        const viewerId = socket.data.profileId ?? '';
+        const post = await getPostById(data.postId, viewerId);
+        if (!post) { cb(err('Post not found.')); return; }
+        cb(ok(post));
       } catch (e: any) { cb(err(e.message)); }
     });
 

@@ -175,22 +175,24 @@ function GroupedNotifRow({
 }) {
   const icon = getNotifIcon(g.type);
   const firstActorId = g.actors[0]?.id;
-  const isClickable = !!g.postId || !!firstActorId;
+  const hasPost = !!g.postId && !!onTapPost;
+  const hasProfile = !!firstActorId && !!onTapProfile;
+  const hasBoth = hasPost && hasProfile;
 
   const handleTap = () => {
-    if (g.postId && onTapPost) onTapPost(g.postId);
-    else if (firstActorId && onTapProfile) onTapProfile(firstActorId);
+    if (hasBoth) return;
+    if (hasPost) onTapPost!(g.postId!);
+    else if (hasProfile) onTapProfile!(firstActorId!);
   };
 
   return (
-    <button
-      onClick={isClickable ? handleTap : undefined}
-      disabled={!isClickable}
-      className="w-full flex items-start gap-3 px-4 py-3 text-left transition-all active:bg-white/5"
+    <div
+      onClick={!hasBoth ? handleTap : undefined}
+      className="w-full flex items-start gap-3 px-4 py-3 text-left transition-all"
       style={{
         borderBottom: '1px solid rgba(255,255,255,0.04)',
         background: g.read ? 'transparent' : getNotifAccent(g.type),
-        cursor: isClickable ? 'pointer' : 'default',
+        cursor: (hasPost || hasProfile) && !hasBoth ? 'pointer' : 'default',
       }}
     >
       <div className="flex-shrink-0 mt-0.5">
@@ -218,13 +220,33 @@ function GroupedNotifRow({
             <span className="w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0" style={{ background: '#9b00ff', boxShadow: '0 0 6px rgba(155,0,255,0.6)' }} />
           )}
         </div>
-        <p className="text-[11px] text-white/25 mt-1 font-mono">{timeAgo(g.latestAt)}</p>
-      </div>
 
-      {isClickable && (
-        <span className="text-white/15 text-[12px] mt-2 flex-shrink-0">›</span>
-      )}
-    </button>
+        {/* Action buttons — show both when post + profile are available */}
+        {hasBoth ? (
+          <div className="flex items-center gap-2 mt-2">
+            <button
+              onClick={() => onTapProfile!(firstActorId!)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+              style={{ background: 'rgba(155,0,255,0.15)', border: '1px solid rgba(155,0,255,0.3)', color: '#c084fc' }}
+            >
+              👤 პროფილი
+            </button>
+            <button
+              onClick={() => onTapPost!(g.postId!)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all active:scale-95"
+              style={{ background: 'rgba(0,200,255,0.1)', border: '1px solid rgba(0,200,255,0.25)', color: 'rgba(0,200,255,0.8)' }}
+            >
+              📝 პოსტი
+            </button>
+          </div>
+        ) : (
+          <p className="text-[11px] text-white/25 mt-1 font-mono">{timeAgo(g.latestAt)}</p>
+        )}
+        {hasBoth && (
+          <p className="text-[11px] text-white/25 mt-1 font-mono">{timeAgo(g.latestAt)}</p>
+        )}
+      </div>
+    </div>
   );
 }
 

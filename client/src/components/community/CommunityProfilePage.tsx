@@ -349,7 +349,25 @@ function PostTextCard({ post: initialPost, readMoreLabel, onExpand }: {
 
         {/* Reaction row */}
         <div className="flex items-center gap-4 mt-3">
-          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontFamily: 'monospace' }}>❤️ {post.likesCount}</span>
+          {(() => {
+            const rxn = post.reactions ?? {};
+            const total = Object.values(rxn).reduce((a, b) => a + b, 0) || post.likesCount;
+            const top = Object.entries(rxn).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([e]) => e);
+            const hasMyReaction = !!post.myReaction;
+            return (
+              <span
+                style={{
+                  fontSize: 11, fontFamily: 'monospace',
+                  color: hasMyReaction ? '#c084fc' : 'rgba(255,255,255,0.35)',
+                  background: hasMyReaction ? 'rgba(155,0,255,0.12)' : 'transparent',
+                  border: hasMyReaction ? '1px solid rgba(155,0,255,0.3)' : '1px solid transparent',
+                  borderRadius: 16, padding: '2px 8px',
+                }}
+              >
+                {top.length > 0 ? top.join('') : '❤️'} {total}
+              </span>
+            );
+          })()}
           <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontFamily: 'monospace' }}>💬 {post.commentsCount}</span>
         </div>
       </div>
