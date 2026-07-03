@@ -114,12 +114,12 @@ export function ProfileModalV2({
                 ) : (
                   <img src={profile.coverUrl} alt="" className="w-full h-full object-cover" />
                 )}
-                <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 10%, rgba(13,10,26,0.6) 50%, rgba(13,10,26,0.98) 100%)' }} />
+                <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 10%, rgba(13,10,26,0.4) 40%, rgba(13,10,26,0.85) 70%, rgba(13,10,26,1) 100%)' }} />
               </div>
             )}
 
             {/* Avatar + info row */}
-            <div className="flex items-center gap-3 mb-3">
+            <div className="relative z-10 flex items-center gap-3 mb-3">
               <div className={isMrMax ? 'ring-2 ring-yellow-400/60 ring-offset-1 ring-offset-[#0d0a1a] rounded-full flex-shrink-0' : 'flex-shrink-0'}>
                 <Avatar avatar={profile.avatar} avatarUrl={profile.avatarUrl} size={52} />
               </div>
