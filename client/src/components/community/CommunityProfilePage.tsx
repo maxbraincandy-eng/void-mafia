@@ -6,6 +6,7 @@ import { useCommunityStore } from '@/store/communityStore';
 import { useSocialStore } from '@/store/socialStore';
 import { useT } from '@/store/langStore';
 import { emitWithAck } from '@/lib/socket';
+import { compressImage } from '@/lib/imageUtils';
 import type { CommunityProfileV2, CommunityPostV2, CommunityComment, PollResult, Res } from '@/types/index';
 import { Avatar, BadgeRow, MrMaxGlow, Spinner, timeAgo } from '@/components/community/shared';
 import { YouTubeEmbed, extractYouTubeId } from '@/components/community/YouTubeEmbed';
@@ -546,6 +547,19 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
     }
   };
 
+  const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBannerSaving(true);
+    try {
+      const dataUrl = await compressImage(file, 1200, 0.75);
+      const r = await emitWithAck<any, Res<CommunityProfileV2>>('community:profile_update', { coverUrl: dataUrl });
+      if (r.ok) setProfile(r.data);
+      setBannerPicker(false);
+    } catch { /* ignore */ }
+    finally { setBannerSaving(false); }
+  };
+
   // Saved posts (own profile only) — fetched lazily when the tab opens.
   useEffect(() => {
     if (tab !== 'saved' || !isSelf || saved !== null) return;
@@ -850,49 +864,57 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
       </AnimatePresence>
 
       {/* Banner picker modal */}
-      <AnimatePresence>
-        {bannerPicker && createPortal(
+      {bannerPicker && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-end justify-center"
+          style={{ background: 'rgba(0,0,0,0.7)' }}
+          onClick={() => setBannerPicker(false)}
+        >
           <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] flex items-end justify-center"
-            style={{ background: 'rgba(0,0,0,0.7)' }}
-            onClick={() => setBannerPicker(false)}
+            initial={{ y: '100%' }} animate={{ y: 0 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+            className="w-full max-w-md rounded-t-2xl p-4 pb-8"
+            style={{ background: '#0d0a1a', border: '1px solid rgba(155,0,255,0.2)', borderBottom: 'none' }}
+            onClick={e => e.stopPropagation()}
           >
-            <motion.div
-              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="w-full max-w-md rounded-t-2xl p-4 pb-8"
-              style={{ background: '#0d0a1a', border: '1px solid rgba(155,0,255,0.2)', borderBottom: 'none' }}
-              onClick={e => e.stopPropagation()}
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-display font-bold text-white" style={{ fontSize: 16 }}>ბანერის არჩევა</p>
+              <button onClick={() => setBannerPicker(false)} className="text-white/40 hover:text-white/70 text-lg">✕</button>
+            </div>
+
+            {/* Upload image button */}
+            <label
+              className="flex items-center justify-center gap-2 w-full py-3 mb-3 rounded-xl font-mono text-[12px] uppercase tracking-wider cursor-pointer transition-all active:scale-95"
+              style={{ background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.35)', color: '#c084fc' }}
             >
-              <div className="flex items-center justify-between mb-4">
-                <p className="font-display font-bold text-white" style={{ fontSize: 16 }}>ბანერის არჩევა</p>
-                <button onClick={() => setBannerPicker(false)} className="text-white/40 hover:text-white/70 text-lg">✕</button>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {BANNER_PRESETS.map(preset => (
-                  <button
-                    key={preset.id}
-                    onClick={() => handleBannerSelect(preset)}
-                    disabled={bannerSaving}
-                    className="rounded-xl overflow-hidden transition-all active:scale-95 disabled:opacity-50"
-                    style={{
-                      height: 56,
-                      background: preset.id === 'none' ? 'rgba(255,255,255,0.04)' : preset.css,
-                      border: (profile?.coverUrl === `gradient:${preset.css}` || (preset.id === 'none' && !profile?.coverUrl))
-                        ? '2px solid #9b00ff'
-                        : '1px solid rgba(255,255,255,0.1)',
-                    }}
-                  >
-                    {preset.id === 'none' && <span className="text-white/30 font-mono" style={{ fontSize: 11 }}>{preset.label}</span>}
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          </motion.div>,
-          document.body,
-        )}
-      </AnimatePresence>
+              {bannerSaving ? '…' : '📷 სურათის ატვირთვა'}
+              <input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} disabled={bannerSaving} />
+            </label>
+
+            <p className="font-mono text-[10px] text-white/25 uppercase tracking-widest mb-2">ან აირჩიე გრადიენტი</p>
+            <div className="grid grid-cols-3 gap-2">
+              {BANNER_PRESETS.map(preset => (
+                <button
+                  key={preset.id}
+                  onClick={() => handleBannerSelect(preset)}
+                  disabled={bannerSaving}
+                  className="rounded-xl overflow-hidden transition-all active:scale-95 disabled:opacity-50"
+                  style={{
+                    height: 56,
+                    background: preset.id === 'none' ? 'rgba(255,255,255,0.04)' : preset.css,
+                    border: (profile?.coverUrl === `gradient:${preset.css}` || (preset.id === 'none' && !profile?.coverUrl))
+                      ? '2px solid #9b00ff'
+                      : '1px solid rgba(255,255,255,0.1)',
+                  }}
+                >
+                  {preset.id === 'none' && <span className="text-white/30 font-mono" style={{ fontSize: 11 }}>{preset.label}</span>}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
