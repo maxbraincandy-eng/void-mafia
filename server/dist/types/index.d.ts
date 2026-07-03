@@ -2513,6 +2513,16 @@ export interface CommunitySearchResult {
         count: number;
     }>;
     lounges: CommunityLounge[];
+    clans: Array<{
+        id: string;
+        name: string;
+        tag: string;
+        description: string;
+        memberCount: number;
+        imageUrl: string;
+        wins: number;
+        losses: number;
+    }>;
 }
 export {};
 //# sourceMappingURL=index.d.ts.map

@@ -1260,11 +1260,12 @@ export async function getFollowingList(playerId, viewerId) {
 // Search
 export async function searchCommunity(query, viewerId) {
     const q = `%${query.slice(0, 100)}%`;
-    const [postRows, peopleRows, hashtagRows, loungeRows] = await Promise.all([
+    const [postRows, peopleRows, hashtagRows, loungeRows, clanRows] = await Promise.all([
         sql `SELECT p.*, pl.username AS author_name, pl.avatar AS author_avatar, pl.avatar_url AS author_avatar_url, pl.level AS author_level, pl.community_bio AS author_bio, pl.community_cover_url AS author_cover_url FROM community_posts p JOIN players pl ON pl.id = p.author_id WHERE p.hidden = false AND p.content ILIKE ${q} ORDER BY p.created_at DESC LIMIT 20`,
         sql `SELECT id FROM players WHERE username ILIKE ${q} LIMIT 20`,
         sql `SELECT hashtag, COUNT(*) AS count FROM community_post_hashtags WHERE hashtag ILIKE ${q} GROUP BY hashtag ORDER BY count DESC LIMIT 20`,
         sql `SELECT * FROM community_lounges WHERE name ILIKE ${q} LIMIT 10`,
+        sql `SELECT c.*, (SELECT COUNT(*) FROM clan_members WHERE clan_id = c.id) AS member_count FROM clans c WHERE c.name ILIKE ${q} OR c.tag ILIKE ${q} LIMIT 10`,
     ]);
     const [posts, people] = await Promise.all([
         Promise.all(postRows.map(r => buildPostV2(r, viewerId))),
@@ -1275,6 +1276,7 @@ export async function searchCommunity(query, viewerId) {
         people: people.filter(Boolean),
         hashtags: hashtagRows.map(r => ({ hashtag: r.hashtag, count: Number(r.count) })),
         lounges: loungeRows,
+        clans: clanRows.map(r => ({ id: r.id, name: r.name, tag: r.tag, description: r.description ?? '', memberCount: Number(r.member_count), imageUrl: r.image_url ?? '', wins: Number(r.wins), losses: Number(r.losses) })),
     };
 }
 // Online members

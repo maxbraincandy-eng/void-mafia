@@ -1602,4 +1602,5 @@ export interface CommunitySearchResult {
   people: CommunityProfileV2[];
   hashtags: Array<{ hashtag: string; count: number }>;
   lounges: CommunityLounge[];
+  clans: Array<{ id: string; name: string; tag: string; description: string; memberCount: number; imageUrl: string; wins: number; losses: number }>;
 }

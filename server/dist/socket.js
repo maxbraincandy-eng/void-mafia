@@ -6530,7 +6530,7 @@ export function attachSocketHandlers(io) {
                     return;
                 }
                 if (!data.query?.trim()) {
-                    cb(ok({ posts: [], people: [], hashtags: [], lounges: [] }));
+                    cb(ok({ posts: [], people: [], hashtags: [], lounges: [], clans: [] }));
                     return;
                 }
                 const results = await searchCommunity(data.query, profileId);

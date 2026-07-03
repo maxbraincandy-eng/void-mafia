@@ -5756,7 +5756,7 @@ export function attachSocketHandlers(io: AppServer): void {
       try {
         const profileId = socket.data.profileId;
         if (!profileId) { cb(err('Not authenticated.')); return; }
-        if (!data.query?.trim()) { cb(ok({ posts: [], people: [], hashtags: [], lounges: [] })); return; }
+        if (!data.query?.trim()) { cb(ok({ posts: [], people: [], hashtags: [], lounges: [], clans: [] })); return; }
         const results = await searchCommunity(data.query, profileId);
         cb(ok(results));
       } catch (e: any) { cb(err(e.message)); }

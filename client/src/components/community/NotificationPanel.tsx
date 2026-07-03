@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { useT } from '@/store/langStore';
@@ -16,11 +16,85 @@ const TAB_TYPES: Record<Tab, string[] | null> = {
   system: ['leaderboard_reward', 'system', 'broadcast'],
 };
 
+const GROUPABLE_TYPES = new Set([
+  'post_reaction', 'comment_reaction', 'story_reaction',
+  'comment', 'comment_reply', 'new_follower',
+]);
+
+interface GroupedNotif {
+  key: string;
+  type: string;
+  items: CommunityNotification[];
+  count: number;
+  latestAt: number;
+  actors: { id?: string | null; avatarUrl?: string | null }[];
+  postId?: string | null;
+  read: boolean;
+  title: string;
+  body: string;
+}
+
+function groupKey(n: CommunityNotification): string {
+  if (n.type === 'new_follower') return 'new_follower';
+  if (GROUPABLE_TYPES.has(n.type) && n.postId) return `${n.type}:${n.postId}`;
+  return `single:${n.id}`;
+}
+
+function groupTitle(type: string, count: number, firstTitle: string): string {
+  if (count === 1) return firstTitle;
+  switch (type) {
+    case 'post_reaction': return `${count} ადამიანმა მოიწონა თქვენი პოსტი`;
+    case 'comment_reaction': return `${count} ადამიანმა მოიწონა თქვენი კომენტარი`;
+    case 'story_reaction': return `${count} ადამიანმა მოიწონა თქვენი სტორი`;
+    case 'comment': return `${count} ახალი კომენტარი თქვენს პოსტზე`;
+    case 'comment_reply': return `${count} პასუხი თქვენს კომენტარზე`;
+    case 'new_follower': return `${count} ახალი მიმდევარი`;
+    default: return firstTitle;
+  }
+}
+
+function groupNotifications(notifications: CommunityNotification[]): GroupedNotif[] {
+  const map = new Map<string, CommunityNotification[]>();
+  for (const n of notifications) {
+    const k = groupKey(n);
+    const arr = map.get(k);
+    if (arr) arr.push(n);
+    else map.set(k, [n]);
+  }
+  const groups: GroupedNotif[] = [];
+  for (const [key, items] of map) {
+    items.sort((a, b) => b.createdAt - a.createdAt);
+    const seen = new Set<string>();
+    const actors: { id?: string | null; avatarUrl?: string | null }[] = [];
+    for (const item of items) {
+      const aid = item.actorId ?? '';
+      if (aid && seen.has(aid)) continue;
+      if (aid) seen.add(aid);
+      actors.push({ id: item.actorId, avatarUrl: item.actorAvatarUrl });
+      if (actors.length >= 5) break;
+    }
+    groups.push({
+      key,
+      type: items[0].type,
+      items,
+      count: items.length,
+      latestAt: items[0].createdAt,
+      actors,
+      postId: items[0].postId,
+      read: items.every(i => i.read),
+      title: groupTitle(items[0].type, items.length, items[0].title),
+      body: items.length > 1 ? items.slice(0, 3).map(i => i.title).join(', ') : items[0].body,
+    });
+  }
+  groups.sort((a, b) => b.latestAt - a.latestAt);
+  return groups;
+}
+
 function getNotifIcon(type: string): string {
   switch (type) {
     case 'post_reaction':
     case 'comment_reaction':
-    case 'story_reaction': return '';
+    case 'story_reaction': return '❤️';
     case 'comment':
     case 'comment_reply': return '💬';
     case 'mention': return '@';
@@ -44,22 +118,68 @@ function getNotifAccent(type: string): string {
   }
 }
 
-function NotifRow({
-  n,
+function StackedAvatars({ actors, icon }: { actors: GroupedNotif['actors']; icon: string }) {
+  const show = actors.slice(0, 3);
+  const hasReal = show.some(a => !!a.avatarUrl);
+  if (!hasReal) {
+    return (
+      <div
+        className="w-10 h-10 rounded-full flex items-center justify-center"
+        style={{ background: 'rgba(155,0,255,0.15)', border: '1px solid rgba(155,0,255,0.25)', fontSize: 18 }}
+      >
+        {icon || '🔔'}
+      </div>
+    );
+  }
+  if (show.length === 1) {
+    return (
+      <div className="w-10 h-10 rounded-full overflow-hidden" style={{ border: '2px solid rgba(155,0,255,0.3)' }}>
+        {show[0].avatarUrl
+          ? <img src={show[0].avatarUrl} alt="" className="w-full h-full object-cover" />
+          : <div className="w-full h-full flex items-center justify-center" style={{ background: 'rgba(155,0,255,0.15)', fontSize: 18 }}>{icon}</div>}
+      </div>
+    );
+  }
+  return (
+    <div className="relative" style={{ width: 40, height: 40 }}>
+      {show.map((a, i) => (
+        <div
+          key={i}
+          className="absolute rounded-full overflow-hidden"
+          style={{
+            width: show.length === 2 ? 28 : 24,
+            height: show.length === 2 ? 28 : 24,
+            border: '2px solid #120d24',
+            top: i === 0 ? 0 : show.length === 2 ? 12 : i === 1 ? 0 : 16,
+            left: i === 0 ? 0 : show.length === 2 ? 12 : i === 1 ? 16 : 8,
+            zIndex: show.length - i,
+          }}
+        >
+          {a.avatarUrl
+            ? <img src={a.avatarUrl} alt="" className="w-full h-full object-cover" />
+            : <div className="w-full h-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg,rgba(155,0,255,0.4),rgba(0,200,255,0.3))', fontSize: 11 }}>👤</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GroupedNotifRow({
+  g,
   onTapPost,
   onTapProfile,
 }: {
-  n: CommunityNotification;
+  g: GroupedNotif;
   onTapPost?: (postId: string) => void;
   onTapProfile?: (profileId: string) => void;
 }) {
-  const icon = getNotifIcon(n.type);
-  const hasAvatar = !!n.actorAvatarUrl || !!n.actorId;
-  const isClickable = !!n.postId || !!n.actorId;
+  const icon = getNotifIcon(g.type);
+  const firstActorId = g.actors[0]?.id;
+  const isClickable = !!g.postId || !!firstActorId;
 
   const handleTap = () => {
-    if (n.postId && onTapPost) onTapPost(n.postId);
-    else if (n.actorId && onTapProfile) onTapProfile(n.actorId);
+    if (g.postId && onTapPost) onTapPost(g.postId);
+    else if (firstActorId && onTapProfile) onTapProfile(firstActorId);
   };
 
   return (
@@ -69,44 +189,38 @@ function NotifRow({
       className="w-full flex items-start gap-3 px-4 py-3 text-left transition-all active:bg-white/5"
       style={{
         borderBottom: '1px solid rgba(255,255,255,0.04)',
-        background: n.read ? 'transparent' : getNotifAccent(n.type),
+        background: g.read ? 'transparent' : getNotifAccent(g.type),
         cursor: isClickable ? 'pointer' : 'default',
       }}
     >
-      {/* Avatar or icon */}
       <div className="flex-shrink-0 mt-0.5">
-        {hasAvatar && n.actorAvatarUrl ? (
-          <div className="w-10 h-10 rounded-full overflow-hidden" style={{ border: '2px solid rgba(155,0,255,0.3)' }}>
-            <img src={n.actorAvatarUrl} alt="" className="w-full h-full object-cover" />
-          </div>
-        ) : (
-          <div
-            className="w-10 h-10 rounded-full flex items-center justify-center"
-            style={{ background: 'rgba(155,0,255,0.15)', border: '1px solid rgba(155,0,255,0.25)', fontSize: 18 }}
-          >
-            {icon || '🔔'}
-          </div>
-        )}
+        <StackedAvatars actors={g.actors} icon={icon} />
       </div>
 
-      {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-start gap-2">
           <div className="flex-1 min-w-0">
             <p className="text-[13px] text-white/90 leading-snug">
               {icon && <span className="mr-1">{icon}</span>}
-              <span className="font-semibold">{n.title}</span>
+              <span className="font-semibold">{g.title}</span>
+              {g.count > 1 && (
+                <span
+                  className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold"
+                  style={{ background: 'rgba(155,0,255,0.3)', color: '#c084fc' }}
+                >
+                  {g.count}
+                </span>
+              )}
             </p>
-            <p className="text-[12px] text-white/50 leading-snug mt-0.5 line-clamp-2">{n.body}</p>
+            <p className="text-[12px] text-white/50 leading-snug mt-0.5 line-clamp-2">{g.body}</p>
           </div>
-          {!n.read && (
+          {!g.read && (
             <span className="w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0" style={{ background: '#9b00ff', boxShadow: '0 0 6px rgba(155,0,255,0.6)' }} />
           )}
         </div>
-        <p className="text-[11px] text-white/25 mt-1 font-mono">{timeAgo(n.createdAt)}</p>
+        <p className="text-[11px] text-white/25 mt-1 font-mono">{timeAgo(g.latestAt)}</p>
       </div>
 
-      {/* Arrow for clickable */}
       {isClickable && (
         <span className="text-white/15 text-[12px] mt-2 flex-shrink-0">›</span>
       )}
@@ -142,18 +256,16 @@ export function NotificationPanel({
     try { await markNotificationsRead(); } finally { setMarking(false); }
   }
 
-  const sorted = [...notifications].sort((a, b) => b.createdAt - a.createdAt);
-  const allowedTypes = TAB_TYPES[tab];
-  const filtered = allowedTypes ? sorted.filter(n => allowedTypes.includes(n.type)) : sorted;
-  const unreadCount = sorted.filter(n => !n.read).length;
+  const sorted = useMemo(() => [...notifications].sort((a, b) => b.createdAt - a.createdAt), [notifications]);
 
-  const tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: 'all', label: 'ყველა', icon: '🔔' },
-    { id: 'reactions', label: 'რეაქცია', icon: '❤️' },
-    { id: 'comments', label: 'კომენტარი', icon: '💬' },
-    { id: 'follows', label: 'მიმდევრები', icon: '👤' },
-    { id: 'system', label: 'სისტემა', icon: '⚙' },
-  ];
+  const filtered = useMemo(() => {
+    const allowedTypes = TAB_TYPES[tab];
+    return allowedTypes ? sorted.filter(n => allowedTypes.includes(n.type)) : sorted;
+  }, [sorted, tab]);
+
+  const grouped = useMemo(() => groupNotifications(filtered), [filtered]);
+
+  const unreadCount = sorted.filter(n => !n.read).length;
 
   const handleTapPost = (postId: string) => {
     onClose();
@@ -164,6 +276,14 @@ export function NotificationPanel({
     onClose();
     onOpenProfile?.(profileId);
   };
+
+  const tabs: { id: Tab; label: string; icon: string }[] = [
+    { id: 'all', label: 'ყველა', icon: '🔔' },
+    { id: 'reactions', label: 'რეაქცია', icon: '❤️' },
+    { id: 'comments', label: 'კომენტარი', icon: '💬' },
+    { id: 'follows', label: 'მიმდევრები', icon: '👤' },
+    { id: 'system', label: 'სისტემა', icon: '⚙' },
+  ];
 
   return createPortal(
     <motion.div
@@ -259,7 +379,7 @@ export function NotificationPanel({
         <div className="flex-1 overflow-y-auto overscroll-contain">
           {loading ? (
             <div className="py-16 flex justify-center"><Spinner color="#9b00ff" /></div>
-          ) : filtered.length === 0 ? (
+          ) : grouped.length === 0 ? (
             <div className="py-16 flex flex-col items-center gap-2">
               <span style={{ fontSize: 32, opacity: 0.3 }}>🔔</span>
               <p className="font-mono text-white/25 text-sm">
@@ -267,10 +387,10 @@ export function NotificationPanel({
               </p>
             </div>
           ) : (
-            filtered.map(n => (
-              <NotifRow
-                key={n.id}
-                n={n}
+            grouped.map(g => (
+              <GroupedNotifRow
+                key={g.key}
+                g={g}
                 onTapPost={onOpenPost ? handleTapPost : undefined}
                 onTapProfile={handleTapProfile}
               />
