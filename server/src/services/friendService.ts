@@ -209,6 +209,36 @@ export async function getFriendIds(playerId: string): Promise<string[]> {
   return rows.map((r: any) => r.fid as string);
 }
 
+export async function getFriendSuggestions(playerId: string, limit = 10): Promise<{ profileId: string; username: string; avatar: string; avatarUrl: string | null; mutualCount: number }[]> {
+  const rows = await sql`
+    WITH my_friends AS (
+      SELECT CASE WHEN from_id = ${playerId} THEN to_id ELSE from_id END AS fid
+      FROM friendships
+      WHERE (from_id = ${playerId} OR to_id = ${playerId}) AND status = 'accepted'
+    ),
+    foaf AS (
+      SELECT CASE WHEN f.from_id = mf.fid THEN f.to_id ELSE f.from_id END AS suggested_id,
+             COUNT(*) as mutual
+      FROM friendships f
+      JOIN my_friends mf ON (f.from_id = mf.fid OR f.to_id = mf.fid)
+      WHERE f.status = 'accepted'
+        AND CASE WHEN f.from_id = mf.fid THEN f.to_id ELSE f.from_id END <> ${playerId}
+        AND CASE WHEN f.from_id = mf.fid THEN f.to_id ELSE f.from_id END NOT IN (SELECT fid FROM my_friends)
+      GROUP BY suggested_id
+      ORDER BY mutual DESC
+      LIMIT ${limit}
+    )
+    SELECT p.id, p.username, p.avatar, p.avatar_url, foaf.mutual
+    FROM foaf
+    JOIN players p ON p.id = foaf.suggested_id
+    ORDER BY foaf.mutual DESC
+  ` as any[];
+  return rows.map((r: any) => ({
+    profileId: r.id, username: r.username, avatar: r.avatar,
+    avatarUrl: r.avatar_url ?? null, mutualCount: Number(r.mutual),
+  }));
+}
+
 export async function getPendingRequests(playerId: string): Promise<FriendRequest[]> {
   const rows = await sql`
     SELECT f.id, f.from_id, p.username, p.avatar, p.avatar_url, f.created_at

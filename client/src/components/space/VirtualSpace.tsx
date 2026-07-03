@@ -54,6 +54,12 @@ const SPACE_CSS = `
 @keyframes vs-sway    { 0%,100%{transform:rotate(-4deg) translateX(0)} 50%{transform:rotate(4deg) translateX(2px)} }
 @keyframes vs-clap    { 0%,100%{transform:scale(1)} 50%{transform:scale(1.06) translateY(-1px)} }
 @keyframes vs-point   { 0%,100%{transform:translateX(0) rotate(0)} 50%{transform:translateX(3px) rotate(5deg)} }
+@keyframes vs-bow     { 0%,100%{transform:rotate(0) translateY(0)} 40%,60%{transform:rotate(15deg) translateY(4px)} }
+@keyframes vs-flex    { 0%,100%{transform:scale(1)} 25%{transform:scale(1.12) translateY(-3px)} 50%{transform:scale(1)} 75%{transform:scale(1.12) translateY(-3px)} }
+@keyframes vs-spinn   { 0%{transform:rotateY(0)} 100%{transform:rotateY(360deg)} }
+@keyframes vs-sleep   { 0%,100%{transform:rotate(-2deg);opacity:.7} 50%{transform:rotate(2deg);opacity:1} }
+@keyframes vs-heart   { 0%,100%{transform:scale(1)} 15%{transform:scale(1.15)} 30%{transform:scale(1)} 45%{transform:scale(1.12)} }
+@keyframes vs-dab     { 0%,100%{transform:rotate(0) translateX(0)} 30%,50%{transform:rotate(-20deg) translateX(-4px)} }
 @keyframes vs-react   { 0%{transform:translateY(0) scale(.4);opacity:0} 18%{transform:translateY(-10px) scale(1.15);opacity:1} 75%{opacity:.95} 100%{transform:translateY(-52px) scale(1);opacity:0} }
 @keyframes vs-typing  { 0%,60%,100%{transform:translateY(0);opacity:.4} 30%{transform:translateY(-3px);opacity:1} }
 @keyframes vs-scanline{ 0%{transform:translateY(-100%)} 100%{transform:translateY(600%)} }
@@ -232,13 +238,19 @@ function extractVideoId(input: string): string | null {
 
 // ── Humanoid avatar ───────────────────────────────────────────────────
 
-const GESTURE_EMOJI: Record<string, string> = { wave: '👋', clap: '👏', point: '👉', dance: '💃' };
+const GESTURE_EMOJI: Record<string, string> = { wave: '👋', clap: '👏', point: '👉', dance: '💃', bow: '🙇', flex: '💪', spin: '🌀', sleep: '💤', heart: '❤️', dab: '🫡' };
 function gestureAnim(g: string | null | undefined, sitting?: boolean): string {
   if (!g || sitting) return 'none';
   if (g === 'dance') return 'vs-dance 0.5s ease-in-out infinite';
   if (g === 'wave')  return 'vs-sway 0.5s ease-in-out 4';
   if (g === 'clap')  return 'vs-clap 0.3s ease-in-out 6';
   if (g === 'point') return 'vs-point 0.5s ease-in-out 3';
+  if (g === 'bow')   return 'vs-bow 1s ease-in-out 2';
+  if (g === 'flex')  return 'vs-flex 0.6s ease-in-out 3';
+  if (g === 'spin')  return 'vs-spinn 0.7s ease-in-out 2';
+  if (g === 'sleep') return 'vs-sleep 1.5s ease-in-out infinite';
+  if (g === 'heart') return 'vs-heart 0.8s ease-in-out 3';
+  if (g === 'dab')   return 'vs-dab 0.8s ease-in-out 2';
   return 'none';
 }
 
@@ -1493,10 +1505,16 @@ function TVControlPanel({ tvState, canControl, onClose, onSetLink, onSearch, onE
 
 const REACT_EMOJIS = ['😂', '🤍', '🔥', '👍', '😮', '😢', '🎉', '👏'];
 const GESTURES: { id: string; emoji: string; label: string }[] = [
-  { id: 'wave',  emoji: '👋', label: 'wave' },
-  { id: 'clap',  emoji: '👏', label: 'clap' },
-  { id: 'point', emoji: '👉', label: 'point' },
-  { id: 'dance', emoji: '💃', label: 'dance' },
+  { id: 'wave',  emoji: '👋', label: 'ტალღა' },
+  { id: 'clap',  emoji: '👏', label: 'ტაში' },
+  { id: 'dance', emoji: '💃', label: 'ცეკვა' },
+  { id: 'bow',   emoji: '🙇', label: 'თაყვანი' },
+  { id: 'flex',  emoji: '💪', label: 'ძალა' },
+  { id: 'spin',  emoji: '🌀', label: 'ტრიალი' },
+  { id: 'heart', emoji: '❤️', label: 'გული' },
+  { id: 'dab',   emoji: '🫡', label: 'დაბი' },
+  { id: 'sleep', emoji: '💤', label: 'ძილი' },
+  { id: 'point', emoji: '👉', label: 'მიშვერა' },
 ];
 
 function ExpressionPicker({ onReact, onGesture, onClose }: {
@@ -1524,13 +1542,13 @@ function ExpressionPicker({ onReact, onGesture, onClose }: {
             </button>
           ))}
         </div>
-        <p style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 7 }}>ჟესტი</p>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <p style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 7 }}>ემოტები</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
           {GESTURES.map(g => (
             <button key={g.id} onClick={() => onGesture(g.id)}
-              style={{ flex: 1, padding: '9px 0', borderRadius: 12, background: 'rgba(255,0,150,.08)', border: '1px solid rgba(255,0,150,.25)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-              <span style={{ fontSize: 18 }}>{g.emoji}</span>
-              <span style={{ fontFamily: 'monospace', fontSize: 8, color: 'rgba(255,255,255,.4)' }}>{g.label}</span>
+              style={{ padding: '8px 0', borderRadius: 12, background: 'rgba(255,0,150,.08)', border: '1px solid rgba(255,0,150,.25)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <span style={{ fontSize: 16 }}>{g.emoji}</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 7, color: 'rgba(255,255,255,.4)' }}>{g.label}</span>
             </button>
           ))}
         </div>

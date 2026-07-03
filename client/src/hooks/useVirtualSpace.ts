@@ -458,7 +458,7 @@ export function useVirtualSpace() {
         next.set(socketId, { ...p, gesture: null });
         return { ...prev, players: next };
       });
-    }, g === 'dance' ? 5000 : 2200);
+    }, g === 'dance' || g === 'sleep' ? 5000 : g === 'spin' || g === 'bow' || g === 'heart' || g === 'flex' ? 3000 : 2200);
     gestureTimers.current.set(socketId, timer);
   }
 
