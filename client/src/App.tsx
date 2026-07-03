@@ -376,6 +376,15 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
     clearLoungeJoin();
   }, [loungeJoinCode, clearLoungeJoin]);
 
+  // @virtual-space mention → open VS lobby from anywhere.
+  const openSpaceRequested = useSocialStore(s => s.openSpaceRequested);
+  const clearOpenSpace = useSocialStore(s => s.clearOpenSpace);
+  useEffect(() => {
+    if (!openSpaceRequested) return;
+    setSpaceOpen(true);
+    clearOpenSpace();
+  }, [openSpaceRequested, clearOpenSpace]);
+
   // Auto-dismiss the invite after 15 seconds if unanswered.
   useEffect(() => {
     if (!spaceInvite) return;

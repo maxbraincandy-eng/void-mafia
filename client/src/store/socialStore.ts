@@ -42,6 +42,11 @@ interface SocialStore {
   requestJoinLounge: (code: string) => void;
   clearLoungeJoin: () => void;
 
+  // Request the app to open Virtual Space lobby (no specific code).
+  openSpaceRequested: boolean;
+  requestOpenSpace: () => void;
+  clearOpenSpace: () => void;
+
   onlineCount: number;
   unreadDmCount: number;
   setUnreadDmCount: (n: number) => void;
@@ -165,6 +170,10 @@ export const useSocialStore = create<SocialStore>((set, get) => {
     loungeJoinCode: null,
     requestJoinLounge: (code: string) => set({ loungeJoinCode: code }),
     clearLoungeJoin: () => set({ loungeJoinCode: null }),
+
+    openSpaceRequested: false,
+    requestOpenSpace: () => set({ openSpaceRequested: true }),
+    clearOpenSpace: () => set({ openSpaceRequested: false }),
     closeDm: () => set({ dmPanelOpen: false, activeDmUserId: null }),
 
     onlineCount: 0,
