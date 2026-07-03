@@ -8262,7 +8262,7 @@ export function attachSocketHandlers(io) {
         });
         socket.on('space:gesture', ({ gesture }) => {
             const g = String(gesture ?? '');
-            if (!['wave', 'clap', 'point', 'dance'].includes(g))
+            if (!['wave', 'clap', 'point', 'dance', 'bow', 'flex', 'spin', 'sleep', 'heart', 'dab'].includes(g))
                 return;
             const spaceId = _spaceOfSocket(socket.id);
             if (spaceId)

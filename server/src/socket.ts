@@ -7100,7 +7100,7 @@ export function attachSocketHandlers(io: AppServer): void {
     });
     socket.on('space:gesture', ({ gesture }: any) => {
       const g = String(gesture ?? '');
-      if (!['wave', 'clap', 'point', 'dance'].includes(g)) return;
+      if (!['wave', 'clap', 'point', 'dance', 'bow', 'flex', 'spin', 'sleep', 'heart', 'dab'].includes(g)) return;
       const spaceId = _spaceOfSocket(socket.id);
       if (spaceId) io.to(`space:${spaceId}`).emit('space:player-gesture', { socketId: socket.id, gesture: g });
     });
