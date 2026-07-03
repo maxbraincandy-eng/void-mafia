@@ -593,7 +593,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
               ) : (
                 <img src={profile.coverUrl} alt="" className="w-full h-full object-cover" />
               )}
-              <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 20%, rgba(3,0,13,0.5) 55%, rgba(3,0,13,0.95) 100%)' }} />
+              <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 10%, rgba(3,0,13,0.4) 40%, rgba(3,0,13,0.85) 70%, rgba(3,0,13,1) 100%)' }} />
               {isSelf && (
                 <button
                   onClick={() => setBannerPicker(true)}
