@@ -817,6 +817,9 @@ export async function initializeDatabase() {
     )
   `;
     await sql `CREATE INDEX IF NOT EXISTS idx_community_notifications_player ON community_notifications(player_id, read, created_at DESC)`;
+    await sql `ALTER TABLE community_notifications ADD COLUMN IF NOT EXISTS actor_id TEXT`;
+    await sql `ALTER TABLE community_notifications ADD COLUMN IF NOT EXISTS actor_avatar_url TEXT`;
+    await sql `ALTER TABLE community_notifications ADD COLUMN IF NOT EXISTS post_id TEXT`;
     // ── Community Social V2 schema (additive) ────────────────────────────
     await sql `ALTER TABLE players ADD COLUMN IF NOT EXISTS community_bio TEXT NOT NULL DEFAULT ''`;
     await sql `ALTER TABLE players ADD COLUMN IF NOT EXISTS community_cover_url TEXT`;

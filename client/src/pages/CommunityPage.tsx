@@ -275,7 +275,12 @@ export function CommunityPage() {
       )}
 
       <AnimatePresence>
-        {showNotifications && <NotificationPanel onClose={() => setShowNotifications(false)} />}
+        {showNotifications && (
+          <NotificationPanel
+            onClose={() => setShowNotifications(false)}
+            onOpenProfile={id => { setShowNotifications(false); setViewProfileId(id); }}
+          />
+        )}
       </AnimatePresence>
       <AnimatePresence>
         {showModeration && <ModerationPanel onClose={() => setShowModeration(false)} />}

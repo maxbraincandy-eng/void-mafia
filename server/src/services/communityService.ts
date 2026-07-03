@@ -482,19 +482,24 @@ function rowToNotification(r: any): CommunityNotification {
   return {
     id: r.id, type: r.type, title: r.title, body: r.body, link: r.link ?? null,
     read: !!r.read, createdAt: Number(r.created_at),
+    actorId: r.actor_id ?? null, actorAvatarUrl: r.actor_avatar_url ?? null, postId: r.post_id ?? null,
   };
 }
 
 export async function createNotification(
   playerId: string, type: string, title: string, body: string, link: string | null,
+  extra?: { actorId?: string; actorAvatarUrl?: string | null; postId?: string },
 ): Promise<CommunityNotification> {
   const id = generateId();
   const now = Date.now();
+  const actorId = extra?.actorId ?? null;
+  const actorAvatarUrl = extra?.actorAvatarUrl ?? null;
+  const postId = extra?.postId ?? null;
   await sql`
-    INSERT INTO community_notifications (id, player_id, type, title, body, link, read, created_at)
-    VALUES (${id}, ${playerId}, ${type}, ${title}, ${body}, ${link}, false, ${now})
+    INSERT INTO community_notifications (id, player_id, type, title, body, link, read, created_at, actor_id, actor_avatar_url, post_id)
+    VALUES (${id}, ${playerId}, ${type}, ${title}, ${body}, ${link}, false, ${now}, ${actorId}, ${actorAvatarUrl}, ${postId})
   `;
-  return { id, type, title, body, link, read: false, createdAt: now };
+  return { id, type, title, body, link, read: false, createdAt: now, actorId, actorAvatarUrl, postId };
 }
 
 export async function notifyFollowers(authorId: string, type: string, title: string, body: string, link: string | null): Promise<string[]> {

@@ -46,7 +46,11 @@ export declare function listEvents(viewerId: string | null): Promise<CommunityEv
 export declare function createEvent(createdBy: string, title: string, description: string, category: CommunityEventCategory, eventAt: number): Promise<CommunityEvent>;
 export declare function joinEvent(eventId: string, playerId: string): Promise<void>;
 export declare function leaveEvent(eventId: string, playerId: string): Promise<void>;
-export declare function createNotification(playerId: string, type: string, title: string, body: string, link: string | null): Promise<CommunityNotification>;
+export declare function createNotification(playerId: string, type: string, title: string, body: string, link: string | null, extra?: {
+    actorId?: string;
+    actorAvatarUrl?: string | null;
+    postId?: string;
+}): Promise<CommunityNotification>;
 export declare function notifyFollowers(authorId: string, type: string, title: string, body: string, link: string | null): Promise<string[]>;
 export declare function notifyAllPlayers(type: string, title: string, body: string, link: string | null): Promise<string[]>;
 export declare function listNotifications(playerId: string): Promise<CommunityNotification[]>;

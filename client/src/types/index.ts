@@ -1001,6 +1001,9 @@ export interface CommunityNotification {
   link: string | null;
   read: boolean;
   createdAt: number;
+  actorId?: string | null;
+  actorAvatarUrl?: string | null;
+  postId?: string | null;
 }
 
 export interface CommunityProfile {

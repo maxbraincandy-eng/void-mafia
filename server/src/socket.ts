@@ -5142,6 +5142,7 @@ export function attachSocketHandlers(io: AppServer): void {
               const notif = await createNotification(
                 result.authorId, 'post_reaction', `${emoji} რეაქცია`,
                 `${reactor?.username ?? 'ვიღაცამ'} დაარეაქთა ${emoji} შენს პოსტზე`, null,
+                { actorId: profileId, actorAvatarUrl: reactor?.avatarUrl ?? null, postId: postId },
               );
               const ownerSock = findSocketByProfile(io, result.authorId);
               if (ownerSock) ownerSock.emit('community:notification' as any, notif);
@@ -5193,14 +5194,14 @@ export function attachSocketHandlers(io: AppServer): void {
               const [parent] = await sql`SELECT author_id FROM community_post_comments WHERE id = ${parentId}` as any[];
               if (parent && !notifiedIds.has(parent.author_id)) {
                 notifiedIds.add(parent.author_id);
-                const n = await createNotification(parent.author_id, 'comment_reply', `💬 ${myName} გიპასუხა`, preview, null);
+                const n = await createNotification(parent.author_id, 'comment_reply', `💬 ${myName} გიპასუხა`, preview, null, { actorId: profileId, actorAvatarUrl: me?.avatarUrl ?? null, postId });
                 pushLive(parent.author_id, n);
               }
             }
             const [post] = await sql`SELECT author_id, is_anonymous FROM community_posts WHERE id = ${postId}` as any[];
             if (post && !post.is_anonymous && !notifiedIds.has(post.author_id)) {
               notifiedIds.add(post.author_id);
-              const n = await createNotification(post.author_id, 'comment', `💬 ${myName}-მა დააკომენტარა შენს პოსტს`, preview, null);
+              const n = await createNotification(post.author_id, 'comment', `💬 ${myName}-მა დააკომენტარა შენს პოსტს`, preview, null, { actorId: profileId, actorAvatarUrl: me?.avatarUrl ?? null, postId });
               pushLive(post.author_id, n);
             }
             const mentioned = await notifyMentions(content ?? '', profileId, myName, 'comment');
@@ -5242,6 +5243,7 @@ export function attachSocketHandlers(io: AppServer): void {
               const notif = await createNotification(
                 result.authorId, 'comment_reaction', `${emoji} რეაქცია`,
                 `${reactor?.username ?? 'ვიღაცამ'} დაარეაქთა ${emoji} შენს კომენტარზე`, null,
+                { actorId: profileId, actorAvatarUrl: reactor?.avatarUrl ?? null },
               );
               const ownerSock = findSocketByProfile(io, result.authorId);
               if (ownerSock) ownerSock.emit('community:notification' as any, notif);
@@ -5304,8 +5306,9 @@ export function attachSocketHandlers(io: AppServer): void {
         await follow(profileId, targetId);
         const follower = await getPlayer(profileId);
         const notif = await createNotification(
-          targetId, 'new_follower', 'New follower',
-          `${follower?.username ?? 'Someone'} started following you.`, null,
+          targetId, 'new_follower', '👤 ახალი მიმდევარი',
+          `${follower?.username ?? 'ვიღაცამ'} დაგიწყო გამოწერა`, null,
+          { actorId: profileId, actorAvatarUrl: follower?.avatarUrl ?? null },
         );
         const targetSock = findSocketByProfile(io as any, targetId);
         if (targetSock) targetSock.emit('community:notification', notif);
@@ -5565,8 +5568,9 @@ export function attachSocketHandlers(io: AppServer): void {
         if (result.added && result.authorId && result.authorId !== profileId) {
           const reactor = await getPlayer(profileId);
           const notif = await createNotification(
-            result.authorId, 'story_reaction', 'New story reaction',
-            `${reactor?.username ?? 'Someone'} reacted ${reaction} to your story.`, `story:${storyId}`,
+            result.authorId, 'story_reaction', `${reaction} სტორის რეაქცია`,
+            `${reactor?.username ?? 'ვიღაცამ'} დაარეაქთა ${reaction} შენს სტორიზე`, `story:${storyId}`,
+            { actorId: profileId, actorAvatarUrl: reactor?.avatarUrl ?? null },
           );
           const ownerSock = findSocketByProfile(io as any, result.authorId);
           if (ownerSock) {
