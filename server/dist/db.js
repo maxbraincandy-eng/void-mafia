@@ -1126,6 +1126,40 @@ export async function initializeDatabase() {
     await sql `ALTER TABLE players ADD COLUMN IF NOT EXISTS force_public INTEGER NOT NULL DEFAULT 0`;
     // Anonymous post flag
     await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS is_anonymous BOOLEAN NOT NULL DEFAULT false`;
+    // Pet level-up system
+    await sql `
+    CREATE TABLE IF NOT EXISTS player_pets (
+      player_id TEXT PRIMARY KEY,
+      pet_xp    INTEGER NOT NULL DEFAULT 0,
+      pet_level INTEGER NOT NULL DEFAULT 1,
+      updated_at BIGINT NOT NULL DEFAULT 0
+    )
+  `;
+    // PvP Tournaments
+    await sql `
+    CREATE TABLE IF NOT EXISTS tournaments (
+      id         TEXT PRIMARY KEY,
+      name       TEXT NOT NULL,
+      status     TEXT NOT NULL DEFAULT 'open',
+      max_players INTEGER NOT NULL DEFAULT 8,
+      prize_coins INTEGER NOT NULL DEFAULT 0,
+      created_by TEXT NOT NULL,
+      created_at BIGINT NOT NULL,
+      started_at BIGINT,
+      ended_at   BIGINT,
+      winner_id  TEXT
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS tournament_participants (
+      tournament_id TEXT NOT NULL,
+      player_id     TEXT NOT NULL,
+      seed          INTEGER NOT NULL DEFAULT 0,
+      eliminated    BOOLEAN NOT NULL DEFAULT false,
+      joined_at     BIGINT NOT NULL,
+      PRIMARY KEY (tournament_id, player_id)
+    )
+  `;
     // Verify connection
     const [{ cnt }] = await sql `SELECT COUNT(*) as cnt FROM players`;
     console.log(`[Database] connected successfully`);

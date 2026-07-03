@@ -969,6 +969,8 @@ function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: 
   const [hat, setHat] = useState(() => localStorage.getItem(LS_HAT) ?? 'none');
   const [pet, setPet] = useState(() => localStorage.getItem(LS_PET) ?? 'none');
   const [form, setForm] = useState(() => localStorage.getItem(LS_FORM) ?? 'human');
+  const [petData, setPetData] = useState<{ petXp: number; petLevel: number; xpToNext: number } | null>(null);
+  useEffect(() => { emitWithAck<undefined, Res<{ petXp: number; petLevel: number; xpToNext: number }>>('pet:data').then(r => { if (r.ok) setPetData(r.data); }).catch(() => {}); }, []);
   function go() { localStorage.setItem(LS_BODY,bodyColor); localStorage.setItem(LS_GLOW,glowColor); localStorage.setItem(LS_MASK,mask); localStorage.setItem(LS_HAT,hat); localStorage.setItem(LS_PET,pet); localStorage.setItem(LS_FORM,form); onJoin(bodyColor,glowColor,mask,hat,pet,form); }
 
   // Pick an option; if it's a locked premium item, buy it with coins first.
@@ -1027,6 +1029,17 @@ function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: 
       </div>
       <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">თანამგზავრი</p>
         <div className="flex gap-2 flex-wrap">{PETS.map(o=>optBtn(o, PREMIUM_PETS, pet, setPet, 'py-1.5 px-3 rounded-xl font-mono text-[13px]'))}</div>
+        {petData && pet !== 'none' && (
+          <div className="mt-2 px-1">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[10px] text-neon-purple/60">Lv.{petData.petLevel}</span>
+              <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(155,0,255,0.12)' }}>
+                <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, (petData.petXp / petData.xpToNext) * 100)}%`, background: 'linear-gradient(90deg, #9b00ff, #00f5ff)' }} />
+              </div>
+              <span className="font-mono text-[9px] text-white/20">{petData.petXp}/{petData.xpToNext}</span>
+            </div>
+          </div>
+        )}
       </div>
       <button onClick={go} className="w-full py-3.5 rounded-2xl font-display font-bold text-sm uppercase tracking-widest transition-all active:scale-95" style={{ background:`linear-gradient(135deg, ${bodyColor}30, ${bodyColor}15)`,border:`1.5px solid ${bodyColor}`,color:bodyColor,boxShadow:`0 0 28px ${bodyColor}40, inset 0 0 20px ${bodyColor}08`,letterSpacing:'0.14em' }}>
         Void Lounge-ში შესვლა →
@@ -1942,6 +1955,13 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const themeDef = getSpaceTheme(space?.theme);
   const [themePickerOpen, setThemePickerOpen] = useState(false);
   const canChangeTheme = space?.canControlTv ?? false;
+  const [tournamentOpen, setTournamentOpen] = useState(false);
+  const [tournaments, setTournaments] = useState<any[]>([]);
+  const [tCreating, setTCreating] = useState(false);
+  const [tName, setTName] = useState('');
+  const refreshTournaments = useCallback(() => {
+    emitWithAck<undefined, Res<any[]>>('tournament:list').then(r => { if (r.ok) setTournaments(r.data ?? []); }).catch(() => {});
+  }, []);
 
   // Knocked out of the space — drop voice & close transient UI; the knockout
   // overlay then prompts a re-entry.
@@ -2009,6 +2029,11 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
         {joined && (
           <button onClick={openKoBoard} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(255,180,0,.1)',border:'1px solid rgba(255,180,0,.3)',fontSize:14 }} title="KO რეიტინგი">
             🏆
+          </button>
+        )}
+        {joined && !ghost && (
+          <button onClick={() => { setTournamentOpen(true); refreshTournaments(); }} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(0,245,255,.1)',border:'1px solid rgba(0,245,255,.3)',fontSize:14 }} title="ტურნირი">
+            ⚔
           </button>
         )}
         {joined && !ghost && (
@@ -2912,6 +2937,112 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
       )}
 
       {/* KO leaderboard panel */}
+      {/* Tournament panel */}
+      {tournamentOpen && createPortal(
+        <div onClick={() => setTournamentOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 1250, background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: 'min(380px,100%)', maxHeight: '80vh', overflowY: 'auto', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(0,245,255,.3)', borderRadius: 20, padding: 20 }}>
+            <div className="flex items-center justify-between mb-3">
+              <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#00f5ff' }}>⚔ ტურნირები</p>
+              <button onClick={() => setTournamentOpen(false)} className="w-7 h-7 rounded-lg flex items-center justify-center text-white/35" style={{ background: 'rgba(255,255,255,.05)' }}>✕</button>
+            </div>
+
+            {/* Create tournament */}
+            <div className="mb-4">
+              <div className="flex gap-2">
+                <input
+                  value={tName}
+                  onChange={e => setTName(e.target.value.slice(0, 50))}
+                  placeholder="ტურნირის სახელი…"
+                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-white/20 font-mono focus:outline-none focus:border-neon-cyan/30"
+                />
+                <button
+                  disabled={tCreating || !tName.trim()}
+                  onClick={async () => {
+                    setTCreating(true);
+                    const r = await emitWithAck<any, Res<any>>('tournament:create', { name: tName.trim() });
+                    setTCreating(false);
+                    if (r.ok) { setTName(''); refreshTournaments(); }
+                  }}
+                  className="px-3 py-2 rounded-xl font-mono text-[11px] font-bold uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
+                  style={{ background: 'rgba(0,245,255,.14)', border: '1px solid rgba(0,245,255,.4)', color: '#00f5ff' }}
+                >
+                  {tCreating ? '…' : '+ შექმნა'}
+                </button>
+              </div>
+            </div>
+
+            {/* Tournament list */}
+            {tournaments.length === 0 ? (
+              <p className="text-center font-mono text-[12px] text-white/30 py-6">ტურნირები ჯერ არ არის</p>
+            ) : (
+              <div className="space-y-2">
+                {tournaments.map(t => {
+                  const myId = profile?.id;
+                  const isParticipant = t.participants?.some((p: any) => p.playerId === myId);
+                  const isCreator = t.createdBy === myId;
+                  return (
+                    <div key={t.id} className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(0,245,255,.12)' }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-mono text-[13px] text-white font-bold truncate">{t.name}</span>
+                        <span className="font-mono text-[10px] px-2 py-0.5 rounded-full" style={{
+                          background: t.status === 'open' ? 'rgba(0,255,136,.12)' : t.status === 'in_progress' ? 'rgba(255,180,0,.12)' : 'rgba(255,255,255,.05)',
+                          color: t.status === 'open' ? '#00ff88' : t.status === 'in_progress' ? '#facc15' : 'rgba(255,255,255,.35)',
+                          border: `1px solid ${t.status === 'open' ? 'rgba(0,255,136,.3)' : t.status === 'in_progress' ? 'rgba(255,180,0,.3)' : 'rgba(255,255,255,.1)'}`,
+                        }}>
+                          {t.status === 'open' ? 'ღია' : t.status === 'in_progress' ? 'მიმდინარე' : 'დასრულებული'}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {t.participants?.map((p: any) => (
+                          <div key={p.playerId} className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg" style={{ background: p.eliminated ? 'rgba(255,45,85,.1)' : 'rgba(155,0,255,.1)', border: `1px solid ${p.eliminated ? 'rgba(255,45,85,.2)' : 'rgba(155,0,255,.2)'}` }}>
+                            <span style={{ fontSize: 12 }}>{p.avatarUrl ? '👤' : p.avatar}</span>
+                            <span className="font-mono text-[10px]" style={{ color: p.eliminated ? 'rgba(255,255,255,.3)' : 'rgba(255,255,255,.6)', textDecoration: p.eliminated ? 'line-through' : 'none' }}>{p.username}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="font-mono text-[10px] text-white/25 mb-2">{t.participants?.length ?? 0}/{t.maxPlayers} მოთამაშე</p>
+                      <div className="flex gap-2">
+                        {t.status === 'open' && !isParticipant && (
+                          <button
+                            onClick={async () => {
+                              await emitWithAck<any, Res<any>>('tournament:join', { tournamentId: t.id });
+                              refreshTournaments();
+                            }}
+                            className="flex-1 py-1.5 rounded-lg font-mono text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95"
+                            style={{ background: 'rgba(0,255,136,.12)', border: '1px solid rgba(0,255,136,.3)', color: '#00ff88' }}
+                          >შეერთება</button>
+                        )}
+                        {t.status === 'open' && isParticipant && !isCreator && (
+                          <button
+                            onClick={async () => {
+                              await emitWithAck<any, Res<null>>('tournament:leave', { tournamentId: t.id });
+                              refreshTournaments();
+                            }}
+                            className="flex-1 py-1.5 rounded-lg font-mono text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95"
+                            style={{ background: 'rgba(255,45,85,.1)', border: '1px solid rgba(255,45,85,.25)', color: '#ff6b81' }}
+                          >გასვლა</button>
+                        )}
+                        {t.status === 'open' && isCreator && (t.participants?.length ?? 0) >= 2 && (
+                          <button
+                            onClick={async () => {
+                              await emitWithAck<any, Res<any>>('tournament:start', { tournamentId: t.id });
+                              refreshTournaments();
+                            }}
+                            className="flex-1 py-1.5 rounded-lg font-mono text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95"
+                            style={{ background: 'rgba(0,245,255,.14)', border: '1px solid rgba(0,245,255,.4)', color: '#00f5ff' }}
+                          >დაწყება</button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+
       {koOpen && createPortal(
         <div onClick={() => setKoOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 1250, background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <div onClick={e => e.stopPropagation()} style={{ width: 'min(340px,100%)', maxHeight: '76vh', overflowY: 'auto', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(255,180,0,.3)', borderRadius: 20, padding: 20 }}>

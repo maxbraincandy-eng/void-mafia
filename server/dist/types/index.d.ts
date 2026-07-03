@@ -784,6 +784,13 @@ export interface ServerToClientEvents {
         reason: string;
     }) => void;
     'xp:gained': (data: XPGain) => void;
+    'pet:xp_gained': (data: {
+        amount: number;
+        petXp: number;
+        petLevel: number;
+        xpToNext: number;
+        leveled: boolean;
+    }) => void;
     'prediction:result': (data: {
         correct: boolean;
         xpGained: number;
@@ -1474,6 +1481,32 @@ export interface ClientToServerEvents {
         code: string;
     }, cb: Cb<null>) => void;
     'friend:requests': (cb: Cb<FriendRequest[]>) => void;
+    'friend:suggestions': (cb: Cb<{
+        profileId: string;
+        username: string;
+        avatar: string;
+        avatarUrl: string | null;
+        mutualCount: number;
+    }[]>) => void;
+    'pet:data': (cb: Cb<{
+        petXp: number;
+        petLevel: number;
+        xpToNext: number;
+    }>) => void;
+    'tournament:list': (cb: Cb<any[]>) => void;
+    'tournament:create': (data: {
+        name: string;
+        maxPlayers?: number;
+    }, cb: Cb<any>) => void;
+    'tournament:join': (data: {
+        tournamentId: string;
+    }, cb: Cb<any>) => void;
+    'tournament:leave': (data: {
+        tournamentId: string;
+    }, cb: Cb<null>) => void;
+    'tournament:start': (data: {
+        tournamentId: string;
+    }, cb: Cb<any>) => void;
     'player:find_by_code': (data: {
         friendCode: string;
     }, cb: Cb<PlayerProfilePublic>) => void;

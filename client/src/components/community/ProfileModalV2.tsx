@@ -109,7 +109,11 @@ export function ProfileModalV2({
             {/* Cover strip */}
             {profile.coverUrl && (
               <div className="-mx-5 -mt-2 mb-4 h-20 overflow-hidden" style={{ position: 'relative' }}>
-                <img src={profile.coverUrl} alt="" className="w-full h-full object-cover" />
+                {profile.coverUrl.startsWith('gradient:') ? (
+                  <div className="w-full h-full" style={{ background: profile.coverUrl.replace('gradient:', '') }} />
+                ) : (
+                  <img src={profile.coverUrl} alt="" className="w-full h-full object-cover" />
+                )}
                 <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 30%, rgba(13,10,26,0.95))' }} />
               </div>
             )}

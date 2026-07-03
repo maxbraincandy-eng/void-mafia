@@ -839,6 +839,7 @@ export interface ServerToClientEvents {
   'voice:disconnect-room':  (data: { reason: string }) => void;
   // XP / levels / cosmetics
   'xp:gained':           (data: XPGain) => void;
+  'pet:xp_gained':       (data: { amount: number; petXp: number; petLevel: number; xpToNext: number; leveled: boolean }) => void;
   // Spectator prediction result
   'prediction:result':   (data: { correct: boolean; xpGained: number; winningTeam: string }) => void;
   // Spectate queue (legacy)
@@ -1078,6 +1079,15 @@ export interface ClientToServerEvents {
   'friend:invitable_list': (cb: Cb<Friend[]>) => void;
   'game:invite': (data: { targetProfileId: string; game: string; code: string }, cb: Cb<null>) => void;
   'friend:requests':       (cb: Cb<FriendRequest[]>) => void;
+  'friend:suggestions':    (cb: Cb<{ profileId: string; username: string; avatar: string; avatarUrl: string | null; mutualCount: number }[]>) => void;
+  // Pet
+  'pet:data':              (cb: Cb<{ petXp: number; petLevel: number; xpToNext: number }>) => void;
+  // Tournaments
+  'tournament:list':       (cb: Cb<any[]>) => void;
+  'tournament:create':     (data: { name: string; maxPlayers?: number }, cb: Cb<any>) => void;
+  'tournament:join':       (data: { tournamentId: string }, cb: Cb<any>) => void;
+  'tournament:leave':      (data: { tournamentId: string }, cb: Cb<null>) => void;
+  'tournament:start':      (data: { tournamentId: string }, cb: Cb<any>) => void;
   // Friend code lookup
   'player:find_by_code':   (data: { friendCode: string }, cb: Cb<PlayerProfilePublic>) => void;
   // Mod grant by code (owner only)

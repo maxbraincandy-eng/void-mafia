@@ -10,8 +10,11 @@ import { useSocialStore } from '@/store/socialStore';
 const LEVEL_COLORS = ['text-white/40', 'text-neon-cyan/70', 'text-neon-purple/80', 'text-neon-pink/80', 'text-yellow-400'];
 function lvlColor(level: number) { return LEVEL_COLORS[Math.min(Math.floor((level - 1) / 2), LEVEL_COLORS.length - 1)]; }
 
+type Suggestion = { profileId: string; username: string; avatar: string; avatarUrl: string | null; mutualCount: number };
+
 export function FriendsPanel() {
   const [friends, setFriends] = useState<Friend[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [addCode, setAddCode] = useState('');
   const [addError, setAddError] = useState('');
   const [addLoading, setAddLoading] = useState(false);
@@ -24,7 +27,13 @@ export function FriendsPanel() {
       .catch(() => {});
   };
 
-  useEffect(() => { refresh(); }, []);
+  const refreshSuggestions = () => {
+    emitWithAck<void, Res<Suggestion[]>>('friend:suggestions')
+      .then(res => { if (res.ok) setSuggestions(res.data ?? []); })
+      .catch(() => {});
+  };
+
+  useEffect(() => { refresh(); refreshSuggestions(); }, []);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,6 +173,20 @@ export function FriendsPanel() {
       )}
 
 
+      {/* Friend suggestions */}
+      {suggestions.length > 0 && (
+        <div>
+          <p className="text-[12px] font-display uppercase tracking-[0.25em] text-neon-purple/50 mb-2">
+            შეიძლება იცნობ
+          </p>
+          <div className="space-y-1.5">
+            {suggestions.map(s => (
+              <SuggestionRow key={s.profileId} suggestion={s} onSent={(id) => setSuggestions(prev => prev.filter(x => x.profileId !== id))} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {friends.length === 0 && pendingFriendRequests.length === 0 && (
         <div className="text-center py-8 text-white/20 font-mono text-sm">
           <p className="text-3xl mb-2">👥</p>
@@ -171,6 +194,45 @@ export function FriendsPanel() {
           <p className="text-[12px] mt-1 text-white/15">Add friends by their 4-digit code</p>
         </div>
       )}
+    </div>
+  );
+}
+
+function SuggestionRow({ suggestion, onSent }: { suggestion: Suggestion; onSent: (id: string) => void }) {
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const { openProfile } = useSocialStore();
+  const handleAdd = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSending(true);
+    const res = await emitWithAck<{ toProfileId: string }, Res<null>>('friend:request', { toProfileId: suggestion.profileId });
+    setSending(false);
+    if (res.ok) { setSent(true); setTimeout(() => onSent(suggestion.profileId), 600); }
+  };
+  return (
+    <div
+      onClick={() => openProfile(suggestion.profileId)}
+      className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-white/4 transition-colors cursor-pointer"
+    >
+      <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-base flex-shrink-0"
+        style={{ background: 'linear-gradient(135deg, rgba(138,43,226,0.4), rgba(0,212,255,0.4))', border: '1px solid rgba(138,43,226,0.3)' }}>
+        {suggestion.avatarUrl
+          ? <img src={suggestion.avatarUrl} alt={suggestion.username} className="w-full h-full object-cover rounded-full" />
+          : suggestion.avatar
+        }
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-white font-semibold truncate leading-tight">{suggestion.username}</p>
+        <p className="text-[11px] font-mono text-neon-purple/50">{suggestion.mutualCount} mutual</p>
+      </div>
+      <button
+        onClick={handleAdd}
+        disabled={sending || sent}
+        className="text-[11px] font-mono px-2.5 py-1 rounded-lg transition-all active:scale-95 flex-shrink-0 disabled:opacity-50"
+        style={{ background: sent ? 'rgba(0,255,136,.14)' : 'rgba(138,43,226,.14)', border: `1px solid ${sent ? 'rgba(0,255,136,.4)' : 'rgba(138,43,226,.4)'}`, color: sent ? '#00ff88' : '#c084fc' }}
+      >
+        {sent ? '✓' : sending ? '…' : '+ Add'}
+      </button>
     </div>
   );
 }

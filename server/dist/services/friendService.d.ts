@@ -32,6 +32,13 @@ export declare function getFriends(playerId: string): Promise<Friend[]>;
  */
 export declare function getInvitablePeople(playerId: string): Promise<Friend[]>;
 export declare function getFriendIds(playerId: string): Promise<string[]>;
+export declare function getFriendSuggestions(playerId: string, limit?: number): Promise<{
+    profileId: string;
+    username: string;
+    avatar: string;
+    avatarUrl: string | null;
+    mutualCount: number;
+}[]>;
 export declare function getPendingRequests(playerId: string): Promise<FriendRequest[]>;
 export declare function getFriendshipStatus(userId: string, otherId: string): Promise<string>;
 //# sourceMappingURL=friendService.d.ts.map

@@ -466,6 +466,8 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
   const [saved, setSaved]             = useState<CommunityPostV2[] | null>(null);
   const [lightboxPost, setLightboxPost] = useState<CommunityPostV2 | null>(null);
   const [followSheet, setFollowSheet] = useState<'followers' | 'following' | null>(null);
+  const [bannerPicker, setBannerPicker] = useState(false);
+  const [bannerSaving, setBannerSaving] = useState(false);
 
   const isSelf     = currentUser?.id === profileId;
   const isLoggedIn = !!currentUser;
@@ -516,6 +518,34 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
   const textPosts  = posts.filter(p => !p.imageUrl && !p.gifUrl && !p.videoUrl);
   const isMrMax    = profile?.badges?.includes('owner');
 
+  const BANNER_PRESETS = [
+    { id: 'none', css: '', label: 'არცერთი' },
+    { id: 'cyber-purple', css: 'linear-gradient(135deg, #1a0533 0%, #4a0e8f 40%, #9b00ff 100%)', label: '' },
+    { id: 'neon-sunset', css: 'linear-gradient(135deg, #0d0221 0%, #6b0f1a 35%, #ff4d6d 70%, #fca311 100%)', label: '' },
+    { id: 'ocean-glow', css: 'linear-gradient(135deg, #020024 0%, #003d5b 40%, #00d4ff 90%)', label: '' },
+    { id: 'void-matrix', css: 'linear-gradient(135deg, #000 0%, #003300 50%, #00ff41 100%)', label: '' },
+    { id: 'aurora', css: 'linear-gradient(135deg, #0d001a 0%, #1b4332 30%, #40916c 55%, #95d5b2 80%, #d8f3dc 100%)', label: '' },
+    { id: 'fire-ice', css: 'linear-gradient(135deg, #2d00f7 0%, #6a00f4 25%, #ff0a54 75%, #ff7b00 100%)', label: '' },
+    { id: 'midnight', css: 'linear-gradient(135deg, #0a0a23 0%, #1f1147 40%, #4361ee 80%, #7209b7 100%)', label: '' },
+    { id: 'blood-moon', css: 'linear-gradient(135deg, #1a0000 0%, #660000 40%, #cc0000 70%, #ff4444 100%)', label: '' },
+    { id: 'toxic', css: 'linear-gradient(135deg, #0a0a0a 0%, #1a3a0a 30%, #39ff14 70%, #c8ff00 100%)', label: '' },
+    { id: 'galaxy', css: 'linear-gradient(135deg, #0d0221 0%, #150050 25%, #3f0d73 50%, #8e2de2 75%, #e040fb 100%)', label: '' },
+    { id: 'gold', css: 'linear-gradient(135deg, #1a1200 0%, #5c4b00 35%, #ffd700 70%, #fff8dc 100%)', label: '' },
+    { id: 'arctic', css: 'linear-gradient(135deg, #020b1a 0%, #0e4d92 35%, #00b4d8 65%, #caf0f8 100%)', label: '' },
+  ];
+
+  const handleBannerSelect = async (preset: typeof BANNER_PRESETS[0]) => {
+    setBannerSaving(true);
+    const coverUrl = preset.id === 'none' ? '' : `gradient:${preset.css}`;
+    try {
+      const r = await emitWithAck<any, Res<CommunityProfileV2>>('community:profile_update', { coverUrl });
+      if (r.ok) setProfile(r.data);
+    } finally {
+      setBannerSaving(false);
+      setBannerPicker(false);
+    }
+  };
+
   // Saved posts (own profile only) — fetched lazily when the tab opens.
   useEffect(() => {
     if (tab !== 'saved' || !isSelf || saved !== null) return;
@@ -544,14 +574,37 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
           {/* Cover */}
           {profile.coverUrl ? (
             <div className="-mx-4 h-36 overflow-hidden rounded-2xl relative mb-0">
-              <img src={profile.coverUrl} alt="" className="w-full h-full object-cover" />
+              {profile.coverUrl.startsWith('gradient:') ? (
+                <div className="w-full h-full" style={{ background: profile.coverUrl.replace('gradient:', '') }} />
+              ) : (
+                <img src={profile.coverUrl} alt="" className="w-full h-full object-cover" />
+              )}
               <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 45%, rgba(3,0,13,0.85))' }} />
+              {isSelf && (
+                <button
+                  onClick={() => setBannerPicker(true)}
+                  className="absolute top-2 right-2 px-2 py-1 rounded-lg font-mono text-white/60 hover:text-white transition-all active:scale-95"
+                  style={{ fontSize: 11, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}
+                >
+                  ✎ ბანერი
+                </button>
+              )}
             </div>
           ) : (
             <div
-              className="-mx-4 h-24 rounded-2xl mb-0"
+              className="-mx-4 h-24 rounded-2xl mb-0 relative"
               style={{ background: 'linear-gradient(135deg, rgba(155,0,255,0.14), rgba(0,245,255,0.07))' }}
-            />
+            >
+              {isSelf && (
+                <button
+                  onClick={() => setBannerPicker(true)}
+                  className="absolute top-2 right-2 px-2 py-1 rounded-lg font-mono text-white/40 hover:text-white/70 transition-all active:scale-95"
+                  style={{ fontSize: 11, background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(8px)' }}
+                >
+                  + ბანერი
+                </button>
+              )}
+            </div>
           )}
 
           {/* Avatar row */}
@@ -793,6 +846,51 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
             onClose={() => setFollowSheet(null)}
             onOpenProfile={id => { setFollowSheet(null); onNavigate ? onNavigate(id) : onBack(); }}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Banner picker modal */}
+      <AnimatePresence>
+        {bannerPicker && createPortal(
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-end justify-center"
+            style={{ background: 'rgba(0,0,0,0.7)' }}
+            onClick={() => setBannerPicker(false)}
+          >
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="w-full max-w-md rounded-t-2xl p-4 pb-8"
+              style={{ background: '#0d0a1a', border: '1px solid rgba(155,0,255,0.2)', borderBottom: 'none' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-display font-bold text-white" style={{ fontSize: 16 }}>ბანერის არჩევა</p>
+                <button onClick={() => setBannerPicker(false)} className="text-white/40 hover:text-white/70 text-lg">✕</button>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {BANNER_PRESETS.map(preset => (
+                  <button
+                    key={preset.id}
+                    onClick={() => handleBannerSelect(preset)}
+                    disabled={bannerSaving}
+                    className="rounded-xl overflow-hidden transition-all active:scale-95 disabled:opacity-50"
+                    style={{
+                      height: 56,
+                      background: preset.id === 'none' ? 'rgba(255,255,255,0.04)' : preset.css,
+                      border: (profile?.coverUrl === `gradient:${preset.css}` || (preset.id === 'none' && !profile?.coverUrl))
+                        ? '2px solid #9b00ff'
+                        : '1px solid rgba(255,255,255,0.1)',
+                    }}
+                  >
+                    {preset.id === 'none' && <span className="text-white/30 font-mono" style={{ fontSize: 11 }}>{preset.label}</span>}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>,
+          document.body,
         )}
       </AnimatePresence>
     </div>

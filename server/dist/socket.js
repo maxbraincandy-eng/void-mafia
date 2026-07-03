@@ -12,7 +12,7 @@ import { registerUnoHandlers, handleUnoDisconnect } from './uno.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
 import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, getNameColors, grantStarterCosmetics, incrementSpaceKnockouts, getKnockoutLeaderboard, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
-import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount, setLoungePresence, clearLoungePresence, getFriendIds, setInvisible, isInvisible, setGhost, isGhost, getPeakOnline, getOnlineCountRaw, } from './services/friendService.js';
+import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount, setLoungePresence, clearLoungePresence, getFriendIds, setInvisible, isInvisible, setGhost, isGhost, getPeakOnline, getOnlineCountRaw, getFriendSuggestions, } from './services/friendService.js';
 import { checkAndAwardChallenges, getDailyQuestsForPlayer, } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
 import { recordGame, getPlayerHistory, getPlayerRoleStats, getPlayersLastRolesInRoom } from './services/gameHistoryService.js';
@@ -33,6 +33,8 @@ import { listNews, createNews, deleteNews, listRecommends, createRecommend, dele
 import { listDebates, getDebateFull, createDebate, joinDebate, postArgument, voteDebate, closeDebate, startDebate, advancePhase as advanceDebatePhase, skipPhase, raiseHand, lowerHand, getRaisedHands, promoteSpeaker, PHASE_DURATION_SECONDS, } from './services/debateService.js';
 import { voiceJoin as debateVoiceJoin, voiceLeave as debateVoiceLeave } from './services/debateVoiceService.js';
 import { recordActivity, getFriendActivityFeed } from './services/activityService.js';
+import { getPetData, addPetXp } from './services/petService.js';
+import { createTournament, joinTournament, leaveTournament, startTournament, listOpenTournaments, getTournament } from './services/tournamentService.js';
 import { adminSearchUser, adminGetUserProfile, issueWarning, suspendUser, liftSuspension, muteUser, unmuteUser, setProfileControls, adminDeletePost, adminRestorePost, adminDeleteComment, adminRestoreComment, adminDeleteDebate, adminRestoreDebate, adminSetDebateFlags, listAllReports, listDeletedContent, getAdminAuditLogs, } from './services/adminService.js';
 import { join as loungeJoin, leave as loungeLeave, getMembers as loungeGetMembers, getMemberByPlayerId as loungeGetMemberByPlayerId, setRole as loungeSetRole, setHandRaised as loungeSetHandRaised, removeMember as loungeRemoveMember, getCounts as loungeGetCounts, } from './services/loungeVoiceService.js';
 // ── TURN / ICE server config ──────────────────────────────────────────
@@ -892,6 +894,15 @@ async function emitGameOver(io, room) {
                         challengeBonus,
                     });
                 }
+                // Pet XP from game completion
+                try {
+                    const petXpAmount = won ? 15 : 5;
+                    const petResult = await addPetXp(p.profileId, petXpAmount);
+                    if (p.socketId) {
+                        io.to(p.socketId).emit('pet:xp_gained', { amount: petXpAmount, ...petResult.data, leveled: petResult.leveled });
+                    }
+                }
+                catch { /* non-fatal */ }
             }
             catch { /* non-fatal */ }
             // Check and award achievements
@@ -4302,6 +4313,92 @@ export function attachSocketHandlers(io) {
                 if (!profileId)
                     throw new Error('Not authenticated.');
                 cb(ok(await getPendingRequests(profileId)));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('friend:suggestions', async (cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                cb(ok(await getFriendSuggestions(profileId)));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('pet:data', async (cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                cb(ok(await getPetData(profileId)));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Tournaments ─────────────────────────────────────────────────────
+        socket.on('tournament:list', async (cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                cb(ok(await listOpenTournaments()));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('tournament:create', async (data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const name = (data?.name ?? 'Tournament').slice(0, 50);
+                const maxPlayers = Math.min(Math.max(Number(data?.maxPlayers ?? 8), 2), 16);
+                const t = await createTournament(profileId, name, maxPlayers, 0);
+                cb(ok(t));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('tournament:join', async (data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                await joinTournament(data.tournamentId, profileId);
+                const t = await getTournament(data.tournamentId);
+                cb(ok(t));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('tournament:leave', async (data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                await leaveTournament(data.tournamentId, profileId);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('tournament:start', async (data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                await startTournament(data.tournamentId, profileId);
+                const t = await getTournament(data.tournamentId);
+                cb(ok(t));
             }
             catch (e) {
                 cb(err(e.message));
