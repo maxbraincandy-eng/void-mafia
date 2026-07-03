@@ -55,7 +55,7 @@ const DEFAULTS: Settings = {
   notifyFriendRequests: true,
   notifyDMs: true,
   reduceAnimations: false,
-  largeText: false,
+  largeText: true,
   themeMode: 'minimal-glass',
 };
 
@@ -68,7 +68,7 @@ export const useSettingsStore = create<SettingsStore>()(
     }),
     {
       name: 'void-mafia-settings',
-      version: 4,
+      version: 5,
       migrate: (stored: any, fromVersion: number) => {
         if (fromVersion < 2) {
           return { ...DEFAULTS, ...stored, sfxEnabled: true, musicEnabled: false, sfxVolume: Math.max(stored?.sfxVolume ?? 0, 80) };
@@ -78,6 +78,9 @@ export const useSettingsStore = create<SettingsStore>()(
         }
         if (fromVersion < 4) {
           return { ...DEFAULTS, ...stored, themeMode: stored?.themeMode ?? 'minimal-glass' };
+        }
+        if (fromVersion < 5) {
+          return { ...DEFAULTS, ...stored, largeText: true };
         }
         return stored as SettingsStore;
       },
