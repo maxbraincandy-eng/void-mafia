@@ -675,25 +675,40 @@ function RoomObjects({ djActive, onDJClick, onGamesClick, decor }: { djActive: b
 // ── Perspective floor ─────────────────────────────────────────────────
 
 function PerspectiveFloor() {
+  // Room-like dark parquet floor in perspective (replaces the old neon rays).
   const VX = 50, VY = 37;
-  const rays = [0,9,18,27,36,43,50,57,64,73,82,91,100];
-  const hLines = [{y:46},{y:55},{y:65},{y:77},{y:90}];
+  const rays = [0, 11, 22, 33, 44, 50, 56, 67, 78, 89, 100];        // board seams → vanishing point
+  const hLines = [{ y: 41 }, { y: 46 }, { y: 53 }, { y: 62 }, { y: 73 }, { y: 86 }]; // cross seams, denser near horizon
   return (
     <>
+      {/* Wall — keep the faint grid, slightly muted */}
       <svg className="absolute pointer-events-none" style={{ left:0,top:0,width:'100%',height:`${VY}%` }} preserveAspectRatio="none">
-        {[18,42,68,88].map((yp,i)=><line key={i} x1="0" y1={`${yp}%`} x2="100%" y2={`${yp}%`} stroke="rgba(0,229,255,.12)" strokeWidth="0.8"/>)}
-        {[16,32,50,68,84].map((xp,i)=><line key={i} x1={`${xp}%`} y1="0" x2={`${xp}%`} y2="100%" stroke="rgba(120,0,255,.09)" strokeWidth="0.8"/>)}
+        {[18,42,68,88].map((yp,i)=><line key={i} x1="0" y1={`${yp}%`} x2="100%" y2={`${yp}%`} stroke="rgba(0,229,255,.08)" strokeWidth="0.8"/>)}
+        {[16,32,50,68,84].map((xp,i)=><line key={i} x1={`${xp}%`} y1="0" x2={`${xp}%`} y2="100%" stroke="rgba(120,0,255,.06)" strokeWidth="0.8"/>)}
       </svg>
+
+      {/* Wooden floor surface — darker toward the horizon, warm up close */}
+      <div className="absolute pointer-events-none" style={{
+        left: 0, right: 0, top: `${VY}%`, bottom: 0,
+        background: 'linear-gradient(180deg, #17100b 0%, #211712 26%, #2b1d14 62%, #251a12 100%)',
+      }} />
+      {/* Soft sheen from the room lights + a whisper of void-purple ambience */}
+      <div className="absolute pointer-events-none" style={{
+        left: 0, right: 0, top: `${VY}%`, bottom: 0,
+        background: 'radial-gradient(ellipse at 50% 18%, rgba(255,220,170,.07), transparent 55%), radial-gradient(ellipse at 50% 110%, rgba(120,60,200,.06), transparent 60%)',
+      }} />
+
+      {/* Plank seams */}
       <svg className="absolute inset-0 pointer-events-none" style={{ width:'100%',height:'100%' }} viewBox="0 0 100 100" preserveAspectRatio="none">
-        <polygon points={`${VX},${VY} ${VX},${VY} 34,100 0,100`}   fill="rgba(120,0,255,.07)"/>
-        <polygon points={`${VX},${VY} ${VX},${VY} 66,100 34,100`}  fill="rgba(255,0,150,.04)"/>
-        <polygon points={`${VX},${VY} ${VX},${VY} 100,100 66,100`} fill="rgba(0,200,255,.07)"/>
-        {rays.map((bx,i)=>(
-          <line key={i} x1={VX} y1={VY} x2={bx} y2={100} stroke={bx<=34?'rgba(120,0,255,.65)':bx>=66?'rgba(0,229,255,.65)':'rgba(255,0,150,.55)'} strokeWidth="0.32"/>
+        {/* skirting / horizon edge */}
+        <line x1="0" y1={VY} x2="100" y2={VY} stroke="rgba(0,0,0,.55)" strokeWidth="0.5"/>
+        <line x1="0" y1={VY + 0.5} x2="100" y2={VY + 0.5} stroke="rgba(255,255,255,.05)" strokeWidth="0.3"/>
+        {rays.map((bx, i) => (
+          <line key={i} x1={VX} y1={VY} x2={bx} y2={100} stroke="rgba(0,0,0,.34)" strokeWidth="0.22"/>
         ))}
-        {hLines.map(({y},i)=>{
-          const t=(y-VY)/(100-VY);
-          return <line key={i} x1={VX*(1-t)} y1={y} x2={VX+(100-VX)*t} y2={y} stroke="rgba(180,120,255,.7)" strokeWidth="0.32" opacity={0.38+i*0.11}/>;
+        {hLines.map(({ y }, i) => {
+          const t = (y - VY) / (100 - VY);
+          return <line key={i} x1={VX * (1 - t)} y1={y} x2={VX + (100 - VX) * t} y2={y} stroke="rgba(0,0,0,.30)" strokeWidth="0.22" opacity={0.5 + i * 0.08}/>;
         })}
       </svg>
     </>
