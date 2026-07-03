@@ -329,6 +329,100 @@ function _rpsWinner(a: RpsChoice, b: RpsChoice): 'a' | 'b' | 'draw' {
   return 'b';
 }
 
+// ── Truth or Dare ("სიმართლე თუ მოქმედება") ─────────────────────────
+const _todPending      = new Map<string, string>();
+const _todPendingTimer = new Map<string, NodeJS.Timeout>();
+function _clearTod(socketId: string) {
+  const t1 = _todPendingTimer.get(socketId); if (t1) { clearTimeout(t1); _todPendingTimer.delete(socketId); }
+  _todPending.delete(socketId);
+  for (const [target, challenger] of _todPending) {
+    if (challenger === socketId) { const t = _todPendingTimer.get(target); if (t) { clearTimeout(t); _todPendingTimer.delete(target); } _todPending.delete(target); }
+  }
+}
+const TOD_TRUTHS = [
+  'რომელია შენი ყველაზე სარცხვინო მომენტი?',
+  'ვის ეტყოდი "მიყვარხარ" ახლა?',
+  'რა არის შენი საიდუმლო ნიჭი?',
+  'რომელი მოთამაშე მოგწონს აქ ყველაზე მეტად?',
+  'რა გიკეთებია რაც არავის უთქვამს?',
+  'რომელია შენი ყველაზე უცნაური ჩვევა?',
+  'ბოლოს როდის იტირე და რატომ?',
+  'რა გეზარება ცხოვრებაში ყველაზე მეტად?',
+  'ვის დაურეკავდი ახლა თუ ერთი ზარის უფლება გექნებოდა?',
+  'რომელია შენი ყველაზე დიდი შიში?',
+  'რა ოცნება გაქვს რომელიც არავისთვის გითქვამს?',
+  'რომელი სუპერძალა გინდა რომ გქონდეს?',
+  'ვისზე გაგიწყრია ბოლო 1 კვირაში?',
+  'რა გააკეთებდი მილიონი ლარი რომ გქონდეს?',
+  'რომელია შენი ყველაზე სასაცილო ჩავარდნა?',
+  'რამდენჯერ გატყუებულა ვინმეს?',
+  'რა არის შენი guilty pleasure?',
+  'რა არის ყველაზე საშიში რამ რაც გაგიკეთებია?',
+  'ვისგან გინდა ბოდიშის მოხდა?',
+  'რა იქნებოდა შენი ბოლო სიტყვები?',
+];
+const TOD_DARES = [
+  'დაწერე ჩატში "მიყვარხარ" 3-ჯერ ზედიზედ! ❤️',
+  'გაუკეთე კომპლიმენტი ყველას ჩატში! 💐',
+  'დაწერე ჩატში სასაცილო ხუმრობა 30 წამში! 😂',
+  'დაწერე ჩატში შენი საყვარელი სიმღერის სტრიქონი! 🎵',
+  'დაწერე ჩატში 5 ემოჯი რომელიც შენს დღეს აღწერს! 🎭',
+  'გამოიცანი რომელიმე მოთამაშის ასაკი ჩატში! 🔮',
+  'დაწერე ჩატში რამე უცხო ენაზე! 🌍',
+  'გაგზავნე 10 ემოჯი ზედიზედ ჩატში! 🚀',
+  'დაწერე ჩატში პატარა ლექსი 4 სტრიქონზე! ✍️',
+  'გადაუხადე პატივი ყველას ჩატში სათითაოდ! 🫡',
+  'დაწერე ჩატში რატომ ხარ კარგი ადამიანი! 😇',
+  'დაწერე ჩატში 3 რამ რისიც გეშინია! 👻',
+  'მოიგონე გმირის სახელი საკუთარი თავისთვის! 🦸',
+  'გაგზავნე ხმოვანი შეტყობინება სიმღერით! 🎤',
+  'დაწერე ჩატში "sorry" 5 ენაზე! 🗣️',
+  'მოთამაშეებს უთხარი რა მოგწონთ თითოეულში! 💫',
+  'დაწერე ჩატში შენი ყველაზე უცნაური ფაქტი! 🤯',
+  'ითამაშე "მე არასდროს" — დაწერე 3 რამ! 🙈',
+  'დაწერე ჩატში რას აკეთებდი 1 საათის წინ! ⏰',
+  'გაგზავნე ჩატში შენი საყვარელი საჭმლის სახელი 5-ჯერ! 🍕',
+];
+
+// ── Reaction Test (⚡ რეაქციის ტესტი) ────────────────────────────────
+interface ReactionGame {
+  spaceId: string;
+  phase: 'joining' | 'countdown' | 'waiting' | 'go' | 'done';
+  starterSocketId: string;
+  players: Map<string, string>; // socketId → name
+  goTime?: number; // Date.now() when GO signal was sent
+  results: { socketId: string; name: string; ms: number }[];
+  timers: NodeJS.Timeout[];
+}
+const _reactionGames = new Map<string, ReactionGame>(); // spaceId → game
+const _reactionLeaderboard = new Map<string, Map<string, { name: string; wins: number }>>();  // spaceId → (socketId → {name, wins})
+function _clearReactionGame(spaceId: string) {
+  const g = _reactionGames.get(spaceId);
+  if (g) { for (const t of g.timers) clearTimeout(t); }
+  _reactionGames.delete(spaceId);
+}
+
+function _finishReaction(spaceId: string, io: any) {
+  const g = _reactionGames.get(spaceId);
+  if (!g) return;
+  g.phase = 'done';
+  g.results.sort((a, b) => a.ms - b.ms);
+  // Update leaderboard — winner gets +1
+  if (g.results.length > 0) {
+    let lb = _reactionLeaderboard.get(spaceId);
+    if (!lb) { lb = new Map(); _reactionLeaderboard.set(spaceId, lb); }
+    const winner = g.results[0];
+    const entry = lb.get(winner.socketId) || { name: winner.name, wins: 0 };
+    entry.wins++;
+    entry.name = winner.name;
+    lb.set(winner.socketId, entry);
+  }
+  const lb = _reactionLeaderboard.get(spaceId);
+  const leaderboard = lb ? [...lb.values()].sort((a, b) => b.wins - a.wins).slice(0, 10) : [];
+  io.to(`space:${spaceId}`).emit('space:reaction_result' as any, { results: g.results, leaderboard });
+  _clearReactionGame(spaceId);
+}
+
 interface SpaceDJState { videoId: string; startedAt: number; position: number; isPlaying: boolean; djName: string; }
 interface SpaceMeta {
   id: string; name: string; icon: string; theme: string; layout: string;
@@ -471,6 +565,7 @@ function _leaveSpace(sid: string, io: AppServer): void {
       }
       _clearDuel(sid);
       _clearRps(sid);
+      _clearTod(sid);
       room.delete(sid);
       io.to(`space:${spaceId}`).emit('space:player-left', { socketId: sid });
       if (room.size === 0) {
@@ -6619,6 +6714,159 @@ export function attachSocketHandlers(io: AppServer): void {
             io.to(myGame.bSocketId).emit('space:rps_round', { ...roundData, finished: false, nextRound: myGame.round });
           }
         }
+      } catch { cb?.({ ok: false }); }
+    });
+
+    // ── Truth or Dare ("სიმართლე თუ მოქმედება") ───────────────────────
+    socket.on('space:tod_challenge' as any, ({ targetSocketId }: any, cb: Function) => {
+      try {
+        const spaceId = _spaceOfSocket(socket.id);
+        if (!spaceId) return cb?.({ ok: false });
+        const room = _spaces.get(spaceId);
+        const me = room?.get(socket.id);
+        const target = room?.get(targetSocketId);
+        if (!me || !target || socket.id === targetSocketId) return cb?.({ ok: false });
+        if (_todPending.has(targetSocketId)) return cb?.({ ok: false, error: 'Invite already pending.' });
+        _todPending.set(targetSocketId, socket.id);
+        const timer = setTimeout(() => { if (_todPending.get(targetSocketId) === socket.id) { _todPending.delete(targetSocketId); _todPendingTimer.delete(targetSocketId); } }, 20_000);
+        _todPendingTimer.set(targetSocketId, timer);
+        io.to(targetSocketId).emit('space:tod_invite' as any, { fromSocketId: socket.id, fromName: me.name });
+        cb?.({ ok: true });
+      } catch { cb?.({ ok: false }); }
+    });
+
+    socket.on('space:tod_respond' as any, ({ fromSocketId, accept }: any, cb: Function) => {
+      try {
+        const spaceId = _spaceOfSocket(socket.id);
+        if (!spaceId) return cb?.({ ok: false });
+        const room = _spaces.get(spaceId);
+        const me = room?.get(socket.id);
+        const challenger = room?.get(fromSocketId);
+        const t = _todPendingTimer.get(socket.id);
+        if (t) { clearTimeout(t); _todPendingTimer.delete(socket.id); }
+        const wasPending = _todPending.get(socket.id) === fromSocketId;
+        _todPending.delete(socket.id);
+        if (!me || !challenger || !wasPending) return cb?.({ ok: false, error: 'Invite expired.' });
+        if (!accept) {
+          io.to(fromSocketId).emit('space:tod_declined' as any, { byName: me.name });
+          return cb?.({ ok: true });
+        }
+        io.to(fromSocketId).emit('space:tod_start' as any, { opponent: me.name, opponentSocketId: socket.id });
+        io.to(socket.id).emit('space:tod_start' as any, { opponent: challenger.name, opponentSocketId: fromSocketId });
+        cb?.({ ok: true });
+      } catch { cb?.({ ok: false }); }
+    });
+
+    socket.on('space:tod_pick' as any, ({ choice }: { choice: 'truth' | 'dare' }, cb: Function) => {
+      try {
+        if (choice !== 'truth' && choice !== 'dare') return cb?.({ ok: false });
+        const spaceId = _spaceOfSocket(socket.id);
+        if (!spaceId) return cb?.({ ok: false });
+        const room = _spaces.get(spaceId);
+        const me = room?.get(socket.id);
+        if (!me) return cb?.({ ok: false });
+        const bank = choice === 'truth' ? TOD_TRUTHS : TOD_DARES;
+        const question = bank[Math.floor(Math.random() * bank.length)];
+        const label = choice === 'truth' ? 'სიმართლე' : 'მოქმედება';
+        // Send to everyone in space so it shows in chat
+        io.to(`space:${spaceId}`).emit('space:tod_question' as any, { playerName: me.name, choice, label, question });
+        cb?.({ ok: true });
+      } catch { cb?.({ ok: false }); }
+    });
+
+    // ── Reaction Test (⚡ რეაქციის ტესტი) ────────────────────────────
+    socket.on('space:reaction_start' as any, (_: any, cb: Function) => {
+      try {
+        const spaceId = _spaceOfSocket(socket.id);
+        if (!spaceId) return cb?.({ ok: false });
+        if (_reactionGames.has(spaceId)) return cb?.({ ok: false, error: 'Already running.' });
+        const room = _spaces.get(spaceId);
+        const me = room?.get(socket.id);
+        if (!me) return cb?.({ ok: false });
+
+        const players = new Map<string, string>();
+        players.set(socket.id, me.name);
+        const game: ReactionGame = { spaceId, phase: 'joining', starterSocketId: socket.id, players, results: [], timers: [] };
+        _reactionGames.set(spaceId, game);
+
+        // Broadcast invite to everyone in the space
+        io.to(`space:${spaceId}`).emit('space:reaction_invite' as any, { starterName: me.name });
+
+        // Auto-start after 8 seconds
+        const startTimer = setTimeout(() => {
+          const g = _reactionGames.get(spaceId);
+          if (!g || g.phase !== 'joining') return;
+          if (g.players.size < 2) {
+            io.to(`space:${spaceId}`).emit('space:reaction_cancelled' as any, {});
+            _clearReactionGame(spaceId);
+            return;
+          }
+          g.phase = 'countdown';
+          io.to(`space:${spaceId}`).emit('space:reaction_countdown' as any, { count: 3, players: [...g.players.entries()].map(([sid, name]) => ({ socketId: sid, name })) });
+
+          const t2 = setTimeout(() => io.to(`space:${spaceId}`).emit('space:reaction_countdown' as any, { count: 2 }), 1000);
+          const t3 = setTimeout(() => io.to(`space:${spaceId}`).emit('space:reaction_countdown' as any, { count: 1 }), 2000);
+          const randomDelay = 3000 + Math.floor(Math.random() * 3000); // 3-6s after countdown starts (1-4s after "1")
+          const tGo = setTimeout(() => {
+            const gg = _reactionGames.get(spaceId);
+            if (!gg) return;
+            gg.phase = 'go';
+            gg.goTime = Date.now();
+            io.to(`space:${spaceId}`).emit('space:reaction_go' as any, {});
+            // Auto-end after 5 seconds if not everyone tapped
+            const tEnd = setTimeout(() => {
+              const ggg = _reactionGames.get(spaceId);
+              if (!ggg || ggg.phase !== 'go') return;
+              _finishReaction(spaceId, io);
+            }, 5000);
+            gg.timers.push(tEnd);
+          }, randomDelay);
+          g.timers.push(t2, t3, tGo);
+        }, 8000);
+        game.timers.push(startTimer);
+
+        cb?.({ ok: true });
+      } catch { cb?.({ ok: false }); }
+    });
+
+    socket.on('space:reaction_join' as any, (_: any, cb: Function) => {
+      try {
+        const spaceId = _spaceOfSocket(socket.id);
+        if (!spaceId) return cb?.({ ok: false });
+        const g = _reactionGames.get(spaceId);
+        if (!g || g.phase !== 'joining') return cb?.({ ok: false });
+        const room = _spaces.get(spaceId);
+        const me = room?.get(socket.id);
+        if (!me) return cb?.({ ok: false });
+        g.players.set(socket.id, me.name);
+        io.to(`space:${spaceId}`).emit('space:reaction_player_joined' as any, { name: me.name, count: g.players.size });
+        cb?.({ ok: true });
+      } catch { cb?.({ ok: false }); }
+    });
+
+    socket.on('space:reaction_tap' as any, (_: any, cb: Function) => {
+      try {
+        const spaceId = _spaceOfSocket(socket.id);
+        if (!spaceId) return cb?.({ ok: false });
+        const g = _reactionGames.get(spaceId);
+        if (!g || g.phase !== 'go' || !g.goTime) return cb?.({ ok: false });
+        if (!g.players.has(socket.id)) return cb?.({ ok: false });
+        if (g.results.some(r => r.socketId === socket.id)) return cb?.({ ok: false }); // already tapped
+        const ms = Date.now() - g.goTime;
+        g.results.push({ socketId: socket.id, name: g.players.get(socket.id)!, ms });
+        cb?.({ ok: true, ms });
+        // If everyone tapped, finish early
+        if (g.results.length >= g.players.size) _finishReaction(spaceId, io);
+      } catch { cb?.({ ok: false }); }
+    });
+
+    socket.on('space:reaction_leaderboard' as any, (_: any, cb: Function) => {
+      try {
+        const spaceId = _spaceOfSocket(socket.id);
+        if (!spaceId) return cb?.({ ok: false });
+        const lb = _reactionLeaderboard.get(spaceId);
+        const entries = lb ? [...lb.values()].sort((a, b) => b.wins - a.wins).slice(0, 10) : [];
+        cb?.({ ok: true, data: entries });
       } catch { cb?.({ ok: false }); }
     });
 

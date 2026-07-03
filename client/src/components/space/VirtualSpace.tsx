@@ -1562,7 +1562,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const [socialProfileId, setSocialProfileId] = useState<string | null>(null);
   const openDmList = useSocialStore(s => s.openDmList);
 
-  const { joined, ghost, mySocketId, players, chatHistory, space, reactions, projectiles, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, knockout, clearKnockout, challengeDuel, respondDuel, duelInvite, activeDuel, duelResult, dismissDuelInvite, dismissDuelResult, challengeRps, respondRps, pickRps, rpsInvite, activeRps, rpsLastRound, rpsResult, dismissRpsInvite, dismissRpsResult, furniture, furnitureAdd, furnitureUpdate, furnitureRemove, recentJoins, ghostJoin, ghostLeave } = useVirtualSpace();
+  const { joined, ghost, mySocketId, players, chatHistory, space, reactions, projectiles, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, knockout, clearKnockout, challengeDuel, respondDuel, duelInvite, activeDuel, duelResult, dismissDuelInvite, dismissDuelResult, challengeRps, respondRps, pickRps, rpsInvite, activeRps, rpsLastRound, rpsResult, dismissRpsInvite, dismissRpsResult, challengeTod, respondTod, pickTod, todInvite, activeTod, todQuestion, dismissTodInvite, dismissTodQuestion, startReaction, joinReaction, tapReaction, reactionGame, dismissReaction, fetchReactionLeaderboard, furniture, furnitureAdd, furnitureUpdate, furnitureRemove, recentJoins, ghostJoin, ghostLeave } = useVirtualSpace();
   // Local punch-emoji bursts above the floating attack button.
   const [punchFx, setPunchFx] = useState<{ id: number; emoji: string; dx: number }[]>([]);
   const punchIdRef = useRef(0);
@@ -1993,6 +1993,11 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             🏆
           </button>
         )}
+        {joined && !ghost && (
+          <button onClick={startReaction} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(255,45,85,.1)',border:'1px solid rgba(255,45,85,.3)',fontSize:14 }} title="რეაქციის ტესტი">
+            ⚡
+          </button>
+        )}
         {joined && canEditSpace && (
           <button onClick={() => { setEditMode(m => { const n = !m; if (!n) { setPaletteOpen(false); setSelectedFurn(null); } return n; }); }}
             className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90"
@@ -2315,6 +2320,11 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                         onClick={() => { if (players.has(selectedPlayer.socketId)) { challengeRps(selectedPlayer.socketId); setSelectedPlayer(null); } }}
                         style={{ width: '100%', marginTop: 6, padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(0,229,255,.12)', border: '1px solid rgba(0,229,255,.4)', color: '#00e5ff', opacity: here ? 1 : 0.4 }}
                       >🪨 ჯეირანი</button>
+                      <button
+                        disabled={!here}
+                        onClick={() => { if (players.has(selectedPlayer.socketId)) { challengeTod(selectedPlayer.socketId); setSelectedPlayer(null); } }}
+                        style={{ width: '100%', marginTop: 6, padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(255,159,67,.12)', border: '1px solid rgba(255,159,67,.4)', color: '#ff9f43', opacity: here ? 1 : 0.4 }}
+                      >✊ სიმართლე თუ მოქმედება</button>
                       </>
                     )}
                 </div>
@@ -2685,6 +2695,175 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             </div>
             <button onClick={dismissRpsResult}
               style={{ width: '100%', padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(0,229,255,.14)', border: '1px solid rgba(0,229,255,.4)', color: '#00e5ff' }}>გასაგებია</button>
+          </motion.div>
+        </div>,
+        document.body
+      )}
+
+      {/* ToD invite overlay */}
+      {todInvite && createPortal(
+        <div onClick={dismissTodInvite} style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <motion.div onClick={e => e.stopPropagation()} initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            style={{ width: 'min(320px,100%)', textAlign: 'center', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(255,159,67,.45)', borderRadius: 20, padding: '26px 22px' }}>
+            <div style={{ fontSize: 44, marginBottom: 6 }}>✊</div>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 6 }}>სიმართლე თუ მოქმედება</p>
+            <p style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(255,255,255,.55)', marginBottom: 18 }}>
+              <span style={{ color: '#ff9f43' }}>{todInvite.fromName}</span> გიწვევს. ითამაშებ?
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => respondTod(todInvite.fromSocketId, false)}
+                style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.14)', color: 'rgba(255,255,255,.6)' }}>უარი</button>
+              <button onClick={() => respondTod(todInvite.fromSocketId, true)}
+                style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(255,159,67,.14)', border: '1px solid rgba(255,159,67,.45)', color: '#ff9f43' }}>✊ ვითამაშოთ!</button>
+            </div>
+          </motion.div>
+        </div>,
+        document.body
+      )}
+
+      {/* ToD pick modal */}
+      {activeTod && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1350, background: 'rgba(0,0,0,.8)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            style={{ width: 'min(320px,100%)', textAlign: 'center', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(255,159,67,.35)', borderRadius: 20, padding: '26px 22px' }}>
+            <div style={{ fontSize: 36, marginBottom: 8 }}>✊</div>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 4 }}>აირჩიე:</p>
+            <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,.4)', marginBottom: 16 }}>vs {activeTod.opponent}</p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              <button onClick={() => pickTod('truth')}
+                style={{ flex: 1, padding: '16px 12px', borderRadius: 14, fontFamily: 'monospace', fontSize: 14, fontWeight: 700, background: 'rgba(0,229,255,.1)', border: '2px solid rgba(0,229,255,.4)', color: '#00e5ff' }}>
+                🔮 სიმართლე
+              </button>
+              <button onClick={() => pickTod('dare')}
+                style={{ flex: 1, padding: '16px 12px', borderRadius: 14, fontFamily: 'monospace', fontSize: 14, fontWeight: 700, background: 'rgba(255,45,85,.1)', border: '2px solid rgba(255,45,85,.4)', color: '#ff6b81' }}>
+                🔥 მოქმედება
+              </button>
+            </div>
+          </motion.div>
+        </div>,
+        document.body
+      )}
+
+      {/* ToD question display */}
+      {todQuestion && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1400, background: 'rgba(0,0,0,.8)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            style={{ width: 'min(340px,100%)', textAlign: 'center', background: 'rgba(8,3,22,.99)', border: `1px solid ${todQuestion.choice === 'truth' ? 'rgba(0,229,255,.45)' : 'rgba(255,45,85,.45)'}`, borderRadius: 20, padding: '26px 22px', position: 'relative' }}>
+            <button onClick={dismissTodQuestion}
+              style={{ position: 'absolute', top: 12, left: 12, width: 30, height: 30, borderRadius: 10, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', color: 'rgba(255,255,255,.5)', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            <div style={{ fontSize: 36, marginBottom: 8 }}>{todQuestion.choice === 'truth' ? '🔮' : '🔥'}</div>
+            <p style={{ fontFamily: 'monospace', fontSize: 12, color: todQuestion.choice === 'truth' ? '#00e5ff' : '#ff6b81', marginBottom: 4 }}>{todQuestion.label}</p>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 14, color: '#fff', marginBottom: 12 }}>{todQuestion.playerName}</p>
+            <p style={{ fontFamily: 'monospace', fontSize: 15, color: 'rgba(255,255,255,.85)', lineHeight: 1.6, marginBottom: 20 }}>{todQuestion.question}</p>
+            <button onClick={dismissTodQuestion}
+              style={{ width: '100%', padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(255,159,67,.14)', border: '1px solid rgba(255,159,67,.4)', color: '#ff9f43' }}>გასაგებია</button>
+          </motion.div>
+        </div>,
+        document.body
+      )}
+
+      {/* Reaction Test overlay */}
+      {reactionGame && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1500, background: 'rgba(0,0,0,.85)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            style={{ width: 'min(360px,100%)', textAlign: 'center', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(255,45,85,.4)', borderRadius: 20, padding: '26px 22px', position: 'relative' }}>
+            {reactionGame.phase !== 'go' && (
+              <button onClick={dismissReaction}
+                style={{ position: 'absolute', top: 12, left: 12, width: 30, height: 30, borderRadius: 10, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', color: 'rgba(255,255,255,.5)', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            )}
+
+            {/* Invite phase */}
+            {reactionGame.phase === 'invite' && (
+              <>
+                <div style={{ fontSize: 44, marginBottom: 8 }}>⚡</div>
+                <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 6 }}>რეაქციის ტესტი</p>
+                <p style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(255,255,255,.55)', marginBottom: 6 }}>
+                  <span style={{ color: '#ff6b81' }}>{reactionGame.starterName}</span> იწვევს ყველას!
+                </p>
+                <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,.3)', marginBottom: 16 }}>
+                  {reactionGame.playerCount ?? 1} მოთამაშე შეუერთდა
+                </p>
+                <button onClick={joinReaction}
+                  style={{ width: '100%', padding: '14px', borderRadius: 14, fontFamily: 'monospace', fontSize: 14, fontWeight: 700, background: 'rgba(255,45,85,.16)', border: '2px solid rgba(255,45,85,.5)', color: '#ff6b81' }}>⚡ შეუერთდი</button>
+              </>
+            )}
+
+            {/* Joined - waiting for start */}
+            {reactionGame.phase === 'joined' && (
+              <>
+                <div style={{ fontSize: 44, marginBottom: 8 }}>⚡</div>
+                <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 8 }}>მოთამაშეები იკრიბებიან...</p>
+                <p style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(255,255,255,.4)' }}>{reactionGame.playerCount ?? 1} მოთამაშე</p>
+                <div className="animate-pulse" style={{ fontSize: 28, marginTop: 12 }}>⏳</div>
+              </>
+            )}
+
+            {/* Countdown */}
+            {reactionGame.phase === 'countdown' && (
+              <>
+                <p style={{ fontFamily: 'monospace', fontSize: 14, color: 'rgba(255,255,255,.4)', marginBottom: 12 }}>მოემზადე...</p>
+                <motion.div key={reactionGame.countdown} initial={{ scale: 2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.4 }}
+                  style={{ fontSize: 72, fontWeight: 900, color: '#ff6b81' }}>
+                  {reactionGame.countdown}
+                </motion.div>
+              </>
+            )}
+
+            {/* GO! - tap button */}
+            {reactionGame.phase === 'go' && !reactionGame.myMs && (
+              <>
+                <motion.div initial={{ scale: 0.5 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 300 }}>
+                  <button onClick={tapReaction}
+                    style={{ width: 160, height: 160, borderRadius: '50%', fontSize: 24, fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, background: 'radial-gradient(circle, #ff2d55 0%, #cc0033 100%)', border: '4px solid rgba(255,255,255,.3)', color: '#fff', boxShadow: '0 0 40px rgba(255,45,85,.5)', transition: 'transform .08s' }}
+                    onMouseDown={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.9)'; }}
+                    onMouseUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
+                  >დააჭირე!</button>
+                </motion.div>
+              </>
+            )}
+
+            {/* Tapped - waiting for others */}
+            {reactionGame.phase === 'go' && reactionGame.myMs && (
+              <>
+                <div style={{ fontSize: 36, marginBottom: 8 }}>✅</div>
+                <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 18, color: '#00ff88' }}>{reactionGame.myMs} ms</p>
+                <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,.4)', marginTop: 8 }}>ელოდე სხვებს...</p>
+              </>
+            )}
+
+            {/* Results */}
+            {reactionGame.phase === 'done' && (
+              <>
+                <div style={{ fontSize: 36, marginBottom: 8 }}>⚡</div>
+                <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 12 }}>შედეგები</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+                  {(reactionGame.results ?? []).map((r, i) => (
+                    <div key={r.socketId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 10, background: i === 0 ? 'rgba(0,255,136,.1)' : 'rgba(255,255,255,.03)', border: `1px solid ${i === 0 ? 'rgba(0,255,136,.3)' : 'rgba(255,255,255,.08)'}` }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: 14, width: 24, color: i === 0 ? '#facc15' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : 'rgba(255,255,255,.3)' }}>
+                        {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
+                      </span>
+                      <span style={{ flex: 1, fontFamily: 'monospace', fontSize: 13, color: i === 0 ? '#00ff88' : '#fff', textAlign: 'left' }}>{r.name}</span>
+                      <span style={{ fontFamily: 'monospace', fontSize: 13, color: i === 0 ? '#00ff88' : 'rgba(255,255,255,.5)' }}>{r.ms} ms</span>
+                    </div>
+                  ))}
+                </div>
+                {/* Leaderboard */}
+                {reactionGame.leaderboard && reactionGame.leaderboard.length > 0 && (
+                  <div style={{ marginBottom: 16 }}>
+                    <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,.3)', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 6 }}>🏆 ლიდერბორდი</p>
+                    {reactionGame.leaderboard.slice(0, 5).map((e, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px' }}>
+                        <span style={{ fontFamily: 'monospace', fontSize: 12, width: 20, color: i === 0 ? '#facc15' : 'rgba(255,255,255,.3)' }}>{i + 1}.</span>
+                        <span style={{ flex: 1, fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,.6)', textAlign: 'left' }}>{e.name}</span>
+                        <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#facc15' }}>{e.wins} 🏆</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button onClick={dismissReaction}
+                  style={{ width: '100%', padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(255,45,85,.14)', border: '1px solid rgba(255,45,85,.4)', color: '#ff6b81' }}>გასაგებია</button>
+              </>
+            )}
           </motion.div>
         </div>,
         document.body

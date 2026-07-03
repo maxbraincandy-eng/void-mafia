@@ -939,6 +939,16 @@ export interface ServerToClientEvents {
   'space:rps_start': (data: { opponent: string; opponentSocketId: string; round: number }) => void;
   'space:rps_round': (data: any) => void;
   'space:rps_declined': (data: { byName: string }) => void;
+  'space:tod_invite': (data: { fromSocketId: string; fromName: string }) => void;
+  'space:tod_start': (data: { opponent: string; opponentSocketId: string }) => void;
+  'space:tod_question': (data: { playerName: string; choice: string; label: string; question: string }) => void;
+  'space:tod_declined': (data: { byName: string }) => void;
+  'space:reaction_invite': (data: { starterName: string }) => void;
+  'space:reaction_player_joined': (data: { name: string; count: number }) => void;
+  'space:reaction_countdown': (data: { count: number; players?: any[] }) => void;
+  'space:reaction_go': (data: any) => void;
+  'space:reaction_result': (data: { results: any[]; leaderboard: any[] }) => void;
+  'space:reaction_cancelled': (data: any) => void;
   'space:player-moved':  (data: { socketId: string; x: number; y: number }) => void;
   'space:player-left':   (data: { socketId: string }) => void;
   'space:message':       (data: { socketId: string; message: string }) => void;
