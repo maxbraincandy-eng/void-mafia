@@ -146,7 +146,14 @@ export function useVirtualSpace() {
           if (!res?.ok) { resolve(false); return; }
           const players = new Map<string, SpacePlayer>();
           for (const p of res.data.players) players.set(p.socketId, p);
-          setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null, furniture: res.data.furniture ?? [], recentJoins: [] });
+          const myId: string = res.data.mySocketId;
+          // Welcome the joiner on their own screen too — self never receives a
+          // space:player-joined event, so mark ourselves as a recent join here.
+          const me = players.get(myId);
+          const selfMsg: SpaceChatMsg[] = me ? [{ socketId: 'system', name: 'system', bodyColor: '#c084fc', glowColor: '#c084fc', message: `👋 ${me.name} შემოვიდა 🚪`, ts: Date.now() }] : [];
+          setState({ joined: true, mySocketId: myId, players, chatHistory: selfMsg, space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null, furniture: res.data.furniture ?? [], recentJoins: [myId] });
+          try { SFX.join(); } catch { /* ignore */ }
+          setTimeout(() => setState(prev => ({ ...prev, recentJoins: prev.recentJoins.filter(id => id !== myId) })), 1900);
           resolve(true);
         },
       );
