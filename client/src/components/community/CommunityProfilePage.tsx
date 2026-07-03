@@ -622,7 +622,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
           )}
 
           {/* Avatar row */}
-          <div className="flex items-end gap-3 -mt-9 mb-3 px-1">
+          <div className="relative z-10 flex items-end gap-3 -mt-9 mb-3 px-1">
             <div
               className={`flex-shrink-0 rounded-full ${isMrMax ? 'ring-2 ring-yellow-400/60 ring-offset-2 ring-offset-[#03000d]' : ''}`}
               style={{ background: '#03000d', padding: 3 }}
