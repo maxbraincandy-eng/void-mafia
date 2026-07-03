@@ -1290,6 +1290,11 @@ export function attachSocketHandlers(io) {
                 const freshProfile = await getOrCreatePlayer(parsed.uid, parsed.username);
                 socket.emit('player:profile', toPublicProfile(freshProfile));
                 cb(ok(toPublicProfile(freshProfile)));
+                // Check profile completion bonus on login
+                checkProfileCompletionBonus(parsed.uid).then(r => {
+                    if (r.awarded)
+                        socket.emit('coin:bonus', { type: 'profile_complete', coins: 300, newBalance: r.newBalance });
+                }).catch(() => { });
             }
             catch (e) {
                 cb(err(e.message ?? 'Auth failed.'));
@@ -1334,6 +1339,11 @@ export function attachSocketHandlers(io) {
                 broadcastOnlineCount(io);
                 socket.emit('player:profile', toPublicProfile(profile));
                 cb(ok({ uid: profile.id, profile: toPublicProfile(profile) }));
+                // Check profile completion bonus on login
+                checkProfileCompletionBonus(profile.id).then(r => {
+                    if (r.awarded)
+                        socket.emit('coin:bonus', { type: 'profile_complete', coins: 300, newBalance: r.newBalance });
+                }).catch(() => { });
             }
             catch (e) {
                 cb(err(e.message ?? 'Login failed.'));
