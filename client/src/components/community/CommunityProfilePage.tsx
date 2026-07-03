@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
@@ -444,6 +444,16 @@ function FollowListSheet({
   );
 }
 
+function parseCoverUrl(url: string): { type: 'gradient' | 'image'; src: string; posY: number } {
+  if (url.startsWith('gradient:')) return { type: 'gradient', src: url.slice(9), posY: 50 };
+  if (url.startsWith('imagepos:')) {
+    const rest = url.slice(9);
+    const i = rest.indexOf(':');
+    return { type: 'image', src: rest.slice(i + 1), posY: parseInt(rest.slice(0, i), 10) || 50 };
+  }
+  return { type: 'image', src: url, posY: 50 };
+}
+
 // ── Main community profile page ─────────────────────────────────────────────
 
 interface Props {
@@ -469,6 +479,9 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
   const [followSheet, setFollowSheet] = useState<'followers' | 'following' | null>(null);
   const [bannerPicker, setBannerPicker] = useState(false);
   const [bannerSaving, setBannerSaving] = useState(false);
+  const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+  const [bannerPosY, setBannerPosY] = useState(50);
+  const dragRef = useRef<{ startY: number; startPos: number } | null>(null);
 
   const isSelf     = currentUser?.id === profileId;
   const isLoggedIn = !!currentUser;
@@ -518,6 +531,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
   const mediaPosts = posts.filter(p => p.imageUrl || p.gifUrl || p.videoUrl);
   const textPosts  = posts.filter(p => !p.imageUrl && !p.gifUrl && !p.videoUrl);
   const isMrMax    = profile?.badges?.includes('owner');
+  const coverParsed = profile?.coverUrl ? parseCoverUrl(profile.coverUrl) : null;
 
   const BANNER_PRESETS = [
     { id: 'none', css: '', label: 'არცერთი' },
@@ -550,14 +564,23 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
   const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setBannerSaving(true);
     try {
       const dataUrl = await compressImage(file, 1200, 0.75);
-      const r = await emitWithAck<any, Res<CommunityProfileV2>>('community:profile_update', { coverUrl: dataUrl });
-      if (r.ok) setProfile(r.data);
-      setBannerPicker(false);
+      setBannerPreview(dataUrl);
+      setBannerPosY(50);
     } catch { /* ignore */ }
-    finally { setBannerSaving(false); }
+  };
+
+  const handleBannerSave = async () => {
+    if (!bannerPreview) return;
+    setBannerSaving(true);
+    try {
+      const coverUrl = `imagepos:${Math.round(bannerPosY)}:${bannerPreview}`;
+      const r = await emitWithAck<any, Res<CommunityProfileV2>>('community:profile_update', { coverUrl });
+      if (r.ok) setProfile(r.data);
+      setBannerPreview(null);
+      setBannerPicker(false);
+    } finally { setBannerSaving(false); }
   };
 
   // Saved posts (own profile only) — fetched lazily when the tab opens.
@@ -586,12 +609,12 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
       ) : (
         <>
           {/* Cover */}
-          {profile.coverUrl ? (
+          {coverParsed ? (
             <div className="-mx-4 h-36 overflow-hidden rounded-2xl relative mb-0">
-              {profile.coverUrl.startsWith('gradient:') ? (
-                <div className="w-full h-full" style={{ background: profile.coverUrl.replace('gradient:', '') }} />
+              {coverParsed.type === 'gradient' ? (
+                <div className="w-full h-full" style={{ background: coverParsed.src }} />
               ) : (
-                <img src={profile.coverUrl} alt="" className="w-full h-full object-cover" />
+                <img src={coverParsed.src} alt="" className="w-full h-full object-cover" style={{ objectPosition: `center ${coverParsed.posY}%` }} />
               )}
               <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 10%, rgba(3,0,13,0.4) 40%, rgba(3,0,13,0.85) 70%, rgba(3,0,13,1) 100%)' }} />
               {isSelf && (
@@ -868,7 +891,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
         <div
           className="fixed inset-0 z-[9999] flex items-end justify-center"
           style={{ background: 'rgba(0,0,0,0.7)' }}
-          onClick={() => setBannerPicker(false)}
+          onClick={() => { setBannerPreview(null); setBannerPicker(false); }}
         >
           <motion.div
             initial={{ y: '100%' }} animate={{ y: 0 }}
@@ -878,39 +901,90 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <p className="font-display font-bold text-white" style={{ fontSize: 16 }}>ბანერის არჩევა</p>
-              <button onClick={() => setBannerPicker(false)} className="text-white/40 hover:text-white/70 text-lg">✕</button>
+              <p className="font-display font-bold text-white" style={{ fontSize: 16 }}>
+                {bannerPreview ? 'პოზიციის არჩევა' : 'ბანერის არჩევა'}
+              </p>
+              <button onClick={() => bannerPreview ? setBannerPreview(null) : setBannerPicker(false)} className="text-white/40 hover:text-white/70 text-lg">✕</button>
             </div>
 
-            {/* Upload image button */}
-            <label
-              className="flex items-center justify-center gap-2 w-full py-3 mb-3 rounded-xl font-mono text-[12px] uppercase tracking-wider cursor-pointer transition-all active:scale-95"
-              style={{ background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.35)', color: '#c084fc' }}
-            >
-              {bannerSaving ? '…' : '📷 სურათის ატვირთვა'}
-              <input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} disabled={bannerSaving} />
-            </label>
-
-            <p className="font-mono text-[10px] text-white/25 uppercase tracking-widest mb-2">ან აირჩიე გრადიენტი</p>
-            <div className="grid grid-cols-3 gap-2">
-              {BANNER_PRESETS.map(preset => (
-                <button
-                  key={preset.id}
-                  onClick={() => handleBannerSelect(preset)}
-                  disabled={bannerSaving}
-                  className="rounded-xl overflow-hidden transition-all active:scale-95 disabled:opacity-50"
-                  style={{
-                    height: 56,
-                    background: preset.id === 'none' ? 'rgba(255,255,255,0.04)' : preset.css,
-                    border: (profile?.coverUrl === `gradient:${preset.css}` || (preset.id === 'none' && !profile?.coverUrl))
-                      ? '2px solid #9b00ff'
-                      : '1px solid rgba(255,255,255,0.1)',
+            {bannerPreview ? (
+              <>
+                <p className="font-mono text-white/40 text-center mb-2" style={{ fontSize: 11 }}>
+                  ↕ სურათი ზევით-ქვევით გაწიე
+                </p>
+                <div
+                  className="w-full h-36 rounded-xl overflow-hidden mb-4 cursor-grab active:cursor-grabbing"
+                  style={{ border: '2px solid rgba(155,0,255,0.4)', touchAction: 'none' }}
+                  onPointerDown={e => {
+                    dragRef.current = { startY: e.clientY, startPos: bannerPosY };
+                    e.currentTarget.setPointerCapture(e.pointerId);
                   }}
+                  onPointerMove={e => {
+                    if (!dragRef.current) return;
+                    const delta = e.clientY - dragRef.current.startY;
+                    setBannerPosY(Math.max(0, Math.min(100, dragRef.current.startPos - delta * 0.5)));
+                  }}
+                  onPointerUp={() => { dragRef.current = null; }}
                 >
-                  {preset.id === 'none' && <span className="text-white/30 font-mono" style={{ fontSize: 11 }}>{preset.label}</span>}
-                </button>
-              ))}
-            </div>
+                  <img
+                    src={bannerPreview}
+                    alt=""
+                    className="w-full h-full object-cover pointer-events-none select-none"
+                    style={{ objectPosition: `center ${bannerPosY}%` }}
+                    draggable={false}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setBannerPreview(null)}
+                    className="flex-1 py-2.5 rounded-xl font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.5)' }}
+                  >
+                    გაუქმება
+                  </button>
+                  <button
+                    onClick={handleBannerSave}
+                    disabled={bannerSaving}
+                    className="flex-1 py-2.5 rounded-xl font-mono text-[12px] uppercase tracking-wider font-bold transition-all active:scale-95 disabled:opacity-50"
+                    style={{ background: 'rgba(155,0,255,0.25)', border: '1px solid rgba(155,0,255,0.5)', color: '#c084fc' }}
+                  >
+                    {bannerSaving ? '...' : 'დაყენება'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Upload image button */}
+                <label
+                  className="flex items-center justify-center gap-2 w-full py-3 mb-3 rounded-xl font-mono text-[12px] uppercase tracking-wider cursor-pointer transition-all active:scale-95"
+                  style={{ background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.35)', color: '#c084fc' }}
+                >
+                  {bannerSaving ? '…' : '📷 სურათის ატვირთვა'}
+                  <input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} disabled={bannerSaving} />
+                </label>
+
+                <p className="font-mono text-[10px] text-white/25 uppercase tracking-widest mb-2">ან აირჩიე გრადიენტი</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {BANNER_PRESETS.map(preset => (
+                    <button
+                      key={preset.id}
+                      onClick={() => handleBannerSelect(preset)}
+                      disabled={bannerSaving}
+                      className="rounded-xl overflow-hidden transition-all active:scale-95 disabled:opacity-50"
+                      style={{
+                        height: 56,
+                        background: preset.id === 'none' ? 'rgba(255,255,255,0.04)' : preset.css,
+                        border: (profile?.coverUrl === `gradient:${preset.css}` || (preset.id === 'none' && !profile?.coverUrl))
+                          ? '2px solid #9b00ff'
+                          : '1px solid rgba(255,255,255,0.1)',
+                      }}
+                    >
+                      {preset.id === 'none' && <span className="text-white/30 font-mono" style={{ fontSize: 11 }}>{preset.label}</span>}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </motion.div>
         </div>,
         document.body,

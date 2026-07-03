@@ -10,6 +10,16 @@ import { emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
 import { Avatar, BadgeRow, MrMaxGlow, Spinner } from '@/components/community/shared';
 
+function parseCoverUrl(url: string): { type: 'gradient' | 'image'; src: string; posY: number } {
+  if (url.startsWith('gradient:')) return { type: 'gradient', src: url.slice(9), posY: 50 };
+  if (url.startsWith('imagepos:')) {
+    const rest = url.slice(9);
+    const i = rest.indexOf(':');
+    return { type: 'image', src: rest.slice(i + 1), posY: parseInt(rest.slice(0, i), 10) || 50 };
+  }
+  return { type: 'image', src: url, posY: 50 };
+}
+
 export function ProfileModalV2({
   profileId,
   onClose,
@@ -107,16 +117,19 @@ export function ProfileModalV2({
         ) : (
           <div className="px-5 pt-2 pb-5">
             {/* Cover strip */}
-            {profile.coverUrl && (
+            {profile.coverUrl && (() => {
+              const cover = parseCoverUrl(profile.coverUrl);
+              return (
               <div className="-mx-5 -mt-2 mb-4 h-20 overflow-hidden" style={{ position: 'relative' }}>
-                {profile.coverUrl.startsWith('gradient:') ? (
-                  <div className="w-full h-full" style={{ background: profile.coverUrl.replace('gradient:', '') }} />
+                {cover.type === 'gradient' ? (
+                  <div className="w-full h-full" style={{ background: cover.src }} />
                 ) : (
-                  <img src={profile.coverUrl} alt="" className="w-full h-full object-cover" />
+                  <img src={cover.src} alt="" className="w-full h-full object-cover" style={{ objectPosition: `center ${cover.posY}%` }} />
                 )}
                 <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 10%, rgba(13,10,26,0.4) 40%, rgba(13,10,26,0.85) 70%, rgba(13,10,26,1) 100%)' }} />
               </div>
-            )}
+              );
+            })()}
 
             {/* Avatar + info row */}
             <div className="relative z-10 flex items-center gap-3 mb-3">
