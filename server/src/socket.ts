@@ -100,7 +100,7 @@ import {
   listRecommends, createRecommend, deleteRecommend,
   listThoughts, createThought, deleteThought,
   listFeed, createPost, deletePost, toggleLike, getComments, addComment, deleteComment, reportPost,
-  toggleCommentLike, editPost, notifyMentions,
+  toggleCommentLike, toggleCommentReaction, editPost, notifyMentions,
   listCommunityReports, resolveCommunityReport,
   follow, unfollow, getCommunityProfile,
   listEvents, createEvent, joinEvent, leaveEvent,
@@ -5033,8 +5033,20 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!profileId) { cb(err('Not authenticated.')); return; }
         const result = await togglePostReaction(postId, profileId, emoji);
         cb(ok(result));
-        // Broadcast to others
         io.emit('community:post_reacted', { postId, reactions: result.reactions, myReaction: result.myReaction });
+        if (result.added && result.authorId && result.authorId !== profileId) {
+          (async () => {
+            try {
+              const reactor = await getPlayer(profileId);
+              const notif = await createNotification(
+                result.authorId, 'post_reaction', `${emoji} რეაქცია`,
+                `${reactor?.username ?? 'ვიღაცამ'} დაარეაქთა ${emoji} შენს პოსტზე`, null,
+              );
+              const ownerSock = findSocketByProfile(io, result.authorId);
+              if (ownerSock) ownerSock.emit('community:notification' as any, notif);
+            } catch {}
+          })();
+        }
       } catch (e: any) { cb(err(e.message)); }
     });
 
@@ -5113,6 +5125,41 @@ export function attachSocketHandlers(io: AppServer): void {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('Not authenticated.');
         cb(ok(await toggleCommentLike(commentId, profileId)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:comment_react', async ({ commentId, emoji }: any, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const result = await toggleCommentReaction(commentId, profileId, emoji);
+        cb(ok(result));
+        if (result.added && result.authorId && result.authorId !== profileId) {
+          (async () => {
+            try {
+              const reactor = await getPlayer(profileId);
+              const notif = await createNotification(
+                result.authorId, 'comment_reaction', `${emoji} რეაქცია`,
+                `${reactor?.username ?? 'ვიღაცამ'} დაარეაქთა ${emoji} შენს კომენტარზე`, null,
+              );
+              const ownerSock = findSocketByProfile(io, result.authorId);
+              if (ownerSock) ownerSock.emit('community:notification' as any, notif);
+            } catch {}
+          })();
+        }
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('community:get_comment_reaction_users', async ({ commentId }: { commentId: string }, cb: any) => {
+      try {
+        const rows = await sql<{ emoji: string; username: string; avatar_url: string | null; player_id: string }[]>`
+          SELECT r.emoji, p.username, p.avatar_url, r.player_id
+          FROM community_comment_reactions r
+          JOIN players p ON p.id = r.player_id
+          WHERE r.comment_id = ${commentId}
+          ORDER BY r.created_at ASC
+        `;
+        cb(ok(rows));
       } catch (e: any) { cb(err(e.message)); }
     });
 

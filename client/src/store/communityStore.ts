@@ -54,6 +54,7 @@ interface CommunityStore {
   fetchComments: (postId: string) => Promise<CommunityComment[]>;
   addComment: (postId: string, content: string, opts?: { parentId?: string | null; gifUrl?: string | null }) => Promise<CommunityComment>;
   likeComment: (commentId: string) => Promise<{ liked: boolean; likes: number }>;
+  reactComment: (commentId: string, emoji: string) => Promise<{ reactions: Record<string, number>; myReaction: string | null }>;
   editPost: (postId: string, content: string) => Promise<void>;
   deleteComment: (postId: string, commentId: string) => Promise<void>;
   reportPost: (postId: string, reason: string) => Promise<void>;
@@ -316,6 +317,9 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
     },
     likeComment: async (commentId) => {
       return unwrap(await emitWithAck<any, Res<{ liked: boolean; likes: number }>>('community:comment_like', { commentId }));
+    },
+    reactComment: async (commentId, emoji) => {
+      return unwrap(await emitWithAck<any, Res<{ reactions: Record<string, number>; myReaction: string | null }>>('community:comment_react', { commentId, emoji }));
     },
     editPost: async (postId, content) => {
       const post = unwrap(await emitWithAck<any, Res<CommunityPostV2>>('community:post_edit', { postId, content }));

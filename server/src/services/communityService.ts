@@ -191,7 +191,7 @@ export async function toggleLike(postId: string, playerId: string): Promise<{ li
   return { likesCount: Number(row.likes_count), likedByMe: !existing };
 }
 
-function rowToComment(r: any): CommunityComment {
+function rowToComment(r: any, reactions?: Record<string, number>, myReaction?: string | null): CommunityComment {
   return {
     id: r.id, postId: r.post_id, authorId: r.author_id, authorName: r.author_name ?? 'Unknown',
     authorAvatar: r.author_avatar ?? '🙂', authorAvatarUrl: r.author_avatar_url ?? null,
@@ -201,6 +201,8 @@ function rowToComment(r: any): CommunityComment {
     gifUrl: r.gif_url ?? null,
     likes: Number(r.likes_count ?? 0),
     likedByMe: r.liked_by_me === true || r.liked_by_me === 1,
+    reactions: reactions ?? {},
+    myReaction: myReaction ?? null,
   };
 }
 
@@ -215,7 +217,21 @@ export async function getComments(postId: string, viewerId?: string): Promise<Co
     FROM community_post_comments c JOIN players p ON p.id = c.author_id
     WHERE c.post_id = ${postId} ORDER BY c.created_at ASC LIMIT 200
   ` as any[];
-  return rows.map(rowToComment);
+  const commentIds = rows.map((r: any) => r.id);
+  const reactionRows = commentIds.length > 0
+    ? await sql`SELECT comment_id, emoji, COUNT(*) as cnt FROM community_comment_reactions WHERE comment_id = ANY(${commentIds}) GROUP BY comment_id, emoji` as any[]
+    : [];
+  const myReactionRows = commentIds.length > 0 && viewerId
+    ? await sql`SELECT comment_id, emoji FROM community_comment_reactions WHERE comment_id = ANY(${commentIds}) AND player_id = ${viewerId}` as any[]
+    : [];
+  const reactionsMap: Record<string, Record<string, number>> = {};
+  for (const r of reactionRows) {
+    if (!reactionsMap[r.comment_id]) reactionsMap[r.comment_id] = {};
+    reactionsMap[r.comment_id][r.emoji] = Number(r.cnt);
+  }
+  const myReactionMap: Record<string, string> = {};
+  for (const r of myReactionRows) myReactionMap[r.comment_id] = r.emoji;
+  return rows.map((r: any) => rowToComment(r, reactionsMap[r.id] ?? {}, myReactionMap[r.id] ?? null));
 }
 
 /** GIF comments carry a Tenor CDN url — never arbitrary/data URLs. */
@@ -273,6 +289,35 @@ export async function toggleCommentLike(commentId: string, playerId: string): Pr
   }
   const [row] = await sql`SELECT likes_count FROM community_post_comments WHERE id = ${commentId}` as any[];
   return { liked: !existing, likes: Number(row?.likes_count ?? 0) };
+}
+
+const VALID_REACTIONS = ['🔥','❤️','😂','💀','🤝','👑'];
+
+export async function toggleCommentReaction(commentId: string, playerId: string, emoji: string): Promise<{ added: boolean; authorId: string; reactions: Record<string, number>; myReaction: string | null }> {
+  if (!VALID_REACTIONS.includes(emoji)) throw new Error('Invalid reaction.');
+  const [comment] = await sql`SELECT id, author_id FROM community_post_comments WHERE id = ${commentId}` as any[];
+  if (!comment) throw new Error('Comment not found.');
+  const [existing] = await sql`SELECT emoji FROM community_comment_reactions WHERE comment_id = ${commentId} AND player_id = ${playerId}` as any[];
+  let added = false;
+  let myReaction: string | null = emoji;
+  if (existing) {
+    if (existing.emoji === emoji) {
+      await sql`DELETE FROM community_comment_reactions WHERE comment_id = ${commentId} AND player_id = ${playerId}`;
+      myReaction = null;
+    } else {
+      await sql`UPDATE community_comment_reactions SET emoji = ${emoji}, created_at = ${Date.now()} WHERE comment_id = ${commentId} AND player_id = ${playerId}`;
+      added = true;
+    }
+  } else {
+    await sql`INSERT INTO community_comment_reactions (comment_id, player_id, emoji, created_at) VALUES (${commentId}, ${playerId}, ${emoji}, ${Date.now()})`;
+    added = true;
+  }
+  const rows = await sql`SELECT emoji, COUNT(*) as cnt FROM community_comment_reactions WHERE comment_id = ${commentId} GROUP BY emoji` as any[];
+  const reactions: Record<string, number> = {};
+  let total = 0;
+  for (const r of rows) { reactions[r.emoji] = Number(r.cnt); total += Number(r.cnt); }
+  await sql`UPDATE community_post_comments SET likes_count = ${total} WHERE id = ${commentId}`;
+  return { added, authorId: comment.author_id, reactions, myReaction };
 }
 
 /** Parse @username mentions and notify each mentioned player (excluding the actor). */
@@ -1373,31 +1418,30 @@ export async function recalcReputation(playerId: string): Promise<void> {
   await sql`UPDATE players SET community_reputation = ${rep} WHERE id = ${playerId}`;
 }
 
-export async function togglePostReaction(postId: string, playerId: string, emoji: string): Promise<{ emoji: string | null; reactions: Record<string, number>; myReaction: string | null }> {
-  // Valid emojis
-  const VALID = ['🔥','❤️','😂','💀','🤝','👑'];
-  if (!VALID.includes(emoji)) throw new Error('Invalid reaction.');
+export async function togglePostReaction(postId: string, playerId: string, emoji: string): Promise<{ emoji: string | null; added: boolean; authorId: string; reactions: Record<string, number>; myReaction: string | null }> {
+  if (!VALID_REACTIONS.includes(emoji)) throw new Error('Invalid reaction.');
+  const [post] = await sql`SELECT author_id FROM community_posts WHERE id = ${postId}` as any[];
+  if (!post) throw new Error('Post not found.');
 
   const [existing] = await sql`SELECT emoji FROM community_post_reactions WHERE post_id = ${postId} AND player_id = ${playerId}` as any[];
+  let added = false;
 
   if (existing) {
     if (existing.emoji === emoji) {
-      // Same emoji → remove reaction
       await sql`DELETE FROM community_post_reactions WHERE post_id = ${postId} AND player_id = ${playerId}`;
-      // Update likes_count based on reactions
       const rows = await sql`SELECT emoji, COUNT(*) as cnt FROM community_post_reactions WHERE post_id = ${postId} GROUP BY emoji` as any[];
       const reactions: Record<string, number> = {};
       let total = 0;
       for (const r of rows) { reactions[r.emoji] = Number(r.cnt); total += Number(r.cnt); }
       await sql`UPDATE community_posts SET likes_count = ${total} WHERE id = ${postId}`;
-      return { emoji: null, reactions, myReaction: null };
+      return { emoji: null, added: false, authorId: post.author_id, reactions, myReaction: null };
     } else {
-      // Different emoji → update
       await sql`UPDATE community_post_reactions SET emoji = ${emoji}, created_at = ${Date.now()} WHERE post_id = ${postId} AND player_id = ${playerId}`;
+      added = true;
     }
   } else {
-    // New reaction
     await sql`INSERT INTO community_post_reactions (post_id, player_id, emoji, created_at) VALUES (${postId}, ${playerId}, ${emoji}, ${Date.now()})`;
+    added = true;
   }
 
   const rows = await sql`SELECT emoji, COUNT(*) as cnt FROM community_post_reactions WHERE post_id = ${postId} GROUP BY emoji` as any[];
@@ -1405,7 +1449,7 @@ export async function togglePostReaction(postId: string, playerId: string, emoji
   let total = 0;
   for (const r of rows) { reactions[r.emoji] = Number(r.cnt); total += Number(r.cnt); }
   await sql`UPDATE community_posts SET likes_count = ${total} WHERE id = ${postId}`;
-  return { emoji, reactions, myReaction: emoji };
+  return { emoji, added, authorId: post.author_id, reactions, myReaction: emoji };
 }
 
 export async function getPostReactions(postId: string, playerId?: string): Promise<{ reactions: Record<string, number>; myReaction: string | null }> {

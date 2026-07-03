@@ -136,7 +136,7 @@ void URL_RE;
 // ── Comments (threaded, likes, GIFs) ───────────────────────────────────
 function CommentsSection({ postId, onOpenProfile, myProfileId }: { postId: string; onOpenProfile: (id: string) => void; myProfileId: string | undefined }) {
   const t = useT();
-  const { fetchComments, addComment, deleteComment, likeComment } = useCommunityStore();
+  const { fetchComments, addComment, deleteComment } = useCommunityStore();
   const [comments, setComments] = useState<CommunityComment[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState('');
@@ -172,12 +172,27 @@ function CommentsSection({ postId, onOpenProfile, myProfileId }: { postId: strin
     } catch {}
   }
 
-  async function handleLike(c: CommunityComment) {
-    // optimistic
+  const { reactComment } = useCommunityStore();
+
+  async function handleCommentReact(c: CommunityComment, emoji: string) {
+    const wasMyReaction = c.myReaction;
+    const oldReactions = { ...(c.reactions ?? {}) };
+    const newReactions = { ...oldReactions };
+    if (wasMyReaction) {
+      newReactions[wasMyReaction] = Math.max(0, (newReactions[wasMyReaction] ?? 1) - 1);
+      if (newReactions[wasMyReaction] === 0) delete newReactions[wasMyReaction];
+    }
+    const newMyReaction = wasMyReaction === emoji ? null : emoji;
+    if (newMyReaction) newReactions[newMyReaction] = (newReactions[newMyReaction] ?? 0) + 1;
     setComments(prev => prev ? prev.map(x => x.id === c.id
-      ? { ...x, likedByMe: !x.likedByMe, likes: (x.likes ?? 0) + (x.likedByMe ? -1 : 1) }
+      ? { ...x, reactions: newReactions, myReaction: newMyReaction }
       : x) : prev);
-    try { await likeComment(c.id); } catch { /* revert not critical */ }
+    try {
+      const result = await reactComment(c.id, emoji);
+      setComments(prev => prev ? prev.map(x => x.id === c.id
+        ? { ...x, reactions: result.reactions, myReaction: result.myReaction }
+        : x) : prev);
+    } catch {}
   }
 
   const roots = (comments ?? []).filter(c => !c.parentId);
@@ -210,13 +225,13 @@ function CommentsSection({ postId, onOpenProfile, myProfileId }: { postId: strin
           <img src={c.gifUrl} alt="GIF" className="mt-1 rounded-lg max-w-[200px] max-h-[160px] object-cover border border-white/10" loading="lazy" />
         )}
         <div className="flex items-center gap-3 mt-0.5">
-          <button
-            onClick={() => handleLike(c)}
-            className="flex items-center gap-1 font-mono text-[11px] transition-colors active:scale-90"
-            style={{ color: c.likedByMe ? '#ff2d55' : 'rgba(255,255,255,0.3)' }}
-          >
-            {c.likedByMe ? '❤️' : '🤍'}{(c.likes ?? 0) > 0 && <span>{c.likes}</span>}
-          </button>
+          <ReactionPicker
+            commentId={c.id}
+            myReaction={c.myReaction ?? null}
+            reactions={c.reactions ?? {}}
+            onReact={(emoji) => handleCommentReact(c, emoji)}
+            compact
+          />
           {!isReply && (
             <button
               onClick={() => setReplyTo(c)}

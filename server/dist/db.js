@@ -895,6 +895,13 @@ export async function initializeDatabase() {
     created_at BIGINT NOT NULL,
     PRIMARY KEY (post_id, player_id)
   )`;
+    await sql `CREATE TABLE IF NOT EXISTS community_comment_reactions (
+    comment_id TEXT NOT NULL,
+    player_id  TEXT NOT NULL,
+    emoji      TEXT NOT NULL,
+    created_at BIGINT NOT NULL,
+    PRIMARY KEY (comment_id, player_id)
+  )`;
     await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS audio_url TEXT`;
     await sql `CREATE TABLE IF NOT EXISTS community_leaderboard_rewards (
     id         TEXT PRIMARY KEY,

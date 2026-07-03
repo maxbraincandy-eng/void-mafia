@@ -974,6 +974,8 @@ export interface CommunityComment {
   gifUrl?: string | null;
   likes?: number;
   likedByMe?: boolean;
+  reactions?: Record<string, number>;
+  myReaction?: string | null;
 }
 
 export type CommunityEventCategory = 'movie_night' | 'philosophy_night' | 'void_radio' | 'live_discussion' | 'other';

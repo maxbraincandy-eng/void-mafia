@@ -25,6 +25,12 @@ export declare function toggleCommentLike(commentId: string, playerId: string): 
     liked: boolean;
     likes: number;
 }>;
+export declare function toggleCommentReaction(commentId: string, playerId: string, emoji: string): Promise<{
+    added: boolean;
+    authorId: string;
+    reactions: Record<string, number>;
+    myReaction: string | null;
+}>;
 /** Parse @username mentions and notify each mentioned player (excluding the actor). */
 export declare function notifyMentions(text: string, actorId: string, actorName: string, context: 'post' | 'comment'): Promise<string[]>;
 export declare function deleteComment(commentId: string, requesterId: string): Promise<void>;
@@ -196,6 +202,8 @@ export declare function computeTrending(): Promise<void>;
 export declare function recalcReputation(playerId: string): Promise<void>;
 export declare function togglePostReaction(postId: string, playerId: string, emoji: string): Promise<{
     emoji: string | null;
+    added: boolean;
+    authorId: string;
     reactions: Record<string, number>;
     myReaction: string | null;
 }>;

@@ -7,16 +7,18 @@ const REACTIONS = ['🔥','❤️','😂','💀','🤝','👑'] as const;
 export type ReactionEmoji = typeof REACTIONS[number];
 
 interface Props {
-  postId: string;
+  postId?: string;
+  commentId?: string;
   myReaction: string | null;
   reactions: Record<string, number>;
   onReact: (emoji: string) => void;
   disabled?: boolean;
+  compact?: boolean;
 }
 
 interface ReactorRow { emoji: string; username: string; avatar_url: string | null; player_id: string }
 
-export function ReactionPicker({ postId, myReaction, reactions, onReact, disabled }: Props) {
+export function ReactionPicker({ postId, commentId, myReaction, reactions, onReact, disabled, compact }: Props) {
   const [open, setOpen] = useState(false);
   const [showWho, setShowWho] = useState(false);
   const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0, above: true });
@@ -35,11 +37,13 @@ export function ReactionPicker({ postId, myReaction, reactions, onReact, disable
   const fetchReactors = useCallback(() => {
     setLoadingWho(true);
     setReactors(null);
-    (socket as any).emit('community:get_reaction_users', { postId }, (res: any) => {
+    const event = commentId ? 'community:get_comment_reaction_users' : 'community:get_reaction_users';
+    const payload = commentId ? { commentId } : { postId };
+    (socket as any).emit(event, payload, (res: any) => {
       setLoadingWho(false);
       if (res.ok) setReactors(res.data);
     });
-  }, [postId]);
+  }, [postId, commentId]);
 
   const onPressStart = () => {
     longFired.current = false;
@@ -95,19 +99,19 @@ export function ReactionPicker({ postId, myReaction, reactions, onReact, disable
           onTouchEnd={(e) => { e.preventDefault(); onPressEnd(); }}
           onTouchCancel={onPressCancel}
           style={{
-            display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px',
+            display: 'flex', alignItems: 'center', gap: compact ? 2 : 4, padding: compact ? '2px 4px' : '4px 8px',
             borderRadius: 20,
-            border: myReaction ? '1px solid rgba(155,0,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
-            background: myReaction ? 'rgba(155,0,255,0.12)' : 'transparent',
+            border: compact ? 'none' : myReaction ? '1px solid rgba(155,0,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
+            background: compact ? 'transparent' : myReaction ? 'rgba(155,0,255,0.12)' : 'transparent',
             cursor: 'pointer', transition: 'all .15s',
             WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none',
           }}
         >
-          <span style={{ fontSize: 14 }}>
+          <span style={{ fontSize: compact ? 12 : 14 }}>
             {topReactions.length > 0 ? topReactions.join('') : '🤍'}
           </span>
           {total > 0 && (
-            <span style={{ fontSize: 11, fontFamily: 'monospace', color: myReaction ? '#c084fc' : 'rgba(255,255,255,0.4)' }}>
+            <span style={{ fontSize: compact ? 10 : 11, fontFamily: 'monospace', color: myReaction ? '#c084fc' : 'rgba(255,255,255,0.4)' }}>
               {total}
             </span>
           )}
@@ -137,7 +141,7 @@ export function ReactionPicker({ postId, myReaction, reactions, onReact, disable
                   onMouseDown={(e) => { e.stopPropagation(); onReact(emoji); setOpen(false); }}
                   onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); onReact(emoji); setOpen(false); }}
                   style={{
-                    fontSize: 22, background: 'transparent', border: 'none', cursor: 'pointer',
+                    fontSize: compact ? 18 : 22, background: 'transparent', border: 'none', cursor: 'pointer',
                     padding: '2px 4px', borderRadius: 8, transition: 'transform .1s',
                     filter: myReaction === emoji ? 'drop-shadow(0 0 6px rgba(155,0,255,0.8))' : 'none',
                     transform: myReaction === emoji ? 'scale(1.25)' : 'scale(1)',

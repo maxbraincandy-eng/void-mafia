@@ -1952,6 +1952,21 @@ export interface ClientToServerEvents {
         avatar_url: string | null;
         player_id: string;
     }>>) => void;
+    'community:comment_react': (data: {
+        commentId: string;
+        emoji: string;
+    }, cb: Cb<{
+        reactions: Record<string, number>;
+        myReaction: string | null;
+    }>) => void;
+    'community:get_comment_reaction_users': (data: {
+        commentId: string;
+    }, cb: Cb<Array<{
+        emoji: string;
+        username: string;
+        avatar_url: string | null;
+        player_id: string;
+    }>>) => void;
     'community:leaderboard': (cb: Cb<Array<{
         playerId: string;
         username: string;
@@ -2349,6 +2364,8 @@ export interface CommunityComment {
     gifUrl?: string | null;
     likes?: number;
     likedByMe?: boolean;
+    reactions?: Record<string, number>;
+    myReaction?: string | null;
 }
 export type CommunityEventCategory = 'movie_night' | 'philosophy_night' | 'void_radio' | 'live_discussion' | 'other';
 export interface CommunityEvent {
