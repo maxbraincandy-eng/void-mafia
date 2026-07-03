@@ -34,7 +34,7 @@ export function GamesPage({ onOpenSpace }: { onOpenSpace?: () => void }) {
               {t.nav.games}
             </h1>
             <p className="font-mono text-[12px] uppercase tracking-widest text-white/25 mt-0.5">
-              Checkers · Joker · Ludo
+              Checkers · Ludo · Joker · UNO
             </p>
           </div>
         </div>
