@@ -92,6 +92,12 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [floats, setFloats] = useState<{ id: number; emoji: string; left: number; dy: number; dur: number }[]>([]);
   const floatId = useRef(0);
+  // Story reply (DM) input state
+  const [replyText, setReplyText] = useState('');
+  const [replySending, setReplySending] = useState(false);
+  const [replySent, setReplySent] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
+  const replyInputRef = useRef<HTMLInputElement>(null);
   // Touch tracking for swipe up (open viewers) / swipe down (close) / hold-to-pause.
   const touch = useRef<{ x: number; y: number } | null>(null);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -137,6 +143,7 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
   useEffect(() => {
     if (!story) return;
     setPaused(false); // a fresh story is never paused
+    setReplyText(''); setReplySent(false); setInputFocused(false);
     markSeen(story.id);
     if (!isMine) {
       emitWithAck('community:story_view', { storyId: story.id }).catch(() => {});
@@ -178,6 +185,25 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
       .catch(() => {});
     if (adding) burst(emoji);
     setPickerOpen(false);
+  };
+
+  const sendReply = async () => {
+    const text = replyText.trim();
+    if (!text || replySending || !group) return;
+    setReplySending(true);
+    try {
+      const startRes = await emitWithAck<any, Res<{ id: string }>>('dm:start', { profileId: group.authorId });
+      if (!(startRes as any).ok) throw new Error('Failed');
+      const convId = (startRes as any).data.id;
+      const msg = `📸 სთორის პასუხი:\n${text}`;
+      await emitWithAck<any, Res<any>>('dm:send', { conversationId: convId, text: msg, type: 'text' });
+      setReplyText('');
+      setReplySent(true);
+      setInputFocused(false);
+      replyInputRef.current?.blur();
+      setTimeout(() => setReplySent(false), 2000);
+    } catch { /* silently fail */ }
+    setReplySending(false);
   };
 
   if (!group || !story) return null;
@@ -230,7 +256,7 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
                 height: '100%', borderRadius: 2, background: '#fff',
                 width: idx < si ? '100%' : idx === si ? '100%' : '0%',
                 animation: active ? `vm-story-progress 5s linear forwards` : undefined,
-                animationPlayState: active && (paused || pickerOpen || confirmDelete) ? 'paused' : 'running',
+                animationPlayState: active && (paused || pickerOpen || confirmDelete || inputFocused) ? 'paused' : 'running',
               }} />
             </div>
           );
@@ -273,14 +299,76 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
           <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>▲ ვინ ნახა</span>
         </button>
       )}
-      {/* Footer hint (others' stories): swipe up (or tap) to open reactions */}
+      {/* Footer: reply input + reaction button (others' stories) */}
       {!isMine && !sheetOpen && !pickerOpen && (
-        <button onClick={() => setPickerOpen(true)}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 14px 18px', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.55)' }}>
-          <span style={{ fontSize: 15 }}>{myReaction ?? '😍'}</span>
-          <span style={{ fontFamily: 'monospace', fontSize: 11 }}>▲ რეაქცია</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px 16px', paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
+          <div style={{
+            flex: 1, display: 'flex', alignItems: 'center', gap: 6,
+            background: 'rgba(255,255,255,0.08)', borderRadius: 24,
+            border: '1px solid rgba(255,255,255,0.12)', padding: '6px 12px',
+          }}>
+            <input
+              ref={replyInputRef}
+              type="text"
+              value={replyText}
+              onChange={e => setReplyText(e.target.value)}
+              onFocus={() => setInputFocused(true)}
+              onBlur={() => { if (!replyText.trim()) setInputFocused(false); }}
+              onKeyDown={e => { if (e.key === 'Enter') sendReply(); }}
+              placeholder={`პასუხი ${group.username}-ს...`}
+              disabled={replySending}
+              style={{
+                flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                fontFamily: 'monospace', fontSize: 13, color: '#fff',
+                padding: '4px 0',
+              }}
+            />
+            {replyText.trim() && (
+              <button
+                onClick={sendReply}
+                disabled={replySending}
+                style={{
+                  background: 'rgba(155,0,255,0.7)', border: 'none', borderRadius: '50%',
+                  width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', flexShrink: 0, transition: 'all .15s',
+                  opacity: replySending ? 0.5 : 1,
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setPickerOpen(true)}
+            style={{
+              background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: '50%', width: 40, height: 40, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 20, cursor: 'pointer',
+            }}
+          >
+            {myReaction ?? '😍'}
+          </button>
+        </div>
       )}
+      {/* Sent confirmation */}
+      <AnimatePresence>
+        {replySent && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+            style={{
+              position: 'absolute', bottom: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 10,
+              background: 'rgba(155,0,255,0.85)', borderRadius: 20, padding: '8px 18px',
+              fontFamily: 'monospace', fontSize: 12, color: '#fff', whiteSpace: 'nowrap',
+              boxShadow: '0 4px 20px rgba(155,0,255,0.4)',
+            }}
+          >
+            ✓ გაგზავნილია
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Floating emoji burst (rises + fades on react) */}
       {floats.map(f => (
