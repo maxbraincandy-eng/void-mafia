@@ -743,8 +743,14 @@ export default function App() {
       window.history.replaceState({}, '', '/');
     }
 
+    const unsubText = useSettingsStore.subscribe((s) => {
+      document.documentElement.classList.toggle('large-text', s.largeText);
+    });
+    document.documentElement.classList.toggle('large-text', useSettingsStore.getState().largeText);
+
     return () => {
       unsub();
+      unsubText();
     };
   }, [connect]);
 
