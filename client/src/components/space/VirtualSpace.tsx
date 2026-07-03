@@ -1998,14 +1998,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             ⚡
           </button>
         )}
-        {joined && canEditSpace && (
-          <button onClick={() => { setEditMode(m => { const n = !m; if (!n) { setPaletteOpen(false); setSelectedFurn(null); } return n; }); }}
-            className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90"
-            style={{ background: editMode ? 'rgba(0,255,136,.18)' : 'rgba(0,255,136,.08)', border: `1px solid ${editMode ? 'rgba(0,255,136,.6)' : 'rgba(0,255,136,.3)'}`, fontSize: 14 }} title="სივრცის რედაქტორი">
-            🛠️
-          </button>
-        )}
-        {joined && canChangeTheme && (
+        {joined && (canChangeTheme || canEditSpace) && (
           <button onClick={()=>setThemePickerOpen(true)} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:`${themeDef.accent}14`,border:`1px solid ${themeDef.accent}40`,fontSize:14 }} title="თემა">
             🎨
           </button>
@@ -2400,9 +2393,40 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                 );
               })}
             </div>
-            <p className="text-center font-mono text-[10px] text-white/20 leading-relaxed pt-3 px-2">
-              Locked themes can be bought from the Coin Shop → Spaces tab. Everyone in the room sees the active theme.
-            </p>
+            {canChangeTheme && (
+              <p className="text-center font-mono text-[10px] text-white/20 leading-relaxed pt-3 px-2">
+                Locked themes can be bought from the Coin Shop → Spaces tab. Everyone in the room sees the active theme.
+              </p>
+            )}
+
+            {/* ── Furniture editor section (owners only) ───────────── */}
+            {canEditSpace && (
+              <div style={{ marginTop: 16, borderTop: '1px solid rgba(255,255,255,.08)', paddingTop: 14 }}>
+                <button
+                  onClick={() => {
+                    const entering = !editMode;
+                    setEditMode(entering);
+                    if (!entering) { setPaletteOpen(false); setSelectedFurn(null); }
+                    setThemePickerOpen(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all active:scale-[0.98]"
+                  style={{
+                    background: editMode ? 'rgba(0,255,136,.12)' : 'rgba(0,255,136,.06)',
+                    border: `1px solid ${editMode ? 'rgba(0,255,136,.5)' : 'rgba(0,255,136,.2)'}`,
+                  }}>
+                  <span style={{ fontSize: 20 }}>🛠️</span>
+                  <div style={{ flex: 1, textAlign: 'left' }}>
+                    <p className="font-mono text-[13px] font-bold" style={{ color: '#00ff88' }}>ავეჯის რედაქტორი</p>
+                    <p className="font-mono text-[11px]" style={{ color: 'rgba(255,255,255,.35)' }}>
+                      {editMode ? 'რედაქტორი აქტიურია — დააჭირე გასათიშად' : 'ავეჯის დადგმა / გადაადგილება / წაშლა'}
+                    </p>
+                  </div>
+                  <span className="font-mono text-[11px]" style={{ color: editMode ? '#00ff88' : 'rgba(255,255,255,.3)' }}>
+                    {editMode ? '● ON' : 'OFF'}
+                  </span>
+                </button>
+              </div>
+            )}
           </div>
         </div>,
         document.body
