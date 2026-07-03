@@ -534,32 +534,17 @@ html.theme-transitioning body {
 }
 
 /* ── Large Text mode ──────────────────────────────────────────── */
-html.large-text {
-  --vm-text-scale: 1.22;
-}
-html.large-text body,
-html.large-text .font-mono,
-html.large-text p,
-html.large-text span,
-html.large-text button,
-html.large-text a,
-html.large-text label,
-html.large-text input,
-html.large-text textarea,
-html.large-text h1, html.large-text h2, html.large-text h3, html.large-text h4 {
-  font-weight: 600 !important;
-}
-html.large-text .text-\[10px\] { font-size: 12px !important; }
-html.large-text .text-\[11px\] { font-size: 13px !important; }
-html.large-text .text-\[12px\] { font-size: 14px !important; }
-html.large-text .text-\[13px\] { font-size: 15px !important; }
-html.large-text .text-xs  { font-size: 14px !important; line-height: 1.35 !important; }
-html.large-text .text-sm  { font-size: 16px !important; line-height: 1.4 !important; }
-html.large-text .text-base { font-size: 18px !important; }
-html.large-text .text-lg  { font-size: 21px !important; }
-html.large-text .text-xl  { font-size: 24px !important; }
-html.large-text .text-2xl { font-size: 28px !important; }
-html.large-text .text-3xl { font-size: 34px !important; }
+html.large-text .text-\[10px\] { font-size: 11px !important; }
+html.large-text .text-\[11px\] { font-size: 12px !important; }
+html.large-text .text-\[12px\] { font-size: 13px !important; }
+html.large-text .text-\[13px\] { font-size: 14px !important; }
+html.large-text .text-xs  { font-size: 13px !important; }
+html.large-text .text-sm  { font-size: 15px !important; }
+html.large-text .text-base { font-size: 17px !important; }
+html.large-text .text-lg  { font-size: 19px !important; }
+html.large-text .text-xl  { font-size: 22px !important; }
+html.large-text .text-2xl { font-size: 26px !important; }
+html.large-text .text-3xl { font-size: 32px !important; }
 
 /* Virtual Space: new-arrival drop-in (base transform preserved in keyframes) */
 @keyframes vs-dropin {
