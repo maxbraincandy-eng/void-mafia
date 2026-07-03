@@ -402,7 +402,7 @@ function HumanoidAvatar({ bodyColor, glowColor, mask, size = 1, speaking, walkin
 
 // ── Avatar on map ─────────────────────────────────────────────────────
 
-function AvatarOnMap({ player, isMe, speaking, onTap }: { player: SpacePlayer; isMe: boolean; speaking: boolean; onTap?: () => void }) {
+function AvatarOnMap({ player, isMe, speaking, onTap, entrance }: { player: SpacePlayer; isMe: boolean; speaking: boolean; onTap?: () => void; entrance?: boolean }) {
 
   const prev = useRef({ x: player.x, y: player.y });
   const [walking, setWalking] = useState(false);
@@ -420,7 +420,7 @@ function AvatarOnMap({ player, isMe, speaking, onTap }: { player: SpacePlayer; i
   }, [player.x, player.y]);
 
   return (
-    <div style={{ position: 'absolute', left: `${player.x}%`, top: `${player.y}%`, transform: 'translate(-50%, -100%)', transition: 'left 0.35s cubic-bezier(0.4,0,0.2,1), top 0.35s cubic-bezier(0.4,0,0.2,1)', zIndex: isMe ? 30 : 20, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+    <div style={{ position: 'absolute', left: `${player.x}%`, top: `${player.y}%`, transform: 'translate(-50%, -100%)', transition: 'left 0.35s cubic-bezier(0.4,0,0.2,1), top 0.35s cubic-bezier(0.4,0,0.2,1)', zIndex: isMe ? 30 : 20, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, animation: entrance ? 'vs-dropin .85s cubic-bezier(.2,.9,.3,1.15) both' : undefined }}>
       <AnimatePresence>
         {player.message ? (
           <motion.div key={player.message + player.socketId} initial={{ opacity: 0, y: 8, scale: 0.88 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.88 }} transition={{ type: 'spring', stiffness: 400, damping: 28 }}
@@ -1045,6 +1045,13 @@ function ChatDrawer({ history, mySocketId, open }: {
           <div style={{ flex:1,overflowY:'auto',padding:'8px 10px',display:'flex',flexDirection:'column',gap:6 }}>
             {history.length===0 && <p style={{ fontFamily:'monospace',fontSize:10,color:'rgba(255,255,255,0.15)',textAlign:'center',paddingTop:20 }}>ჯერ გზავნილები არ არის</p>}
             {history.map((msg,i)=>{
+              if (msg.socketId === 'system') {
+                return (
+                  <div key={i} style={{ display:'flex',justifyContent:'center' }}>
+                    <span style={{ fontFamily:'monospace',fontSize:10,color:'rgba(192,132,252,.7)',background:'rgba(155,0,255,.08)',border:'1px solid rgba(155,0,255,.2)',borderRadius:10,padding:'3px 10px' }}>{msg.message}</span>
+                  </div>
+                );
+              }
               const own=msg.socketId===mySocketId;
               return (
                 <div key={i} style={{ display:'flex',flexDirection:'column',gap:1,alignItems:own?'flex-end':'flex-start' }}>
@@ -1555,7 +1562,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const [socialProfileId, setSocialProfileId] = useState<string | null>(null);
   const openDmList = useSocialStore(s => s.openDmList);
 
-  const { joined, ghost, mySocketId, players, chatHistory, space, reactions, projectiles, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, knockout, clearKnockout, challengeDuel, respondDuel, duelInvite, activeDuel, duelResult, dismissDuelInvite, dismissDuelResult, furniture, furnitureAdd, furnitureUpdate, furnitureRemove, ghostJoin, ghostLeave } = useVirtualSpace();
+  const { joined, ghost, mySocketId, players, chatHistory, space, reactions, projectiles, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, knockout, clearKnockout, challengeDuel, respondDuel, duelInvite, activeDuel, duelResult, dismissDuelInvite, dismissDuelResult, furniture, furnitureAdd, furnitureUpdate, furnitureRemove, recentJoins, ghostJoin, ghostLeave } = useVirtualSpace();
   // Local punch-emoji bursts above the floating attack button.
   const [punchFx, setPunchFx] = useState<{ id: number; emoji: string; dx: number }[]>([]);
   const punchIdRef = useRef(0);
@@ -1584,6 +1591,23 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
     const now = Date.now();
     if (now - d.lastSent > 90) { d.lastSent = now; furnitureUpdate(d.id, { x, y }); }
   };
+  // ── Welcome confetti on player join ──────────────────────────────────
+  const [joinBursts, setJoinBursts] = useState<{ id: number; x: number; y: number }[]>([]);
+  const joinBurstId = useRef(0);
+  const prevJoinsRef = useRef<string[]>([]);
+  useEffect(() => {
+    const added = recentJoins.filter(id => !prevJoinsRef.current.includes(id));
+    prevJoinsRef.current = recentJoins;
+    for (const sid of added) {
+      const p = players.get(sid);
+      if (!p) continue;
+      const id = ++joinBurstId.current;
+      setJoinBursts(b => [...b, { id, x: p.x, y: p.y }]);
+      setTimeout(() => setJoinBursts(b => b.filter(x => x.id !== id)), 1400);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentJoins]);
+
   const furnPointerUp = (e: React.PointerEvent) => {
     const d = furnDrag.current;
     furnDrag.current = null;
@@ -2080,6 +2104,25 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
               </div>
             ))}
 
+            {/* Welcome confetti bursts */}
+            {joinBursts.map(b => (
+              <div key={b.id} style={{ position: 'absolute', left: `${b.x}%`, top: `${b.y}%`, zIndex: 25, pointerEvents: 'none' }}>
+                {Array.from({ length: 12 }).map((_, i) => {
+                  const ang = (i / 12) * Math.PI * 2;
+                  const dist = 26 + (i % 3) * 14;
+                  const col = ['#9b00ff', '#00e5ff', '#ff00aa', '#00ff88', '#facc15'][i % 5];
+                  return (
+                    <motion.span key={i}
+                      initial={{ x: 0, y: 0, opacity: 1, scale: 1, rotate: 0 }}
+                      animate={{ x: Math.cos(ang) * dist, y: Math.sin(ang) * dist * 0.7 + 26, opacity: 0, scale: 0.4, rotate: 200 }}
+                      transition={{ duration: 1.1, ease: 'easeOut' }}
+                      style={{ position: 'absolute', width: 6, height: 6, borderRadius: i % 2 ? '50%' : 2, background: col, boxShadow: `0 0 6px ${col}` }}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+
             {/* Cinema TV — synced watch party */}
             <CinemaTV tvState={tvState} canControl={space?.canControlTv ?? false} myDist={myTvDist} viewerCount={tvViewers} tvX={layout.tv.x} tvY={layout.tv.y} />
 
@@ -2151,7 +2194,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
 
             {/* Avatars */}
             {[...players.values()].map(p=>(
-  <AvatarOnMap key={p.socketId} player={p} isMe={p.socketId===mySocketId} speaking={isSpeaking(p)} onTap={()=>{ setSelectedPlayer(p); setFollowState('idle'); }} />
+  <AvatarOnMap key={p.socketId} player={p} isMe={p.socketId===mySocketId} speaking={isSpeaking(p)} entrance={recentJoins.includes(p.socketId)} onTap={()=>{ setSelectedPlayer(p); setFollowState('idle'); }} />
 ))}
 
 

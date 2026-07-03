@@ -88,6 +88,7 @@ interface VirtualSpaceState {
   activeDuel: ActiveDuel | null;
   duelResult: DuelResult | null;
   furniture: SpaceFurnitureItem[];
+  recentJoins: string[];
 }
 
 export function useVirtualSpace() {
@@ -102,6 +103,7 @@ export function useVirtualSpace() {
     knockout: null, ghost: false,
     duelInvite: null, activeDuel: null, duelResult: null,
     furniture: [],
+    recentJoins: [],
   });
 
   const moveTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -144,7 +146,7 @@ export function useVirtualSpace() {
           if (!res?.ok) { resolve(false); return; }
           const players = new Map<string, SpacePlayer>();
           for (const p of res.data.players) players.set(p.socketId, p);
-          setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null, furniture: res.data.furniture ?? [] });
+          setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null, furniture: res.data.furniture ?? [], recentJoins: [] });
           resolve(true);
         },
       );
@@ -230,7 +232,7 @@ export function useVirtualSpace() {
     for (const t of msgTimers.current.values()) clearTimeout(t);
     msgTimers.current.clear();
     if (moveTimer.current) { clearTimeout(moveTimer.current); moveTimer.current = null; }
-    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null, furniture: [] });
+    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null, furniture: [], recentJoins: [] });
   }, []);
 
   // Ghost observe — enter a space as an invisible owner (no avatar, no voice,
@@ -241,7 +243,7 @@ export function useVirtualSpace() {
         if (!res?.ok) { resolve(false); return; }
         const players = new Map<string, SpacePlayer>();
         for (const p of res.data.players) players.set(p.socketId, p);
-        setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: true, duelInvite: null, activeDuel: null, duelResult: null, furniture: [] });
+        setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: true, duelInvite: null, activeDuel: null, duelResult: null, furniture: [], recentJoins: [] });
         resolve(true);
       });
     });
@@ -249,7 +251,7 @@ export function useVirtualSpace() {
 
   const ghostLeave = useCallback(() => {
     (socket as any).emit('space:ghost_leave');
-    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null, furniture: [] });
+    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null, furniture: [], recentJoins: [] });
   }, []);
 
   const sit = useCallback((myId: string, seatId: string, x: number, y: number) => {
@@ -406,10 +408,16 @@ export function useVirtualSpace() {
   useEffect(() => {
     function onJoined(player: SpacePlayer) {
       setState(prev => {
+        const isNew = !prev.players.has(player.socketId);
         const next = new Map(prev.players);
         next.set(player.socketId, player);
-        return { ...prev, players: next };
+        if (!isNew) return { ...prev, players: next };
+        // Welcome: system chat line + short-lived arrival marker (drop-in + confetti).
+        const sysMsg: SpaceChatMsg = { socketId: 'system', name: 'system', bodyColor: '#c084fc', glowColor: '#c084fc', message: `👋 ${player.name} შემოვიდა 🚪`, ts: Date.now() };
+        return { ...prev, players: next, chatHistory: [...prev.chatHistory.slice(-99), sysMsg], recentJoins: [...prev.recentJoins, player.socketId] };
       });
+      try { SFX.join(); } catch { /* ignore */ }
+      setTimeout(() => setState(prev => ({ ...prev, recentJoins: prev.recentJoins.filter(id => id !== player.socketId) })), 1900);
     }
     function onMoved({ socketId, x, y }: { socketId: string; x: number; y: number }) {
       setState(prev => {
