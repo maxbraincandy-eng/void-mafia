@@ -465,6 +465,7 @@ interface Props {
 export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
   const t = useT();
   const currentUser = useAuthStore(s => s.profile);
+  const uploadAvatar = useAuthStore(s => s.uploadAvatar);
   const { followUser, unfollowUser } = useCommunityStore();
   const openDmWith = useSocialStore(s => s.openDmWith);
 
@@ -482,6 +483,8 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
   const [bannerPosY, setBannerPosY] = useState(50);
   const dragRef = useRef<{ startY: number; startPos: number } | null>(null);
+  const avatarFileRef = useRef<HTMLInputElement>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const isSelf     = currentUser?.id === profileId;
   const isLoggedIn = !!currentUser;
@@ -583,6 +586,22 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
     } finally { setBannerSaving(false); }
   };
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setAvatarUploading(true);
+    try {
+      const resized = await compressImage(file, 200, 0.7);
+      const res = await uploadAvatar(resized);
+      if (res.ok) {
+        const r = await emitWithAck<any, Res<CommunityProfileV2>>('community:profile', { profileId });
+        if (r.ok) setProfile(r.data);
+      }
+    } catch { /* ignore */ }
+    finally { setAvatarUploading(false); }
+  };
+
   // Saved posts (own profile only) — fetched lazily when the tab opens.
   useEffect(() => {
     if (tab !== 'saved' || !isSelf || saved !== null) return;
@@ -647,10 +666,21 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
           {/* Avatar row */}
           <div className="relative z-10 flex items-end gap-3 -mt-9 mb-3 px-1">
             <div
-              className={`flex-shrink-0 rounded-full ${isMrMax ? 'ring-2 ring-yellow-400/60 ring-offset-2 ring-offset-[#03000d]' : ''}`}
+              className={`flex-shrink-0 rounded-full relative ${isMrMax ? 'ring-2 ring-yellow-400/60 ring-offset-2 ring-offset-[#03000d]' : ''}`}
               style={{ background: '#03000d', padding: 3 }}
             >
               <Avatar avatar={profile.avatar} avatarUrl={profile.avatarUrl} size={76} />
+              {isSelf && (
+                <button
+                  onClick={() => avatarFileRef.current?.click()}
+                  disabled={avatarUploading}
+                  className="absolute bottom-0 right-0 w-7 h-7 rounded-full flex items-center justify-center transition-all active:scale-90"
+                  style={{ background: 'rgba(155,0,255,0.9)', border: '2px solid #03000d', fontSize: 13 }}
+                >
+                  {avatarUploading ? <span className="text-white" style={{ fontSize: 10 }}>…</span> : <span>📷</span>}
+                </button>
+              )}
+              <input ref={avatarFileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
             </div>
             <div className="pb-1 min-w-0 flex-1">
               {isMrMax ? (
