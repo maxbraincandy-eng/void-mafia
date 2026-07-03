@@ -1088,6 +1088,7 @@ export interface ClientToServerEvents {
   'tournament:join':       (data: { tournamentId: string }, cb: Cb<any>) => void;
   'tournament:leave':      (data: { tournamentId: string }, cb: Cb<null>) => void;
   'tournament:start':      (data: { tournamentId: string }, cb: Cb<any>) => void;
+  'tournament:delete':     (data: { tournamentId: string }, cb: Cb<null>) => void;
   // Friend code lookup
   'player:find_by_code':   (data: { friendCode: string }, cb: Cb<PlayerProfilePublic>) => void;
   // Mod grant by code (owner only)

@@ -43,6 +43,15 @@ export async function startTournament(tournamentId, requesterId) {
         throw new Error('Need at least 2 players.');
     await sql `UPDATE tournaments SET status = 'in_progress', started_at = ${Date.now()} WHERE id = ${tournamentId}`;
 }
+export async function deleteTournament(tournamentId, requesterId) {
+    const [t] = await sql `SELECT created_by FROM tournaments WHERE id = ${tournamentId}`;
+    if (!t)
+        throw new Error('Tournament not found.');
+    if (t.created_by !== requesterId)
+        throw new Error('Only the creator can delete.');
+    await sql `DELETE FROM tournament_participants WHERE tournament_id = ${tournamentId}`;
+    await sql `DELETE FROM tournaments WHERE id = ${tournamentId}`;
+}
 export async function eliminatePlayer(tournamentId, playerId) {
     await sql `UPDATE tournament_participants SET eliminated = true WHERE tournament_id = ${tournamentId} AND player_id = ${playerId}`;
 }

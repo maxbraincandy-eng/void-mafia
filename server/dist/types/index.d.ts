@@ -1507,6 +1507,9 @@ export interface ClientToServerEvents {
     'tournament:start': (data: {
         tournamentId: string;
     }, cb: Cb<any>) => void;
+    'tournament:delete': (data: {
+        tournamentId: string;
+    }, cb: Cb<null>) => void;
     'player:find_by_code': (data: {
         friendCode: string;
     }, cb: Cb<PlayerProfilePublic>) => void;

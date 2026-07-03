@@ -34,7 +34,7 @@ import {
   getActiveBan, getActiveMute, findSocketByProfile,
   registerWithEmail, authenticateWithEmail,
   addXP, getCosmetics, equipCosmetic, getNameColors, grantStarterCosmetics,
-  incrementSpaceKnockouts, getKnockoutLeaderboard,
+  incrementSpaceKnockouts, getKnockoutLeaderboard, getWinsLeaderboard, getLevelLeaderboard,
   getLeaderboard, getPlayersFast,
   getPlayerByFriendCode, setGrantedModLevel,
   updateAvatarUrl, updateUsername,
@@ -130,7 +130,7 @@ import {
 import { voiceJoin as debateVoiceJoin, voiceLeave as debateVoiceLeave, getVoicePeers as debateGetVoicePeers } from './services/debateVoiceService.js';
 import { recordActivity, getFriendActivityFeed } from './services/activityService.js';
 import { getPetData, addPetXp } from './services/petService.js';
-import { createTournament, joinTournament, leaveTournament, startTournament, listOpenTournaments, getTournament } from './services/tournamentService.js';
+import { createTournament, joinTournament, leaveTournament, startTournament, deleteTournament, listOpenTournaments, getTournament } from './services/tournamentService.js';
 import {
   adminSearchUser, adminGetUserProfile, issueWarning, suspendUser, liftSuspension,
   muteUser, unmuteUser, setProfileControls,
@@ -4142,6 +4142,15 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    socket.on('tournament:delete', async (data, cb) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        await deleteTournament(data.tournamentId, profileId);
+        cb(ok(null));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     // ── Daily Quests ─────────────────────────────────────────────────
     socket.on('challenge:today', async (cb) => {
       try {
@@ -6621,6 +6630,14 @@ export function attachSocketHandlers(io: AppServer): void {
     // KO leaderboard (bragging rights only — no coins/wagering).
     socket.on('space:ko_leaderboard' as any, async (cb: any) => {
       try { cb(ok(await getKnockoutLeaderboard())); } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('space:wins_leaderboard' as any, async (cb: any) => {
+      try { cb(ok(await getWinsLeaderboard())); } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('space:level_leaderboard' as any, async (cb: any) => {
+      try { cb(ok(await getLevelLeaderboard())); } catch (e: any) { cb(err(e.message)); }
     });
 
     // ── Space furniture editor (owner-built lounges) ───────────────────

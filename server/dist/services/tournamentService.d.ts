@@ -23,6 +23,7 @@ export declare function createTournament(createdBy: string, name: string, maxPla
 export declare function joinTournament(tournamentId: string, playerId: string): Promise<void>;
 export declare function leaveTournament(tournamentId: string, playerId: string): Promise<void>;
 export declare function startTournament(tournamentId: string, requesterId: string): Promise<void>;
+export declare function deleteTournament(tournamentId: string, requesterId: string): Promise<void>;
 export declare function eliminatePlayer(tournamentId: string, playerId: string): Promise<void>;
 export declare function finishTournament(tournamentId: string, winnerId: string): Promise<void>;
 export declare function getTournament(id: string): Promise<Tournament | null>;

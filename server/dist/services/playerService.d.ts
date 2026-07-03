@@ -18,6 +18,8 @@ export interface KnockoutLeader {
     knockouts: number;
 }
 export declare function getKnockoutLeaderboard(): Promise<KnockoutLeader[]>;
+export declare function getWinsLeaderboard(): Promise<KnockoutLeader[]>;
+export declare function getLevelLeaderboard(): Promise<KnockoutLeader[]>;
 export declare function getLeaderboard(): Promise<PlayerProfilePublic[]>;
 export declare function getPlayersFast(): Promise<PlayerProfilePublic[]>;
 export declare function toPublicProfile(p: PlayerProfile): PlayerProfilePublic;

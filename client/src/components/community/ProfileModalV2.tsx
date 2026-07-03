@@ -114,7 +114,7 @@ export function ProfileModalV2({
                 ) : (
                   <img src={profile.coverUrl} alt="" className="w-full h-full object-cover" />
                 )}
-                <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 30%, rgba(13,10,26,0.95))' }} />
+                <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 10%, rgba(13,10,26,0.6) 50%, rgba(13,10,26,0.98) 100%)' }} />
               </div>
             )}
 

@@ -1588,6 +1588,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const [selectedPlayer, setSelectedPlayer] = useState<SpacePlayer | null>(null);
   const [weapon, setWeapon] = useState<'fist' | 'tomato' | 'snowball'>('fist');
   const [koOpen, setKoOpen] = useState(false);
+  const [koTab, setKoTab] = useState<'ko' | 'wins' | 'level'>('ko');
   const [koList, setKoList] = useState<{ id: string; username: string; avatar: string; avatarUrl: string | null; knockouts: number }[] | null>(null);
   const [followState, setFollowState] = useState<'idle' | 'busy' | 'done'>('idle');
   const [socialProfileId, setSocialProfileId] = useState<string | null>(null);
@@ -1972,10 +1973,17 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   // Duel lifecycle is now fully handled inside useVirtualSpace (duelInvite /
   // activeDuel / duelResult), so the whole flow stays in one place.
 
-  const openKoBoard = useCallback(() => {
-    setKoOpen(true); setKoList(null);
-    emitWithAck<undefined, Res<typeof koList>>('space:ko_leaderboard').then(r => { if (r.ok) setKoList(r.data as any); }).catch(() => {});
+  const fetchLeaderboard = useCallback((tab: 'ko' | 'wins' | 'level') => {
+    setKoList(null);
+    const event = tab === 'ko' ? 'space:ko_leaderboard' : tab === 'wins' ? 'space:wins_leaderboard' : 'space:level_leaderboard';
+    emitWithAck<undefined, Res<any[]>>(event).then(r => { if (r.ok) setKoList(r.data as any); }).catch(() => {});
   }, []);
+  const openKoBoard = useCallback(() => {
+    setKoOpen(true); setKoTab('ko'); fetchLeaderboard('ko');
+  }, [fetchLeaderboard]);
+  const switchKoTab = useCallback((tab: 'ko' | 'wins' | 'level') => {
+    setKoTab(tab); fetchLeaderboard(tab);
+  }, [fetchLeaderboard]);
 
   // Distance from my avatar to the cinema TV + how many players are watching.
   const me = players.get(mySocketId);
@@ -3032,6 +3040,16 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                             style={{ background: 'rgba(0,245,255,.14)', border: '1px solid rgba(0,245,255,.4)', color: '#00f5ff' }}
                           >დაწყება</button>
                         )}
+                        {isCreator && (
+                          <button
+                            onClick={async () => {
+                              await emitWithAck<any, Res<null>>('tournament:delete', { tournamentId: t.id });
+                              refreshTournaments();
+                            }}
+                            className="py-1.5 px-3 rounded-lg font-mono text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95"
+                            style={{ background: 'rgba(255,45,85,.1)', border: '1px solid rgba(255,45,85,.25)', color: '#ff6b81' }}
+                          >🗑</button>
+                        )}
                       </div>
                     </div>
                   );
@@ -3047,13 +3065,34 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
         <div onClick={() => setKoOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 1250, background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <div onClick={e => e.stopPropagation()} style={{ width: 'min(340px,100%)', maxHeight: '76vh', overflowY: 'auto', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(255,180,0,.3)', borderRadius: 20, padding: 20 }}>
             <div className="flex items-center justify-between mb-3">
-              <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#facc15' }}>🏆 KO რეიტინგი</p>
+              <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#facc15' }}>🏆 რეიტინგი</p>
               <button onClick={() => setKoOpen(false)} className="w-7 h-7 rounded-lg flex items-center justify-center text-white/35" style={{ background: 'rgba(255,255,255,.05)' }}>✕</button>
+            </div>
+            {/* Tabs */}
+            <div className="flex gap-1 mb-3">
+              {([
+                { id: 'ko' as const, label: '👊 KO', color: '#ff6b81' },
+                { id: 'wins' as const, label: '🎮 მოგება', color: '#00ff88' },
+                { id: 'level' as const, label: '⭐ დონე', color: '#c084fc' },
+              ]).map(tb => (
+                <button
+                  key={tb.id}
+                  onClick={() => switchKoTab(tb.id)}
+                  className="flex-1 py-1.5 rounded-lg font-mono text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95"
+                  style={{
+                    background: koTab === tb.id ? `${tb.color}18` : 'rgba(255,255,255,.03)',
+                    border: `1px solid ${koTab === tb.id ? `${tb.color}50` : 'rgba(255,255,255,.08)'}`,
+                    color: koTab === tb.id ? tb.color : 'rgba(255,255,255,.3)',
+                  }}
+                >{tb.label}</button>
+              ))}
             </div>
             {koList === null ? (
               <p className="text-center font-mono text-[12px] text-white/30 py-6">…</p>
             ) : koList.length === 0 ? (
-              <p className="text-center font-mono text-[12px] text-white/30 py-6">ჯერ არავის ჩაურტყამს. იყავი პირველი! 👊</p>
+              <p className="text-center font-mono text-[12px] text-white/30 py-6">
+                {koTab === 'ko' ? 'ჯერ არავის ჩაურტყამს. იყავი პირველი! 👊' : koTab === 'wins' ? 'ჯერ არავის მოუგია' : 'ჯერ არავინ არ არის'}
+              </p>
             ) : (
               <div className="space-y-1.5">
                 {koList.map((u, i) => (
@@ -3065,7 +3104,9 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                       {u.avatarUrl ? <img src={u.avatarUrl} alt={u.username} className="w-full h-full object-cover" /> : u.avatar}
                     </div>
                     <span className="flex-1 min-w-0 truncate font-mono text-[13px] text-white/80">{u.username}</span>
-                    <span className="font-mono text-[13px] font-bold" style={{ color: '#ff6b81' }}>{u.knockouts} KO</span>
+                    <span className="font-mono text-[13px] font-bold" style={{ color: koTab === 'ko' ? '#ff6b81' : koTab === 'wins' ? '#00ff88' : '#c084fc' }}>
+                      {u.knockouts} {koTab === 'ko' ? 'KO' : koTab === 'wins' ? 'W' : 'Lv'}
+                    </span>
                   </div>
                 ))}
               </div>

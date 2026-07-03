@@ -313,6 +313,36 @@ export async function getKnockoutLeaderboard(): Promise<KnockoutLeader[]> {
   }));
 }
 
+export async function getWinsLeaderboard(): Promise<KnockoutLeader[]> {
+  const rows = await sql`
+    SELECT id, username, avatar, avatar_url, public_id, wins
+    FROM players
+    WHERE wins > 0
+    ORDER BY wins DESC, games_played ASC
+    LIMIT 20
+  ` as any[];
+  return rows.map((r: any) => ({
+    id: r.id, username: r.username, avatar: r.avatar, avatarUrl: r.avatar_url ?? null,
+    publicId: r.public_id != null ? Number(r.public_id) : null,
+    knockouts: Number(r.wins ?? 0),
+  }));
+}
+
+export async function getLevelLeaderboard(): Promise<KnockoutLeader[]> {
+  const rows = await sql`
+    SELECT id, username, avatar, avatar_url, public_id, level
+    FROM players
+    WHERE level > 1
+    ORDER BY level DESC, xp DESC
+    LIMIT 20
+  ` as any[];
+  return rows.map((r: any) => ({
+    id: r.id, username: r.username, avatar: r.avatar, avatarUrl: r.avatar_url ?? null,
+    publicId: r.public_id != null ? Number(r.public_id) : null,
+    knockouts: Number(r.level ?? 1),
+  }));
+}
+
 export async function getLeaderboard(): Promise<PlayerProfilePublic[]> {
   if (_leaderboardCache && Date.now() - _leaderboardCachedAt < LEADERBOARD_TTL) {
     return _leaderboardCache;

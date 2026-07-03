@@ -11,7 +11,7 @@ import { registerWWWHandlers, handleWWWDisconnect } from './www.js';
 import { registerUnoHandlers, handleUnoDisconnect } from './uno.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
-import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, getNameColors, grantStarterCosmetics, incrementSpaceKnockouts, getKnockoutLeaderboard, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
+import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, getNameColors, grantStarterCosmetics, incrementSpaceKnockouts, getKnockoutLeaderboard, getWinsLeaderboard, getLevelLeaderboard, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
 import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount, setLoungePresence, clearLoungePresence, getFriendIds, setInvisible, isInvisible, setGhost, isGhost, getPeakOnline, getOnlineCountRaw, getFriendSuggestions, } from './services/friendService.js';
 import { checkAndAwardChallenges, getDailyQuestsForPlayer, } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
@@ -34,7 +34,7 @@ import { listDebates, getDebateFull, createDebate, joinDebate, postArgument, vot
 import { voiceJoin as debateVoiceJoin, voiceLeave as debateVoiceLeave } from './services/debateVoiceService.js';
 import { recordActivity, getFriendActivityFeed } from './services/activityService.js';
 import { getPetData, addPetXp } from './services/petService.js';
-import { createTournament, joinTournament, leaveTournament, startTournament, listOpenTournaments, getTournament } from './services/tournamentService.js';
+import { createTournament, joinTournament, leaveTournament, startTournament, deleteTournament, listOpenTournaments, getTournament } from './services/tournamentService.js';
 import { adminSearchUser, adminGetUserProfile, issueWarning, suspendUser, liftSuspension, muteUser, unmuteUser, setProfileControls, adminDeletePost, adminRestorePost, adminDeleteComment, adminRestoreComment, adminDeleteDebate, adminRestoreDebate, adminSetDebateFlags, listAllReports, listDeletedContent, getAdminAuditLogs, } from './services/adminService.js';
 import { join as loungeJoin, leave as loungeLeave, getMembers as loungeGetMembers, getMemberByPlayerId as loungeGetMemberByPlayerId, setRole as loungeSetRole, setHandRaised as loungeSetHandRaised, removeMember as loungeRemoveMember, getCounts as loungeGetCounts, } from './services/loungeVoiceService.js';
 // ── TURN / ICE server config ──────────────────────────────────────────
@@ -4404,6 +4404,18 @@ export function attachSocketHandlers(io) {
                 cb(err(e.message));
             }
         });
+        socket.on('tournament:delete', async (data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                await deleteTournament(data.tournamentId, profileId);
+                cb(ok(null));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
         // ── Daily Quests ─────────────────────────────────────────────────
         socket.on('challenge:today', async (cb) => {
             try {
@@ -7662,6 +7674,22 @@ export function attachSocketHandlers(io) {
         socket.on('space:ko_leaderboard', async (cb) => {
             try {
                 cb(ok(await getKnockoutLeaderboard()));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('space:wins_leaderboard', async (cb) => {
+            try {
+                cb(ok(await getWinsLeaderboard()));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('space:level_leaderboard', async (cb) => {
+            try {
+                cb(ok(await getLevelLeaderboard()));
             }
             catch (e) {
                 cb(err(e.message));

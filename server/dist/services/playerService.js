@@ -289,6 +289,34 @@ export async function getKnockoutLeaderboard() {
         knockouts: Number(r.space_knockouts ?? 0),
     }));
 }
+export async function getWinsLeaderboard() {
+    const rows = await sql `
+    SELECT id, username, avatar, avatar_url, public_id, wins
+    FROM players
+    WHERE wins > 0
+    ORDER BY wins DESC, games_played ASC
+    LIMIT 20
+  `;
+    return rows.map((r) => ({
+        id: r.id, username: r.username, avatar: r.avatar, avatarUrl: r.avatar_url ?? null,
+        publicId: r.public_id != null ? Number(r.public_id) : null,
+        knockouts: Number(r.wins ?? 0),
+    }));
+}
+export async function getLevelLeaderboard() {
+    const rows = await sql `
+    SELECT id, username, avatar, avatar_url, public_id, level
+    FROM players
+    WHERE level > 1
+    ORDER BY level DESC, xp DESC
+    LIMIT 20
+  `;
+    return rows.map((r) => ({
+        id: r.id, username: r.username, avatar: r.avatar, avatarUrl: r.avatar_url ?? null,
+        publicId: r.public_id != null ? Number(r.public_id) : null,
+        knockouts: Number(r.level ?? 1),
+    }));
+}
 export async function getLeaderboard() {
     if (_leaderboardCache && Date.now() - _leaderboardCachedAt < LEADERBOARD_TTL) {
         return _leaderboardCache;
