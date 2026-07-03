@@ -1562,7 +1562,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
   const [socialProfileId, setSocialProfileId] = useState<string | null>(null);
   const openDmList = useSocialStore(s => s.openDmList);
 
-  const { joined, ghost, mySocketId, players, chatHistory, space, reactions, projectiles, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, knockout, clearKnockout, challengeDuel, respondDuel, duelInvite, activeDuel, duelResult, dismissDuelInvite, dismissDuelResult, furniture, furnitureAdd, furnitureUpdate, furnitureRemove, recentJoins, ghostJoin, ghostLeave } = useVirtualSpace();
+  const { joined, ghost, mySocketId, players, chatHistory, space, reactions, projectiles, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, knockout, clearKnockout, challengeDuel, respondDuel, duelInvite, activeDuel, duelResult, dismissDuelInvite, dismissDuelResult, challengeRps, respondRps, pickRps, rpsInvite, activeRps, rpsLastRound, rpsResult, dismissRpsInvite, dismissRpsResult, furniture, furnitureAdd, furnitureUpdate, furnitureRemove, recentJoins, ghostJoin, ghostLeave } = useVirtualSpace();
   // Local punch-emoji bursts above the floating attack button.
   const [punchFx, setPunchFx] = useState<{ id: number; emoji: string; dx: number }[]>([]);
   const punchIdRef = useRef(0);
@@ -2304,21 +2304,23 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                         : null
                     )
                     : (
+                      <>
                       <button
                         disabled={!here}
                         onClick={() => { if (players.has(selectedPlayer.socketId)) { challengeDuel(selectedPlayer.socketId); setSelectedPlayer(null); } }}
                         style={{ width: '100%', marginTop: 8, padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(255,180,0,.12)', border: '1px solid rgba(255,180,0,.4)', color: '#facc15', opacity: here ? 1 : 0.4 }}
                       >⚔️ დუელზე გამოწვევა</button>
+                      <button
+                        disabled={!here}
+                        onClick={() => { if (players.has(selectedPlayer.socketId)) { challengeRps(selectedPlayer.socketId); setSelectedPlayer(null); } }}
+                        style={{ width: '100%', marginTop: 6, padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(0,229,255,.12)', border: '1px solid rgba(0,229,255,.4)', color: '#00e5ff', opacity: here ? 1 : 0.4 }}
+                      >🪨 ჯეირანი</button>
+                      </>
                     )}
                 </div>
               );
             })()}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <button onClick={() => {
-                  if (me && selectedPlayer) { const a = 6 - Math.random()*12; moveLocal(mySocketId, Math.max(5,Math.min(95,selectedPlayer.x + a)), Math.max(5,Math.min(92,selectedPlayer.y + 4))); }
-                  setSelectedPlayer(null);
-                }}
-                style={{ padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(0,229,255,.12)', border: '1px solid rgba(0,229,255,.35)', color: '#00e5ff' }}>🚶 გადასვლა</button>
               {selectedPlayer.profileId && profile?.id !== selectedPlayer.profileId && (
                 <>
                   <button disabled={followState !== 'idle'} onClick={() => {
@@ -2592,6 +2594,97 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
               <button onClick={() => respondDuel(duelInvite.fromSocketId, true)}
                 style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(0,255,136,.14)', border: '1px solid rgba(0,255,136,.45)', color: '#00ff88' }}>⚔️ მიღება</button>
             </div>
+          </motion.div>
+        </div>,
+        document.body
+      )}
+
+      {/* RPS invite overlay */}
+      {rpsInvite && createPortal(
+        <div onClick={dismissRpsInvite} style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <motion.div onClick={e => e.stopPropagation()} initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            style={{ width: 'min(320px,100%)', textAlign: 'center', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(0,229,255,.45)', borderRadius: 20, padding: '26px 22px' }}>
+            <div style={{ fontSize: 44, marginBottom: 6 }}>🪨</div>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 6 }}>ჯეირანი</p>
+            <p style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(255,255,255,.55)', marginBottom: 18 }}>
+              <span style={{ color: '#00e5ff' }}>{rpsInvite.fromName}</span> გიწვევს ჯეირანზე. ითამაშებ?
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => respondRps(rpsInvite.fromSocketId, false)}
+                style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.14)', color: 'rgba(255,255,255,.6)' }}>უარი</button>
+              <button onClick={() => respondRps(rpsInvite.fromSocketId, true)}
+                style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(0,229,255,.14)', border: '1px solid rgba(0,229,255,.45)', color: '#00e5ff' }}>🪨 ვითამაშოთ!</button>
+            </div>
+          </motion.div>
+        </div>,
+        document.body
+      )}
+
+      {/* RPS pick modal */}
+      {activeRps && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1350, background: 'rgba(0,0,0,.8)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            style={{ width: 'min(340px,100%)', textAlign: 'center', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(0,229,255,.35)', borderRadius: 20, padding: '26px 22px' }}>
+            <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,.4)', marginBottom: 4 }}>vs <span style={{ color: '#00e5ff' }}>{activeRps.opponent}</span></p>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 18, color: '#fff', marginBottom: 4 }}>რაუნდი {activeRps.round}/3</p>
+            {rpsLastRound && !rpsLastRound.finished && (
+              <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,.45)', marginBottom: 8 }}>
+                წინა: {rpsLastRound.result === 'draw' ? 'ფრე' : rpsLastRound.result === 'a' ? `${rpsLastRound.aWins}-${rpsLastRound.bWins}` : `${rpsLastRound.aWins}-${rpsLastRound.bWins}`} ({rpsLastRound.aWins}-{rpsLastRound.bWins})
+              </p>
+            )}
+            {activeRps.myPick ? (
+              <div style={{ padding: 20 }}>
+                <p style={{ fontFamily: 'monospace', fontSize: 14, color: '#00e5ff', marginBottom: 8 }}>
+                  {activeRps.myPick === 'rock' ? '🪨' : activeRps.myPick === 'paper' ? '📄' : '✂️'} აირჩიე — ელოდები მოწინააღმდეგეს...
+                </p>
+                <div className="animate-pulse" style={{ fontSize: 28 }}>⏳</div>
+              </div>
+            ) : (
+              <>
+                <p style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(255,255,255,.55)', marginBottom: 16 }}>აირჩიე:</p>
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                  {([['rock', '🪨'], ['paper', '📄'], ['scissors', '✂️']] as const).map(([c, emoji]) => (
+                    <button key={c} onClick={() => pickRps(c)}
+                      style={{ width: 80, height: 80, borderRadius: 16, fontSize: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,229,255,.08)', border: '2px solid rgba(0,229,255,.3)', transition: 'transform .1s, border-color .1s' }}
+                      onMouseDown={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.9)'; }}
+                      onMouseUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
+                    >{emoji}</button>
+                  ))}
+                </div>
+              </>
+            )}
+          </motion.div>
+        </div>,
+        document.body
+      )}
+
+      {/* RPS result modal */}
+      {rpsResult && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1400, background: 'rgba(0,0,0,.8)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            style={{ width: 'min(320px,100%)', textAlign: 'center', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(0,229,255,.45)', borderRadius: 20, padding: '26px 22px', position: 'relative' }}>
+            <button onClick={dismissRpsResult}
+              style={{ position: 'absolute', top: 12, left: 12, width: 30, height: 30, borderRadius: 10, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', color: 'rgba(255,255,255,.5)', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            {rpsLastRound && (
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginBottom: 12, fontSize: 40 }}>
+                <span>{rpsLastRound.aPick === 'rock' ? '🪨' : rpsLastRound.aPick === 'paper' ? '📄' : '✂️'}</span>
+                <span style={{ color: 'rgba(255,255,255,.3)', fontSize: 24, alignSelf: 'center' }}>vs</span>
+                <span>{rpsLastRound.bPick === 'rock' ? '🪨' : rpsLastRound.bPick === 'paper' ? '📄' : '✂️'}</span>
+              </div>
+            )}
+            <div style={{ fontSize: 32, marginBottom: 8 }}>🪨</div>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 12 }}>ჯეირანის შედეგი</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+              <div style={{ padding: '10px 16px', borderRadius: 12, background: 'rgba(0,255,136,.1)', border: '1px solid rgba(0,255,136,.3)' }}>
+                <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#00ff88' }}>🏆 {rpsResult.winner}</span>
+              </div>
+              <div style={{ padding: '10px 16px', borderRadius: 12, background: 'rgba(255,45,85,.08)', border: '1px solid rgba(255,45,85,.2)' }}>
+                <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#ff6b81' }}>💀 {rpsResult.loser}</span>
+              </div>
+              <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,.35)', marginTop: 4 }}>{rpsResult.aWins}-{rpsResult.bWins}</p>
+            </div>
+            <button onClick={dismissRpsResult}
+              style={{ width: '100%', padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(0,229,255,.14)', border: '1px solid rgba(0,229,255,.4)', color: '#00e5ff' }}>გასაგებია</button>
           </motion.div>
         </div>,
         document.body

@@ -73,6 +73,11 @@ export interface ActiveDuel {
 }
 export interface DuelInvite { fromSocketId: string; fromName: string }
 export interface DuelResult { text: string; win: boolean; sticky?: boolean; winner?: string; loser?: string; forfeit?: boolean }
+export type RpsChoice = 'rock' | 'paper' | 'scissors';
+export interface RpsInvite { fromSocketId: string; fromName: string }
+export interface ActiveRps { opponent: string; opponentSocketId: string; round: number; myPick?: RpsChoice }
+export interface RpsRound { round: number; aPick: RpsChoice; bPick: RpsChoice; result: 'a' | 'b' | 'draw'; aWins: number; bWins: number; finished: boolean; nextRound?: number; winnerName?: string; loserName?: string }
+export interface RpsResult { winner: string; loser: string; aWins: number; bWins: number }
 
 interface VirtualSpaceState {
   joined: boolean;
@@ -89,6 +94,10 @@ interface VirtualSpaceState {
   duelResult: DuelResult | null;
   furniture: SpaceFurnitureItem[];
   recentJoins: string[];
+  rpsInvite: RpsInvite | null;
+  activeRps: ActiveRps | null;
+  rpsLastRound: RpsRound | null;
+  rpsResult: RpsResult | null;
 }
 
 export function useVirtualSpace() {
@@ -104,6 +113,7 @@ export function useVirtualSpace() {
     duelInvite: null, activeDuel: null, duelResult: null,
     furniture: [],
     recentJoins: [],
+    rpsInvite: null, activeRps: null, rpsLastRound: null, rpsResult: null,
   });
 
   const moveTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -151,7 +161,7 @@ export function useVirtualSpace() {
           // space:player-joined event, so mark ourselves as a recent join here.
           const me = players.get(myId);
           const selfMsg: SpaceChatMsg[] = me ? [{ socketId: 'system', name: 'system', bodyColor: '#c084fc', glowColor: '#c084fc', message: `👋 ${me.name} შემოვიდა 🚪`, ts: Date.now() }] : [];
-          setState({ joined: true, mySocketId: myId, players, chatHistory: selfMsg, space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null, furniture: res.data.furniture ?? [], recentJoins: [myId] });
+          setState({ joined: true, mySocketId: myId, players, chatHistory: selfMsg, space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null, rpsInvite: null, activeRps: null, rpsLastRound: null, rpsResult: null, furniture: res.data.furniture ?? [], recentJoins: [myId] });
           try { SFX.join(); } catch { /* ignore */ }
           setTimeout(() => setState(prev => ({ ...prev, recentJoins: prev.recentJoins.filter(id => id !== myId) })), 1900);
           resolve(true);
@@ -175,6 +185,27 @@ export function useVirtualSpace() {
     setState(prev => ({ ...prev, duelInvite: null }));
     (socket as any).emit('space:duel_respond', { fromSocketId, accept }, () => {});
   }, []);
+
+  // ── Rock-Paper-Scissors ("ჯეირანი") ────────────────────────────────
+  const challengeRps = useCallback((targetSocketId: string) => {
+    (socket as any).emit('space:rps_challenge', { targetSocketId }, (res: any) => {
+      if (res?.ok) flashDuelResult('🪨 მოწვევა გაიგზავნა', false, 2200);
+      else flashDuelResult('ვერ გაიგზავნა', false, 2200);
+    });
+  }, [flashDuelResult]);
+
+  const respondRps = useCallback((fromSocketId: string, accept: boolean) => {
+    setState(prev => ({ ...prev, rpsInvite: null }));
+    (socket as any).emit('space:rps_respond', { fromSocketId, accept }, () => {});
+  }, []);
+
+  const pickRps = useCallback((choice: RpsChoice) => {
+    setState(prev => prev.activeRps ? { ...prev, activeRps: { ...prev.activeRps, myPick: choice } } : prev);
+    (socket as any).emit('space:rps_pick', { choice }, () => {});
+  }, []);
+
+  const dismissRpsInvite = useCallback(() => setState(prev => ({ ...prev, rpsInvite: null })), []);
+  const dismissRpsResult = useCallback(() => setState(prev => ({ ...prev, rpsResult: null })), []);
 
   // ── Furniture editor (owner) ──────────────────────────────────────
   const furnitureAdd = useCallback((kind: string, x: number, y: number) => {
@@ -239,7 +270,7 @@ export function useVirtualSpace() {
     for (const t of msgTimers.current.values()) clearTimeout(t);
     msgTimers.current.clear();
     if (moveTimer.current) { clearTimeout(moveTimer.current); moveTimer.current = null; }
-    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null, furniture: [], recentJoins: [] });
+    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null, rpsInvite: null, activeRps: null, rpsLastRound: null, rpsResult: null, furniture: [], recentJoins: [] });
   }, []);
 
   // Ghost observe — enter a space as an invisible owner (no avatar, no voice,
@@ -250,7 +281,7 @@ export function useVirtualSpace() {
         if (!res?.ok) { resolve(false); return; }
         const players = new Map<string, SpacePlayer>();
         for (const p of res.data.players) players.set(p.socketId, p);
-        setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: true, duelInvite: null, activeDuel: null, duelResult: null, furniture: [], recentJoins: [] });
+        setState({ joined: true, mySocketId: res.data.mySocketId, players, chatHistory: [], space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: true, duelInvite: null, activeDuel: null, duelResult: null, rpsInvite: null, activeRps: null, rpsLastRound: null, rpsResult: null, furniture: [], recentJoins: [] });
         resolve(true);
       });
     });
@@ -258,7 +289,7 @@ export function useVirtualSpace() {
 
   const ghostLeave = useCallback(() => {
     (socket as any).emit('space:ghost_leave');
-    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null, furniture: [], recentJoins: [] });
+    setState({ joined: false, mySocketId: '', players: new Map(), chatHistory: [], space: null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null, rpsInvite: null, activeRps: null, rpsLastRound: null, rpsResult: null, furniture: [], recentJoins: [] });
   }, []);
 
   const sit = useCallback((myId: string, seatId: string, x: number, y: number) => {
@@ -549,6 +580,25 @@ export function useVirtualSpace() {
       flashDuelResult(d.expired ? `${d.byName}-მ ვერ მოასწრო პასუხი` : `${d.byName}-მ უარყო დუელი`, false, 2600);
     }
 
+    // ── RPS ("ჯეირანი") listeners ────────────────────────────────────
+    function onRpsInvite(d: RpsInvite) {
+      setState(prev => ({ ...prev, rpsInvite: d }));
+    }
+    function onRpsStart(d: { opponent: string; opponentSocketId: string; round: number }) {
+      setState(prev => ({ ...prev, rpsInvite: null, activeRps: { opponent: d.opponent, opponentSocketId: d.opponentSocketId, round: d.round }, rpsLastRound: null, rpsResult: null }));
+    }
+    function onRpsRound(d: RpsRound) {
+      if (d.finished) {
+        const sysMsg: SpaceChatMsg = { socketId: 'system', name: 'system', bodyColor: '#00e5ff', glowColor: '#00e5ff', message: `🪨 ჯეირანი: ${d.winnerName} მოიგო! (${d.aWins}-${d.bWins})`, ts: Date.now() };
+        setState(prev => ({ ...prev, activeRps: null, rpsLastRound: d, rpsResult: { winner: d.winnerName!, loser: d.loserName!, aWins: d.aWins, bWins: d.bWins }, chatHistory: [...prev.chatHistory.slice(-99), sysMsg] }));
+      } else {
+        setState(prev => prev.activeRps ? { ...prev, rpsLastRound: d, activeRps: { ...prev.activeRps, round: d.nextRound!, myPick: undefined } } : prev);
+      }
+    }
+    function onRpsDeclined(d: { byName: string }) {
+      flashDuelResult(`${d.byName}-მ უარყო ჯეირანი`, false, 2600);
+    }
+
     (socket as any).on('space:player-joined', onJoined);
     (socket as any).on('space:player-moved',  onMoved);
     (socket as any).on('space:player-left',   onLeft);
@@ -566,6 +616,10 @@ export function useVirtualSpace() {
     (socket as any).on('space:duel_start',      onDuelStart);
     (socket as any).on('space:duel_end',        onDuelEnd);
     (socket as any).on('space:duel_declined',   onDuelDeclined);
+    (socket as any).on('space:rps_invite',      onRpsInvite);
+    (socket as any).on('space:rps_start',       onRpsStart);
+    (socket as any).on('space:rps_round',       onRpsRound);
+    (socket as any).on('space:rps_declined',    onRpsDeclined);
     return () => {
       (socket as any).off('space:player-joined', onJoined);
       (socket as any).off('space:player-moved',  onMoved);
@@ -584,10 +638,14 @@ export function useVirtualSpace() {
       (socket as any).off('space:duel_start',      onDuelStart);
       (socket as any).off('space:duel_end',        onDuelEnd);
       (socket as any).off('space:duel_declined',   onDuelDeclined);
+      (socket as any).off('space:rps_invite',      onRpsInvite);
+      (socket as any).off('space:rps_start',       onRpsStart);
+      (socket as any).off('space:rps_round',       onRpsRound);
+      (socket as any).off('space:rps_declined',    onRpsDeclined);
       if (duelResultTimer.current) clearTimeout(duelResultTimer.current);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { ...state, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, clearKnockout, challengeDuel, respondDuel, dismissDuelInvite, dismissDuelResult, furnitureAdd, furnitureUpdate, furnitureRemove, ghostJoin, ghostLeave };
+  return { ...state, join, leave, moveLocal, sendChat, sit, stand, react, gesture, setTyping, listSpaces, createSpace, resolveSpace, inviteToSpace, setSpaceTheme, hit, clearKnockout, challengeDuel, respondDuel, dismissDuelInvite, dismissDuelResult, challengeRps, respondRps, pickRps, dismissRpsInvite, dismissRpsResult, furnitureAdd, furnitureUpdate, furnitureRemove, ghostJoin, ghostLeave };
 }

@@ -935,6 +935,10 @@ export interface ServerToClientEvents {
   'space:duel_start': (data: { aSocketId: string; aName: string; aHp: number; bSocketId: string; bName: string; bHp: number; maxHp: number }) => void;
   'space:duel_end': (data: { winnerName: string; loserName: string; forfeit?: boolean }) => void;
   'space:duel_declined': (data: { byName: string; expired?: boolean }) => void;
+  'space:rps_invite': (data: { fromSocketId: string; fromName: string }) => void;
+  'space:rps_start': (data: { opponent: string; opponentSocketId: string; round: number }) => void;
+  'space:rps_round': (data: any) => void;
+  'space:rps_declined': (data: { byName: string }) => void;
   'space:player-moved':  (data: { socketId: string; x: number; y: number }) => void;
   'space:player-left':   (data: { socketId: string }) => void;
   'space:message':       (data: { socketId: string; message: string }) => void;

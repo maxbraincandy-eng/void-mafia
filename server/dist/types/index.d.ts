@@ -1030,6 +1030,19 @@ export interface ServerToClientEvents {
         byName: string;
         expired?: boolean;
     }) => void;
+    'space:rps_invite': (data: {
+        fromSocketId: string;
+        fromName: string;
+    }) => void;
+    'space:rps_start': (data: {
+        opponent: string;
+        opponentSocketId: string;
+        round: number;
+    }) => void;
+    'space:rps_round': (data: any) => void;
+    'space:rps_declined': (data: {
+        byName: string;
+    }) => void;
     'space:player-moved': (data: {
         socketId: string;
         x: number;

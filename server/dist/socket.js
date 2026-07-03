@@ -186,6 +186,39 @@ function _clearDuel(socketId) {
         }
     }
 }
+const _rpsPending = new Map(); // targetSocketId → challengerSocketId
+const _rpsPendingTimer = new Map();
+const _rpsGames = new Map(); // key = `${a}:${b}` (sorted)
+function _rpsKey(a, b) { return a < b ? `${a}:${b}` : `${b}:${a}`; }
+function _clearRps(socketId) {
+    const t1 = _rpsPendingTimer.get(socketId);
+    if (t1) {
+        clearTimeout(t1);
+        _rpsPendingTimer.delete(socketId);
+    }
+    _rpsPending.delete(socketId);
+    for (const [target, challenger] of _rpsPending) {
+        if (challenger === socketId) {
+            const t = _rpsPendingTimer.get(target);
+            if (t) {
+                clearTimeout(t);
+                _rpsPendingTimer.delete(target);
+            }
+            _rpsPending.delete(target);
+        }
+    }
+    for (const [key, g] of _rpsGames) {
+        if (g.aSocketId === socketId || g.bSocketId === socketId)
+            _rpsGames.delete(key);
+    }
+}
+function _rpsWinner(a, b) {
+    if (a === b)
+        return 'draw';
+    if ((a === 'rock' && b === 'scissors') || (a === 'paper' && b === 'rock') || (a === 'scissors' && b === 'paper'))
+        return 'a';
+    return 'b';
+}
 const _spaces = new Map();
 const _spaceDJ = new Map();
 const _spaceTV = new Map();
@@ -328,6 +361,7 @@ function _leaveSpace(sid, io) {
                 }
             }
             _clearDuel(sid);
+            _clearRps(sid);
             room.delete(sid);
             io.to(`space:${spaceId}`).emit('space:player-left', { socketId: sid });
             if (room.size === 0) {
@@ -7528,6 +7562,122 @@ export function attachSocketHandlers(io) {
                     bSocketId: socket.id, bName: me.name, bHp: DUEL_HP, maxHp: DUEL_HP,
                 });
                 cb?.({ ok: true });
+            }
+            catch {
+                cb?.({ ok: false });
+            }
+        });
+        // ── Rock-Paper-Scissors ("ჯეირანი") ────────────────────────────────
+        socket.on('space:rps_challenge', ({ targetSocketId }, cb) => {
+            try {
+                const spaceId = _spaceOfSocket(socket.id);
+                if (!spaceId)
+                    return cb?.({ ok: false });
+                const room = _spaces.get(spaceId);
+                const me = room?.get(socket.id);
+                const target = room?.get(targetSocketId);
+                if (!me || !target || socket.id === targetSocketId)
+                    return cb?.({ ok: false });
+                if (_rpsPending.has(targetSocketId))
+                    return cb?.({ ok: false, error: 'Invite already pending.' });
+                const key = _rpsKey(socket.id, targetSocketId);
+                if (_rpsGames.has(key))
+                    return cb?.({ ok: false, error: 'Already playing.' });
+                _rpsPending.set(targetSocketId, socket.id);
+                const timer = setTimeout(() => {
+                    if (_rpsPending.get(targetSocketId) === socket.id) {
+                        _rpsPending.delete(targetSocketId);
+                        _rpsPendingTimer.delete(targetSocketId);
+                    }
+                }, 20000);
+                _rpsPendingTimer.set(targetSocketId, timer);
+                io.to(targetSocketId).emit('space:rps_invite', { fromSocketId: socket.id, fromName: me.name });
+                cb?.({ ok: true });
+            }
+            catch {
+                cb?.({ ok: false });
+            }
+        });
+        socket.on('space:rps_respond', ({ fromSocketId, accept }, cb) => {
+            try {
+                const spaceId = _spaceOfSocket(socket.id);
+                if (!spaceId)
+                    return cb?.({ ok: false });
+                const room = _spaces.get(spaceId);
+                const me = room?.get(socket.id);
+                const challenger = room?.get(fromSocketId);
+                const t = _rpsPendingTimer.get(socket.id);
+                if (t) {
+                    clearTimeout(t);
+                    _rpsPendingTimer.delete(socket.id);
+                }
+                const wasPending = _rpsPending.get(socket.id) === fromSocketId;
+                _rpsPending.delete(socket.id);
+                if (!me || !challenger || !wasPending)
+                    return cb?.({ ok: false, error: 'Invite expired.' });
+                if (!accept) {
+                    io.to(fromSocketId).emit('space:rps_declined', { byName: me.name });
+                    return cb?.({ ok: true });
+                }
+                const key = _rpsKey(socket.id, fromSocketId);
+                const game = { aSocketId: fromSocketId, aName: challenger.name, bSocketId: socket.id, bName: me.name, round: 1, aWins: 0, bWins: 0 };
+                _rpsGames.set(key, game);
+                io.to(fromSocketId).emit('space:rps_start', { opponent: me.name, opponentSocketId: socket.id, round: 1 });
+                io.to(socket.id).emit('space:rps_start', { opponent: challenger.name, opponentSocketId: fromSocketId, round: 1 });
+                cb?.({ ok: true });
+            }
+            catch {
+                cb?.({ ok: false });
+            }
+        });
+        socket.on('space:rps_pick', ({ choice }, cb) => {
+            try {
+                if (!['rock', 'paper', 'scissors'].includes(choice))
+                    return cb?.({ ok: false });
+                const spaceId = _spaceOfSocket(socket.id);
+                if (!spaceId)
+                    return cb?.({ ok: false });
+                let myGame;
+                let myKey = '';
+                for (const [key, g] of _rpsGames) {
+                    if (g.aSocketId === socket.id || g.bSocketId === socket.id) {
+                        myGame = g;
+                        myKey = key;
+                        break;
+                    }
+                }
+                if (!myGame)
+                    return cb?.({ ok: false, error: 'No active game.' });
+                if (socket.id === myGame.aSocketId)
+                    myGame.aPick = choice;
+                else
+                    myGame.bPick = choice;
+                cb?.({ ok: true });
+                // Both picked — resolve the round
+                if (myGame.aPick && myGame.bPick) {
+                    const result = _rpsWinner(myGame.aPick, myGame.bPick);
+                    if (result === 'a')
+                        myGame.aWins++;
+                    else if (result === 'b')
+                        myGame.bWins++;
+                    const roundData = { round: myGame.round, aPick: myGame.aPick, bPick: myGame.bPick, result, aWins: myGame.aWins, bWins: myGame.bWins };
+                    // Best of 3: first to 2 wins
+                    if (myGame.aWins >= 2 || myGame.bWins >= 2) {
+                        const winnerName = myGame.aWins >= 2 ? myGame.aName : myGame.bName;
+                        const loserName = myGame.aWins >= 2 ? myGame.bName : myGame.aName;
+                        io.to(myGame.aSocketId).emit('space:rps_round', { ...roundData, finished: true, winnerName, loserName });
+                        io.to(myGame.bSocketId).emit('space:rps_round', { ...roundData, finished: true, winnerName, loserName });
+                        // Chat announcement
+                        _rpsGames.delete(myKey);
+                    }
+                    else {
+                        myGame.round++;
+                        myGame.aPick = undefined;
+                        myGame.bPick = undefined;
+                        io.to(myGame.aSocketId).emit('space:rps_round', { ...roundData, finished: false, nextRound: myGame.round });
+                        io.to(myGame.bSocketId).emit('space:rps_round', { ...roundData, finished: false, nextRound: myGame.round });
+                    }
+                }
             }
             catch {
                 cb?.({ ok: false });
