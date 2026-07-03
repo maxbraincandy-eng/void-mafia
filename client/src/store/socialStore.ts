@@ -105,6 +105,7 @@ export const useSocialStore = create<SocialStore>((set, get) => {
     if (!viewingThisChat) {
       const rawText = payload.message.text ?? '';
       const preview = rawText.startsWith('data:audio') ? '🎙 ხმოვანი მესიჯი'
+        : rawText.startsWith('📸story:') ? '📸 სთორის პასუხი'
         : rawText.startsWith('data:image/gif') ? '✨ GIF'
         : rawText.startsWith('data:image') ? '🖼 სურათი'
         : rawText.length > 80 ? rawText.slice(0, 77) + '…'

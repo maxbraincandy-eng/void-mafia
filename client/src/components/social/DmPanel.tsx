@@ -34,6 +34,15 @@ const stickerByKey = (k: string) => DM_STICKERS.find(s => s.key === k);
 const MY_BUBBLE_BG = 'linear-gradient(135deg, #6d28d9 0%, #9333ea 55%, #c026d3 100%)';
 const THEIR_BUBBLE_BG = 'rgba(255,255,255,0.09)';
 
+function parseStoryReply(text: string): { thumb: string; reply: string } | null {
+  if (!text.startsWith('📸story:')) return null;
+  const nl = text.indexOf('\n');
+  if (nl === -1) return null;
+  const thumb = text.slice('📸story:'.length, nl);
+  if (!thumb.startsWith('data:image/')) return null;
+  return { thumb, reply: text.slice(nl + 1) };
+}
+
 function formatDuration(s: number) {
   const sec = Math.floor(s);
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
@@ -158,6 +167,7 @@ function previewOf(msg: DirectMessage): string {
   if (msg.type === 'sticker') return `${stickerByKey(t)?.emoji ?? '🎭'} სტიკერი`;
   if (msg.type === 'invite') return '🎮 მოწვევა თამაშში';
   if (msg.viewOnce) return '📸 ერთჯერადი ფოტო';
+  if (t.startsWith('📸story:')) { const sr = parseStoryReply(t); return sr ? `📸 სთორის პასუხი: ${sr.reply.slice(0, 40)}` : '📸 სთორის პასუხი'; }
   if (t.startsWith('data:image/gif')) return '✨ GIF';
   if (msg.type === 'image' || t.startsWith('data:image')) return '🖼 სურათი';
   return t;
@@ -1203,7 +1213,22 @@ export function DmPanel() {
                                       {quoted ? previewOf(quoted) : '…'}
                                     </div>
                                   )}
-                                  {msg.text}
+                                  {(() => {
+                                    const sr = parseStoryReply(msg.text);
+                                    if (sr) return (
+                                      <>
+                                        <div className="mb-1.5 flex items-start gap-2 rounded-lg overflow-hidden"
+                                          style={{ background: 'rgba(0,0,0,0.25)', padding: 6 }}>
+                                          <img src={sr.thumb} alt="" style={{ width: 44, height: 58, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
+                                          <div className="flex flex-col justify-center min-w-0 py-0.5">
+                                            <span style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>📸 სთორის პასუხი</span>
+                                          </div>
+                                        </div>
+                                        {sr.reply}
+                                      </>
+                                    );
+                                    return msg.text;
+                                  })()}
                                 </div>
                               )}
 

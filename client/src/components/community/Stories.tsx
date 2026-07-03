@@ -63,6 +63,25 @@ function resizeStoryImage(file: File): Promise<string> {
   });
 }
 
+function createStoryThumb(imageUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const maxH = 80;
+      const scale = Math.min(maxH / img.height, maxH / img.width);
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d')!.drawImage(img, 0, 0, w, h);
+      resolve(c.toDataURL('image/jpeg', 0.35));
+    };
+    img.onerror = () => resolve('');
+    img.src = imageUrl;
+  });
+}
+
 function Avatar({ avatar, avatarUrl, size }: { avatar: string; avatarUrl: string | null; size: number }) {
   return avatarUrl
     ? <img src={avatarUrl} alt="" style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover' }} />
@@ -189,13 +208,16 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
 
   const sendReply = async () => {
     const text = replyText.trim();
-    if (!text || replySending || !group) return;
+    if (!text || replySending || !group || !story) return;
     setReplySending(true);
     try {
+      const thumb = await createStoryThumb(story.imageUrl);
       const startRes = await emitWithAck<any, Res<{ id: string }>>('dm:start', { profileId: group.authorId });
       if (!(startRes as any).ok) throw new Error('Failed');
       const convId = (startRes as any).data.id;
-      const msg = `📸 სთორის პასუხი:\n${text}`;
+      const msg = thumb
+        ? `📸story:${thumb}\n${text}`
+        : `📸 სთორის პასუხი:\n${text}`;
       await emitWithAck<any, Res<any>>('dm:send', { conversationId: convId, text: msg, type: 'text' });
       setReplyText('');
       setReplySent(true);
