@@ -426,7 +426,7 @@ function _finishReaction(spaceId: string, io: any) {
   _clearReactionGame(spaceId);
 }
 
-interface SpaceDJState { videoId: string; startedAt: number; position: number; isPlaying: boolean; djName: string; }
+interface SpaceDJState { videoId: string; startedAt: number; position: number; isPlaying: boolean; djName: string; volume: number; }
 interface SpaceMeta {
   id: string; name: string; icon: string; theme: string; layout: string;
   maxPlayers: number; isPublic: boolean;
@@ -7178,12 +7178,14 @@ export function attachSocketHandlers(io: AppServer): void {
       if (!vid) return;
       for (const [spaceId, room] of _spaces) {
         if (room.has(socket.id)) {
+          const prevVol = _spaceDJ.get(spaceId)?.volume ?? 70;
           const state: SpaceDJState = {
             videoId: vid,
             startedAt: Date.now() - Math.round((Number(position) || 0) * 1000),
             position: Number(position) || 0,
             isPlaying: true,
             djName: room.get(socket.id)!.name,
+            volume: prevVol,
           };
           _spaceDJ.set(spaceId, state);
           io.to(`space:${spaceId}`).emit('space:dj-update', state);
@@ -7210,6 +7212,19 @@ export function attachSocketHandlers(io: AppServer): void {
         if (room.has(socket.id)) {
           _spaceDJ.delete(spaceId);
           io.to(`space:${spaceId}`).emit('space:dj-update', null);
+          return;
+        }
+      }
+    });
+
+    socket.on('space:dj-volume', ({ volume }: any) => {
+      const v = Math.max(0, Math.min(100, Math.round(Number(volume) || 0)));
+      for (const [spaceId, room] of _spaces) {
+        if (room.has(socket.id)) {
+          const state = _spaceDJ.get(spaceId);
+          if (!state) return;
+          state.volume = v;
+          io.to(`space:${spaceId}`).emit('space:dj-update', { ...state });
           return;
         }
       }

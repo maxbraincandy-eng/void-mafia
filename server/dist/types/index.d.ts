@@ -2234,6 +2234,9 @@ export interface ClientToServerEvents {
         position: number;
     }) => void;
     'space:dj-stop': () => void;
+    'space:dj-volume': (data: {
+        volume: number;
+    }) => void;
     'space:yt-search': (data: {
         query: string;
     }, cb: (res: any) => void) => void;

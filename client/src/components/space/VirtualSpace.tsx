@@ -81,6 +81,7 @@ interface DJState {
   position: number;
   isPlaying: boolean;
   djName: string;
+  volume?: number;
 }
 
 // ── YouTube player singleton ──────────────────────────────────────────
@@ -1973,6 +1974,10 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
         pendingPlayRef.current = null;
         return;
       }
+      const serverVol = state.volume ?? 70;
+      setVolume(serverVol);
+      volRef.current = serverVol;
+      ytSetVol(serverVol);
       const seek = Math.max(0, (Date.now() - state.startedAt) / 1000);
 
       // Same video already playing locally — don't interrupt (prevents echo for DJ)
@@ -2081,10 +2086,15 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
     setLP(false);
   }
 
+  const volEmitTimer = useRef<any>(null);
   function handleVolume(v: number) {
     setVolume(v);
     volRef.current = v;
     ytSetVol(v);
+    if (volEmitTimer.current) clearTimeout(volEmitTimer.current);
+    volEmitTimer.current = setTimeout(() => {
+      (socket as any).emit('space:dj-volume', { volume: v });
+    }, 250);
   }
 
   function handleWorldTap(clientX: number, clientY: number) {

@@ -8347,12 +8347,14 @@ export function attachSocketHandlers(io) {
                 return;
             for (const [spaceId, room] of _spaces) {
                 if (room.has(socket.id)) {
+                    const prevVol = _spaceDJ.get(spaceId)?.volume ?? 70;
                     const state = {
                         videoId: vid,
                         startedAt: Date.now() - Math.round((Number(position) || 0) * 1000),
                         position: Number(position) || 0,
                         isPlaying: true,
                         djName: room.get(socket.id).name,
+                        volume: prevVol,
                     };
                     _spaceDJ.set(spaceId, state);
                     io.to(`space:${spaceId}`).emit('space:dj-update', state);
@@ -8378,6 +8380,19 @@ export function attachSocketHandlers(io) {
                 if (room.has(socket.id)) {
                     _spaceDJ.delete(spaceId);
                     io.to(`space:${spaceId}`).emit('space:dj-update', null);
+                    return;
+                }
+            }
+        });
+        socket.on('space:dj-volume', ({ volume }) => {
+            const v = Math.max(0, Math.min(100, Math.round(Number(volume) || 0)));
+            for (const [spaceId, room] of _spaces) {
+                if (room.has(socket.id)) {
+                    const state = _spaceDJ.get(spaceId);
+                    if (!state)
+                        return;
+                    state.volume = v;
+                    io.to(`space:${spaceId}`).emit('space:dj-update', { ...state });
                     return;
                 }
             }
