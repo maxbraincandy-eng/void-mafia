@@ -63,8 +63,9 @@ export async function listConversations(userId) {
     }));
 }
 export async function sendMessage(conversationId, senderId, text, receiverId, opts) {
-    if (text.length > 500)
-        throw new Error('Message too long (max 500 characters).');
+    const maxLen = text.startsWith('📸story:') ? 8000 : 500;
+    if (text.length > maxLen)
+        throw new Error('Message too long.');
     const id = generateId();
     const now = Date.now();
     const type = opts?.type ?? 'text';
@@ -76,7 +77,7 @@ export async function sendMessage(conversationId, senderId, text, receiverId, op
     // Determine which unread flag to set
     const [conv] = await sql `SELECT * FROM conversations WHERE id = ${conversationId}`;
     const isParticipant1 = conv.participant1 === senderId;
-    const preview = type === 'sticker' ? '🎭 სტიკერი' : type === 'invite' ? '🎮 მოწვევა თამაშში' : text;
+    const preview = type === 'sticker' ? '🎭 სტიკერი' : type === 'invite' ? '🎮 მოწვევა თამაშში' : text.startsWith('📸story:') ? '📸 სთორის პასუხი' : text.slice(0, 200);
     if (isParticipant1) {
         await sql `UPDATE conversations SET last_message = ${preview}, last_message_at = ${now}, unread_by2 = 1 WHERE id = ${conversationId}`;
     }
