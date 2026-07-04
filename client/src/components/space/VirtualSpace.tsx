@@ -2430,7 +2430,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           </AnimatePresence>
 
           {/* Bottom bar */}
-          <form onSubmit={handleSendChat} style={{ display:'flex',gap:8,padding:'8px 12px',paddingBottom:'calc(8px + env(safe-area-inset-bottom,0px))',background:'rgba(3,0,14,.97)',borderTop:'1px solid rgba(155,0,255,.14)',flexShrink:0 }}>
+          <form onSubmit={handleSendChat} style={{ display:'flex',gap:8,padding:'8px 12px',paddingBottom:'calc(8px + env(safe-area-inset-bottom,0px))',background:'rgba(3,0,14,.97)',borderTop:'1px solid rgba(155,0,255,.14)',flexShrink:0,position:'relative',zIndex:50 }}>
             {ghost ? (
               <div style={{ flex:1,display:'flex',alignItems:'center',gap:6,fontFamily:'monospace',fontSize:12,color:'#c084fc',paddingLeft:4 }}>👻 Observing — read only</div>
             ) : (<>
