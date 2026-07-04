@@ -79,7 +79,7 @@ import bcrypt from 'bcryptjs';
 import { sendPushToUser } from './pushService.js';
 import {
   getOrCreateConversation, listConversations, sendMessage, sendVoiceDm, sendImageDm, getMessages, markRead, getTotalUnread,
-  toggleDmReaction, markViewOnceViewed,
+  toggleDmReaction, markViewOnceViewed, deleteConversationForUser,
 } from './services/dmService.js';
 import {
   getCoins, claimDailyReward, grantCoins, deductCoins, refundGift,
@@ -4446,6 +4446,15 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!profileId) { cb(ok(0)); return; }
         const count = await getTotalUnread(profileId);
         cb(ok(count));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('dm:delete', async ({ conversationId }: { conversationId: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        await deleteConversationForUser(conversationId, profileId);
+        cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });
 

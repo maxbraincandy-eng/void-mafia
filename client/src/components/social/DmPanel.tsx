@@ -322,17 +322,22 @@ function SwipeableRow({
       {/* Delete action revealed behind (hidden until swiped) */}
       <div
         className="absolute right-0 top-0 bottom-0 flex items-center justify-center"
-        style={{ width: DELETE_THRESHOLD, background: 'rgba(239,68,68,0.14)' }}
+        style={{ width: DELETE_THRESHOLD, background: 'rgba(239,68,68,0.14)', zIndex: confirming ? 10 : 0 }}
       >
         {confirming ? (
           <div className="flex flex-col gap-1 px-1">
             <button
-              onClick={onDelete}
-              className="px-2.5 py-1 text-[11px] font-mono text-white bg-red-500/80 rounded-lg"
+              onPointerDown={e => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              className="px-2.5 py-1 text-[11px] font-mono text-white bg-red-500/80 rounded-lg active:bg-red-600"
             >
               წაშლა
             </button>
-            <button onClick={cancel} className="px-2.5 py-1 text-[11px] font-mono text-white/50">
+            <button
+              onPointerDown={e => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); cancel(); }}
+              className="px-2.5 py-1 text-[11px] font-mono text-white/50"
+            >
               არა
             </button>
           </div>
@@ -346,6 +351,7 @@ function SwipeableRow({
           transform: `translateX(-${swipeX}px)`,
           transition: swipeX === 0 || confirming ? 'transform 0.2s ease' : 'none',
           background: 'rgb(10,6,22)',
+          pointerEvents: confirming ? 'none' : 'auto',
         }}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}

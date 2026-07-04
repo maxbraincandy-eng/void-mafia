@@ -23,7 +23,7 @@ import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as 
 import { sql } from './db.js';
 import bcrypt from 'bcryptjs';
 import { sendPushToUser } from './pushService.js';
-import { getOrCreateConversation, listConversations, sendMessage, sendVoiceDm, sendImageDm, getMessages, markRead, getTotalUnread, toggleDmReaction, markViewOnceViewed, } from './services/dmService.js';
+import { getOrCreateConversation, listConversations, sendMessage, sendVoiceDm, sendImageDm, getMessages, markRead, getTotalUnread, toggleDmReaction, markViewOnceViewed, deleteConversationForUser, } from './services/dmService.js';
 import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, getGiftsSent, getGiftTimeline, getGiftStats, getPinnedGifts, pinGift, unpinGift, hideGift, unhideGift, getHiddenGifts, purchaseCosmeticItem, checkProfileCompletionBonus, } from './services/coinService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
@@ -4790,6 +4790,18 @@ export function attachSocketHandlers(io) {
                 }
                 const count = await getTotalUnread(profileId);
                 cb(ok(count));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('dm:delete', async ({ conversationId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                await deleteConversationForUser(conversationId, profileId);
+                cb(ok(null));
             }
             catch (e) {
                 cb(err(e.message));
