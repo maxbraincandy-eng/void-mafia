@@ -2258,7 +2258,13 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           >
 
             {layout.decor === 'beach' ? (
-              <BeachScene editMode={editMode} />
+              <>
+                <BeachScene editMode={editMode} />
+                <button onClick={e=>{e.stopPropagation();if(!editMode)setDjPanelOpen(o=>!o);}} style={{ position:'absolute',left:'88%',top:'18%',transform:'translate(-50%,-50%)',cursor:editMode?'default':'pointer',background:'rgba(0,0,0,.45)',border:'1px solid rgba(255,120,40,.5)',borderRadius:12,padding:'8px 10px',zIndex:15,display:'flex',flexDirection:'column',alignItems:'center',gap:2,pointerEvents:editMode?'none':'auto',backdropFilter:'blur(4px)' }}>
+                  <span style={{fontSize:18}}>{djState?.isPlaying ? '🎶' : '🎵'}</span>
+                  <span style={{ fontFamily:'monospace',fontSize:7,color:'rgba(255,180,80,.9)',letterSpacing:'0.08em' }}>{djState?.isPlaying?'PLAYING':'DJ'}</span>
+                </button>
+              </>
             ) : (
               <>
                 <Particles/>
