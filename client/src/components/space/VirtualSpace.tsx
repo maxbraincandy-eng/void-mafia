@@ -432,7 +432,7 @@ function AvatarOnMap({ player, isMe, speaking, onTap, entrance }: { player: Spac
   }, [player.x, player.y]);
 
   return (
-    <div style={{ position: 'absolute', left: `${player.x}%`, top: `${player.y}%`, transform: 'translate(-50%, -100%)', transition: 'left 0.35s cubic-bezier(0.4,0,0.2,1), top 0.35s cubic-bezier(0.4,0,0.2,1)', zIndex: isMe ? 30 : 20, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, animation: entrance ? 'vs-dropin .85s cubic-bezier(.2,.9,.3,1.15) both' : undefined }}>
+    <div style={{ position: 'absolute', left: `${player.x}%`, top: `${player.y}%`, transform: player.seat ? 'translate(-50%, -65%)' : 'translate(-50%, -100%)', transition: 'left 0.35s cubic-bezier(0.4,0,0.2,1), top 0.35s cubic-bezier(0.4,0,0.2,1), transform 0.25s ease', zIndex: isMe ? 30 : 20, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, animation: entrance ? 'vs-dropin .85s cubic-bezier(.2,.9,.3,1.15) both' : undefined }}>
       <AnimatePresence>
         {player.message ? (
           <motion.div key={player.message + player.socketId} initial={{ opacity: 0, y: 8, scale: 0.88 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.88 }} transition={{ type: 'spring', stiffness: 400, damping: 28 }}
@@ -1104,7 +1104,6 @@ function CinemaSeat({ seat, occupant, isMine, onTap, disabled }: {
   disabled?: boolean;
 }) {
   const taken = !!occupant && !isMine;
-  const accent = isMine ? (occupant?.glowColor ?? '#00e5ff') : '#5b3a8a';
   const dims = seat.type === 'couch' ? { w: 64, h: 22 } : seat.type === 'chair' ? { w: 38, h: 22 } : { w: 26, h: 16 };
   return (
     <button
@@ -1113,35 +1112,15 @@ function CinemaSeat({ seat, occupant, isMine, onTap, disabled }: {
       onPointerDown={(e) => { e.stopPropagation(); }}
       style={{
         position: 'absolute', left: `${seat.x}%`, top: `${seat.y}%`,
-        transform: 'translate(-50%, -42%)', zIndex: 16,
+        transform: 'translate(-50%, -50%)', zIndex: 16,
         background: 'transparent', border: 'none', padding: 0,
         cursor: disabled || taken ? 'default' : 'pointer', pointerEvents: disabled ? 'none' : 'auto',
         width: dims.w, height: dims.h + 10,
       }}
       aria-label={`seat ${seat.id}`}
     >
-      {/* seat base */}
-      <div style={{
-        position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)',
-        width: dims.w, height: dims.h, borderRadius: seat.type === 'pouf' ? '50%' : '10px 10px 6px 6px',
-        background: `linear-gradient(180deg, ${accent}33, rgba(10,4,24,.85))`,
-        border: `1.5px solid ${isMine ? accent + 'cc' : taken ? 'rgba(255,255,255,.12)' : accent + '55'}`,
-        boxShadow: isMine ? `0 0 16px ${accent}66` : taken ? 'none' : `0 0 8px ${accent}22`,
-        transition: 'all .2s',
-      }} />
-      {/* backrest for couch/chair */}
-      {seat.type !== 'pouf' && (
-        <div style={{
-          position: 'absolute', bottom: dims.h - 5, left: '50%', transform: 'translateX(-50%)',
-          width: dims.w - 6, height: 9, borderRadius: '8px 8px 0 0',
-          background: `linear-gradient(180deg, ${accent}44, ${accent}1f)`,
-          border: `1.5px solid ${isMine ? accent + 'aa' : taken ? 'rgba(255,255,255,.1)' : accent + '44'}`,
-          borderBottom: 'none',
-        }} />
-      )}
-      {/* free-seat hint */}
       {!occupant && (
-        <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', fontSize: 9, fontFamily: 'monospace', color: `${accent}cc`, whiteSpace: 'nowrap', opacity: 0.7 }}>დაჯექი</div>
+        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: 9, fontFamily: 'monospace', color: 'rgba(150,120,220,.7)', whiteSpace: 'nowrap', letterSpacing: '0.08em' }}>დაჯექი</div>
       )}
     </button>
   );
