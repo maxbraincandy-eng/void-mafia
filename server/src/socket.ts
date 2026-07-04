@@ -447,6 +447,11 @@ _spaceMeta.set('main', {
   maxPlayers: 50, isPublic: true, ownerId: null, ownerName: 'Void Mafia',
   code: 'VOIDLOUNGE', createdAt: Date.now(), persistent: true,
 });
+_spaceMeta.set('beach', {
+  id: 'beach', name: 'Wavefire Camp', icon: '🔥', theme: 'void', layout: 'beach',
+  maxPlayers: 30, isPublic: true, ownerId: null, ownerName: 'Void Mafia',
+  code: 'WAVEFIRE', createdAt: Date.now(), persistent: true,
+});
 
 // ── Space furniture (owner-built lounges) ─────────────────────────────
 interface SpaceFurnitureItem { id: string; kind: string; x: number; y: number; scale: number; flip: boolean }
