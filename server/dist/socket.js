@@ -375,7 +375,7 @@ function _canEditSpace(meta, profileId, isStaff) {
     return isStaff;
 }
 const SPACE_THEMES = ['void', 'neon', 'cyber', 'sunset', 'mono', 'blood', 'gold'];
-const SPACE_LAYOUTS = ['lounge', 'home', 'penthouse'];
+const SPACE_LAYOUTS = ['lounge', 'home', 'penthouse', 'beach'];
 const SPACE_ICONS = ['🌌', '🎮', '🎬', '🎧', '🔥', '💎', '🛸', '🌃', '⚡', '🃏', '👾', '🎲'];
 function _genSpaceCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I
