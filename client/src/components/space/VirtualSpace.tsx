@@ -2430,19 +2430,19 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           </AnimatePresence>
 
           {/* Bottom bar */}
-          <form onSubmit={handleSendChat} style={{ display:'flex',gap:8,padding:'8px 12px',paddingBottom:'calc(8px + env(safe-area-inset-bottom,0px))',background:'rgba(3,0,14,.97)',borderTop:'1px solid rgba(155,0,255,.14)',flexShrink:0,position:'relative',zIndex:50 }}>
+          <form onSubmit={handleSendChat} style={{ display:'flex',gap:10,padding:'12px 14px',paddingBottom:'calc(12px + env(safe-area-inset-bottom,0px))',background:'rgba(3,0,14,.97)',borderTop:'1px solid rgba(155,0,255,.14)',flexShrink:0,position:'relative',zIndex:50 }}>
             {ghost ? (
-              <div style={{ flex:1,display:'flex',alignItems:'center',gap:6,fontFamily:'monospace',fontSize:12,color:'#c084fc',paddingLeft:4 }}>👻 Observing — read only</div>
+              <div style={{ flex:1,display:'flex',alignItems:'center',gap:6,fontFamily:'monospace',fontSize:13,color:'#c084fc',paddingLeft:4 }}>👻 Observing — read only</div>
             ) : (<>
             <input value={chat} onChange={e=>{ setChat(e.target.value); if(e.target.value.trim()) setTyping(true); else setTyping(false); }} maxLength={140} placeholder="გზავნილი…"
-              style={{ flex:1,background:'rgba(255,255,255,.04)',fontFamily:'monospace',fontSize:13,color:'white',outline:'none',padding:'8px 12px',borderRadius:12,border:'1px solid rgba(255,255,255,.1)' }}
+              style={{ flex:1,background:'rgba(255,255,255,.04)',fontFamily:'monospace',fontSize:14,color:'white',outline:'none',padding:'10px 14px',borderRadius:14,border:'1px solid rgba(255,255,255,.1)' }}
               onFocus={e=>e.stopPropagation()}
               onBlur={()=>setTyping(false)}
             />
-            <button type="button" onClick={()=>setShowExpr(o=>!o)} style={{ padding:'8px 10px',borderRadius:12,fontFamily:'monospace',fontSize:15,lineHeight:1,background:showExpr?'rgba(255,0,150,.2)':'rgba(255,255,255,.04)',border:`1px solid ${showExpr?'rgba(255,0,150,.5)':'rgba(255,255,255,.1)'}`,transition:'all .15s',flexShrink:0 }} title="გამოხატვა">😊</button>
-            <button type="submit" disabled={!chat.trim()} style={{ padding:'8px 14px',borderRadius:12,fontFamily:'monospace',fontSize:13,background:'rgba(155,0,255,.15)',border:'1px solid rgba(155,0,255,.4)',color:'#c084fc',transition:'all .15s',flexShrink:0 }}>→</button>
+            <button type="button" onClick={()=>setShowExpr(o=>!o)} style={{ padding:'10px 12px',borderRadius:14,fontFamily:'monospace',fontSize:18,lineHeight:1,background:showExpr?'rgba(255,0,150,.2)':'rgba(255,255,255,.04)',border:`1px solid ${showExpr?'rgba(255,0,150,.5)':'rgba(255,255,255,.1)'}`,transition:'all .15s',flexShrink:0 }} title="გამოხატვა">😊</button>
+            <button type="submit" disabled={!chat.trim()} style={{ padding:'10px 16px',borderRadius:14,fontFamily:'monospace',fontSize:15,background:'rgba(155,0,255,.15)',border:'1px solid rgba(155,0,255,.4)',color:'#c084fc',transition:'all .15s',flexShrink:0 }}>→</button>
             </>)}
-            <button type="button" onClick={()=>setDrawerOpen(o=>!o)} style={{ padding:'8px 10px',borderRadius:12,fontFamily:'monospace',fontSize:13,background:drawerOpen?'rgba(155,0,255,.18)':'rgba(255,255,255,.04)',border:`1px solid ${drawerOpen?'rgba(155,0,255,.45)':'rgba(255,255,255,.1)'}`,color:drawerOpen?'#c084fc':'rgba(255,255,255,.4)',transition:'all .15s',flexShrink:0,position:'relative' }}>
+            <button type="button" onClick={()=>setDrawerOpen(o=>!o)} style={{ padding:'10px 12px',borderRadius:14,fontFamily:'monospace',fontSize:15,background:drawerOpen?'rgba(155,0,255,.18)':'rgba(255,255,255,.04)',border:`1px solid ${drawerOpen?'rgba(155,0,255,.45)':'rgba(255,255,255,.1)'}`,color:drawerOpen?'#c084fc':'rgba(255,255,255,.4)',transition:'all .15s',flexShrink:0,position:'relative' }}>
               ☰
               {chatHistory.length>0&&!drawerOpen&&<span style={{position:'absolute',top:-3,right:-3,width:8,height:8,borderRadius:'50%',background:'#9b00ff',boxShadow:'0 0 6px #9b00ff'}}/>}
             </button>
