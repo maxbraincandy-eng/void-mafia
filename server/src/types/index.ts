@@ -1327,6 +1327,7 @@ export interface ClientToServerEvents {
   'space:dj-play':  (data: { videoId: string; position?: number }) => void;
   'space:dj-pause': (data: { position: number }) => void;
   'space:dj-stop':  () => void;
+  'space:yt-search': (data: { query: string }, cb: (res: any) => void) => void;
   // Cinema TV / Watch Party
   'tv:set':   (data: { videoId: string; title?: string }) => void;
   'tv:enqueue': (data: { videoId: string; title?: string }) => void;

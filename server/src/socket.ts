@@ -7215,6 +7215,23 @@ export function attachSocketHandlers(io: AppServer): void {
       }
     });
 
+    socket.on('space:yt-search', async ({ query }: any, cb: any) => {
+      if (!query || typeof query !== 'string' || query.length > 120) return cb?.(err('Bad query'));
+      try {
+        const q = encodeURIComponent(query.trim());
+        const res = await fetch(`https://pipedapi.kavin.rocks/search?q=${q}&filter=music_songs`);
+        if (!res.ok) throw new Error('search failed');
+        const data = await res.json() as any;
+        const items = (data.items ?? []).filter((i: any) => i.url).slice(0, 8).map((i: any) => ({
+          videoId: (i.url ?? '').replace('/watch?v=', ''),
+          title: String(i.title ?? '').slice(0, 120),
+          author: String(i.uploaderName ?? i.uploader ?? '').slice(0, 60),
+          duration: i.duration ?? 0,
+        }));
+        cb?.(ok(items));
+      } catch { cb?.(err('Search unavailable')); }
+    });
+
     // ── Cinema TV / Watch Party ────────────────────────────────────────
     function _skipNeeded(spaceId: string): number {
       return Math.max(1, Math.floor(_spaceOnlineCount(spaceId) / 2) + 1);

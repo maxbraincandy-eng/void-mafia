@@ -914,6 +914,7 @@ function DJPlayerPanel({
 }) {
   const [input, setInput] = useState('');
   const [searching, setSearching] = useState(false);
+  const [results, setResults] = useState<{videoId:string;title:string;author:string;duration:number}[]>([]);
   const iAmDJ = djState?.isPlaying && djState.djName === myName;
   const isListener = djState?.isPlaying && !iAmDJ;
 
@@ -925,11 +926,25 @@ function DJPlayerPanel({
     const vid = extractVideoId(input);
     if (vid) {
       onPlayDirect(vid);
+      setResults([]);
     } else if (input.trim()) {
       setSearching(true);
-      onPlaySearch(input.trim());
+      emitWithAck<{query:string}, {ok:boolean;data?:any}>('space:yt-search', { query: input.trim() }).then(res => {
+        setSearching(false);
+        if (res.ok && Array.isArray(res.data) && res.data.length > 0) {
+          setResults(res.data);
+        } else {
+          onPlaySearch(input.trim());
+          setResults([]);
+        }
+      }).catch(() => { setSearching(false); onPlaySearch(input.trim()); });
     }
     setInput('');
+  }
+
+  function pickResult(videoId: string) {
+    onPlayDirect(videoId);
+    setResults([]);
   }
 
   return (
@@ -973,6 +988,19 @@ function DJPlayerPanel({
               <p style={{ fontFamily:'monospace',fontSize:9,color:'rgba(255,255,255,.22)',marginTop:5,paddingLeft:2 }}>
                 URL, video ID, ან მოძებნე სიმღერის სახელით
               </p>
+              {results.length > 0 && (
+                <div style={{ marginTop:8,maxHeight:180,overflowY:'auto',display:'flex',flexDirection:'column',gap:4 }}>
+                  {results.map(r => (
+                    <button key={r.videoId} onClick={()=>pickResult(r.videoId)} style={{ display:'flex',alignItems:'center',gap:8,padding:'7px 10px',borderRadius:10,background:'rgba(255,0,150,.06)',border:'1px solid rgba(255,0,150,.18)',cursor:'pointer',textAlign:'left' }}>
+                      <span style={{ fontSize:14,flexShrink:0 }}>▶</span>
+                      <div style={{ flex:1,minWidth:0 }}>
+                        <p style={{ fontFamily:'monospace',fontSize:11,color:'rgba(255,255,255,.85)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis' }}>{r.title}</p>
+                        <p style={{ fontFamily:'monospace',fontSize:9,color:'rgba(255,255,255,.35)' }}>{r.author}{r.duration > 0 ? ` · ${Math.floor(r.duration/60)}:${String(r.duration%60).padStart(2,'0')}` : ''}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
