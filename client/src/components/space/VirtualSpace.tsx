@@ -1744,6 +1744,15 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
     return () => { el.textContent = ''; };
   }, []);
 
+  useEffect(() => {
+    let wl: any = null;
+    const acquire = () => { (navigator as any).wakeLock?.request?.('screen').then((l: any) => { wl = l; }).catch(() => {}); };
+    acquire();
+    const onVis = () => { if (document.visibilityState === 'visible') acquire(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { wl?.release?.(); document.removeEventListener('visibilitychange', onVis); };
+  }, []);
+
   const profile = useAuthStore(s => s.profile);
   const playerName = profile?.username ?? 'Player';
   const openProfile = useSocialStore(s => s.openProfile);
