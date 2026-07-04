@@ -52,7 +52,7 @@ function GiftForm({ initial, onSave, onCancel }: GiftFormProps) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) { setError('Only image files are supported.'); return; }
-    if (file.size > 300_000) { setError('Image must be under 300KB.'); return; }
+    if (file.size > 8_000_000) { setError('Image must be under 8MB.'); return; }
     const reader = new FileReader();
     reader.onload = ev => setImageUrl(ev.target?.result as string);
     reader.readAsDataURL(file);
