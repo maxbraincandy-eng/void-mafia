@@ -14,6 +14,7 @@ const ROOM_LAYOUTS: { id: string; label: string; desc: string; emoji: string; pr
   { id: 'lounge',    label: 'Lounge',    desc: 'ნეონ კლუბი · დივნები', emoji: '🛋️', preview: 'linear-gradient(135deg, rgba(155,0,255,.35), rgba(0,229,255,.2))' },
   { id: 'home',      label: 'Home',      desc: 'ტელევიზორი · 4 სკამი · ცეკვა', emoji: '🏠', preview: 'linear-gradient(135deg, rgba(255,160,80,.35), rgba(255,90,60,.2))' },
   { id: 'penthouse', label: 'Penthouse', desc: 'ღამის ქალაქი · დივანი · ცეკვა', emoji: '🌃', preview: 'linear-gradient(135deg, rgba(90,140,255,.35), rgba(20,28,60,.4))' },
+  { id: 'beach',     label: 'Wavefire Camp', desc: 'პლაჟი · კოცონი · ოკეანე', emoji: '🔥', preview: 'linear-gradient(135deg, rgba(255,120,20,.35), rgba(20,40,80,.4))' },
 ];
 
 // ── Lobby ───────────────────────────────────────────────────────────────

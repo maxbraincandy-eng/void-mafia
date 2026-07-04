@@ -64,6 +64,13 @@ const SPACE_CSS = `
 @keyframes vs-typing  { 0%,60%,100%{transform:translateY(0);opacity:.4} 30%{transform:translateY(-3px);opacity:1} }
 @keyframes vs-scanline{ 0%{transform:translateY(-100%)} 100%{transform:translateY(600%)} }
 @keyframes vs-hpulse  { 0%,100%{width:65%} 50%{width:48%} }
+@keyframes vs-wave1   { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+@keyframes vs-wave2   { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+@keyframes vs-fire    { 0%,100%{transform:scaleY(1) scaleX(1);opacity:.9} 25%{transform:scaleY(1.08) scaleX(.96);opacity:1} 50%{transform:scaleY(.94) scaleX(1.04);opacity:.85} 75%{transform:scaleY(1.05) scaleX(.98);opacity:.95} }
+@keyframes vs-spark   { 0%{transform:translateY(0) translateX(0);opacity:1} 100%{transform:translateY(-60px) translateX(var(--sx,8px));opacity:0} }
+@keyframes vs-cloud   { 0%{transform:translateX(0)} 100%{transform:translateX(80px)} }
+@keyframes vs-glow    { 0%,100%{opacity:.45} 50%{opacity:.7} }
+@keyframes vs-lantern { 0%,100%{opacity:.7;filter:brightness(1)} 50%{opacity:1;filter:brightness(1.2)} }
 `;
 
 // ── DJ state ──────────────────────────────────────────────────────────
@@ -179,7 +186,8 @@ function tvComputedPos(s: TVState): number {
 // ── Room layouts ────────────────────────────────────────────────────────
 type SeatType = 'couch' | 'chair' | 'pouf';
 interface SeatDef { id: string; type: SeatType; x: number; y: number; }
-interface RoomLayout { tv: { x: number; y: number }; seats: SeatDef[]; decor: 'lounge' | 'home' | 'penthouse' }
+type RoomDecor = 'lounge' | 'home' | 'penthouse' | 'beach';
+interface RoomLayout { tv: { x: number; y: number }; seats: SeatDef[]; decor: RoomDecor; noTv?: boolean }
 
 const ROOM_LAYOUTS: Record<string, RoomLayout> = {
   // Neon club lounge — couches + poufs facing a big wall screen.
@@ -215,6 +223,22 @@ const ROOM_LAYOUTS: Record<string, RoomLayout> = {
       { id: 'sofaR', type: 'couch', x: 62, y: 44 },
       { id: 'armL',  type: 'chair', x: 22, y: 54 },
       { id: 'armR',  type: 'chair', x: 78, y: 54 },
+    ],
+  },
+  // Wavefire Camp — beach bonfire, no TV.
+  beach: {
+    tv: { x: -100, y: -100 },
+    decor: 'beach',
+    noTv: true,
+    seats: [
+      { id: 'log1',  type: 'couch', x: 35, y: 62 },
+      { id: 'log2',  type: 'couch', x: 65, y: 62 },
+      { id: 'stmp1', type: 'pouf',  x: 28, y: 68 },
+      { id: 'stmp2', type: 'pouf',  x: 72, y: 68 },
+      { id: 'rock1', type: 'pouf',  x: 42, y: 72 },
+      { id: 'rock2', type: 'pouf',  x: 58, y: 72 },
+      { id: 'cush1', type: 'chair', x: 22, y: 58 },
+      { id: 'cush2', type: 'chair', x: 78, y: 58 },
     ],
   },
 };
@@ -567,7 +591,7 @@ function Plant({ flip }: { flip?: boolean }) {
   );
 }
 
-function RoomObjects({ djActive, onDJClick, onGamesClick, decor, editMode }: { djActive: boolean; onDJClick: () => void; onGamesClick: () => void; decor: 'lounge' | 'home' | 'penthouse'; editMode?: boolean }) {
+function RoomObjects({ djActive, onDJClick, onGamesClick, decor, editMode }: { djActive: boolean; onDJClick: () => void; onGamesClick: () => void; decor: RoomDecor; editMode?: boolean }) {
   const home = decor === 'home';
   const pent = decor === 'penthouse';
   const PAL = decor === 'home'
@@ -739,6 +763,137 @@ function Particles() {
   return <>{PARTICLES.map((p,i)=>(
     <div key={i} style={{ position:'absolute',left:`${p.x}%`,top:`${p.y}%`,width:p.size,height:p.size,borderRadius:'50%',background:p.color,opacity:0.5,pointerEvents:'none',animation:`vs-drift ${p.dur}s ease-in-out ${p.del}s infinite`,boxShadow:`0 0 ${p.size*2}px ${p.color}` }}/>
   ))}</>;
+}
+
+// ── Beach scene (Wavefire Camp) ──────────────────────────────────────
+
+const SPARKS = Array.from({ length: 14 }, (_, i) => ({
+  x: 46 + ((i * 7) % 10), delay: (i * 0.6) % 3.5, dur: 1.2 + (i % 4) * 0.4,
+  sx: -10 + (i % 5) * 5, size: 2 + (i % 3),
+}));
+
+function BeachScene({ editMode }: { editMode?: boolean }) {
+  return (
+    <>
+      {/* Night sky */}
+      <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, #040818 0%, #0a1228 18%, #0f1d3a 34%, #162848 50%)' }} />
+
+      {/* Stars */}
+      {[{x:8,y:4,s:1.5},{x:18,y:8,s:1},{x:28,y:3,s:2},{x:42,y:6,s:1},{x:55,y:2,s:1.5},{x:65,y:9,s:1},{x:75,y:5,s:2},{x:88,y:3,s:1},{x:95,y:7,s:1.5},{x:12,y:14,s:1},{x:35,y:11,s:1},{x:60,y:13,s:1.5},{x:82,y:11,s:1},{x:48,y:15,s:1},{x:22,y:18,s:1},{x:70,y:16,s:1.5},{x:5,y:12,s:1},{x:92,y:14,s:1}].map((s,i) => (
+        <div key={i} className="absolute pointer-events-none" style={{ left:`${s.x}%`,top:`${s.y}%`,width:s.s,height:s.s,borderRadius:'50%',background:'#fff',opacity:0.4+(i%3)*0.2,animation:`vs-pulse ${2+i%3}s ease-in-out ${i*0.4}s infinite` }} />
+      ))}
+
+      {/* Clouds */}
+      {[{x:10,y:12,w:80,o:0.06,d:45},{x:55,y:8,w:60,o:0.05,d:55},{x:-10,y:16,w:70,o:0.04,d:65}].map((c,i) => (
+        <div key={i} className="absolute pointer-events-none" style={{ left:`${c.x}%`,top:`${c.y}%`,width:c.w,height:18,borderRadius:'50%',background:`rgba(180,200,255,${c.o})`,filter:'blur(8px)',animation:`vs-cloud ${c.d}s linear ${i*12}s infinite` }} />
+      ))}
+
+      {/* Moon */}
+      <div className="absolute pointer-events-none" style={{ left:'72%',top:'6%',width:36,height:36,borderRadius:'50%',background:'radial-gradient(circle at 40% 35%, #fffde8, #e8dfc0 60%, #c8b88a)',boxShadow:'0 0 30px rgba(255,250,200,.35), 0 0 80px rgba(255,240,180,.15)',opacity:0.9 }} />
+
+      {/* Ocean */}
+      <div className="absolute pointer-events-none" style={{ left:0,right:0,top:'32%',height:'22%',overflow:'hidden' }}>
+        <div style={{ position:'absolute',inset:0,background:'linear-gradient(180deg, #0a2040 0%, #0d2d5a 40%, #15406e 70%, #1a4a78 100%)' }} />
+        {/* Moon reflection */}
+        <div style={{ position:'absolute',left:'72%',top:'10%',width:4,height:'80%',background:'linear-gradient(180deg, rgba(255,250,200,.15), rgba(255,240,180,.05), transparent)',filter:'blur(3px)',transform:'translateX(-50%)' }} />
+        {/* Wave layer 1 */}
+        <svg style={{ position:'absolute',bottom:0,left:0,width:'200%',height:28,animation:'vs-wave1 6s linear infinite' }} viewBox="0 0 200 20" preserveAspectRatio="none">
+          <path d="M0,10 Q12,4 25,10 T50,10 T75,10 T100,10 T125,10 T150,10 T175,10 T200,10 V20 H0Z" fill="rgba(200,220,240,0.12)"/>
+        </svg>
+        {/* Wave layer 2 */}
+        <svg style={{ position:'absolute',bottom:-2,left:0,width:'200%',height:22,animation:'vs-wave2 8s linear infinite' }} viewBox="0 0 200 16" preserveAspectRatio="none">
+          <path d="M0,8 Q10,3 20,8 T40,8 T60,8 T80,8 T100,8 T120,8 T140,8 T160,8 T180,8 T200,8 V16 H0Z" fill="rgba(255,255,255,0.08)"/>
+        </svg>
+        {/* Foam line */}
+        <div style={{ position:'absolute',bottom:0,left:0,right:0,height:3,background:'linear-gradient(90deg, transparent 5%, rgba(255,255,255,.18) 20%, rgba(255,255,255,.12) 50%, rgba(255,255,255,.18) 80%, transparent 95%)' }} />
+      </div>
+
+      {/* Beach sand */}
+      <div className="absolute pointer-events-none" style={{ left:0,right:0,top:'52%',bottom:0,background:'linear-gradient(180deg, #3a2e1f 0%, #4a3a28 15%, #5c4830 40%, #4f3d28 70%, #3e3020 100%)' }} />
+      {/* Sand texture overlay */}
+      <div className="absolute pointer-events-none" style={{ left:0,right:0,top:'52%',bottom:0,background:'radial-gradient(ellipse at 50% 0%, rgba(255,200,120,.08) 0%, transparent 60%)' }} />
+
+      {/* Wet sand near water */}
+      <div className="absolute pointer-events-none" style={{ left:0,right:0,top:'52%',height:'5%',background:'linear-gradient(180deg, #2a2018 0%, #3a2e1f 100%)',opacity:0.7 }} />
+
+      {/* Driftwood pieces */}
+      <div className="absolute pointer-events-none" style={{ left:'18%',top:'58%',width:40,height:4,borderRadius:2,background:'linear-gradient(90deg, #5a4020, #6b5030, #4a3418)',transform:'rotate(-8deg)',opacity:0.7 }} />
+      <div className="absolute pointer-events-none" style={{ left:'76%',top:'64%',width:32,height:3,borderRadius:2,background:'linear-gradient(90deg, #4a3418, #5a4020, #6b5030)',transform:'rotate(12deg)',opacity:0.6 }} />
+
+      {/* Small rocks */}
+      {[{x:14,y:70,s:8},{x:85,y:66,s:6},{x:32,y:76,s:5},{x:68,y:74,s:7},{x:90,y:72,s:5},{x:8,y:65,s:4}].map((r,i) => (
+        <div key={i} className="absolute pointer-events-none" style={{ left:`${r.x}%`,top:`${r.y}%`,width:r.s,height:r.s*0.7,borderRadius:'40%',background:'linear-gradient(135deg, #5a5050, #3a3232)',border:'1px solid rgba(80,70,65,.5)',opacity:0.6 }} />
+      ))}
+
+      {/* Beach plants / grass tufts */}
+      {[{x:6,y:52},{x:94,y:54},{x:12,y:78},{x:88,y:80}].map((g,i) => (
+        <div key={i} className="absolute pointer-events-none" style={{ left:`${g.x}%`,top:`${g.y}%`,transform:'translate(-50%,-100%)',animation:`vs-sway 3s ease-in-out ${i*0.7}s infinite` }}>
+          {[0,1,2].map(j => (
+            <div key={j} style={{ position:'absolute',bottom:0,left:j*4-4,width:2,height:12+j*3,background:`rgba(60,${100+j*20},40,.6)`,borderRadius:'1px 1px 0 0',transform:`rotate(${(j-1)*12}deg)`,transformOrigin:'bottom center' }} />
+          ))}
+        </div>
+      ))}
+
+      {/* Lanterns */}
+      {[{x:10,y:55},{x:90,y:57}].map((l,i) => (
+        <div key={i} className="absolute pointer-events-none" style={{ left:`${l.x}%`,top:`${l.y}%`,transform:'translate(-50%,-100%)',display:'flex',flexDirection:'column',alignItems:'center' }}>
+          <div style={{ width:8,height:10,borderRadius:'3px 3px 1px 1px',background:'radial-gradient(circle at 50% 40%, rgba(255,180,60,.9), rgba(200,120,20,.6))',boxShadow:'0 0 12px rgba(255,160,40,.5), 0 0 30px rgba(255,140,20,.2)',animation:`vs-lantern 3s ease-in-out ${i*1.5}s infinite` }} />
+          <div style={{ width:2,height:16,background:'rgba(120,90,50,.6)' }} />
+        </div>
+      ))}
+
+      {/* Bonfire — center */}
+      <div className="absolute pointer-events-none" style={{ left:'50%',top:'58%',transform:'translate(-50%,-50%)',zIndex:2 }}>
+        {/* Fire glow on ground */}
+        <div style={{ position:'absolute',left:'50%',top:'70%',transform:'translate(-50%,-50%)',width:120,height:50,borderRadius:'50%',background:'radial-gradient(ellipse, rgba(255,120,20,.2) 0%, rgba(255,80,0,.08) 50%, transparent 100%)',animation:'vs-glow 2s ease-in-out infinite' }} />
+        {/* Fire stones ring */}
+        <div style={{ position:'absolute',left:'50%',top:'70%',transform:'translate(-50%,-50%)' }}>
+          {[0,1,2,3,4,5,6,7].map(i => {
+            const a = (i/8)*Math.PI*2;
+            return <div key={i} style={{ position:'absolute',left:Math.cos(a)*22-4,top:Math.sin(a)*10-3,width:9,height:7,borderRadius:'40%',background:'linear-gradient(135deg, #4a4040, #333)',border:'1px solid rgba(80,70,65,.4)' }} />;
+          })}
+        </div>
+        {/* Fire base — logs */}
+        <div style={{ position:'absolute',left:'50%',top:'65%',transform:'translate(-50%,0)',width:30,height:5,borderRadius:2,background:'linear-gradient(90deg, #4a2010, #6a3018, #4a2010)',opacity:0.8 }} />
+        <div style={{ position:'absolute',left:'50%',top:'68%',transform:'translate(-50%,0) rotate(60deg)',width:28,height:4,borderRadius:2,background:'linear-gradient(90deg, #3a1808, #5a2812)',opacity:0.7 }} />
+        {/* Main fire */}
+        <div style={{ position:'absolute',left:'50%',top:'20%',transform:'translate(-50%,0)',display:'flex',flexDirection:'column',alignItems:'center' }}>
+          {/* Outer flame */}
+          <div style={{ width:28,height:40,borderRadius:'50% 50% 50% 50% / 60% 60% 40% 40%',background:'radial-gradient(ellipse at 50% 70%, #ff6000 0%, #ff4000 30%, rgba(255,30,0,.6) 60%, transparent 100%)',animation:'vs-fire 0.8s ease-in-out infinite',filter:'blur(1px)' }} />
+          {/* Inner flame */}
+          <div style={{ position:'absolute',bottom:2,left:'50%',transform:'translateX(-50%)',width:16,height:26,borderRadius:'50% 50% 50% 50% / 60% 60% 40% 40%',background:'radial-gradient(ellipse at 50% 70%, #ffcc00 0%, #ff8800 40%, rgba(255,60,0,.5) 100%)',animation:'vs-fire 0.6s ease-in-out 0.1s infinite',filter:'blur(0.5px)' }} />
+          {/* Core */}
+          <div style={{ position:'absolute',bottom:4,left:'50%',transform:'translateX(-50%)',width:8,height:14,borderRadius:'50% 50% 50% 50% / 60% 60% 40% 40%',background:'radial-gradient(ellipse at 50% 80%, #fff8e0, #ffdd44 60%, rgba(255,180,0,.4) 100%)',animation:'vs-fire 0.5s ease-in-out 0.2s infinite' }} />
+        </div>
+        {/* Sparks */}
+        {SPARKS.map((s, i) => (
+          <div key={i} style={{ position:'absolute',left:`${s.x}%`,top:'15%',width:s.size,height:s.size,borderRadius:'50%',background:i%3===0?'#ffcc00':'#ff8844',opacity:0.8,pointerEvents:'none',animation:`vs-spark ${s.dur}s ease-out ${s.delay}s infinite`,'--sx':`${s.sx}px` } as any} />
+        ))}
+        {/* Fire light glow */}
+        <div style={{ position:'absolute',left:'50%',top:'30%',transform:'translate(-50%,-50%)',width:180,height:120,borderRadius:'50%',background:'radial-gradient(ellipse, rgba(255,140,40,.12) 0%, rgba(255,100,20,.05) 40%, transparent 70%)',animation:'vs-glow 2.5s ease-in-out infinite',pointerEvents:'none' }} />
+      </div>
+
+      {/* Palm tree silhouettes */}
+      <div className="absolute pointer-events-none" style={{ left:'3%',top:'28%',transform:'translate(-50%,-100%)',opacity:0.25 }}>
+        <div style={{ width:4,height:60,background:'#1a1a1a',borderRadius:2 }} />
+        <div style={{ position:'absolute',top:-8,left:-12,width:28,height:18,borderRadius:'0 80% 0 80%',background:'#0a1a08',transform:'rotate(-15deg)' }} />
+        <div style={{ position:'absolute',top:-5,left:2,width:24,height:16,borderRadius:'80% 0 80% 0',background:'#0a1a08',transform:'rotate(10deg)' }} />
+      </div>
+      <div className="absolute pointer-events-none" style={{ left:'97%',top:'30%',transform:'translate(-50%,-100%)',opacity:0.2 }}>
+        <div style={{ width:3,height:50,background:'#1a1a1a',borderRadius:2 }} />
+        <div style={{ position:'absolute',top:-6,left:-10,width:22,height:14,borderRadius:'0 80% 0 80%',background:'#0a1a08',transform:'rotate(-20deg)' }} />
+        <div style={{ position:'absolute',top:-4,left:1,width:20,height:13,borderRadius:'80% 0 80% 0',background:'#0a1a08',transform:'rotate(15deg)' }} />
+      </div>
+
+      {/* DB Both — subtle carved driftwood sign */}
+      <div className="absolute pointer-events-none" style={{ left:'15%',top:'82%',transform:'rotate(-5deg)',display:'flex',alignItems:'center',gap:4,opacity:0.35 }}>
+        <div style={{ padding:'2px 6px',borderRadius:3,background:'rgba(90,70,40,.5)',border:'1px solid rgba(120,90,50,.4)',fontFamily:'monospace',fontSize:7,letterSpacing:'0.15em',color:'rgba(200,180,140,.7)' }}>DB BOTH</div>
+      </div>
+
+      {/* Vignette — warm toned */}
+      <div className="absolute inset-0 pointer-events-none" style={{ background:'radial-gradient(ellipse at 50% 58%, transparent 30%, rgba(4,8,24,.6) 100%)' }} />
+    </>
+  );
 }
 
 // ── DJ Player Panel ───────────────────────────────────────────────────
@@ -2102,10 +2257,16 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             onTouchStart={e=>{e.preventDefault();const t=e.touches[0];handleWorldTap(t.clientX,t.clientY);}}
           >
 
-            <Particles/>
-            <PerspectiveFloor/>
-            <div className="absolute inset-0 pointer-events-none" style={{background:'radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(2,0,16,.55) 100%)'}}/>
-            <RoomObjects djActive={!!djState?.isPlaying} onDJClick={()=>setDjPanelOpen(o=>!o)} onGamesClick={()=>setShowGames(true)} decor={layout.decor} editMode={editMode}/>
+            {layout.decor === 'beach' ? (
+              <BeachScene editMode={editMode} />
+            ) : (
+              <>
+                <Particles/>
+                <PerspectiveFloor/>
+                <div className="absolute inset-0 pointer-events-none" style={{background:'radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(2,0,16,.55) 100%)'}}/>
+                <RoomObjects djActive={!!djState?.isPlaying} onDJClick={()=>setDjPanelOpen(o=>!o)} onGamesClick={()=>setShowGames(true)} decor={layout.decor} editMode={editMode}/>
+              </>
+            )}
 
             {/* Owner-placed furniture */}
             {furniture.map(f => (
@@ -2152,7 +2313,9 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             ))}
 
             {/* Cinema TV — synced watch party */}
-            <CinemaTV tvState={tvState} canControl={space?.canControlTv ?? false} myDist={myTvDist} viewerCount={tvViewers} tvX={layout.tv.x} tvY={layout.tv.y} disabled={editMode} />
+            {!layout.noTv && (
+              <CinemaTV tvState={tvState} canControl={space?.canControlTv ?? false} myDist={myTvDist} viewerCount={tvViewers} tvX={layout.tv.x} tvY={layout.tv.y} disabled={editMode} />
+            )}
 
             {/* Cinema seats */}
             {layout.seats.map(seat => (

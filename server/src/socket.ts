@@ -492,7 +492,7 @@ function _canEditSpace(meta: SpaceMeta, profileId: string | null, isStaff: boole
 }
 
 const SPACE_THEMES = ['void', 'neon', 'cyber', 'sunset', 'mono', 'blood', 'gold'];
-const SPACE_LAYOUTS = ['lounge', 'home', 'penthouse'];
+const SPACE_LAYOUTS = ['lounge', 'home', 'penthouse', 'beach'];
 const SPACE_ICONS  = ['🌌','🎮','🎬','🎧','🔥','💎','🛸','🌃','⚡','🃏','👾','🎲'];
 
 function _genSpaceCode(): string {
