@@ -567,7 +567,7 @@ function Plant({ flip }: { flip?: boolean }) {
   );
 }
 
-function RoomObjects({ djActive, onDJClick, onGamesClick, decor }: { djActive: boolean; onDJClick: () => void; onGamesClick: () => void; decor: 'lounge' | 'home' | 'penthouse' }) {
+function RoomObjects({ djActive, onDJClick, onGamesClick, decor, editMode }: { djActive: boolean; onDJClick: () => void; onGamesClick: () => void; decor: 'lounge' | 'home' | 'penthouse'; editMode?: boolean }) {
   const home = decor === 'home';
   const pent = decor === 'penthouse';
   const PAL = decor === 'home'
@@ -588,7 +588,7 @@ function RoomObjects({ djActive, onDJClick, onGamesClick, decor }: { djActive: b
       {/* DJ BOOTH — clickable (right wall) */}
       <div className="absolute pointer-events-none" style={{ left:'85%',top:'50%',transform:'translate(-50%,-50%)',width:140,height:80,background:`radial-gradient(ellipse,rgba(255,0,150,${djActive?'.28':'.16'}) 0%,transparent 70%)`,borderRadius:'50%',animation:'vs-pulse 2s ease-in-out infinite' }}/>
       <div className="absolute pointer-events-none" style={{ left:'85%',top:'41%',transform:'translate(-50%,-50%)',fontFamily:'monospace',fontSize:8,letterSpacing:'0.22em',color:'rgba(255,0,150,.8)',textShadow:'0 0 8px rgba(255,0,150,.7)' }}>DJ BOOTH</div>
-      <button onClick={e=>{e.stopPropagation();onDJClick();}} style={{ position:'absolute',left:'85%',top:'50%',transform:'translate(-50%,-50%)',cursor:'pointer',background:'transparent',border:'none',padding:0,zIndex:15,display:'flex',flexDirection:'column',alignItems:'center',gap:3 }} title="DJ Booth">
+      <button onClick={e=>{e.stopPropagation();if(!editMode)onDJClick();}} style={{ position:'absolute',left:'85%',top:'50%',transform:'translate(-50%,-50%)',cursor:editMode?'default':'pointer',background:'transparent',border:'none',padding:0,zIndex:15,display:'flex',flexDirection:'column',alignItems:'center',gap:3,pointerEvents:editMode?'none':'auto' }} title="DJ Booth">
         <DJBoothGraphic active={djActive} />
         <span style={{ fontFamily:'monospace',fontSize:8,color:`rgba(255,0,150,${djActive?'.9':'.55'})`,letterSpacing:'0.1em' }}>{djActive?'▶ PLAYING':'↑ TAP TO DJ'}</span>
       </button>
@@ -671,7 +671,7 @@ function RoomObjects({ djActive, onDJClick, onGamesClick, decor }: { djActive: b
           <div className="absolute pointer-events-none" style={{ left:'79%',top:'68%',transform:'translate(-50%,-50%)',width:170,height:110,background:'radial-gradient(ellipse,rgba(0,200,255,.1) 0%,transparent 70%)',borderRadius:'50%' }}/>
           <div className="absolute pointer-events-none" style={{ left:'78%',top:'53%',transform:'translate(-50%,-50%)',fontFamily:'monospace',fontSize:8,letterSpacing:'0.2em',color:'rgba(0,229,255,.85)',textShadow:'0 0 8px rgba(0,229,255,.7)' }}>GAMING</div>
           <GamingStation/>
-          <button onClick={e=>{e.stopPropagation();onGamesClick();}} style={{ position:'absolute',left:'79%',top:'66%',transform:'translate(-50%,-50%)',width:90,height:80,cursor:'pointer',background:'transparent',border:'none',padding:0,zIndex:15,display:'flex',flexDirection:'column',justifyContent:'flex-end',alignItems:'center' }} title="Games">
+          <button onClick={e=>{e.stopPropagation();if(!editMode)onGamesClick();}} style={{ position:'absolute',left:'79%',top:'66%',transform:'translate(-50%,-50%)',width:90,height:80,cursor:editMode?'default':'pointer',background:'transparent',border:'none',padding:0,zIndex:15,display:'flex',flexDirection:'column',justifyContent:'flex-end',alignItems:'center',pointerEvents:editMode?'none':'auto' }} title="Games">
             <span style={{ fontFamily:'monospace',fontSize:8,color:'rgba(0,229,255,.75)',letterSpacing:'0.1em' }}>↑ TAP TO PLAY</span>
           </button>
 
@@ -1096,27 +1096,26 @@ function ChatDrawer({ history, mySocketId, open }: {
 
 // ── Cinema seat (couch / chair / pouf) ─────────────────────────────────
 
-function CinemaSeat({ seat, occupant, isMine, onTap }: {
+function CinemaSeat({ seat, occupant, isMine, onTap, disabled }: {
   seat: SeatDef;
   occupant: SpacePlayer | undefined;
   isMine: boolean;
   onTap: () => void;
+  disabled?: boolean;
 }) {
   const taken = !!occupant && !isMine;
   const accent = isMine ? (occupant?.glowColor ?? '#00e5ff') : '#5b3a8a';
   const dims = seat.type === 'couch' ? { w: 64, h: 22 } : seat.type === 'chair' ? { w: 38, h: 22 } : { w: 26, h: 16 };
   return (
     <button
-      onClick={(e) => { e.stopPropagation(); if (!taken) onTap(); }}
-      // Stop the tap from reaching the world's tap-to-walk handler (touchstart fires
-      // first on mobile and would queue a move that stands you right back up).
+      onClick={(e) => { e.stopPropagation(); if (!taken && !disabled) onTap(); }}
       onTouchStart={(e) => { e.stopPropagation(); }}
       onPointerDown={(e) => { e.stopPropagation(); }}
       style={{
         position: 'absolute', left: `${seat.x}%`, top: `${seat.y}%`,
         transform: 'translate(-50%, -42%)', zIndex: 16,
         background: 'transparent', border: 'none', padding: 0,
-        cursor: taken ? 'default' : 'pointer', pointerEvents: 'auto',
+        cursor: disabled || taken ? 'default' : 'pointer', pointerEvents: disabled ? 'none' : 'auto',
         width: dims.w, height: dims.h + 10,
       }}
       aria-label={`seat ${seat.id}`}
@@ -1150,13 +1149,14 @@ function CinemaSeat({ seat, occupant, isMine, onTap }: {
 
 // ── Cinema TV (synced watch party) ────────────────────────────────────
 
-function CinemaTV({ tvState, canControl, myDist, viewerCount, tvX = 50, tvY = 17 }: {
+function CinemaTV({ tvState, canControl, myDist, viewerCount, tvX = 50, tvY = 17, disabled }: {
   tvState: TVState | null;
   canControl: boolean;
   myDist: number;
   viewerCount: number;
   tvX?: number;
   tvY?: number;
+  disabled?: boolean;
 }) {
   const screenRef = useRef<HTMLDivElement>(null);
   const readyRef = useRef(false);
@@ -1348,10 +1348,10 @@ function CinemaTV({ tvState, canControl, myDist, viewerCount, tvX = 50, tvY = 17
           {/* Tap target — opens the watch-party panel for everyone (queue / skip;
               controllers also get transport). Also unblocks autoplay via gesture. */}
           <button
-            onClick={() => setPanelOpen(true)}
+            onClick={() => { if (!disabled) setPanelOpen(true); }}
             onTouchStart={(e) => { e.stopPropagation(); }}
             onPointerDown={(e) => { e.stopPropagation(); }}
-            style={{ position: 'absolute', inset: 0, background: 'transparent', border: 'none', cursor: 'pointer', pointerEvents: 'auto' }}
+            style={{ position: 'absolute', inset: 0, background: 'transparent', border: 'none', cursor: disabled ? 'default' : 'pointer', pointerEvents: disabled ? 'none' : 'auto' }}
             aria-label="TV"
           />
         </div>
@@ -1360,9 +1360,9 @@ function CinemaTV({ tvState, canControl, myDist, viewerCount, tvX = 50, tvY = 17
         )}
         {/* Skip pill — everyone can vote-skip; controllers skip instantly */}
         {hasVideo && (
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 5, pointerEvents: 'auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 5, pointerEvents: disabled ? 'none' : 'auto' }}>
             <button
-              onClick={() => (socket as any).emit(canControl ? 'tv:next' : 'tv:vote_skip')}
+              onClick={() => { if (!disabled) (socket as any).emit(canControl ? 'tv:next' : 'tv:vote_skip'); }}
               onTouchStart={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
               style={{ fontFamily: 'monospace', fontSize: 10, padding: '4px 12px', borderRadius: 20, background: 'rgba(255,159,67,.12)', border: '1px solid rgba(255,159,67,.4)', color: '#ff9f43', cursor: 'pointer' }}>
@@ -2126,7 +2126,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             <Particles/>
             <PerspectiveFloor/>
             <div className="absolute inset-0 pointer-events-none" style={{background:'radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(2,0,16,.55) 100%)'}}/>
-            <RoomObjects djActive={!!djState?.isPlaying} onDJClick={()=>setDjPanelOpen(o=>!o)} onGamesClick={()=>setShowGames(true)} decor={layout.decor}/>
+            <RoomObjects djActive={!!djState?.isPlaying} onDJClick={()=>setDjPanelOpen(o=>!o)} onGamesClick={()=>setShowGames(true)} decor={layout.decor} editMode={editMode}/>
 
             {/* Owner-placed furniture */}
             {furniture.map(f => (
@@ -2144,7 +2144,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                   pointerEvents: editMode ? 'auto' : 'none',
                   cursor: editMode ? 'grab' : 'default',
                   filter: `drop-shadow(0 4px 10px rgba(0,0,0,.5)) drop-shadow(0 0 10px ${themeDef.accent}33)`,
-                  zIndex: 3, touchAction: 'none', userSelect: 'none',
+                  zIndex: editMode ? 20 : 3, touchAction: 'none', userSelect: 'none',
                   outline: editMode && selectedFurn === f.id ? `2px dashed ${themeDef.accent}` : 'none',
                   outlineOffset: 4, borderRadius: 8,
                 }}
@@ -2173,7 +2173,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             ))}
 
             {/* Cinema TV — synced watch party */}
-            <CinemaTV tvState={tvState} canControl={space?.canControlTv ?? false} myDist={myTvDist} viewerCount={tvViewers} tvX={layout.tv.x} tvY={layout.tv.y} />
+            <CinemaTV tvState={tvState} canControl={space?.canControlTv ?? false} myDist={myTvDist} viewerCount={tvViewers} tvX={layout.tv.x} tvY={layout.tv.y} disabled={editMode} />
 
             {/* Cinema seats */}
             {layout.seats.map(seat => (
@@ -2183,6 +2183,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                 occupant={seatOccupants.get(seat.id)}
                 isMine={mySeat === seat.id}
                 onTap={() => handleSeatTap(seat)}
+                disabled={editMode}
               />
             ))}
 
