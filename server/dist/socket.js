@@ -8386,17 +8386,36 @@ export function attachSocketHandlers(io) {
             if (!query || typeof query !== 'string' || query.length > 120)
                 return cb?.(err('Bad query'));
             try {
-                const q = encodeURIComponent(query.trim());
-                const res = await fetch(`https://pipedapi.kavin.rocks/search?q=${q}&filter=music_songs`);
+                const res = await fetch('https://www.youtube.com/youtubei/v1/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: query.trim(), context: { client: { clientName: 'WEB', clientVersion: '2.20240101.00.00' } } }),
+                });
                 if (!res.ok)
                     throw new Error('search failed');
                 const data = await res.json();
-                const items = (data.items ?? []).filter((i) => i.url).slice(0, 8).map((i) => ({
-                    videoId: (i.url ?? '').replace('/watch?v=', ''),
-                    title: String(i.title ?? '').slice(0, 120),
-                    author: String(i.uploaderName ?? i.uploader ?? '').slice(0, 60),
-                    duration: i.duration ?? 0,
-                }));
+                const sections = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents ?? [];
+                const items = [];
+                for (const s of sections) {
+                    for (const item of (s?.itemSectionRenderer?.contents ?? [])) {
+                        const v = item?.videoRenderer;
+                        if (!v?.videoId)
+                            continue;
+                        const durText = v?.lengthText?.simpleText ?? '';
+                        const parts = durText.split(':').map(Number);
+                        const dur = parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts.length === 2 ? parts[0] * 60 + parts[1] : 0;
+                        items.push({
+                            videoId: v.videoId,
+                            title: String(v?.title?.runs?.[0]?.text ?? '').slice(0, 120),
+                            author: String(v?.ownerText?.runs?.[0]?.text ?? '').slice(0, 60),
+                            duration: dur,
+                        });
+                        if (items.length >= 8)
+                            break;
+                    }
+                    if (items.length >= 8)
+                        break;
+                }
                 cb?.(ok(items));
             }
             catch {
