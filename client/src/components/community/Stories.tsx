@@ -5,7 +5,7 @@ import { emitWithAck, socket } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
 import type { Res } from '@/types/index';
 
-export interface StoryItem { id: string; imageUrl: string; caption: string; createdAt: number; viewCount?: number; }
+export interface StoryItem { id: string; imageUrl: string; caption: string; createdAt: number; viewCount?: number; tags?: { id: string; username: string }[]; }
 export interface StoryGroup {
   authorId: string; username: string; avatar: string; avatarUrl: string | null;
   publicId: number | null; stories: StoryItem[];
@@ -307,9 +307,16 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
         <img key={story.id} src={story.imageUrl} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
         {!sheetOpen && <button onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } back(); }} style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '32%', background: 'transparent', border: 'none' }} aria-label="prev" />}
         {!sheetOpen && <button onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } advance(); }} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '40%', background: 'transparent', border: 'none' }} aria-label="next" />}
-        {story.caption && !sheetOpen && (
+        {(story.caption || (story.tags && story.tags.length > 0)) && !sheetOpen && (
           <div style={{ position: 'absolute', left: 16, right: 16, bottom: 24, textAlign: 'center', fontFamily: 'monospace', fontSize: 14, color: '#fff', textShadow: '0 1px 6px rgba(0,0,0,0.9)', background: 'rgba(0,0,0,0.35)', padding: '8px 12px', borderRadius: 12, backdropFilter: 'blur(4px)' }}>
-            {story.caption}
+            {story.caption && <p style={{ margin: 0 }}>{story.caption}</p>}
+            {story.tags && story.tags.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 4, marginTop: story.caption ? 6 : 0 }}>
+                {story.tags.map(t => (
+                  <span key={t.id} onClick={(e) => { e.stopPropagation(); onOpenProfile(t.id); onClose(); }} style={{ fontSize: 11, color: '#c084fc', cursor: 'pointer' }}>@{t.username}</span>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -509,32 +516,52 @@ function StoryComposer({ image, onClose, onPosted }: { image: string; onClose: (
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const [tags, setTags] = useState<{ id: string; username: string }[]>([]);
+  const [tagOpen, setTagOpen] = useState(false);
+  const [tagPeople, setTagPeople] = useState<{ profileId: string; username: string; avatarUrl: string | null }[] | null>(null);
+  const [tagFilter, setTagFilter] = useState('');
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (!f) return; // cancelled — keep current image
+    if (!f) return;
     setErr('');
     try { setImg(await resizeStoryImage(f)); } catch { setErr('სურათი ვერ ჩაიტვირთა'); }
+  };
+
+  const openTagPicker = () => {
+    setTagOpen(true);
+    if (!tagPeople) {
+      emitWithAck<void, Res<any[]>>('friend:invitable_list').then(res => {
+        if (res.ok && res.data) setTagPeople(res.data.map((p: any) => ({ profileId: p.profileId, username: p.username, avatarUrl: p.avatarUrl ?? null })));
+        else setTagPeople([]);
+      }).catch(() => setTagPeople([]));
+    }
+  };
+
+  const toggleTag = (p: { profileId: string; username: string }) => {
+    setTags(prev => prev.some(t => t.id === p.profileId) ? prev.filter(t => t.id !== p.profileId) : prev.length < 10 ? [...prev, { id: p.profileId, username: p.username }] : prev);
   };
 
   const post = async () => {
     if (!img || busy) return;
     setBusy(true); setErr('');
     try {
-      const res = await emitWithAck<{ imageUrl: string; caption: string }, Res<StoryItem>>('community:story_create', { imageUrl: img, caption });
+      const res = await emitWithAck<{ imageUrl: string; caption: string; tags: { id: string; username: string }[] }, Res<StoryItem>>('community:story_create', { imageUrl: img, caption, tags });
       if ((res as any).ok) { onPosted(); onClose(); }
       else setErr((res as any).error ?? 'ვერ გაიზიარა');
     } catch { setErr('კავშირის შეცდომა'); }
     finally { setBusy(false); }
   };
 
+  const filtered = (tagPeople ?? []).filter(p => !tagFilter || p.username.toLowerCase().includes(tagFilter.toLowerCase()));
+
   return createPortal(
     <div onClick={() => !busy && onClose()} style={{ position: 'fixed', inset: 0, zIndex: 1400, background: 'rgba(0,0,0,.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
-      <div onClick={e => e.stopPropagation()} style={{ width: 'min(380px,100%)', background: 'rgba(8,4,22,.99)', border: '1px solid rgba(155,0,255,.3)', borderRadius: 20, padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: 'min(380px,100%)', maxHeight: '90vh', overflowY: 'auto', background: 'rgba(8,4,22,.99)', border: '1px solid rgba(155,0,255,.3)', borderRadius: 20, padding: 16 }}>
         <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#fff', marginBottom: 10, textAlign: 'center' }}>📖 ახალი Story</p>
         {img ? (
-          <img src={img} alt="" style={{ width: '100%', maxHeight: 360, objectFit: 'contain', borderRadius: 12, background: '#000' }} />
+          <img src={img} alt="" style={{ width: '100%', maxHeight: 300, objectFit: 'contain', borderRadius: 12, background: '#000' }} />
         ) : (
           <button onClick={() => fileRef.current?.click()} style={{ width: '100%', padding: '40px', borderRadius: 12, border: '1px dashed rgba(255,255,255,.2)', color: 'rgba(255,255,255,.5)', fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.02)' }}>+ აირჩიე სურათი</button>
         )}
@@ -542,6 +569,45 @@ function StoryComposer({ image, onClose, onPosted }: { image: string; onClose: (
         {img && (
           <input value={caption} onChange={e => setCaption(e.target.value)} maxLength={200} placeholder="წარწერა (არჩევითი)…"
             style={{ width: '100%', marginTop: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)', color: '#fff', fontFamily: 'monospace', fontSize: 13, outline: 'none' }} />
+        )}
+        {img && (
+          <div style={{ marginTop: 10 }}>
+            <button onClick={openTagPicker} style={{ fontFamily: 'monospace', fontSize: 12, color: '#c084fc', background: 'rgba(155,0,255,.1)', border: '1px solid rgba(155,0,255,.3)', borderRadius: 10, padding: '7px 12px', cursor: 'pointer' }}>
+              👥 {tags.length > 0 ? `${tags.length} დათეგილი` : 'დათეგე'}
+            </button>
+            {tags.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                {tags.map(t => (
+                  <span key={t.id} onClick={() => setTags(prev => prev.filter(x => x.id !== t.id))} style={{ fontFamily: 'monospace', fontSize: 11, color: '#c084fc', background: 'rgba(155,0,255,.15)', border: '1px solid rgba(155,0,255,.3)', borderRadius: 8, padding: '3px 8px', cursor: 'pointer' }}>
+                    @{t.username} ✕
+                  </span>
+                ))}
+              </div>
+            )}
+            {tagOpen && (
+              <div style={{ marginTop: 8, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 12, padding: 8 }}>
+                <input value={tagFilter} onChange={e => setTagFilter(e.target.value)} placeholder="მოძებნე…"
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: 8, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', color: '#fff', fontFamily: 'monospace', fontSize: 12, outline: 'none', marginBottom: 6 }} />
+                <div style={{ maxHeight: 160, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {!tagPeople && <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,.3)', textAlign: 'center', padding: 8 }}>…</p>}
+                  {tagPeople && filtered.length === 0 && <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,.3)', textAlign: 'center', padding: 8 }}>ვერ მოიძებნა</p>}
+                  {filtered.map(p => {
+                    const selected = tags.some(t => t.id === p.profileId);
+                    return (
+                      <button key={p.profileId} onClick={() => toggleTag(p)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, background: selected ? 'rgba(155,0,255,.15)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                        <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(155,0,255,.15)', border: '1px solid rgba(155,0,255,.25)', overflow: 'hidden', flexShrink: 0 }}>
+                          {p.avatarUrl && <img src={p.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                        </div>
+                        <span style={{ fontFamily: 'monospace', fontSize: 12, color: selected ? '#c084fc' : 'rgba(255,255,255,.7)', flex: 1 }}>{p.username}</span>
+                        {selected && <span style={{ fontSize: 12, color: '#c084fc' }}>✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button onClick={() => setTagOpen(false)} style={{ width: '100%', marginTop: 6, padding: '6px', borderRadius: 8, fontFamily: 'monospace', fontSize: 11, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', color: 'rgba(255,255,255,.5)', cursor: 'pointer' }}>დახურვა</button>
+              </div>
+            )}
+          </div>
         )}
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
           <button onClick={onClose} disabled={busy} style={{ flex: 1, padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.14)', color: 'rgba(255,255,255,.6)' }}>გაუქმება</button>

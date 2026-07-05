@@ -768,6 +768,7 @@ export async function initializeDatabase(): Promise<void> {
     )
   `;
   await sql`CREATE INDEX IF NOT EXISTS idx_community_stories_expires ON community_stories(expires_at)`;
+  await sql`ALTER TABLE community_stories ADD COLUMN IF NOT EXISTS tags TEXT NOT NULL DEFAULT '[]'`;
 
   // Story views (who saw a story) — author can see the viewer list.
   await sql`

@@ -1023,31 +1023,32 @@ export async function listFeedV2(viewerId: string, options: { category: FeedCate
 
 // ── Ephemeral 24h Stories ─────────────────────────────────────────────
 const STORY_TTL_MS = 24 * 60 * 60 * 1000;
-export interface StoryItem { id: string; imageUrl: string; caption: string; createdAt: number; viewCount?: number; }
+export interface StoryItem { id: string; imageUrl: string; caption: string; createdAt: number; viewCount?: number; tags?: { id: string; username: string }[]; }
 export interface StoryGroup {
   authorId: string; username: string; avatar: string; avatarUrl: string | null;
   publicId: number | null; stories: StoryItem[];
 }
 export interface StoryViewer { id: string; username: string; avatar: string; avatarUrl: string | null; publicId: number | null; viewedAt: number; reaction: string | null; }
 
-export async function createStory(authorId: string, imageUrl: string, caption: string): Promise<StoryItem> {
+export async function createStory(authorId: string, imageUrl: string, caption: string, tags?: { id: string; username: string }[]): Promise<StoryItem> {
   if (!imageUrl || !imageUrl.startsWith('data:image/')) throw new Error('Invalid image.');
   if (imageUrl.length > 680_000) throw new Error('Image too large — please use a smaller image.');
   const id = `story_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const now = Date.now();
   const cap = (caption ?? '').slice(0, 200);
+  const safeTags = (tags ?? []).slice(0, 10).map(t => ({ id: String(t.id), username: String(t.username).slice(0, 30) }));
   await sql`
-    INSERT INTO community_stories (id, author_id, image_url, caption, created_at, expires_at)
-    VALUES (${id}, ${authorId}, ${imageUrl}, ${cap}, ${now}, ${now + STORY_TTL_MS})
+    INSERT INTO community_stories (id, author_id, image_url, caption, created_at, expires_at, tags)
+    VALUES (${id}, ${authorId}, ${imageUrl}, ${cap}, ${now}, ${now + STORY_TTL_MS}, ${JSON.stringify(safeTags)})
   `;
-  return { id, imageUrl, caption: cap, createdAt: now };
+  return { id, imageUrl, caption: cap, createdAt: now, tags: safeTags };
 }
 
 export async function listActiveStories(viewerId?: string): Promise<StoryGroup[]> {
   const now = Date.now();
   try { await sql`DELETE FROM community_stories WHERE expires_at < ${now}`; } catch { /* best effort */ }
   const rows = await sql`
-    SELECT s.id, s.author_id, s.image_url, s.caption, s.created_at,
+    SELECT s.id, s.author_id, s.image_url, s.caption, s.created_at, s.tags,
            p.username, p.avatar, p.avatar_url, p.public_id,
            (SELECT COUNT(*) FROM community_story_views v WHERE v.story_id = s.id) AS view_count
     FROM community_stories s JOIN players p ON p.id = s.author_id
@@ -1062,9 +1063,10 @@ export async function listActiveStories(viewerId?: string): Promise<StoryGroup[]
             publicId: r.public_id != null ? Number(r.public_id) : null, stories: [] };
       map.set(r.author_id, g);
     }
-    // View counts are only exposed to the story's author.
     const viewCount = viewerId && r.author_id === viewerId ? Number(r.view_count ?? 0) : undefined;
-    g.stories.push({ id: r.id, imageUrl: r.image_url, caption: r.caption ?? '', createdAt: Number(r.created_at), viewCount });
+    let tags: { id: string; username: string }[] = [];
+    try { tags = typeof r.tags === 'string' ? JSON.parse(r.tags) : (r.tags ?? []); } catch { /* */ }
+    g.stories.push({ id: r.id, imageUrl: r.image_url, caption: r.caption ?? '', createdAt: Number(r.created_at), viewCount, tags });
   }
   // Order authors by their most-recent story (Instagram-style): whoever posted
   // the newest story appears far-left; older storytellers follow to the right.

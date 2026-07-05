@@ -138,6 +138,10 @@ export interface StoryItem {
     caption: string;
     createdAt: number;
     viewCount?: number;
+    tags?: {
+        id: string;
+        username: string;
+    }[];
 }
 export interface StoryGroup {
     authorId: string;
@@ -156,7 +160,10 @@ export interface StoryViewer {
     viewedAt: number;
     reaction: string | null;
 }
-export declare function createStory(authorId: string, imageUrl: string, caption: string): Promise<StoryItem>;
+export declare function createStory(authorId: string, imageUrl: string, caption: string, tags?: {
+    id: string;
+    username: string;
+}[]): Promise<StoryItem>;
 export declare function listActiveStories(viewerId?: string): Promise<StoryGroup[]>;
 export declare function recordStoryView(storyId: string, viewerId: string): Promise<void>;
 export declare function getStoryViewers(storyId: string, requesterId: string): Promise<StoryViewer[]>;

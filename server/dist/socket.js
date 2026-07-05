@@ -6328,7 +6328,7 @@ export function attachSocketHandlers(io) {
                 cb?.(err(e.message));
             }
         });
-        socket.on('community:story_create', async ({ imageUrl, caption }, cb) => {
+        socket.on('community:story_create', async ({ imageUrl, caption, tags }, cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId)
@@ -6336,7 +6336,7 @@ export function attachSocketHandlers(io) {
                 const ban = await getActiveBan(profileId);
                 if (ban)
                     throw new Error('You are banned.');
-                const story = await createStory(profileId, imageUrl, caption ?? '');
+                const story = await createStory(profileId, imageUrl, caption ?? '', tags);
                 cb(ok(story));
             }
             catch (e) {
