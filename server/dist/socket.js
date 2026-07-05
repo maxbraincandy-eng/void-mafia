@@ -6338,6 +6338,20 @@ export function attachSocketHandlers(io) {
                     throw new Error('You are banned.');
                 const story = await createStory(profileId, imageUrl, caption ?? '', tags);
                 cb(ok(story));
+                if (tags && tags.length > 0) {
+                    const me = await getPlayer(profileId);
+                    const myName = me?.username ?? 'ვიღაცამ';
+                    for (const t of tags) {
+                        if (t.id === profileId)
+                            continue;
+                        createNotification(t.id, 'story_tag', '📸 სთორიზე დაგთეგეს', `${myName}-მა სთორიზე დაგთეგა`, null, { actorId: profileId, actorAvatarUrl: me?.avatarUrl ?? null }).then(notif => {
+                            const sock = findSocketByProfile(io, t.id);
+                            if (sock)
+                                sock.emit('community:notification', notif);
+                            sendPushToUser(t.id, { title: '📸 სთორიზე დაგთეგეს', body: `${myName}-მა სთორიზე დაგთეგა` }).catch(() => { });
+                        }).catch(() => { });
+                    }
+                }
             }
             catch (e) {
                 cb(err(e.message));
