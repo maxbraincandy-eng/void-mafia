@@ -5627,13 +5627,13 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb?.(err(e.message)); }
     });
 
-    socket.on('community:story_create' as any, async ({ imageUrl, caption, tags }: { imageUrl: string; caption?: string; tags?: { id: string; username: string }[] }, cb: any) => {
+    socket.on('community:story_create' as any, async ({ imageUrl, caption, tags, musicVideoId, musicTitle }: { imageUrl: string; caption?: string; tags?: { id: string; username: string }[]; musicVideoId?: string; musicTitle?: string }, cb: any) => {
       try {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('Not authenticated.');
         const ban = await getActiveBan(profileId);
         if (ban) throw new Error('You are banned.');
-        const story = await createStory(profileId, imageUrl, caption ?? '', tags);
+        const story = await createStory(profileId, imageUrl, caption ?? '', tags, musicVideoId, musicTitle);
         cb(ok(story));
         if (tags && tags.length > 0) {
           const me = await getPlayer(profileId);

@@ -493,6 +493,11 @@ html.theme-transitioning body {
   to   { width: 100%; }
 }
 
+@keyframes vm-music-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 /* Stories: reaction-picker emoji — quick pop on press (CSS only, can't jam) */
 .vm-story-emoji:active {
   transform: scale(1.4) !important;

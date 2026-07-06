@@ -142,6 +142,8 @@ export interface StoryItem {
         id: string;
         username: string;
     }[];
+    musicVideoId?: string;
+    musicTitle?: string;
 }
 export interface StoryGroup {
     authorId: string;
@@ -163,7 +165,7 @@ export interface StoryViewer {
 export declare function createStory(authorId: string, imageUrl: string, caption: string, tags?: {
     id: string;
     username: string;
-}[]): Promise<StoryItem>;
+}[], musicVideoId?: string, musicTitle?: string): Promise<StoryItem>;
 export declare function listActiveStories(viewerId?: string): Promise<StoryGroup[]>;
 export declare function recordStoryView(storyId: string, viewerId: string): Promise<void>;
 export declare function getStoryViewers(storyId: string, requesterId: string): Promise<StoryViewer[]>;

@@ -5,7 +5,7 @@ import { emitWithAck, socket } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
 import type { Res } from '@/types/index';
 
-export interface StoryItem { id: string; imageUrl: string; caption: string; createdAt: number; viewCount?: number; tags?: { id: string; username: string }[]; }
+export interface StoryItem { id: string; imageUrl: string; caption: string; createdAt: number; viewCount?: number; tags?: { id: string; username: string }[]; musicVideoId?: string; musicTitle?: string; }
 export interface StoryGroup {
   authorId: string; username: string; avatar: string; avatarUrl: string | null;
   publicId: number | null; stories: StoryItem[];
@@ -184,6 +184,21 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
     return () => { socket.off('community:story_reacted', onReacted); };
   }, [story?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Music playback — hidden YouTube iframe for stories with music.
+  const musicFrameRef = useRef<HTMLIFrameElement | null>(null);
+  useEffect(() => {
+    const vid = story?.musicVideoId;
+    if (musicFrameRef.current) { musicFrameRef.current.remove(); musicFrameRef.current = null; }
+    if (!vid) return;
+    const iframe = document.createElement('iframe');
+    iframe.src = `https://www.youtube.com/embed/${vid}?autoplay=1&loop=1&playlist=${vid}&controls=0&showinfo=0&modestbranding=1&enablejsapi=1`;
+    iframe.allow = 'autoplay';
+    iframe.style.cssText = 'position:fixed;width:1px;height:1px;left:-9999px;top:-9999px;opacity:0;pointer-events:none;';
+    document.body.appendChild(iframe);
+    musicFrameRef.current = iframe;
+    return () => { iframe.remove(); musicFrameRef.current = null; };
+  }, [story?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Float a little burst of the reacted emoji up the screen (Instagram-style).
   const burst = (emoji: string) => {
     const items = Array.from({ length: 5 }, () => ({
@@ -301,6 +316,19 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
         )}
         <button onClick={onClose} style={{ fontSize: 20, color: 'rgba(255,255,255,0.85)', lineHeight: 1 }}>✕</button>
       </div>
+      {/* Music indicator */}
+      {story?.musicTitle && !sheetOpen && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px 6px',
+          overflow: 'hidden',
+        }}>
+          <span style={{ fontSize: 13, flexShrink: 0, animation: 'vm-music-spin 2s linear infinite' }}>🎵</span>
+          <span style={{
+            fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.7)',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>{story.musicTitle}</span>
+        </div>
+      )}
       {/* Image + tap zones (image half-collapses when the viewers sheet is open) */}
       <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
         style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', transition: 'flex-basis .25s ease, height .25s ease', flex: sheetOpen ? '0 0 42%' : 1 }}>
@@ -520,6 +548,11 @@ function StoryComposer({ image, onClose, onPosted }: { image: string; onClose: (
   const [tagOpen, setTagOpen] = useState(false);
   const [tagPeople, setTagPeople] = useState<{ profileId: string; username: string; avatarUrl: string | null }[] | null>(null);
   const [tagFilter, setTagFilter] = useState('');
+  const [music, setMusic] = useState<{ videoId: string; title: string } | null>(null);
+  const [musicOpen, setMusicOpen] = useState(false);
+  const [musicQuery, setMusicQuery] = useState('');
+  const [musicResults, setMusicResults] = useState<{ videoId: string; title: string; author: string; duration: number }[]>([]);
+  const [musicSearching, setMusicSearching] = useState(false);
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -542,11 +575,23 @@ function StoryComposer({ image, onClose, onPosted }: { image: string; onClose: (
     setTags(prev => prev.some(t => t.id === p.profileId) ? prev.filter(t => t.id !== p.profileId) : prev.length < 10 ? [...prev, { id: p.profileId, username: p.username }] : prev);
   };
 
+  const searchMusic = () => {
+    if (!musicQuery.trim() || musicSearching) return;
+    setMusicSearching(true);
+    emitWithAck<{ query: string }, { ok: boolean; data?: any }>('space:yt-search', { query: musicQuery.trim() }).then(res => {
+      setMusicSearching(false);
+      if (res.ok && Array.isArray(res.data)) setMusicResults(res.data);
+      else setMusicResults([]);
+    }).catch(() => { setMusicSearching(false); setMusicResults([]); });
+  };
+
   const post = async () => {
     if (!img || busy) return;
     setBusy(true); setErr('');
     try {
-      const res = await emitWithAck<{ imageUrl: string; caption: string; tags: { id: string; username: string }[] }, Res<StoryItem>>('community:story_create', { imageUrl: img, caption, tags });
+      const payload: any = { imageUrl: img, caption, tags };
+      if (music) { payload.musicVideoId = music.videoId; payload.musicTitle = music.title; }
+      const res = await emitWithAck<any, Res<StoryItem>>('community:story_create', payload);
       if ((res as any).ok) { onPosted(); onClose(); }
       else setErr((res as any).error ?? 'ვერ გაიზიარა');
     } catch { setErr('კავშირის შეცდომა'); }
@@ -605,6 +650,44 @@ function StoryComposer({ image, onClose, onPosted }: { image: string; onClose: (
                   })}
                 </div>
                 <button onClick={() => setTagOpen(false)} style={{ width: '100%', marginTop: 6, padding: '6px', borderRadius: 8, fontFamily: 'monospace', fontSize: 11, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', color: 'rgba(255,255,255,.5)', cursor: 'pointer' }}>დახურვა</button>
+              </div>
+            )}
+          </div>
+        )}
+        {img && (
+          <div style={{ marginTop: 10 }}>
+            {!music ? (
+              <button onClick={() => setMusicOpen(o => !o)} style={{ fontFamily: 'monospace', fontSize: 12, color: '#ff69b4', background: 'rgba(255,0,150,.08)', border: '1px solid rgba(255,0,150,.3)', borderRadius: 10, padding: '7px 12px', cursor: 'pointer' }}>
+                🎵 დაურთე სიმღერა
+              </button>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 10, background: 'rgba(255,0,150,.1)', border: '1px solid rgba(255,0,150,.3)' }}>
+                <span style={{ fontSize: 14 }}>🎵</span>
+                <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#ff69b4', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{music.title}</span>
+                <button onClick={() => { setMusic(null); setMusicOpen(false); }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.4)', fontSize: 14, cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>
+              </div>
+            )}
+            {musicOpen && !music && (
+              <div style={{ marginTop: 8, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 12, padding: 8 }}>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input value={musicQuery} onChange={e => setMusicQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') searchMusic(); }} placeholder="სიმღერის სახელი…"
+                    style={{ flex: 1, padding: '7px 10px', borderRadius: 8, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,0,150,.2)', color: '#fff', fontFamily: 'monospace', fontSize: 12, outline: 'none' }} />
+                  <button onClick={searchMusic} disabled={!musicQuery.trim() || musicSearching} style={{ padding: '7px 12px', borderRadius: 8, fontFamily: 'monospace', fontSize: 11, background: 'rgba(255,0,150,.15)', border: '1px solid rgba(255,0,150,.4)', color: '#ff69b4', cursor: 'pointer', flexShrink: 0 }}>{musicSearching ? '…' : '🔍'}</button>
+                </div>
+                {musicResults.length > 0 && (
+                  <div style={{ maxHeight: 150, overflowY: 'auto', marginTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {musicResults.map(r => (
+                      <button key={r.videoId} onClick={() => { setMusic({ videoId: r.videoId, title: r.title }); setMusicOpen(false); setMusicResults([]); }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderRadius: 8, background: 'rgba(255,0,150,.05)', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                        <span style={{ fontSize: 12, flexShrink: 0 }}>▶</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,.85)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0 }}>{r.title}</p>
+                          <p style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.35)', margin: 0 }}>{r.author}{r.duration > 0 ? ` · ${Math.floor(r.duration / 60)}:${String(r.duration % 60).padStart(2, '0')}` : ''}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <button onClick={() => setMusicOpen(false)} style={{ width: '100%', marginTop: 6, padding: '6px', borderRadius: 8, fontFamily: 'monospace', fontSize: 11, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', color: 'rgba(255,255,255,.5)', cursor: 'pointer' }}>დახურვა</button>
               </div>
             )}
           </div>
