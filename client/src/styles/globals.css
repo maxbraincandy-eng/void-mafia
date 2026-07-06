@@ -504,6 +504,14 @@ html.theme-transitioning body {
   50%      { opacity: 1; }
 }
 
+/* Backrooms VOID IS COMING: unsettling text throb + glitch */
+@keyframes vm-void-pulse {
+  0%, 100% { opacity: 1;    transform: scale(1);     letter-spacing: 6px; }
+  45%      { opacity: 0.55; transform: scale(1.035); letter-spacing: 9px; }
+  50%      { opacity: 0.9;  transform: scale(0.99)   translateX(2px); }
+  72%      { opacity: 0.7;  transform: scale(1.01)   translateX(-2px); }
+}
+
 /* Stories: reaction-picker emoji — quick pop on press (CSS only, can't jam) */
 .vm-story-emoji:active {
   transform: scale(1.4) !important;

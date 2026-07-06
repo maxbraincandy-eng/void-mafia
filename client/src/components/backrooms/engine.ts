@@ -18,6 +18,7 @@ export interface HudState {
   x: number;              // world position (for later multiplayer/debug)
   z: number;
   event: string | null;   // active dynamic event ('flicker' | 'blackout' | null)
+  voidPhase: 'none' | 'warning' | 'sweep'; // the VOID IS COMING event
 }
 
 export interface BackroomsEvent { kind: string; duration?: number; sound?: string; x?: number; z?: number; }
@@ -115,6 +116,14 @@ export class BackroomsEngine {
   private blackoutUntil = 0;
   private activeEvent: string | null = null;
   private heartTimer: ReturnType<typeof setInterval> | null = null;
+
+  // The VOID IS COMING event
+  private voidPhase: 'none' | 'warning' | 'sweep' = 'none';
+  private voidLevel = 0;              // 0..1 tension ramp (darken + fog + bass)
+  private baseFogDensity = 0.075;
+  private voidBass: OscillatorNode | null = null;
+  private voidBassGain: GainNode | null = null;
+  private whisperTimer: ReturnType<typeof setInterval> | null = null;
 
   // Ambient audio
   private audioCtx: AudioContext | null = null;
@@ -293,6 +302,8 @@ export class BackroomsEngine {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
     this.stopHeartbeat();
+    this.stopVoidBass();
+    if (this.whisperTimer) { clearInterval(this.whisperTimer); this.whisperTimer = null; }
     this.audioNodes?.stop();
     try { this.audioCtx?.close(); } catch { /* ignore */ }
     this.scene.traverse(o => {
@@ -524,6 +535,9 @@ export class BackroomsEngine {
     // Dynamic-event lighting (flicker / blackout)
     this.updateEventLighting(performance.now());
 
+    // The Void event darkens + thickens fog on top of everything
+    this.updateVoid(dt);
+
     // Remote players (smoothed toward last network position)
     this.updateRemotes(dt);
 
@@ -531,7 +545,7 @@ export class BackroomsEngine {
     this.hudAccum += dt;
     if (this.hudAccum > 0.2) {
       this.hudAccum = 0;
-      this.onHud?.({ battery: this.battery, flashlightOn: this.flashOn, level: 'LEVEL 0', x: this.pos.x, z: this.pos.z, event: this.activeEvent });
+      this.onHud?.({ battery: this.battery, flashlightOn: this.flashOn, level: 'LEVEL 0', x: this.pos.x, z: this.pos.z, event: this.activeEvent, voidPhase: this.voidPhase });
     }
 
     this.renderer.render(this.scene, this.camera);
@@ -607,7 +621,88 @@ export class BackroomsEngine {
       this.playPositional('slam', this.pos.x, this.pos.z);
     } else if (ev.kind === 'ambient') {
       this.playPositional(ev.sound ?? 'footstep', ev.x, ev.z);
+    } else if (ev.kind === 'void_warning') {
+      this.startVoidWarning();
+    } else if (ev.kind === 'void_sweep') {
+      this.voidPhase = 'sweep';
+    } else if (ev.kind === 'void_teleport') {
+      this.voidTeleport(ev.x ?? this.pos.x, ev.z ?? this.pos.z);
+    } else if (ev.kind === 'void_end') {
+      this.endVoid();
     }
+  }
+
+  // ── The VOID IS COMING event ─────────────────────────────────────────
+  private startVoidWarning() {
+    if (this.voidPhase !== 'none') return;
+    this.voidPhase = 'warning';
+    this.startHeartbeat();
+    this.startVoidBass();
+    // whispers drift in around the player while tension builds
+    if (!this.whisperTimer) {
+      this.whisperTimer = setInterval(() => {
+        const ang = Math.random() * Math.PI * 2, d = 3 + Math.random() * 8;
+        this.playPositional(Math.random() < 0.5 ? 'whisper' : 'scrape', this.pos.x + Math.cos(ang) * d, this.pos.z + Math.sin(ang) * d);
+      }, 2200);
+    }
+  }
+
+  private voidTeleport(x: number, z: number) {
+    this.pos.set(x, EYE, z);
+    this.vel.set(0, 0, 0);
+    this.curCell = { x: 9999, z: 9999 }; // force a world rebuild around the new spot
+  }
+
+  private endVoid() {
+    this.voidPhase = 'none';
+    this.stopHeartbeat();
+    this.stopVoidBass();
+    if (this.whisperTimer) { clearInterval(this.whisperTimer); this.whisperTimer = null; }
+  }
+
+  private startVoidBass() {
+    const ctx = this.audioCtx; if (!ctx || this.voidBass) return;
+    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = 34;
+    const sub = ctx.createOscillator(); sub.type = 'sine'; sub.frequency.value = 51; // slight beat
+    const g = ctx.createGain(); g.gain.value = 0.0001;
+    o.connect(g); sub.connect(g); g.connect(ctx.destination);
+    o.start(); sub.start();
+    this.voidBass = o; this.voidBassGain = g;
+    // keep a handle to stop the sub too
+    (this.voidBass as any)._sub = sub;
+  }
+  private stopVoidBass() {
+    try {
+      this.voidBassGain?.gain.setTargetAtTime(0.0001, this.audioCtx?.currentTime ?? 0, 0.4);
+      const o = this.voidBass; const sub = (o as any)?._sub as OscillatorNode | undefined;
+      setTimeout(() => { try { o?.stop(); sub?.stop(); } catch { /* ignore */ } }, 800);
+    } catch { /* ignore */ }
+    this.voidBass = null; this.voidBassGain = null;
+  }
+
+  private updateVoid(dt: number) {
+    const target = this.voidPhase === 'sweep' ? 1 : this.voidPhase === 'warning' ? 0.55 : 0;
+    // ease toward target (sweep ramps faster than the slow warning build)
+    const rate = this.voidPhase === 'sweep' ? 1.4 : 0.12;
+    this.voidLevel += (target - this.voidLevel) * Math.min(1, dt * rate);
+    const v = this.voidLevel;
+    if (v < 0.01 && this.voidPhase === 'none') {
+      // idle — make sure the world is fully restored
+      (this.scene.fog as THREE.FogExp2).density = this.baseFogDensity;
+      this.renderer.setClearColor(0x0a0a06, 1);
+      return;
+    }
+    // Fog thickens dramatically → the black fog "swallows" the corridors.
+    (this.scene.fog as THREE.FogExp2).density = this.baseFogDensity + v * (0.55 - this.baseFogDensity);
+    // Everything darkens toward black.
+    const dark = 1 - v * 0.96;
+    for (const pl of this.lightPool) pl.intensity *= dark;
+    this.ambient.intensity *= dark;
+    this.hemi.intensity *= dark;
+    (this.ceil.material as THREE.MeshLambertMaterial).emissiveIntensity *= dark;
+    this.renderer.setClearColor(0x000000, 1);
+    // Bass swells with tension.
+    if (this.voidBassGain && this.audioCtx) this.voidBassGain.gain.setTargetAtTime(0.02 + v * 0.22, this.audioCtx.currentTime, 0.2);
   }
 
   private updateEventLighting(now: number) {

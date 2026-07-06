@@ -16,8 +16,8 @@ break existing systems.
 | **2** | ✅ **DONE (v310)** | Multiplayer presence: `backrooms:*` socket handlers, per-instance shared world seed, instance lobby, remote players rendered as murky capsules + name sprites + head-lamp, ~10Hz position sync with client-side interpolation. |
 | **3** | ✅ **DONE (v311)** | Spatial voice: `backrooms:voice-*` WebRTC-mesh signaling, Web-Audio spatializer (distance rolloff + stereo pan + wall-muffle lowpass + hallway reverb) with `audio.volume` fallback, engine occlusion raycast, mic button, speaking → head-lamp pulse. |
 | **4** | ✅ **DONE (v312)** | Dynamic events + positional horror audio: server per-instance scheduler broadcasting synced `backrooms:event`; flicker + blackout (emergency lighting + heartbeat + red wash), procedural positional one-shots (footstep/whisper/buzz/scrape/scream/vent/rumble/slam) anchored near random players. |
-| **5** | ⏳ next | **VOID IS COMING / ვოიდი მოდის** cinematic global event: warning text, darkening, bass, whispers, black fog swallowing corridors, caught players teleport-scatter respawn (server-coordinated). |
-| **6** | ⏳ | Rare discoveries (cafeteria, red halls, silent library, server room, mirror hallway, endless staircase, black room) + environmental clues/notes. |
+| **5** | ✅ **DONE (v313)** | **VOID IS COMING / ვოიდი მოდის** staged event: server sequence (`void_warning` → `void_sweep` → per-player `void_teleport` → `void_end`), cinematic red pulsing text, tension darkening + deep bass + whispers, black fog swallowing corridors, whole-instance scatter-teleport. |
+| **6** | ⏳ next | Rare discoveries (cafeteria, red halls, silent library, server room, mirror hallway, endless staircase, black room) + environmental clues/notes. |
 | **7** | ⏳ | Post-processing polish (bloom, film grain, chromatic aberration, camera shake), LOD/occlusion culling, social gestures (wave/point/flashlight signals), mobile FPS tuning, dynamic shadows. |
 
 ## Architecture / integration points
@@ -99,18 +99,37 @@ LiveKit-SFU migration is a candidate for the Phase 7 perf pass.
   blackout (red emergency wash + "საგანგებო განათება") and flicker overlays;
   `resumeAudio()` on first touch/mouse. Added `vm-br-emergency` keyframe.
 
-## Phase 5 starting point (next session) — VOID IS COMING / ვოიდი მოდის
+## Phase 5 — what shipped (v313)
 
-1. Server: extend the scheduler with a rarer `void` event (or a separate longer
-   timer). Broadcast in stages so it's cinematic and synced:
-   `void_warning` → (after ~20s) `void_sweep` → per-player `void_teleport`.
-2. Engine: on `void_warning` build tension — screen darkens, deep bass rises,
-   whispers, lights destabilise. On `void_sweep` grow a black fog (drop
-   `FogExp2` density hard + darken) "swallowing" corridors.
-3. Server picks who gets caught (e.g. players still moving / not in a safe spot,
-   or random subset) and issues `void_teleport { seed-safe new x,z }` so caught
-   players respawn elsewhere in the instance — groups get scattered. Update the
-   engine to accept an external teleport (set `pos`, force `rebuildWindow`).
-4. Big centered cinematic text overlay: **VOID IS COMING** / **ვოიდი მოდის!**
+- **Server** (`socket.ts`): `_backroomsVoidTimers` + `_ensureBackroomsVoid` /
+  `_scheduleBackroomsVoid` (first Void ~70–120s after first join, then
+  ~150–270s) + `_runVoidEvent`: emits `void_warning` → (20s) `void_sweep` →
+  (3.2s) per-player `void_teleport { x, z }` scattering EVERY player to a random
+  distant cell centre (updates server `p.x/z`) → (4.2s) `void_end`. Each stage
+  guards on instance still being populated. `BACKROOMS_CELL` matches the client.
+- **engine.ts**: `voidPhase` state, `startVoidWarning()` (heartbeat + deep dual
+  sub-bass + drifting whispers), `voidTeleport()` (moves `pos`, forces window
+  rebuild), `updateVoid(dt)` easing a `voidLevel` that darkens all lights and
+  ramps `FogExp2` density to 0.55 (black fog swallows the corridors) + swells
+  the bass, `endVoid()` restore. `HudState.voidPhase` reported.
+- **Backrooms.tsx**: cinematic overlay — pulsing red **VOID IS COMING /
+  ვოიდი მოდის!** during `warning`, heavy black veil during `sweep`.
+  `vm-void-pulse` keyframe.
 
-Keep Phases 1–4 behaviour identical.
+Note: every player is scattered each Void (guaranteed "everyone's lost"
+drama). A future tweak could let players evade the Void (e.g. reach a safe
+room) instead of always being caught.
+
+## Phase 6 starting point (next session) — Rare discoveries + storytelling
+
+1. Deterministic rare rooms: hash a coarse "region" (e.g. every 24×24 cells);
+   with low probability a region hosts a special room (cafeteria, red halls,
+   silent library, server room, mirror hallway, endless staircase, black room).
+   Build them as distinct decor in `rebuildWindow` (or a parallel pass) keyed by
+   `hash3(regionX, regionZ, seed)`.
+2. Environmental clues: scatter interactable props (notes, drawings, numbers,
+   broken PCs, backpacks) — a low-probability lattice item. Wire the reserved
+   **interact button** to read a note (small overlay). Never fully explain.
+3. Keep it seed-shared so everyone in an instance can find the same room/clue.
+
+Keep Phases 1–5 behaviour identical.

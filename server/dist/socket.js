@@ -340,7 +340,9 @@ const _backrooms = new Map(); // instanceId → players
 const _backroomsMeta = new Map();
 const _backroomsVoice = new Map(); // instanceId → Map<socketId, name>
 const _backroomsEventTimers = new Map(); // instanceId → next-event timer
+const _backroomsVoidTimers = new Map(); // instanceId → next VOID timer
 const BACKROOMS_MAX = 16;
+const BACKROOMS_CELL = 6; // must match the client engine's lattice spacing
 const BACKROOMS_AMBIENT_SOUNDS = ['footstep', 'footstep', 'whisper', 'whisper', 'buzz', 'scrape', 'scream', 'vent', 'rumble'];
 // Seed a few always-on public instances so players can regroup on the same map.
 [
@@ -371,6 +373,11 @@ function _leaveBackrooms(sid, io) {
                 if (t) {
                     clearTimeout(t);
                     _backroomsEventTimers.delete(instanceId);
+                }
+                const vt = _backroomsVoidTimers.get(instanceId);
+                if (vt) {
+                    clearTimeout(vt);
+                    _backroomsVoidTimers.delete(instanceId);
                 }
             }
             return;
@@ -418,6 +425,61 @@ function _scheduleBackroomsEvent(instanceId, io) {
         _scheduleBackroomsEvent(instanceId, io); // reschedule
     }, delay);
     _backroomsEventTimers.set(instanceId, timer);
+}
+// ── The VOID IS COMING event (staged, synced across the instance) ──────
+// A cinematic warning builds tension for ~20s, then a black fog sweeps the
+// corridors and every player is scattered to a random distant spot. Groups
+// get separated; nobody knows where anyone ended up.
+function _ensureBackroomsVoid(instanceId, io) {
+    if (_backroomsVoidTimers.has(instanceId))
+        return;
+    _scheduleBackroomsVoid(instanceId, io, true);
+}
+function _scheduleBackroomsVoid(instanceId, io, first) {
+    const delay = first ? (70000 + Math.floor(Math.random() * 50000)) : (150000 + Math.floor(Math.random() * 120000));
+    const timer = setTimeout(() => {
+        _backroomsVoidTimers.delete(instanceId);
+        const room = _backrooms.get(instanceId);
+        if (!room || room.size === 0)
+            return;
+        _runVoidEvent(instanceId, io);
+        _scheduleBackroomsVoid(instanceId, io, false); // reschedule
+    }, delay);
+    _backroomsVoidTimers.set(instanceId, timer);
+}
+function _runVoidEvent(instanceId, io) {
+    const room = _backrooms.get(instanceId);
+    if (!room || room.size === 0)
+        return;
+    io.to(`backrooms:${instanceId}`).emit('backrooms:event', { kind: 'void_warning' });
+    // Tension builds for ~20s, then the fog sweeps in.
+    setTimeout(() => {
+        const r2 = _backrooms.get(instanceId);
+        if (!r2 || r2.size === 0)
+            return;
+        io.to(`backrooms:${instanceId}`).emit('backrooms:event', { kind: 'void_sweep' });
+        // Scatter everyone shortly after the sweep peaks.
+        setTimeout(() => {
+            const r3 = _backrooms.get(instanceId);
+            if (!r3 || r3.size === 0)
+                return;
+            for (const p of r3.values()) {
+                const baseCx = Math.round(p.x / BACKROOMS_CELL), baseCz = Math.round(p.z / BACKROOMS_CELL);
+                const ang = Math.random() * Math.PI * 2;
+                const cells = 20 + Math.floor(Math.random() * 30);
+                const nx = (baseCx + Math.round(Math.cos(ang) * cells)) * BACKROOMS_CELL + BACKROOMS_CELL / 2;
+                const nz = (baseCz + Math.round(Math.sin(ang) * cells)) * BACKROOMS_CELL + BACKROOMS_CELL / 2;
+                p.x = nx;
+                p.z = nz;
+                io.to(p.socketId).emit('backrooms:event', { kind: 'void_teleport', x: nx, z: nz });
+            }
+            // Restore normality a few seconds after the scatter.
+            setTimeout(() => {
+                if (_backrooms.get(instanceId)?.size)
+                    io.to(`backrooms:${instanceId}`).emit('backrooms:event', { kind: 'void_end' });
+            }, 4200);
+        }, 3200);
+    }, 20000);
 }
 const SPACE_FURNITURE_KINDS = new Set([
     'sofa', 'chair', 'plant', 'lamp', 'bar', 'billiard', 'arcade', 'speaker',
@@ -8467,6 +8529,7 @@ export function attachSocketHandlers(io) {
                 room.set(socket.id, player);
                 socket.join(`backrooms:${id}`);
                 _ensureBackroomsEvents(id, io);
+                _ensureBackroomsVoid(id, io);
                 socket.to(`backrooms:${id}`).emit('backrooms:player-joined', player);
                 cb?.({ ok: true, data: {
                         seed: meta.seed, name: meta.name, mySocketId: socket.id,

@@ -86,7 +86,7 @@ function Lobby({ onJoin, onClose }: { onJoin: (id: string, name: string) => void
 function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: () => void; onClose: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<BackroomsEngine | null>(null);
-  const [hud, setHud] = useState<HudState>({ battery: 1, flashlightOn: true, level: 'LEVEL 0', x: 0, z: 0, event: null });
+  const [hud, setHud] = useState<HudState>({ battery: 1, flashlightOn: true, level: 'LEVEL 0', x: 0, z: 0, event: null, voidPhase: 'none' });
   const [status, setStatus] = useState<'joining' | 'in' | 'error'>('joining');
   const [errMsg, setErrMsg] = useState('');
 
@@ -319,6 +319,34 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
       {hud.event === 'blackout' && (
         <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', pointerEvents: 'none', fontFamily: 'monospace', fontSize: 11, letterSpacing: 4, color: 'rgba(255,80,60,0.5)' }}>
           ⚠ საგანგებო განათება
+        </div>
+      )}
+
+      {/* ── VOID IS COMING — cinematic overlay ── */}
+      {hud.voidPhase !== 'none' && (
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12,
+          transition: 'background 1.4s ease',
+          background: hud.voidPhase === 'sweep'
+            ? 'rgba(0,0,0,0.9)'
+            : 'radial-gradient(ellipse at center, rgba(28,0,0,0.14) 0%, rgba(0,0,0,0.74) 100%)',
+        }}>
+          {hud.voidPhase === 'warning' && (
+            <>
+              <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 900, fontSize: 'min(11vw,54px)', letterSpacing: 6, color: '#ff2b2b', textShadow: '0 0 26px rgba(255,0,0,0.65)', animation: 'vm-void-pulse 1.05s ease-in-out infinite' }}>
+                VOID IS COMING
+              </div>
+              <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 'min(8.5vw,34px)', letterSpacing: 3, color: 'rgba(255,120,110,0.9)', animation: 'vm-void-pulse 1.05s ease-in-out infinite' }}>
+                ვოიდი მოდის!
+              </div>
+            </>
+          )}
+          {hud.voidPhase === 'sweep' && (
+            <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 900, fontSize: 'min(9vw,40px)', letterSpacing: 8, color: 'rgba(120,0,0,0.55)', animation: 'vm-void-pulse 0.5s ease-in-out infinite' }}>
+              ▓▓▓
+            </div>
+          )}
         </div>
       )}
 
