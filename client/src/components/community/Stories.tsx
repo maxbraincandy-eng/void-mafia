@@ -88,6 +88,74 @@ function Avatar({ avatar, avatarUrl, size }: { avatar: string; avatarUrl: string
     : <div className="flex items-center justify-center rounded-full text-white/80" style={{ width: size, height: size, fontSize: size * 0.5, background: 'linear-gradient(135deg,rgba(255,0,128,.5),rgba(138,43,226,.5))' }}>{avatar}</div>;
 }
 
+// ── Story music player (YouTube IFrame API singleton) ─────────────────
+// A raw <iframe autoplay> won't play: browsers block autoplay-with-sound
+// and YouTube pauses players it thinks are off-screen. So we drive a real
+// IFrame-API player (like the DJ booth) kept on-screen but visually hidden.
+function _loadStoryYTApi(): Promise<void> {
+  return new Promise(resolve => {
+    const w = window as any;
+    if (w.YT?.Player) { resolve(); return; }
+    if (!document.getElementById('vm-yt-iframe-api')) {
+      const s = document.createElement('script');
+      s.id = 'vm-yt-iframe-api';
+      s.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(s);
+    }
+    // Poll for readiness rather than hijacking the global onYouTubeIframeAPIReady
+    // callback (VirtualSpace's DJ player also uses it).
+    const iv = setInterval(() => { if (w.YT?.Player) { clearInterval(iv); resolve(); } }, 100);
+    setTimeout(() => { clearInterval(iv); resolve(); }, 8000);
+  });
+}
+
+let _storyYT: any = null;
+let _storyYTReady = false;
+let _storyYTPending: string | null = null;
+
+function _ensureStoryPlayer() {
+  if (_storyYT) return;
+  let div = document.getElementById('vm-story-music');
+  if (!div) {
+    div = document.createElement('div');
+    div.id = 'vm-story-music';
+    // On-screen (so YouTube considers it visible) but essentially invisible.
+    div.style.cssText = 'position:fixed;bottom:0;right:0;width:120px;height:80px;opacity:0.001;pointer-events:none;z-index:0;';
+    document.body.appendChild(div);
+  }
+  _loadStoryYTApi().then(() => {
+    const w = window as any;
+    if (!w.YT?.Player) return;
+    _storyYT = new w.YT.Player(div, {
+      width: 120, height: 80,
+      playerVars: { autoplay: 1, controls: 0, rel: 0, playsinline: 1 },
+      events: {
+        onReady: () => {
+          _storyYTReady = true;
+          if (_storyYTPending) { const v = _storyYTPending; _storyYTPending = null; storyMusicPlay(v); }
+        },
+        onStateChange: (e: { data: number }) => {
+          // Loop the track while the story stays open (0 === ENDED).
+          if (e.data === 0) { try { _storyYT?.seekTo?.(0, true); _storyYT?.playVideo?.(); } catch { /* ignore */ } }
+        },
+      },
+    });
+  });
+}
+
+function storyMusicPlay(videoId: string) {
+  _ensureStoryPlayer();
+  if (!_storyYTReady || !_storyYT) { _storyYTPending = videoId; return; }
+  try {
+    _storyYT.loadVideoById({ videoId });
+    _storyYT.setVolume?.(100);
+    _storyYT.playVideo?.();
+  } catch { /* ignore */ }
+}
+function storyMusicResume() { try { _storyYT?.playVideo?.(); } catch { /* ignore */ } }
+function storyMusicPause() { try { _storyYT?.pauseVideo?.(); } catch { /* ignore */ } }
+function storyMusicStop() { _storyYTPending = null; try { _storyYT?.stopVideo?.(); } catch { /* ignore */ } }
+
 // ── Story viewer (full-screen, Instagram-style) ───────────────────────
 function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDeleted, markSeen }: {
   groups: StoryGroup[]; startIndex: number; onClose: () => void;
@@ -184,20 +252,31 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
     return () => { socket.off('community:story_reacted', onReacted); };
   }, [story?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Music playback — hidden YouTube iframe for stories with music.
-  const musicFrameRef = useRef<HTMLIFrameElement | null>(null);
+  // Music playback — YouTube IFrame-API player (see singleton above).
   useEffect(() => {
     const vid = story?.musicVideoId;
-    if (musicFrameRef.current) { musicFrameRef.current.remove(); musicFrameRef.current = null; }
-    if (!vid) return;
-    const iframe = document.createElement('iframe');
-    iframe.src = `https://www.youtube.com/embed/${vid}?autoplay=1&loop=1&playlist=${vid}&controls=0&showinfo=0&modestbranding=1&enablejsapi=1`;
-    iframe.allow = 'autoplay';
-    iframe.style.cssText = 'position:fixed;width:1px;height:1px;left:-9999px;top:-9999px;opacity:0;pointer-events:none;';
-    document.body.appendChild(iframe);
-    musicFrameRef.current = iframe;
-    return () => { iframe.remove(); musicFrameRef.current = null; };
+    if (!vid) { storyMusicStop(); return; }
+    storyMusicPlay(vid);
+    // Autoplay-with-sound is blocked on mobile until a user gesture; retry on
+    // the first tap anywhere in the viewer so the track kicks in immediately.
+    const retry = () => { storyMusicResume(); };
+    const opts = { capture: true, passive: true } as AddEventListenerOptions;
+    window.addEventListener('pointerdown', retry, opts);
+    window.addEventListener('touchstart', retry, opts);
+    return () => {
+      window.removeEventListener('pointerdown', retry, opts);
+      window.removeEventListener('touchstart', retry, opts);
+    };
   }, [story?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Stop the music when the viewer closes.
+  useEffect(() => () => { storyMusicStop(); }, []);
+
+  // Pause the music while the story is held (press & hold), resume on release.
+  useEffect(() => {
+    if (!story?.musicVideoId) return;
+    if (paused) storyMusicPause(); else storyMusicResume();
+  }, [paused, story?.musicVideoId]);
 
   // Float a little burst of the reacted emoji up the screen (Instagram-style).
   const burst = (emoji: string) => {
