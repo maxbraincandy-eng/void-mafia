@@ -453,6 +453,36 @@ _spaceMeta.set('beach', {
   code: 'WAVEFIRE', createdAt: Date.now(), persistent: true,
 });
 
+// ── Backrooms (3D horror mode) ────────────────────────────────────────
+// Phase 2: multiplayer presence. Each instance is a shared procedural world
+// keyed by a numeric `seed` so every player in it sees the same maze. State
+// is ephemeral (in-memory) — the world itself is regenerated client-side.
+interface BackroomsPlayer {
+  socketId: string; name: string; profileId: string | null;
+  x: number; y: number; z: number; ry: number; fl: boolean;
+}
+interface BackroomsInstance { id: string; name: string; seed: number; maxPlayers: number; }
+const _backrooms = new Map<string, Map<string, BackroomsPlayer>>();  // instanceId → players
+const _backroomsMeta = new Map<string, BackroomsInstance>();
+const BACKROOMS_MAX = 16;
+// Seed a few always-on public instances so players can regroup on the same map.
+[
+  { id: 'level0',  name: 'LEVEL 0 · THE HUB',   seed: 1337 },
+  { id: 'level0n', name: 'LEVEL 0 · NIGHTSHIFT', seed: 90210 },
+  { id: 'level0d', name: 'LEVEL 0 · DEEP',       seed: 44921 },
+].forEach(i => _backroomsMeta.set(i.id, { ...i, maxPlayers: BACKROOMS_MAX }));
+
+function _leaveBackrooms(sid: string, io: AppServer): void {
+  for (const [instanceId, room] of _backrooms) {
+    if (room.has(sid)) {
+      room.delete(sid);
+      io.to(`backrooms:${instanceId}`).emit('backrooms:player-left' as any, { socketId: sid });
+      if (room.size === 0) _backrooms.delete(instanceId);
+      return;
+    }
+  }
+}
+
 // ── Space furniture (owner-built lounges) ─────────────────────────────
 interface SpaceFurnitureItem { id: string; kind: string; x: number; y: number; scale: number; flip: boolean }
 const SPACE_FURNITURE_KINDS = new Set([
@@ -7184,6 +7214,61 @@ export function attachSocketHandlers(io: AppServer): void {
 
     socket.on('space:leave', () => { _leaveSpace(socket.id, io); });
 
+    // ── Backrooms (3D horror mode) — Phase 2 multiplayer presence ──────
+    socket.on('backrooms:list' as any, (cb: Function) => {
+      const list = [...
+        _backroomsMeta.values()].map(m => ({
+          id: m.id, name: m.name, seed: m.seed, maxPlayers: m.maxPlayers,
+          count: _backrooms.get(m.id)?.size ?? 0,
+        }));
+      cb?.({ ok: true, data: list });
+    });
+
+    socket.on('backrooms:join' as any, ({ instanceId, name }: any, cb: Function) => {
+      try {
+        const id = String(instanceId ?? '').slice(0, 32).replace(/[^a-zA-Z0-9_-]/g, '');
+        const meta = _backroomsMeta.get(id);
+        if (!meta) return cb?.({ ok: false, error: 'ეს ინსტანსი აღარ არსებობს.' });
+        const safeName = String(name ?? 'Lost').slice(0, 24) || 'Lost';
+        // Leave any other instance first (single presence).
+        _leaveBackrooms(socket.id, io);
+        const room = _backrooms.get(id) ?? new Map<string, BackroomsPlayer>();
+        if (!_backrooms.has(id)) _backrooms.set(id, room);
+        if (!room.has(socket.id) && room.size >= meta.maxPlayers) {
+          return cb?.({ ok: false, error: 'ინსტანსი სავსეა.' });
+        }
+        const player: BackroomsPlayer = {
+          socketId: socket.id, name: safeName, profileId: socket.data.profileId ?? null,
+          x: 0, y: 1.6, z: 0, ry: 0, fl: true,
+        };
+        room.set(socket.id, player);
+        socket.join(`backrooms:${id}`);
+        socket.to(`backrooms:${id}`).emit('backrooms:player-joined' as any, player);
+        cb?.({ ok: true, data: {
+          seed: meta.seed, name: meta.name, mySocketId: socket.id,
+          players: [...room.values()],
+        } });
+      } catch { cb?.({ ok: false, error: 'Internal error' }); }
+    });
+
+    // High-frequency position update (client throttles to ~10Hz).
+    socket.on('backrooms:move' as any, ({ x, y, z, ry, fl }: any) => {
+      if (typeof x !== 'number' || typeof z !== 'number') return;
+      for (const [instanceId, room] of _backrooms) {
+        const p = room.get(socket.id);
+        if (!p) continue;
+        p.x = x; p.y = typeof y === 'number' ? y : p.y; p.z = z;
+        p.ry = typeof ry === 'number' ? ry : p.ry;
+        p.fl = !!fl;
+        socket.to(`backrooms:${instanceId}`).emit('backrooms:player-moved' as any, {
+          socketId: socket.id, x: p.x, y: p.y, z: p.z, ry: p.ry, fl: p.fl,
+        });
+        return;
+      }
+    });
+
+    socket.on('backrooms:leave' as any, () => { _leaveBackrooms(socket.id, io); });
+
     // ── Virtual Space DJ ──────────────────────────────────────────────
     socket.on('space:dj-play', ({ videoId, position = 0 }: any) => {
       const vid = String(videoId ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20);
@@ -7470,6 +7555,7 @@ export function attachSocketHandlers(io: AppServer): void {
       if (roomId && playerId) handlePlayerLeave(io, socket, roomId, playerId);
       _leaveSpace(socket.id, io);
       _leaveSpaceVoice(socket.id, io);
+      _leaveBackrooms(socket.id, io);
       handleVoiceLeave(io, socket.id);
       handleLoungeLeave(io, socket);
       handleCheckersDisconnect(io, socket.id);

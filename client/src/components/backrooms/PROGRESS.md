@@ -13,8 +13,8 @@ break existing systems.
 | Phase | Status | Deliverable |
 |-------|--------|-------------|
 | **1** | ✅ **DONE (v309)** | 3D foundation: Three.js first-person engine, procedural endless world, mobile + desktop controls, flashlight/battery, fog + lights + textures, ambient audio, minimal HUD. Single-player. |
-| **2** | ⏳ next | Multiplayer presence: `backrooms:*` socket handlers, shared world seed, other players as avatars, instance list. |
-| **3** | ⏳ | Spatial voice: reuse LiveKit/mesh (`useSpaceVoice` pattern) with distance attenuation + wall muffling (lowpass) + hallway echo. |
+| **2** | ✅ **DONE (v310)** | Multiplayer presence: `backrooms:*` socket handlers, per-instance shared world seed, instance lobby, remote players rendered as murky capsules + name sprites + head-lamp, ~10Hz position sync with client-side interpolation. |
+| **3** | ⏳ next | Spatial voice: reuse LiveKit/mesh (`useSpaceVoice` pattern) with distance attenuation + wall muffling (lowpass) + hallway echo. |
 | **4** | ⏳ | Dynamic events + positional horror audio: light flicker, blackout, footsteps, whispers, heartbeat, buzzing, door slams. |
 | **5** | ⏳ | **VOID IS COMING / ვოიდი მოდის** cinematic global event: warning text, darkening, bass, whispers, black fog swallowing corridors, caught players teleport-scatter respawn (server-coordinated). |
 | **6** | ⏳ | Rare discoveries (cafeteria, red halls, silent library, server room, mirror hallway, endless staircase, black room) + environmental clues/notes. |
@@ -40,17 +40,35 @@ around the player is drawn with two `InstancedMesh`es (pillars, walls) and
 recentred when the player crosses a cell (`rebuildWindow`). Collision uses the
 same window's AABB list (`moveWithCollision`, circle-vs-AABB slide).
 
-## Phase 2 starting point (next session)
+## Phase 2 — what shipped (v310)
 
-1. Server: add `backrooms:*` handlers in `server/src/socket.ts`, mirroring the
-   `space:*` room pattern (`join`, `move`/`player-moved`, `player-joined/left`,
-   instance list). Reuse the existing space room bookkeeping helpers.
-2. World seed: pass a per-instance `seed` into `BackroomsEngine` and fold it
-   into `hash3` so every player in an instance sees the same maze.
-3. Client: broadcast local position (throttled ~10Hz) and render remote
-   players as simple lit capsules + name sprites in the engine (add a
-   `setRemotePlayers()` method).
-4. Games tab: turn the single "შესვლა" button into an instance list
-   (create/join), like the other games' match lists.
+- **Server** (`server/src/socket.ts`): `BackroomsPlayer`/`BackroomsInstance`
+  types, `_backrooms` (instanceId→players) + `_backroomsMeta` maps, 3 seeded
+  persistent public instances, `_leaveBackrooms()` wired into `disconnect`,
+  and handlers `backrooms:list` / `backrooms:join` / `backrooms:move` /
+  `backrooms:leave` (broadcasting `player-joined/left/moved`). All via
+  `as any` casts — no `types/index.ts` changes.
+- **engine.ts**: `worldSeed` folded into `hash3` (per-instance maze),
+  `getNetState()`, `setRemotePlayers()` with murky capsule + name sprite +
+  head-lamp avatars, smoothed interpolation (`updateRemotes`), safe cell-center
+  spawn with jitter.
+- **Backrooms.tsx**: split into `Lobby` (instance list) → `World` (join +
+  socket wiring + 10Hz `backrooms:move` emit + remote push straight to engine,
+  never React state). Back-to-lobby (🚪) and close (✕) both emit `leave`.
 
-Keep Phase 1 behaviour identical for the single-player/solo path.
+## Phase 3 starting point (next session) — Spatial voice
+
+1. Study `client/src/hooks/useSpaceVoice.ts` + `useLivekitVoice.ts` for the
+   existing proximity-voice model (LiveKit tracks + WebRTC mesh fallback).
+2. Add a voice room per Backrooms instance. Attenuate each remote peer's gain
+   by 3D distance (use engine local pos vs remote pos — expose a
+   `getPeerDistance(socketId)` or feed positions to the voice layer).
+3. Muffle through walls: a `BiquadFilter` lowpass whose cutoff drops when a
+   wall AABB sits between listener and speaker (raycast the collider list).
+4. Hallway echo: a shared `ConvolverNode`/feedback-delay send, wetter at range.
+5. Wire a mic toggle button into the World HUD.
+
+Do NOT touch existing voice hooks' behaviour for other modes — add a
+Backrooms-specific hook/path.
+
+Keep Phase 1/2 behaviour identical.

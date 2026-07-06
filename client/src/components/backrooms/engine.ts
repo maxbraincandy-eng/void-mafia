@@ -19,6 +19,17 @@ export interface HudState {
   z: number;
 }
 
+export interface NetState { x: number; y: number; z: number; ry: number; fl: boolean; }
+export interface RemotePlayerState { socketId: string; name: string; x: number; y: number; z: number; ry: number; fl: boolean; }
+
+interface RemoteAvatar {
+  group: THREE.Group;
+  lamp: THREE.Mesh;
+  target: { x: number; y: number; z: number; ry: number; fl: boolean };
+  cur: { x: number; y: number; z: number; ry: number };
+  name: string;
+}
+
 // ── Tunables ──────────────────────────────────────────────────────────
 const CELL = 6;            // lattice spacing (metres)
 const WALL_H = 3.0;        // ceiling height
@@ -83,7 +94,15 @@ export class BackroomsEngine {
 
   private textures: THREE.Texture[] = [];
 
-  constructor(canvas: HTMLCanvasElement) {
+  // Multiplayer
+  private worldSeed = 0;
+  private remotes = new Map<string, RemoteAvatar>();
+
+  constructor(canvas: HTMLCanvasElement, seed = 0) {
+    this.worldSeed = (seed | 0);
+    // Spawn in the open middle of a cell (never inside a corner pillar), with a
+    // small jitter so co-spawning players don't stack exactly on top of each other.
+    this.pos.set(CELL / 2 + (Math.random() - 0.5) * 2.5, EYE, CELL / 2 + (Math.random() - 0.5) * 2.5);
     this.canvas = canvas;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -106,6 +125,89 @@ export class BackroomsEngine {
   toggleFlashlight() { if (this.battery > 0.001) this.flashOn = !this.flashOn; }
   setFlashlight(on: boolean) { if (on && this.battery <= 0.001) return; this.flashOn = on; }
   addBattery(amount: number) { this.battery = Math.min(1, this.battery + amount); }
+
+  getNetState(): NetState {
+    return { x: this.pos.x, y: this.pos.y, z: this.pos.z, ry: this.yaw, fl: this.flashOn && this.battery > 0 };
+  }
+
+  // Reconcile the set of remote avatars against the server's player list.
+  setRemotePlayers(players: RemotePlayerState[]) {
+    const seen = new Set<string>();
+    for (const p of players) {
+      seen.add(p.socketId);
+      let a = this.remotes.get(p.socketId);
+      if (!a) { a = this.makeRemoteAvatar(p.name); this.remotes.set(p.socketId, a); this.scene.add(a.group); }
+      a.target = { x: p.x, y: p.y, z: p.z, ry: p.ry, fl: p.fl };
+    }
+    // Remove avatars that left.
+    for (const [id, a] of this.remotes) {
+      if (seen.has(id)) continue;
+      this.scene.remove(a.group);
+      a.group.traverse(o => {
+        const m = o as THREE.Mesh;
+        if (m.geometry) m.geometry.dispose();
+        const mat = m.material as any; if (mat?.map) mat.map.dispose?.(); mat?.dispose?.();
+      });
+      this.remotes.delete(id);
+    }
+  }
+
+  private makeRemoteAvatar(name: string): RemoteAvatar {
+    const group = new THREE.Group();
+    // Body — a dim humanoid capsule; deliberately murky so it reads as
+    // "is that a player… or something else?" in the fog.
+    const body = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.3, 1.0, 4, 8),
+      new THREE.MeshLambertMaterial({ color: 0x2a2a30, emissive: 0x0a0a10, emissiveIntensity: 0.6 }),
+    );
+    body.position.y = 0.8;
+    group.add(body);
+    // Head lamp (glows when their flashlight is on).
+    const lamp = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xfff3c0 }),
+    );
+    lamp.position.set(0, 1.45, -0.28);
+    group.add(lamp);
+    // Name sprite floating above.
+    const sprite = this.makeNameSprite(name);
+    sprite.position.set(0, 2.05, 0);
+    group.add(sprite);
+    return { group, lamp, name, target: { x: 0, y: 1.6, z: 0, ry: 0, fl: false }, cur: { x: 0, y: 1.6, z: 0, ry: 0 } };
+  }
+
+  private makeNameSprite(name: string): THREE.Sprite {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+    const g = c.getContext('2d')!;
+    g.font = 'bold 30px monospace';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(0, 14, 256, 36);
+    g.fillStyle = 'rgba(255,245,210,0.9)';
+    g.fillText(name.slice(0, 14), 128, 33);
+    const tex = new THREE.CanvasTexture(c);
+    this.textures.push(tex);
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+    spr.scale.set(1.6, 0.4, 1);
+    return spr;
+  }
+
+  private updateRemotes(dt: number) {
+    const k = Math.min(1, dt * 10); // smoothing toward target
+    for (const a of this.remotes.values()) {
+      a.cur.x += (a.target.x - a.cur.x) * k;
+      a.cur.y += (a.target.y - a.cur.y) * k;
+      a.cur.z += (a.target.z - a.cur.z) * k;
+      // shortest-arc yaw lerp
+      let dry = a.target.ry - a.cur.ry;
+      while (dry > Math.PI) dry -= Math.PI * 2;
+      while (dry < -Math.PI) dry += Math.PI * 2;
+      a.cur.ry += dry * k;
+      a.group.position.set(a.cur.x, a.cur.y - EYE, a.cur.z); // feet on floor
+      a.group.rotation.y = a.cur.ry;
+      (a.lamp.material as THREE.MeshBasicMaterial).opacity = a.target.fl ? 1 : 0.12;
+      a.lamp.visible = true;
+    }
+  }
 
   start() {
     this.startAudio();
@@ -274,7 +376,7 @@ export class BackroomsEngine {
         colliders.push({ cx: wx, cz: wz, hx: PHALF, hz: PHALF });
 
         // wall panel toward +X neighbour (runs along X)
-        if (hash3(cx, cz, 11) < WALL_DENSITY) {
+        if (hash3(cx, cz, 11 + this.worldSeed) < WALL_DENSITY) {
           const mx = wx + CELL / 2, mz = wz;
           dummy.position.set(mx, WALL_H / 2, mz);
           dummy.scale.set(CELL - PHALF * 2, 1, WALL_THICK);
@@ -283,7 +385,7 @@ export class BackroomsEngine {
           colliders.push({ cx: mx, cz: mz, hx: (CELL - PHALF * 2) / 2, hz: WALL_THICK / 2 });
         }
         // wall panel toward +Z neighbour (runs along Z)
-        if (hash3(cx, cz, 23) < WALL_DENSITY) {
+        if (hash3(cx, cz, 23 + this.worldSeed) < WALL_DENSITY) {
           const mx = wx, mz = wz + CELL / 2;
           dummy.position.set(mx, WALL_H / 2, mz);
           dummy.scale.set(WALL_THICK, 1, CELL - PHALF * 2);
@@ -355,6 +457,9 @@ export class BackroomsEngine {
 
     // Fluorescent light pool → nearest ceiling lattice points
     this.updateLightPool();
+
+    // Remote players (smoothed toward last network position)
+    this.updateRemotes(dt);
 
     // HUD ~5×/s
     this.hudAccum += dt;
