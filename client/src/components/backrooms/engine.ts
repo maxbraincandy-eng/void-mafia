@@ -31,6 +31,9 @@ export interface RemotePlayerState { socketId: string; name: string; x: number; 
 interface RemoteAvatar {
   group: THREE.Group;
   lamp: THREE.Mesh;
+  gestureSprite: THREE.Sprite;
+  gestureUntil: number;
+  signalUntil: number;
   target: { x: number; y: number; z: number; ry: number; fl: boolean };
   cur: { x: number; y: number; z: number; ry: number };
   name: string;
@@ -95,6 +98,15 @@ const CLUE_NOTES = [
 ];
 function clueAt(cellX: number, cellZ: number, seed: number): boolean {
   return hash3(cellX, cellZ, seed + 1234) < CLUE_DENSITY;
+}
+
+// Is the open square whose min-corner pillar is (cx,cz) walled on all 4 sides?
+// (Used to avoid spawning inside a sealed pocket.)
+function cellSealed(cx: number, cz: number, seed: number): boolean {
+  return hash3(cx, cz, 11 + seed) < WALL_DENSITY       // bottom edge (+X panel at row cz)
+    && hash3(cx, cz + 1, 11 + seed) < WALL_DENSITY      // top edge (+X panel at row cz+1)
+    && hash3(cx, cz, 23 + seed) < WALL_DENSITY          // left edge (+Z panel at col cx)
+    && hash3(cx + 1, cz, 23 + seed) < WALL_DENSITY;     // right edge (+Z panel at col cx+1)
 }
 function noteFor(cellX: number, cellZ: number, seed: number): string {
   return CLUE_NOTES[Math.floor(hash3(cellX, cellZ, seed + 4321) * CLUE_NOTES.length) % CLUE_NOTES.length];
@@ -182,6 +194,12 @@ export class BackroomsEngine {
   private nearClue = false;
   private _tmpCol = new THREE.Color();
 
+  // Polish / perf
+  private shake = 0;
+  private perfAccum = 0;
+  private perfFrames = 0;
+  private curPR = 1;
+
   // Ambient audio
   private audioCtx: AudioContext | null = null;
   private audioNodes: { stop: () => void } | null = null;
@@ -195,12 +213,21 @@ export class BackroomsEngine {
 
   constructor(canvas: HTMLCanvasElement, seed = 0) {
     this.worldSeed = (seed | 0);
-    // Spawn in the open middle of a cell (never inside a corner pillar), with a
-    // small jitter so co-spawning players don't stack exactly on top of each other.
-    this.pos.set(CELL / 2 + (Math.random() - 0.5) * 2.5, EYE, CELL / 2 + (Math.random() - 0.5) * 2.5);
+    // Spawn in the open middle of a cell that isn't a sealed pocket (scan a
+    // small spiral out from the origin), with a little jitter so co-spawning
+    // players don't stack exactly on top of each other.
+    let scx = 0, scz = 0;
+    scan: for (let r = 0; r <= 8; r++) {
+      for (let a = -r; a <= r; a++) for (let b = -r; b <= r; b++) {
+        if (Math.max(Math.abs(a), Math.abs(b)) !== r) continue;
+        if (!cellSealed(a, b, this.worldSeed)) { scx = a; scz = b; break scan; }
+      }
+    }
+    this.pos.set(scx * CELL + CELL / 2 + (Math.random() - 0.5) * 1.6, EYE, scz * CELL + CELL / 2 + (Math.random() - 0.5) * 1.6);
     this.canvas = canvas;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.curPR = Math.min(window.devicePixelRatio || 1, 2);
+    this.renderer.setPixelRatio(this.curPR);
     this.renderer.setClearColor(0x0a0a06, 1);
 
     this.scene = new THREE.Scene();
@@ -287,7 +314,7 @@ export class BackroomsEngine {
     // Head lamp (glows when their flashlight is on).
     const lamp = new THREE.Mesh(
       new THREE.SphereGeometry(0.08, 8, 8),
-      new THREE.MeshBasicMaterial({ color: 0xfff3c0 }),
+      new THREE.MeshBasicMaterial({ color: 0xfff3c0, transparent: true }),
     );
     lamp.position.set(0, 1.45, -0.28);
     group.add(lamp);
@@ -295,7 +322,37 @@ export class BackroomsEngine {
     const sprite = this.makeNameSprite(name);
     sprite.position.set(0, 2.05, 0);
     group.add(sprite);
-    return { group, lamp, name, target: { x: 0, y: 1.6, z: 0, ry: 0, fl: false }, cur: { x: 0, y: 1.6, z: 0, ry: 0 } };
+    // Gesture sprite (wave/point emoji), hidden until a gesture arrives.
+    const gestureSprite = new THREE.Sprite(new THREE.SpriteMaterial({ depthTest: false, transparent: true }));
+    gestureSprite.scale.set(0.7, 0.7, 1);
+    gestureSprite.position.set(0, 2.45, 0);
+    gestureSprite.visible = false;
+    group.add(gestureSprite);
+    return { group, lamp, gestureSprite, gestureUntil: 0, signalUntil: 0, name, target: { x: 0, y: 1.6, z: 0, ry: 0, fl: false }, cur: { x: 0, y: 1.6, z: 0, ry: 0 } };
+  }
+
+  private makeEmojiTexture(emoji: string): THREE.Texture {
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const g = c.getContext('2d')!;
+    g.font = '48px serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(emoji, 32, 36);
+    const tex = new THREE.CanvasTexture(c);
+    this.textures.push(tex);
+    return tex;
+  }
+
+  // A remote player waved / pointed / flashed their light.
+  remoteGesture(socketId: string, kind: string) {
+    const a = this.remotes.get(socketId); if (!a) return;
+    const now = performance.now();
+    if (kind === 'signal') { a.signalUntil = now + 1800; return; }
+    const emoji = kind === 'point' ? '👉' : '👋';
+    const mat = a.gestureSprite.material as THREE.SpriteMaterial;
+    mat.map?.dispose();
+    mat.map = this.makeEmojiTexture(emoji);
+    mat.needsUpdate = true;
+    a.gestureSprite.visible = true;
+    a.gestureUntil = now + 2600;
   }
 
   private makeNameSprite(name: string): THREE.Sprite {
@@ -328,11 +385,17 @@ export class BackroomsEngine {
       a.cur.ry += dry * k;
       a.group.position.set(a.cur.x, a.cur.y - EYE, a.cur.z); // feet on floor
       a.group.rotation.y = a.cur.ry;
-      (a.lamp.material as THREE.MeshBasicMaterial).opacity = a.target.fl ? 1 : 0.12;
+      const now = performance.now();
+      // Flashlight-signal blink overrides normal lamp opacity.
+      const signaling = now < a.signalUntil;
+      const lampMat = a.lamp.material as THREE.MeshBasicMaterial;
+      lampMat.opacity = signaling ? (Math.sin(now / 60) > 0 ? 1 : 0.1) : (a.target.fl ? 1 : 0.12);
       a.lamp.visible = true;
       // A talking player's head-lamp pulses so you can see who's speaking.
-      const talk = this.speaking.has(id) ? 1.35 + Math.sin(performance.now() / 90) * 0.35 : 1;
+      const talk = this.speaking.has(id) ? 1.35 + Math.sin(now / 90) * 0.35 : 1;
       a.lamp.scale.setScalar(talk);
+      // Gesture emoji fades out.
+      if (a.gestureSprite.visible && now > a.gestureUntil) a.gestureSprite.visible = false;
     }
   }
 
@@ -681,7 +744,35 @@ export class BackroomsEngine {
       this.onHud?.({ battery: this.battery, flashlightOn: this.flashOn, level: 'LEVEL 0', x: this.pos.x, z: this.pos.z, event: this.activeEvent, voidPhase: this.voidPhase, region: this.curRegion, nearClue: this.nearClue });
     }
 
+    // Adaptive resolution: drop pixel ratio if FPS sags, restore when it recovers.
+    this.perfAccum += dt; this.perfFrames++;
+    if (this.perfAccum >= 1) {
+      const fps = this.perfFrames / this.perfAccum;
+      const maxPR = Math.min(window.devicePixelRatio || 1, 2);
+      if (fps < 45 && this.curPR > 0.72) { this.curPR = Math.max(0.7, this.curPR - 0.15); this.renderer.setPixelRatio(this.curPR); this.resize(); }
+      else if (fps > 57 && this.curPR < maxPR) { this.curPR = Math.min(maxPR, this.curPR + 0.1); this.renderer.setPixelRatio(this.curPR); this.resize(); }
+      this.perfAccum = 0; this.perfFrames = 0;
+    }
+
+    // Camera shake during dangerous events (temporary per-frame offset).
+    this.applyShake(dt);
+
     this.renderer.render(this.scene, this.camera);
+  }
+
+  private applyShake(dt: number) {
+    const now = performance.now();
+    let target = 0;
+    if (now < this.blackoutUntil) target = 0.012;
+    if (this.voidPhase === 'warning') target = Math.max(target, 0.006 + this.voidLevel * 0.02);
+    if (this.voidPhase === 'sweep') target = 0.055;
+    this.shake += (target - this.shake) * Math.min(1, dt * 6);
+    if (this.shake < 0.0006) return;
+    const s = this.shake;
+    this.camera.rotation.x += (Math.random() - 0.5) * s;
+    this.camera.rotation.y += (Math.random() - 0.5) * s;
+    this.camera.position.x += (Math.random() - 0.5) * s * 2;
+    this.camera.position.y += (Math.random() - 0.5) * s * 2;
   }
 
   private moveWithCollision(stepX: number, stepZ: number) {

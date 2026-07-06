@@ -133,10 +133,14 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
     const onEvent = (ev: { kind: string; duration?: number; sound?: string; x?: number; z?: number }) => {
       engineRef.current?.triggerEvent(ev);
     };
+    const onGesture = ({ socketId, kind }: { socketId: string; kind: string }) => {
+      engineRef.current?.remoteGesture(socketId, kind);
+    };
     socket.on('backrooms:player-joined', onJoined);
     socket.on('backrooms:player-left', onLeft);
     socket.on('backrooms:player-moved', onMoved);
     socket.on('backrooms:event', onEvent);
+    socket.on('backrooms:gesture', onGesture);
 
     emitWithAck<{ instanceId: string; name: string }, { ok: boolean; data?: JoinData; error?: string }>(
       'backrooms:join', { instanceId, name: useAuthStore.getState().profile?.username ?? 'Lost' },
@@ -188,6 +192,7 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
       socket.off('backrooms:player-left', onLeft);
       socket.off('backrooms:player-moved', onMoved);
       socket.off('backrooms:event', onEvent);
+      socket.off('backrooms:gesture', onGesture);
       leaveBackroomsVoice();
       socket.emit('backrooms:leave');
       window.removeEventListener('resize', onResize);
@@ -292,6 +297,20 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
   };
   const onMouseUp = () => { mouseLook.current = null; };
 
+  const sendGesture = (kind: string) => {
+    if (socket.connected) socket.emit('backrooms:gesture', { kind });
+    if (kind === 'signal') { // blink my own flashlight so nearby players see the light too
+      const e = engineRef.current; if (!e) return;
+      e.setFlashlight(false); setTimeout(() => e.setFlashlight(true), 140);
+    }
+  };
+  const gbtn = (label: string, kind: string) => (
+    <button data-hud-btn onClick={() => sendGesture(kind)}
+      style={{ width: 42, height: 42, borderRadius: '50%', background: 'rgba(10,8,4,0.5)', border: '1px solid rgba(255,240,180,0.18)', color: 'rgba(255,245,210,0.85)', fontSize: 18, backdropFilter: 'blur(4px)' }}>
+      {label}
+    </button>
+  );
+
   const btn = (label: string, on: () => void, opts?: { hold?: boolean; off?: () => void; active?: boolean }) => (
     <button
       data-hud-btn
@@ -318,6 +337,21 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
     >
       <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(0,0,0,0.55) 100%)' }} />
+
+      {/* Film grain */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.06, mixBlendMode: 'overlay',
+        backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+        backgroundSize: '150px 150px', animation: 'vm-grain 0.5s steps(3) infinite',
+      }} />
+
+      {/* Chromatic-aberration fringe (intensifies during danger) */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none', transition: 'box-shadow 0.6s ease',
+        boxShadow: (hud.voidPhase !== 'none' || hud.event === 'blackout')
+          ? 'inset 8px 0 26px rgba(255,0,40,0.18), inset -8px 0 26px rgba(0,220,255,0.18)'
+          : 'inset 3px 0 16px rgba(255,0,40,0.05), inset -3px 0 16px rgba(0,220,255,0.05)',
+      }} />
 
       {/* Blackout: heavy dark + faint red emergency wash. Flicker: subtle wash. */}
       {hud.event === 'blackout' && (
@@ -411,6 +445,15 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
         <button data-hud-btn onClick={onExit} title="ინსტანსები" style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(10,8,4,0.55)', border: '1px solid rgba(255,240,180,0.2)', color: 'rgba(255,245,210,0.85)', fontSize: 15, backdropFilter: 'blur(4px)' }}>🚪</button>
         <button data-hud-btn onClick={onClose} style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(10,8,4,0.55)', border: '1px solid rgba(255,240,180,0.2)', color: 'rgba(255,245,210,0.85)', fontSize: 18, backdropFilter: 'blur(4px)' }}>✕</button>
       </div>
+
+      {/* Social gestures (top-right, below close/lobby) */}
+      {status === 'in' && (
+        <div style={{ position: 'absolute', top: 'max(62px, calc(env(safe-area-inset-top) + 50px))', right: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {gbtn('👋', 'wave')}
+          {gbtn('👉', 'point')}
+          {gbtn('💡', 'signal')}
+        </div>
+      )}
 
       {/* Joystick */}
       {joy.active && (

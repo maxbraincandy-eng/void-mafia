@@ -18,7 +18,7 @@ break existing systems.
 | **4** | ✅ **DONE (v312)** | Dynamic events + positional horror audio: server per-instance scheduler broadcasting synced `backrooms:event`; flicker + blackout (emergency lighting + heartbeat + red wash), procedural positional one-shots (footstep/whisper/buzz/scrape/scream/vent/rumble/slam) anchored near random players. |
 | **5** | ✅ **DONE (v313)** | **VOID IS COMING / ვოიდი მოდის** staged event: server sequence (`void_warning` → `void_sweep` → per-player `void_teleport` → `void_end`), cinematic red pulsing text, tension darkening + deep bass + whispers, black fog swallowing corridors, whole-instance scatter-teleport. |
 | **6** | ✅ **DONE (v314)** | Rare discoveries: deterministic special regions (red halls, black room, server room, silent library, cafeteria, flooded rooms) via greyscale textures + per-instance colour + signature props + flood water; scattered readable clue notes with an interact button + note reader; region-discovery label. |
-| **7** | ⏳ next | Post-processing polish (bloom, film grain, chromatic aberration, camera shake), LOD/occlusion culling, social gestures (wave/point/flashlight signals), mobile FPS tuning, dynamic shadows. |
+| **7** | ✅ **DONE (v315)** | Polish + perf: camera shake (blackout/void), film-grain + chromatic-aberration overlays, adaptive pixel-ratio FPS guard, social gestures (wave/point/flashlight-signal) shown on remote avatars, spawn-connectivity guarantee, Void stale-timer cleanup. |
 
 ## Architecture / integration points
 
@@ -134,17 +134,26 @@ room) instead of always being caught.
 - **Backrooms.tsx**: interact button (✋, appears when `nearClue`) → paper-style
   note reader overlay; subtle region-discovery label (`REGION_NAMES`).
 
-## Phase 7 starting point (next session) — Polish + performance
+## Phase 7 — what shipped (v315) · FEATURE COMPLETE
 
-1. Post-processing: bloom on the ceiling panels/clues, film grain, subtle
-   chromatic aberration, camera shake during blackout/void. Either
-   `EffectComposer` (adds to the chunk) or cheap fullscreen shader/CSS passes.
-2. Perf: cap `setPixelRatio` more aggressively on low-end, consider fewer window
-   cells on small screens, verify InstancedMesh counts; add a simple FPS guard.
-3. Social gestures: wave / point / flashlight-signal (blink) — broadcast a
-   `backrooms:gesture` and show it on remote avatars.
-4. Cleanups: guarantee spawn-cell connectivity (avoid the ~0.8% sealed spawn);
-   track the Void sequence's inner timers so an empty→refill can't fire a stale
-   stage (see Phase 5 note); optional dynamic shadow from the flashlight.
+- **engine.ts**: `applyShake()` camera shake during blackout / Void (eased,
+  per-frame offset, non-accumulating); adaptive resolution — an FPS sampler
+  lowers/raises `renderer.setPixelRatio` between 0.7 and the device cap;
+  spawn-connectivity scan (`cellSealed()` spiral) so you never spawn in a sealed
+  pocket; social gestures on remote avatars (`remoteGesture()` → wave/point
+  emoji sprite + flashlight-signal lamp blink; lamp material made transparent so
+  opacity actually renders).
+- **Backrooms.tsx**: film-grain overlay (`vm-grain`), chromatic-aberration
+  fringe that intensifies during danger, gesture buttons (👋 👉 💡) that emit
+  `backrooms:gesture` (signal also blinks your own flashlight), gesture listener.
+- **socket.ts**: `backrooms:gesture` relay; Void staged-timer tracking
+  (`_backroomsVoidSeq`) cleared on empty so an empty→refill can't fire a stale
+  stage.
 
-Keep Phases 1–6 behaviour identical.
+### Not done (deliberately deferred)
+- True bloom / `EffectComposer` (chunk size + mobile GPU cost vs. the cheap CSS
+  passes chosen). Mirror hallway + endless staircase rare rooms (need geometry
+  the lattice engine doesn't model). Dynamic flashlight shadow (mobile FPS).
+  A "hide from the Void" evade mechanic (currently everyone is caught).
+
+The Backrooms mode (Phases 1–7) is now feature-complete against the proposal.

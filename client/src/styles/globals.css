@@ -504,6 +504,14 @@ html.theme-transitioning body {
   50%      { opacity: 1; }
 }
 
+/* Backrooms film grain shimmer */
+@keyframes vm-grain {
+  0%   { background-position: 0 0; }
+  33%  { background-position: -40px 20px; }
+  66%  { background-position: 30px -30px; }
+  100% { background-position: 0 0; }
+}
+
 /* Backrooms VOID IS COMING: unsettling text throb + glitch */
 @keyframes vm-void-pulse {
   0%, 100% { opacity: 1;    transform: scale(1);     letter-spacing: 6px; }

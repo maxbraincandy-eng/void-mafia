@@ -341,6 +341,7 @@ const _backroomsMeta = new Map();
 const _backroomsVoice = new Map(); // instanceId → Map<socketId, name>
 const _backroomsEventTimers = new Map(); // instanceId → next-event timer
 const _backroomsVoidTimers = new Map(); // instanceId → next VOID timer
+const _backroomsVoidSeq = new Map(); // instanceId → in-flight VOID stage timers
 const BACKROOMS_MAX = 16;
 const BACKROOMS_CELL = 6; // must match the client engine's lattice spacing
 const BACKROOMS_AMBIENT_SOUNDS = ['footstep', 'footstep', 'whisper', 'whisper', 'buzz', 'scrape', 'scream', 'vent', 'rumble'];
@@ -378,6 +379,11 @@ function _leaveBackrooms(sid, io) {
                 if (vt) {
                     clearTimeout(vt);
                     _backroomsVoidTimers.delete(instanceId);
+                }
+                const seq = _backroomsVoidSeq.get(instanceId);
+                if (seq) {
+                    seq.forEach(clearTimeout);
+                    _backroomsVoidSeq.delete(instanceId);
                 }
             }
             return;
@@ -451,15 +457,21 @@ function _runVoidEvent(instanceId, io) {
     const room = _backrooms.get(instanceId);
     if (!room || room.size === 0)
         return;
+    // Track the staged timers so an empty→refill can't fire a stale stage.
+    const prev = _backroomsVoidSeq.get(instanceId);
+    if (prev)
+        prev.forEach(clearTimeout);
+    const seq = [];
+    _backroomsVoidSeq.set(instanceId, seq);
     io.to(`backrooms:${instanceId}`).emit('backrooms:event', { kind: 'void_warning' });
     // Tension builds for ~20s, then the fog sweeps in.
-    setTimeout(() => {
+    seq.push(setTimeout(() => {
         const r2 = _backrooms.get(instanceId);
         if (!r2 || r2.size === 0)
             return;
         io.to(`backrooms:${instanceId}`).emit('backrooms:event', { kind: 'void_sweep' });
         // Scatter everyone shortly after the sweep peaks.
-        setTimeout(() => {
+        seq.push(setTimeout(() => {
             const r3 = _backrooms.get(instanceId);
             if (!r3 || r3.size === 0)
                 return;
@@ -474,12 +486,13 @@ function _runVoidEvent(instanceId, io) {
                 io.to(p.socketId).emit('backrooms:event', { kind: 'void_teleport', x: nx, z: nz });
             }
             // Restore normality a few seconds after the scatter.
-            setTimeout(() => {
+            seq.push(setTimeout(() => {
+                _backroomsVoidSeq.delete(instanceId);
                 if (_backrooms.get(instanceId)?.size)
                     io.to(`backrooms:${instanceId}`).emit('backrooms:event', { kind: 'void_end' });
-            }, 4200);
-        }, 3200);
-    }, 20000);
+            }, 4200));
+        }, 3200));
+    }, 20000));
 }
 const SPACE_FURNITURE_KINDS = new Set([
     'sofa', 'chair', 'plant', 'lamp', 'bar', 'billiard', 'arcade', 'speaker',
@@ -8560,6 +8573,18 @@ export function attachSocketHandlers(io) {
             }
         });
         socket.on('backrooms:leave', () => { _leaveBackrooms(socket.id, io); });
+        // Social gesture (wave / point / flashlight signal) → relay to the instance.
+        socket.on('backrooms:gesture', ({ kind }) => {
+            const k = String(kind ?? '');
+            if (!['wave', 'point', 'signal'].includes(k))
+                return;
+            for (const [instanceId, room] of _backrooms) {
+                if (room.has(socket.id)) {
+                    socket.to(`backrooms:${instanceId}`).emit('backrooms:gesture', { socketId: socket.id, kind: k });
+                    return;
+                }
+            }
+        });
         // ── Backrooms spatial voice (Phase 3) — mesh signaling per instance ─
         socket.on('backrooms:voice-join', (_, cb) => {
             for (const [instanceId, room] of _backrooms) {
