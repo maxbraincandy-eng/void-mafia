@@ -339,7 +339,9 @@ _spaceMeta.set('beach', {
 const _backrooms = new Map(); // instanceId → players
 const _backroomsMeta = new Map();
 const _backroomsVoice = new Map(); // instanceId → Map<socketId, name>
+const _backroomsEventTimers = new Map(); // instanceId → next-event timer
 const BACKROOMS_MAX = 16;
+const BACKROOMS_AMBIENT_SOUNDS = ['footstep', 'footstep', 'whisper', 'whisper', 'buzz', 'scrape', 'scream', 'vent', 'rumble'];
 // Seed a few always-on public instances so players can regroup on the same map.
 [
     { id: 'level0', name: 'LEVEL 0 · THE HUB', seed: 1337 },
@@ -363,11 +365,59 @@ function _leaveBackrooms(sid, io) {
         if (room.has(sid)) {
             room.delete(sid);
             io.to(`backrooms:${instanceId}`).emit('backrooms:player-left', { socketId: sid });
-            if (room.size === 0)
+            if (room.size === 0) {
                 _backrooms.delete(instanceId);
+                const t = _backroomsEventTimers.get(instanceId);
+                if (t) {
+                    clearTimeout(t);
+                    _backroomsEventTimers.delete(instanceId);
+                }
+            }
             return;
         }
     }
+}
+// ── Backrooms dynamic-event scheduler (synced per instance) ────────────
+// Every ~20–45s an instance gets a random event that every client runs in
+// sync: mostly a positional "strange sound" near a random player, sometimes a
+// light flicker, rarely a full blackout. Psychological, not cheap jumpscares.
+function _ensureBackroomsEvents(instanceId, io) {
+    if (_backroomsEventTimers.has(instanceId))
+        return;
+    _scheduleBackroomsEvent(instanceId, io);
+}
+function _scheduleBackroomsEvent(instanceId, io) {
+    const delay = 20000 + Math.floor(Math.random() * 25000);
+    const timer = setTimeout(() => {
+        const room = _backrooms.get(instanceId);
+        if (!room || room.size === 0) {
+            _backroomsEventTimers.delete(instanceId);
+            return;
+        }
+        const r = Math.random();
+        if (r < 0.08) {
+            io.to(`backrooms:${instanceId}`).emit('backrooms:event', { kind: 'blackout', duration: 11000 + Math.floor(Math.random() * 5000) });
+        }
+        else if (r < 0.30) {
+            io.to(`backrooms:${instanceId}`).emit('backrooms:event', { kind: 'flicker', duration: 4500 + Math.floor(Math.random() * 4000) });
+        }
+        else {
+            // Positional sound anchored near a random player (so "was that another
+            // player… or something else?"). World coords are shared across the instance.
+            const players = [...room.values()];
+            const anchor = players[Math.floor(Math.random() * players.length)];
+            const ang = Math.random() * Math.PI * 2;
+            const d = 6 + Math.random() * 16;
+            const sound = BACKROOMS_AMBIENT_SOUNDS[Math.floor(Math.random() * BACKROOMS_AMBIENT_SOUNDS.length)];
+            io.to(`backrooms:${instanceId}`).emit('backrooms:event', {
+                kind: 'ambient', sound,
+                x: anchor.x + Math.cos(ang) * d, z: anchor.z + Math.sin(ang) * d,
+            });
+        }
+        _backroomsEventTimers.delete(instanceId);
+        _scheduleBackroomsEvent(instanceId, io); // reschedule
+    }, delay);
+    _backroomsEventTimers.set(instanceId, timer);
 }
 const SPACE_FURNITURE_KINDS = new Set([
     'sofa', 'chair', 'plant', 'lamp', 'bar', 'billiard', 'arcade', 'speaker',
@@ -8416,6 +8466,7 @@ export function attachSocketHandlers(io) {
                 };
                 room.set(socket.id, player);
                 socket.join(`backrooms:${id}`);
+                _ensureBackroomsEvents(id, io);
                 socket.to(`backrooms:${id}`).emit('backrooms:player-joined', player);
                 cb?.({ ok: true, data: {
                         seed: meta.seed, name: meta.name, mySocketId: socket.id,

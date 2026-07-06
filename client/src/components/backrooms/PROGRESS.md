@@ -15,9 +15,8 @@ break existing systems.
 | **1** | ✅ **DONE (v309)** | 3D foundation: Three.js first-person engine, procedural endless world, mobile + desktop controls, flashlight/battery, fog + lights + textures, ambient audio, minimal HUD. Single-player. |
 | **2** | ✅ **DONE (v310)** | Multiplayer presence: `backrooms:*` socket handlers, per-instance shared world seed, instance lobby, remote players rendered as murky capsules + name sprites + head-lamp, ~10Hz position sync with client-side interpolation. |
 | **3** | ✅ **DONE (v311)** | Spatial voice: `backrooms:voice-*` WebRTC-mesh signaling, Web-Audio spatializer (distance rolloff + stereo pan + wall-muffle lowpass + hallway reverb) with `audio.volume` fallback, engine occlusion raycast, mic button, speaking → head-lamp pulse. |
-| **4** | ⏳ next | Dynamic events + positional horror audio: light flicker, blackout, footsteps, whispers, heartbeat, buzzing, door slams. |
-| **4** | ⏳ | Dynamic events + positional horror audio: light flicker, blackout, footsteps, whispers, heartbeat, buzzing, door slams. |
-| **5** | ⏳ | **VOID IS COMING / ვოიდი მოდის** cinematic global event: warning text, darkening, bass, whispers, black fog swallowing corridors, caught players teleport-scatter respawn (server-coordinated). |
+| **4** | ✅ **DONE (v312)** | Dynamic events + positional horror audio: server per-instance scheduler broadcasting synced `backrooms:event`; flicker + blackout (emergency lighting + heartbeat + red wash), procedural positional one-shots (footstep/whisper/buzz/scrape/scream/vent/rumble/slam) anchored near random players. |
+| **5** | ⏳ next | **VOID IS COMING / ვოიდი მოდის** cinematic global event: warning text, darkening, bass, whispers, black fog swallowing corridors, caught players teleport-scatter respawn (server-coordinated). |
 | **6** | ⏳ | Rare discoveries (cafeteria, red halls, silent library, server room, mirror hallway, endless staircase, black room) + environmental clues/notes. |
 | **7** | ⏳ | Post-processing polish (bloom, film grain, chromatic aberration, camera shake), LOD/occlusion culling, social gestures (wave/point/flashlight signals), mobile FPS tuning, dynamic shadows. |
 
@@ -83,17 +82,35 @@ same window's AABB list (`moveWithCollision`, circle-vs-AABB slide).
 Note: voice is a WebRTC **mesh** (O(n²)); fine for the 16-cap instances but a
 LiveKit-SFU migration is a candidate for the Phase 7 perf pass.
 
-## Phase 4 starting point (next session) — Dynamic events + horror audio
+## Phase 4 — what shipped (v312)
 
-1. Server: a per-instance event scheduler (e.g. every ~45–90s pick an event),
-   broadcast `backrooms:event { kind, seed, at }` to the instance so all
-   clients run it in sync. Kinds: `flicker`, `blackout`, `ambient` (positional
-   one-shot sound), later `void` (Phase 5).
-2. Engine: event hooks — dim/kill the light pool + flashlight flicker for
-   `flicker`/`blackout`; spawn positional WebAudio one-shots (footsteps,
-   whispers, buzzing, door slam, metal scrape) via a small sample/synth bank;
-   heartbeat bed during dangerous events.
-3. Client HUD: subtle reaction (screen darken, grain bump) — keep it
-   psychological, no cheap jumpscares.
+- **Server** (`socket.ts`): `_backroomsEventTimers` + `_ensureBackroomsEvents` /
+  `_scheduleBackroomsEvent` — per-instance loop firing every ~20–45s. Weighted:
+  ~62% positional `ambient` sound anchored near a random player (shared world
+  coords), ~22% `flicker`, ~8% `blackout`. Started on join, torn down when the
+  instance empties.
+- **engine.ts**: `triggerEvent()`, `updateEventLighting()` (flicker stutter /
+  blackout emergency lighting via the pooled lights + ambient + ceiling
+  emissive), a procedural `synth()` sound bank (footstep, whisper, buzz, slam,
+  scrape, scream, vent, rumble) played through a distance/pan `playPositional()`
+  graph, and a `startHeartbeat()`/`thump()` bed during blackouts. `HudState.event`
+  reports the active event; `resumeAudio()` for gesture-gated AudioContext.
+- **Backrooms.tsx**: `backrooms:event` listener → `engine.triggerEvent`; subtle
+  blackout (red emergency wash + "საგანგებო განათება") and flicker overlays;
+  `resumeAudio()` on first touch/mouse. Added `vm-br-emergency` keyframe.
 
-Keep Phases 1–3 behaviour identical.
+## Phase 5 starting point (next session) — VOID IS COMING / ვოიდი მოდის
+
+1. Server: extend the scheduler with a rarer `void` event (or a separate longer
+   timer). Broadcast in stages so it's cinematic and synced:
+   `void_warning` → (after ~20s) `void_sweep` → per-player `void_teleport`.
+2. Engine: on `void_warning` build tension — screen darkens, deep bass rises,
+   whispers, lights destabilise. On `void_sweep` grow a black fog (drop
+   `FogExp2` density hard + darken) "swallowing" corridors.
+3. Server picks who gets caught (e.g. players still moving / not in a safe spot,
+   or random subset) and issues `void_teleport { seed-safe new x,z }` so caught
+   players respawn elsewhere in the instance — groups get scattered. Update the
+   engine to accept an external teleport (set `pos`, force `rebuildWindow`).
+4. Big centered cinematic text overlay: **VOID IS COMING** / **ვოიდი მოდის!**
+
+Keep Phases 1–4 behaviour identical.

@@ -86,7 +86,7 @@ function Lobby({ onJoin, onClose }: { onJoin: (id: string, name: string) => void
 function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: () => void; onClose: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<BackroomsEngine | null>(null);
-  const [hud, setHud] = useState<HudState>({ battery: 1, flashlightOn: true, level: 'LEVEL 0', x: 0, z: 0 });
+  const [hud, setHud] = useState<HudState>({ battery: 1, flashlightOn: true, level: 'LEVEL 0', x: 0, z: 0, event: null });
   const [status, setStatus] = useState<'joining' | 'in' | 'error'>('joining');
   const [errMsg, setErrMsg] = useState('');
 
@@ -120,9 +120,13 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
       else players.current.set(p.socketId, p);
       pushRemotes();
     };
+    const onEvent = (ev: { kind: string; duration?: number; sound?: string; x?: number; z?: number }) => {
+      engineRef.current?.triggerEvent(ev);
+    };
     socket.on('backrooms:player-joined', onJoined);
     socket.on('backrooms:player-left', onLeft);
     socket.on('backrooms:player-moved', onMoved);
+    socket.on('backrooms:event', onEvent);
 
     emitWithAck<{ instanceId: string; name: string }, { ok: boolean; data?: JoinData; error?: string }>(
       'backrooms:join', { instanceId, name: useAuthStore.getState().profile?.username ?? 'Lost' },
@@ -173,6 +177,7 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
       socket.off('backrooms:player-joined', onJoined);
       socket.off('backrooms:player-left', onLeft);
       socket.off('backrooms:player-moved', onMoved);
+      socket.off('backrooms:event', onEvent);
       leaveBackroomsVoice();
       socket.emit('backrooms:leave');
       window.removeEventListener('resize', onResize);
@@ -221,6 +226,7 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
   const isControlTarget = (t: EventTarget | null) => t instanceof HTMLElement && t.closest('[data-hud-btn]') != null;
 
   const onTouchStart = (e: React.TouchEvent) => {
+    engineRef.current?.resumeAudio();
     for (const t of Array.from(e.changedTouches)) {
       if (isControlTarget(t.target)) continue;
       const leftZone = t.clientX < window.innerWidth * 0.5;
@@ -264,6 +270,7 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
   };
 
   const onMouseDown = (e: React.MouseEvent) => {
+    engineRef.current?.resumeAudio();
     if (isControlTarget(e.target)) return;
     if (e.clientX < window.innerWidth * 0.5) return;
     mouseLook.current = { x: e.clientX, y: e.clientY };
@@ -301,6 +308,19 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
     >
       <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(0,0,0,0.55) 100%)' }} />
+
+      {/* Blackout: heavy dark + faint red emergency wash. Flicker: subtle wash. */}
+      {hud.event === 'blackout' && (
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at center, rgba(40,0,0,0.25) 0%, rgba(0,0,0,0.78) 100%)', animation: 'vm-br-emergency 2.4s ease-in-out infinite' }} />
+      )}
+      {hud.event === 'flicker' && (
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'rgba(0,0,0,0.18)' }} />
+      )}
+      {hud.event === 'blackout' && (
+        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', pointerEvents: 'none', fontFamily: 'monospace', fontSize: 11, letterSpacing: 4, color: 'rgba(255,80,60,0.5)' }}>
+          ⚠ საგანგებო განათება
+        </div>
+      )}
 
       {/* Joining / error overlays */}
       {status !== 'in' && (

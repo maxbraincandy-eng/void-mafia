@@ -17,7 +17,10 @@ export interface HudState {
   level: string;          // e.g. "LEVEL 0"
   x: number;              // world position (for later multiplayer/debug)
   z: number;
+  event: string | null;   // active dynamic event ('flicker' | 'blackout' | null)
 }
+
+export interface BackroomsEvent { kind: string; duration?: number; sound?: string; x?: number; z?: number; }
 
 export interface NetState { x: number; y: number; z: number; ry: number; fl: boolean; }
 export interface RemotePlayerState { socketId: string; name: string; x: number; y: number; z: number; ry: number; fl: boolean; }
@@ -99,11 +102,19 @@ export class BackroomsEngine {
   private ceil!: THREE.Mesh;
   private lightPool: THREE.PointLight[] = [];
   private flashlight!: THREE.SpotLight;
+  private ambient!: THREE.AmbientLight;
+  private hemi!: THREE.HemisphereLight;
 
   // Flashlight battery
   private battery = 1;
   private flashOn = true;
   private hudAccum = 0;
+
+  // Dynamic events (flicker / blackout) + horror audio
+  private flickerUntil = 0;
+  private blackoutUntil = 0;
+  private activeEvent: string | null = null;
+  private heartTimer: ReturnType<typeof setInterval> | null = null;
 
   // Ambient audio
   private audioCtx: AudioContext | null = null;
@@ -143,6 +154,9 @@ export class BackroomsEngine {
   toggleFlashlight() { if (this.battery > 0.001) this.flashOn = !this.flashOn; }
   setFlashlight(on: boolean) { if (on && this.battery <= 0.001) return; this.flashOn = on; }
   addBattery(amount: number) { this.battery = Math.min(1, this.battery + amount); }
+
+  // Resume the ambient/SFX AudioContext (browsers start it suspended until a gesture).
+  resumeAudio() { this.audioCtx?.resume?.().catch(() => {}); }
 
   getNetState(): NetState {
     return { x: this.pos.x, y: this.pos.y, z: this.pos.z, ry: this.yaw, fl: this.flashOn && this.battery > 0 };
@@ -278,6 +292,7 @@ export class BackroomsEngine {
   dispose() {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
+    this.stopHeartbeat();
     this.audioNodes?.stop();
     try { this.audioCtx?.close(); } catch { /* ignore */ }
     this.scene.traverse(o => {
@@ -331,9 +346,10 @@ export class BackroomsEngine {
   }
 
   private buildLights() {
-    this.scene.add(new THREE.AmbientLight(0x5a5230, 0.55));
-    const hemi = new THREE.HemisphereLight(0xfff2c0, 0x24200e, 0.35);
-    this.scene.add(hemi);
+    this.ambient = new THREE.AmbientLight(0x5a5230, 0.55);
+    this.scene.add(this.ambient);
+    this.hemi = new THREE.HemisphereLight(0xfff2c0, 0x24200e, 0.35);
+    this.scene.add(this.hemi);
 
     // A small pool of warm fluorescent point lights that follow the player,
     // snapped to the nearest ceiling lattice points → moving pools of light.
@@ -505,6 +521,9 @@ export class BackroomsEngine {
     // Fluorescent light pool → nearest ceiling lattice points
     this.updateLightPool();
 
+    // Dynamic-event lighting (flicker / blackout)
+    this.updateEventLighting(performance.now());
+
     // Remote players (smoothed toward last network position)
     this.updateRemotes(dt);
 
@@ -512,7 +531,7 @@ export class BackroomsEngine {
     this.hudAccum += dt;
     if (this.hudAccum > 0.2) {
       this.hudAccum = 0;
-      this.onHud?.({ battery: this.battery, flashlightOn: this.flashOn, level: 'LEVEL 0', x: this.pos.x, z: this.pos.z });
+      this.onHud?.({ battery: this.battery, flashlightOn: this.flashOn, level: 'LEVEL 0', x: this.pos.x, z: this.pos.z, event: this.activeEvent });
     }
 
     this.renderer.render(this.scene, this.camera);
@@ -572,6 +591,168 @@ export class BackroomsEngine {
       const lz = (baseZ + oz) * CELL;
       this.lightPool[i].position.set(lx, WALL_H - 0.25, lz);
     }
+  }
+
+  // ── Dynamic events ───────────────────────────────────────────────────
+  // Server broadcasts synced events; each client runs them locally so the
+  // whole instance flickers / goes dark / hears the same sound together.
+  triggerEvent(ev: BackroomsEvent) {
+    const now = performance.now();
+    if (ev.kind === 'flicker') {
+      this.flickerUntil = now + (ev.duration ?? 6000);
+      this.playPositional('buzz', this.pos.x, this.pos.z);
+    } else if (ev.kind === 'blackout') {
+      this.blackoutUntil = now + (ev.duration ?? 12000);
+      this.startHeartbeat();
+      this.playPositional('slam', this.pos.x, this.pos.z);
+    } else if (ev.kind === 'ambient') {
+      this.playPositional(ev.sound ?? 'footstep', ev.x, ev.z);
+    }
+  }
+
+  private updateEventLighting(now: number) {
+    const blackout = now < this.blackoutUntil;
+    const flicker = !blackout && now < this.flickerUntil;
+    let poolMul = 1, ambMul = 1, emis = 0.9;
+    if (blackout) {
+      // Emergency lighting only — near-dark, faint red; your flashlight matters now.
+      poolMul = 0.05; ambMul = 0.1; emis = 0.04;
+      this.activeEvent = 'blackout';
+    } else if (flicker) {
+      const on = Math.random() > 0.35;
+      poolMul = on ? 1 : 0.1; ambMul = on ? 1 : 0.4; emis = on ? 0.9 : 0.12;
+      this.activeEvent = 'flicker';
+    } else {
+      if (this.activeEvent) this.stopHeartbeat();
+      this.activeEvent = null;
+    }
+    for (const pl of this.lightPool) pl.intensity = 6 * poolMul;
+    this.ambient.intensity = 0.55 * ambMul;
+    this.ambient.color.setHex(blackout ? 0x5a1e12 : 0x5a5230);
+    this.hemi.intensity = 0.35 * ambMul;
+    (this.ceil.material as THREE.MeshLambertMaterial).emissiveIntensity = emis;
+  }
+
+  // ── Positional horror one-shots (procedural, no assets) ──────────────
+  private playPositional(sound: string, x?: number, z?: number) {
+    const ctx = this.audioCtx; if (!ctx) return;
+    const px = x ?? this.pos.x, pz = z ?? this.pos.z;
+    const dx = px - this.pos.x, dz = pz - this.pos.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist > 46) return;
+    const cosY = Math.cos(this.yaw), sinY = Math.sin(this.yaw);
+    const pan = dist > 0.001 ? Math.max(-1, Math.min(1, (dx * cosY - dz * sinY) / dist)) : 0;
+    let g = Math.max(0, 1 - dist / 46); g = g * g;
+    const panner = ctx.createStereoPanner(); panner.pan.value = pan;
+    const out = ctx.createGain(); out.gain.value = g;
+    panner.connect(out).connect(ctx.destination);
+    this.synth(sound, ctx, panner, out.gain);
+  }
+
+  private noiseSource(ctx: AudioContext, dur: number): AudioBufferSourceNode {
+    const n = Math.floor(ctx.sampleRate * dur);
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource(); src.buffer = buf; return src;
+  }
+
+  private synth(sound: string, ctx: AudioContext, dest: AudioNode, outGain: AudioParam) {
+    const t = ctx.currentTime;
+    const env = (node: AudioNode, peak: number, attack: number, dur: number) => {
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      node.connect(g).connect(dest); return g;
+    };
+    switch (sound) {
+      case 'footstep': {
+        for (let i = 0; i < 4; i++) {
+          const tt = t + i * 0.34;
+          const src = this.noiseSource(ctx, 0.12);
+          const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320;
+          const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, tt);
+          g.gain.exponentialRampToValueAtTime(0.9, tt + 0.01);
+          g.gain.exponentialRampToValueAtTime(0.0001, tt + 0.12);
+          src.connect(lp).connect(g).connect(dest); src.start(tt); src.stop(tt + 0.13);
+        }
+        break;
+      }
+      case 'whisper': {
+        const src = this.noiseSource(ctx, 1.6); src.loop = false;
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = 6;
+        const trem = ctx.createGain();
+        const lfo = ctx.createOscillator(); lfo.frequency.value = 7; const lg = ctx.createGain(); lg.gain.value = 0.5;
+        lfo.connect(lg).connect(trem.gain); trem.gain.value = 0.5;
+        env(trem, 0.5, 0.2, 1.6); // trem → env gain → dest
+        src.connect(bp).connect(trem);
+        src.start(t); src.stop(t + 1.6); lfo.start(t); lfo.stop(t + 1.6);
+        break;
+      }
+      case 'buzz': {
+        const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 120;
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2000; bp.Q.value = 4;
+        o.connect(bp); env(bp, 0.35, 0.05, 0.9); o.start(t); o.stop(t + 0.95);
+        break;
+      }
+      case 'slam': {
+        const src = this.noiseSource(ctx, 0.25);
+        const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 500;
+        const g = ctx.createGain(); g.gain.setValueAtTime(1, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+        src.connect(lp).connect(g).connect(dest); src.start(t); src.stop(t + 0.3);
+        const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(90, t); o.frequency.exponentialRampToValueAtTime(38, t + 0.25);
+        env(o, 0.9, 0.005, 0.32); o.start(t); o.stop(t + 0.33);
+        break;
+      }
+      case 'scrape': {
+        const o = ctx.createOscillator(); o.type = 'sawtooth';
+        o.frequency.setValueAtTime(180, t); o.frequency.linearRampToValueAtTime(90, t + 1.1);
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 12;
+        o.connect(bp); env(bp, 0.4, 0.1, 1.2); o.start(t); o.stop(t + 1.2);
+        break;
+      }
+      case 'scream': {
+        const src = this.noiseSource(ctx, 1.2);
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 9;
+        bp.frequency.setValueAtTime(500, t); bp.frequency.linearRampToValueAtTime(1600, t + 0.5); bp.frequency.linearRampToValueAtTime(700, t + 1.1);
+        src.connect(bp); env(bp, 0.5, 0.15, 1.2); src.start(t); src.stop(t + 1.2);
+        break;
+      }
+      case 'vent': {
+        const src = this.noiseSource(ctx, 1.4);
+        const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
+        src.connect(lp); env(lp, 0.3, 0.3, 1.4); src.start(t); src.stop(t + 1.4);
+        break;
+      }
+      case 'rumble':
+      default: {
+        const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = 44;
+        env(o, 0.6, 0.4, 2.2); o.start(t); o.stop(t + 2.3);
+        break;
+      }
+    }
+    void outGain;
+  }
+
+  private startHeartbeat() {
+    if (this.heartTimer || !this.audioCtx) return;
+    const beat = () => {
+      const ctx = this.audioCtx; if (!ctx) return;
+      this.thump(ctx, 0.9);
+      setTimeout(() => { if (this.audioCtx) this.thump(this.audioCtx, 0.55); }, 190);
+    };
+    beat();
+    this.heartTimer = setInterval(beat, 1150);
+  }
+  private stopHeartbeat() { if (this.heartTimer) { clearInterval(this.heartTimer); this.heartTimer = null; } }
+  private thump(ctx: AudioContext, scale: number) {
+    const t = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(60, t); o.frequency.exponentialRampToValueAtTime(38, t + 0.22);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.55 * scale, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+    o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 0.26);
   }
 
   // ── Ambient audio (fluorescent hum + low rumble) ─────────────────────

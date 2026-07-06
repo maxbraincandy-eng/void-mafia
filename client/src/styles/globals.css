@@ -498,6 +498,12 @@ html.theme-transitioning body {
   to   { transform: rotate(360deg); }
 }
 
+/* Backrooms blackout: slow emergency-light pulse */
+@keyframes vm-br-emergency {
+  0%, 100% { opacity: 0.75; }
+  50%      { opacity: 1; }
+}
+
 /* Stories: reaction-picker emoji — quick pop on press (CSS only, can't jam) */
 .vm-story-emoji:active {
   transform: scale(1.4) !important;
