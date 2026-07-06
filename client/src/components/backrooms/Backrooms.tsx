@@ -97,6 +97,9 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
   const engineRef = useRef<BackroomsEngine | null>(null);
   const [hud, setHud] = useState<HudState>({ battery: 1, flashlightOn: true, level: 'LEVEL 0', x: 0, z: 0, event: null, voidPhase: 'none', region: 'normal', nearClue: false });
   const [note, setNote] = useState<string | null>(null);
+  const [spared, setSpared] = useState(false);
+  const sparedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [rotateToast, setRotateToast] = useState(false);
   const [status, setStatus] = useState<'joining' | 'in' | 'error'>('joining');
   const [errMsg, setErrMsg] = useState('');
 
@@ -130,8 +133,13 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
       else players.current.set(p.socketId, p);
       pushRemotes();
     };
-    const onEvent = (ev: { kind: string; duration?: number; sound?: string; x?: number; z?: number }) => {
+    const onEvent = (ev: { kind: string; duration?: number; sound?: string; x?: number; z?: number; shelters?: { x: number; z: number }[] }) => {
       engineRef.current?.triggerEvent(ev);
+      if (ev.kind === 'void_spared') {
+        setSpared(true);
+        if (sparedTimer.current) clearTimeout(sparedTimer.current);
+        sparedTimer.current = setTimeout(() => setSpared(false), 3500);
+      }
     };
     const onGesture = ({ socketId, kind }: { socketId: string; kind: string }) => {
       engineRef.current?.remoteGesture(socketId, kind);
@@ -175,9 +183,17 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
       applyBackroomsSpatial(L, peers);
     }, 100);
 
-    const onResize = () => engineRef.current?.resize();
+    // Rotation robustness: iOS reports stale viewport sizes right after
+    // orientationchange (→ black band on top) and can leave the page scrolled
+    // so fixed HUD buttons render offset from their hit areas (taps landing
+    // "above" the button). Resize in several passes + pin scroll to 0.
+    const doResize = () => { engineRef.current?.resize(); window.scrollTo(0, 0); };
+    const onResize = () => { doResize(); setTimeout(doResize, 250); setTimeout(doResize, 700); };
     window.addEventListener('resize', onResize);
     window.addEventListener('orientationchange', onResize);
+    const vv: VisualViewport | undefined = (window as any).visualViewport;
+    vv?.addEventListener('resize', onResize);
+    vv?.addEventListener('scroll', doResize);
 
     let wakeLock: any = null;
     const acquireWake = async () => { try { wakeLock = await (navigator as any).wakeLock?.request('screen'); } catch { /* ignore */ } };
@@ -197,6 +213,9 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
       socket.emit('backrooms:leave');
       window.removeEventListener('resize', onResize);
       window.removeEventListener('orientationchange', onResize);
+      vv?.removeEventListener('resize', onResize);
+      vv?.removeEventListener('scroll', doResize);
+      if (sparedTimer.current) clearTimeout(sparedTimer.current);
       document.removeEventListener('visibilitychange', onVis);
       try { wakeLock?.release?.(); } catch { /* ignore */ }
       engineRef.current?.dispose();
@@ -236,6 +255,14 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
 
   // Reflect who's talking onto the remote avatars' head-lamps.
   useEffect(() => { engineRef.current?.setSpeaking(voice.speakingIds); }, [voice.speakingIds]);
+
+  // Suggest landscape to newcomers holding the phone in portrait (6s toast).
+  useEffect(() => {
+    if (window.innerHeight <= window.innerWidth) return;
+    setRotateToast(true);
+    const t = setTimeout(() => setRotateToast(false), 6000);
+    return () => clearTimeout(t);
+  }, []);
 
   // ── Touch controls ──────────────────────────────────────────────────
   const isControlTarget = (t: EventTarget | null) => t instanceof HTMLElement && t.closest('[data-hud-btn]') != null;
@@ -305,24 +332,29 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
     }
   };
   const gbtn = (label: string, kind: string) => (
-    <button data-hud-btn onClick={() => sendGesture(kind)}
-      style={{ width: 42, height: 42, borderRadius: '50%', background: 'rgba(10,8,4,0.5)', border: '1px solid rgba(255,240,180,0.18)', color: 'rgba(255,245,210,0.85)', fontSize: 18, backdropFilter: 'blur(4px)' }}>
+    <button data-hud-btn onPointerDown={(e) => { e.preventDefault(); sendGesture(kind); }} onContextMenu={(e) => e.preventDefault()}
+      style={{ width: 42, height: 42, borderRadius: '50%', background: 'rgba(10,8,4,0.5)', border: '1px solid rgba(255,240,180,0.18)', color: 'rgba(255,245,210,0.85)', fontSize: 18, backdropFilter: 'blur(4px)', touchAction: 'none', userSelect: 'none' }}>
       {label}
     </button>
   );
 
+  // All HUD buttons act on pointerdown: iOS suppresses synthesized click
+  // events while another touch (the joystick) is active, so onClick-based
+  // buttons went dead during movement. Pointer events fire per-finger.
   const btn = (label: string, on: () => void, opts?: { hold?: boolean; off?: () => void; active?: boolean }) => (
     <button
       data-hud-btn
-      onTouchStart={opts?.hold ? (e) => { e.preventDefault(); on(); } : undefined}
-      onTouchEnd={opts?.hold ? (e) => { e.preventDefault(); opts.off?.(); } : undefined}
-      onClick={opts?.hold ? undefined : on}
+      onPointerDown={(e) => { e.preventDefault(); on(); }}
+      onPointerUp={opts?.hold ? (e) => { e.preventDefault(); opts.off?.(); } : undefined}
+      onPointerCancel={opts?.hold ? () => opts.off?.() : undefined}
+      onPointerLeave={opts?.hold ? () => opts.off?.() : undefined}
+      onContextMenu={(e) => e.preventDefault()}
       style={{
         width: 60, height: 60, borderRadius: '50%',
         background: opts?.active ? 'rgba(255,240,180,0.18)' : 'rgba(10,8,4,0.55)',
         border: `1px solid ${opts?.active ? 'rgba(255,240,180,0.5)' : 'rgba(255,240,180,0.18)'}`,
         color: 'rgba(255,245,210,0.85)', fontSize: 22, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        backdropFilter: 'blur(4px)', userSelect: 'none', touchAction: 'none',
+        backdropFilter: 'blur(4px)', userSelect: 'none', touchAction: 'none', WebkitUserSelect: 'none',
       }}
     >{label}</button>
   );
@@ -384,6 +416,9 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
               <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 'min(8.5vw,34px)', letterSpacing: 3, color: 'rgba(255,120,110,0.9)', animation: 'vm-void-pulse 1.05s ease-in-out infinite' }}>
                 ვოიდი მოდის!
               </div>
+              <div style={{ fontFamily: 'monospace', fontSize: 13, letterSpacing: 2, color: 'rgba(120,255,170,0.85)', marginTop: 10, textShadow: '0 0 12px rgba(40,255,140,0.5)', textAlign: 'center', padding: '0 20px' }}>
+                იპოვე მწვანე ნათება — იქ ვოიდი ვერ მოგწვდება
+              </div>
             </>
           )}
           {hud.voidPhase === 'sweep' && (
@@ -391,6 +426,20 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
               ▓▓▓
             </div>
           )}
+        </div>
+      )}
+
+      {/* Void survival toast */}
+      {spared && (
+        <div style={{ position: 'absolute', top: '42%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 16, pointerEvents: 'none', fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 'min(6vw,22px)', letterSpacing: 2, color: '#4dff9a', textShadow: '0 0 18px rgba(40,255,140,0.6)', whiteSpace: 'nowrap' }}>
+          ✔ თავი დააღწიე ვოიდს!
+        </div>
+      )}
+
+      {/* Landscape suggestion for newcomers (portrait only, 6s) */}
+      {rotateToast && status === 'in' && (
+        <div style={{ position: 'absolute', top: '30%', left: '50%', transform: 'translateX(-50%)', zIndex: 15, pointerEvents: 'none', width: 'min(300px, 78vw)', textAlign: 'center', background: 'rgba(6,4,2,0.78)', border: '1px solid rgba(255,240,180,0.25)', borderRadius: 14, padding: '12px 16px', fontFamily: 'monospace', fontSize: 12, lineHeight: 1.6, color: 'rgba(255,245,210,0.9)', backdropFilter: 'blur(6px)' }}>
+          📱↺ გადაატრიალე ტელეფონი ჰორიზონტალურად — უკეთესი გამოცდილებისთვის
         </div>
       )}
 
@@ -404,7 +453,7 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
 
       {/* Clue note reader */}
       {note && (
-        <div data-hud-btn onClick={() => setNote(null)}
+        <div data-hud-btn onPointerDown={() => setNote(null)}
           style={{ position: 'absolute', inset: 0, zIndex: 20, background: 'rgba(2,1,0,0.82)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 28 }}>
           <div style={{ maxWidth: 360, padding: '22px 20px', borderRadius: 8, background: 'rgba(232,226,200,0.94)', boxShadow: '0 12px 50px rgba(0,0,0,0.7)', transform: 'rotate(-1.2deg)' }}>
             <div style={{ fontFamily: 'monospace', fontSize: 15, lineHeight: 1.7, color: '#1a1408', whiteSpace: 'pre-wrap' }}>{note}</div>
@@ -442,8 +491,8 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
 
       {/* Top-right: back to lobby + close */}
       <div style={{ position: 'absolute', top: 'max(12px, env(safe-area-inset-top))', right: 14, display: 'flex', gap: 8 }}>
-        <button data-hud-btn onClick={onExit} title="ინსტანსები" style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(10,8,4,0.55)', border: '1px solid rgba(255,240,180,0.2)', color: 'rgba(255,245,210,0.85)', fontSize: 15, backdropFilter: 'blur(4px)' }}>🚪</button>
-        <button data-hud-btn onClick={onClose} style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(10,8,4,0.55)', border: '1px solid rgba(255,240,180,0.2)', color: 'rgba(255,245,210,0.85)', fontSize: 18, backdropFilter: 'blur(4px)' }}>✕</button>
+        <button data-hud-btn onPointerDown={(e) => { e.preventDefault(); onExit(); }} title="ინსტანსები" style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(10,8,4,0.55)', border: '1px solid rgba(255,240,180,0.2)', color: 'rgba(255,245,210,0.85)', fontSize: 15, backdropFilter: 'blur(4px)', touchAction: 'none' }}>🚪</button>
+        <button data-hud-btn onPointerDown={(e) => { e.preventDefault(); onClose(); }} style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(10,8,4,0.55)', border: '1px solid rgba(255,240,180,0.2)', color: 'rgba(255,245,210,0.85)', fontSize: 18, backdropFilter: 'blur(4px)', touchAction: 'none' }}>✕</button>
       </div>
 
       {/* Social gestures (top-right, below close/lobby) */}

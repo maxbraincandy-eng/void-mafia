@@ -470,6 +470,22 @@ const _backroomsVoidTimers = new Map<string, NodeJS.Timeout>();        // instan
 const _backroomsVoidSeq = new Map<string, NodeJS.Timeout[]>();         // instanceId → in-flight VOID stage timers
 const BACKROOMS_MAX = 16;
 const BACKROOMS_CELL = 6; // must match the client engine's lattice spacing
+const BACKROOMS_WALL_DENSITY = 0.3; // must match the client engine
+
+// Mirror of the client engine's deterministic world hash — lets the server
+// reason about the maze layout (e.g. don't drop a Void shelter in a sealed cell).
+function _brHash3(x: number, z: number, s: number): number {
+  let h = (x | 0) * 374761393 + (z | 0) * 668265263 + s * 2147483647;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h = h ^ (h >>> 16);
+  return (h >>> 0) / 4294967295;
+}
+function _brCellSealed(cx: number, cz: number, seed: number): boolean {
+  return _brHash3(cx, cz, 11 + seed) < BACKROOMS_WALL_DENSITY
+    && _brHash3(cx, cz + 1, 11 + seed) < BACKROOMS_WALL_DENSITY
+    && _brHash3(cx, cz, 23 + seed) < BACKROOMS_WALL_DENSITY
+    && _brHash3(cx + 1, cz, 23 + seed) < BACKROOMS_WALL_DENSITY;
+}
 const BACKROOMS_AMBIENT_SOUNDS = ['footstep', 'footstep', 'whisper', 'whisper', 'buzz', 'scrape', 'scream', 'vent', 'rumble'];
 // Seed a few always-on public instances so players can regroup on the same map.
 [
@@ -574,7 +590,25 @@ function _runVoidEvent(instanceId: string, io: AppServer): void {
   const seq: NodeJS.Timeout[] = [];
   _backroomsVoidSeq.set(instanceId, seq);
 
-  io.to(`backrooms:${instanceId}`).emit('backrooms:event' as any, { kind: 'void_warning' });
+  // Escape mechanic: pick 2–3 green-light shelters near random players; anyone
+  // standing inside one when the Void sweeps is spared. Skip sealed maze
+  // pockets so a shelter is always reachable.
+  const seed = _backroomsMeta.get(instanceId)?.seed ?? 0;
+  const playersArr = [...room.values()];
+  const shelters: { x: number; z: number }[] = [];
+  const want = Math.min(3, Math.max(2, Math.ceil(playersArr.length / 4)));
+  let guard = 0;
+  while (shelters.length < want && guard++ < 24) {
+    const p = playersArr[Math.floor(Math.random() * playersArr.length)];
+    const ang = Math.random() * Math.PI * 2;
+    const cells = 2 + Math.floor(Math.random() * 4); // ~12–30m away: reachable in 20s
+    const scx = Math.round(p.x / BACKROOMS_CELL) + Math.round(Math.cos(ang) * cells);
+    const scz = Math.round(p.z / BACKROOMS_CELL) + Math.round(Math.sin(ang) * cells);
+    if (_brCellSealed(scx, scz, seed)) continue;
+    shelters.push({ x: scx * BACKROOMS_CELL + BACKROOMS_CELL / 2, z: scz * BACKROOMS_CELL + BACKROOMS_CELL / 2 });
+  }
+
+  io.to(`backrooms:${instanceId}`).emit('backrooms:event' as any, { kind: 'void_warning', shelters });
   // Tension builds for ~20s, then the fog sweeps in.
   seq.push(setTimeout(() => {
     const r2 = _backrooms.get(instanceId);
@@ -584,7 +618,13 @@ function _runVoidEvent(instanceId: string, io: AppServer): void {
     seq.push(setTimeout(() => {
       const r3 = _backrooms.get(instanceId);
       if (!r3 || r3.size === 0) return;
+      const SHELTER_R2 = 5.5 * 5.5;
       for (const p of r3.values()) {
+        // Standing in a shelter → spared: no teleport, just the survival cue.
+        if (shelters.some(s => (p.x - s.x) * (p.x - s.x) + (p.z - s.z) * (p.z - s.z) < SHELTER_R2)) {
+          io.to(p.socketId).emit('backrooms:event' as any, { kind: 'void_spared' });
+          continue;
+        }
         const baseCx = Math.round(p.x / BACKROOMS_CELL), baseCz = Math.round(p.z / BACKROOMS_CELL);
         const ang = Math.random() * Math.PI * 2;
         const cells = 20 + Math.floor(Math.random() * 30);

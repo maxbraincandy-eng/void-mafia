@@ -154,6 +154,28 @@ room) instead of always being caught.
 - True bloom / `EffectComposer` (chunk size + mobile GPU cost vs. the cheap CSS
   passes chosen). Mirror hallway + endless staircase rare rooms (need geometry
   the lattice engine doesn't model). Dynamic flashlight shadow (mobile FPS).
-  A "hide from the Void" evade mechanic (currently everyone is caught).
 
 The Backrooms mode (Phases 1–7) is now feature-complete against the proposal.
+
+## Post-launch fixes (v316) — from live mobile testing
+
+- **Void escape mechanic**: server drops 2–3 green-light shelters near random
+  players with `void_warning { shelters }` (sealed-pocket cells rerolled via a
+  server-side mirror of the world hash — `_brHash3`/`_brCellSealed`). Players
+  inside 5.5m of a shelter at sweep time get `void_spared` (no teleport) + a
+  "✔ თავი დააღწიე ვოიდს!" toast; engine renders fog-exempt green beacons
+  (`setShelters`), warning overlay hints "იპოვე მწვანე ნათება".
+- **Solid, furnished props**: shelves get packed book rows, cafeteria tables
+  get pedestals + seats, racks get glowing status strips (new `glowMesh`);
+  all props now push AABB colliders (density 0.55 → 0.75).
+- **Water**: rippled canvas texture, emissive so it reads in the gloom,
+  drifting UVs + gentle bob.
+- **Wall graffiti**: "ვოიდი ახლოს არის!" scrawled in red on ~9% of wall panels
+  (instanced planes, shared canvas texture, deterministic placement/side).
+- **Multi-touch HUD**: all buttons act on `pointerdown` — iOS suppresses
+  synthesized `click` while the joystick touch is active, so jump/sprint/etc
+  went dead during movement.
+- **Portrait rotation**: multi-pass resize (0/250/700ms) + `visualViewport`
+  listeners + `scrollTo(0,0)` pin — fixes the post-rotation black band and the
+  "taps land below the button" fixed-overlay offset.
+- **Landscape toast**: 6s suggestion on join when in portrait.

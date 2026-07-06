@@ -23,7 +23,7 @@ export interface HudState {
   nearClue: boolean;      // a readable clue is within interact range
 }
 
-export interface BackroomsEvent { kind: string; duration?: number; sound?: string; x?: number; z?: number; }
+export interface BackroomsEvent { kind: string; duration?: number; sound?: string; x?: number; z?: number; shelters?: { x: number; z: number }[]; }
 
 export interface NetState { x: number; y: number; z: number; ry: number; fl: boolean; }
 export interface RemotePlayerState { socketId: string; name: string; x: number; y: number; z: number; ry: number; fl: boolean; }
@@ -186,8 +186,12 @@ export class BackroomsEngine {
 
   // Rare regions + clues
   private propMesh!: THREE.InstancedMesh;
+  private glowMesh!: THREE.InstancedMesh;
+  private graffitiMesh!: THREE.InstancedMesh;
   private clueMesh!: THREE.InstancedMesh;
   private water!: THREE.Mesh;
+  private waterTex!: THREE.Texture;
+  private shelterGroup: THREE.Group | null = null;
   private clues: { x: number; z: number; note: string }[] = [];
   private curRegion: RegionType = 'normal';
   private regionCol = { floor: new THREE.Color(0x8a8060), ceil: new THREE.Color(0xece3b8), fog: new THREE.Color(0x12100a), light: 1 };
@@ -423,6 +427,7 @@ export class BackroomsEngine {
     cancelAnimationFrame(this.raf);
     this.stopHeartbeat();
     this.stopVoidBass();
+    this.clearShelters();
     if (this.whisperTimer) { clearInterval(this.whisperTimer); this.whisperTimer = null; }
     this.audioNodes?.stop();
     try { this.audioCtx?.close(); } catch { /* ignore */ }
@@ -475,12 +480,27 @@ export class BackroomsEngine {
     this.wallMesh.frustumCulled = false;
     this.scene.add(this.wallMesh);
 
-    // Signature props for special regions (shelves / tables / server racks).
+    // Signature props for special regions (shelves+books / tables+chairs /
+    // server racks). Each prop is composed of several coloured box instances.
     const propMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-    this.propMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), propMat, maxPillars);
+    this.propMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), propMat, maxPillars * 4);
     this.propMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.propMesh.frustumCulled = false;
     this.scene.add(this.propMesh);
+
+    // Unlit glowing details (server-rack status strips).
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    this.glowMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), glowMat, 256);
+    this.glowMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.glowMesh.frustumCulled = false;
+    this.scene.add(this.glowMesh);
+
+    // Wall graffiti — "ვოიდი ახლოს არის!" scrawled in red on random wall panels.
+    const graffitiMat = new THREE.MeshBasicMaterial({ map: this.makeGraffitiTexture(), transparent: true, depthWrite: false });
+    this.graffitiMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(2.6, 0.8), graffitiMat, 64);
+    this.graffitiMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.graffitiMesh.frustumCulled = false;
+    this.scene.add(this.graffitiMesh);
 
     // Clues — small glowing notes scattered rarely across the world.
     const clueMat = new THREE.MeshBasicMaterial({ color: 0xfff2c0 });
@@ -490,14 +510,21 @@ export class BackroomsEngine {
     this.scene.add(this.clueMesh);
 
     // Water plane for flooded rooms (hidden unless the player is in one).
+    // Textured + slightly emissive so it reads as water even in the gloom;
+    // the texture drifts and the plane bobs in the frame loop.
+    this.waterTex = this.makeWaterTexture();
     this.water = new THREE.Mesh(
       new THREE.PlaneGeometry(240, 240),
-      new THREE.MeshLambertMaterial({ color: 0x1b3a44, transparent: true, opacity: 0.72 }),
+      new THREE.MeshLambertMaterial({
+        map: this.waterTex, color: 0xbfe8f0, transparent: true, opacity: 0.82,
+        emissive: 0x1a4652, emissiveMap: this.waterTex, emissiveIntensity: 0.55,
+      }),
     );
     this.water.rotation.x = -Math.PI / 2;
     this.water.position.y = 0.14;
     this.water.visible = false;
     this.scene.add(this.water);
+    this.textures.push(this.waterTex);
 
     this.textures.push(carpet, ceilTex, wallTex);
   }
@@ -577,13 +604,60 @@ export class BackroomsEngine {
     return t;
   }
 
+  private makeWaterTexture(): THREE.Texture {
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#1b4652'; g.fillRect(0, 0, 128, 128);
+    // ripple arcs + sparkle highlights
+    for (let i = 0; i < 26; i++) {
+      g.strokeStyle = `rgba(140,220,235,${0.10 + Math.random() * 0.20})`;
+      g.lineWidth = 1 + Math.random() * 1.5;
+      g.beginPath();
+      const x = Math.random() * 128, y = Math.random() * 128, r = 4 + Math.random() * 14;
+      const a0 = Math.random() * Math.PI * 2;
+      g.arc(x, y, r, a0, a0 + 1.1 + Math.random() * 1.6);
+      g.stroke();
+    }
+    for (let i = 0; i < 40; i++) {
+      g.fillStyle = `rgba(180,240,250,${0.05 + Math.random() * 0.12})`;
+      g.fillRect(Math.random() * 128, Math.random() * 128, 2, 1);
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(30, 30);
+    return t;
+  }
+
+  private makeGraffitiTexture(): THREE.Texture {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 160;
+    const g = c.getContext('2d')!;
+    g.clearRect(0, 0, 512, 160);
+    g.font = 'bold 52px monospace';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.save();
+    g.translate(256, 78); g.rotate(-0.03);
+    g.fillStyle = 'rgba(120,10,10,0.5)';
+    g.fillText('ვოიდი ახლოს არის!', 2, 3);
+    g.fillStyle = 'rgba(168,18,14,0.92)';
+    g.fillText('ვოიდი ახლოს არის!', 0, 0);
+    g.restore();
+    // paint drips below the letters
+    for (let i = 0; i < 14; i++) {
+      g.fillStyle = 'rgba(150,14,10,0.55)';
+      g.fillRect(40 + Math.random() * 432, 95 + Math.random() * 12, 2, 6 + Math.random() * 30);
+    }
+    const t = new THREE.CanvasTexture(c);
+    this.textures.push(t);
+    return t;
+  }
+
   // ── World treadmill: rebuild instances & colliders around the player ──
   private rebuildWindow(centerCx: number, centerCz: number) {
     const dummy = new THREE.Object3D();
     const colliders: AABB[] = [];
     const clues: { x: number; z: number; note: string }[] = [];
     const col = this._tmpCol;
-    let pi = 0, wi = 0, ppi = 0, ci = 0;
+    let pi = 0, wi = 0, ppi = 0, ci = 0, gli = 0, gri = 0;
 
     for (let dz = -WINDOW; dz <= WINDOW; dz++) {
       for (let dx = -WINDOW; dx <= WINDOW; dx++) {
@@ -613,6 +687,16 @@ export class BackroomsEngine {
           this.wallMesh.setColorAt(wi, col);
           wi++;
           colliders.push({ cx: mx, cz: mz, hx: (CELL - PHALF * 2) / 2, hz: WALL_THICK / 2, wall: true });
+          // graffiti on this wall (faces ±Z)
+          if (gri < 64 && hash3(cx, cz, 91 + this.worldSeed) < 0.09) {
+            const side = hash3(cx, cz, 92) < 0.5 ? 1 : -1;
+            dummy.position.set(mx, 1.55, mz + side * (WALL_THICK / 2 + 0.03));
+            dummy.scale.set(1, 1, 1);
+            dummy.rotation.set(0, side === 1 ? 0 : Math.PI, 0);
+            dummy.updateMatrix();
+            this.graffitiMesh.setMatrixAt(gri++, dummy.matrix);
+            dummy.rotation.set(0, 0, 0);
+          }
         }
         // wall panel toward +Z neighbour (runs along Z)
         if (hash3(cx, cz, 23 + this.worldSeed) < WALL_DENSITY) {
@@ -624,20 +708,60 @@ export class BackroomsEngine {
           this.wallMesh.setColorAt(wi, col);
           wi++;
           colliders.push({ cx: mx, cz: mz, hx: WALL_THICK / 2, hz: (CELL - PHALF * 2) / 2, wall: true });
+          // graffiti on this wall (faces ±X)
+          if (gri < 64 && hash3(cx, cz, 93 + this.worldSeed) < 0.09) {
+            const side = hash3(cx, cz, 94) < 0.5 ? 1 : -1;
+            dummy.position.set(mx + side * (WALL_THICK / 2 + 0.03), 1.55, mz);
+            dummy.scale.set(1, 1, 1);
+            dummy.rotation.set(0, side === 1 ? Math.PI / 2 : -Math.PI / 2, 0);
+            dummy.updateMatrix();
+            this.graffitiMesh.setMatrixAt(gri++, dummy.matrix);
+            dummy.rotation.set(0, 0, 0);
+          }
         }
 
-        // Signature prop for special regions (in the open cell centre).
-        if (pal.prop && hash3(cx, cz, 55 + this.worldSeed) < 0.55) {
+        // Signature props for special regions — composed, solid, and dense
+        // enough to actually furnish the space.
+        if (pal.prop && hash3(cx, cz, 55 + this.worldSeed) < 0.75) {
           const ox = wx + CELL / 2, oz = wz + CELL / 2;
-          if (pal.prop === 'shelf') { dummy.position.set(ox, 1.1, oz); dummy.scale.set(0.5, 2.2, 2.2); }
-          else if (pal.prop === 'rack') { dummy.position.set(ox, 1.15, oz); dummy.scale.set(0.8, 2.3, 1.0); }
-          else { dummy.position.set(ox, 0.38, oz); dummy.scale.set(1.9, 0.76, 1.0); } // table
-          dummy.rotation.set(0, hash3(cx, cz, 66) < 0.5 ? 0 : Math.PI / 2, 0);
-          dummy.updateMatrix();
-          this.propMesh.setMatrixAt(ppi, dummy.matrix);
-          this.propMesh.setColorAt(ppi, this._tmpCol.setHex(pal.propColor ?? 0x888888));
-          ppi++;
-          dummy.rotation.set(0, 0, 0);
+          const rot = hash3(cx, cz, 66) < 0.5;
+          // Places one coloured box of the composition; `rot` swaps the
+          // footprint 90° (offsets + scale) without a rotation matrix.
+          const put = (dx: number, y: number, dz: number, sx: number, sy: number, sz: number, color: number) => {
+            dummy.position.set(ox + (rot ? dz : dx), y, oz + (rot ? -dx : dz));
+            dummy.scale.set(rot ? sz : sx, sy, rot ? sx : sz);
+            dummy.updateMatrix();
+            this.propMesh.setMatrixAt(ppi, dummy.matrix);
+            this.propMesh.setColorAt(ppi, this._tmpCol.setHex(color));
+            ppi++;
+          };
+          if (pal.prop === 'shelf') {
+            // bookcase + three packed book rows (rows slightly proud so they read)
+            put(0, 1.15, 0, 0.62, 2.3, 2.4, 0x3a2c16);
+            const bookCols = [0x7a2020, 0x24506e, 0x556b2f, 0x6e5a1f, 0x4a2a5a];
+            for (let b = 0; b < 3; b++) {
+              put(0, 0.62 + b * 0.62, 0, 0.72, 0.42, 2.15, bookCols[Math.floor(hash3(cx, cz, 100 + b) * bookCols.length) % bookCols.length]);
+            }
+            colliders.push({ cx: ox, cz: oz, hx: rot ? 1.25 : 0.4, hz: rot ? 0.4 : 1.25 });
+          } else if (pal.prop === 'rack') {
+            put(0, 1.15, 0, 0.9, 2.3, 1.1, 0x10181a);
+            // glowing status strip on the front face
+            const glowCols = [0x1fff9a, 0x18d8ff, 0x5aff3a];
+            dummy.position.set(ox + (rot ? 0 : 0.49), 1.15, oz + (rot ? 0.49 : 0));
+            dummy.scale.set(rot ? 0.86 : 0.05, 1.9, rot ? 0.05 : 0.86);
+            dummy.updateMatrix();
+            this.glowMesh.setMatrixAt(gli, dummy.matrix);
+            this.glowMesh.setColorAt(gli, this._tmpCol.setHex(glowCols[Math.floor(hash3(cx, cz, 105) * glowCols.length) % glowCols.length]));
+            gli++;
+            colliders.push({ cx: ox, cz: oz, hx: rot ? 0.6 : 0.5, hz: rot ? 0.5 : 0.6 });
+          } else {
+            // cafeteria table: top + pedestal + two seats
+            put(0, 0.76, 0, 1.9, 0.09, 1.0, 0x9a9486);
+            put(0, 0.38, 0, 0.5, 0.72, 0.5, 0x6a655c);
+            put(0, 0.27, 1.0, 0.5, 0.54, 0.5, 0x565b4e);
+            put(0, 0.27, -1.0, 0.5, 0.54, 0.5, 0x565b4e);
+            colliders.push({ cx: ox, cz: oz, hx: rot ? 1.3 : 1.0, hz: rot ? 1.0 : 1.3 });
+          }
         }
 
         // Clue (rare, any region) — a glowing note near the cell centre.
@@ -663,6 +787,11 @@ export class BackroomsEngine {
     this.propMesh.count = ppi;
     this.propMesh.instanceMatrix.needsUpdate = true;
     if (this.propMesh.instanceColor) this.propMesh.instanceColor.needsUpdate = true;
+    this.glowMesh.count = gli;
+    this.glowMesh.instanceMatrix.needsUpdate = true;
+    if (this.glowMesh.instanceColor) this.glowMesh.instanceColor.needsUpdate = true;
+    this.graffitiMesh.count = gri;
+    this.graffitiMesh.instanceMatrix.needsUpdate = true;
     this.clueMesh.count = ci;
     this.clueMesh.instanceMatrix.needsUpdate = true;
     this.colliders = colliders;
@@ -718,6 +847,13 @@ export class BackroomsEngine {
     // Floor/ceiling follow + world-anchored UVs
     this.floor.position.set(this.pos.x, 0, this.pos.z);
     this.ceil.position.set(this.pos.x, WALL_H, this.pos.z);
+
+    // Flooded-room water: drifting ripple texture + gentle bob
+    if (this.water.visible) {
+      const wt = performance.now() / 1000;
+      this.waterTex.offset.set((wt * 0.006) % 1, (wt * 0.004) % 1);
+      this.water.position.y = 0.14 + Math.sin(wt * 1.1) * 0.02;
+    }
 
     // Flashlight follows camera
     this.updateFlashlight(dt);
@@ -847,6 +983,9 @@ export class BackroomsEngine {
       this.playPositional(ev.sound ?? 'footstep', ev.x, ev.z);
     } else if (ev.kind === 'void_warning') {
       this.startVoidWarning();
+      this.setShelters(ev.shelters ?? []);
+    } else if (ev.kind === 'void_spared') {
+      this.playPositional('vent', this.pos.x, this.pos.z);
     } else if (ev.kind === 'void_sweep') {
       this.voidPhase = 'sweep';
     } else if (ev.kind === 'void_teleport') {
@@ -881,7 +1020,50 @@ export class BackroomsEngine {
     this.voidPhase = 'none';
     this.stopHeartbeat();
     this.stopVoidBass();
+    this.clearShelters();
     if (this.whisperTimer) { clearInterval(this.whisperTimer); this.whisperTimer = null; }
+  }
+
+  // ── Void shelters — glowing green safe zones players can run to ──────
+  private setShelters(list: { x: number; z: number }[]) {
+    this.clearShelters();
+    if (!list.length) return;
+    const g = new THREE.Group();
+    for (const s of list) {
+      // fog:false so the beacon is visible from far away — that's the point.
+      const beam = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.1, 1.1, WALL_H, 12, 1, true),
+        new THREE.MeshBasicMaterial({ color: 0x2aff8a, transparent: true, opacity: 0.16, fog: false, side: THREE.DoubleSide, depthWrite: false }),
+      );
+      beam.position.set(s.x, WALL_H / 2, s.z);
+      g.add(beam);
+      const core = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.12, 0.12, WALL_H, 8),
+        new THREE.MeshBasicMaterial({ color: 0xaaffcc, transparent: true, opacity: 0.85, fog: false, depthWrite: false }),
+      );
+      core.position.copy(beam.position);
+      g.add(core);
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(1.0, 1.3, 24),
+        new THREE.MeshBasicMaterial({ color: 0x2aff8a, transparent: true, opacity: 0.5, fog: false, side: THREE.DoubleSide }),
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(s.x, 0.04, s.z);
+      g.add(ring);
+    }
+    this.scene.add(g);
+    this.shelterGroup = g;
+  }
+
+  private clearShelters() {
+    if (!this.shelterGroup) return;
+    this.scene.remove(this.shelterGroup);
+    this.shelterGroup.traverse(o => {
+      const m = o as THREE.Mesh;
+      if (m.geometry) m.geometry.dispose();
+      (m.material as THREE.Material | undefined)?.dispose?.();
+    });
+    this.shelterGroup = null;
   }
 
   private startVoidBass() {
