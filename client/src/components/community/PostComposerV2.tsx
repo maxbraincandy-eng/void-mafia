@@ -99,8 +99,8 @@ function ImagePicker({
 
       {/* Preview */}
       {preview && (
-        <div className="relative rounded-xl overflow-hidden border border-white/10">
-          <img src={preview} alt="preview" className="w-full max-h-48 object-cover" />
+        <div className="relative rounded-xl overflow-hidden border border-white/10 bg-black flex items-center justify-center">
+          <img src={preview} alt="preview" className="max-w-full" style={{ maxHeight: 360, width: 'auto', height: 'auto', objectFit: 'contain' }} />
           <button
             type="button"
             onClick={() => setUrlValue('')}

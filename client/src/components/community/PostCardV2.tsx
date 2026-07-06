@@ -543,7 +543,12 @@ export function PostCardV2({
       {(post.imageUrl || post.gifUrl) && (
         <div className="relative" onClick={handleMediaTap} onDoubleClick={e => e.preventDefault()}>
           {post.imageUrl && (
-            <img src={post.imageUrl} alt="" className="w-full rounded-xl border border-white/10 object-cover max-h-80 select-none" draggable={false} />
+            <div className="w-full rounded-xl border border-white/10 overflow-hidden bg-black flex items-center justify-center" style={{ maxHeight: 560 }}>
+              {/* object-contain so vertical photos show in full (letterboxed) while
+                  horizontal photos still fill the width without being cropped. */}
+              <img src={post.imageUrl} alt="" className="select-none" draggable={false}
+                style={{ maxWidth: '100%', maxHeight: 560, width: 'auto', height: 'auto', objectFit: 'contain' }} />
+            </div>
           )}
           {post.gifUrl && (
             <img src={post.gifUrl} alt="GIF" className="w-full rounded-xl border border-white/10 object-cover max-h-60 select-none" draggable={false} />
