@@ -13,7 +13,7 @@ import type { LudoMatchListItem } from '@/types/ludo';
 import type { WWWListItem } from '@/types/www';
 import type { UnoListItem } from '@/types/uno';
 
-export function GamesTab({ onOpenSpace }: { onOpenSpace?: () => void }) {
+export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () => void; onOpenBackrooms?: () => void }) {
   const t = useT();
   const profile = useAuthStore(s => s.profile);
   const playerName = profile?.username ?? 'Player';
@@ -167,6 +167,27 @@ export function GamesTab({ onOpenSpace }: { onOpenSpace?: () => void }) {
               onClick={onOpenSpace}
               className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
               style={{ background: 'rgba(0,229,255,0.1)', border: '1px solid rgba(0,229,255,0.35)', color: '#00e5ff' }}>
+              შესვლა
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Backrooms card (3D horror mode) ─────────────────────────────── */}
+      {onOpenBackrooms && (
+        <div className="rounded-2xl overflow-hidden"
+          style={{ background: 'linear-gradient(135deg, rgba(20,16,4,0.85), rgba(8,6,2,0.85))', border: '1px solid rgba(255,214,90,0.25)' }}>
+          <div className="px-4 py-3 flex items-center gap-3"
+            style={{ background: 'rgba(255,214,90,0.04)' }}>
+            <span className="text-2xl">🟨</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-display font-bold text-sm leading-tight" style={{ color: '#f5de80' }}>Backrooms</p>
+              <p className="font-mono text-[12px] text-white/35">3D ჰორორი · ლიმინალური სივრცე · ვოიდი მოდის</p>
+            </div>
+            <button
+              onClick={onOpenBackrooms}
+              className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
+              style={{ background: 'rgba(255,214,90,0.1)', border: '1px solid rgba(255,214,90,0.4)', color: '#f5de80' }}>
               შესვლა
             </button>
           </div>
