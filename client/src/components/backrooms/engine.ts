@@ -49,7 +49,24 @@ function hash3(x: number, z: number, s: number): number {
   return (h >>> 0) / 4294967295;
 }
 
-interface AABB { cx: number; cz: number; hx: number; hz: number; }
+interface AABB { cx: number; cz: number; hx: number; hz: number; wall?: boolean; }
+
+// Liang–Barsky: does segment (x1,z1)->(x2,z2) intersect the AABB?
+function segIntersectsAabb(x1: number, z1: number, x2: number, z2: number, c: AABB): boolean {
+  const minx = c.cx - c.hx, maxx = c.cx + c.hx, minz = c.cz - c.hz, maxz = c.cz + c.hz;
+  const dx = x2 - x1, dz = z2 - z1;
+  let t0 = 0, t1 = 1;
+  const edges: [number, number][] = [[-dx, x1 - minx], [dx, maxx - x1], [-dz, z1 - minz], [dz, maxz - z1]];
+  for (const [p, q] of edges) {
+    if (p === 0) { if (q < 0) return false; }
+    else {
+      const r = q / p;
+      if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r; }
+      else { if (r < t0) return false; if (r < t1) t1 = r; }
+    }
+  }
+  return true;
+}
 
 export class BackroomsEngine {
   // Input surface (mutated by the React wrapper each frame).
@@ -97,6 +114,7 @@ export class BackroomsEngine {
   // Multiplayer
   private worldSeed = 0;
   private remotes = new Map<string, RemoteAvatar>();
+  private speaking = new Set<string>();
 
   constructor(canvas: HTMLCanvasElement, seed = 0) {
     this.worldSeed = (seed | 0);
@@ -128,6 +146,30 @@ export class BackroomsEngine {
 
   getNetState(): NetState {
     return { x: this.pos.x, y: this.pos.y, z: this.pos.z, ry: this.yaw, fl: this.flashOn && this.battery > 0 };
+  }
+
+  // Listener transform for the spatial-audio layer.
+  getListener(): { x: number; z: number; yaw: number } {
+    return { x: this.pos.x, z: this.pos.z, yaw: this.yaw };
+  }
+
+  // How much the maze walls block the straight line between two points, 0..1.
+  // Only real wall panels count (support pillars are too small/sparse to muffle).
+  occlusionBetween(x1: number, z1: number, x2: number, z2: number): number {
+    const dx = x2 - x1, dz = z2 - z1;
+    const len = Math.hypot(dx, dz) || 1;
+    const ux = dx / len, uz = dz / len;
+    // Pull the endpoints inward so a wall a listener/speaker is standing against
+    // doesn't register as occlusion.
+    const shrink = Math.min(0.7, len * 0.25);
+    const ax = x1 + ux * shrink, az = z1 + uz * shrink;
+    const bx = x2 - ux * shrink, bz = z2 - uz * shrink;
+    let count = 0;
+    for (const c of this.colliders) {
+      if (!c.wall) continue;
+      if (segIntersectsAabb(ax, az, bx, bz, c)) { count++; if (count >= 2) break; }
+    }
+    return Math.min(1, count * 0.6);
   }
 
   // Reconcile the set of remote avatars against the server's player list.
@@ -191,9 +233,11 @@ export class BackroomsEngine {
     return spr;
   }
 
+  setSpeaking(ids: Set<string>) { this.speaking = ids; }
+
   private updateRemotes(dt: number) {
     const k = Math.min(1, dt * 10); // smoothing toward target
-    for (const a of this.remotes.values()) {
+    for (const [id, a] of this.remotes) {
       a.cur.x += (a.target.x - a.cur.x) * k;
       a.cur.y += (a.target.y - a.cur.y) * k;
       a.cur.z += (a.target.z - a.cur.z) * k;
@@ -206,6 +250,9 @@ export class BackroomsEngine {
       a.group.rotation.y = a.cur.ry;
       (a.lamp.material as THREE.MeshBasicMaterial).opacity = a.target.fl ? 1 : 0.12;
       a.lamp.visible = true;
+      // A talking player's head-lamp pulses so you can see who's speaking.
+      const talk = this.speaking.has(id) ? 1.35 + Math.sin(performance.now() / 90) * 0.35 : 1;
+      a.lamp.scale.setScalar(talk);
     }
   }
 
@@ -382,7 +429,7 @@ export class BackroomsEngine {
           dummy.scale.set(CELL - PHALF * 2, 1, WALL_THICK);
           dummy.updateMatrix();
           this.wallMesh.setMatrixAt(wi++, dummy.matrix);
-          colliders.push({ cx: mx, cz: mz, hx: (CELL - PHALF * 2) / 2, hz: WALL_THICK / 2 });
+          colliders.push({ cx: mx, cz: mz, hx: (CELL - PHALF * 2) / 2, hz: WALL_THICK / 2, wall: true });
         }
         // wall panel toward +Z neighbour (runs along Z)
         if (hash3(cx, cz, 23 + this.worldSeed) < WALL_DENSITY) {
@@ -391,7 +438,7 @@ export class BackroomsEngine {
           dummy.scale.set(WALL_THICK, 1, CELL - PHALF * 2);
           dummy.updateMatrix();
           this.wallMesh.setMatrixAt(wi++, dummy.matrix);
-          colliders.push({ cx: mx, cz: mz, hx: WALL_THICK / 2, hz: (CELL - PHALF * 2) / 2 });
+          colliders.push({ cx: mx, cz: mz, hx: WALL_THICK / 2, hz: (CELL - PHALF * 2) / 2, wall: true });
         }
       }
     }

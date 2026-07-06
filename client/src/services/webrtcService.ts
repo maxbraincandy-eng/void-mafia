@@ -643,6 +643,26 @@ export class WebRTCSession {
   }
 
   /**
+   * Per-peer playback volume on the remote <audio> element (0..1). Additive
+   * helper used by spatial-audio callers (e.g. Backrooms) to attenuate a peer
+   * by distance/occlusion. No-op for peers without an attached element.
+   */
+  setPeerVolume(peerId: string, volume: number): void {
+    const a = this.audioEls.get(peerId);
+    if (a) a.volume = Math.max(0, Math.min(1, volume));
+  }
+
+  /**
+   * Mute/unmute a peer's <audio> element without stopping the stream. A spatial
+   * caller mutes the element when it takes over playback via Web Audio, and
+   * unmutes it to fall back to plain element playback.
+   */
+  setPeerElementMuted(peerId: string, muted: boolean): void {
+    const a = this.audioEls.get(peerId);
+    if (a) a.muted = muted;
+  }
+
+  /**
    * Re-attach and resume every remote audio element WITHOUT tearing down peers.
    *
    * Called after a local player-state change (alive → dead → spectator) to

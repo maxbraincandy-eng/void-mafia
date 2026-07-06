@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { socket, connectSocket, emitWithAck } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
+import { useBackroomsVoice, applyBackroomsSpatial, leaveBackroomsVoice } from '@/hooks/useBackroomsVoice';
 import { BackroomsEngine, type HudState, type RemotePlayerState } from './engine';
 
 // ── Backrooms (Phase 2) — 3D liminal world with multiplayer presence ───
@@ -89,6 +90,8 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
   const [status, setStatus] = useState<'joining' | 'in' | 'error'>('joining');
   const [errMsg, setErrMsg] = useState('');
 
+  const voice = useBackroomsVoice();
+
   const [joy, setJoy] = useState({ active: false, ox: 0, oy: 0, kx: 0, ky: 0 });
   const moveTouch = useRef<{ id: number; ox: number; oy: number } | null>(null);
   const lookTouch = useRef<{ id: number; x: number; y: number } | null>(null);
@@ -141,11 +144,17 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
       setStatus('in');
     }).catch(() => { if (!cancelled) { setErrMsg('კავშირი გაწყდა'); setStatus('error'); } });
 
-    // Broadcast our position ~10Hz.
+    // Broadcast our position + drive spatial voice ~10Hz.
     const moveIv = setInterval(() => {
-      const eng = engineRef.current; if (!eng || !socket.connected) return;
-      const s = eng.getNetState();
-      socket.emit('backrooms:move', s);
+      const eng = engineRef.current; if (!eng) return;
+      if (socket.connected) socket.emit('backrooms:move', eng.getNetState());
+      const L = eng.getListener();
+      const peers = [];
+      for (const p of players.current.values()) {
+        if (p.socketId === mySocketId.current) continue;
+        peers.push({ socketId: p.socketId, x: p.x, z: p.z, occ: eng.occlusionBetween(L.x, L.z, p.x, p.z) });
+      }
+      applyBackroomsSpatial(L, peers);
     }, 100);
 
     const onResize = () => engineRef.current?.resize();
@@ -164,6 +173,7 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
       socket.off('backrooms:player-joined', onJoined);
       socket.off('backrooms:player-left', onLeft);
       socket.off('backrooms:player-moved', onMoved);
+      leaveBackroomsVoice();
       socket.emit('backrooms:leave');
       window.removeEventListener('resize', onResize);
       window.removeEventListener('orientationchange', onResize);
@@ -203,6 +213,9 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
     }, 33);
     return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); clearInterval(iv); };
   }, []);
+
+  // Reflect who's talking onto the remote avatars' head-lamps.
+  useEffect(() => { engineRef.current?.setSpeaking(voice.speakingIds); }, [voice.speakingIds]);
 
   // ── Touch controls ──────────────────────────────────────────────────
   const isControlTarget = (t: EventTarget | null) => t instanceof HTMLElement && t.closest('[data-hud-btn]') != null;
@@ -305,6 +318,9 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
       <div style={{ position: 'absolute', top: 'max(14px, env(safe-area-inset-top))', left: 16, pointerEvents: 'none' }}>
         <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 13, letterSpacing: 3, color: 'rgba(255,245,210,0.8)' }}>{hud.level}</div>
         <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(255,245,210,0.35)', marginTop: 2 }}>👤 {remoteCount + 1} · THE BACKROOMS</div>
+        <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 1, marginTop: 3, color: voice.error ? '#ff8a70' : voice.joined ? (voice.muted ? 'rgba(255,245,210,0.4)' : '#8effc0') : 'rgba(245,222,128,0.55)' }}>
+          {voice.error ? '🎙️ ' + voice.error : voice.joined ? (voice.muted ? '🔇 გაჩუმებული' : '🎙️ ლაპარაკობ · სივრცული ხმა') : '🎙️ დააჭირე მიკროფონს რომ ილაპარაკო'}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
           <span style={{ fontSize: 12, opacity: hud.flashlightOn ? 1 : 0.35 }}>🔦</span>
           <div style={{ width: 90, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.12)', overflow: 'hidden' }}>
@@ -333,10 +349,15 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
       {/* Right-bottom controls */}
       <div style={{ position: 'absolute', right: 22, bottom: 'max(48px, env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
         <div style={{ display: 'flex', gap: 12 }}>
+          {btn(voice.joined ? (voice.muted ? '🔇' : '🎙️') : '🎙️',
+            () => { if (!voice.joined) voice.joinVoice(); else voice.toggleMute(); },
+            { active: voice.joined && !voice.muted })}
           {btn('🔦', () => engineRef.current?.toggleFlashlight(), { active: hud.flashlightOn })}
+        </div>
+        <div style={{ display: 'flex', gap: 12 }}>
+          {btn('🏃', () => { engineRef.current && (engineRef.current.input.sprint = true); }, { hold: true, off: () => { engineRef.current && (engineRef.current.input.sprint = false); } })}
           {btn('⤒', () => engineRef.current?.jump())}
         </div>
-        {btn('🏃', () => { engineRef.current && (engineRef.current.input.sprint = true); }, { hold: true, off: () => { engineRef.current && (engineRef.current.input.sprint = false); } })}
       </div>
 
       <div style={{ position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none', fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,245,210,0.25)', letterSpacing: 1, whiteSpace: 'nowrap' }}>

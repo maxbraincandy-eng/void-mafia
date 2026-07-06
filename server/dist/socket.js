@@ -338,6 +338,7 @@ _spaceMeta.set('beach', {
 });
 const _backrooms = new Map(); // instanceId → players
 const _backroomsMeta = new Map();
+const _backroomsVoice = new Map(); // instanceId → Map<socketId, name>
 const BACKROOMS_MAX = 16;
 // Seed a few always-on public instances so players can regroup on the same map.
 [
@@ -345,7 +346,19 @@ const BACKROOMS_MAX = 16;
     { id: 'level0n', name: 'LEVEL 0 · NIGHTSHIFT', seed: 90210 },
     { id: 'level0d', name: 'LEVEL 0 · DEEP', seed: 44921 },
 ].forEach(i => _backroomsMeta.set(i.id, { ...i, maxPlayers: BACKROOMS_MAX }));
+function _leaveBackroomsVoice(sid, io) {
+    for (const [instanceId, voices] of _backroomsVoice) {
+        if (voices.has(sid)) {
+            voices.delete(sid);
+            io.to(`backrooms:${instanceId}`).emit('backrooms:voice-peer-left', { socketId: sid });
+            if (voices.size === 0)
+                _backroomsVoice.delete(instanceId);
+            return;
+        }
+    }
+}
 function _leaveBackrooms(sid, io) {
+    _leaveBackroomsVoice(sid, io);
     for (const [instanceId, room] of _backrooms) {
         if (room.has(sid)) {
             room.delete(sid);
@@ -8433,6 +8446,40 @@ export function attachSocketHandlers(io) {
             }
         });
         socket.on('backrooms:leave', () => { _leaveBackrooms(socket.id, io); });
+        // ── Backrooms spatial voice (Phase 3) — mesh signaling per instance ─
+        socket.on('backrooms:voice-join', (_, cb) => {
+            for (const [instanceId, room] of _backrooms) {
+                if (room.has(socket.id)) {
+                    if (!_backroomsVoice.has(instanceId))
+                        _backroomsVoice.set(instanceId, new Map());
+                    const voices = _backroomsVoice.get(instanceId);
+                    const peers = [...voices.entries()].map(([sid, nm]) => ({ socketId: sid, name: nm }));
+                    const player = room.get(socket.id);
+                    voices.set(socket.id, player.name);
+                    socket.to(`backrooms:${instanceId}`).emit('backrooms:voice-peer-joined', { socketId: socket.id, name: player.name });
+                    const iceConfig = buildIceConfig();
+                    cb?.({ ok: true, data: { peers, iceServers: iceConfig.iceServers, iceTransportPolicy: iceConfig.iceTransportPolicy } });
+                    return;
+                }
+            }
+            cb?.({ ok: false, error: 'Not in a Backrooms instance' });
+        });
+        socket.on('backrooms:voice-leave', () => { _leaveBackroomsVoice(socket.id, io); });
+        socket.on('backrooms:voice-offer', ({ to, sdp }) => {
+            if (typeof to !== 'string' || !sdp)
+                return;
+            io.to(to).emit('backrooms:voice-offer', { from: socket.id, sdp });
+        });
+        socket.on('backrooms:voice-answer', ({ to, sdp }) => {
+            if (typeof to !== 'string' || !sdp)
+                return;
+            io.to(to).emit('backrooms:voice-answer', { from: socket.id, sdp });
+        });
+        socket.on('backrooms:voice-ice', ({ to, candidate }) => {
+            if (typeof to !== 'string' || !candidate)
+                return;
+            io.to(to).emit('backrooms:voice-ice', { from: socket.id, candidate });
+        });
         // ── Virtual Space DJ ──────────────────────────────────────────────
         socket.on('space:dj-play', ({ videoId, position = 0 }) => {
             const vid = String(videoId ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20);

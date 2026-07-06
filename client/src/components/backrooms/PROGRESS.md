@@ -14,7 +14,8 @@ break existing systems.
 |-------|--------|-------------|
 | **1** | ✅ **DONE (v309)** | 3D foundation: Three.js first-person engine, procedural endless world, mobile + desktop controls, flashlight/battery, fog + lights + textures, ambient audio, minimal HUD. Single-player. |
 | **2** | ✅ **DONE (v310)** | Multiplayer presence: `backrooms:*` socket handlers, per-instance shared world seed, instance lobby, remote players rendered as murky capsules + name sprites + head-lamp, ~10Hz position sync with client-side interpolation. |
-| **3** | ⏳ next | Spatial voice: reuse LiveKit/mesh (`useSpaceVoice` pattern) with distance attenuation + wall muffling (lowpass) + hallway echo. |
+| **3** | ✅ **DONE (v311)** | Spatial voice: `backrooms:voice-*` WebRTC-mesh signaling, Web-Audio spatializer (distance rolloff + stereo pan + wall-muffle lowpass + hallway reverb) with `audio.volume` fallback, engine occlusion raycast, mic button, speaking → head-lamp pulse. |
+| **4** | ⏳ next | Dynamic events + positional horror audio: light flicker, blackout, footsteps, whispers, heartbeat, buzzing, door slams. |
 | **4** | ⏳ | Dynamic events + positional horror audio: light flicker, blackout, footsteps, whispers, heartbeat, buzzing, door slams. |
 | **5** | ⏳ | **VOID IS COMING / ვოიდი მოდის** cinematic global event: warning text, darkening, bass, whispers, black fog swallowing corridors, caught players teleport-scatter respawn (server-coordinated). |
 | **6** | ⏳ | Rare discoveries (cafeteria, red halls, silent library, server room, mirror hallway, endless staircase, black room) + environmental clues/notes. |
@@ -56,19 +57,43 @@ same window's AABB list (`moveWithCollision`, circle-vs-AABB slide).
   socket wiring + 10Hz `backrooms:move` emit + remote push straight to engine,
   never React state). Back-to-lobby (🚪) and close (✕) both emit `leave`.
 
-## Phase 3 starting point (next session) — Spatial voice
+## Phase 3 — what shipped (v311)
 
-1. Study `client/src/hooks/useSpaceVoice.ts` + `useLivekitVoice.ts` for the
-   existing proximity-voice model (LiveKit tracks + WebRTC mesh fallback).
-2. Add a voice room per Backrooms instance. Attenuate each remote peer's gain
-   by 3D distance (use engine local pos vs remote pos — expose a
-   `getPeerDistance(socketId)` or feed positions to the voice layer).
-3. Muffle through walls: a `BiquadFilter` lowpass whose cutoff drops when a
-   wall AABB sits between listener and speaker (raycast the collider list).
-4. Hallway echo: a shared `ConvolverNode`/feedback-delay send, wetter at range.
-5. Wire a mic toggle button into the World HUD.
+- **Server** (`socket.ts`): `_backroomsVoice` map, `_leaveBackroomsVoice()`
+  (also called from `_leaveBackrooms` + `disconnect`), handlers
+  `backrooms:voice-join / leave / offer / answer / ice` relaying like the space
+  voice mesh but scoped to instance membership.
+- **webrtcService.ts**: two additive helpers — `setPeerVolume(peerId, v)` and
+  `setPeerElementMuted(peerId, muted)`. No behaviour change for other modes.
+- **spatialAudio.ts** (new): `BackroomsSpatial` — per-peer Web Audio chain
+  (MediaStreamSource → lowpass → stereo panner → gain → destination, plus a
+  send to a shared convolver reverb). Distance rolloff, angle-based pan, wall
+  muffle (lowpass cutoff falls with occlusion), reverb wetter with
+  distance/occlusion. Falls back to `audio.volume` if remote-stream Web Audio
+  isn't supported — voice is never silent.
+- **useBackroomsVoice.ts** (new): mesh voice session mirroring `useSpaceVoice`
+  on the `backrooms:voice-*` channel, owning the spatializer. Exposes
+  `joinVoice/leaveVoice/toggleMute` + `applyBackroomsSpatial(listener, peers)`.
+- **engine.ts**: `getListener()`, `occlusionBetween()` (Liang–Barsky segment
+  vs wall AABBs; only wall panels count), wall-tagged colliders,
+  `setSpeaking()` → talking players' head-lamps pulse.
+- **Backrooms.tsx**: mic button, spatial update folded into the 10Hz loop,
+  voice status line, `leaveBackroomsVoice()` on world unmount.
 
-Do NOT touch existing voice hooks' behaviour for other modes — add a
-Backrooms-specific hook/path.
+Note: voice is a WebRTC **mesh** (O(n²)); fine for the 16-cap instances but a
+LiveKit-SFU migration is a candidate for the Phase 7 perf pass.
 
-Keep Phase 1/2 behaviour identical.
+## Phase 4 starting point (next session) — Dynamic events + horror audio
+
+1. Server: a per-instance event scheduler (e.g. every ~45–90s pick an event),
+   broadcast `backrooms:event { kind, seed, at }` to the instance so all
+   clients run it in sync. Kinds: `flicker`, `blackout`, `ambient` (positional
+   one-shot sound), later `void` (Phase 5).
+2. Engine: event hooks — dim/kill the light pool + flashlight flicker for
+   `flicker`/`blackout`; spawn positional WebAudio one-shots (footsteps,
+   whispers, buzzing, door slam, metal scrape) via a small sample/synth bank;
+   heartbeat bed during dangerous events.
+3. Client HUD: subtle reaction (screen darken, grain bump) — keep it
+   psychological, no cheap jumpscares.
+
+Keep Phases 1–3 behaviour identical.
