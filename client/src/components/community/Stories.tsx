@@ -371,7 +371,7 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
               <div onAnimationEnd={active ? advance : undefined} style={{
                 height: '100%', borderRadius: 2, background: '#fff',
                 width: idx < si ? '100%' : idx === si ? '100%' : '0%',
-                animation: active ? `vm-story-progress 5s linear forwards` : undefined,
+                animation: active ? `vm-story-progress ${s.musicVideoId ? 15 : 5}s linear forwards` : undefined,
                 animationPlayState: active && (paused || pickerOpen || confirmDelete || inputFocused) ? 'paused' : 'running',
               }} />
             </div>
