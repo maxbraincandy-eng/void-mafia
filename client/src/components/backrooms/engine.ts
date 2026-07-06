@@ -19,6 +19,8 @@ export interface HudState {
   z: number;
   event: string | null;   // active dynamic event ('flicker' | 'blackout' | null)
   voidPhase: 'none' | 'warning' | 'sweep'; // the VOID IS COMING event
+  region: string;         // current region type ('normal' | 'red' | 'library' | ...)
+  nearClue: boolean;      // a readable clue is within interact range
 }
 
 export interface BackroomsEvent { kind: string; duration?: number; sound?: string; x?: number; z?: number; }
@@ -51,6 +53,51 @@ function hash3(x: number, z: number, s: number): number {
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   h = h ^ (h >>> 16);
   return (h >>> 0) / 4294967295;
+}
+
+// ── Rare regions (Phase 6) ─────────────────────────────────────────────
+// The world is divided into coarse REGION×REGION blocks; a small fraction of
+// blocks are "special" — a red hall, a black room, a server room, a silent
+// library, a cafeteria, a flooded room — deterministically per seed so every
+// player in an instance discovers the same rare places.
+type RegionType = 'normal' | 'red' | 'black' | 'server' | 'library' | 'cafeteria' | 'flood';
+const REGION = 8; // cells per region side
+interface Palette { wall: number; floor: number; ceil: number; fog: number; light: number; prop?: 'shelf' | 'table' | 'rack'; propColor?: number; water?: boolean; }
+const PALETTES: Record<RegionType, Palette> = {
+  normal:    { wall: 0xbaa94c, floor: 0x8a8060, ceil: 0xece3b8, fog: 0x12100a, light: 1.0 },
+  red:       { wall: 0x7a1a1a, floor: 0x3a1212, ceil: 0x5a2020, fog: 0x1a0505, light: 0.85 },
+  black:     { wall: 0x141416, floor: 0x0a0a0c, ceil: 0x161618, fog: 0x020203, light: 0.4 },
+  server:    { wall: 0x243032, floor: 0x141c1e, ceil: 0x2a3436, fog: 0x08110f, light: 0.55, prop: 'rack', propColor: 0x0e1618 },
+  library:   { wall: 0x5a4526, floor: 0x33270f, ceil: 0x6f5a34, fog: 0x140f06, light: 0.9, prop: 'shelf', propColor: 0x3a2c16 },
+  cafeteria: { wall: 0xa8ac96, floor: 0x787c68, ceil: 0xd8d8b8, fog: 0x14140e, light: 1.1, prop: 'table', propColor: 0x9a9486 },
+  flood:     { wall: 0x30424a, floor: 0x16242c, ceil: 0x3a4c54, fog: 0x0a1a1e, light: 0.7, water: true },
+};
+const SPECIAL_TYPES: RegionType[] = ['red', 'black', 'server', 'library', 'cafeteria', 'flood'];
+function regionTypeFor(cellX: number, cellZ: number, seed: number): RegionType {
+  const rx = Math.floor(cellX / REGION), rz = Math.floor(cellZ / REGION);
+  if (hash3(rx, rz, seed + 777) < 0.9) return 'normal'; // ~10% of regions are special
+  return SPECIAL_TYPES[Math.floor(hash3(rx, rz, seed + 888) * SPECIAL_TYPES.length) % SPECIAL_TYPES.length];
+}
+
+// Cryptic clues — environmental storytelling; never fully explained.
+const CLUE_DENSITY = 0.012;
+const CLUE_NOTES = [
+  'დღე 47. კიდევ ვხედავ იმავე დერეფნებს. ან ისინი მიმეორებენ.',
+  'არ ენდო შუქს. როცა ქრება, ის ახლოსაა.',
+  'ვცადე დათვლა. 738-მდე მივედი. მერე ისევ თავიდან.',
+  'თუ ამას კითხულობ — არ გააჩერო. არასდროს გააჩერო.',
+  'ჩვენ აქ ვიყავით. ბევრი. ახლა მხოლოდ ხმები დარჩა.',
+  'კარი, რომელიც გუშინ იყო, დღეს აღარაა.',
+  'NO-CLIP. ეს ერთადერთი გზაა გარეთ. ან ასე ვფიქრობდი.',
+  'ის ჩემს სახეს ატარებს. ჩემს სახელს გვიძახის.',
+  'დაბადების დღე. ტორტი. სინათლე. — აღარ მახსოვს რა არის.',
+  '█████ არ არის მარტო. არასდროს ყოფილა.',
+];
+function clueAt(cellX: number, cellZ: number, seed: number): boolean {
+  return hash3(cellX, cellZ, seed + 1234) < CLUE_DENSITY;
+}
+function noteFor(cellX: number, cellZ: number, seed: number): string {
+  return CLUE_NOTES[Math.floor(hash3(cellX, cellZ, seed + 4321) * CLUE_NOTES.length) % CLUE_NOTES.length];
 }
 
 interface AABB { cx: number; cz: number; hx: number; hz: number; wall?: boolean; }
@@ -124,6 +171,16 @@ export class BackroomsEngine {
   private voidBass: OscillatorNode | null = null;
   private voidBassGain: GainNode | null = null;
   private whisperTimer: ReturnType<typeof setInterval> | null = null;
+
+  // Rare regions + clues
+  private propMesh!: THREE.InstancedMesh;
+  private clueMesh!: THREE.InstancedMesh;
+  private water!: THREE.Mesh;
+  private clues: { x: number; z: number; note: string }[] = [];
+  private curRegion: RegionType = 'normal';
+  private regionCol = { floor: new THREE.Color(0x8a8060), ceil: new THREE.Color(0xece3b8), fog: new THREE.Color(0x12100a), light: 1 };
+  private nearClue = false;
+  private _tmpCol = new THREE.Color();
 
   // Ambient audio
   private audioCtx: AudioContext | null = null;
@@ -338,20 +395,46 @@ export class BackroomsEngine {
     this.scene.add(this.ceil);
 
     // Pillars & walls as instanced meshes (recentered each cell crossing).
+    // Greyscale textures + per-instance colour (instanceColor) let a region
+    // recolour its walls (red hall, black room, …) with zero extra draw calls.
     const wallTex = this.makeWallTexture();
-    const pillarMat = new THREE.MeshLambertMaterial({ map: wallTex, color: 0xbaa94c });
+    const pillarMat = new THREE.MeshLambertMaterial({ map: wallTex, color: 0xffffff });
     const pillarGeo = new THREE.BoxGeometry(PHALF * 2, WALL_H, PHALF * 2);
     this.pillarMesh = new THREE.InstancedMesh(pillarGeo, pillarMat, maxPillars);
     this.pillarMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.pillarMesh.frustumCulled = false;
     this.scene.add(this.pillarMesh);
 
-    const wallMat = new THREE.MeshLambertMaterial({ map: wallTex, color: 0xb0a049 });
+    const wallMat = new THREE.MeshLambertMaterial({ map: wallTex, color: 0xffffff });
     const wallGeo = new THREE.BoxGeometry(1, WALL_H, 1); // scaled per instance
     this.wallMesh = new THREE.InstancedMesh(wallGeo, wallMat, maxWalls);
     this.wallMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.wallMesh.frustumCulled = false;
     this.scene.add(this.wallMesh);
+
+    // Signature props for special regions (shelves / tables / server racks).
+    const propMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    this.propMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), propMat, maxPillars);
+    this.propMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.propMesh.frustumCulled = false;
+    this.scene.add(this.propMesh);
+
+    // Clues — small glowing notes scattered rarely across the world.
+    const clueMat = new THREE.MeshBasicMaterial({ color: 0xfff2c0 });
+    this.clueMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.26, 0.34, 0.04), clueMat, 64);
+    this.clueMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.clueMesh.frustumCulled = false;
+    this.scene.add(this.clueMesh);
+
+    // Water plane for flooded rooms (hidden unless the player is in one).
+    this.water = new THREE.Mesh(
+      new THREE.PlaneGeometry(240, 240),
+      new THREE.MeshLambertMaterial({ color: 0x1b3a44, transparent: true, opacity: 0.72 }),
+    );
+    this.water.rotation.x = -Math.PI / 2;
+    this.water.position.y = 0.14;
+    this.water.visible = false;
+    this.scene.add(this.water);
 
     this.textures.push(carpet, ceilTex, wallTex);
   }
@@ -379,13 +462,14 @@ export class BackroomsEngine {
   }
 
   // ── Procedural textures (canvas) ─────────────────────────────────────
+  // Textures are greyscale so per-region material/instance colour tints them.
   private makeCarpetTexture(): THREE.Texture {
     const c = document.createElement('canvas'); c.width = c.height = 128;
     const g = c.getContext('2d')!;
-    g.fillStyle = '#2b2717'; g.fillRect(0, 0, 128, 128);
+    g.fillStyle = '#808080'; g.fillRect(0, 0, 128, 128);
     for (let i = 0; i < 5000; i++) {
-      const v = 20 + Math.floor(Math.random() * 40);
-      g.fillStyle = `rgba(${v + 20},${v + 16},${v - 4},0.5)`;
+      const v = 90 + Math.floor(Math.random() * 90);
+      g.fillStyle = `rgba(${v},${v},${v},0.5)`;
       g.fillRect(Math.random() * 128, Math.random() * 128, 1, 1);
     }
     const t = new THREE.CanvasTexture(c);
@@ -397,14 +481,14 @@ export class BackroomsEngine {
   private makeWallTexture(): THREE.Texture {
     const c = document.createElement('canvas'); c.width = c.height = 64;
     const g = c.getContext('2d')!;
-    g.fillStyle = '#b6a648'; g.fillRect(0, 0, 64, 64);
+    g.fillStyle = '#9a9a9a'; g.fillRect(0, 0, 64, 64);
     // faint vertical wallpaper striping + grime
     for (let x = 0; x < 64; x += 4) {
-      g.fillStyle = x % 8 === 0 ? 'rgba(150,135,55,0.5)' : 'rgba(190,175,90,0.35)';
+      g.fillStyle = x % 8 === 0 ? 'rgba(120,120,120,0.5)' : 'rgba(170,170,170,0.35)';
       g.fillRect(x, 0, 2, 64);
     }
     for (let i = 0; i < 400; i++) {
-      g.fillStyle = `rgba(90,80,30,${Math.random() * 0.15})`;
+      g.fillStyle = `rgba(70,70,70,${Math.random() * 0.18})`;
       g.fillRect(Math.random() * 64, Math.random() * 64, 1, 2);
     }
     const t = new THREE.CanvasTexture(c);
@@ -416,12 +500,12 @@ export class BackroomsEngine {
   private makeCeilingTexture(): THREE.Texture {
     const c = document.createElement('canvas'); c.width = c.height = 128;
     const g = c.getContext('2d')!;
-    g.fillStyle = '#c9c096'; g.fillRect(0, 0, 128, 128);
+    g.fillStyle = '#b0b0b0'; g.fillRect(0, 0, 128, 128);
     // ceiling tile grid
-    g.strokeStyle = 'rgba(90,84,52,0.6)'; g.lineWidth = 2;
+    g.strokeStyle = 'rgba(70,70,70,0.6)'; g.lineWidth = 2;
     for (let i = 0; i <= 128; i += 32) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 128); g.moveTo(0, i); g.lineTo(128, i); g.stroke(); }
     // fluorescent light panel in the centre of each tile block
-    g.fillStyle = '#fff8dc';
+    g.fillStyle = '#ffffff';
     g.fillRect(40, 8, 48, 12);
     g.fillRect(40, 108, 48, 12);
     const t = new THREE.CanvasTexture(c);
@@ -434,19 +518,26 @@ export class BackroomsEngine {
   private rebuildWindow(centerCx: number, centerCz: number) {
     const dummy = new THREE.Object3D();
     const colliders: AABB[] = [];
-    let pi = 0, wi = 0;
+    const clues: { x: number; z: number; note: string }[] = [];
+    const col = this._tmpCol;
+    let pi = 0, wi = 0, ppi = 0, ci = 0;
 
     for (let dz = -WINDOW; dz <= WINDOW; dz++) {
       for (let dx = -WINDOW; dx <= WINDOW; dx++) {
         const cx = centerCx + dx, cz = centerCz + dz;
         const wx = cx * CELL, wz = cz * CELL;
+        const region = regionTypeFor(cx, cz, this.worldSeed);
+        const pal = PALETTES[region];
+        col.setHex(pal.wall);
 
         // pillar
         dummy.position.set(wx, WALL_H / 2, wz);
         dummy.scale.set(1, 1, 1);
         dummy.rotation.set(0, 0, 0);
         dummy.updateMatrix();
-        this.pillarMesh.setMatrixAt(pi++, dummy.matrix);
+        this.pillarMesh.setMatrixAt(pi, dummy.matrix);
+        this.pillarMesh.setColorAt(pi, col);
+        pi++;
         colliders.push({ cx: wx, cz: wz, hx: PHALF, hz: PHALF });
 
         // wall panel toward +X neighbour (runs along X)
@@ -455,7 +546,9 @@ export class BackroomsEngine {
           dummy.position.set(mx, WALL_H / 2, mz);
           dummy.scale.set(CELL - PHALF * 2, 1, WALL_THICK);
           dummy.updateMatrix();
-          this.wallMesh.setMatrixAt(wi++, dummy.matrix);
+          this.wallMesh.setMatrixAt(wi, dummy.matrix);
+          this.wallMesh.setColorAt(wi, col);
+          wi++;
           colliders.push({ cx: mx, cz: mz, hx: (CELL - PHALF * 2) / 2, hz: WALL_THICK / 2, wall: true });
         }
         // wall panel toward +Z neighbour (runs along Z)
@@ -464,16 +557,53 @@ export class BackroomsEngine {
           dummy.position.set(mx, WALL_H / 2, mz);
           dummy.scale.set(WALL_THICK, 1, CELL - PHALF * 2);
           dummy.updateMatrix();
-          this.wallMesh.setMatrixAt(wi++, dummy.matrix);
+          this.wallMesh.setMatrixAt(wi, dummy.matrix);
+          this.wallMesh.setColorAt(wi, col);
+          wi++;
           colliders.push({ cx: mx, cz: mz, hx: WALL_THICK / 2, hz: (CELL - PHALF * 2) / 2, wall: true });
+        }
+
+        // Signature prop for special regions (in the open cell centre).
+        if (pal.prop && hash3(cx, cz, 55 + this.worldSeed) < 0.55) {
+          const ox = wx + CELL / 2, oz = wz + CELL / 2;
+          if (pal.prop === 'shelf') { dummy.position.set(ox, 1.1, oz); dummy.scale.set(0.5, 2.2, 2.2); }
+          else if (pal.prop === 'rack') { dummy.position.set(ox, 1.15, oz); dummy.scale.set(0.8, 2.3, 1.0); }
+          else { dummy.position.set(ox, 0.38, oz); dummy.scale.set(1.9, 0.76, 1.0); } // table
+          dummy.rotation.set(0, hash3(cx, cz, 66) < 0.5 ? 0 : Math.PI / 2, 0);
+          dummy.updateMatrix();
+          this.propMesh.setMatrixAt(ppi, dummy.matrix);
+          this.propMesh.setColorAt(ppi, this._tmpCol.setHex(pal.propColor ?? 0x888888));
+          ppi++;
+          dummy.rotation.set(0, 0, 0);
+        }
+
+        // Clue (rare, any region) — a glowing note near the cell centre.
+        if (ci < 64 && clueAt(cx, cz, this.worldSeed)) {
+          const nx = wx + CELL / 2 + (hash3(cx, cz, 71) - 0.5) * 2;
+          const nz = wz + CELL / 2 + (hash3(cx, cz, 72) - 0.5) * 2;
+          dummy.position.set(nx, 1.15, nz);
+          dummy.scale.set(1, 1, 1);
+          dummy.rotation.set(0, hash3(cx, cz, 73) * Math.PI, 0);
+          dummy.updateMatrix();
+          this.clueMesh.setMatrixAt(ci, dummy.matrix);
+          ci++;
+          clues.push({ x: nx, z: nz, note: noteFor(cx, cz, this.worldSeed) });
         }
       }
     }
     this.pillarMesh.count = pi;
     this.pillarMesh.instanceMatrix.needsUpdate = true;
+    if (this.pillarMesh.instanceColor) this.pillarMesh.instanceColor.needsUpdate = true;
     this.wallMesh.count = wi;
     this.wallMesh.instanceMatrix.needsUpdate = true;
+    if (this.wallMesh.instanceColor) this.wallMesh.instanceColor.needsUpdate = true;
+    this.propMesh.count = ppi;
+    this.propMesh.instanceMatrix.needsUpdate = true;
+    if (this.propMesh.instanceColor) this.propMesh.instanceColor.needsUpdate = true;
+    this.clueMesh.count = ci;
+    this.clueMesh.instanceMatrix.needsUpdate = true;
     this.colliders = colliders;
+    this.clues = clues;
   }
 
   // ── Per-frame update ─────────────────────────────────────────────────
@@ -535,6 +665,9 @@ export class BackroomsEngine {
     // Dynamic-event lighting (flicker / blackout)
     this.updateEventLighting(performance.now());
 
+    // Rare-region tint + lighting (multiplies on top of the event lighting)
+    this.updateRegion(dt);
+
     // The Void event darkens + thickens fog on top of everything
     this.updateVoid(dt);
 
@@ -545,7 +678,7 @@ export class BackroomsEngine {
     this.hudAccum += dt;
     if (this.hudAccum > 0.2) {
       this.hudAccum = 0;
-      this.onHud?.({ battery: this.battery, flashlightOn: this.flashOn, level: 'LEVEL 0', x: this.pos.x, z: this.pos.z, event: this.activeEvent, voidPhase: this.voidPhase });
+      this.onHud?.({ battery: this.battery, flashlightOn: this.flashOn, level: 'LEVEL 0', x: this.pos.x, z: this.pos.z, event: this.activeEvent, voidPhase: this.voidPhase, region: this.curRegion, nearClue: this.nearClue });
     }
 
     this.renderer.render(this.scene, this.camera);
@@ -703,6 +836,48 @@ export class BackroomsEngine {
     this.renderer.setClearColor(0x000000, 1);
     // Bass swells with tension.
     if (this.voidBassGain && this.audioCtx) this.voidBassGain.gain.setTargetAtTime(0.02 + v * 0.22, this.audioCtx.currentTime, 0.2);
+  }
+
+  // ── Rare regions + clue proximity (applied after event lighting) ─────
+  private updateRegion(dt: number) {
+    const region = regionTypeFor(Math.round(this.pos.x / CELL), Math.round(this.pos.z / CELL), this.worldSeed);
+    this.curRegion = region;
+    const pal = PALETTES[region];
+    const k = Math.min(1, dt * 2.2);
+    this.regionCol.floor.lerp(this._tmpCol.setHex(pal.floor), k);
+    this.regionCol.ceil.lerp(this._tmpCol.setHex(pal.ceil), k);
+    this.regionCol.fog.lerp(this._tmpCol.setHex(pal.fog), k);
+    this.regionCol.light += (pal.light - this.regionCol.light) * k;
+    (this.floor.material as THREE.MeshLambertMaterial).color.copy(this.regionCol.floor);
+    (this.ceil.material as THREE.MeshLambertMaterial).color.copy(this.regionCol.ceil);
+    (this.scene.fog as THREE.FogExp2).color.copy(this.regionCol.fog);
+    const lm = this.regionCol.light;
+    for (const pl of this.lightPool) pl.intensity *= lm;
+    this.ambient.intensity *= lm;
+    this.hemi.intensity *= lm;
+
+    // Flood water follows the player, shown only inside flooded rooms.
+    this.water.visible = region === 'flood';
+    if (region === 'flood') this.water.position.set(this.pos.x, 0.14, this.pos.z);
+
+    // Clue proximity → interact prompt
+    let near = false;
+    for (const c of this.clues) {
+      const dx = c.x - this.pos.x, dz = c.z - this.pos.z;
+      if (dx * dx + dz * dz < 3.24) { near = true; break; } // 1.8m
+    }
+    this.nearClue = near;
+  }
+
+  // Read the nearest clue within interact range (or null).
+  readClue(): string | null {
+    let best: string | null = null; let bd = 3.24; // 1.8m²
+    for (const c of this.clues) {
+      const dx = c.x - this.pos.x, dz = c.z - this.pos.z;
+      const d = dx * dx + dz * dz;
+      if (d < bd) { bd = d; best = c.note; }
+    }
+    return best;
   }
 
   private updateEventLighting(now: number) {

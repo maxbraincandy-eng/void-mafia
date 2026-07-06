@@ -12,6 +12,15 @@ import { BackroomsEngine, type HudState, type RemotePlayerState } from './engine
 
 const JOY_R = 56;
 
+const REGION_NAMES: Record<string, string> = {
+  red: '⚠ წითელი დერეფნები',
+  black: '⬛ შავი ოთახი',
+  server: '▚ სერვერული',
+  library: '📖 მდუმარე ბიბლიოთეკა',
+  cafeteria: '🍽 მიტოვებული კაფეტერია',
+  flood: '≋ დატბორილი ოთახები',
+};
+
 interface InstanceRow { id: string; name: string; seed: number; maxPlayers: number; count: number; }
 interface JoinData { seed: number; name: string; mySocketId: string; players: RemotePlayerState[]; }
 
@@ -86,7 +95,8 @@ function Lobby({ onJoin, onClose }: { onJoin: (id: string, name: string) => void
 function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: () => void; onClose: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<BackroomsEngine | null>(null);
-  const [hud, setHud] = useState<HudState>({ battery: 1, flashlightOn: true, level: 'LEVEL 0', x: 0, z: 0, event: null, voidPhase: 'none' });
+  const [hud, setHud] = useState<HudState>({ battery: 1, flashlightOn: true, level: 'LEVEL 0', x: 0, z: 0, event: null, voidPhase: 'none', region: 'normal', nearClue: false });
+  const [note, setNote] = useState<string | null>(null);
   const [status, setStatus] = useState<'joining' | 'in' | 'error'>('joining');
   const [errMsg, setErrMsg] = useState('');
 
@@ -350,6 +360,25 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
         </div>
       )}
 
+      {/* Rare-region discovery label */}
+      {status === 'in' && hud.region !== 'normal' && REGION_NAMES[hud.region] && (
+        <div style={{ position: 'absolute', top: 'max(78px, calc(env(safe-area-inset-top) + 64px))', left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none',
+          fontFamily: 'monospace', fontSize: 11, letterSpacing: 3, color: 'rgba(255,245,210,0.6)', border: '1px solid rgba(255,245,210,0.18)', borderRadius: 20, padding: '5px 14px', background: 'rgba(6,4,2,0.5)', backdropFilter: 'blur(4px)', whiteSpace: 'nowrap' }}>
+          {REGION_NAMES[hud.region]}
+        </div>
+      )}
+
+      {/* Clue note reader */}
+      {note && (
+        <div data-hud-btn onClick={() => setNote(null)}
+          style={{ position: 'absolute', inset: 0, zIndex: 20, background: 'rgba(2,1,0,0.82)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 28 }}>
+          <div style={{ maxWidth: 360, padding: '22px 20px', borderRadius: 8, background: 'rgba(232,226,200,0.94)', boxShadow: '0 12px 50px rgba(0,0,0,0.7)', transform: 'rotate(-1.2deg)' }}>
+            <div style={{ fontFamily: 'monospace', fontSize: 15, lineHeight: 1.7, color: '#1a1408', whiteSpace: 'pre-wrap' }}>{note}</div>
+            <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(26,20,8,0.4)', marginTop: 16, textAlign: 'right' }}>— დააჭირე დახურვისთვის</div>
+          </div>
+        </div>
+      )}
+
       {/* Joining / error overlays */}
       {status !== 'in' && (
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(3,2,1,0.9)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
@@ -406,6 +435,7 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
           {btn('🏃', () => { engineRef.current && (engineRef.current.input.sprint = true); }, { hold: true, off: () => { engineRef.current && (engineRef.current.input.sprint = false); } })}
           {btn('⤒', () => engineRef.current?.jump())}
         </div>
+        {hud.nearClue && btn('✋', () => { const n = engineRef.current?.readClue(); if (n) setNote(n); }, { active: true })}
       </div>
 
       <div style={{ position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none', fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,245,210,0.25)', letterSpacing: 1, whiteSpace: 'nowrap' }}>

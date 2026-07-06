@@ -17,8 +17,8 @@ break existing systems.
 | **3** | ✅ **DONE (v311)** | Spatial voice: `backrooms:voice-*` WebRTC-mesh signaling, Web-Audio spatializer (distance rolloff + stereo pan + wall-muffle lowpass + hallway reverb) with `audio.volume` fallback, engine occlusion raycast, mic button, speaking → head-lamp pulse. |
 | **4** | ✅ **DONE (v312)** | Dynamic events + positional horror audio: server per-instance scheduler broadcasting synced `backrooms:event`; flicker + blackout (emergency lighting + heartbeat + red wash), procedural positional one-shots (footstep/whisper/buzz/scrape/scream/vent/rumble/slam) anchored near random players. |
 | **5** | ✅ **DONE (v313)** | **VOID IS COMING / ვოიდი მოდის** staged event: server sequence (`void_warning` → `void_sweep` → per-player `void_teleport` → `void_end`), cinematic red pulsing text, tension darkening + deep bass + whispers, black fog swallowing corridors, whole-instance scatter-teleport. |
-| **6** | ⏳ next | Rare discoveries (cafeteria, red halls, silent library, server room, mirror hallway, endless staircase, black room) + environmental clues/notes. |
-| **7** | ⏳ | Post-processing polish (bloom, film grain, chromatic aberration, camera shake), LOD/occlusion culling, social gestures (wave/point/flashlight signals), mobile FPS tuning, dynamic shadows. |
+| **6** | ✅ **DONE (v314)** | Rare discoveries: deterministic special regions (red halls, black room, server room, silent library, cafeteria, flooded rooms) via greyscale textures + per-instance colour + signature props + flood water; scattered readable clue notes with an interact button + note reader; region-discovery label. |
+| **7** | ⏳ next | Post-processing polish (bloom, film grain, chromatic aberration, camera shake), LOD/occlusion culling, social gestures (wave/point/flashlight signals), mobile FPS tuning, dynamic shadows. |
 
 ## Architecture / integration points
 
@@ -120,16 +120,31 @@ Note: every player is scattered each Void (guaranteed "everyone's lost"
 drama). A future tweak could let players evade the Void (e.g. reach a safe
 room) instead of always being caught.
 
-## Phase 6 starting point (next session) — Rare discoveries + storytelling
+## Phase 6 — what shipped (v314)
 
-1. Deterministic rare rooms: hash a coarse "region" (e.g. every 24×24 cells);
-   with low probability a region hosts a special room (cafeteria, red halls,
-   silent library, server room, mirror hallway, endless staircase, black room).
-   Build them as distinct decor in `rebuildWindow` (or a parallel pass) keyed by
-   `hash3(regionX, regionZ, seed)`.
-2. Environmental clues: scatter interactable props (notes, drawings, numbers,
-   broken PCs, backpacks) — a low-probability lattice item. Wire the reserved
-   **interact button** to read a note (small overlay). Never fully explain.
-3. Keep it seed-shared so everyone in an instance can find the same room/clue.
+- **engine.ts**: `RegionType` + `PALETTES` + `regionTypeFor()` (coarse `REGION`
+  blocks, ~10% special via `hash3(regionX,regionZ,seed)`). Textures are now
+  greyscale so walls/pillars recolour per-region via `instanceColor`
+  (`setColorAt`), and floor/ceiling/fog lerp toward the region palette in
+  `updateRegion()` (which also multiplies a per-region light factor → dark black
+  room, etc.). Signature props via a new `propMesh` InstancedMesh (library
+  shelves / cafeteria tables / server racks) and a `water` plane for flooded
+  rooms. Clues: `clueAt()`/`noteFor()`, a `clueMesh` of glowing notes, and
+  `readClue()` + `nearClue`. `HudState` gains `region` + `nearClue`.
+- **Backrooms.tsx**: interact button (✋, appears when `nearClue`) → paper-style
+  note reader overlay; subtle region-discovery label (`REGION_NAMES`).
 
-Keep Phases 1–5 behaviour identical.
+## Phase 7 starting point (next session) — Polish + performance
+
+1. Post-processing: bloom on the ceiling panels/clues, film grain, subtle
+   chromatic aberration, camera shake during blackout/void. Either
+   `EffectComposer` (adds to the chunk) or cheap fullscreen shader/CSS passes.
+2. Perf: cap `setPixelRatio` more aggressively on low-end, consider fewer window
+   cells on small screens, verify InstancedMesh counts; add a simple FPS guard.
+3. Social gestures: wave / point / flashlight-signal (blink) — broadcast a
+   `backrooms:gesture` and show it on remote avatars.
+4. Cleanups: guarantee spawn-cell connectivity (avoid the ~0.8% sealed spawn);
+   track the Void sequence's inner timers so an empty→refill can't fire a stale
+   stage (see Phase 5 note); optional dynamic shadow from the flashlight.
+
+Keep Phases 1–6 behaviour identical.
