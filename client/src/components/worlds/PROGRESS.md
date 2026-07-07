@@ -16,7 +16,7 @@ features must never break.
 | **4 — Beach Camp depth** | ⏳ | More scenery, night wildlife, tide, fireflies, real bloom (EffectComposer, perf-gated). |
 | **5 — Voice & social (multiplayer)** | ✅ **DONE (v321)** | `world:*` socket presence (one shared instance per world), remote avatars reusing `Avatar` + nameplates, seat claim/sync (no double-sitting), wave broadcast, and spatial voice via a `world:voice-*` mesh feeding the shared `spatialAudio` spatializer. Mic button + speaking indicators + live player count. |
 | **6 — UI & HUD** | ✅ **DONE (v322)** | Slide-out player list (colour swatch + speaking dot), tap-title to open; settings panel (render auto/high/low + shadows toggle, persisted); 3D speaking ring at speakers' feet; auto-hide stays up while a panel is open. |
-| **7 — Optimization** | ⏳ | LOD, instancing for foliage, texture sizing, frustum culling audit, quality tiers. |
+| **7 — Optimization** | ✅ **DONE (v325)** | Instanced rocks / driftwood / fire stones / beach plants (merged grass tuft) — cut ~140 meshes to 4 InstancedMeshes; smaller ocean mesh (60×40→44×26) with a shared `perf.reduced` flag that throttles wave-normal recompute under load. |
 | **8 — Additional worlds** | ⏳ | Cyber Lounge / Skyline Terrace / Yacht / Mountain Cabin (registry already stubs them). |
 | **9 — Interactive objects** | ⏳ | Sit variations, campfire toss, lanterns, mini-games, world props. |
 | **10 — Polish & bug fixes** | ⏳ | Device testing, final tuning. |
@@ -66,9 +66,23 @@ Classic 2D Virtual Spaces remain untouched.
   shadows, persisted to `vw_quality`, applied live); auto-hide HUD now stays up
   while any panel is open (`showUI`).
 
-## Phase 7 starting point (next) — Optimization
+## Phase 7 — what shipped (v325) — Optimization
 
-1. Instance the foliage/rocks (many draw calls today → InstancedMesh per kind).
-2. LOD: swap palm crowns / distant props for billboards beyond a radius.
-3. Frustum-culling audit + smaller textures on 'low'; cap ocean segments on low.
-4. Pool ember/particle updates; throttle wave vertex recompute on low tier.
+- **Instancing** (`beachCamp.ts`): rocks (14), driftwood (6), campfire stone
+  ring (9) and beach plants (24 × a 5-blade merged **grass tuft**) are now four
+  `InstancedMesh`es instead of ~140 individual meshes — a big draw-call + shadow
+  cost cut. Plants keep a gentle per-instance sway (24 matrix writes/frame).
+- **Merge helper**: `mergeGeos()` bakes cones into one tuft geometry (no
+  three/examples dependency).
+- **Ocean**: segment count 60×40 → 44×26; a shared `WorldContext.perf.reduced`
+  flag (set by the engine when quality is `low` or adaptive pixel ratio drops
+  below 0.95) throttles the costly `computeVertexNormals()` to every 3rd frame
+  under load.
+
+## Phase 8 starting point (next) — Additional worlds
+
+The registry already stubs Cyber Lounge / Skyline Terrace / Yacht / Mountain
+Cabin. Implement one as a proof of the modular system: a new `WorldDef` in
+`worlds/<name>.ts` (sky, ground, colliders, seats, ambient, props) + flip its
+registry entry `status: 'soon' → 'live'`. Everything else (engine, controls,
+multiplayer, voice, HUD) is reused for free. Server: add the id to `WORLD_IDS`.

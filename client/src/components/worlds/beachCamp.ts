@@ -115,7 +115,7 @@ function buildSand(ctx: WorldContext) {
 
 // ── Ocean: animated waves + moonlight streak ──────────────────────────
 function buildOcean(ctx: WorldContext) {
-  const geo = new THREE.PlaneGeometry(220, 120, 60, 40);
+  const geo = new THREE.PlaneGeometry(220, 120, 44, 26);
   const mat = new THREE.MeshStandardMaterial({ color: 0x0b2a44, roughness: 0.22, metalness: 0.5, transparent: true, opacity: 0.96 });
   const sea = new THREE.Mesh(geo, mat);
   sea.rotation.x = -Math.PI / 2;
@@ -124,12 +124,16 @@ function buildOcean(ctx: WorldContext) {
   const p = geo.attributes.position as THREE.BufferAttribute;
   const base = new Float32Array(p.count);
   for (let i = 0; i < p.count; i++) base[i] = p.getZ(i);
+  let nf = 0;
   ctx.onUpdate((_d, e) => {
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), y = p.getY(i);
       p.setZ(i, base[i] + Math.sin(x * 0.12 + e * 1.1) * 0.35 + Math.cos(y * 0.14 + e * 0.9) * 0.3 + Math.sin((x + y) * 0.08 + e * 1.6) * 0.15);
     }
-    p.needsUpdate = true; geo.computeVertexNormals();
+    p.needsUpdate = true;
+    // Normal recompute is the costly part — do it every frame normally, every
+    // 3rd frame when the engine reports it's under load.
+    if (!ctx.perf.reduced || (++nf % 3 === 0)) geo.computeVertexNormals();
   });
 
   // moonlight reflection streak on the water
@@ -149,13 +153,16 @@ function buildOcean(ctx: WorldContext) {
 function buildCampfire(ctx: WorldContext) {
   const g = new THREE.Group();
   ctx.scene.add(g);
-  // stone ring
+  // stone ring — one InstancedMesh
+  const ringDummy = new THREE.Object3D();
+  const stones = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1), new THREE.MeshStandardMaterial({ color: 0x4a4640, roughness: 1 }), 9);
+  stones.castShadow = true; stones.receiveShadow = true;
   for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * Math.PI * 2;
-    const s = new THREE.Mesh(new THREE.DodecahedronGeometry(rrng(0.28, 0.4)), new THREE.MeshStandardMaterial({ color: 0x4a4640, roughness: 1 }));
-    s.position.set(Math.cos(a) * 1.15, 0.18, Math.sin(a) * 1.15); s.castShadow = true; s.receiveShadow = true;
-    g.add(s);
+    const a = (i / 9) * Math.PI * 2; const r = rrng(0.28, 0.4);
+    ringDummy.position.set(Math.cos(a) * 1.15, 0.18, Math.sin(a) * 1.15); ringDummy.scale.setScalar(r); ringDummy.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3);
+    ringDummy.updateMatrix(); stones.setMatrixAt(i, ringDummy.matrix);
   }
+  stones.instanceMatrix.needsUpdate = true; g.add(stones);
   // logs
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2 + 0.4;
@@ -277,36 +284,59 @@ function buildPalms(ctx: WorldContext) {
 
 // ── Rocks, driftwood, lanterns, plants ────────────────────────────────
 function buildProps(ctx: WorldContext) {
-  // rocks
-  for (let i = 0; i < 12; i++) {
+  const dummy = new THREE.Object3D();
+
+  // rocks — one InstancedMesh (12 draw calls → 1)
+  const rockData: { x: number; z: number; r: number; rx: number; ry: number; rz: number }[] = [];
+  for (let i = 0; i < 14; i++) {
     const x = rrng(-24, 24), z = rrng(-26, 12);
     if (Math.hypot(x, z) < 4) continue;
-    const r = rrng(0.4, 1.3);
-    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(r), new THREE.MeshStandardMaterial({ color: 0x4c4842, roughness: 1 }));
-    m.position.set(x, r * 0.5, z); m.scale.y = 0.7; m.rotation.set(rnd(), rnd(), rnd()); m.castShadow = true; m.receiveShadow = true;
-    ctx.scene.add(m); ctx.addCollider({ x, z, r: r * 0.8 });
+    rockData.push({ x, z, r: rrng(0.4, 1.3), rx: rnd() * 3, ry: rnd() * 3, rz: rnd() * 3 });
   }
-  // driftwood
-  for (let i = 0; i < 5; i++) {
+  const rocks = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1), new THREE.MeshStandardMaterial({ color: 0x4c4842, roughness: 1 }), rockData.length);
+  rocks.castShadow = true; rocks.receiveShadow = true;
+  rockData.forEach((rk, i) => {
+    dummy.position.set(rk.x, rk.r * 0.5, rk.z); dummy.scale.set(rk.r, rk.r * 0.7, rk.r); dummy.rotation.set(rk.rx, rk.ry, rk.rz);
+    dummy.updateMatrix(); rocks.setMatrixAt(i, dummy.matrix);
+    ctx.addCollider({ x: rk.x, z: rk.z, r: rk.r * 0.8 });
+  });
+  rocks.instanceMatrix.needsUpdate = true; ctx.scene.add(rocks);
+
+  // driftwood — one InstancedMesh
+  const driftData: { x: number; z: number; l: number; ry: number; rz: number }[] = [];
+  for (let i = 0; i < 6; i++) {
     const x = rrng(-20, 20), z = rrng(-24, 6);
     if (Math.hypot(x, z) < 5) continue;
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, rrng(1.5, 3), 6), new THREE.MeshStandardMaterial({ color: 0x6b5636, roughness: 1 }));
-    m.rotation.set(Math.PI / 2, rnd() * Math.PI, rrng(-0.3, 0.3)); m.position.set(x, 0.15, z); m.castShadow = true;
-    ctx.scene.add(m);
+    driftData.push({ x, z, l: rrng(1.5, 3), ry: rnd() * Math.PI, rz: rrng(-0.3, 0.3) });
   }
-  // beach plants
-  const plantMat = new THREE.MeshStandardMaterial({ color: 0x2c6b38, roughness: 0.9, side: THREE.DoubleSide });
-  for (let i = 0; i < 22; i++) {
+  const drift = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.13, 0.16, 1, 6), new THREE.MeshStandardMaterial({ color: 0x6b5636, roughness: 1 }), driftData.length);
+  drift.castShadow = true;
+  driftData.forEach((dw, i) => {
+    dummy.position.set(dw.x, 0.15, dw.z); dummy.scale.set(1, dw.l, 1); dummy.rotation.set(Math.PI / 2, dw.ry, dw.rz);
+    dummy.updateMatrix(); drift.setMatrixAt(i, dummy.matrix);
+  });
+  drift.instanceMatrix.needsUpdate = true; ctx.scene.add(drift);
+
+  // beach plants — merged grass tuft, one InstancedMesh (110 draw calls → 1),
+  // gentle per-instance sway (22 matrix writes/frame).
+  const plants = new THREE.InstancedMesh(grassTuftGeo(), new THREE.MeshStandardMaterial({ color: 0x2c6b38, roughness: 0.9 }), 24);
+  plants.castShadow = true;
+  const plantSpots: { x: number; z: number; ph: number; s: number }[] = [];
+  for (let i = 0; i < 24; i++) {
     const x = rrng(-26, 26), z = rrng(-26, 12);
     if (Math.hypot(x, z) < 3.5) continue;
-    const g = new THREE.Group(); g.position.set(x, 0, z); ctx.scene.add(g);
-    for (let b = 0; b < 5; b++) {
-      const bl = new THREE.Mesh(new THREE.ConeGeometry(0.05, rrng(0.5, 1.0), 4), plantMat);
-      bl.position.y = 0.35; bl.rotation.z = rrng(-0.5, 0.5); bl.rotation.y = rnd() * Math.PI; g.add(bl);
-    }
-    const ph = rnd() * 6;
-    ctx.onUpdate((_d, e) => { g.rotation.z = Math.sin(e * 1.5 + ph) * 0.06; });
+    plantSpots.push({ x, z, ph: rnd() * 6, s: rrng(0.8, 1.4) });
   }
+  plants.count = plantSpots.length;
+  ctx.scene.add(plants);
+  ctx.onUpdate((_d, e) => {
+    for (let i = 0; i < plantSpots.length; i++) {
+      const p = plantSpots[i];
+      dummy.position.set(p.x, 0, p.z); dummy.scale.setScalar(p.s); dummy.rotation.set(0, 0, Math.sin(e * 1.5 + p.ph) * 0.13);
+      dummy.updateMatrix(); plants.setMatrixAt(i, dummy.matrix);
+    }
+    plants.instanceMatrix.needsUpdate = true;
+  });
   // lanterns (warm point lights, limited count)
   const lanternSpots = [[-4, 5], [4, 5], [-6, -3], [6, -3], [0, -7]];
   for (const [x, z] of lanternSpots) {
@@ -366,6 +396,35 @@ function buildAirParticles(ctx: WorldContext) {
     }
     pa.needsUpdate = true;
   });
+}
+
+// ── Geometry helpers (merge cones into a grass tuft for instancing) ───
+function mergeGeos(geos: THREE.BufferGeometry[]): THREE.BufferGeometry {
+  const nis = geos.map(g => (g.index ? g.toNonIndexed() : g));
+  let count = 0; for (const g of nis) count += g.attributes.position.count;
+  const pos = new Float32Array(count * 3), nor = new Float32Array(count * 3);
+  let o = 0;
+  for (const g of nis) {
+    pos.set(g.attributes.position.array as Float32Array, o * 3);
+    if (g.attributes.normal) nor.set(g.attributes.normal.array as Float32Array, o * 3);
+    o += g.attributes.position.count;
+    g.dispose();
+  }
+  const m = new THREE.BufferGeometry();
+  m.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  m.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  return m;
+}
+function grassTuftGeo(): THREE.BufferGeometry {
+  const blades: THREE.BufferGeometry[] = [];
+  for (let b = 0; b < 5; b++) {
+    const g = new THREE.ConeGeometry(0.05, 0.55 + rnd() * 0.45, 4).toNonIndexed();
+    g.rotateZ((rnd() - 0.5) * 0.9);
+    g.rotateY(rnd() * Math.PI);
+    g.translate((rnd() - 0.5) * 0.22, 0.32, (rnd() - 0.5) * 0.22);
+    blades.push(g);
+  }
+  return mergeGeos(blades);
 }
 
 // ── Procedural textures ───────────────────────────────────────────────

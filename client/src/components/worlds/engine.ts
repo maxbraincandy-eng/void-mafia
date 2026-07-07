@@ -70,6 +70,7 @@ export class WorldEngine {
   private perfAccum = 0; private perfFrames = 0; private curPR = 1;
   private quality: QualityMode = 'auto';
   private shadowsForced: boolean | null = null;
+  private worldPerf = { reduced: false };
 
   // multiplayer
   private remotes = new Map<string, RemoteEntry>();
@@ -125,6 +126,7 @@ export class WorldEngine {
     if (mode === 'high') this.curPR = maxPR;
     else if (mode === 'low') this.curPR = 1.0;
     if (mode !== 'auto') { this.renderer.setPixelRatio(this.curPR); this.resize(); }
+    this.worldPerf.reduced = mode === 'low';
   }
   setShadows(on: boolean) {
     this.shadowsForced = on;
@@ -268,6 +270,7 @@ export class WorldEngine {
       addAmbient: (a) => this.ambients.push(a),
       onUpdate: (fn) => this.updates.push(fn),
       disposables: [],
+      perf: this.worldPerf,
     };
     this.def.build(ctx);
   }
@@ -348,6 +351,7 @@ export class WorldEngine {
         else if (fps > 56 && this.curPR < maxPR) { this.curPR = Math.min(maxPR, this.curPR + 0.1); this.renderer.setPixelRatio(this.curPR); this.resize(); }
         // Under heavy load, drop shadows entirely (unless the user forced them on).
         if (fps < 30 && this.renderer.shadowMap.enabled && this.shadowsForced !== true) { this.renderer.shadowMap.enabled = false; this.moon.castShadow = false; }
+        this.worldPerf.reduced = this.curPR < 0.95;
       }
       this.perfAccum = 0; this.perfFrames = 0;
     }

@@ -24,6 +24,9 @@ export interface WorldContext {
   addAmbient(a: AmbientSource): void;
   onUpdate(fn: (dt: number, elapsed: number) => void): void;
   disposables: (THREE.Texture | THREE.Material | THREE.BufferGeometry)[];
+  // Live perf hint the engine keeps updating — worlds throttle expensive
+  // per-frame work (e.g. ocean normal recompute) when `reduced` is true.
+  perf: { reduced: boolean };
 }
 
 export interface WorldDef {
