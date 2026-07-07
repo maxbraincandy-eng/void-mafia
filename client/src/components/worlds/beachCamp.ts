@@ -39,9 +39,10 @@ export const beachCamp: WorldDef = {
     buildDbSign(ctx);
     buildAirParticles(ctx);
 
-    // ambient audio sources
-    ctx.addAmbient({ kind: 'ocean', x: 0, z: SEA_Z, radius: 60 });
-    ctx.addAmbient({ kind: 'fire', x: 0, z: 0, radius: 12 });
+    // ambient audio sources — ocean is faint far away and swells toward the
+    // shore (steep radius); fire is quiet and local (only near it you hear pops).
+    ctx.addAmbient({ kind: 'ocean', x: 0, z: SEA_Z, radius: 46 });
+    ctx.addAmbient({ kind: 'fire', x: 0, z: 0, radius: 11 });
     ctx.addAmbient({ kind: 'wind', x: 0, z: 0, radius: 100 });
     ctx.addAmbient({ kind: 'night', x: 0, z: 0, radius: 100 });
 

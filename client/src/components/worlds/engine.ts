@@ -448,21 +448,36 @@ export class WorldEngine {
 
     if (a.kind === 'ocean') {
       const src = noise(3);
-      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 500;
-      const swell = ctx.createGain(); swell.gain.value = 0.5;
-      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.14; const la = ctx.createGain(); la.gain.value = 0.4;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 460;
+      const swell = ctx.createGain(); swell.gain.value = 0.42;
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.13; const la = ctx.createGain(); la.gain.value = 0.28;
       lfo.connect(la).connect(swell.gain); lfo.start();
       src.connect(lp).connect(swell).connect(pan); src.start();
       this.audioStops.push(() => { try { src.stop(); lfo.stop(); } catch { /* ignore */ } });
     } else if (a.kind === 'fire') {
-      const src = noise(2);
-      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.6;
-      const crackle = ctx.createGain(); crackle.gain.value = 0.5;
-      src.connect(bp).connect(crackle).connect(pan); src.start();
-      // occasional pops
-      const lfo = ctx.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 3.2; const lg = ctx.createGain(); lg.gain.value = 0.35;
-      lfo.connect(lg).connect(crackle.gain); lfo.start();
-      this.audioStops.push(() => { try { src.stop(); lfo.stop(); } catch { /* ignore */ } });
+      // Quiet, low body of the fire — barely there.
+      const bed = noise(3);
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 150;
+      const bedGain = ctx.createGain(); bedGain.gain.value = 0.045;
+      bed.connect(lp).connect(bedGain).connect(pan); bed.start();
+      // Only occasional small crackle pops.
+      let alive = true; let timer: ReturnType<typeof setTimeout> | null = null;
+      const pop = () => {
+        if (!alive || !this.audioCtx) return;
+        const t = ctx.currentTime;
+        const dur = 0.025 + Math.random() * 0.05;
+        const n = Math.max(1, Math.floor(ctx.sampleRate * dur));
+        const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+        const s = ctx.createBufferSource(); s.buffer = buf;
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1300 + Math.random() * 1900; bp.Q.value = 3;
+        const g2 = ctx.createGain(); g2.gain.value = 0.05 + Math.random() * 0.09;
+        s.connect(bp).connect(g2).connect(pan); s.start(t); s.stop(t + dur + 0.02);
+        timer = setTimeout(pop, 700 + Math.random() * 3200); // rare
+      };
+      timer = setTimeout(pop, 900 + Math.random() * 2000);
+      this.audioStops.push(() => { alive = false; if (timer) clearTimeout(timer); try { bed.stop(); } catch { /* ignore */ } });
     } else if (a.kind === 'wind') {
       const src = noise(3);
       const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320;
