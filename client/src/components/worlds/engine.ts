@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { Avatar, type EmoteKind } from './avatar';
 import type { WorldDef, WorldContext, WorldCollider, WorldSeat, WorldInteractable, AmbientSource, AvatarConfig } from './types';
+import type { CharacterSpec } from '../character/spec';
 
 export interface WorldHud {
   world: string;
@@ -14,7 +15,7 @@ export interface WorldHud {
   players: number;
 }
 
-export interface RemoteWorldPlayer { socketId: string; name: string; bodyColor: string; glowColor: string; x: number; z: number; ry: number; seatId: string | null; }
+export interface RemoteWorldPlayer { socketId: string; name: string; bodyColor: string; glowColor: string; spec?: CharacterSpec; x: number; z: number; ry: number; seatId: string | null; }
 export interface WorldNetState { x: number; z: number; ry: number; seatId: string | null; }
 
 interface RemoteEntry {
@@ -81,7 +82,7 @@ export class WorldEngine {
   private occupiedSeats = new Set<string>();
   private speaking = new Set<string>();
 
-  constructor(canvas: HTMLCanvasElement, def: WorldDef, avatar: AvatarConfig) {
+  constructor(canvas: HTMLCanvasElement, def: WorldDef, avatar: AvatarConfig | CharacterSpec) {
     this.canvas = canvas;
     this.def = def;
 
@@ -162,7 +163,7 @@ export class WorldEngine {
       if (p.seatId) occ.add(p.seatId);
       let e = this.remotes.get(p.socketId);
       if (!e) {
-        const avatar = new Avatar({ bodyColor: p.bodyColor, glowColor: p.glowColor });
+        const avatar = new Avatar(p.spec ?? { bodyColor: p.bodyColor, glowColor: p.glowColor });
         const plate = this.makeNameplate(p.name);
         plate.position.y = 2.15;
         avatar.group.add(plate);

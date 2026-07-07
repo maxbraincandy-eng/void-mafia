@@ -8814,7 +8814,7 @@ export function attachSocketHandlers(io) {
             const list = [...WORLD_IDS].map(id => ({ id, count: _worlds.get(id)?.size ?? 0 }));
             cb?.({ ok: true, data: list });
         });
-        socket.on('world:join', ({ worldId, name, bodyColor, glowColor }, cb) => {
+        socket.on('world:join', ({ worldId, name, bodyColor, glowColor, spec }, cb) => {
             try {
                 const id = String(worldId ?? '');
                 if (!WORLD_IDS.has(id))
@@ -8825,10 +8825,17 @@ export function attachSocketHandlers(io) {
                     _worlds.set(id, room);
                 if (!room.has(socket.id) && room.size >= WORLD_MAX)
                     return cb?.({ ok: false, error: 'სამყარო სავსეა.' });
+                // Accept the character spec but bound it (opaque appearance blob, ~2KB cap).
+                let safeSpec = null;
+                try {
+                    if (spec && typeof spec === 'object' && JSON.stringify(spec).length < 2048)
+                        safeSpec = spec;
+                }
+                catch { /* ignore */ }
                 const p = {
                     socketId: socket.id, name: String(name ?? 'Guest').slice(0, 24) || 'Guest',
                     profileId: socket.data.profileId ?? null,
-                    bodyColor: _hex6(bodyColor, '#9b00ff'), glowColor: _hex6(glowColor, '#00e5ff'),
+                    bodyColor: _hex6(bodyColor, '#9b00ff'), glowColor: _hex6(glowColor, '#00e5ff'), spec: safeSpec,
                     x: 0, z: 8.5, ry: 0, seatId: null,
                 };
                 room.set(socket.id, p);

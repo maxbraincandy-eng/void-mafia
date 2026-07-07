@@ -459,7 +459,7 @@ _spaceMeta.set('beach', {
 // classic 2D Virtual Spaces and the Backrooms.
 interface WorldPlayer {
   socketId: string; name: string; profileId: string | null;
-  bodyColor: string; glowColor: string;
+  bodyColor: string; glowColor: string; spec: any;
   x: number; z: number; ry: number; seatId: string | null;
 }
 const _worlds = new Map<string, Map<string, WorldPlayer>>();          // worldId → players
@@ -7625,7 +7625,7 @@ export function attachSocketHandlers(io: AppServer): void {
       cb?.({ ok: true, data: list });
     });
 
-    socket.on('world:join' as any, ({ worldId, name, bodyColor, glowColor }: any, cb: Function) => {
+    socket.on('world:join' as any, ({ worldId, name, bodyColor, glowColor, spec }: any, cb: Function) => {
       try {
         const id = String(worldId ?? '');
         if (!WORLD_IDS.has(id)) return cb?.({ ok: false, error: 'ეს სამყარო არ არსებობს.' });
@@ -7633,10 +7633,13 @@ export function attachSocketHandlers(io: AppServer): void {
         const room = _worlds.get(id) ?? new Map<string, WorldPlayer>();
         if (!_worlds.has(id)) _worlds.set(id, room);
         if (!room.has(socket.id) && room.size >= WORLD_MAX) return cb?.({ ok: false, error: 'სამყარო სავსეა.' });
+        // Accept the character spec but bound it (opaque appearance blob, ~2KB cap).
+        let safeSpec: any = null;
+        try { if (spec && typeof spec === 'object' && JSON.stringify(spec).length < 2048) safeSpec = spec; } catch { /* ignore */ }
         const p: WorldPlayer = {
           socketId: socket.id, name: String(name ?? 'Guest').slice(0, 24) || 'Guest',
           profileId: socket.data.profileId ?? null,
-          bodyColor: _hex6(bodyColor, '#9b00ff'), glowColor: _hex6(glowColor, '#00e5ff'),
+          bodyColor: _hex6(bodyColor, '#9b00ff'), glowColor: _hex6(glowColor, '#00e5ff'), spec: safeSpec,
           x: 0, z: 8.5, ry: 0, seatId: null,
         };
         room.set(socket.id, p);

@@ -6,10 +6,24 @@
 import * as THREE from 'three';
 import type { CharacterSpec, BodyBuild } from './spec';
 
+export type CharEmote = 'wave' | 'dance' | 'clap' | 'heart' | 'laugh';
+
 export interface CharacterModel {
   group: THREE.Group;
   update: (dt: number, elapsed: number) => void;
+  // Locomotion driver for the 3D worlds (creator preview just leaves it idle).
+  setPose: (speed: number, sitting: boolean) => void;
+  emote: (kind: CharEmote) => void;
   dispose: () => void;
+}
+
+const EMOTE_EMOJI: Record<CharEmote, string> = { wave: '👋', dance: '💃', clap: '👏', heart: '❤️', laugh: '😂' };
+const _emojiCache = new Map<string, THREE.Texture>();
+function emojiTex(ch: string): THREE.Texture {
+  let t = _emojiCache.get(ch); if (t) return t;
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d')!; g.font = '48px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(ch, 32, 36);
+  t = new THREE.CanvasTexture(c); _emojiCache.set(ch, t); return t;
 }
 
 interface BuildParams { torsoW: number; shoulderW: number; limbW: number; belly: number; hips: number; chest: number; }
@@ -118,6 +132,12 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
   // ── Glasses ──────────────────────────────────────────────────────────
   if (spec.glasses !== 'none') buildGlasses(spec.glasses, face, track(new THREE.MeshStandardMaterial({ color: 0x111114, roughness: 0.4, metalness: 0.3 })), mesh);
 
+  // floating emote emoji above the head (used in the 3D worlds)
+  const emoji = new THREE.Sprite(new THREE.SpriteMaterial({ depthTest: false, transparent: true }));
+  emoji.scale.set(0.42, 0.42, 1); emoji.position.set(0, 0.42, 0); emoji.visible = false;
+  disposables.push(emoji.material);
+  headGrp.add(emoji);
+
   // ── Arms ─────────────────────────────────────────────────────────────
   const armGroups: THREE.Group[] = [];
   for (const sx of [-1, 1]) {
@@ -134,8 +154,9 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
   if (skirt) {
     const sk = mesh(new THREE.ConeGeometry(0.26 * bp.hips, 0.34, 16, 1, true), botMat); sk.position.y = 0.78; sk.scale.set(1, 1, 0.8); torso.add(sk);
   }
+  const legGroups: THREE.Group[] = [];
   for (const sx of [-1, 1]) {
-    const lg = new THREE.Group(); lg.position.set(sx * 0.085, 0.9, 0); root.add(lg);
+    const lg = new THREE.Group(); lg.position.set(sx * 0.085, 0.9, 0); root.add(lg); legGroups.push(lg);
     const thighMat = skirt ? skinMat : botMat;
     const thigh = caps(0.07 * bp.limbW, 0.24, thighMat); thigh.position.y = -0.2; lg.add(thigh);
     const shinMat = (shortBottom || skirt) ? skinMat : (coverShin ? botMat : skinMat);
@@ -159,15 +180,47 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
   // height scale
   root.scale.setScalar(spec.height);
 
-  // ── Idle animation ───────────────────────────────────────────────────
+  // ── Animation (idle breathing/blink + locomotion + emotes) ───────────
   let blinkT = 2 + Math.random() * 3;
+  let poseSpeed = 0, sitting = false, walkPhase = 0;
+  let emoteKind: CharEmote | null = null, emoteUntil = 0;
+
+  const setPose = (speed: number, sit: boolean) => { poseSpeed = speed; sitting = sit; };
+  const emote = (kind: CharEmote) => {
+    emoteKind = kind; emoteUntil = performance.now() + (kind === 'dance' ? 4200 : 2400);
+    const m = emoji.material as THREE.SpriteMaterial; m.map = emojiTex(EMOTE_EMOJI[kind] ?? '👋'); m.needsUpdate = true; emoji.visible = true;
+  };
+
   const update = (dt: number, e: number) => {
     // breathing
     const br = Math.sin(e * 1.4) * 0.012;
     chest.scale.y = 1 + br; headGrp.position.y = 1.5 + br * 0.5;
-    // subtle sway
-    root.rotation.z = Math.sin(e * 0.7) * 0.006;
-    armGroups.forEach((a, i) => { a.rotation.x = Math.sin(e * 1.2 + i * Math.PI) * 0.04; });
+    root.rotation.z = Math.sin(e * 0.7) * 0.005;
+
+    // locomotion
+    if (sitting) {
+      legGroups.forEach(l => { l.rotation.x += (-1.35 - l.rotation.x) * Math.min(1, dt * 12); });
+      armGroups.forEach(a => { a.rotation.x += (-0.25 - a.rotation.x) * Math.min(1, dt * 12); });
+    } else if (poseSpeed > 0.15) {
+      const run = poseSpeed > 4.2;
+      walkPhase += dt * (run ? 11 : 7);
+      const sw = Math.sin(walkPhase) * (run ? 0.85 : 0.55);
+      legGroups[0].rotation.x = sw; legGroups[1].rotation.x = -sw;
+      armGroups[0].rotation.x = -sw * 0.7; armGroups[1].rotation.x = sw * 0.7;
+    } else {
+      legGroups.forEach(l => { l.rotation.x *= 0.8; });
+      armGroups.forEach((a, i) => { a.rotation.x += (Math.sin(e * 1.2 + i * Math.PI) * 0.04 - a.rotation.x) * Math.min(1, dt * 6); });
+    }
+
+    // emote overrides
+    const now = performance.now();
+    if (emoteKind && now < emoteUntil) {
+      applyCharEmote(emoteKind, now, armGroups, legGroups, torso, root, poseSpeed <= 0.15 && !sitting);
+      emoji.visible = true; emoji.position.y = 0.42 + Math.sin(now / 200) * 0.05;
+    } else {
+      if (emoteKind) { emoteKind = null; emoji.visible = false; armGroups.forEach(a => { a.rotation.z = 0; }); torso.rotation.z = 0; torso.rotation.x = 0; }
+    }
+
     // blink
     blinkT -= dt;
     let ey = 1;
@@ -176,7 +229,17 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
     eyes.forEach(g => { g.scale.y = ey; });
   };
 
-  return { group: root, update, dispose: () => disposables.forEach(d => d.dispose()) };
+  return { group: root, update, setPose, emote, dispose: () => disposables.forEach(d => d.dispose()) };
+}
+
+function applyCharEmote(kind: CharEmote, now: number, arms: THREE.Group[], _legs: THREE.Group[], torso: THREE.Group, root: THREE.Group, _idle: boolean) {
+  const t = now / 1000;
+  const [aL, aR] = arms;
+  if (kind === 'wave') { aR.rotation.x = -2.6; aR.rotation.z = Math.sin(now / 90) * 0.4 - 0.3; }
+  else if (kind === 'dance') { const s = Math.sin(t * 7); torso.rotation.z = s * 0.16; root.position.y += Math.abs(Math.sin(t * 7)) * 0.06; aL.rotation.x = -2.2 + s * 0.4; aR.rotation.x = -2.2 - s * 0.4; aL.rotation.z = 0.4; aR.rotation.z = -0.4; }
+  else if (kind === 'clap') { const c = Math.sin(t * 12) * 0.5; aL.rotation.x = -1.5; aR.rotation.x = -1.5; aL.rotation.z = 0.5 - c; aR.rotation.z = -0.5 + c; }
+  else if (kind === 'heart') { aL.rotation.x = -1.3; aR.rotation.x = -1.3; aL.rotation.z = 0.7; aR.rotation.z = -0.7; torso.rotation.x = Math.sin(t * 3) * 0.05; }
+  else { torso.rotation.x = 0.22 + Math.sin(t * 12) * 0.05; aL.rotation.x = -0.6; aR.rotation.x = -0.6; }
 }
 
 // ── Sub-builders (swap with authored assets later) ────────────────────

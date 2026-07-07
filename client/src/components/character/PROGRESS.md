@@ -44,9 +44,25 @@ accessory packs) without touching the UI or the spec.
   necklaces/chains/earrings/rings/bracelets/watches, gradient/highlight hair.
 - **P4 — Asset packs**: swap procedural sub-builders for authored GLTF hair/
   clothing meshes + PBR textures (the spec/catalog layer already supports it).
-- **P5 — Use everywhere (full)**: unify the world avatars to render
-  `buildCharacter` (rigged for walk/run/sit/emote) instead of the blocky
-  humanoid; 2D portrait render for profile/chat/friends thumbnails.
+- **P5 — Use everywhere**: ✅ **3D DONE (v329)** — the Premium Worlds now render
+  the player's actual created character (rigged for walk/run/sit + all emotes),
+  and the full `CharacterSpec` is transmitted to peers so everyone sees each
+  other's real avatar. ⏳ remaining: 2D portrait render for profile/chat/friends
+  thumbnails (offscreen render of the model → data URL).
 
-Phase-1 identity already carries into Premium Worlds via the synced
-`vs_bodyColor`/`vs_glowColor`; full model parity is P5.
+## P5 — what shipped (v329)
+
+- **model.ts** is now the single avatar source: `buildCharacter()` returns a
+  pose-driven rig (`setPose(speed, sitting)` + `emote(kind)` + idle
+  breathing/blink) with a floating emote emoji. Both the creator preview and
+  the worlds use it.
+- **worlds/avatar.ts** is a thin wrapper over the character model (accepts a
+  `CharacterSpec` or the legacy `{bodyColor,glowColor}`), keeping the engine's
+  Avatar interface (`group/state/update/emote/wave/dispose`).
+- **engine.ts / PremiumWorlds.tsx**: build local + remote avatars from specs;
+  `world:join` now sends the compact `spec`.
+- **server**: `WorldPlayer.spec` (bounded to ~2KB) stored + broadcast in the
+  player list and `player-joined`.
+
+Remaining P5: 2D portraits. Classic 2D Virtual Spaces + Backrooms are untouched
+(they keep their own avatars).

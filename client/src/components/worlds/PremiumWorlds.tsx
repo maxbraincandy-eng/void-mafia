@@ -5,7 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useWorldVoice, applyWorldSpatial, leaveWorldVoice } from '@/hooks/useWorldVoice';
 import { WorldEngine, type WorldHud, type RemoteWorldPlayer } from './engine';
 import { PREMIUM_WORLDS, getWorld } from './registry';
-import type { AvatarConfig } from './types';
+import { loadSpec, defaultSpec, type CharacterSpec } from '../character/spec';
 
 // ── Premium Worlds — full-screen overlay (lobby → 3D world) ────────────
 // Lazy-loaded from App so Three.js + world code stay out of the main bundle.
@@ -13,11 +13,8 @@ import type { AvatarConfig } from './types';
 
 const JOY_R = 58;
 
-function readAvatar(): AvatarConfig {
-  return {
-    bodyColor: localStorage.getItem('vs_bodyColor') || '#9b00ff',
-    glowColor: localStorage.getItem('vs_glowColor') || '#00e5ff',
-  };
+function readSpec(): CharacterSpec {
+  return loadSpec() ?? defaultSpec('male');
 }
 
 function PlayerRow({ name, color, speaking }: { name: string; color: string; speaking: boolean }) {
@@ -133,8 +130,8 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     if (!canvasRef.current) return;
     const def = getWorld(worldId);
     if (!def || def.status !== 'live') { onExit(); return; }
-    const av = readAvatar();
-    const eng = new WorldEngine(canvasRef.current, def, av);
+    const mySpec = readSpec();
+    const eng = new WorldEngine(canvasRef.current, def, mySpec);
     engineRef.current = eng;
     eng.onHud = setHud;
     eng.setQuality(quality.mode);
@@ -175,8 +172,8 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     socket.on('world:emote', onEmote);
     socket.on('world:interact', onInteractNet);
 
-    emitWithAck<{ worldId: string; name: string; bodyColor: string; glowColor: string }, { ok: boolean; data?: { mySocketId: string; players: RemoteWorldPlayer[] } }>(
-      'world:join', { worldId, name: useAuthStore.getState().profile?.username ?? 'Guest', bodyColor: av.bodyColor, glowColor: av.glowColor },
+    emitWithAck<{ worldId: string; name: string; bodyColor: string; glowColor: string; spec: CharacterSpec }, { ok: boolean; data?: { mySocketId: string; players: RemoteWorldPlayer[] } }>(
+      'world:join', { worldId, name: useAuthStore.getState().profile?.username ?? 'Guest', bodyColor: mySpec.topColor, glowColor: mySpec.glow, spec: mySpec },
     ).then(res => {
       if (res.ok && res.data) {
         mySocketId.current = res.data.mySocketId;
@@ -372,7 +369,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       {panel === 'players' && (
         <div data-hud style={{ position: 'absolute', top: 'max(62px, calc(env(safe-area-inset-top) + 50px))', left: 14, width: 'min(260px, 70vw)', maxHeight: '62vh', overflowY: 'auto', background: 'rgba(12,10,24,0.9)', border: '1px solid rgba(192,132,252,0.3)', borderRadius: 14, padding: 10, backdropFilter: 'blur(10px)' }}>
           <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(233,213,255,0.5)', margin: '2px 4px 8px' }}>მოთამაშეები · {hud.players}</div>
-          <PlayerRow name={`${useAuthStore.getState().profile?.username ?? 'შენ'} (შენ)`} color={readAvatar().bodyColor} speaking={false} />
+          <PlayerRow name={`${useAuthStore.getState().profile?.username ?? 'შენ'} (შენ)`} color={readSpec().topColor} speaking={false} />
           {roster.map(p => <PlayerRow key={p.socketId} name={p.name} color={p.bodyColor} speaking={voice.speakingIds.has(p.socketId)} />)}
         </div>
       )}
