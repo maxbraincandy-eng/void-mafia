@@ -252,6 +252,19 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
       armGroups[0].rotation.x += (-0.05 - armGroups[0].rotation.x) * k; armGroups[0].rotation.z += (1.4 - armGroups[0].rotation.z) * k;
       armGroups[1].rotation.x += (-0.05 - armGroups[1].rotation.x) * k; armGroups[1].rotation.z += (-1.4 - armGroups[1].rotation.z) * k;
       chest.scale.y = 1 + br + 0.02;
+    } else if (holdPose === 'swim') {
+      // upright but half-submerged (wrapper drops the body): flutter + paddle
+      legGroups[0].rotation.x = Math.sin(e * 6) * 0.28; legGroups[1].rotation.x = -Math.sin(e * 6) * 0.28;
+      kneeGroups.forEach(kn => { kn.rotation.x *= 0.8; });
+      armGroups[0].rotation.x = Math.sin(e * 4) * 0.9 - 0.7; armGroups[1].rotation.x = Math.sin(e * 4 + Math.PI) * 0.9 - 0.7;
+      const k = Math.min(1, dt * 6); armGroups[0].rotation.z += (0.25 - armGroups[0].rotation.z) * k; armGroups[1].rotation.z += (-0.25 - armGroups[1].rotation.z) * k;
+    } else if (holdPose === 'hammock') {
+      // reclined (wrapper tilts the body back): legs up a touch, hands behind head
+      const k = Math.min(1, dt * 8);
+      legGroups.forEach(l => { l.rotation.x += (0.25 - l.rotation.x) * k; });
+      kneeGroups.forEach(kn => { kn.rotation.x += (0.5 - kn.rotation.x) * k; });
+      armGroups[0].rotation.x += (-2.2 - armGroups[0].rotation.x) * k; armGroups[0].rotation.z += (0.4 - armGroups[0].rotation.z) * k;
+      armGroups[1].rotation.x += (-2.2 - armGroups[1].rotation.x) * k; armGroups[1].rotation.z += (-0.4 - armGroups[1].rotation.z) * k;
     } else if (sitting) {
       // thighs forward, knees bent so the shins hang down — a natural seat pose
       const k = Math.min(1, dt * 12);

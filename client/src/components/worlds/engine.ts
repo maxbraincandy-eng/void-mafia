@@ -93,7 +93,7 @@ export class WorldEngine {
     this.canvas = canvas;
     this.def = def;
 
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
     this.curPR = Math.min(window.devicePixelRatio || 1, 2);
     this.renderer.setPixelRatio(this.curPR);
     this.renderer.setClearColor(def.clear, 1);
@@ -135,6 +135,8 @@ export class WorldEngine {
   }
   emote() { this.avatar.wave(); }
   localEmote(kind: EmoteKind) { this.avatar.emote(kind); }
+  // Snapshot the current 3D view (HUD is separate DOM, so it's a clean photo).
+  capturePhoto(): string { this.renderer.render(this.scene, this.camera); return this.renderer.domElement.toDataURL('image/png'); }
   remoteEmote(socketId: string, kind: EmoteKind) { this.remotes.get(socketId)?.avatar.emote(kind); }
   triggerInteract(id: string) { this.interactables.find(o => o.id === id)?.effect(); }
   resumeAudio() { this.audioCtx?.resume?.().catch(() => {}); if (!this.audioCtx) this.startAudio(); }
@@ -341,6 +343,10 @@ export class WorldEngine {
     this.camPitch = Math.max(0.06, Math.min(1.1, this.camPitch + this.pendingLook.y * 0.0028));
     this.pendingLook.x = 0; this.pendingLook.y = 0;
 
+    // deep water → swimming (slower, half-submerged), but not while on the pier
+    const onPier = this.pos.x > -8 && this.pos.x < -4;
+    const swimming = !this.seated && this.pos.z < -34 && Math.abs(this.pos.x) < 42 && !onPier;
+
     // movement (camera-relative), unless seated
     let moveSpeed = 0;
     if (!this.seated) {
@@ -348,7 +354,7 @@ export class WorldEngine {
       const mag = Math.hypot(mx, my);
       if (mag > 1) { mx /= mag; my /= mag; }
       if (mag > 0.05) {
-        const speed = this.input.run ? RUN : WALK;
+        const speed = (this.input.run ? RUN : WALK) * (swimming ? 0.5 : 1);
         const sin = Math.sin(this.camYaw), cos = Math.cos(this.camYaw);
         // forward = (-sin,-cos) relative to camera yaw
         const dirX = (-sin) * my + cos * mx;
@@ -387,7 +393,7 @@ export class WorldEngine {
     this.avatar.group.position.set(this.pos.x, this.pos.y, this.pos.z);
     this.avatar.group.rotation.y = this.facing;
     this.avatar.state = this.seated && !this.seated.pose ? 'sit' : 'idle';
-    this.avatar.holdPose = this.seated?.pose ?? null;
+    this.avatar.holdPose = this.seated?.pose ?? (swimming ? 'swim' : null);
     this.avatar.update(dt, moveSpeed);
 
     // third-person camera with ground clamp + collider pull-in

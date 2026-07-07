@@ -18,6 +18,23 @@ function readSpec(): CharacterSpec {
   return loadSpec() ?? defaultSpec('male');
 }
 
+// Downscale a captured PNG data URL to a story-sized JPEG (under the server cap).
+function resizeDataUrl(dataUrl: string, maxDim: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w > h) { if (w > maxDim) { h = Math.round(h * maxDim / w); w = maxDim; } }
+      else { if (h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim; } }
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d')!.drawImage(img, 0, 0, w, h);
+      resolve(c.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = () => reject(new Error('bad image'));
+    img.src = dataUrl;
+  });
+}
+
 function PlayerRow({ name, color, speaking }: { name: string; color: string; speaking: boolean }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 4px' }}>
@@ -110,6 +127,9 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   const [invitePanel, setInvitePanel] = useState(false);
   const [friends, setFriends] = useState<{ profileId: string; username: string; avatarUrl: string | null }[] | null>(null);
   const [invited, setInvited] = useState<Set<string>>(new Set());
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [flash, setFlash] = useState(false);
+  const [photoShared, setPhotoShared] = useState<'' | 'sending' | 'done'>('');
   const [uiVisible, setUiVisible] = useState(true);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -317,6 +337,19 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     if (!friends) emitWithAck<void, { ok: boolean; data?: any[] }>('friend:invitable_list').then(r => setFriends(r.ok && r.data ? r.data.map((p: any) => ({ profileId: p.profileId, username: p.username, avatarUrl: p.avatarUrl ?? null })) : [])).catch(() => setFriends([]));
   };
   const inviteFriend = (pid: string) => { emitWithAck('world:invite', { targetProfileId: pid }).catch(() => {}); setInvited(s => new Set(s).add(pid)); };
+  const takePhoto = () => {
+    const url = engineRef.current?.capturePhoto(); if (!url) return;
+    setFlash(true); setTimeout(() => setFlash(false), 180);
+    setPhoto(url); setPhotoShared('');
+  };
+  const shareToStory = () => {
+    if (!photo || photoShared) return;
+    setPhotoShared('sending');
+    resizeDataUrl(photo, 720).then(img =>
+      emitWithAck('community:story_create', { imageUrl: img, caption: '🏝️ Beach Camp 3D', tags: [] })
+        .then(() => setPhotoShared('done')).catch(() => setPhotoShared(''))
+    ).catch(() => setPhotoShared(''));
+  };
 
   const isCtl = (t: EventTarget | null) => t instanceof HTMLElement && t.closest('[data-hud]') != null;
 
@@ -386,6 +419,24 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       {/* Enter fade-in from black */}
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: '#05060d', opacity: fadeIn ? 1 : 0, transition: 'opacity 0.7s ease' }} />
 
+      {/* Camera flash */}
+      {flash && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: '#fff', zIndex: 40 }} />}
+
+      {/* Photo preview */}
+      {photo && (
+        <div data-hud style={{ position: 'absolute', inset: 0, zIndex: 45, background: 'rgba(3,2,8,0.92)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, gap: 14 }}>
+          <img src={photo} alt="" style={{ maxWidth: '92%', maxHeight: '64%', borderRadius: 12, border: '2px solid rgba(192,132,252,0.5)', boxShadow: '0 12px 50px rgba(0,0,0,0.7)' }} />
+          <div style={{ display: 'flex', gap: 12 }}>
+            <a data-hud href={photo} download={`beachcamp-${Date.now()}.png`} style={{ padding: '11px 18px', borderRadius: 12, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#e9d5ff', fontFamily: 'monospace', fontSize: 13, textDecoration: 'none' }}>📥 შენახვა</a>
+            <button data-hud onPointerDown={(e) => { e.preventDefault(); shareToStory(); }} disabled={photoShared !== ''}
+              style={{ padding: '11px 18px', borderRadius: 12, border: 'none', background: photoShared === 'done' ? 'rgba(46,255,140,0.25)' : 'linear-gradient(135deg,#7c3aed,#c026d3)', color: '#fff', fontFamily: 'monospace', fontSize: 13 }}>
+              {photoShared === 'done' ? '✓ გაზიარდა' : photoShared === 'sending' ? '…' : '📖 სთორიში'}
+            </button>
+            <button data-hud onPointerDown={(e) => { e.preventDefault(); setPhoto(null); }} style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#e9d5ff', fontSize: 16 }}>✕</button>
+          </div>
+        </div>
+      )}
+
       {/* First-time controls hint */}
       {help && (
         <div style={{ position: 'absolute', top: '22%', left: '50%', transform: 'translateX(-50%)', zIndex: 16, pointerEvents: 'none', width: 'min(340px, 82vw)', textAlign: 'center', background: 'rgba(12,10,24,0.82)', border: '1px solid rgba(192,132,252,0.3)', borderRadius: 14, padding: '12px 16px', fontFamily: 'monospace', fontSize: 11.5, lineHeight: 1.7, color: 'rgba(233,213,255,0.9)', backdropFilter: 'blur(8px)' }}>
@@ -404,6 +455,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
           {voice.joined && <span style={{ fontFamily: 'monospace', fontSize: 11, color: voice.muted ? 'rgba(233,213,255,0.4)' : '#8effc0' }}>{voice.muted ? '🔇' : '🎙️'}</span>}
         </button>
         <div style={{ flex: 1 }} />
+        {roundBtn('📷', takePhoto, 40)}
         {roundBtn('✉️', openInvite, 40, invitePanel)}
         {roundBtn('⚙️', () => setPanel(p => p === 'settings' ? null : 'settings'), 40, panel === 'settings')}
         {roundBtn('🚪', onExit, 40)}

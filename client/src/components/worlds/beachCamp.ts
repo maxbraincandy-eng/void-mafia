@@ -41,6 +41,10 @@ export const beachCamp: WorldDef = {
     buildCinema(ctx);
     buildBar(ctx);
     buildShip(ctx);
+    buildDanceFloor(ctx);
+    buildPhotoFrame(ctx);
+    buildPier(ctx);
+    buildHammock(ctx);
     buildAirParticles(ctx);
 
     // ambient audio sources — ocean is faint far away and swells toward the
@@ -599,6 +603,91 @@ function buildShip(ctx: WorldContext) {
   // two bow "titanic" pose spots facing out to sea (-Z)
   ctx.addSeat({ id: 'bow1', x: SX - 0.35, y: 1.35, z: SZ - 3.0, yaw: 0.15, pose: 'titanic' });
   ctx.addSeat({ id: 'bow2', x: SX + 0.35, y: 1.35, z: SZ - 2.4, yaw: 0.15, pose: 'titanic' });
+}
+
+// ── DJ / dance floor ──────────────────────────────────────────────────
+function buildDanceFloor(ctx: WorldContext) {
+  const DX = 10, DZ = 15, N = 6, T = 0.95;
+  const g = new THREE.Group(); g.position.set(DX, 0, DZ); ctx.scene.add(g);
+  // glowing tiles that cycle colour with a beat
+  const tiles = new THREE.InstancedMesh(new THREE.BoxGeometry(T * 0.92, 0.06, T * 0.92), new THREE.MeshBasicMaterial({ vertexColors: true }), N * N);
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < N * N; i++) { const x = (i % N - (N - 1) / 2) * T, z = (Math.floor(i / N) - (N - 1) / 2) * T; dummy.position.set(x, 0.05, z); dummy.updateMatrix(); tiles.setMatrixAt(i, dummy.matrix); tiles.setColorAt(i, new THREE.Color(0x222233)); }
+  tiles.receiveShadow = true; g.add(tiles);
+  const col = new THREE.Color();
+  // DJ booth on the north edge, facing the floor
+  const booth = new THREE.Group(); booth.position.set(0, 0, -(N * T) / 2 - 0.7); g.add(booth);
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.1, 0.8), new THREE.MeshStandardMaterial({ color: 0x14151c, roughness: 0.6, metalness: 0.3 })); deck.position.y = 0.55; deck.castShadow = true; booth.add(deck);
+  const disc1 = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.05, 20), new THREE.MeshStandardMaterial({ color: 0x333340, roughness: 0.3, metalness: 0.6 })); disc1.position.set(-0.55, 1.13, 0); booth.add(disc1);
+  const disc2 = disc1.clone(); disc2.position.x = 0.55; booth.add(disc2);
+  const panel = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.5), new THREE.MeshBasicMaterial({ color: 0xff4da6 })); panel.position.set(0, 0.6, 0.41); booth.add(panel);
+  ctx.addCollider({ x: DX, z: DZ - (N * T) / 2 - 0.7, r: 1.3 });
+  // disco ball + moving colour lights
+  const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(0.3, 1), new THREE.MeshStandardMaterial({ color: 0xcfd4dc, roughness: 0.1, metalness: 1, emissive: 0x222233, emissiveIntensity: 0.3 })); ball.position.set(0, 4.2, 0); g.add(ball);
+  const spot1 = new THREE.PointLight(0xff4da6, 0, 10, 2); spot1.position.set(-2, 4, 0); g.add(spot1);
+  const spot2 = new THREE.PointLight(0x4da6ff, 0, 10, 2); spot2.position.set(2, 4, 0); g.add(spot2);
+  const spot3 = new THREE.PointLight(0x8aff5a, 0, 10, 2); spot3.position.set(0, 4, 2); g.add(spot3);
+  ctx.onUpdate((_d, e) => {
+    const beat = Math.floor(e * 2.2);
+    for (let i = 0; i < N * N; i++) {
+      const h = ((i * 37 + beat * 61) % 100) / 100;
+      const on = ((i + beat) % 3 === 0) ? 1 : 0.25;
+      col.setHSL(h, 0.85, 0.55 * on); tiles.setColorAt(i, col);
+    }
+    if (tiles.instanceColor) tiles.instanceColor.needsUpdate = true;
+    disc1.rotation.y += 0.08; disc2.rotation.y -= 0.06;
+    ball.rotation.y += 0.02;
+    spot1.intensity = 2 + Math.sin(e * 6) * 1.5; spot2.intensity = 2 + Math.sin(e * 6 + 2) * 1.5; spot3.intensity = 2 + Math.sin(e * 6 + 4) * 1.5;
+    spot1.position.x = Math.sin(e * 1.5) * 3; spot2.position.z = Math.cos(e * 1.3) * 3;
+  });
+}
+
+// ── Photo spot: a neon frame players gather in front of ───────────────
+function buildPhotoFrame(ctx: WorldContext) {
+  const PX = -9, PZ = 13;
+  const g = new THREE.Group(); g.position.set(PX, 0, PZ); g.rotation.y = -0.3; ctx.scene.add(g);
+  const neon = new THREE.MeshStandardMaterial({ color: 0xff7ac6, emissive: 0xff2f9e, emissiveIntensity: 1.6, roughness: 0.4 });
+  const fw = 3.2, fh = 2.2, t = 0.12;
+  const bar = (w: number, h: number, x: number, y: number) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, t), neon); b.position.set(x, y + 1.4, 0); g.add(b); };
+  bar(fw, t, 0, fh / 2); bar(fw, t, 0, -fh / 2); bar(t, fh, -fw / 2, 0); bar(t, fh, fw / 2, 0);
+  // little hearts in the corners
+  for (const [hx, hy] of [[-fw / 2, fh / 2], [fw / 2, fh / 2]]) { const h = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), neon); h.position.set(hx, hy + 1.4, 0.05); g.add(h); }
+  const l = new THREE.PointLight(0xff4da6, 1.4, 7, 2); l.position.set(0, 1.8, 0.5); g.add(l);
+  ctx.onUpdate((_d, e) => { neon.emissiveIntensity = 1.3 + Math.sin(e * 3) * 0.4; l.intensity = 1.2 + Math.sin(e * 3) * 0.3; });
+}
+
+// ── Pier extending over the shallows, with lanterns ───────────────────
+function buildPier(ctx: WorldContext) {
+  const PX = -6;
+  const plankMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2a, roughness: 1 });
+  const postMat = new THREE.MeshStandardMaterial({ color: 0x3a2818, roughness: 1 });
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.14, 12), plankMat);
+  deck.position.set(PX, 0.08, -30); deck.receiveShadow = true; deck.castShadow = true; ctx.scene.add(deck);
+  for (let z = -25; z >= -36; z -= 2.2) {
+    for (const sx of [-1, 1]) { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 1.4, 6), postMat); post.position.set(PX + sx * 1.0, -0.4, z); post.castShadow = true; ctx.scene.add(post); }
+  }
+  // lanterns along the rail
+  for (let z = -26; z >= -36; z -= 3.3) {
+    for (const sx of [-1, 1]) {
+      const gg = new THREE.Group(); gg.position.set(PX + sx * 1.15, 0, z); ctx.scene.add(gg);
+      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.0, 6), postMat); p.position.y = 0.5; gg.add(p);
+      const glass = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.22, 0.16), new THREE.MeshStandardMaterial({ color: 0xffcf7a, emissive: 0xffb347, emissiveIntensity: 1.4, transparent: true, opacity: 0.85 })); glass.position.y = 1.05; gg.add(glass);
+      const l = new THREE.PointLight(0xffb45a, 0.7, 5, 2); l.position.y = 1.05; gg.add(l);
+    }
+  }
+}
+
+// ── Hammock between two posts (recline pose) ──────────────────────────
+function buildHammock(ctx: WorldContext) {
+  const HX = -10, HZ = 6;
+  const g = new THREE.Group(); g.position.set(HX, 0, HZ); g.rotation.y = 0.6; ctx.scene.add(g);
+  const postMat = new THREE.MeshStandardMaterial({ color: 0x4a3420, roughness: 1 });
+  for (const sz of [-1.6, 1.6]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 1.8, 6), postMat); p.position.set(0, 0.9, sz); p.rotation.z = sz > 0 ? -0.1 : 0.1; p.castShadow = true; g.add(p); }
+  // sagging hammock net
+  const net = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 3, 12, 1, true, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0xdd6a9a, roughness: 0.9, side: THREE.DoubleSide }));
+  net.rotation.z = Math.PI / 2; net.rotation.x = Math.PI; net.position.set(0, 0.7, 0); net.scale.set(1, 1, 0.7); g.add(net);
+  ctx.addCollider({ x: HX, z: HZ, r: 0.6 });
+  ctx.addSeat({ id: 'hammock', x: HX, y: 0.85, z: HZ, yaw: g.rotation.y, pose: 'hammock' });
 }
 
 // ── Floating air particles (motes) ────────────────────────────────────

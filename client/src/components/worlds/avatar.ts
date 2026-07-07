@@ -41,9 +41,14 @@ export class Avatar {
     this.elapsed += dt;
     const sit = this.state === 'sit';
     this.model.setPose(sit ? 0 : speed, sit, this.holdPose);
-    // drop the body onto a seat, but pose-holds (e.g. titanic) stand upright
-    const target = sit && !this.holdPose ? -this.sitDrop : 0;
-    this.inner.position.y += (target - this.inner.position.y) * Math.min(1, dt * 10);
+    // body height + tilt per pose: seat = drop to hips, swim = half-submerged,
+    // hammock = recline back; everything else stands upright at ground.
+    let yTarget = 0, xRot = 0;
+    if (sit && !this.holdPose) yTarget = -this.sitDrop;
+    else if (this.holdPose === 'swim') yTarget = -0.55;
+    else if (this.holdPose === 'hammock') xRot = -1.05;
+    this.inner.position.y += (yTarget - this.inner.position.y) * Math.min(1, dt * 10);
+    this.inner.rotation.x += (xRot - this.inner.rotation.x) * Math.min(1, dt * 8);
     this.model.update(dt, this.elapsed);
   }
 
