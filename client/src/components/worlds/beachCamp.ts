@@ -286,7 +286,9 @@ function buildSeating(ctx: WorldContext) {
 function buildPalms(ctx: WorldContext) {
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a4326, roughness: 1 });
   const frondMat = new THREE.MeshStandardMaterial({ color: 0x1f5a2e, roughness: 0.9, side: THREE.DoubleSide });
-  const spots = [[-11, 3], [12, 1], [-14, -8], [15, -6], [-8, -12], [9, -14], [-18, 6], [18, 5]];
+  // Kept clear of the cinema deck (around x≈19, z≈3) so trunks never block the
+  // screen — the two east-side palms moved to the west beach.
+  const spots = [[-11, 3], [12, -12], [-14, -8], [-15, -4], [-8, -12], [9, -14], [-18, 6], [-19, 3]];
   for (const [x, z] of spots) {
     const g = new THREE.Group(); g.position.set(x, 0, z); ctx.scene.add(g);
     const lean = rrng(-0.18, 0.18);
@@ -517,7 +519,9 @@ function buildCinema(ctx: WorldContext) {
   // theatre seating facing the screen (+X)
   const rows = [[15.4, -1.6], [15.4, 0], [15.4, 1.6], [17, -0.8], [17, 0.8]];
   rows.forEach(([sx, sz], i) => {
-    const yaw = Math.atan2(CX - sx, CZ - sz);
+    // Same convention as the campfire seats (which face the fire): a seat at
+    // (sx,sz) looking at the screen (CX,CZ) uses atan2(sx-CX, sz-CZ).
+    const yaw = Math.atan2(sx - CX, sz - CZ);
     const g = new THREE.Group(); g.position.set(sx, 0, sz); g.rotation.y = yaw; ctx.scene.add(g);
     const seat = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 0.7), new THREE.MeshStandardMaterial({ color: [0x7c3aed, 0x0ea5b7, 0xb91c1c][i % 3], roughness: 0.8 }));
     seat.position.y = 0.32; seat.castShadow = true; seat.receiveShadow = true; g.add(seat);
