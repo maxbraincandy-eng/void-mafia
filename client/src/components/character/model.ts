@@ -16,8 +16,9 @@ export type CharEmote = 'wave' | 'dance' | 'clap' | 'heart' | 'laugh';
 
 export interface CharacterModel {
   group: THREE.Group;
+  handR: THREE.Object3D;        // anchor at the right hand — attach held props here
   update: (dt: number, elapsed: number) => void;
-  setPose: (speed: number, sitting: boolean, hold?: string | null) => void;
+  setPose: (speed: number, sitting: boolean, hold?: string | null, prop?: string | null) => void;
   emote: (kind: CharEmote) => void;
   dispose: () => void;
 }
@@ -187,6 +188,7 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
 
   // ── Arms ─────────────────────────────────────────────────────────────
   const gloveMat = sockMat;
+  const handR = new THREE.Object3D();          // right-hand prop anchor (drinks, etc.)
   const armGroups: THREE.Group[] = [];
   for (const sx of [-1, 1]) {
     const ag = new THREE.Group(); ag.position.set(sx * (0.16 * shW + 0.025), 1.35, 0); upper.add(ag); armGroups.push(ag);
@@ -196,6 +198,7 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
     const la = caps(0.04 * bp.limbW, 0.18, lowerArmMat); la.position.y = -0.37; ag.add(la);
     const hand = sphere(0.042, spec.gloves !== 'none' ? gloveMat : skinMat); hand.position.y = -0.5; hand.scale.set(0.9, 1.15, 0.7); ag.add(hand);
     ag.rotation.z = sx * 0.07;
+    if (sx > 0) { handR.position.set(0, -0.52, 0); ag.add(handR); }   // prop anchor on the right hand
   }
 
   // ── Legs (fashion-long, with socks / coverage logic) ─────────────────
@@ -230,10 +233,10 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
 
   // ── Animation (breathing / blink / locomotion / emotes) ──────────────
   let blinkT = 2 + Math.random() * 3;
-  let poseSpeed = 0, sitting = false, walkPhase = 0, holdPose: string | null = null;
+  let poseSpeed = 0, sitting = false, walkPhase = 0, holdPose: string | null = null, holdProp: string | null = null;
   let emoteKind: CharEmote | null = null, emoteUntil = 0;
 
-  const setPose = (speed: number, sit: boolean, hold?: string | null) => { poseSpeed = speed; sitting = sit; holdPose = hold ?? null; };
+  const setPose = (speed: number, sit: boolean, hold?: string | null, prop?: string | null) => { poseSpeed = speed; sitting = sit; holdPose = hold ?? null; holdProp = prop ?? null; };
   const emote = (kind: CharEmote) => {
     emoteKind = kind; emoteUntil = performance.now() + (kind === 'dance' ? 4200 : 2400);
     const mt = emoji.material as THREE.SpriteMaterial; mt.map = emojiTex(EMOTE_EMOJI[kind] ?? '👋'); mt.needsUpdate = true; emoji.visible = true;
@@ -283,7 +286,14 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
       const k = Math.min(1, dt * 12);
       legGroups.forEach(l => { l.rotation.x += (-1.45 - l.rotation.x) * k; });
       kneeGroups.forEach(kn => { kn.rotation.x += (1.45 - kn.rotation.x) * k; });
-      armGroups.forEach(a => { a.rotation.x += (-0.25 - a.rotation.x) * k; });
+      if (holdProp) {
+        // one hand rests, the other lifts the drink toward the face with slow sips
+        armGroups[0].rotation.x += (-0.25 - armGroups[0].rotation.x) * k;
+        const sip = -1.3 + Math.sin(e * 1.1) * 0.16;
+        armGroups[1].rotation.x += (sip - armGroups[1].rotation.x) * k; armGroups[1].rotation.z += (0.55 - armGroups[1].rotation.z) * k;
+      } else {
+        armGroups.forEach(a => { a.rotation.x += (-0.25 - a.rotation.x) * k; });
+      }
     } else if (poseSpeed > 0.15) {
       const run = poseSpeed > 4.2;
       walkPhase += dt * (run ? 11 : 7);
@@ -320,7 +330,7 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
     eyes.forEach(g => { g.scale.y = ey; });
   };
 
-  return { group: root, update, setPose, emote, dispose: () => disposables.forEach(d => d.dispose()) };
+  return { group: root, handR, update, setPose, emote, dispose: () => disposables.forEach(d => d.dispose()) };
 }
 
 function applyCharEmote(kind: CharEmote, now: number, arms: THREE.Group[], torso: THREE.Group, root: THREE.Group) {

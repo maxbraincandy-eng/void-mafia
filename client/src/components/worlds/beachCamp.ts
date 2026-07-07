@@ -48,6 +48,9 @@ export const beachCamp: WorldDef = {
     buildSkyLanterns(ctx);
     buildFishing(ctx);
     buildKaraoke(ctx);
+    buildVolleyball(ctx);
+    buildSeaLife(ctx);
+    buildJetSki(ctx);
     buildAirParticles(ctx);
 
     // ambient audio sources — ocean is faint far away and swells toward the
@@ -630,7 +633,7 @@ function buildBar(ctx: WorldContext) {
     const stool = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.22, 0.6, 10), woodDark);
     stool.position.set(wx, 0.3, wz); stool.castShadow = true; ctx.scene.add(stool);
     ctx.addCollider({ x: wx, z: wz, r: 0.35 });
-    ctx.addSeat({ id: `bar${i}`, x: wx, y: 0.62, z: wz, yaw: Math.atan2(wx - BX, wz - BZ) });
+    ctx.addSeat({ id: `bar${i}`, x: wx, y: 0.62, z: wz, yaw: Math.atan2(wx - BX, wz - BZ), prop: 'drink' });
   }
 }
 
@@ -900,6 +903,153 @@ function buildKaraoke(ctx: WorldContext) {
     spots.forEach((s, i) => { s.intensity = 2 + Math.sin(e * 5 + i * 2) * 1.4; s.target.position.x = Math.sin(e * 1.2 + i * 2.1) * 1.2; });
     disc.intensity = 0.6 + Math.abs(Math.sin(e * 8)) * 0.6;
   });
+}
+
+// ── Beach volleyball: a net + a ball you can bump into the air ─────────
+function buildVolleyball(ctx: WorldContext) {
+  const CXv = 11, CZv = -8;       // court centre, off toward the shore
+  // net between two poles
+  const g = new THREE.Group(); g.position.set(CXv, 0, CZv); g.rotation.y = 0.5; ctx.scene.add(g);
+  const poleMat = new THREE.MeshStandardMaterial({ color: 0x2a2c34, roughness: 0.6, metalness: 0.3 });
+  for (const sx of [-2.2, 2.2]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 2.4, 8), poleMat); p.position.set(sx, 1.2, 0); p.castShadow = true; g.add(p); }
+  const net = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 0.9), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.25, side: THREE.DoubleSide, roughness: 1 }));
+  net.position.set(0, 1.75, 0); g.add(net);
+  ctx.addCollider({ x: CXv - 2.2 * Math.cos(0.5), z: CZv - 2.2 * Math.sin(0.5), r: 0.3 });
+  ctx.addCollider({ x: CXv + 2.2 * Math.cos(0.5), z: CZv + 2.2 * Math.sin(0.5), r: 0.3 });
+
+  // the ball — a light physics toy that bounces on the sand and settles
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.28, 20, 16), new THREE.MeshStandardMaterial({ map: volleyTexture(), roughness: 0.5 }));
+  ball.castShadow = true; ctx.scene.add(ball);
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.28, 16), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false }));
+  shadow.rotation.x = -Math.PI / 2; ctx.scene.add(shadow);
+  const home = new THREE.Vector3(CXv - 3, 0.28, CZv - 3);
+  const p = home.clone(); const v = new THREE.Vector3();
+  let spin = 0;
+
+  ctx.addInteractable({
+    id: 'volley', x: CXv - 3, z: CZv - 3, r: 2.8, label: '🏐 დაარტყი ბურთს',
+    effect: () => {
+      // bump up with a little random horizontal drift toward the net
+      v.set((Math.random() - 0.5) * 2.4, 6.5 + Math.random() * 1.5, (Math.random() - 0.5) * 2.4 - 0.6);
+      spin = (Math.random() - 0.5) * 8;
+    },
+  });
+
+  ctx.onUpdate((dt) => {
+    v.y -= 12 * dt;                                  // gravity
+    p.addScaledVector(v, dt);
+    if (p.y < 0.28) {                                // bounce off the sand
+      p.y = 0.28;
+      if (v.y < -0.4) { v.y = -v.y * 0.62; v.x *= 0.8; v.z *= 0.8; }
+      else { v.set(0, 0, 0); }
+    }
+    // keep it on the beach; nudge back if it strays too far
+    const dx = p.x - home.x, dz = p.z - home.z;
+    if (Math.hypot(dx, dz) > 9) { v.x -= dx * dt * 0.6; v.z -= dz * dt * 0.6; }
+    ball.position.copy(p); ball.rotation.x += spin * dt; ball.rotation.z += spin * 0.5 * dt;
+    if (p.y <= 0.29 && v.lengthSq() < 0.01) spin *= 0.9;
+    shadow.position.set(p.x, 0.02, p.z);
+    const s = 1 - Math.min(0.7, (p.y - 0.28) * 0.12); shadow.scale.setScalar(Math.max(0.3, s));
+    (shadow.material as THREE.MeshBasicMaterial).opacity = 0.28 * Math.max(0.3, s);
+  });
+}
+
+// ── Sea life: leaping dolphins + wheeling gulls for a living ocean ─────
+function buildSeaLife(ctx: WorldContext) {
+  // Dolphins arc out of the sea on a slow, staggered cycle.
+  const dolMat = new THREE.MeshStandardMaterial({ color: 0x5b6b7a, roughness: 0.5, metalness: 0.1 });
+  const bellyMat = new THREE.MeshStandardMaterial({ color: 0xcdd7e0, roughness: 0.6 });
+  const dolphins = [] as { g: THREE.Group; x: number; z: number; period: number; phase: number; dir: number }[];
+  for (let i = 0; i < 3; i++) {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 1.2, 6, 10), dolMat); body.rotation.z = Math.PI / 2; g.add(body);
+    const belly = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 1.0, 6, 10), bellyMat); belly.rotation.z = Math.PI / 2; belly.position.y = -0.12; belly.scale.set(1, 0.6, 1); g.add(belly);
+    const dorsal = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.4, 4), dolMat); dorsal.position.set(-0.1, 0.28, 0); dorsal.rotation.z = -0.4; g.add(dorsal);
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.4, 4), dolMat); tail.position.set(-0.85, 0, 0); tail.rotation.z = Math.PI / 2; tail.scale.set(1, 0.4, 1.2); g.add(tail);
+    const snout = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.4, 8), dolMat); snout.position.set(0.85, 0, 0); snout.rotation.z = -Math.PI / 2; g.add(snout);
+    g.visible = false; ctx.scene.add(g);
+    dolphins.push({ g, x: rrng(-18, 14), z: SEA_Z - 6 - rrng(0, 14), period: rrng(7, 12), phase: rrng(0, 10), dir: Math.random() > 0.5 ? 1 : -1 });
+  }
+
+  // Gulls wheel high over the water.
+  const gullMat = new THREE.MeshBasicMaterial({ color: 0xe8eef5, side: THREE.DoubleSide, fog: false });
+  const gulls = [] as { g: THREE.Group; wingL: THREE.Mesh; wingR: THREE.Mesh; r: number; y: number; cx: number; cz: number; sp: number; ph: number }[];
+  for (let i = 0; i < 5; i++) {
+    const g = new THREE.Group();
+    const mkWing = (s: number) => { const w = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.16), gullMat); w.position.x = s * 0.32; return w; };
+    const wingL = mkWing(-1), wingR = mkWing(1); g.add(wingL); g.add(wingR);
+    ctx.scene.add(g);
+    gulls.push({ g, wingL, wingR, r: rrng(6, 14), y: rrng(14, 22), cx: rrng(-10, 10), cz: SEA_Z - 10, sp: rrng(0.15, 0.3) * (Math.random() > 0.5 ? 1 : -1), ph: rrng(0, 6) });
+  }
+
+  ctx.onUpdate((_d, e) => {
+    for (const d of dolphins) {
+      const t = ((e + d.phase) % d.period) / d.period;   // 0..1 arc cycle
+      if (t < 0.4) {                                       // airborne for the first 40%
+        const a = t / 0.4;                                 // 0..1 through the arc
+        const h = Math.sin(a * Math.PI) * 2.4;
+        d.g.visible = h > 0.05;
+        d.g.position.set(d.x + d.dir * (a - 0.5) * 3, -0.2 + h, d.z);
+        d.g.rotation.z = d.dir * (0.9 - a * 1.8);          // nose-up entering, nose-down leaving
+        d.g.rotation.y = d.dir > 0 ? 0 : Math.PI;
+      } else d.g.visible = false;
+    }
+    for (const b of gulls) {
+      const a = e * b.sp + b.ph;
+      b.g.position.set(b.cx + Math.cos(a) * b.r, b.y + Math.sin(a * 2) * 0.6, b.cz + Math.sin(a) * b.r);
+      b.g.rotation.y = -a + Math.PI / 2;
+      const flap = Math.sin(e * 8 + b.ph) * 0.5;
+      b.wingL.rotation.z = flap; b.wingR.rotation.z = -flap;
+    }
+  });
+}
+
+// ── Jet-ski: a boardable watercraft idling just off the pier ──────────
+function buildJetSki(ctx: WorldContext) {
+  const JX = 4, JZ = -33;         // sitting on the water near the shore
+  const g = new THREE.Group(); g.position.set(JX, 0, JZ); g.rotation.y = 0.4; ctx.scene.add(g);
+  const hullMat = new THREE.MeshStandardMaterial({ color: 0xff5a3c, roughness: 0.35, metalness: 0.3 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0x151821, roughness: 0.5, metalness: 0.4 });
+  const hull = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 1.7, 8, 12), hullMat); hull.rotation.z = Math.PI / 2; hull.position.y = 0.32; hull.scale.set(1, 0.7, 1); hull.castShadow = true; g.add(hull);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.9, 12), hullMat); nose.rotation.z = -Math.PI / 2; nose.position.set(1.35, 0.36, 0); nose.scale.set(1, 0.7, 1); g.add(nose);
+  const seat = new THREE.Mesh(new THREE.CapsuleGeometry(0.24, 0.9, 6, 10), trimMat); seat.rotation.z = Math.PI / 2; seat.position.set(-0.2, 0.6, 0); g.add(seat);
+  // handlebars
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.5, 8), trimMat); col.position.set(0.55, 0.72, 0); col.rotation.z = 0.5; g.add(col);
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.7, 8), trimMat); bar.position.set(0.7, 0.95, 0); bar.rotation.x = Math.PI / 2; g.add(bar);
+
+  // wake spray behind the ski
+  const N = 60; const arr = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) { arr[i * 3] = -1.3 - Math.random() * 1.5; arr[i * 3 + 1] = 0.1 + Math.random() * 0.3; arr[i * 3 + 2] = (Math.random() - 0.5) * 0.9; }
+  const sgeo = new THREE.BufferGeometry(); sgeo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+  const spray = new THREE.Points(sgeo, new THREE.PointsMaterial({ color: 0xdff0ff, size: 0.14, transparent: true, opacity: 0.6, depthWrite: false }));
+  g.add(spray);
+  const sp = sgeo.attributes.position as THREE.BufferAttribute;
+
+  ctx.addCollider({ x: JX, z: JZ, r: 1.1 });
+  // board it: sit astride, facing the open sea (-Z), with a little revving bob
+  ctx.addSeat({ id: 'jetski', x: JX - 0.2 * Math.cos(0.4), y: 0.72, z: JZ + 0.2 * Math.sin(0.4), yaw: 0.4 + Math.PI });
+
+  ctx.onUpdate((_d, e) => {
+    g.position.y = Math.sin(e * 1.6) * 0.06;             // bob on the swell
+    g.rotation.z = Math.sin(e * 1.2) * 0.05;
+    for (let i = 0; i < N; i++) {
+      let x = sp.getX(i) - 0.04; if (x < -3) x = -1.3;
+      sp.setX(i, x);
+      sp.setY(i, 0.1 + Math.abs(Math.sin(e * 6 + i)) * 0.25);
+    }
+    sp.needsUpdate = true;
+    (spray.material as THREE.PointsMaterial).opacity = 0.4 + Math.abs(Math.sin(e * 3)) * 0.25;
+  });
+}
+
+function volleyTexture(): THREE.Texture {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d')!;
+  g.fillStyle = '#f4f6fa'; g.fillRect(0, 0, 128, 128);
+  g.strokeStyle = '#1d64c4'; g.lineWidth = 7;
+  for (let i = 0; i < 3; i++) { g.beginPath(); g.moveTo(0, 20 + i * 44); g.bezierCurveTo(42, 30 + i * 44, 86, 10 + i * 44, 128, 24 + i * 44); g.stroke(); }
+  g.strokeStyle = '#ffbf3b';
+  for (let i = 0; i < 3; i++) { g.beginPath(); g.moveTo(24 + i * 44, 0); g.bezierCurveTo(34 + i * 44, 42, 14 + i * 44, 86, 28 + i * 44, 128); g.stroke(); }
+  const t = new THREE.CanvasTexture(c); return t;
 }
 
 // A small transient text sprite (fishing catches, etc.).

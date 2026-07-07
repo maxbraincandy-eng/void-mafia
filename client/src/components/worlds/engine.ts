@@ -243,6 +243,7 @@ export class WorldEngine {
       const speed = Math.hypot(e.cur.x - px, e.cur.z - pz) / Math.max(dt, 0.001);
       e.avatar.state = seat && !pose ? 'sit' : 'idle';
       e.avatar.holdPose = pose;
+      e.avatar.setProp(seat?.prop ?? null);
       e.avatar.update(dt, seat ? 0 : speed);
       const talk = this.speaking.has(id);
       e.plate.scale.set(talk ? 1.9 : 1.7, talk ? 0.47 : 0.42, 1);
@@ -394,6 +395,7 @@ export class WorldEngine {
     this.avatar.group.rotation.y = this.facing;
     this.avatar.state = this.seated && !this.seated.pose ? 'sit' : 'idle';
     this.avatar.holdPose = this.seated?.pose ?? (swimming ? 'swim' : null);
+    this.avatar.setProp(this.seated?.prop ?? null);
     this.avatar.update(dt, moveSpeed);
 
     // third-person camera with ground clamp + collider pull-in
