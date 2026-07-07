@@ -20,9 +20,12 @@ export interface WorldNetState { x: number; z: number; ry: number; seatId: strin
 interface RemoteEntry {
   avatar: Avatar;
   plate: THREE.Sprite;
+  ring: THREE.Mesh;
   target: { x: number; z: number; ry: number; seatId: string | null };
   cur: { x: number; z: number; ry: number };
 }
+
+export type QualityMode = 'auto' | 'high' | 'low';
 
 const EYE = 1.5;
 const WALK = 2.6, RUN = 5.4;
@@ -63,8 +66,10 @@ export class WorldEngine {
   private hudAccum = 0;
   private nearSeat: WorldSeat | null = null;
 
-  // adaptive perf
+  // adaptive perf + quality
   private perfAccum = 0; private perfFrames = 0; private curPR = 1;
+  private quality: QualityMode = 'auto';
+  private shadowsForced: boolean | null = null;
 
   // multiplayer
   private remotes = new Map<string, RemoteEntry>();
@@ -114,6 +119,23 @@ export class WorldEngine {
   getListener() { return { x: this.pos.x, z: this.pos.z, yaw: this.camYaw }; }
   setSpeaking(ids: Set<string>) { this.speaking = ids; }
 
+  setQuality(mode: QualityMode) {
+    this.quality = mode;
+    const maxPR = Math.min(window.devicePixelRatio || 1, 2);
+    if (mode === 'high') this.curPR = maxPR;
+    else if (mode === 'low') this.curPR = 1.0;
+    if (mode !== 'auto') { this.renderer.setPixelRatio(this.curPR); this.resize(); }
+  }
+  setShadows(on: boolean) {
+    this.shadowsForced = on;
+    this.renderer.shadowMap.enabled = on;
+    this.moon.castShadow = on;
+    this.scene.traverse(o => {
+      const m = o as THREE.Mesh; if (!m.material) return;
+      (Array.isArray(m.material) ? m.material : [m.material]).forEach(mm => { mm.needsUpdate = true; });
+    });
+  }
+
   setRemotePlayers(list: RemoteWorldPlayer[]) {
     const seen = new Set<string>();
     const occ = new Set<string>();
@@ -126,8 +148,15 @@ export class WorldEngine {
         const plate = this.makeNameplate(p.name);
         plate.position.y = 2.15;
         avatar.group.add(plate);
+        // speaking ring at the feet (green, hidden until they talk)
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(0.44, 0.56, 28),
+          new THREE.MeshBasicMaterial({ color: 0x2aff8a, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }),
+        );
+        ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03;
+        avatar.group.add(ring);
         this.scene.add(avatar.group);
-        e = { avatar, plate, target: { x: p.x, z: p.z, ry: p.ry, seatId: p.seatId }, cur: { x: p.x, z: p.z, ry: p.ry } };
+        e = { avatar, plate, ring, target: { x: p.x, z: p.z, ry: p.ry, seatId: p.seatId }, cur: { x: p.x, z: p.z, ry: p.ry } };
         this.remotes.set(p.socketId, e);
       }
       e.target = { x: p.x, z: p.z, ry: p.ry, seatId: p.seatId };
@@ -163,6 +192,8 @@ export class WorldEngine {
       e.avatar.update(dt, seat ? 0 : speed);
       const talk = this.speaking.has(id);
       e.plate.scale.set(talk ? 1.9 : 1.7, talk ? 0.47 : 0.42, 1);
+      const rm = e.ring.material as THREE.MeshBasicMaterial;
+      rm.opacity = talk ? 0.55 + Math.sin(performance.now() / 140) * 0.25 : 0;
     }
   }
 
@@ -312,10 +343,12 @@ export class WorldEngine {
     if (this.perfAccum >= 1) {
       const fps = this.perfFrames / this.perfAccum;
       const maxPR = Math.min(window.devicePixelRatio || 1, 2);
-      if (fps < 42 && this.curPR > 0.72) { this.curPR = Math.max(0.7, this.curPR - 0.15); this.renderer.setPixelRatio(this.curPR); this.resize(); }
-      else if (fps > 56 && this.curPR < maxPR) { this.curPR = Math.min(maxPR, this.curPR + 0.1); this.renderer.setPixelRatio(this.curPR); this.resize(); }
-      // Under heavy load, drop shadows entirely.
-      if (fps < 30 && this.renderer.shadowMap.enabled) { this.renderer.shadowMap.enabled = false; this.moon.castShadow = false; }
+      if (this.quality === 'auto') {
+        if (fps < 42 && this.curPR > 0.72) { this.curPR = Math.max(0.7, this.curPR - 0.15); this.renderer.setPixelRatio(this.curPR); this.resize(); }
+        else if (fps > 56 && this.curPR < maxPR) { this.curPR = Math.min(maxPR, this.curPR + 0.1); this.renderer.setPixelRatio(this.curPR); this.resize(); }
+        // Under heavy load, drop shadows entirely (unless the user forced them on).
+        if (fps < 30 && this.renderer.shadowMap.enabled && this.shadowsForced !== true) { this.renderer.shadowMap.enabled = false; this.moon.castShadow = false; }
+      }
       this.perfAccum = 0; this.perfFrames = 0;
     }
 

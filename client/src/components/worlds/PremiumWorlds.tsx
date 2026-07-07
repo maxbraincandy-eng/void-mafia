@@ -20,6 +20,16 @@ function readAvatar(): AvatarConfig {
   };
 }
 
+function PlayerRow({ name, color, speaking }: { name: string; color: string; speaking: boolean }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 4px' }}>
+      <div style={{ width: 22, height: 22, borderRadius: '50%', background: color, flexShrink: 0, boxShadow: speaking ? '0 0 8px #2aff8a' : 'none', border: speaking ? '1.5px solid #2aff8a' : '1.5px solid rgba(255,255,255,0.15)' }} />
+      <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#e9d5ff', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+      {speaking && <span style={{ fontSize: 12 }}>🎙️</span>}
+    </div>
+  );
+}
+
 function isTouch() { return typeof window !== 'undefined' && 'ontouchstart' in window; }
 async function enterImmersive() {
   if (!isTouch()) return;
@@ -103,6 +113,12 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   const tapStart = useRef<{ x: number; y: number; t: number } | null>(null);
   const players = useRef<Map<string, RemoteWorldPlayer>>(new Map());
   const mySocketId = useRef('');
+  const [roster, setRoster] = useState<{ socketId: string; name: string; bodyColor: string }[]>([]);
+  const [panel, setPanel] = useState<null | 'players' | 'settings'>(null);
+  const [quality, setQuality] = useState<{ mode: 'auto' | 'high' | 'low'; shadows: boolean }>(() => {
+    try { const q = JSON.parse(localStorage.getItem('vw_quality') ?? ''); if (q && q.mode) return q; } catch { /* default */ }
+    return { mode: 'auto', shadows: true };
+  });
 
   const poke = useCallback(() => {
     setUiVisible(true);
@@ -118,6 +134,8 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     const eng = new WorldEngine(canvasRef.current, def, av);
     engineRef.current = eng;
     eng.onHud = setHud;
+    eng.setQuality(quality.mode);
+    eng.setShadows(quality.shadows);
     eng.resize();
     eng.start();
     poke();
@@ -128,8 +146,9 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       const list = [...players.current.values()].filter(p => p.socketId !== mySocketId.current);
       eng.setRemotePlayers(list);
     };
-    const onJoined = (p: RemoteWorldPlayer) => { players.current.set(p.socketId, p); pushRemotes(); };
-    const onLeft = ({ socketId }: { socketId: string }) => { players.current.delete(socketId); pushRemotes(); };
+    const syncRoster = () => setRoster([...players.current.values()].filter(p => p.socketId !== mySocketId.current).map(p => ({ socketId: p.socketId, name: p.name, bodyColor: p.bodyColor })));
+    const onJoined = (p: RemoteWorldPlayer) => { players.current.set(p.socketId, p); pushRemotes(); syncRoster(); };
+    const onLeft = ({ socketId }: { socketId: string }) => { players.current.delete(socketId); pushRemotes(); syncRoster(); };
     const onMoved = (p: any) => {
       const cur = players.current.get(p.socketId);
       if (cur) { cur.x = p.x; cur.z = p.z; cur.ry = p.ry; cur.seatId = p.seatId; }
@@ -147,7 +166,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       if (res.ok && res.data) {
         mySocketId.current = res.data.mySocketId;
         players.current = new Map(res.data.players.map(p => [p.socketId, p]));
-        pushRemotes();
+        pushRemotes(); syncRoster();
       }
     }).catch(() => {});
 
@@ -223,6 +242,17 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   // reflect who's talking onto remote nameplates
   useEffect(() => { engineRef.current?.setSpeaking(voice.speakingIds); }, [voice.speakingIds]);
 
+  // apply + persist quality settings
+  useEffect(() => {
+    engineRef.current?.setQuality(quality.mode);
+    engineRef.current?.setShadows(quality.shadows);
+    try { localStorage.setItem('vw_quality', JSON.stringify(quality)); } catch { /* ignore */ }
+  }, [quality]);
+
+  // keep the HUD up while a panel is open
+  useEffect(() => { if (panel) { setUiVisible(true); if (idleTimer.current) clearTimeout(idleTimer.current); } else poke(); }, [panel, poke]);
+  const showUI = uiVisible || panel != null;
+
   const doWave = () => { engineRef.current?.emote(); if (socket.connected) socket.emit('world:wave'); };
 
   const isCtl = (t: EventTarget | null) => t instanceof HTMLElement && t.closest('[data-hud]') != null;
@@ -289,16 +319,48 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
 
       {/* Top bar */}
-      <div style={{ position: 'absolute', top: 'max(12px, env(safe-area-inset-top))', left: 14, right: 14, display: 'flex', alignItems: 'center', gap: 10, opacity: uiVisible ? 1 : 0, transition: 'opacity .4s', pointerEvents: uiVisible ? 'auto' : 'none' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(16,12,32,0.5)', border: '1px solid rgba(192,132,252,0.25)', borderRadius: 20, padding: '6px 14px', backdropFilter: 'blur(6px)' }}>
+      <div style={{ position: 'absolute', top: 'max(12px, env(safe-area-inset-top))', left: 14, right: 14, display: 'flex', alignItems: 'center', gap: 8, opacity: showUI ? 1 : 0, transition: 'opacity .4s', pointerEvents: showUI ? 'auto' : 'none' }}>
+        <button data-hud onPointerDown={(e) => { e.preventDefault(); setPanel(p => p === 'players' ? null : 'players'); }}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(16,12,32,0.5)', border: '1px solid rgba(192,132,252,0.25)', borderRadius: 20, padding: '7px 14px', backdropFilter: 'blur(6px)', touchAction: 'none' }}>
           <span style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 12, letterSpacing: 1, color: '#e9d5ff' }}>{hud.world}</span>
-          <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(233,213,255,0.5)' }}>👤 {hud.players}</span>
+          <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(233,213,255,0.6)' }}>👥 {hud.players}</span>
           {voice.joined && <span style={{ fontFamily: 'monospace', fontSize: 11, color: voice.muted ? 'rgba(233,213,255,0.4)' : '#8effc0' }}>{voice.muted ? '🔇' : '🎙️'}</span>}
-        </div>
+        </button>
         <div style={{ flex: 1 }} />
+        {roundBtn('⚙️', () => setPanel(p => p === 'settings' ? null : 'settings'), 40, panel === 'settings')}
         {roundBtn('🚪', onExit, 40)}
         {roundBtn('✕', onClose, 40)}
       </div>
+
+      {/* Player list panel */}
+      {panel === 'players' && (
+        <div data-hud style={{ position: 'absolute', top: 'max(62px, calc(env(safe-area-inset-top) + 50px))', left: 14, width: 'min(260px, 70vw)', maxHeight: '62vh', overflowY: 'auto', background: 'rgba(12,10,24,0.9)', border: '1px solid rgba(192,132,252,0.3)', borderRadius: 14, padding: 10, backdropFilter: 'blur(10px)' }}>
+          <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(233,213,255,0.5)', margin: '2px 4px 8px' }}>მოთამაშეები · {hud.players}</div>
+          <PlayerRow name={`${useAuthStore.getState().profile?.username ?? 'შენ'} (შენ)`} color={readAvatar().bodyColor} speaking={false} />
+          {roster.map(p => <PlayerRow key={p.socketId} name={p.name} color={p.bodyColor} speaking={voice.speakingIds.has(p.socketId)} />)}
+        </div>
+      )}
+
+      {/* Settings panel */}
+      {panel === 'settings' && (
+        <div data-hud style={{ position: 'absolute', top: 'max(62px, calc(env(safe-area-inset-top) + 50px))', right: 14, width: 'min(250px, 74vw)', background: 'rgba(12,10,24,0.9)', border: '1px solid rgba(192,132,252,0.3)', borderRadius: 14, padding: 14, backdropFilter: 'blur(10px)' }}>
+          <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(233,213,255,0.5)', marginBottom: 10 }}>⚙️ ხარისხი</div>
+          <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(233,213,255,0.7)', marginBottom: 6 }}>რენდერი</div>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+            {(['auto', 'high', 'low'] as const).map(m => (
+              <button key={m} onPointerDown={(e) => { e.preventDefault(); setQuality(q => ({ ...q, mode: m })); }}
+                style={{ flex: 1, padding: '8px 0', borderRadius: 9, fontFamily: 'monospace', fontSize: 11, background: quality.mode === m ? 'rgba(192,132,252,0.3)' : 'rgba(255,255,255,0.05)', border: `1px solid ${quality.mode === m ? 'rgba(192,132,252,0.6)' : 'rgba(255,255,255,0.12)'}`, color: '#e9d5ff', touchAction: 'none' }}>
+                {m === 'auto' ? 'ავტო' : m === 'high' ? 'მაღ.' : 'დაბ.'}
+              </button>
+            ))}
+          </div>
+          <button onPointerDown={(e) => { e.preventDefault(); setQuality(q => ({ ...q, shadows: !q.shadows })); }}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 9, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: '#e9d5ff', fontFamily: 'monospace', fontSize: 11, touchAction: 'none' }}>
+            <span>ჩრდილები</span>
+            <span style={{ color: quality.shadows ? '#8effc0' : 'rgba(233,213,255,0.4)' }}>{quality.shadows ? 'ჩართ.' : 'გამორთ.'}</span>
+          </button>
+        </div>
+      )}
 
       {/* Left joystick (hidden while seated) */}
       {!hud.sitting && joy.active && (
@@ -307,12 +369,12 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
           <div style={{ position: 'absolute', left: joy.ox + joy.kx - 26, top: joy.oy + joy.ky - 26, width: 52, height: 52, borderRadius: '50%', background: 'rgba(192,132,252,0.32)', border: '1px solid rgba(192,132,252,0.6)', pointerEvents: 'none' }} />
         </>
       )}
-      {!hud.sitting && !joy.active && uiVisible && (
+      {!hud.sitting && !joy.active && showUI && (
         <div style={{ position: 'absolute', left: 44, bottom: 64, width: JOY_R * 2, height: JOY_R * 2, borderRadius: '50%', border: '2px dashed rgba(192,132,252,0.2)', pointerEvents: 'none' }} />
       )}
 
       {/* Right controls */}
-      <div style={{ position: 'absolute', right: 24, bottom: 'max(52px, env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, opacity: uiVisible ? 1 : 0.25, transition: 'opacity .4s' }}>
+      <div style={{ position: 'absolute', right: 24, bottom: 'max(52px, env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, opacity: showUI ? 1 : 0.25, transition: 'opacity .4s' }}>
         {hud.canInteract && roundBtn(hud.sitting ? '🧍' : '🪑', () => engineRef.current?.interact(), 62, true)}
         <div style={{ display: 'flex', gap: 12 }}>
           {roundBtn(voice.joined ? (voice.muted ? '🔇' : '🎙️') : '🎙️', () => { if (!voice.joined) voice.joinVoice(); else voice.toggleMute(); }, 50, voice.joined && !voice.muted)}
@@ -321,13 +383,13 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       </div>
 
       {/* Interact hint */}
-      {hud.canInteract && uiVisible && (
+      {hud.canInteract && showUI && (
         <div style={{ position: 'absolute', bottom: 'max(130px, calc(env(safe-area-inset-bottom) + 118px))', right: 24, pointerEvents: 'none', fontFamily: 'monospace', fontSize: 11, letterSpacing: 1, color: 'rgba(233,213,255,0.75)', background: 'rgba(16,12,32,0.5)', borderRadius: 10, padding: '4px 10px', whiteSpace: 'nowrap' }}>
           {hud.canInteract}
         </div>
       )}
 
-      <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none', fontFamily: 'monospace', fontSize: 10, color: 'rgba(233,213,255,0.22)', letterSpacing: 1, whiteSpace: 'nowrap', opacity: uiVisible ? 1 : 0, transition: 'opacity .4s' }}>
+      <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none', fontFamily: 'monospace', fontSize: 10, color: 'rgba(233,213,255,0.22)', letterSpacing: 1, whiteSpace: 'nowrap', opacity: showUI ? 1 : 0, transition: 'opacity .4s' }}>
         WASD მოძრაობა · მაუსი კამერა · E დაჯდომა · Q მისალმება
       </div>
     </div>,

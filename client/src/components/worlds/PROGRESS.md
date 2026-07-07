@@ -15,7 +15,7 @@ features must never break.
 | **3 — Camera polish** | ⏳ | Full raycast camera collision vs meshes, shoulder offset, auto-frame. |
 | **4 — Beach Camp depth** | ⏳ | More scenery, night wildlife, tide, fireflies, real bloom (EffectComposer, perf-gated). |
 | **5 — Voice & social (multiplayer)** | ✅ **DONE (v321)** | `world:*` socket presence (one shared instance per world), remote avatars reusing `Avatar` + nameplates, seat claim/sync (no double-sitting), wave broadcast, and spatial voice via a `world:voice-*` mesh feeding the shared `spatialAudio` spatializer. Mic button + speaking indicators + live player count. |
-| **6 — UI & HUD** | ⏳ | Player list, voice indicators, refined auto-hide, settings (quality). |
+| **6 — UI & HUD** | ✅ **DONE (v322)** | Slide-out player list (colour swatch + speaking dot), tap-title to open; settings panel (render auto/high/low + shadows toggle, persisted); 3D speaking ring at speakers' feet; auto-hide stays up while a panel is open. |
 | **7 — Optimization** | ⏳ | LOD, instancing for foliage, texture sizing, frustum culling audit, quality tiers. |
 | **8 — Additional worlds** | ⏳ | Cyber Lounge / Skyline Terrace / Yacht / Mountain Cabin (registry already stubs them). |
 | **9 — Interactive objects** | ⏳ | Sit variations, campfire toss, lanterns, mini-games, world props. |
@@ -55,9 +55,20 @@ Bundling: Three.js is now a shared `three.module` chunk loaded on demand by both
 Reused verbatim: `WebRTCSession` and `components/backrooms/spatialAudio.ts`.
 Classic 2D Virtual Spaces remain untouched.
 
-## Phase 6 starting point (next) — UI & HUD
+## Phase 6 — what shipped (v322) — UI & HUD
 
-1. Slide-out player list (avatars + names + speaking dots) from the top bar.
-2. Per-nameplate speaking ring in 3D (already have the pulse; add a colour ring).
-3. Quality settings (shadows on/off, render scale) persisted to localStorage.
-4. Refine auto-hide (don't hide while the interact/voice panel is relevant).
+- **engine.ts**: `setQuality('auto'|'high'|'low')` (auto = adaptive; high/low pin
+  pixel ratio) and `setShadows(bool)` (recompiles materials, respected by the
+  under-load auto-drop); a green **speaking ring** at each remote's feet toggled
+  by the speaking set.
+- **PremiumWorlds.tsx**: tap the world chip → **player list** panel (self + peers,
+  colour swatch, live speaking dot + 🎙️); ⚙️ → **settings** panel (render tier +
+  shadows, persisted to `vw_quality`, applied live); auto-hide HUD now stays up
+  while any panel is open (`showUI`).
+
+## Phase 7 starting point (next) — Optimization
+
+1. Instance the foliage/rocks (many draw calls today → InstancedMesh per kind).
+2. LOD: swap palm crowns / distant props for billboards beyond a radius.
+3. Frustum-culling audit + smaller textures on 'low'; cap ocean segments on low.
+4. Pool ember/particle updates; throttle wave vertex recompute on low tier.
