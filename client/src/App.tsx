@@ -47,6 +47,8 @@ import { UnoGame } from '@/components/uno/UnoGame';
 import { VirtualSpace } from '@/components/space/VirtualSpace';
 // Backrooms (3D horror mode) is lazy-loaded so Three.js stays out of the main bundle.
 const Backrooms = lazy(() => import('@/components/backrooms/Backrooms'));
+// Premium Worlds (flagship 3D social spaces) — also lazy-loaded.
+const PremiumWorlds = lazy(() => import('@/components/worlds/PremiumWorlds'));
 import { attachGlobalClickSounds, onSettingsChange } from '@/lib/audioEngine';
 import { useSettingsStore } from '@/store/settingsStore';
 import { socket } from '@/lib/socket';
@@ -341,6 +343,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const [spaceOpen, setSpaceOpen] = useState(false);
   const [spaceCode, setSpaceCode] = useState<string | null>(null);
   const [backroomsOpen, setBackroomsOpen] = useState(false);
+  const [premiumOpen, setPremiumOpen] = useState(false);
   const [spaceInvite, setSpaceInvite] = useState<{ spaceId: string; code: string; name: string; icon: string; fromName: string } | null>(null);
   const [modOpen, setModOpen] = useState(false);
 
@@ -444,7 +447,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       {page === 'rooms' && <PWAInstallBanner />}
       <AnimatePresence mode="wait">
         {page === 'rooms'       && <PageTransition key="rooms"        direction={direction}><RoomsPage /></PageTransition>}
-        {page === 'games'       && <PageTransition key="games"        direction={direction}><GamesPage onOpenSpace={() => setSpaceOpen(true)} onOpenBackrooms={() => setBackroomsOpen(true)} /></PageTransition>}
+        {page === 'games'       && <PageTransition key="games"        direction={direction}><GamesPage onOpenSpace={() => setSpaceOpen(true)} onOpenBackrooms={() => setBackroomsOpen(true)} onOpenPremium={() => setPremiumOpen(true)} /></PageTransition>}
         {page === 'community'   && <PageTransition key="community"    direction={direction}><CommunityPage /></PageTransition>}
         {page === 'clans'       && <PageTransition key="clans"        direction={direction}><ClansPage /></PageTransition>}
         {page === 'replays'     && <PageTransition key={`replays-${initialReplayId ?? ''}`} direction={direction}><ReplaysPage initialReplayId={initialReplayId} /></PageTransition>}
@@ -464,6 +467,11 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       {backroomsOpen && (
         <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,245,210,0.6)', fontFamily: 'monospace', letterSpacing: 3, fontSize: 13 }}>ჩატვირთვა…</div>}>
           <Backrooms onClose={() => setBackroomsOpen(false)} />
+        </Suspense>
+      )}
+      {premiumOpen && (
+        <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: '#05060d', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(233,213,255,0.6)', fontFamily: 'monospace', letterSpacing: 3, fontSize: 13 }}>ჩატვირთვა…</div>}>
+          <PremiumWorlds onClose={() => setPremiumOpen(false)} />
         </Suspense>
       )}
 

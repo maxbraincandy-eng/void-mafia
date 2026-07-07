@@ -1,0 +1,375 @@
+// ── Premium Worlds — generic engine ───────────────────────────────────
+// Third-person social-world engine: renders any WorldDef, drives a smooth
+// character controller + orbit camera with collision, positional ambient
+// audio, and adaptive resolution. Kept out of React so the WebGL context and
+// loop survive re-renders. Reused by every present and future Premium World.
+import * as THREE from 'three';
+import { Avatar } from './avatar';
+import type { WorldDef, WorldContext, WorldCollider, WorldSeat, AmbientSource, AvatarConfig } from './types';
+
+export interface WorldHud {
+  world: string;
+  sitting: boolean;
+  canInteract: string | null; // label of the nearby interactable (e.g. "დაჯექი")
+  players: number;
+}
+
+const EYE = 1.5;
+const WALK = 2.6, RUN = 5.4;
+const CAM_DIST = 5.2, CAM_HEIGHT = 2.1;
+
+export class WorldEngine {
+  input = { move: { x: 0, y: 0 }, run: false };
+  onHud: ((h: WorldHud) => void) | null = null;
+
+  private canvas: HTMLCanvasElement;
+  private renderer: THREE.WebGLRenderer;
+  private scene = new THREE.Scene();
+  private camera: THREE.PerspectiveCamera;
+  private clock = new THREE.Clock();
+  private raf = 0;
+  private disposed = false;
+
+  private def: WorldDef;
+  private avatar: Avatar;
+  private pos = new THREE.Vector3();
+  private facing = 0;                 // avatar yaw
+  private camYaw = 0;
+  private camPitch = 0.35;
+  private camPos = new THREE.Vector3();
+  private pendingLook = { x: 0, y: 0 };
+
+  private colliders: WorldCollider[] = [];
+  private seats: WorldSeat[] = [];
+  private seated: WorldSeat | null = null;
+  private updates: ((dt: number, elapsed: number) => void)[] = [];
+  private ambients: AmbientSource[] = [];
+
+  private moon!: THREE.DirectionalLight;
+  private ambientLight!: THREE.AmbientLight;
+
+  private audioCtx: AudioContext | null = null;
+  private audioStops: (() => void)[] = [];
+  private hudAccum = 0;
+  private nearSeat: WorldSeat | null = null;
+
+  // adaptive perf
+  private perfAccum = 0; private perfFrames = 0; private curPR = 1;
+
+  constructor(canvas: HTMLCanvasElement, def: WorldDef, avatar: AvatarConfig) {
+    this.canvas = canvas;
+    this.def = def;
+
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    this.curPR = Math.min(window.devicePixelRatio || 1, 2);
+    this.renderer.setPixelRatio(this.curPR);
+    this.renderer.setClearColor(def.clear, 1);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    (this.renderer as any).outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.15;
+
+    this.scene.fog = new THREE.FogExp2(def.fog.color, def.fog.density);
+    this.camera = new THREE.PerspectiveCamera(60, 1, 0.1, 400);
+
+    this.avatar = new Avatar(avatar);
+    this.pos.set(def.spawn.x, 0, def.spawn.z);
+    this.facing = def.spawn.yaw;
+    this.camYaw = def.spawn.yaw;
+    this.avatar.group.position.copy(this.pos);
+    this.scene.add(this.avatar.group);
+
+    this.buildLights();
+    this.buildWorld();
+    this.resize();
+  }
+
+  // ── public control ──────────────────────────────────────────────────
+  addLook(dx: number, dy: number) { this.pendingLook.x += dx; this.pendingLook.y += dy; }
+  interact() {
+    if (this.seated) { this.stand(); return; }
+    if (this.nearSeat) this.sit(this.nearSeat);
+  }
+  emote() { this.avatar.wave(); }
+  resumeAudio() { this.audioCtx?.resume?.().catch(() => {}); if (!this.audioCtx) this.startAudio(); }
+
+  start() {
+    this.clock.start();
+    const loop = () => { if (this.disposed) return; this.raf = requestAnimationFrame(loop); this.frame(); };
+    this.raf = requestAnimationFrame(loop);
+  }
+
+  resize() {
+    const w = this.canvas.clientWidth || window.innerWidth;
+    const h = this.canvas.clientHeight || window.innerHeight;
+    this.renderer.setSize(w, h, false);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+  }
+
+  dispose() {
+    this.disposed = true;
+    cancelAnimationFrame(this.raf);
+    this.audioStops.forEach(s => s());
+    try { this.audioCtx?.close(); } catch { /* ignore */ }
+    this.avatar.dispose();
+    this.scene.traverse(o => {
+      const m = o as THREE.Mesh;
+      if (m.geometry) m.geometry.dispose();
+      const mat = m.material as THREE.Material | THREE.Material[] | undefined;
+      if (Array.isArray(mat)) mat.forEach(x => x.dispose()); else mat?.dispose?.();
+    });
+    this.renderer.dispose();
+  }
+
+  // ── world / lights ──────────────────────────────────────────────────
+  private buildLights() {
+    this.ambientLight = new THREE.AmbientLight(0x35406a, 0.7);
+    this.scene.add(this.ambientLight);
+    // Moonlight — cool key light, casts the scene's soft shadows.
+    this.moon = new THREE.DirectionalLight(0x9fb6e0, 0.9);
+    this.moon.position.set(-22, 34, -18);
+    this.moon.castShadow = true;
+    this.moon.shadow.mapSize.set(1024, 1024);
+    const sc = this.moon.shadow.camera as THREE.OrthographicCamera;
+    sc.left = -26; sc.right = 26; sc.top = 26; sc.bottom = -26; sc.near = 1; sc.far = 90;
+    this.moon.shadow.bias = -0.0008;
+    this.scene.add(this.moon);
+    this.scene.add(this.moon.target);
+  }
+
+  private buildWorld() {
+    const ctx: WorldContext = {
+      three: THREE,
+      scene: this.scene,
+      renderer: this.renderer,
+      moon: this.moon,
+      ambientLight: this.ambientLight,
+      addCollider: (c) => this.colliders.push(c),
+      addSeat: (s) => this.seats.push(s),
+      addAmbient: (a) => this.ambients.push(a),
+      onUpdate: (fn) => this.updates.push(fn),
+      disposables: [],
+    };
+    this.def.build(ctx);
+  }
+
+  // ── per-frame ───────────────────────────────────────────────────────
+  private frame() {
+    let dt = this.clock.getDelta();
+    if (dt > 0.05) dt = 0.05;
+    const elapsed = this.clock.elapsedTime;
+
+    // camera orbit from swipe
+    this.camYaw -= this.pendingLook.x * 0.0032;
+    this.camPitch = Math.max(0.06, Math.min(1.1, this.camPitch + this.pendingLook.y * 0.0028));
+    this.pendingLook.x = 0; this.pendingLook.y = 0;
+
+    // movement (camera-relative), unless seated
+    let moveSpeed = 0;
+    if (!this.seated) {
+      let mx = this.input.move.x, my = this.input.move.y;
+      const mag = Math.hypot(mx, my);
+      if (mag > 1) { mx /= mag; my /= mag; }
+      if (mag > 0.05) {
+        const speed = this.input.run ? RUN : WALK;
+        const sin = Math.sin(this.camYaw), cos = Math.cos(this.camYaw);
+        // forward = (-sin,-cos) relative to camera yaw
+        const dirX = (-sin) * my + cos * mx;
+        const dirZ = (-cos) * my + (-sin) * mx;
+        const len = Math.hypot(dirX, dirZ) || 1;
+        const nx = dirX / len, nz = dirZ / len;
+        this.moveWithCollision(nx * speed * dt, nz * speed * dt);
+        // face movement direction (shortest-arc turn)
+        const targetFace = Math.atan2(-nx, -nz);
+        let d = targetFace - this.facing;
+        while (d > Math.PI) d -= Math.PI * 2;
+        while (d < -Math.PI) d += Math.PI * 2;
+        this.facing += d * Math.min(1, dt * 12);
+        moveSpeed = speed * Math.min(1, mag);
+      }
+    }
+
+    // nearest seat prompt
+    this.nearSeat = null;
+    if (!this.seated) {
+      let bd = 2.3 * 2.3;
+      for (const s of this.seats) {
+        const dx = s.x - this.pos.x, dz = s.z - this.pos.z;
+        const d = dx * dx + dz * dz;
+        if (d < bd) { bd = d; this.nearSeat = s; }
+      }
+    }
+
+    // avatar transform + animation
+    this.avatar.group.position.set(this.pos.x, this.pos.y, this.pos.z);
+    this.avatar.group.rotation.y = this.facing;
+    this.avatar.state = this.seated ? 'sit' : 'idle';
+    this.avatar.update(dt, moveSpeed);
+
+    // third-person camera with ground clamp + collider pull-in
+    this.updateCamera(dt);
+
+    // world updates (waves, fire, wind…)
+    for (const u of this.updates) u(dt, elapsed);
+
+    // positional ambient audio mix
+    this.updateAudio();
+
+    // adaptive resolution
+    this.perfAccum += dt; this.perfFrames++;
+    if (this.perfAccum >= 1) {
+      const fps = this.perfFrames / this.perfAccum;
+      const maxPR = Math.min(window.devicePixelRatio || 1, 2);
+      if (fps < 42 && this.curPR > 0.72) { this.curPR = Math.max(0.7, this.curPR - 0.15); this.renderer.setPixelRatio(this.curPR); this.resize(); }
+      else if (fps > 56 && this.curPR < maxPR) { this.curPR = Math.min(maxPR, this.curPR + 0.1); this.renderer.setPixelRatio(this.curPR); this.resize(); }
+      // Under heavy load, drop shadows entirely.
+      if (fps < 30 && this.renderer.shadowMap.enabled) { this.renderer.shadowMap.enabled = false; this.moon.castShadow = false; }
+      this.perfAccum = 0; this.perfFrames = 0;
+    }
+
+    // HUD ~5/s
+    this.hudAccum += dt;
+    if (this.hudAccum > 0.2) {
+      this.hudAccum = 0;
+      this.onHud?.({ world: this.def.name, sitting: !!this.seated, canInteract: this.seated ? 'ადექი' : this.nearSeat ? 'დაჯექი' : null, players: 1 });
+    }
+
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  private updateCamera(dt: number) {
+    const cp = Math.cos(this.camPitch), sp = Math.sin(this.camPitch);
+    const target = new THREE.Vector3(
+      this.pos.x + Math.sin(this.camYaw) * CAM_DIST * cp,
+      this.pos.y + CAM_HEIGHT + sp * CAM_DIST,
+      this.pos.z + Math.cos(this.camYaw) * CAM_DIST * cp,
+    );
+    // pull the camera in if a collider sits between avatar head and camera
+    const head = new THREE.Vector3(this.pos.x, this.pos.y + EYE, this.pos.z);
+    let dist = CAM_DIST;
+    const dir = target.clone().sub(head);
+    const full = dir.length(); dir.normalize();
+    for (const c of this.colliders) {
+      const toC = new THREE.Vector2(c.x - head.x, c.z - head.z);
+      const along = toC.x * dir.x + toC.y * dir.z;
+      if (along < 0 || along > full) continue;
+      const px = head.x + dir.x * along, pz = head.z + dir.z * along;
+      const perp = Math.hypot(c.x - px, c.z - pz);
+      if (perp < c.r + 0.3) dist = Math.min(dist, along - 0.3);
+    }
+    dist = Math.max(1.4, dist);
+    const desired = head.clone().add(dir.multiplyScalar(dist * (full / CAM_DIST)));
+    if (desired.y < 0.5) desired.y = 0.5; // don't dip under the sand
+    this.camPos.lerp(desired, Math.min(1, dt * 8));
+    this.camera.position.copy(this.camPos);
+    this.camera.lookAt(this.pos.x, this.pos.y + EYE, this.pos.z);
+  }
+
+  private moveWithCollision(sx: number, sz: number) {
+    this.pos.x += sx;
+    for (const c of this.colliders) {
+      const dx = this.pos.x - c.x, dz = this.pos.z - c.z;
+      const d = Math.hypot(dx, dz);
+      const min = c.r + 0.34;
+      if (d < min && d > 0.0001) { this.pos.x = c.x + dx / d * min; }
+    }
+    this.pos.z += sz;
+    for (const c of this.colliders) {
+      const dx = this.pos.x - c.x, dz = this.pos.z - c.z;
+      const d = Math.hypot(dx, dz);
+      const min = c.r + 0.34;
+      if (d < min && d > 0.0001) { this.pos.z = c.z + dz / d * min; }
+    }
+  }
+
+  private sit(s: WorldSeat) {
+    this.seated = s;
+    this.pos.set(s.x, s.y, s.z);
+    this.facing = s.yaw;
+    this.input.move.x = 0; this.input.move.y = 0;
+  }
+  private stand() {
+    if (!this.seated) return;
+    // step out in front of the seat
+    this.pos.set(this.seated.x - Math.sin(this.seated.yaw) * 0.9, 0, this.seated.z - Math.cos(this.seated.yaw) * 0.9);
+    this.seated = null;
+  }
+
+  // ── positional ambient audio (ocean / fire / wind / night) ───────────
+  private startAudio() {
+    try {
+      const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!Ctx) return;
+      const ctx: AudioContext = new Ctx();
+      this.audioCtx = ctx;
+      const master = ctx.createGain(); master.gain.value = 0.65; master.connect(ctx.destination);
+      for (const a of this.ambients) this.buildAmbient(ctx, master, a);
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    } catch { /* audio optional */ }
+  }
+
+  private buildAmbient(ctx: AudioContext, master: GainNode, a: AmbientSource) {
+    const noise = (dur: number) => {
+      const n = Math.floor(ctx.sampleRate * dur);
+      const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+      const s = ctx.createBufferSource(); s.buffer = buf; s.loop = true; return s;
+    };
+    const pan = ctx.createStereoPanner();
+    const g = ctx.createGain(); g.gain.value = 0;
+    pan.connect(g).connect(master);
+    (a as any)._pan = pan; (a as any)._g = g;
+
+    if (a.kind === 'ocean') {
+      const src = noise(3);
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 500;
+      const swell = ctx.createGain(); swell.gain.value = 0.5;
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.14; const la = ctx.createGain(); la.gain.value = 0.4;
+      lfo.connect(la).connect(swell.gain); lfo.start();
+      src.connect(lp).connect(swell).connect(pan); src.start();
+      this.audioStops.push(() => { try { src.stop(); lfo.stop(); } catch { /* ignore */ } });
+    } else if (a.kind === 'fire') {
+      const src = noise(2);
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.6;
+      const crackle = ctx.createGain(); crackle.gain.value = 0.5;
+      src.connect(bp).connect(crackle).connect(pan); src.start();
+      // occasional pops
+      const lfo = ctx.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 3.2; const lg = ctx.createGain(); lg.gain.value = 0.35;
+      lfo.connect(lg).connect(crackle.gain); lfo.start();
+      this.audioStops.push(() => { try { src.stop(); lfo.stop(); } catch { /* ignore */ } });
+    } else if (a.kind === 'wind') {
+      const src = noise(3);
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320;
+      src.connect(lp).connect(pan); src.start();
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.08; const lg = ctx.createGain(); lg.gain.value = 0.25;
+      const base = ctx.createConstantSource(); base.offset.value = 0.3;
+      base.connect(g.gain); lfo.connect(lg).connect(g.gain); lfo.start(); base.start();
+      src.start();
+      this.audioStops.push(() => { try { src.stop(); lfo.stop(); base.stop(); } catch { /* ignore */ } });
+      (a as any)._static = true;
+    } else { // night bed
+      const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = 62;
+      const og = ctx.createGain(); og.gain.value = 0.05; o.connect(og).connect(pan); o.start();
+      this.audioStops.push(() => { try { o.stop(); } catch { /* ignore */ } });
+    }
+  }
+
+  private updateAudio() {
+    if (!this.audioCtx) return;
+    const cosY = Math.cos(this.camYaw), sinY = Math.sin(this.camYaw);
+    for (const a of this.ambients) {
+      const g = (a as any)._g as GainNode | undefined;
+      const pan = (a as any)._pan as StereoPannerNode | undefined;
+      if (!g || !pan) continue;
+      const dx = a.x - this.pos.x, dz = a.z - this.pos.z;
+      const dist = Math.hypot(dx, dz);
+      let vol = Math.max(0, 1 - dist / a.radius); vol *= vol;
+      if (!(a as any)._static) g.gain.setTargetAtTime(vol * 0.9, this.audioCtx.currentTime, 0.4);
+      const p = dist > 0.5 ? Math.max(-1, Math.min(1, (dx * cosY - dz * sinY) / dist)) : 0;
+      pan.pan.setTargetAtTime(p, this.audioCtx.currentTime, 0.3);
+    }
+  }
+}
