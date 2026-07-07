@@ -18,7 +18,7 @@ features must never break.
 | **6 — UI & HUD** | ✅ **DONE (v322)** | Slide-out player list (colour swatch + speaking dot), tap-title to open; settings panel (render auto/high/low + shadows toggle, persisted); 3D speaking ring at speakers' feet; auto-hide stays up while a panel is open. |
 | **7 — Optimization** | ✅ **DONE (v325)** | Instanced rocks / driftwood / fire stones / beach plants (merged grass tuft) — cut ~140 meshes to 4 InstancedMeshes; smaller ocean mesh (60×40→44×26) with a shared `perf.reduced` flag that throttles wave-normal recompute under load. |
 | **8 — Additional worlds** | ⏳ | Cyber Lounge / Skyline Terrace / Yacht / Mountain Cabin (registry already stubs them). |
-| **9 — Interactive objects** | ⏳ | Sit variations, campfire toss, lanterns, mini-games, world props. |
+| **9 — Interactive objects** | ✅ **DONE (v326)** | Networked emote wheel (wave/dance/clap/heart/laugh with floating emoji), a generic `addInteractable` system, campfire toss (spark flare, shared), and a shore fireworks launcher (rockets + colour bursts over the ocean, shared). |
 | **10 — Polish & bug fixes** | ⏳ | Device testing, final tuning. |
 
 ## Architecture
@@ -78,6 +78,23 @@ Classic 2D Virtual Spaces remain untouched.
   flag (set by the engine when quality is `low` or adaptive pixel ratio drops
   below 0.95) throttles the costly `computeVertexNormals()` to every 3rd frame
   under load.
+
+## Phase 9 — what shipped (v326) — interactive objects
+
+- **avatar.ts**: emote system — `emote('wave'|'dance'|'clap'|'heart'|'laugh')`
+  with procedural per-kind animation + a floating emoji above the head.
+- **Interactable framework**: `WorldInteractable` + `ctx.addInteractable({ id,
+  x, z, r, label, effect })`. The engine surfaces the nearest object's label as
+  the interact prompt, runs `effect()` locally on tap, and — via `onInteract` →
+  `world:interact` → `triggerInteract()` — replays it for everyone. `effect`
+  must be replayable.
+- **engine.ts**: `localEmote`/`remoteEmote`, `triggerInteract`, nearest-object
+  detection, interact() picks the closer of seat vs object.
+- **beachCamp.ts**: campfire **toss** (spark shower + light flare) and a shore
+  **fireworks launcher** (rising rocket → radial colour burst + flash over the
+  ocean, pooled particles).
+- **Server**: `world:emote` + `world:interact` relays. **UI**: 😀 emote wheel;
+  interact button shows the object glyph (🔥/🎆/🪑).
 
 ## Phase 8 starting point (next) — Additional worlds
 

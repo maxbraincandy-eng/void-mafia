@@ -7669,6 +7669,22 @@ export function attachSocketHandlers(io: AppServer): void {
       }
     });
 
+    socket.on('world:emote' as any, ({ kind }: any) => {
+      const k = String(kind ?? '');
+      if (!['wave', 'dance', 'clap', 'heart', 'laugh'].includes(k)) return;
+      for (const [worldId, room] of _worlds) {
+        if (room.has(socket.id)) { socket.to(`world:${worldId}`).emit('world:emote' as any, { socketId: socket.id, kind: k }); return; }
+      }
+    });
+
+    socket.on('world:interact' as any, ({ id }: any) => {
+      const oid = String(id ?? '').slice(0, 32);
+      if (!oid) return;
+      for (const [worldId, room] of _worlds) {
+        if (room.has(socket.id)) { socket.to(`world:${worldId}`).emit('world:interact' as any, { id: oid }); return; }
+      }
+    });
+
     socket.on('world:leave' as any, () => { _leaveWorld(socket.id, io); });
 
     // spatial voice mesh (own channel)

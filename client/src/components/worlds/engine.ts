@@ -4,8 +4,8 @@
 // audio, and adaptive resolution. Kept out of React so the WebGL context and
 // loop survive re-renders. Reused by every present and future Premium World.
 import * as THREE from 'three';
-import { Avatar } from './avatar';
-import type { WorldDef, WorldContext, WorldCollider, WorldSeat, AmbientSource, AvatarConfig } from './types';
+import { Avatar, type EmoteKind } from './avatar';
+import type { WorldDef, WorldContext, WorldCollider, WorldSeat, WorldInteractable, AmbientSource, AvatarConfig } from './types';
 
 export interface WorldHud {
   world: string;
@@ -54,7 +54,10 @@ export class WorldEngine {
 
   private colliders: WorldCollider[] = [];
   private seats: WorldSeat[] = [];
+  private interactables: WorldInteractable[] = [];
+  private nearObj: WorldInteractable | null = null;
   private seated: WorldSeat | null = null;
+  onInteract: ((id: string) => void) | null = null;
   private updates: ((dt: number, elapsed: number) => void)[] = [];
   private ambients: AmbientSource[] = [];
 
@@ -110,9 +113,16 @@ export class WorldEngine {
   addLook(dx: number, dy: number) { this.pendingLook.x += dx; this.pendingLook.y += dy; }
   interact() {
     if (this.seated) { this.stand(); return; }
+    // prefer whichever (seat or object) is closer
+    const sd = this.nearSeat ? (this.nearSeat.x - this.pos.x) ** 2 + (this.nearSeat.z - this.pos.z) ** 2 : Infinity;
+    const od = this.nearObj ? (this.nearObj.x - this.pos.x) ** 2 + (this.nearObj.z - this.pos.z) ** 2 : Infinity;
+    if (this.nearObj && od <= sd) { this.nearObj.effect(); this.onInteract?.(this.nearObj.id); return; }
     if (this.nearSeat) this.sit(this.nearSeat);
   }
   emote() { this.avatar.wave(); }
+  localEmote(kind: EmoteKind) { this.avatar.emote(kind); }
+  remoteEmote(socketId: string, kind: EmoteKind) { this.remotes.get(socketId)?.avatar.emote(kind); }
+  triggerInteract(id: string) { this.interactables.find(o => o.id === id)?.effect(); }
   resumeAudio() { this.audioCtx?.resume?.().catch(() => {}); if (!this.audioCtx) this.startAudio(); }
 
   // ── multiplayer ─────────────────────────────────────────────────────
@@ -267,6 +277,7 @@ export class WorldEngine {
       ambientLight: this.ambientLight,
       addCollider: (c) => this.colliders.push(c),
       addSeat: (s) => this.seats.push(s),
+      addInteractable: (o) => this.interactables.push(o),
       addAmbient: (a) => this.ambients.push(a),
       onUpdate: (fn) => this.updates.push(fn),
       disposables: [],
@@ -311,8 +322,8 @@ export class WorldEngine {
       }
     }
 
-    // nearest (free) seat prompt
-    this.nearSeat = null;
+    // nearest (free) seat + nearest interactable prompt
+    this.nearSeat = null; this.nearObj = null;
     if (!this.seated) {
       let bd = 2.3 * 2.3;
       for (const s of this.seats) {
@@ -320,6 +331,11 @@ export class WorldEngine {
         const dx = s.x - this.pos.x, dz = s.z - this.pos.z;
         const d = dx * dx + dz * dz;
         if (d < bd) { bd = d; this.nearSeat = s; }
+      }
+      for (const o of this.interactables) {
+        const dx = o.x - this.pos.x, dz = o.z - this.pos.z;
+        const d = dx * dx + dz * dz;
+        if (d < o.r * o.r && (!this.nearObj || d < (this.nearObj.x - this.pos.x) ** 2 + (this.nearObj.z - this.pos.z) ** 2)) this.nearObj = o;
       }
     }
 
@@ -360,7 +376,8 @@ export class WorldEngine {
     this.hudAccum += dt;
     if (this.hudAccum > 0.2) {
       this.hudAccum = 0;
-      this.onHud?.({ world: this.def.name, sitting: !!this.seated, canInteract: this.seated ? 'ადექი' : this.nearSeat ? 'დაჯექი' : null, players: 1 + this.remotes.size });
+      const label = this.seated ? 'ადექი' : this.nearObj ? this.nearObj.label : this.nearSeat ? 'დაჯექი' : null;
+      this.onHud?.({ world: this.def.name, sitting: !!this.seated, canInteract: label, players: 1 + this.remotes.size });
     }
 
     this.renderer.render(this.scene, this.camera);

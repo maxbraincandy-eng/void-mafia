@@ -115,6 +115,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   const mySocketId = useRef('');
   const [roster, setRoster] = useState<{ socketId: string; name: string; bodyColor: string }[]>([]);
   const [panel, setPanel] = useState<null | 'players' | 'settings'>(null);
+  const [emoteOpen, setEmoteOpen] = useState(false);
   const [quality, setQuality] = useState<{ mode: 'auto' | 'high' | 'low'; shadows: boolean }>(() => {
     try { const q = JSON.parse(localStorage.getItem('vw_quality') ?? ''); if (q && q.mode) return q; } catch { /* default */ }
     return { mode: 'auto', shadows: true };
@@ -155,10 +156,15 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       pushRemotes();
     };
     const onWave = ({ socketId }: { socketId: string }) => eng.remoteWave(socketId);
+    const onEmote = ({ socketId, kind }: { socketId: string; kind: any }) => eng.remoteEmote(socketId, kind);
+    const onInteractNet = ({ id }: { id: string }) => eng.triggerInteract(id);
+    eng.onInteract = (id) => { if (socket.connected) socket.emit('world:interact', { id }); };
     socket.on('world:player-joined', onJoined);
     socket.on('world:player-left', onLeft);
     socket.on('world:player-moved', onMoved);
     socket.on('world:wave', onWave);
+    socket.on('world:emote', onEmote);
+    socket.on('world:interact', onInteractNet);
 
     emitWithAck<{ worldId: string; name: string; bodyColor: string; glowColor: string }, { ok: boolean; data?: { mySocketId: string; players: RemoteWorldPlayer[] } }>(
       'world:join', { worldId, name: useAuthStore.getState().profile?.username ?? 'Guest', bodyColor: av.bodyColor, glowColor: av.glowColor },
@@ -203,6 +209,8 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       socket.off('world:player-left', onLeft);
       socket.off('world:player-moved', onMoved);
       socket.off('world:wave', onWave);
+      socket.off('world:emote', onEmote);
+      socket.off('world:interact', onInteractNet);
       clearInterval(netIv);
       leaveWorldVoice();
       socket.emit('world:leave');
@@ -253,7 +261,11 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   useEffect(() => { if (panel) { setUiVisible(true); if (idleTimer.current) clearTimeout(idleTimer.current); } else poke(); }, [panel, poke]);
   const showUI = uiVisible || panel != null;
 
-  const doWave = () => { engineRef.current?.emote(); if (socket.connected) socket.emit('world:wave'); };
+  const doEmote = (kind: 'wave' | 'dance' | 'clap' | 'heart' | 'laugh') => {
+    engineRef.current?.localEmote(kind);
+    if (socket.connected) socket.emit('world:emote', { kind });
+    setEmoteOpen(false); poke();
+  };
 
   const isCtl = (t: EventTarget | null) => t instanceof HTMLElement && t.closest('[data-hud]') != null;
 
@@ -375,10 +387,19 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
 
       {/* Right controls */}
       <div style={{ position: 'absolute', right: 24, bottom: 'max(52px, env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, opacity: showUI ? 1 : 0.25, transition: 'opacity .4s' }}>
-        {hud.canInteract && roundBtn(hud.sitting ? '🧍' : '🪑', () => engineRef.current?.interact(), 62, true)}
+        {hud.canInteract && roundBtn(hud.sitting ? '🧍' : (hud.canInteract.includes('🔥') ? '🔥' : hud.canInteract.includes('🎆') ? '🎆' : '🪑'), () => engineRef.current?.interact(), 62, true)}
+        {/* Emote wheel */}
+        {emoteOpen && (
+          <div data-hud style={{ position: 'absolute', right: 60, bottom: 62, display: 'flex', gap: 8, background: 'rgba(12,10,24,0.75)', border: '1px solid rgba(192,132,252,0.3)', borderRadius: 30, padding: 8, backdropFilter: 'blur(8px)' }}>
+            {([['👋', 'wave'], ['💃', 'dance'], ['👏', 'clap'], ['❤️', 'heart'], ['😂', 'laugh']] as const).map(([e, k]) => (
+              <button key={k} data-hud onPointerDown={(ev) => { ev.preventDefault(); doEmote(k); }} onContextMenu={(ev) => ev.preventDefault()}
+                style={{ width: 42, height: 42, borderRadius: '50%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(192,132,252,0.3)', fontSize: 20, touchAction: 'none' }}>{e}</button>
+            ))}
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 12 }}>
           {roundBtn(voice.joined ? (voice.muted ? '🔇' : '🎙️') : '🎙️', () => { if (!voice.joined) voice.joinVoice(); else voice.toggleMute(); }, 50, voice.joined && !voice.muted)}
-          {roundBtn('👋', doWave, 50)}
+          {roundBtn('😀', () => setEmoteOpen(o => !o), 50, emoteOpen)}
         </div>
       </div>
 

@@ -7,6 +7,9 @@ import type * as THREE from 'three';
 
 export interface WorldCollider { x: number; z: number; r: number; }      // cylinder (organic scenes)
 export interface WorldSeat { id: string; x: number; y: number; z: number; yaw: number; }
+// A tappable object. `effect` runs the visual/audio (locally AND when another
+// player triggers it over the network), so it must be idempotent/replayable.
+export interface WorldInteractable { id: string; x: number; z: number; r: number; label: string; effect: () => void; }
 export type AmbientKind = 'ocean' | 'fire' | 'wind' | 'night';
 export interface AmbientSource { kind: AmbientKind; x: number; z: number; radius: number; }
 
@@ -21,6 +24,7 @@ export interface WorldContext {
   ambientLight: THREE.AmbientLight;
   addCollider(c: WorldCollider): void;
   addSeat(s: WorldSeat): void;
+  addInteractable(o: WorldInteractable): void;
   addAmbient(a: AmbientSource): void;
   onUpdate(fn: (dt: number, elapsed: number) => void): void;
   disposables: (THREE.Texture | THREE.Material | THREE.BufferGeometry)[];

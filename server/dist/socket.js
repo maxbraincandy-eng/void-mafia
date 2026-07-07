@@ -8871,6 +8871,28 @@ export function attachSocketHandlers(io) {
                 }
             }
         });
+        socket.on('world:emote', ({ kind }) => {
+            const k = String(kind ?? '');
+            if (!['wave', 'dance', 'clap', 'heart', 'laugh'].includes(k))
+                return;
+            for (const [worldId, room] of _worlds) {
+                if (room.has(socket.id)) {
+                    socket.to(`world:${worldId}`).emit('world:emote', { socketId: socket.id, kind: k });
+                    return;
+                }
+            }
+        });
+        socket.on('world:interact', ({ id }) => {
+            const oid = String(id ?? '').slice(0, 32);
+            if (!oid)
+                return;
+            for (const [worldId, room] of _worlds) {
+                if (room.has(socket.id)) {
+                    socket.to(`world:${worldId}`).emit('world:interact', { id: oid });
+                    return;
+                }
+            }
+        });
         socket.on('world:leave', () => { _leaveWorld(socket.id, io); });
         // spatial voice mesh (own channel)
         socket.on('world:voice-join', (_, cb) => {

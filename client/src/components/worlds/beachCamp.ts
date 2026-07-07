@@ -37,6 +37,7 @@ export const beachCamp: WorldDef = {
     buildProps(ctx);
     buildStringLights(ctx);
     buildDbSign(ctx);
+    buildFireworks(ctx);
     buildAirParticles(ctx);
 
     // ambient audio sources — ocean is faint far away and swells toward the
@@ -203,18 +204,25 @@ function buildCampfire(ctx: WorldContext) {
 
   ctx.addCollider({ x: 0, z: 0, r: 1.5 });
 
+  // Toss something on the fire → a brief flare + shower of sparks (networked).
+  let flareUntil = 0;
+  ctx.addInteractable({ id: 'fire_toss', x: 0, z: 0, r: 2.9, label: '🔥 ცეცხლში ჩააგდე', effect: () => { flareUntil = performance.now() + 900; } });
+
   ctx.onUpdate((d, e) => {
+    const flaring = performance.now() < flareUntil;
     const fl = 0.8 + Math.sin(e * 22) * 0.12 + Math.sin(e * 37) * 0.08;
-    light.intensity = 3.0 * fl + Math.random() * 0.4;
-    flame.scale.set(0.9 + Math.sin(e * 18) * 0.08, fl, 0.9 + Math.cos(e * 15) * 0.08);
+    light.intensity = (flaring ? 7.5 : 3.0) * fl + Math.random() * 0.4;
+    const fls = flaring ? 1.5 : 1;
+    flame.scale.set((0.9 + Math.sin(e * 18) * 0.08) * fls, fl * fls, (0.9 + Math.cos(e * 15) * 0.08) * fls);
     cones.forEach((c, i) => { c.rotation.y = e * (1.5 + i); });
-    (glow.material as THREE.SpriteMaterial).opacity = 0.4 + fl * 0.2;
-    // embers rise + recycle
+    (glow.material as THREE.SpriteMaterial).opacity = (0.4 + fl * 0.2) * (flaring ? 1.8 : 1);
+    // embers rise + recycle (faster + wider during a flare)
     const pa = eg.attributes.position as THREE.BufferAttribute;
+    const vmul = flaring ? 3.2 : 1, spread = flaring ? 0.6 : 0.3;
     for (let i = 0; i < EN; i++) {
-      let y = pa.getY(i) + ev[i] * d;
+      let y = pa.getY(i) + ev[i] * vmul * d;
       let x = pa.getX(i) + Math.sin(e * 2 + i) * 0.01;
-      if (y > 3.2) { y = 0.3; x = rrng(-0.3, 0.3); pa.setZ(i, rrng(-0.3, 0.3)); }
+      if (y > 3.2) { y = 0.3; x = rrng(-spread, spread); pa.setZ(i, rrng(-spread, spread)); }
       pa.setX(i, x); pa.setY(i, y);
     }
     pa.needsUpdate = true;
@@ -378,6 +386,80 @@ function buildDbSign(ctx: WorldContext) {
   board.position.set(0, 1.25, 0.05); board.castShadow = true; g.add(board);
   const l = new THREE.PointLight(0xffcf7a, 0.7, 3.2, 2); l.position.set(0, 1.25, 0.6); g.add(l);
   ctx.addCollider({ x: 7.5, z: 3.5, r: 0.6 });
+}
+
+// ── Fireworks launcher over the ocean (interactable, networked) ───────
+function buildFireworks(ctx: WorldContext) {
+  const LX = -7, LZ = -19;
+  const g = new THREE.Group(); g.position.set(LX, 0, LZ); ctx.scene.add(g);
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 1.0, 6), new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 1 }));
+  post.position.y = 0.5; post.castShadow = true; g.add(post);
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.55, 8), new THREE.MeshStandardMaterial({ color: 0x7a2020, roughness: 0.8, emissive: 0x330808, emissiveIntensity: 0.6 }));
+  tube.position.set(0, 1.05, 0); tube.rotation.z = 0.22; g.add(tube);
+  ctx.addCollider({ x: LX, z: LZ, r: 0.4 });
+
+  const MAX = 260;
+  const pos = new Float32Array(MAX * 3), col = new Float32Array(MAX * 3);
+  const life = new Float32Array(MAX), vx = new Float32Array(MAX), vy = new Float32Array(MAX), vz = new Float32Array(MAX);
+  for (let i = 0; i < MAX; i++) pos[i * 3 + 1] = -80;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.32, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  ctx.scene.add(pts);
+  let cursor = 0;
+
+  const flash = new THREE.PointLight(0xffffff, 0, 55, 2); flash.position.set(0, 16, -45); ctx.scene.add(flash);
+  let flashUntil = 0;
+
+  const rocketMat = new THREE.SpriteMaterial({ map: radialTexture(0xfff2c0), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  const rockets: { spr: THREE.Sprite; y: number; vy: number; x: number; z: number; color: THREE.Color; apex: number }[] = [];
+  const palette = [0xff3b6b, 0x3ba0ff, 0x8aff3b, 0xffd23b, 0xc06bff, 0xff8a3b, 0xffffff];
+
+  const burst = (x: number, y: number, z: number, color: THREE.Color) => {
+    for (let k = 0; k < 48; k++) {
+      const i = cursor; cursor = (cursor + 1) % MAX;
+      const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1), sp = 3 + Math.random() * 3.5;
+      vx[i] = Math.sin(ph) * Math.cos(th) * sp; vy[i] = Math.cos(ph) * sp; vz[i] = Math.sin(ph) * Math.sin(th) * sp;
+      pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
+      const c = color.clone().offsetHSL(0, 0, (Math.random() - 0.5) * 0.25);
+      col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+      life[i] = 1.5 + Math.random() * 0.7;
+    }
+    flash.position.set(x, y, z); flash.color.copy(color); flashUntil = performance.now() + 260;
+  };
+
+  ctx.addInteractable({
+    id: 'firework', x: LX, z: LZ, r: 2.7, label: '🎆 გაუშვი ფეიერვერკი',
+    effect: () => {
+      const color = new THREE.Color(palette[Math.floor(Math.random() * palette.length)]);
+      const tx = -8 + (Math.random() - 0.5) * 30, tz = -42 + (Math.random() - 0.5) * 18;
+      const spr = new THREE.Sprite(rocketMat); spr.scale.setScalar(0.55); spr.position.set(tx, 1.4, tz); ctx.scene.add(spr);
+      rockets.push({ spr, x: tx, z: tz, y: 1.4, vy: 12 + Math.random() * 3, color, apex: 14 + Math.random() * 5 });
+    },
+  });
+
+  ctx.onUpdate((d) => {
+    const now = performance.now();
+    for (let r = rockets.length - 1; r >= 0; r--) {
+      const rk = rockets[r]; rk.y += rk.vy * d; rk.vy -= 9 * d; rk.spr.position.y = rk.y;
+      if (rk.y >= rk.apex || rk.vy <= 1) { burst(rk.x, rk.y, rk.z, rk.color); ctx.scene.remove(rk.spr); rockets.splice(r, 1); }
+    }
+    const pa = geo.attributes.position as THREE.BufferAttribute;
+    const ca = geo.attributes.color as THREE.BufferAttribute;
+    let dirty = false;
+    for (let i = 0; i < MAX; i++) {
+      if (life[i] <= 0) continue;
+      life[i] -= d; vy[i] -= 5 * d;
+      pos[i * 3] += vx[i] * d; pos[i * 3 + 1] += vy[i] * d; pos[i * 3 + 2] += vz[i] * d;
+      const fade = Math.max(0, life[i] / 2);
+      ca.setXYZ(i, col[i * 3] * fade, col[i * 3 + 1] * fade, col[i * 3 + 2] * fade);
+      if (life[i] <= 0) pos[i * 3 + 1] = -80;
+      dirty = true;
+    }
+    if (dirty) { pa.needsUpdate = true; ca.needsUpdate = true; }
+    flash.intensity = now < flashUntil ? 4 * ((flashUntil - now) / 260) : 0;
+  });
 }
 
 // ── Floating air particles (motes) ────────────────────────────────────
