@@ -180,7 +180,7 @@ export class BackroomsEngine {
   // The VOID IS COMING event
   private voidPhase: 'none' | 'warning' | 'sweep' = 'none';
   private voidLevel = 0;              // 0..1 tension ramp (darken + fog + bass)
-  private baseFogDensity = 0.075;
+  private baseFogDensity = 0.085;
   private voidBass: OscillatorNode | null = null;
   private voidBassGain: GainNode | null = null;
   private whisperTimer: ReturnType<typeof setInterval> | null = null;
@@ -208,6 +208,7 @@ export class BackroomsEngine {
   private figs: { spr: THREE.Sprite; mat: THREE.SpriteMaterial; active: boolean; vx: number; vz: number; until: number; stung: boolean }[] = [];
   private wallShadowMat!: THREE.SpriteMaterial;
   private wallShadows: THREE.Sprite[] = [];
+  private nextDreadAt = 0;
   private clues: { x: number; z: number; note: string }[] = [];
   private curRegion: RegionType = 'normal';
   private regionCol = { floor: new THREE.Color(0x8a8060), ceil: new THREE.Color(0xece3b8), fog: new THREE.Color(0x12100a), light: 1 };
@@ -251,7 +252,7 @@ export class BackroomsEngine {
     this.renderer.setClearColor(0x0a0a06, 1);
 
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2(0x12100a, 0.075);
+    this.scene.fog = new THREE.FogExp2(0x12100a, 0.085);
 
     this.camera = new THREE.PerspectiveCamera(72, 1, 0.05, 120);
     this.camera.position.copy(this.pos);
@@ -338,9 +339,13 @@ export class BackroomsEngine {
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 10), skinMat); head.position.y = 1.42; g.add(head);
     if (dark) {
       const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff2222 });
-      const eyeG = new THREE.SphereGeometry(0.025, 6, 6);
-      const e1 = new THREE.Mesh(eyeG, eyeMat); e1.position.set(-0.055, 1.45, -0.14); g.add(e1);
-      const e2 = new THREE.Mesh(eyeG, eyeMat); e2.position.set(0.055, 1.45, -0.14); g.add(e2);
+      const eyeG = new THREE.SphereGeometry(0.04, 6, 6);
+      const e1 = new THREE.Mesh(eyeG, eyeMat); e1.position.set(-0.06, 1.45, -0.14); g.add(e1);
+      const e2 = new THREE.Mesh(eyeG, eyeMat); e2.position.set(0.06, 1.45, -0.14); g.add(e2);
+      // dim red aura so the thing reads even in pitch black
+      const aura = new THREE.PointLight(0x990000, 1.6, 5, 2);
+      aura.position.set(0, 1.4, 0);
+      g.add(aura);
     }
     return g;
   }
@@ -558,10 +563,10 @@ export class BackroomsEngine {
       this.smoke.push({ spr, vx: 0, vy: 0, vz: 0, life: 0 });
     }
 
-    // Gliding humanoid shadow figures (only they move, and only during the Void).
+    // Gliding humanoid shadow figures — Void monsters + rare ambient dread.
     const silTex = this.makeSilhouetteTexture();
     for (let i = 0; i < 3; i++) {
-      const mat = new THREE.SpriteMaterial({ map: silTex, color: 0x000000, transparent: true, opacity: 0, depthWrite: false });
+      const mat = new THREE.SpriteMaterial({ map: silTex, color: 0xffffff, transparent: true, opacity: 0, depthWrite: false });
       const spr = new THREE.Sprite(mat);
       spr.scale.set(1.15, 2.2, 1);
       spr.position.set(0, -100, 0);
@@ -570,8 +575,8 @@ export class BackroomsEngine {
     }
 
     // Dormant human shadows standing at walls — present before the Void, never move.
-    this.wallShadowMat = new THREE.SpriteMaterial({ map: silTex, color: 0x000000, transparent: true, opacity: 0.55, depthWrite: false });
-    for (let i = 0; i < 6; i++) {
+    this.wallShadowMat = new THREE.SpriteMaterial({ map: silTex, color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false });
+    for (let i = 0; i < 12; i++) {
       const spr = new THREE.Sprite(this.wallShadowMat);
       spr.scale.set(1.0, 2.0, 1);
       spr.visible = false;
@@ -607,9 +612,9 @@ export class BackroomsEngine {
   }
 
   private buildLights() {
-    this.ambient = new THREE.AmbientLight(0x5a5230, 0.55);
+    this.ambient = new THREE.AmbientLight(0x5a5230, 0.45);
     this.scene.add(this.ambient);
-    this.hemi = new THREE.HemisphereLight(0xfff2c0, 0x24200e, 0.35);
+    this.hemi = new THREE.HemisphereLight(0xfff2c0, 0x24200e, 0.3);
     this.scene.add(this.hemi);
 
     // A small pool of warm fluorescent point lights that follow the player,
@@ -744,12 +749,17 @@ export class BackroomsEngine {
   private makeSilhouetteTexture(): THREE.Texture {
     const c = document.createElement('canvas'); c.width = 64; c.height = 128;
     const g = c.getContext('2d')!;
-    g.fillStyle = 'rgba(0,0,0,0.95)';
+    g.fillStyle = 'rgba(16,16,24,0.97)';
     (g as any).filter = 'blur(1.5px)';
     g.beginPath(); g.arc(32, 22, 11, 0, Math.PI * 2); g.fill();               // head
     g.beginPath(); g.moveTo(18, 34); g.lineTo(46, 34); g.lineTo(42, 84); g.lineTo(22, 84); g.closePath(); g.fill(); // torso
     g.fillRect(23, 82, 7, 40); g.fillRect(34, 82, 7, 40);                      // legs
     g.fillRect(14, 36, 6, 38); g.fillRect(44, 36, 6, 38);                      // arms
+    // faint red eyes — the only thing you notice in the dark
+    (g as any).filter = 'none';
+    g.fillStyle = 'rgba(255,40,30,0.92)';
+    g.beginPath(); g.arc(27.5, 20, 2.2, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.arc(36.5, 20, 2.2, 0, Math.PI * 2); g.fill();
     const t = new THREE.CanvasTexture(c);
     this.textures.push(t);
     return t;
@@ -821,10 +831,12 @@ export class BackroomsEngine {
             dummy.rotation.set(0, 0, 0);
           }
           // dormant human shadow standing at the wall — it never moves…
-          if (ws < 6 && hash3(cx, cz, 717 + this.worldSeed) < 0.02) {
+          if (ws < 12 && hash3(cx, cz, 717 + this.worldSeed) < 0.05) {
             const side = hash3(cx, cz, 718) < 0.5 ? 1 : -1;
             const spr = this.wallShadows[ws++];
-            spr.position.set(mx + (hash3(cx, cz, 719) - 0.5) * 2, 1.0, mz + side * 0.55);
+            const sc = 0.9 + hash3(cx, cz, 720) * 0.3;
+            spr.scale.set(sc, sc * 2, 1);
+            spr.position.set(mx + (hash3(cx, cz, 719) - 0.5) * 2, sc, mz + side * 0.55);
             spr.visible = true;
           }
         }
@@ -907,10 +919,11 @@ export class BackroomsEngine {
           clues.push({ x: nx, z: nz, note: noteFor(cx, cz, this.worldSeed) });
         }
 
-        // Standing mirror (very rare) — your reflection may not stay put.
-        if (mi < 12 && hash3(cx, cz, 3131 + this.worldSeed) < 0.005) {
+        // Standing mirror (rare) — your reflection may not stay put.
+        if (mi < 12 && hash3(cx, cz, 3131 + this.worldSeed) < 0.015) {
           const ox = wx + CELL / 2, oz = wz + CELL / 2;
           const mrot = hash3(cx, cz, 3132) < 0.5;
+          dummy.rotation.set(0, 0, 0);
           dummy.position.set(ox, 1.02, oz);
           dummy.scale.set(mrot ? 0.1 : 0.95, 2.05, mrot ? 0.95 : 0.1);
           dummy.updateMatrix();
@@ -1026,6 +1039,9 @@ export class BackroomsEngine {
 
     // The Void event darkens + thickens fog on top of everything
     this.updateVoid(dt);
+
+    // Smoke, gliding shadows, and random personal scares (always on)
+    this.updateDread(dt);
 
     // Mirrors + clone chase
     this.updateHorror(dt);
@@ -1277,7 +1293,13 @@ export class BackroomsEngine {
     this.renderer.setClearColor(0x000000, 1);
     // Bass swells with tension.
     if (this.voidBassGain && this.audioCtx) this.voidBassGain.gain.setTargetAtTime(0.02 + v * 0.22, this.audioCtx.currentTime, 0.2);
+  }
 
+  // ── Dread: smoke, gliding shadows, and random personal scares ─────────
+  // Runs every frame (unlike updateVoid, which bails while idle) so ambient
+  // shadow figures keep moving outside the Void too.
+  private updateDread(dt: number) {
+    const v = this.voidLevel;
     // Black smoke pours out of the walls and swallows the corridors.
     if (v > 0.04 && this.smoke.length) {
       this.smokeMat.opacity = Math.min(0.85, v);
@@ -1316,6 +1338,37 @@ export class BackroomsEngine {
         this.onEffect?.('shadow');
       }
       if (nowMs > f.until || d2 > 1100) { f.active = false; f.mat.opacity = 0; f.spr.position.y = -100; }
+    }
+
+    // Personal dread scheduler — even in "calm" stretches something happens
+    // every minute or two: whispers, a shadow gliding by, flickering lights,
+    // a heartbeat… and, very rarely, a face in the dark.
+    if (this.nextDreadAt === 0) this.nextDreadAt = nowMs + 25000 + Math.random() * 25000;
+    if (nowMs >= this.nextDreadAt && this.voidPhase === 'none' && !this.clone) {
+      this.nextDreadAt = nowMs + 50000 + Math.random() * 80000;
+      const r = Math.random();
+      const ang2 = Math.random() * Math.PI * 2, dd = 5 + Math.random() * 9;
+      const sx = this.pos.x + Math.cos(ang2) * dd, sz = this.pos.z + Math.sin(ang2) * dd;
+      if (r < 0.4) {
+        this.playPositional(Math.random() < 0.5 ? 'whisper' : 'footstep', sx, sz);
+      } else if (r < 0.65) {
+        const f = this.figs.find(x => !x.active);
+        if (f) this.launchFig(f);
+      } else if (r < 0.8) {
+        this.flickerUntil = nowMs + 2600;
+        this.playPositional('buzz', sx, sz);
+      } else if (r < 0.93) {
+        this.startHeartbeat();
+        this.playPositional('growl', sx, sz);
+        setTimeout(() => {
+          if (this.voidPhase === 'none' && performance.now() > this.blackoutUntil && !this.clone) this.stopHeartbeat();
+        }, 7000);
+      } else {
+        // rare pure jumpscare — a face in the dark, then nothing
+        this.onEffect?.('jumpscare');
+        this.playPositional('sting');
+        this.playPositional('scream');
+      }
     }
   }
 
@@ -1366,7 +1419,10 @@ export class BackroomsEngine {
     if (!this.clone) {
       for (const m of this.mirrors) {
         const dx = m.x - this.pos.x, dz = m.z - this.pos.z;
-        if (dx * dx + dz * dz > 5.3) continue;
+        const d2 = dx * dx + dz * dz;
+        // faint whispering pulls you toward nearby mirrors
+        if (d2 < 49 && Math.random() < dt * 0.12) this.playPositional('whisper', m.x, m.z);
+        if (d2 > 6.8) continue;
         if (now < (this.mirrorCooldown.get(m.key) ?? 0)) continue;
         this.mirrorCooldown.set(m.key, now + 75000);
         this.spawnClone(m.x, m.z);
@@ -1495,9 +1551,9 @@ export class BackroomsEngine {
       this.activeEvent = null;
     }
     for (const pl of this.lightPool) pl.intensity = 6 * poolMul;
-    this.ambient.intensity = 0.55 * ambMul;
+    this.ambient.intensity = 0.45 * ambMul;
     this.ambient.color.setHex(blackout ? 0x5a1e12 : 0x5a5230);
-    this.hemi.intensity = 0.35 * ambMul;
+    this.hemi.intensity = 0.3 * ambMul;
     (this.ceil.material as THREE.MeshLambertMaterial).emissiveIntensity = emis;
   }
 
