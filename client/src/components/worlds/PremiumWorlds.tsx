@@ -106,6 +106,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   const [tvQuery, setTvQuery] = useState('');
   const [tvResults, setTvResults] = useState<{ videoId: string; title: string; author: string }[]>([]);
   const [tvBusy, setTvBusy] = useState(false);
+  const [tvFocused, setTvFocused] = useState(false);
   const [uiVisible, setUiVisible] = useState(true);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -399,17 +400,22 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
         {roundBtn('✕', onClose, 40)}
       </div>
 
-      {/* Cinema panel — search / paste a YouTube video for everyone */}
+      {/* Cinema panel — search / paste a YouTube video for everyone.
+          While the input is focused it anchors to the TOP so the on-screen
+          keyboard (which covers the bottom) can't hide it. */}
       {tvPanel && (
-        <div data-hud style={{ position: 'absolute', bottom: 'max(100px, calc(env(safe-area-inset-bottom) + 90px))', left: '50%', transform: 'translateX(-50%)', width: 'min(420px, 92vw)', background: 'rgba(12,10,24,0.94)', border: '1px solid rgba(192,132,252,0.35)', borderRadius: 16, padding: 12, backdropFilter: 'blur(12px)', zIndex: 18 }}>
+        <div data-hud style={{ position: 'absolute', ...(tvFocused ? { top: 'max(14px, env(safe-area-inset-top))' } : { bottom: 'max(100px, calc(env(safe-area-inset-bottom) + 90px))' }), left: '50%', transform: 'translateX(-50%)', width: 'min(420px, 92vw)', background: 'rgba(12,10,24,0.97)', border: '1px solid rgba(192,132,252,0.35)', borderRadius: 16, padding: 12, backdropFilter: 'blur(12px)', zIndex: 30 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <span style={{ fontFamily: 'monospace', fontSize: 11, letterSpacing: 1, color: 'rgba(233,213,255,0.6)', flex: 1 }}>📺 ჩართე ვიდეო ეკრანზე</span>
             {tvOn && <button data-hud onPointerDown={(e) => { e.preventDefault(); socket.emit('world:tv-toggle'); }} style={{ fontSize: 15, color: '#e9d5ff', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 8, padding: '5px 10px' }}>⏯</button>}
             {tvOn && <button data-hud onPointerDown={(e) => { e.preventDefault(); socket.emit('world:tv-stop'); }} style={{ fontSize: 13, color: '#ff8a8a', background: 'rgba(255,80,80,0.1)', border: '1px solid rgba(255,80,80,0.3)', borderRadius: 8, padding: '5px 10px' }}>⏹</button>}
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <input value={tvQuery} onChange={e => setTvQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') tvSearch(); }} placeholder="YouTube ბმული ან ძებნა…"
-              style={{ flex: 1, padding: '9px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', color: '#fff', fontFamily: 'monospace', fontSize: 12, outline: 'none' }} />
+            <input value={tvQuery} onChange={e => setTvQuery(e.target.value)}
+              onFocus={() => setTvFocused(true)} onBlur={() => setTvFocused(false)}
+              onKeyDown={e => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); tvSearch(); } }}
+              enterKeyHint="search" autoComplete="off" placeholder="YouTube ბმული ან ძებნა…"
+              style={{ flex: 1, minWidth: 0, padding: '11px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)', color: '#fff', fontFamily: 'monospace', fontSize: 16, outline: 'none' }} />
             <button data-hud onPointerDown={(e) => { e.preventDefault(); tvSearch(); }} style={{ padding: '0 14px', borderRadius: 10, background: 'rgba(124,58,237,0.5)', border: 'none', color: '#fff', fontSize: 13 }}>{tvBusy ? '…' : '🔍'}</button>
           </div>
           {tvResults.length > 0 && (
