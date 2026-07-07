@@ -512,6 +512,15 @@ html.theme-transitioning body {
   100% { background-position: 0 0; }
 }
 
+/* Backrooms jumpscare: violent zoom + jitter */
+@keyframes vm-scare {
+  0%   { transform: scale(0.85) rotate(-2deg);  opacity: 0.4; }
+  12%  { transform: scale(1.18) rotate(1.5deg); opacity: 1; }
+  30%  { transform: scale(1.05) rotate(-1deg); }
+  55%  { transform: scale(1.22) rotate(2deg); }
+  100% { transform: scale(1.3)  rotate(0);      opacity: 0.9; }
+}
+
 /* Backrooms VOID IS COMING: unsettling text throb + glitch */
 @keyframes vm-void-pulse {
   0%, 100% { opacity: 1;    transform: scale(1);     letter-spacing: 6px; }

@@ -12,6 +12,40 @@ import { BackroomsEngine, type HudState, type RemotePlayerState } from './engine
 
 const JOY_R = 56;
 
+// ── Avatar customisation ────────────────────────────────────────────────
+const BR_SKINS = [0xf2c9a0, 0xdfae83, 0xb07b4f, 0x8a5a33, 0x6b4226];
+const BR_SHIRTS = [0x7c3aed, 0x0ea5b7, 0xb91c1c, 0x15803d, 0xca8a04, 0x334155];
+const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
+function loadAvatar(): { skin: number; shirt: number } {
+  try {
+    const a = JSON.parse(localStorage.getItem('vm_br_avatar') ?? '');
+    if (a && BR_SKINS.includes(a.skin) && BR_SHIRTS.includes(a.shirt)) return a;
+  } catch { /* fall through */ }
+  return { skin: BR_SKINS[0], shirt: BR_SHIRTS[0] };
+}
+function saveAvatar(a: { skin: number; shirt: number }) {
+  try { localStorage.setItem('vm_br_avatar', JSON.stringify(a)); } catch { /* ignore */ }
+}
+
+// Jumpscare face — drawn once, cached as a data URL.
+let _scareFace: string | null = null;
+function scareFace(): string {
+  if (_scareFace) return _scareFace;
+  const c = document.createElement('canvas'); c.width = 512; c.height = 512;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#000'; g.fillRect(0, 0, 512, 512);
+  g.save(); g.translate(256, 270); g.scale(1, 1.35);
+  const grad = g.createRadialGradient(0, 0, 40, 0, 0, 150);
+  grad.addColorStop(0, '#cfc4b2'); grad.addColorStop(0.8, '#7d7365'); grad.addColorStop(1, '#000');
+  g.fillStyle = grad; g.beginPath(); g.arc(0, 0, 150, 0, Math.PI * 2); g.fill(); g.restore();
+  g.fillStyle = '#000';
+  g.save(); g.translate(190, 225); g.scale(1, 1.4); g.beginPath(); g.arc(0, 0, 34, 0, Math.PI * 2); g.fill(); g.restore();
+  g.save(); g.translate(322, 225); g.scale(1, 1.4); g.beginPath(); g.arc(0, 0, 34, 0, Math.PI * 2); g.fill(); g.restore();
+  g.save(); g.translate(256, 350); g.scale(1, 1.8); g.beginPath(); g.arc(0, 0, 42, 0, Math.PI * 2); g.fill(); g.restore();
+  _scareFace = c.toDataURL();
+  return _scareFace;
+}
+
 const REGION_NAMES: Record<string, string> = {
   red: '⚠ წითელი დერეფნები',
   black: '⬛ შავი ოთახი',
@@ -37,6 +71,11 @@ export default function Backrooms({ onClose }: { onClose: () => void }) {
 function Lobby({ onJoin, onClose }: { onJoin: (id: string, name: string) => void; onClose: () => void }) {
   const [rows, setRows] = useState<InstanceRow[] | null>(null);
   const [err, setErr] = useState('');
+  const [avatar, setAvatar] = useState(loadAvatar);
+
+  const pick = (patch: Partial<{ skin: number; shirt: number }>) => {
+    setAvatar(prev => { const next = { ...prev, ...patch }; saveAvatar(next); return next; });
+  };
 
   const load = useCallback(() => {
     connectSocket();
@@ -55,6 +94,31 @@ function Lobby({ onJoin, onClose }: { onJoin: (id: string, name: string) => void
           <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(245,222,128,0.4)' }}>აირჩიე ინსტანსი · ვინც ერთ ინსტანსშია ერთმანეთს ხედავს</div>
         </div>
         <button onClick={onClose} style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(10,8,4,0.6)', border: '1px solid rgba(255,240,180,0.2)', color: 'rgba(255,245,210,0.85)', fontSize: 17 }}>✕</button>
+      </div>
+
+      {/* Avatar customisation */}
+      <div style={{ marginBottom: 14, padding: '14px 16px', borderRadius: 16, background: 'linear-gradient(135deg, rgba(24,20,6,0.9), rgba(10,8,3,0.9))', border: '1px solid rgba(255,214,90,0.22)', display: 'flex', gap: 16, alignItems: 'center' }}>
+        {/* preview */}
+        <div style={{ width: 46, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', background: hex(avatar.skin), boxShadow: '0 0 10px rgba(0,0,0,0.6)' }} />
+          <div style={{ width: 30, height: 34, borderRadius: 6, background: hex(avatar.shirt) }} />
+          <div style={{ width: 24, height: 16, borderRadius: 3, background: '#23262e' }} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(255,245,210,0.5)', marginBottom: 6 }}>🧍 შენი ავატარი</div>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+            {BR_SKINS.map(s => (
+              <button key={s} onClick={() => pick({ skin: s })}
+                style={{ width: 26, height: 26, borderRadius: '50%', background: hex(s), border: avatar.skin === s ? '2px solid #f5de80' : '2px solid rgba(255,255,255,0.12)', padding: 0 }} />
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {BR_SHIRTS.map(s => (
+              <button key={s} onClick={() => pick({ shirt: s })}
+                style={{ width: 26, height: 26, borderRadius: 8, background: hex(s), border: avatar.shirt === s ? '2px solid #f5de80' : '2px solid rgba(255,255,255,0.12)', padding: 0 }} />
+            ))}
+          </div>
+        </div>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 24 }}>
@@ -95,11 +159,14 @@ function Lobby({ onJoin, onClose }: { onJoin: (id: string, name: string) => void
 function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: () => void; onClose: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<BackroomsEngine | null>(null);
-  const [hud, setHud] = useState<HudState>({ battery: 1, flashlightOn: true, level: 'LEVEL 0', x: 0, z: 0, event: null, voidPhase: 'none', region: 'normal', nearClue: false });
+  const [hud, setHud] = useState<HudState>({ battery: 1, flashlightOn: true, level: 'LEVEL 0', x: 0, z: 0, event: null, voidPhase: 'none', region: 'normal', nearClue: false, chased: false });
   const [note, setNote] = useState<string | null>(null);
   const [spared, setSpared] = useState(false);
   const sparedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [rotateToast, setRotateToast] = useState(false);
+  const [scare, setScare] = useState(false);
+  const [shadowFlash, setShadowFlash] = useState(false);
+  const fxTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [status, setStatus] = useState<'joining' | 'in' | 'error'>('joining');
   const [errMsg, setErrMsg] = useState('');
 
@@ -150,8 +217,9 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
     socket.on('backrooms:event', onEvent);
     socket.on('backrooms:gesture', onGesture);
 
-    emitWithAck<{ instanceId: string; name: string }, { ok: boolean; data?: JoinData; error?: string }>(
-      'backrooms:join', { instanceId, name: useAuthStore.getState().profile?.username ?? 'Lost' },
+    const av = loadAvatar();
+    emitWithAck<{ instanceId: string; name: string; skin: number; shirt: number }, { ok: boolean; data?: JoinData; error?: string }>(
+      'backrooms:join', { instanceId, name: useAuthStore.getState().profile?.username ?? 'Lost', skin: av.skin, shirt: av.shirt },
     ).then(res => {
       if (cancelled) return;
       if (!res.ok || !res.data) { setErrMsg(res.error ?? 'ვერ შეხვედი'); setStatus('error'); return; }
@@ -163,6 +231,15 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
         const eng = new BackroomsEngine(canvasRef.current, res.data.seed);
         engineRef.current = eng;
         eng.onHud = setHud;
+        eng.onEffect = (kind) => {
+          if (kind === 'jumpscare') {
+            setScare(true);
+            fxTimers.current.push(setTimeout(() => setScare(false), 700));
+          } else {
+            setShadowFlash(true);
+            fxTimers.current.push(setTimeout(() => setShadowFlash(false), 280));
+          }
+        };
         eng.resize();
         eng.start();
         pushRemotes();
@@ -216,6 +293,8 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
       vv?.removeEventListener('resize', onResize);
       vv?.removeEventListener('scroll', doResize);
       if (sparedTimer.current) clearTimeout(sparedTimer.current);
+      fxTimers.current.forEach(clearTimeout);
+      fxTimers.current = [];
       document.removeEventListener('visibilitychange', onVis);
       try { wakeLock?.release?.(); } catch { /* ignore */ }
       engineRef.current?.dispose();
@@ -426,6 +505,24 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
               ▓▓▓
             </div>
           )}
+        </div>
+      )}
+
+      {/* Mirror-clone chase: pulsing red danger vignette */}
+      {hud.chased && (
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 12,
+          boxShadow: 'inset 0 0 120px rgba(255,0,20,0.45)', animation: 'vm-br-emergency 0.9s ease-in-out infinite' }} />
+      )}
+
+      {/* Shadow-figure close pass: quick dark flash */}
+      {shadowFlash && (
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 24, background: 'rgba(0,0,0,0.6)' }} />
+      )}
+
+      {/* Jumpscare */}
+      {scare && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 40, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', overflow: 'hidden' }}>
+          <img src={scareFace()} alt="" style={{ width: 'min(90vw, 70vh)', animation: 'vm-scare 0.7s ease-out forwards' }} />
         </div>
       )}
 

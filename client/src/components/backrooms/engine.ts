@@ -21,12 +21,13 @@ export interface HudState {
   voidPhase: 'none' | 'warning' | 'sweep'; // the VOID IS COMING event
   region: string;         // current region type ('normal' | 'red' | 'library' | ...)
   nearClue: boolean;      // a readable clue is within interact range
+  chased: boolean;        // a mirror clone is hunting the player
 }
 
 export interface BackroomsEvent { kind: string; duration?: number; sound?: string; x?: number; z?: number; shelters?: { x: number; z: number }[]; }
 
 export interface NetState { x: number; y: number; z: number; ry: number; fl: boolean; }
-export interface RemotePlayerState { socketId: string; name: string; x: number; y: number; z: number; ry: number; fl: boolean; }
+export interface RemotePlayerState { socketId: string; name: string; x: number; y: number; z: number; ry: number; fl: boolean; skin?: number; shirt?: number; }
 
 interface RemoteAvatar {
   group: THREE.Group;
@@ -192,6 +193,21 @@ export class BackroomsEngine {
   private water!: THREE.Mesh;
   private waterTex!: THREE.Texture;
   private shelterGroup: THREE.Group | null = null;
+
+  // Horror entities: mirrors + clone, void smoke, gliding shadow figures,
+  // dormant wall shadows. onEffect notifies the HUD (jumpscare/shadow flash).
+  onEffect: ((kind: 'jumpscare' | 'shadow') => void) | null = null;
+  private wallColliders: AABB[] = [];
+  private mirrors: { x: number; z: number; key: string }[] = [];
+  private mirrorFrameMesh!: THREE.InstancedMesh;
+  private mirrorGlassMesh!: THREE.InstancedMesh;
+  private mirrorCooldown = new Map<string, number>();
+  private clone: { group: THREE.Group; until: number } | null = null;
+  private smokeMat!: THREE.SpriteMaterial;
+  private smoke: { spr: THREE.Sprite; vx: number; vy: number; vz: number; life: number }[] = [];
+  private figs: { spr: THREE.Sprite; mat: THREE.SpriteMaterial; active: boolean; vx: number; vz: number; until: number; stung: boolean }[] = [];
+  private wallShadowMat!: THREE.SpriteMaterial;
+  private wallShadows: THREE.Sprite[] = [];
   private clues: { x: number; z: number; note: string }[] = [];
   private curRegion: RegionType = 'normal';
   private regionCol = { floor: new THREE.Color(0x8a8060), ceil: new THREE.Color(0xece3b8), fog: new THREE.Color(0x12100a), light: 1 };
@@ -289,7 +305,7 @@ export class BackroomsEngine {
     for (const p of players) {
       seen.add(p.socketId);
       let a = this.remotes.get(p.socketId);
-      if (!a) { a = this.makeRemoteAvatar(p.name); this.remotes.set(p.socketId, a); this.scene.add(a.group); }
+      if (!a) { a = this.makeRemoteAvatar(p.name, p.skin, p.shirt); this.remotes.set(p.socketId, a); this.scene.add(a.group); }
       a.target = { x: p.x, y: p.y, z: p.z, ry: p.ry, fl: p.fl };
     }
     // Remove avatars that left.
@@ -305,22 +321,38 @@ export class BackroomsEngine {
     }
   }
 
-  private makeRemoteAvatar(name: string): RemoteAvatar {
-    const group = new THREE.Group();
-    // Body — a dim humanoid capsule; deliberately murky so it reads as
-    // "is that a player… or something else?" in the fog.
-    const body = new THREE.Mesh(
-      new THREE.CapsuleGeometry(0.3, 1.0, 4, 8),
-      new THREE.MeshLambertMaterial({ color: 0x2a2a30, emissive: 0x0a0a10, emissiveIntensity: 0.6 }),
-    );
-    body.position.y = 0.8;
-    group.add(body);
+  // A simple blocky humanoid (legs, torso, arms, head). `dark` builds the
+  // all-black red-eyed variant used by the mirror clone.
+  private buildHumanoid(skin: number, shirt: number, dark = false): THREE.Group {
+    const g = new THREE.Group();
+    const skinMat = new THREE.MeshLambertMaterial({ color: dark ? 0x050508 : skin });
+    const shirtMat = new THREE.MeshLambertMaterial({ color: dark ? 0x070709 : shirt });
+    const pantsMat = new THREE.MeshLambertMaterial({ color: dark ? 0x050507 : 0x23262e });
+    const legG = new THREE.BoxGeometry(0.14, 0.6, 0.16);
+    const l1 = new THREE.Mesh(legG, pantsMat); l1.position.set(-0.1, 0.3, 0); g.add(l1);
+    const l2 = new THREE.Mesh(legG, pantsMat); l2.position.set(0.1, 0.3, 0); g.add(l2);
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.62, 0.26), shirtMat); torso.position.y = 0.94; g.add(torso);
+    const armG = new THREE.BoxGeometry(0.11, 0.56, 0.14);
+    const a1 = new THREE.Mesh(armG, shirtMat); a1.position.set(-0.3, 0.92, 0); g.add(a1);
+    const a2 = new THREE.Mesh(armG, shirtMat); a2.position.set(0.3, 0.92, 0); g.add(a2);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 10), skinMat); head.position.y = 1.42; g.add(head);
+    if (dark) {
+      const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff2222 });
+      const eyeG = new THREE.SphereGeometry(0.025, 6, 6);
+      const e1 = new THREE.Mesh(eyeG, eyeMat); e1.position.set(-0.055, 1.45, -0.14); g.add(e1);
+      const e2 = new THREE.Mesh(eyeG, eyeMat); e2.position.set(0.055, 1.45, -0.14); g.add(e2);
+    }
+    return g;
+  }
+
+  private makeRemoteAvatar(name: string, skin?: number, shirt?: number): RemoteAvatar {
+    const group = this.buildHumanoid(skin ?? 0xf2c9a0, shirt ?? 0x7c3aed);
     // Head lamp (glows when their flashlight is on).
     const lamp = new THREE.Mesh(
-      new THREE.SphereGeometry(0.08, 8, 8),
+      new THREE.SphereGeometry(0.07, 8, 8),
       new THREE.MeshBasicMaterial({ color: 0xfff3c0, transparent: true }),
     );
-    lamp.position.set(0, 1.45, -0.28);
+    lamp.position.set(0, 1.5, -0.17);
     group.add(lamp);
     // Name sprite floating above.
     const sprite = this.makeNameSprite(name);
@@ -428,6 +460,7 @@ export class BackroomsEngine {
     this.stopHeartbeat();
     this.stopVoidBass();
     this.clearShelters();
+    this.removeClone();
     if (this.whisperTimer) { clearInterval(this.whisperTimer); this.whisperTimer = null; }
     this.audioNodes?.stop();
     try { this.audioCtx?.close(); } catch { /* ignore */ }
@@ -501,6 +534,50 @@ export class BackroomsEngine {
     this.graffitiMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.graffitiMesh.frustumCulled = false;
     this.scene.add(this.graffitiMesh);
+
+    // Standing mirrors (very rare) — dark frame + pale reflective glass.
+    const mirrorFrameMat = new THREE.MeshLambertMaterial({ color: 0x33261a });
+    this.mirrorFrameMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), mirrorFrameMat, 12);
+    this.mirrorFrameMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.mirrorFrameMesh.frustumCulled = false;
+    this.scene.add(this.mirrorFrameMesh);
+    const mirrorGlassMat = new THREE.MeshBasicMaterial({ map: this.makeGlassTexture() });
+    this.mirrorGlassMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.78, 1.82), mirrorGlassMat, 12);
+    this.mirrorGlassMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.mirrorGlassMesh.frustumCulled = false;
+    this.scene.add(this.mirrorGlassMesh);
+
+    // Void smoke pool — black blobs that pour out of the walls during the Void.
+    const blobTex = this.makeBlobTexture();
+    this.smokeMat = new THREE.SpriteMaterial({ map: blobTex, color: 0x000000, transparent: true, opacity: 0, depthWrite: false });
+    for (let i = 0; i < 36; i++) {
+      const spr = new THREE.Sprite(this.smokeMat);
+      spr.position.set(0, -100, 0);
+      spr.scale.setScalar(2);
+      this.scene.add(spr);
+      this.smoke.push({ spr, vx: 0, vy: 0, vz: 0, life: 0 });
+    }
+
+    // Gliding humanoid shadow figures (only they move, and only during the Void).
+    const silTex = this.makeSilhouetteTexture();
+    for (let i = 0; i < 3; i++) {
+      const mat = new THREE.SpriteMaterial({ map: silTex, color: 0x000000, transparent: true, opacity: 0, depthWrite: false });
+      const spr = new THREE.Sprite(mat);
+      spr.scale.set(1.15, 2.2, 1);
+      spr.position.set(0, -100, 0);
+      this.scene.add(spr);
+      this.figs.push({ spr, mat, active: false, vx: 0, vz: 0, until: 0, stung: false });
+    }
+
+    // Dormant human shadows standing at walls — present before the Void, never move.
+    this.wallShadowMat = new THREE.SpriteMaterial({ map: silTex, color: 0x000000, transparent: true, opacity: 0.55, depthWrite: false });
+    for (let i = 0; i < 6; i++) {
+      const spr = new THREE.Sprite(this.wallShadowMat);
+      spr.scale.set(1.0, 2.0, 1);
+      spr.visible = false;
+      this.scene.add(spr);
+      this.wallShadows.push(spr);
+    }
 
     // Clues — small glowing notes scattered rarely across the world.
     const clueMat = new THREE.MeshBasicMaterial({ color: 0xfff2c0 });
@@ -651,13 +728,59 @@ export class BackroomsEngine {
     return t;
   }
 
+  private makeBlobTexture(): THREE.Texture {
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const g = c.getContext('2d')!;
+    const grad = g.createRadialGradient(32, 32, 2, 32, 32, 30);
+    grad.addColorStop(0, 'rgba(0,0,0,0.9)');
+    grad.addColorStop(0.7, 'rgba(0,0,0,0.45)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad; g.fillRect(0, 0, 64, 64);
+    const t = new THREE.CanvasTexture(c);
+    this.textures.push(t);
+    return t;
+  }
+
+  private makeSilhouetteTexture(): THREE.Texture {
+    const c = document.createElement('canvas'); c.width = 64; c.height = 128;
+    const g = c.getContext('2d')!;
+    g.fillStyle = 'rgba(0,0,0,0.95)';
+    (g as any).filter = 'blur(1.5px)';
+    g.beginPath(); g.arc(32, 22, 11, 0, Math.PI * 2); g.fill();               // head
+    g.beginPath(); g.moveTo(18, 34); g.lineTo(46, 34); g.lineTo(42, 84); g.lineTo(22, 84); g.closePath(); g.fill(); // torso
+    g.fillRect(23, 82, 7, 40); g.fillRect(34, 82, 7, 40);                      // legs
+    g.fillRect(14, 36, 6, 38); g.fillRect(44, 36, 6, 38);                      // arms
+    const t = new THREE.CanvasTexture(c);
+    this.textures.push(t);
+    return t;
+  }
+
+  private makeGlassTexture(): THREE.Texture {
+    const c = document.createElement('canvas'); c.width = 32; c.height = 64;
+    const g = c.getContext('2d')!;
+    const grad = g.createLinearGradient(0, 0, 32, 64);
+    grad.addColorStop(0, '#b8ccd4');
+    grad.addColorStop(0.45, '#5e7078');
+    grad.addColorStop(0.55, '#9fb6be');
+    grad.addColorStop(1, '#3c4a50');
+    g.fillStyle = grad; g.fillRect(0, 0, 32, 64);
+    g.strokeStyle = 'rgba(255,255,255,0.5)'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(4, 60); g.lineTo(24, 8); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,0.25)';
+    g.beginPath(); g.moveTo(12, 62); g.lineTo(30, 20); g.stroke();
+    const t = new THREE.CanvasTexture(c);
+    this.textures.push(t);
+    return t;
+  }
+
   // ── World treadmill: rebuild instances & colliders around the player ──
   private rebuildWindow(centerCx: number, centerCz: number) {
     const dummy = new THREE.Object3D();
     const colliders: AABB[] = [];
     const clues: { x: number; z: number; note: string }[] = [];
+    const mirrors: { x: number; z: number; key: string }[] = [];
     const col = this._tmpCol;
-    let pi = 0, wi = 0, ppi = 0, ci = 0, gli = 0, gri = 0;
+    let pi = 0, wi = 0, ppi = 0, ci = 0, gli = 0, gri = 0, mi = 0, ws = 0;
 
     for (let dz = -WINDOW; dz <= WINDOW; dz++) {
       for (let dx = -WINDOW; dx <= WINDOW; dx++) {
@@ -696,6 +819,13 @@ export class BackroomsEngine {
             dummy.updateMatrix();
             this.graffitiMesh.setMatrixAt(gri++, dummy.matrix);
             dummy.rotation.set(0, 0, 0);
+          }
+          // dormant human shadow standing at the wall — it never moves…
+          if (ws < 6 && hash3(cx, cz, 717 + this.worldSeed) < 0.02) {
+            const side = hash3(cx, cz, 718) < 0.5 ? 1 : -1;
+            const spr = this.wallShadows[ws++];
+            spr.position.set(mx + (hash3(cx, cz, 719) - 0.5) * 2, 1.0, mz + side * 0.55);
+            spr.visible = true;
           }
         }
         // wall panel toward +Z neighbour (runs along Z)
@@ -776,6 +906,26 @@ export class BackroomsEngine {
           ci++;
           clues.push({ x: nx, z: nz, note: noteFor(cx, cz, this.worldSeed) });
         }
+
+        // Standing mirror (very rare) — your reflection may not stay put.
+        if (mi < 12 && hash3(cx, cz, 3131 + this.worldSeed) < 0.005) {
+          const ox = wx + CELL / 2, oz = wz + CELL / 2;
+          const mrot = hash3(cx, cz, 3132) < 0.5;
+          dummy.position.set(ox, 1.02, oz);
+          dummy.scale.set(mrot ? 0.1 : 0.95, 2.05, mrot ? 0.95 : 0.1);
+          dummy.updateMatrix();
+          this.mirrorFrameMesh.setMatrixAt(mi, dummy.matrix);
+          // glass, slightly proud of the frame's front face
+          dummy.position.set(ox + (mrot ? 0.06 : 0), 1.05, oz + (mrot ? 0 : 0.06));
+          dummy.scale.set(1, 1, 1);
+          dummy.rotation.set(0, mrot ? Math.PI / 2 : 0, 0);
+          dummy.updateMatrix();
+          this.mirrorGlassMesh.setMatrixAt(mi, dummy.matrix);
+          dummy.rotation.set(0, 0, 0);
+          mi++;
+          colliders.push({ cx: ox, cz: oz, hx: mrot ? 0.12 : 0.5, hz: mrot ? 0.5 : 0.12 });
+          mirrors.push({ x: ox, z: oz, key: `${cx},${cz}` });
+        }
       }
     }
     this.pillarMesh.count = pi;
@@ -794,8 +944,15 @@ export class BackroomsEngine {
     this.graffitiMesh.instanceMatrix.needsUpdate = true;
     this.clueMesh.count = ci;
     this.clueMesh.instanceMatrix.needsUpdate = true;
+    this.mirrorFrameMesh.count = mi;
+    this.mirrorFrameMesh.instanceMatrix.needsUpdate = true;
+    this.mirrorGlassMesh.count = mi;
+    this.mirrorGlassMesh.instanceMatrix.needsUpdate = true;
+    for (let i = ws; i < this.wallShadows.length; i++) this.wallShadows[i].visible = false;
     this.colliders = colliders;
+    this.wallColliders = colliders.filter(c => c.wall);
     this.clues = clues;
+    this.mirrors = mirrors;
   }
 
   // ── Per-frame update ─────────────────────────────────────────────────
@@ -870,6 +1027,9 @@ export class BackroomsEngine {
     // The Void event darkens + thickens fog on top of everything
     this.updateVoid(dt);
 
+    // Mirrors + clone chase
+    this.updateHorror(dt);
+
     // Remote players (smoothed toward last network position)
     this.updateRemotes(dt);
 
@@ -877,7 +1037,7 @@ export class BackroomsEngine {
     this.hudAccum += dt;
     if (this.hudAccum > 0.2) {
       this.hudAccum = 0;
-      this.onHud?.({ battery: this.battery, flashlightOn: this.flashOn, level: 'LEVEL 0', x: this.pos.x, z: this.pos.z, event: this.activeEvent, voidPhase: this.voidPhase, region: this.curRegion, nearClue: this.nearClue });
+      this.onHud?.({ battery: this.battery, flashlightOn: this.flashOn, level: 'LEVEL 0', x: this.pos.x, z: this.pos.z, event: this.activeEvent, voidPhase: this.voidPhase, region: this.curRegion, nearClue: this.nearClue, chased: !!this.clone });
     }
 
     // Adaptive resolution: drop pixel ratio if FPS sags, restore when it recovers.
@@ -992,6 +1152,14 @@ export class BackroomsEngine {
       this.voidTeleport(ev.x ?? this.pos.x, ev.z ?? this.pos.z);
     } else if (ev.kind === 'void_end') {
       this.endVoid();
+    } else if (ev.kind === 'mimic_kill') {
+      // The thing wearing a friend's face got you.
+      this.onEffect?.('jumpscare');
+      this.playPositional('scream');
+      this.playPositional('sting');
+      this.voidTeleport(ev.x ?? this.pos.x, ev.z ?? this.pos.z);
+    } else if (ev.kind === 'mimic_reveal') {
+      this.playPositional('scream', ev.x, ev.z);
     }
   }
 
@@ -1109,6 +1277,163 @@ export class BackroomsEngine {
     this.renderer.setClearColor(0x000000, 1);
     // Bass swells with tension.
     if (this.voidBassGain && this.audioCtx) this.voidBassGain.gain.setTargetAtTime(0.02 + v * 0.22, this.audioCtx.currentTime, 0.2);
+
+    // Black smoke pours out of the walls and swallows the corridors.
+    if (v > 0.04 && this.smoke.length) {
+      this.smokeMat.opacity = Math.min(0.85, v);
+      for (const s of this.smoke) {
+        s.life -= dt;
+        s.spr.position.x += s.vx * dt;
+        s.spr.position.y += s.vy * dt;
+        s.spr.position.z += s.vz * dt;
+        const dx = s.spr.position.x - this.pos.x, dz = s.spr.position.z - this.pos.z;
+        if (s.life <= 0 || dx * dx + dz * dz > 900) this.respawnSmoke(s);
+      }
+    } else if (this.smokeMat.opacity > 0) {
+      this.smokeMat.opacity = Math.max(0, this.smokeMat.opacity - dt * 0.6);
+    }
+
+    // Gliding humanoid shadows — the only things that move in the dark.
+    const allowed = this.voidPhase === 'sweep' ? 3 : this.voidPhase === 'warning' ? 1 : 0;
+    let active = 0;
+    for (const f of this.figs) if (f.active) active++;
+    if (active < allowed && Math.random() < dt * 0.5) {
+      const f = this.figs.find(x => !x.active);
+      if (f) this.launchFig(f);
+    }
+    const nowMs = performance.now();
+    for (const f of this.figs) {
+      if (!f.active) continue;
+      f.spr.position.x += f.vx * dt;
+      f.spr.position.z += f.vz * dt;
+      f.spr.position.y = 1.05 + Math.sin(nowMs / 300) * 0.06;
+      const dx = f.spr.position.x - this.pos.x, dz = f.spr.position.z - this.pos.z;
+      const d2 = dx * dx + dz * dz;
+      if (!f.stung && d2 < 4) {
+        // it passed right next to you
+        f.stung = true;
+        this.playPositional('sting', f.spr.position.x, f.spr.position.z);
+        this.onEffect?.('shadow');
+      }
+      if (nowMs > f.until || d2 > 1100) { f.active = false; f.mat.opacity = 0; f.spr.position.y = -100; }
+    }
+  }
+
+  private respawnSmoke(s: { spr: THREE.Sprite; vx: number; vy: number; vz: number; life: number }) {
+    const walls = this.wallColliders;
+    if (!walls.length) { s.life = 1; return; }
+    // prefer a wall near the player so the smoke visibly pours out around them
+    let w = walls[Math.floor(Math.random() * walls.length)];
+    for (let i = 0; i < 6; i++) {
+      const cand = walls[Math.floor(Math.random() * walls.length)];
+      const d2 = (cand.cx - this.pos.x) * (cand.cx - this.pos.x) + (cand.cz - this.pos.z) * (cand.cz - this.pos.z);
+      if (d2 < 400) { w = cand; break; }
+    }
+    s.spr.position.set(w.cx + (Math.random() - 0.5) * 3, 0.4 + Math.random() * 0.8, w.cz + (Math.random() - 0.5) * 3);
+    s.vx = (Math.random() - 0.5) * 0.5;
+    s.vy = 0.25 + Math.random() * 0.3;
+    s.vz = (Math.random() - 0.5) * 0.5;
+    s.life = 4 + Math.random() * 5;
+    s.spr.scale.setScalar(1.6 + Math.random() * 2.2);
+  }
+
+  private launchFig(f: { spr: THREE.Sprite; mat: THREE.SpriteMaterial; active: boolean; vx: number; vz: number; until: number; stung: boolean }) {
+    const ang = Math.random() * Math.PI * 2;
+    const dist = 13 + Math.random() * 6;
+    const sx = this.pos.x + Math.cos(ang) * dist;
+    const sz = this.pos.z + Math.sin(ang) * dist;
+    // aim to pass near — not exactly through — the player
+    const off = (Math.random() - 0.5) * 5;
+    const tx = this.pos.x + Math.cos(ang + Math.PI / 2) * off;
+    const tz = this.pos.z + Math.sin(ang + Math.PI / 2) * off;
+    const dx = tx - sx, dz = tz - sz;
+    const len = Math.hypot(dx, dz) || 1;
+    const speed = 2.4 + Math.random() * 1.2;
+    f.vx = dx / len * speed;
+    f.vz = dz / len * speed;
+    f.spr.position.set(sx, 1.05, sz);
+    f.mat.opacity = 0.8;
+    f.active = true;
+    f.stung = false;
+    f.until = performance.now() + 10000;
+    this.playPositional('growl', sx, sz);
+  }
+
+  // ── Mirrors + the clone that steps out of them ────────────────────────
+  private updateHorror(dt: number) {
+    const now = performance.now();
+    // Stand too close to a mirror and your reflection steps out.
+    if (!this.clone) {
+      for (const m of this.mirrors) {
+        const dx = m.x - this.pos.x, dz = m.z - this.pos.z;
+        if (dx * dx + dz * dz > 5.3) continue;
+        if (now < (this.mirrorCooldown.get(m.key) ?? 0)) continue;
+        this.mirrorCooldown.set(m.key, now + 75000);
+        this.spawnClone(m.x, m.z);
+        break;
+      }
+    }
+    if (!this.clone) return;
+    const c = this.clone;
+    const dx = this.pos.x - c.group.position.x, dz = this.pos.z - c.group.position.z;
+    const d = Math.hypot(dx, dz);
+    if (d > 0.001) {
+      // faster than walking, slower than sprinting — you can escape, barely
+      const step = Math.min(d, 4.6 * dt);
+      c.group.position.x += dx / d * step;
+      c.group.position.z += dz / d * step;
+      c.group.rotation.y = Math.atan2(-dx, -dz);
+    }
+    c.group.position.y = Math.abs(Math.sin(now / 160)) * 0.08;
+    if (d < 0.95) {
+      // caught — jumpscare, wake up somewhere else
+      this.onEffect?.('jumpscare');
+      this.playPositional('scream');
+      this.playPositional('sting');
+      this.scatterSelf();
+      this.removeClone();
+    } else if (now > c.until) {
+      // outran it — it dissolves
+      this.removeClone();
+      this.playPositional('vent', this.pos.x, this.pos.z);
+    }
+  }
+
+  private spawnClone(x: number, z: number) {
+    const g = this.buildHumanoid(0, 0, true);
+    g.position.set(x, 0, z);
+    this.scene.add(g);
+    this.clone = { group: g, until: performance.now() + 11000 };
+    this.startHeartbeat();
+    this.playPositional('sting', x, z);
+    this.playPositional('scream', x, z);
+  }
+
+  private removeClone() {
+    if (!this.clone) return;
+    this.scene.remove(this.clone.group);
+    this.clone.group.traverse(o => {
+      const m = o as THREE.Mesh;
+      if (m.geometry) m.geometry.dispose();
+      (m.material as THREE.Material | undefined)?.dispose?.();
+    });
+    this.clone = null;
+    // don't kill the heartbeat if a blackout or the Void still needs it
+    if (this.voidPhase === 'none' && performance.now() > this.blackoutUntil) this.stopHeartbeat();
+  }
+
+  // Respawn at a random distant unsealed cell (mirror-clone death).
+  private scatterSelf() {
+    const baseCx = Math.round(this.pos.x / CELL), baseCz = Math.round(this.pos.z / CELL);
+    for (let i = 0; i < 30; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const cells = 20 + Math.floor(Math.random() * 25);
+      const cx = baseCx + Math.round(Math.cos(ang) * cells);
+      const cz = baseCz + Math.round(Math.sin(ang) * cells);
+      if (cellSealed(cx, cz, this.worldSeed)) continue;
+      this.voidTeleport(cx * CELL + CELL / 2, cz * CELL + CELL / 2);
+      return;
+    }
   }
 
   // ── Rare regions + clue proximity (applied after event lighting) ─────
@@ -1265,6 +1590,21 @@ export class BackroomsEngine {
         const src = this.noiseSource(ctx, 1.4);
         const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
         src.connect(lp); env(lp, 0.3, 0.3, 1.4); src.start(t); src.stop(t + 1.4);
+        break;
+      }
+      case 'sting': {
+        // harsh detuned screech — jumpscare accent
+        const o1 = ctx.createOscillator(); o1.type = 'sawtooth'; o1.frequency.setValueAtTime(680, t); o1.frequency.linearRampToValueAtTime(920, t + 0.35);
+        const o2 = ctx.createOscillator(); o2.type = 'sawtooth'; o2.frequency.setValueAtTime(713, t); o2.frequency.linearRampToValueAtTime(870, t + 0.35);
+        env(o1, 0.4, 0.01, 0.5); env(o2, 0.4, 0.01, 0.5);
+        o1.start(t); o1.stop(t + 0.5); o2.start(t); o2.stop(t + 0.5);
+        break;
+      }
+      case 'growl': {
+        const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(58, t); o.frequency.linearRampToValueAtTime(42, t + 1.2);
+        const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 220;
+        o.connect(lp); env(lp, 0.7, 0.08, 1.3);
+        o.start(t); o.stop(t + 1.3);
         break;
       }
       case 'rumble':

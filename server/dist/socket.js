@@ -342,6 +342,8 @@ const _backroomsVoice = new Map(); // instanceId → Map<socketId, name>
 const _backroomsEventTimers = new Map(); // instanceId → next-event timer
 const _backroomsVoidTimers = new Map(); // instanceId → next VOID timer
 const _backroomsVoidSeq = new Map(); // instanceId → in-flight VOID stage timers
+const _backroomsMimics = new Map(); // instanceId → active mimic
+const _backroomsMimicTimers = new Map(); // instanceId → next-mimic timer
 const BACKROOMS_MAX = 16;
 const BACKROOMS_CELL = 6; // must match the client engine's lattice spacing
 const BACKROOMS_WALL_DENSITY = 0.3; // must match the client engine
@@ -399,6 +401,16 @@ function _leaveBackrooms(sid, io) {
                 if (seq) {
                     seq.forEach(clearTimeout);
                     _backroomsVoidSeq.delete(instanceId);
+                }
+                const mt = _backroomsMimicTimers.get(instanceId);
+                if (mt) {
+                    clearTimeout(mt);
+                    _backroomsMimicTimers.delete(instanceId);
+                }
+                const mm = _backroomsMimics.get(instanceId);
+                if (mm) {
+                    clearInterval(mm.tick);
+                    _backroomsMimics.delete(instanceId);
                 }
             }
             return;
@@ -532,6 +544,148 @@ function _runVoidEvent(instanceId, io) {
             }, 4200));
         }, 3200));
     }, 20000));
+}
+// ── The Void Mimic ──────────────────────────────────────────────────────
+function _ensureBackroomsMimic(instanceId, io) {
+    if (_backroomsMimicTimers.has(instanceId))
+        return;
+    _scheduleBackroomsMimic(instanceId, io);
+}
+function _scheduleBackroomsMimic(instanceId, io) {
+    const delay = 90000 + Math.floor(Math.random() * 90000);
+    const timer = setTimeout(() => {
+        _backroomsMimicTimers.delete(instanceId);
+        const room = _backrooms.get(instanceId);
+        if (!room || room.size === 0)
+            return;
+        // Needs ≥2 players — the mimic wears someone ELSE's face.
+        if (room.size >= 2 && !_backroomsMimics.has(instanceId))
+            _spawnBackroomsMimic(instanceId, io);
+        _scheduleBackroomsMimic(instanceId, io);
+    }, delay);
+    _backroomsMimicTimers.set(instanceId, timer);
+}
+function _despawnBackroomsMimic(instanceId, io) {
+    const m = _backroomsMimics.get(instanceId);
+    if (!m)
+        return;
+    clearInterval(m.tick);
+    _backroomsMimics.delete(instanceId);
+    io.to(`backrooms:${instanceId}`).emit('backrooms:player-left', { socketId: m.id });
+}
+function _spawnBackroomsMimic(instanceId, io) {
+    const room = _backrooms.get(instanceId);
+    if (!room || room.size < 2)
+        return;
+    const seed = _backroomsMeta.get(instanceId)?.seed ?? 0;
+    const players = [...room.values()];
+    const victim = players[Math.floor(Math.random() * players.length)];
+    const others = players.filter(p => p.socketId !== victim.socketId);
+    const identity = others[Math.floor(Math.random() * others.length)] ?? victim;
+    // spawn 5–7 cells from the victim in an unsealed cell
+    let sx = victim.x + 30, sz = victim.z;
+    for (let i = 0; i < 20; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const cells = 5 + Math.floor(Math.random() * 3);
+        const cx = Math.floor(victim.x / BACKROOMS_CELL) + Math.round(Math.cos(ang) * cells);
+        const cz = Math.floor(victim.z / BACKROOMS_CELL) + Math.round(Math.sin(ang) * cells);
+        if (_brCellSealed(cx, cz, seed))
+            continue;
+        sx = cx * BACKROOMS_CELL + BACKROOMS_CELL / 2;
+        sz = cz * BACKROOMS_CELL + BACKROOMS_CELL / 2;
+        break;
+    }
+    const id = `mimic-${Math.random().toString(36).slice(2, 9)}`;
+    io.to(`backrooms:${instanceId}`).emit('backrooms:player-joined', {
+        socketId: id, name: identity.name, profileId: null, x: sx, y: 1.6, z: sz, ry: 0, fl: false,
+        skin: identity.skin, shirt: identity.shirt,
+    });
+    const SPEED = 1.8, TICK = 0.4;
+    const m = {
+        id, victimId: victim.socketId, x: sx, z: sz, wx: sx, wz: sz, bornAt: Date.now(),
+        tick: setInterval(() => {
+            const r = _backrooms.get(instanceId);
+            if (!r || r.size === 0) {
+                _despawnBackroomsMimic(instanceId, io);
+                return;
+            }
+            let victimP = r.get(m.victimId);
+            if (!victimP) {
+                // victim left → hunt whoever is nearest
+                let best = null;
+                let bd = Infinity;
+                for (const p of r.values()) {
+                    const d = (p.x - m.x) * (p.x - m.x) + (p.z - m.z) * (p.z - m.z);
+                    if (d < bd) {
+                        bd = d;
+                        best = p;
+                    }
+                }
+                if (!best) {
+                    _despawnBackroomsMimic(instanceId, io);
+                    return;
+                }
+                m.victimId = best.socketId;
+                victimP = best;
+            }
+            if (Date.now() - m.bornAt > 100000) {
+                _despawnBackroomsMimic(instanceId, io);
+                return;
+            }
+            // Grid navigation: walk cell-to-cell through actual maze openings so it
+            // looks like a real player moving, never phasing through walls.
+            const dwx = m.wx - m.x, dwz = m.wz - m.z;
+            const dw = Math.hypot(dwx, dwz);
+            if (dw < 0.25) {
+                const a = Math.floor(m.x / BACKROOMS_CELL), b = Math.floor(m.z / BACKROOMS_CELL);
+                const D = BACKROOMS_WALL_DENSITY;
+                const opts = [];
+                const consider = (na, nb, blocked) => {
+                    if (blocked)
+                        return;
+                    const nx = na * BACKROOMS_CELL + BACKROOMS_CELL / 2, nz = nb * BACKROOMS_CELL + BACKROOMS_CELL / 2;
+                    opts.push({ x: nx, z: nz, d: (victimP.x - nx) ** 2 + (victimP.z - nz) ** 2 + Math.random() * 8 });
+                };
+                consider(a + 1, b, _brHash3(a + 1, b, 23 + seed) < D);
+                consider(a - 1, b, _brHash3(a, b, 23 + seed) < D);
+                consider(a, b + 1, _brHash3(a, b + 1, 11 + seed) < D);
+                consider(a, b - 1, _brHash3(a, b, 11 + seed) < D);
+                if (opts.length) {
+                    opts.sort((q, w) => q.d - w.d);
+                    m.wx = opts[0].x;
+                    m.wz = opts[0].z;
+                }
+            }
+            else {
+                const step = Math.min(dw, SPEED * TICK);
+                m.x += dwx / dw * step;
+                m.z += dwz / dw * step;
+            }
+            const ry = Math.atan2(-(victimP.x - m.x), -(victimP.z - m.z));
+            io.to(`backrooms:${instanceId}`).emit('backrooms:player-moved', { socketId: m.id, x: m.x, y: 1.6, z: m.z, ry, fl: false });
+            // Strike anyone who lets it get close (after a 6s grace so it can't
+            // spawn-kill), then reveal and vanish.
+            if (Date.now() - m.bornAt > 6000) {
+                for (const p of r.values()) {
+                    const d2 = (p.x - m.x) * (p.x - m.x) + (p.z - m.z) * (p.z - m.z);
+                    if (d2 >= 1.6 * 1.6)
+                        continue;
+                    const bx = Math.round(p.x / BACKROOMS_CELL), bz = Math.round(p.z / BACKROOMS_CELL);
+                    const ang = Math.random() * Math.PI * 2;
+                    const cells = 20 + Math.floor(Math.random() * 30);
+                    const nx = (bx + Math.round(Math.cos(ang) * cells)) * BACKROOMS_CELL + BACKROOMS_CELL / 2;
+                    const nz = (bz + Math.round(Math.sin(ang) * cells)) * BACKROOMS_CELL + BACKROOMS_CELL / 2;
+                    p.x = nx;
+                    p.z = nz;
+                    io.to(p.socketId).emit('backrooms:event', { kind: 'mimic_kill', x: nx, z: nz });
+                    io.to(`backrooms:${instanceId}`).emit('backrooms:event', { kind: 'mimic_reveal', x: m.x, z: m.z });
+                    _despawnBackroomsMimic(instanceId, io);
+                    return;
+                }
+            }
+        }, TICK * 1000),
+    };
+    _backroomsMimics.set(instanceId, m);
 }
 const SPACE_FURNITURE_KINDS = new Set([
     'sofa', 'chair', 'plant', 'lamp', 'bar', 'billiard', 'arcade', 'speaker',
@@ -8559,7 +8713,7 @@ export function attachSocketHandlers(io) {
             }));
             cb?.({ ok: true, data: list });
         });
-        socket.on('backrooms:join', ({ instanceId, name }, cb) => {
+        socket.on('backrooms:join', ({ instanceId, name, skin, shirt }, cb) => {
             try {
                 const id = String(instanceId ?? '').slice(0, 32).replace(/[^a-zA-Z0-9_-]/g, '');
                 const meta = _backroomsMeta.get(id);
@@ -8577,11 +8731,14 @@ export function attachSocketHandlers(io) {
                 const player = {
                     socketId: socket.id, name: safeName, profileId: socket.data.profileId ?? null,
                     x: 0, y: 1.6, z: 0, ry: 0, fl: true,
+                    skin: Number.isFinite(+skin) ? (+skin & 0xffffff) : 0xf2c9a0,
+                    shirt: Number.isFinite(+shirt) ? (+shirt & 0xffffff) : 0x7c3aed,
                 };
                 room.set(socket.id, player);
                 socket.join(`backrooms:${id}`);
                 _ensureBackroomsEvents(id, io);
                 _ensureBackroomsVoid(id, io);
+                _ensureBackroomsMimic(id, io);
                 socket.to(`backrooms:${id}`).emit('backrooms:player-joined', player);
                 cb?.({ ok: true, data: {
                         seed: meta.seed, name: meta.name, mySocketId: socket.id,

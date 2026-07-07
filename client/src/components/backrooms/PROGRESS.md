@@ -179,3 +179,31 @@ The Backrooms mode (Phases 1–7) is now feature-complete against the proposal.
   listeners + `scrollTo(0,0)` pin — fixes the post-rotation black band and the
   "taps land below the button" fixed-overlay offset.
 - **Landscape toast**: 6s suggestion on join when in portrait.
+
+## Horror gameplay update (v317)
+
+- **Avatar customisation**: lobby picker (5 skin tones × 6 outfit colours,
+  localStorage `vm_br_avatar`), sent with `backrooms:join`; players render as
+  blocky humanoids (`buildHumanoid`: legs/torso/arms/head) in their colours.
+- **Mirrors + clone**: rare standing mirrors (~0.5% cells, instanced frame +
+  glass, collider). Come within ~2.3m → your all-black red-eyed clone steps
+  out and chases at 4.6 m/s (walk 3.2 / sprint 5.6 — must sprint) for 11s.
+  Caught (<0.95m) → jumpscare + respawn at a distant unsealed cell
+  (`scatterSelf`). Red pulsing vignette + heartbeat while chased. 75s per-mirror
+  cooldown.
+- **Void Mimic** (server): every ~90–180s with ≥2 players, a fake "player"
+  joins wearing a random OTHER player's name/avatar (`mimic-*` socketId through
+  the normal player pipeline). It walks the real maze — greedy cell-to-cell
+  pathing via the shared world hash — toward its victim at 1.8 m/s, retargets
+  nearest if the victim leaves, never joins voice (**the tell**: talk to
+  verify). After a 6s grace, anyone within 1.6m is killed: jumpscare +
+  scatter-teleport (`mimic_kill`), scream broadcast (`mimic_reveal`), mimic
+  despawns. 100s lifetime.
+- **Void smoke**: 36-sprite pool of black blobs pouring out of nearby walls
+  while `voidLevel` is up (opacity tracks tension, recycled per-wall).
+- **Shadow figures**: silhouette sprites gliding past the player (1 during
+  warning, 3 during sweep, growl on spawn, sting + dark flash on close pass).
+  Dormant wall shadows (6, deterministic) stand at walls at all times and
+  never move.
+- **Jumpscare kit**: canvas-drawn gaunt face overlay (`vm-scare` keyframes),
+  `sting`/`growl` synth sounds, `onEffect` engine→HUD callback.
