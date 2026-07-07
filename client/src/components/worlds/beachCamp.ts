@@ -76,7 +76,8 @@ function buildSky(ctx: WorldContext) {
   });
   scene.add(new THREE.Mesh(geo, mat));
 
-  // stars
+  // stars — a fixed, starry night sky (no day/night cycle: this beach is
+  // always the deep-blue, star-studded, moonlit night the way it's loved).
   const N = 900; const arr = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) {
     const u = rnd() * Math.PI * 2, v = rnd() * 0.5 + 0.05, r = 190;
@@ -85,83 +86,27 @@ function buildSky(ctx: WorldContext) {
     arr[i * 3 + 2] = Math.sin(u) * Math.cos(v) * r;
   }
   const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(arr, 3));
-  const starMat = new THREE.PointsMaterial({ color: 0xdfe8ff, size: 0.9, sizeAttenuation: true, transparent: true, opacity: 0.9, fog: false });
-  const stars = new THREE.Points(sg, starMat);
+  const stars = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xdfe8ff, size: 0.9, sizeAttenuation: true, transparent: true, opacity: 0.9, fog: false }));
   scene.add(stars);
+  ctx.onUpdate((_d, e) => { stars.rotation.y = e * 0.004; (stars.material as THREE.PointsMaterial).opacity = 0.7 + Math.sin(e * 0.7) * 0.15; });
 
-  // moon disc + glow (rides the night side of the sky)
-  const moonMesh = new THREE.Mesh(new THREE.CircleGeometry(9, 32), new THREE.MeshBasicMaterial({ color: 0xf4f6ff, fog: false, transparent: true }));
+  // moon + glow
+  const moonMesh = new THREE.Mesh(new THREE.CircleGeometry(9, 32), new THREE.MeshBasicMaterial({ color: 0xf4f6ff, fog: false }));
+  moonMesh.position.set(-30, 70, -170);
   scene.add(moonMesh);
-  const moonGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTexture(0xbcd0ff), transparent: true, opacity: 0.6, depthWrite: false, fog: false }));
-  moonGlow.scale.setScalar(46); scene.add(moonGlow);
-  // sun disc + glow (rides the day side, opposite the moon)
-  const sunMesh = new THREE.Mesh(new THREE.CircleGeometry(11, 32), new THREE.MeshBasicMaterial({ color: 0xfff2c0, fog: false, transparent: true }));
-  scene.add(sunMesh);
-  const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTexture(0xffd27a), transparent: true, opacity: 0, depthWrite: false, fog: false }));
-  sunGlow.scale.setScalar(66); scene.add(sunGlow);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTexture(0xbcd0ff), transparent: true, opacity: 0.6, depthWrite: false, fog: false }));
+  glow.position.copy(moonMesh.position); glow.scale.setScalar(46);
+  scene.add(glow);
 
   // soft clouds
   const cloudTex = cloudTexture();
-  const cloudMats: THREE.SpriteMaterial[] = [];
   for (let i = 0; i < 7; i++) {
-    const cm = new THREE.SpriteMaterial({ map: cloudTex, color: 0x2a3550, transparent: true, opacity: rrng(0.25, 0.5), depthWrite: false, fog: false });
-    cloudMats.push(cm);
-    const s = new THREE.Sprite(cm);
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, color: 0x2a3550, transparent: true, opacity: rrng(0.25, 0.5), depthWrite: false, fog: false }));
     s.position.set(rrng(-140, 140), rrng(40, 90), -170);
     s.scale.set(rrng(60, 110), rrng(24, 40), 1);
     scene.add(s);
     ctx.onUpdate((d) => { s.position.x += d * 0.4; if (s.position.x > 160) s.position.x = -160; });
   }
-
-  // ── Day/night cycle ────────────────────────────────────────────────
-  // A slow celestial orbit drives sky colour, star fade, sun/moon discs, and
-  // the scene's key + ambient light. Phase comes from wall-clock epoch (not the
-  // per-client elapsed) so every player on the beach sees the same time of day.
-  // One full day takes ~6 real minutes; it sweeps night → dawn → day → dusk.
-  const DAY_SECONDS = 360;
-  const cTop = mat.uniforms.top.value as THREE.Color, cBot = mat.uniforms.bot.value as THREE.Color;
-  const nightTop = new THREE.Color(0x030713), nightBot = new THREE.Color(0x14243f);
-  const dayTop = new THREE.Color(0x1f63b4), dayBot = new THREE.Color(0x8fc6ea);
-  const gold = new THREE.Color(0xff7a3c);
-  const moonCol = new THREE.Color(0x9fb6ff), noonCol = new THREE.Color(0xffffff), warmCol = new THREE.Color(0xffb27a);
-  const fogNight = new THREE.Color(0x0a1626), fogDay = new THREE.Color(0xa6c2d8);
-  const baseMoonKey = ctx.moon.intensity, baseAmb = ctx.ambientLight.intensity;
-  const smooth = (x: number) => x * x * (3 - 2 * x);
-  ctx.onUpdate((_d, e) => {
-    const t = (Date.now() / 1000 / DAY_SECONDS) % 1;      // 0..1 over a full day
-    const a = t * Math.PI * 2 - Math.PI / 2;               // t=0 → deepest night
-    const sy = Math.sin(a);                                // sun height, -1..1
-    const day = Math.max(0, sy);                           // 0 (night) .. 1 (noon)
-    const g = Math.max(0, 1 - Math.abs(sy) * 2.4);         // horizon glow (sunrise/sunset)
-    const dS = smooth(day);
-    // sky gradient
-    cTop.copy(nightTop).lerp(dayTop, dS);
-    cBot.copy(nightBot).lerp(dayBot, dS).lerp(gold, g * 0.55);
-    // stars fade out with daylight + gentle twinkle
-    starMat.opacity = (1 - day) * (0.72 + Math.sin(e * 0.7) * 0.14);
-    stars.rotation.y = e * 0.004;
-    // celestial bodies orbit the -Z sky (players face the ocean)
-    sunMesh.position.set(Math.cos(a) * 150, sy * 120 + 6, -165);
-    sunGlow.position.copy(sunMesh.position);
-    moonMesh.position.set(-Math.cos(a) * 150, -sy * 120 + 6, -165);
-    moonGlow.position.copy(moonMesh.position);
-    (sunMesh.material as THREE.MeshBasicMaterial).color.copy(noonCol).lerp(gold, g * 0.7);
-    (sunMesh.material as THREE.MeshBasicMaterial).opacity = Math.min(1, Math.max(0, (sy + 0.04) * 6));
-    sunGlow.material.opacity = Math.min(0.8, Math.max(0, (sy + 0.04) * 5) * (0.5 + g * 0.5));
-    (moonMesh.material as THREE.MeshBasicMaterial).opacity = Math.min(1, Math.max(0, (-sy + 0.04) * 6));
-    moonGlow.material.opacity = Math.min(0.6, Math.max(0, (-sy + 0.04) * 5));
-    // key light follows whichever body is up; warms at the horizon
-    const keyBody = sy >= 0 ? sunMesh.position : moonMesh.position;
-    ctx.moon.position.set(keyBody.x * 0.4, Math.max(8, keyBody.y * 0.5), keyBody.z * 0.4);
-    ctx.moon.intensity = baseMoonKey * (0.7 + day * 1.1);
-    (ctx.moon.color as THREE.Color).copy(moonCol).lerp(noonCol, dS).lerp(warmCol, g * 0.6);
-    ctx.ambientLight.intensity = baseAmb * (1 + day * 1.4);
-    // clouds brighten by day
-    for (const cm of cloudMats) cm.color.setHex(0x2a3550).lerp(new THREE.Color(0xdfe8f2), dS);
-    // fog tracks the horizon
-    const fog = scene.fog as THREE.FogExp2 | THREE.Fog | null;
-    if (fog) fog.color.copy(fogNight).lerp(fogDay, dS).lerp(gold, g * 0.3);
-  });
 }
 
 // ── Sand ──────────────────────────────────────────────────────────────
