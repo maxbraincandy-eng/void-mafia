@@ -677,17 +677,24 @@ function buildPier(ctx: WorldContext) {
   }
 }
 
-// ── Hammock between two posts (recline pose) ──────────────────────────
+// ── Couples hammock between two posts (embracing recline) ─────────────
 function buildHammock(ctx: WorldContext) {
-  const HX = -10, HZ = 6;
-  const g = new THREE.Group(); g.position.set(HX, 0, HZ); g.rotation.y = 0.6; ctx.scene.add(g);
+  const HX = -10, HZ = 6, RY = 0.6;
+  const g = new THREE.Group(); g.position.set(HX, 0, HZ); g.rotation.y = RY; ctx.scene.add(g);
   const postMat = new THREE.MeshStandardMaterial({ color: 0x4a3420, roughness: 1 });
-  for (const sz of [-1.6, 1.6]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 1.8, 6), postMat); p.position.set(0, 0.9, sz); p.rotation.z = sz > 0 ? -0.1 : 0.1; p.castShadow = true; g.add(p); }
-  // sagging hammock net
-  const net = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 3, 12, 1, true, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0xdd6a9a, roughness: 0.9, side: THREE.DoubleSide }));
-  net.rotation.z = Math.PI / 2; net.rotation.x = Math.PI; net.position.set(0, 0.7, 0); net.scale.set(1, 1, 0.7); g.add(net);
-  ctx.addCollider({ x: HX, z: HZ, r: 0.6 });
-  ctx.addSeat({ id: 'hammock', x: HX, y: 0.85, z: HZ, yaw: g.rotation.y, pose: 'hammock' });
+  for (const sz of [-1.75, 1.75]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 1.9, 6), postMat); p.position.set(0, 0.95, sz); p.rotation.z = sz > 0 ? -0.1 : 0.1; p.castShadow = true; g.add(p); }
+  // wide sagging net — roomy enough for two to lie together
+  const net = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 3.3, 14, 1, true, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0xdd6a9a, roughness: 0.9, side: THREE.DoubleSide }));
+  net.rotation.z = Math.PI / 2; net.rotation.x = Math.PI; net.position.set(0, 0.72, 0); net.scale.set(1, 1, 1.35); g.add(net);
+  // little heart floating above so it reads as the couples spot
+  const heart = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), new THREE.MeshStandardMaterial({ color: 0xff4d6d, emissive: 0xff2d55, emissiveIntensity: 0.6, roughness: 0.5 }));
+  heart.position.set(0, 2.2, 0); heart.scale.set(1, 0.9, 0.6); g.add(heart);
+  ctx.onUpdate((_d, e) => { heart.position.y = 2.2 + Math.sin(e * 1.5) * 0.08; heart.rotation.y = e * 0.6; });
+  ctx.addCollider({ x: HX, z: HZ, r: 0.85 });
+  // two seats side by side (offset along the net's local X) → embrace pose
+  const d = 0.34, cx = Math.cos(RY), sx = Math.sin(RY);
+  ctx.addSeat({ id: 'hammock-l', x: HX + cx * d, y: 0.82, z: HZ - sx * d, yaw: RY, pose: 'cuddleL' });
+  ctx.addSeat({ id: 'hammock-r', x: HX - cx * d, y: 0.82, z: HZ + sx * d, yaw: RY, pose: 'cuddleR' });
 }
 
 // ── Floating air particles (motes) ────────────────────────────────────

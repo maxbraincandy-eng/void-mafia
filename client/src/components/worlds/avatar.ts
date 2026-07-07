@@ -43,12 +43,15 @@ export class Avatar {
     this.model.setPose(sit ? 0 : speed, sit, this.holdPose);
     // body height + tilt per pose: seat = drop to hips, swim = half-submerged,
     // hammock = recline back; everything else stands upright at ground.
-    let yTarget = 0, xRot = 0;
+    let yTarget = 0, xRot = 0, zRot = 0;
     if (sit && !this.holdPose) yTarget = -this.sitDrop;
     else if (this.holdPose === 'swim') yTarget = -0.55;
     else if (this.holdPose === 'hammock') xRot = -1.05;
+    else if (this.holdPose === 'cuddleL') { xRot = -1.05; zRot = 0.22; }   // recline + roll toward partner
+    else if (this.holdPose === 'cuddleR') { xRot = -1.05; zRot = -0.22; }
     this.inner.position.y += (yTarget - this.inner.position.y) * Math.min(1, dt * 10);
     this.inner.rotation.x += (xRot - this.inner.rotation.x) * Math.min(1, dt * 8);
+    this.inner.rotation.z += (zRot - this.inner.rotation.z) * Math.min(1, dt * 8);
     this.model.update(dt, this.elapsed);
   }
 

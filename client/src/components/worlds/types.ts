@@ -8,7 +8,7 @@ import type * as THREE from 'three';
 export interface WorldCollider { x: number; z: number; r: number; }      // cylinder (organic scenes)
 // `pose` seats aren't sit-downs: the avatar stands and holds a pose (e.g. the
 // bow "titanic" arms-out stance) while still locked in place with a Stand button.
-export interface WorldSeat { id: string; x: number; y: number; z: number; yaw: number; pose?: 'titanic' | 'hammock'; }
+export interface WorldSeat { id: string; x: number; y: number; z: number; yaw: number; pose?: 'titanic' | 'hammock' | 'cuddleL' | 'cuddleR'; }
 // A tappable object. `effect` runs the visual/audio (locally AND when another
 // player triggers it over the network), so it must be idempotent/replayable.
 export interface WorldInteractable { id: string; x: number; z: number; r: number; label: string; effect: () => void; }

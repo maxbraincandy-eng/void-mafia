@@ -265,6 +265,19 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
       kneeGroups.forEach(kn => { kn.rotation.x += (0.5 - kn.rotation.x) * k; });
       armGroups[0].rotation.x += (-2.2 - armGroups[0].rotation.x) * k; armGroups[0].rotation.z += (0.4 - armGroups[0].rotation.z) * k;
       armGroups[1].rotation.x += (-2.2 - armGroups[1].rotation.x) * k; armGroups[1].rotation.z += (-0.4 - armGroups[1].rotation.z) * k;
+    } else if (holdPose === 'cuddleL' || holdPose === 'cuddleR') {
+      // couples recline: two avatars lie side by side (the wrapper tilts them
+      // back and rolls them toward each other). One arm drapes across the
+      // partner's chest (the "over" arm), the other tucks behind the head.
+      const k = Math.min(1, dt * 8);
+      const over = holdPose === 'cuddleL' ? 1 : 0;   // arm reaching toward partner
+      const back = over === 0 ? 1 : 0;               // arm behind head
+      legGroups.forEach(l => { l.rotation.x += (0.15 - l.rotation.x) * k; });
+      kneeGroups.forEach(kn => { kn.rotation.x += (0.32 - kn.rotation.x) * k; });
+      armGroups[back].rotation.x += (-2.3 - armGroups[back].rotation.x) * k;
+      armGroups[back].rotation.z += ((back === 0 ? 0.45 : -0.45) - armGroups[back].rotation.z) * k;
+      armGroups[over].rotation.x += (-1.35 - armGroups[over].rotation.x) * k;
+      armGroups[over].rotation.z += ((over === 0 ? 0.75 : -0.75) - armGroups[over].rotation.z) * k;
     } else if (sitting) {
       // thighs forward, knees bent so the shins hang down — a natural seat pose
       const k = Math.min(1, dt * 12);
