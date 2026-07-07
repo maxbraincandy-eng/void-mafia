@@ -201,22 +201,25 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
   // ── Legs (fashion-long, with socks / coverage logic) ─────────────────
   const legMatFull = (spec.bottom === 'jeans' || spec.bottom === 'cargo') && !bareLegs ? botMat : skinMat;
   const legGroups: THREE.Group[] = [];
+  const kneeGroups: THREE.Group[] = [];
   for (const sx of [-1, 1]) {
     const lg = new THREE.Group(); lg.position.set(sx * 0.075 * bp.hips, 0.88 * m, 0); root.add(lg); legGroups.push(lg);
     const thigh = caps(0.062 * bp.limbW, 0.3 * m, legMatFull); thigh.position.y = -0.235 * m; lg.add(thigh);
     if (shorts) { const sh = caps(0.068 * bp.limbW, 0.1 * m, botMat); sh.position.y = -0.105 * m; lg.add(sh); }
     if (spec.bottom === 'cargo' && !bareLegs) { const pk = mesh(new THREE.BoxGeometry(0.05, 0.08, 0.04), botMat); pk.position.set(sx * 0.055, -0.28 * m, 0.03); lg.add(pk); }
-    const shin = caps(0.05 * bp.limbW, 0.3 * m, legMatFull === botMat && !shorts ? botMat : skinMat); shin.position.y = -0.62 * m; lg.add(shin);
+    if (spec.socks === 'thigh') { const s2 = caps(0.065 * bp.limbW, 0.08 * m, sockMat); s2.position.y = -0.42 * m; lg.add(s2); }
+    // knee joint — everything below the knee bends with it (natural sitting)
+    const knee = new THREE.Group(); knee.position.y = -0.47 * m; lg.add(knee); kneeGroups.push(knee);
+    const shin = caps(0.05 * bp.limbW, 0.3 * m, legMatFull === botMat && !shorts ? botMat : skinMat); shin.position.y = -0.15 * m; knee.add(shin);
     // socks overlay (slightly fatter than the leg)
     if (spec.socks === 'thigh') {
-      const s1 = caps(0.054 * bp.limbW, 0.3 * m, sockMat); s1.position.y = -0.62 * m; lg.add(s1);
-      const s2 = caps(0.065 * bp.limbW, 0.08 * m, sockMat); s2.position.y = -0.42 * m; lg.add(s2);
+      const s1 = caps(0.054 * bp.limbW, 0.3 * m, sockMat); s1.position.y = -0.15 * m; knee.add(s1);
     } else if (spec.socks === 'knee') {
-      const s1 = caps(0.054 * bp.limbW, 0.26 * m, sockMat); s1.position.y = -0.64 * m; lg.add(s1);
+      const s1 = caps(0.054 * bp.limbW, 0.26 * m, sockMat); s1.position.y = -0.17 * m; knee.add(s1);
     } else if (spec.socks === 'short') {
-      const s1 = caps(0.054 * bp.limbW, 0.05 * m, sockMat); s1.position.y = -0.78 * m; lg.add(s1);
+      const s1 = caps(0.054 * bp.limbW, 0.05 * m, sockMat); s1.position.y = -0.31 * m; knee.add(s1);
     }
-    buildShoe(spec.shoes, lg, -0.845 * m, shoeMat, mesh, caps);
+    buildShoe(spec.shoes, knee, -0.375 * m, shoeMat, mesh, caps);
   }
 
   // identity glow ring
@@ -242,16 +245,22 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
     root.rotation.z = Math.sin(e * 0.7) * 0.005;
 
     if (sitting) {
-      legGroups.forEach(l => { l.rotation.x += (-1.35 - l.rotation.x) * Math.min(1, dt * 12); });
-      armGroups.forEach(a => { a.rotation.x += (-0.25 - a.rotation.x) * Math.min(1, dt * 12); });
+      // thighs forward, knees bent so the shins hang down — a natural seat pose
+      const k = Math.min(1, dt * 12);
+      legGroups.forEach(l => { l.rotation.x += (-1.45 - l.rotation.x) * k; });
+      kneeGroups.forEach(kn => { kn.rotation.x += (1.45 - kn.rotation.x) * k; });
+      armGroups.forEach(a => { a.rotation.x += (-0.25 - a.rotation.x) * k; });
     } else if (poseSpeed > 0.15) {
       const run = poseSpeed > 4.2;
       walkPhase += dt * (run ? 11 : 7);
       const sw = Math.sin(walkPhase) * (run ? 0.85 : 0.55);
       legGroups[0].rotation.x = sw; legGroups[1].rotation.x = -sw;
+      kneeGroups[0].rotation.x = Math.max(0, -Math.sin(walkPhase)) * 0.9;
+      kneeGroups[1].rotation.x = Math.max(0, Math.sin(walkPhase)) * 0.9;
       armGroups[0].rotation.x = -sw * 0.7; armGroups[1].rotation.x = sw * 0.7;
     } else {
       legGroups.forEach(l => { l.rotation.x *= 0.8; });
+      kneeGroups.forEach(kn => { kn.rotation.x *= 0.8; });
       armGroups.forEach((a, i) => { a.rotation.x += (Math.sin(e * 1.2 + i * Math.PI) * 0.04 - a.rotation.x) * Math.min(1, dt * 6); });
     }
 

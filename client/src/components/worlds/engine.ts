@@ -394,14 +394,18 @@ export class WorldEngine {
   }
 
   private updateCamera(dt: number) {
+    // While seated the body is dropped so the hips rest on the seat — track a
+    // lower head point so the camera doesn't stare over the player.
+    const eyeH = this.seated ? 0.7 : EYE;
+    const camH = this.seated ? 1.2 : CAM_HEIGHT;
     const cp = Math.cos(this.camPitch), sp = Math.sin(this.camPitch);
     const target = new THREE.Vector3(
       this.pos.x + Math.sin(this.camYaw) * CAM_DIST * cp,
-      this.pos.y + CAM_HEIGHT + sp * CAM_DIST,
+      this.pos.y + camH + sp * CAM_DIST,
       this.pos.z + Math.cos(this.camYaw) * CAM_DIST * cp,
     );
     // pull the camera in if a collider sits between avatar head and camera
-    const head = new THREE.Vector3(this.pos.x, this.pos.y + EYE, this.pos.z);
+    const head = new THREE.Vector3(this.pos.x, this.pos.y + eyeH, this.pos.z);
     let dist = CAM_DIST;
     const dir = target.clone().sub(head);
     const full = dir.length(); dir.normalize();
@@ -418,7 +422,7 @@ export class WorldEngine {
     if (desired.y < 0.5) desired.y = 0.5; // don't dip under the sand
     this.camPos.lerp(desired, Math.min(1, dt * 8));
     this.camera.position.copy(this.camPos);
-    this.camera.lookAt(this.pos.x, this.pos.y + EYE, this.pos.z);
+    this.camera.lookAt(this.pos.x, this.pos.y + eyeH, this.pos.z);
   }
 
   private moveWithCollision(sx: number, sz: number) {

@@ -100,12 +100,17 @@ function buildSand(ctx: WorldContext) {
   const tex = sandTexture();
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(18, 18);
   const geo = new THREE.PlaneGeometry(160, 160, 40, 40);
-  // gentle dunes
+  // gentle dunes + a real shoreline: past the waterline (world z < -24, i.e.
+  // local y > 24) the sand slopes down under the sea so the water is actually
+  // visible when you walk up to it.
   const p = geo.attributes.position as THREE.BufferAttribute;
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), y = p.getY(i);
     const d = Math.hypot(x, y);
-    p.setZ(i, Math.sin(x * 0.08) * 0.12 + Math.cos(y * 0.09) * 0.12 + Math.max(0, (d - 40) * 0.05));
+    let h = Math.sin(x * 0.08) * 0.12 + Math.cos(y * 0.09) * 0.12;
+    if (y > 24) h -= (y - 24) * 0.14;               // dive below the water
+    else h += Math.max(0, (d - 40) * 0.05);         // rise at the far land edges
+    p.setZ(i, h);
   }
   geo.computeVertexNormals();
   const mat = new THREE.MeshStandardMaterial({ map: tex, color: 0xb99a6c, roughness: 1, metalness: 0 });
@@ -116,11 +121,20 @@ function buildSand(ctx: WorldContext) {
 
 // ── Ocean: animated waves + moonlight streak ──────────────────────────
 function buildOcean(ctx: WorldContext) {
-  const geo = new THREE.PlaneGeometry(220, 120, 44, 26);
-  const mat = new THREE.MeshStandardMaterial({ color: 0x0b2a44, roughness: 0.22, metalness: 0.5, transparent: true, opacity: 0.96 });
+  // Rippled water texture (drifting) so the sea reads as water up close too.
+  const waterTex = waterTexture();
+  waterTex.wrapS = waterTex.wrapT = THREE.RepeatWrapping;
+  waterTex.repeat.set(26, 16);
+  const geo = new THREE.PlaneGeometry(220, 130, 44, 26);
+  const mat = new THREE.MeshStandardMaterial({
+    map: waterTex, color: 0x9fc4e0, roughness: 0.24, metalness: 0.45,
+    transparent: true, opacity: 0.97,
+    emissive: 0x0a2436, emissiveMap: waterTex, emissiveIntensity: 0.35,
+  });
   const sea = new THREE.Mesh(geo, mat);
   sea.rotation.x = -Math.PI / 2;
-  sea.position.set(0, -0.15, SEA_Z - 55);
+  // right up to the shoreline; the sloping sand hides it inland
+  sea.position.set(0, -0.06, SEA_Z - 48);
   ctx.scene.add(sea);
   const p = geo.attributes.position as THREE.BufferAttribute;
   const base = new Float32Array(p.count);
@@ -132,6 +146,8 @@ function buildOcean(ctx: WorldContext) {
       p.setZ(i, base[i] + Math.sin(x * 0.12 + e * 1.1) * 0.35 + Math.cos(y * 0.14 + e * 0.9) * 0.3 + Math.sin((x + y) * 0.08 + e * 1.6) * 0.15);
     }
     p.needsUpdate = true;
+    // drifting ripples
+    waterTex.offset.set((e * 0.008) % 1, (e * 0.005) % 1);
     // Normal recompute is the costly part — do it every frame normally, every
     // 3rd frame when the engine reports it's under load.
     if (!ctx.perf.reduced || (++nf % 3 === 0)) geo.computeVertexNormals();
@@ -510,6 +526,28 @@ function grassTuftGeo(): THREE.BufferGeometry {
 }
 
 // ── Procedural textures ───────────────────────────────────────────────
+function waterTexture(): THREE.Texture {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#0d2c46'; g.fillRect(0, 0, 128, 128);
+  // ripple arcs
+  for (let i = 0; i < 30; i++) {
+    g.strokeStyle = `rgba(150,215,240,${0.08 + Math.random() * 0.18})`;
+    g.lineWidth = 1 + Math.random() * 1.6;
+    g.beginPath();
+    const x = Math.random() * 128, y = Math.random() * 128, r = 5 + Math.random() * 16;
+    const a0 = Math.random() * Math.PI * 2;
+    g.arc(x, y, r, a0, a0 + 1.0 + Math.random() * 1.6);
+    g.stroke();
+  }
+  // sparkle flecks
+  for (let i = 0; i < 50; i++) {
+    g.fillStyle = `rgba(190,235,255,${0.05 + Math.random() * 0.12})`;
+    g.fillRect(Math.random() * 128, Math.random() * 128, 2, 1);
+  }
+  return new THREE.CanvasTexture(c);
+}
+
 function sandTexture(): THREE.Texture {
   const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d')!;
   g.fillStyle = '#c2a978'; g.fillRect(0, 0, 128, 128);

@@ -15,12 +15,22 @@ export class Avatar {
   group: THREE.Group;
   state: AvatarState = 'idle';
   private model: CharacterModel;
+  private inner: THREE.Group;
   private elapsed = 0;
+  private sitDrop: number;
 
   constructor(cfg: AvatarConfig | CharacterSpec) {
     const spec = normalizeSpec(cfg);
     this.model = buildCharacter(spec);
-    this.group = this.model.group;
+    // The character model faces +Z; the world engine's forward convention is
+    // -Z — wrap and flip so avatars face where they walk (not backwards).
+    this.inner = this.model.group;
+    this.inner.rotation.y = Math.PI;
+    this.group = new THREE.Group();
+    this.group.add(this.inner);
+    // When seated the engine puts the group origin AT the seat — drop the body
+    // so the hips (not the feet) rest on it.
+    this.sitDrop = 0.88 * (spec.legLen ?? 1) * (spec.height ?? 1) - 0.06;
   }
 
   wave() { this.model.emote('wave'); }
@@ -28,7 +38,11 @@ export class Avatar {
 
   update(dt: number, speed: number) {
     this.elapsed += dt;
-    this.model.setPose(this.state === 'sit' ? 0 : speed, this.state === 'sit');
+    const sit = this.state === 'sit';
+    this.model.setPose(sit ? 0 : speed, sit);
+    // smooth drop/rise when sitting down / standing up
+    const target = sit ? -this.sitDrop : 0;
+    this.inner.position.y += (target - this.inner.position.y) * Math.min(1, dt * 10);
     this.model.update(dt, this.elapsed);
   }
 
