@@ -116,6 +116,8 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   const [roster, setRoster] = useState<{ socketId: string; name: string; bodyColor: string }[]>([]);
   const [panel, setPanel] = useState<null | 'players' | 'settings'>(null);
   const [emoteOpen, setEmoteOpen] = useState(false);
+  const [fadeIn, setFadeIn] = useState(true);
+  const [help, setHelp] = useState(false);
   const [quality, setQuality] = useState<{ mode: 'auto' | 'high' | 'low'; shadows: boolean }>(() => {
     try { const q = JSON.parse(localStorage.getItem('vw_quality') ?? ''); if (q && q.mode) return q; } catch { /* default */ }
     return { mode: 'auto', shadows: true };
@@ -124,7 +126,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   const poke = useCallback(() => {
     setUiVisible(true);
     if (idleTimer.current) clearTimeout(idleTimer.current);
-    idleTimer.current = setTimeout(() => setUiVisible(false), 4000);
+    idleTimer.current = setTimeout(() => { setUiVisible(false); setEmoteOpen(false); }, 4000);
   }, []);
 
   useEffect(() => {
@@ -140,6 +142,13 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     eng.resize();
     eng.start();
     poke();
+    requestAnimationFrame(() => setFadeIn(false)); // smooth fade-in from black
+    let helpT: ReturnType<typeof setTimeout> | null = null;
+    if (!localStorage.getItem('vw_seen_help')) {
+      setHelp(true);
+      try { localStorage.setItem('vw_seen_help', '1'); } catch { /* ignore */ }
+      helpT = setTimeout(() => setHelp(false), 8000);
+    }
 
     // ── multiplayer presence ──
     connectSocket();
@@ -216,6 +225,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       socket.emit('world:leave');
       players.current.clear();
       if (idleTimer.current) clearTimeout(idleTimer.current);
+      if (helpT) clearTimeout(helpT);
       try { wake?.release?.(); } catch { /* ignore */ }
       eng.dispose();
       engineRef.current = null;
@@ -259,6 +269,8 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
 
   // keep the HUD up while a panel is open
   useEffect(() => { if (panel) { setUiVisible(true); if (idleTimer.current) clearTimeout(idleTimer.current); } else poke(); }, [panel, poke]);
+  // auto-close the emote wheel if it's left open
+  useEffect(() => { if (!emoteOpen) return; const t = setTimeout(() => setEmoteOpen(false), 4500); return () => clearTimeout(t); }, [emoteOpen]);
   const showUI = uiVisible || panel != null;
 
   const doEmote = (kind: 'wave' | 'dance' | 'clap' | 'heart' | 'laugh') => {
@@ -329,6 +341,18 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}
       onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}>
       <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
+
+      {/* Enter fade-in from black */}
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: '#05060d', opacity: fadeIn ? 1 : 0, transition: 'opacity 0.7s ease' }} />
+
+      {/* First-time controls hint */}
+      {help && (
+        <div style={{ position: 'absolute', top: '22%', left: '50%', transform: 'translateX(-50%)', zIndex: 16, pointerEvents: 'none', width: 'min(340px, 82vw)', textAlign: 'center', background: 'rgba(12,10,24,0.82)', border: '1px solid rgba(192,132,252,0.3)', borderRadius: 14, padding: '12px 16px', fontFamily: 'monospace', fontSize: 11.5, lineHeight: 1.7, color: 'rgba(233,213,255,0.9)', backdropFilter: 'blur(8px)' }}>
+          🕹 ჯოისტიკი — მოძრაობა · 👆 გადაფურცლე — კამერა<br />
+          შეეხე — დაჯექი / ურთიერთქმედება · 😀 ემოცია · 🎙️ ხმა
+          {window.innerHeight > window.innerWidth && <><br /><span style={{ color: '#c084fc' }}>📱↺ გადააბრუნე ჰორიზონტალურად</span></>}
+        </div>
+      )}
 
       {/* Top bar */}
       <div style={{ position: 'absolute', top: 'max(12px, env(safe-area-inset-top))', left: 14, right: 14, display: 'flex', alignItems: 'center', gap: 8, opacity: showUI ? 1 : 0, transition: 'opacity .4s', pointerEvents: showUI ? 'auto' : 'none' }}>

@@ -3,6 +3,12 @@
 A new, **modular** 3D social-world system, entirely separate from the classic
 2D Virtual Spaces (which are untouched). First world: **Beach Camp 3D**.
 
+**Status: Beach Camp 3D is feature-complete** (Phases 1, 5, 6, 7, 9, 10 done;
+the character/camera/beach polish of Phases 2–4 was folded into Phase 1). The
+only remaining phase is **Phase 8 — additional worlds**, which is pure
+expansion: the engine, controls, multiplayer, voice, HUD, emotes and
+interactables are all shared and ready.
+
 Multi-session build. Each phase ships independently functional; existing
 features must never break.
 
@@ -19,7 +25,7 @@ features must never break.
 | **7 — Optimization** | ✅ **DONE (v325)** | Instanced rocks / driftwood / fire stones / beach plants (merged grass tuft) — cut ~140 meshes to 4 InstancedMeshes; smaller ocean mesh (60×40→44×26) with a shared `perf.reduced` flag that throttles wave-normal recompute under load. |
 | **8 — Additional worlds** | ⏳ | Cyber Lounge / Skyline Terrace / Yacht / Mountain Cabin (registry already stubs them). |
 | **9 — Interactive objects** | ✅ **DONE (v326)** | Networked emote wheel (wave/dance/clap/heart/laugh with floating emoji), a generic `addInteractable` system, campfire toss (spark flare, shared), and a shore fireworks launcher (rockets + colour bursts over the ocean, shared). |
-| **10 — Polish & bug fixes** | ⏳ | Device testing, final tuning. |
+| **10 — Polish & bug fixes** | ✅ **DONE (v327)** | Enter fade-in, first-time controls/landscape hint, auto-closing emote wheel, interact debounce, distance-faded nameplates. |
 
 ## Architecture
 

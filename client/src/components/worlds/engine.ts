@@ -57,6 +57,7 @@ export class WorldEngine {
   private interactables: WorldInteractable[] = [];
   private nearObj: WorldInteractable | null = null;
   private seated: WorldSeat | null = null;
+  private lastObjInteract = 0;
   onInteract: ((id: string) => void) | null = null;
   private updates: ((dt: number, elapsed: number) => void)[] = [];
   private ambients: AmbientSource[] = [];
@@ -116,7 +117,12 @@ export class WorldEngine {
     // prefer whichever (seat or object) is closer
     const sd = this.nearSeat ? (this.nearSeat.x - this.pos.x) ** 2 + (this.nearSeat.z - this.pos.z) ** 2 : Infinity;
     const od = this.nearObj ? (this.nearObj.x - this.pos.x) ** 2 + (this.nearObj.z - this.pos.z) ** 2 : Infinity;
-    if (this.nearObj && od <= sd) { this.nearObj.effect(); this.onInteract?.(this.nearObj.id); return; }
+    if (this.nearObj && od <= sd) {
+      const now = performance.now();
+      if (now - this.lastObjInteract < 550) return; // debounce accidental double-fire
+      this.lastObjInteract = now;
+      this.nearObj.effect(); this.onInteract?.(this.nearObj.id); return;
+    }
     if (this.nearSeat) this.sit(this.nearSeat);
   }
   emote() { this.avatar.wave(); }
@@ -204,6 +210,9 @@ export class WorldEngine {
       e.avatar.update(dt, seat ? 0 : speed);
       const talk = this.speaking.has(id);
       e.plate.scale.set(talk ? 1.9 : 1.7, talk ? 0.47 : 0.42, 1);
+      // fade distant nameplates so a crowded fire doesn't turn into text soup
+      const dist = Math.hypot(e.cur.x - this.pos.x, e.cur.z - this.pos.z);
+      (e.plate.material as THREE.SpriteMaterial).opacity = Math.max(0, Math.min(1, 1 - (dist - 16) / 12));
       const rm = e.ring.material as THREE.MeshBasicMaterial;
       rm.opacity = talk ? 0.55 + Math.sin(performance.now() / 140) * 0.25 : 0;
     }
