@@ -133,8 +133,10 @@ function segIntersectsAabb(x1: number, z1: number, x2: number, z2: number, c: AA
 }
 
 export class BackroomsEngine {
-  // Input surface (mutated by the React wrapper each frame).
-  input = { move: { x: 0, y: 0 }, sprint: false };
+  // Input surface (mutated by the React wrapper each frame). `steer` makes
+  // the joystick's X axis turn the camera (one-thumb mobile controls) instead
+  // of pure strafing.
+  input = { move: { x: 0, y: 0 }, sprint: false, steer: false };
   onHud: ((h: HudState) => void) | null = null;
 
   private canvas: HTMLCanvasElement;
@@ -981,9 +983,18 @@ export class BackroomsEngine {
 
     // Horizontal movement in camera space
     const speed = this.input.sprint ? SPRINT : WALK;
+    let mx = this.input.move.x, my = this.input.move.y;
+    // Steer mode (touch joystick): pushing the stick sideways turns the camera
+    // toward where you're going, so one thumb is enough to play. A deadzone
+    // keeps a mostly-forward push from drifting the view.
+    if (this.input.steer && mx !== 0) {
+      const dz = 0.12;
+      const t = Math.abs(mx) <= dz ? 0 : (mx - Math.sign(mx) * dz) / (1 - dz);
+      this.yaw -= t * 2.4 * dt;
+      mx *= 0.25; // keep a hint of strafe so diagonals still feel responsive
+    }
     const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
     // forward = (-sin, -cos); right = (cos, -sin)
-    let mx = this.input.move.x, my = this.input.move.y;
     const mag = Math.hypot(mx, my);
     if (mag > 1) { mx /= mag; my /= mag; }
     const dirX = (-sin) * my + (cos) * mx;

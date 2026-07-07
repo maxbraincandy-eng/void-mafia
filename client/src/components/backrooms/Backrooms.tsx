@@ -12,6 +12,25 @@ import { BackroomsEngine, type HudState, type RemotePlayerState } from './engine
 
 const JOY_R = 56;
 
+// ── Immersive mode (Android) ────────────────────────────────────────────
+// The app manifest locks the PWA to portrait, which Android honours (iOS
+// ignores it) — so Android phones never rotated in the 3D world. On entering
+// an instance (still inside the tap gesture, which fullscreen requires) we go
+// fullscreen and lock landscape; on leaving we restore.
+const isTouchDevice = () => typeof window !== 'undefined' && 'ontouchstart' in window;
+async function enterImmersive(): Promise<void> {
+  if (!isTouchDevice()) return;
+  try { await (document.documentElement as any).requestFullscreen?.({ navigationUI: 'hide' }); } catch { /* iOS: unsupported */ }
+  try { await (screen.orientation as any)?.lock?.('landscape'); } catch {
+    try { (screen.orientation as any)?.unlock?.(); } catch { /* ignore */ }
+  }
+}
+function exitImmersive(): void {
+  if (!isTouchDevice()) return;
+  try { (screen.orientation as any)?.unlock?.(); } catch { /* ignore */ }
+  try { if (document.fullscreenElement) document.exitFullscreen?.(); } catch { /* ignore */ }
+}
+
 // ── Avatar customisation ────────────────────────────────────────────────
 const BR_SKINS = [0xf2c9a0, 0xdfae83, 0xb07b4f, 0x8a5a33, 0x6b4226];
 const BR_SHIRTS = [0x7c3aed, 0x0ea5b7, 0xb91c1c, 0x15803d, 0xca8a04, 0x334155];
@@ -128,7 +147,7 @@ function Lobby({ onJoin, onClose }: { onJoin: (id: string, name: string) => void
           const full = r.count >= r.maxPlayers;
           return (
             <button key={r.id} disabled={full}
-              onClick={() => onJoin(r.id, useAuthStore.getState().profile?.username ?? 'Lost')}
+              onClick={() => { enterImmersive(); onJoin(r.id, useAuthStore.getState().profile?.username ?? 'Lost'); }}
               style={{
                 width: '100%', textAlign: 'left', marginBottom: 12, padding: '16px 16px', borderRadius: 16,
                 background: 'linear-gradient(135deg, rgba(24,20,6,0.9), rgba(10,8,3,0.9))',
@@ -295,6 +314,7 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
       if (sparedTimer.current) clearTimeout(sparedTimer.current);
       fxTimers.current.forEach(clearTimeout);
       fxTimers.current = [];
+      exitImmersive();
       document.removeEventListener('visibilitychange', onVis);
       try { wakeLock?.release?.(); } catch { /* ignore */ }
       engineRef.current?.dispose();
@@ -327,6 +347,7 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
         if (k['a'] || k['arrowleft']) x -= 1;
         eng.input.move.x = x; eng.input.move.y = y;
         eng.input.sprint = !!k['shift'];
+        eng.input.steer = false; // desktop keeps classic strafing + mouse-look
       }
     }, 33);
     return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); clearInterval(iv); };
@@ -371,6 +392,7 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
         eng.input.move.x = dx / JOY_R;
         eng.input.move.y = -dy / JOY_R;
         eng.input.sprint = mag > JOY_R * 0.85;
+        eng.input.steer = true; // stick sideways = turn the camera too
       } else if (lookTouch.current && t.identifier === lookTouch.current.id) {
         eng.addLook(t.clientX - lookTouch.current.x, t.clientY - lookTouch.current.y);
         lookTouch.current.x = t.clientX; lookTouch.current.y = t.clientY;
@@ -383,7 +405,7 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
       if (moveTouch.current && t.identifier === moveTouch.current.id) {
         moveTouch.current = null;
         setJoy({ active: false, ox: 0, oy: 0, kx: 0, ky: 0 });
-        if (eng) { eng.input.move.x = 0; eng.input.move.y = 0; eng.input.sprint = false; }
+        if (eng) { eng.input.move.x = 0; eng.input.move.y = 0; eng.input.sprint = false; eng.input.steer = false; }
       } else if (lookTouch.current && t.identifier === lookTouch.current.id) {
         lookTouch.current = null;
       }
