@@ -38,6 +38,7 @@ export const beachCamp: WorldDef = {
     buildStringLights(ctx);
     buildDbSign(ctx);
     buildFireworks(ctx);
+    buildCinema(ctx);
     buildAirParticles(ctx);
 
     // ambient audio sources — ocean is faint far away and swells toward the
@@ -429,7 +430,7 @@ function buildFireworks(ctx: WorldContext) {
   let flashUntil = 0;
 
   const rocketMat = new THREE.SpriteMaterial({ map: radialTexture(0xfff2c0), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
-  const rockets: { spr: THREE.Sprite; y: number; vy: number; x: number; z: number; color: THREE.Color; apex: number }[] = [];
+  const rockets: { spr: THREE.Sprite; y: number; vy: number; vx: number; vz: number; x: number; z: number; color: THREE.Color; apex: number }[] = [];
   const palette = [0xff3b6b, 0x3ba0ff, 0x8aff3b, 0xffd23b, 0xc06bff, 0xff8a3b, 0xffffff];
 
   const burst = (x: number, y: number, z: number, color: THREE.Color) => {
@@ -449,16 +450,24 @@ function buildFireworks(ctx: WorldContext) {
     id: 'firework', x: LX, z: LZ, r: 2.7, label: '🎆 გაუშვი ფეიერვერკი',
     effect: () => {
       const color = new THREE.Color(palette[Math.floor(Math.random() * palette.length)]);
-      const tx = -8 + (Math.random() - 0.5) * 30, tz = -42 + (Math.random() - 0.5) * 18;
-      const spr = new THREE.Sprite(rocketMat); spr.scale.setScalar(0.55); spr.position.set(tx, 1.4, tz); ctx.scene.add(spr);
-      rockets.push({ spr, x: tx, z: tz, y: 1.4, vy: 12 + Math.random() * 3, color, apex: 14 + Math.random() * 5 });
+      // Launch FROM the tube, rising almost straight up with a little drift so
+      // it bursts overhead where the player is looking — not behind them.
+      const spr = new THREE.Sprite(rocketMat); spr.scale.setScalar(0.6);
+      spr.position.set(LX, 1.5, LZ); ctx.scene.add(spr);
+      rockets.push({
+        spr, x: LX, z: LZ, y: 1.5, vy: 13 + Math.random() * 3,
+        vx: (Math.random() - 0.5) * 1.6, vz: (Math.random() - 0.5) * 1.6,
+        color, apex: 15 + Math.random() * 4,
+      });
     },
   });
 
   ctx.onUpdate((d) => {
     const now = performance.now();
     for (let r = rockets.length - 1; r >= 0; r--) {
-      const rk = rockets[r]; rk.y += rk.vy * d; rk.vy -= 9 * d; rk.spr.position.y = rk.y;
+      const rk = rockets[r];
+      rk.y += rk.vy * d; rk.vy -= 9 * d; rk.x += rk.vx * d; rk.z += rk.vz * d;
+      rk.spr.position.set(rk.x, rk.y, rk.z);
       if (rk.y >= rk.apex || rk.vy <= 1) { burst(rk.x, rk.y, rk.z, rk.color); ctx.scene.remove(rk.spr); rockets.splice(r, 1); }
     }
     const pa = geo.attributes.position as THREE.BufferAttribute;
@@ -475,6 +484,46 @@ function buildFireworks(ctx: WorldContext) {
     }
     if (dirty) { pa.needsUpdate = true; ca.needsUpdate = true; }
     flash.intensity = now < flashUntil ? 4 * ((flashUntil - now) / 260) : 0;
+  });
+}
+
+// ── Cinema: big screen on a deck away from the fire, with seating ─────
+function buildCinema(ctx: WorldContext) {
+  const CX = 19, CZ = 3;         // deck centre — a good distance from the fire
+  const SW = 5.4, SH = 3.0;      // screen size
+  const SCY = 2.7;               // screen centre height
+  const ry = -Math.PI / 2;       // faces -X (toward the seats at smaller x)
+
+  const deck = new THREE.Group(); deck.position.set(CX, 0, CZ); ctx.scene.add(deck);
+  // raised wooden platform
+  const plat = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.4, 0.3, 24), new THREE.MeshStandardMaterial({ color: 0x4a3420, roughness: 1 }));
+  plat.position.set(-1.5, 0.15, 0); plat.receiveShadow = true; deck.add(plat);
+  // frame posts
+  const postMat = new THREE.MeshStandardMaterial({ color: 0x1a1c22, roughness: 0.8, metalness: 0.2 });
+  for (const sz of [-1, 1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.16, SCY + SH / 2, 0.16), postMat); p.position.set(0.1, (SCY + SH / 2) / 2, sz * (SW / 2 + 0.1)); p.castShadow = true; deck.add(p); }
+  // bezel
+  const bezel = new THREE.Mesh(new THREE.BoxGeometry(0.14, SH + 0.3, SW + 0.3), postMat);
+  bezel.position.set(0.08, SCY, 0); deck.add(bezel);
+  // the screen panel (dark, faintly glowing when off — the iframe covers it when playing)
+  const scr = new THREE.Mesh(new THREE.PlaneGeometry(SW, SH), new THREE.MeshBasicMaterial({ map: screenOffTexture() }));
+  scr.rotation.y = ry; scr.position.set(0.02, SCY, 0); deck.add(scr);
+  // soft screen glow light
+  const glow = new THREE.PointLight(0x5aa0ff, 1.4, 14, 2); glow.position.set(-2, SCY, 0); deck.add(glow);
+  ctx.onUpdate((_d, e) => { glow.intensity = 1.1 + Math.sin(e * 1.5) * 0.25; });
+
+  ctx.addCollider({ x: CX + 0.1, z: CZ, r: 2.2 }); // just the screen base — seats stay reachable
+  ctx.setScreen({ x: CX + 0.02, y: SCY, z: CZ, w: SW, h: SH, ry });
+
+  // theatre seating facing the screen (+X)
+  const rows = [[15.4, -1.6], [15.4, 0], [15.4, 1.6], [17, -0.8], [17, 0.8]];
+  rows.forEach(([sx, sz], i) => {
+    const yaw = Math.atan2(CX - sx, CZ - sz);
+    const g = new THREE.Group(); g.position.set(sx, 0, sz); g.rotation.y = yaw; ctx.scene.add(g);
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 0.7), new THREE.MeshStandardMaterial({ color: [0x7c3aed, 0x0ea5b7, 0xb91c1c][i % 3], roughness: 0.8 }));
+    seat.position.y = 0.32; seat.castShadow = true; seat.receiveShadow = true; g.add(seat);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.5, 0.7), (seat.material as THREE.Material)); back.position.set(-0.3, 0.5, 0); g.add(back);
+    ctx.addCollider({ x: sx, z: sz, r: 0.5 });
+    ctx.addSeat({ id: `cinema${i}`, x: sx, y: 0.44, z: sz, yaw });
   });
 }
 
@@ -545,6 +594,17 @@ function waterTexture(): THREE.Texture {
     g.fillStyle = `rgba(190,235,255,${0.05 + Math.random() * 0.12})`;
     g.fillRect(Math.random() * 128, Math.random() * 128, 2, 1);
   }
+  return new THREE.CanvasTexture(c);
+}
+
+function screenOffTexture(): THREE.Texture {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 144;
+  const g = c.getContext('2d')!;
+  const grad = g.createLinearGradient(0, 0, 0, 144);
+  grad.addColorStop(0, '#0a1830'); grad.addColorStop(1, '#050a16');
+  g.fillStyle = grad; g.fillRect(0, 0, 256, 144);
+  g.font = '54px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('📺', 128, 66);
+  g.fillStyle = 'rgba(120,180,255,0.6)'; g.font = 'bold 16px monospace'; g.fillText('CINEMA', 128, 110);
   return new THREE.CanvasTexture(c);
 }
 

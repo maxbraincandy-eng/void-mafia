@@ -338,6 +338,7 @@ _spaceMeta.set('beach', {
 });
 const _worlds = new Map(); // worldId → players
 const _worldVoice = new Map(); // worldId → Map<socketId, name>
+const _worldTV = new Map(); // worldId → shared cinema
 const WORLD_MAX = 40;
 const WORLD_IDS = new Set(['beach_camp']);
 const _hex6 = (v, fallback) => (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v)) ? v : fallback;
@@ -358,8 +359,10 @@ function _leaveWorld(sid, io) {
         if (room.has(sid)) {
             room.delete(sid);
             io.to(`world:${worldId}`).emit('world:player-left', { socketId: sid });
-            if (room.size === 0)
+            if (room.size === 0) {
                 _worlds.delete(worldId);
+                _worldTV.delete(worldId);
+            }
             return;
         }
     }
@@ -8841,7 +8844,7 @@ export function attachSocketHandlers(io) {
                 room.set(socket.id, p);
                 socket.join(`world:${id}`);
                 socket.to(`world:${id}`).emit('world:player-joined', p);
-                cb?.({ ok: true, data: { mySocketId: socket.id, players: [...room.values()] } });
+                cb?.({ ok: true, data: { mySocketId: socket.id, players: [...room.values()], tv: _worldTV.get(id) ?? null } });
             }
             catch {
                 cb?.({ ok: false, error: 'Internal error' });
@@ -8901,6 +8904,45 @@ export function attachSocketHandlers(io) {
             }
         });
         socket.on('world:leave', () => { _leaveWorld(socket.id, io); });
+        // ── World cinema (shared YouTube) ──────────────────────────────────
+        const _worldOf = () => { for (const [wid, room] of _worlds)
+            if (room.has(socket.id))
+                return wid; return null; };
+        socket.on('world:tv-set', ({ videoId, title }) => {
+            const wid = _worldOf();
+            if (!wid)
+                return;
+            const vid = String(videoId ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20);
+            if (!vid)
+                return;
+            const tv = { videoId: vid, title: String(title ?? '').slice(0, 120), startedAt: Date.now(), position: 0, isPlaying: true, byName: _worlds.get(wid).get(socket.id)?.name ?? '' };
+            _worldTV.set(wid, tv);
+            io.to(`world:${wid}`).emit('world:tv', tv);
+        });
+        socket.on('world:tv-toggle', () => {
+            const wid = _worldOf();
+            if (!wid)
+                return;
+            const tv = _worldTV.get(wid);
+            if (!tv)
+                return;
+            if (tv.isPlaying) {
+                tv.position = (Date.now() - tv.startedAt) / 1000;
+                tv.isPlaying = false;
+            }
+            else {
+                tv.startedAt = Date.now() - tv.position * 1000;
+                tv.isPlaying = true;
+            }
+            io.to(`world:${wid}`).emit('world:tv', tv);
+        });
+        socket.on('world:tv-stop', () => {
+            const wid = _worldOf();
+            if (!wid)
+                return;
+            _worldTV.delete(wid);
+            io.to(`world:${wid}`).emit('world:tv', null);
+        });
         // spatial voice mesh (own channel)
         socket.on('world:voice-join', (_, cb) => {
             for (const [worldId, room] of _worlds) {

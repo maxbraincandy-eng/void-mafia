@@ -5,7 +5,7 @@
 // loop survive re-renders. Reused by every present and future Premium World.
 import * as THREE from 'three';
 import { Avatar, type EmoteKind } from './avatar';
-import type { WorldDef, WorldContext, WorldCollider, WorldSeat, WorldInteractable, AmbientSource, AvatarConfig } from './types';
+import type { WorldDef, WorldContext, WorldCollider, WorldSeat, WorldInteractable, AmbientSource, AvatarConfig, WorldScreen } from './types';
 import type { CharacterSpec } from '../character/spec';
 
 export interface WorldHud {
@@ -13,7 +13,10 @@ export interface WorldHud {
   sitting: boolean;
   canInteract: string | null; // label of the nearby interactable (e.g. "დაჯექი")
   players: number;
+  nearScreen: boolean;        // player is near the cinema screen
 }
+
+export interface ScreenRect { left: number; top: number; width: number; height: number; }
 
 export interface RemoteWorldPlayer { socketId: string; name: string; bodyColor: string; glowColor: string; spec?: CharacterSpec; x: number; z: number; ry: number; seatId: string | null; }
 export interface WorldNetState { x: number; z: number; ry: number; seatId: string | null; }
@@ -62,6 +65,10 @@ export class WorldEngine {
   onInteract: ((id: string) => void) | null = null;
   private updates: ((dt: number, elapsed: number) => void)[] = [];
   private ambients: AmbientSource[] = [];
+  private screen: WorldScreen | null = null;
+  private nearScreen = false;
+  private _v = new THREE.Vector3();
+  private upAxis = new THREE.Vector3(0, 1, 0);
 
   private moon!: THREE.DirectionalLight;
   private ambientLight!: THREE.AmbientLight;
@@ -136,6 +143,30 @@ export class WorldEngine {
   getNetState(): WorldNetState { return { x: this.pos.x, z: this.pos.z, ry: this.facing, seatId: this.seated?.id ?? null }; }
   getListener() { return { x: this.pos.x, z: this.pos.z, yaw: this.camYaw }; }
   setSpeaking(ids: Set<string>) { this.speaking = ids; }
+
+  // Project the cinema screen quad to viewport pixels so a DOM <iframe> can be
+  // laid over it (null when the screen is behind the camera / viewed edge-on).
+  getScreenRect(): ScreenRect | null {
+    const s = this.screen; if (!s) return null;
+    const cw = this.canvas.clientWidth || 1, ch = this.canvas.clientHeight || 1;
+    const normal = new THREE.Vector3(Math.sin(s.ry), 0, Math.cos(s.ry));
+    const right = new THREE.Vector3(Math.cos(s.ry), 0, -Math.sin(s.ry));
+    const center = new THREE.Vector3(s.x, s.y, s.z);
+    // only when looking at the front face
+    if (this.camera.position.clone().sub(center).dot(normal) < 0.15) return null;
+    let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+      this._v.copy(center).addScaledVector(right, sx * s.w / 2).addScaledVector(this.upAxis, sy * s.h / 2);
+      const view = this._v.clone().applyMatrix4(this.camera.matrixWorldInverse);
+      if (view.z > -0.2) return null; // a corner is behind the camera
+      this._v.project(this.camera);
+      const px = (this._v.x * 0.5 + 0.5) * cw, py = (-this._v.y * 0.5 + 0.5) * ch;
+      minx = Math.min(minx, px); miny = Math.min(miny, py); maxx = Math.max(maxx, px); maxy = Math.max(maxy, py);
+    }
+    const w = maxx - minx, h = maxy - miny;
+    if (w < 40 || h < 24) return null; // too far / tiny
+    return { left: minx, top: miny, width: w, height: h };
+  }
 
   setQuality(mode: QualityMode) {
     this.quality = mode;
@@ -289,6 +320,7 @@ export class WorldEngine {
       addSeat: (s) => this.seats.push(s),
       addInteractable: (o) => this.interactables.push(o),
       addAmbient: (a) => this.ambients.push(a),
+      setScreen: (s) => { this.screen = s; },
       onUpdate: (fn) => this.updates.push(fn),
       disposables: [],
       perf: this.worldPerf,
@@ -386,8 +418,9 @@ export class WorldEngine {
     this.hudAccum += dt;
     if (this.hudAccum > 0.2) {
       this.hudAccum = 0;
+      this.nearScreen = !!this.screen && Math.hypot(this.screen.x - this.pos.x, this.screen.z - this.pos.z) < 9;
       const label = this.seated ? 'ადექი' : this.nearObj ? this.nearObj.label : this.nearSeat ? 'დაჯექი' : null;
-      this.onHud?.({ world: this.def.name, sitting: !!this.seated, canInteract: label, players: 1 + this.remotes.size });
+      this.onHud?.({ world: this.def.name, sitting: !!this.seated, canInteract: label, players: 1 + this.remotes.size, nearScreen: this.nearScreen });
     }
 
     this.renderer.render(this.scene, this.camera);

@@ -4,6 +4,7 @@ import { socket, connectSocket, emitWithAck } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
 import { useWorldVoice, applyWorldSpatial, leaveWorldVoice } from '@/hooks/useWorldVoice';
 import { WorldEngine, type WorldHud, type RemoteWorldPlayer } from './engine';
+import { WorldCinema, ytVideoId, type TVState } from './cinema';
 import { PREMIUM_WORLDS, getWorld } from './registry';
 import { loadSpec, defaultSpec, type CharacterSpec } from '../character/spec';
 
@@ -97,7 +98,14 @@ function Lobby({ onEnter, onClose }: { onEnter: (id: string) => void; onClose: (
 function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => void; onClose: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<WorldEngine | null>(null);
-  const [hud, setHud] = useState<WorldHud>({ world: '', sitting: false, canInteract: null, players: 1 });
+  const cinemaBoxRef = useRef<HTMLDivElement>(null);
+  const cinemaRef = useRef<WorldCinema | null>(null);
+  const [hud, setHud] = useState<WorldHud>({ world: '', sitting: false, canInteract: null, players: 1, nearScreen: false });
+  const [tvPanel, setTvPanel] = useState(false);
+  const [tvOn, setTvOn] = useState(false);
+  const [tvQuery, setTvQuery] = useState('');
+  const [tvResults, setTvResults] = useState<{ videoId: string; title: string; author: string }[]>([]);
+  const [tvBusy, setTvBusy] = useState(false);
   const [uiVisible, setUiVisible] = useState(true);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -140,6 +148,15 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     eng.start();
     poke();
     requestAnimationFrame(() => setFadeIn(false)); // smooth fade-in from black
+
+    // ── cinema (shared YouTube on the 3D screen) ──
+    const cinema = cinemaBoxRef.current ? new WorldCinema(cinemaBoxRef.current) : null;
+    cinemaRef.current = cinema;
+    let cinemaRaf = 0;
+    const layoutLoop = () => { cinemaRaf = requestAnimationFrame(layoutLoop); if (cinema && engineRef.current) cinema.layout(engineRef.current.getScreenRect()); };
+    layoutLoop();
+    const onTV = (tv: TVState | null) => { cinema?.setState(tv); setTvOn(!!tv); };
+    socket.on('world:tv', onTV);
     let helpT: ReturnType<typeof setTimeout> | null = null;
     if (!localStorage.getItem('vw_seen_help')) {
       setHelp(true);
@@ -172,13 +189,14 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     socket.on('world:emote', onEmote);
     socket.on('world:interact', onInteractNet);
 
-    emitWithAck<{ worldId: string; name: string; bodyColor: string; glowColor: string; spec: CharacterSpec }, { ok: boolean; data?: { mySocketId: string; players: RemoteWorldPlayer[] } }>(
+    emitWithAck<{ worldId: string; name: string; bodyColor: string; glowColor: string; spec: CharacterSpec }, { ok: boolean; data?: { mySocketId: string; players: RemoteWorldPlayer[]; tv?: TVState | null } }>(
       'world:join', { worldId, name: useAuthStore.getState().profile?.username ?? 'Guest', bodyColor: mySpec.topColor, glowColor: mySpec.glow, spec: mySpec },
     ).then(res => {
       if (res.ok && res.data) {
         mySocketId.current = res.data.mySocketId;
         players.current = new Map(res.data.players.map(p => [p.socketId, p]));
         pushRemotes(); syncRoster();
+        if (res.data.tv) { cinema?.setState(res.data.tv); setTvOn(true); }
       }
     }).catch(() => {});
 
@@ -217,6 +235,10 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       socket.off('world:wave', onWave);
       socket.off('world:emote', onEmote);
       socket.off('world:interact', onInteractNet);
+      socket.off('world:tv', onTV);
+      cancelAnimationFrame(cinemaRaf);
+      cinema?.dispose();
+      cinemaRef.current = null;
       clearInterval(netIv);
       leaveWorldVoice();
       socket.emit('world:leave');
@@ -275,11 +297,21 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     if (socket.connected) socket.emit('world:emote', { kind });
     setEmoteOpen(false); poke();
   };
+  const tvSearch = () => {
+    const q = tvQuery.trim(); if (!q || tvBusy) return;
+    const vid = ytVideoId(q);
+    if (vid) { socket.emit('world:tv-set', { videoId: vid, title: 'YouTube' }); setTvPanel(false); setTvQuery(''); return; }
+    setTvBusy(true);
+    emitWithAck<{ query: string }, { ok: boolean; data?: any }>('space:yt-search', { query: q })
+      .then(r => { setTvBusy(false); setTvResults(r.ok && Array.isArray(r.data) ? r.data.slice(0, 8) : []); })
+      .catch(() => { setTvBusy(false); setTvResults([]); });
+  };
+  const pickVideo = (videoId: string, title: string) => { socket.emit('world:tv-set', { videoId, title }); setTvPanel(false); setTvResults([]); setTvQuery(''); };
 
   const isCtl = (t: EventTarget | null) => t instanceof HTMLElement && t.closest('[data-hud]') != null;
 
   const onTouchStart = (e: React.TouchEvent) => {
-    engineRef.current?.resumeAudio(); poke();
+    engineRef.current?.resumeAudio(); cinemaRef.current?.resume(); poke();
     for (const t of Array.from(e.changedTouches)) {
       if (isCtl(t.target)) continue;
       const leftZone = t.clientX < window.innerWidth * 0.42;
@@ -322,7 +354,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     }
   };
 
-  const onMouseDown = (e: React.MouseEvent) => { engineRef.current?.resumeAudio(); poke(); if (isCtl(e.target)) return; if (e.clientX < window.innerWidth * 0.42) return; mouseLook.current = { x: e.clientX, y: e.clientY }; };
+  const onMouseDown = (e: React.MouseEvent) => { engineRef.current?.resumeAudio(); cinemaRef.current?.resume(); poke(); if (isCtl(e.target)) return; if (e.clientX < window.innerWidth * 0.42) return; mouseLook.current = { x: e.clientX, y: e.clientY }; };
   const onMouseMove = (e: React.MouseEvent) => { if (!mouseLook.current) return; engineRef.current?.addLook(e.clientX - mouseLook.current.x, e.clientY - mouseLook.current.y); mouseLook.current = { x: e.clientX, y: e.clientY }; };
   const onMouseUp = () => { mouseLook.current = null; };
 
@@ -338,6 +370,8 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}
       onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}>
       <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
+      {/* Cinema video — the YouTube iframe is positioned over the 3D screen */}
+      <div ref={cinemaBoxRef} style={{ position: 'absolute', left: 0, top: 0, transform: 'translate(-99999px,0)', overflow: 'hidden', borderRadius: 4, background: '#000', pointerEvents: 'none', zIndex: 5 }} />
 
       {/* Enter fade-in from black */}
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: '#05060d', opacity: fadeIn ? 1 : 0, transition: 'opacity 0.7s ease' }} />
@@ -364,6 +398,33 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
         {roundBtn('🚪', onExit, 40)}
         {roundBtn('✕', onClose, 40)}
       </div>
+
+      {/* Cinema panel — search / paste a YouTube video for everyone */}
+      {tvPanel && (
+        <div data-hud style={{ position: 'absolute', bottom: 'max(100px, calc(env(safe-area-inset-bottom) + 90px))', left: '50%', transform: 'translateX(-50%)', width: 'min(420px, 92vw)', background: 'rgba(12,10,24,0.94)', border: '1px solid rgba(192,132,252,0.35)', borderRadius: 16, padding: 12, backdropFilter: 'blur(12px)', zIndex: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontFamily: 'monospace', fontSize: 11, letterSpacing: 1, color: 'rgba(233,213,255,0.6)', flex: 1 }}>📺 ჩართე ვიდეო ეკრანზე</span>
+            {tvOn && <button data-hud onPointerDown={(e) => { e.preventDefault(); socket.emit('world:tv-toggle'); }} style={{ fontSize: 15, color: '#e9d5ff', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 8, padding: '5px 10px' }}>⏯</button>}
+            {tvOn && <button data-hud onPointerDown={(e) => { e.preventDefault(); socket.emit('world:tv-stop'); }} style={{ fontSize: 13, color: '#ff8a8a', background: 'rgba(255,80,80,0.1)', border: '1px solid rgba(255,80,80,0.3)', borderRadius: 8, padding: '5px 10px' }}>⏹</button>}
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input value={tvQuery} onChange={e => setTvQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') tvSearch(); }} placeholder="YouTube ბმული ან ძებნა…"
+              style={{ flex: 1, padding: '9px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', color: '#fff', fontFamily: 'monospace', fontSize: 12, outline: 'none' }} />
+            <button data-hud onPointerDown={(e) => { e.preventDefault(); tvSearch(); }} style={{ padding: '0 14px', borderRadius: 10, background: 'rgba(124,58,237,0.5)', border: 'none', color: '#fff', fontSize: 13 }}>{tvBusy ? '…' : '🔍'}</button>
+          </div>
+          {tvResults.length > 0 && (
+            <div style={{ marginTop: 8, maxHeight: 180, overflowY: 'auto' }}>
+              {tvResults.map(r => (
+                <button key={r.videoId} data-hud onPointerDown={(e) => { e.preventDefault(); pickVideo(r.videoId, r.title); }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', marginBottom: 4, borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#e9d5ff', fontFamily: 'monospace', fontSize: 11.5 }}>
+                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>▶ {r.title}</div>
+                  <div style={{ color: 'rgba(233,213,255,0.4)', fontSize: 10, marginTop: 2 }}>{r.author}</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Player list panel */}
       {panel === 'players' && (
@@ -409,6 +470,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       {/* Right controls */}
       <div style={{ position: 'absolute', right: 24, bottom: 'max(52px, env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, opacity: showUI ? 1 : 0.25, transition: 'opacity .4s' }}>
         {hud.canInteract && roundBtn(hud.sitting ? '🧍' : (hud.canInteract.includes('🔥') ? '🔥' : hud.canInteract.includes('🎆') ? '🎆' : '🪑'), () => engineRef.current?.interact(), 62, true)}
+        {hud.nearScreen && roundBtn('📺', () => setTvPanel(v => !v), 54, tvPanel)}
         {/* Emote wheel */}
         {emoteOpen && (
           <div data-hud style={{ position: 'absolute', right: 60, bottom: 62, display: 'flex', gap: 8, background: 'rgba(12,10,24,0.75)', border: '1px solid rgba(192,132,252,0.3)', borderRadius: 30, padding: 8, backdropFilter: 'blur(8px)' }}>

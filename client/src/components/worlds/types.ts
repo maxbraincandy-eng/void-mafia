@@ -12,6 +12,8 @@ export interface WorldSeat { id: string; x: number; y: number; z: number; yaw: n
 export interface WorldInteractable { id: string; x: number; z: number; r: number; label: string; effect: () => void; }
 export type AmbientKind = 'ocean' | 'fire' | 'wind' | 'night';
 export interface AmbientSource { kind: AmbientKind; x: number; z: number; radius: number; }
+// A flat video screen the engine can project to the viewport (world cinema).
+export interface WorldScreen { x: number; y: number; z: number; w: number; h: number; ry: number; }
 
 export interface AvatarConfig { bodyColor: string; glowColor: string; }
 
@@ -26,6 +28,7 @@ export interface WorldContext {
   addSeat(s: WorldSeat): void;
   addInteractable(o: WorldInteractable): void;
   addAmbient(a: AmbientSource): void;
+  setScreen(s: WorldScreen): void;
   onUpdate(fn: (dt: number, elapsed: number) => void): void;
   disposables: (THREE.Texture | THREE.Material | THREE.BufferGeometry)[];
   // Live perf hint the engine keeps updating — worlds throttle expensive
