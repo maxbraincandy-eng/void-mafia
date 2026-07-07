@@ -36,7 +36,9 @@ export class Avatar {
 }
 
 function normalizeSpec(cfg: AvatarConfig | CharacterSpec): CharacterSpec {
-  if ((cfg as CharacterSpec).v === 1) return cfg as CharacterSpec;
+  // Any versioned spec (v1 payloads from older clients still render — missing
+  // v2 fields fall back at build time via the default merge below).
+  if (typeof (cfg as CharacterSpec).v === 'number') return { ...defaultSpec((cfg as CharacterSpec).gender ?? 'male'), ...(cfg as CharacterSpec), v: 2 };
   // Legacy {bodyColor, glowColor} → a sensible default character wearing that colour.
   const c = cfg as AvatarConfig;
   if (c.spec) return c.spec;

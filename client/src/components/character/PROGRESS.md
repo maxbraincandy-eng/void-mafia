@@ -36,6 +36,31 @@ accessory packs) without touching the UI or the spec.
 - Wiring: lazy overlay in `App.tsx`, a Games-tab "ავატარის შექმნა" card, and a
   one-time first-run prompt (`vm_char_prompted`).
 
+## v2 generation — Y2K / stylized-anime rebuild (v330)
+
+Full replacement of the v1 blocky model per the IMVU/Y2K reference sheets:
+
+- **Painted faces** (the big leap): each eye is a canvas-drawn decal — iris
+  radial gradient, pupil styles (round/cat/star/heart), sparkle highlights,
+  lash line + winged liner, eyeshadow halo; the face decal carries brows, lips
+  (with gloss), blush, freckles, beauty marks. Blink via eye-plane scale.
+- **Toon shading**: 3-step gradient ramp on all skin/hair/cloth (MeshToon) —
+  the clean "premium mobile game" look; metals (jewellery) stay PBR.
+- **Fashion proportions**: legs ≈ 51% of height, slim waist, female bust fixed
+  high on the chest (just below the shoulder line); sliders for shoulders +
+  leg length on top of build/height.
+- **Hair v2**: 12 styles incl. bob, wavy, twin tails; bangs toggle; gradient
+  two-tone hair (tips colour) — e.g. the reference's pink/black pigtails.
+- **Wardrobe v2**: crop tops, dresses, pleated skirts, shorts, cargo pockets,
+  platform shoes, thigh-high/knee/short socks, gloves; belts, necklaces,
+  earrings, hair clips.
+- Spec v2 with automatic v1 migration; worlds render v2 automatically via the
+  shared model (old v1 network payloads still render through a defaults merge).
+
+Reference-parity caveat (unchanged): the sheets are authored-asset quality;
+true parity needs GLTF packs, which the catalog/sub-builder architecture is
+ready to accept.
+
 ## Remaining phases (future)
 
 - **P2 — Face depth**: jaw/chin/cheek/nose/lip micro-sliders (needs morphs or
