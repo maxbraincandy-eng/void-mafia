@@ -45,6 +45,9 @@ export const beachCamp: WorldDef = {
     buildPhotoFrame(ctx);
     buildPier(ctx);
     buildHammock(ctx);
+    buildSkyLanterns(ctx);
+    buildFishing(ctx);
+    buildKaraoke(ctx);
     buildAirParticles(ctx);
 
     // ambient audio sources — ocean is faint far away and swells toward the
@@ -79,27 +82,83 @@ function buildSky(ctx: WorldContext) {
     arr[i * 3 + 2] = Math.sin(u) * Math.cos(v) * r;
   }
   const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(arr, 3));
-  const stars = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xdfe8ff, size: 0.9, sizeAttenuation: true, transparent: true, opacity: 0.9, fog: false }));
+  const starMat = new THREE.PointsMaterial({ color: 0xdfe8ff, size: 0.9, sizeAttenuation: true, transparent: true, opacity: 0.9, fog: false });
+  const stars = new THREE.Points(sg, starMat);
   scene.add(stars);
-  ctx.onUpdate((_d, e) => { stars.rotation.y = e * 0.004; (stars.material as THREE.PointsMaterial).opacity = 0.7 + Math.sin(e * 0.7) * 0.15; });
 
-  // moon + glow
-  const moonMesh = new THREE.Mesh(new THREE.CircleGeometry(9, 32), new THREE.MeshBasicMaterial({ color: 0xf4f6ff, fog: false }));
-  moonMesh.position.set(-30, 70, -170);
+  // moon disc + glow (rides the night side of the sky)
+  const moonMesh = new THREE.Mesh(new THREE.CircleGeometry(9, 32), new THREE.MeshBasicMaterial({ color: 0xf4f6ff, fog: false, transparent: true }));
   scene.add(moonMesh);
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTexture(0xbcd0ff), transparent: true, opacity: 0.6, depthWrite: false, fog: false }));
-  glow.position.copy(moonMesh.position); glow.scale.setScalar(46);
-  scene.add(glow);
+  const moonGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTexture(0xbcd0ff), transparent: true, opacity: 0.6, depthWrite: false, fog: false }));
+  moonGlow.scale.setScalar(46); scene.add(moonGlow);
+  // sun disc + glow (rides the day side, opposite the moon)
+  const sunMesh = new THREE.Mesh(new THREE.CircleGeometry(11, 32), new THREE.MeshBasicMaterial({ color: 0xfff2c0, fog: false, transparent: true }));
+  scene.add(sunMesh);
+  const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTexture(0xffd27a), transparent: true, opacity: 0, depthWrite: false, fog: false }));
+  sunGlow.scale.setScalar(66); scene.add(sunGlow);
 
   // soft clouds
   const cloudTex = cloudTexture();
+  const cloudMats: THREE.SpriteMaterial[] = [];
   for (let i = 0; i < 7; i++) {
-    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, color: 0x2a3550, transparent: true, opacity: rrng(0.25, 0.5), depthWrite: false, fog: false }));
+    const cm = new THREE.SpriteMaterial({ map: cloudTex, color: 0x2a3550, transparent: true, opacity: rrng(0.25, 0.5), depthWrite: false, fog: false });
+    cloudMats.push(cm);
+    const s = new THREE.Sprite(cm);
     s.position.set(rrng(-140, 140), rrng(40, 90), -170);
     s.scale.set(rrng(60, 110), rrng(24, 40), 1);
     scene.add(s);
     ctx.onUpdate((d) => { s.position.x += d * 0.4; if (s.position.x > 160) s.position.x = -160; });
   }
+
+  // ── Day/night cycle ────────────────────────────────────────────────
+  // A slow celestial orbit drives sky colour, star fade, sun/moon discs, and
+  // the scene's key + ambient light. Phase comes from wall-clock epoch (not the
+  // per-client elapsed) so every player on the beach sees the same time of day.
+  // One full day takes ~6 real minutes; it sweeps night → dawn → day → dusk.
+  const DAY_SECONDS = 360;
+  const cTop = mat.uniforms.top.value as THREE.Color, cBot = mat.uniforms.bot.value as THREE.Color;
+  const nightTop = new THREE.Color(0x030713), nightBot = new THREE.Color(0x14243f);
+  const dayTop = new THREE.Color(0x1f63b4), dayBot = new THREE.Color(0x8fc6ea);
+  const gold = new THREE.Color(0xff7a3c);
+  const moonCol = new THREE.Color(0x9fb6ff), noonCol = new THREE.Color(0xffffff), warmCol = new THREE.Color(0xffb27a);
+  const fogNight = new THREE.Color(0x0a1626), fogDay = new THREE.Color(0xa6c2d8);
+  const baseMoonKey = ctx.moon.intensity, baseAmb = ctx.ambientLight.intensity;
+  const smooth = (x: number) => x * x * (3 - 2 * x);
+  ctx.onUpdate((_d, e) => {
+    const t = (Date.now() / 1000 / DAY_SECONDS) % 1;      // 0..1 over a full day
+    const a = t * Math.PI * 2 - Math.PI / 2;               // t=0 → deepest night
+    const sy = Math.sin(a);                                // sun height, -1..1
+    const day = Math.max(0, sy);                           // 0 (night) .. 1 (noon)
+    const g = Math.max(0, 1 - Math.abs(sy) * 2.4);         // horizon glow (sunrise/sunset)
+    const dS = smooth(day);
+    // sky gradient
+    cTop.copy(nightTop).lerp(dayTop, dS);
+    cBot.copy(nightBot).lerp(dayBot, dS).lerp(gold, g * 0.55);
+    // stars fade out with daylight + gentle twinkle
+    starMat.opacity = (1 - day) * (0.72 + Math.sin(e * 0.7) * 0.14);
+    stars.rotation.y = e * 0.004;
+    // celestial bodies orbit the -Z sky (players face the ocean)
+    sunMesh.position.set(Math.cos(a) * 150, sy * 120 + 6, -165);
+    sunGlow.position.copy(sunMesh.position);
+    moonMesh.position.set(-Math.cos(a) * 150, -sy * 120 + 6, -165);
+    moonGlow.position.copy(moonMesh.position);
+    (sunMesh.material as THREE.MeshBasicMaterial).color.copy(noonCol).lerp(gold, g * 0.7);
+    (sunMesh.material as THREE.MeshBasicMaterial).opacity = Math.min(1, Math.max(0, (sy + 0.04) * 6));
+    sunGlow.material.opacity = Math.min(0.8, Math.max(0, (sy + 0.04) * 5) * (0.5 + g * 0.5));
+    (moonMesh.material as THREE.MeshBasicMaterial).opacity = Math.min(1, Math.max(0, (-sy + 0.04) * 6));
+    moonGlow.material.opacity = Math.min(0.6, Math.max(0, (-sy + 0.04) * 5));
+    // key light follows whichever body is up; warms at the horizon
+    const keyBody = sy >= 0 ? sunMesh.position : moonMesh.position;
+    ctx.moon.position.set(keyBody.x * 0.4, Math.max(8, keyBody.y * 0.5), keyBody.z * 0.4);
+    ctx.moon.intensity = baseMoonKey * (0.7 + day * 1.1);
+    (ctx.moon.color as THREE.Color).copy(moonCol).lerp(noonCol, dS).lerp(warmCol, g * 0.6);
+    ctx.ambientLight.intensity = baseAmb * (1 + day * 1.4);
+    // clouds brighten by day
+    for (const cm of cloudMats) cm.color.setHex(0x2a3550).lerp(new THREE.Color(0xdfe8f2), dS);
+    // fog tracks the horizon
+    const fog = scene.fog as THREE.FogExp2 | THREE.Fog | null;
+    if (fog) fog.color.copy(fogNight).lerp(fogDay, dS).lerp(gold, g * 0.3);
+  });
 }
 
 // ── Sand ──────────────────────────────────────────────────────────────
@@ -695,6 +754,180 @@ function buildHammock(ctx: WorldContext) {
   const d = 0.34, cx = Math.cos(RY), sx = Math.sin(RY);
   ctx.addSeat({ id: 'hammock-l', x: HX + cx * d, y: 0.82, z: HZ - sx * d, yaw: RY, pose: 'cuddleL' });
   ctx.addSeat({ id: 'hammock-r', x: HX - cx * d, y: 0.82, z: HZ + sx * d, yaw: RY, pose: 'cuddleR' });
+}
+
+// ── Sky lanterns: release a pair of glowing lanterns into the night ───
+// A romantic spot near the hammock. Each activation floats up TWO lanterns
+// (one per partner) that rise, sway, and fade — the interactable is networked
+// so everyone on the beach sees them lift off together.
+function buildSkyLanterns(ctx: WorldContext) {
+  const LX = -13.5, LZ = 9.5;
+  const g = new THREE.Group(); g.position.set(LX, 0, LZ); ctx.scene.add(g);
+  // a little basket of unlit lanterns waiting to be released
+  const basketMat = new THREE.MeshStandardMaterial({ color: 0x5a3a20, roughness: 1 });
+  const basket = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.32, 0.4, 10), basketMat);
+  basket.position.y = 0.2; basket.castShadow = true; g.add(basket);
+  for (let i = 0; i < 4; i++) {
+    const rest = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.24, 8), new THREE.MeshStandardMaterial({ color: 0xffcf7a, emissive: 0xff9a3c, emissiveIntensity: 0.5, roughness: 0.7 }));
+    rest.position.set(rrng(-0.18, 0.18), 0.5, rrng(-0.18, 0.18)); g.add(rest);
+  }
+  ctx.addCollider({ x: LX, z: LZ, r: 0.6 });
+
+  const glowMap = radialTexture(0xffb45a);
+  interface Lantern { grp: THREE.Group; light: THREE.PointLight; body: THREE.MeshStandardMaterial; halo: THREE.SpriteMaterial; y: number; vy: number; x: number; z: number; sway: number; life: number; }
+  const active: Lantern[] = [];
+
+  const release = (ox: number, oz: number) => {
+    const grp = new THREE.Group(); grp.position.set(LX + ox, 0.6, LZ + oz); ctx.scene.add(grp);
+    const body = new THREE.MeshStandardMaterial({ color: 0xffcf7a, emissive: 0xff8a2c, emissiveIntensity: 1.6, roughness: 0.6, transparent: true, opacity: 0.95 });
+    const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.36, 10), body); shade.position.y = 0.18; grp.add(shade);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.16, 0.08, 10), new THREE.MeshStandardMaterial({ color: 0x7a5330, roughness: 1 })); cap.position.y = 0.4; grp.add(cap);
+    const halo = new THREE.SpriteMaterial({ map: glowMap, color: 0xffb45a, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending });
+    const spr = new THREE.Sprite(halo); spr.scale.setScalar(1.4); spr.position.y = 0.18; grp.add(spr);
+    const light = new THREE.PointLight(0xffa53c, 1.1, 6, 2); light.position.y = 0.18; grp.add(light);
+    active.push({ grp, light, body, halo, y: 0.6, vy: 0.9 + Math.random() * 0.3, x: LX + ox, z: LZ + oz, sway: Math.random() * Math.PI * 2, life: 0 });
+    if (active.length > 16) { const old = active.shift()!; ctx.scene.remove(old.grp); }
+  };
+
+  ctx.addInteractable({
+    id: 'lantern', x: LX, z: LZ, r: 2.4, label: '🏮 გაუშვი ცის ფარანი',
+    effect: () => { release(-0.35, 0); release(0.35, 0.15); },   // a pair, for two
+  });
+
+  ctx.onUpdate((dt, e) => {
+    for (let i = active.length - 1; i >= 0; i--) {
+      const L = active[i];
+      L.life += dt; L.vy += dt * 0.08; L.y += L.vy * dt;
+      L.x += Math.sin(e * 0.6 + L.sway) * dt * 0.25;
+      L.grp.position.set(L.x, L.y, L.z);
+      L.grp.rotation.y += dt * 0.3;
+      const flick = 1.4 + Math.sin(e * 9 + L.sway) * 0.3;
+      L.body.emissiveIntensity = flick; L.light.intensity = flick * 0.8;
+      // fade out high up, then retire
+      if (L.y > 26) { const f = Math.max(0, 1 - (L.y - 26) / 10); L.body.opacity = 0.95 * f; L.halo.opacity = 0.7 * f; L.light.intensity *= f; }
+      if (L.y > 38) { ctx.scene.remove(L.grp); active.splice(i, 1); }
+    }
+  });
+}
+
+// ── Fishing off the pier: cast, wait for a bite, reel in a catch ───────
+function buildFishing(ctx: WorldContext) {
+  const FX = -6, FZ = -35.5;      // the seaward end of the pier
+  // a small rod resting against the rail
+  const g = new THREE.Group(); g.position.set(FX + 1.1, 0, FZ + 0.4); g.rotation.z = -0.5; ctx.scene.add(g);
+  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.035, 2.4, 6), new THREE.MeshStandardMaterial({ color: 0x2a1c10, roughness: 1 }));
+  rod.position.y = 1.0; g.add(rod);
+
+  // bobber floating on the water while a cast is out
+  const bobber = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 10), new THREE.MeshStandardMaterial({ color: 0xff3b52, emissive: 0x661016, emissiveIntensity: 0.4, roughness: 0.5 }));
+  bobber.position.set(FX, -0.05, FZ - 2); bobber.visible = false; ctx.scene.add(bobber);
+  const line = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(FX + 0.4, 2.1, FZ + 0.2), bobber.position.clone()]),
+    new THREE.LineBasicMaterial({ color: 0xdfe8ff, transparent: true, opacity: 0.4 }),
+  );
+  line.visible = false; ctx.scene.add(line);
+
+  const label = makeLabelSprite();
+  label.sprite.position.set(FX, 2.4, FZ - 1); label.sprite.visible = false; ctx.scene.add(label.sprite);
+
+  ctx.addCollider({ x: FX, z: FZ, r: 0.5 });
+
+  const FISH = ['🐟 ქაშაყი', '🐠 ტროპიკული თევზი', '🦑 კალმარი', '🦀 კიბო', '🐡 კვირჩხი', '🐙 რვაფეხა', '🥾 ძველი ჩექმა', '🐚 ნიჟარა', '⭐ ზღვის ვარსკვლავი'];
+  let casting = false, biteAt = 0, catchShownAt = 0;
+
+  const showLabel = (text: string, until: number) => { label.set(text); label.sprite.visible = true; catchShownAt = until; };
+
+  ctx.addInteractable({
+    id: 'fishing', x: FX, z: FZ, r: 2.6, label: '🎣 ითევზავე',
+    effect: () => {
+      if (casting) return;
+      casting = true;
+      bobber.visible = true; line.visible = true;
+      bobber.position.set(FX + (Math.random() - 0.5) * 1.5, -0.05, FZ - 2 - Math.random() * 1.5);
+      biteAt = performance.now() + 2500 + Math.random() * 3500;
+      showLabel('🎣 ...', biteAt + 400);
+    },
+  });
+
+  ctx.onUpdate((_d, e) => {
+    const now = performance.now();
+    if (casting) {
+      // bob on the swell; a sharper dip right at the bite
+      const near = biteAt - now;
+      bobber.position.y = -0.05 + Math.sin(e * 3) * 0.05 - (near < 500 && near > 0 ? 0.12 : 0);
+      const pa = line.geometry.attributes.position as THREE.BufferAttribute;
+      pa.setXYZ(1, bobber.position.x, bobber.position.y, bobber.position.z); pa.needsUpdate = true;
+      if (now >= biteAt) {
+        const fish = FISH[Math.floor(Math.random() * FISH.length)];
+        showLabel(fish, now + 3200);
+        casting = false; bobber.visible = false; line.visible = false;
+      }
+    }
+    if (label.sprite.visible && now >= catchShownAt) label.sprite.visible = false;
+  });
+}
+
+// ── Karaoke stage: a lit stage + mic; sing along to the cinema audio ──
+function buildKaraoke(ctx: WorldContext) {
+  const KX = 13, KZ = 15;
+  const g = new THREE.Group(); g.position.set(KX, 0, KZ); g.rotation.y = -2.4; ctx.scene.add(g);
+  // raised stage
+  const stage = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.6, 0.4, 24), new THREE.MeshStandardMaterial({ color: 0x241830, roughness: 0.7, metalness: 0.2 }));
+  stage.position.y = 0.2; stage.receiveShadow = true; g.add(stage);
+  // glowing edge strip
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(2.45, 0.06, 8, 32), new THREE.MeshStandardMaterial({ color: 0xff4da6, emissive: 0xff2f9e, emissiveIntensity: 1.5 }));
+  rim.rotation.x = Math.PI / 2; rim.position.y = 0.4; g.add(rim);
+  // back banner
+  const banner = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 1.1), new THREE.MeshBasicMaterial({ map: karaokeSignTexture(), transparent: true }));
+  banner.position.set(0, 2.5, -2.1); g.add(banner);
+  for (const sx of [-1.7, 1.7]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 3.2, 8), new THREE.MeshStandardMaterial({ color: 0x15171d, roughness: 0.7 })); p.position.set(sx, 1.6, -2.1); g.add(p); }
+  // mic on a stand, centre stage
+  const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 1.4, 8), new THREE.MeshStandardMaterial({ color: 0x0c0d10, roughness: 0.5, metalness: 0.5 }));
+  stand.position.set(0, 1.1, 0.4); g.add(stand);
+  const mic = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 12), new THREE.MeshStandardMaterial({ color: 0x2a2c34, roughness: 0.4, metalness: 0.6 }));
+  mic.position.set(0, 1.85, 0.4); g.add(mic);
+  // moving stage spots
+  const spotCols = [0xff4da6, 0x4da6ff, 0x8aff6a];
+  const spots = spotCols.map((c, i) => { const s = new THREE.SpotLight(c, 2.4, 12, 0.5, 0.6, 1.5); s.position.set(Math.cos(i * 2.1) * 1.8, 3.4, Math.sin(i * 2.1) * 1.8 - 1); s.target.position.set(0, 0.6, 0.4); g.add(s); g.add(s.target); return s; });
+  const disc = new THREE.PointLight(0xffffff, 0.8, 8, 2); disc.position.set(0, 3.6, 0); g.add(disc);
+
+  ctx.addCollider({ x: KX, z: KZ, r: 2.0 });
+  // a singer's spot: stand at the mic, facing the crowd (+ world, away from banner)
+  ctx.addSeat({ id: 'karaoke', x: KX + Math.sin(-2.4) * 0.4, y: 0.4, z: KZ + Math.cos(-2.4) * 0.4, yaw: -2.4 + Math.PI, pose: 'titanic' });
+
+  ctx.onUpdate((_d, e) => {
+    (rim.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.2 + Math.sin(e * 4) * 0.5;
+    spots.forEach((s, i) => { s.intensity = 2 + Math.sin(e * 5 + i * 2) * 1.4; s.target.position.x = Math.sin(e * 1.2 + i * 2.1) * 1.2; });
+    disc.intensity = 0.6 + Math.abs(Math.sin(e * 8)) * 0.6;
+  });
+}
+
+// A small transient text sprite (fishing catches, etc.).
+function makeLabelSprite() {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 128; const g = c.getContext('2d')!;
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false });
+  const sprite = new THREE.Sprite(mat); sprite.scale.set(4, 1, 1); sprite.renderOrder = 999;
+  const set = (text: string) => {
+    g.clearRect(0, 0, 512, 128);
+    g.fillStyle = 'rgba(8,10,22,0.72)';
+    const w = 512, h = 92, x = 0, y = 18, r = 24;
+    g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); g.fill();
+    g.font = 'bold 52px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = '#eaf2ff'; g.fillText(text, 256, 64);
+    tex.needsUpdate = true;
+  };
+  return { sprite, set };
+}
+
+// Neon "KARAOKE" banner texture.
+function karaokeSignTexture(): THREE.Texture {
+  const W = 512, H = 168; const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d')!;
+  g.clearRect(0, 0, W, H);
+  g.font = 'bold 92px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.shadowColor = '#ff2f9e'; g.shadowBlur = 26; g.fillStyle = '#ff8ad0'; g.fillText('🎤 KARAOKE', W / 2, H / 2);
+  g.shadowBlur = 0; g.fillStyle = '#ffffff'; g.fillText('🎤 KARAOKE', W / 2, H / 2);
+  return new THREE.CanvasTexture(c);
 }
 
 // ── Floating air particles (motes) ────────────────────────────────────
