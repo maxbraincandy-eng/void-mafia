@@ -14,6 +14,16 @@ export interface WorldHud {
   players: number;
 }
 
+export interface RemoteWorldPlayer { socketId: string; name: string; bodyColor: string; glowColor: string; x: number; z: number; ry: number; seatId: string | null; }
+export interface WorldNetState { x: number; z: number; ry: number; seatId: string | null; }
+
+interface RemoteEntry {
+  avatar: Avatar;
+  plate: THREE.Sprite;
+  target: { x: number; z: number; ry: number; seatId: string | null };
+  cur: { x: number; z: number; ry: number };
+}
+
 const EYE = 1.5;
 const WALK = 2.6, RUN = 5.4;
 const CAM_DIST = 5.2, CAM_HEIGHT = 2.1;
@@ -56,6 +66,11 @@ export class WorldEngine {
   // adaptive perf
   private perfAccum = 0; private perfFrames = 0; private curPR = 1;
 
+  // multiplayer
+  private remotes = new Map<string, RemoteEntry>();
+  private occupiedSeats = new Set<string>();
+  private speaking = new Set<string>();
+
   constructor(canvas: HTMLCanvasElement, def: WorldDef, avatar: AvatarConfig) {
     this.canvas = canvas;
     this.def = def;
@@ -93,6 +108,77 @@ export class WorldEngine {
   }
   emote() { this.avatar.wave(); }
   resumeAudio() { this.audioCtx?.resume?.().catch(() => {}); if (!this.audioCtx) this.startAudio(); }
+
+  // ── multiplayer ─────────────────────────────────────────────────────
+  getNetState(): WorldNetState { return { x: this.pos.x, z: this.pos.z, ry: this.facing, seatId: this.seated?.id ?? null }; }
+  getListener() { return { x: this.pos.x, z: this.pos.z, yaw: this.camYaw }; }
+  setSpeaking(ids: Set<string>) { this.speaking = ids; }
+
+  setRemotePlayers(list: RemoteWorldPlayer[]) {
+    const seen = new Set<string>();
+    const occ = new Set<string>();
+    for (const p of list) {
+      seen.add(p.socketId);
+      if (p.seatId) occ.add(p.seatId);
+      let e = this.remotes.get(p.socketId);
+      if (!e) {
+        const avatar = new Avatar({ bodyColor: p.bodyColor, glowColor: p.glowColor });
+        const plate = this.makeNameplate(p.name);
+        plate.position.y = 2.15;
+        avatar.group.add(plate);
+        this.scene.add(avatar.group);
+        e = { avatar, plate, target: { x: p.x, z: p.z, ry: p.ry, seatId: p.seatId }, cur: { x: p.x, z: p.z, ry: p.ry } };
+        this.remotes.set(p.socketId, e);
+      }
+      e.target = { x: p.x, z: p.z, ry: p.ry, seatId: p.seatId };
+    }
+    for (const [id, e] of this.remotes) {
+      if (seen.has(id)) continue;
+      this.scene.remove(e.avatar.group);
+      e.avatar.dispose();
+      (e.plate.material as THREE.SpriteMaterial).map?.dispose();
+      (e.plate.material as THREE.Material).dispose();
+      this.remotes.delete(id);
+    }
+    this.occupiedSeats = occ;
+  }
+
+  remoteWave(socketId: string) { this.remotes.get(socketId)?.avatar.wave(); }
+
+  private updateRemotes(dt: number) {
+    const k = Math.min(1, dt * 10);
+    for (const [id, e] of this.remotes) {
+      const px = e.cur.x, pz = e.cur.z;
+      e.cur.x += (e.target.x - e.cur.x) * k;
+      e.cur.z += (e.target.z - e.cur.z) * k;
+      let dry = e.target.ry - e.cur.ry;
+      while (dry > Math.PI) dry -= Math.PI * 2;
+      while (dry < -Math.PI) dry += Math.PI * 2;
+      e.cur.ry += dry * k;
+      const seat = e.target.seatId ? this.seats.find(s => s.id === e.target.seatId) : null;
+      e.avatar.group.position.set(e.cur.x, seat ? seat.y : 0, e.cur.z);
+      e.avatar.group.rotation.y = e.cur.ry;
+      const speed = Math.hypot(e.cur.x - px, e.cur.z - pz) / Math.max(dt, 0.001);
+      e.avatar.state = seat ? 'sit' : 'idle';
+      e.avatar.update(dt, seat ? 0 : speed);
+      const talk = this.speaking.has(id);
+      e.plate.scale.set(talk ? 1.9 : 1.7, talk ? 0.47 : 0.42, 1);
+    }
+  }
+
+  private makeNameplate(name: string): THREE.Sprite {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+    const g = c.getContext('2d')!;
+    g.font = 'bold 26px "Space Grotesk", monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    const w = g.measureText(name.slice(0, 16)).width + 28;
+    g.fillStyle = 'rgba(10,8,22,0.6)';
+    const rx = 128 - w / 2; roundRect(g, rx, 16, w, 32, 10); g.fill();
+    g.fillStyle = '#e9d5ff'; g.fillText(name.slice(0, 16), 128, 33);
+    const tex = new THREE.CanvasTexture(c);
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+    spr.scale.set(1.7, 0.42, 1);
+    return spr;
+  }
 
   start() {
     this.clock.start();
@@ -191,11 +277,12 @@ export class WorldEngine {
       }
     }
 
-    // nearest seat prompt
+    // nearest (free) seat prompt
     this.nearSeat = null;
     if (!this.seated) {
       let bd = 2.3 * 2.3;
       for (const s of this.seats) {
+        if (this.occupiedSeats.has(s.id)) continue;
         const dx = s.x - this.pos.x, dz = s.z - this.pos.z;
         const d = dx * dx + dz * dz;
         if (d < bd) { bd = d; this.nearSeat = s; }
@@ -210,6 +297,9 @@ export class WorldEngine {
 
     // third-person camera with ground clamp + collider pull-in
     this.updateCamera(dt);
+
+    // remote players
+    this.updateRemotes(dt);
 
     // world updates (waves, fire, wind…)
     for (const u of this.updates) u(dt, elapsed);
@@ -233,7 +323,7 @@ export class WorldEngine {
     this.hudAccum += dt;
     if (this.hudAccum > 0.2) {
       this.hudAccum = 0;
-      this.onHud?.({ world: this.def.name, sitting: !!this.seated, canInteract: this.seated ? 'ადექი' : this.nearSeat ? 'დაჯექი' : null, players: 1 });
+      this.onHud?.({ world: this.def.name, sitting: !!this.seated, canInteract: this.seated ? 'ადექი' : this.nearSeat ? 'დაჯექი' : null, players: 1 + this.remotes.size });
     }
 
     this.renderer.render(this.scene, this.camera);
@@ -372,4 +462,14 @@ export class WorldEngine {
       pan.pan.setTargetAtTime(p, this.audioCtx.currentTime, 0.3);
     }
   }
+}
+
+function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
 }

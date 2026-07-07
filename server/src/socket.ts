@@ -453,6 +453,43 @@ _spaceMeta.set('beach', {
   code: 'WAVEFIRE', createdAt: Date.now(), persistent: true,
 });
 
+// ── Premium Worlds (flagship 3D social spaces) ────────────────────────
+// One shared instance per world id (beach_camp, …). Presence + seats + wave,
+// spatial voice via its own world:voice-* mesh channel. Separate from both the
+// classic 2D Virtual Spaces and the Backrooms.
+interface WorldPlayer {
+  socketId: string; name: string; profileId: string | null;
+  bodyColor: string; glowColor: string;
+  x: number; z: number; ry: number; seatId: string | null;
+}
+const _worlds = new Map<string, Map<string, WorldPlayer>>();          // worldId → players
+const _worldVoice = new Map<string, Map<string, string>>();           // worldId → Map<socketId, name>
+const WORLD_MAX = 40;
+const WORLD_IDS = new Set(['beach_camp']);
+const _hex6 = (v: any, fallback: string) => (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v)) ? v : fallback;
+
+function _leaveWorldVoice(sid: string, io: AppServer): void {
+  for (const [worldId, voices] of _worldVoice) {
+    if (voices.has(sid)) {
+      voices.delete(sid);
+      io.to(`world:${worldId}`).emit('world:voice-peer-left' as any, { socketId: sid });
+      if (voices.size === 0) _worldVoice.delete(worldId);
+      return;
+    }
+  }
+}
+function _leaveWorld(sid: string, io: AppServer): void {
+  _leaveWorldVoice(sid, io);
+  for (const [worldId, room] of _worlds) {
+    if (room.has(sid)) {
+      room.delete(sid);
+      io.to(`world:${worldId}`).emit('world:player-left' as any, { socketId: sid });
+      if (room.size === 0) _worlds.delete(worldId);
+      return;
+    }
+  }
+}
+
 // ── Backrooms (3D horror mode) ────────────────────────────────────────
 // Phase 2: multiplayer presence. Each instance is a shared procedural world
 // keyed by a numeric `seed` so every player in it sees the same maze. State
@@ -7582,6 +7619,79 @@ export function attachSocketHandlers(io: AppServer): void {
       }
     });
 
+    // ── Premium Worlds — presence, seats, wave, spatial voice ──────────
+    socket.on('world:list' as any, (cb: Function) => {
+      const list = [...WORLD_IDS].map(id => ({ id, count: _worlds.get(id)?.size ?? 0 }));
+      cb?.({ ok: true, data: list });
+    });
+
+    socket.on('world:join' as any, ({ worldId, name, bodyColor, glowColor }: any, cb: Function) => {
+      try {
+        const id = String(worldId ?? '');
+        if (!WORLD_IDS.has(id)) return cb?.({ ok: false, error: 'ეს სამყარო არ არსებობს.' });
+        _leaveWorld(socket.id, io);
+        const room = _worlds.get(id) ?? new Map<string, WorldPlayer>();
+        if (!_worlds.has(id)) _worlds.set(id, room);
+        if (!room.has(socket.id) && room.size >= WORLD_MAX) return cb?.({ ok: false, error: 'სამყარო სავსეა.' });
+        const p: WorldPlayer = {
+          socketId: socket.id, name: String(name ?? 'Guest').slice(0, 24) || 'Guest',
+          profileId: socket.data.profileId ?? null,
+          bodyColor: _hex6(bodyColor, '#9b00ff'), glowColor: _hex6(glowColor, '#00e5ff'),
+          x: 0, z: 8.5, ry: 0, seatId: null,
+        };
+        room.set(socket.id, p);
+        socket.join(`world:${id}`);
+        socket.to(`world:${id}`).emit('world:player-joined' as any, p);
+        cb?.({ ok: true, data: { mySocketId: socket.id, players: [...room.values()] } });
+      } catch { cb?.({ ok: false, error: 'Internal error' }); }
+    });
+
+    socket.on('world:move' as any, ({ x, z, ry, seatId }: any) => {
+      if (typeof x !== 'number' || typeof z !== 'number') return;
+      for (const [worldId, room] of _worlds) {
+        const p = room.get(socket.id);
+        if (!p) continue;
+        p.x = x; p.z = z; p.ry = typeof ry === 'number' ? ry : p.ry;
+        // seat claim: only take a free seat; keep own; clear on stand
+        const sid = (seatId === null || typeof seatId === 'string') ? seatId : p.seatId;
+        if (sid && sid !== p.seatId) {
+          const taken = [...room.values()].some(o => o.socketId !== socket.id && o.seatId === sid);
+          p.seatId = taken ? null : sid;
+        } else if (sid === null) { p.seatId = null; }
+        socket.to(`world:${worldId}`).emit('world:player-moved' as any, { socketId: socket.id, x: p.x, z: p.z, ry: p.ry, seatId: p.seatId });
+        return;
+      }
+    });
+
+    socket.on('world:wave' as any, () => {
+      for (const [worldId, room] of _worlds) {
+        if (room.has(socket.id)) { socket.to(`world:${worldId}`).emit('world:wave' as any, { socketId: socket.id }); return; }
+      }
+    });
+
+    socket.on('world:leave' as any, () => { _leaveWorld(socket.id, io); });
+
+    // spatial voice mesh (own channel)
+    socket.on('world:voice-join' as any, (_: any, cb: Function) => {
+      for (const [worldId, room] of _worlds) {
+        if (room.has(socket.id)) {
+          if (!_worldVoice.has(worldId)) _worldVoice.set(worldId, new Map());
+          const voices = _worldVoice.get(worldId)!;
+          const peers = [...voices.entries()].map(([s, n]) => ({ socketId: s, name: n }));
+          voices.set(socket.id, room.get(socket.id)!.name);
+          socket.to(`world:${worldId}`).emit('world:voice-peer-joined' as any, { socketId: socket.id, name: room.get(socket.id)!.name });
+          const ice = buildIceConfig();
+          cb?.({ ok: true, data: { peers, iceServers: ice.iceServers, iceTransportPolicy: ice.iceTransportPolicy } });
+          return;
+        }
+      }
+      cb?.({ ok: false, error: 'Not in a world' });
+    });
+    socket.on('world:voice-leave' as any, () => { _leaveWorldVoice(socket.id, io); });
+    socket.on('world:voice-offer' as any, ({ to, sdp }: any) => { if (typeof to === 'string' && sdp) io.to(to).emit('world:voice-offer' as any, { from: socket.id, sdp }); });
+    socket.on('world:voice-answer' as any, ({ to, sdp }: any) => { if (typeof to === 'string' && sdp) io.to(to).emit('world:voice-answer' as any, { from: socket.id, sdp }); });
+    socket.on('world:voice-ice' as any, ({ to, candidate }: any) => { if (typeof to === 'string' && candidate) io.to(to).emit('world:voice-ice' as any, { from: socket.id, candidate }); });
+
     // ── Backrooms spatial voice (Phase 3) — mesh signaling per instance ─
     socket.on('backrooms:voice-join' as any, (_: any, cb: Function) => {
       for (const [instanceId, room] of _backrooms) {
@@ -7900,6 +8010,7 @@ export function attachSocketHandlers(io: AppServer): void {
       _leaveSpace(socket.id, io);
       _leaveSpaceVoice(socket.id, io);
       _leaveBackrooms(socket.id, io);
+      _leaveWorld(socket.id, io);
       handleVoiceLeave(io, socket.id);
       handleLoungeLeave(io, socket);
       handleCheckersDisconnect(io, socket.id);

@@ -14,7 +14,7 @@ features must never break.
 | **2 — Character polish** | ⏳ | Run dust, footprints in sand, better blending, more emotes (dance). |
 | **3 — Camera polish** | ⏳ | Full raycast camera collision vs meshes, shoulder offset, auto-frame. |
 | **4 — Beach Camp depth** | ⏳ | More scenery, night wildlife, tide, fireflies, real bloom (EffectComposer, perf-gated). |
-| **5 — Voice & social (multiplayer)** | ⏳ next | `world:*` socket presence (mirror `backrooms:*`), remote avatars, spatial voice reusing the mesh + `spatialAudio` layer, seat sync, nameplates, wave/emote broadcast. |
+| **5 — Voice & social (multiplayer)** | ✅ **DONE (v321)** | `world:*` socket presence (one shared instance per world), remote avatars reusing `Avatar` + nameplates, seat claim/sync (no double-sitting), wave broadcast, and spatial voice via a `world:voice-*` mesh feeding the shared `spatialAudio` spatializer. Mic button + speaking indicators + live player count. |
 | **6 — UI & HUD** | ⏳ | Player list, voice indicators, refined auto-hide, settings (quality). |
 | **7 — Optimization** | ⏳ | LOD, instancing for foliage, texture sizing, frustum culling audit, quality tiers. |
 | **8 — Additional worlds** | ⏳ | Cyber Lounge / Skyline Terrace / Yacht / Mountain Cabin (registry already stubs them). |
@@ -35,12 +35,29 @@ Bundling: Three.js is now a shared `three.module` chunk loaded on demand by both
 
 **Nothing in the classic 2D Virtual Spaces (`components/space/*`) was modified.**
 
-## Phase 5 starting point (next) — multiplayer + voice
+## Phase 5 — what shipped (v321) — multiplayer + spatial voice
 
-1. Server: `world:*` handlers mirroring `backrooms:*` — instances per world id,
-   join/move/leave, seat claim/release, wave broadcast.
-2. Engine: `setRemotePlayers()` reusing `Avatar` for peers + nameplates; sync
-   seat occupancy so two players can't share a seat.
-3. Voice: a `useWorldVoice` hook mirroring `useBackroomsVoice` on a `world:voice-*`
-   channel, feeding the existing `spatialAudio` spatializer with 3D positions.
-4. HUD: small player list + voice-speaking indicators.
+- **Server** (`socket.ts`): `WorldPlayer` state, `_worlds` (one shared instance
+  per world id) + `_worldVoice` maps, `_leaveWorld`/`_leaveWorldVoice` (wired
+  into disconnect). Handlers `world:list / join / move / leave / wave` +
+  `world:voice-{join,leave,offer,answer,ice}`. `world:move` also does seat claim
+  (only free seats; releases on stand) so two players can't share a seat.
+- **engine.ts**: `getNetState()`, `getListener()`, `setSpeaking()`,
+  `setRemotePlayers()` (reuses `Avatar` for peers, canvas nameplates, smoothed
+  interpolation, seated posture at the seat's height), `remoteWave()`; local
+  seat picker skips occupied seats; HUD player count = 1 + remotes.
+- **useWorldVoice.ts** (new): mesh voice on `world:voice-*` reusing the shared
+  `BackroomsSpatial` spatializer; `applyWorldSpatial()` driven from the loop.
+- **PremiumWorlds.tsx**: joins on enter (name + identity colours), streams
+  state ~12Hz, pushes remotes to the engine, mic button + speaking → nameplate
+  pulse, wave broadcasts to everyone, live player count + voice indicator.
+
+Reused verbatim: `WebRTCSession` and `components/backrooms/spatialAudio.ts`.
+Classic 2D Virtual Spaces remain untouched.
+
+## Phase 6 starting point (next) — UI & HUD
+
+1. Slide-out player list (avatars + names + speaking dots) from the top bar.
+2. Per-nameplate speaking ring in 3D (already have the pulse; add a colour ring).
+3. Quality settings (shadows on/off, render scale) persisted to localStorage.
+4. Refine auto-hide (don't hide while the interact/voice panel is relevant).

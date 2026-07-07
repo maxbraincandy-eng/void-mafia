@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { WorldEngine, type WorldHud } from './engine';
+import { socket, connectSocket, emitWithAck } from '@/lib/socket';
+import { useAuthStore } from '@/store/authStore';
+import { useWorldVoice, applyWorldSpatial, leaveWorldVoice } from '@/hooks/useWorldVoice';
+import { WorldEngine, type WorldHud, type RemoteWorldPlayer } from './engine';
 import { PREMIUM_WORLDS, getWorld } from './registry';
 import type { AvatarConfig } from './types';
 
@@ -91,12 +94,15 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   const [uiVisible, setUiVisible] = useState(true);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const voice = useWorldVoice();
   const [joy, setJoy] = useState({ active: false, ox: 0, oy: 0, kx: 0, ky: 0 });
   const moveTouch = useRef<{ id: number; ox: number; oy: number } | null>(null);
   const lookTouch = useRef<{ id: number; x: number; y: number } | null>(null);
   const keys = useRef<Record<string, boolean>>({});
   const mouseLook = useRef<{ x: number; y: number } | null>(null);
   const tapStart = useRef<{ x: number; y: number; t: number } | null>(null);
+  const players = useRef<Map<string, RemoteWorldPlayer>>(new Map());
+  const mySocketId = useRef('');
 
   const poke = useCallback(() => {
     setUiVisible(true);
@@ -108,12 +114,53 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     if (!canvasRef.current) return;
     const def = getWorld(worldId);
     if (!def || def.status !== 'live') { onExit(); return; }
-    const eng = new WorldEngine(canvasRef.current, def, readAvatar());
+    const av = readAvatar();
+    const eng = new WorldEngine(canvasRef.current, def, av);
     engineRef.current = eng;
     eng.onHud = setHud;
     eng.resize();
     eng.start();
     poke();
+
+    // ── multiplayer presence ──
+    connectSocket();
+    const pushRemotes = () => {
+      const list = [...players.current.values()].filter(p => p.socketId !== mySocketId.current);
+      eng.setRemotePlayers(list);
+    };
+    const onJoined = (p: RemoteWorldPlayer) => { players.current.set(p.socketId, p); pushRemotes(); };
+    const onLeft = ({ socketId }: { socketId: string }) => { players.current.delete(socketId); pushRemotes(); };
+    const onMoved = (p: any) => {
+      const cur = players.current.get(p.socketId);
+      if (cur) { cur.x = p.x; cur.z = p.z; cur.ry = p.ry; cur.seatId = p.seatId; }
+      pushRemotes();
+    };
+    const onWave = ({ socketId }: { socketId: string }) => eng.remoteWave(socketId);
+    socket.on('world:player-joined', onJoined);
+    socket.on('world:player-left', onLeft);
+    socket.on('world:player-moved', onMoved);
+    socket.on('world:wave', onWave);
+
+    emitWithAck<{ worldId: string; name: string; bodyColor: string; glowColor: string }, { ok: boolean; data?: { mySocketId: string; players: RemoteWorldPlayer[] } }>(
+      'world:join', { worldId, name: useAuthStore.getState().profile?.username ?? 'Guest', bodyColor: av.bodyColor, glowColor: av.glowColor },
+    ).then(res => {
+      if (res.ok && res.data) {
+        mySocketId.current = res.data.mySocketId;
+        players.current = new Map(res.data.players.map(p => [p.socketId, p]));
+        pushRemotes();
+      }
+    }).catch(() => {});
+
+    // ~12Hz: broadcast our state + drive spatial voice
+    const netIv = setInterval(() => {
+      if (!engineRef.current) return;
+      const s = engineRef.current.getNetState();
+      if (socket.connected) socket.emit('world:move', s);
+      const L = engineRef.current.getListener();
+      const peers = [...players.current.values()].filter(p => p.socketId !== mySocketId.current)
+        .map(p => ({ socketId: p.socketId, x: p.x, z: p.z, occ: 0 }));
+      applyWorldSpatial(L, peers);
+    }, 85);
 
     const doResize = () => { eng.resize(); window.scrollTo(0, 0); };
     const onResize = () => { doResize(); setTimeout(doResize, 250); setTimeout(doResize, 700); };
@@ -133,6 +180,14 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       window.removeEventListener('orientationchange', onResize);
       vv?.removeEventListener('resize', onResize);
       document.removeEventListener('visibilitychange', onVis);
+      socket.off('world:player-joined', onJoined);
+      socket.off('world:player-left', onLeft);
+      socket.off('world:player-moved', onMoved);
+      socket.off('world:wave', onWave);
+      clearInterval(netIv);
+      leaveWorldVoice();
+      socket.emit('world:leave');
+      players.current.clear();
       if (idleTimer.current) clearTimeout(idleTimer.current);
       try { wake?.release?.(); } catch { /* ignore */ }
       eng.dispose();
@@ -146,7 +201,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     const kd = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase(); keys.current[k] = true;
       if (k === 'e' || k === ' ') engineRef.current?.interact();
-      if (k === 'q') engineRef.current?.emote();
+      if (k === 'q') { engineRef.current?.emote(); if (socket.connected) socket.emit('world:wave'); }
       if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
     };
     const ku = (e: KeyboardEvent) => { keys.current[e.key.toLowerCase()] = false; };
@@ -164,6 +219,11 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     }, 33);
     return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); clearInterval(iv); };
   }, []);
+
+  // reflect who's talking onto remote nameplates
+  useEffect(() => { engineRef.current?.setSpeaking(voice.speakingIds); }, [voice.speakingIds]);
+
+  const doWave = () => { engineRef.current?.emote(); if (socket.connected) socket.emit('world:wave'); };
 
   const isCtl = (t: EventTarget | null) => t instanceof HTMLElement && t.closest('[data-hud]') != null;
 
@@ -233,6 +293,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(16,12,32,0.5)', border: '1px solid rgba(192,132,252,0.25)', borderRadius: 20, padding: '6px 14px', backdropFilter: 'blur(6px)' }}>
           <span style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 12, letterSpacing: 1, color: '#e9d5ff' }}>{hud.world}</span>
           <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(233,213,255,0.5)' }}>👤 {hud.players}</span>
+          {voice.joined && <span style={{ fontFamily: 'monospace', fontSize: 11, color: voice.muted ? 'rgba(233,213,255,0.4)' : '#8effc0' }}>{voice.muted ? '🔇' : '🎙️'}</span>}
         </div>
         <div style={{ flex: 1 }} />
         {roundBtn('🚪', onExit, 40)}
@@ -253,7 +314,10 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       {/* Right controls */}
       <div style={{ position: 'absolute', right: 24, bottom: 'max(52px, env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, opacity: uiVisible ? 1 : 0.25, transition: 'opacity .4s' }}>
         {hud.canInteract && roundBtn(hud.sitting ? '🧍' : '🪑', () => engineRef.current?.interact(), 62, true)}
-        {roundBtn('👋', () => engineRef.current?.emote(), 50)}
+        <div style={{ display: 'flex', gap: 12 }}>
+          {roundBtn(voice.joined ? (voice.muted ? '🔇' : '🎙️') : '🎙️', () => { if (!voice.joined) voice.joinVoice(); else voice.toggleMute(); }, 50, voice.joined && !voice.muted)}
+          {roundBtn('👋', doWave, 50)}
+        </div>
       </div>
 
       {/* Interact hint */}
