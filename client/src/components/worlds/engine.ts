@@ -235,10 +235,12 @@ export class WorldEngine {
       while (dry < -Math.PI) dry += Math.PI * 2;
       e.cur.ry += dry * k;
       const seat = e.target.seatId ? this.seats.find(s => s.id === e.target.seatId) : null;
-      e.avatar.group.position.set(e.cur.x, seat ? seat.y : 0, e.cur.z);
+      const pose = seat?.pose ?? null;
+      e.avatar.group.position.set(e.cur.x, seat && !pose ? seat.y : 0, e.cur.z);
       e.avatar.group.rotation.y = e.cur.ry;
       const speed = Math.hypot(e.cur.x - px, e.cur.z - pz) / Math.max(dt, 0.001);
-      e.avatar.state = seat ? 'sit' : 'idle';
+      e.avatar.state = seat && !pose ? 'sit' : 'idle';
+      e.avatar.holdPose = pose;
       e.avatar.update(dt, seat ? 0 : speed);
       const talk = this.speaking.has(id);
       e.plate.scale.set(talk ? 1.9 : 1.7, talk ? 0.47 : 0.42, 1);
@@ -384,7 +386,8 @@ export class WorldEngine {
     // avatar transform + animation
     this.avatar.group.position.set(this.pos.x, this.pos.y, this.pos.z);
     this.avatar.group.rotation.y = this.facing;
-    this.avatar.state = this.seated ? 'sit' : 'idle';
+    this.avatar.state = this.seated && !this.seated.pose ? 'sit' : 'idle';
+    this.avatar.holdPose = this.seated?.pose ?? null;
     this.avatar.update(dt, moveSpeed);
 
     // third-person camera with ground clamp + collider pull-in
@@ -419,7 +422,7 @@ export class WorldEngine {
     if (this.hudAccum > 0.2) {
       this.hudAccum = 0;
       this.nearScreen = !!this.screen && Math.hypot(this.screen.x - this.pos.x, this.screen.z - this.pos.z) < 9;
-      const label = this.seated ? 'ადექი' : this.nearObj ? this.nearObj.label : this.nearSeat ? 'დაჯექი' : null;
+      const label = this.seated ? (this.seated.pose ? '🚢 ჩამოდი' : 'ადექი') : this.nearObj ? this.nearObj.label : this.nearSeat ? (this.nearSeat.pose ? '🚢 დადექი' : 'დაჯექი') : null;
       this.onHud?.({ world: this.def.name, sitting: !!this.seated, canInteract: label, players: 1 + this.remotes.size, nearScreen: this.nearScreen });
     }
 

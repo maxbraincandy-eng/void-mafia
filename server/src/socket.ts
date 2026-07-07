@@ -7715,6 +7715,18 @@ export function attachSocketHandlers(io: AppServer): void {
       io.to(`world:${wid}`).emit('world:tv' as any, null);
     });
 
+    // Invite a friend into the world you're in.
+    socket.on('world:invite' as any, ({ targetProfileId }: any, cb: Function) => {
+      try {
+        const wid = _worldOf(); if (!wid) return cb?.({ ok: false, error: 'You are not in a world.' });
+        const targetSock = findSocketByProfile(io as any, String(targetProfileId));
+        if (!targetSock) return cb?.({ ok: false, error: 'მოთამაშე ოფლაინია.' });
+        const fromName = _worlds.get(wid)?.get(socket.id)?.name ?? 'Someone';
+        targetSock.emit('world:invited', { worldId: wid, fromName });
+        cb?.({ ok: true });
+      } catch { cb?.({ ok: false, error: 'Internal error' }); }
+    });
+
     // spatial voice mesh (own channel)
     socket.on('world:voice-join' as any, (_: any, cb: Function) => {
       for (const [worldId, room] of _worlds) {

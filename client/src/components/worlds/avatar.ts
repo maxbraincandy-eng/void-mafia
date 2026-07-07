@@ -14,6 +14,7 @@ export interface AvatarConfig { bodyColor: string; glowColor: string; spec?: Cha
 export class Avatar {
   group: THREE.Group;
   state: AvatarState = 'idle';
+  holdPose: string | null = null;   // e.g. 'titanic' — a standing held pose
   private model: CharacterModel;
   private inner: THREE.Group;
   private elapsed = 0;
@@ -39,9 +40,9 @@ export class Avatar {
   update(dt: number, speed: number) {
     this.elapsed += dt;
     const sit = this.state === 'sit';
-    this.model.setPose(sit ? 0 : speed, sit);
-    // smooth drop/rise when sitting down / standing up
-    const target = sit ? -this.sitDrop : 0;
+    this.model.setPose(sit ? 0 : speed, sit, this.holdPose);
+    // drop the body onto a seat, but pose-holds (e.g. titanic) stand upright
+    const target = sit && !this.holdPose ? -this.sitDrop : 0;
     this.inner.position.y += (target - this.inner.position.y) * Math.min(1, dt * 10);
     this.model.update(dt, this.elapsed);
   }

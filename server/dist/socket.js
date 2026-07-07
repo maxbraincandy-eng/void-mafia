@@ -8943,6 +8943,23 @@ export function attachSocketHandlers(io) {
             _worldTV.delete(wid);
             io.to(`world:${wid}`).emit('world:tv', null);
         });
+        // Invite a friend into the world you're in.
+        socket.on('world:invite', ({ targetProfileId }, cb) => {
+            try {
+                const wid = _worldOf();
+                if (!wid)
+                    return cb?.({ ok: false, error: 'You are not in a world.' });
+                const targetSock = findSocketByProfile(io, String(targetProfileId));
+                if (!targetSock)
+                    return cb?.({ ok: false, error: 'მოთამაშე ოფლაინია.' });
+                const fromName = _worlds.get(wid)?.get(socket.id)?.name ?? 'Someone';
+                targetSock.emit('world:invited', { worldId: wid, fromName });
+                cb?.({ ok: true });
+            }
+            catch {
+                cb?.({ ok: false, error: 'Internal error' });
+            }
+        });
         // spatial voice mesh (own channel)
         socket.on('world:voice-join', (_, cb) => {
             for (const [worldId, room] of _worlds) {

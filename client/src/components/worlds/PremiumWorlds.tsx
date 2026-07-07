@@ -40,8 +40,8 @@ function exitImmersive() {
   try { if (document.fullscreenElement) document.exitFullscreen?.(); } catch { /* ignore */ }
 }
 
-export default function PremiumWorlds({ onClose }: { onClose: () => void }) {
-  const [worldId, setWorldId] = useState<string | null>(null);
+export default function PremiumWorlds({ onClose, initialWorldId }: { onClose: () => void; initialWorldId?: string | null }) {
+  const [worldId, setWorldId] = useState<string | null>(initialWorldId ?? null);
   if (!worldId) return <Lobby onEnter={(id) => { enterImmersive(); setWorldId(id); }} onClose={onClose} />;
   return <World worldId={worldId} onExit={() => { exitImmersive(); setWorldId(null); }} onClose={() => { exitImmersive(); onClose(); }} />;
 }
@@ -107,6 +107,9 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   const [tvResults, setTvResults] = useState<{ videoId: string; title: string; author: string }[]>([]);
   const [tvBusy, setTvBusy] = useState(false);
   const [tvFocused, setTvFocused] = useState(false);
+  const [invitePanel, setInvitePanel] = useState(false);
+  const [friends, setFriends] = useState<{ profileId: string; username: string; avatarUrl: string | null }[] | null>(null);
+  const [invited, setInvited] = useState<Set<string>>(new Set());
   const [uiVisible, setUiVisible] = useState(true);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -139,6 +142,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     if (!canvasRef.current) return;
     const def = getWorld(worldId);
     if (!def || def.status !== 'live') { onExit(); return; }
+    enterImmersive(); // covers the invite path that skips the lobby
     const mySpec = readSpec();
     const eng = new WorldEngine(canvasRef.current, def, mySpec);
     engineRef.current = eng;
@@ -308,6 +312,11 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       .catch(() => { setTvBusy(false); setTvResults([]); });
   };
   const pickVideo = (videoId: string, title: string) => { socket.emit('world:tv-set', { videoId, title }); setTvPanel(false); setTvResults([]); setTvQuery(''); };
+  const openInvite = () => {
+    setInvitePanel(v => !v); poke();
+    if (!friends) emitWithAck<void, { ok: boolean; data?: any[] }>('friend:invitable_list').then(r => setFriends(r.ok && r.data ? r.data.map((p: any) => ({ profileId: p.profileId, username: p.username, avatarUrl: p.avatarUrl ?? null })) : [])).catch(() => setFriends([]));
+  };
+  const inviteFriend = (pid: string) => { emitWithAck('world:invite', { targetProfileId: pid }).catch(() => {}); setInvited(s => new Set(s).add(pid)); };
 
   const isCtl = (t: EventTarget | null) => t instanceof HTMLElement && t.closest('[data-hud]') != null;
 
@@ -395,10 +404,28 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
           {voice.joined && <span style={{ fontFamily: 'monospace', fontSize: 11, color: voice.muted ? 'rgba(233,213,255,0.4)' : '#8effc0' }}>{voice.muted ? '🔇' : '🎙️'}</span>}
         </button>
         <div style={{ flex: 1 }} />
+        {roundBtn('✉️', openInvite, 40, invitePanel)}
         {roundBtn('⚙️', () => setPanel(p => p === 'settings' ? null : 'settings'), 40, panel === 'settings')}
         {roundBtn('🚪', onExit, 40)}
         {roundBtn('✕', onClose, 40)}
       </div>
+
+      {/* Invite friends to this world */}
+      {invitePanel && (
+        <div data-hud style={{ position: 'absolute', top: 'max(62px, calc(env(safe-area-inset-top) + 50px))', right: 14, width: 'min(260px, 74vw)', maxHeight: '60vh', overflowY: 'auto', background: 'rgba(12,10,24,0.95)', border: '1px solid rgba(192,132,252,0.35)', borderRadius: 14, padding: 10, backdropFilter: 'blur(12px)', zIndex: 30 }}>
+          <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(233,213,255,0.55)', margin: '2px 4px 8px' }}>✉️ მოიწვიე მეგობარი</div>
+          {!friends && <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(233,213,255,0.4)', padding: 8 }}>…</div>}
+          {friends && friends.length === 0 && <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(233,213,255,0.4)', padding: 8 }}>ონლაინ მეგობარი არ არის</div>}
+          {friends && friends.map(f => (
+            <button key={f.profileId} data-hud disabled={invited.has(f.profileId)} onPointerDown={(e) => { e.preventDefault(); inviteFriend(f.profileId); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '7px 8px', marginBottom: 3, borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#e9d5ff', opacity: invited.has(f.profileId) ? 0.55 : 1 }}>
+              <div style={{ width: 26, height: 26, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'rgba(124,58,237,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>{f.avatarUrl ? <img src={f.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '🙂'}</div>
+              <span style={{ flex: 1, minWidth: 0, fontFamily: 'monospace', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.username}</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 11, color: invited.has(f.profileId) ? '#8effc0' : '#c084fc' }}>{invited.has(f.profileId) ? '✓' : 'მოწვევა'}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Cinema panel — search / paste a YouTube video for everyone.
           While the input is focused it anchors to the TOP so the on-screen
@@ -475,7 +502,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
 
       {/* Right controls */}
       <div style={{ position: 'absolute', right: 24, bottom: 'max(52px, env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, opacity: showUI ? 1 : 0.25, transition: 'opacity .4s' }}>
-        {hud.canInteract && roundBtn(hud.sitting ? '🧍' : (hud.canInteract.includes('🔥') ? '🔥' : hud.canInteract.includes('🎆') ? '🎆' : '🪑'), () => engineRef.current?.interact(), 62, true)}
+        {hud.canInteract && roundBtn(hud.sitting ? '🧍' : (hud.canInteract.includes('🔥') ? '🔥' : hud.canInteract.includes('🎆') ? '🎆' : hud.canInteract.includes('🚢') ? '🚢' : '🪑'), () => engineRef.current?.interact(), 62, true)}
         {hud.nearScreen && roundBtn('📺', () => setTvPanel(v => !v), 54, tvPanel)}
         {/* Emote wheel */}
         {emoteOpen && (

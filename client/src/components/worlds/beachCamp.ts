@@ -39,6 +39,8 @@ export const beachCamp: WorldDef = {
     buildDbSign(ctx);
     buildFireworks(ctx);
     buildCinema(ctx);
+    buildBar(ctx);
+    buildShip(ctx);
     buildAirParticles(ctx);
 
     // ambient audio sources — ocean is faint far away and swells toward the
@@ -529,6 +531,74 @@ function buildCinema(ctx: WorldContext) {
     ctx.addCollider({ x: sx, z: sz, r: 0.5 });
     ctx.addSeat({ id: `cinema${i}`, x: sx, y: 0.44, z: sz, yaw });
   });
+}
+
+// ── Beach bar (tiki) with stools ──────────────────────────────────────
+function buildBar(ctx: WorldContext) {
+  const BX = -17, BZ = -3;
+  const g = new THREE.Group(); g.position.set(BX, 0, BZ); g.rotation.y = 0.5; ctx.scene.add(g);
+  const woodDark = new THREE.MeshStandardMaterial({ color: 0x5a3a20, roughness: 1 });
+  const woodTop = new THREE.MeshStandardMaterial({ color: 0x7a5330, roughness: 0.9 });
+  // counter
+  const base = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.0, 0.9), woodDark); base.position.set(0, 0.5, 0); base.castShadow = true; base.receiveShadow = true; g.add(base);
+  const top = new THREE.Mesh(new THREE.BoxGeometry(3.7, 0.12, 1.1), woodTop); top.position.set(0, 1.06, 0); top.castShadow = true; g.add(top);
+  // back shelf with bottles
+  const shelf = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.1, 0.35), woodDark); shelf.position.set(0, 1.4, -0.7); g.add(shelf);
+  const bottleCols = [0x6aff9e, 0xff6a8a, 0x6ab0ff, 0xffcf6a, 0xc06bff];
+  for (let i = 0; i < 7; i++) {
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.28 + (i % 3) * 0.06, 6), new THREE.MeshStandardMaterial({ color: bottleCols[i % bottleCols.length], roughness: 0.3, metalness: 0.1, transparent: true, opacity: 0.85 }));
+    b.position.set(-1.5 + i * 0.5, 1.6, -0.7); g.add(b);
+  }
+  // thatch roof (cone) on four posts
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(2.9, 1.3, 4), new THREE.MeshStandardMaterial({ color: 0x8a6a3a, roughness: 1 }));
+  roof.position.set(0, 3.0, 0); roof.rotation.y = Math.PI / 4; roof.castShadow = true; g.add(roof);
+  for (const [px, pz] of [[-1.7, 0.7], [1.7, 0.7], [-1.7, -0.7], [1.7, -0.7]]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 2.4, 6), woodDark); post.position.set(px, 1.2, pz); post.castShadow = true; g.add(post);
+  }
+  // warm bar light
+  const l = new THREE.PointLight(0xffb45a, 1.6, 9, 2); l.position.set(0, 2.3, 0); g.add(l);
+  ctx.onUpdate((_d, e) => { l.intensity = 1.4 + Math.sin(e * 6) * 0.2; });
+  ctx.addCollider({ x: BX, z: BZ, r: 2.0 });
+  // stools (seats) in front of the counter, facing it
+  for (let i = 0; i < 3; i++) {
+    const lx = -1 + i * 1.0, lz = 1.15;
+    const wx = BX + lx * Math.cos(0.5) - lz * Math.sin(0.5);
+    const wz = BZ + lx * Math.sin(0.5) + lz * Math.cos(0.5);
+    const stool = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.22, 0.6, 10), woodDark);
+    stool.position.set(wx, 0.3, wz); stool.castShadow = true; ctx.scene.add(stool);
+    ctx.addCollider({ x: wx, z: wz, r: 0.35 });
+    ctx.addSeat({ id: `bar${i}`, x: wx, y: 0.62, z: wz, yaw: Math.atan2(wx - BX, wz - BZ) });
+  }
+}
+
+// ── A ship in the shallows you can board (with a bow "titanic" pose) ───
+function buildShip(ctx: WorldContext) {
+  const SX = -23, SZ = -30;      // in the shallow water near the west shore
+  const g = new THREE.Group(); g.position.set(SX, 0, SZ); g.rotation.y = 0.15; ctx.scene.add(g);
+  const hullMat = new THREE.MeshStandardMaterial({ color: 0x4a2f1c, roughness: 0.85 });
+  const deckMat = new THREE.MeshStandardMaterial({ color: 0x7a5836, roughness: 0.9 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0xe8e2d0, roughness: 0.7 });
+  // hull (bow points -Z, out to sea)
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.3, 7), hullMat); hull.position.set(0, 0.5, 0); hull.castShadow = true; hull.receiveShadow = true; g.add(hull);
+  const bow = new THREE.Mesh(new THREE.ConeGeometry(1.3, 2.4, 4), hullMat); bow.rotation.x = Math.PI / 2; bow.rotation.y = Math.PI / 4; bow.position.set(0, 0.6, -4.1); bow.scale.set(1, 1, 0.6); g.add(bow);
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.14, 6.8), deckMat); deck.position.set(0, 1.15, 0); deck.castShadow = true; g.add(deck);
+  // cabin
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.0, 1.8), deckMat); cabin.position.set(0, 1.7, 2.2); cabin.castShadow = true; g.add(cabin);
+  // mast + sail
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 5, 8), hullMat); mast.position.set(0, 3.6, 0.5); mast.castShadow = true; g.add(mast);
+  const sail = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 3), new THREE.MeshStandardMaterial({ color: 0xf3ecdc, roughness: 0.9, side: THREE.DoubleSide }));
+  sail.position.set(0, 3.6, 0.55); g.add(sail);
+  ctx.onUpdate((_d, e) => { sail.scale.x = 1 + Math.sin(e * 1.4) * 0.05; sail.rotation.y = Math.sin(e * 0.8) * 0.08; g.position.y = Math.sin(e * 0.9) * 0.05; });
+  // bow railing (the pose bar)
+  const railMat = trimMat;
+  const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.2, 8), railMat); rail.rotation.z = Math.PI / 2; rail.position.set(0, 1.7, -3.4); g.add(rail);
+  for (const px of [-1, 1]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.6, 6), railMat); p.position.set(px, 1.45, -3.4); g.add(p); }
+  // hull colliders (walk around, not through)
+  ctx.addCollider({ x: SX, z: SZ + 1.5, r: 1.6 });
+  ctx.addCollider({ x: SX, z: SZ - 2, r: 1.4 });
+  // two bow "titanic" pose spots facing out to sea (-Z)
+  ctx.addSeat({ id: 'bow1', x: SX - 0.35, y: 1.35, z: SZ - 3.0, yaw: 0.15, pose: 'titanic' });
+  ctx.addSeat({ id: 'bow2', x: SX + 0.35, y: 1.35, z: SZ - 2.4, yaw: 0.15, pose: 'titanic' });
 }
 
 // ── Floating air particles (motes) ────────────────────────────────────

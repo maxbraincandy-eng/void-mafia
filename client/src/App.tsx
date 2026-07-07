@@ -51,6 +51,9 @@ const Backrooms = lazy(() => import('@/components/backrooms/Backrooms'));
 const PremiumWorlds = lazy(() => import('@/components/worlds/PremiumWorlds'));
 // Character Creator (3D avatar) — lazy-loaded.
 const CharacterCreator = lazy(() => import('@/components/character/CharacterCreator'));
+// Premium world display names (kept here so the invite prompt doesn't pull the
+// lazy worlds chunk into the main bundle).
+const PREMIUM_WORLD_NAMES: Record<string, string> = { beach_camp: 'Beach Camp 3D' };
 import { attachGlobalClickSounds, onSettingsChange } from '@/lib/audioEngine';
 import { useSettingsStore } from '@/store/settingsStore';
 import { socket } from '@/lib/socket';
@@ -346,6 +349,8 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const [spaceCode, setSpaceCode] = useState<string | null>(null);
   const [backroomsOpen, setBackroomsOpen] = useState(false);
   const [premiumOpen, setPremiumOpen] = useState(false);
+  const [premiumWorldId, setPremiumWorldId] = useState<string | null>(null);
+  const [worldInvite, setWorldInvite] = useState<{ worldId: string; fromName: string } | null>(null);
   const [characterOpen, setCharacterOpen] = useState(false);
   const [spaceInvite, setSpaceInvite] = useState<{ spaceId: string; code: string; name: string; icon: string; fromName: string } | null>(null);
   const [modOpen, setModOpen] = useState(false);
@@ -384,7 +389,9 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       setSpaceInvite(data);
     };
     (socket as any).on('space:invited', onInvited);
-    return () => { (socket as any).off('space:invited', onInvited); };
+    const onWorldInvited = (data: { worldId: string; fromName: string }) => setWorldInvite(data);
+    (socket as any).on('world:invited', onWorldInvited);
+    return () => { (socket as any).off('space:invited', onInvited); (socket as any).off('world:invited', onWorldInvited); };
   }, []);
 
   // Presence "Join" → open the requested lounge by code from anywhere.
@@ -486,8 +493,24 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       )}
       {premiumOpen && (
         <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: '#05060d', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(233,213,255,0.6)', fontFamily: 'monospace', letterSpacing: 3, fontSize: 13 }}>ჩატვირთვა…</div>}>
-          <PremiumWorlds onClose={() => setPremiumOpen(false)} />
+          <PremiumWorlds initialWorldId={premiumWorldId} onClose={() => { setPremiumOpen(false); setPremiumWorldId(null); }} />
         </Suspense>
+      )}
+      {worldInvite && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 2900, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ width: 'min(320px,86vw)', borderRadius: 20, padding: '24px 20px', background: 'rgba(14,10,26,0.98)', border: '1px solid rgba(192,132,252,0.35)', textAlign: 'center', boxShadow: '0 16px 60px rgba(0,0,0,0.6)' }}>
+            <div style={{ fontSize: 40, marginBottom: 6 }}>✨</div>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#fff', marginBottom: 4 }}><b style={{ color: '#c084fc' }}>{worldInvite.fromName}</b> გიწვევს</p>
+            <p style={{ fontFamily: 'monospace', fontSize: 13, color: '#c084fc', marginBottom: 20 }}>{PREMIUM_WORLD_NAMES[worldInvite.worldId] ?? 'Premium World'}</p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => { const inv = worldInvite; setWorldInvite(null); setPremiumWorldId(inv.worldId); setPremiumOpen(true); }}
+                style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', fontFamily: 'monospace', fontWeight: 700, fontSize: 13, color: '#fff', background: 'linear-gradient(135deg,#7c3aed,#c026d3)' }}>შესვლა</button>
+              <button onClick={() => setWorldInvite(null)}
+                style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontFamily: 'monospace', fontWeight: 700, fontSize: 13, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }}>არა</button>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
       {characterOpen && (
         <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 2200, background: '#08060f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(233,213,255,0.6)', fontFamily: 'monospace', letterSpacing: 3, fontSize: 13 }}>ჩატვირთვა…</div>}>

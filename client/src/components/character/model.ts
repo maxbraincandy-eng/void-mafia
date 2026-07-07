@@ -17,7 +17,7 @@ export type CharEmote = 'wave' | 'dance' | 'clap' | 'heart' | 'laugh';
 export interface CharacterModel {
   group: THREE.Group;
   update: (dt: number, elapsed: number) => void;
-  setPose: (speed: number, sitting: boolean) => void;
+  setPose: (speed: number, sitting: boolean, hold?: string | null) => void;
   emote: (kind: CharEmote) => void;
   dispose: () => void;
 }
@@ -230,10 +230,10 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
 
   // ── Animation (breathing / blink / locomotion / emotes) ──────────────
   let blinkT = 2 + Math.random() * 3;
-  let poseSpeed = 0, sitting = false, walkPhase = 0;
+  let poseSpeed = 0, sitting = false, walkPhase = 0, holdPose: string | null = null;
   let emoteKind: CharEmote | null = null, emoteUntil = 0;
 
-  const setPose = (speed: number, sit: boolean) => { poseSpeed = speed; sitting = sit; };
+  const setPose = (speed: number, sit: boolean, hold?: string | null) => { poseSpeed = speed; sitting = sit; holdPose = hold ?? null; };
   const emote = (kind: CharEmote) => {
     emoteKind = kind; emoteUntil = performance.now() + (kind === 'dance' ? 4200 : 2400);
     const mt = emoji.material as THREE.SpriteMaterial; mt.map = emojiTex(EMOTE_EMOJI[kind] ?? '👋'); mt.needsUpdate = true; emoji.visible = true;
@@ -244,7 +244,15 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
     chest.scale.y = 1 + br; headGrp.position.y = 1.5 + br * 0.5;
     root.rotation.z = Math.sin(e * 0.7) * 0.005;
 
-    if (sitting) {
+    if (holdPose === 'titanic') {
+      // standing, arms spread wide out to the sides (the bow pose)
+      const k = Math.min(1, dt * 8);
+      legGroups.forEach(l => { l.rotation.x *= 0.8; });
+      kneeGroups.forEach(kn => { kn.rotation.x *= 0.8; });
+      armGroups[0].rotation.x += (-0.05 - armGroups[0].rotation.x) * k; armGroups[0].rotation.z += (1.4 - armGroups[0].rotation.z) * k;
+      armGroups[1].rotation.x += (-0.05 - armGroups[1].rotation.x) * k; armGroups[1].rotation.z += (-1.4 - armGroups[1].rotation.z) * k;
+      chest.scale.y = 1 + br + 0.02;
+    } else if (sitting) {
       // thighs forward, knees bent so the shins hang down — a natural seat pose
       const k = Math.min(1, dt * 12);
       legGroups.forEach(l => { l.rotation.x += (-1.45 - l.rotation.x) * k; });
@@ -258,10 +266,15 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
       kneeGroups[0].rotation.x = Math.max(0, -Math.sin(walkPhase)) * 0.9;
       kneeGroups[1].rotation.x = Math.max(0, Math.sin(walkPhase)) * 0.9;
       armGroups[0].rotation.x = -sw * 0.7; armGroups[1].rotation.x = sw * 0.7;
+      armGroups[0].rotation.z += (0.07 - armGroups[0].rotation.z) * Math.min(1, dt * 6);
+      armGroups[1].rotation.z += (-0.07 - armGroups[1].rotation.z) * Math.min(1, dt * 6);
     } else {
       legGroups.forEach(l => { l.rotation.x *= 0.8; });
       kneeGroups.forEach(kn => { kn.rotation.x *= 0.8; });
-      armGroups.forEach((a, i) => { a.rotation.x += (Math.sin(e * 1.2 + i * Math.PI) * 0.04 - a.rotation.x) * Math.min(1, dt * 6); });
+      armGroups.forEach((a, i) => {
+        a.rotation.x += (Math.sin(e * 1.2 + i * Math.PI) * 0.04 - a.rotation.x) * Math.min(1, dt * 6);
+        a.rotation.z += ((i === 0 ? 0.07 : -0.07) - a.rotation.z) * Math.min(1, dt * 6);
+      });
     }
 
     const now = performance.now();
