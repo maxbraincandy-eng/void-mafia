@@ -337,15 +337,15 @@ function buildStringLights(ctx: WorldContext) {
   }
 }
 
-// ── DB Both driftwood sign (subtle branding) ──────────────────────────
+// ── Carved driftwood sign near the camp ───────────────────────────────
 function buildDbSign(ctx: WorldContext) {
   const g = new THREE.Group(); g.position.set(7.5, 0, 3.5); g.rotation.y = -0.6; ctx.scene.add(g);
-  const post1 = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 1.6, 7), new THREE.MeshStandardMaterial({ color: 0x4a3320, roughness: 1 }));
-  post1.position.set(-0.5, 0.8, 0); post1.castShadow = true; g.add(post1);
-  const post2 = post1.clone(); post2.position.x = 0.5; g.add(post2);
-  const board = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.62, 0.06), new THREE.MeshStandardMaterial({ map: dbSignTexture(), color: 0xffffff, roughness: 0.8, emissive: 0x3a2410, emissiveIntensity: 0.5 }));
-  board.position.set(0, 1.15, 0.05); board.castShadow = true; g.add(board);
-  const l = new THREE.PointLight(0xffcf7a, 0.6, 3, 2); l.position.set(0, 1.15, 0.6); g.add(l);
+  const post1 = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 1.7, 7), new THREE.MeshStandardMaterial({ color: 0x4a3320, roughness: 1 }));
+  post1.position.set(-0.52, 0.85, 0); post1.castShadow = true; g.add(post1);
+  const post2 = post1.clone(); post2.position.x = 0.52; g.add(post2);
+  const board = new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.9, 0.06), new THREE.MeshStandardMaterial({ map: dbSignTexture(), color: 0xffffff, roughness: 0.8, emissive: 0x3a2410, emissiveIntensity: 0.55 }));
+  board.position.set(0, 1.25, 0.05); board.castShadow = true; g.add(board);
+  const l = new THREE.PointLight(0xffcf7a, 0.7, 3.2, 2); l.position.set(0, 1.25, 0.6); g.add(l);
   ctx.addCollider({ x: 7.5, z: 3.5, r: 0.6 });
 }
 
@@ -396,15 +396,23 @@ function cloudTexture(): THREE.Texture {
   return new THREE.CanvasTexture(c);
 }
 function dbSignTexture(): THREE.Texture {
-  const c = document.createElement('canvas'); c.width = 256; c.height = 106; const g = c.getContext('2d')!;
-  // wood
-  g.fillStyle = '#6b4a28'; g.fillRect(0, 0, 256, 106);
-  for (let i = 0; i < 30; i++) { g.strokeStyle = `rgba(50,32,16,${Math.random() * 0.3})`; g.beginPath(); g.moveTo(0, Math.random() * 106); g.lineTo(256, Math.random() * 106); g.stroke(); }
-  // carved letters
-  g.font = 'bold 54px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillStyle = 'rgba(20,12,4,0.55)'; g.fillText('DB', 128, 40);
-  g.fillStyle = '#ffcf8a'; g.fillText('DB', 127, 38);
-  g.font = 'bold 22px Georgia, serif';
-  g.fillStyle = '#e8c088'; g.fillText('B O T H', 128, 84);
+  const W = 300, H = 200;
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d')!;
+  // wood grain
+  g.fillStyle = '#6b4a28'; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 40; i++) { g.strokeStyle = `rgba(50,32,16,${Math.random() * 0.3})`; g.beginPath(); g.moveTo(0, Math.random() * H); g.lineTo(W, Math.random() * H); g.stroke(); }
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  // carved (dark shadow offset + warm highlight) helper
+  const carve = (text: string, y: number, size: number, color = '#ffdca0') => {
+    g.font = `bold ${size}px Georgia, serif`;
+    g.fillStyle = 'rgba(18,10,4,0.6)'; g.fillText(text, W / 2 + 2, y + 2);
+    g.fillStyle = color; g.fillText(text, W / 2, y);
+  };
+  carve('Max +', 46, 46);
+  carve('Salius', 100, 46);
+  carve('=', 156, 40);
+  // white heart to the right of the "="
+  g.font = '40px serif';
+  g.fillText('🤍', W / 2 + 44, 158);
   return new THREE.CanvasTexture(c);
 }
