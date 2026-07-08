@@ -651,17 +651,20 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
           {voice.joined && <span style={{ fontFamily: 'monospace', fontSize: 11, color: voice.muted ? 'rgba(233,213,255,0.4)' : '#8effc0' }}>{voice.muted ? '🔇' : '🎙️'}</span>}
         </button>
         <div style={{ flex: 1 }} />
+        {roundBtn(voice.joined ? (voice.muted ? '🔇' : '🎙️') : '🎙️', () => { if (!voice.joined) voice.joinVoice(); else voice.toggleMute(); }, 40, voice.joined && !voice.muted)}
         {roundBtn('📷', takePhoto, 40)}
         {roundBtn('✉️', openInvite, 40, invitePanel)}
         {roundBtn('⚙️', () => setPanel(p => p === 'settings' ? null : 'settings'), 40, panel === 'settings')}
-        {roundBtn('🚪', onExit, 40)}
         {roundBtn('✕', onClose, 40)}
       </div>
 
       {/* Invite friends to this world */}
       {invitePanel && (
         <div data-hud style={{ position: 'absolute', top: 'max(62px, calc(env(safe-area-inset-top) + 50px))', right: 14, width: 'min(260px, 74vw)', maxHeight: '60vh', overflowY: 'auto', background: 'rgba(12,10,24,0.95)', border: '1px solid rgba(192,132,252,0.35)', borderRadius: 14, padding: 10, backdropFilter: 'blur(12px)', zIndex: 30 }}>
-          <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(233,213,255,0.55)', margin: '2px 4px 8px' }}>✉️ მოიწვიე მეგობარი</div>
+          <div style={{ display: 'flex', alignItems: 'center', margin: '2px 4px 8px' }}>
+            <span style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(233,213,255,0.55)', flex: 1 }}>✉️ მოიწვიე მეგობარი</span>
+            <button data-hud onPointerDown={(e) => { e.preventDefault(); setInvitePanel(false); }} style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#e9d5ff', fontSize: 11 }}>✕</button>
+          </div>
           {!friends && <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(233,213,255,0.4)', padding: 8 }}>…</div>}
           {friends && friends.length === 0 && <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(233,213,255,0.4)', padding: 8 }}>ონლაინ მეგობარი არ არის</div>}
           {friends && friends.map(f => (
@@ -684,6 +687,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
             <span style={{ fontFamily: 'monospace', fontSize: 11, letterSpacing: 1, color: 'rgba(233,213,255,0.6)', flex: 1 }}>📺 ჩართე ვიდეო ეკრანზე</span>
             {tvOn && <button data-hud onPointerDown={(e) => { e.preventDefault(); socket.emit('world:tv-toggle'); }} style={{ fontSize: 15, color: '#e9d5ff', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 8, padding: '5px 10px' }}>⏯</button>}
             {tvOn && <button data-hud onPointerDown={(e) => { e.preventDefault(); socket.emit('world:tv-stop'); }} style={{ fontSize: 13, color: '#ff8a8a', background: 'rgba(255,80,80,0.1)', border: '1px solid rgba(255,80,80,0.3)', borderRadius: 8, padding: '5px 10px' }}>⏹</button>}
+            <button data-hud onPointerDown={(e) => { e.preventDefault(); setTvPanel(false); setTvFocused(false); }} style={{ width: 30, height: 30, flexShrink: 0, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#e9d5ff', fontSize: 13 }}>✕</button>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <input value={tvQuery} onChange={e => setTvQuery(e.target.value)}
@@ -791,7 +795,6 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
         )}
         <div style={{ display: 'flex', gap: 12 }}>
           {roundBtn('💬', () => { setChatOpen(o => { const n = !o; if (n) setTimeout(() => chatInputRef.current?.focus(), 50); return n; }); }, 50, chatOpen)}
-          {roundBtn(voice.joined ? (voice.muted ? '🔇' : '🎙️') : '🎙️', () => { if (!voice.joined) voice.joinVoice(); else voice.toggleMute(); }, 50, voice.joined && !voice.muted)}
           {roundBtn('😀', () => setEmoteOpen(o => !o), 50, emoteOpen)}
         </div>
         {!hud.sitting && roundBtn('⤴️', () => { engineRef.current?.jump(); poke(); }, 58)}
