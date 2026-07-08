@@ -135,7 +135,7 @@ export class WorldEngine {
     }
     if (this.nearSeat) this.sit(this.nearSeat);
   }
-  jump() { if (!this.seated && this.pos.y <= 0.02) this.vy = 7.4; }
+  jump() { if (!this.seated && this.pos.y <= 0.02) this.vy = 8.0; }
   emote() { this.avatar.wave(); }
   localEmote(kind: EmoteKind) { this.avatar.emote(kind); }
   // Snapshot the current 3D view (HUD is separate DOM, so it's a clean photo).
@@ -530,8 +530,10 @@ export class WorldEngine {
   }
 
   private moveWithCollision(sx: number, sz: number) {
+    const y = this.pos.y;
     this.pos.x += sx;
     for (const c of this.colliders) {
+      if (c.h !== undefined && y >= c.h) continue;   // jumped clear of a low obstacle
       const dx = this.pos.x - c.x, dz = this.pos.z - c.z;
       const d = Math.hypot(dx, dz);
       const min = c.r + 0.34;
@@ -539,6 +541,7 @@ export class WorldEngine {
     }
     this.pos.z += sz;
     for (const c of this.colliders) {
+      if (c.h !== undefined && y >= c.h) continue;
       const dx = this.pos.x - c.x, dz = this.pos.z - c.z;
       const d = Math.hypot(dx, dz);
       const min = c.r + 0.34;

@@ -5,7 +5,9 @@
 // the generic `WorldEngine` handles camera, character control, loop and perf.
 import type * as THREE from 'three';
 
-export interface WorldCollider { x: number; z: number; r: number; }      // cylinder (organic scenes)
+// cylinder (organic scenes). `h` = height: if the avatar's feet clear it
+// (mid-jump), the collider is passed over. Omit `h` for full-height/solid.
+export interface WorldCollider { x: number; z: number; r: number; h?: number; }
 // `pose` seats aren't sit-downs: the avatar stands and holds a pose (e.g. the
 // bow "titanic" arms-out stance) while still locked in place with a Stand button.
 export interface WorldSeat { id: string; x: number; y: number; z: number; yaw: number; pose?: 'titanic' | 'hammock' | 'cuddleL' | 'cuddleR' | 'sing' | 'danceL' | 'danceR' | 'duelL' | 'duelR'; prop?: 'drink'; }

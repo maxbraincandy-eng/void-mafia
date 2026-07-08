@@ -340,7 +340,7 @@ function buildProps(ctx: WorldContext) {
   rockData.forEach((rk, i) => {
     dummy.position.set(rk.x, rk.r * 0.5, rk.z); dummy.scale.set(rk.r, rk.r * 0.7, rk.r); dummy.rotation.set(rk.rx, rk.ry, rk.rz);
     dummy.updateMatrix(); rocks.setMatrixAt(i, dummy.matrix);
-    ctx.addCollider({ x: rk.x, z: rk.z, r: rk.r * 0.8 });
+    ctx.addCollider({ x: rk.x, z: rk.z, r: rk.r * 0.8, h: rk.r * 0.9 });   // low → jumpable
   });
   rocks.instanceMatrix.needsUpdate = true; ctx.scene.add(rocks);
 
