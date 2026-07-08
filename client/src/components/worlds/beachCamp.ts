@@ -52,6 +52,7 @@ export const beachCamp: WorldDef = {
     buildSeaLife(ctx);
     buildJetSki(ctx);
     buildDuel(ctx);
+    buildSpeedPad(ctx);
     buildAirParticles(ctx);
 
     // ambient audio sources — ocean is faint far away and swells toward the
@@ -1027,6 +1028,32 @@ function buildDuel(ctx: WorldContext) {
   // two duel stands facing each other (ids MUST match the server: duel-l/duel-r)
   ctx.addSeat({ id: 'duel-l', x: DX - 1.25, y: 0, z: DZ, yaw: Math.atan2(2.5, 0), pose: 'duelL' });
   ctx.addSeat({ id: 'duel-r', x: DX + 1.25, y: 0, z: DZ, yaw: Math.atan2(-2.5, 0), pose: 'duelR' });
+}
+
+// ── Speed-test pad: a glowing pad anyone taps to start a reaction round ─
+function buildSpeedPad(ctx: WorldContext) {
+  const PX = 5, PZ = 6;
+  const g = new THREE.Group(); g.position.set(PX, 0, PZ); ctx.scene.add(g);
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.2, 0.12, 28), new THREE.MeshStandardMaterial({ color: 0x1a1030, roughness: 0.5, metalness: 0.3, emissive: 0x3a2f8a, emissiveIntensity: 0.5 }));
+  ring.position.y = 0.06; ring.receiveShadow = true; g.add(ring);
+  const glow = new THREE.Mesh(new THREE.RingGeometry(0.7, 1.05, 28), new THREE.MeshBasicMaterial({ color: 0x8a7bff, transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
+  glow.rotation.x = -Math.PI / 2; glow.position.y = 0.13; g.add(glow);
+  // floating hologram sign
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.75), new THREE.MeshBasicMaterial({ map: speedSignTexture(), transparent: true }));
+  sign.position.set(0, 1.7, 0); g.add(sign);
+  const l = new THREE.PointLight(0x8a7bff, 1.2, 6, 2); l.position.set(0, 1.4, 0); g.add(l);
+  ctx.onUpdate((_d, e) => { (glow.material as THREE.MeshBasicMaterial).opacity = 0.4 + Math.abs(Math.sin(e * 2)) * 0.4; sign.position.y = 1.7 + Math.sin(e * 1.6) * 0.08; sign.rotation.y = Math.sin(e * 0.7) * 0.3; l.intensity = 1 + Math.sin(e * 3) * 0.3; });
+  ctx.addInteractable({ id: 'speedtest', x: PX, z: PZ, r: 1.9, label: '⏱️ სისწრაფის ტესტი', effect: () => { /* the starter opens the game via onInteract */ } });
+}
+
+function speedSignTexture(): THREE.Texture {
+  const W = 384, H = 190; const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d')!;
+  g.clearRect(0, 0, W, H);
+  g.font = '64px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.shadowColor = '#8a7bff'; g.shadowBlur = 22; g.fillStyle = '#e9e0ff'; g.fillText('⏱️', W / 2, 60);
+  g.font = 'bold 40px system-ui, sans-serif'; g.fillText('სისწრაფე', W / 2, 135);
+  g.shadowBlur = 0; g.fillStyle = '#fff'; g.font = '64px system-ui, sans-serif'; g.fillText('⏱️', W / 2, 60); g.font = 'bold 40px system-ui, sans-serif'; g.fillText('სისწრაფე', W / 2, 135);
+  return new THREE.CanvasTexture(c);
 }
 
 function duelSignTexture(): THREE.Texture {
