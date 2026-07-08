@@ -50,6 +50,7 @@ export class WorldEngine {
   private def: WorldDef;
   private avatar: Avatar;
   private pos = new THREE.Vector3();
+  private vy = 0;                     // vertical velocity (jump/gravity)
   private facing = 0;                 // avatar yaw
   private camYaw = 0;
   private camPitch = 0.35;
@@ -134,6 +135,7 @@ export class WorldEngine {
     }
     if (this.nearSeat) this.sit(this.nearSeat);
   }
+  jump() { if (!this.seated && this.pos.y <= 0.02) this.vy = 7.4; }
   emote() { this.avatar.wave(); }
   localEmote(kind: EmoteKind) { this.avatar.emote(kind); }
   // Snapshot the current 3D view (HUD is separate DOM, so it's a clean photo).
@@ -417,6 +419,12 @@ export class WorldEngine {
         this.facing += d * Math.min(1, dt * 12);
         moveSpeed = speed * Math.min(1, mag);
       }
+      // vertical (jump + gravity)
+      if (this.vy !== 0 || this.pos.y > 0) {
+        this.pos.y += this.vy * dt;
+        this.vy -= 22 * dt;
+        if (this.pos.y <= 0) { this.pos.y = 0; this.vy = 0; }
+      }
     }
 
     // nearest (free) seat + nearest interactable prompt
@@ -540,6 +548,7 @@ export class WorldEngine {
   private sit(s: WorldSeat) {
     this.seated = s;
     this.pos.set(s.x, s.y, s.z);
+    this.vy = 0;
     this.facing = s.yaw;
     this.input.move.x = 0; this.input.move.y = 0;
   }
@@ -547,6 +556,7 @@ export class WorldEngine {
     if (!this.seated) return;
     // step out in front of the seat
     this.pos.set(this.seated.x - Math.sin(this.seated.yaw) * 0.9, 0, this.seated.z - Math.cos(this.seated.yaw) * 0.9);
+    this.vy = 0;
     this.seated = null;
   }
 

@@ -856,7 +856,9 @@ function buildKaraoke(ctx: WorldContext) {
   const spots = spotCols.map((c, i) => { const s = new THREE.SpotLight(c, 2.4, 12, 0.5, 0.6, 1.5); s.position.set(Math.cos(i * 2.1) * 1.8, 3.4, Math.sin(i * 2.1) * 1.8 - 1); s.target.position.set(0, 0.6, 0.4); g.add(s); g.add(s.target); return s; });
   const disc = new THREE.PointLight(0xffffff, 0.8, 8, 2); disc.position.set(0, 3.6, 0); g.add(disc);
 
-  ctx.addCollider({ x: KX, z: KZ, r: 2.0 });
+  // small collider around the mic stand only — the big stage footprint used to
+  // block players from ever reaching the singer spot at its centre.
+  ctx.addCollider({ x: KX, z: KZ, r: 0.55 });
   // a singer's spot: stand at the mic, facing the crowd (+ world, away from banner)
   ctx.addSeat({ id: 'karaoke', x: KX + Math.sin(-2.4) * 0.4, y: 0.4, z: KZ + Math.cos(-2.4) * 0.4, yaw: -2.4 + Math.PI, pose: 'sing' });
 

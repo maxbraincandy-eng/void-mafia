@@ -362,7 +362,8 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return; // typing in chat
       const k = e.key.toLowerCase(); keys.current[k] = true;
-      if (k === 'e' || k === ' ') engineRef.current?.interact();
+      if (k === 'e') engineRef.current?.interact();
+      if (k === ' ') engineRef.current?.jump();
       if (k === 'q') { engineRef.current?.emote(); if (socket.connected) socket.emit('world:wave'); }
       if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
     };
@@ -493,7 +494,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: '#05060d', overflow: 'hidden', touchAction: 'none' }}
       onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}
       onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}>
-      <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
+      <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block', touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none' }} />
       {/* Cinema video — the YouTube iframe is positioned over the 3D screen */}
       <div ref={cinemaBoxRef} style={{ position: 'absolute', left: 0, top: 0, transform: 'translate(-99999px,0)', overflow: 'hidden', borderRadius: 4, background: '#000', pointerEvents: 'none', zIndex: 5 }} />
 
@@ -782,6 +783,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
           {roundBtn(voice.joined ? (voice.muted ? '🔇' : '🎙️') : '🎙️', () => { if (!voice.joined) voice.joinVoice(); else voice.toggleMute(); }, 50, voice.joined && !voice.muted)}
           {roundBtn('😀', () => setEmoteOpen(o => !o), 50, emoteOpen)}
         </div>
+        {!hud.sitting && roundBtn('⤴️', () => { engineRef.current?.jump(); poke(); }, 58)}
       </div>
 
       {/* Interact hint */}
