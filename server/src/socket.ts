@@ -7690,6 +7690,18 @@ export function attachSocketHandlers(io: AppServer): void {
       }
     });
 
+    socket.on('world:chat' as any, ({ text }: any) => {
+      const msg = String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, 300);
+      if (!msg) return;
+      for (const [worldId, room] of _worlds) {
+        if (room.has(socket.id)) {
+          const name = room.get(socket.id)?.name ?? 'Guest';
+          io.to(`world:${worldId}`).emit('world:chat' as any, { socketId: socket.id, name, text: msg, at: Date.now() });
+          return;
+        }
+      }
+    });
+
     socket.on('world:leave' as any, () => { _leaveWorld(socket.id, io); });
 
     // ── World cinema (shared YouTube) ──────────────────────────────────

@@ -86,6 +86,7 @@ export class WorldEngine {
 
   // multiplayer
   private remotes = new Map<string, RemoteEntry>();
+  private bubbles = new Map<string, { spr: THREE.Sprite; until: number }>();
   private occupiedSeats = new Set<string>();
   private speaking = new Set<string>();
 
@@ -269,6 +270,51 @@ export class WorldEngine {
     return spr;
   }
 
+  // A floating chat bubble above an avatar's head. key '__me__' = local player,
+  // otherwise a remote socketId. Replaces any existing bubble for that key.
+  showChatBubble(key: string, text: string) {
+    const group = key === '__me__' ? this.avatar.group : this.remotes.get(key)?.avatar.group;
+    if (!group) return;
+    const prev = this.bubbles.get(key);
+    if (prev) { prev.spr.parent?.remove(prev.spr); (prev.spr.material as THREE.SpriteMaterial).map?.dispose(); prev.spr.material.dispose(); }
+    const spr = this.makeBubble(text);
+    spr.position.set(0, 2.55, 0);
+    group.add(spr);
+    this.bubbles.set(key, { spr, until: performance.now() + 6500 });
+  }
+
+  private updateBubbles() {
+    const now = performance.now();
+    for (const [k, b] of this.bubbles) {
+      const left = b.until - now;
+      if (left <= 0) { b.spr.parent?.remove(b.spr); (b.spr.material as THREE.SpriteMaterial).map?.dispose(); b.spr.material.dispose(); this.bubbles.delete(k); continue; }
+      (b.spr.material as THREE.SpriteMaterial).opacity = Math.min(1, left / 500);
+    }
+  }
+
+  private makeBubble(text: string): THREE.Sprite {
+    const t = text.slice(0, 90);
+    const c = document.createElement('canvas'); const g = c.getContext('2d')!;
+    const font = '24px "Space Grotesk", system-ui, sans-serif';
+    g.font = font;
+    const maxW = 330;
+    const words = t.split(' '); const lines: string[] = []; let cur = '';
+    for (const w of words) { const test = cur ? cur + ' ' + w : w; if (g.measureText(test).width > maxW && cur) { lines.push(cur); cur = w; } else cur = test; }
+    if (cur) lines.push(cur);
+    const lh = 30, pad = 16;
+    const tw = Math.max(40, ...lines.map(l => g.measureText(l).width));
+    c.width = Math.ceil(Math.min(maxW, tw)) + pad * 2; c.height = lines.length * lh + pad * 2;
+    const g2 = c.getContext('2d')!; g2.font = font; g2.textAlign = 'center'; g2.textBaseline = 'middle';
+    g2.fillStyle = 'rgba(12,10,24,0.85)'; roundRect(g2, 0, 0, c.width, c.height, 14); g2.fill();
+    g2.strokeStyle = 'rgba(192,132,252,0.55)'; g2.lineWidth = 2; roundRect(g2, 1, 1, c.width - 2, c.height - 2, 13); g2.stroke();
+    g2.fillStyle = '#f3e9ff';
+    lines.forEach((l, i) => g2.fillText(l, c.width / 2, pad + lh / 2 + i * lh));
+    const tex = new THREE.CanvasTexture(c);
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+    const sc = c.width / 190; spr.scale.set(sc, sc * c.height / c.width, 1);
+    return spr;
+  }
+
   start() {
     this.clock.start();
     const loop = () => { if (this.disposed) return; this.raf = requestAnimationFrame(loop); this.frame(); };
@@ -434,6 +480,7 @@ export class WorldEngine {
       this.onHud?.({ world: this.def.name, sitting: !!this.seated, canInteract: label, players: 1 + this.remotes.size, nearScreen: this.nearScreen });
     }
 
+    this.updateBubbles();
     this.renderer.render(this.scene, this.camera);
   }
 

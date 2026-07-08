@@ -153,6 +153,29 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   });
 
   const [micDismissed, setMicDismissed] = useState(false);
+  const [chat, setChat] = useState<{ id: string; socketId: string; name: string; text: string; at: number }[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatOpen, setChatOpen] = useState(false);
+  const chatSeq = useRef(0);
+  const chatInputRef = useRef<HTMLInputElement | null>(null);
+  const [kbInset, setKbInset] = useState(0);
+
+  // Track the on-screen keyboard height so the bottom chat bar can float above
+  // it (otherwise the keyboard hides what you're typing).
+  useEffect(() => {
+    const vv = (window as any).visualViewport as VisualViewport | undefined;
+    if (!vv) return;
+    const onVV = () => setKbInset(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
+    vv.addEventListener('resize', onVV); vv.addEventListener('scroll', onVV); onVV();
+    return () => { vv.removeEventListener('resize', onVV); vv.removeEventListener('scroll', onVV); };
+  }, []);
+
+  const sendChat = useCallback(() => {
+    const text = chatInput.replace(/\s+/g, ' ').trim().slice(0, 300);
+    if (!text) return;
+    if (socket.connected) socket.emit('world:chat', { text });
+    setChatInput('');
+  }, [chatInput]);
 
   const poke = useCallback(() => {
     setUiVisible(true);
@@ -217,6 +240,10 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     const onWave = ({ socketId }: { socketId: string }) => eng.remoteWave(socketId);
     const onEmote = ({ socketId, kind }: { socketId: string; kind: any }) => eng.remoteEmote(socketId, kind);
     const onInteractNet = ({ id }: { id: string }) => eng.triggerInteract(id);
+    const onChat = (m: { socketId: string; name: string; text: string; at: number }) => {
+      setChat(prev => [...prev, { ...m, id: `${m.at}-${m.socketId}-${chatSeq.current++}` }].slice(-40));
+      eng.showChatBubble(m.socketId === mySocketId.current ? '__me__' : m.socketId, m.text);
+    };
     eng.onInteract = (id) => { if (socket.connected) socket.emit('world:interact', { id }); };
     socket.on('world:player-joined', onJoined);
     socket.on('world:player-left', onLeft);
@@ -224,6 +251,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     socket.on('world:wave', onWave);
     socket.on('world:emote', onEmote);
     socket.on('world:interact', onInteractNet);
+    socket.on('world:chat', onChat);
 
     emitWithAck<{ worldId: string; name: string; bodyColor: string; glowColor: string; spec: CharacterSpec }, { ok: boolean; data?: { mySocketId: string; players: RemoteWorldPlayer[]; tv?: TVState | null } }>(
       'world:join', { worldId, name: useAuthStore.getState().profile?.username ?? 'Guest', bodyColor: mySpec.topColor, glowColor: mySpec.glow, spec: mySpec },
@@ -271,6 +299,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       socket.off('world:wave', onWave);
       socket.off('world:emote', onEmote);
       socket.off('world:interact', onInteractNet);
+      socket.off('world:chat', onChat);
       socket.off('world:tv', onTV);
       cancelAnimationFrame(cinemaRaf);
       cinema?.dispose();
@@ -291,6 +320,8 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   // keyboard (desktop)
   useEffect(() => {
     const kd = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return; // typing in chat
       const k = e.key.toLowerCase(); keys.current[k] = true;
       if (k === 'e' || k === ' ') engineRef.current?.interact();
       if (k === 'q') { engineRef.current?.emote(); if (socket.connected) socket.emit('world:wave'); }
@@ -586,6 +617,34 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
         <div style={{ position: 'absolute', left: 44, bottom: 64, width: JOY_R * 2, height: JOY_R * 2, borderRadius: '50%', border: '2px dashed rgba(192,132,252,0.2)', pointerEvents: 'none' }} />
       )}
 
+      {/* Chat log — recent messages, bottom-left, non-blocking */}
+      {chat.length > 0 && (
+        <div style={{ position: 'absolute', left: 14, bottom: chatOpen ? `${kbInset + 74}px` : 'max(158px, calc(env(safe-area-inset-bottom) + 146px))', width: 'min(300px, 64vw)', display: 'flex', flexDirection: 'column', gap: 5, pointerEvents: 'none', zIndex: 20, transition: 'bottom .18s' }}>
+          {chat.slice(-6).map(m => (
+            <div key={m.id} style={{ alignSelf: 'flex-start', maxWidth: '100%', background: 'rgba(12,10,24,0.6)', border: '1px solid rgba(192,132,252,0.2)', borderRadius: 12, padding: '5px 10px', backdropFilter: 'blur(4px)' }}>
+              <span style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 11, color: m.socketId === mySocketId.current ? '#8effc0' : '#c9a6ff' }}>{m.name}: </span>
+              <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#f3e9ff', wordBreak: 'break-word' }}>{m.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Chat input bar (floats above the keyboard) */}
+      {chatOpen && (
+        <div data-hud style={{ position: 'absolute', left: 0, right: 0, bottom: `${kbInset + 12}px`, display: 'flex', justifyContent: 'center', padding: '0 14px', zIndex: 46, transition: 'bottom .12s' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: 'min(440px, 94vw)', background: 'rgba(12,10,24,0.92)', border: '1px solid rgba(192,132,252,0.4)', borderRadius: 24, padding: 6, backdropFilter: 'blur(12px)', boxShadow: '0 6px 24px rgba(0,0,0,0.4)' }}>
+            <input ref={chatInputRef} value={chatInput} onChange={e => setChatInput(e.target.value)}
+              onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); sendChat(); } }}
+              placeholder="დაწერე შეტყობინება…" maxLength={300} enterKeyHint="send" autoComplete="off"
+              style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', color: '#f3e9ff', fontFamily: 'monospace', fontSize: 16, padding: '8px 12px' }} />
+            <button data-hud onPointerDown={e => { e.preventDefault(); sendChat(); chatInputRef.current?.focus(); }}
+              style={{ width: 42, height: 42, flexShrink: 0, borderRadius: '50%', border: 'none', background: 'linear-gradient(135deg,#7c3aed,#c026d3)', color: '#fff', fontSize: 16 }}>➤</button>
+            <button data-hud onPointerDown={e => { e.preventDefault(); setChatOpen(false); chatInputRef.current?.blur(); }}
+              style={{ width: 42, height: 42, flexShrink: 0, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#e9d5ff', fontSize: 14 }}>✕</button>
+          </div>
+        </div>
+      )}
+
       {/* Right controls */}
       <div style={{ position: 'absolute', right: 24, bottom: 'max(52px, env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, opacity: showUI ? 1 : 0.25, transition: 'opacity .4s' }}>
         {hud.canInteract && roundBtn(hud.sitting ? '🧍' : (hud.canInteract.includes('🔥') ? '🔥' : hud.canInteract.includes('🎆') ? '🎆' : hud.canInteract.includes('🚢') ? '🚢' : '🪑'), () => engineRef.current?.interact(), 62, true)}
@@ -600,6 +659,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
           </div>
         )}
         <div style={{ display: 'flex', gap: 12 }}>
+          {roundBtn('💬', () => { setChatOpen(o => { const n = !o; if (n) setTimeout(() => chatInputRef.current?.focus(), 50); return n; }); }, 50, chatOpen)}
           {roundBtn(voice.joined ? (voice.muted ? '🔇' : '🎙️') : '🎙️', () => { if (!voice.joined) voice.joinVoice(); else voice.toggleMute(); }, 50, voice.joined && !voice.muted)}
           {roundBtn('😀', () => setEmoteOpen(o => !o), 50, emoteOpen)}
         </div>
