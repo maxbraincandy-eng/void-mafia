@@ -362,10 +362,64 @@ function _leaveWorld(sid, io) {
             if (room.size === 0) {
                 _worlds.delete(worldId);
                 _worldTV.delete(worldId);
+                _clearWorldDuel(worldId);
             }
+            else
+                _checkDuel(worldId, io);
             return;
         }
     }
+}
+const _worldDuel = new Map();
+const DUEL_L = 'duel-l', DUEL_R = 'duel-r';
+function _clearWorldDuel(worldId) {
+    const d = _worldDuel.get(worldId);
+    if (d?.timer)
+        clearTimeout(d.timer);
+    _worldDuel.delete(worldId);
+}
+function _armDuel(worldId, a, b, io) {
+    const d = { a, b, phase: 'arming', goAt: 0, timer: null };
+    _worldDuel.set(worldId, d);
+    io.to(`world:${worldId}`).emit('world:duel', { phase: 'arming', a, b });
+    const delay = 2200 + Math.floor(Math.random() * 3300);
+    d.timer = setTimeout(() => {
+        const cur = _worldDuel.get(worldId);
+        if (cur !== d)
+            return;
+        cur.phase = 'go';
+        cur.goAt = Date.now();
+        io.to(`world:${worldId}`).emit('world:duel', { phase: 'go', at: cur.goAt, a, b });
+    }, delay);
+}
+function _checkDuel(worldId, io) {
+    const room = _worlds.get(worldId);
+    if (!room) {
+        _clearWorldDuel(worldId);
+        return;
+    }
+    const aP = [...room.values()].find(p => p.seatId === DUEL_L);
+    const bP = [...room.values()].find(p => p.seatId === DUEL_R);
+    const d = _worldDuel.get(worldId);
+    if (!aP || !bP) {
+        if (d) {
+            _clearWorldDuel(worldId);
+            io.to(`world:${worldId}`).emit('world:duel', { phase: 'idle' });
+        }
+        return;
+    }
+    if (d) {
+        if (d.a === aP.socketId && d.b === bP.socketId)
+            return;
+        _clearWorldDuel(worldId);
+    } // participants changed → restart
+    _armDuel(worldId, aP.socketId, bP.socketId, io);
+}
+function _rearmDuel(worldId, io) {
+    const d = _worldDuel.get(worldId);
+    if (!d)
+        return;
+    d.timer = setTimeout(() => { _worldDuel.delete(worldId); _checkDuel(worldId, io); }, 4200);
 }
 const _backrooms = new Map(); // instanceId → players
 const _backroomsMeta = new Map();
@@ -8861,6 +8915,7 @@ export function attachSocketHandlers(io) {
                 p.z = z;
                 p.ry = typeof ry === 'number' ? ry : p.ry;
                 // seat claim: only take a free seat; keep own; clear on stand
+                const prevSeat = p.seatId;
                 const sid = (seatId === null || typeof seatId === 'string') ? seatId : p.seatId;
                 if (sid && sid !== p.seatId) {
                     const taken = [...room.values()].some(o => o.socketId !== socket.id && o.seatId === sid);
@@ -8870,6 +8925,8 @@ export function attachSocketHandlers(io) {
                     p.seatId = null;
                 }
                 socket.to(`world:${worldId}`).emit('world:player-moved', { socketId: socket.id, x: p.x, z: p.z, ry: p.ry, seatId: p.seatId });
+                if (p.seatId !== prevSeat && (p.seatId === DUEL_L || p.seatId === DUEL_R || prevSeat === DUEL_L || prevSeat === DUEL_R))
+                    _checkDuel(worldId, io);
                 return;
             }
         });
@@ -8901,6 +8958,28 @@ export function attachSocketHandlers(io) {
                     socket.to(`world:${worldId}`).emit('world:interact', { id: oid });
                     return;
                 }
+            }
+        });
+        socket.on('world:duel-tap', () => {
+            for (const [worldId, room] of _worlds) {
+                if (!room.has(socket.id))
+                    continue;
+                const d = _worldDuel.get(worldId);
+                if (!d || d.phase === 'done' || (socket.id !== d.a && socket.id !== d.b))
+                    return;
+                if (d.timer)
+                    clearTimeout(d.timer);
+                const other = socket.id === d.a ? d.b : d.a;
+                if (d.phase === 'arming') {
+                    d.phase = 'done';
+                    io.to(`world:${worldId}`).emit('world:duel', { phase: 'result', winner: other, loser: socket.id, falseStart: true });
+                }
+                else { // 'go'
+                    d.phase = 'done';
+                    io.to(`world:${worldId}`).emit('world:duel', { phase: 'result', winner: socket.id, loser: other, reaction: Date.now() - d.goAt });
+                }
+                _rearmDuel(worldId, io);
+                return;
             }
         });
         socket.on('world:chat', ({ text }) => {

@@ -125,6 +125,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   const [tvBusy, setTvBusy] = useState(false);
   const [tvFocused, setTvFocused] = useState(false);
   const [invitePanel, setInvitePanel] = useState(false);
+  const [duel, setDuel] = useState<null | { phase: 'arming' | 'go' | 'result'; iAmIn: boolean; won?: boolean; reaction?: number; falseStart?: boolean }>(null);
   const [friends, setFriends] = useState<{ profileId: string; username: string; avatarUrl: string | null }[] | null>(null);
   const [invited, setInvited] = useState<Set<string>>(new Set());
   const [photo, setPhoto] = useState<string | null>(null);
@@ -176,6 +177,8 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     if (socket.connected) socket.emit('world:chat', { text });
     setChatInput('');
   }, [chatInput]);
+
+  const duelTap = useCallback(() => { if (socket.connected) socket.emit('world:duel-tap'); }, []);
 
   const poke = useCallback(() => {
     setUiVisible(true);
@@ -244,6 +247,13 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       setChat(prev => [...prev, { ...m, id: `${m.at}-${m.socketId}-${chatSeq.current++}` }].slice(-40));
       eng.showChatBubble(m.socketId === mySocketId.current ? '__me__' : m.socketId, m.text);
     };
+    const onDuel = (m: any) => {
+      const me = mySocketId.current;
+      if (m.phase === 'idle') { setDuel(null); return; }
+      if (m.phase === 'arming') setDuel({ phase: 'arming', iAmIn: m.a === me || m.b === me });
+      else if (m.phase === 'go') setDuel({ phase: 'go', iAmIn: m.a === me || m.b === me });
+      else if (m.phase === 'result') setDuel({ phase: 'result', iAmIn: m.winner === me || m.loser === me, won: m.winner === me, reaction: m.reaction, falseStart: !!m.falseStart && m.loser === me });
+    };
     eng.onInteract = (id) => { if (socket.connected) socket.emit('world:interact', { id }); if (id === 'dj') setTvPanel(true); };
     socket.on('world:player-joined', onJoined);
     socket.on('world:player-left', onLeft);
@@ -252,6 +262,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     socket.on('world:emote', onEmote);
     socket.on('world:interact', onInteractNet);
     socket.on('world:chat', onChat);
+    socket.on('world:duel', onDuel);
 
     emitWithAck<{ worldId: string; name: string; bodyColor: string; glowColor: string; spec: CharacterSpec }, { ok: boolean; data?: { mySocketId: string; players: RemoteWorldPlayer[]; tv?: TVState | null } }>(
       'world:join', { worldId, name: useAuthStore.getState().profile?.username ?? 'Guest', bodyColor: mySpec.topColor, glowColor: mySpec.glow, spec: mySpec },
@@ -300,6 +311,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       socket.off('world:emote', onEmote);
       socket.off('world:interact', onInteractNet);
       socket.off('world:chat', onChat);
+      socket.off('world:duel', onDuel);
       socket.off('world:tv', onTV);
       cancelAnimationFrame(cinemaRaf);
       cinema?.dispose();
@@ -508,6 +520,39 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
           </div>
           <button data-hud onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setMicDismissed(true); }}
             style={{ width: 30, height: 30, flexShrink: 0, borderRadius: '50%', background: 'rgba(0,0,0,0.28)', border: '1px solid rgba(255,255,255,0.25)', color: '#fff', fontSize: 13 }}>✕</button>
+        </div>
+      )}
+
+      {/* Reaction-duel overlay (participants only) */}
+      {duel && duel.iAmIn && (
+        <div data-hud onPointerDown={duel.phase !== 'result' ? (e) => { e.preventDefault(); duelTap(); } : undefined}
+          style={{ position: 'absolute', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', touchAction: 'none',
+            background: duel.phase === 'go' ? 'radial-gradient(circle, rgba(255,70,100,0.4), rgba(120,0,20,0.6))' : 'rgba(6,6,16,0.55)',
+            pointerEvents: duel.phase === 'result' ? 'none' : 'auto',
+            animation: duel.phase === 'go' ? 'vwDuelFlash .26s ease-in-out infinite alternate' : undefined }}>
+          <style>{'@keyframes vwDuelFlash{from{filter:brightness(1)}to{filter:brightness(1.55)}}'}</style>
+          <div style={{ textAlign: 'center', padding: '0 24px' }}>
+            {duel.phase === 'arming' && (<>
+              <div style={{ fontSize: 60 }}>⚡</div>
+              <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 26, color: '#fff' }}>მოემზადე…</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(255,220,150,0.92)', marginTop: 8 }}>ⓘ ნუ დააჭერ ⚡-მდე — თორემ წააგებ!</div>
+            </>)}
+            {duel.phase === 'go' && (<>
+              <div style={{ fontSize: 104, lineHeight: 1 }}>⚡</div>
+              <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 900, fontSize: 46, color: '#fff', letterSpacing: 2, textShadow: '0 0 20px #ff3b52' }}>ახლა!</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 14, color: '#ffe9c0', marginTop: 6 }}>დააჭირე ეკრანს!</div>
+            </>)}
+            {duel.phase === 'result' && (
+              <div style={{ background: 'rgba(12,10,24,0.92)', border: '1px solid rgba(192,132,252,0.4)', borderRadius: 18, padding: '22px 30px', backdropFilter: 'blur(10px)' }}>
+                <div style={{ fontSize: 54 }}>{duel.falseStart ? '❌' : duel.won ? '🏆' : '💥'}</div>
+                <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 24, color: duel.won ? '#8effc0' : '#ff9aa8' }}>
+                  {duel.falseStart ? 'ნაადრევი სროლა!' : duel.won ? 'გაიმარჯვე!' : 'დამარცხდი'}
+                </div>
+                {duel.won && duel.reaction != null && <div style={{ fontFamily: 'monospace', fontSize: 15, color: '#e9d5ff', marginTop: 6 }}>რეაქცია: {(duel.reaction / 1000).toFixed(2)}წ</div>}
+                <div style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(233,213,255,0.6)', marginTop: 10 }}>ახალი რაუნდი მალე…</div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

@@ -246,6 +246,10 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
     const br = Math.sin(e * 1.4) * 0.012;
     chest.scale.y = 1 + br; headGrp.position.y = 1.5 + br * 0.5;
     root.rotation.z = Math.sin(e * 0.7) * 0.005;
+    // relax the torso toward neutral each frame; poses/emotes that need a lean
+    // re-set it below, so it springs back once you leave them.
+    torso.rotation.x += (0 - torso.rotation.x) * Math.min(1, dt * 6);
+    torso.rotation.z += (0 - torso.rotation.z) * Math.min(1, dt * 6);
 
     if (holdPose === 'titanic') {
       // standing, arms spread wide out to the sides (the bow pose)
@@ -301,6 +305,15 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
       armGroups[1].rotation.x = -1.45; armGroups[1].rotation.z = -0.95;
       torso.rotation.z = step * 0.13 * dir;
       root.position.y += Math.abs(step) * 0.03;
+    } else if (holdPose === 'duelL' || holdPose === 'duelR') {
+      // tense standoff: slight crouch, torso leaning in, arms low and out with
+      // the hands hovering near the hips — a ready-to-draw stance.
+      const k = Math.min(1, dt * 8);
+      legGroups.forEach(l => { l.rotation.x += (-0.12 - l.rotation.x) * k; });
+      kneeGroups.forEach(kn => { kn.rotation.x += (0.34 - kn.rotation.x) * k; });
+      armGroups[0].rotation.x += (-0.25 - armGroups[0].rotation.x) * k; armGroups[0].rotation.z += (0.5 - armGroups[0].rotation.z) * k;
+      armGroups[1].rotation.x += (-0.25 - armGroups[1].rotation.x) * k; armGroups[1].rotation.z += (-0.5 - armGroups[1].rotation.z) * k;
+      torso.rotation.x = 0.12 + Math.sin(e * 4) * 0.02;
     } else if (sitting) {
       // thighs forward, knees bent so the shins hang down — a natural seat pose
       const k = Math.min(1, dt * 12);

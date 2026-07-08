@@ -51,6 +51,7 @@ export const beachCamp: WorldDef = {
     buildVolleyball(ctx);
     buildSeaLife(ctx);
     buildJetSki(ctx);
+    buildDuel(ctx);
     buildAirParticles(ctx);
 
     // ambient audio sources — ocean is faint far away and swells toward the
@@ -1000,6 +1001,41 @@ function buildJetSki(ctx: WorldContext) {
     sp.needsUpdate = true;
     (spray.material as THREE.PointsMaterial).opacity = 0.4 + Math.abs(Math.sin(e * 3)) * 0.25;
   });
+}
+
+// ── Reaction duel arena: two facing marks + torches + a ⚡ sign ────────
+function buildDuel(ctx: WorldContext) {
+  const DX = -20, DZ = 11;
+  const g = new THREE.Group(); g.position.set(DX, 0, DZ); ctx.scene.add(g);
+  // two facing foot-marks on the sand
+  for (const sx of [-1.25, 1.25]) {
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.34, 0.5, 24), new THREE.MeshBasicMaterial({ color: sx < 0 ? 0x4da6ff : 0xff5a6a, transparent: true, opacity: 0.8, side: THREE.DoubleSide }));
+    ring.rotation.x = -Math.PI / 2; ring.position.set(sx, 0.03, 0); g.add(ring);
+  }
+  // torches flanking the arena
+  for (const sx of [-2.2, 2.2]) {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.6, 6), new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 1 })); pole.position.set(sx, 0.8, 0); pole.castShadow = true; g.add(pole);
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.4, 8), new THREE.MeshBasicMaterial({ color: 0xffb347 })); flame.position.set(sx, 1.75, 0); g.add(flame);
+    const l = new THREE.PointLight(0xffa53c, 1.1, 6, 2); l.position.set(sx, 1.8, 0); g.add(l);
+    ctx.onUpdate((_d, e) => { flame.scale.set(1 + Math.sin(e * 12 + sx) * 0.2, 1 + Math.sin(e * 9 + sx) * 0.25, 1); l.intensity = 1 + Math.sin(e * 14 + sx) * 0.3; });
+    ctx.addCollider({ x: DX + sx, z: DZ, r: 0.3 });
+  }
+  // ⚡ sign on a post
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.7), new THREE.MeshBasicMaterial({ map: duelSignTexture(), transparent: true }));
+  sign.position.set(0, 2.1, -1.6); g.add(sign);
+  const spost = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.9, 6), new THREE.MeshStandardMaterial({ color: 0x2a2c34, roughness: 0.7 })); spost.position.set(0, 0.95, -1.6); g.add(spost);
+  // two duel stands facing each other (ids MUST match the server: duel-l/duel-r)
+  ctx.addSeat({ id: 'duel-l', x: DX - 1.25, y: 0, z: DZ, yaw: Math.atan2(2.5, 0), pose: 'duelL' });
+  ctx.addSeat({ id: 'duel-r', x: DX + 1.25, y: 0, z: DZ, yaw: Math.atan2(-2.5, 0), pose: 'duelR' });
+}
+
+function duelSignTexture(): THREE.Texture {
+  const W = 384, H = 180; const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d')!;
+  g.clearRect(0, 0, W, H);
+  g.font = 'bold 90px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.shadowColor = '#ffd23b'; g.shadowBlur = 24; g.fillStyle = '#fff2b0'; g.fillText('⚡ დუელი', W / 2, H / 2);
+  g.shadowBlur = 0; g.fillStyle = '#ffffff'; g.fillText('⚡ დუელი', W / 2, H / 2);
+  return new THREE.CanvasTexture(c);
 }
 
 function volleyTexture(): THREE.Texture {
