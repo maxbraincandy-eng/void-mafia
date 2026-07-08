@@ -607,9 +607,14 @@ function buildShip(ctx: WorldContext) {
   // hull colliders (walk around, not through)
   ctx.addCollider({ x: SX, z: SZ + 1.5, r: 1.6 });
   ctx.addCollider({ x: SX, z: SZ - 2, r: 1.4 });
-  // two bow "titanic" pose spots facing out to sea (-Z)
-  ctx.addSeat({ id: 'bow1', x: SX - 0.35, y: 1.35, z: SZ - 3.0, yaw: 0.15, pose: 'titanic' });
-  ctx.addSeat({ id: 'bow2', x: SX + 0.35, y: 1.35, z: SZ - 2.4, yaw: 0.15, pose: 'titanic' });
+  // two bow "titanic" pose spots — side by side at the rail, facing out to sea.
+  // Placed in the ship's local frame then rotated into world space so the pair
+  // stays symmetric on the (tilted) deck, feet resting on the planks.
+  const cs = Math.cos(0.15), sn = Math.sin(0.15);
+  const bowSeat = (id: string, lx: number, lz: number) =>
+    ctx.addSeat({ id, x: SX + lx * cs + lz * sn, y: 1.24, z: SZ - lx * sn + lz * cs, yaw: 0.15, pose: 'titanic' });
+  bowSeat('bow1', -0.45, -2.9);
+  bowSeat('bow2', 0.45, -2.9);
 }
 
 // ── DJ / dance floor ──────────────────────────────────────────────────
