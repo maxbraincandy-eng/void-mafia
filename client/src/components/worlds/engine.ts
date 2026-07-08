@@ -239,7 +239,7 @@ export class WorldEngine {
       e.cur.ry += dry * k;
       const seat = e.target.seatId ? this.seats.find(s => s.id === e.target.seatId) : null;
       const pose = seat?.pose ?? null;
-      e.avatar.group.position.set(e.cur.x, seat && !pose ? seat.y : 0, e.cur.z);
+      e.avatar.group.position.set(e.cur.x, seat ? seat.y : 0, e.cur.z);
       e.avatar.group.rotation.y = e.cur.ry;
       const speed = Math.hypot(e.cur.x - px, e.cur.z - pz) / Math.max(dt, 0.001);
       e.avatar.state = seat && !pose ? 'sit' : 'idle';

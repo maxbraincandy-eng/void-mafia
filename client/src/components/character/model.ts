@@ -12,7 +12,7 @@
 import * as THREE from 'three';
 import type { CharacterSpec, BodyBuild } from './spec';
 
-export type CharEmote = 'wave' | 'dance' | 'clap' | 'heart' | 'laugh';
+export type CharEmote = 'wave' | 'dance' | 'clap' | 'heart' | 'laugh' | 'disco' | 'spin';
 
 export interface CharacterModel {
   group: THREE.Group;
@@ -23,7 +23,7 @@ export interface CharacterModel {
   dispose: () => void;
 }
 
-const EMOTE_EMOJI: Record<CharEmote, string> = { wave: '👋', dance: '💃', clap: '👏', heart: '❤️', laugh: '😂' };
+const EMOTE_EMOJI: Record<CharEmote, string> = { wave: '👋', dance: '💃', clap: '👏', heart: '❤️', laugh: '😂', disco: '🕺', spin: '💫' };
 const _emojiCache = new Map<string, THREE.Texture>();
 function emojiTex(ch: string): THREE.Texture {
   let t = _emojiCache.get(ch); if (t) return t;
@@ -281,6 +281,26 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
       armGroups[back].rotation.z += ((back === 0 ? 0.45 : -0.45) - armGroups[back].rotation.z) * k;
       armGroups[over].rotation.x += (-1.35 - armGroups[over].rotation.x) * k;
       armGroups[over].rotation.z += ((over === 0 ? 0.75 : -0.75) - armGroups[over].rotation.z) * k;
+    } else if (holdPose === 'sing') {
+      // stand at the mic: one hand raised to the mouth, the other gesturing,
+      // gentle sway to the beat.
+      const k = Math.min(1, dt * 6);
+      legGroups.forEach(l => { l.rotation.x *= 0.85; });
+      kneeGroups.forEach(kn => { kn.rotation.x *= 0.85; });
+      armGroups[1].rotation.x += (-2.55 - armGroups[1].rotation.x) * k; armGroups[1].rotation.z += (-0.12 - armGroups[1].rotation.z) * k;   // mic hand up
+      armGroups[0].rotation.x = -0.4 + Math.sin(e * 3) * 0.55; armGroups[0].rotation.z += (0.35 - armGroups[0].rotation.z) * k;            // free hand gestures
+      torso.rotation.z = Math.sin(e * 2.6) * 0.09;
+    } else if (holdPose === 'danceL' || holdPose === 'danceR') {
+      // synchronised slow couples dance: partners face each other, arms up in a
+      // hold, swaying together (mirrored locally so they lean the same way).
+      const dir = holdPose === 'danceL' ? 1 : -1;
+      const step = Math.sin(e * 2.2);
+      legGroups[0].rotation.x = step * 0.16; legGroups[1].rotation.x = -step * 0.16;
+      kneeGroups.forEach(kn => { kn.rotation.x *= 0.85; });
+      armGroups[0].rotation.x = -1.45; armGroups[0].rotation.z = 0.95;
+      armGroups[1].rotation.x = -1.45; armGroups[1].rotation.z = -0.95;
+      torso.rotation.z = step * 0.13 * dir;
+      root.position.y += Math.abs(step) * 0.03;
     } else if (sitting) {
       // thighs forward, knees bent so the shins hang down — a natural seat pose
       const k = Math.min(1, dt * 12);
@@ -320,7 +340,7 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
     } else if (emoteKind) {
       emoteKind = null; emoji.visible = false;
       armGroups.forEach(a => { a.rotation.z = a === armGroups[0] ? -0.07 : 0.07; });
-      torso.rotation.z = 0; torso.rotation.x = 0;
+      torso.rotation.z = 0; torso.rotation.x = 0; torso.rotation.y = 0;
     }
 
     blinkT -= dt;
@@ -340,6 +360,8 @@ function applyCharEmote(kind: CharEmote, now: number, arms: THREE.Group[], torso
   else if (kind === 'dance') { const s = Math.sin(t * 7); torso.rotation.z = s * 0.16; root.position.y += Math.abs(Math.sin(t * 7)) * 0.06; aL.rotation.x = -2.2 + s * 0.4; aR.rotation.x = -2.2 - s * 0.4; aL.rotation.z = 0.4; aR.rotation.z = -0.4; }
   else if (kind === 'clap') { const c = Math.sin(t * 12) * 0.5; aL.rotation.x = -1.5; aR.rotation.x = -1.5; aL.rotation.z = 0.5 - c; aR.rotation.z = -0.5 + c; }
   else if (kind === 'heart') { aL.rotation.x = -1.3; aR.rotation.x = -1.3; aL.rotation.z = 0.7; aR.rotation.z = -0.7; torso.rotation.x = Math.sin(t * 3) * 0.05; }
+  else if (kind === 'disco') { const s = Math.sin(t * 6); aR.rotation.x = -2.5; aR.rotation.z = -0.55; aL.rotation.x = -0.3 + s * 0.4; aL.rotation.z = 0.35; torso.rotation.z = s * 0.14; root.position.y += Math.abs(Math.sin(t * 6)) * 0.05; }   // Saturday-night point
+  else if (kind === 'spin') { const s = Math.sin(t * 3); torso.rotation.y = s * 0.7; aL.rotation.x = -1.7; aR.rotation.x = -1.7; aL.rotation.z = 0.9; aR.rotation.z = -0.9; root.position.y += Math.abs(Math.sin(t * 11)) * 0.04; }
   else { torso.rotation.x = 0.22 + Math.sin(t * 12) * 0.05; aL.rotation.x = -0.6; aR.rotation.x = -0.6; }
 }
 

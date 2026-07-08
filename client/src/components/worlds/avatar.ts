@@ -21,6 +21,7 @@ export class Avatar {
   private sitDrop: number;
   private prop: string | null = null;
   private propMesh: THREE.Object3D | null = null;
+  private pet: THREE.Group;
 
   constructor(cfg: AvatarConfig | CharacterSpec) {
     const spec = normalizeSpec(cfg);
@@ -31,6 +32,9 @@ export class Avatar {
     this.inner.rotation.y = Math.PI;
     this.group = new THREE.Group();
     this.group.add(this.inner);
+    // A little crab companion scuttles behind every character (local + remote).
+    this.pet = buildPet();
+    this.group.add(this.pet);
     // When seated the engine puts the group origin AT the seat — drop the body
     // so the hips (not the feet) rest on it.
     this.sitDrop = 0.88 * (spec.legLen ?? 1) * (spec.height ?? 1) - 0.06;
@@ -63,10 +67,34 @@ export class Avatar {
     this.inner.position.y += (yTarget - this.inner.position.y) * Math.min(1, dt * 10);
     this.inner.rotation.x += (xRot - this.inner.rotation.x) * Math.min(1, dt * 8);
     this.inner.rotation.z += (zRot - this.inner.rotation.z) * Math.min(1, dt * 8);
+    // crab pet: scuttle behind the avatar with a little hop + sideways sway;
+    // hidden while seated/posing (the group origin is up on the seat then).
+    this.pet.visible = !sit && !this.holdPose;
+    const e = this.elapsed;
+    this.pet.position.set(0.34 + Math.sin(e * 1.6) * 0.06, Math.abs(Math.sin(e * 7)) * 0.05, 0.66 + Math.cos(e * 1.6) * 0.05);
+    this.pet.rotation.y = Math.PI / 2 + Math.sin(e * 1.6) * 0.5;
     this.model.update(dt, this.elapsed);
   }
 
-  dispose() { if (this.propMesh) disposeTree(this.propMesh); this.model.dispose(); }
+  dispose() { if (this.propMesh) disposeTree(this.propMesh); disposeTree(this.pet); this.model.dispose(); }
+}
+
+// A small stylised crab that tags along behind each character.
+function buildPet(): THREE.Group {
+  const g = new THREE.Group();
+  const shell = new THREE.MeshStandardMaterial({ color: 0xff5a3c, roughness: 0.5 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x111318, roughness: 0.6 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10), shell); body.scale.set(1.35, 0.7, 1); body.position.y = 0.12; g.add(body);
+  for (const sx of [-0.06, 0.06]) {
+    const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.09, 6), shell); stalk.position.set(sx, 0.24, 0.07); g.add(stalk);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), dark); eye.position.set(sx, 0.3, 0.07); g.add(eye);
+  }
+  const claw = new THREE.SphereGeometry(0.06, 8, 8);
+  const clL = new THREE.Mesh(claw, shell); clL.scale.set(1, 0.6, 1.25); clL.position.set(-0.2, 0.1, 0.11); g.add(clL);
+  const clR = new THREE.Mesh(claw, shell); clR.scale.set(1, 0.6, 1.25); clR.position.set(0.2, 0.1, 0.11); g.add(clR);
+  for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) { const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.13, 5), shell); leg.position.set(sx * 0.13, 0.05, -0.05 + i * 0.06); leg.rotation.z = sx * 0.8; g.add(leg); }
+  g.scale.setScalar(0.85);
+  return g;
 }
 
 // A small tropical cocktail — a stemmed glass with liquid, a straw and a slice.

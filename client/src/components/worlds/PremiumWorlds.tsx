@@ -244,7 +244,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       setChat(prev => [...prev, { ...m, id: `${m.at}-${m.socketId}-${chatSeq.current++}` }].slice(-40));
       eng.showChatBubble(m.socketId === mySocketId.current ? '__me__' : m.socketId, m.text);
     };
-    eng.onInteract = (id) => { if (socket.connected) socket.emit('world:interact', { id }); };
+    eng.onInteract = (id) => { if (socket.connected) socket.emit('world:interact', { id }); if (id === 'dj') setTvPanel(true); };
     socket.on('world:player-joined', onJoined);
     socket.on('world:player-left', onLeft);
     socket.on('world:player-moved', onMoved);
@@ -359,7 +359,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   useEffect(() => { if (!emoteOpen) return; const t = setTimeout(() => setEmoteOpen(false), 4500); return () => clearTimeout(t); }, [emoteOpen]);
   const showUI = uiVisible || panel != null;
 
-  const doEmote = (kind: 'wave' | 'dance' | 'clap' | 'heart' | 'laugh') => {
+  const doEmote = (kind: 'wave' | 'dance' | 'clap' | 'heart' | 'laugh' | 'disco' | 'spin') => {
     engineRef.current?.localEmote(kind);
     if (socket.connected) socket.emit('world:emote', { kind });
     setEmoteOpen(false); poke();
@@ -651,8 +651,8 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
         {hud.nearScreen && roundBtn('📺', () => setTvPanel(v => !v), 54, tvPanel)}
         {/* Emote wheel */}
         {emoteOpen && (
-          <div data-hud style={{ position: 'absolute', right: 60, bottom: 62, display: 'flex', gap: 8, background: 'rgba(12,10,24,0.75)', border: '1px solid rgba(192,132,252,0.3)', borderRadius: 30, padding: 8, backdropFilter: 'blur(8px)' }}>
-            {([['👋', 'wave'], ['💃', 'dance'], ['👏', 'clap'], ['❤️', 'heart'], ['😂', 'laugh']] as const).map(([e, k]) => (
+          <div data-hud style={{ position: 'absolute', right: 60, bottom: 62, display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8, width: 210, background: 'rgba(12,10,24,0.75)', border: '1px solid rgba(192,132,252,0.3)', borderRadius: 22, padding: 8, backdropFilter: 'blur(8px)' }}>
+            {([['👋', 'wave'], ['💃', 'dance'], ['🕺', 'disco'], ['💫', 'spin'], ['👏', 'clap'], ['❤️', 'heart'], ['😂', 'laugh']] as const).map(([e, k]) => (
               <button key={k} data-hud onPointerDown={(ev) => { ev.preventDefault(); doEmote(k); }} onContextMenu={(ev) => ev.preventDefault()}
                 style={{ width: 42, height: 42, borderRadius: '50%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(192,132,252,0.3)', fontSize: 20, touchAction: 'none' }}>{e}</button>
             ))}

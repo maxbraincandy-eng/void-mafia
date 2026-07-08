@@ -7676,7 +7676,7 @@ export function attachSocketHandlers(io: AppServer): void {
 
     socket.on('world:emote' as any, ({ kind }: any) => {
       const k = String(kind ?? '');
-      if (!['wave', 'dance', 'clap', 'heart', 'laugh'].includes(k)) return;
+      if (!['wave', 'dance', 'clap', 'heart', 'laugh', 'disco', 'spin'].includes(k)) return;
       for (const [worldId, room] of _worlds) {
         if (room.has(socket.id)) { socket.to(`world:${worldId}`).emit('world:emote' as any, { socketId: socket.id, kind: k }); return; }
       }

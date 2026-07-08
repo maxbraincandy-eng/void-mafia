@@ -647,6 +647,16 @@ function buildDanceFloor(ctx: WorldContext) {
     spot1.intensity = 2 + Math.sin(e * 6) * 1.5; spot2.intensity = 2 + Math.sin(e * 6 + 2) * 1.5; spot3.intensity = 2 + Math.sin(e * 6 + 4) * 1.5;
     spot1.position.x = Math.sin(e * 1.5) * 3; spot2.position.z = Math.cos(e * 1.3) * 3;
   });
+
+  // DJ deck: whoever steps up picks the shared music (opens the same synced
+  // media panel as the cinema — the DJ booth is just a second control point).
+  ctx.addInteractable({ id: 'dj', x: DX, z: DZ - (N * T) / 2 - 0.7, r: 1.8, label: '🎧 ჩართე მუსიკა', effect: () => { /* opens the music panel locally via onInteract */ } });
+
+  // Couples dance spot in the middle of the floor — two players face each other
+  // and slow-dance in sync.
+  const d = 0.55;
+  ctx.addSeat({ id: 'dance-l', x: DX - d, y: 0.06, z: DZ, yaw: Math.atan2((DX + d) - (DX - d), 0), pose: 'danceL' });
+  ctx.addSeat({ id: 'dance-r', x: DX + d, y: 0.06, z: DZ, yaw: Math.atan2((DX - d) - (DX + d), 0), pose: 'danceR' });
 }
 
 // ── Photo spot: a neon frame players gather in front of ───────────────
@@ -841,7 +851,7 @@ function buildKaraoke(ctx: WorldContext) {
 
   ctx.addCollider({ x: KX, z: KZ, r: 2.0 });
   // a singer's spot: stand at the mic, facing the crowd (+ world, away from banner)
-  ctx.addSeat({ id: 'karaoke', x: KX + Math.sin(-2.4) * 0.4, y: 0.4, z: KZ + Math.cos(-2.4) * 0.4, yaw: -2.4 + Math.PI, pose: 'titanic' });
+  ctx.addSeat({ id: 'karaoke', x: KX + Math.sin(-2.4) * 0.4, y: 0.4, z: KZ + Math.cos(-2.4) * 0.4, yaw: -2.4 + Math.PI, pose: 'sing' });
 
   ctx.onUpdate((_d, e) => {
     (rim.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.2 + Math.sin(e * 4) * 0.5;

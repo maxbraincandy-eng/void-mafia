@@ -8883,7 +8883,7 @@ export function attachSocketHandlers(io) {
         });
         socket.on('world:emote', ({ kind }) => {
             const k = String(kind ?? '');
-            if (!['wave', 'dance', 'clap', 'heart', 'laugh'].includes(k))
+            if (!['wave', 'dance', 'clap', 'heart', 'laugh', 'disco', 'spin'].includes(k))
                 return;
             for (const [worldId, room] of _worlds) {
                 if (room.has(socket.id)) {
