@@ -152,10 +152,21 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     return { mode: 'auto', shadows: true };
   });
 
+  const [micDismissed, setMicDismissed] = useState(false);
+
   const poke = useCallback(() => {
     setUiVisible(true);
     if (idleTimer.current) clearTimeout(idleTimer.current);
     idleTimer.current = setTimeout(() => { setUiVisible(false); setEmoteOpen(false); }, 4000);
+  }, []);
+
+  // Auto-activate the mic on entry so newcomers can immediately hear + be
+  // heard. If the browser needs a permission gesture this quietly no-ops and
+  // the prominent prompt below invites a tap. Runs once.
+  useEffect(() => {
+    const t = setTimeout(() => voice.joinVoice(), 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -443,6 +454,29 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
           🕹 ჯოისტიკი — მოძრაობა · 👆 გადაფურცლე — კამერა<br />
           შეეხე — დაჯექი / ურთიერთქმედება · 😀 ემოცია · 🎙️ ხმა
           {window.innerHeight > window.innerWidth && <><br /><span style={{ color: '#c084fc' }}>📱↺ გადააბრუნე ჰორიზონტალურად</span></>}
+        </div>
+      )}
+
+      {/* Prominent mic prompt — nags until voice is active so nobody sits in
+          silence thinking the space is broken. Auto-join tries first; this is
+          the tap-to-enable fallback (and covers a denied permission). */}
+      {!voice.joined && !micDismissed && (
+        <div data-hud onPointerDown={(e) => { e.preventDefault(); setMicDismissed(false); voice.joinVoice(); poke(); }}
+          style={{ position: 'absolute', top: 'max(72px, calc(env(safe-area-inset-top) + 58px))', left: '50%', transform: 'translateX(-50%)', zIndex: 40, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 12, width: 'min(360px, 88vw)',
+            background: 'linear-gradient(135deg, rgba(124,58,237,0.92), rgba(192,38,211,0.92))',
+            border: '1px solid rgba(255,255,255,0.35)', borderRadius: 16, padding: '12px 16px',
+            boxShadow: '0 8px 30px rgba(192,38,211,0.5)', backdropFilter: 'blur(8px)', animation: 'vwMicPulse 1.4s ease-in-out infinite' }}>
+          <style>{'@keyframes vwMicPulse{0%,100%{box-shadow:0 8px 26px rgba(192,38,211,0.4)}50%{box-shadow:0 8px 40px rgba(192,38,211,0.85)}}'}</style>
+          <span style={{ fontSize: 30, lineHeight: 1, flexShrink: 0 }}>🎙️</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 14, color: '#fff', letterSpacing: 0.3 }}>
+              {voice.status === 'failed' ? 'მიკროფონი დაბლოკილია — დართე ნებართვა' : 'გააქტიურე მიკროფონი'}
+            </div>
+            <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.85)', marginTop: 2 }}>დააჭირე რომ გაიგონო და ილაპარაკო</div>
+          </div>
+          <button data-hud onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setMicDismissed(true); }}
+            style={{ width: 30, height: 30, flexShrink: 0, borderRadius: '50%', background: 'rgba(0,0,0,0.28)', border: '1px solid rgba(255,255,255,0.25)', color: '#fff', fontSize: 13 }}>✕</button>
         </div>
       )}
 

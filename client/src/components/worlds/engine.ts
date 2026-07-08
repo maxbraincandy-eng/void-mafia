@@ -341,7 +341,7 @@ export class WorldEngine {
 
     // camera orbit from swipe
     this.camYaw -= this.pendingLook.x * 0.0032;
-    this.camPitch = Math.max(0.06, Math.min(1.1, this.camPitch + this.pendingLook.y * 0.0028));
+    this.camPitch = Math.max(0.06, Math.min(1.4, this.camPitch + this.pendingLook.y * 0.0028));
     this.pendingLook.x = 0; this.pendingLook.y = 0;
 
     // deep water → swimming (slower, half-submerged), but not while on the pier
@@ -466,7 +466,11 @@ export class WorldEngine {
     if (desired.y < 0.5) desired.y = 0.5; // don't dip under the sand
     this.camPos.lerp(desired, Math.min(1, dt * 8));
     this.camera.position.copy(this.camPos);
-    this.camera.lookAt(this.pos.x, this.pos.y + eyeH, this.pos.z);
+    // Aim rises with pitch so you can actually tilt the view UP (e.g. to frame
+    // the whole cinema screen while seated). Pivots at the default pitch (0.35)
+    // so normal walking framing is unchanged; seated gets extra lift.
+    const lookY = this.pos.y + eyeH + (this.camPitch - 0.35) * 2.7 + (this.seated ? 0.8 : 0);
+    this.camera.lookAt(this.pos.x, lookY, this.pos.z);
   }
 
   private moveWithCollision(sx: number, sz: number) {
