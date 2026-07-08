@@ -125,6 +125,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   const [hud, setHud] = useState<WorldHud>({ world: '', sitting: false, canInteract: null, players: 1, nearScreen: false });
   const [tvPanel, setTvPanel] = useState(false);
   const [tvOn, setTvOn] = useState(false);
+  const [tvPlaying, setTvPlaying] = useState(false);
   const [tvQuery, setTvQuery] = useState('');
   const [tvResults, setTvResults] = useState<{ videoId: string; title: string; author: string }[]>([]);
   const [tvBusy, setTvBusy] = useState(false);
@@ -220,7 +221,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     let cinemaRaf = 0;
     const layoutLoop = () => { cinemaRaf = requestAnimationFrame(layoutLoop); if (cinema && engineRef.current) { cinema.layout(engineRef.current.getScreenRect()); cinema.setVolume(engineRef.current.screenAudibility() * 100); } };
     layoutLoop();
-    const onTV = (tv: TVState | null) => { cinema?.setState(tv); setTvOn(!!tv); };
+    const onTV = (tv: TVState | null) => { cinema?.setState(tv); setTvOn(!!tv); setTvPlaying(!!tv?.isPlaying); };
     socket.on('world:tv', onTV);
     let helpT: ReturnType<typeof setTimeout> | null = null;
     if (!localStorage.getItem('vw_seen_help')) {
@@ -269,7 +270,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
         mySocketId.current = res.data.mySocketId;
         players.current = new Map(res.data.players.map(p => [p.socketId, p]));
         pushRemotes(); syncRoster();
-        if (res.data.tv) { cinema?.setState(res.data.tv); setTvOn(true); }
+        if (res.data.tv) { cinema?.setState(res.data.tv); setTvOn(true); setTvPlaying(!!res.data.tv.isPlaying); }
       }
     }).catch(() => {});
 
@@ -564,10 +565,21 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
         <div data-hud style={{ position: 'absolute', ...(tvFocused ? { top: 'max(14px, env(safe-area-inset-top))' } : { bottom: 'max(100px, calc(env(safe-area-inset-bottom) + 90px))' }), left: '50%', transform: 'translateX(-50%)', width: 'min(420px, 92vw)', background: 'rgba(12,10,24,0.97)', border: '1px solid rgba(192,132,252,0.35)', borderRadius: 16, padding: 12, backdropFilter: 'blur(12px)', zIndex: 30 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <span style={{ fontFamily: 'monospace', fontSize: 11, letterSpacing: 1, color: 'rgba(233,213,255,0.6)', flex: 1 }}>📺 ჩართე ვიდეო ეკრანზე</span>
-            {tvOn && <button data-hud onPointerDown={(e) => { e.preventDefault(); socket.emit('world:tv-toggle'); }} style={{ fontSize: 15, color: '#e9d5ff', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 8, padding: '5px 10px' }}>⏯</button>}
-            {tvOn && <button data-hud onPointerDown={(e) => { e.preventDefault(); socket.emit('world:tv-stop'); }} style={{ fontSize: 13, color: '#ff8a8a', background: 'rgba(255,80,80,0.1)', border: '1px solid rgba(255,80,80,0.3)', borderRadius: 8, padding: '5px 10px' }}>⏹</button>}
             <button data-hud onPointerDown={(e) => { e.preventDefault(); setTvPanel(false); setTvFocused(false); }} style={{ width: 30, height: 30, flexShrink: 0, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#e9d5ff', fontSize: 13 }}>✕</button>
           </div>
+          {/* Playback controls for the current video — clear pause + stop */}
+          {tvOn && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <button data-hud onPointerDown={(e) => { e.preventDefault(); socket.emit('world:tv-toggle'); }}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 10, background: 'rgba(124,58,237,0.4)', border: '1px solid rgba(192,132,252,0.4)', color: '#fff', fontFamily: 'monospace', fontSize: 13 }}>
+                {tvPlaying ? '⏸ პაუზა' : '▶️ გაგრძელება'}
+              </button>
+              <button data-hud onPointerDown={(e) => { e.preventDefault(); socket.emit('world:tv-stop'); }}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 10, background: 'rgba(255,80,80,0.12)', border: '1px solid rgba(255,80,80,0.35)', color: '#ff9a9a', fontFamily: 'monospace', fontSize: 13 }}>
+                ⏹ გამორთვა
+              </button>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 6 }}>
             <input value={tvQuery} onChange={e => setTvQuery(e.target.value)}
               onFocus={() => setTvFocused(true)} onBlur={() => setTvFocused(false)}
@@ -577,10 +589,12 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
             <button data-hud onPointerDown={(e) => { e.preventDefault(); tvSearch(); }} style={{ padding: '0 14px', borderRadius: 10, background: 'rgba(124,58,237,0.5)', border: 'none', color: '#fff', fontSize: 13 }}>{tvBusy ? '…' : '🔍'}</button>
           </div>
           {tvResults.length > 0 && (
-            <div style={{ marginTop: 8, maxHeight: 180, overflowY: 'auto' }}>
+            // onClick (not onPointerDown) + pan-y so you can SCROLL the list
+            // without a touch-down instantly selecting/playing a result.
+            <div data-hud style={{ marginTop: 8, maxHeight: 200, overflowY: 'auto', touchAction: 'pan-y', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
               {tvResults.map(r => (
-                <button key={r.videoId} data-hud onPointerDown={(e) => { e.preventDefault(); pickVideo(r.videoId, r.title); }}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', marginBottom: 4, borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#e9d5ff', fontFamily: 'monospace', fontSize: 11.5 }}>
+                <button key={r.videoId} data-hud onClick={() => pickVideo(r.videoId, r.title)}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 10px', marginBottom: 4, borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#e9d5ff', fontFamily: 'monospace', fontSize: 11.5, touchAction: 'pan-y' }}>
                   <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>▶ {r.title}</div>
                   <div style={{ color: 'rgba(233,213,255,0.4)', fontSize: 10, marginTop: 2 }}>{r.author}</div>
                 </button>
