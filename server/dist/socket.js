@@ -424,10 +424,10 @@ function _checkDuel(worldId, io) {
     const bP = [...room.values()].find(p => p.seatId === DUEL_R);
     const d = _worldDuel.get(worldId);
     if (!aP || !bP) {
-        if (d) {
+        if (d)
             _clearWorldDuel(worldId);
-            io.to(`world:${worldId}`).emit('world:duel', { phase: 'idle' });
-        }
+        const solo = aP || bP; // one fighter waiting for a challenger
+        io.to(`world:${worldId}`).emit('world:duel', solo ? { phase: 'waiting', who: solo.socketId } : { phase: 'idle' });
         return;
     }
     if (d && d.a === aP.socketId && d.b === bP.socketId)

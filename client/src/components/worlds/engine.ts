@@ -53,7 +53,7 @@ export class WorldEngine {
   private vy = 0;                     // vertical velocity (jump/gravity)
   private facing = 0;                 // avatar yaw
   private camYaw = 0;
-  private camPitch = 0.35;
+  private camPitch = 0.22;
   private camPos = new THREE.Vector3();
   private pendingLook = { x: 0, y: 0 };
 
@@ -389,7 +389,8 @@ export class WorldEngine {
 
     // camera orbit from swipe
     this.camYaw -= this.pendingLook.x * 0.0032;
-    this.camPitch = Math.max(0.06, Math.min(1.4, this.camPitch + this.pendingLook.y * 0.0028));
+    // range spans looking up at the sky (negative) to steeply down (positive)
+    this.camPitch = Math.max(-0.85, Math.min(1.2, this.camPitch + this.pendingLook.y * 0.0028));
     this.pendingLook.x = 0; this.pendingLook.y = 0;
 
     // deep water → swimming (slower, half-submerged), but not while on the pier
@@ -493,15 +494,15 @@ export class WorldEngine {
   }
 
   private updateCamera(dt: number) {
-    // While seated the body is dropped so the hips rest on the seat — track a
-    // lower head point so the camera doesn't stare over the player.
     const eyeH = this.seated ? 0.7 : EYE;
-    const camH = this.seated ? 1.2 : CAM_HEIGHT;
-    const cp = Math.cos(this.camPitch), sp = Math.sin(this.camPitch);
+    const cp = this.camPitch;   // + = look down, − = look up
+    // Camera orbits BEHIND at a bounded elevation instead of swinging overhead,
+    // so tilting up actually reveals the sky rather than going top-down.
+    const camElev = (this.seated ? 1.1 : CAM_HEIGHT) + cp * 1.5;
     const target = new THREE.Vector3(
-      this.pos.x + Math.sin(this.camYaw) * CAM_DIST * cp,
-      this.pos.y + camH + sp * CAM_DIST,
-      this.pos.z + Math.cos(this.camYaw) * CAM_DIST * cp,
+      this.pos.x + Math.sin(this.camYaw) * CAM_DIST,
+      this.pos.y + camElev,
+      this.pos.z + Math.cos(this.camYaw) * CAM_DIST,
     );
     // pull the camera in if a collider sits between avatar head and camera
     const head = new THREE.Vector3(this.pos.x, this.pos.y + eyeH, this.pos.z);
@@ -521,10 +522,10 @@ export class WorldEngine {
     if (desired.y < 0.5) desired.y = 0.5; // don't dip under the sand
     this.camPos.lerp(desired, Math.min(1, dt * 8));
     this.camera.position.copy(this.camPos);
-    // Aim rises with pitch so you can actually tilt the view UP (e.g. to frame
-    // the whole cinema screen while seated). Pivots at the default pitch (0.35)
-    // so normal walking framing is unchanged; seated gets extra lift.
-    const lookY = this.pos.y + eyeH + (this.camPitch - 0.35) * 2.7 + (this.seated ? 0.8 : 0);
+    // Pitch drives the look height: pitch down (cp>0) aims low, pitch up (cp<0)
+    // aims high — so you can look straight up at the sky. Seated gets a lift so
+    // the default view frames the screen/stage in front.
+    const lookY = this.pos.y + eyeH - cp * 3.4 + (this.seated ? 1.0 : 0);
     this.camera.lookAt(this.pos.x, lookY, this.pos.z);
   }
 

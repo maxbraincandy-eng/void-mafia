@@ -536,7 +536,12 @@ function _checkDuel(worldId: string, io: AppServer): void {
   const aP = [...room.values()].find(p => p.seatId === DUEL_L);
   const bP = [...room.values()].find(p => p.seatId === DUEL_R);
   const d = _worldDuel.get(worldId);
-  if (!aP || !bP) { if (d) { _clearWorldDuel(worldId); io.to(`world:${worldId}`).emit('world:duel' as any, { phase: 'idle' }); } return; }
+  if (!aP || !bP) {
+    if (d) _clearWorldDuel(worldId);
+    const solo = aP || bP;   // one fighter waiting for a challenger
+    io.to(`world:${worldId}`).emit('world:duel' as any, solo ? { phase: 'waiting', who: solo.socketId } : { phase: 'idle' });
+    return;
+  }
   if (d && d.a === aP.socketId && d.b === bP.socketId) return; // match already running for this pair
   _clearWorldDuel(worldId);
   _worldDuel.set(worldId, { a: aP.socketId, b: bP.socketId, hpA: WDUEL_HP, hpB: WDUEL_HP, phase: 'arming', goAt: 0, timer: null });

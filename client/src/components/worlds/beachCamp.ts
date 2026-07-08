@@ -1061,9 +1061,9 @@ function speedSignTexture(): THREE.Texture {
 function duelSignTexture(): THREE.Texture {
   const W = 384, H = 180; const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d')!;
   g.clearRect(0, 0, W, H);
-  g.font = 'bold 90px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.shadowColor = '#ffd23b'; g.shadowBlur = 24; g.fillStyle = '#fff2b0'; g.fillText('⚡ დუელი', W / 2, H / 2);
-  g.shadowBlur = 0; g.fillStyle = '#ffffff'; g.fillText('⚡ დუელი', W / 2, H / 2);
+  g.font = 'bold 82px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.shadowColor = '#ffd23b'; g.shadowBlur = 24; g.fillStyle = '#fff2b0'; g.fillText('🤠 დუელი', W / 2, H / 2);
+  g.shadowBlur = 0; g.fillStyle = '#ffffff'; g.fillText('🤠 დუელი', W / 2, H / 2);
   return new THREE.CanvasTexture(c);
 }
 

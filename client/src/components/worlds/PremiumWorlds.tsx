@@ -130,7 +130,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   const [tvBusy, setTvBusy] = useState(false);
   const [tvFocused, setTvFocused] = useState(false);
   const [invitePanel, setInvitePanel] = useState(false);
-  const [duel, setDuel] = useState<null | { phase: 'arming' | 'go' | 'round' | 'result'; iAmIn: boolean; hpMe?: number; hpOpp?: number; won?: boolean; reaction?: number; iHit?: boolean; falseStart?: boolean }>(null);
+  const [duel, setDuel] = useState<null | { phase: 'waiting' | 'arming' | 'go' | 'round' | 'result'; iAmIn: boolean; hpMe?: number; hpOpp?: number; won?: boolean; reaction?: number; iHit?: boolean; falseStart?: boolean }>(null);
   const [speed, setSpeed] = useState<null | { phase: 'joining' | 'countdown' | 'go' | 'result'; joined: boolean; players?: string[]; count?: number; results?: { socketId: string; name: string; ms: number }[]; winner?: string | null; leaderboard?: { name: string; wins: number }[] }>(null);
   const [friends, setFriends] = useState<{ profileId: string; username: string; avatarUrl: string | null }[] | null>(null);
   const [invited, setInvited] = useState<Set<string>>(new Set());
@@ -258,6 +258,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     const onDuel = (m: any) => {
       const me = mySocketId.current;
       if (m.phase === 'idle') { setDuel(null); return; }
+      if (m.phase === 'waiting') { setDuel(m.who === me ? { phase: 'waiting', iAmIn: true } : null); return; }
       const meIsA = m.a === me;
       setDuel({
         phase: m.phase, iAmIn: m.a === me || m.b === me,
@@ -559,12 +560,22 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
             pointerEvents: (duel.phase === 'arming' || duel.phase === 'go') ? 'auto' : 'none',
             animation: duel.phase === 'go' ? 'vwDuelFlash .26s ease-in-out infinite alternate' : undefined }}>
           <style>{'@keyframes vwDuelFlash{from{filter:brightness(1)}to{filter:brightness(1.55)}}'}</style>
-          {/* HP bars */}
-          <div style={{ display: 'flex', gap: 26, marginBottom: 18, fontSize: 18, letterSpacing: 1 }}>
-            <div style={{ textAlign: 'center' }}><div style={{ fontFamily: 'monospace', fontSize: 11, color: '#8effc0', marginBottom: 2 }}>შენ</div>{'❤️'.repeat(Math.max(0, duel.hpMe ?? 0)) + '🖤'.repeat(Math.max(0, 5 - (duel.hpMe ?? 0)))}</div>
-            <div style={{ textAlign: 'center' }}><div style={{ fontFamily: 'monospace', fontSize: 11, color: '#ff9aa8', marginBottom: 2 }}>მოწინააღმდეგე</div>{'❤️'.repeat(Math.max(0, duel.hpOpp ?? 0)) + '🖤'.repeat(Math.max(0, 5 - (duel.hpOpp ?? 0)))}</div>
-          </div>
+          {/* HP bars (once a match is on) */}
+          {duel.phase !== 'waiting' && (
+            <div style={{ display: 'flex', gap: 26, marginBottom: 18, fontSize: 18, letterSpacing: 1 }}>
+              <div style={{ textAlign: 'center' }}><div style={{ fontFamily: 'monospace', fontSize: 11, color: '#8effc0', marginBottom: 2 }}>შენ</div>{'❤️'.repeat(Math.max(0, duel.hpMe ?? 0)) + '🖤'.repeat(Math.max(0, 5 - (duel.hpMe ?? 0)))}</div>
+              <div style={{ textAlign: 'center' }}><div style={{ fontFamily: 'monospace', fontSize: 11, color: '#ff9aa8', marginBottom: 2 }}>მოწინააღმდეგე</div>{'❤️'.repeat(Math.max(0, duel.hpOpp ?? 0)) + '🖤'.repeat(Math.max(0, 5 - (duel.hpOpp ?? 0)))}</div>
+            </div>
+          )}
           <div style={{ textAlign: 'center', padding: '0 24px' }}>
+            {duel.phase === 'waiting' && (
+              <div style={{ background: 'rgba(12,10,24,0.9)', border: '1px solid rgba(192,132,252,0.4)', borderRadius: 16, padding: '18px 24px', backdropFilter: 'blur(10px)' }}>
+                <div style={{ fontSize: 46 }}>🤠</div>
+                <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 20, color: '#fff' }}>დუელი</div>
+                <div style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(233,213,255,0.75)', marginTop: 6 }}>მოწინააღმდეგეს ელოდები… მეორე ადგილზეც უნდა დადგეს ვინმე</div>
+                <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,220,150,0.8)', marginTop: 8 }}>❤️×5 — ვინც ჯერ ესვრის, ის ურტყამს</div>
+              </div>
+            )}
             {duel.phase === 'arming' && (<>
               <div style={{ fontSize: 54 }}>🤠</div>
               <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 26, color: '#fff' }}>მოემზადე…</div>
