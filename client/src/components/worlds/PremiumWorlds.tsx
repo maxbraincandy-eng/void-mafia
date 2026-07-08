@@ -48,8 +48,13 @@ function PlayerRow({ name, color, speaking }: { name: string; color: string; spe
 function isTouch() { return typeof window !== 'undefined' && 'ontouchstart' in window; }
 async function enterImmersive() {
   if (!isTouch()) return;
+  const lockLandscape = () => { try { (screen.orientation as any)?.lock?.('landscape'); } catch { /* not allowed (no gesture / unsupported) — never unlock here, it would undo a prior lock */ } };
   try { await (document.documentElement as any).requestFullscreen?.({ navigationUI: 'hide' }); } catch { /* iOS */ }
-  try { await (screen.orientation as any)?.lock?.('landscape'); } catch { try { (screen.orientation as any)?.unlock?.(); } catch { /* ignore */ } }
+  lockLandscape();
+  // Some Android browsers only honour the lock once fullscreen has actually
+  // engaged — retry once on the next fullscreenchange.
+  const onFs = () => { if (document.fullscreenElement) lockLandscape(); document.removeEventListener('fullscreenchange', onFs); };
+  document.addEventListener('fullscreenchange', onFs);
 }
 function exitImmersive() {
   if (!isTouch()) return;
