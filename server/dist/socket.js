@@ -362,112 +362,10 @@ function _leaveWorld(sid, io) {
             if (room.size === 0) {
                 _worlds.delete(worldId);
                 _worldTV.delete(worldId);
-                _clearWorldDuel(worldId);
-                _clearSpeed(worldId);
-            }
-            else {
-                _checkDuel(worldId, io);
-                const g = _worldSpeed.get(worldId);
-                if (g && g.players.has(sid)) {
-                    g.players.delete(sid);
-                    g.tapped.delete(sid);
-                    if (g.players.size === 0)
-                        _clearSpeed(worldId);
-                    else if (g.phase === 'live' && g.tapped.size >= g.players.size)
-                        _finishSpeed(worldId, io);
-                }
             }
             return;
         }
     }
-}
-const _worldDuel = new Map();
-const DUEL_L = 'duel-l', DUEL_R = 'duel-r';
-const WDUEL_HP = 5;
-function _clearWorldDuel(worldId) {
-    const d = _worldDuel.get(worldId);
-    if (d?.timer)
-        clearTimeout(d.timer);
-    _worldDuel.delete(worldId);
-}
-function _duelEmit(worldId, io, extra) {
-    const d = _worldDuel.get(worldId);
-    if (!d)
-        return;
-    io.to(`world:${worldId}`).emit('world:duel', { a: d.a, b: d.b, hpA: d.hpA, hpB: d.hpB, ...extra });
-}
-function _armRound(worldId, io) {
-    const d = _worldDuel.get(worldId);
-    if (!d)
-        return;
-    d.phase = 'arming';
-    d.goAt = 0;
-    _duelEmit(worldId, io, { phase: 'arming' });
-    if (d.timer)
-        clearTimeout(d.timer);
-    d.timer = setTimeout(() => {
-        const cur = _worldDuel.get(worldId);
-        if (cur !== d || cur.phase !== 'arming')
-            return;
-        cur.phase = 'go';
-        cur.goAt = Date.now();
-        _duelEmit(worldId, io, { phase: 'go', at: cur.goAt });
-    }, 2200 + Math.floor(Math.random() * 3300));
-}
-function _checkDuel(worldId, io) {
-    const room = _worlds.get(worldId);
-    if (!room) {
-        _clearWorldDuel(worldId);
-        return;
-    }
-    const aP = [...room.values()].find(p => p.seatId === DUEL_L);
-    const bP = [...room.values()].find(p => p.seatId === DUEL_R);
-    const d = _worldDuel.get(worldId);
-    if (!aP || !bP) {
-        if (d)
-            _clearWorldDuel(worldId);
-        const solo = aP || bP; // one fighter waiting for a challenger
-        io.to(`world:${worldId}`).emit('world:duel', solo ? { phase: 'waiting', who: solo.socketId } : { phase: 'idle' });
-        return;
-    }
-    if (d && d.a === aP.socketId && d.b === bP.socketId)
-        return; // match already running for this pair
-    _clearWorldDuel(worldId);
-    _worldDuel.set(worldId, { a: aP.socketId, b: bP.socketId, hpA: WDUEL_HP, hpB: WDUEL_HP, phase: 'arming', goAt: 0, timer: null });
-    _armRound(worldId, io);
-}
-const _worldSpeed = new Map();
-const _worldSpeedLB = new Map();
-function _clearSpeed(worldId) {
-    const g = _worldSpeed.get(worldId);
-    if (g)
-        g.timers.forEach(t => clearTimeout(t));
-    _worldSpeed.delete(worldId);
-}
-function _speedLB(worldId) {
-    const lb = _worldSpeedLB.get(worldId);
-    if (!lb)
-        return [];
-    return [...lb.values()].sort((a, b) => b.wins - a.wins).slice(0, 8);
-}
-function _finishSpeed(worldId, io) {
-    const g = _worldSpeed.get(worldId);
-    if (!g || g.phase === 'done')
-        return;
-    g.phase = 'done';
-    g.timers.forEach(t => clearTimeout(t));
-    const ranked = [...g.results].sort((a, b) => a.ms - b.ms);
-    const winner = ranked.find(r => r.ms < 99000) ?? null;
-    if (winner) {
-        const lb = _worldSpeedLB.get(worldId) ?? new Map();
-        _worldSpeedLB.set(worldId, lb);
-        const e = lb.get(winner.socketId) ?? { name: winner.name, wins: 0 };
-        e.name = winner.name;
-        e.wins += 1;
-        lb.set(winner.socketId, e);
-    }
-    io.to(`world:${worldId}`).emit('world:speed', { phase: 'result', results: ranked, winner: winner?.socketId ?? null, leaderboard: _speedLB(worldId) });
-    _worldSpeed.delete(worldId);
 }
 const _backrooms = new Map(); // instanceId → players
 const _backroomsMeta = new Map();
@@ -8963,7 +8861,6 @@ export function attachSocketHandlers(io) {
                 p.z = z;
                 p.ry = typeof ry === 'number' ? ry : p.ry;
                 // seat claim: only take a free seat; keep own; clear on stand
-                const prevSeat = p.seatId;
                 const sid = (seatId === null || typeof seatId === 'string') ? seatId : p.seatId;
                 if (sid && sid !== p.seatId) {
                     const taken = [...room.values()].some(o => o.socketId !== socket.id && o.seatId === sid);
@@ -8973,8 +8870,6 @@ export function attachSocketHandlers(io) {
                     p.seatId = null;
                 }
                 socket.to(`world:${worldId}`).emit('world:player-moved', { socketId: socket.id, x: p.x, z: p.z, ry: p.ry, seatId: p.seatId });
-                if (p.seatId !== prevSeat && (p.seatId === DUEL_L || p.seatId === DUEL_R || prevSeat === DUEL_L || prevSeat === DUEL_R))
-                    _checkDuel(worldId, io);
                 return;
             }
         });
@@ -9006,113 +8901,6 @@ export function attachSocketHandlers(io) {
                     socket.to(`world:${worldId}`).emit('world:interact', { id: oid });
                     return;
                 }
-            }
-        });
-        socket.on('world:duel-tap', () => {
-            for (const [worldId, room] of _worlds) {
-                if (!room.has(socket.id))
-                    continue;
-                const d = _worldDuel.get(worldId);
-                if (!d || (d.phase !== 'arming' && d.phase !== 'go') || (socket.id !== d.a && socket.id !== d.b))
-                    return;
-                if (d.timer) {
-                    clearTimeout(d.timer);
-                    d.timer = null;
-                }
-                const meIsA = socket.id === d.a;
-                const other = meIsA ? d.b : d.a;
-                let reaction;
-                let hitter = socket.id;
-                if (d.phase === 'arming') { // false start → the early shooter takes the hit
-                    hitter = other;
-                    if (meIsA)
-                        d.hpA -= 1;
-                    else
-                        d.hpB -= 1;
-                }
-                else { // 'go' → the faster draw lands the hit on the opponent
-                    reaction = Date.now() - d.goAt;
-                    if (meIsA)
-                        d.hpB -= 1;
-                    else
-                        d.hpA -= 1;
-                }
-                const falseStart = hitter === other;
-                if (d.hpA <= 0 || d.hpB <= 0) {
-                    d.phase = 'over';
-                    _duelEmit(worldId, io, { phase: 'result', winner: d.hpA > 0 ? d.a : d.b, hitter, reaction, falseStart });
-                    d.timer = setTimeout(() => { _worldDuel.delete(worldId); _checkDuel(worldId, io); }, 4800);
-                }
-                else {
-                    d.phase = 'round';
-                    _duelEmit(worldId, io, { phase: 'round', hitter, reaction, falseStart });
-                    d.timer = setTimeout(() => { const cur = _worldDuel.get(worldId); if (cur === d && cur.phase === 'round')
-                        _armRound(worldId, io); }, 1700);
-                }
-                return;
-            }
-        });
-        socket.on('world:speed-start', () => {
-            for (const [worldId, room] of _worlds) {
-                if (!room.has(socket.id))
-                    continue;
-                if (_worldSpeed.has(worldId))
-                    return; // one round at a time
-                const g = { phase: 'joining', players: new Map([[socket.id, room.get(socket.id).name]]), goAt: 0, results: [], tapped: new Set(), timers: [] };
-                _worldSpeed.set(worldId, g);
-                io.to(`world:${worldId}`).emit('world:speed', { phase: 'joining', starter: room.get(socket.id).name, players: [...g.players.values()] });
-                g.timers.push(setTimeout(() => {
-                    const cur = _worldSpeed.get(worldId);
-                    if (cur !== g || cur.phase !== 'joining')
-                        return;
-                    cur.phase = 'set';
-                    io.to(`world:${worldId}`).emit('world:speed', { phase: 'countdown', count: 3 });
-                    cur.timers.push(setTimeout(() => io.to(`world:${worldId}`).emit('world:speed', { phase: 'countdown', count: 2 }), 1000));
-                    cur.timers.push(setTimeout(() => io.to(`world:${worldId}`).emit('world:speed', { phase: 'countdown', count: 1 }), 2000));
-                    cur.timers.push(setTimeout(() => {
-                        const c2 = _worldSpeed.get(worldId);
-                        if (c2 !== g)
-                            return;
-                        c2.phase = 'live';
-                        c2.goAt = Date.now();
-                        io.to(`world:${worldId}`).emit('world:speed', { phase: 'go', at: c2.goAt });
-                        c2.timers.push(setTimeout(() => _finishSpeed(worldId, io), 4000));
-                    }, 3000 + Math.floor(Math.random() * 1500)));
-                }, 6000));
-                return;
-            }
-        });
-        socket.on('world:speed-join', () => {
-            for (const [worldId, room] of _worlds) {
-                if (!room.has(socket.id))
-                    continue;
-                const g = _worldSpeed.get(worldId);
-                if (!g || g.phase !== 'joining')
-                    return;
-                if (!g.players.has(socket.id))
-                    g.players.set(socket.id, room.get(socket.id).name);
-                io.to(`world:${worldId}`).emit('world:speed', { phase: 'joining', players: [...g.players.values()] });
-                return;
-            }
-        });
-        socket.on('world:speed-tap', () => {
-            for (const [worldId, room] of _worlds) {
-                if (!room.has(socket.id))
-                    continue;
-                const g = _worldSpeed.get(worldId);
-                if (!g || !g.players.has(socket.id) || g.tapped.has(socket.id))
-                    return;
-                if (g.phase === 'live') {
-                    g.tapped.add(socket.id);
-                    g.results.push({ socketId: socket.id, name: g.players.get(socket.id), ms: Date.now() - g.goAt });
-                    if (g.tapped.size >= g.players.size)
-                        _finishSpeed(worldId, io);
-                }
-                else if (g.phase === 'set') { // jumped the gun
-                    g.tapped.add(socket.id);
-                    g.results.push({ socketId: socket.id, name: g.players.get(socket.id), ms: 99999 });
-                }
-                return;
             }
         });
         socket.on('world:chat', ({ text }) => {

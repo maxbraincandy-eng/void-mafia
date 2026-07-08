@@ -55,6 +55,15 @@ export class WorldCinema {
 
   resume() { try { if (this.active) this.player?.playVideo?.(); } catch { /* ignore */ } }
 
+  // Distance-attenuated volume (0..100) so the TV is only audible near it.
+  private curVol = -1;
+  setVolume(v: number) {
+    const vol = Math.max(0, Math.min(100, Math.round(v)));
+    if (Math.abs(vol - this.curVol) < 3) return;   // avoid spamming the iframe
+    this.curVol = vol;
+    try { if (vol <= 0) this.player?.mute?.(); else { this.player?.unMute?.(); this.player?.setVolume?.(vol); } } catch { /* ignore */ }
+  }
+
   // Position the video over the screen's projected rect; move offscreen (but
   // keep it alive/playing for audio) when the screen isn't in view.
   layout(rect: ScreenRect | null) {

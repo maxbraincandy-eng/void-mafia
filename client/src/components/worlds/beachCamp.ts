@@ -51,8 +51,6 @@ export const beachCamp: WorldDef = {
     buildVolleyball(ctx);
     buildSeaLife(ctx);
     buildJetSki(ctx);
-    buildDuel(ctx);
-    buildSpeedPad(ctx);
     buildAirParticles(ctx);
 
     // ambient audio sources — ocean is faint far away and swells toward the
@@ -379,19 +377,22 @@ function buildProps(ctx: WorldContext) {
     }
     plants.instanceMatrix.needsUpdate = true;
   });
-  // lanterns (warm point lights, limited count)
+  // lanterns — emissive glass on all; a real point light only on the two by the
+  // fire (the rest just glow) to keep the dynamic-light count low.
   const lanternSpots = [[-4, 5], [4, 5], [-6, -3], [6, -3], [0, -7]];
-  for (const [x, z] of lanternSpots) {
+  lanternSpots.forEach(([x, z], i) => {
     const g = new THREE.Group(); g.position.set(x, 0, z); ctx.scene.add(g);
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.3, 6), new THREE.MeshStandardMaterial({ color: 0x2a2018, roughness: 1 }));
     post.position.y = 0.65; post.castShadow = true; g.add(post);
     const glass = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.3, 0.22), new THREE.MeshStandardMaterial({ color: 0xffcf7a, emissive: 0xffb347, emissiveIntensity: 1.4, transparent: true, opacity: 0.85 }));
     glass.position.y = 1.35; g.add(glass);
-    const l = new THREE.PointLight(0xffb45a, 1.1, 6, 2); l.position.y = 1.35; g.add(l);
     ctx.addCollider({ x, z, r: 0.3 });
-    const ph = rnd() * 6;
-    ctx.onUpdate((_d, e) => { l.intensity = 1.0 + Math.sin(e * 8 + ph) * 0.15; });
-  }
+    if (i < 2) {
+      const l = new THREE.PointLight(0xffb45a, 1.1, 6, 2); l.position.y = 1.35; g.add(l);
+      const ph = rnd() * 6;
+      ctx.onUpdate((_d, e) => { l.intensity = 1.0 + Math.sin(e * 8 + ph) * 0.15; });
+    }
+  });
 }
 
 // ── String lights strung between two palms ────────────────────────────
@@ -432,7 +433,7 @@ function buildFireworks(ctx: WorldContext) {
   tube.position.set(0, 1.05, 0); tube.rotation.z = 0.22; g.add(tube);
   ctx.addCollider({ x: LX, z: LZ, r: 0.4 });
 
-  const MAX = 260;
+  const MAX = 180;
   const pos = new Float32Array(MAX * 3), col = new Float32Array(MAX * 3);
   const life = new Float32Array(MAX), vx = new Float32Array(MAX), vy = new Float32Array(MAX), vz = new Float32Array(MAX);
   for (let i = 0; i < MAX; i++) pos[i * 3 + 1] = -80;
@@ -451,7 +452,7 @@ function buildFireworks(ctx: WorldContext) {
   const palette = [0xff3b6b, 0x3ba0ff, 0x8aff3b, 0xffd23b, 0xc06bff, 0xff8a3b, 0xffffff];
 
   const burst = (x: number, y: number, z: number, color: THREE.Color) => {
-    for (let k = 0; k < 48; k++) {
+    for (let k = 0; k < 32; k++) {
       const i = cursor; cursor = (cursor + 1) % MAX;
       const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1), sp = 3 + Math.random() * 3.5;
       vx[i] = Math.sin(ph) * Math.cos(th) * sp; vy[i] = Math.cos(ph) * sp; vz[i] = Math.sin(ph) * Math.sin(th) * sp;
@@ -690,15 +691,16 @@ function buildPier(ctx: WorldContext) {
   for (let z = -25; z >= -36; z -= 2.2) {
     for (const sx of [-1, 1]) { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 1.4, 6), postMat); post.position.set(PX + sx * 1.0, -0.4, z); post.castShadow = true; ctx.scene.add(post); }
   }
-  // lanterns along the rail
+  // lanterns along the rail — emissive glass only (no per-lantern light); a
+  // single warm light at the pier end carries the glow, far cheaper.
   for (let z = -26; z >= -36; z -= 3.3) {
     for (const sx of [-1, 1]) {
       const gg = new THREE.Group(); gg.position.set(PX + sx * 1.15, 0, z); ctx.scene.add(gg);
       const p = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.0, 6), postMat); p.position.y = 0.5; gg.add(p);
       const glass = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.22, 0.16), new THREE.MeshStandardMaterial({ color: 0xffcf7a, emissive: 0xffb347, emissiveIntensity: 1.4, transparent: true, opacity: 0.85 })); glass.position.y = 1.05; gg.add(glass);
-      const l = new THREE.PointLight(0xffb45a, 0.7, 5, 2); l.position.y = 1.05; gg.add(l);
     }
   }
+  const endLight = new THREE.PointLight(0xffb45a, 1.0, 9, 2); endLight.position.set(PX, 1.2, -34); ctx.scene.add(endLight);
 }
 
 // ── Couples hammock between two posts (embracing recline) ─────────────
@@ -739,7 +741,9 @@ function buildSkyLanterns(ctx: WorldContext) {
   ctx.addCollider({ x: LX, z: LZ, r: 0.6 });
 
   const glowMap = radialTexture(0xffb45a);
-  interface Lantern { grp: THREE.Group; light: THREE.PointLight; body: THREE.MeshStandardMaterial; halo: THREE.SpriteMaterial; y: number; vy: number; x: number; z: number; sway: number; life: number; }
+  // No per-lantern PointLight (that's up to a dozen dynamic lights — a big perf
+  // cost). Emissive body + additive halo sprite give the same glow much cheaper.
+  interface Lantern { grp: THREE.Group; body: THREE.MeshStandardMaterial; halo: THREE.SpriteMaterial; y: number; vy: number; x: number; z: number; sway: number; life: number; }
   const active: Lantern[] = [];
 
   const release = (ox: number, oz: number) => {
@@ -748,10 +752,9 @@ function buildSkyLanterns(ctx: WorldContext) {
     const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.36, 10), body); shade.position.y = 0.18; grp.add(shade);
     const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.16, 0.08, 10), new THREE.MeshStandardMaterial({ color: 0x7a5330, roughness: 1 })); cap.position.y = 0.4; grp.add(cap);
     const halo = new THREE.SpriteMaterial({ map: glowMap, color: 0xffb45a, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending });
-    const spr = new THREE.Sprite(halo); spr.scale.setScalar(1.4); spr.position.y = 0.18; grp.add(spr);
-    const light = new THREE.PointLight(0xffa53c, 1.1, 6, 2); light.position.y = 0.18; grp.add(light);
-    active.push({ grp, light, body, halo, y: 0.6, vy: 0.9 + Math.random() * 0.3, x: LX + ox, z: LZ + oz, sway: Math.random() * Math.PI * 2, life: 0 });
-    if (active.length > 16) { const old = active.shift()!; ctx.scene.remove(old.grp); }
+    const spr = new THREE.Sprite(halo); spr.scale.setScalar(1.6); spr.position.y = 0.18; grp.add(spr);
+    active.push({ grp, body, halo, y: 0.6, vy: 0.9 + Math.random() * 0.3, x: LX + ox, z: LZ + oz, sway: Math.random() * Math.PI * 2, life: 0 });
+    if (active.length > 10) { const old = active.shift()!; ctx.scene.remove(old.grp); }
   };
 
   ctx.addInteractable({
@@ -766,10 +769,9 @@ function buildSkyLanterns(ctx: WorldContext) {
       L.x += Math.sin(e * 0.6 + L.sway) * dt * 0.25;
       L.grp.position.set(L.x, L.y, L.z);
       L.grp.rotation.y += dt * 0.3;
-      const flick = 1.4 + Math.sin(e * 9 + L.sway) * 0.3;
-      L.body.emissiveIntensity = flick; L.light.intensity = flick * 0.8;
+      L.body.emissiveIntensity = 1.4 + Math.sin(e * 9 + L.sway) * 0.3;
       // fade out high up, then retire
-      if (L.y > 26) { const f = Math.max(0, 1 - (L.y - 26) / 10); L.body.opacity = 0.95 * f; L.halo.opacity = 0.7 * f; L.light.intensity *= f; }
+      if (L.y > 26) { const f = Math.max(0, 1 - (L.y - 26) / 10); L.body.opacity = 0.95 * f; L.halo.opacity = 0.7 * f; }
       if (L.y > 38) { ctx.scene.remove(L.grp); active.splice(i, 1); }
     }
   });
@@ -851,10 +853,9 @@ function buildKaraoke(ctx: WorldContext) {
   stand.position.set(0, 1.1, 0.4); g.add(stand);
   const mic = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 12), new THREE.MeshStandardMaterial({ color: 0x2a2c34, roughness: 0.4, metalness: 0.6 }));
   mic.position.set(0, 1.85, 0.4); g.add(mic);
-  // moving stage spots
-  const spotCols = [0xff4da6, 0x4da6ff, 0x8aff6a];
-  const spots = spotCols.map((c, i) => { const s = new THREE.SpotLight(c, 2.4, 12, 0.5, 0.6, 1.5); s.position.set(Math.cos(i * 2.1) * 1.8, 3.4, Math.sin(i * 2.1) * 1.8 - 1); s.target.position.set(0, 0.6, 0.4); g.add(s); g.add(s.target); return s; });
-  const disc = new THREE.PointLight(0xffffff, 0.8, 8, 2); disc.position.set(0, 3.6, 0); g.add(disc);
+  // one moving, colour-cycling stage spot (kept to a single light for perf)
+  const spot = new THREE.SpotLight(0xff4da6, 2.4, 12, 0.5, 0.6, 1.5); spot.position.set(0, 3.4, -0.6); spot.target.position.set(0, 0.6, 0.4); g.add(spot); g.add(spot.target);
+  const spotCol = new THREE.Color();
 
   // small collider around the mic stand only — the big stage footprint used to
   // block players from ever reaching the singer spot at its centre.
@@ -864,8 +865,9 @@ function buildKaraoke(ctx: WorldContext) {
 
   ctx.onUpdate((_d, e) => {
     (rim.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.2 + Math.sin(e * 4) * 0.5;
-    spots.forEach((s, i) => { s.intensity = 2 + Math.sin(e * 5 + i * 2) * 1.4; s.target.position.x = Math.sin(e * 1.2 + i * 2.1) * 1.2; });
-    disc.intensity = 0.6 + Math.abs(Math.sin(e * 8)) * 0.6;
+    spot.intensity = 2.4 + Math.sin(e * 5) * 1.4;
+    spot.target.position.x = Math.sin(e * 1.2) * 1.3;
+    spotCol.setHSL((e * 0.15) % 1, 0.85, 0.6); spot.color.copy(spotCol);
   });
 }
 
@@ -1006,67 +1008,6 @@ function buildJetSki(ctx: WorldContext) {
   });
 }
 
-// ── Reaction duel arena: two facing marks + torches + a ⚡ sign ────────
-function buildDuel(ctx: WorldContext) {
-  const DX = -20, DZ = 11;
-  const g = new THREE.Group(); g.position.set(DX, 0, DZ); ctx.scene.add(g);
-  // two facing foot-marks on the sand
-  for (const sx of [-1.25, 1.25]) {
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.34, 0.5, 24), new THREE.MeshBasicMaterial({ color: sx < 0 ? 0x4da6ff : 0xff5a6a, transparent: true, opacity: 0.8, side: THREE.DoubleSide }));
-    ring.rotation.x = -Math.PI / 2; ring.position.set(sx, 0.03, 0); g.add(ring);
-  }
-  // torches flanking the arena
-  for (const sx of [-2.2, 2.2]) {
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.6, 6), new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 1 })); pole.position.set(sx, 0.8, 0); pole.castShadow = true; g.add(pole);
-    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.4, 8), new THREE.MeshBasicMaterial({ color: 0xffb347 })); flame.position.set(sx, 1.75, 0); g.add(flame);
-    const l = new THREE.PointLight(0xffa53c, 1.1, 6, 2); l.position.set(sx, 1.8, 0); g.add(l);
-    ctx.onUpdate((_d, e) => { flame.scale.set(1 + Math.sin(e * 12 + sx) * 0.2, 1 + Math.sin(e * 9 + sx) * 0.25, 1); l.intensity = 1 + Math.sin(e * 14 + sx) * 0.3; });
-    ctx.addCollider({ x: DX + sx, z: DZ, r: 0.3 });
-  }
-  // ⚡ sign on a post
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.7), new THREE.MeshBasicMaterial({ map: duelSignTexture(), transparent: true }));
-  sign.position.set(0, 2.1, -1.6); g.add(sign);
-  const spost = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.9, 6), new THREE.MeshStandardMaterial({ color: 0x2a2c34, roughness: 0.7 })); spost.position.set(0, 0.95, -1.6); g.add(spost);
-  // two duel stands facing each other (ids MUST match the server: duel-l/duel-r)
-  ctx.addSeat({ id: 'duel-l', x: DX - 1.25, y: 0, z: DZ, yaw: Math.atan2(2.5, 0), pose: 'duelL' });
-  ctx.addSeat({ id: 'duel-r', x: DX + 1.25, y: 0, z: DZ, yaw: Math.atan2(-2.5, 0), pose: 'duelR' });
-}
-
-// ── Speed-test pad: a glowing pad anyone taps to start a reaction round ─
-function buildSpeedPad(ctx: WorldContext) {
-  const PX = 5, PZ = 6;
-  const g = new THREE.Group(); g.position.set(PX, 0, PZ); ctx.scene.add(g);
-  const ring = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.2, 0.12, 28), new THREE.MeshStandardMaterial({ color: 0x1a1030, roughness: 0.5, metalness: 0.3, emissive: 0x3a2f8a, emissiveIntensity: 0.5 }));
-  ring.position.y = 0.06; ring.receiveShadow = true; g.add(ring);
-  const glow = new THREE.Mesh(new THREE.RingGeometry(0.7, 1.05, 28), new THREE.MeshBasicMaterial({ color: 0x8a7bff, transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
-  glow.rotation.x = -Math.PI / 2; glow.position.y = 0.13; g.add(glow);
-  // floating hologram sign
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.75), new THREE.MeshBasicMaterial({ map: speedSignTexture(), transparent: true }));
-  sign.position.set(0, 1.7, 0); g.add(sign);
-  const l = new THREE.PointLight(0x8a7bff, 1.2, 6, 2); l.position.set(0, 1.4, 0); g.add(l);
-  ctx.onUpdate((_d, e) => { (glow.material as THREE.MeshBasicMaterial).opacity = 0.4 + Math.abs(Math.sin(e * 2)) * 0.4; sign.position.y = 1.7 + Math.sin(e * 1.6) * 0.08; sign.rotation.y = Math.sin(e * 0.7) * 0.3; l.intensity = 1 + Math.sin(e * 3) * 0.3; });
-  ctx.addInteractable({ id: 'speedtest', x: PX, z: PZ, r: 1.9, label: '⏱️ სისწრაფის ტესტი', effect: () => { /* the starter opens the game via onInteract */ } });
-}
-
-function speedSignTexture(): THREE.Texture {
-  const W = 384, H = 190; const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d')!;
-  g.clearRect(0, 0, W, H);
-  g.font = '64px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.shadowColor = '#8a7bff'; g.shadowBlur = 22; g.fillStyle = '#e9e0ff'; g.fillText('⏱️', W / 2, 60);
-  g.font = 'bold 40px system-ui, sans-serif'; g.fillText('სისწრაფე', W / 2, 135);
-  g.shadowBlur = 0; g.fillStyle = '#fff'; g.font = '64px system-ui, sans-serif'; g.fillText('⏱️', W / 2, 60); g.font = 'bold 40px system-ui, sans-serif'; g.fillText('სისწრაფე', W / 2, 135);
-  return new THREE.CanvasTexture(c);
-}
-
-function duelSignTexture(): THREE.Texture {
-  const W = 384, H = 180; const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d')!;
-  g.clearRect(0, 0, W, H);
-  g.font = 'bold 82px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.shadowColor = '#ffd23b'; g.shadowBlur = 24; g.fillStyle = '#fff2b0'; g.fillText('🤠 დუელი', W / 2, H / 2);
-  g.shadowBlur = 0; g.fillStyle = '#ffffff'; g.fillText('🤠 დუელი', W / 2, H / 2);
-  return new THREE.CanvasTexture(c);
-}
-
 function volleyTexture(): THREE.Texture {
   const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d')!;
   g.fillStyle = '#f4f6fa'; g.fillRect(0, 0, 128, 128);
@@ -1107,7 +1048,7 @@ function karaokeSignTexture(): THREE.Texture {
 
 // ── Floating air particles (motes) ────────────────────────────────────
 function buildAirParticles(ctx: WorldContext) {
-  const N = 140; const arr = new Float32Array(N * 3);
+  const N = 80; const arr = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) { arr[i * 3] = rrng(-30, 30); arr[i * 3 + 1] = rrng(0.5, 8); arr[i * 3 + 2] = rrng(-28, 12); }
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
   const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xbfe0ff, size: 0.05, transparent: true, opacity: 0.5, depthWrite: false }));

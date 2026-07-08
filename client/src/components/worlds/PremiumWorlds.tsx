@@ -130,8 +130,6 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   const [tvBusy, setTvBusy] = useState(false);
   const [tvFocused, setTvFocused] = useState(false);
   const [invitePanel, setInvitePanel] = useState(false);
-  const [duel, setDuel] = useState<null | { phase: 'waiting' | 'arming' | 'go' | 'round' | 'result'; iAmIn: boolean; hpMe?: number; hpOpp?: number; won?: boolean; reaction?: number; iHit?: boolean; falseStart?: boolean }>(null);
-  const [speed, setSpeed] = useState<null | { phase: 'joining' | 'countdown' | 'go' | 'result'; joined: boolean; players?: string[]; count?: number; results?: { socketId: string; name: string; ms: number }[]; winner?: string | null; leaderboard?: { name: string; wins: number }[] }>(null);
   const [friends, setFriends] = useState<{ profileId: string; username: string; avatarUrl: string | null }[] | null>(null);
   const [invited, setInvited] = useState<Set<string>>(new Set());
   const [photo, setPhoto] = useState<string | null>(null);
@@ -184,9 +182,6 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     setChatInput('');
   }, [chatInput]);
 
-  const duelTap = useCallback(() => { if (socket.connected) socket.emit('world:duel-tap'); }, []);
-  const speedTap = useCallback(() => { if (socket.connected) socket.emit('world:speed-tap'); }, []);
-  const speedJoin = useCallback(() => { if (socket.connected) socket.emit('world:speed-join'); setSpeed(s => s ? { ...s, joined: true } : s); }, []);
 
   const poke = useCallback(() => {
     setUiVisible(true);
@@ -223,7 +218,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     const cinema = cinemaBoxRef.current ? new WorldCinema(cinemaBoxRef.current) : null;
     cinemaRef.current = cinema;
     let cinemaRaf = 0;
-    const layoutLoop = () => { cinemaRaf = requestAnimationFrame(layoutLoop); if (cinema && engineRef.current) cinema.layout(engineRef.current.getScreenRect()); };
+    const layoutLoop = () => { cinemaRaf = requestAnimationFrame(layoutLoop); if (cinema && engineRef.current) { cinema.layout(engineRef.current.getScreenRect()); cinema.setVolume(engineRef.current.screenAudibility() * 100); } };
     layoutLoop();
     const onTV = (tv: TVState | null) => { cinema?.setState(tv); setTvOn(!!tv); };
     socket.on('world:tv', onTV);
@@ -255,31 +250,9 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       setChat(prev => [...prev, { ...m, id: `${m.at}-${m.socketId}-${chatSeq.current++}` }].slice(-40));
       eng.showChatBubble(m.socketId === mySocketId.current ? '__me__' : m.socketId, m.text);
     };
-    const onDuel = (m: any) => {
-      const me = mySocketId.current;
-      if (m.phase === 'idle') { setDuel(null); return; }
-      if (m.phase === 'waiting') { setDuel(m.who === me ? { phase: 'waiting', iAmIn: true } : null); return; }
-      const meIsA = m.a === me;
-      setDuel({
-        phase: m.phase, iAmIn: m.a === me || m.b === me,
-        hpMe: meIsA ? m.hpA : m.hpB, hpOpp: meIsA ? m.hpB : m.hpA,
-        reaction: m.reaction, iHit: m.hitter === me, won: m.winner === me, falseStart: !!m.falseStart,
-      });
-    };
-    const onSpeed = (m: any) => {
-      setSpeed(prev => {
-        if (m.phase === 'joining') return { phase: 'joining', players: m.players, joined: prev?.joined ?? false };
-        if (m.phase === 'countdown') return { ...(prev ?? { joined: false }), phase: 'countdown', count: m.count };
-        if (m.phase === 'go') return { ...(prev ?? { joined: false }), phase: 'go' };
-        if (m.phase === 'result') return { phase: 'result', joined: prev?.joined ?? false, results: m.results, winner: m.winner, leaderboard: m.leaderboard };
-        return prev;
-      });
-      if (m.phase === 'result') setTimeout(() => setSpeed(null), 8000);
-    };
     eng.onInteract = (id) => {
       if (socket.connected) socket.emit('world:interact', { id });
       if (id === 'dj') setTvPanel(true);
-      if (id === 'speedtest') { if (socket.connected) socket.emit('world:speed-start'); setSpeed(s => ({ phase: 'joining', players: s?.players ?? [], joined: true })); }
     };
     socket.on('world:player-joined', onJoined);
     socket.on('world:player-left', onLeft);
@@ -288,8 +261,6 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     socket.on('world:emote', onEmote);
     socket.on('world:interact', onInteractNet);
     socket.on('world:chat', onChat);
-    socket.on('world:duel', onDuel);
-    socket.on('world:speed', onSpeed);
 
     emitWithAck<{ worldId: string; name: string; bodyColor: string; glowColor: string; spec: CharacterSpec }, { ok: boolean; data?: { mySocketId: string; players: RemoteWorldPlayer[]; tv?: TVState | null } }>(
       'world:join', { worldId, name: useAuthStore.getState().profile?.username ?? 'Guest', bodyColor: mySpec.topColor, glowColor: mySpec.glow, spec: mySpec },
@@ -338,8 +309,6 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       socket.off('world:emote', onEmote);
       socket.off('world:interact', onInteractNet);
       socket.off('world:chat', onChat);
-      socket.off('world:duel', onDuel);
-      socket.off('world:speed', onSpeed);
       socket.off('world:tv', onTV);
       cancelAnimationFrame(cinemaRaf);
       cinema?.dispose();
@@ -552,96 +521,6 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
         </div>
       )}
 
-      {/* Quick-draw duel overlay (participants only) */}
-      {duel && duel.iAmIn && (
-        <div data-hud onPointerDown={(duel.phase === 'arming' || duel.phase === 'go') ? (e) => { e.preventDefault(); duelTap(); } : undefined}
-          style={{ position: 'absolute', inset: 0, zIndex: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', touchAction: 'none',
-            background: duel.phase === 'go' ? 'radial-gradient(circle, rgba(255,70,100,0.4), rgba(120,0,20,0.6))' : 'rgba(6,6,16,0.55)',
-            pointerEvents: (duel.phase === 'arming' || duel.phase === 'go') ? 'auto' : 'none',
-            animation: duel.phase === 'go' ? 'vwDuelFlash .26s ease-in-out infinite alternate' : undefined }}>
-          <style>{'@keyframes vwDuelFlash{from{filter:brightness(1)}to{filter:brightness(1.55)}}'}</style>
-          {/* HP bars (once a match is on) */}
-          {duel.phase !== 'waiting' && (
-            <div style={{ display: 'flex', gap: 26, marginBottom: 18, fontSize: 18, letterSpacing: 1 }}>
-              <div style={{ textAlign: 'center' }}><div style={{ fontFamily: 'monospace', fontSize: 11, color: '#8effc0', marginBottom: 2 }}>შენ</div>{'❤️'.repeat(Math.max(0, duel.hpMe ?? 0)) + '🖤'.repeat(Math.max(0, 5 - (duel.hpMe ?? 0)))}</div>
-              <div style={{ textAlign: 'center' }}><div style={{ fontFamily: 'monospace', fontSize: 11, color: '#ff9aa8', marginBottom: 2 }}>მოწინააღმდეგე</div>{'❤️'.repeat(Math.max(0, duel.hpOpp ?? 0)) + '🖤'.repeat(Math.max(0, 5 - (duel.hpOpp ?? 0)))}</div>
-            </div>
-          )}
-          <div style={{ textAlign: 'center', padding: '0 24px' }}>
-            {duel.phase === 'waiting' && (
-              <div style={{ background: 'rgba(12,10,24,0.9)', border: '1px solid rgba(192,132,252,0.4)', borderRadius: 16, padding: '18px 24px', backdropFilter: 'blur(10px)' }}>
-                <div style={{ fontSize: 46 }}>🤠</div>
-                <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 20, color: '#fff' }}>დუელი</div>
-                <div style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(233,213,255,0.75)', marginTop: 6 }}>მოწინააღმდეგეს ელოდები… მეორე ადგილზეც უნდა დადგეს ვინმე</div>
-                <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,220,150,0.8)', marginTop: 8 }}>❤️×5 — ვინც ჯერ ესვრის, ის ურტყამს</div>
-              </div>
-            )}
-            {duel.phase === 'arming' && (<>
-              <div style={{ fontSize: 54 }}>🤠</div>
-              <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 26, color: '#fff' }}>მოემზადე…</div>
-              <div style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(255,220,150,0.92)', marginTop: 8 }}>ⓘ ნუ დააჭერ ⚡-მდე — თორემ დაგარტყამს!</div>
-            </>)}
-            {duel.phase === 'go' && (<>
-              <div style={{ fontSize: 100, lineHeight: 1 }}>⚡</div>
-              <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 900, fontSize: 44, color: '#fff', letterSpacing: 2, textShadow: '0 0 20px #ff3b52' }}>ესროლე!</div>
-            </>)}
-            {duel.phase === 'round' && (
-              <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 26, color: duel.iHit ? '#8effc0' : '#ff9aa8' }}>
-                {duel.falseStart ? (duel.iHit ? '🎯 იჩქარა — დააჯარიმე!' : '❌ ნაადრევი! −1') : (duel.iHit ? '🎯 მოარტყი! −1' : '💥 დაგარტყა!')}
-                {duel.reaction != null && duel.iHit && <div style={{ fontFamily: 'monospace', fontSize: 13, color: '#e9d5ff', marginTop: 6 }}>{(duel.reaction / 1000).toFixed(2)}წ</div>}
-              </div>
-            )}
-            {duel.phase === 'result' && (
-              <div style={{ background: 'rgba(12,10,24,0.92)', border: '1px solid rgba(192,132,252,0.4)', borderRadius: 18, padding: '22px 30px', backdropFilter: 'blur(10px)' }}>
-                <div style={{ fontSize: 54 }}>{duel.won ? '🏆' : '💀'}</div>
-                <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 24, color: duel.won ? '#8effc0' : '#ff9aa8' }}>{duel.won ? 'გაიმარჯვე!' : 'დამარცხდი'}</div>
-                <div style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(233,213,255,0.6)', marginTop: 10 }}>ახალი მატჩი მალე…</div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Speed-test overlay (everyone in the world) */}
-      {speed && (
-        <div data-hud onPointerDown={(speed.phase === 'go' && speed.joined) ? (e) => { e.preventDefault(); speedTap(); } : undefined}
-          style={{ position: 'absolute', inset: 0, zIndex: 58, display: 'flex', alignItems: 'center', justifyContent: 'center', touchAction: 'none',
-            background: speed.phase === 'go' && speed.joined ? 'radial-gradient(circle, rgba(90,180,255,0.35), rgba(0,20,60,0.6))' : 'rgba(6,6,16,0.5)',
-            pointerEvents: (speed.phase === 'go' && speed.joined) ? 'auto' : 'none' }}>
-          <div data-hud style={{ pointerEvents: 'auto', textAlign: 'center', width: 'min(360px, 88vw)', background: 'rgba(12,10,24,0.9)', border: '1px solid rgba(192,132,252,0.4)', borderRadius: 18, padding: '20px 22px', backdropFilter: 'blur(10px)' }}>
-            {speed.phase === 'joining' && (<>
-              <div style={{ fontSize: 40 }}>⏱️</div>
-              <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 20, color: '#fff' }}>სისწრაფის ტესტი</div>
-              <div style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(233,213,255,0.7)', margin: '8px 0' }}>{(speed.players?.length ?? 0)} მოთამაშე: {(speed.players ?? []).join(', ') || '…'}</div>
-              {!speed.joined
-                ? <button data-hud onPointerDown={(e) => { e.preventDefault(); speedJoin(); }} style={{ marginTop: 6, padding: '10px 20px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#7c3aed,#c026d3)', color: '#fff', fontFamily: 'monospace', fontSize: 14 }}>✋ შემოგვიერთდი</button>
-                : <div style={{ fontFamily: 'monospace', fontSize: 13, color: '#8effc0' }}>✓ ჩართული ხარ — მოემზადე…</div>}
-            </>)}
-            {speed.phase === 'countdown' && <div style={{ fontSize: 72, fontWeight: 900, color: '#fff', fontFamily: '"Space Grotesk",monospace' }}>{speed.count}</div>}
-            {speed.phase === 'go' && (speed.joined
-              ? <><div style={{ fontSize: 80 }}>⚡</div><div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 900, fontSize: 38, color: '#fff' }}>დააჭირე!</div></>
-              : <div style={{ fontFamily: 'monospace', fontSize: 14, color: 'rgba(233,213,255,0.7)' }}>⚡ მიმდინარეობს…</div>)}
-            {speed.phase === 'result' && (<>
-              <div style={{ fontSize: 34 }}>🏁</div>
-              <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 17, color: '#fff', marginBottom: 8 }}>შედეგები</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, textAlign: 'left', maxHeight: '32vh', overflowY: 'auto' }}>
-                {(speed.results ?? []).map((r, i) => (
-                  <div key={r.socketId} style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'monospace', fontSize: 12.5, color: r.socketId === speed.winner ? '#8effc0' : '#e9d5ff' }}>
-                    <span>{i === 0 ? '🏆' : `${i + 1}.`} {r.name}</span><span>{r.ms >= 99000 ? 'ნაადრევი ❌' : `${(r.ms / 1000).toFixed(2)}წ`}</span>
-                  </div>
-                ))}
-              </div>
-              {(speed.leaderboard?.length ?? 0) > 0 && (
-                <div style={{ marginTop: 10, borderTop: '1px solid rgba(192,132,252,0.2)', paddingTop: 8 }}>
-                  <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 1, color: 'rgba(233,213,255,0.5)', marginBottom: 4 }}>🏅 ლიდერბორდი</div>
-                  {(speed.leaderboard ?? []).map((l, i) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'monospace', fontSize: 11.5, color: 'rgba(233,213,255,0.8)' }}><span>{l.name}</span><span>{l.wins} 🏆</span></div>)}
-                </div>
-              )}
-            </>)}
-          </div>
-        </div>
-      )}
-
       {/* Top bar */}
       <div style={{ position: 'absolute', top: 'max(12px, env(safe-area-inset-top))', left: 14, right: 14, display: 'flex', alignItems: 'center', gap: 8, opacity: showUI ? 1 : 0, transition: 'opacity .4s', pointerEvents: showUI ? 'auto' : 'none' }}>
         <button data-hud onPointerDown={(e) => { e.preventDefault(); setPanel(p => p === 'players' ? null : 'players'); }}
@@ -783,7 +662,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       {/* Right controls */}
       <div style={{ position: 'absolute', right: 24, bottom: 'max(52px, env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, opacity: showUI ? 1 : 0.25, transition: 'opacity .4s' }}>
         {hud.canInteract && roundBtn(hud.sitting ? '🧍' : (/^\p{Extended_Pictographic}/u.test(hud.canInteract) ? hud.canInteract.split(' ')[0] : '🪑'), () => engineRef.current?.interact(), 62, true)}
-        {hud.nearScreen && roundBtn('📺', () => setTvPanel(v => !v), 54, tvPanel)}
+        {(hud.nearScreen || tvOn) && roundBtn(tvOn ? '📺' : '📺', () => setTvPanel(v => !v), 54, tvPanel)}
         {/* Emote wheel */}
         {emoteOpen && (
           <div data-hud style={{ position: 'absolute', right: 60, bottom: 62, display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8, width: 210, background: 'rgba(12,10,24,0.75)', border: '1px solid rgba(192,132,252,0.3)', borderRadius: 22, padding: 8, backdropFilter: 'blur(8px)' }}>

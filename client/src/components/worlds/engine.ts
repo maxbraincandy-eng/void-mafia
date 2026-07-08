@@ -96,7 +96,7 @@ export class WorldEngine {
     this.def = def;
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
-    this.curPR = Math.min(window.devicePixelRatio || 1, 2);
+    this.curPR = Math.min(window.devicePixelRatio || 1, 1.5);
     this.renderer.setPixelRatio(this.curPR);
     this.renderer.setClearColor(def.clear, 1);
     this.renderer.shadowMap.enabled = true;
@@ -136,6 +136,13 @@ export class WorldEngine {
     if (this.nearSeat) this.sit(this.nearSeat);
   }
   jump() { if (!this.seated && this.pos.y <= 0.02) this.vy = 8.0; }
+  // 1 near the screen, fading to 0 with distance — drives the cinema volume so
+  // the TV is only audible nearby.
+  screenAudibility(): number {
+    if (!this.screen) return 1;
+    const d = Math.hypot(this.screen.x - this.pos.x, this.screen.z - this.pos.z);
+    return Math.max(0, Math.min(1, (16 - d) / 11));
+  }
   emote() { this.avatar.wave(); }
   localEmote(kind: EmoteKind) { this.avatar.emote(kind); }
   // Snapshot the current 3D view (HUD is separate DOM, so it's a clean photo).
@@ -469,13 +476,13 @@ export class WorldEngine {
     this.perfAccum += dt; this.perfFrames++;
     if (this.perfAccum >= 1) {
       const fps = this.perfFrames / this.perfAccum;
-      const maxPR = Math.min(window.devicePixelRatio || 1, 2);
+      const maxPR = Math.min(window.devicePixelRatio || 1, 1.75);
       if (this.quality === 'auto') {
-        if (fps < 42 && this.curPR > 0.72) { this.curPR = Math.max(0.7, this.curPR - 0.15); this.renderer.setPixelRatio(this.curPR); this.resize(); }
-        else if (fps > 56 && this.curPR < maxPR) { this.curPR = Math.min(maxPR, this.curPR + 0.1); this.renderer.setPixelRatio(this.curPR); this.resize(); }
-        // Under heavy load, drop shadows entirely (unless the user forced them on).
-        if (fps < 30 && this.renderer.shadowMap.enabled && this.shadowsForced !== true) { this.renderer.shadowMap.enabled = false; this.moon.castShadow = false; }
-        this.worldPerf.reduced = this.curPR < 0.95;
+        if (fps < 50 && this.curPR > 0.66) { this.curPR = Math.max(0.65, this.curPR - 0.18); this.renderer.setPixelRatio(this.curPR); this.resize(); }
+        else if (fps > 58 && this.curPR < maxPR) { this.curPR = Math.min(maxPR, this.curPR + 0.08); this.renderer.setPixelRatio(this.curPR); this.resize(); }
+        // Under load, drop shadows entirely (unless the user forced them on).
+        if (fps < 34 && this.renderer.shadowMap.enabled && this.shadowsForced !== true) { this.renderer.shadowMap.enabled = false; this.moon.castShadow = false; }
+        this.worldPerf.reduced = this.curPR < 1.05;
       }
       this.perfAccum = 0; this.perfFrames = 0;
     }
