@@ -215,24 +215,64 @@ export async function joinLiveKitVoice(identity: string, roomId: string, opts: J
 
     // Alive players publish their mic on by default; dead players stay muted.
     if (alive) {
-      await r.localParticipant.setMicrophoneEnabled(true);
-      patch({ micEnabled: true });
+      try {
+        await r.localParticipant.setMicrophoneEnabled(true);
+        patch({ micEnabled: true });
+      } catch (micErr: any) {
+        // iOS blocks getUserMedia outside a user gesture. The ROOM connection
+        // succeeded — stay connected in listen mode (no scary raw browser
+        // error) and grab the mic automatically on the first tap.
+        patch({ micEnabled: false, error: null });
+        armLiveKitMicGestureRetry(r);
+        void micErr;
+      }
     }
   } catch (e: any) {
     if (seq === joinSeq) {
-      patch({ status: 'disconnected', error: e?.message || 'Voice connection failed.' });
+      patch({ status: 'disconnected', error: friendlyLiveKitError(e) });
       currentRoomId = null;
     }
     throw e;
   }
 }
 
+/** Map raw browser/LiveKit errors to something a player can act on. */
+function friendlyLiveKitError(e: any): string {
+  const raw = String(e?.message ?? '');
+  if (/not allowed by the user agent|denied permission|NotAllowed|Permission denied/i.test(raw)) {
+    return 'მიკროფონი დაბლოკილია — დააჭირე 🎙 ღილაკს ჩასართავად.';
+  }
+  if (/NotReadable|in use/i.test(raw)) {
+    return 'მიკროფონი დაკავებულია სხვა აპლიკაციის მიერ.';
+  }
+  return raw || 'Voice connection failed.';
+}
+
+/** One-shot: enable the mic on the next user tap (getUserMedia needs a gesture on iOS). */
+function armLiveKitMicGestureRetry(r: Room): void {
+  const retry = () => {
+    document.removeEventListener('touchend', retry);
+    document.removeEventListener('click', retry);
+    if (room !== r || state.dead || state.forceMuted || state.micEnabled) return;
+    r.localParticipant.setMicrophoneEnabled(true)
+      .then(() => patch({ micEnabled: true, error: null }))
+      .catch(() => { /* the 🎙 button remains as the manual path */ });
+  };
+  document.addEventListener('touchend', retry, { once: true, passive: true });
+  document.addEventListener('click', retry, { once: true });
+}
+
 /** Toggle / set the local mic. Ignored while dead or phase-force-muted. */
 export async function setLiveKitMic(enabled: boolean): Promise<void> {
   if (!room) return;
   if ((state.dead || state.forceMuted) && enabled) return; // locked — cannot un-mute
-  await room.localParticipant.setMicrophoneEnabled(enabled);
-  patch({ micEnabled: enabled });
+  try {
+    await room.localParticipant.setMicrophoneEnabled(enabled);
+    patch({ micEnabled: enabled, error: null });
+  } catch (e: any) {
+    if (enabled) patch({ micEnabled: false, error: friendlyLiveKitError(e) });
+    else patch({ micEnabled: false });
+  }
 }
 
 /**
@@ -244,12 +284,18 @@ export async function setLiveKitForceMuted(muted: boolean, reason?: string | nul
   patch({ forceMuted: muted, forceMuteReason: muted ? (reason ?? null) : null });
   if (!room) return;
   if (muted) {
-    await room.localParticipant.setMicrophoneEnabled(false);
+    try { await room.localParticipant.setMicrophoneEnabled(false); } catch { /* already off */ }
     patch({ micEnabled: false });
   } else if (!state.dead) {
     // Turn comes around → go live automatically (matches the game's design).
-    await room.localParticipant.setMicrophoneEnabled(true);
-    patch({ micEnabled: true });
+    try {
+      await room.localParticipant.setMicrophoneEnabled(true);
+      patch({ micEnabled: true, error: null });
+    } catch {
+      // No gesture available (iOS) — retry on the next tap instead of erroring.
+      patch({ micEnabled: false });
+      if (room) armLiveKitMicGestureRetry(room);
+    }
   }
 }
 
