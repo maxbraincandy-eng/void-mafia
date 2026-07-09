@@ -46,6 +46,8 @@ export interface TileVoice {
   localStream: MediaStream | null;
   /** remote video streams keyed by peer socketId */
   remoteStreams: Record<string, MediaStream>;
+  /** explicit per-peer camera on/off signal (voice:camera) keyed by socketId */
+  cameraPeers?: Record<string, boolean>;
   micLocked?: boolean;
   onToggleMute: () => void;
   onToggleCamera: () => void;
@@ -142,15 +144,25 @@ function initialsOf(name: string): string {
     .join('') || '?';
 }
 
-/** Reactively tracks whether a stream has a live (non-ended, non-muted) video track. */
-function useHasLiveVideo(stream: MediaStream | null): boolean {
-  const [has, setHas] = useState(() =>
-    !!stream && stream.getVideoTracks().some(t => t.readyState !== 'ended' && !t.muted)
-  );
+/**
+ * Reactively tracks whether a stream has a live video track.
+ *
+ * `signal` is the peer's explicit camera on/off state (voice:camera event):
+ *  - false → camera is off, hide regardless of any lingering track state
+ *  - true  → camera is on; show as soon as a non-ended video track exists
+ *            (don't wait for the fragile `muted→unmuted` flip)
+ *  - undefined → no signal known; fall back to the track-mute heuristic
+ */
+function useHasLiveVideo(stream: MediaStream | null, signal?: boolean): boolean {
+  const compute = () => {
+    if (!stream || signal === false) return false;
+    if (signal === true) return stream.getVideoTracks().some(t => t.readyState !== 'ended');
+    return stream.getVideoTracks().some(t => t.readyState !== 'ended' && !t.muted);
+  };
+  const [has, setHas] = useState(compute);
   useEffect(() => {
-    if (!stream) { setHas(false); return; }
-    const check = () =>
-      setHas(stream.getVideoTracks().some(t => t.readyState !== 'ended' && !t.muted));
+    if (!stream || signal === false) { setHas(false); return; }
+    const check = () => setHas(compute());
 
     // Track which tracks we've attached listeners to for proper cleanup
     const listenedTracks = new Set<MediaStreamTrack>();
@@ -183,7 +195,8 @@ function useHasLiveVideo(stream: MediaStream | null): boolean {
         t.removeEventListener('unmute', check);
       });
     };
-  }, [stream]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stream, signal]);
   return has;
 }
 
@@ -207,9 +220,9 @@ function LocalVideo({ stream }: { stream: MediaStream }) {
 }
 
 /** Live <video> element bound to a remote peer's MediaStream. */
-function RemoteVideo({ stream }: { stream: MediaStream }) {
+function RemoteVideo({ stream, signal }: { stream: MediaStream; signal?: boolean }) {
   const ref = useRef<HTMLVideoElement>(null);
-  const hasLive = useHasLiveVideo(stream);
+  const hasLive = useHasLiveVideo(stream, signal);
   useEffect(() => {
     if (!ref.current) return;
     ref.current.srcObject = hasLive ? stream : null;
@@ -239,7 +252,8 @@ function SpeakerHero({ player, isMe, isAlly, speakerIndex, totalSpeakers, voice 
     : (voice?.speakingSocketIds.has(player.socketId) ?? false);
   const showLocalVideo = isMe && voice?.inVoice && voice.cameraOn && !!voice.localStream;
   const remoteStream = !isMe ? (voice?.remoteStreams?.[player.socketId] ?? null) : null;
-  const hasRemoteVideo = useHasLiveVideo(remoteStream);
+  const camSignal = !isMe ? voice?.cameraPeers?.[player.socketId] : undefined;
+  const hasRemoteVideo = useHasLiveVideo(remoteStream, camSignal);
 
   return (
     <motion.div
@@ -288,7 +302,7 @@ function SpeakerHero({ player, isMe, isAlly, speakerIndex, totalSpeakers, voice 
           {showLocalVideo ? (
             <LocalVideo stream={voice!.localStream!} />
           ) : (remoteStream && hasRemoteVideo) ? (
-            <RemoteVideo stream={remoteStream} />
+            <RemoteVideo stream={remoteStream} signal={camSignal} />
           ) : (
             <div
               className="absolute inset-0 flex items-center justify-center"
@@ -488,7 +502,8 @@ function PlayerCard({
   const isVoiceSpeaking = isMe ? (voice?.isLocalSpeaking && !voice?.isMuted) : peerSpeaking;
   const showLocalVideo = isMe && voice?.inVoice && voice.cameraOn && !!voice.localStream;
   const remoteStream = !isMe ? (voice?.remoteStreams?.[player.socketId] ?? null) : null;
-  const hasRemoteVideo = useHasLiveVideo(remoteStream);
+  const camSignal = !isMe ? voice?.cameraPeers?.[player.socketId] : undefined;
+  const hasRemoteVideo = useHasLiveVideo(remoteStream, camSignal);
   // The local player can control their own mic/cam once they're in voice
   const showLocalControls = isMe && !dead;
   const initials = initialsOf(player.name);
@@ -563,7 +578,7 @@ function PlayerCard({
         {showLocalVideo ? (
           <LocalVideo stream={voice!.localStream!} />
         ) : hasRemoteVideo ? (
-          <RemoteVideo stream={remoteStream!} />
+          <RemoteVideo stream={remoteStream!} signal={camSignal} />
         ) : (
           <div
             className="absolute inset-0 flex items-center justify-center"

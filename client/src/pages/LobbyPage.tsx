@@ -32,7 +32,7 @@ export function LobbyPage() {
   const {
     room, myPlayer, amHost, toggleReady, kickPlayer, startGame,
     updateSettings, leaveRoom, transferHost, isLoading, autoStartCountdown,
-    claimDonModerator,
+    claimDonModerator, toSpectator, toPlayer,
   } = useGameStore(s => ({
     room: s.room,
     myPlayer: s.myPlayer(),
@@ -46,6 +46,8 @@ export function LobbyPage() {
     isLoading: s.isLoading,
     autoStartCountdown: s.autoStartCountdown,
     claimDonModerator: s.claimDonModerator,
+    toSpectator: s.toSpectator,
+    toPlayer: s.toPlayer,
   }));
 
   const { openProfile, openDmList, unreadDmCount } = useSocialStore();
@@ -378,6 +380,15 @@ export function LobbyPage() {
                   ⚔️ Ranked
                 </span>
               )}
+              {/* Quick player↔spectator switch */}
+              <button
+                onClick={() => (amSpectator ? toPlayer() : toSpectator()).catch(() => {})}
+                disabled={isLoading}
+                className="text-[11px] px-1.5 py-0.5 rounded border font-mono transition-all border-white/[0.08] text-white/30 hover:border-white/20 hover:text-white/55"
+                title={amSpectator ? 'შეუერთდი თამაშს' : 'გადადი სპექტატორებში'}
+              >
+                {amSpectator ? '🎮 თამაში' : '👁 სპექტატორი'}
+              </button>
             </div>
           </div>
         </motion.div>
@@ -680,9 +691,30 @@ export function LobbyPage() {
               )}
 
               {amSpectator && (
-                <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/[0.07] text-white/28 text-sm font-mono">
-                  {t.lobby.watchingSpectator}
+                <div className="space-y-2">
+                  <Button
+                    fullWidth
+                    variant="primary"
+                    loading={isLoading}
+                    onClick={() => toPlayer().catch(() => {})}
+                  >
+                    🎮 შეუერთდი თამაშს
+                  </Button>
+                  <div className="flex items-center justify-center gap-2 py-1.5 text-white/28 text-[11px] font-mono">
+                    👁 {t.lobby.watchingSpectator}
+                  </div>
                 </div>
+              )}
+
+              {/* Step out to the spectator bench (frees the seat, keeps listening) */}
+              {!amSpectator && (
+                <button
+                  onClick={() => toSpectator().catch(() => {})}
+                  disabled={isLoading}
+                  className="w-full py-2 rounded-xl border border-white/[0.08] text-white/35 hover:text-white/60 hover:border-white/20 transition-all text-[11px] font-mono"
+                >
+                  👁 გადადი სპექტატორებში
+                </button>
               )}
 
               {amHost && (

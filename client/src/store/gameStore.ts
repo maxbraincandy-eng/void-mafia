@@ -96,6 +96,10 @@ interface GameStore {
   getLeaderboard: () => Promise<PlayerProfilePublic[]>;
   joinQueue: () => Promise<void>;
   leaveQueue: () => Promise<void>;
+  /** Lobby: active player steps out to the spectator bench (keeps listening). */
+  toSpectator: () => Promise<void>;
+  /** Spectator joins the game: lobby → next free seat; mid-game → next-round queue. */
+  toPlayer: () => Promise<void>;
   // Dev tools (owner only)
   fillBots: (count: number) => Promise<void>;
   clearBots: () => Promise<void>;
@@ -741,6 +745,23 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (!res.ok) throw new Error(res.error);
       set({ queuePosition: null });
       get().addToast('Left the next-round queue', 'info');
+    }),
+
+    toSpectator: withLoading(async () => {
+      const res = await emitWithAck<unknown, Res<null>>('room:to-spectator', undefined);
+      if (!res.ok) throw new Error(res.error);
+      get().addToast('გადახვედი სპექტატორებში 👁', 'info');
+    }),
+
+    toPlayer: withLoading(async () => {
+      const res = await emitWithAck<unknown, Res<{ queued: boolean; position?: number; seat?: number }>>('room:to-player', undefined);
+      if (!res.ok) throw new Error(res.error);
+      if (res.data?.queued) {
+        set({ queuePosition: res.data.position ?? null });
+        get().addToast(`რიგში ჩადექი — შემდეგი თამაშიდან ითამაშებ (#${res.data.position})`, 'success');
+      } else {
+        get().addToast(`შეუერთდი თამაშს — ადგილი ${res.data?.seat ?? ''} 🎮`, 'success');
+      }
     }),
 
     // ── Dev tools (owner only) ────────────────────────────────────────────

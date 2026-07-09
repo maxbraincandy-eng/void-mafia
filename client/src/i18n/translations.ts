@@ -95,8 +95,8 @@ export const TRANSLATIONS = {
       gameInProgress: 'Game In Progress',
       watchAsSpectator: 'Watch as Spectator',
       watchSpectatorHint: 'Listen-only · no game actions',
-      joinNextRound: 'Join Next Round',
-      joinNextRoundHint: 'Wait in room · play when round ends',
+      joinNextRound: 'Join as Player',
+      joinNextRoundHint: 'Watch now · auto-seated when this game ends',
     },
     lobby: {
       subtitle: 'Lobby · Waiting for players',
@@ -1163,8 +1163,8 @@ export const TRANSLATIONS = {
       gameInProgress: 'თამაში მიმდინარეობს',
       watchAsSpectator: 'მაყურებლად ყოფნა',
       watchSpectatorHint: 'მოსმენა მხოლოდ · თამაში ხელმიუწვდომელია',
-      joinNextRound: 'შემდეგ რაუნდში შეერთება',
-      joinNextRoundHint: 'ოთახში ლოდინი · თამაში დაიწყება',
+      joinNextRound: 'შედი მოთამაშედ',
+      joinNextRoundHint: 'უყურე მიმდინარეს · დასრულებისას ავტომატურად მიიღებ ადგილს',
     },
     lobby: {
       subtitle: 'ლობი · მოთამაშეების მოლოდინი',

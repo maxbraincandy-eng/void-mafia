@@ -11,6 +11,7 @@ import {
   getPlayerBySocket, toPublicRoom, getAlivePlayers, getHostPlayer,
   toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom,
   setPlayerAvatarUrl, enqueueForNextRound, dequeueFromNextRound, promoteQueuedPlayers,
+  becomeSpectator, becomePlayer,
 } from './services/roomService.js';
 import {
   startGame, setPhase, advancePhase, submitNightAction, submitVote, submitNomination,
@@ -1335,7 +1336,10 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
         body: room.winner ? `${room.winner.charAt(0).toUpperCase() + room.winner.slice(1)} wins the game!` : 'The game has ended.',
       }).catch(() => {});
     }
-    if (p.profileId && room.winner) {
+    // Only participants who actually played (got a role) earn stats/XP —
+    // spectators and players promoted from the queue at game over must not
+    // receive a win/loss record for a game they never played.
+    if (p.profileId && room.winner && p.role) {
       const won = p.team === room.winner;
       await addGameResult(p.profileId, won);
 
@@ -1389,8 +1393,8 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
   // Ranked ELO update
   if (room.settings.ranked && room.winner) {
     try {
-      const winnerPlayers = [...room.players.values()].filter(p => !p.isSpectator && p.team === room.winner && p.profileId);
-      const loserPlayers  = [...room.players.values()].filter(p => !p.isSpectator && p.team !== room.winner && p.profileId);
+      const winnerPlayers = [...room.players.values()].filter(p => !p.isSpectator && p.role && p.team === room.winner && p.profileId);
+      const loserPlayers  = [...room.players.values()].filter(p => !p.isSpectator && p.role && p.team !== room.winner && p.profileId);
       const winnerIds = winnerPlayers.map(p => p.profileId as string);
       const loserIds  = loserPlayers.map(p => p.profileId as string);
       const roleMap: Record<string, string> = {};
@@ -1502,6 +1506,21 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
       }
     }
     await finishReplay(room.id, { winner: room.winner ?? 'draw', endedAt, playerRoles });
+  } catch { /* non-fatal */ }
+
+  // ── Queue payout ────────────────────────────────────────────────────
+  // The game is fully recorded — NOW queued spectators drop into the player
+  // pool (next free seat each), so by the time the room returns to the lobby
+  // they are seated players, not stuck in the spectator list. Runs after all
+  // stats/history above so they never inherit a result for a game they
+  // didn't play.
+  try {
+    const promoted = promoteQueuedPlayers(room);
+    if (promoted.length > 0) {
+      broadcastSystemMsg(io, room, `${promoted.map(p => `${p.name} (seat ${p.seat})`).join(', ')} joined the players for the next game.`);
+      broadcastQueueUpdated(io, room);
+      broadcastRoom(io, room);
+    }
   } catch { /* non-fatal */ }
 }
 
@@ -2073,8 +2092,9 @@ export function attachSocketHandlers(io: AppServer): void {
           const playerProfile = profileId ? await getPlayer(profileId) : null;
           const username = playerProfile?.username ?? parsed.name;
 
-          if (parsed.joinMode === 'next_round') {
-            // Join as spectator first, then enqueue
+          if (parsed.joinMode === 'next_round' || parsed.joinMode === 'player') {
+            // "Join as player" while a game is running = spectate now, auto-seat
+            // when this game ends. Join as spectator first, then enqueue.
             const player = addSpectatorPlayer(room, socket.id, username, profileId);
             if (playerProfile?.avatarUrl) player.avatarUrl = playerProfile.avatarUrl;
             if (playerProfile?.isModerator) {
@@ -2153,7 +2173,13 @@ export function attachSocketHandlers(io: AppServer): void {
         const username = playerProfile?.username ?? parsed.name;
         const player = addPlayer(room, socket.id, username, profileId);
         if (playerProfile?.avatarUrl) player.avatarUrl = playerProfile.avatarUrl;
-        if (parsed.isSpectator || parsed.joinMode === 'spectator') player.isSpectator = true;
+        if ((parsed.isSpectator || parsed.joinMode === 'spectator') && !player.isSpectator) {
+          // Normalize a lobby spectator: no seat number, not "alive" — otherwise
+          // the seat stays occupied and blocks the next joining player.
+          player.isSpectator = true;
+          player.isAlive = false;
+          player.seat = 0;
+        }
         if (playerProfile?.isModerator) {
           player.isModerator = playerProfile.isModerator;
           player.moderatorLevel = playerProfile.moderatorLevel;
@@ -2408,6 +2434,48 @@ export function attachSocketHandlers(io: AppServer): void {
         broadcastRoom(io, room);
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Switch: active player → spectator (lobby only) ──────────────
+    socket.on('room:to-spectator' as any, (cb: any) => {
+      try {
+        const room = getRoomFromSocket(socket);
+        const player = getPlayerOrError(socket, room);
+        if (room.phase !== 'lobby' && room.phase !== 'game_over') throw new Error('You can switch to spectator only in the lobby.');
+        if (player.isSpectator) throw new Error('Already a spectator.');
+        becomeSpectator(room, player.id);
+        socket.join(`spec:${room.id}`);
+        broadcastSystemMsg(io, room, `${player.name} switched to spectators.`);
+        broadcastRoom(io, room);
+        cb?.(ok(null));
+      } catch (e: any) { cb?.(err(e.message)); }
+    });
+
+    // ── Switch: spectator → active player ───────────────────────────
+    // In the lobby: takes the next free seat immediately.
+    // Mid-game: joins the next-round queue (auto-seated when the game ends).
+    socket.on('room:to-player' as any, (cb: any) => {
+      try {
+        const room = getRoomFromSocket(socket);
+        const player = getPlayerOrError(socket, room);
+        if (!player.isSpectator) throw new Error('Already a player.');
+
+        if (room.phase !== 'lobby' && room.phase !== 'game_over') {
+          if (player.isQueuedNextRound) throw new Error('Already in the next-round queue.');
+          const position = enqueueForNextRound(room, player.id);
+          broadcastSystemMsg(io, room, `${player.name} joined the queue for next round (#${position}).`);
+          broadcastQueueUpdated(io, room);
+          broadcastRoom(io, room);
+          cb?.(ok({ queued: true, position }));
+          return;
+        }
+
+        becomePlayer(room, player.id);
+        socket.leave(`spec:${room.id}`);
+        broadcastSystemMsg(io, room, `${player.name} joined the game (seat ${player.seat}).`);
+        broadcastRoom(io, room);
+        cb?.(ok({ queued: false, seat: player.seat }));
+      } catch (e: any) { cb?.(err(e.message)); }
     });
 
     // ── Night Action ────────────────────────────────────────────────
@@ -2985,22 +3053,24 @@ export function attachSocketHandlers(io: AppServer): void {
         room.nominations = new Map();
         room.tribunalCandidates = [];
 
+        // Queued spectators were promised a seat next round — honour it even on
+        // terminate: promote them into the player pool (next free seats).
+        const promotedOnTerminate = promoteQueuedPlayers(room);
+
         for (const p of room.players.values()) {
           p.role = null;
           p.team = null;
-          p.isAlive = true;
+          p.isAlive = !p.isSpectator;
           p.isReady = false;
           p.voteTarget = null;
           p.hasActedThisPhase = false;
           p.deathType = null;
         }
 
-        // Clear the next-round queue — queued spectators stay as watch-only spectators
-        for (const p of room.nextRoundQueue) {
-          p.isQueuedNextRound = false;
-          p.queuePosition = null;
+        if (promotedOnTerminate.length > 0) {
+          broadcastSystemMsg(io, room, `${promotedOnTerminate.map(p => p.name).join(', ')} joined from the queue.`);
+          broadcastQueueUpdated(io, room);
         }
-        room.nextRoundQueue = [];
 
         broadcastSystemMsg(io, room, 'The host terminated the game. Returning to lobby.');
         broadcastRoom(io, room);
@@ -3042,7 +3112,7 @@ export function attachSocketHandlers(io: AppServer): void {
         for (const p of room.players.values()) {
           p.role = null;
           p.team = null;
-          p.isAlive = true;
+          p.isAlive = !p.isSpectator;
           p.isReady = false;
           p.voteTarget = null;
           p.hasActedThisPhase = false;
@@ -4293,6 +4363,15 @@ export function attachSocketHandlers(io: AppServer): void {
     // ── Voice: Relay ICE Candidate ──────────────────────────────────
     socket.on('voice:ice-candidate', ({ to, candidate }) => {
       io.to(to).emit('voice:ice-candidate', { from: socket.id, candidate });
+    });
+
+    // ── Voice: Camera state signal ──────────────────────────────────
+    // Explicit on/off broadcast so remote UIs learn a peer's camera state
+    // directly instead of inferring it from fragile track mute/unmute timing.
+    socket.on('voice:camera' as any, (payload: any) => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      socket.to(roomId).emit('voice:camera' as any, { socketId: socket.id, on: !!payload?.on });
     });
 
     // ── Rematch ─────────────────────────────────────────────────────

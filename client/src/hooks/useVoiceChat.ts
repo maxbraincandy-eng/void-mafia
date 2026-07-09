@@ -25,6 +25,8 @@ export interface VoiceState {
   /** User's own mic preference (true = they want their mic on) */
   userMicEnabled: boolean;
   cameraOn: boolean;
+  /** Explicit camera state per remote peer (from the voice:camera signal). */
+  cameraPeers: Record<string, boolean>;
   isLocalSpeaking: boolean;
   peers: PeerState[];
   remoteStreams: Record<string, MediaStream>;
@@ -45,6 +47,7 @@ const INITIAL: VoiceState = {
   isMuted:          false,
   userMicEnabled:   true,
   cameraOn:         false,
+  cameraPeers:      {},
   isLocalSpeaking:  false,
   peers:            [],
   remoteStreams:    {},
@@ -216,6 +219,9 @@ async function _moduleJoinVoice(
       return;
     }
 
+    // Own socket id → deterministic polite/impolite roles for offer glare
+    session.setLocalId((socket as any).id ?? '');
+
     const transmitAllowed: boolean = res.data.transmitAllowed ?? true;
 
     if (res.data.iceServers) {
@@ -258,6 +264,7 @@ async function _moduleJoinVoice(
     }
 
     _patch({ peers: session.getPeers() });
+    if (withCamera) (socket as any).emit('voice:camera', { on: true });
   });
 }
 
@@ -292,6 +299,8 @@ async function _moduleJoinListenOnly(channel: VoiceChannel): Promise<void> {
       _patch({ status: 'failed', error: res.error ?? 'Failed to join voice.' });
       return;
     }
+
+    session.setLocalId((socket as any).id ?? '');
 
     if (res.data.iceServers) {
       session.setIceConfig({
@@ -331,12 +340,20 @@ function onPeerJoined({ socketId, name }: { socketId: string; name: string; chan
     (socket as any).emit('voice:ice-candidate', { to: socketId, candidate });
   });
   _patch({ peers: s.getPeers() });
+  // Newcomers don't know our camera state — re-announce it.
+  if (_state.cameraOn) (socket as any).emit('voice:camera', { on: true });
 }
 
 function onPeerLeft({ socketId }: { socketId: string }) {
   log('peer-left', socketId);
   _session?.removePeer(socketId);
-  _patch({ peers: _session?.getPeers() ?? [], remoteStreams: _session?.getRemoteStreams() ?? {} });
+  const cams = { ..._state.cameraPeers };
+  delete cams[socketId];
+  _patch({ peers: _session?.getPeers() ?? [], remoteStreams: _session?.getRemoteStreams() ?? {}, cameraPeers: cams });
+}
+
+function onCameraSignal({ socketId, on }: { socketId: string; on: boolean }) {
+  _patch({ cameraPeers: { ..._state.cameraPeers, [socketId]: !!on } });
 }
 
 async function onOffer({ from, sdp }: { from: string; sdp: RTCSessionDescriptionInit }) {
@@ -348,8 +365,19 @@ async function onOffer({ from, sdp }: { from: string; sdp: RTCSessionDescription
     const answer = await s.handleOffer(from, existingName, sdp, (candidate) => {
       (socket as any).emit('voice:ice-candidate', { to: from, candidate });
     });
-    (socket as any).emit('voice:answer', { to: from, sdp: answer }, () => {});
+    if (answer) (socket as any).emit('voice:answer', { to: from, sdp: answer }, () => {});
     _patch({ peers: s.getPeers() });
+    // If we rolled back our own offer to resolve glare, send a fresh one now
+    // so our pending change (e.g. the camera track) still gets negotiated.
+    if (answer && s.consumePendingReoffer(from)) {
+      try {
+        const offer = await s.createOffer(from);
+        (socket as any).emit('voice:offer', { to: from, sdp: offer }, () => {});
+        log('post-glare re-offer sent to', from);
+      } catch (e: any) {
+        log('post-glare re-offer failed for', from, ':', e.message);
+      }
+    }
   } catch (e: any) {
     log('offer handling failed:', e.message);
   }
@@ -440,6 +468,7 @@ function onSocketConnect() {
 // Register once
 (socket as any).on('voice:peer-joined',   onPeerJoined);
 (socket as any).on('voice:peer-left',      onPeerLeft);
+(socket as any).on('voice:camera',         onCameraSignal);
 (socket as any).on('voice:offer',          onOffer);
 (socket as any).on('voice:answer',         onAnswer);
 (socket as any).on('voice:ice-candidate',  onIceCandidate);
@@ -548,6 +577,7 @@ export function useVoiceChat() {
     if (!s) return;
     if (_state.cameraOn) {
       _patch({ cameraOn: false });
+      (socket as any).emit('voice:camera', { on: false });
       await s.removeCamera();
     } else {
       try {
@@ -555,6 +585,7 @@ export function useVoiceChat() {
           (socket as any).emit('voice:offer', { to: peerId, sdp: offer }, () => {});
         });
         _patch({ cameraOn: true, error: null });
+        (socket as any).emit('voice:camera', { on: true });
       } catch (e: any) {
         // Session subscriber may suppress errors when joined silently — always show camera errors
         _patch({ cameraOn: false, error: e instanceof Error ? e.message : 'Could not enable camera.' });

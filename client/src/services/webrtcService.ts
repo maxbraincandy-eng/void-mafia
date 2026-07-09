@@ -76,6 +76,9 @@ function normalizeRTCConfig(config?: RTCConfiguration): RTCConfiguration {
 export class WebRTCSession {
   private localStream: MediaStream | null = null;
   private listenOnly = false;
+  private localId = '';
+  /** Peers we owe a fresh offer after rolling back ours during offer glare. */
+  private pendingReoffer = new Set<string>();
   private pcs = new Map<string, RTCPeerConnection>();
   private audioEls = new Map<string, HTMLAudioElement>();
   private remoteStreams = new Map<string, MediaStream>();
@@ -117,6 +120,19 @@ export class WebRTCSession {
   setIceConfig(config: RTCConfiguration): void {
     this.iceConfig = normalizeRTCConfig(config);
     log('ICE config updated:', this.iceConfig);
+  }
+
+  /**
+   * Our own socket id — used to break offer glare deterministically:
+   * exactly one side of every pair is "polite" (rolls back its own pending
+   * offer and answers the incoming one); the other ignores the colliding offer.
+   */
+  setLocalId(id: string): void {
+    this.localId = id;
+  }
+
+  private isPolite(peerId: string): boolean {
+    return this.localId < peerId;
   }
 
   // ── Pub/sub ─────────────────────────────────────────────────────────
@@ -492,12 +508,17 @@ export class WebRTCSession {
     return offer;
   }
 
+  /**
+   * Handle an incoming offer. Returns the answer to send back, or null when
+   * this side ignored a colliding offer (impolite side of glare) — the caller
+   * must not send an answer in that case.
+   */
   async handleOffer(
     peerId: string,
     peerName: string,
     sdp: RTCSessionDescriptionInit,
     onIceCandidate: (c: RTCIceCandidateInit) => void,
-  ): Promise<RTCSessionDescriptionInit> {
+  ): Promise<RTCSessionDescriptionInit | null> {
     const isRenegotiation = this.pcs.has(peerId);
 
     log(
@@ -525,6 +546,28 @@ export class WebRTCSession {
         }
       };
 
+      // ── Offer glare ─────────────────────────────────────────────────
+      // Camera toggles let EITHER side initiate renegotiation, so two offers
+      // can cross on the wire. Without handling this, setRemoteDescription
+      // throws and the video m-line never completes — the classic "camera on
+      // locally but nobody sees it". Perfect-negotiation-lite:
+      //   polite side  → roll back its own pending offer, answer theirs, then
+      //                  re-offer (via consumePendingReoffer) once stable;
+      //   impolite side → ignore the colliding offer (its own will be answered).
+      if (pc.signalingState === 'have-local-offer') {
+        if (!this.isPolite(peerId)) {
+          log('offer glare with', peerId, '— impolite side ignoring incoming offer');
+          return null;
+        }
+        log('offer glare with', peerId, '— polite side rolling back local offer');
+        try {
+          await pc.setLocalDescription({ type: 'rollback' } as RTCSessionDescriptionInit);
+          this.pendingReoffer.add(peerId);
+        } catch (e: any) {
+          log('rollback failed for', peerId, ':', e?.message ?? e);
+        }
+      }
+
       log('reusing existing PC for renegotiation with', peerId);
     } else {
       // First connection: create a new peer connection.
@@ -546,6 +589,18 @@ export class WebRTCSession {
     );
 
     return answer;
+  }
+
+  /**
+   * True (once) if we rolled back a local offer for this peer while answering
+   * theirs — the caller should create and send a fresh offer now that the
+   * connection is stable, so our own pending change (e.g. camera track) still
+   * gets negotiated.
+   */
+  consumePendingReoffer(peerId: string): boolean {
+    if (!this.pendingReoffer.has(peerId)) return false;
+    this.pendingReoffer.delete(peerId);
+    return true;
   }
 
   async handleAnswer(
@@ -751,7 +806,14 @@ export class WebRTCSession {
     let videoStream: MediaStream;
 
     try {
-      videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      // A second getUserMedia (after the initial mic grab) can hang on some
+      // mobile browsers — bound it so the camera button never gets stuck.
+      videoStream = await Promise.race([
+        navigator.mediaDevices.getUserMedia({ video: true }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(Object.assign(new Error('camera timeout'), { name: 'TimeoutError' })), 12000),
+        ),
+      ]);
     } catch (e: any) {
       let msg = 'Could not access camera.';
 
@@ -760,6 +822,10 @@ export class WebRTCSession {
           'Camera access denied. Allow it in your browser settings, then try again.';
       } else if (e.name === 'NotFoundError') {
         msg = 'No camera found. Please connect one and try again.';
+      } else if (e.name === 'TimeoutError') {
+        msg = 'Camera did not respond. Close other apps using the camera and try again.';
+      } else if (e.name === 'NotReadableError') {
+        msg = 'Camera is in use by another application.';
       }
 
       this.emit({ type: 'error', message: msg });
@@ -772,50 +838,62 @@ export class WebRTCSession {
     this.localStream.addTrack(videoTrack);
     log('camera track added to local stream');
 
+    let okPeers = 0;
+    let failedPeers = 0;
+
     for (const [peerId, pc] of this.pcs.entries()) {
       const existingSender = this.videoSenders.get(peerId);
 
-      if (existingSender) {
+      // A sender is only reusable while its PC is still the live one AND open.
+      const senderUsable = !!existingSender
+        && pc.signalingState !== 'closed'
+        && pc.getSenders().includes(existingSender);
+
+      if (senderUsable) {
         // Re-enable: swap new track into existing sender — no renegotiation needed.
         // The remote peer already has the transceiver; it just starts receiving frames again.
         try {
-          await existingSender.replaceTrack(videoTrack);
+          await existingSender!.replaceTrack(videoTrack);
+          okPeers++;
           log('camera re-enabled for peer', peerId, '(replaceTrack, no renegotiation)');
+          continue;
         } catch (e: any) {
           log('replaceTrack re-enable failed for', peerId, ':', e.message, '— falling back to addTrack');
-          // Fallback: sender is from a closed/replaced PC; treat as first-time enable
           this.videoSenders.delete(peerId);
-          try {
-            const sender = pc.addTrack(videoTrack, this.localStream!);
-            this.videoSenders.set(peerId, sender);
-            if (onRenegotiate) {
-              const offer = await pc.createOffer();
-              await pc.setLocalDescription(offer);
-              onRenegotiate(peerId, offer);
-              log('renegotiation offer sent to', peerId, '(fallback)');
-            }
-          } catch (e2: any) {
-            log('addTrack fallback also failed for', peerId, ':', e2.message);
-          }
         }
-      } else {
-        // First time enabling camera for this peer: add track and renegotiate.
+      } else if (existingSender) {
+        // Stale sender from a closed/replaced PC — drop it and add fresh.
+        this.videoSenders.delete(peerId);
+      }
+
+      // First-time enable (or fallback): add track and renegotiate.
+      try {
         const sender = pc.addTrack(videoTrack, this.localStream);
         this.videoSenders.set(peerId, sender);
         log('camera track added to peer connection', peerId);
 
         if (onRenegotiate) {
-          try {
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-
-            onRenegotiate(peerId, offer);
-            log('renegotiation offer sent to', peerId);
-          } catch (e: any) {
-            log('renegotiation offer failed for', peerId, ':', e.message);
-          }
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          onRenegotiate(peerId, offer);
+          log('renegotiation offer sent to', peerId);
         }
+        okPeers++;
+      } catch (e: any) {
+        failedPeers++;
+        logWarn('camera negotiation failed for', peerId, ':', e.message);
       }
+    }
+
+    // If there ARE peers and not one of them got the track, the camera would
+    // show "on" locally while nobody else can ever see it — fail loudly instead
+    // so the UI doesn't lie.
+    if (failedPeers > 0 && okPeers === 0) {
+      videoTrack.stop();
+      this.localStream.removeTrack(videoTrack);
+      const msg = 'Camera could not reach other players. Try again.';
+      this.emit({ type: 'error', message: msg });
+      throw new Error(msg);
     }
   }
 

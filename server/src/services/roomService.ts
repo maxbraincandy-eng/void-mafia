@@ -373,6 +373,52 @@ export function promoteQueuedPlayers(room: Room): Player[] {
   return toPromote;
 }
 
+/**
+ * Lobby-only: an active player steps out to the spectator bench.
+ * Frees their seat number; they keep listening (spectators may always listen).
+ */
+export function becomeSpectator(room: Room, playerId: string): Player {
+  const player = room.players.get(playerId);
+  if (!player) throw new Error('Player not found.');
+  if (player.isSpectator) return player;
+  if (room.donModeratorId === playerId) room.donModeratorId = null;
+  player.isSpectator = true;
+  player.isAlive = false;
+  player.isReady = false;
+  player.seat = 0;
+  player.role = null;
+  player.team = null;
+  player.voteTarget = null;
+  return player;
+}
+
+/**
+ * Lobby-only: a spectator takes the next free seat and becomes an active player.
+ * Clears any next-round queue entry (they're seated now).
+ */
+export function becomePlayer(room: Room, playerId: string): Player {
+  const player = room.players.get(playerId);
+  if (!player) throw new Error('Player not found.');
+  if (!player.isSpectator) return player;
+
+  const active = [...room.players.values()].filter(p => !p.isSpectator);
+  if (active.length >= 16) throw new Error('Room is full (max 16 players).');
+
+  const qIdx = room.nextRoundQueue.findIndex(p => p.id === playerId);
+  if (qIdx !== -1) {
+    room.nextRoundQueue.splice(qIdx, 1);
+    room.nextRoundQueue.forEach((p, i) => { p.queuePosition = i + 1; });
+  }
+
+  player.isSpectator = false;
+  player.isQueuedNextRound = false;
+  player.queuePosition = null;
+  player.isAlive = true;
+  player.isReady = false;
+  player.seat = getNextSeat(room);
+  return player;
+}
+
 export function removePlayer(room: Room, playerId: string): void {
   const queueIdx = room.nextRoundQueue.findIndex(p => p.id === playerId);
   if (queueIdx !== -1) {

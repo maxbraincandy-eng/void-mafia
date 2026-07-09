@@ -22,6 +22,16 @@ export declare function dequeueFromNextRound(room: Room, playerId: string): void
  * Promote queued players to active slots at the start of a new round.
  */
 export declare function promoteQueuedPlayers(room: Room): Player[];
+/**
+ * Lobby-only: an active player steps out to the spectator bench.
+ * Frees their seat number; they keep listening (spectators may always listen).
+ */
+export declare function becomeSpectator(room: Room, playerId: string): Player;
+/**
+ * Lobby-only: a spectator takes the next free seat and becomes an active player.
+ * Clears any next-round queue entry (they're seated now).
+ */
+export declare function becomePlayer(room: Room, playerId: string): Player;
 export declare function removePlayer(room: Room, playerId: string): void;
 export declare function transferHost(room: Room, newHostId: string): void;
 export declare function getPlayerBySocket(room: Room, socketId: string): Player | undefined;
