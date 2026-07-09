@@ -52,6 +52,7 @@ export const beachCamp: WorldDef = {
     buildSeaLife(ctx);
     buildJetSki(ctx);
     buildAirParticles(ctx);
+    buildAvatarStation(ctx);
 
     // ambient audio sources — ocean is faint far away and swells toward the
     // shore (steep radius); fire is quiet and local (only near it you hear pops).
@@ -1174,4 +1175,83 @@ function dbSignTexture(): THREE.Texture {
   g.font = '40px serif';
   g.fillText('🤍', W / 2 + 44, 158);
   return new THREE.CanvasTexture(c);
+}
+
+// ── Avatar creation station (topmost feature on the map) ─────────────
+function buildAvatarStation(ctx: WorldContext) {
+  const { scene } = ctx;
+  const AX = 0, AZ = 22;
+  const g = new THREE.Group();
+  g.position.set(AX, 0, AZ);
+  scene.add(g);
+
+  // Platform — circular wooden stage
+  const platGeo = new THREE.CylinderGeometry(2.8, 3, 0.18, 24);
+  const platMat = new THREE.MeshStandardMaterial({ color: 0x3a2818, roughness: 0.85, metalness: 0.1 });
+  const plat = new THREE.Mesh(platGeo, platMat);
+  plat.position.y = 0.09;
+  plat.receiveShadow = true;
+  g.add(plat);
+
+  // Standing mirror frame
+  const frameGroup = new THREE.Group();
+  frameGroup.position.set(0, 0, -1.2);
+  g.add(frameGroup);
+
+  const poleGeo = new THREE.CylinderGeometry(0.06, 0.08, 2.8, 8);
+  const poleMat = new THREE.MeshStandardMaterial({ color: 0xc9a8ff, roughness: 0.3, metalness: 0.7 });
+  const pole = new THREE.Mesh(poleGeo, poleMat);
+  pole.position.y = 1.4;
+  frameGroup.add(pole);
+
+  // Mirror surface — glowing translucent panel
+  const mirrorGeo = new THREE.PlaneGeometry(1.4, 2.0);
+  const mirrorMat = new THREE.MeshStandardMaterial({
+    color: 0xd8c0ff, emissive: 0x7c3aed, emissiveIntensity: 0.35,
+    roughness: 0.1, metalness: 0.9, transparent: true, opacity: 0.6, side: THREE.DoubleSide,
+  });
+  const mirror = new THREE.Mesh(mirrorGeo, mirrorMat);
+  mirror.position.y = 1.8;
+  frameGroup.add(mirror);
+
+  // Neon ring around the mirror
+  const ringGeo = new THREE.TorusGeometry(1.1, 0.04, 8, 32);
+  const ringMat = new THREE.MeshStandardMaterial({ color: 0xff6bdf, emissive: 0xff6bdf, emissiveIntensity: 0.9, roughness: 0, metalness: 0.5 });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.position.y = 1.8;
+  frameGroup.add(ring);
+
+  // Label sign above the mirror
+  const labelC = document.createElement('canvas');
+  labelC.width = 256; labelC.height = 64;
+  const lctx = labelC.getContext('2d')!;
+  lctx.font = 'bold 28px monospace';
+  lctx.textAlign = 'center'; lctx.textBaseline = 'middle';
+  lctx.fillStyle = '#c084fc';
+  lctx.fillText('✨ ავატარი ✨', 128, 32);
+  const labelTex = new THREE.CanvasTexture(labelC);
+  const labelGeo = new THREE.PlaneGeometry(1.8, 0.45);
+  const labelMat = new THREE.MeshBasicMaterial({ map: labelTex, transparent: true, side: THREE.DoubleSide });
+  const labelMesh = new THREE.Mesh(labelGeo, labelMat);
+  labelMesh.position.y = 3.1;
+  frameGroup.add(labelMesh);
+
+  // Decorative mannequin silhouettes on each side
+  const mannGeo = new THREE.CapsuleGeometry(0.15, 0.7, 4, 8);
+  const mannMat1 = new THREE.MeshStandardMaterial({ color: 0x7c3aed, emissive: 0x7c3aed, emissiveIntensity: 0.3 });
+  const mannMat2 = new THREE.MeshStandardMaterial({ color: 0xc026d3, emissive: 0xc026d3, emissiveIntensity: 0.3 });
+  const m1 = new THREE.Mesh(mannGeo, mannMat1);
+  m1.position.set(-1.8, 0.55, 0);
+  g.add(m1);
+  const m2 = new THREE.Mesh(mannGeo, mannMat2);
+  m2.position.set(1.8, 0.55, 0);
+  g.add(m2);
+
+  ctx.onUpdate((_dt, elapsed) => {
+    ring.rotation.z = elapsed * 0.3;
+    mirrorMat.emissiveIntensity = 0.25 + 0.15 * Math.sin(elapsed * 1.8);
+  });
+
+  ctx.addCollider({ x: AX, z: AZ - 1.2, r: 0.9 });
+  ctx.addInteractable({ id: 'avatar', x: AX, z: AZ, r: 3.2, label: '🧍 ავატარის შექმნა', effect() {} });
 }

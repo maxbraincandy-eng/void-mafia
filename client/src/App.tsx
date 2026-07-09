@@ -50,7 +50,6 @@ const Backrooms = lazy(() => import('@/components/backrooms/Backrooms'));
 // Premium Worlds (flagship 3D social spaces) — also lazy-loaded.
 const PremiumWorlds = lazy(() => import('@/components/worlds/PremiumWorlds'));
 // Character Creator (3D avatar) — lazy-loaded.
-const CharacterCreator = lazy(() => import('@/components/character/CharacterCreator'));
 // Premium world display names (kept here so the invite prompt doesn't pull the
 // lazy worlds chunk into the main bundle).
 const PREMIUM_WORLD_NAMES: Record<string, string> = { beach_camp: 'Beach Camp 3D' };
@@ -351,7 +350,6 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [premiumWorldId, setPremiumWorldId] = useState<string | null>(null);
   const [worldInvite, setWorldInvite] = useState<{ worldId: string; fromName: string } | null>(null);
-  const [characterOpen, setCharacterOpen] = useState(false);
   const [spaceInvite, setSpaceInvite] = useState<{ spaceId: string; code: string; name: string; icon: string; fromName: string } | null>(null);
   const [modOpen, setModOpen] = useState(false);
 
@@ -371,17 +369,6 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
     if (profile?.id) useNameColorStore.getState().setLocal(profile.id, profile.cosmetics?.equippedNameColor ?? null);
   }, [profile?.id, profile?.cosmetics?.equippedNameColor]);
 
-  // First-run: invite the player to create their 3D avatar (once ever).
-  useEffect(() => {
-    if (!profile?.id) return;
-    try {
-      if (!localStorage.getItem('vm_character') && !localStorage.getItem('vm_char_prompted')) {
-        localStorage.setItem('vm_char_prompted', '1');
-        const t = setTimeout(() => setCharacterOpen(true), 1200);
-        return () => clearTimeout(t);
-      }
-    } catch { /* ignore */ }
-  }, [profile?.id]);
 
   // Incoming space invite → strict centered overlay (Accept / Reject).
   useEffect(() => {
@@ -469,7 +456,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       {page === 'rooms' && <PWAInstallBanner />}
       <AnimatePresence mode="wait">
         {page === 'rooms'       && <PageTransition key="rooms"        direction={direction}><RoomsPage /></PageTransition>}
-        {page === 'games'       && <PageTransition key="games"        direction={direction}><GamesPage onOpenSpace={() => setSpaceOpen(true)} onOpenBackrooms={() => setBackroomsOpen(true)} onOpenPremium={() => setPremiumOpen(true)} onOpenCharacter={() => setCharacterOpen(true)} /></PageTransition>}
+        {page === 'games'       && <PageTransition key="games"        direction={direction}><GamesPage onOpenSpace={() => setSpaceOpen(true)} onOpenBackrooms={() => setBackroomsOpen(true)} onOpenPremium={() => setPremiumOpen(true)} /></PageTransition>}
         {page === 'community'   && <PageTransition key="community"    direction={direction}><CommunityPage /></PageTransition>}
         {page === 'clans'       && <PageTransition key="clans"        direction={direction}><ClansPage /></PageTransition>}
         {page === 'replays'     && <PageTransition key={`replays-${initialReplayId ?? ''}`} direction={direction}><ReplaysPage initialReplayId={initialReplayId} /></PageTransition>}
@@ -511,11 +498,6 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
           </div>
         </div>,
         document.body,
-      )}
-      {characterOpen && (
-        <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 2200, background: '#08060f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(233,213,255,0.6)', fontFamily: 'monospace', letterSpacing: 3, fontSize: 13 }}>ჩატვირთვა…</div>}>
-          <CharacterCreator onClose={() => setCharacterOpen(false)} />
-        </Suspense>
       )}
 
       {/* Space invite — strict centered overlay (auto-dismiss after 15s) */}

@@ -127,6 +127,57 @@ export function defaultSpec(gender: Gender = 'male'): CharacterSpec {
   };
 }
 
+function pick<T>(arr: readonly T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
+
+export function randomSpec(): CharacterSpec {
+  const gender: Gender = Math.random() < 0.5 ? 'male' : 'female';
+  const female = gender === 'female';
+  const hairs: HairStyle[] = female
+    ? ['long', 'wavy', 'bob', 'ponytail', 'twintails', 'bun', 'curly']
+    : ['short', 'buzz', 'curly', 'afro', 'dreads'];
+  const tops: TopStyle[] = female
+    ? ['crop', 'tshirt', 'tank', 'dress', 'sweater']
+    : ['tshirt', 'hoodie', 'jacket', 'sweater', 'tank'];
+  const bottoms: BottomStyle[] = female
+    ? ['skirt', 'jeans', 'shorts']
+    : ['jeans', 'cargo', 'shorts'];
+  const shoes: ShoeStyle[] = female
+    ? ['platform', 'sneakers', 'heels', 'boots']
+    : ['sneakers', 'boots'];
+  const glowColors = ['#00e5ff', '#ff6bdf', '#7c3aed', '#ff4d4d', '#3bd17a', '#ffb800', '#3ba0ff', '#ff9ecb'];
+  return {
+    v: 2, gender,
+    skin: pick(SKIN_TONES),
+    height: 0.94 + Math.random() * 0.14,
+    build: pick<BodyBuild>(female ? ['slim', 'athletic'] : ['athletic', 'muscular', 'slim']),
+    shoulders: 0.9 + Math.random() * 0.2,
+    legLen: 0.95 + Math.random() * 0.12,
+    hair: pick(hairs), hairColor: pick(HAIR_COLORS), hairColor2: Math.random() < 0.3 ? pick(HAIR_COLORS) : '',
+    bangs: female && Math.random() < 0.5,
+    beard: female ? 'none' : pick<BeardStyle>(['none', 'none', 'stubble', 'goatee']),
+    beardColor: pick(HAIR_COLORS), browColor: pick(HAIR_COLORS.slice(0, 6)),
+    eyeColor: pick(EYE_COLORS), eyeShape: pick<EyeShape>(['round', 'almond', 'sharp']),
+    pupil: pick<PupilStyle>(['round', 'round', 'cat']),
+    eyeliner: female && Math.random() < 0.4,
+    freckles: Math.random() < 0.15, beautyMark: Math.random() < 0.1,
+    lipstick: female ? pick(LIP_COLORS) : '', eyeshadow: female && Math.random() < 0.3 ? pick(SHADOW_COLORS) : '',
+    blush: female && Math.random() < 0.4,
+    top: pick(tops), topColor: pick(CLOTH_COLORS),
+    bottom: pick(bottoms), bottomColor: pick(CLOTH_COLORS),
+    shoes: pick(shoes), shoeColor: pick(CLOTH_COLORS),
+    socks: female ? pick<SockStyle>(['none', 'short', 'knee', 'thigh']) : pick<SockStyle>(['none', 'short']),
+    sockColor: pick(SOCK_COLORS),
+    gloves: 'none',
+    glasses: Math.random() < 0.15 ? pick<GlassesStyle>(['round', 'square', 'shades']) : 'none',
+    hat: Math.random() < 0.15 ? pick<HatStyle>(['cap', 'beanie']) : 'none',
+    hatColor: pick(CLOTH_COLORS),
+    earrings: female && Math.random() < 0.4,
+    hairclip: female && Math.random() < 0.2,
+    necklace: Math.random() < 0.15, belt: Math.random() < 0.2,
+    glow: pick(glowColors),
+  };
+}
+
 const KEY = 'vm_character';
 
 export function loadSpec(): CharacterSpec | null {

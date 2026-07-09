@@ -13,7 +13,7 @@ import type { LudoMatchListItem } from '@/types/ludo';
 import type { WWWListItem } from '@/types/www';
 import type { UnoListItem } from '@/types/uno';
 
-export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium, onOpenCharacter }: { onOpenSpace?: () => void; onOpenBackrooms?: () => void; onOpenPremium?: () => void; onOpenCharacter?: () => void }) {
+export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOpenSpace?: () => void; onOpenBackrooms?: () => void; onOpenPremium?: () => void }) {
   const t = useT();
   const profile = useAuthStore(s => s.profile);
   const playerName = profile?.username ?? 'Player';
@@ -152,21 +152,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium, onOpenCh
 
   return (
     <div className="space-y-4">
-      {/* ── Character Creator card ──────────────────────────────────────── */}
-      {onOpenCharacter && (
-        <button onClick={onOpenCharacter}
-          className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
-          style={{ border: '1px solid rgba(192,132,252,0.4)', boxShadow: '0 6px 30px rgba(124,58,237,0.18)' }}>
-          <div style={{ height: 78, background: 'linear-gradient(135deg, #2a1a4a 0%, #4a2c6a 55%, #7c3aed 100%)', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px' }}>
-            <span style={{ fontSize: 36 }}>🧍</span>
-            <div className="flex-1 min-w-0">
-              <p className="font-display font-bold text-white text-sm leading-tight">ავატარის შექმნა ✨</p>
-              <p className="font-mono text-[12px] text-white/60">შექმენი შენი 3D პერსონაჟი</p>
-            </div>
-            <span className="font-mono text-xs px-3 py-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.12)', color: '#fff' }}>შექმნა</span>
-          </div>
-        </button>
-      )}
 
       {/* ── Premium Worlds card (flagship 3D social worlds) ─────────────── */}
       {onOpenPremium && (

@@ -3,7 +3,7 @@ import { useT } from '@/store/langStore';
 import { GamesTab } from '@/components/community/GamesTab';
 import { VoidGamesIcon } from '@/components/ui/VoidGamesIcon';
 
-export function GamesPage({ onOpenSpace, onOpenBackrooms, onOpenPremium, onOpenCharacter }: { onOpenSpace?: () => void; onOpenBackrooms?: () => void; onOpenPremium?: () => void; onOpenCharacter?: () => void }) {
+export function GamesPage({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOpenSpace?: () => void; onOpenBackrooms?: () => void; onOpenPremium?: () => void }) {
   const t = useT();
 
   return (
@@ -41,7 +41,7 @@ export function GamesPage({ onOpenSpace, onOpenBackrooms, onOpenPremium, onOpenC
       </div>
 
       <div className="max-w-lg mx-auto">
-        <GamesTab onOpenSpace={onOpenSpace} onOpenBackrooms={onOpenBackrooms} onOpenPremium={onOpenPremium} onOpenCharacter={onOpenCharacter} />
+        <GamesTab onOpenSpace={onOpenSpace} onOpenBackrooms={onOpenBackrooms} onOpenPremium={onOpenPremium} />
       </div>
     </motion.div>
   );

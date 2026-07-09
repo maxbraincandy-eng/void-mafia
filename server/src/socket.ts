@@ -7783,6 +7783,20 @@ export function attachSocketHandlers(io: AppServer): void {
 
     socket.on('world:leave' as any, () => { _leaveWorld(socket.id, io); });
 
+    socket.on('world:update-spec' as any, ({ spec, bodyColor, glowColor }: any) => {
+      for (const [worldId, room] of _worlds) {
+        const p = room.get(socket.id);
+        if (!p) continue;
+        let safeSpec: any = null;
+        try { if (spec && typeof spec === 'object' && JSON.stringify(spec).length < 2048) safeSpec = spec; } catch {}
+        p.spec = safeSpec;
+        p.bodyColor = _hex6(bodyColor, p.bodyColor);
+        p.glowColor = _hex6(glowColor, p.glowColor);
+        socket.to(`world:${worldId}`).emit('world:player-spec' as any, { socketId: socket.id, spec: safeSpec, bodyColor: p.bodyColor, glowColor: p.glowColor });
+        return;
+      }
+    });
+
     // ── World cinema (shared YouTube) ──────────────────────────────────
     const _worldOf = () => { for (const [wid, room] of _worlds) if (room.has(socket.id)) return wid; return null; };
     socket.on('world:tv-set' as any, ({ videoId, title }: any) => {

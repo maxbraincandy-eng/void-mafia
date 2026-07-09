@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { socket, connectSocket, emitWithAck } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
@@ -6,16 +6,22 @@ import { useWorldVoice, applyWorldSpatial, leaveWorldVoice } from '@/hooks/useWo
 import { WorldEngine, type WorldHud, type RemoteWorldPlayer } from './engine';
 import { WorldCinema, ytVideoId, type TVState } from './cinema';
 import { PREMIUM_WORLDS, getWorld } from './registry';
-import { loadSpec, defaultSpec, type CharacterSpec } from '../character/spec';
+import { loadSpec, randomSpec, saveSpec, type CharacterSpec } from '../character/spec';
 
 // ── Premium Worlds — full-screen overlay (lobby → 3D world) ────────────
 // Lazy-loaded from App so Three.js + world code stay out of the main bundle.
 // Classic 2D Virtual Spaces are untouched; this is an entirely separate path.
 
+const CharacterCreator = lazy(() => import('../character/CharacterCreator'));
+
 const JOY_R = 58;
 
 function readSpec(): CharacterSpec {
-  return loadSpec() ?? defaultSpec('male');
+  const saved = loadSpec();
+  if (saved) return saved;
+  const rand = randomSpec();
+  saveSpec(rand);
+  return rand;
 }
 
 // Downscale a captured PNG data URL to a story-sized JPEG (under the server cap).
@@ -165,6 +171,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   const chatSeq = useRef(0);
   const chatInputRef = useRef<HTMLInputElement | null>(null);
   const [kbInset, setKbInset] = useState(0);
+  const [characterOpen, setCharacterOpen] = useState(false);
 
   // Track the on-screen keyboard height so the bottom chat bar can float above
   // it (otherwise the keyboard hides what you're typing).
@@ -247,11 +254,17 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     const onWave = ({ socketId }: { socketId: string }) => eng.remoteWave(socketId);
     const onEmote = ({ socketId, kind }: { socketId: string; kind: any }) => eng.remoteEmote(socketId, kind);
     const onInteractNet = ({ id }: { id: string }) => eng.triggerInteract(id);
+    const onPlayerSpec = ({ socketId, spec, bodyColor, glowColor }: { socketId: string; spec: any; bodyColor: string; glowColor: string }) => {
+      const cur = players.current.get(socketId);
+      if (cur) { cur.spec = spec; cur.bodyColor = bodyColor; cur.glowColor = glowColor; }
+      eng.rebuildRemoteAvatar(socketId, spec);
+    };
     const onChat = (m: { socketId: string; name: string; text: string; at: number }) => {
       setChat(prev => [...prev, { ...m, id: `${m.at}-${m.socketId}-${chatSeq.current++}` }].slice(-40));
       eng.showChatBubble(m.socketId === mySocketId.current ? '__me__' : m.socketId, m.text);
     };
     eng.onInteract = (id) => {
+      if (id === 'avatar') { setCharacterOpen(true); return; }
       if (socket.connected) socket.emit('world:interact', { id });
       if (id === 'dj') setTvPanel(true);
     };
@@ -262,6 +275,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     socket.on('world:emote', onEmote);
     socket.on('world:interact', onInteractNet);
     socket.on('world:chat', onChat);
+    socket.on('world:player-spec', onPlayerSpec);
 
     emitWithAck<{ worldId: string; name: string; bodyColor: string; glowColor: string; spec: CharacterSpec }, { ok: boolean; data?: { mySocketId: string; players: RemoteWorldPlayer[]; tv?: TVState | null } }>(
       'world:join', { worldId, name: useAuthStore.getState().profile?.username ?? 'Guest', bodyColor: mySpec.topColor, glowColor: mySpec.glow, spec: mySpec },
@@ -310,6 +324,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       socket.off('world:emote', onEmote);
       socket.off('world:interact', onInteractNet);
       socket.off('world:chat', onChat);
+      socket.off('world:player-spec', onPlayerSpec);
       socket.off('world:tv', onTV);
       cancelAnimationFrame(cinemaRaf);
       cinema?.dispose();
@@ -488,6 +503,16 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
             <button data-hud onPointerDown={(e) => { e.preventDefault(); setPhoto(null); }} style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#e9d5ff', fontSize: 16 }}>✕</button>
           </div>
         </div>
+      )}
+
+      {/* Character creator overlay (opened from the avatar station) */}
+      {characterOpen && (
+        <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 2200, background: '#08060f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(233,213,255,0.6)', fontFamily: 'monospace', letterSpacing: 3, fontSize: 13 }}>ჩატვირთვა…</div>}>
+          <CharacterCreator onClose={() => setCharacterOpen(false)} onSaved={(spec) => {
+            if (engineRef.current) engineRef.current.rebuildAvatar(spec);
+            if (socket.connected) socket.emit('world:update-spec', { spec, bodyColor: spec.topColor, glowColor: spec.glow });
+          }} />
+        </Suspense>
       )}
 
       {/* First-time controls hint */}

@@ -121,6 +121,15 @@ export class WorldEngine {
   }
 
   // ── public control ──────────────────────────────────────────────────
+  rebuildAvatar(spec: CharacterSpec) {
+    this.scene.remove(this.avatar.group);
+    this.avatar.dispose();
+    this.avatar = new Avatar(spec);
+    this.avatar.group.position.copy(this.pos);
+    this.avatar.group.rotation.y = this.facing;
+    this.scene.add(this.avatar.group);
+  }
+
   addLook(dx: number, dy: number) { this.pendingLook.x += dx; this.pendingLook.y += dy; }
   interact() {
     if (this.seated) { this.stand(); return; }
@@ -232,6 +241,24 @@ export class WorldEngine {
       this.remotes.delete(id);
     }
     this.occupiedSeats = occ;
+  }
+
+  rebuildRemoteAvatar(socketId: string, spec: CharacterSpec | null) {
+    const e = this.remotes.get(socketId);
+    if (!e) return;
+    const pos = e.avatar.group.position.clone();
+    const ry = e.avatar.group.rotation.y;
+    e.avatar.group.remove(e.plate);
+    e.avatar.group.remove(e.ring);
+    this.scene.remove(e.avatar.group);
+    e.avatar.dispose();
+    const avatar = new Avatar(spec ?? { bodyColor: '#9b00ff', glowColor: '#00e5ff' });
+    avatar.group.position.copy(pos);
+    avatar.group.rotation.y = ry;
+    avatar.group.add(e.plate);
+    avatar.group.add(e.ring);
+    this.scene.add(avatar.group);
+    e.avatar = avatar;
   }
 
   remoteWave(socketId: string) { this.remotes.get(socketId)?.avatar.wave(); }
