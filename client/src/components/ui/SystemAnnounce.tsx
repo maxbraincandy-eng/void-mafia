@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socket } from '@/lib/socket';
+import { useT } from '@/store/langStore';
 
 // Global system surfaces shown to EVERY user: owner/mod announcements
 // (banner or popup) and a maintenance banner. Mounted once in App.
 export function SystemAnnounce() {
+  const t = useT();
   const [banner, setBanner] = useState<string | null>(null);
   const [popup, setPopup] = useState<string | null>(null);
   const [maintenance, setMaintenance] = useState(false);
@@ -32,7 +34,7 @@ export function SystemAnnounce() {
           {maintenance && (
             <motion.div key="maint" initial={{ y: -40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -40, opacity: 0 }}
               style={{ pointerEvents: 'auto', textAlign: 'center', padding: '6px 14px', fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: '#ffb84d', background: 'rgba(60,30,0,0.96)', borderBottom: '1px solid rgba(255,160,0,0.45)', backdropFilter: 'blur(8px)' }}>
-              🛠 სერვერი ტექნიკურ რეჟიმშია — ზოგი ფუნქცია დროებით შეზღუდულია
+              {t.uiMisc.maintenance}
             </motion.div>
           )}
         </AnimatePresence>

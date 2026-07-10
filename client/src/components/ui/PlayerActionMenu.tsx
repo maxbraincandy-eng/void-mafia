@@ -14,6 +14,7 @@ interface Props {
 }
 
 export function PlayerActionMenu({ player, isHostOrMod, onClose, onOpenProfile, onSendGift }: Props) {
+  const t = useT();
   const addToast = useGameStore(s => s.addToast);
   const lang = useLangStore(s => s.lang);
   const isKa = lang === 'ka';
@@ -76,7 +77,7 @@ export function PlayerActionMenu({ player, isHostOrMod, onClose, onOpenProfile, 
                 <p className="font-display font-bold text-white/90 text-[13px] truncate">{player.name}</p>
                 {player.isHost && (
                   <p className="font-mono text-[11px]" style={{ color: 'rgba(255,180,0,0.60)' }}>
-                    {isKa ? 'ჰოსტი' : 'Host'}
+                    {t.uiMisc.host}
                   </p>
                 )}
               </div>
@@ -95,7 +96,7 @@ export function PlayerActionMenu({ player, isHostOrMod, onClose, onOpenProfile, 
                   letterSpacing: '0.01em',
                 }}
               >
-                📊 {isKa ? 'სტატისტიკა' : 'Statistics'}
+                📊 {t.uiMisc.statistics}
               </button>
 
               {/* Send Gift */}
@@ -112,7 +113,7 @@ export function PlayerActionMenu({ player, isHostOrMod, onClose, onOpenProfile, 
                   boxShadow: 'inset 0 1px 0 rgba(255,180,0,0.07)',
                 }}
               >
-                🎁 {isKa ? 'საჩუქრის გაგზავნა' : 'Send Gift'}
+                🎁 {t.uiMisc.sendGift}
               </button>
 
               {/* Host / mod-only actions */}
@@ -127,7 +128,7 @@ export function PlayerActionMenu({ player, isHostOrMod, onClose, onOpenProfile, 
                       color: 'rgba(255,175,50,0.88)',
                     }}
                   >
-                    ⚠️ {isKa ? 'გაფრთხილება!' : 'Warning!'}
+                    ⚠️ {t.uiMisc.warning}
                   </button>
                   <button
                     onClick={handleKick}
@@ -138,7 +139,7 @@ export function PlayerActionMenu({ player, isHostOrMod, onClose, onOpenProfile, 
                       color: 'rgba(255,80,80,0.88)',
                     }}
                   >
-                    🚪 {isKa ? 'გაქიქვა' : 'Kick'}
+                    🚪 {t.uiMisc.kick}
                   </button>
                 </div>
               )}

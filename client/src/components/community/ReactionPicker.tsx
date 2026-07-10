@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { useT } from '@/store/langStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socket } from '@/lib/socket';
 
@@ -19,6 +20,7 @@ interface Props {
 interface ReactorRow { emoji: string; username: string; avatar_url: string | null; player_id: string }
 
 export function ReactionPicker({ postId, commentId, myReaction, reactions, onReact, disabled, compact }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [showWho, setShowWho] = useState(false);
   const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0, above: true });
@@ -192,7 +194,7 @@ export function ReactionPicker({ postId, commentId, myReaction, reactions, onRea
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <p style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                    რეაქციები
+                    {t.commB.reactions}
                   </p>
                   <button onClick={() => setShowWho(false)}
                     style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}>
@@ -214,7 +216,7 @@ export function ReactionPicker({ postId, commentId, myReaction, reactions, onRea
                 )}
 
                 {reactors && reactors.length === 0 && (
-                  <p style={{ color: 'rgba(255,255,255,0.2)', fontFamily: 'monospace', fontSize: 11, textAlign: 'center', padding: '12px 0' }}>ჯერ არ არის</p>
+                  <p style={{ color: 'rgba(255,255,255,0.2)', fontFamily: 'monospace', fontSize: 11, textAlign: 'center', padding: '12px 0' }}>{t.commB.noneYet}</p>
                 )}
 
                 {reactors && Object.entries(grouped).map(([emoji, rows]) => (

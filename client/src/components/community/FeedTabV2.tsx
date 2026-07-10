@@ -189,7 +189,7 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
           ) : profile?.avatar ? (
             <span style={{ fontSize: 13, lineHeight: 1 }}>{profile.avatar}</span>
           ) : null}
-          ჩემი პროფილი
+          {t.commB.myProfile}
         </button>
 
         {/* გამოწერილი */}
@@ -225,7 +225,7 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
             className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
             style={{ background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.35)', color: '#c084fc' }}
           >
-            ხელახლა
+            {t.commB.retry}
           </button>
         </div>
       ) : feedV2Posts.length === 0 ? (

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
+import { useT } from '@/store/langStore';
 
 interface Props {
   onDone: (audioDataUri: string, duration: number) => void;
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function VoicePostRecorder({ onDone, onClose }: Props) {
+  const t = useT();
   const [state, setState] = useState<'idle' | 'recording' | 'preview'>('idle');
   const [elapsed, setElapsed] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -46,7 +48,7 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
           return e + 1;
         });
       }, 1000);
-    } catch { alert('მიკროფონის წვდომა საჭიროა'); }
+    } catch { alert(t.commB.micNeeded); }
   };
 
   const stop = () => {
@@ -84,7 +86,7 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
         {state === 'idle' && (
           <div className="flex flex-col items-center gap-5">
             <button onClick={start} style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(155,0,255,0.18)', border: '2px solid rgba(155,0,255,0.6)', color: '#c084fc', fontSize: 32, cursor: 'pointer', boxShadow: '0 0 28px rgba(155,0,255,0.3)' }}>🎙</button>
-            <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>დაიწყე ჩაწერა (მაქს. 30 წმ)</p>
+            <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{t.commB.startRecording}</p>
           </div>
         )}
 
@@ -99,7 +101,7 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
             <div style={{ width: '100%', height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
               <div style={{ height: '100%', borderRadius: 2, background: '#ff2255', width: `${pct}%`, transition: 'width 1s linear' }}/>
             </div>
-            <p style={{ fontFamily: 'monospace', fontSize: 12, color: '#ff2255' }}>{elapsed}s / {MAX}s ● ჩაწერა</p>
+            <p style={{ fontFamily: 'monospace', fontSize: 12, color: '#ff2255' }}>{elapsed}s / {MAX}s ● {t.commB.recording}</p>
           </div>
         )}
 
@@ -109,11 +111,11 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => { setAudioUrl(null); setAudioData(null); setState('idle'); setElapsed(0); }}
                 style={{ flex: 1, padding: '10px 0', borderRadius: 12, fontFamily: 'monospace', fontSize: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}>
-                ↺ თავიდან
+                {t.commB.restart}
               </button>
               <button onClick={handlePost}
                 style={{ flex: 2, padding: '10px 0', borderRadius: 12, fontFamily: 'monospace', fontSize: 12, background: 'rgba(155,0,255,0.18)', border: '1.5px solid rgba(155,0,255,0.5)', color: '#c084fc', cursor: 'pointer' }}>
-                ✓ VOICE POST-ის ᲒᲐᲛᲝᲥᲕᲔᲧᲜᲔᲑᲐ
+                {t.commB.publishVoice}
               </button>
             </div>
           </div>

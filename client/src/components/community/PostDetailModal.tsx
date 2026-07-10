@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useT } from '@/store/langStore';
 import { motion } from 'framer-motion';
 import { emitWithAck } from '@/lib/socket';
 import { PostCardV2 } from '@/components/community/PostCardV2';
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function PostDetailModal({ postId, onClose, onOpenProfile }: Props) {
+  const t = useT();
   const [post, setPost] = useState<CommunityPostV2 | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +63,7 @@ export function PostDetailModal({ postId, onClose, onOpenProfile }: Props) {
 
         {/* Header */}
         <div className="px-4 pb-3 flex items-center justify-between flex-shrink-0">
-          <h3 className="font-display font-bold text-white text-lg">პოსტი</h3>
+          <h3 className="font-display font-bold text-white text-lg">{t.commB.post}</h3>
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-full flex items-center justify-center transition-opacity active:opacity-60"

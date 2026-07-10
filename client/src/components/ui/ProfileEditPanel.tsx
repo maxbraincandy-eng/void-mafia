@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
+import { useT } from '@/store/langStore';
 
 const ALLOWED = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 const MAX_SIZE = 5 * 1024 * 1024;
@@ -28,6 +29,7 @@ async function resizeImage(file: File): Promise<string> {
 
 /** Lightweight profile editor — just name + picture. Opens from the menu. */
 export function ProfileEditPanel({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const { profile, localAvatar, uploadAvatar, removeAvatar, changeName } = useAuthStore();
   const fileRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(profile?.username ?? '');
@@ -42,23 +44,23 @@ export function ProfileEditPanel({ onClose }: { onClose: () => void }) {
     const file = e.target.files?.[0]; e.target.value = '';
     if (!file) return;
     setErr('');
-    if (!ALLOWED.includes(file.type)) { setErr('მხოლოდ JPG, PNG ან WebP.'); return; }
-    if (file.size > MAX_SIZE) { setErr('სურათი ძალიან დიდია (max 5MB).'); return; }
+    if (!ALLOWED.includes(file.type)) { setErr(t.uiMisc.onlyImages); return; }
+    if (file.size > MAX_SIZE) { setErr(t.uiMisc.imageTooBig); return; }
     setBusy(true);
     try {
       const resized = await resizeImage(file);
       setPreview(resized);
       const res = await uploadAvatar(resized);
-      if (!res.ok) { setErr(res.error ?? 'ატვირთვა ვერ მოხერხდა.'); setPreview(null); }
+      if (!res.ok) { setErr(res.error ?? t.uiMisc.uploadFailed); setPreview(null); }
       else setPreview(null);
-    } catch { setErr('ატვირთვა ვერ მოხერხდა.'); setPreview(null); }
+    } catch { setErr(t.uiMisc.uploadFailed); setPreview(null); }
     finally { setBusy(false); }
   };
 
   const onRemove = async () => {
     setBusy(true); setErr(''); setPreview(null);
     const res = await removeAvatar();
-    if (!res.ok) setErr(res.error ?? 'წაშლა ვერ მოხერხდა.');
+    if (!res.ok) setErr(res.error ?? t.uiMisc.deleteFailed);
     setBusy(false);
   };
 
@@ -68,7 +70,7 @@ export function ProfileEditPanel({ onClose }: { onClose: () => void }) {
     setBusy(true); setNameMsg('');
     const res = await changeName(v);
     setBusy(false);
-    setNameMsg(res.ok ? '✓ შენახულია' : (res.error ?? 'ვერ შეიცვალა'));
+    setNameMsg(res.ok ? t.uiMisc.savedMark : (res.error ?? t.uiMisc.changeFailed));
   };
 
   return createPortal(
@@ -79,7 +81,7 @@ export function ProfileEditPanel({ onClose }: { onClose: () => void }) {
         transition={{ type: 'spring', stiffness: 360, damping: 28 }}
         style={{ width: 'min(360px, 100%)', background: 'rgba(10,4,26,0.99)', border: '1px solid rgba(155,0,255,0.3)', borderRadius: 22, padding: '22px 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 17, color: 'white' }}>პროფილის რედაქტირება</p>
+          <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 17, color: 'white' }}>{t.uiMisc.editProfile}</p>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.4)', fontSize: 17, cursor: 'pointer' }}>✕</button>
         </div>
 
@@ -91,23 +93,23 @@ export function ProfileEditPanel({ onClose }: { onClose: () => void }) {
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => fileRef.current?.click()} disabled={busy}
               style={{ padding: '8px 14px', borderRadius: 12, fontFamily: 'monospace', fontSize: 12, background: 'rgba(155,0,255,.14)', border: '1px solid rgba(155,0,255,.4)', color: '#c084fc', cursor: 'pointer' }}>
-              {busy ? '…' : '🖼 სურათის შეცვლა'}
+              {busy ? '…' : t.uiMisc.changeImage}
             </button>
             {avatarSrc && (
               <button onClick={onRemove} disabled={busy}
-                style={{ padding: '8px 12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 12, background: 'rgba(255,45,85,.1)', border: '1px solid rgba(255,45,85,.3)', color: '#ff2d55', cursor: 'pointer' }}>წაშლა</button>
+                style={{ padding: '8px 12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 12, background: 'rgba(255,45,85,.1)', border: '1px solid rgba(255,45,85,.3)', color: '#ff2d55', cursor: 'pointer' }}>{t.uiMisc.deleteBtn}</button>
             )}
           </div>
           <input ref={fileRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" style={{ display: 'none' }} onChange={onFile} />
         </div>
 
         {/* Name */}
-        <label style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,.3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>სახელი</label>
+        <label style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,.3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{t.uiMisc.nameLabel}</label>
         <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
           <input value={name} onChange={e => { setName(e.target.value); setNameMsg(''); }} maxLength={20}
             style={{ flex: 1, background: 'rgba(255,255,255,.04)', fontFamily: 'monospace', fontSize: 14, color: 'white', outline: 'none', padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.12)' }} />
           <button onClick={saveName} disabled={busy || !name.trim() || name.trim() === profile?.username}
-            style={{ padding: '10px 16px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(0,255,136,.14)', border: '1px solid rgba(0,255,136,.4)', color: '#00ff88', cursor: 'pointer', opacity: (!name.trim() || name.trim() === profile?.username) ? 0.4 : 1 }}>შენახვა</button>
+            style={{ padding: '10px 16px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(0,255,136,.14)', border: '1px solid rgba(0,255,136,.4)', color: '#00ff88', cursor: 'pointer', opacity: (!name.trim() || name.trim() === profile?.username) ? 0.4 : 1 }}>{t.uiMisc.saveBtn}</button>
         </div>
         {nameMsg && <p style={{ fontFamily: 'monospace', fontSize: 11, color: nameMsg.startsWith('✓') ? '#00ff88' : '#ff2d55', marginTop: 6 }}>{nameMsg}</p>}
         {err && <p style={{ fontFamily: 'monospace', fontSize: 11, color: '#ff2d55', marginTop: 8 }}>{err}</p>}

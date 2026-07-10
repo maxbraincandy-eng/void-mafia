@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useT } from '@/store/langStore';
 
 interface NewsItem {
   id: string;
@@ -29,6 +30,7 @@ function formatDate(iso: string) {
 }
 
 export function NewsCard() {
+  const t = useT();
   const [expanded, setExpanded] = useState<string | null>(NEWS[0]?.id ?? null);
 
   if (!NEWS.length) return null;
@@ -50,7 +52,7 @@ export function NewsCard() {
       >
         <span style={{ fontSize: 12 }}>📰</span>
         <p className="text-[12px] font-display font-bold tracking-[0.25em] uppercase text-white/25 flex-1">
-          სიახლეები
+          {t.uiMisc.newsTitle}
         </p>
         <span
           className="text-[12px] font-mono px-1.5 py-0.5 rounded-full"
@@ -79,7 +81,7 @@ export function NewsCard() {
                         className="text-[7px] font-mono font-bold px-1.5 py-0.5 rounded"
                         style={{ color: tag.color, background: tag.bg, border: `1px solid ${tag.border}` }}
                       >
-                        {tag.label}
+                        {item.tag ? ({ event: t.uiMisc.tagEvent, update: t.uiMisc.tagUpdate, promo: t.uiMisc.tagPromo })[item.tag] : tag.label}
                       </span>
                     )}
                     <span className="text-[12px] font-mono text-white/20">{formatDate(item.date)}</span>
@@ -93,7 +95,7 @@ export function NewsCard() {
                         exit={{ opacity: 0, height: 0 }}
                         className="text-[11px] font-mono text-white/65 leading-relaxed"
                       >
-                        {item.text}
+                        {(t.uiMisc as unknown as Record<string,string>)[`news_${item.id}`] ?? item.text}
                       </motion.p>
                     ) : (
                       <motion.p
@@ -103,7 +105,7 @@ export function NewsCard() {
                         exit={{ opacity: 0 }}
                         className="text-[11px] font-mono text-white/40 truncate"
                       >
-                        {item.text}
+                        {(t.uiMisc as unknown as Record<string,string>)[`news_${item.id}`] ?? item.text}
                       </motion.p>
                     )}
                   </AnimatePresence>

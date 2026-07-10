@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
+import { useT } from '@/store/langStore';
 
 interface GifResult {
   id: string;
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function GifPicker({ onSelect, onClose }: Props) {
+  const t = useT();
   const [query, setQuery] = useState('');
   const [gifs, setGifs] = useState<GifResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -58,7 +60,7 @@ export function GifPicker({ onSelect, onClose }: Props) {
           <span style={{ fontSize: 18 }}>🎞</span>
           <input
             value={query} onChange={e => setQuery(e.target.value)}
-            placeholder="GIF-ის ძიება…"
+            placeholder={t.commB.searchGif}
             autoFocus
             style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(0,229,255,0.2)', borderRadius: 10, padding: '8px 12px', color: 'white', fontFamily: 'monospace', fontSize: 12, outline: 'none' }}
           />
@@ -68,11 +70,11 @@ export function GifPicker({ onSelect, onClose }: Props) {
         {/* Results */}
         <div className="overflow-y-auto flex-1 px-3 pb-4">
           {loading && (
-            <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontFamily: 'monospace', fontSize: 11, padding: '24px 0' }}>ძიება…</p>
+            <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontFamily: 'monospace', fontSize: 11, padding: '24px 0' }}>{t.commB.searching}</p>
           )}
           {!loading && gifs.length === 0 && (
             <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontFamily: 'monospace', fontSize: 11, padding: '24px 0' }}>
-              {query.trim() ? 'GIF ვერ მოიძებნა' : 'ვტვირთავ…'}
+              {query.trim() ? t.commB.gifNotFound : t.commB.loadingGifs}
             </p>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>

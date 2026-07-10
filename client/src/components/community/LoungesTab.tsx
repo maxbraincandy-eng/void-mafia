@@ -192,7 +192,7 @@ export function LoungesTab({ onOpenProfile }: { onOpenProfile: (playerId: string
             className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
             style={{ background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.35)', color: '#c084fc' }}
           >
-            ხელახლა
+            {t.commB.retry}
           </button>
         </div>
       ) : (

@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
+import { useT } from '@/store/langStore';
 
 interface Props {
   onClose: () => void;
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function MemeBuilder({ onClose, onPost }: Props) {
+  const t = useT();
   const [image, setImage] = useState<string | null>(null);
   const [topText, setTopText] = useState('');
   const [bottomText, setBottomText] = useState('');
@@ -89,7 +91,7 @@ export function MemeBuilder({ onClose, onPost }: Props) {
           {!image ? (
             <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '40px 20px', borderRadius: 16, border: '2px dashed rgba(155,0,255,0.3)', cursor: 'pointer', background: 'rgba(155,0,255,0.04)' }}>
               <span style={{ fontSize: 32 }}>🖼️</span>
-              <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>სურათის არჩევა</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{t.commB.pickImage}</span>
               <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImagePick} />
             </label>
           ) : (
@@ -98,16 +100,16 @@ export function MemeBuilder({ onClose, onPost }: Props) {
 
           <input
             value={topText} onChange={e => { setTopText(e.target.value); updatePreview(); }}
-            placeholder="ზედა ტექსტი…"
+            placeholder={t.commB.topText}
             style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(155,0,255,0.2)', borderRadius: 10, padding: '10px 12px', color: 'white', fontFamily: 'monospace', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
           />
           <input
             value={bottomText} onChange={e => { setBottomText(e.target.value); updatePreview(); }}
-            placeholder="ქვედა ტექსტი…"
+            placeholder={t.commB.bottomText}
             style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(155,0,255,0.2)', borderRadius: 10, padding: '10px 12px', color: 'white', fontFamily: 'monospace', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>ზომა: {fontSize}</span>
+            <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{t.commB.size}: {fontSize}</span>
             <input type="range" min={16} max={60} value={fontSize}
               onChange={e => { setFontSize(Number(e.target.value)); updatePreview(); }}
               style={{ flex: 1, accentColor: '#9b00ff' }}
@@ -118,7 +120,7 @@ export function MemeBuilder({ onClose, onPost }: Props) {
               onClick={handlePost}
               style={{ width: '100%', padding: '12px 0', borderRadius: 14, fontFamily: 'monospace', fontSize: 13, background: 'rgba(155,0,255,0.18)', border: '1.5px solid rgba(155,0,255,0.5)', color: '#c084fc', cursor: 'pointer', letterSpacing: '0.08em' }}
             >
-              ✨ MEME-ის ᲒᲐᲖᲘᲐᲠᲔᲑᲐ
+              {t.commB.shareMeme}
             </button>
           )}
         </div>

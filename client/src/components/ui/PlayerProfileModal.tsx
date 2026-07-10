@@ -19,6 +19,7 @@ import {
 } from '@/constants/cosmetics';
 import type { ProfileCardData } from '@/components/ui/ProfileCard';
 import { MAX_LEVEL, xpForLevel, xpForNextLevel, levelColor } from '@/lib/level';
+import { tNow } from '@/store/langStore';
 
 // ── Gift carousel constants ───────────────────────────────────────────
 const G_BG: Record<string, string> = {
@@ -704,7 +705,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       <div className="mt-4">
                         <div className="flex justify-between items-center mb-1">
                           {level >= MAX_LEVEL
-                            ? <span className="font-mono text-[12px] uppercase tracking-widest" style={{ color: '#facc1590' }}>მაქსიმალური დონე</span>
+                            ? <span className="font-mono text-[12px] uppercase tracking-widest" style={{ color: '#facc1590' }}>{tNow().uiMisc.maxLevel}</span>
                             : <span className="font-mono text-[12px]" style={{ color: `${col}80` }}>XP {xp - xpMin} / {xpMax - xpMin}</span>
                           }
                           <span className="font-mono text-[12px]" style={{ color: `${col}80` }}>{xpPct}%</span>

@@ -162,7 +162,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
             <span style={{ fontSize: 38, filter: 'drop-shadow(0 4px 14px rgba(255,140,60,0.6))' }}>🔥</span>
             <div className="flex-1 min-w-0">
               <p className="font-display font-bold text-white text-sm leading-tight">Premium Worlds ✨</p>
-              <p className="font-mono text-[12px] text-white/60">Beach Camp 3D · მაღალი ხარისხის 3D სივრცე</p>
+              <p className="font-mono text-[12px] text-white/60">Beach Camp 3D · {t.commB.premiumSub}</p>
             </div>
             <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
           </div>
@@ -178,13 +178,13 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
             <span className="text-2xl">🌐</span>
             <div className="flex-1 min-w-0">
               <p className="font-display font-bold text-white text-sm leading-tight">Virtual Space</p>
-              <p className="font-mono text-[12px] text-white/35">სოციალური სივრცე · ავატარი · ჩათი</p>
+              <p className="font-mono text-[12px] text-white/35">{t.commB.spaceSub}</p>
             </div>
             <button
               onClick={onOpenSpace}
               className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
               style={{ background: 'rgba(0,229,255,0.1)', border: '1px solid rgba(0,229,255,0.35)', color: '#00e5ff' }}>
-              შესვლა
+              {t.commB.enter}
             </button>
           </div>
         </div>
@@ -199,13 +199,13 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
             <span className="text-2xl">🟨</span>
             <div className="flex-1 min-w-0">
               <p className="font-display font-bold text-sm leading-tight" style={{ color: '#f5de80' }}>Backrooms</p>
-              <p className="font-mono text-[12px] text-white/35">3D ჰორორი · ლიმინალური სივრცე · ვოიდი მოდის</p>
+              <p className="font-mono text-[12px] text-white/35">{t.commB.backroomsSub}</p>
             </div>
             <button
               onClick={onOpenBackrooms}
               className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
               style={{ background: 'rgba(255,214,90,0.1)', border: '1px solid rgba(255,214,90,0.4)', color: '#f5de80' }}>
-              შესვლა
+              {t.commB.enter}
             </button>
           </div>
         </div>
@@ -218,13 +218,13 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl border"
             style={{ background: 'rgba(255,45,85,0.08)', borderColor: 'rgba(255,45,85,0.3)', color: '#ff2d55' }}>
             <span className="text-base">📡</span>
-            <span className="font-mono text-xs flex-1">კავშირის შეფერხება — სია ვერ ჩაიტვირთა</span>
+            <span className="font-mono text-xs flex-1">{t.commB.listError}</span>
             <button
               onClick={handleRefresh}
               className="font-mono text-xs px-2.5 py-1 rounded-lg transition-all active:scale-95"
               style={{ background: 'rgba(255,45,85,0.15)', border: '1px solid rgba(255,45,85,0.4)' }}
             >
-              ხელახლა
+              {t.commB.retry}
             </button>
           </motion.div>
         )}
@@ -422,8 +422,8 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
           style={{ background: 'rgba(255,255,255,0.03)' }}>
           <span className="text-2xl">🎮</span>
           <div className="flex-1 min-w-0">
-            <p className="font-display font-bold text-white text-sm leading-tight">სხვა თამაშები</p>
-            <p className="font-mono text-[12px] text-white/35">ჯოკერი · UNO</p>
+            <p className="font-display font-bold text-white text-sm leading-tight">{t.commB.otherGames}</p>
+            <p className="font-mono text-[12px] text-white/35">{t.commB.jokerUno}</p>
           </div>
           <span className="font-mono text-white/40 text-xs transition-transform duration-200"
             style={{ transform: showOther ? 'rotate(180deg)' : 'none' }}>▼</span>
@@ -698,8 +698,8 @@ function WWWRow({ match, onJoin }: { match: WWWListItem; onJoin: (code: string) 
         </p>
         <div className="flex items-center gap-2 mt-0.5">
           <span className="font-mono text-[12px] text-white/25 tracking-widest">{match.code}</span>
-          <span className="font-mono text-[12px] text-white/20">{match.playerCount} მოთ.</span>
-          <span className="font-mono text-[12px] text-white/20">{match.questionsCount} შეკ.</span>
+          <span className="font-mono text-[12px] text-white/20">{match.playerCount} {t.commB.plAbbr}</span>
+          <span className="font-mono text-[12px] text-white/20">{match.questionsCount} {t.commB.qAbbr}</span>
         </div>
       </div>
       {isWaiting && (

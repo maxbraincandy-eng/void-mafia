@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react';
+import { tNow } from '@/store/langStore';
 
 interface Props { children: ReactNode }
 interface State { error: Error | null }
@@ -30,9 +31,9 @@ export class ErrorBoundary extends Component<Props, State> {
         fontFamily: '"Space Grotesk", sans-serif',
       }}>
         <div style={{ fontSize: 48, filter: 'drop-shadow(0 0 14px rgba(155,0,255,0.6))' }}>⚠️</div>
-        <p style={{ fontWeight: 700, fontSize: 18, color: '#fff' }}>რაღაც შეფერხდა</p>
+        <p style={{ fontWeight: 700, fontSize: 18, color: '#fff' }}>{tNow().uiMisc.errTitle}</p>
         <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,0.45)', maxWidth: 320, lineHeight: 1.5 }}>
-          აპლიკაცია დროებით ჩაიკეტა. ხელახლა ჩატვირთვა გამოასწორებს — მონაცემები დაცულია.
+          {tNow().uiMisc.errDesc}
         </p>
         <button
           onClick={() => window.location.reload()}
@@ -43,7 +44,7 @@ export class ErrorBoundary extends Component<Props, State> {
             border: '1px solid rgba(155,0,255,0.5)', color: '#fff',
           }}
         >
-          🔄 ხელახლა ჩატვირთვა
+          {tNow().uiMisc.errReload}
         </button>
       </div>
     );

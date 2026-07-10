@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { emitWithAck } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
+import { useT } from '@/store/langStore';
 import { useGameStore } from '@/store/gameStore';
 import { useSocialStore } from '@/store/socialStore';
 import type { Friend, Res } from '@/types/index';
@@ -9,6 +10,7 @@ const ONLINE = ['online', 'in_game', 'in_lounge', 'spectating'];
 
 /** Live horizontal strip of online friends at the top of the feed. */
 export function FriendsPresenceStrip({ onOpenProfile }: { onOpenProfile: (id: string) => void }) {
+  const t = useT();
   const [friends, setFriends] = useState<Friend[]>([]);
   const requestJoinLounge = useSocialStore(s => s.requestJoinLounge);
 
@@ -47,7 +49,7 @@ export function FriendsPresenceStrip({ onOpenProfile }: { onOpenProfile: (id: st
 
   return (
     <div className="-mx-1 px-1">
-      <p className="font-mono text-[10px] uppercase tracking-widest text-white/30 mb-1.5">ონლაინ მეგობრები · {friends.length}</p>
+      <p className="font-mono text-[10px] uppercase tracking-widest text-white/30 mb-1.5">{t.commB.onlineFriends} · {friends.length}</p>
       <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
         {sorted.map(f => (
           <button key={f.profileId} onClick={() => tap(f)}

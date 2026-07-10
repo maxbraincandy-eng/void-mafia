@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socket } from '@/lib/socket';
 import type { Res, AchievementEarned } from '@/types/index';
+import { useT } from '@/store/langStore';
 
 interface Props {
   open: boolean;
@@ -44,6 +45,7 @@ const RARITY_BORDER: Record<string, string> = {
 };
 
 export function AchievementsModal({ open, onClose, profileId }: Props) {
+  const t = useT();
   const [earned, setEarned] = useState<AchievementEarned[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -160,7 +162,7 @@ export function AchievementsModal({ open, onClose, profileId }: Props) {
                               {achievement.rarity}
                             </span>
                           </div>
-                          <p className="font-mono text-[12px] text-white/40 mt-0.5 truncate">{achievement.description}</p>
+                          <p className="font-mono text-[12px] text-white/40 mt-0.5 truncate">{(t.uiMisc as unknown as Record<string,string>)[`ach_${achievement.key}`] ?? achievement.description}</p>
                         </div>
                         {isEarned && earnedEntry && (
                           <p className="font-mono text-[12px] text-white/25 flex-shrink-0 text-right">

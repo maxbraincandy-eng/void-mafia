@@ -6,6 +6,7 @@ import type { Res } from '@/types/index';
 import { useGameStore } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
 import { useSocialStore } from '@/store/socialStore';
+import { useT } from '@/store/langStore';
 
 const LEVEL_COLORS = ['text-white/40', 'text-neon-cyan/70', 'text-neon-purple/80', 'text-neon-pink/80', 'text-yellow-400'];
 function lvlColor(level: number) { return LEVEL_COLORS[Math.min(Math.floor((level - 1) / 2), LEVEL_COLORS.length - 1)]; }
@@ -13,6 +14,7 @@ function lvlColor(level: number) { return LEVEL_COLORS[Math.min(Math.floor((leve
 type Suggestion = { profileId: string; username: string; avatar: string; avatarUrl: string | null; mutualCount: number };
 
 export function FriendsPanel() {
+  const t = useT();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [addCode, setAddCode] = useState('');
@@ -177,7 +179,7 @@ export function FriendsPanel() {
       {suggestions.length > 0 && (
         <div>
           <p className="text-[12px] font-display uppercase tracking-[0.25em] text-neon-purple/50 mb-2">
-            შეიძლება იცნობ
+            {t.uiMisc.maybeKnow}
           </p>
           <div className="space-y-1.5">
             {suggestions.map(s => (

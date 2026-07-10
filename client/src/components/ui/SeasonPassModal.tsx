@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
+import { useT } from '@/store/langStore';
 
 interface Props {
   open: boolean;
@@ -19,6 +20,7 @@ const PREMIUM_TIERS = [
 ];
 
 export function SeasonPassModal({ open, onClose }: Props) {
+  const tr = useT();
   return (
     <AnimatePresence>
       {open && (
@@ -59,7 +61,7 @@ export function SeasonPassModal({ open, onClose }: Props) {
                     <span className="text-[12px] font-mono uppercase tracking-[0.25em] text-neon-purple/50">Season Pass</span>
                     <span className="text-[12px] font-mono px-2 py-0.5 rounded-full uppercase tracking-widest"
                       style={{ background: 'rgba(138,43,226,0.15)', border: '1px solid rgba(138,43,226,0.3)', color: 'rgba(138,43,226,0.8)' }}>
-                      მალე
+                      {tr.uiMisc.soon}
                     </span>
                   </div>
                   <h2 className="font-display font-bold text-white/90 text-lg tracking-wide">Season 1</h2>
@@ -93,7 +95,7 @@ export function SeasonPassModal({ open, onClose }: Props) {
                         style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
                         {t.tier}
                       </div>
-                      <span className="text-sm font-mono text-white/70 flex-1">{t.reward}</span>
+                      <span className="text-sm font-mono text-white/70 flex-1">{(tr.uiMisc as unknown as Record<string,string>)[`sp_${t.tier}`] ?? t.reward}</span>
                       {t.xp > 0 && (
                         <span className="text-[12px] font-mono text-white/25">{t.xp} XP</span>
                       )}
@@ -109,7 +111,7 @@ export function SeasonPassModal({ open, onClose }: Props) {
                   <div className="flex-1 h-px" style={{ background: 'rgba(138,43,226,0.15)' }} />
                   <span className="text-[12px] font-mono px-2 py-0.5 rounded-full text-neon-purple/50"
                     style={{ background: 'rgba(138,43,226,0.08)', border: '1px solid rgba(138,43,226,0.15)' }}>
-                    🔒 მალე
+                    🔒 {tr.uiMisc.soon}
                   </span>
                 </div>
                 <div className="space-y-2 opacity-40">
@@ -120,7 +122,7 @@ export function SeasonPassModal({ open, onClose }: Props) {
                         style={{ background: 'rgba(138,43,226,0.1)', border: '1px solid rgba(138,43,226,0.2)', color: 'rgba(138,43,226,0.7)' }}>
                         {t.tier}
                       </div>
-                      <span className="text-sm font-mono text-white/70 flex-1">{t.reward}</span>
+                      <span className="text-sm font-mono text-white/70 flex-1">{(tr.uiMisc as unknown as Record<string,string>)[`sp_${t.tier}`] ?? t.reward}</span>
                       <span className="text-[12px] font-mono text-white/25">{t.xp} XP</span>
                     </div>
                   ))}
@@ -128,7 +130,7 @@ export function SeasonPassModal({ open, onClose }: Props) {
               </div>
 
               <p className="text-[12px] font-mono text-white/20 text-center pb-2">
-                პრემიუმ სეზონის ფასი და გააქტიურება მალე დაემატება
+                {tr.uiMisc.premiumSoon}
               </p>
             </div>
           </motion.div>
