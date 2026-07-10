@@ -133,12 +133,13 @@ function AudioToggle({ value, onChange }: { value: boolean; onChange: (v: boolea
 
 function LogOutButton({ onClose }: { onClose: () => void }) {
   const logout = useAuthStore(s => s.logout);
+  const t = useT();
   return (
     <button
       onClick={() => { logout(); onClose(); }}
       className="w-full py-2.5 rounded-xl border border-neon-red/25 text-neon-red/70 font-mono text-xs tracking-widest uppercase hover:bg-neon-red/10 hover:text-neon-red hover:border-neon-red/40 transition-all"
     >
-      Log Out
+      {t.morePanel.logout}
     </button>
   );
 }
@@ -183,36 +184,36 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
 
   const sections: Section[] = [
     {
-      title: 'ნავიგაცია',
+      title: mp.navTitle,
       items: [
         {
           icon: '✏️',
-          label: 'პროფილის რედაქტირება',
-          description: 'სახელი და სურათი',
+          label: mp.profileEdit.label,
+          description: mp.profileEdit.desc,
           iconBg: 'linear-gradient(135deg, rgba(155,0,255,0.28), rgba(0,229,255,0.1))',
           iconGlow: 'rgba(155,0,255,0.2)',
           onClick: open(() => setShowProfileEdit(true)),
         },
         {
           icon: <VoidClansIcon size={22} color="#ef4444" />,
-          label: 'კლანები',
-          description: 'კლანური ბრძოლები და რეიტინგი',
+          label: mp.clans.label,
+          description: mp.clans.desc,
           iconBg: 'linear-gradient(135deg, rgba(239,68,68,0.28), rgba(220,38,38,0.1))',
           iconGlow: 'rgba(239,68,68,0.2)',
           onClick: open(() => onClansClick?.()),
         },
         {
           icon: <VoidStatsIcon size={22} color="#facc15" />,
-          label: 'ტოპი',
-          description: 'სეზონის საუკეთესო მოთამაშეები',
+          label: mp.top.label,
+          description: mp.top.desc,
           iconBg: 'linear-gradient(135deg, rgba(250,204,21,0.28), rgba(245,158,11,0.1))',
           iconGlow: 'rgba(250,204,21,0.2)',
           onClick: open(() => onLeaderboardClick?.()),
         },
         {
           icon: '💬',
-          label: 'შეტყობინებები',
-          description: 'პირდაპირი შეტყობინებები',
+          label: mp.messages.label,
+          description: mp.messages.desc,
           iconBg: 'linear-gradient(135deg, rgba(0,229,255,0.22), rgba(0,180,200,0.08))',
           iconGlow: 'rgba(0,229,255,0.18)',
           onClick: open(() => onMessagesClick?.()),
@@ -358,7 +359,7 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
               {/* Header */}
               <div className="px-4 pb-4 safe-top-plus-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                 <div className="flex items-center justify-between mb-3">
-                  <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-neon-purple/35">Menu</p>
+                  <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-neon-purple/35">{mp.menuTitle}</p>
                   <button
                     onClick={closeMoreMenu}
                     className="w-8 h-8 rounded-xl flex items-center justify-center text-white/25 hover:text-white/55 transition-all active:scale-95"
@@ -422,8 +423,8 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
                       🛡
                     </div>
                     <div className="flex-1 text-left">
-                      <p className="text-sm font-display font-bold text-red-400/90 leading-none">მოდერაცია</p>
-                      <p className="text-[12px] font-mono text-red-400/45 mt-0.5">სამართავი პანელი</p>
+                      <p className="text-sm font-display font-bold text-red-400/90 leading-none">{mp.moderation.label}</p>
+                      <p className="text-[12px] font-mono text-red-400/45 mt-0.5">{mp.moderation.desc}</p>
                     </div>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
                       strokeLinecap="round" strokeLinejoin="round" className="text-red-400/30 flex-shrink-0">
@@ -440,7 +441,7 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
                   <div className="flex items-center justify-between py-2.5">
                     <div className="flex items-center gap-2.5">
                       <span className="text-base leading-none opacity-70">🔊</span>
-                      <p className="text-xs font-mono text-white/55">ხმის ეფექტები</p>
+                      <p className="text-xs font-mono text-white/55">{mp.sfx}</p>
                     </div>
                     <AudioToggle value={sfxEnabled} onChange={toggleSfx} />
                   </div>
@@ -448,7 +449,7 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
                   <div className="flex items-center justify-between py-2.5">
                     <div className="flex items-center gap-2.5">
                       <span className="text-base leading-none opacity-70">🎵</span>
-                      <p className="text-xs font-mono text-white/55">ბექგრაუნდ მუსიკა</p>
+                      <p className="text-xs font-mono text-white/55">{mp.music}</p>
                     </div>
                     <AudioToggle value={musicEnabled} onChange={toggleMusic} />
                   </div>
@@ -457,7 +458,7 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
                 {/* ── Design theme switcher ── */}
                 <div className="mt-3">
                   <div className="flex items-center gap-2 px-1 mb-2">
-                    <p className="text-[11px] font-mono font-bold uppercase tracking-[0.28em] text-white/18">დიზაინი</p>
+                    <p className="text-[11px] font-mono font-bold uppercase tracking-[0.28em] text-white/18">{mp.design}</p>
                     <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.04)' }} />
                   </div>
                   <div className="flex gap-2">
@@ -482,7 +483,7 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
                       <p className="text-[11px] font-mono font-bold tracking-widest uppercase leading-none" style={{ color: themeMode === 'void-neon' ? 'rgba(155,0,255,0.9)' : 'rgba(255,255,255,0.28)' }}>
                         Void Neon
                       </p>
-                      <p className="text-[10px] font-mono leading-none" style={{ color: 'rgba(255,255,255,0.18)' }}>კიბერ-ნეონი</p>
+                      <p className="text-[10px] font-mono leading-none" style={{ color: 'rgba(255,255,255,0.18)' }}>{mp.themeNeon}</p>
                       {themeMode === 'void-neon' && (
                         <div className="w-3.5 h-3.5 rounded-full flex items-center justify-center" style={{ background: 'rgba(155,0,255,0.28)', border: '1px solid rgba(155,0,255,0.5)', fontSize: '9px', color: 'rgba(155,0,255,0.9)' }}>
                           ✓
@@ -511,7 +512,7 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
                       <p className="text-[11px] font-mono font-bold tracking-widest uppercase leading-none" style={{ color: themeMode === 'minimal-glass' ? 'rgba(139,92,246,0.9)' : 'rgba(255,255,255,0.28)' }}>
                         Min. Glass
                       </p>
-                      <p className="text-[10px] font-mono leading-none" style={{ color: 'rgba(255,255,255,0.18)' }}>მინიმალური</p>
+                      <p className="text-[10px] font-mono leading-none" style={{ color: 'rgba(255,255,255,0.18)' }}>{mp.themeGlass}</p>
                       {themeMode === 'minimal-glass' && (
                         <div className="w-3.5 h-3.5 rounded-full flex items-center justify-center" style={{ background: 'rgba(139,92,246,0.28)', border: '1px solid rgba(139,92,246,0.5)', fontSize: '9px', color: 'rgba(139,92,246,0.9)' }}>
                           ✓
@@ -524,7 +525,7 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
                 {/* ── Language switcher ── */}
                 <div className="mt-3">
                   <div className="flex items-center gap-2 px-1 mb-2">
-                    <p className="text-[11px] font-mono font-bold uppercase tracking-[0.28em] text-white/18">ენა · LANG</p>
+                    <p className="text-[11px] font-mono font-bold uppercase tracking-[0.28em] text-white/18">{mp.language}</p>
                     <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.04)' }} />
                   </div>
                   <div className="flex gap-2">

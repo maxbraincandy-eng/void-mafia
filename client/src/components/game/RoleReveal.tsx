@@ -134,8 +134,8 @@ export function RoleReveal({ role, teammates, skin }: Props) {
   if (!role) return null;
 
   const skinDef = getRoleSkinById(skin ?? null);
-  const geoName  = ROLE_GEO[role.key]     ?? role.name;
-  const tagline  = ROLE_TAGLINE[role.key]  ?? role.description;
+  const geoName  = (t.game.roles as Record<string, string>)[role.key] ?? ROLE_GEO[role.key] ?? role.name;
+  const tagline  = (t.roleReveal.taglines as Record<string, string>)[role.key] ?? ROLE_TAGLINE[role.key] ?? role.description;
   const icon     = ROLE_ICONS[role.key]   ?? '◆';
   const [defaultC1, defaultC2] = ROLE_BORDER[role.key] ?? ['#ff00cc', '#00ccff'];
   const c1 = skinDef?.c1 ?? defaultC1;

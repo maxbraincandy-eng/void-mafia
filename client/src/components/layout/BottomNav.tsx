@@ -1,5 +1,6 @@
 import { useSocialStore } from '@/store/socialStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useT } from '@/store/langStore';
 import { haptic } from '@/lib/haptics';
 import { VoidCommunityIcon } from '@/components/ui/VoidCommunityIcon';
 import { VoidGamesIcon } from '@/components/ui/VoidGamesIcon';
@@ -114,7 +115,7 @@ const GLASS_TAB_COLORS: Record<string, string> = {
 };
 
 // ── NavItem ─────────────────────────────────────────────────────────────────
-function NavItem({ tab, active, color, onPress }: { tab: TabDef; active: boolean; color: string; onPress: (id: NavTab) => void }) {
+function NavItem({ tab, active, color, onPress, label }: { tab: TabDef; active: boolean; color: string; onPress: (id: NavTab) => void; label: string }) {
   return (
     <button
       onClick={() => onPress(tab.id)}
@@ -146,7 +147,7 @@ function NavItem({ tab, active, color, onPress }: { tab: TabDef; active: boolean
         className="font-mono leading-none text-center w-full overflow-hidden"
         style={{ fontSize: 'clamp(7px, 2vw, 9px)', letterSpacing: '0.01em', display: 'block' }}
       >
-        {tab.label}
+        {label}
       </span>
     </button>
   );
@@ -158,6 +159,8 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
   const themeMode = useSettingsStore(s => s.themeMode) ?? 'void-neon';
   const TAB_COLORS = themeMode === 'minimal-glass' ? GLASS_TAB_COLORS : NEON_TAB_COLORS;
   const isRooms = active === 'rooms';
+  const t = useT();
+  const navLabel = (id: NavTab) => (t.nav as Record<string, string>)[id] ?? id;
 
   function go(tab: NavTab) { haptic('selection'); onChange(tab); }
   function goMore() { haptic('tap'); onMoreClick(); }
@@ -177,7 +180,7 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
 
         {/* Left 3 tabs */}
         {LEFT_TABS.map(tab => (
-          <NavItem key={tab.id} tab={tab} active={active === tab.id} color={TAB_COLORS[tab.id] ?? '#ffffff'} onPress={go} />
+          <NavItem key={tab.id} tab={tab} label={navLabel(tab.id)} active={active === tab.id} color={TAB_COLORS[tab.id] ?? '#ffffff'} onPress={go} />
         ))}
 
         {/* CENTER FAB — Mafia */}
@@ -195,14 +198,14 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
           >
             <span style={{ fontSize: 26, lineHeight: 1, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}>🎩</span>
             <span className="font-mono uppercase text-white/70 leading-none" style={{ fontSize: 8, letterSpacing: '0.08em', marginTop: 2 }}>
-              მაფია
+              {t.nav.rooms}
             </span>
           </button>
         </div>
 
         {/* Right 2 tabs */}
         {RIGHT_TABS.map(tab => (
-          <NavItem key={tab.id} tab={tab} active={active === tab.id} color={TAB_COLORS[tab.id] ?? '#ffffff'} onPress={go} />
+          <NavItem key={tab.id} tab={tab} label={navLabel(tab.id)} active={active === tab.id} color={TAB_COLORS[tab.id] ?? '#ffffff'} onPress={go} />
         ))}
 
         {/* ☰ მეტი */}
@@ -213,7 +216,7 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
         >
           <span className="text-base leading-none mb-1">☰</span>
           <span className="font-mono uppercase leading-none text-center relative" style={{ fontSize: 9, letterSpacing: '0.03em' }}>
-            მეტი
+            {t.nav.more}
             {unreadDmCount > 0 && (
               <span
                 className="absolute -top-1 -right-2 min-w-[13px] h-3 rounded-full bg-neon-pink text-void text-[8px] font-bold flex items-center justify-center px-0.5 leading-none"
