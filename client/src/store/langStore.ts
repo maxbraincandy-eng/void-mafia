@@ -20,3 +20,13 @@ export function useT(): T {
   const lang = useLangStore(s => s.lang);
   return TRANSLATIONS[lang] as unknown as T;
 }
+
+/**
+ * Non-reactive accessor for code that can't call hooks (stores, engines,
+ * toasts, class components, module-level helpers). Reads the CURRENT
+ * language at call time — call it inside the function that builds the
+ * string, not at module scope.
+ */
+export function tNow(): T {
+  return TRANSLATIONS[useLangStore.getState().lang] as unknown as T;
+}

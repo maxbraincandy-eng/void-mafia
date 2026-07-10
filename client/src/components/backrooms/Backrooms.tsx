@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { socket, connectSocket, emitWithAck } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
+import { useT } from '@/store/langStore';
 import { useBackroomsVoice, applyBackroomsSpatial, leaveBackroomsVoice } from '@/hooks/useBackroomsVoice';
 import { BackroomsEngine, type HudState, type RemotePlayerState } from './engine';
 
@@ -65,15 +66,6 @@ function scareFace(): string {
   return _scareFace;
 }
 
-const REGION_NAMES: Record<string, string> = {
-  red: '⚠ წითელი დერეფნები',
-  black: '⬛ შავი ოთახი',
-  server: '▚ სერვერული',
-  library: '📖 მდუმარე ბიბლიოთეკა',
-  cafeteria: '🍽 მიტოვებული კაფეტერია',
-  flood: '≋ დატბორილი ოთახები',
-};
-
 interface InstanceRow { id: string; name: string; seed: number; maxPlayers: number; count: number; }
 interface JoinData { seed: number; name: string; mySocketId: string; players: RemotePlayerState[]; }
 
@@ -88,6 +80,7 @@ export default function Backrooms({ onClose }: { onClose: () => void }) {
 
 // ── Lobby ───────────────────────────────────────────────────────────────
 function Lobby({ onJoin, onClose }: { onJoin: (id: string, name: string) => void; onClose: () => void }) {
+  const t = useT();
   const [rows, setRows] = useState<InstanceRow[] | null>(null);
   const [err, setErr] = useState('');
   const [avatar, setAvatar] = useState(loadAvatar);
@@ -99,9 +92,9 @@ function Lobby({ onJoin, onClose }: { onJoin: (id: string, name: string) => void
   const load = useCallback(() => {
     connectSocket();
     emitWithAck<void, { ok: boolean; data?: InstanceRow[] }>('backrooms:list')
-      .then(r => { if (r.ok && r.data) setRows(r.data); else setErr('სია ვერ ჩაიტვირთა'); })
-      .catch(() => setErr('კავშირი ვერ დამყარდა'));
-  }, []);
+      .then(r => { if (r.ok && r.data) setRows(r.data); else setErr(t.backrooms.listLoadFailed); })
+      .catch(() => setErr(t.backrooms.connectFailed));
+  }, [t]);
   useEffect(() => { load(); }, [load]);
 
   return createPortal(
@@ -110,7 +103,7 @@ function Lobby({ onJoin, onClose }: { onJoin: (id: string, name: string) => void
         <span style={{ fontSize: 24 }}>🟨</span>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 17, letterSpacing: 2, color: '#f5de80' }}>BACKROOMS</div>
-          <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(245,222,128,0.4)' }}>აირჩიე ინსტანსი · ვინც ერთ ინსტანსშია ერთმანეთს ხედავს</div>
+          <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(245,222,128,0.4)' }}>{t.backrooms.lobbySubtitle}</div>
         </div>
         <button onClick={onClose} style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(10,8,4,0.6)', border: '1px solid rgba(255,240,180,0.2)', color: 'rgba(255,245,210,0.85)', fontSize: 17 }}>✕</button>
       </div>
@@ -124,7 +117,7 @@ function Lobby({ onJoin, onClose }: { onJoin: (id: string, name: string) => void
           <div style={{ width: 24, height: 16, borderRadius: 3, background: '#23262e' }} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(255,245,210,0.5)', marginBottom: 6 }}>🧍 შენი ავატარი</div>
+          <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(255,245,210,0.5)', marginBottom: 6 }}>{t.backrooms.yourAvatar}</div>
           <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
             {BR_SKINS.map(s => (
               <button key={s} onClick={() => pick({ skin: s })}
@@ -142,7 +135,7 @@ function Lobby({ onJoin, onClose }: { onJoin: (id: string, name: string) => void
 
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 24 }}>
         {err && <p style={{ fontFamily: 'monospace', fontSize: 12, color: '#ff5540', textAlign: 'center', marginTop: 30 }}>{err}</p>}
-        {!rows && !err && <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,245,210,0.4)', textAlign: 'center', marginTop: 30, letterSpacing: 2 }}>ჩატვირთვა…</p>}
+        {!rows && !err && <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,245,210,0.4)', textAlign: 'center', marginTop: 30, letterSpacing: 2 }}>{t.backrooms.loading}</p>}
         {rows?.map(r => {
           const full = r.count >= r.maxPlayers;
           return (
@@ -158,16 +151,16 @@ function Lobby({ onJoin, onClose }: { onJoin: (id: string, name: string) => void
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 14, color: '#f5de80', letterSpacing: 1 }}>{r.name}</div>
                 <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,245,210,0.4)', marginTop: 3 }}>
-                  👤 {r.count}/{r.maxPlayers} {full ? '· სავსე' : r.count > 0 ? '· აქტიური' : '· ცარიელი'}
+                  👤 {r.count}/{r.maxPlayers} {full ? t.backrooms.slotFull : r.count > 0 ? t.backrooms.slotActive : t.backrooms.slotEmpty}
                 </div>
               </div>
               <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#f5de80', border: '1px solid rgba(255,214,90,0.4)', borderRadius: 8, padding: '6px 10px' }}>
-                {full ? '—' : 'შესვლა'}
+                {full ? '—' : t.backrooms.enter}
               </span>
             </button>
           );
         })}
-        <button onClick={load} style={{ display: 'block', margin: '6px auto', fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,245,210,0.4)', background: 'transparent', border: 'none' }}>↻ განახლება</button>
+        <button onClick={load} style={{ display: 'block', margin: '6px auto', fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,245,210,0.4)', background: 'transparent', border: 'none' }}>{t.backrooms.refresh}</button>
       </div>
     </div>,
     document.body,
@@ -176,6 +169,15 @@ function Lobby({ onJoin, onClose }: { onJoin: (id: string, name: string) => void
 
 // ── World ───────────────────────────────────────────────────────────────
 function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: () => void; onClose: () => void }) {
+  const t = useT();
+  const regionNames: Record<string, string> = {
+    red: t.backrooms.regionRed,
+    black: t.backrooms.regionBlack,
+    server: t.backrooms.regionServer,
+    library: t.backrooms.regionLibrary,
+    cafeteria: t.backrooms.regionCafeteria,
+    flood: t.backrooms.regionFlood,
+  };
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<BackroomsEngine | null>(null);
   const [hud, setHud] = useState<HudState>({ battery: 1, flashlightOn: true, level: 'LEVEL 0', x: 0, z: 0, event: null, voidPhase: 'none', region: 'normal', nearClue: false, chased: false });
@@ -241,7 +243,7 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
       'backrooms:join', { instanceId, name: useAuthStore.getState().profile?.username ?? 'Lost', skin: av.skin, shirt: av.shirt },
     ).then(res => {
       if (cancelled) return;
-      if (!res.ok || !res.data) { setErrMsg(res.error ?? 'ვერ შეხვედი'); setStatus('error'); return; }
+      if (!res.ok || !res.data) { setErrMsg(res.error ?? t.backrooms.joinFailed); setStatus('error'); return; }
       mySocketId.current = res.data.mySocketId;
       players.current = new Map(res.data.players.map(p => [p.socketId, p]));
 
@@ -264,7 +266,7 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
         pushRemotes();
       }
       setStatus('in');
-    }).catch(() => { if (!cancelled) { setErrMsg('კავშირი გაწყდა'); setStatus('error'); } });
+    }).catch(() => { if (!cancelled) { setErrMsg(t.backrooms.connectionLost); setStatus('error'); } });
 
     // Broadcast our position + drive spatial voice ~10Hz.
     const moveIv = setInterval(() => {
@@ -495,7 +497,7 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
       )}
       {hud.event === 'blackout' && (
         <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', pointerEvents: 'none', fontFamily: 'monospace', fontSize: 11, letterSpacing: 4, color: 'rgba(255,80,60,0.5)' }}>
-          ⚠ საგანგებო განათება
+          {t.backrooms.emergencyLighting}
         </div>
       )}
 
@@ -515,10 +517,10 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
                 VOID IS COMING
               </div>
               <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 'min(8.5vw,34px)', letterSpacing: 3, color: 'rgba(255,120,110,0.9)', animation: 'vm-void-pulse 1.05s ease-in-out infinite' }}>
-                ვოიდი მოდის!
+                {t.backrooms.voidComing}
               </div>
               <div style={{ fontFamily: 'monospace', fontSize: 13, letterSpacing: 2, color: 'rgba(120,255,170,0.85)', marginTop: 10, textShadow: '0 0 12px rgba(40,255,140,0.5)', textAlign: 'center', padding: '0 20px' }}>
-                იპოვე მწვანე ნათება — იქ ვოიდი ვერ მოგწვდება
+                {t.backrooms.voidFindGreen}
               </div>
             </>
           )}
@@ -551,22 +553,22 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
       {/* Void survival toast */}
       {spared && (
         <div style={{ position: 'absolute', top: '42%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 16, pointerEvents: 'none', fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 'min(6vw,22px)', letterSpacing: 2, color: '#4dff9a', textShadow: '0 0 18px rgba(40,255,140,0.6)', whiteSpace: 'nowrap' }}>
-          ✔ თავი დააღწიე ვოიდს!
+          {t.backrooms.voidEscaped}
         </div>
       )}
 
       {/* Landscape suggestion for newcomers (portrait only, 6s) */}
       {rotateToast && status === 'in' && (
         <div style={{ position: 'absolute', top: '30%', left: '50%', transform: 'translateX(-50%)', zIndex: 15, pointerEvents: 'none', width: 'min(300px, 78vw)', textAlign: 'center', background: 'rgba(6,4,2,0.78)', border: '1px solid rgba(255,240,180,0.25)', borderRadius: 14, padding: '12px 16px', fontFamily: 'monospace', fontSize: 12, lineHeight: 1.6, color: 'rgba(255,245,210,0.9)', backdropFilter: 'blur(6px)' }}>
-          📱↺ გადაატრიალე ტელეფონი ჰორიზონტალურად — უკეთესი გამოცდილებისთვის
+          {t.backrooms.rotateHint}
         </div>
       )}
 
       {/* Rare-region discovery label */}
-      {status === 'in' && hud.region !== 'normal' && REGION_NAMES[hud.region] && (
+      {status === 'in' && hud.region !== 'normal' && regionNames[hud.region] && (
         <div style={{ position: 'absolute', top: 'max(78px, calc(env(safe-area-inset-top) + 64px))', left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none',
           fontFamily: 'monospace', fontSize: 11, letterSpacing: 3, color: 'rgba(255,245,210,0.6)', border: '1px solid rgba(255,245,210,0.18)', borderRadius: 20, padding: '5px 14px', background: 'rgba(6,4,2,0.5)', backdropFilter: 'blur(4px)', whiteSpace: 'nowrap' }}>
-          {REGION_NAMES[hud.region]}
+          {regionNames[hud.region]}
         </div>
       )}
 
@@ -576,7 +578,7 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
           style={{ position: 'absolute', inset: 0, zIndex: 20, background: 'rgba(2,1,0,0.82)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 28 }}>
           <div style={{ maxWidth: 360, padding: '22px 20px', borderRadius: 8, background: 'rgba(232,226,200,0.94)', boxShadow: '0 12px 50px rgba(0,0,0,0.7)', transform: 'rotate(-1.2deg)' }}>
             <div style={{ fontFamily: 'monospace', fontSize: 15, lineHeight: 1.7, color: '#1a1408', whiteSpace: 'pre-wrap' }}>{note}</div>
-            <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(26,20,8,0.4)', marginTop: 16, textAlign: 'right' }}>— დააჭირე დახურვისთვის</div>
+            <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(26,20,8,0.4)', marginTop: 16, textAlign: 'right' }}>{t.backrooms.tapToClose}</div>
           </div>
         </div>
       )}
@@ -585,10 +587,10 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
       {status !== 'in' && (
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(3,2,1,0.9)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
           <div style={{ fontFamily: 'monospace', fontSize: 13, letterSpacing: 3, color: 'rgba(245,222,128,0.7)' }}>
-            {status === 'joining' ? 'ბექრუმსში შესვლა…' : (errMsg || 'შეცდომა')}
+            {status === 'joining' ? t.backrooms.joining : (errMsg || t.backrooms.error)}
           </div>
           {status === 'error' && (
-            <button data-hud-btn onClick={onExit} style={{ fontFamily: 'monospace', fontSize: 12, color: '#f5de80', background: 'rgba(255,214,90,0.1)', border: '1px solid rgba(255,214,90,0.4)', borderRadius: 10, padding: '8px 16px' }}>← უკან</button>
+            <button data-hud-btn onClick={onExit} style={{ fontFamily: 'monospace', fontSize: 12, color: '#f5de80', background: 'rgba(255,214,90,0.1)', border: '1px solid rgba(255,214,90,0.4)', borderRadius: 10, padding: '8px 16px' }}>{t.backrooms.back}</button>
           )}
         </div>
       )}
@@ -598,7 +600,7 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
         <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 13, letterSpacing: 3, color: 'rgba(255,245,210,0.8)' }}>{hud.level}</div>
         <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(255,245,210,0.35)', marginTop: 2 }}>👤 {remoteCount + 1} · THE BACKROOMS</div>
         <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 1, marginTop: 3, color: voice.error ? '#ff8a70' : voice.joined ? (voice.muted ? 'rgba(255,245,210,0.4)' : '#8effc0') : 'rgba(245,222,128,0.55)' }}>
-          {voice.error ? '🎙️ ' + voice.error : voice.joined ? (voice.muted ? '🔇 გაჩუმებული' : '🎙️ ლაპარაკობ · სივრცული ხმა') : '🎙️ დააჭირე მიკროფონს რომ ილაპარაკო'}
+          {voice.error ? '🎙️ ' + voice.error : voice.joined ? (voice.muted ? t.backrooms.micMuted : t.backrooms.micTalking) : t.backrooms.micHint}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
           <span style={{ fontSize: 12, opacity: hud.flashlightOn ? 1 : 0.35 }}>🔦</span>
@@ -610,7 +612,7 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
 
       {/* Top-right: back to lobby + close */}
       <div style={{ position: 'absolute', top: 'max(12px, env(safe-area-inset-top))', right: 14, display: 'flex', gap: 8 }}>
-        <button data-hud-btn onPointerDown={(e) => { e.preventDefault(); onExit(); }} title="ინსტანსები" style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(10,8,4,0.55)', border: '1px solid rgba(255,240,180,0.2)', color: 'rgba(255,245,210,0.85)', fontSize: 15, backdropFilter: 'blur(4px)', touchAction: 'none' }}>🚪</button>
+        <button data-hud-btn onPointerDown={(e) => { e.preventDefault(); onExit(); }} title={t.backrooms.instances} style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(10,8,4,0.55)', border: '1px solid rgba(255,240,180,0.2)', color: 'rgba(255,245,210,0.85)', fontSize: 15, backdropFilter: 'blur(4px)', touchAction: 'none' }}>🚪</button>
         <button data-hud-btn onPointerDown={(e) => { e.preventDefault(); onClose(); }} style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(10,8,4,0.55)', border: '1px solid rgba(255,240,180,0.2)', color: 'rgba(255,245,210,0.85)', fontSize: 18, backdropFilter: 'blur(4px)', touchAction: 'none' }}>✕</button>
       </div>
 
@@ -650,7 +652,7 @@ function World({ instanceId, onExit, onClose }: { instanceId: string; onExit: ()
       </div>
 
       <div style={{ position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none', fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,245,210,0.25)', letterSpacing: 1, whiteSpace: 'nowrap' }}>
-        WASD · მაუსით მოხედვა · SHIFT სირბილი · SPACE ხტომა · F ფანარი
+        {t.backrooms.controlsHint}
       </div>
     </div>,
     document.body,

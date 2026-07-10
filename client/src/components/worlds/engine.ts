@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { Avatar, type EmoteKind } from './avatar';
 import type { WorldDef, WorldContext, WorldCollider, WorldSeat, WorldInteractable, AmbientSource, AvatarConfig, WorldScreen } from './types';
 import type { CharacterSpec } from '../character/spec';
+import { tNow } from '@/store/langStore';
 
 export interface WorldHud {
   world: string;
@@ -532,7 +533,8 @@ export class WorldEngine {
     if (this.hudAccum > 0.2) {
       this.hudAccum = 0;
       this.nearScreen = !!this.screen && Math.hypot(this.screen.x - this.pos.x, this.screen.z - this.pos.z) < 9;
-      const label = this.seated ? (this.seated.pose ? '🚢 ჩამოდი' : 'ადექი') : this.nearObj ? this.nearObj.label : this.nearSeat ? (this.nearSeat.pose ? '🚢 დადექი' : 'დაჯექი') : null;
+      const W = tNow().worlds;
+      const label = this.seated ? (this.seated.pose ? W.shipDown : W.standUp) : this.nearObj ? this.nearObj.label : this.nearSeat ? (this.nearSeat.pose ? W.shipStand : W.sit) : null;
       this.onHud?.({ world: this.def.name, sitting: !!this.seated, canInteract: label, players: 1 + this.remotes.size, nearScreen: this.nearScreen });
     }
 

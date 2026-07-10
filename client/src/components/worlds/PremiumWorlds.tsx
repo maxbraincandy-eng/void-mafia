@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react'
 import { createPortal } from 'react-dom';
 import { socket, connectSocket, emitWithAck } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
+import { useT } from '@/store/langStore';
 import { useWorldVoice, applyWorldSpatial, leaveWorldVoice, resumeWorldVoiceAudio } from '@/hooks/useWorldVoice';
 import { WorldEngine, type WorldHud, type RemoteWorldPlayer } from './engine';
 import { WorldCinema, ytVideoId, type TVState } from './cinema';
@@ -76,13 +77,14 @@ export default function PremiumWorlds({ onClose, initialWorldId }: { onClose: ()
 
 // ── Lobby ─────────────────────────────────────────────────────────────
 function Lobby({ onEnter, onClose }: { onEnter: (id: string) => void; onClose: () => void }) {
+  const t = useT();
   return createPortal(
     <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'radial-gradient(ellipse at top, #12172e 0%, #05060d 100%)', display: 'flex', flexDirection: 'column', padding: '0 18px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 'max(18px, env(safe-area-inset-top))', paddingBottom: 12 }}>
         <span style={{ fontSize: 24 }}>✨</span>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 17, letterSpacing: 1, color: '#c084fc' }}>PREMIUM WORLDS</div>
-          <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(192,132,252,0.45)' }}>მაღალი ხარისხის 3D სოციალური სივრცეები</div>
+          <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(192,132,252,0.45)' }}>{t.worlds.lobbySubtitle}</div>
         </div>
         <button onClick={onClose} style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(20,16,40,0.6)', border: '1px solid rgba(192,132,252,0.3)', color: '#e9d5ff', fontSize: 17 }}>✕</button>
       </div>
@@ -107,10 +109,10 @@ function Lobby({ onEnter, onClose }: { onEnter: (id: string) => void; onClose: (
               <div style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 14, color: '#e9d5ff' }}>{w.name}</div>
-                  <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(233,213,255,0.4)', marginTop: 2 }}>{w.subtitle}</div>
+                  <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(233,213,255,0.4)', marginTop: 2 }}>{(t.worlds as unknown as Record<string, string>)[`sub_${w.id}`] ?? w.subtitle}</div>
                 </div>
                 <span style={{ fontFamily: 'monospace', fontSize: 11, color: live ? '#c084fc' : 'rgba(255,255,255,0.35)', border: `1px solid ${live ? 'rgba(192,132,252,0.5)' : 'rgba(255,255,255,0.15)'}`, borderRadius: 9, padding: '7px 12px', whiteSpace: 'nowrap' }}>
-                  {live ? 'შესვლა' : 'მალე'}
+                  {live ? t.worlds.enter : t.worlds.soon}
                 </span>
               </div>
             </button>
@@ -124,6 +126,7 @@ function Lobby({ onEnter, onClose }: { onEnter: (id: string) => void; onClose: (
 
 // ── World ─────────────────────────────────────────────────────────────
 function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => void; onClose: () => void }) {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<WorldEngine | null>(null);
   const cinemaBoxRef = useRef<HTMLDivElement>(null);
@@ -499,10 +502,10 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
         <div data-hud style={{ position: 'absolute', inset: 0, zIndex: 45, background: 'rgba(3,2,8,0.92)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, gap: 14 }}>
           <img src={photo} alt="" style={{ maxWidth: '92%', maxHeight: '64%', borderRadius: 12, border: '2px solid rgba(192,132,252,0.5)', boxShadow: '0 12px 50px rgba(0,0,0,0.7)' }} />
           <div style={{ display: 'flex', gap: 12 }}>
-            <a data-hud href={photo} download={`beachcamp-${Date.now()}.png`} style={{ padding: '11px 18px', borderRadius: 12, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#e9d5ff', fontFamily: 'monospace', fontSize: 13, textDecoration: 'none' }}>📥 შენახვა</a>
+            <a data-hud href={photo} download={`beachcamp-${Date.now()}.png`} style={{ padding: '11px 18px', borderRadius: 12, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#e9d5ff', fontFamily: 'monospace', fontSize: 13, textDecoration: 'none' }}>{t.worlds.savePhoto}</a>
             <button data-hud onPointerDown={(e) => { e.preventDefault(); shareToStory(); }} disabled={photoShared !== ''}
               style={{ padding: '11px 18px', borderRadius: 12, border: 'none', background: photoShared === 'done' ? 'rgba(46,255,140,0.25)' : 'linear-gradient(135deg,#7c3aed,#c026d3)', color: '#fff', fontFamily: 'monospace', fontSize: 13 }}>
-              {photoShared === 'done' ? '✓ გაზიარდა' : photoShared === 'sending' ? '…' : '📖 სთორიში'}
+              {photoShared === 'done' ? t.worlds.shared : photoShared === 'sending' ? '…' : t.worlds.toStory}
             </button>
             <button data-hud onPointerDown={(e) => { e.preventDefault(); setPhoto(null); }} style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#e9d5ff', fontSize: 16 }}>✕</button>
           </div>
@@ -511,7 +514,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
 
       {/* Character creator overlay (opened from the avatar station) */}
       {characterOpen && (
-        <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 2200, background: '#08060f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(233,213,255,0.6)', fontFamily: 'monospace', letterSpacing: 3, fontSize: 13 }}>ჩატვირთვა…</div>}>
+        <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 2200, background: '#08060f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(233,213,255,0.6)', fontFamily: 'monospace', letterSpacing: 3, fontSize: 13 }}>{t.worlds.loading}</div>}>
           <CharacterCreator onClose={() => setCharacterOpen(false)} onSaved={(spec) => {
             if (engineRef.current) engineRef.current.rebuildAvatar(spec);
             if (socket.connected) socket.emit('world:update-spec', { spec, bodyColor: spec.topColor, glowColor: spec.glow });
@@ -522,9 +525,9 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       {/* First-time controls hint */}
       {help && (
         <div style={{ position: 'absolute', top: '22%', left: '50%', transform: 'translateX(-50%)', zIndex: 16, pointerEvents: 'none', width: 'min(340px, 82vw)', textAlign: 'center', background: 'rgba(12,10,24,0.82)', border: '1px solid rgba(192,132,252,0.3)', borderRadius: 14, padding: '12px 16px', fontFamily: 'monospace', fontSize: 11.5, lineHeight: 1.7, color: 'rgba(233,213,255,0.9)', backdropFilter: 'blur(8px)' }}>
-          🕹 ჯოისტიკი — მოძრაობა · 👆 გადაფურცლე — კამერა<br />
-          შეეხე — დაჯექი / ურთიერთქმედება · 😀 ემოცია · 🎙️ ხმა
-          {window.innerHeight > window.innerWidth && <><br /><span style={{ color: '#c084fc' }}>📱↺ გადააბრუნე ჰორიზონტალურად</span></>}
+          {t.worlds.helpLine1}<br />
+          {t.worlds.helpLine2}
+          {window.innerHeight > window.innerWidth && <><br /><span style={{ color: '#c084fc' }}>{t.worlds.rotateHint}</span></>}
         </div>
       )}
 
@@ -542,9 +545,9 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
           <span style={{ fontSize: 30, lineHeight: 1, flexShrink: 0 }}>🎙️</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 14, color: '#fff', letterSpacing: 0.3 }}>
-              {voice.status === 'failed' ? 'მიკროფონი დაბლოკილია — დართე ნებართვა' : 'გააქტიურე მიკროფონი'}
+              {voice.status === 'failed' ? t.worlds.micBlocked : t.worlds.micActivate}
             </div>
-            <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.85)', marginTop: 2 }}>დააჭირე რომ გაიგონო და ილაპარაკო</div>
+            <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.85)', marginTop: 2 }}>{t.worlds.micTapHint}</div>
           </div>
           <button data-hud onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setMicDismissed(true); }}
             style={{ width: 30, height: 30, flexShrink: 0, borderRadius: '50%', background: 'rgba(0,0,0,0.28)', border: '1px solid rgba(255,255,255,0.25)', color: '#fff', fontSize: 13 }}>✕</button>
@@ -571,17 +574,17 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       {invitePanel && (
         <div data-hud style={{ position: 'absolute', top: 'max(62px, calc(env(safe-area-inset-top) + 50px))', right: 14, width: 'min(260px, 74vw)', maxHeight: '60vh', overflowY: 'auto', background: 'rgba(12,10,24,0.95)', border: '1px solid rgba(192,132,252,0.35)', borderRadius: 14, padding: 10, backdropFilter: 'blur(12px)', zIndex: 30 }}>
           <div style={{ display: 'flex', alignItems: 'center', margin: '2px 4px 8px' }}>
-            <span style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(233,213,255,0.55)', flex: 1 }}>✉️ მოიწვიე მეგობარი</span>
+            <span style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(233,213,255,0.55)', flex: 1 }}>{t.worlds.inviteFriend}</span>
             <button data-hud onPointerDown={(e) => { e.preventDefault(); setInvitePanel(false); }} style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#e9d5ff', fontSize: 11 }}>✕</button>
           </div>
           {!friends && <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(233,213,255,0.4)', padding: 8 }}>…</div>}
-          {friends && friends.length === 0 && <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(233,213,255,0.4)', padding: 8 }}>ონლაინ მეგობარი არ არის</div>}
+          {friends && friends.length === 0 && <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(233,213,255,0.4)', padding: 8 }}>{t.worlds.noFriendsOnline}</div>}
           {friends && friends.map(f => (
             <button key={f.profileId} data-hud disabled={invited.has(f.profileId)} onPointerDown={(e) => { e.preventDefault(); inviteFriend(f.profileId); }}
               style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '7px 8px', marginBottom: 3, borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#e9d5ff', opacity: invited.has(f.profileId) ? 0.55 : 1 }}>
               <div style={{ width: 26, height: 26, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'rgba(124,58,237,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>{f.avatarUrl ? <img src={f.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '🙂'}</div>
               <span style={{ flex: 1, minWidth: 0, fontFamily: 'monospace', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.username}</span>
-              <span style={{ fontFamily: 'monospace', fontSize: 11, color: invited.has(f.profileId) ? '#8effc0' : '#c084fc' }}>{invited.has(f.profileId) ? '✓' : 'მოწვევა'}</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 11, color: invited.has(f.profileId) ? '#8effc0' : '#c084fc' }}>{invited.has(f.profileId) ? '✓' : t.worlds.invite}</span>
             </button>
           ))}
         </div>
@@ -593,7 +596,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       {tvPanel && (
         <div data-hud style={{ position: 'absolute', ...(tvFocused ? { top: 'max(14px, env(safe-area-inset-top))' } : { bottom: 'max(100px, calc(env(safe-area-inset-bottom) + 90px))' }), left: '50%', transform: 'translateX(-50%)', width: 'min(420px, 92vw)', background: 'rgba(12,10,24,0.97)', border: '1px solid rgba(192,132,252,0.35)', borderRadius: 16, padding: 12, backdropFilter: 'blur(12px)', zIndex: 30 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <span style={{ fontFamily: 'monospace', fontSize: 11, letterSpacing: 1, color: 'rgba(233,213,255,0.6)', flex: 1 }}>📺 ჩართე ვიდეო ეკრანზე</span>
+            <span style={{ fontFamily: 'monospace', fontSize: 11, letterSpacing: 1, color: 'rgba(233,213,255,0.6)', flex: 1 }}>{t.worlds.tvTitle}</span>
             <button data-hud onPointerDown={(e) => { e.preventDefault(); setTvPanel(false); setTvFocused(false); }} style={{ width: 30, height: 30, flexShrink: 0, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#e9d5ff', fontSize: 13 }}>✕</button>
           </div>
           {/* Playback controls for the current video — clear pause + stop */}
@@ -601,11 +604,11 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
             <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
               <button data-hud onPointerDown={(e) => { e.preventDefault(); socket.emit('world:tv-toggle'); }}
                 style={{ flex: 1, padding: '10px 0', borderRadius: 10, background: 'rgba(124,58,237,0.4)', border: '1px solid rgba(192,132,252,0.4)', color: '#fff', fontFamily: 'monospace', fontSize: 13 }}>
-                {tvPlaying ? '⏸ პაუზა' : '▶️ გაგრძელება'}
+                {tvPlaying ? t.worlds.pause : t.worlds.resume}
               </button>
               <button data-hud onPointerDown={(e) => { e.preventDefault(); socket.emit('world:tv-stop'); }}
                 style={{ flex: 1, padding: '10px 0', borderRadius: 10, background: 'rgba(255,80,80,0.12)', border: '1px solid rgba(255,80,80,0.35)', color: '#ff9a9a', fontFamily: 'monospace', fontSize: 13 }}>
-                ⏹ გამორთვა
+                {t.worlds.stopTv}
               </button>
             </div>
           )}
@@ -613,7 +616,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
             <input value={tvQuery} onChange={e => setTvQuery(e.target.value)}
               onFocus={() => setTvFocused(true)} onBlur={() => setTvFocused(false)}
               onKeyDown={e => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); tvSearch(); } }}
-              enterKeyHint="search" autoComplete="off" placeholder="YouTube ბმული ან ძებნა…"
+              enterKeyHint="search" autoComplete="off" placeholder={t.worlds.tvPlaceholder}
               style={{ flex: 1, minWidth: 0, padding: '11px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)', color: '#fff', fontFamily: 'monospace', fontSize: 16, outline: 'none' }} />
             <button data-hud onPointerDown={(e) => { e.preventDefault(); tvSearch(); }} style={{ padding: '0 14px', borderRadius: 10, background: 'rgba(124,58,237,0.5)', border: 'none', color: '#fff', fontSize: 13 }}>{tvBusy ? '…' : '🔍'}</button>
           </div>
@@ -636,8 +639,8 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       {/* Player list panel */}
       {panel === 'players' && (
         <div data-hud style={{ position: 'absolute', top: 'max(62px, calc(env(safe-area-inset-top) + 50px))', left: 14, width: 'min(260px, 70vw)', maxHeight: '62vh', overflowY: 'auto', background: 'rgba(12,10,24,0.9)', border: '1px solid rgba(192,132,252,0.3)', borderRadius: 14, padding: 10, backdropFilter: 'blur(10px)' }}>
-          <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(233,213,255,0.5)', margin: '2px 4px 8px' }}>მოთამაშეები · {hud.players}</div>
-          <PlayerRow name={`${useAuthStore.getState().profile?.username ?? 'შენ'} (შენ)`} color={readSpec().topColor} speaking={false} />
+          <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(233,213,255,0.5)', margin: '2px 4px 8px' }}>{t.worlds.playersLabel} · {hud.players}</div>
+          <PlayerRow name={`${useAuthStore.getState().profile?.username ?? t.worlds.you} (${t.worlds.you})`} color={readSpec().topColor} speaking={false} />
           {roster.map(p => <PlayerRow key={p.socketId} name={p.name} color={p.bodyColor} speaking={voice.speakingIds.has(p.socketId)} />)}
         </div>
       )}
@@ -645,20 +648,20 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       {/* Settings panel */}
       {panel === 'settings' && (
         <div data-hud style={{ position: 'absolute', top: 'max(62px, calc(env(safe-area-inset-top) + 50px))', right: 14, width: 'min(250px, 74vw)', background: 'rgba(12,10,24,0.9)', border: '1px solid rgba(192,132,252,0.3)', borderRadius: 14, padding: 14, backdropFilter: 'blur(10px)' }}>
-          <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(233,213,255,0.5)', marginBottom: 10 }}>⚙️ ხარისხი</div>
-          <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(233,213,255,0.7)', marginBottom: 6 }}>რენდერი</div>
+          <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(233,213,255,0.5)', marginBottom: 10 }}>{t.worlds.quality}</div>
+          <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(233,213,255,0.7)', marginBottom: 6 }}>{t.worlds.render}</div>
           <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
             {(['auto', 'high', 'low'] as const).map(m => (
               <button key={m} onPointerDown={(e) => { e.preventDefault(); setQuality(q => ({ ...q, mode: m })); }}
                 style={{ flex: 1, padding: '8px 0', borderRadius: 9, fontFamily: 'monospace', fontSize: 11, background: quality.mode === m ? 'rgba(192,132,252,0.3)' : 'rgba(255,255,255,0.05)', border: `1px solid ${quality.mode === m ? 'rgba(192,132,252,0.6)' : 'rgba(255,255,255,0.12)'}`, color: '#e9d5ff', touchAction: 'none' }}>
-                {m === 'auto' ? 'ავტო' : m === 'high' ? 'მაღ.' : 'დაბ.'}
+                {m === 'auto' ? t.worlds.qAuto : m === 'high' ? t.worlds.qHigh : t.worlds.qLow}
               </button>
             ))}
           </div>
           <button onPointerDown={(e) => { e.preventDefault(); setQuality(q => ({ ...q, shadows: !q.shadows })); }}
             style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 9, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: '#e9d5ff', fontFamily: 'monospace', fontSize: 11, touchAction: 'none' }}>
-            <span>ჩრდილები</span>
-            <span style={{ color: quality.shadows ? '#8effc0' : 'rgba(233,213,255,0.4)' }}>{quality.shadows ? 'ჩართ.' : 'გამორთ.'}</span>
+            <span>{t.worlds.shadows}</span>
+            <span style={{ color: quality.shadows ? '#8effc0' : 'rgba(233,213,255,0.4)' }}>{quality.shadows ? t.worlds.on : t.worlds.off}</span>
           </button>
         </div>
       )}
@@ -692,7 +695,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: 'min(440px, 94vw)', background: 'rgba(12,10,24,0.92)', border: '1px solid rgba(192,132,252,0.4)', borderRadius: 24, padding: 6, backdropFilter: 'blur(12px)', boxShadow: '0 6px 24px rgba(0,0,0,0.4)' }}>
             <input ref={chatInputRef} value={chatInput} onChange={e => setChatInput(e.target.value)}
               onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); sendChat(); } }}
-              placeholder="დაწერე შეტყობინება…" maxLength={300} enterKeyHint="send" autoComplete="off"
+              placeholder={t.worlds.chatPlaceholder} maxLength={300} enterKeyHint="send" autoComplete="off"
               style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', color: '#f3e9ff', fontFamily: 'monospace', fontSize: 16, padding: '8px 12px' }} />
             <button data-hud onPointerDown={e => { e.preventDefault(); sendChat(); chatInputRef.current?.focus(); }}
               style={{ width: 42, height: 42, flexShrink: 0, borderRadius: '50%', border: 'none', background: 'linear-gradient(135deg,#7c3aed,#c026d3)', color: '#fff', fontSize: 16 }}>➤</button>
@@ -730,7 +733,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       )}
 
       <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none', fontFamily: 'monospace', fontSize: 10, color: 'rgba(233,213,255,0.22)', letterSpacing: 1, whiteSpace: 'nowrap', opacity: showUI ? 1 : 0, transition: 'opacity .4s' }}>
-        WASD მოძრაობა · მაუსი კამერა · E დაჯდომა · Q მისალმება
+        {t.worlds.desktopHint}
       </div>
     </div>,
     document.body,

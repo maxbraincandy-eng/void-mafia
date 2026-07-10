@@ -163,13 +163,15 @@ function Swatches({ colors, value, onPick, allowNone }: { colors: readonly strin
     </div>
   );
 }
-function Chips<T extends string>({ items, value, onPick }: { items: { id: T; label: string }[]; value: T; onPick: (v: T) => void }) {
+function Chips<T extends string>({ items, value, onPick, labelPrefix }: { items: { id: T; label: string }[]; value: T; onPick: (v: T) => void; labelPrefix?: string }) {
+  const t = useT();
+  const catalog = (t as unknown as { charCatalog?: Record<string, string> }).charCatalog;
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
       {items.map(it => (
         <button key={it.id} onClick={() => onPick(it.id)}
           style={{ padding: '8px 14px', borderRadius: 12, fontFamily: 'monospace', fontSize: 12, color: '#e9d5ff', border: value === it.id ? '1px solid rgba(192,132,252,0.7)' : '1px solid rgba(255,255,255,0.12)', background: value === it.id ? 'rgba(124,58,237,0.35)' : 'rgba(255,255,255,0.04)' }}>
-          {it.label}
+          {(labelPrefix && catalog?.[`${labelPrefix}_${it.id}`]) || it.label}
         </button>
       ))}
     </div>
@@ -205,21 +207,21 @@ function Toggle({ title, value, onChange }: { title: string; value: boolean; onC
 function Options({ cat, spec, patch }: { cat: Cat; spec: CharacterSpec; patch: (p: Partial<CharacterSpec>) => void }) {
   const t = useT();
   if (cat === 'body') return (<>
-    <Section title={t.charCreator.build}><Chips items={BUILDS} value={spec.build} onPick={v => patch({ build: v })} /></Section>
+    <Section title={t.charCreator.build}><Chips labelPrefix="build" items={BUILDS} value={spec.build} onPick={v => patch({ build: v })} /></Section>
     <Slider title={t.charCreator.height} value={spec.height} min={0.9} max={1.12} onChange={v => patch({ height: v })} />
     <Slider title={t.charCreator.shoulderWidth} value={spec.shoulders} min={0.85} max={1.15} onChange={v => patch({ shoulders: v })} />
     <Slider title={t.charCreator.legLength} value={spec.legLen} min={0.92} max={1.1} onChange={v => patch({ legLen: v })} />
   </>);
   if (cat === 'skin') return (<Section title={t.charCreator.skinTone}><Swatches colors={SKIN_TONES} value={spec.skin} onPick={c => patch({ skin: c })} /></Section>);
   if (cat === 'hair') return (<>
-    <Section title={t.charCreator.hairstyle}><Chips items={HAIR_STYLES} value={spec.hair} onPick={v => patch({ hair: v })} /></Section>
+    <Section title={t.charCreator.hairstyle}><Chips labelPrefix="hair" items={HAIR_STYLES} value={spec.hair} onPick={v => patch({ hair: v })} /></Section>
     <Toggle title={t.charCreator.bangs} value={spec.bangs} onChange={v => patch({ bangs: v })} />
     <Section title={t.charCreator.hairColor}><Swatches colors={HAIR_COLORS} value={spec.hairColor} onPick={c => patch({ hairColor: c })} /></Section>
     <Section title={t.charCreator.gradientEndsColor}><Swatches colors={['', ...HAIR_COLORS]} value={spec.hairColor2} onPick={c => patch({ hairColor2: c })} allowNone /></Section>
   </>);
   if (cat === 'face') return (<>
-    <Section title={t.charCreator.eyeShape}><Chips items={EYE_SHAPES} value={spec.eyeShape} onPick={v => patch({ eyeShape: v })} /></Section>
-    <Section title={t.charCreator.pupilStyle}><Chips items={PUPILS} value={spec.pupil} onPick={v => patch({ pupil: v })} /></Section>
+    <Section title={t.charCreator.eyeShape}><Chips labelPrefix="eyeShape" items={EYE_SHAPES} value={spec.eyeShape} onPick={v => patch({ eyeShape: v })} /></Section>
+    <Section title={t.charCreator.pupilStyle}><Chips labelPrefix="pupil" items={PUPILS} value={spec.pupil} onPick={v => patch({ pupil: v })} /></Section>
     <Section title={t.charCreator.eyeColor}><Swatches colors={EYE_COLORS} value={spec.eyeColor} onPick={c => patch({ eyeColor: c })} /></Section>
     <Section title={t.charCreator.brows}><Swatches colors={HAIR_COLORS.slice(0, 8)} value={spec.browColor} onPick={c => patch({ browColor: c })} /></Section>
     <Toggle title={t.charCreator.eyeliner} value={spec.eyeliner} onChange={v => patch({ eyeliner: v })} />
@@ -227,7 +229,7 @@ function Options({ cat, spec, patch }: { cat: Cat; spec: CharacterSpec; patch: (
     <Toggle title={t.charCreator.beautyMark} value={spec.beautyMark} onChange={v => patch({ beautyMark: v })} />
   </>);
   if (cat === 'style') return spec.gender === 'male' ? (<>
-    <Section title={t.charCreator.beard}><Chips items={BEARD_STYLES} value={spec.beard} onPick={v => patch({ beard: v })} /></Section>
+    <Section title={t.charCreator.beard}><Chips labelPrefix="beard" items={BEARD_STYLES} value={spec.beard} onPick={v => patch({ beard: v })} /></Section>
     <Section title={t.charCreator.beardColor}><Swatches colors={HAIR_COLORS.slice(0, 8)} value={spec.beardColor} onPick={c => patch({ beardColor: c })} /></Section>
   </>) : (<>
     <Section title={t.charCreator.lipstick}><Swatches colors={LIP_COLORS} value={spec.lipstick} onPick={c => patch({ lipstick: c })} allowNone /></Section>
@@ -235,21 +237,21 @@ function Options({ cat, spec, patch }: { cat: Cat; spec: CharacterSpec; patch: (
     <Toggle title={t.charCreator.blush} value={spec.blush} onChange={v => patch({ blush: v })} />
   </>);
   if (cat === 'clothing') return (<>
-    <Section title={t.charCreator.top}><Chips items={TOP_STYLES} value={spec.top} onPick={v => patch({ top: v })} /></Section>
+    <Section title={t.charCreator.top}><Chips labelPrefix="top" items={TOP_STYLES} value={spec.top} onPick={v => patch({ top: v })} /></Section>
     <Section title={t.charCreator.topColor}><Swatches colors={CLOTH_COLORS} value={spec.topColor} onPick={c => patch({ topColor: c })} /></Section>
     {spec.top !== 'dress' && (<>
-      <Section title={t.charCreator.bottom}><Chips items={BOTTOM_STYLES} value={spec.bottom} onPick={v => patch({ bottom: v })} /></Section>
+      <Section title={t.charCreator.bottom}><Chips labelPrefix="bottom" items={BOTTOM_STYLES} value={spec.bottom} onPick={v => patch({ bottom: v })} /></Section>
       <Section title={t.charCreator.bottomColor}><Swatches colors={CLOTH_COLORS} value={spec.bottomColor} onPick={c => patch({ bottomColor: c })} /></Section>
     </>)}
-    <Section title={t.charCreator.shoes}><Chips items={SHOE_STYLES} value={spec.shoes} onPick={v => patch({ shoes: v })} /></Section>
+    <Section title={t.charCreator.shoes}><Chips labelPrefix="shoe" items={SHOE_STYLES} value={spec.shoes} onPick={v => patch({ shoes: v })} /></Section>
     <Section title={t.charCreator.shoeColor}><Swatches colors={CLOTH_COLORS} value={spec.shoeColor} onPick={c => patch({ shoeColor: c })} /></Section>
-    <Section title={t.charCreator.socks}><Chips items={SOCK_STYLES} value={spec.socks} onPick={v => patch({ socks: v })} /></Section>
+    <Section title={t.charCreator.socks}><Chips labelPrefix="sock" items={SOCK_STYLES} value={spec.socks} onPick={v => patch({ socks: v })} /></Section>
     {spec.socks !== 'none' && <Section title={t.charCreator.sockColor}><Swatches colors={SOCK_COLORS} value={spec.sockColor} onPick={c => patch({ sockColor: c })} /></Section>}
-    <Section title={t.charCreator.gloves}><Chips items={GLOVE_STYLES} value={spec.gloves} onPick={v => patch({ gloves: v })} /></Section>
+    <Section title={t.charCreator.gloves}><Chips labelPrefix="glove" items={GLOVE_STYLES} value={spec.gloves} onPick={v => patch({ gloves: v })} /></Section>
   </>);
   return (<>
-    <Section title={t.charCreator.glasses}><Chips items={GLASSES} value={spec.glasses} onPick={v => patch({ glasses: v })} /></Section>
-    <Section title={t.charCreator.hat}><Chips items={HATS} value={spec.hat} onPick={v => patch({ hat: v })} /></Section>
+    <Section title={t.charCreator.glasses}><Chips labelPrefix="glasses" items={GLASSES} value={spec.glasses} onPick={v => patch({ glasses: v })} /></Section>
+    <Section title={t.charCreator.hat}><Chips labelPrefix="hat" items={HATS} value={spec.hat} onPick={v => patch({ hat: v })} /></Section>
     {spec.hat !== 'none' && <Section title={t.charCreator.hatColor}><Swatches colors={CLOTH_COLORS} value={spec.hatColor} onPick={c => patch({ hatColor: c })} /></Section>}
     <Toggle title={t.charCreator.earrings} value={spec.earrings} onChange={v => patch({ earrings: v })} />
     <Toggle title={t.charCreator.hairclip} value={spec.hairclip} onChange={v => patch({ hairclip: v })} />

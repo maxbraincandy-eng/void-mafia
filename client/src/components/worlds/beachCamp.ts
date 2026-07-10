@@ -5,6 +5,7 @@
 // lanterns, string lights, seating, drifting embers, and a carved DB Both sign.
 import * as THREE from 'three';
 import type { WorldDef, WorldContext, WorldSeat } from './types';
+import { tNow } from '@/store/langStore';
 
 const SEA_Z = -30;          // shoreline sits around here
 const WORLD_R = 34;         // playable radius
@@ -237,7 +238,7 @@ function buildCampfire(ctx: WorldContext) {
 
   // Toss something on the fire → a brief flare + shower of sparks (networked).
   let flareUntil = 0;
-  ctx.addInteractable({ id: 'fire_toss', x: 0, z: 0, r: 2.9, label: '🔥 ცეცხლში ჩააგდე', effect: () => { flareUntil = performance.now() + 900; } });
+  ctx.addInteractable({ id: 'fire_toss', x: 0, z: 0, r: 2.9, label: tNow().worlds.fireToss, effect: () => { flareUntil = performance.now() + 900; } });
 
   ctx.onUpdate((d, e) => {
     const flaring = performance.now() < flareUntil;
@@ -466,7 +467,7 @@ function buildFireworks(ctx: WorldContext) {
   };
 
   ctx.addInteractable({
-    id: 'firework', x: LX, z: LZ, r: 2.7, label: '🎆 გაუშვი ფეიერვერკი',
+    id: 'firework', x: LX, z: LZ, r: 2.7, label: tNow().worlds.firework,
     effect: () => {
       const color = new THREE.Color(palette[Math.floor(Math.random() * palette.length)]);
       // Launch FROM the tube, rising almost straight up with a little drift so
@@ -659,7 +660,7 @@ function buildDanceFloor(ctx: WorldContext) {
 
   // DJ deck: whoever steps up picks the shared music (opens the same synced
   // media panel as the cinema — the DJ booth is just a second control point).
-  ctx.addInteractable({ id: 'dj', x: DX, z: DZ - (N * T) / 2 - 0.7, r: 1.8, label: '🎧 ჩართე მუსიკა', effect: () => { /* opens the music panel locally via onInteract */ } });
+  ctx.addInteractable({ id: 'dj', x: DX, z: DZ - (N * T) / 2 - 0.7, r: 1.8, label: tNow().worlds.djMusic, effect: () => { /* opens the music panel locally via onInteract */ } });
 
   // Couples dance spot in the middle of the floor — two players face each other
   // and slow-dance in sync.
@@ -759,7 +760,7 @@ function buildSkyLanterns(ctx: WorldContext) {
   };
 
   ctx.addInteractable({
-    id: 'lantern', x: LX, z: LZ, r: 2.4, label: '🏮 გაუშვი ცის ფარანი',
+    id: 'lantern', x: LX, z: LZ, r: 2.4, label: tNow().worlds.lantern,
     effect: () => { release(-0.35, 0); release(0.35, 0.15); },   // a pair, for two
   });
 
@@ -800,13 +801,12 @@ function buildFishing(ctx: WorldContext) {
 
   ctx.addCollider({ x: FX, z: FZ, r: 0.5 });
 
-  const FISH = ['🐟 ქაშაყი', '🐠 ტროპიკული თევზი', '🦑 კალმარი', '🦀 კიბო', '🐡 კვირჩხი', '🐙 რვაფეხა', '🥾 ძველი ჩექმა', '🐚 ნიჟარა', '⭐ ზღვის ვარსკვლავი'];
   let casting = false, biteAt = 0, catchShownAt = 0;
 
   const showLabel = (text: string, until: number) => { label.set(text); label.sprite.visible = true; catchShownAt = until; };
 
   ctx.addInteractable({
-    id: 'fishing', x: FX, z: FZ, r: 2.6, label: '🎣 ითევზავე',
+    id: 'fishing', x: FX, z: FZ, r: 2.6, label: tNow().worlds.fishing,
     effect: () => {
       if (casting) return;
       casting = true;
@@ -826,6 +826,8 @@ function buildFishing(ctx: WorldContext) {
       const pa = line.geometry.attributes.position as THREE.BufferAttribute;
       pa.setXYZ(1, bobber.position.x, bobber.position.y, bobber.position.z); pa.needsUpdate = true;
       if (now >= biteAt) {
+        // resolve at bite time so the catch name follows the current language
+        const FISH = tNow().worlds.fish;
         const fish = FISH[Math.floor(Math.random() * FISH.length)];
         showLabel(fish, now + 3200);
         casting = false; bobber.visible = false; line.visible = false;
@@ -896,7 +898,7 @@ function buildVolleyball(ctx: WorldContext) {
   let spin = 0;
 
   ctx.addInteractable({
-    id: 'volley', x: CXv - 3, z: CZv - 3, r: 2.8, label: '🏐 დაარტყი ბურთს',
+    id: 'volley', x: CXv - 3, z: CZv - 3, r: 2.8, label: tNow().worlds.volley,
     effect: () => {
       // bump up with a little random horizontal drift toward the net
       v.set((Math.random() - 0.5) * 2.4, 6.5 + Math.random() * 1.5, (Math.random() - 0.5) * 2.4 - 0.6);
@@ -1230,7 +1232,7 @@ function buildAvatarStation(ctx: WorldContext) {
   lctx.font = 'bold 28px monospace';
   lctx.textAlign = 'center'; lctx.textBaseline = 'middle';
   lctx.fillStyle = '#c084fc';
-  lctx.fillText('✨ ავატარი ✨', 128, 32);
+  lctx.fillText(tNow().worlds.avatarSign, 128, 32);
   const labelTex = new THREE.CanvasTexture(labelC);
   const labelGeo = new THREE.PlaneGeometry(1.8, 0.45);
   const labelMat = new THREE.MeshBasicMaterial({ map: labelTex, transparent: true, side: THREE.DoubleSide });
@@ -1255,5 +1257,5 @@ function buildAvatarStation(ctx: WorldContext) {
   });
 
   ctx.addCollider({ x: AX, z: AZ - 1.2, r: 0.9 });
-  ctx.addInteractable({ id: 'avatar', x: AX, z: AZ, r: 3.2, label: '🧍 ავატარის შექმნა', effect() {} });
+  ctx.addInteractable({ id: 'avatar', x: AX, z: AZ, r: 3.2, label: tNow().worlds.avatarStation, effect() {} });
 }

@@ -23,6 +23,7 @@ function PostLightbox({
   onClose: () => void;
   isLoggedIn: boolean;
 }) {
+  const t = useT();
   const [post, setPost] = useState(initialPost);
   const [comments, setComments] = useState<CommunityComment[]>([]);
   const [commentsLoaded, setCommentsLoaded] = useState(false);
@@ -198,7 +199,7 @@ function PostLightbox({
               {!commentsLoaded && <div className="py-2"><Spinner color="#9b00ff" /></div>}
               {commentsLoaded && comments.length === 0 && (
                 <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', textAlign: 'center', padding: '8px 0', fontFamily: 'monospace' }}>
-                  კომენტარი არ არის
+                  {t.commA.noComments}
                 </p>
               )}
               {comments.map(c => (
@@ -222,7 +223,7 @@ function PostLightbox({
                   value={commentText}
                   onChange={e => setCommentText(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleComment(); } }}
-                  placeholder="კომენტარის დამატება…"
+                  placeholder={t.commA.addCommentPh}
                   className="flex-1 rounded-xl px-3 py-2.5 text-white outline-none border border-white/8 focus:border-white/20 transition-colors placeholder-white/20"
                   style={{ background: '#0a0715', fontSize: 13 }}
                 />
@@ -433,7 +434,7 @@ function FollowListSheet({
             <div className="flex justify-center py-10"><Spinner /></div>
           )}
           {!loading && list.length === 0 && (
-            <p className="text-center font-mono text-white/25 text-sm py-10">სია ცარიელია</p>
+            <p className="text-center font-mono text-white/25 text-sm py-10">{t.commA.listEmpty}</p>
           )}
           {list.map(person => (
             <button
@@ -555,7 +556,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
   const coverParsed = profile?.coverUrl ? parseCoverUrl(profile.coverUrl) : null;
 
   const BANNER_PRESETS = [
-    { id: 'none', css: '', label: 'არცერთი' },
+    { id: 'none', css: '', label: t.commA.bannerNone },
     { id: 'cyber-purple', css: 'linear-gradient(135deg, #1a0533 0%, #4a0e8f 40%, #9b00ff 100%)', label: '' },
     { id: 'neon-sunset', css: 'linear-gradient(135deg, #0d0221 0%, #6b0f1a 35%, #ff4d6d 70%, #fca311 100%)', label: '' },
     { id: 'ocean-glow', css: 'linear-gradient(135deg, #020024 0%, #003d5b 40%, #00d4ff 90%)', label: '' },
@@ -642,7 +643,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
       {loading ? (
         <div className="py-20 flex justify-center"><Spinner color="#9b00ff" /></div>
       ) : !profile ? (
-        <p className="font-mono text-sm text-white/30 text-center py-16">პროფილი ვერ მოიძებნა.</p>
+        <p className="font-mono text-sm text-white/30 text-center py-16">{t.commA.profileNotFound}</p>
       ) : (
         <>
           {/* Cover */}
@@ -660,7 +661,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
                   className="absolute top-2 right-2 px-2 py-1 rounded-lg font-mono text-white/60 hover:text-white transition-all active:scale-95"
                   style={{ fontSize: 11, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}
                 >
-                  ✎ ბანერი
+                  {t.commA.editBanner}
                 </button>
               )}
             </div>
@@ -675,7 +676,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
                   className="absolute top-2 right-2 px-2 py-1 rounded-lg font-mono text-white/40 hover:text-white/70 transition-all active:scale-95"
                   style={{ fontSize: 11, background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(8px)' }}
                 >
-                  + ბანერი
+                  {t.commA.addBanner}
                 </button>
               )}
             </div>
@@ -802,9 +803,9 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
             style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}
           >
             {([
-              { id: 'photos' as const, label: t.community.profile.photos ?? 'სურათები', icon: '▦', count: mediaPosts.length },
+              { id: 'photos' as const, label: t.community.profile.photos, icon: '▦', count: mediaPosts.length },
               { id: 'posts'  as const, label: t.community.profile.posts,                 icon: '≡', count: textPosts.length },
-              ...(isSelf ? [{ id: 'saved' as const, label: 'შენახულები', icon: '🔖', count: saved?.length ?? 0 }] : []),
+              ...(isSelf ? [{ id: 'saved' as const, label: t.commA.saved, icon: '🔖', count: saved?.length ?? 0 }] : []),
             ]).map(tb => (
               <button
                 key={tb.id}
@@ -833,7 +834,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
             ) : tab === 'photos' ? (
               <motion.div key="photos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
                 {mediaPosts.length === 0 ? (
-                  <p className="font-mono text-white/25 text-center py-12" style={{ fontSize: 13 }}>სურათები არ არის</p>
+                  <p className="font-mono text-white/25 text-center py-12" style={{ fontSize: 13 }}>{t.commA.noPhotos}</p>
                 ) : (
                   <div className="grid grid-cols-3" style={{ gap: 2 }}>
                     {mediaPosts.map(p => {
@@ -879,13 +880,13 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
                 {saved === null ? (
                   <div className="py-12 flex justify-center"><Spinner color="#9b00ff" /></div>
                 ) : saved.length === 0 ? (
-                  <p className="font-mono text-white/25 text-center py-12" style={{ fontSize: 13 }}>🔖 შენახული პოსტები არ გაქვს</p>
+                  <p className="font-mono text-white/25 text-center py-12" style={{ fontSize: 13 }}>{t.commA.noSaved}</p>
                 ) : (
                   saved.map(p => (
                     <PostTextCard
                       key={p.id}
                       post={p}
-                      readMoreLabel={t.community.profile.readMore ?? 'სრულად ნახვა'}
+                      readMoreLabel={t.community.profile.readMore}
                       onExpand={() => setLightboxPost(p)}
                     />
                   ))
@@ -894,13 +895,13 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
             ) : (
               <motion.div key="posts" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="flex flex-col gap-2.5">
                 {textPosts.length === 0 ? (
-                  <p className="font-mono text-white/25 text-center py-12" style={{ fontSize: 13 }}>პოსტები არ არის</p>
+                  <p className="font-mono text-white/25 text-center py-12" style={{ fontSize: 13 }}>{t.commA.noPosts}</p>
                 ) : (
                   textPosts.map(p => (
                     <PostTextCard
                       key={p.id}
                       post={p}
-                      readMoreLabel={t.community.profile.readMore ?? 'სრულად ნახვა'}
+                      readMoreLabel={t.community.profile.readMore}
                       onExpand={() => setLightboxPost(p)}
                     />
                   ))
@@ -950,7 +951,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
           >
             <div className="flex items-center justify-between mb-4">
               <p className="font-display font-bold text-white" style={{ fontSize: 16 }}>
-                {bannerPreview ? 'პოზიციის არჩევა' : 'ბანერის არჩევა'}
+                {bannerPreview ? t.commA.pickPosition : t.commA.pickBanner}
               </p>
               <button onClick={() => bannerPreview ? setBannerPreview(null) : setBannerPicker(false)} className="text-white/40 hover:text-white/70 text-lg">✕</button>
             </div>
@@ -958,7 +959,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
             {bannerPreview ? (
               <>
                 <p className="font-mono text-white/40 text-center mb-2" style={{ fontSize: 11 }}>
-                  ↕ სურათი ზევით-ქვევით გაწიე
+                  {t.commA.dragHint}
                 </p>
                 <div
                   className="w-full h-36 rounded-xl overflow-hidden mb-4 cursor-grab active:cursor-grabbing"
@@ -988,7 +989,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
                     className="flex-1 py-2.5 rounded-xl font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
                     style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.5)' }}
                   >
-                    გაუქმება
+                    {t.commA.cancel}
                   </button>
                   <button
                     onClick={handleBannerSave}
@@ -996,7 +997,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
                     className="flex-1 py-2.5 rounded-xl font-mono text-[12px] uppercase tracking-wider font-bold transition-all active:scale-95 disabled:opacity-50"
                     style={{ background: 'rgba(155,0,255,0.25)', border: '1px solid rgba(155,0,255,0.5)', color: '#c084fc' }}
                   >
-                    {bannerSaving ? '...' : 'დაყენება'}
+                    {bannerSaving ? '...' : t.commA.setBanner}
                   </button>
                 </div>
               </>
@@ -1007,11 +1008,11 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
                   className="flex items-center justify-center gap-2 w-full py-3 mb-3 rounded-xl font-mono text-[12px] uppercase tracking-wider cursor-pointer transition-all active:scale-95"
                   style={{ background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.35)', color: '#c084fc' }}
                 >
-                  {bannerSaving ? '…' : '📷 სურათის ატვირთვა'}
+                  {bannerSaving ? '…' : t.commA.uploadImage}
                   <input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} disabled={bannerSaving} />
                 </label>
 
-                <p className="font-mono text-[10px] text-white/25 uppercase tracking-widest mb-2">ან აირჩიე გრადიენტი</p>
+                <p className="font-mono text-[10px] text-white/25 uppercase tracking-widest mb-2">{t.commA.orGradient}</p>
                 <div className="grid grid-cols-3 gap-2">
                   {BANNER_PRESETS.map(preset => (
                     <button
