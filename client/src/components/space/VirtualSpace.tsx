@@ -90,24 +90,23 @@ interface DJState {
 let _yt: any = null;
 let _ytStateChangeCb: ((state: number) => void) | null = null;
 
-let _ytApiLoading = false;
-let _ytApiReady = false;
-const _ytApiCbs: (() => void)[] = [];
-
 function _loadYTApi(): Promise<void> {
   return new Promise(resolve => {
-    if (_ytApiReady) { resolve(); return; }
-    _ytApiCbs.push(resolve);
-    if (_ytApiLoading) return;
-    _ytApiLoading = true;
-    (window as any).onYouTubeIframeAPIReady = () => {
-      _ytApiReady = true;
-      _ytApiCbs.forEach(cb => cb());
-      _ytApiCbs.length = 0;
-    };
-    const s = document.createElement('script');
-    s.src = 'https://www.youtube.com/iframe_api';
-    document.head.appendChild(s);
+    const w = window as any;
+    if (w.YT?.Player) { resolve(); return; }
+    // Share the SAME script tag + readiness check as the 3D world cinema
+    // (cinema.ts). We poll for `window.YT.Player` instead of relying on the
+    // one-shot global `onYouTubeIframeAPIReady` callback — that callback only
+    // fires once for whoever loaded the API first, so if the user visited a
+    // Premium World cinema beforehand it would never fire again here and the
+    // DJ / TV players would never get created (video silently never plays).
+    if (!document.getElementById('vm-yt-iframe-api')) {
+      const s = document.createElement('script'); s.id = 'vm-yt-iframe-api';
+      s.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(s);
+    }
+    const iv = setInterval(() => { if (w.YT?.Player) { clearInterval(iv); resolve(); } }, 100);
+    setTimeout(() => { clearInterval(iv); resolve(); }, 10000);
   });
 }
 
