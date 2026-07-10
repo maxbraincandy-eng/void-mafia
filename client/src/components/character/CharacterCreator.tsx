@@ -7,20 +7,21 @@ import {
   HAIR_STYLES, BEARD_STYLES, TOP_STYLES, BOTTOM_STYLES, SHOE_STYLES, SOCK_STYLES, GLOVE_STYLES,
   BUILDS, GLASSES, HATS, EYE_SHAPES, PUPILS,
 } from './spec';
+import { useT } from '@/store/langStore';
 
 // ── Character Creator — premium dark / glassmorphism UI ────────────────
 // Lazy-loaded. Live 3D studio preview (drag-orbit + zoom) with a data-driven
 // category system. Saves a CharacterSpec used across the app.
 
 type Cat = 'body' | 'skin' | 'hair' | 'face' | 'style' | 'clothing' | 'accessories';
-const CATS: { id: Cat; icon: string; label: string }[] = [
-  { id: 'body', icon: '🧍', label: 'სხეული' },
-  { id: 'skin', icon: '🎨', label: 'კანი' },
-  { id: 'hair', icon: '💇', label: 'თმა' },
-  { id: 'face', icon: '👁', label: 'სახე' },
-  { id: 'style', icon: '💄', label: 'სტილი' },
-  { id: 'clothing', icon: '👕', label: 'ტანსაცმელი' },
-  { id: 'accessories', icon: '🕶', label: 'აქსესუარები' },
+const CATS: { id: Cat; icon: string }[] = [
+  { id: 'body', icon: '🧍' },
+  { id: 'skin', icon: '🎨' },
+  { id: 'hair', icon: '💇' },
+  { id: 'face', icon: '👁' },
+  { id: 'style', icon: '💄' },
+  { id: 'clothing', icon: '👕' },
+  { id: 'accessories', icon: '🕶' },
 ];
 
 const glass = { background: 'rgba(18,16,30,0.62)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' } as const;
@@ -50,6 +51,12 @@ function randomize(gender: Gender): CharacterSpec {
 }
 
 export default function CharacterCreator({ onClose, onSaved }: { onClose: () => void; onSaved?: (s: CharacterSpec) => void }) {
+  const t = useT();
+  const catLabels: Record<Cat, string> = {
+    body: t.charCreator.tabBody, skin: t.charCreator.tabSkin, hair: t.charCreator.tabHair,
+    face: t.charCreator.tabFace, style: t.charCreator.tabStyle, clothing: t.charCreator.tabClothing,
+    accessories: t.charCreator.tabAccessories,
+  };
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewRef = useRef<CreatorPreview | null>(null);
   const [spec, setSpec] = useState<CharacterSpec>(() => loadSpec() ?? defaultSpec('male'));
@@ -90,7 +97,7 @@ export default function CharacterCreator({ onClose, onSaved }: { onClose: () => 
     <div style={{ position: 'fixed', inset: 0, zIndex: 2200, background: 'radial-gradient(ellipse at top, #16122a 0%, #08060f 100%)', display: 'flex', flexDirection: 'column' }}>
       {/* Top bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
-        <span style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 15, letterSpacing: 1, color: '#e9d5ff' }}>ავატარის შექმნა</span>
+        <span style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 15, letterSpacing: 1, color: '#e9d5ff' }}>{t.charCreator.title}</span>
         <div style={{ flex: 1 }} />
         {/* gender toggle */}
         <div style={{ display: 'flex', borderRadius: 20, overflow: 'hidden', ...glass }}>
@@ -101,7 +108,7 @@ export default function CharacterCreator({ onClose, onSaved }: { onClose: () => 
             </button>
           ))}
         </div>
-        <button onClick={() => setSpec(randomize(spec.gender))} title="შემთხვევითი" style={{ width: 40, height: 40, borderRadius: '50%', color: '#e9d5ff', fontSize: 17, ...glass }}>🎲</button>
+        <button onClick={() => setSpec(randomize(spec.gender))} title={t.charCreator.randomize} style={{ width: 40, height: 40, borderRadius: '50%', color: '#e9d5ff', fontSize: 17, ...glass }}>🎲</button>
         <button onClick={onClose} style={{ width: 40, height: 40, borderRadius: '50%', color: '#e9d5ff', fontSize: 17, ...glass }}>✕</button>
       </div>
 
@@ -111,7 +118,7 @@ export default function CharacterCreator({ onClose, onSaved }: { onClose: () => 
         onWheel={(e) => previewRef.current?.zoom(e.deltaY * 0.002)}
         onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onUp}>
         <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block', touchAction: 'none' }} />
-        <div style={{ position: 'absolute', bottom: 8, left: 0, right: 0, textAlign: 'center', pointerEvents: 'none', fontFamily: 'monospace', fontSize: 10, color: 'rgba(233,213,255,0.35)' }}>👆 დაატრიალე · ორი თითი — ზუმი</div>
+        <div style={{ position: 'absolute', bottom: 8, left: 0, right: 0, textAlign: 'center', pointerEvents: 'none', fontFamily: 'monospace', fontSize: 10, color: 'rgba(233,213,255,0.35)' }}>{t.charCreator.orbitHint}</div>
       </div>
 
       {/* Category rail */}
@@ -120,7 +127,7 @@ export default function CharacterCreator({ onClose, onSaved }: { onClose: () => 
           <button key={c.id} onClick={() => setCat(c.id)}
             style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 62, padding: '8px 6px', borderRadius: 14, color: '#e9d5ff', ...(cat === c.id ? { background: 'rgba(124,58,237,0.35)', border: '1px solid rgba(192,132,252,0.6)' } : glass) }}>
             <span style={{ fontSize: 18 }}>{c.icon}</span>
-            <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 0.5 }}>{c.label}</span>
+            <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 0.5 }}>{catLabels[c.id]}</span>
           </button>
         ))}
       </div>
@@ -133,7 +140,7 @@ export default function CharacterCreator({ onClose, onSaved }: { onClose: () => 
       {/* Save */}
       <div style={{ padding: '10px 16px', paddingBottom: 'max(14px, env(safe-area-inset-bottom))' }}>
         <button onClick={save} style={{ width: '100%', padding: '14px 0', borderRadius: 14, border: 'none', fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 15, color: '#fff', background: 'linear-gradient(135deg, #7c3aed, #c026d3)', boxShadow: '0 6px 24px rgba(124,58,237,0.5)' }}>
-          ✓ შენახვა
+          {t.charCreator.save}
         </button>
       </div>
     </div>,
@@ -186,65 +193,67 @@ function Slider({ title, value, min, max, onChange }: { title: string; value: nu
 }
 
 function Toggle({ title, value, onChange }: { title: string; value: boolean; onChange: (v: boolean) => void }) {
+  const t = useT();
   return (
     <button onClick={() => onChange(!value)}
       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '9px 12px', marginTop: 6, borderRadius: 12, fontFamily: 'monospace', fontSize: 12, color: '#e9d5ff', border: value ? '1px solid rgba(192,132,252,0.6)' : '1px solid rgba(255,255,255,0.12)', background: value ? 'rgba(124,58,237,0.28)' : 'rgba(255,255,255,0.04)' }}>
-      <span>{title}</span><span style={{ color: value ? '#8effc0' : 'rgba(233,213,255,0.4)' }}>{value ? 'ჩართ.' : 'გამორთ.'}</span>
+      <span>{title}</span><span style={{ color: value ? '#8effc0' : 'rgba(233,213,255,0.4)' }}>{value ? t.charCreator.on : t.charCreator.off}</span>
     </button>
   );
 }
 
 function Options({ cat, spec, patch }: { cat: Cat; spec: CharacterSpec; patch: (p: Partial<CharacterSpec>) => void }) {
+  const t = useT();
   if (cat === 'body') return (<>
-    <Section title="აღნაგობა"><Chips items={BUILDS} value={spec.build} onPick={v => patch({ build: v })} /></Section>
-    <Slider title="სიმაღლე" value={spec.height} min={0.9} max={1.12} onChange={v => patch({ height: v })} />
-    <Slider title="მხრების სიგანე" value={spec.shoulders} min={0.85} max={1.15} onChange={v => patch({ shoulders: v })} />
-    <Slider title="ფეხების სიგრძე" value={spec.legLen} min={0.92} max={1.1} onChange={v => patch({ legLen: v })} />
+    <Section title={t.charCreator.build}><Chips items={BUILDS} value={spec.build} onPick={v => patch({ build: v })} /></Section>
+    <Slider title={t.charCreator.height} value={spec.height} min={0.9} max={1.12} onChange={v => patch({ height: v })} />
+    <Slider title={t.charCreator.shoulderWidth} value={spec.shoulders} min={0.85} max={1.15} onChange={v => patch({ shoulders: v })} />
+    <Slider title={t.charCreator.legLength} value={spec.legLen} min={0.92} max={1.1} onChange={v => patch({ legLen: v })} />
   </>);
-  if (cat === 'skin') return (<Section title="კანის ტონი"><Swatches colors={SKIN_TONES} value={spec.skin} onPick={c => patch({ skin: c })} /></Section>);
+  if (cat === 'skin') return (<Section title={t.charCreator.skinTone}><Swatches colors={SKIN_TONES} value={spec.skin} onPick={c => patch({ skin: c })} /></Section>);
   if (cat === 'hair') return (<>
-    <Section title="ვარცხნილობა"><Chips items={HAIR_STYLES} value={spec.hair} onPick={v => patch({ hair: v })} /></Section>
-    <Toggle title="თმა შუბლზე (bangs)" value={spec.bangs} onChange={v => patch({ bangs: v })} />
-    <Section title="თმის ფერი"><Swatches colors={HAIR_COLORS} value={spec.hairColor} onPick={c => patch({ hairColor: c })} /></Section>
-    <Section title="გრადიენტი / ბოლოების ფერი"><Swatches colors={['', ...HAIR_COLORS]} value={spec.hairColor2} onPick={c => patch({ hairColor2: c })} allowNone /></Section>
+    <Section title={t.charCreator.hairstyle}><Chips items={HAIR_STYLES} value={spec.hair} onPick={v => patch({ hair: v })} /></Section>
+    <Toggle title={t.charCreator.bangs} value={spec.bangs} onChange={v => patch({ bangs: v })} />
+    <Section title={t.charCreator.hairColor}><Swatches colors={HAIR_COLORS} value={spec.hairColor} onPick={c => patch({ hairColor: c })} /></Section>
+    <Section title={t.charCreator.gradientEndsColor}><Swatches colors={['', ...HAIR_COLORS]} value={spec.hairColor2} onPick={c => patch({ hairColor2: c })} allowNone /></Section>
   </>);
   if (cat === 'face') return (<>
-    <Section title="თვალის ფორმა"><Chips items={EYE_SHAPES} value={spec.eyeShape} onPick={v => patch({ eyeShape: v })} /></Section>
-    <Section title="გუგის სტილი"><Chips items={PUPILS} value={spec.pupil} onPick={v => patch({ pupil: v })} /></Section>
-    <Section title="თვალის ფერი"><Swatches colors={EYE_COLORS} value={spec.eyeColor} onPick={c => patch({ eyeColor: c })} /></Section>
-    <Section title="წარბები"><Swatches colors={HAIR_COLORS.slice(0, 8)} value={spec.browColor} onPick={c => patch({ browColor: c })} /></Section>
-    <Toggle title="თვალის ლაინერი" value={spec.eyeliner} onChange={v => patch({ eyeliner: v })} />
-    <Toggle title="ჭორფლები" value={spec.freckles} onChange={v => patch({ freckles: v })} />
-    <Toggle title="ხალი" value={spec.beautyMark} onChange={v => patch({ beautyMark: v })} />
+    <Section title={t.charCreator.eyeShape}><Chips items={EYE_SHAPES} value={spec.eyeShape} onPick={v => patch({ eyeShape: v })} /></Section>
+    <Section title={t.charCreator.pupilStyle}><Chips items={PUPILS} value={spec.pupil} onPick={v => patch({ pupil: v })} /></Section>
+    <Section title={t.charCreator.eyeColor}><Swatches colors={EYE_COLORS} value={spec.eyeColor} onPick={c => patch({ eyeColor: c })} /></Section>
+    <Section title={t.charCreator.brows}><Swatches colors={HAIR_COLORS.slice(0, 8)} value={spec.browColor} onPick={c => patch({ browColor: c })} /></Section>
+    <Toggle title={t.charCreator.eyeliner} value={spec.eyeliner} onChange={v => patch({ eyeliner: v })} />
+    <Toggle title={t.charCreator.freckles} value={spec.freckles} onChange={v => patch({ freckles: v })} />
+    <Toggle title={t.charCreator.beautyMark} value={spec.beautyMark} onChange={v => patch({ beautyMark: v })} />
   </>);
   if (cat === 'style') return spec.gender === 'male' ? (<>
-    <Section title="წვერი"><Chips items={BEARD_STYLES} value={spec.beard} onPick={v => patch({ beard: v })} /></Section>
-    <Section title="წვერის ფერი"><Swatches colors={HAIR_COLORS.slice(0, 8)} value={spec.beardColor} onPick={c => patch({ beardColor: c })} /></Section>
+    <Section title={t.charCreator.beard}><Chips items={BEARD_STYLES} value={spec.beard} onPick={v => patch({ beard: v })} /></Section>
+    <Section title={t.charCreator.beardColor}><Swatches colors={HAIR_COLORS.slice(0, 8)} value={spec.beardColor} onPick={c => patch({ beardColor: c })} /></Section>
   </>) : (<>
-    <Section title="ტუჩსაცხი"><Swatches colors={LIP_COLORS} value={spec.lipstick} onPick={c => patch({ lipstick: c })} allowNone /></Section>
-    <Section title="თვალის ჩრდილი"><Swatches colors={SHADOW_COLORS} value={spec.eyeshadow} onPick={c => patch({ eyeshadow: c })} allowNone /></Section>
-    <Toggle title="ღაწვების შეფაკვა" value={spec.blush} onChange={v => patch({ blush: v })} />
+    <Section title={t.charCreator.lipstick}><Swatches colors={LIP_COLORS} value={spec.lipstick} onPick={c => patch({ lipstick: c })} allowNone /></Section>
+    <Section title={t.charCreator.eyeshadow}><Swatches colors={SHADOW_COLORS} value={spec.eyeshadow} onPick={c => patch({ eyeshadow: c })} allowNone /></Section>
+    <Toggle title={t.charCreator.blush} value={spec.blush} onChange={v => patch({ blush: v })} />
   </>);
   if (cat === 'clothing') return (<>
-    <Section title="ზედა"><Chips items={TOP_STYLES} value={spec.top} onPick={v => patch({ top: v })} /></Section>
-    <Section title="ზედას ფერი"><Swatches colors={CLOTH_COLORS} value={spec.topColor} onPick={c => patch({ topColor: c })} /></Section>
+    <Section title={t.charCreator.top}><Chips items={TOP_STYLES} value={spec.top} onPick={v => patch({ top: v })} /></Section>
+    <Section title={t.charCreator.topColor}><Swatches colors={CLOTH_COLORS} value={spec.topColor} onPick={c => patch({ topColor: c })} /></Section>
     {spec.top !== 'dress' && (<>
-      <Section title="ქვედა"><Chips items={BOTTOM_STYLES} value={spec.bottom} onPick={v => patch({ bottom: v })} /></Section>
-      <Section title="ქვედას ფერი"><Swatches colors={CLOTH_COLORS} value={spec.bottomColor} onPick={c => patch({ bottomColor: c })} /></Section>
+      <Section title={t.charCreator.bottom}><Chips items={BOTTOM_STYLES} value={spec.bottom} onPick={v => patch({ bottom: v })} /></Section>
+      <Section title={t.charCreator.bottomColor}><Swatches colors={CLOTH_COLORS} value={spec.bottomColor} onPick={c => patch({ bottomColor: c })} /></Section>
     </>)}
-    <Section title="ფეხსაცმელი"><Chips items={SHOE_STYLES} value={spec.shoes} onPick={v => patch({ shoes: v })} /></Section>
-    <Section title="ფეხსაცმლის ფერი"><Swatches colors={CLOTH_COLORS} value={spec.shoeColor} onPick={c => patch({ shoeColor: c })} /></Section>
-    <Section title="წინდები"><Chips items={SOCK_STYLES} value={spec.socks} onPick={v => patch({ socks: v })} /></Section>
-    {spec.socks !== 'none' && <Section title="წინდების ფერი"><Swatches colors={SOCK_COLORS} value={spec.sockColor} onPick={c => patch({ sockColor: c })} /></Section>}
-    <Section title="ხელთათმანები"><Chips items={GLOVE_STYLES} value={spec.gloves} onPick={v => patch({ gloves: v })} /></Section>
+    <Section title={t.charCreator.shoes}><Chips items={SHOE_STYLES} value={spec.shoes} onPick={v => patch({ shoes: v })} /></Section>
+    <Section title={t.charCreator.shoeColor}><Swatches colors={CLOTH_COLORS} value={spec.shoeColor} onPick={c => patch({ shoeColor: c })} /></Section>
+    <Section title={t.charCreator.socks}><Chips items={SOCK_STYLES} value={spec.socks} onPick={v => patch({ socks: v })} /></Section>
+    {spec.socks !== 'none' && <Section title={t.charCreator.sockColor}><Swatches colors={SOCK_COLORS} value={spec.sockColor} onPick={c => patch({ sockColor: c })} /></Section>}
+    <Section title={t.charCreator.gloves}><Chips items={GLOVE_STYLES} value={spec.gloves} onPick={v => patch({ gloves: v })} /></Section>
   </>);
   return (<>
-    <Section title="სათვალე"><Chips items={GLASSES} value={spec.glasses} onPick={v => patch({ glasses: v })} /></Section>
-    <Section title="ქუდი"><Chips items={HATS} value={spec.hat} onPick={v => patch({ hat: v })} /></Section>
-    {spec.hat !== 'none' && <Section title="ქუდის ფერი"><Swatches colors={CLOTH_COLORS} value={spec.hatColor} onPick={c => patch({ hatColor: c })} /></Section>}
-    <Toggle title="საყურეები" value={spec.earrings} onChange={v => patch({ earrings: v })} />
-    <Toggle title="თმის სამაგრი" value={spec.hairclip} onChange={v => patch({ hairclip: v })} />
-    <Toggle title="ყელსაბამი / ჯაჭვი" value={spec.necklace} onChange={v => patch({ necklace: v })} />
-    <Toggle title="ქამარი" value={spec.belt} onChange={v => patch({ belt: v })} />
+    <Section title={t.charCreator.glasses}><Chips items={GLASSES} value={spec.glasses} onPick={v => patch({ glasses: v })} /></Section>
+    <Section title={t.charCreator.hat}><Chips items={HATS} value={spec.hat} onPick={v => patch({ hat: v })} /></Section>
+    {spec.hat !== 'none' && <Section title={t.charCreator.hatColor}><Swatches colors={CLOTH_COLORS} value={spec.hatColor} onPick={c => patch({ hatColor: c })} /></Section>}
+    <Toggle title={t.charCreator.earrings} value={spec.earrings} onChange={v => patch({ earrings: v })} />
+    <Toggle title={t.charCreator.hairclip} value={spec.hairclip} onChange={v => patch({ hairclip: v })} />
+    <Toggle title={t.charCreator.necklace} value={spec.necklace} onChange={v => patch({ necklace: v })} />
+    <Toggle title={t.charCreator.belt} value={spec.belt} onChange={v => patch({ belt: v })} />
   </>);
 }

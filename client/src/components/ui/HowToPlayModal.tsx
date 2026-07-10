@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useT } from '@/store/langStore';
 
 interface Props {
   open: boolean;
@@ -7,43 +8,27 @@ interface Props {
 }
 
 const ROLES = [
-  { key: 'mafia',       icon: '🔫', name: 'მაფია',          team: 'mafia',   badge: '🔴', desc: 'ღამით კლავს მოქალაქეს' },
-  { key: 'don',         icon: '♛',  name: 'დონი',           team: 'mafia',   badge: '🔴', desc: 'მაფიის ლიდერი, sheriff-ის გამოძიებას ვერ ხვდება' },
-  { key: 'yakuza',      icon: '⚔️', name: 'იაკუძა',         team: 'mafia',   badge: '🔴', desc: 'კლავს ღამით, yakuza-ს ფრაქცია' },
-  { key: 'shogun',      icon: '👺', name: 'შოგუნი',          team: 'mafia',   badge: '🔴', desc: 'იაკუძის ლიდერი' },
-  { key: 'citizen',     icon: '👤', name: 'მოქალაქე',        team: 'town',    badge: '🔵', desc: 'ხმის მიცემა და დაკვირვება' },
-  { key: 'sheriff',     icon: '🔍', name: 'შერიფი',          team: 'town',    badge: '🔵', desc: 'ღამით ამოწმებს მოთამაშის ეჭვმიტანილობას' },
-  { key: 'doctor',      icon: '💊', name: 'ექიმი',           team: 'town',    badge: '🔵', desc: 'ღამით იცავს ერთ მოთამაშეს' },
-  { key: 'bodyguard',   icon: '🛡', name: 'მცველი',          team: 'town',    badge: '🔵', desc: 'იცავს სამიზნეს, თვითონ კვდება' },
-  { key: 'escort',      icon: '💃', name: 'ესკორტი',         team: 'town',    badge: '🔵', desc: 'ბლოკავს სამიზნის ქმედებას' },
-  { key: 'vigilante',   icon: '🔫', name: 'ვიჯილანტი',       team: 'town',    badge: '🔵', desc: 'ღამით ისვრის (შეზღუდული)' },
-  { key: 'tracker',     icon: '👁', name: 'ტრეკერი',         team: 'town',    badge: '🔵', desc: 'ხედავს ვინ მოინახულა სამიზნე' },
-  { key: 'veteran',     icon: '🎖️', name: 'ვეტერანი',        team: 'town',    badge: '🔵', desc: '"მზად" რეჟიმში მოსვლისას კლავს მოსულს' },
-  { key: 'mayor',       icon: '🏛', name: 'მერი',            team: 'town',    badge: '🔵', desc: 'გამომჟღავნებისას 3 ხმა' },
-  { key: 'maniac',      icon: '🌀', name: 'მანიაკი',         team: 'neutral', badge: '⚪', desc: 'მარტო კლავს ყველას' },
-  { key: 'jester',      icon: '🃏', name: 'ჯესტერი',         team: 'neutral', badge: '⚪', desc: 'სურს ხმით მოკვლა' },
-  { key: 'arsonist',    icon: '🔥', name: 'მაწვარი',         team: 'neutral', badge: '⚪', desc: 'ასველებს, შემდეგ ყველას წვავს' },
-  { key: 'cult_leader', icon: '🕯️', name: 'კულტის ლიდერი',  team: 'cult',    badge: '🟣', desc: 'ღამით ცვლის ალიანსს' },
-  { key: 'cultist',     icon: '😶', name: 'კულტისტი',        team: 'cult',    badge: '🟣', desc: 'გადაბირებული მოთამაშე' },
+  { key: 'mafia',       icon: '🔫', team: 'mafia',   badge: '🔴' },
+  { key: 'don',         icon: '♛',  team: 'mafia',   badge: '🔴' },
+  { key: 'yakuza',      icon: '⚔️', team: 'mafia',   badge: '🔴' },
+  { key: 'shogun',      icon: '👺', team: 'mafia',   badge: '🔴' },
+  { key: 'citizen',     icon: '👤', team: 'town',    badge: '🔵' },
+  { key: 'sheriff',     icon: '🔍', team: 'town',    badge: '🔵' },
+  { key: 'doctor',      icon: '💊', team: 'town',    badge: '🔵' },
+  { key: 'bodyguard',   icon: '🛡', team: 'town',    badge: '🔵' },
+  { key: 'escort',      icon: '💃', team: 'town',    badge: '🔵' },
+  { key: 'vigilante',   icon: '🔫', team: 'town',    badge: '🔵' },
+  { key: 'tracker',     icon: '👁', team: 'town',    badge: '🔵' },
+  { key: 'veteran',     icon: '🎖️', team: 'town',    badge: '🔵' },
+  { key: 'mayor',       icon: '🏛', team: 'town',    badge: '🔵' },
+  { key: 'maniac',      icon: '🌀', team: 'neutral', badge: '⚪' },
+  { key: 'jester',      icon: '🃏', team: 'neutral', badge: '⚪' },
+  { key: 'arsonist',    icon: '🔥', team: 'neutral', badge: '⚪' },
+  { key: 'cult_leader', icon: '🕯️', team: 'cult',    badge: '🟣' },
+  { key: 'cultist',     icon: '😶', team: 'cult',    badge: '🟣' },
 ] as const;
 
-const PHASES = [
-  { icon: '🌙', name: 'ღამე',         desc: 'მაფია და სპეციალური როლები მოქმედებენ ფარულად' },
-  { icon: '☀️', name: 'დღე',          desc: 'ყველა განიხილავს, ვინ შეიძლება იყოს მაფია' },
-  { icon: '🎤', name: 'სიტყვა',       desc: 'თითოეული მოთამაშე ლაპარაკობს რიგრიგობით' },
-  { icon: '⚖️', name: 'კენჭისყრა',   desc: 'ხმის მიცემა ეჭვმიტანილის გარიცხვაზე' },
-  { icon: '🛡', name: 'დაცვა',        desc: 'ნომინირებული ამართლებს თავს (თუ ჩართულია)' },
-  { icon: '💀', name: 'ბოლო სიტყვა', desc: 'გარიცხული ლაპარაკობს ბოლოს' },
-];
-
-const RULES = [
-  'მაფიამ უნდა მოაღწიოს ქალაქელების ტოლ ან მეტ რაოდენობამდე',
-  'ქალაქელებმა უნდა გამოარიყონ ყველა მაფიელი',
-  'მანიაკი იმარჯვებს ყველა სხვის მოკვლით',
-  'ჯესტერი იმარჯვებს ხმით გარიცხვით',
-  'ფოლი: 3 ფოლი = გაფრთხილება, 4 = გარიცხვა',
-  'Skip Discussion: 3+ ხმა გადადის სიტყვის ფაზაში',
-];
+const PHASE_ICONS = ['🌙', '☀️', '🎤', '⚖️', '🛡', '💀'];
 
 const TEAM_COLOR: Record<string, string> = {
   mafia:   'text-red-400',
@@ -52,11 +37,18 @@ const TEAM_COLOR: Record<string, string> = {
   cult:    'text-neon-purple',
 };
 
-const TABS = ['როლები', 'ფაზები', 'წესები'] as const;
+const TABS = ['roles', 'phases', 'rules'] as const;
 type Tab = typeof TABS[number];
 
 export function HowToPlayModal({ open, onClose }: Props) {
-  const [tab, setTab] = useState<Tab>('როლები');
+  const t = useT();
+  const [tab, setTab] = useState<Tab>('roles');
+
+  const TAB_LABELS: Record<Tab, string> = {
+    roles: t.howToPlay.tabRoles,
+    phases: t.howToPlay.tabPhases,
+    rules: t.howToPlay.tabRules,
+  };
 
   return (
     <AnimatePresence>
@@ -100,26 +92,26 @@ export function HowToPlayModal({ open, onClose }: Props) {
             </div>
 
             <div className="flex gap-1 px-4 pt-3 pb-0 flex-shrink-0">
-              {TABS.map(t => (
+              {TABS.map(tabKey => (
                 <button
-                  key={t}
-                  onClick={() => setTab(t)}
+                  key={tabKey}
+                  onClick={() => setTab(tabKey)}
                   className="flex-1 py-1.5 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all"
                   style={{
-                    background: tab === t ? 'rgba(138,43,226,0.2)' : 'rgba(255,255,255,0.03)',
-                    border: tab === t ? '1px solid rgba(138,43,226,0.35)' : '1px solid rgba(255,255,255,0.07)',
-                    color: tab === t ? 'rgba(200,150,255,0.9)' : 'rgba(255,255,255,0.3)',
+                    background: tab === tabKey ? 'rgba(138,43,226,0.2)' : 'rgba(255,255,255,0.03)',
+                    border: tab === tabKey ? '1px solid rgba(138,43,226,0.35)' : '1px solid rgba(255,255,255,0.07)',
+                    color: tab === tabKey ? 'rgba(200,150,255,0.9)' : 'rgba(255,255,255,0.3)',
                   }}
                 >
-                  {t}
+                  {TAB_LABELS[tabKey]}
                 </button>
               ))}
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 py-3">
-              {tab === 'როლები' && (
+              {tab === 'roles' && (
                 <div className="grid grid-cols-1 gap-2">
-                  {ROLES.map(role => (
+                  {ROLES.map((role, i) => (
                     <div
                       key={role.key}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
@@ -128,37 +120,37 @@ export function HowToPlayModal({ open, onClose }: Props) {
                       <span className="text-xl w-7 text-center flex-shrink-0">{role.icon}</span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-display font-bold text-white/85 text-sm">{role.name}</span>
+                          <span className="font-display font-bold text-white/85 text-sm">{t.howToPlay.roleNames[i]}</span>
                           <span className="text-xs">{role.badge}</span>
                         </div>
-                        <p className={`font-mono text-[12px] mt-0.5 ${TEAM_COLOR[role.team]}/70`}>{role.desc}</p>
+                        <p className={`font-mono text-[12px] mt-0.5 ${TEAM_COLOR[role.team]}/70`}>{t.howToPlay.roleDescs[i]}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
 
-              {tab === 'ფაზები' && (
+              {tab === 'phases' && (
                 <div className="flex flex-col gap-2">
-                  {PHASES.map((phase, i) => (
+                  {PHASE_ICONS.map((icon, i) => (
                     <div
                       key={i}
                       className="flex items-start gap-3 px-3 py-3 rounded-xl"
                       style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
                     >
-                      <span className="text-2xl flex-shrink-0 mt-0.5">{phase.icon}</span>
+                      <span className="text-2xl flex-shrink-0 mt-0.5">{icon}</span>
                       <div>
-                        <p className="font-display font-bold text-white/85 text-sm">{phase.name}</p>
-                        <p className="font-mono text-[11px] text-white/45 mt-0.5">{phase.desc}</p>
+                        <p className="font-display font-bold text-white/85 text-sm">{t.howToPlay.phaseNames[i]}</p>
+                        <p className="font-mono text-[11px] text-white/45 mt-0.5">{t.howToPlay.phaseDescs[i]}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
 
-              {tab === 'წესები' && (
+              {tab === 'rules' && (
                 <div className="flex flex-col gap-2 pt-1">
-                  {RULES.map((rule, i) => (
+                  {t.howToPlay.rules.map((rule, i) => (
                     <div
                       key={i}
                       className="flex items-start gap-3 px-3 py-2.5 rounded-xl"

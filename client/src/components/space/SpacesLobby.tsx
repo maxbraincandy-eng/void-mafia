@@ -5,16 +5,17 @@ import type { SpaceMeta } from '@/hooks/useVirtualSpace';
 import { emitWithAck } from '@/lib/socket';
 import type { Friend, Res } from '@/types/index';
 import { useAuthStore } from '@/store/authStore';
+import { useT } from '@/store/langStore';
 import { SPACE_THEME_DEFS, itemIdForTheme, spaceThemeAccent } from '@/constants/spaceThemes';
 
 const SPACE_ICONS  = ['🌌','🎮','🎬','🎧','🔥','💎','🛸','🌃','⚡','🃏','👾','🎲'];
 const themeAccent = (theme: string) => spaceThemeAccent(theme);
 
-const ROOM_LAYOUTS: { id: string; label: string; desc: string; emoji: string; preview: string }[] = [
-  { id: 'lounge',    label: 'Lounge',    desc: 'ნეონ კლუბი · დივნები', emoji: '🛋️', preview: 'linear-gradient(135deg, rgba(155,0,255,.35), rgba(0,229,255,.2))' },
-  { id: 'home',      label: 'Home',      desc: 'ტელევიზორი · 4 სკამი · ცეკვა', emoji: '🏠', preview: 'linear-gradient(135deg, rgba(255,160,80,.35), rgba(255,90,60,.2))' },
-  { id: 'penthouse', label: 'Penthouse', desc: 'ღამის ქალაქი · დივანი · ცეკვა', emoji: '🌃', preview: 'linear-gradient(135deg, rgba(90,140,255,.35), rgba(20,28,60,.4))' },
-  { id: 'beach',     label: 'Wavefire Camp', desc: 'პლაჟი · კოცონი · ოკეანე', emoji: '🔥', preview: 'linear-gradient(135deg, rgba(255,120,20,.35), rgba(20,40,80,.4))' },
+const ROOM_LAYOUTS: { id: string; label: string; descKey: 'roomLoungeDesc' | 'roomHomeDesc' | 'roomPenthouseDesc' | 'roomBeachDesc'; emoji: string; preview: string }[] = [
+  { id: 'lounge',    label: 'Lounge',    descKey: 'roomLoungeDesc', emoji: '🛋️', preview: 'linear-gradient(135deg, rgba(155,0,255,.35), rgba(0,229,255,.2))' },
+  { id: 'home',      label: 'Home',      descKey: 'roomHomeDesc', emoji: '🏠', preview: 'linear-gradient(135deg, rgba(255,160,80,.35), rgba(255,90,60,.2))' },
+  { id: 'penthouse', label: 'Penthouse', descKey: 'roomPenthouseDesc', emoji: '🌃', preview: 'linear-gradient(135deg, rgba(90,140,255,.35), rgba(20,28,60,.4))' },
+  { id: 'beach',     label: 'Wavefire Camp', descKey: 'roomBeachDesc', emoji: '🔥', preview: 'linear-gradient(135deg, rgba(255,120,20,.35), rgba(20,40,80,.4))' },
 ];
 
 // ── Lobby ───────────────────────────────────────────────────────────────
@@ -27,6 +28,7 @@ interface LobbyProps {
 }
 
 export function SpacesLobby({ listSpaces, createSpace, resolveSpace, onEnter }: LobbyProps) {
+  const t = useT();
   const [spaces, setSpaces] = useState<SpaceMeta[] | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [code, setCode] = useState('');
@@ -36,8 +38,8 @@ export function SpacesLobby({ listSpaces, createSpace, resolveSpace, onEnter }: 
   const refresh = useCallback(() => { listSpaces().then(setSpaces); }, [listSpaces]);
   useEffect(() => {
     refresh();
-    const t = setInterval(refresh, 5000); // live online counts
-    return () => clearInterval(t);
+    const id = setInterval(refresh, 5000); // live online counts
+    return () => clearInterval(id);
   }, [refresh]);
 
   const joinByCode = async () => {
@@ -46,7 +48,7 @@ export function SpacesLobby({ listSpaces, createSpace, resolveSpace, onEnter }: 
     const res = await resolveSpace(code.trim());
     setCodeBusy(false);
     if (res.ok && res.space) onEnter(res.space);
-    else setCodeError(res.error ?? 'ვერ მოიძებნა');
+    else setCodeError(res.error ?? t.spaceLobby.notFound);
   };
 
   return (
@@ -54,7 +56,7 @@ export function SpacesLobby({ listSpaces, createSpace, resolveSpace, onEnter }: 
       <div className="flex items-center justify-between">
         <div>
           <p className="font-display font-bold text-white" style={{ fontSize: 18, letterSpacing: '0.04em' }}>Void Spaces</p>
-          <p className="font-mono text-[11px] text-white/35 mt-0.5">აირჩიე სივრცე ან შექმენი შენი</p>
+          <p className="font-mono text-[11px] text-white/35 mt-0.5">{t.spaceLobby.chooseOrCreate}</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
@@ -67,7 +69,7 @@ export function SpacesLobby({ listSpaces, createSpace, resolveSpace, onEnter }: 
 
       {/* Join by code */}
       <div className="rounded-2xl p-3" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.08)' }}>
-        <p className="font-mono text-[10px] uppercase tracking-widest text-white/30 mb-2">კოდით შესვლა</p>
+        <p className="font-mono text-[10px] uppercase tracking-widest text-white/30 mb-2">{t.spaceLobby.joinByCode}</p>
         <div className="flex gap-2">
           <input
             value={code}
@@ -92,13 +94,13 @@ export function SpacesLobby({ listSpaces, createSpace, resolveSpace, onEnter }: 
 
       {/* Public spaces */}
       <div className="flex flex-col gap-2.5">
-        <p className="font-mono text-[10px] uppercase tracking-widest text-white/30">საჯარო სივრცეები</p>
+        <p className="font-mono text-[10px] uppercase tracking-widest text-white/30">{t.spaceLobby.publicSpaces}</p>
         {spaces === null && (
           <div className="flex justify-center py-8">
             <div style={{ width: 22, height: 22, border: '2px solid rgba(155,0,255,.3)', borderTopColor: '#9b00ff', borderRadius: '50%', animation: 'vs-spin .7s linear infinite' }} />
           </div>
         )}
-        {spaces?.length === 0 && <p className="font-mono text-[11px] text-white/20 py-4 text-center">ცარიელია — შექმენი პირველი!</p>}
+        {spaces?.length === 0 && <p className="font-mono text-[11px] text-white/20 py-4 text-center">{t.spaceLobby.emptyCreateFirst}</p>}
         {spaces?.map(sp => {
           const accent = themeAccent(sp.theme);
           const full = sp.online >= sp.maxPlayers;
@@ -121,7 +123,7 @@ export function SpacesLobby({ listSpaces, createSpace, resolveSpace, onEnter }: 
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: sp.online > 0 ? '#00ff88' : 'rgba(255,255,255,.2)', boxShadow: sp.online > 0 ? '0 0 6px #00ff88' : 'none' }} />
-                <span className="font-mono text-[12px]" style={{ color: full ? 'rgba(255,45,85,.7)' : accent }}>{full ? 'სავსე' : 'Join'}</span>
+                <span className="font-mono text-[12px]" style={{ color: full ? 'rgba(255,45,85,.7)' : accent }}>{full ? t.spaceLobby.full : 'Join'}</span>
               </div>
             </button>
           );
@@ -144,6 +146,7 @@ function CreateSpaceModal({ createSpace, onClose, onCreated }: {
   onClose: () => void;
   onCreated: (sp: SpaceMeta) => void;
 }) {
+  const t = useT();
   const [name, setName] = useState('');
   const [icon, setIcon] = useState(SPACE_ICONS[0]);
   const [theme, setTheme] = useState('void');
@@ -176,23 +179,23 @@ function CreateSpaceModal({ createSpace, onClose, onCreated }: {
           padding: '20px',
         }}
       >
-        <p className="font-display font-bold text-white mb-4" style={{ fontSize: 16 }}>ახალი Space</p>
+        <p className="font-display font-bold text-white mb-4" style={{ fontSize: 16 }}>{t.spaceLobby.newSpace}</p>
 
         {/* Preview */}
         <div className="flex items-center gap-3 mb-4 p-3 rounded-2xl" style={{ background: `${accent}12`, border: `1px solid ${accent}33` }}>
           <div className="flex items-center justify-center" style={{ width: 48, height: 48, borderRadius: 14, background: `${accent}22`, border: `1px solid ${accent}44`, fontSize: 24 }}>{icon}</div>
           <div className="min-w-0">
             <p className="font-mono text-sm text-white truncate">{name.trim() || 'Void Space'}</p>
-            <p className="font-mono text-[10px] text-white/35">{isPublic ? 'საჯარო' : 'პირადი'} · max {maxPlayers}</p>
+            <p className="font-mono text-[10px] text-white/35">{isPublic ? t.spaceLobby.public : t.spaceLobby.private} · max {maxPlayers}</p>
           </div>
         </div>
 
-        <label className="font-mono text-[10px] uppercase tracking-widest text-white/30">სახელი</label>
+        <label className="font-mono text-[10px] uppercase tracking-widest text-white/30">{t.spaceLobby.nameLabel}</label>
         <input value={name} onChange={e => setName(e.target.value)} maxLength={28} placeholder="My Space"
           className="w-full font-mono text-sm text-white outline-none px-3 py-2.5 rounded-xl mt-1.5 mb-4"
           style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)' }} />
 
-        <label className="font-mono text-[10px] uppercase tracking-widest text-white/30">აიქონი</label>
+        <label className="font-mono text-[10px] uppercase tracking-widest text-white/30">{t.spaceLobby.iconLabel}</label>
         <div className="flex flex-wrap gap-2 mt-1.5 mb-4">
           {SPACE_ICONS.map(ic => (
             <button key={ic} onClick={() => setIcon(ic)}
@@ -203,22 +206,22 @@ function CreateSpaceModal({ createSpace, onClose, onCreated }: {
           ))}
         </div>
 
-        <label className="font-mono text-[10px] uppercase tracking-widest text-white/30">თემა</label>
+        <label className="font-mono text-[10px] uppercase tracking-widest text-white/30">{t.spaceLobby.themeLabel}</label>
         <div className="flex flex-wrap gap-2 mt-1.5 mb-4">
-          {SPACE_THEME_DEFS.map(t => {
-            const owned = t.price === 0 || unlockedItems.includes(itemIdForTheme(t.id));
+          {SPACE_THEME_DEFS.map(th => {
+            const owned = th.price === 0 || unlockedItems.includes(itemIdForTheme(th.id));
             return (
-              <button key={t.id} onClick={() => owned && setTheme(t.id)} disabled={!owned}
+              <button key={th.id} onClick={() => owned && setTheme(th.id)} disabled={!owned}
                 className="py-2 px-2.5 rounded-xl font-mono text-[11px] transition-all active:scale-95"
-                style={{ background: theme === t.id ? `${t.accent}22` : 'rgba(255,255,255,.03)', border: `1px solid ${theme === t.id ? t.accent : 'rgba(255,255,255,.08)'}`, color: theme === t.id ? t.accent : owned ? 'rgba(255,255,255,.4)' : 'rgba(255,255,255,.25)', opacity: owned ? 1 : 0.6 }}
-                title={owned ? t.name : `${t.name} — buy in Coin Shop (${t.price} coins)`}>
-                {owned ? t.name : `🔒 ${t.name}`}
+                style={{ background: theme === th.id ? `${th.accent}22` : 'rgba(255,255,255,.03)', border: `1px solid ${theme === th.id ? th.accent : 'rgba(255,255,255,.08)'}`, color: theme === th.id ? th.accent : owned ? 'rgba(255,255,255,.4)' : 'rgba(255,255,255,.25)', opacity: owned ? 1 : 0.6 }}
+                title={owned ? th.name : `${th.name} — buy in Coin Shop (${th.price} coins)`}>
+                {owned ? th.name : `🔒 ${th.name}`}
               </button>
             );
           })}
         </div>
 
-        <label className="font-mono text-[10px] uppercase tracking-widest text-white/30">ოთახი</label>
+        <label className="font-mono text-[10px] uppercase tracking-widest text-white/30">{t.spaceLobby.roomLabel}</label>
         <div className="flex gap-2 mt-1.5 mb-4">
           {ROOM_LAYOUTS.map(l => (
             <button key={l.id} onClick={() => setLayout(l.id)}
@@ -227,18 +230,18 @@ function CreateSpaceModal({ createSpace, onClose, onCreated }: {
               <div style={{ height: 46, background: l.preview, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{l.emoji}</div>
               <div style={{ padding: '5px 8px' }}>
                 <p className="font-mono text-[11px]" style={{ color: layout === l.id ? accent : 'rgba(255,255,255,.6)' }}>{l.label}</p>
-                <p className="font-mono text-[8px] text-white/30">{l.desc}</p>
+                <p className="font-mono text-[8px] text-white/30">{t.spaceLobby[l.descKey]}</p>
               </div>
             </button>
           ))}
         </div>
 
-        <label className="font-mono text-[10px] uppercase tracking-widest text-white/30">მაქს. მოთამაშე · {maxPlayers}</label>
+        <label className="font-mono text-[10px] uppercase tracking-widest text-white/30">{t.spaceLobby.maxPlayersLabel} · {maxPlayers}</label>
         <input type="range" min={2} max={50} value={maxPlayers} onChange={e => setMaxPlayers(Number(e.target.value))}
           className="w-full mt-2 mb-4" style={{ accentColor: accent }} />
 
         <div className="flex gap-2 mb-5">
-          {[{ v: true, label: '🌐 საჯარო' }, { v: false, label: '🔒 პირადი' }].map(o => (
+          {[{ v: true, label: t.spaceLobby.publicOption }, { v: false, label: t.spaceLobby.privateOption }].map(o => (
             <button key={String(o.v)} onClick={() => setIsPublic(o.v)}
               className="flex-1 py-2.5 rounded-xl font-mono text-[12px] transition-all active:scale-95"
               style={{ background: isPublic === o.v ? `${accent}22` : 'rgba(255,255,255,.03)', border: `1px solid ${isPublic === o.v ? accent : 'rgba(255,255,255,.08)'}`, color: isPublic === o.v ? accent : 'rgba(255,255,255,.4)' }}>
@@ -250,7 +253,7 @@ function CreateSpaceModal({ createSpace, onClose, onCreated }: {
         <button onClick={create} disabled={busy}
           className="w-full py-3.5 rounded-2xl font-display font-bold text-sm uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
           style={{ background: `linear-gradient(135deg, ${accent}35, ${accent}18)`, border: `1.5px solid ${accent}`, color: accent, letterSpacing: '0.12em' }}>
-          {busy ? '...' : 'შექმნა →'}
+          {busy ? '...' : t.spaceLobby.createBtn}
         </button>
       </motion.div>
     </motion.div>,
@@ -265,6 +268,7 @@ export function SpaceInvitePanel({ space, inviteToSpace, onClose }: {
   inviteToSpace: (profileId: string) => Promise<{ ok: boolean; error?: string }>;
   onClose: () => void;
 }) {
+  const t = useT();
   const [friends, setFriends] = useState<Friend[] | null>(null);
   const [invited, setInvited] = useState<Record<string, 'sent' | 'failed'>>({});
   const [copied, setCopied] = useState<'code' | 'link' | null>(null);
@@ -303,8 +307,8 @@ export function SpaceInvitePanel({ space, inviteToSpace, onClose }: {
           padding: '20px',
         }}
       >
-        <p className="font-display font-bold text-white mb-1" style={{ fontSize: 16 }}>მოწვევა · {space.icon} {space.name}</p>
-        <p className="font-mono text-[11px] text-white/35 mb-4">გააზიარე კოდი ან მოიწვიე მეგობარი</p>
+        <p className="font-display font-bold text-white mb-1" style={{ fontSize: 16 }}>{t.spaceLobby.inviteTitle} · {space.icon} {space.name}</p>
+        <p className="font-mono text-[11px] text-white/35 mb-4">{t.spaceLobby.shareCodeOrInvite}</p>
 
         {/* Code + link */}
         <div className="flex flex-col gap-2 mb-5">
@@ -321,9 +325,9 @@ export function SpaceInvitePanel({ space, inviteToSpace, onClose }: {
         </div>
 
         {/* Friends */}
-        <p className="font-mono text-[10px] uppercase tracking-widest text-white/30 mb-2">მეგობრები</p>
-        {friends === null && <p className="font-mono text-[11px] text-white/20 py-3 text-center">იტვირთება…</p>}
-        {friends?.length === 0 && <p className="font-mono text-[11px] text-white/20 py-3 text-center">მეგობრები არ გყავს</p>}
+        <p className="font-mono text-[10px] uppercase tracking-widest text-white/30 mb-2">{t.spaceLobby.friends}</p>
+        {friends === null && <p className="font-mono text-[11px] text-white/20 py-3 text-center">{t.spaceLobby.loading}</p>}
+        {friends?.length === 0 && <p className="font-mono text-[11px] text-white/20 py-3 text-center">{t.spaceLobby.noFriends}</p>}
         <div className="flex flex-col gap-1.5">
           {[...online, ...offline].map(f => {
             const st = invited[f.profileId];

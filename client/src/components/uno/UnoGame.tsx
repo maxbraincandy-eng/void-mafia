@@ -9,15 +9,16 @@ import { UnoCardComponent, UnoCardBack, ColorChip } from './UnoCard';
 import type { UnoPublicState, UnoCard, GameColor, UnoPlayerPublic } from '@/types/uno';
 import { haptic } from '@/lib/haptics';
 import { GameInviteButton } from '@/components/social/GameInviteButton';
+import { useT } from '@/store/langStore';
 
 const UNO_ACCENT = '#a855f7';
 
 // ── Color choice modal ───────────────────────────────────────────────────────
-const COLORS: { color: GameColor; bg: string; label: string }[] = [
-  { color: 'red',    bg: 'linear-gradient(135deg,#ff1a3a,#cc0022)', label: 'წ' },
-  { color: 'blue',   bg: 'linear-gradient(135deg,#0057ff,#0033cc)', label: 'ლ' },
-  { color: 'green',  bg: 'linear-gradient(135deg,#00c951,#008b35)', label: 'მ' },
-  { color: 'yellow', bg: 'linear-gradient(135deg,#ffcc00,#cc9900)', label: 'ყ' },
+const COLORS: { color: GameColor; bg: string }[] = [
+  { color: 'red',    bg: 'linear-gradient(135deg,#ff1a3a,#cc0022)' },
+  { color: 'blue',   bg: 'linear-gradient(135deg,#0057ff,#0033cc)' },
+  { color: 'green',  bg: 'linear-gradient(135deg,#00c951,#008b35)' },
+  { color: 'yellow', bg: 'linear-gradient(135deg,#ffcc00,#cc9900)' },
 ];
 
 const GLOW: Record<GameColor, string> = {
@@ -36,6 +37,13 @@ const COLOR_NAMES: Record<GameColor, string> = {
 };
 
 function ColorChoiceModal({ onChoose }: { onChoose: (c: GameColor) => void }) {
+  const t = useT();
+  const colorLabels: Record<GameColor, string> = {
+    red: t.unoGame.colorRed,
+    blue: t.unoGame.colorBlue,
+    green: t.unoGame.colorGreen,
+    yellow: t.unoGame.colorYellow,
+  };
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -52,10 +60,10 @@ function ColorChoiceModal({ onChoose }: { onChoose: (c: GameColor) => void }) {
       >
         <div className="px-5 py-4 text-center border-b" style={{ borderColor: 'rgba(168,85,247,0.15)' }}>
           <div className="text-2xl mb-1">🌈</div>
-          <p className="font-mono text-xs text-white/50 uppercase tracking-wider">ფერის არჩევა</p>
+          <p className="font-mono text-xs text-white/50 uppercase tracking-wider">{t.unoGame.chooseColor}</p>
         </div>
         <div className="grid grid-cols-2 gap-3 p-5">
-          {COLORS.map(({ color, bg, label }) => (
+          {COLORS.map(({ color, bg }) => (
             <button
               key={color}
               onClick={() => onChoose(color)}
@@ -67,7 +75,7 @@ function ColorChoiceModal({ onChoose }: { onChoose: (c: GameColor) => void }) {
                 boxShadow: `0 4px 20px ${GLOW[color]}`,
               }}
             >
-              {label}
+              {colorLabels[color]}
             </button>
           ))}
         </div>
@@ -256,6 +264,7 @@ function WaitingScreen({
 }: {
   match: UnoPublicState; isHost: boolean; onStart: () => void;
 }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
 
   function copy() {
@@ -270,7 +279,7 @@ function WaitingScreen({
         className="w-full rounded-2xl text-center py-6"
         style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.2)' }}
       >
-        <p className="font-mono text-[12px] text-white/35 mb-1 uppercase tracking-wide">მოიწვიე მეგობრები</p>
+        <p className="font-mono text-[12px] text-white/35 mb-1 uppercase tracking-wide">{t.unoGame.inviteFriends}</p>
         <p className="font-display font-bold text-4xl tracking-normal" style={{ color: UNO_ACCENT }}>
           {match.code}
         </p>
@@ -279,7 +288,7 @@ function WaitingScreen({
           className="mt-3 px-4 py-1.5 rounded-xl font-mono text-xs transition-all active:scale-95"
           style={{ background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.3)', color: '#c084fc' }}
         >
-          {copied ? '✓ დაკოპირდა' : '⎘ კოდის კოპირება'}
+          {copied ? t.unoGame.copied : t.unoGame.copyCode}
         </button>
         <div className="mt-3 flex justify-center">
           <GameInviteButton game="uno" code={match.code} />
@@ -311,13 +320,13 @@ function WaitingScreen({
             className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
             style={{ background: 'rgba(255,255,255,0.01)', border: '1px dashed rgba(255,255,255,0.08)' }}
           >
-            <span className="font-mono text-[12px] text-white/20">{match.settings.maxPlayers - match.players.length} ადგილი თავისუფალია</span>
+            <span className="font-mono text-[12px] text-white/20">{match.settings.maxPlayers - match.players.length} {t.unoGame.seatsFree}</span>
           </div>
         )}
       </div>
 
       <div className="text-center font-mono text-[12px] text-white/25">
-        {match.players.length}/{match.settings.maxPlayers} მოთამაშე
+        {match.players.length}/{match.settings.maxPlayers} {t.unoGame.players}
       </div>
 
       {isHost ? (
@@ -327,11 +336,11 @@ function WaitingScreen({
           className="w-full py-4 rounded-2xl font-display font-bold text-[15px] transition-all active:scale-95 disabled:opacity-40"
           style={{ background: 'rgba(168,85,247,0.18)', border: `1px solid ${UNO_ACCENT}45`, color: UNO_ACCENT }}
         >
-          თამაშის დაწყება ▶
+          {t.unoGame.startGame}
         </button>
       ) : (
         <div className="text-center font-mono text-xs text-white/30 py-2">
-          ჰოსტი დაიწყებს თამაშს
+          {t.unoGame.hostWillStart}
         </div>
       )}
     </div>
@@ -345,6 +354,7 @@ function WinScreen({
   match: UnoPublicState; myUserId: string; isHost: boolean;
   onRematch: () => void; onLeave: () => void;
 }) {
+  const t = useT();
   const winner = match.players.find(p => p.userId === match.winnerId);
   const isWinner = match.winnerId === myUserId;
 
@@ -374,13 +384,13 @@ function WinScreen({
 
       <div>
         <p className="font-mono text-[12px] uppercase tracking-widest text-white/30 mb-2">
-          {isWinner ? '🎉 გაიმარჯვე!' : 'გამარჯვებული'}
+          {isWinner ? t.unoGame.youWon : t.unoGame.winner}
         </p>
         <p className="font-display font-bold text-3xl" style={{ color: isWinner ? UNO_ACCENT : '#fff' }}>
           {winner?.nickname ?? '?'}
         </p>
         <p className="font-mono text-xs text-white/30 mt-1">
-          {isWinner ? 'შესანიშნავია!' : `${winner?.nickname ?? '?'} გაიმარჯვა`}
+          {isWinner ? t.unoGame.excellent : t.unoGame.playerWon.replace('{n}', winner?.nickname ?? '?')}
         </p>
       </div>
 
@@ -395,7 +405,7 @@ function WinScreen({
             <span className="font-mono text-sm">{p.userId === match.winnerId ? '🥇' : '🃏'}</span>
             <span className="font-mono text-xs text-white flex-1 text-left">{p.nickname}</span>
             <span className="font-mono text-xs" style={{ color: p.userId === match.winnerId ? '#22c55e' : 'rgba(255,255,255,0.4)' }}>
-              {p.userId === match.winnerId ? '0 კარტი' : `${p.cardCount} კარტი`}
+              {p.userId === match.winnerId ? t.unoGame.zeroCards : t.unoGame.cardsCount.replace('{n}', String(p.cardCount))}
             </span>
           </div>
         ))}
@@ -408,7 +418,7 @@ function WinScreen({
             className="flex-1 py-3 rounded-2xl font-display font-bold text-sm transition-all active:scale-95"
             style={{ background: 'rgba(168,85,247,0.18)', border: `1px solid ${UNO_ACCENT}45`, color: UNO_ACCENT }}
           >
-            თავიდან ▶
+            {t.unoGame.again}
           </button>
         )}
         <button
@@ -416,7 +426,7 @@ function WinScreen({
           className="flex-1 py-3 rounded-2xl font-mono text-sm transition-all active:scale-95"
           style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.6)' }}
         >
-          ← თამაშები
+          {t.unoGame.gamesBack}
         </button>
       </div>
     </motion.div>
@@ -430,6 +440,7 @@ function ChatPanel({
   match: UnoPublicState; myUserId: string; myNickname: string;
   onClose: () => void; onSend: (t: string) => void;
 }) {
+  const t = useT();
   const [text, setText] = useState('');
   const chatRef = useRef<HTMLDivElement>(null);
 
@@ -453,12 +464,12 @@ function ChatPanel({
       style={{ background: 'rgba(8,4,20,0.97)', border: '1px solid rgba(168,85,247,0.2)', maxHeight: '55vh', zIndex: 30 }}
     >
       <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'rgba(168,85,247,0.1)' }}>
-        <span className="font-mono text-xs text-white/50">ჩათი</span>
+        <span className="font-mono text-xs text-white/50">{t.unoGame.chat}</span>
         <button onClick={onClose} className="text-white/40 text-sm">✕</button>
       </div>
       <div ref={chatRef} className="flex-1 overflow-y-auto px-4 py-2 space-y-1" style={{ maxHeight: '30vh' }}>
         {match.chat.length === 0 ? (
-          <p className="font-mono text-xs text-white/20 text-center py-4">ჩათი ცარიელია</p>
+          <p className="font-mono text-xs text-white/20 text-center py-4">{t.unoGame.chatEmpty}</p>
         ) : match.chat.map((msg, i) => (
           <div key={i} className="flex gap-2 text-xs font-mono">
             <span style={{ color: UNO_ACCENT }}>{msg.nickname}:</span>
@@ -471,7 +482,7 @@ function ChatPanel({
           value={text}
           onChange={e => setText(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') send(); }}
-          placeholder="დაწერე შეტყობინება…"
+          placeholder={t.unoGame.messagePlaceholder}
           className="flex-1 bg-transparent text-xs text-white font-mono outline-none placeholder-white/20 px-3 py-2 rounded-xl border border-white/10 focus:border-white/25"
         />
         <button
@@ -492,6 +503,7 @@ export function UnoGame() {
     sendChat, error, clearError,
   } = useUnoStore();
 
+  const t = useT();
   const voice = useUnoVoice();
   const [chatOpen, setChatOpen] = useState(false);
   const [pendingWildCard, setPendingWildCard] = useState<UnoCard | null>(null);
@@ -640,16 +652,16 @@ export function UnoGame() {
                 {match.currentColor && <ColorChip color={match.currentColor} />}
                 {match.pendingDrawCount > 0 && (
                   <span className="font-mono text-xs font-bold" style={{ color: '#ff2d55' }}>
-                    სტეკი: +{match.pendingDrawCount}
+                    {t.unoGame.stackLabel} +{match.pendingDrawCount}
                   </span>
                 )}
               </>
             )}
           </div>
           <p className="font-mono text-[12px] text-white/30 mt-0.5">
-            {isWaiting ? `კოდი: ${match.code}` :
-             isActive ? (isMyTurn ? '▶ შენი სვლაა' : `${currentPlayerInfo?.nickname ?? '?'}-ს სვლა`) :
-             isFinished ? 'თამაში დასრულდა' : match.code}
+            {isWaiting ? `${t.unoGame.codeLabel} ${match.code}` :
+             isActive ? (isMyTurn ? t.unoGame.yourTurn : t.unoGame.playerTurn.replace('{n}', currentPlayerInfo?.nickname ?? '?')) :
+             isFinished ? t.unoGame.gameFinished : match.code}
           </p>
         </div>
 
@@ -747,8 +759,8 @@ export function UnoGame() {
                   }}
                 >
                   {match.pendingDrawCount > 0
-                    ? `სტეკი: +${match.pendingDrawCount} — სტეკი ან კარტის აღება`
-                    : '▶ შენი სვლაა — დადე ან აიღე კარტი'}
+                    ? `${t.unoGame.stackLabel} +${match.pendingDrawCount} — ${t.unoGame.stackOrDraw}`
+                    : t.unoGame.myTurnHint}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -768,7 +780,7 @@ export function UnoGame() {
             {/* Spectator count */}
             {match.spectatorCount > 0 && (
               <p className="text-center font-mono text-[12px] text-white/20 pb-1">
-                👁 {match.spectatorCount} მაყურებელი
+                👁 {match.spectatorCount} {t.unoGame.spectators}
               </p>
             )}
 
@@ -804,11 +816,11 @@ export function UnoGame() {
               {/* Hand label */}
               <div className="flex items-center justify-between px-4 mb-2">
                 <p className="font-mono text-[12px] text-white/30 uppercase tracking-wide">
-                  ჩემი კარტები ({myCardCount})
+                  {t.unoGame.myCards} ({myCardCount})
                 </p>
                 {isMyTurn && selectedCardId && (
                   <p className="font-mono text-[12px]" style={{ color: UNO_ACCENT }}>
-                    ↑ კვლავ დააჭირე სათამაშოდ
+                    {t.unoGame.tapAgainToPlay}
                   </p>
                 )}
               </div>
@@ -817,7 +829,7 @@ export function UnoGame() {
               <div className="overflow-x-auto pb-2 px-3" style={{ scrollbarWidth: 'none' }}>
                 <div className="flex gap-2 min-w-max">
                   {match.myHand.length === 0 ? (
-                    <p className="font-mono text-xs text-white/20 px-2">კარტები არ გაქვს</p>
+                    <p className="font-mono text-xs text-white/20 px-2">{t.unoGame.noCards}</p>
                   ) : (
                     match.myHand.map(card => (
                       <UnoCardComponent

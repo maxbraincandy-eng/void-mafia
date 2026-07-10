@@ -6,6 +6,9 @@ import { useAuthStore } from '@/store/authStore';
 import { useGameStore } from '@/store/gameStore';
 import { GifPicker } from '@/components/community/GifPicker';
 import type { DmConversation, DirectMessage, Res } from '@/types/index';
+import { useT } from '@/store/langStore';
+
+type TFn = ReturnType<typeof useT>;
 
 const MAX_VOICE_SECONDS = 30;
 const GROUP_WINDOW_MS = 4 * 60 * 1000; // messages within 4min from same sender stack together
@@ -29,6 +32,23 @@ const DM_STICKERS: { key: string; emoji: string; label: string }[] = [
   { key: 'heart',   emoji: '🖤', label: 'void' },
 ];
 const stickerByKey = (k: string) => DM_STICKERS.find(s => s.key === k);
+
+// Translated sticker label (falls back to the const label for non-Georgian keys: GG / void)
+function stickerLabel(key: string, t: TFn): string {
+  switch (key) {
+    case 'don':     return t.dmPanel.stickerDon;
+    case 'gun':     return t.dmPanel.stickerGun;
+    case 'night':   return t.dmPanel.stickerNight;
+    case 'eye':     return t.dmPanel.stickerEye;
+    case 'joker':   return t.dmPanel.stickerJoker;
+    case 'rose':    return t.dmPanel.stickerRose;
+    case 'whiskey': return t.dmPanel.stickerWhiskey;
+    case 'smoke':   return t.dmPanel.stickerSmoke;
+    case 'shades':  return t.dmPanel.stickerShades;
+    case 'chess':   return t.dmPanel.stickerChess;
+    default:        return stickerByKey(key)?.label ?? '';
+  }
+}
 
 // My-message gradient (Instagram-ish purple → magenta)
 const MY_BUBBLE_BG = 'linear-gradient(135deg, #6d28d9 0%, #9333ea 55%, #c026d3 100%)';
@@ -137,11 +157,11 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 /** GIFs pass through untouched (resizing kills animation); photos resize to ≤1000px JPEG. */
-async function prepareDmImage(file: File): Promise<string> {
+async function prepareDmImage(file: File, t: TFn): Promise<string> {
   const raw = await readFileAsDataURL(file);
   if (file.type === 'image/gif') {
     if (raw.length <= 940_000) return raw;
-    throw new Error('GIF ძალიან დიდია — მაქს. ~700KB');
+    throw new Error(t.dmPanel.gifTooLarge);
   }
   const img = await loadImage(raw);
   const MAX = 1000;
@@ -157,20 +177,20 @@ async function prepareDmImage(file: File): Promise<string> {
     q -= 0.12;
     out = canvas.toDataURL('image/jpeg', q);
   }
-  if (out.length > 940_000) throw new Error('სურათი ძალიან დიდია');
+  if (out.length > 940_000) throw new Error(t.dmPanel.imageTooLarge);
   return out;
 }
 
-function previewOf(msg: DirectMessage): string {
-  const t = msg.text ?? '';
-  if (msg.type === 'voice' || t.startsWith('data:audio')) return '🎙 ხმოვანი მესიჯი';
-  if (msg.type === 'sticker') return `${stickerByKey(t)?.emoji ?? '🎭'} სტიკერი`;
-  if (msg.type === 'invite') return '🎮 მოწვევა თამაშში';
-  if (msg.viewOnce) return '📸 ერთჯერადი ფოტო';
-  if (t.startsWith('📸story:')) { const sr = parseStoryReply(t); return sr ? `📸 სთორის პასუხი: ${sr.reply.slice(0, 40)}` : '📸 სთორის პასუხი'; }
-  if (t.startsWith('data:image/gif')) return '✨ GIF';
-  if (msg.type === 'image' || t.startsWith('data:image')) return '🖼 სურათი';
-  return t;
+function previewOf(msg: DirectMessage, t: TFn): string {
+  const body = msg.text ?? '';
+  if (msg.type === 'voice' || body.startsWith('data:audio')) return t.dmPanel.voiceMessage;
+  if (msg.type === 'sticker') return `${stickerByKey(body)?.emoji ?? '🎭'} ${t.dmPanel.sticker}`;
+  if (msg.type === 'invite') return t.dmPanel.gameInvitePreview;
+  if (msg.viewOnce) return t.dmPanel.viewOncePhoto;
+  if (body.startsWith('📸story:')) { const sr = parseStoryReply(body); return sr ? `${t.dmPanel.storyReply}: ${sr.reply.slice(0, 40)}` : t.dmPanel.storyReply; }
+  if (body.startsWith('data:image/gif')) return '✨ GIF';
+  if (msg.type === 'image' || body.startsWith('data:image')) return t.dmPanel.image;
+  return body;
 }
 
 // ── Voice Message Bubble ─────────────────────────────────────────────
@@ -294,6 +314,7 @@ function SwipeableRow({
   children: React.ReactNode;
   onDelete: () => void;
 }) {
+  const t = useT();
   const [swipeX, setSwipeX] = useState(0);
   const [confirming, setConfirming] = useState(false);
   const startX = useRef(0);
@@ -331,14 +352,14 @@ function SwipeableRow({
               onClick={(e) => { e.stopPropagation(); onDelete(); }}
               className="px-2.5 py-1 text-[11px] font-mono text-white bg-red-500/80 rounded-lg active:bg-red-600"
             >
-              წაშლა
+              {t.dmPanel.delete}
             </button>
             <button
               onPointerDown={e => e.stopPropagation()}
               onClick={(e) => { e.stopPropagation(); cancel(); }}
               className="px-2.5 py-1 text-[11px] font-mono text-white/50"
             >
-              არა
+              {t.dmPanel.no}
             </button>
           </div>
         ) : (
@@ -372,12 +393,12 @@ function formatTime(ts: number): string {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-function formatDayChip(ts: number): string {
+function formatDayChip(ts: number, t: TFn): string {
   const d = new Date(ts);
   const now = new Date();
   const yesterday = new Date(now.getTime() - 86_400_000);
-  if (d.toDateString() === now.toDateString()) return 'დღეს';
-  if (d.toDateString() === yesterday.toDateString()) return 'გუშინ';
+  if (d.toDateString() === now.toDateString()) return t.dmPanel.today;
+  if (d.toDateString() === yesterday.toDateString()) return t.dmPanel.yesterday;
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
@@ -391,6 +412,7 @@ function ChatIcon({ size = 20 }: { size?: number }) {
 }
 
 export function DmPanel() {
+  const t = useT();
   const { dmPanelOpen, activeDmUserId, closeDm, setUnreadDmCount, openProfile } = useSocialStore();
   const myProfileId = useAuthStore(s => s.profile?.id);
 
@@ -447,7 +469,7 @@ export function DmPanel() {
       if (res.ok) {
         setMessages(prev => [...prev, res.data]);
         setConversations(prev => prev.map(c =>
-          c.id === activeConvId ? { ...c, lastMessage: '🎙 ხმოვანი მესიჯი', lastMessageAt: res.data.createdAt } : c
+          c.id === activeConvId ? { ...c, lastMessage: t.dmPanel.voiceMessage, lastMessageAt: res.data.createdAt } : c
         ));
       } else {
         setVoiceError(res.error ?? 'Failed to send');
@@ -469,7 +491,7 @@ export function DmPanel() {
     setSending(true);
     setVoiceError(null);
     try {
-      const imageData = await prepareDmImage(f);
+      const imageData = await prepareDmImage(f, t);
       const res = await emitWithAck<{ conversationId: string; imageData: string; viewOnce: boolean }, Res<DirectMessage>>(
         'dm:image', { conversationId: activeConvId, imageData, viewOnce }
       );
@@ -478,13 +500,13 @@ export function DmPanel() {
         const mine = viewOnce ? { ...res.data, text: '' } : res.data;
         setMessages(prev => [...prev, mine]);
         setConversations(prev => prev.map(c =>
-          c.id === activeConvId ? { ...c, lastMessage: previewOf(res.data), lastMessageAt: res.data.createdAt } : c
+          c.id === activeConvId ? { ...c, lastMessage: previewOf(res.data, t), lastMessageAt: res.data.createdAt } : c
         ));
       } else {
-        setVoiceError(res.error ?? 'ვერ გაიგზავნა');
+        setVoiceError(res.error ?? t.dmPanel.sendFailed);
       }
     } catch (err2: any) {
-      setVoiceError(err2?.message ?? 'ვერ გაიგზავნა');
+      setVoiceError(err2?.message ?? t.dmPanel.sendFailed);
     } finally { setSending(false); }
   };
 
@@ -526,7 +548,7 @@ export function DmPanel() {
       if (res.ok) {
         setMessages(prev => [...prev, res.data]);
         setConversations(prev => prev.map(c =>
-          c.id === activeConvId ? { ...c, lastMessage: previewOf(res.data), lastMessageAt: res.data.createdAt } : c
+          c.id === activeConvId ? { ...c, lastMessage: previewOf(res.data, t), lastMessageAt: res.data.createdAt } : c
         ));
       }
     } catch { /* ignore */ }
@@ -685,7 +707,7 @@ export function DmPanel() {
           const exists = prev.some(c => c.id === convId);
           if (exists) {
             return prev.map(c => c.id === convId
-              ? { ...c, unread: true, lastMessage: previewOf(message), lastMessageAt: message.createdAt }
+              ? { ...c, unread: true, lastMessage: previewOf(message, t), lastMessageAt: message.createdAt }
               : c);
           }
           loadConversations();
@@ -696,7 +718,7 @@ export function DmPanel() {
     };
     socket.on('dm:new_message', handler);
     return () => { socket.off('dm:new_message', handler); };
-  }, [dmPanelOpen, activeConvId, refreshUnreadCount, loadConversations]);
+  }, [dmPanelOpen, activeConvId, refreshUnreadCount, loadConversations, t]);
 
   // Typing indicator (peer → me)
   useEffect(() => {
@@ -901,12 +923,12 @@ export function DmPanel() {
                       {activeUsername}
                     </span>
                     <span className="font-mono text-[10px] leading-tight block" style={{ color: otherTyping ? '#4ade80' : 'rgba(255,255,255,0.28)' }}>
-                      {otherTyping ? 'წერს…' : 'პროფილის ნახვა'}
+                      {otherTyping ? t.dmPanel.typing : t.dmPanel.viewProfile}
                     </span>
                   </button>
                 ) : (
                   <h3 className="font-display font-bold text-sm text-white tracking-[0.14em] truncate uppercase">
-                    {activeConvId ? activeUsername : 'მესიჯები'}
+                    {activeConvId ? activeUsername : t.dmPanel.messagesTitle}
                   </h3>
                 )}
               </div>
@@ -942,9 +964,9 @@ export function DmPanel() {
                     <div className="flex justify-center mb-3 opacity-15">
                       <ChatIcon size={40} />
                     </div>
-                    <p className="text-white/20 font-mono text-sm">მესიჯები ჯერ არ გაქვს</p>
+                    <p className="text-white/20 font-mono text-sm">{t.dmPanel.noMessages}</p>
                     <p className="text-white/10 font-mono text-xs mt-1">
-                      გახსენი მოთამაშის პროფილი და დააჭირე Message-ს
+                      {t.dmPanel.noMessagesHint}
                     </p>
                   </div>
                 ) : (
@@ -1002,7 +1024,7 @@ export function DmPanel() {
                               </div>
                               <div className="flex items-center justify-between gap-2">
                                 <p className={`font-mono text-[11px] truncate ${hasUnread ? 'text-white/70' : 'text-white/25'}`}>
-                                  {conv.lastMessage ?? 'მიწერე პირველი 👋'}
+                                  {conv.lastMessage ?? t.dmPanel.writeFirst}
                                 </p>
                                 {count > 0 ? (
                                   <span
@@ -1052,7 +1074,7 @@ export function DmPanel() {
                           : activeAvatar}
                       </div>
                       <p className="font-display font-bold text-sm text-white/70">{activeUsername}</p>
-                      <p className="text-white/20 font-mono text-xs mt-1.5">მიწერე პირველი 👋</p>
+                      <p className="text-white/20 font-mono text-xs mt-1.5">{t.dmPanel.writeFirst}</p>
                     </div>
                   ) : (
                     messages.map((msg, i) => {
@@ -1078,7 +1100,7 @@ export function DmPanel() {
                             <div className="flex justify-center my-3">
                               <span className="px-3 py-1 rounded-full text-[10px] font-mono text-white/35"
                                 style={{ background: 'rgba(255,255,255,0.05)' }}>
-                                {formatDayChip(msg.createdAt)}
+                                {formatDayChip(msg.createdAt, t)}
                               </span>
                             </div>
                           )}
@@ -1156,7 +1178,7 @@ export function DmPanel() {
                                   <span style={{ fontSize: 54, lineHeight: 1.1, filter: 'drop-shadow(0 0 12px rgba(155,0,255,0.55))' }}>
                                     {stickerByKey(msg.text)?.emoji ?? '🎭'}
                                   </span>
-                                  <span className="text-[10px] font-mono text-white/30 mt-1">{stickerByKey(msg.text)?.label ?? ''}</span>
+                                  <span className="text-[10px] font-mono text-white/30 mt-1">{stickerLabel(msg.text, t)}</span>
                                 </div>
                               ) : msg.type === 'invite' ? (
                                 <div className="rounded-[16px] p-3 w-[220px]"
@@ -1164,8 +1186,8 @@ export function DmPanel() {
                                   <div className="flex items-center gap-2.5 mb-2.5">
                                     <span className="text-2xl">🎮</span>
                                     <div className="min-w-0">
-                                      <p className="text-[12.5px] font-display font-bold text-white leading-tight">მოწვევა თამაშში</p>
-                                      <p className="text-[11px] font-mono" style={{ color: 'rgba(255,255,255,0.55)' }}>ოთახი · {msg.text}</p>
+                                      <p className="text-[12.5px] font-display font-bold text-white leading-tight">{t.dmPanel.gameInvite}</p>
+                                      <p className="text-[11px] font-mono" style={{ color: 'rgba(255,255,255,0.55)' }}>{t.dmPanel.room} · {msg.text}</p>
                                     </div>
                                   </div>
                                   <button
@@ -1173,7 +1195,7 @@ export function DmPanel() {
                                     className="w-full py-2 rounded-xl text-[12px] font-mono font-bold active:scale-[0.98] transition-transform"
                                     style={{ background: 'rgba(255,255,255,0.18)', color: '#fff', border: '1px solid rgba(255,255,255,0.22)' }}
                                   >
-                                    შესვლა →
+                                    {t.dmPanel.joinGame}
                                   </button>
                                 </div>
                               ) : msg.viewOnce ? (
@@ -1185,7 +1207,7 @@ export function DmPanel() {
                                 >
                                   <span className="text-lg">{burned ? '🫥' : '📸'}</span>
                                   <span className="text-[12.5px] font-mono" style={{ color: burned ? 'rgba(255,255,255,0.35)' : '#fff' }}>
-                                    {burned ? 'ნანახია' : isMe ? 'ერთჯერადი ფოტო' : 'ერთჯერადი — გახსენი'}
+                                    {burned ? t.dmPanel.viewed : isMe ? t.dmPanel.viewOnce : t.dmPanel.viewOnceOpen}
                                   </span>
                                 </button>
                               ) : isImage ? (
@@ -1216,7 +1238,7 @@ export function DmPanel() {
                                         background: 'rgba(0,0,0,0.22)',
                                         color: isMe ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.5)',
                                       }}>
-                                      {quoted ? previewOf(quoted) : '…'}
+                                      {quoted ? previewOf(quoted, t) : '…'}
                                     </div>
                                   )}
                                   {(() => {
@@ -1227,7 +1249,7 @@ export function DmPanel() {
                                           style={{ background: 'rgba(0,0,0,0.25)', padding: 6 }}>
                                           <img src={sr.thumb} alt="" style={{ width: 44, height: 58, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
                                           <div className="flex flex-col justify-center min-w-0 py-0.5">
-                                            <span style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>📸 სთორის პასუხი</span>
+                                            <span style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t.dmPanel.storyReply}</span>
                                           </div>
                                         </div>
                                         {sr.reply}
@@ -1336,9 +1358,9 @@ export function DmPanel() {
                           style={{ background: 'rgba(138,43,226,0.1)', borderLeft: '3px solid rgba(192,132,252,0.7)' }}>
                           <div className="flex-1 min-w-0">
                             <p className="text-[10px] font-mono text-neon-purple/70 mb-0.5">
-                              ↩ პასუხი · {replyTo.senderId === myProfileId ? 'შენ' : activeUsername}
+                              ↩ {t.dmPanel.reply} · {replyTo.senderId === myProfileId ? t.dmPanel.you : activeUsername}
                             </p>
-                            <p className="text-[11.5px] font-mono text-white/55 truncate">{previewOf(replyTo)}</p>
+                            <p className="text-[11.5px] font-mono text-white/55 truncate">{previewOf(replyTo, t)}</p>
                           </div>
                           <button onClick={() => setReplyTo(null)}
                             className="w-6 h-6 rounded-full flex items-center justify-center text-white/40 hover:text-white/70 shrink-0">
@@ -1366,7 +1388,7 @@ export function DmPanel() {
                           className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-white/5"
                         >
                           <span className="text-lg">🖼</span>
-                          <span className="text-[13px] font-mono text-white/80">ფოტო ან GIF</span>
+                          <span className="text-[13px] font-mono text-white/80">{t.dmPanel.photoOrGif}</span>
                         </button>
                         <button
                           onClick={() => { setShowAttach(false); setShowGifPicker(true); }}
@@ -1375,7 +1397,7 @@ export function DmPanel() {
                           <span className="text-lg">🎞</span>
                           <div>
                             <span className="text-[13px] font-mono text-white/80 block">GIF (Tenor)</span>
-                            <span className="text-[10px] font-mono text-white/30">ძებნა და გაგზავნა</span>
+                            <span className="text-[10px] font-mono text-white/30">{t.dmPanel.searchAndSend}</span>
                           </div>
                         </button>
                         <button
@@ -1384,8 +1406,8 @@ export function DmPanel() {
                         >
                           <span className="text-lg">📸</span>
                           <div>
-                            <span className="text-[13px] font-mono text-white/80 block">ერთჯერადი ფოტო</span>
-                            <span className="text-[10px] font-mono text-white/30">ნახვის შემდეგ ქრება</span>
+                            <span className="text-[13px] font-mono text-white/80 block">{t.dmPanel.viewOnce}</span>
+                            <span className="text-[10px] font-mono text-white/30">{t.dmPanel.disappearsAfterView}</span>
                           </div>
                         </button>
                         {myRoomCode && (
@@ -1395,8 +1417,8 @@ export function DmPanel() {
                           >
                             <span className="text-lg">🎮</span>
                             <div>
-                              <span className="text-[13px] font-mono text-white/80 block">თამაშში მოწვევა</span>
-                              <span className="text-[10px] font-mono text-white/30">ოთახი · {myRoomCode}</span>
+                              <span className="text-[13px] font-mono text-white/80 block">{t.dmPanel.inviteToGame}</span>
+                              <span className="text-[10px] font-mono text-white/30">{t.dmPanel.room} · {myRoomCode}</span>
                             </div>
                           </button>
                         )}
@@ -1421,7 +1443,7 @@ export function DmPanel() {
                             className="flex flex-col items-center gap-1 py-2 rounded-xl active:bg-white/8 active:scale-95 transition-all"
                           >
                             <span style={{ fontSize: 30, lineHeight: 1, filter: 'drop-shadow(0 0 8px rgba(155,0,255,0.4))' }}>{s.emoji}</span>
-                            <span className="text-[9px] font-mono text-white/35">{s.label}</span>
+                            <span className="text-[9px] font-mono text-white/35">{stickerLabel(s.key, t)}</span>
                           </button>
                         ))}
                       </motion.div>
@@ -1500,7 +1522,7 @@ export function DmPanel() {
                             border: '1px solid rgba(138,43,226,0.28)', color: '#c084fc',
                             transform: showAttach ? 'rotate(45deg)' : undefined,
                           }}
-                          title="მიმაგრება"
+                          title={t.dmPanel.attach}
                         >
                           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round">
                             <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -1516,7 +1538,7 @@ export function DmPanel() {
                             background: showStickers ? 'rgba(138,43,226,0.3)' : 'rgba(138,43,226,0.13)',
                             border: '1px solid rgba(138,43,226,0.28)',
                           }}
-                          title="სტიკერები"
+                          title={t.dmPanel.stickersTitle}
                         >
                           🎭
                         </button>
@@ -1528,7 +1550,7 @@ export function DmPanel() {
                           onKeyDown={e => {
                             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
                           }}
-                          placeholder="მესიჯი…"
+                          placeholder={t.dmPanel.messagePlaceholder}
                           maxLength={500}
                           className="flex-1 rounded-full px-4 py-2.5 text-sm focus:outline-none transition-all min-w-0"
                           style={{
@@ -1566,7 +1588,7 @@ export function DmPanel() {
                             disabled={sending}
                             className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all active:scale-90 disabled:opacity-40"
                             style={{ background: 'rgba(138,43,226,0.13)', border: '1px solid rgba(138,43,226,0.28)', color: '#c084fc' }}
-                            title="ხმოვანი მესიჯი"
+                            title={t.dmPanel.voiceMessageTitle}
                           >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
@@ -1626,7 +1648,7 @@ export function DmPanel() {
                   <div className="absolute top-3 left-0 right-0 flex items-center justify-between px-3 z-10">
                     <span className="px-2.5 py-1 rounded-full text-[10px] font-mono text-white/60"
                       style={{ background: 'rgba(255,255,255,0.08)' }}>
-                      📸 ერთჯერადი — დახურვის შემდეგ გაქრება
+                      {t.dmPanel.viewOnceHint}
                     </span>
                     <button
                       onClick={closeViewOnce}

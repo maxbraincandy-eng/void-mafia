@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useWWWVoice } from '@/hooks/useWWWVoice';
 import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
 import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
+import { useT } from '@/store/langStore';
 import type { WWWMatchPublic, WWWTeam, WWWAnswer } from '@/types/www';
 
 const ACCENT = '#a855f7';
@@ -31,13 +32,14 @@ function TimerRing({ seconds, total }: { seconds: number; total: number }) {
 
 // ── StatusBadge ────────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
+  const t = useT();
   const labels: Record<string, { label: string; color: string }> = {
-    waiting:      { label: 'ლოდინი',   color: '#a1a1aa' },
-    question:     { label: 'შეკ.',      color: ACCENT },
-    discussion:   { label: 'განხ.',     color: '#f59e0b' },
-    judging:      { label: 'მსაჯობა',  color: '#0090ff' },
-    round_result: { label: 'შედეგი',   color: '#22c55e' },
-    finished:     { label: 'დასრულდა', color: '#22c55e' },
+    waiting:      { label: t.wwwGame.statusWaiting,     color: '#a1a1aa' },
+    question:     { label: t.wwwGame.statusQuestion,    color: ACCENT },
+    discussion:   { label: t.wwwGame.statusDiscussion,  color: '#f59e0b' },
+    judging:      { label: t.wwwGame.statusJudging,     color: '#0090ff' },
+    round_result: { label: t.wwwGame.statusRoundResult, color: '#22c55e' },
+    finished:     { label: t.wwwGame.statusFinished,    color: '#22c55e' },
   };
   const s = labels[status] ?? { label: status, color: '#a1a1aa' };
   return (
@@ -52,6 +54,7 @@ function StatusBadge({ status }: { status: string }) {
 
 // ── DiffBadge ─────────────────────────────────────────────────────────────────
 function DiffBadge({ diff }: { diff: string }) {
+  const t = useT();
   const colors: Record<string, string> = { easy: '#22c55e', medium: '#f59e0b', hard: '#ff2d55' };
   const c = colors[diff] ?? '#a1a1aa';
   return (
@@ -59,7 +62,7 @@ function DiffBadge({ diff }: { diff: string }) {
       className="px-1.5 py-0.5 rounded-full font-mono text-[12px] uppercase"
       style={{ background: `${c}20`, color: c, border: `1px solid ${c}30` }}
     >
-      {diff === 'easy' ? 'მარტ.' : diff === 'medium' ? 'საშ.' : 'რთ.'}
+      {diff === 'easy' ? t.wwwGame.diffEasy : diff === 'medium' ? t.wwwGame.diffMedium : t.wwwGame.diffHard}
     </span>
   );
 }
@@ -116,15 +119,16 @@ function TeamPanel({
   peers: Array<{ socketId: string; name: string }>;
   isTalking: boolean;
 }) {
+  const t = useT();
   const answer: WWWAnswer | undefined = match.answers[team.id];
   const score = match.scores[team.id] ?? 0;
   const captain = team.captainId ? match.players[team.captainId] : null;
 
   const answerStatus = () => {
-    if (!answer) return { text: 'ელოდება…', color: 'rgba(255,255,255,0.3)' };
-    if (answer.isCorrect === true) return { text: '✓ სწორია', color: '#22c55e' };
-    if (answer.isCorrect === false) return { text: '✗ არასწორი', color: '#ff2d55' };
-    return { text: '✓ გაგზავნილია', color: '#f59e0b' };
+    if (!answer) return { text: t.wwwGame.waiting, color: 'rgba(255,255,255,0.3)' };
+    if (answer.isCorrect === true) return { text: t.wwwGame.correct, color: '#22c55e' };
+    if (answer.isCorrect === false) return { text: t.wwwGame.wrong, color: '#ff2d55' };
+    return { text: t.wwwGame.sent, color: '#f59e0b' };
   };
 
   const as = answerStatus();
@@ -181,7 +185,7 @@ function TeamPanel({
           );
         })}
         {team.playerIds.length === 0 && (
-          <p className="font-mono text-[12px] text-white/20">— ცარიელია —</p>
+          <p className="font-mono text-[12px] text-white/20">{t.wwwGame.empty}</p>
         )}
       </div>
 
@@ -206,6 +210,7 @@ function WaitingScreen({
   onSetRole: (role: 'team_a' | 'team_b' | 'spectator') => void;
   onSetQuestions: (count: number) => void;
 }) {
+  const t = useT();
   const connectedPlayers = Object.values(match.players).filter(p => !p.isSpectator);
   const host = match.players[match.hostId];
   const myTeam = match.players[myId]?.teamId ?? null;
@@ -217,23 +222,23 @@ function WaitingScreen({
         className="text-center py-5 rounded-2xl"
         style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.2)' }}
       >
-        <p className="font-mono text-[12px] text-white/35 mb-1 uppercase tracking-wide">კოდი</p>
+        <p className="font-mono text-[12px] text-white/35 mb-1 uppercase tracking-wide">{t.wwwGame.code}</p>
         <p className="font-display font-bold text-4xl tracking-normal" style={{ color: ACCENT }}>{match.code}</p>
-        <p className="font-mono text-[12px] text-white/25 mt-2">გაუზიარე მეგობრებს</p>
+        <p className="font-mono text-[12px] text-white/25 mt-2">{t.wwwGame.shareWithFriends}</p>
       </div>
 
       {/* Host / moderator */}
       <div className="rounded-2xl px-4 py-3 flex items-center gap-2.5" style={{ background: 'rgba(168,85,247,0.08)', border: `1px solid ${ACCENT}30` }}>
         <span style={{ fontSize: 18 }}>🎙️</span>
         <div className="min-w-0">
-          <p className="font-mono text-[11px] uppercase tracking-widest" style={{ color: ACCENT }}>წამყვანი</p>
-          <p className="font-mono text-[13px] text-white/75 truncate">{host?.nickname ?? '—'}{match.hostId === myId ? ' (შენ)' : ''}</p>
+          <p className="font-mono text-[11px] uppercase tracking-widest" style={{ color: ACCENT }}>{t.wwwGame.host}</p>
+          <p className="font-mono text-[13px] text-white/75 truncate">{host?.nickname ?? '—'}{match.hostId === myId ? ` ${t.wwwGame.youParen}` : ''}</p>
         </div>
       </div>
 
       {/* Role picker hint */}
       {!isHost && (
-        <p className="text-center font-mono text-[12px] text-white/40">აირჩიე გუნდი 👇</p>
+        <p className="text-center font-mono text-[12px] text-white/40">{t.wwwGame.chooseTeam}</p>
       )}
 
       {/* Teams */}
@@ -256,15 +261,15 @@ function WaitingScreen({
               </div>
               <div className="px-3 py-2 space-y-1 flex-1">
                 {team.playerIds.length === 0 ? (
-                  <p className="font-mono text-[12px] text-white/20">— ჯერ არავინ —</p>
+                  <p className="font-mono text-[12px] text-white/20">{t.wwwGame.noOneYet}</p>
                 ) : team.playerIds.map(uid => (
                   <div key={uid} className="flex items-center gap-2">
                     <span className={`w-1.5 h-1.5 rounded-full ${match.players[uid]?.connected ? 'bg-green-400' : 'bg-white/20'}`} />
                     <span className="font-mono text-[12px] text-white/65 truncate">{match.players[uid]?.nickname ?? uid}</span>
                     {team.captainId === uid && (
-                      <span className="font-mono text-[11px] px-1.5 rounded-full flex-shrink-0" style={{ background: `${team.color}20`, color: team.color }}>კაპ</span>
+                      <span className="font-mono text-[11px] px-1.5 rounded-full flex-shrink-0" style={{ background: `${team.color}20`, color: team.color }}>{t.wwwGame.captainShort}</span>
                     )}
-                    {uid === myId && <span className="font-mono text-[11px] text-white/25 flex-shrink-0">(შენ)</span>}
+                    {uid === myId && <span className="font-mono text-[11px] text-white/25 flex-shrink-0">{t.wwwGame.youParen}</span>}
                   </div>
                 ))}
               </div>
@@ -275,7 +280,7 @@ function WaitingScreen({
                   className="m-2 py-2 rounded-xl font-mono text-[12px] font-bold transition-all active:scale-95"
                   style={{ background: `${team.color}1e`, border: `1px solid ${team.color}55`, color: team.color }}
                 >
-                  შემოგვიერთდი
+                  {t.wwwGame.joinTeam}
                 </button>
               )}
             </div>
@@ -283,12 +288,12 @@ function WaitingScreen({
         })}
       </div>
 
-      <div className="text-center font-mono text-[12px] text-white/30">{connectedPlayers.length} მონაწილე</div>
+      <div className="text-center font-mono text-[12px] text-white/30">{t.wwwGame.participants.replace('{n}', String(connectedPlayers.length))}</div>
 
       {/* Game length — host picks 10 or 15 questions */}
       {isHost && (
         <div className="rounded-2xl px-4 py-3" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
-          <p className="font-mono text-[11px] uppercase tracking-widest text-white/35 mb-2 text-center">კითხვების რაოდენობა</p>
+          <p className="font-mono text-[11px] uppercase tracking-widest text-white/35 mb-2 text-center">{t.wwwGame.questionsLabel}</p>
           <div className="flex gap-2">
             {[10, 15].map(n => {
               const on = (match.settings.questionsCount ?? 10) === n;
@@ -303,7 +308,7 @@ function WaitingScreen({
                     color: on ? ACCENT : 'rgba(255,255,255,0.5)',
                   }}
                 >
-                  {n} კითხვა
+                  {t.wwwGame.questionsCount.replace('{n}', String(n))}
                 </button>
               );
             })}
@@ -311,7 +316,7 @@ function WaitingScreen({
         </div>
       )}
       {!isHost && (
-        <p className="text-center font-mono text-[11px] text-white/25">{match.settings.questionsCount ?? 10} კითხვიანი თამაში</p>
+        <p className="text-center font-mono text-[11px] text-white/25">{t.wwwGame.questionGame.replace('{n}', String(match.settings.questionsCount ?? 10))}</p>
       )}
 
       {isHost ? (
@@ -322,14 +327,14 @@ function WaitingScreen({
             className="w-full py-4 rounded-2xl font-display font-bold text-[15px] transition-all active:scale-95 disabled:opacity-40"
             style={{ background: 'rgba(168,85,247,0.18)', border: `1px solid ${ACCENT}45`, color: ACCENT }}
           >
-            თამაშის დაწყება ▶
+            {t.wwwGame.startGame}
           </button>
           {!bothTeamsReady && (
-            <p className="text-center font-mono text-[11px] text-white/30">ორივე გუნდში სჭირდება მინიმუმ 1 მონაწილე</p>
+            <p className="text-center font-mono text-[11px] text-white/30">{t.wwwGame.needOnePerTeam}</p>
           )}
         </>
       ) : (
-        <div className="text-center font-mono text-xs text-white/30 py-2">ლოდინი… წამყვანი დაიწყებს თამაშს</div>
+        <div className="text-center font-mono text-xs text-white/30 py-2">{t.wwwGame.waitingHostStart}</div>
       )}
     </div>
   );
@@ -341,6 +346,7 @@ function QuestionScreen({
 }: {
   match: WWWMatchPublic; isHost: boolean; onAdvance: () => void;
 }) {
+  const t = useT();
   const q = match.currentQuestion;
   if (!q) return null;
   return (
@@ -352,14 +358,14 @@ function QuestionScreen({
           className="w-full py-4 rounded-2xl font-display font-bold text-[15px] transition-all active:scale-95"
           style={{ background: 'rgba(168,85,247,0.18)', border: `1px solid ${ACCENT}45`, color: ACCENT }}
         >
-          განხილვა დაიწყე ▶
+          {t.wwwGame.startDiscussion}
         </button>
       ) : (
         <div
           className="text-center py-4 rounded-2xl font-mono text-xs text-white/35"
           style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}
         >
-          ჰოსტი დაიწყებს განხილვას
+          {t.wwwGame.hostWillStartDiscussion}
         </div>
       )}
     </div>
@@ -383,6 +389,7 @@ function DiscussionScreen({
   timeLeft: number | null;
   voice: ReturnType<typeof useWWWVoice>;
 }) {
+  const t = useT();
   const q = match.currentQuestion;
   if (!q) return null;
 
@@ -445,9 +452,9 @@ function DiscussionScreen({
                 {team.name}
               </span>
               {submitted ? (
-                <span className="font-mono text-[12px] text-white/50">✓ პასუხი გაგზავნილია</span>
+                <span className="font-mono text-[12px] text-white/50">{t.wwwGame.answerSubmitted}</span>
               ) : (
-                <span className="font-mono text-[12px] text-white/25">ელოდება…</span>
+                <span className="font-mono text-[12px] text-white/25">{t.wwwGame.waiting}</span>
               )}
             </div>
           );
@@ -457,13 +464,13 @@ function DiscussionScreen({
       {/* Captain answer input */}
       {isCaptain && !isSpectator && !hasSubmitted && (
         <div className="space-y-2">
-          <p className="font-mono text-[12px] text-white/40 uppercase tracking-wide">კაპიტანი — გაგზავნე პასუხი</p>
+          <p className="font-mono text-[12px] text-white/40 uppercase tracking-wide">{t.wwwGame.captainSendAnswer}</p>
           <div className="flex gap-2">
             <input
               value={answerText}
               onChange={e => onAnswerChange(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') onSubmit(); }}
-              placeholder="გუნდის პასუხი…"
+              placeholder={t.wwwGame.teamAnswerPlaceholder}
               maxLength={200}
               autoFocus
               className="flex-1 bg-transparent font-mono text-[15px] text-white placeholder-white/20 outline-none px-3 py-3 rounded-xl border border-white/15 focus:border-white/35 transition-colors"
@@ -484,12 +491,12 @@ function DiscussionScreen({
           className="text-center font-mono text-[13px] py-3 rounded-xl"
           style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.2)', color: ACCENT }}
         >
-          ✓ პასუხი გაგზავნილია
+          {t.wwwGame.answerSubmitted}
         </div>
       )}
       {!isCaptain && !isSpectator && (
         <div className="text-center font-mono text-xs text-white/30 py-2">
-          მხოლოდ კაპიტანს შეუძლია პასუხის გაგზავნა
+          {t.wwwGame.onlyCaptainCanSubmit}
         </div>
       )}
     </div>
@@ -502,9 +509,10 @@ function JudgingScreen({
 }: {
   match: WWWMatchPublic; isHost: boolean; onJudge: (teamId: string, isCorrect: boolean) => void;
 }) {
+  const t = useT();
   const q = match.currentQuestion;
   if (!q) return null;
-  const teams = match.teams.filter(t => t.playerIds.length > 0);
+  const teams = match.teams.filter(tm => tm.playerIds.length > 0);
   const pendingCount = teams.filter(t => {
     const a: WWWAnswer | undefined = match.answers[t.id];
     return a && a.isCorrect === undefined;
@@ -519,7 +527,7 @@ function JudgingScreen({
         className="px-4 py-4 rounded-2xl text-center"
         style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)' }}
       >
-        <p className="font-mono text-[12px] text-white/40 uppercase tracking-wide mb-2">სწორი პასუხი</p>
+        <p className="font-mono text-[12px] text-white/40 uppercase tracking-wide mb-2">{t.wwwGame.correctAnswer}</p>
         <p className="font-display font-bold text-[18px] text-green-400">{q.correctAnswer}</p>
         {q.explanation && (
           <p className="font-mono text-[12px] text-white/30 mt-2">{q.explanation}</p>
@@ -536,7 +544,7 @@ function JudgingScreen({
               className="px-3 py-3 rounded-xl"
               style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}
             >
-              <span className="font-mono text-xs text-white/30">{team.name} — პასუხი არ გამოუგზავნია</span>
+              <span className="font-mono text-xs text-white/30">{team.name} {t.wwwGame.noAnswerSubmitted}</span>
             </div>
           );
           const judged = answer.isCorrect !== undefined;
@@ -564,12 +572,12 @@ function JudgingScreen({
                     className="ml-auto font-mono text-[12px] font-bold"
                     style={{ color: answer.isCorrect ? '#22c55e' : '#ff2d55' }}
                   >
-                    {answer.isCorrect ? '✓ სწორი' : '✗ არასწორი'}
+                    {answer.isCorrect ? t.wwwGame.correctShort : t.wwwGame.wrong}
                   </span>
                 )}
               </div>
               <div className="px-3 py-3">
-                <p className="font-mono text-[15px] text-white">{answer.answerText || <em className="text-white/30">— პასუხი ცარიელია —</em>}</p>
+                <p className="font-mono text-[15px] text-white">{answer.answerText || <em className="text-white/30">{t.wwwGame.answerEmpty}</em>}</p>
               </div>
               {isHost && !judged && (
                 <div className="px-3 pb-3 flex gap-2">
@@ -578,14 +586,14 @@ function JudgingScreen({
                     className="flex-1 py-2.5 rounded-xl font-mono text-[13px] font-bold transition-all active:scale-95"
                     style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)', color: '#22c55e' }}
                   >
-                    ✓ სწორია
+                    {t.wwwGame.correct}
                   </button>
                   <button
                     onClick={() => onJudge(team.id, false)}
                     className="flex-1 py-2.5 rounded-xl font-mono text-[13px] font-bold transition-all active:scale-95"
                     style={{ background: 'rgba(255,45,85,0.1)', border: '1px solid rgba(255,45,85,0.35)', color: '#ff2d55' }}
                   >
-                    ✗ არასწორი
+                    {t.wwwGame.wrong}
                   </button>
                 </div>
               )}
@@ -595,7 +603,7 @@ function JudgingScreen({
       </div>
 
       {!isHost && pendingCount > 0 && (
-        <div className="text-center font-mono text-xs text-white/30 py-2">ჰოსტი ამოწმებს პასუხებს…</div>
+        <div className="text-center font-mono text-xs text-white/30 py-2">{t.wwwGame.hostCheckingAnswers}</div>
       )}
     </div>
   );
@@ -607,6 +615,7 @@ function RoundResultScreen({
 }: {
   match: WWWMatchPublic; isHost: boolean; onNext: () => void;
 }) {
+  const t = useT();
   const q = match.currentQuestion;
   const isLast = match.currentQuestionIndex + 1 >= match.totalQuestions;
 
@@ -617,7 +626,7 @@ function RoundResultScreen({
           className="px-4 py-4 rounded-2xl text-center"
           style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)' }}
         >
-          <p className="font-mono text-[12px] text-white/40 uppercase tracking-wide mb-2">სწორი პასუხი იყო</p>
+          <p className="font-mono text-[12px] text-white/40 uppercase tracking-wide mb-2">{t.wwwGame.correctAnswerWas}</p>
           <p className="font-display font-bold text-[18px] text-green-400">{q.correctAnswer}</p>
           {q.explanation && (
             <p className="font-mono text-[12px] text-white/30 mt-2">{q.explanation}</p>
@@ -666,10 +675,10 @@ function RoundResultScreen({
           className="w-full py-4 rounded-2xl font-display font-bold text-[15px] transition-all active:scale-95"
           style={{ background: 'rgba(168,85,247,0.18)', border: `1px solid ${ACCENT}45`, color: ACCENT }}
         >
-          {isLast ? 'შედეგები ▶' : `შემდეგი შეკ ${match.currentQuestionIndex + 2} ▶`}
+          {isLast ? t.wwwGame.results : t.wwwGame.nextQuestion.replace('{n}', String(match.currentQuestionIndex + 2))}
         </button>
       ) : (
-        <div className="text-center font-mono text-xs text-white/30 py-2">ჰოსტი გააგრძელებს…</div>
+        <div className="text-center font-mono text-xs text-white/30 py-2">{t.wwwGame.hostWillContinue}</div>
       )}
     </div>
   );
@@ -677,13 +686,14 @@ function RoundResultScreen({
 
 // ── FinishedScreen ────────────────────────────────────────────────────────────
 function FinishedScreen({ match, onLeave }: { match: WWWMatchPublic; onLeave: () => void }) {
+  const t = useT();
   const sorted = [...match.teams].sort((a, b) => (match.scores[b.id] ?? 0) - (match.scores[a.id] ?? 0));
   const winner = sorted[0];
 
   return (
     <div className="space-y-4 pt-4 text-center">
       <div>
-        <p className="font-mono text-[12px] text-white/30 uppercase tracking-wide mb-3">გამარჯვებული</p>
+        <p className="font-mono text-[12px] text-white/30 uppercase tracking-wide mb-3">{t.wwwGame.winner}</p>
         <div
           className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4"
           style={{
@@ -697,7 +707,7 @@ function FinishedScreen({ match, onLeave }: { match: WWWMatchPublic; onLeave: ()
         <p className="font-display font-bold text-2xl" style={{ color: winner?.color ?? ACCENT }}>
           {winner?.name ?? '?'}
         </p>
-        <p className="font-mono text-sm text-white/40 mt-1">{match.scores[winner?.id ?? ''] ?? 0} ქულა</p>
+        <p className="font-mono text-sm text-white/40 mt-1">{t.wwwGame.points.replace('{n}', String(match.scores[winner?.id ?? ''] ?? 0))}</p>
       </div>
 
       <div className="space-y-2">
@@ -721,7 +731,7 @@ function FinishedScreen({ match, onLeave }: { match: WWWMatchPublic; onLeave: ()
         className="w-full py-3 rounded-2xl font-mono text-[15px] transition-all active:scale-95"
         style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.6)' }}
       >
-        თამაშების მენიუ ←
+        {t.wwwGame.gamesMenu}
       </button>
     </div>
   );
@@ -734,6 +744,7 @@ export function WWWGame() {
     submitAnswer, judgeAnswer, nextQuestion, sendChat,
     error, clearError,
   } = useWWWStore();
+  const t = useT();
   const profile = useAuthStore(s => s.profile);
   const myId = profile?.id ?? '';
   const myNickname = profile?.username ?? 'Player';
@@ -836,13 +847,13 @@ export function WWWGame() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-base">🧠</span>
-            <span className="font-display font-bold text-sm" style={{ color: ACCENT }}>რა? სად? როდის?</span>
+            <span className="font-display font-bold text-sm" style={{ color: ACCENT }}>{t.wwwGame.gameTitle}</span>
             <StatusBadge status={match.status} />
           </div>
           <p className="font-mono text-[12px] text-white/30 mt-0.5">
             {match.status !== 'waiting' && match.status !== 'finished'
-              ? `შეკ ${match.currentQuestionIndex + 1}/${match.totalQuestions}`
-              : `კოდი: ${match.code}`}
+              ? `${t.wwwGame.questionAbbr} ${match.currentQuestionIndex + 1}/${match.totalQuestions}`
+              : `${t.wwwGame.code}: ${match.code}`}
           </p>
         </div>
         <button
@@ -949,12 +960,12 @@ export function WWWGame() {
               className="flex items-center justify-between px-4 py-3 border-b"
               style={{ borderColor: 'rgba(168,85,247,0.1)' }}
             >
-              <span className="font-mono text-xs text-white/50">ჩათი</span>
+              <span className="font-mono text-xs text-white/50">{t.wwwGame.chat}</span>
               <button onClick={() => setChatOpen(false)} className="text-white/40 text-sm">✕</button>
             </div>
             <div className="flex-1 overflow-y-auto px-4 py-2 space-y-1" style={{ maxHeight: '30vh' }}>
               {match.chat.length === 0 && (
-                <p className="font-mono text-xs text-white/20 text-center py-4">ჩათი ცარიელია</p>
+                <p className="font-mono text-xs text-white/20 text-center py-4">{t.wwwGame.chatEmpty}</p>
               )}
               {match.chat.map((msg, i) => {
                 const ch = msg.channel ?? 'broadcast';
@@ -975,7 +986,7 @@ export function WWWGame() {
                 value={chatText}
                 onChange={e => setChatText(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleSendChat(); }}
-                placeholder="დაწერე შეტყობინება…"
+                placeholder={t.wwwGame.messagePlaceholder}
                 className="flex-1 bg-transparent text-xs text-white font-mono outline-none placeholder-white/20 px-3 py-2 rounded-xl border border-white/10 focus:border-white/25"
               />
               <button

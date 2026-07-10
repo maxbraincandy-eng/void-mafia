@@ -385,9 +385,9 @@ export function LobbyPage() {
                 onClick={() => (amSpectator ? toPlayer() : toSpectator()).catch(() => {})}
                 disabled={isLoading}
                 className="text-[11px] px-1.5 py-0.5 rounded border font-mono transition-all border-white/[0.08] text-white/30 hover:border-white/20 hover:text-white/55"
-                title={amSpectator ? 'შეუერთდი თამაშს' : 'გადადი სპექტატორებში'}
+                title={amSpectator ? t.lobbyPage.joinGame : t.lobbyPage.switchToSpectators}
               >
-                {amSpectator ? '🎮 თამაში' : '👁 სპექტატორი'}
+                {amSpectator ? t.lobbyPage.gameTab : t.lobbyPage.spectatorTab}
               </button>
             </div>
           </div>
@@ -626,9 +626,9 @@ export function LobbyPage() {
                   <div className="flex items-center gap-2.5">
                     <span className="text-xl" style={{ filter: 'drop-shadow(0 0 8px rgba(192,132,252,0.8))' }}>♛</span>
                     <div className="min-w-0 flex-1">
-                      <p className="font-display font-bold text-sm tracking-[0.18em] uppercase" style={{ color: '#c084fc' }}>დონის რეჟიმი</p>
+                      <p className="font-display font-bold text-sm tracking-[0.18em] uppercase" style={{ color: '#c084fc' }}>{t.lobbyPage.donModeTitle}</p>
                       <p className="font-mono text-[11px] text-white/35">
-                        ზუსტად 10 მოთამაშე{room.settings.donModerator ? ' + წამყვანი' : ''} · 1 დონი · 2 მაფია · 1 შერიფი · 6 მოქალაქე
+                        {t.lobbyPage.donModeExact10}{room.settings.donModerator ? t.lobbyPage.donModePlusModerator : ''}{t.lobbyPage.donModeDeck}
                       </p>
                     </div>
                   </div>
@@ -641,7 +641,7 @@ export function LobbyPage() {
                         <Avatar name={modPlayer.name} size="sm" src={modPlayer.avatarUrl ?? undefined} />
                         <div className="min-w-0 flex-1">
                           <p className="font-mono text-[12px] font-bold text-white/85 truncate">♛ {modPlayer.name}</p>
-                          <p className="font-mono text-[10px]" style={{ color: 'rgba(192,132,252,0.7)' }}>თამაშის წამყვანი</p>
+                          <p className="font-mono text-[10px]" style={{ color: 'rgba(192,132,252,0.7)' }}>{t.lobbyPage.gameModerator}</p>
                         </div>
                         {(iAmModerator || amHost) && (
                           <button
@@ -649,7 +649,7 @@ export function LobbyPage() {
                             disabled={isLoading}
                             className="px-2.5 py-1.5 rounded-lg font-mono text-[11px] text-white/40 border border-white/10 hover:text-red-400/70 hover:border-red-400/30 transition-all disabled:opacity-40"
                           >
-                            ✕ მოხსნა
+                            {t.lobbyPage.removeModerator}
                           </button>
                         )}
                       </div>
@@ -660,7 +660,7 @@ export function LobbyPage() {
                         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-mono text-[12.5px] font-bold transition-all active:scale-[0.98] disabled:opacity-40"
                         style={{ background: 'rgba(155,0,255,0.15)', border: '1.5px dashed rgba(192,132,252,0.5)', color: '#c084fc' }}
                       >
-                        ♛ გახდი თამაშის წამყვანი
+                        {t.lobbyPage.becomeModerator}
                       </button>
                     )
                   )}
@@ -698,7 +698,7 @@ export function LobbyPage() {
                     loading={isLoading}
                     onClick={() => toPlayer().catch(() => {})}
                   >
-                    🎮 შეუერთდი თამაშს
+                    {t.lobbyPage.joinGameCta}
                   </Button>
                   <div className="flex items-center justify-center gap-2 py-1.5 text-white/28 text-[11px] font-mono">
                     👁 {t.lobby.watchingSpectator}
@@ -713,7 +713,7 @@ export function LobbyPage() {
                   disabled={isLoading}
                   className="w-full py-2 rounded-xl border border-white/[0.08] text-white/35 hover:text-white/60 hover:border-white/20 transition-all text-[11px] font-mono"
                 >
-                  👁 გადადი სპექტატორებში
+                  {t.lobbyPage.leaveToSpectators}
                 </button>
               )}
 
@@ -879,15 +879,15 @@ export function LobbyPage() {
                     {/* Header with X (top-right) */}
                     <div className="flex items-center justify-between gap-3 px-4 py-3 flex-shrink-0 border-b border-white/8" style={{ background: 'rgba(12,7,30,0.92)' }}>
                       <div className="min-w-0">
-                        <h3 className="font-display font-bold text-sm tracking-[0.2em] uppercase text-white/85">⚙ პარამეტრები</h3>
+                        <h3 className="font-display font-bold text-sm tracking-[0.2em] uppercase text-white/85">{t.lobbyPage.settingsTitle}</h3>
                         <p className="text-[11px] font-mono text-white/30 truncate">
-                          {amHost ? 'ცვლილებები ავტომატურად ინახება' : 'ნახვის რეჟიმი'}
+                          {amHost ? t.lobbyPage.settingsAutoSave : t.lobbyPage.settingsViewMode}
                         </p>
                       </div>
                       <button
                         onClick={() => setShowSettings(false)}
                         className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-white/50 hover:text-white hover:bg-white/8 transition-all active:scale-90"
-                        title="დახურვა"
+                        title={t.lobbyPage.close}
                       >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
                           <line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" />
@@ -899,7 +899,7 @@ export function LobbyPage() {
                     {!amHost && (
                       <div className="flex items-center gap-2 px-4 py-2 flex-shrink-0" style={{ background: 'rgba(155,0,255,0.08)', borderBottom: '1px solid rgba(155,0,255,0.15)' }}>
                         <span className="text-sm">🔒</span>
-                        <span className="text-[11px] font-mono text-neon-purple/80">ცვლილების უფლება მხოლოდ ჰოსტს აქვს</span>
+                        <span className="text-[11px] font-mono text-neon-purple/80">{t.lobbyPage.onlyHostCanEdit}</span>
                       </div>
                     )}
 
@@ -919,7 +919,7 @@ export function LobbyPage() {
                           className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-3 py-2 text-sm font-mono text-white/65 placeholder-white/15 focus:outline-none focus:border-neon-cyan/28 transition-colors"
                         />
                       ) : (
-                        <p className="text-sm font-mono text-white/45">{room.settings.password ? '🔒 დაცული ოთახი' : t.lobby.passwordOpen}</p>
+                        <p className="text-sm font-mono text-white/45">{room.settings.password ? t.lobbyPage.protectedRoom : t.lobby.passwordOpen}</p>
                       )}
                       {room.settings.password && amHost && (
                         <p className="text-[12px] font-mono text-white/28 mt-2">
@@ -946,7 +946,7 @@ export function LobbyPage() {
                             <div className="text-left">
                               <p className="text-[13px] font-mono text-white/40">🔒 ⏭ Skip speech turns</p>
                               <p className="text-[12px] font-mono text-white/25 mt-0.5">
-                                მოითხოვს LVL 13-ს ({13 - myLevel} დონე დარჩა)
+                                {t.lobbyPage.requiresLvl13.replace('{n}', String(13 - myLevel))}
                               </p>
                             </div>
                             <div className="relative rounded-full flex-shrink-0 bg-white/10"
@@ -1028,9 +1028,9 @@ export function LobbyPage() {
                     <div className={`${SURFACE} p-4`} style={SURFACE_BG}>
                       <div className="flex items-center justify-between gap-3 mb-2">
                         <div>
-                          <p className="text-[12px] font-mono text-white/28 uppercase tracking-widest">🎵 ღამის მუსიკა</p>
+                          <p className="text-[12px] font-mono text-white/28 uppercase tracking-widest">{t.lobbyPage.nightMusicTitle}</p>
                           <p className="text-[11px] font-mono text-white/30 mt-1">
-                            ჩააგდე YouTube ლინკი — ღამის ფაზისას მოქალაქეებს ჩაერთვებათ
+                            {t.lobbyPage.nightMusicHint}
                           </p>
                         </div>
                         {/* Enable toggle (host only, needs a link) */}
@@ -1054,13 +1054,13 @@ export function LobbyPage() {
                           type="text"
                           value={nmInput}
                           onChange={e => handleNmInput(e.target.value)}
-                          placeholder="YouTube ლინკი..."
+                          placeholder={t.lobbyPage.youtubeLinkPlaceholder}
                           className="w-full bg-white/[0.03] border rounded-lg px-3 py-2 text-sm font-mono text-white/65 placeholder-white/15 focus:outline-none transition-colors"
                           style={{ borderColor: nmError ? 'rgba(255,45,85,0.5)' : 'rgba(255,255,255,0.07)' }}
                         />
                       )}
                       {nmError && (
-                        <p className="text-[11px] font-mono mt-1.5" style={{ color: '#ff2d55' }}>არასწორი YouTube ლინკი</p>
+                        <p className="text-[11px] font-mono mt-1.5" style={{ color: '#ff2d55' }}>{t.lobbyPage.invalidYoutubeLink}</p>
                       )}
 
                       {/* Current track preview */}
@@ -1078,7 +1078,7 @@ export function LobbyPage() {
                               onClick={() => updateSettings({ nightMusicVideoId: null, nightMusicEnabled: false })}
                               disabled={isLoading}
                               className="flex-shrink-0 font-mono text-[12px] text-white/30 hover:text-red-400/70 transition-colors"
-                              title="წაშლა"
+                              title={t.lobbyPage.deleteAction}
                             >
                               ✕
                             </button>
@@ -1092,10 +1092,10 @@ export function LobbyPage() {
                       <div className="rounded-2xl border p-4 space-y-3" style={{ borderColor: 'rgba(155,0,255,0.3)', background: 'rgba(20,0,40,0.5)' }}>
                         <div>
                           <h4 className="text-xs font-display font-bold uppercase tracking-widest" style={{ color: 'rgba(200,130,255,0.85)' }}>
-                            ♛ დონის რეჟიმი
+                            {t.lobbyPage.donModeTitleSettings}
                           </h4>
                           <p className="text-[12px] font-mono text-white/30 mt-0.5">
-                            როლები ფიქსირებულია: 1 Don + 2 Mafia + 1 Sheriff + 6 Citizens
+                            {t.lobbyPage.donModeRolesFixed}
                           </p>
                         </div>
 
@@ -1106,11 +1106,11 @@ export function LobbyPage() {
                           className="w-full flex items-center justify-between gap-3 py-1 disabled:cursor-default"
                         >
                           <div className="text-left">
-                            <p className={clsx('text-[13px] font-mono', amHost ? 'text-white/70' : 'text-white/45')}>♛ წამყვანით თამაში</p>
+                            <p className={clsx('text-[13px] font-mono', amHost ? 'text-white/70' : 'text-white/45')}>{t.lobbyPage.donModeratorPlayLabel}</p>
                             <p className="text-[12px] font-mono text-white/30 mt-0.5">
                               {room.settings.donModerator
-                                ? 'ლობიში ჩნდება წამყვანის ველი — მასზე დაჭერით მოთამაშე წამყვანი ხდება'
-                                : 'თამაში წამყვანის გარეშე — ფაზებს ძრავი მართავს'}
+                                ? t.lobbyPage.donModeratorOnDesc
+                                : t.lobbyPage.donModeratorOffDesc}
                             </p>
                           </div>
                           <div className={clsx(
@@ -1123,11 +1123,11 @@ export function LobbyPage() {
                         </button>
 
                         <div className="space-y-1 text-[11px] font-mono text-white/30 pl-1 pt-1 border-t border-white/[0.06]">
-                          <p>• Planning Night (60s) — ქილი არ შედგება</p>
-                          <p>• ინდივიდუალური სიტყვები (60s)</p>
-                          <p>• Don Check → Mafia Kill (ბრმა) → Sheriff Check</p>
-                          <p>• ფრე → Tie Defense → Revote → ორმაგი ელიმინაცია</p>
-                          <p>• წამყვანი როლს არ იღებს — მართავს ფაზებს/პაუზას</p>
+                          <p>{t.lobbyPage.donFlowPlanningNight}</p>
+                          <p>{t.lobbyPage.donFlowIndividualSpeeches}</p>
+                          <p>{t.lobbyPage.donFlowChecks}</p>
+                          <p>{t.lobbyPage.donFlowTie}</p>
+                          <p>{t.lobbyPage.donFlowModerator}</p>
                         </div>
                       </div>
                     ) : (
@@ -1253,13 +1253,13 @@ export function LobbyPage() {
                   </span>
                 </p>
               ) : (
-                <p className="text-[12px] font-mono text-white/20">ლობი ჩათი</p>
+                <p className="text-[12px] font-mono text-white/20">{t.lobbyPage.lobbyChat}</p>
               )}
             </div>
 
             {/* Tap hint */}
             <span className="text-[10px] font-mono shrink-0" style={{ color: hasUnread ? 'rgba(255,45,85,0.5)' : 'rgba(255,255,255,0.15)' }}>
-              გახსნა ›
+              {t.lobbyPage.openChat}
             </span>
           </motion.button>
         );

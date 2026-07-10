@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { emitWithAck, socket } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
+import { useT } from '@/store/langStore';
 import type { Res } from '@/types/index';
 
 export interface StoryItem { id: string; imageUrl: string; caption: string; createdAt: number; viewCount?: number; tags?: { id: string; username: string }[]; musicVideoId?: string; musicTitle?: string; }
@@ -27,11 +28,11 @@ function saveSeen(s: Set<string>) {
   try { localStorage.setItem(SEEN_KEY, JSON.stringify([...s].slice(-500))); } catch { /* ignore */ }
 }
 
-function timeAgo(ts: number): string {
+function timeAgo(ts: number, t: ReturnType<typeof useT>): string {
   const d = Date.now() - ts;
-  if (d < 60_000) return 'ახლა';
-  if (d < 3_600_000) return `${Math.floor(d / 60_000)}წთ`;
-  return `${Math.floor(d / 3_600_000)}სთ`;
+  if (d < 60_000) return t.stories.now;
+  if (d < 3_600_000) return `${Math.floor(d / 60_000)}${t.stories.minSuffix}`;
+  return `${Math.floor(d / 3_600_000)}${t.stories.hourSuffix}`;
 }
 
 // Resize an image file to a story-sized JPEG data URL, guaranteed under the
@@ -162,6 +163,7 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
   onOpenProfile: (id: string) => void; myId: string | undefined;
   onDeleted: () => void; markSeen: (id: string) => void;
 }) {
+  const t = useT();
   const [gi, setGi] = useState(startIndex);
   const [si, setSi] = useState(0);
   const [tick, setTick] = useState(0); // remount progress bar on advance
@@ -311,7 +313,7 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
       const convId = (startRes as any).data.id;
       const msg = thumb
         ? `📸story:${thumb}\n${text}`
-        : `📸 სთორის პასუხი:\n${text}`;
+        : `📸 ${t.stories.storyReplyPrefix}\n${text}`;
       await emitWithAck<any, Res<any>>('dm:send', { conversationId: convId, text: msg, type: 'text' });
       setReplyText('');
       setReplySent(true);
@@ -381,17 +383,17 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 14px 10px' }}>
         {sheetOpen ? (
-          <button onClick={closeSheet} style={{ fontSize: 20, color: '#fff', lineHeight: 1 }} aria-label="back">‹ უკან</button>
+          <button onClick={closeSheet} style={{ fontSize: 20, color: '#fff', lineHeight: 1 }} aria-label="back">‹ {t.stories.back}</button>
         ) : (
           <button onClick={() => { onOpenProfile(group.authorId); onClose(); }} className="flex items-center gap-2">
             <Avatar avatar={group.avatar} avatarUrl={group.avatarUrl} size={32} />
             <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#fff', fontWeight: 600 }}>{group.username}</span>
           </button>
         )}
-        {!sheetOpen && <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{timeAgo(story.createdAt)}</span>}
+        {!sheetOpen && <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{timeAgo(story.createdAt, t)}</span>}
         <div style={{ flex: 1 }} />
         {isMine && !sheetOpen && (
-          <button onClick={() => setConfirmDelete(true)} style={{ fontSize: 16, color: 'rgba(255,255,255,0.7)' }} title="წაშლა">🗑</button>
+          <button onClick={() => setConfirmDelete(true)} style={{ fontSize: 16, color: 'rgba(255,255,255,0.7)' }} title={t.stories.delete}>🗑</button>
         )}
         <button onClick={onClose} style={{ fontSize: 20, color: 'rgba(255,255,255,0.85)', lineHeight: 1 }}>✕</button>
       </div>
@@ -432,7 +434,7 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
         <button onClick={openSheet} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 14px 16px', color: 'rgba(255,255,255,0.85)', background: 'transparent', border: 'none' }}>
           <span style={{ fontSize: 16 }}>👁</span>
           <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{story.viewCount ?? 0}</span>
-          <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>▲ ვინ ნახა</span>
+          <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>▲ {t.stories.whoViewed}</span>
         </button>
       )}
       {/* Footer: reply input + reaction button (others' stories) */}
@@ -451,7 +453,7 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
               onFocus={() => setInputFocused(true)}
               onBlur={() => { if (!replyText.trim()) setInputFocused(false); }}
               onKeyDown={e => { if (e.key === 'Enter') sendReply(); }}
-              placeholder={`პასუხი ${group.username}-ს...`}
+              placeholder={t.stories.replyTo.replace('{n}', group.username)}
               disabled={replySending}
               style={{
                 flex: 1, background: 'transparent', border: 'none', outline: 'none',
@@ -501,7 +503,7 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
               boxShadow: '0 4px 20px rgba(155,0,255,0.4)',
             }}
           >
-            ✓ გაგზავნილია
+            ✓ {t.stories.sent}
           </motion.div>
         )}
       </AnimatePresence>
@@ -565,20 +567,20 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
               style={{ width: 'min(320px, 86vw)', borderRadius: 20, padding: '22px 18px', background: 'rgba(14,8,30,0.98)', border: '1px solid rgba(155,0,255,0.3)', boxShadow: '0 16px 60px rgba(0,0,0,0.6)' }}
             >
               <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#fff', textAlign: 'center', marginBottom: 18, lineHeight: 1.5 }}>
-                დარწმუნებული ხარ რომ გინდა წაშალო?
+                {t.stories.deleteConfirm}
               </p>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button
                   onClick={handleDelete}
                   style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontFamily: 'monospace', fontWeight: 700, fontSize: 13, background: 'rgba(255,45,85,0.85)', border: '1px solid rgba(255,45,85,0.9)', color: '#fff' }}
                 >
-                  კი
+                  {t.stories.yes}
                 </button>
                 <button
                   onClick={() => setConfirmDelete(false)}
                   style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontFamily: 'monospace', fontWeight: 700, fontSize: 13, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }}
                 >
-                  არა
+                  {t.stories.no}
                 </button>
               </div>
             </motion.div>
@@ -590,11 +592,11 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
       {sheetOpen && (
         <div style={{ flex: 1, overflowY: 'auto', background: 'rgba(8,4,22,0.98)', borderTop: '1px solid rgba(155,0,255,.25)', padding: '14px 16px 24px' }}>
           <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 13, color: '#fff', marginBottom: 12 }}>
-            👁 ნახა {viewers ? viewers.length : ''}
+            👁 {t.stories.viewedLabel} {viewers ? viewers.length : ''}
           </p>
           {viewersBusy && <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>…</p>}
           {!viewersBusy && viewers && viewers.length === 0 && (
-            <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>ჯერ არავის უნახავს</p>
+            <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{t.stories.noViewers}</p>
           )}
           {!viewersBusy && viewers && viewers.map(v => (
             <button key={v.id} onClick={() => { onOpenProfile(v.id); onClose(); }}
@@ -603,7 +605,7 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
               <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#fff' }}>{v.username}</span>
               {v.reaction && <span style={{ fontSize: 15, lineHeight: 1 }}>{v.reaction}</span>}
               <div style={{ flex: 1 }} />
-              <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{timeAgo(v.viewedAt)}</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{timeAgo(v.viewedAt, t)}</span>
             </button>
           ))}
         </div>
@@ -618,6 +620,7 @@ function StoryViewer({ groups, startIndex, onClose, onOpenProfile, myId, onDelet
 // the strip's direct tap so iOS reliably opens the picker). The composer just
 // previews, captions, and posts — with a "change photo" picker as a fallback.
 function StoryComposer({ image, onClose, onPosted }: { image: string; onClose: () => void; onPosted: () => void }) {
+  const t = useT();
   const [img, setImg] = useState<string | null>(image);
   const [caption, setCaption] = useState('');
   const [busy, setBusy] = useState(false);
@@ -637,7 +640,7 @@ function StoryComposer({ image, onClose, onPosted }: { image: string; onClose: (
     const f = e.target.files?.[0];
     if (!f) return;
     setErr('');
-    try { setImg(await resizeStoryImage(f)); } catch { setErr('სურათი ვერ ჩაიტვირთა'); }
+    try { setImg(await resizeStoryImage(f)); } catch { setErr(t.stories.imageLoadError); }
   };
 
   const openTagPicker = () => {
@@ -672,8 +675,8 @@ function StoryComposer({ image, onClose, onPosted }: { image: string; onClose: (
       if (music) { payload.musicVideoId = music.videoId; payload.musicTitle = music.title; }
       const res = await emitWithAck<any, Res<StoryItem>>('community:story_create', payload);
       if ((res as any).ok) { onPosted(); onClose(); }
-      else setErr((res as any).error ?? 'ვერ გაიზიარა');
-    } catch { setErr('კავშირის შეცდომა'); }
+      else setErr((res as any).error ?? t.stories.shareError);
+    } catch { setErr(t.stories.connectionError); }
     finally { setBusy(false); }
   };
 
@@ -683,21 +686,21 @@ function StoryComposer({ image, onClose, onPosted }: { image: string; onClose: (
     <div onClick={() => !busy && onClose()} style={{ position: 'fixed', inset: 0, zIndex: 1400, background: 'rgba(0,0,0,.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
       <div onClick={e => e.stopPropagation()} style={{ width: 'min(380px,100%)', maxHeight: '90vh', overflowY: 'auto', background: 'rgba(8,4,22,.99)', border: '1px solid rgba(155,0,255,.3)', borderRadius: 20, padding: 16 }}>
-        <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#fff', marginBottom: 10, textAlign: 'center' }}>📖 ახალი Story</p>
+        <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#fff', marginBottom: 10, textAlign: 'center' }}>📖 {t.stories.newStory}</p>
         {img ? (
           <img src={img} alt="" style={{ width: '100%', maxHeight: 300, objectFit: 'contain', borderRadius: 12, background: '#000' }} />
         ) : (
-          <button onClick={() => fileRef.current?.click()} style={{ width: '100%', padding: '40px', borderRadius: 12, border: '1px dashed rgba(255,255,255,.2)', color: 'rgba(255,255,255,.5)', fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.02)' }}>+ აირჩიე სურათი</button>
+          <button onClick={() => fileRef.current?.click()} style={{ width: '100%', padding: '40px', borderRadius: 12, border: '1px dashed rgba(255,255,255,.2)', color: 'rgba(255,255,255,.5)', fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.02)' }}>+ {t.stories.chooseImage}</button>
         )}
         {err && <p style={{ fontFamily: 'monospace', fontSize: 12, color: '#ff2d55', textAlign: 'center', marginTop: 8 }}>{err}</p>}
         {img && (
-          <input value={caption} onChange={e => setCaption(e.target.value)} maxLength={200} placeholder="წარწერა (არჩევითი)…"
+          <input value={caption} onChange={e => setCaption(e.target.value)} maxLength={200} placeholder={t.stories.captionPlaceholder}
             style={{ width: '100%', marginTop: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)', color: '#fff', fontFamily: 'monospace', fontSize: 13, outline: 'none' }} />
         )}
         {img && (
           <div style={{ marginTop: 10 }}>
             <button onClick={openTagPicker} style={{ fontFamily: 'monospace', fontSize: 12, color: '#c084fc', background: 'rgba(155,0,255,.1)', border: '1px solid rgba(155,0,255,.3)', borderRadius: 10, padding: '7px 12px', cursor: 'pointer' }}>
-              👥 {tags.length > 0 ? `${tags.length} დათეგილი` : 'დათეგე'}
+              👥 {tags.length > 0 ? `${tags.length} ${t.stories.tagged}` : t.stories.tagBtn}
             </button>
             {tags.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
@@ -710,11 +713,11 @@ function StoryComposer({ image, onClose, onPosted }: { image: string; onClose: (
             )}
             {tagOpen && (
               <div style={{ marginTop: 8, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 12, padding: 8 }}>
-                <input value={tagFilter} onChange={e => setTagFilter(e.target.value)} placeholder="მოძებნე…"
+                <input value={tagFilter} onChange={e => setTagFilter(e.target.value)} placeholder={t.stories.searchPlaceholder}
                   style={{ width: '100%', padding: '7px 10px', borderRadius: 8, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', color: '#fff', fontFamily: 'monospace', fontSize: 12, outline: 'none', marginBottom: 6 }} />
                 <div style={{ maxHeight: 160, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {!tagPeople && <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,.3)', textAlign: 'center', padding: 8 }}>…</p>}
-                  {tagPeople && filtered.length === 0 && <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,.3)', textAlign: 'center', padding: 8 }}>ვერ მოიძებნა</p>}
+                  {tagPeople && filtered.length === 0 && <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,.3)', textAlign: 'center', padding: 8 }}>{t.stories.notFound}</p>}
                   {filtered.map(p => {
                     const selected = tags.some(t => t.id === p.profileId);
                     return (
@@ -728,7 +731,7 @@ function StoryComposer({ image, onClose, onPosted }: { image: string; onClose: (
                     );
                   })}
                 </div>
-                <button onClick={() => setTagOpen(false)} style={{ width: '100%', marginTop: 6, padding: '6px', borderRadius: 8, fontFamily: 'monospace', fontSize: 11, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', color: 'rgba(255,255,255,.5)', cursor: 'pointer' }}>დახურვა</button>
+                <button onClick={() => setTagOpen(false)} style={{ width: '100%', marginTop: 6, padding: '6px', borderRadius: 8, fontFamily: 'monospace', fontSize: 11, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', color: 'rgba(255,255,255,.5)', cursor: 'pointer' }}>{t.stories.close}</button>
               </div>
             )}
           </div>
@@ -737,7 +740,7 @@ function StoryComposer({ image, onClose, onPosted }: { image: string; onClose: (
           <div style={{ marginTop: 10 }}>
             {!music ? (
               <button onClick={() => setMusicOpen(o => !o)} style={{ fontFamily: 'monospace', fontSize: 12, color: '#ff69b4', background: 'rgba(255,0,150,.08)', border: '1px solid rgba(255,0,150,.3)', borderRadius: 10, padding: '7px 12px', cursor: 'pointer' }}>
-                🎵 დაურთე სიმღერა
+                🎵 {t.stories.addMusic}
               </button>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 10, background: 'rgba(255,0,150,.1)', border: '1px solid rgba(255,0,150,.3)' }}>
@@ -749,7 +752,7 @@ function StoryComposer({ image, onClose, onPosted }: { image: string; onClose: (
             {musicOpen && !music && (
               <div style={{ marginTop: 8, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 12, padding: 8 }}>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <input value={musicQuery} onChange={e => setMusicQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') searchMusic(); }} placeholder="სიმღერის სახელი…"
+                  <input value={musicQuery} onChange={e => setMusicQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') searchMusic(); }} placeholder={t.stories.songNamePlaceholder}
                     style={{ flex: 1, padding: '7px 10px', borderRadius: 8, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,0,150,.2)', color: '#fff', fontFamily: 'monospace', fontSize: 12, outline: 'none' }} />
                   <button onClick={searchMusic} disabled={!musicQuery.trim() || musicSearching} style={{ padding: '7px 12px', borderRadius: 8, fontFamily: 'monospace', fontSize: 11, background: 'rgba(255,0,150,.15)', border: '1px solid rgba(255,0,150,.4)', color: '#ff69b4', cursor: 'pointer', flexShrink: 0 }}>{musicSearching ? '…' : '🔍'}</button>
                 </div>
@@ -766,14 +769,14 @@ function StoryComposer({ image, onClose, onPosted }: { image: string; onClose: (
                     ))}
                   </div>
                 )}
-                <button onClick={() => setMusicOpen(false)} style={{ width: '100%', marginTop: 6, padding: '6px', borderRadius: 8, fontFamily: 'monospace', fontSize: 11, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', color: 'rgba(255,255,255,.5)', cursor: 'pointer' }}>დახურვა</button>
+                <button onClick={() => setMusicOpen(false)} style={{ width: '100%', marginTop: 6, padding: '6px', borderRadius: 8, fontFamily: 'monospace', fontSize: 11, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', color: 'rgba(255,255,255,.5)', cursor: 'pointer' }}>{t.stories.close}</button>
               </div>
             )}
           </div>
         )}
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-          <button onClick={onClose} disabled={busy} style={{ flex: 1, padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.14)', color: 'rgba(255,255,255,.6)' }}>გაუქმება</button>
-          <button onClick={post} disabled={!img || busy} style={{ flex: 2, padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(155,0,255,.18)', border: '1px solid rgba(155,0,255,.45)', color: '#c084fc', opacity: img ? 1 : 0.4 }}>{busy ? '…' : '📢 გაზიარება (24სთ)'}</button>
+          <button onClick={onClose} disabled={busy} style={{ flex: 1, padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.14)', color: 'rgba(255,255,255,.6)' }}>{t.stories.cancel}</button>
+          <button onClick={post} disabled={!img || busy} style={{ flex: 2, padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(155,0,255,.18)', border: '1px solid rgba(155,0,255,.45)', color: '#c084fc', opacity: img ? 1 : 0.4 }}>{busy ? '…' : `📢 ${t.stories.share}`}</button>
         </div>
       </div>
     </div>,
@@ -783,6 +786,7 @@ function StoryComposer({ image, onClose, onPosted }: { image: string; onClose: (
 
 // ── Strip ─────────────────────────────────────────────────────────────
 export function StoriesStrip({ onOpenProfile }: { onOpenProfile: (id: string) => void }) {
+  const t = useT();
   const profile = useAuthStore(s => s.profile);
   const [groups, setGroups] = useState<StoryGroup[]>([]);
   const [viewer, setViewer] = useState<number | null>(null);
@@ -854,7 +858,7 @@ export function StoriesStrip({ onOpenProfile }: { onOpenProfile: (id: string) =>
           {profile && <Avatar avatar={profile.avatar} avatarUrl={profile.avatarUrl ?? null} size={50} />}
           <span style={{ position: 'absolute', bottom: -2, right: -2, width: 20, height: 20, borderRadius: '50%', background: '#9b00ff', color: '#fff', fontSize: 14, lineHeight: '18px', textAlign: 'center', border: '2px solid #06040f' }}>{picking ? '…' : '+'}</span>
         </div>
-        <span className="font-mono text-[10px] text-white/45 truncate" style={{ maxWidth: 58 }}>შენი Story</span>
+        <span className="font-mono text-[10px] text-white/45 truncate" style={{ maxWidth: 58 }}>{t.stories.yourStory}</span>
       </button>
 
       {groups.map((g, i) => {
