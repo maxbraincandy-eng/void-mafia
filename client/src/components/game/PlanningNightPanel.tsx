@@ -18,22 +18,22 @@ export function PlanningNightPanel() {
         <div className="flex items-center gap-3 mb-2">
           <div className="w-1.5 h-1.5 rounded-full bg-neon-purple/70" style={{ boxShadow: '0 0 6px rgba(155,0,255,0.8)' }} />
           <span className="font-mono text-[12px] tracking-[0.25em] uppercase" style={{ color: 'rgba(155,0,255,0.8)' }}>
-            საგეგმო ღამე
+            {t.gamePanels.planTitle}
           </span>
           <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(155,0,255,0.25), transparent)' }} />
         </div>
         <p className="text-white/40 text-sm font-mono pl-4">
           {isMafia
-            ? 'მაფია განიხილავს სტრატეგიას. ამ ღამეს ქილი არ შედგება.'
-            : 'მოიცადე — მაფია განიხილავს გეგმებს. ღამის ქილი არ ყოფილა.'}
+            ? t.gamePanels.planMafia
+            : t.gamePanels.planWait}
         </p>
       </div>
 
       {isMafia && amAlive && (
         <div className="rounded-2xl border border-neon-purple/20 p-4" style={{ background: 'rgba(30,0,40,0.6)' }}>
-          <p className="text-xs font-mono tracking-widest uppercase text-neon-purple/60 mb-2">🔴 მაფიის ოთახი</p>
+          <p className="text-xs font-mono tracking-widest uppercase text-neon-purple/60 mb-2">{t.gamePanels.mafiaRoom}</p>
           <p className="text-white/50 text-sm font-mono">
-            გამოიყენე ეს დრო ჯგუფური სტრატეგიის შესამუშავებლად. ისაუბრე პარტნიორებთან ჩათის ან ხმის საშუალებით.
+            {t.gamePanels.planUseTime}
           </p>
         </div>
       )}
@@ -44,7 +44,7 @@ export function PlanningNightPanel() {
           disabled={isLoading}
           className="w-full px-4 py-2 border border-neon-purple/20 text-neon-purple/50 text-xs font-mono rounded-xl hover:border-neon-purple/50 hover:text-neon-purple/80 transition-all disabled:opacity-40"
         >
-          ⏭ ფაზის გამოტოვება
+          {t.gamePanels.skipPhase}
         </button>
       )}
     </div>

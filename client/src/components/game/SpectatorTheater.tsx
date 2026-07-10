@@ -68,7 +68,7 @@ export function SpectatorTheater({ room, myPlayer }: Props) {
         >
           <p className="text-[12px] font-display font-bold tracking-[0.2em] uppercase mb-2"
             style={{ color: predicted ? 'rgba(0,229,255,0.7)' : 'rgba(155,0,255,0.7)' }}>
-            {predicted ? `✅ პროგნოზი: ${TEAM_OPTIONS.find(o => o.value === predicted)?.ka ?? predicted}` : '🔮 ვინ მოიგებს?'}
+            {predicted ? `${t.gamePanels.prediction}: ${(t.gamePanels as Record<string,string>)[`team_${predicted}`] ?? predicted}` : t.gamePanels.whoWins}
           </p>
           {!predicted ? (
             <div className="flex flex-wrap gap-1.5">
@@ -80,13 +80,13 @@ export function SpectatorTheater({ room, myPlayer }: Props) {
                   className="px-2.5 py-1 rounded-lg text-[12px] font-mono font-bold transition-all active:scale-95 disabled:opacity-40"
                   style={{ background: `${opt.color}15`, border: `1px solid ${opt.color}40`, color: opt.color }}
                 >
-                  {opt.ka}
+                  {(t.gamePanels as Record<string,string>)[`team_${opt.value}`] ?? opt.ka}
                 </button>
               ))}
             </div>
           ) : (
             <p className="text-[12px] font-mono text-white/30">
-              შედეგი გაირკვევა თამაშის ბოლოს · სწორი პროგნოზი = +50 XP
+              {t.gamePanels.predictionHint}
             </p>
           )}
         </div>

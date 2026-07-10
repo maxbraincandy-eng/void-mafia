@@ -1,6 +1,8 @@
 import { useGameStore } from '@/store/gameStore';
+import { useT } from '@/store/langStore';
 
 export function TieDefensePanel() {
+  const t = useT();
   const { room, myPlayer, skipPhase, isLoading } = useGameStore();
 
   if (!room || !room.donModeState) return null;
@@ -20,7 +22,7 @@ export function TieDefensePanel() {
         <div className="flex items-center gap-3 mb-3">
           <div className="w-1.5 h-1.5 rounded-full bg-neon-red/70" style={{ boxShadow: '0 0 6px rgba(255,45,85,0.8)' }} />
           <span className="font-mono text-[12px] tracking-[0.25em] uppercase text-neon-red/70">
-            თავდაცვა (ფრე)
+            {t.gamePanels.tieDefTitle}
           </span>
           <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(255,45,85,0.25), transparent)' }} />
           <span className="text-[12px] font-mono text-white/25">{current}/{total}</span>
@@ -31,23 +33,23 @@ export function TieDefensePanel() {
             <div className="flex items-center gap-2">
               <p className="text-white font-semibold text-base">{currentDefender.name}</p>
               <span className="px-2 py-0.5 rounded-full text-[12px] font-mono uppercase tracking-widest bg-neon-red/15 border border-neon-red/30 text-neon-red/80">
-                ფრე
+                {t.gamePanels.tie}
               </span>
             </div>
             <p className="text-white/35 text-xs font-mono">
               {isMyDefense
-                ? 'შენ ხარ ახლა! გამოიყენე 30 წამი თავის გასამართლებლად.'
-                : `${currentDefender.name} განმარტავს. ყურადღებით მოუსმინე.`}
+                ? t.gamePanels.tieYourTurn
+                : `${currentDefender.name} ${t.gamePanels.tieExplains}`}
             </p>
           </div>
         ) : (
-          <p className="text-white/40 text-sm font-mono pl-4">იტვირთება...</p>
+          <p className="text-white/40 text-sm font-mono pl-4">{t.gamePanels.loading}</p>
         )}
       </div>
 
       <div className="rounded-xl border border-neon-red/15 px-4 py-3" style={{ background: 'rgba(20,0,6,0.5)' }}>
         <p className="text-xs font-mono text-white/30">
-          ⚖️ ფრეს შემდეგ — ხელახალი კენჭისყრა ორ კანდიდატს შორის.
+          {t.gamePanels.tieRevoteHint}
         </p>
       </div>
 
@@ -57,7 +59,7 @@ export function TieDefensePanel() {
           disabled={isLoading}
           className="w-full px-4 py-2 border border-white/10 text-white/30 text-xs font-mono rounded-xl hover:border-neon-red/30 hover:text-neon-red/50 transition-all disabled:opacity-40"
         >
-          ⏭ გამოტოვება
+          {t.gamePanels.skip}
         </button>
       )}
     </div>

@@ -153,7 +153,7 @@ export function VoiceControls({
               /* Permission denied — show how-to guide */
               <div className="rounded-xl border border-neon-red/30 bg-neon-red/8 overflow-hidden">
                 <div className="px-3 py-2.5 border-b border-neon-red/15">
-                  <p className="text-xs font-display font-bold text-neon-red">🎙 მიკროფონი გათიშულია</p>
+                  <p className="text-xs font-display font-bold text-neon-red">{t.gamePanels.micBlockedTitle}</p>
                   <p className="text-[12px] font-mono text-white/40 mt-0.5">Microphone permission blocked</p>
                 </div>
                 <div className="px-3 py-2.5 space-y-2">
@@ -161,7 +161,7 @@ export function VoiceControls({
                   <ol className="space-y-1.5 text-[12px] font-mono text-white/50">
                     <li className="flex items-start gap-1.5">
                       <span className="text-neon-cyan shrink-0 mt-0.5">1.</span>
-                      <span>მისამართის ზოლში <span className="text-white/80">🔒</span> ან <span className="text-white/80">ⓘ</span> ხატულაზე დააჭირე</span>
+                      <span>{t.gamePanels.micStep1}</span>
                     </li>
                     <li className="flex items-start gap-1.5">
                       <span className="text-neon-cyan shrink-0 mt-0.5">2.</span>
@@ -169,14 +169,14 @@ export function VoiceControls({
                     </li>
                     <li className="flex items-start gap-1.5">
                       <span className="text-neon-cyan shrink-0 mt-0.5">3.</span>
-                      <span>გვერდი განაახლე (Reload) და ხელახლა შემოდი ხმოვან არხში</span>
+                      <span>{t.gamePanels.micStep3}</span>
                     </li>
                   </ol>
                   <button
                     onClick={() => onJoin(defaultChannel, false)}
                     className="w-full mt-1 py-2 rounded-lg text-[11px] font-mono font-bold border border-neon-cyan/30 bg-neon-cyan/10 text-neon-cyan hover:bg-neon-cyan/20 transition-colors active:scale-95"
                   >
-                    ↺ ხელახლა ცდა
+                    {t.gamePanels.retry}
                   </button>
                 </div>
               </div>
@@ -245,7 +245,7 @@ export function VoiceControls({
                 )}
                 style={{ touchAction: 'none', userSelect: 'none' }}
               >
-                {!isMuted ? '🎙 საუბრობ...' : '🔴 დააჭირე და ილაპარაკე'}
+                {!isMuted ? t.gamePanels.talking : t.gamePanels.holdToTalk}
               </button>
               {!hideLeave && (
                 <div className="flex justify-end">

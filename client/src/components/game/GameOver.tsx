@@ -594,7 +594,7 @@ export function GameOver({ result }: Props) {
                     >
                       <span className="w-1.5 h-1.5 rounded-full bg-white/20 animate-pulse" />
                       <span className="font-mono text-[12px] text-white/35 tracking-widest uppercase">
-                        ჰოსტი ათამაშებს...
+                        {t.gamePanels.hostStarting}
                       </span>
                     </div>
                     <button

@@ -1062,12 +1062,12 @@ export function GamePage() {
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-neon-red/70" style={{ boxShadow: '0 0 6px rgba(255,45,85,0.8)' }} />
                 <span className="font-mono text-[12px] tracking-[0.25em] uppercase text-neon-red/70">
-                  ხელახალი კენჭისყრა
+                  {t.gamePanels.revoteTitle}
                 </span>
                 <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(255,45,85,0.25), transparent)' }} />
               </div>
               <p className="text-white/40 text-sm font-mono pl-4">
-                ხმა მხოლოდ ფრეს კანდიდატებზე. ხელახლა ფრე = ორმაგი ელიმინაციის ხმა.
+                {t.gamePanels.revoteHint}
               </p>
             </div>
             {!amSpectator && <VotingPanel />}
@@ -1255,12 +1255,12 @@ export function GamePage() {
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5"
           style={{ background: 'rgba(3,0,13,0.97)' }}>
           <div className="w-7 h-7 border-2 border-white/10 border-t-neon-cyan/50 rounded-full animate-spin" />
-          <p className="font-mono text-[13px] text-white/35 tracking-[0.22em] uppercase">ჰოსტი ათამაშებს...</p>
+          <p className="font-mono text-[13px] text-white/35 tracking-[0.22em] uppercase">{t.gamePanels.hostStarting}</p>
           <button
             onClick={() => leaveRoom()}
             className="text-[12px] font-mono text-white/18 hover:text-neon-red/50 transition-colors"
           >
-            ოთახის დატოვება
+            {t.gamePanels.leaveRoom}
           </button>
         </div>
       )}
@@ -1371,20 +1371,20 @@ export function GamePage() {
               style={{ borderColor: donCheckResult.isSheriff ? 'rgba(59,130,246,0.4)' : 'rgba(0,255,136,0.3)' }}
               onClick={e => e.stopPropagation()}
             >
-              <p className="text-xs font-mono uppercase tracking-widest text-white/40 mb-4">დონ-ჩეკი • პირადი შედეგი</p>
+              <p className="text-xs font-mono uppercase tracking-widest text-white/40 mb-4">{t.gamePanels.donResultTitle}</p>
               <div className="text-5xl mb-4">{donCheckResult.isSheriff ? '👍' : '👎'}</div>
               <h2
                 className="font-display text-3xl font-bold tracking-widest uppercase mb-2"
                 style={{ color: donCheckResult.isSheriff ? '#3b82f6' : '#00ff88' }}
               >
-                {donCheckResult.isSheriff ? 'შერიფია!' : 'წმინდაა'}
+                {donCheckResult.isSheriff ? t.gamePanels.isSheriff : t.gamePanels.isClean}
               </h2>
               <p className="text-white/70 text-sm">
                 <strong className="text-white">{donCheckResult.targetName}</strong>{' '}
-                {donCheckResult.isSheriff ? 'არის შერიფი.' : 'შერიფი არ არის.'}
+                {donCheckResult.isSheriff ? t.gamePanels.isSheriffDesc : t.gamePanels.notSheriffDesc}
               </p>
               <Button variant="secondary" className="mt-6" onClick={dismissDonCheckResult} fullWidth>
-                გასაგებია
+                {t.gamePanels.gotIt}
               </Button>
             </motion.div>
           </motion.div>
@@ -1409,20 +1409,20 @@ export function GamePage() {
               style={{ borderColor: sheriffCheckResult.suspicious ? 'rgba(255,45,85,0.4)' : 'rgba(0,255,136,0.3)' }}
               onClick={e => e.stopPropagation()}
             >
-              <p className="text-xs font-mono uppercase tracking-widest text-white/40 mb-4">შერიფის შემოწმება • პირადი შედეგი</p>
+              <p className="text-xs font-mono uppercase tracking-widest text-white/40 mb-4">{t.gamePanels.sheriffResultTitle}</p>
               <div className="text-5xl mb-4">{sheriffCheckResult.suspicious ? '🔴' : '🟢'}</div>
               <h2
                 className="font-display text-3xl font-bold tracking-widest uppercase mb-2"
                 style={{ color: sheriffCheckResult.suspicious ? '#ff2d55' : '#00ff88' }}
               >
-                {sheriffCheckResult.suspicious ? 'მაფიაა!' : 'წმინდაა'}
+                {sheriffCheckResult.suspicious ? t.gamePanels.isMafia : t.gamePanels.isClean}
               </h2>
               <p className="text-white/70 text-sm">
                 <strong className="text-white">{sheriffCheckResult.targetName}</strong>{' '}
-                {sheriffCheckResult.suspicious ? 'ეკუთვნის მაფიას.' : 'მაფია არ არის.'}
+                {sheriffCheckResult.suspicious ? t.gamePanels.isMafiaDesc : t.gamePanels.notMafiaDesc}
               </p>
               <Button variant="secondary" className="mt-6" onClick={dismissSheriffCheckResult} fullWidth>
-                გასაგებია
+                {t.gamePanels.gotIt}
               </Button>
             </motion.div>
           </motion.div>

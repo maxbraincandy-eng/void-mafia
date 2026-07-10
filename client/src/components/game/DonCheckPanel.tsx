@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useGameStore } from '@/store/gameStore';
+import { useT } from '@/store/langStore';
 
 export function DonCheckPanel() {
+  const t = useT();
   const { room, myPlayer, submitDonCheck, skipPhase, isLoading } = useGameStore();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -29,22 +31,22 @@ export function DonCheckPanel() {
         <div className="flex items-center gap-3 mb-2">
           <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(102,0,204,0.9)', boxShadow: '0 0 6px rgba(102,0,204,0.8)' }} />
           <span className="font-mono text-[12px] tracking-[0.25em] uppercase" style={{ color: 'rgba(102,0,204,0.8)' }}>
-            დონ-ჩეკი
+            {t.gamePanels.donTitle}
           </span>
           <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(102,0,204,0.25), transparent)' }} />
         </div>
         <p className="text-white/40 text-sm font-mono pl-4">
           {isDon && amAlive
             ? donCheckDone
-              ? 'შეამოწმე შესრულებულია. ახლა მაფია ირჩევს მსხვერპლს.'
-              : 'შეარჩიე ერთი მოთამაშე სამი ატრიბუტის შესამოწმებლად — შერიფია თუ არა.'
-            : 'დონი ამოწმებს ეჭვმიტანილს. ელოდე მაფიის ქილს.'}
+              ? t.gamePanels.donDone
+              : t.gamePanels.donPick
+            : t.gamePanels.donWait}
         </p>
       </div>
 
       {isDon && amAlive && !donCheckDone && !submitted && (
         <div className="space-y-3">
-          <p className="text-xs font-mono text-white/30 uppercase tracking-widest">აირჩიე სამოწმებელი მოთამაშე</p>
+          <p className="text-xs font-mono text-white/30 uppercase tracking-widest">{t.gamePanels.pickTarget}</p>
           <div className="space-y-2">
             {alivePlayers.map(p => (
               <button
@@ -74,14 +76,14 @@ export function DonCheckPanel() {
                 color: selectedId ? 'rgba(200,130,255,0.9)' : 'rgba(255,255,255,0.3)',
               }}
             >
-              🔍 შემოწმება
+              {t.gamePanels.donCheckBtn}
             </button>
             <button
               onClick={() => { submitDonCheck(null); setSubmitted(true); }}
               disabled={isLoading}
               className="px-4 py-2.5 rounded-xl text-xs font-mono text-white/30 border border-white/10 hover:border-white/20 hover:text-white/50 transition-all disabled:opacity-40"
             >
-              გამოტოვება
+              {t.gamePanels.skipPlain}
             </button>
           </div>
         </div>
@@ -89,7 +91,7 @@ export function DonCheckPanel() {
 
       {(submitted || donCheckDone) && isDon && amAlive && (
         <div className="rounded-xl border border-neon-purple/20 px-4 py-3" style={{ background: 'rgba(20,0,30,0.5)' }}>
-          <p className="text-xs font-mono text-neon-purple/60">✓ შემოწმება შესრულებულია. შედეგი გამოჩნდა პირადად.</p>
+          <p className="text-xs font-mono text-neon-purple/60">{t.gamePanels.checkDonePrivate}</p>
         </div>
       )}
 
@@ -99,7 +101,7 @@ export function DonCheckPanel() {
           disabled={isLoading}
           className="w-full px-4 py-2 border border-white/10 text-white/30 text-xs font-mono rounded-xl hover:border-neon-purple/30 hover:text-neon-purple/50 transition-all disabled:opacity-40"
         >
-          ⏭ გამოტოვება
+          {t.gamePanels.skip}
         </button>
       )}
     </div>

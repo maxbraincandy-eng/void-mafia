@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useGameStore } from '@/store/gameStore';
+import { useT } from '@/store/langStore';
 
 export function MafiaKillPanel() {
+  const t = useT();
   const { room, myPlayer, submitMafiaKillVote, skipPhase, isLoading } = useGameStore();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -30,21 +32,21 @@ export function MafiaKillPanel() {
         <div className="flex items-center gap-3 mb-2">
           <div className="w-1.5 h-1.5 rounded-full bg-neon-purple/70" style={{ boxShadow: '0 0 6px rgba(85,0,153,0.8)' }} />
           <span className="font-mono text-[12px] tracking-[0.25em] uppercase" style={{ color: 'rgba(155,0,255,0.7)' }}>
-            მაფიის ქილი
+            {t.gamePanels.killTitle}
           </span>
           <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(85,0,153,0.25), transparent)' }} />
         </div>
         <p className="text-white/40 text-sm font-mono pl-4">
           {isMafia && amAlive
-            ? 'ყველამ დამოუკიდებლად აირჩიოს ერთი და იგივე მსხვერპლი. თანხვედრა = ქილი.'
-            : 'მაფია ირჩევს მსხვერპლს. მოიცადე.'}
+            ? t.gamePanels.killMafia
+            : t.gamePanels.killWait}
         </p>
       </div>
 
       {isMafia && amAlive && !alreadyVoted && (
         <div className="space-y-3">
           <p className="text-xs font-mono text-white/30 uppercase tracking-widest">
-            მიუთითე სამიზნე — ყველა მაფიელი ერთსა და იმავეს უნდა ირჩევდეს
+            {t.gamePanels.killPickHint}
           </p>
           <div className="space-y-2">
             {alivePlayers.map(p => (
@@ -74,7 +76,7 @@ export function MafiaKillPanel() {
               color: selectedId ? 'rgba(200,130,255,0.9)' : 'rgba(255,255,255,0.3)',
             }}
           >
-            🎯 ჩემი ქილი
+            {t.gamePanels.myKill}
           </button>
         </div>
       )}
@@ -82,7 +84,7 @@ export function MafiaKillPanel() {
       {alreadyVoted && isMafia && amAlive && (
         <div className="rounded-xl border border-neon-purple/20 px-4 py-3" style={{ background: 'rgba(20,0,30,0.5)' }}>
           <p className="text-xs font-mono text-neon-purple/60">
-            ✓ ხმა მიცემულია. ელოდე სხვა მაფიელებს — ქილი მოხდება მხოლოდ სრული თანხვედრისას.
+            {t.gamePanels.killVoted}
           </p>
         </div>
       )}
@@ -93,7 +95,7 @@ export function MafiaKillPanel() {
           disabled={isLoading}
           className="w-full px-4 py-2 border border-white/10 text-white/30 text-xs font-mono rounded-xl hover:border-neon-purple/30 hover:text-neon-purple/50 transition-all disabled:opacity-40"
         >
-          ⏭ გამოტოვება
+          {t.gamePanels.skip}
         </button>
       )}
     </div>

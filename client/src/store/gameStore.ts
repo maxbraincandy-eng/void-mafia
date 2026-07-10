@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { tNow } from '@/store/langStore';
 import {
   RoomPublic, PlayerPublic, PlayerProfilePublic, Role, ChatMessage, Phase,
   NightResult, InvestigationResult, GameOverResult, ChatChannel, GameSettings,
@@ -181,7 +182,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           ?? room.players.find(p => p.name === saved!.playerName)
           ?? room.nextRoundQueue?.find(p => p.id === saved!.playerId);
         set({ room, myPlayerId: myPlayer?.id ?? saved!.playerId, isReconnecting: false });
-        get().addToast('დაბრუნდი ✓', 'success');
+        get().addToast(tNow().gamePanels.reconnectedToast, 'success');
       } else {
         clearSession();
         set({ isReconnecting: false });
@@ -368,9 +369,9 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   (socket as any).on('prediction:result', ({ correct, xpGained, winningTeam }: { correct: boolean; xpGained: number; winningTeam: string }) => {
     if (correct) {
-      get().addToast(`🎯 პროგნოზი სწორი! +${xpGained} XP`, 'success');
+      get().addToast(`${tNow().gamePanels.predictionRight} +${xpGained} XP`, 'success');
     } else {
-      get().addToast(`❌ პროგნოზი არ გამართლდა (${winningTeam} won)`, 'info');
+      get().addToast(`${tNow().gamePanels.predictionWrong} (${winningTeam})`, 'info');
     }
   });
 
@@ -750,7 +751,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     toSpectator: withLoading(async () => {
       const res = await emitWithAck<unknown, Res<null>>('room:to-spectator', undefined);
       if (!res.ok) throw new Error(res.error);
-      get().addToast('გადახვედი სპექტატორებში 👁', 'info');
+      get().addToast(tNow().gamePanels.becameSpectator, 'info');
     }),
 
     toPlayer: withLoading(async () => {
@@ -758,9 +759,9 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (!res.ok) throw new Error(res.error);
       if (res.data?.queued) {
         set({ queuePosition: res.data.position ?? null });
-        get().addToast(`რიგში ჩადექი — შემდეგი თამაშიდან ითამაშებ (#${res.data.position})`, 'success');
+        get().addToast(tNow().gamePanels.queuedToast.replace('{n}', String(res.data.position)), 'success');
       } else {
-        get().addToast(`შეუერთდი თამაშს — ადგილი ${res.data?.seat ?? ''} 🎮`, 'success');
+        get().addToast(tNow().gamePanels.joinedSeatToast.replace('{n}', String(res.data?.seat ?? '')), 'success');
       }
     }),
 

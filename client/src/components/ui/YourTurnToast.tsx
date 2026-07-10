@@ -5,6 +5,7 @@ import { useLudoStore } from '@/store/ludoStore';
 import { useJokerStore } from '@/store/jokerStore';
 import { useUnoStore } from '@/store/unoStore';
 import { haptic } from '@/lib/haptics';
+import { tNow } from '@/store/langStore';
 
 function useIsMyTurn(): { myTurn: boolean; game: string } {
   const ck = useCheckersStore(s => s.match);
@@ -13,7 +14,7 @@ function useIsMyTurn(): { myTurn: boolean; game: string } {
   const un = useUnoStore(s => s.match);
 
   if (ck && ck.status === 'active' && ck.myColor && ck.myColor !== 'spectator' && ck.currentTurn === ck.myColor)
-    return { myTurn: true, game: '♟ დამკა' };
+    return { myTurn: true, game: `♟ ${tNow().gamePanels.checkers}` };
 
   if (ld && ld.status === 'active' && ld.myColor && ld.myColor !== 'spectator' && ld.currentTurn === ld.myColor && !ld.diceRolled)
     return { myTurn: true, game: '🎲 Ludo' };
@@ -68,7 +69,7 @@ export function YourTurnToast() {
             <span className="text-xl">⚡</span>
             <div>
               <p className="font-display font-bold text-neon-cyan text-sm tracking-wide leading-tight whitespace-nowrap">
-                შენი სვლაა!
+                {tNow().gamePanels.yourTurn}
               </p>
               <p className="font-mono text-[12px] text-white/40 leading-tight">{game}</p>
             </div>

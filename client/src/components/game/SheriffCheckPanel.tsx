@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useGameStore } from '@/store/gameStore';
+import { useT } from '@/store/langStore';
 
 export function SheriffCheckPanel() {
+  const t = useT();
   const { room, myPlayer, submitSheriffCheck, skipPhase, isLoading } = useGameStore();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -28,22 +30,22 @@ export function SheriffCheckPanel() {
         <div className="flex items-center gap-3 mb-2">
           <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(59,130,246,0.9)', boxShadow: '0 0 6px rgba(59,130,246,0.8)' }} />
           <span className="font-mono text-[12px] tracking-[0.25em] uppercase" style={{ color: 'rgba(96,165,250,0.85)' }}>
-            შერიფის შემოწმება
+            {t.gamePanels.sheriffTitle}
           </span>
           <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(59,130,246,0.25), transparent)' }} />
         </div>
         <p className="text-white/40 text-sm font-mono pl-4">
           {isSheriff && amAlive
             ? sheriffCheckDone
-              ? 'შემოწმება შესრულებულია. ღამე მთავრდება.'
-              : 'აირჩიე ერთი მოთამაშე შესამოწმებლად — მაფიაა თუ არა.'
-            : 'შერიფი ამოწმებს მოთამაშეს. მოიცადე.'}
+              ? t.gamePanels.sheriffDone
+              : t.gamePanels.sheriffPick
+            : t.gamePanels.sheriffWait}
         </p>
       </div>
 
       {isSheriff && amAlive && !sheriffCheckDone && !submitted && (
         <div className="space-y-3">
-          <p className="text-xs font-mono text-white/30 uppercase tracking-widest">აირჩიე სამოწმებელი მოთამაშე</p>
+          <p className="text-xs font-mono text-white/30 uppercase tracking-widest">{t.gamePanels.pickTarget}</p>
           <div className="space-y-2">
             {alivePlayers.map(p => (
               <button
@@ -73,14 +75,14 @@ export function SheriffCheckPanel() {
                 color: selectedId ? 'rgba(147,197,253,0.95)' : 'rgba(255,255,255,0.3)',
               }}
             >
-              🔎 შემოწმება
+              {t.gamePanels.checkBtn}
             </button>
             <button
               onClick={() => { submitSheriffCheck(null); setSubmitted(true); }}
               disabled={isLoading}
               className="px-4 py-2.5 rounded-xl text-xs font-mono text-white/30 border border-white/10 hover:border-white/20 hover:text-white/50 transition-all disabled:opacity-40"
             >
-              გამოტოვება
+              {t.gamePanels.skipPlain}
             </button>
           </div>
         </div>
@@ -88,7 +90,7 @@ export function SheriffCheckPanel() {
 
       {(submitted || sheriffCheckDone) && isSheriff && amAlive && (
         <div className="rounded-xl border px-4 py-3" style={{ background: 'rgba(10,20,40,0.5)', borderColor: 'rgba(59,130,246,0.2)' }}>
-          <p className="text-xs font-mono" style={{ color: 'rgba(96,165,250,0.7)' }}>✓ შემოწმება შესრულებულია. შედეგი გამოჩნდა პირადად.</p>
+          <p className="text-xs font-mono" style={{ color: 'rgba(96,165,250,0.7)' }}>{t.gamePanels.checkDonePrivate}</p>
         </div>
       )}
 
@@ -98,7 +100,7 @@ export function SheriffCheckPanel() {
           disabled={isLoading}
           className="w-full px-4 py-2 border border-white/10 text-white/30 text-xs font-mono rounded-xl hover:border-neon-purple/30 hover:text-neon-purple/50 transition-all disabled:opacity-40"
         >
-          ⏭ გამოტოვება
+          {t.gamePanels.skip}
         </button>
       )}
     </div>

@@ -11,6 +11,7 @@
  * - A music failure must never break the game: every player call is guarded.
  */
 import { useEffect, useRef, useState } from 'react';
+import { useT } from '@/store/langStore';
 import type { Phase, RoleKey } from '@/types/index';
 
 const NIGHT_PHASES = new Set<Phase>(['night', 'planning_night', 'don_check', 'mafia_kill', 'sheriff_check']);
@@ -45,6 +46,7 @@ interface Props {
 }
 
 export function NightMusic({ phase, enabled, videoId, myRole, amAlive, amSpectator }: Props) {
+  const t = useT();
   const hostRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
   const readyRef = useRef(false);
@@ -252,7 +254,7 @@ export function NightMusic({ phase, enabled, videoId, myRole, amAlive, amSpectat
           className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[90] px-4 py-2.5 rounded-full font-mono text-[12px] font-bold animate-pulse active:scale-95 transition-transform"
           style={{ background: 'rgba(30,10,60,0.95)', border: '1px solid rgba(192,132,252,0.55)', color: '#c084fc', boxShadow: '0 0 20px rgba(155,0,255,0.35)' }}
         >
-          🎵 შეეხე მუსიკის ჩასართავად
+          {t.gamePanels.tapForMusic}
         </button>
       )}
 
@@ -263,7 +265,7 @@ export function NightMusic({ phase, enabled, videoId, myRole, amAlive, amSpectat
           className="fixed bottom-24 left-3 z-[90] px-3 py-2 rounded-full font-mono text-[11px] active:scale-95 transition-transform"
           style={{ background: 'rgba(10,6,26,0.9)', border: '1px solid rgba(255,255,255,0.14)', color: muted ? 'rgba(255,255,255,0.4)' : 'rgba(192,132,252,0.85)' }}
         >
-          {muted ? '🔈 ჩართვა' : '🔇 გათიშვა'}
+          {muted ? t.gamePanels.unmute : t.gamePanels.mute}
         </button>
       )}
     </>

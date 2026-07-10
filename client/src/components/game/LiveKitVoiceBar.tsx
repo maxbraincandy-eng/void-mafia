@@ -7,13 +7,8 @@
  * run alongside the legacy WebRTC mesh when LiveKit is off.
  */
 import { useLivekitVoice, type LivekitVoice } from '@/hooks/useLivekitVoice';
+import { useT } from '@/store/langStore';
 
-const STATUS_LABEL: Record<string, string> = {
-  disconnected: 'ხმა გათიშულია',
-  connecting:   'უკავშირდება…',
-  connected:    'ხმა ჩართულია',
-  reconnecting: 'ხელახლა კავშირი…',
-};
 
 /** Game wrapper — binds the Mafia game voice. */
 export function LiveKitVoiceBar() {
@@ -22,6 +17,13 @@ export function LiveKitVoiceBar() {
 
 /** Presentational bar — render with any LiveKit voice binding. */
 export function LiveKitVoiceBarView({ voice }: { voice: LivekitVoice & { cameraOn?: boolean; toggleCamera?: () => void } }) {
+  const t = useT();
+  const STATUS_LABEL: Record<string, string> = {
+    disconnected: t.gamePanels.vDisconnected,
+    connecting: t.gamePanels.vConnecting,
+    connected: t.gamePanels.vConnected,
+    reconnecting: t.gamePanels.vReconnecting,
+  };
   const dot =
     voice.status === 'connected' ? '#22d36b'
     : voice.status === 'reconnecting' || voice.status === 'connecting' ? '#f5c542'
@@ -40,14 +42,14 @@ export function LiveKitVoiceBarView({ voice }: { voice: LivekitVoice & { cameraO
           onClick={voice.unlockAudio}
           style={{ fontFamily: 'monospace', fontSize: 13, padding: '6px 12px', borderRadius: 10, border: '1px solid rgba(245,197,66,0.5)', background: 'rgba(245,197,66,0.18)', color: '#f5c542' }}
         >
-          🔊 ხმის ჩართვა
+          {t.gamePanels.enableSound}
         </button>
       )}
       {voice.toggleCamera && (
         <button
           onClick={voice.toggleCamera}
           disabled={!voice.connected}
-          title={voice.cameraOn ? 'კამერა გამორთვა' : 'კამერა ჩართვა'}
+          title={voice.cameraOn ? t.gamePanels.camOff : t.gamePanels.camOn}
           style={{
             fontFamily: 'monospace', fontSize: 13, padding: '6px 10px', borderRadius: 10,
             border: '1px solid rgba(255,255,255,0.15)',
@@ -60,9 +62,9 @@ export function LiveKitVoiceBarView({ voice }: { voice: LivekitVoice & { cameraO
         </button>
       )}
       {voice.dead ? (
-        <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#ff6b6b' }} title="მკვდარი ხართ — მხოლოდ მოსმენა">🔇 listen-only</span>
+        <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#ff6b6b' }} title={t.gamePanels.deadListenOnly}>🔇 listen-only</span>
       ) : voice.forceMuted ? (
-        <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#f5c542' }} title={voice.forceMuteReason ?? 'დადუმებული'}>🔒 დადუმებული</span>
+        <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#f5c542' }} title={voice.forceMuteReason ?? t.gamePanels.mutedLabel}>🔒 {t.gamePanels.mutedLabel}</span>
       ) : (
         <button
           onClick={voice.toggleMic}
@@ -75,7 +77,7 @@ export function LiveKitVoiceBarView({ voice }: { voice: LivekitVoice & { cameraO
             opacity: voice.connected ? 1 : 0.4,
           }}
         >
-          {voice.micEnabled ? '🎙 ჩართული' : '🔇 ჩუმად'}
+          {voice.micEnabled ? t.gamePanels.micOnShort : t.gamePanels.micOffShort}
         </button>
       )}
       {voice.error && (

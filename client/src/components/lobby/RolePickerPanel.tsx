@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { tNow } from '@/store/langStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { GameSettings, DynamicEventSettings } from '@/types/index';
@@ -514,7 +515,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading, re
               ⚖️ Tribunal Settings
             </h4>
             <p className="text-[12px] font-mono text-white/30 mt-0.5">
-              ტრიბუნალის პარამეტრები
+              {tNow().gamePanels.tribunalSettings}
             </p>
           </div>
         </div>
@@ -536,7 +537,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading, re
           <div>
             <span className="text-xs font-mono text-white/60">🛡 Enable Trial Defense Time</span>
             <span className="block text-[12px] font-mono text-white/28 mt-0.5">
-              დაცვის დროის ჩართვა — each candidate speaks before voting
+              {tNow().gamePanels.defenseToggleDesc}
             </span>
           </div>
         </button>
@@ -545,7 +546,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading, re
         {(view.trialDefense?.enabled) && (
           <div>
             <label className="text-[11px] font-mono text-white/40 block mb-1.5">
-              Defense Time per Candidate · დაცვის დრო
+              {tNow().gamePanels.defenseTimeLabel}
             </label>
             <div className="flex gap-2">
               {[15, 30, 45, 60].map(secs => (
