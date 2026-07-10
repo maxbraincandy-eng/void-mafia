@@ -25,6 +25,16 @@ export function LanguageSwitcher() {
       >
         ქარ
       </button>
+      <button
+        onClick={() => setLang('ru')}
+        className={`px-2 py-1 rounded text-[12px] font-mono font-bold tracking-wider transition-all ${
+          lang === 'ru'
+            ? 'bg-neon-cyan/15 text-neon-cyan border border-neon-cyan/25'
+            : 'text-white/25 hover:text-white/50'
+        }`}
+      >
+        РУ
+      </button>
     </div>
   );
 }

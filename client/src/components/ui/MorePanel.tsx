@@ -3,7 +3,8 @@ import type { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
-import { useT } from '@/store/langStore';
+import { useT, useLangStore } from '@/store/langStore';
+import type { Lang } from '@/i18n/translations';
 import { useSettingsStore } from '@/store/settingsStore';
 import { onSettingsChange } from '@/lib/audioEngine';
 import { SettingsPanel } from '@/pages/SettingsPanel';
@@ -164,6 +165,8 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
   const musicEnabled = useSettingsStore(s => s.musicEnabled);
   const themeMode = useSettingsStore(s => s.themeMode) ?? 'void-neon';
   const updateSettings = useSettingsStore(s => s.update);
+  const lang = useLangStore(s => s.lang);
+  const setLang = useLangStore(s => s.setLang);
 
   const toggleSfx = (v: boolean) => { updateSettings({ sfxEnabled: v }); onSettingsChange(); };
   const toggleMusic = (v: boolean) => { updateSettings({ musicEnabled: v }); onSettingsChange(); };
@@ -515,6 +518,47 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
                         </div>
                       )}
                     </button>
+                  </div>
+                </div>
+
+                {/* ── Language switcher ── */}
+                <div className="mt-3">
+                  <div className="flex items-center gap-2 px-1 mb-2">
+                    <p className="text-[11px] font-mono font-bold uppercase tracking-[0.28em] text-white/18">ენა · LANG</p>
+                    <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.04)' }} />
+                  </div>
+                  <div className="flex gap-2">
+                    {([
+                      { id: 'ka', label: 'ქართული', sub: 'Georgian' },
+                      { id: 'en', label: 'English', sub: 'English' },
+                      { id: 'ru', label: 'Русский', sub: 'Russian' },
+                    ] as { id: Lang; label: string; sub: string }[]).map(l => {
+                      const active = lang === l.id;
+                      return (
+                        <button
+                          key={l.id}
+                          onClick={() => setLang(l.id)}
+                          className="flex-1 flex flex-col items-center gap-1.5 py-3 px-1 rounded-2xl transition-all duration-200 active:scale-95"
+                          style={{
+                            background: active
+                              ? 'linear-gradient(135deg, rgba(155,0,255,0.18), rgba(0,245,255,0.06))'
+                              : 'rgba(255,255,255,0.03)',
+                            border: active ? '1px solid rgba(155,0,255,0.42)' : '1px solid rgba(255,255,255,0.07)',
+                            boxShadow: active ? '0 0 14px rgba(155,0,255,0.1)' : 'none',
+                          }}
+                        >
+                          <p className="text-[13px] font-mono font-bold leading-none" style={{ color: active ? 'rgba(200,120,255,0.95)' : 'rgba(255,255,255,0.5)' }}>
+                            {l.label}
+                          </p>
+                          <p className="text-[9px] font-mono uppercase tracking-widest leading-none" style={{ color: 'rgba(255,255,255,0.18)' }}>{l.sub}</p>
+                          {active && (
+                            <div className="w-3.5 h-3.5 rounded-full flex items-center justify-center" style={{ background: 'rgba(155,0,255,0.28)', border: '1px solid rgba(155,0,255,0.5)', fontSize: '9px', color: 'rgba(155,0,255,0.9)' }}>
+                              ✓
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
