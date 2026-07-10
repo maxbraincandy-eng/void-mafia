@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
 import { emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
+import { tNow } from '@/store/langStore';
 
 /**
  * App-wide, strict friend-request overlay. Whenever a friend request arrives
@@ -26,7 +27,7 @@ export function FriendRequestOverlay() {
     try {
       if (accept) {
         await emitWithAck<{ fromProfileId: string }, Res<null>>('friend:accept', { fromProfileId: req.fromId });
-        addToast(`${req.fromUsername} — ახლა მეგობრები ხართ`, 'success');
+        addToast(`${req.fromUsername} — ${tNow().misc.nowFriends}`, 'success');
       } else {
         await emitWithAck<{ fromProfileId: string }, Res<null>>('friend:decline', { fromProfileId: req.fromId });
       }

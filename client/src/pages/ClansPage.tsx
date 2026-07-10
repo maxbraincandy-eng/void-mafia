@@ -384,7 +384,7 @@ export function ClansPage() {
       setSelected(prev => prev && prev.id === myClan.id ? { ...prev, imageUrl: imageData } : prev);
       setClans(prev => prev.map(c => c.id === myClan.id ? { ...c, imageUrl: imageData } : c));
     } catch (err: any) {
-      setImageError(err?.message?.includes('Cannot read') ? 'სურათის წაკითხვა ვერ მოხერხდა.' : 'ატვირთვა ვერ მოხერხდა, სცადე ხელახლა.');
+      setImageError(err?.message?.includes('Cannot read') ? t.misc.imageReadFailed : t.misc.uploadRetry);
     } finally {
       setImageUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';

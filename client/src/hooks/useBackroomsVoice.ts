@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { socket } from '@/lib/socket';
 import { WebRTCSession, type ConnectionState, log } from '@/services/webrtcService';
 import { BackroomsSpatial, type SpatialListener, type SpatialPeer } from '@/components/backrooms/spatialAudio';
+import { tNow } from '@/store/langStore';
 
 // ── Backrooms spatial voice ────────────────────────────────────────────
 // A dedicated WebRTC-mesh voice session per Backrooms instance (own
@@ -57,7 +58,7 @@ async function _join(): Promise<void> {
   } catch {
     session.destroy(); _session = null; _joining = false;
     _spatial?.dispose(); _spatial = null;
-    _patch({ status: 'failed', error: 'მიკროფონზე წვდომა უარყოფილია.' });
+    _patch({ status: 'failed', error: tNow().misc.micDenied });
     return;
   }
 
@@ -66,7 +67,7 @@ async function _join(): Promise<void> {
     if (!_session || _session !== session) return;
     if (!res?.ok) {
       session.destroy(); _session = null; _spatial?.dispose(); _spatial = null;
-      _patch({ status: 'failed', error: res?.error ?? 'ხმა ვერ დაუკავშირდა.' });
+      _patch({ status: 'failed', error: res?.error ?? tNow().misc.voiceConnectFailed });
       return;
     }
     const { peers, iceServers, iceTransportPolicy } = res.data;

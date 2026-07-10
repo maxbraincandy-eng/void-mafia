@@ -66,18 +66,25 @@ export function levelColor(level: number): string {
   return '#9b00ff';                  // deep purple — default
 }
 
-export const LEVEL_TITLES: Record<number, { en: string; ka: string }> = {
-  5:   { en: 'Neon Rookie',         ka: 'ნეონის ახალბედა' },
-  10:  { en: 'Void Initiate',       ka: 'ვოიდის ინიციატი' },
-  15:  { en: 'Night Walker',        ka: 'ღამის მგზავრი' },
-  20:  { en: 'Mask Bearer',         ka: 'ნიღბის მატარებელი' },
-  25:  { en: 'Signal Hunter',       ka: 'სიგნალის მონადირე' },
-  30:  { en: 'Shadow Player',       ka: 'ჩრდილის მოთამაშე' },
-  40:  { en: 'Tribunal Voice',      ka: 'ტრიბუნალის ხმა' },
-  50:  { en: 'Void Veteran',        ka: 'ვოიდის ვეტერანი' },
-  60:  { en: 'Black Box Analyst',   ka: 'შავი ყუთის ანალიტიკოსი' },
-  70:  { en: 'Blood Moon Survivor', ka: 'სისხლიანი მთვარის გადარჩენილი' },
-  80:  { en: 'Master of Lies',      ka: 'ტყუილის ოსტატი' },
-  90:  { en: 'The Silent Judge',    ka: 'ჩუმი მოსამართლე' },
-  100: { en: 'Void Master',         ka: 'ვოიდის ოსტატი' },
+export const LEVEL_TITLES: Record<number, { en: string; ka: string; ru: string }> = {
+  5:   { en: 'Neon Rookie',         ka: 'ნეონის ახალბედა', ru: 'Неоновый новичок' },
+  10:  { en: 'Void Initiate',       ka: 'ვოიდის ინიციატი', ru: 'Посвящённый Войда' },
+  15:  { en: 'Night Walker',        ka: 'ღამის მგზავრი', ru: 'Неоновый новичок' },
+  20:  { en: 'Mask Bearer',         ka: 'ნიღბის მატარებელი', ru: 'Носитель маски' },
+  25:  { en: 'Signal Hunter',       ka: 'სიგნალის მონადირე', ru: 'Неоновый новичок' },
+  30:  { en: 'Shadow Player',       ka: 'ჩრდილის მოთამაშე', ru: 'Теневой игрок' },
+  40:  { en: 'Tribunal Voice',      ka: 'ტრიბუნალის ხმა', ru: 'Голос трибунала' },
+  50:  { en: 'Void Veteran',        ka: 'ვოიდის ვეტერანი', ru: 'Ветеран Войда' },
+  60:  { en: 'Black Box Analyst',   ka: 'შავი ყუთის ანალიტიკოსი', ru: 'Аналитик чёрного ящика' },
+  70:  { en: 'Blood Moon Survivor', ka: 'სისხლიანი მთვარის გადარჩენილი', ru: 'Переживший кровавую луну' },
+  80:  { en: 'Master of Lies',      ka: 'ტყუილის ოსტატი', ru: 'Мастер лжи' },
+  90:  { en: 'The Silent Judge',    ka: 'ჩუმი მოსამართლე', ru: 'Тихий судья' },
+  100: { en: 'Void Master',         ka: 'ვოიდის ოსტატი', ru: 'Мастер Войда' },
 };
+
+/** Level title in the CURRENT language (falls back to English). */
+import { useLangStore } from '@/store/langStore';
+export function levelTitleLocal(t: { en: string; ka: string; ru: string }): string {
+  const lang = useLangStore.getState().lang;
+  return (t as Record<string, string>)[lang] ?? t.en;
+}

@@ -11,6 +11,7 @@ import { emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
 import { MAX_LEVEL, xpForLevel, xpForNextLevel } from '@/lib/level';
 import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
+import { tNow } from '@/store/langStore';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 const MEDAL_BORDER = ['border-yellow-400/25', 'border-gray-400/15', 'border-amber-700/20'];
@@ -153,7 +154,7 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
             </button>
           )}
           <div className="flex-1 min-w-0">
-            <h2 className="font-display text-2xl font-bold text-neon-pink tracking-widest uppercase leading-none">ტოპი</h2>
+            <h2 className="font-display text-2xl font-bold text-neon-pink tracking-widest uppercase leading-none">{tNow().nav.leaderboard}</h2>
             <p className="text-white/25 font-mono text-[12px] tracking-widest mt-0.5">
               {tab === 'rankings' ? 'ALL PLAYERS · SORTED BY LEVEL' : tab === 'ranked' ? 'ELO RATING · RANKED MATCHES' : tab === 'season' ? 'CURRENT SEASON · TOP 50' : 'TOP GIFTERS & RECIPIENTS'}
             </p>

@@ -6,6 +6,7 @@ import { useJokerVoice } from '@/hooks/useJokerVoice';
 import { JokerCard } from './JokerCard';
 import type { Card, JokerPlayerPublic, Suit } from '@/types/joker';
 import { haptic } from '@/lib/haptics';
+import { tNow } from '@/store/langStore';
 
 const SUIT_SYMBOL: Record<Suit, string> = { S: '♠', H: '♥', D: '♦', C: '♣', J: '🃏' };
 
@@ -824,7 +825,7 @@ function ScoreboardPanel({ match, myId, onClose }: { match: any; myId: string | 
                     <span className="font-mono text-[12px] text-white/40 w-14 truncate">{p.name}</span>
                     <span className="font-mono text-[12px] text-white/30">{decl}→{taken}</span>
                     <span className="font-mono text-[12px] ml-auto" style={{ color: pts >= 0 ? 'rgba(0,245,255,0.7)' : '#f87171' }}>
-                      {pts >= 0 ? '+' : ''}{pts}{khishti ? ' ხ' : ''}{bonus > 0 ? ` +${bonus}🎉` : ''}
+                      {pts >= 0 ? '+' : ''}{pts}{khishti ? ` ${tNow().misc.khishtiAbbr}` : ''}{bonus > 0 ? ` +${bonus}🎉` : ''}
                     </span>
                   </div>
                 );

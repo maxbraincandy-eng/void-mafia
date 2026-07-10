@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { socket, emitWithAck } from '@/lib/socket';
 import { SFX } from '@/lib/audioEngine';
 import type { LobbyMessage } from '@/types/index';
+import { tNow } from '@/store/langStore';
 
 export interface ModAlert {
   id: string;
@@ -104,10 +105,10 @@ export const useSocialStore = create<SocialStore>((set, get) => {
     const viewingThisChat = dmPanelOpen && activeDmUserId === payload.message.senderId;
     if (!viewingThisChat) {
       const rawText = payload.message.text ?? '';
-      const preview = rawText.startsWith('data:audio') ? '🎙 ხმოვანი მესიჯი'
-        : rawText.startsWith('📸story:') ? '📸 სთორის პასუხი'
+      const preview = rawText.startsWith('data:audio') ? tNow().misc.voiceMsg
+        : rawText.startsWith('📸story:') ? tNow().misc.storyReply
         : rawText.startsWith('data:image/gif') ? '✨ GIF'
-        : rawText.startsWith('data:image') ? '🖼 სურათი'
+        : rawText.startsWith('data:image') ? tNow().misc.imageMsg
         : rawText.length > 80 ? rawText.slice(0, 77) + '…'
         : rawText;
       const toast: DmToast | null = payload.senderUsername

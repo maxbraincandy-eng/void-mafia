@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client';
+import { tNow } from '@/store/langStore';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? '';
 
@@ -28,7 +29,7 @@ export function emitWithAck<TData, TRes>(
 ): Promise<TRes> {
   return new Promise((resolve, reject) => {
     if (!socket.connected) {
-      reject(new Error('კავშირი გაწყდა — სცადე ხელახლა.'));
+      reject(new Error(tNow().misc.connLost));
       return;
     }
 

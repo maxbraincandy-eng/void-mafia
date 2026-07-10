@@ -76,11 +76,6 @@ export function RoomsPage() {
   // phase timings (60s speeches, 30s checks) on top of these.
   const BASE_TIMERS = { nightDuration: 45, dayDuration: 90, voteDuration: 45, speechDuration: 40 };
 
-  const STYLE_META: Record<GameStyle, { icon: string; label: string; desc: string }> = {
-    classic: { icon: '🎩', label: 'კლასიკური', desc: 'როლების თავისუფალი არჩევანი' },
-    don:     { icon: '♛',  label: 'დონი',       desc: '10 მოთამაშე · დონის წესები' },
-  };
-
   const [mode, setMode] = useState<'browse' | 'create' | 'join'>('browse');
   const [rooms, setRooms] = useState<RoomListItem[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
@@ -110,6 +105,11 @@ export function RoomsPage() {
   }));
   const t = useT();
   // Music now handled at MainApp level
+
+  const STYLE_META: Record<GameStyle, { icon: string; label: string; desc: string }> = {
+    classic: { icon: '🎩', label: t.misc.styleClassic, desc: t.misc.styleClassicDesc },
+    don:     { icon: '♛',  label: t.misc.styleDon,     desc: t.misc.styleDonDesc },
+  };
 
   const fetchRooms = async () => {
     setLoadingRooms(true);
@@ -426,7 +426,7 @@ export function RoomsPage() {
               </div>
 
               {/* Style selector — Don is temporarily disabled, classic only */}
-              <p className="text-[12px] font-mono text-white/28 uppercase tracking-widest mb-2 mt-1">სტილი</p>
+              <p className="text-[12px] font-mono text-white/28 uppercase tracking-widest mb-2 mt-1">{t.misc.styleLabel}</p>
               <div className="grid grid-cols-2 gap-2 mb-5">
                 {(['classic', 'don'] as GameStyle[]).map(id => {
                   const m = STYLE_META[id];
@@ -450,7 +450,7 @@ export function RoomsPage() {
                         <span>{m.icon}</span>{m.label}{donDisabled && ' 🔒'}
                       </p>
                       <p className="text-[12px] font-mono mt-0.5" style={{ color: donDisabled ? 'rgba(255,180,80,0.55)' : selected ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.22)' }}>
-                        {donDisabled ? 'დროებით არ მუშაობს' : m.desc}
+                        {donDisabled ? t.misc.tempUnavailable : m.desc}
                       </p>
                     </button>
                   );

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socket, emitWithAck } from '@/lib/socket';
 import type { Friend, Res } from '@/types/index';
+import { tNow } from '@/store/langStore';
 
 /**
  * Invite button for a game lobby. Opens a picker of invitable people
@@ -35,7 +36,7 @@ export function GameInviteButton({ game, code }: { game: string; code: string })
       <button onClick={() => setOpen(true)}
         className="font-mono text-[12px] px-4 py-2 rounded-xl transition-all active:scale-95"
         style={{ background: 'rgba(155,0,255,.15)', border: '1px solid rgba(155,0,255,.4)', color: '#c084fc' }}>
-        ✦ მეგობრის მოწვევა
+        {tNow().misc.inviteFriendBtn}
       </button>
 
       {open && createPortal(
@@ -48,12 +49,12 @@ export function GameInviteButton({ game, code }: { game: string; code: string })
               transition={{ type: 'spring', stiffness: 360, damping: 30 }}
               style={{ width: 'min(360px, 100%)', maxHeight: '80vh', overflowY: 'auto', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(155,0,255,.3)', borderRadius: 20, padding: '18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: 'white' }}>✦ მეგობრის მოწვევა</p>
+                <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: 'white' }}>{tNow().misc.inviteFriendBtn}</p>
                 <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.4)', fontSize: 16, cursor: 'pointer' }}>✕</button>
               </div>
-              <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,.4)', marginBottom: 14 }}>კოდი: {code}</p>
-              {friends === null && <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,.25)', textAlign: 'center', padding: '12px 0' }}>იტვირთება…</p>}
-              {friends?.length === 0 && <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,.25)', textAlign: 'center', padding: '12px 0' }}>ვერავინ მოიძებნა</p>}
+              <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,.4)', marginBottom: 14 }}>{tNow().misc.codeLabel}: {code}</p>
+              {friends === null && <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,.25)', textAlign: 'center', padding: '12px 0' }}>{tNow().misc.loading}</p>}
+              {friends?.length === 0 && <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,.25)', textAlign: 'center', padding: '12px 0' }}>{tNow().misc.nobodyFound}</p>}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {[...online, ...offline].map(f => {
                   const st = invited[f.profileId];

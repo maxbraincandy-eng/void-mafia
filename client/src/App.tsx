@@ -65,6 +65,7 @@ import { MediaPermissionPrimer } from '@/components/ui/MediaPermissionPrimer';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
 import { ThemeProvider } from '@/components/ui/ThemeProvider';
 import { PWAInstallBanner } from '@/components/ui/PWAInstallBanner';
+import { tNow } from '@/store/langStore';
 
 // Version check: reload if server has newer build. Uses localStorage with 10-min TTL
 // so iOS PWA app-restore-from-memory still re-checks (sessionStorage would persist there).
@@ -175,10 +176,10 @@ function DmToastNotification() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-1.5 mb-0.5">
                   <span className="text-[12px] font-mono uppercase tracking-widest" style={{ color: 'rgba(192,132,252,0.55)' }}>
-                    💬 ახალი მესიჯი
+                    {tNow().misc.newMessage}
                   </span>
                   <span className="text-[10px] font-mono" style={{ color: 'rgba(0,229,255,0.5)' }}>
-                    გახსნა →
+                    {tNow().misc.openArrow}
                   </span>
                 </div>
                 <p className="font-display text-sm font-bold text-white/90 truncate leading-tight">
@@ -474,12 +475,12 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       <AnimatePresence>{unoMatch      && <UnoGame />}</AnimatePresence>
       <AnimatePresence>{spaceOpen    && <VirtualSpace initialSpaceCode={spaceCode} onClose={() => { setSpaceOpen(false); setSpaceCode(null); }} />}</AnimatePresence>
       {backroomsOpen && (
-        <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,245,210,0.6)', fontFamily: 'monospace', letterSpacing: 3, fontSize: 13 }}>ჩატვირთვა…</div>}>
+        <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,245,210,0.6)', fontFamily: 'monospace', letterSpacing: 3, fontSize: 13 }}>{tNow().misc.loading}</div>}>
           <Backrooms onClose={() => setBackroomsOpen(false)} />
         </Suspense>
       )}
       {premiumOpen && (
-        <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: '#05060d', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(233,213,255,0.6)', fontFamily: 'monospace', letterSpacing: 3, fontSize: 13 }}>ჩატვირთვა…</div>}>
+        <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: '#05060d', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(233,213,255,0.6)', fontFamily: 'monospace', letterSpacing: 3, fontSize: 13 }}>{tNow().misc.loading}</div>}>
           <PremiumWorlds initialWorldId={premiumWorldId} onClose={() => { setPremiumOpen(false); setPremiumWorldId(null); }} />
         </Suspense>
       )}
@@ -487,13 +488,13 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
         <div style={{ position: 'fixed', inset: 0, zIndex: 2900, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <div style={{ width: 'min(320px,86vw)', borderRadius: 20, padding: '24px 20px', background: 'rgba(14,10,26,0.98)', border: '1px solid rgba(192,132,252,0.35)', textAlign: 'center', boxShadow: '0 16px 60px rgba(0,0,0,0.6)' }}>
             <div style={{ fontSize: 40, marginBottom: 6 }}>✨</div>
-            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#fff', marginBottom: 4 }}><b style={{ color: '#c084fc' }}>{worldInvite.fromName}</b> გიწვევს</p>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#fff', marginBottom: 4 }}><b style={{ color: '#c084fc' }}>{worldInvite.fromName}</b> {tNow().misc.invitesYou}</p>
             <p style={{ fontFamily: 'monospace', fontSize: 13, color: '#c084fc', marginBottom: 20 }}>{PREMIUM_WORLD_NAMES[worldInvite.worldId] ?? 'Premium World'}</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => { const inv = worldInvite; setWorldInvite(null); setPremiumWorldId(inv.worldId); setPremiumOpen(true); }}
-                style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', fontFamily: 'monospace', fontWeight: 700, fontSize: 13, color: '#fff', background: 'linear-gradient(135deg,#7c3aed,#c026d3)' }}>შესვლა</button>
+                style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', fontFamily: 'monospace', fontWeight: 700, fontSize: 13, color: '#fff', background: 'linear-gradient(135deg,#7c3aed,#c026d3)' }}>{tNow().misc.enter}</button>
               <button onClick={() => setWorldInvite(null)}
-                style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontFamily: 'monospace', fontWeight: 700, fontSize: 13, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }}>არა</button>
+                style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontFamily: 'monospace', fontWeight: 700, fontSize: 13, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }}>{tNow().misc.noBtn}</button>
             </div>
           </div>
         </div>,
@@ -514,7 +515,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
             <div style={{ fontSize: 40, marginBottom: 6 }}>{spaceInvite.icon}</div>
             <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>✦ Space Invite</p>
             <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: 'white', lineHeight: 1.3 }}>
-              <b>{spaceInvite.fromName}</b> გიწვევს
+              <b>{spaceInvite.fromName}</b> {tNow().misc.invitesYou}
             </p>
             <p style={{ fontFamily: 'monospace', fontSize: 13, color: '#c084fc', marginBottom: 20 }}>{spaceInvite.name}</p>
             <div style={{ display: 'flex', gap: 10 }}>
@@ -655,7 +656,7 @@ function Screen({ publicProfileId, onClearPublicProfile, onOpenShop }: { publicP
 
   // Returning to an in-progress game
   if (!room && isReconnecting && hasPendingSession()) {
-    return <ResumingSplash subtitle="თამაშს უბრუნდები…" />;
+    return <ResumingSplash subtitle={tNow().misc.resumingGame} />;
   }
 
   // Saved session exists — wait for socket auth before showing login
@@ -804,7 +805,7 @@ export default function App() {
   useEffect(() => {
     const handler = (data: { type: string; coins: number }) => {
       if (data.type === 'profile_complete') {
-        useGameStore.getState().addToast(`🎉 +${data.coins} ქოინი! პროფილის სრულად შევსების ბონუსი`, 'success');
+        useGameStore.getState().addToast(`🎉 +${data.coins} ${tNow().misc.profileBonus}`, 'success');
       }
     };
     socket.on('coin:bonus' as any, handler);

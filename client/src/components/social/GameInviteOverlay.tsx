@@ -8,6 +8,7 @@ import { useLudoStore } from '@/store/ludoStore';
 import { useUnoStore } from '@/store/unoStore';
 import { useJokerStore } from '@/store/jokerStore';
 import { useWWWStore } from '@/store/wwwStore';
+import { tNow } from '@/store/langStore';
 
 interface GameInvite { game: string; code: string; fromName: string; fromAvatar: string }
 
@@ -59,7 +60,7 @@ export function GameInviteOverlay() {
           style={{ position: 'absolute', top: 0, left: 0, height: 3, background: 'linear-gradient(90deg,#00e5ff,#9b00ff)' }} />
         <div style={{ fontSize: 40, marginBottom: 6 }}>{GAME_EMOJI[invite.game] ?? '🎮'}</div>
         <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>🎮 Game Invite</p>
-        <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: 'white', lineHeight: 1.3 }}><b>{invite.fromName}</b> გიწვევს</p>
+        <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: 'white', lineHeight: 1.3 }}><b>{invite.fromName}</b> {tNow().misc.invitesYou}</p>
         <p style={{ fontFamily: 'monospace', fontSize: 13, color: '#00e5ff', marginBottom: 20 }}>{GAME_LABEL[invite.game] ?? invite.game}</p>
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={() => setInvite(null)}

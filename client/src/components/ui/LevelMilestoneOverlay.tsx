@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { XPGain } from '@/types/index';
-import { MAX_LEVEL, LEVEL_TITLES, levelColor } from '@/lib/level';
+import { MAX_LEVEL, LEVEL_TITLES, levelColor, levelTitleLocal } from '@/lib/level';
 
 interface Props {
   gain: XPGain | null;
@@ -116,7 +116,7 @@ export function LevelMilestoneOverlay({ gain, onDismiss }: Props) {
             className="font-display text-lg tracking-wide"
             style={{ color: `rgba(${glowRgb},0.7)` }}
           >
-            {title.ka}
+            {levelTitleLocal(title)}
           </p>
           <p className="font-mono text-xs tracking-[0.25em] uppercase mt-3 text-white/25">
             Level {gain.newLevel} Milestone Unlocked

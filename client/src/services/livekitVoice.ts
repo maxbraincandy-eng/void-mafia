@@ -16,6 +16,7 @@ import {
   Room, RoomEvent, Track, ConnectionState,
   type RemoteTrack, type RemoteTrackPublication, type RemoteParticipant,
 } from 'livekit-client';
+import { tNow } from '@/store/langStore';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? '';
 
@@ -240,10 +241,10 @@ export async function joinLiveKitVoice(identity: string, roomId: string, opts: J
 function friendlyLiveKitError(e: any): string {
   const raw = String(e?.message ?? '');
   if (/not allowed by the user agent|denied permission|NotAllowed|Permission denied/i.test(raw)) {
-    return 'მიკროფონი დაბლოკილია — დააჭირე 🎙 ღილაკს ჩასართავად.';
+    return tNow().misc.micBlockedTap;
   }
   if (/NotReadable|in use/i.test(raw)) {
-    return 'მიკროფონი დაკავებულია სხვა აპლიკაციის მიერ.';
+    return tNow().misc.micBusy;
   }
   return raw || 'Voice connection failed.';
 }

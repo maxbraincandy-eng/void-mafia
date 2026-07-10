@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import type { UnoCard } from '@/types/uno';
+import { tNow } from '@/store/langStore';
 
 const COLOR_BG: Record<string, string> = {
   red:    'linear-gradient(135deg, #ff1a3a 0%, #cc0022 100%)',
@@ -192,7 +193,7 @@ export function UnoCardBack({ size = 'sm' }: { size?: 'sm' | 'md' | 'lg' }) {
 export function ColorChip({ color }: { color: string | null }) {
   if (!color) return null;
   const bg = COLOR_BG[color] ?? COLOR_BG.wild!;
-  const label = { red: 'წ', blue: 'ლ', green: 'მ', yellow: 'ყ' }[color] ?? '?';
+  const label = (tNow().misc as unknown as Record<string,string>)[`unoColor_${color}`] ?? '?';
   return (
     <div style={{
       width: 36, height: 36,

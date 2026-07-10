@@ -24,6 +24,7 @@ import {
 } from '@/constants/cosmetics';
 
 import { MAX_LEVEL, xpForLevel, xpForNextLevel, levelColor } from '@/lib/level';
+import { tNow } from '@/store/langStore';
 
 const RARITY_GLOW: Record<string, string> = {
   common:    'rgba(255,255,255,0.12)',
@@ -475,7 +476,7 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
               </p>
             ) : (
               <p className="text-[12px] font-mono text-yellow-400/40 mt-1 text-right uppercase tracking-widest">
-                მაქსიმალური დონე
+                {tNow().uiMisc.maxLevel}
               </p>
             )}
           </div>

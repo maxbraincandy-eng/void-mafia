@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { socket } from '@/lib/socket';
 import { WebRTCSession, type ConnectionState, log } from '@/services/webrtcService';
 import { BackroomsSpatial, type SpatialListener, type SpatialPeer } from '@/components/backrooms/spatialAudio';
+import { tNow } from '@/store/langStore';
 
 // ── Premium Worlds spatial voice ───────────────────────────────────────
 // A dedicated WebRTC-mesh voice session per world on the `world:voice-*`
@@ -34,7 +35,7 @@ async function _join(retriesLeft = 4): Promise<void> {
     else if (ev.type === 'error') _patch({ error: ev.message });
   });
   try { await session.requestMedia(true, false, false); }
-  catch { session.destroy(); _session = null; _joining = false; _spatial?.dispose(); _spatial = null; _patch({ status: 'failed', error: 'მიკროფონზე წვდომა უარყოფილია.' }); return; }
+  catch { session.destroy(); _session = null; _joining = false; _spatial?.dispose(); _spatial = null; _patch({ status: 'failed', error: tNow().misc.micDenied }); return; }
   (socket as any).emit('world:voice-join', {}, async (res: any) => {
     if (!_session || _session !== session) { _joining = false; return; }
     if (!res?.ok) {
@@ -46,7 +47,7 @@ async function _join(retriesLeft = 4): Promise<void> {
         return;
       }
       session.destroy(); _session = null; _joining = false; _spatial?.dispose(); _spatial = null;
-      _patch({ status: 'failed', error: res?.error ?? 'ხმა ვერ დაუკავშირდა.' });
+      _patch({ status: 'failed', error: res?.error ?? tNow().misc.voiceConnectFailed });
       return;
     }
     _joining = false;

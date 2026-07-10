@@ -125,7 +125,7 @@ export function LoginPage() {
               </svg>
               <span className="text-white/40 text-sm font-mono font-bold tracking-wide">{t.login.continueFacebook}</span>
             </div>
-            <span className="text-[12px] font-mono text-white/25 tracking-widest shrink-0">მალე დაემატება</span>
+            <span className="text-[12px] font-mono text-white/25 tracking-widest shrink-0">{t.misc.comingSoon}</span>
           </div>
 
           {/* Apple — coming soon */}
@@ -139,7 +139,7 @@ export function LoginPage() {
               </svg>
               <span className="text-white/40 text-sm font-mono font-bold tracking-wide">{t.login.continueApple}</span>
             </div>
-            <span className="text-[12px] font-mono text-white/25 tracking-widest shrink-0">მალე დაემატება</span>
+            <span className="text-[12px] font-mono text-white/25 tracking-widest shrink-0">{t.misc.comingSoon}</span>
           </div>
         </motion.div>
 

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { XPGain } from '@/types/index';
-import { MAX_LEVEL, xpForLevel, xpForNextLevel, LEVEL_TITLES } from '@/lib/level';
+import { MAX_LEVEL, xpForLevel, xpForNextLevel, LEVEL_TITLES, levelTitleLocal } from '@/lib/level';
 
 const MILESTONE_LEVELS = new Set([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
 
@@ -61,7 +61,7 @@ export function XPToast({ gain, onDismiss }: Props) {
                 </p>
                 {LEVEL_TITLES[gain.newLevel] && (
                   <p className="font-mono text-[12px] mt-0.5" style={{ color: 'rgba(255,215,0,0.6)' }}>
-                    {LEVEL_TITLES[gain.newLevel]!.ka}
+                    {levelTitleLocal(LEVEL_TITLES[gain.newLevel]!)}
                   </p>
                 )}
               </motion.div>

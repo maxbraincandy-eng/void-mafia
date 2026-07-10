@@ -5,6 +5,7 @@ import { socket } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
 import { useGameStore } from '@/store/gameStore';
 import { useSocialStore } from '@/store/socialStore';
+import { tNow } from '@/store/langStore';
 
 interface ActivePing { kind: 'game' | 'lounge'; code: string; label: string; fromName: string; fromId: string }
 
@@ -56,7 +57,7 @@ export function FriendActiveToast() {
           <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             <b>{ping.fromName}</b> {ping.kind === 'lounge' ? `· ${ping.label}` : 'created a room'}
           </p>
-          <p style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>{ping.kind === 'lounge' ? 'ახლა Lounge-შია' : 'Mafia'}</p>
+          <p style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>{ping.kind === 'lounge' ? tNow().misc.inLounge : 'Mafia'}</p>
         </div>
         <button onClick={join}
           style={{ padding: '7px 13px', borderRadius: 11, fontFamily: 'monospace', fontSize: 12, fontWeight: 700, background: `${accent}22`, border: `1px solid ${accent}66`, color: accent, cursor: 'pointer', flexShrink: 0 }}>→ Join</button>
