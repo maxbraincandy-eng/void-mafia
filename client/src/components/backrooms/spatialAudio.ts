@@ -44,10 +44,27 @@ export class BackroomsSpatial {
       this.convolver.buffer = this.makeImpulse(1.9, 2.4);
       this.wet = ctx.createGain(); this.wet.gain.value = 0.85;
       this.convolver.connect(this.wet).connect(ctx.destination);
+      // Whenever the context flips running↔suspended, re-route: the spatial
+      // Web-Audio graph is only the audio source while the context is actually
+      // RUNNING. If it's suspended (e.g. autoplay policy — the world auto-joins
+      // voice without a user gesture), we keep the peers' plain <audio> elements
+      // UNMUTED so voice is still heard (flat, non-spatial) instead of silent.
+      ctx.addEventListener?.('statechange', () => this.applyElementRouting());
     } catch { this.webAudioOk = false; }
   }
 
-  resume() { this.ctx?.resume?.().catch(() => {}); }
+  /** Try to resume the context (call from a user gesture); re-route after. */
+  resume() {
+    if (!this.ctx) return;
+    if (this.ctx.state !== 'running') this.ctx.resume?.().then(() => this.applyElementRouting()).catch(() => {});
+    else this.applyElementRouting();
+  }
+
+  /** Mute peer <audio> elements only while the Web-Audio graph is live. */
+  private applyElementRouting() {
+    const running = this.ctx?.state === 'running';
+    for (const id of this.chains.keys()) this.session.setPeerElementMuted(id, running);
+  }
 
   private makeImpulse(seconds: number, decay: number): AudioBuffer {
     const ctx = this.ctx!;
@@ -78,7 +95,10 @@ export class BackroomsSpatial {
       gain.connect(this.ctx.destination);
       gain.connect(send); send.connect(this.convolver);
       this.chains.set(socketId, { source, lowpass, panner, gain, send, streamId: stream.id });
-      this.session.setPeerElementMuted(socketId, true); // Web Audio is now the source
+      // Only silence the plain <audio> element once the graph is actually
+      // running; while the context is suspended the element stays audible so
+      // voice is never lost (see applyElementRouting / the statechange handler).
+      this.session.setPeerElementMuted(socketId, this.ctx.state === 'running');
       return true;
     } catch {
       this.webAudioOk = false; // remote-stream Web Audio unsupported → element fallback

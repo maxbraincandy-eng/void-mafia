@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react'
 import { createPortal } from 'react-dom';
 import { socket, connectSocket, emitWithAck } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
-import { useWorldVoice, applyWorldSpatial, leaveWorldVoice } from '@/hooks/useWorldVoice';
+import { useWorldVoice, applyWorldSpatial, leaveWorldVoice, resumeWorldVoiceAudio } from '@/hooks/useWorldVoice';
 import { WorldEngine, type WorldHud, type RemoteWorldPlayer } from './engine';
 import { WorldCinema, ytVideoId, type TVState } from './cinema';
 import { PREMIUM_WORLDS, getWorld } from './registry';
@@ -249,7 +249,11 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     const onMoved = (p: any) => {
       const cur = players.current.get(p.socketId);
       if (cur) { cur.x = p.x; cur.z = p.z; cur.ry = p.ry; cur.seatId = p.seatId; }
-      pushRemotes();
+      // Lightweight per-peer target update — avoids rebuilding + reconciling the
+      // whole remote roster on every move packet (N players × ~12 Hz), which was
+      // a stutter source when several people move at once. Full reconcile only
+      // runs on join/leave (pushRemotes).
+      if (p.socketId !== mySocketId.current) eng.updateRemoteTarget(p.socketId, p.x, p.z, p.ry, p.seatId ?? null);
     };
     const onWave = ({ socketId }: { socketId: string }) => eng.remoteWave(socketId);
     const onEmote = ({ socketId, kind }: { socketId: string; kind: any }) => eng.remoteEmote(socketId, kind);
@@ -422,7 +426,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   const isCtl = (t: EventTarget | null) => t instanceof HTMLElement && t.closest('[data-hud]') != null;
 
   const onTouchStart = (e: React.TouchEvent) => {
-    engineRef.current?.resumeAudio(); cinemaRef.current?.resume(); poke();
+    engineRef.current?.resumeAudio(); cinemaRef.current?.resume(); resumeWorldVoiceAudio(); poke();
     for (const t of Array.from(e.changedTouches)) {
       if (isCtl(t.target)) continue;
       const leftZone = t.clientX < window.innerWidth * 0.42;
@@ -465,7 +469,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     }
   };
 
-  const onMouseDown = (e: React.MouseEvent) => { engineRef.current?.resumeAudio(); cinemaRef.current?.resume(); poke(); if (isCtl(e.target)) return; if (e.clientX < window.innerWidth * 0.42) return; mouseLook.current = { x: e.clientX, y: e.clientY }; };
+  const onMouseDown = (e: React.MouseEvent) => { engineRef.current?.resumeAudio(); cinemaRef.current?.resume(); resumeWorldVoiceAudio(); poke(); if (isCtl(e.target)) return; if (e.clientX < window.innerWidth * 0.42) return; mouseLook.current = { x: e.clientX, y: e.clientY }; };
   const onMouseMove = (e: React.MouseEvent) => { if (!mouseLook.current) return; engineRef.current?.addLook(e.clientX - mouseLook.current.x, e.clientY - mouseLook.current.y); mouseLook.current = { x: e.clientX, y: e.clientY }; };
   const onMouseUp = () => { mouseLook.current = null; };
 

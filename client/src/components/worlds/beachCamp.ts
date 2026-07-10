@@ -837,7 +837,9 @@ function buildFishing(ctx: WorldContext) {
 
 // ── Karaoke stage: a lit stage + mic; sing along to the cinema audio ──
 function buildKaraoke(ctx: WorldContext) {
-  const KX = 13, KZ = 15;
+  // Moved out to x=16 so the stage disc no longer clips into the dance floor
+  // (dance tiles reach ~x=12.8 at this z); keeps a clean separation.
+  const KX = 16, KZ = 15;
   const g = new THREE.Group(); g.position.set(KX, 0, KZ); g.rotation.y = -2.4; ctx.scene.add(g);
   // raised stage
   const stage = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.6, 0.4, 24), new THREE.MeshStandardMaterial({ color: 0x241830, roughness: 0.7, metalness: 0.2 }));

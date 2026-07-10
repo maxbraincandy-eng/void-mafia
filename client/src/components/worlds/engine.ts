@@ -145,12 +145,14 @@ export class WorldEngine {
     if (this.nearSeat) this.sit(this.nearSeat);
   }
   jump() { if (!this.seated && this.pos.y <= 0.02) this.vy = 8.0; }
-  // 1 near the screen, fading to 0 with distance — drives the cinema volume so
-  // the TV is only audible nearby.
+  // 1 near the screen, fading with distance — drives the cinema volume. The
+  // audible radius is generous so the TV can be heard from most of the camp
+  // (spawn, fire, DJ booth, karaoke are all ~12-20 units away); it only fully
+  // fades out near the far edge of the world.
   screenAudibility(): number {
     if (!this.screen) return 1;
     const d = Math.hypot(this.screen.x - this.pos.x, this.screen.z - this.pos.z);
-    return Math.max(0, Math.min(1, (16 - d) / 11));
+    return Math.max(0, Math.min(1, (30 - d) / 22));
   }
   emote() { this.avatar.wave(); }
   localEmote(kind: EmoteKind) { this.avatar.emote(kind); }
@@ -259,6 +261,17 @@ export class WorldEngine {
     avatar.group.add(e.ring);
     this.scene.add(avatar.group);
     e.avatar = avatar;
+  }
+
+  // Cheap single-peer target update for high-frequency move packets. Falls back
+  // to nothing if the peer isn't known yet (the next full pushRemotes adds it).
+  updateRemoteTarget(socketId: string, x: number, z: number, ry: number, seatId: string | null) {
+    const e = this.remotes.get(socketId);
+    if (!e) return;
+    const prevSeat = e.target.seatId;
+    if (prevSeat && prevSeat !== seatId) this.occupiedSeats.delete(prevSeat);
+    if (seatId) this.occupiedSeats.add(seatId);
+    e.target = { x, z, ry, seatId };
   }
 
   remoteWave(socketId: string) { this.remotes.get(socketId)?.avatar.wave(); }

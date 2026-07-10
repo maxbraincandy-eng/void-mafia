@@ -21,8 +21,8 @@ let _joining = false;
 function _patch(p: Partial<WorldVoiceState>) { _state = { ..._state, ...p }; for (const s of _subs) s({ ..._state }); }
 function _reset() { _state = { ...INITIAL, speakingIds: new Set() }; _session = null; _joining = false; for (const s of _subs) s({ ..._state }); }
 
-async function _join(): Promise<void> {
-  if (_session || _joining) return;
+async function _join(retriesLeft = 4): Promise<void> {
+  if (_session || _joining) { _spatial?.resume(); return; }
   _joining = true;
   const session = new WebRTCSession();
   _session = session;
@@ -36,9 +36,20 @@ async function _join(): Promise<void> {
   try { await session.requestMedia(true, false, false); }
   catch { session.destroy(); _session = null; _joining = false; _spatial?.dispose(); _spatial = null; _patch({ status: 'failed', error: 'მიკროფონზე წვდომა უარყოფილია.' }); return; }
   (socket as any).emit('world:voice-join', {}, async (res: any) => {
+    if (!_session || _session !== session) { _joining = false; return; }
+    if (!res?.ok) {
+      // Race: the auto-join can fire before `world:join` has registered us in
+      // the world on the server. Retry a few times before giving up.
+      if (retriesLeft > 0 && /not in a world/i.test(String(res?.error ?? ''))) {
+        session.destroy(); _session = null; _joining = false; _spatial?.dispose(); _spatial = null;
+        setTimeout(() => { _join(retriesLeft - 1); }, 600);
+        return;
+      }
+      session.destroy(); _session = null; _joining = false; _spatial?.dispose(); _spatial = null;
+      _patch({ status: 'failed', error: res?.error ?? 'ხმა ვერ დაუკავშირდა.' });
+      return;
+    }
     _joining = false;
-    if (!_session || _session !== session) return;
-    if (!res?.ok) { session.destroy(); _session = null; _spatial?.dispose(); _spatial = null; _patch({ status: 'failed', error: res?.error ?? 'ხმა ვერ დაუკავშირდა.' }); return; }
     const { peers, iceServers, iceTransportPolicy } = res.data;
     if (iceServers) session.setIceConfig({ iceServers, iceTransportPolicy, iceCandidatePoolSize: 10 } as any);
     _patch({ joined: true, error: null });
@@ -50,6 +61,15 @@ async function _join(): Promise<void> {
     }
   });
 }
+
+/**
+ * Resume the spatial AudioContext from a user gesture. Remote voice is routed
+ * through a Web-Audio graph whose context starts SUSPENDED under browser
+ * autoplay policy (the world auto-joins voice without a tap). Call this on any
+ * tap so the context resumes and spatial audio (or at minimum audible voice)
+ * kicks in — otherwise players hear silence even though the mesh is connected.
+ */
+export function resumeWorldVoiceAudio(): void { _spatial?.resume(); }
 
 function _leave(): void {
   if (!_session && !_joining) return;
